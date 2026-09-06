@@ -25,15 +25,15 @@
       "alternatives": [
         {
           "doc": "A messages array. Each element must be a message - role and content both - so a request's other members are not mistaken for turns.",
-          "select": "messages",
+          "select": "$.messages",
           "each": true,
           "require": {
             "all": [
               {
-                "path": "role"
+                "path": "$.role"
               },
               {
-                "path": "content"
+                "path": "$.content"
               }
             ]
           }
@@ -43,10 +43,10 @@
           "require": {
             "all": [
               {
-                "path": "role"
+                "path": "$.role"
               },
               {
-                "path": "content"
+                "path": "$.content"
               }
             ]
           }
@@ -75,7 +75,7 @@
       "alternatives": [
         {
           "doc": "The choices array, descending to each choice's message and carrying its finish reason down.",
-          "select": "choices",
+          "select": "$.choices",
           "each": true,
           "descend": "message",
           "lift": [
@@ -84,10 +84,10 @@
           "require": {
             "any": [
               {
-                "path": "role"
+                "path": "$.role"
               },
               {
-                "path": "content"
+                "path": "$.content"
               }
             ]
           }
@@ -97,10 +97,10 @@
           "require": {
             "any": [
               {
-                "path": "role"
+                "path": "$.role"
               },
               {
-                "path": "content"
+                "path": "$.content"
               }
             ]
           }

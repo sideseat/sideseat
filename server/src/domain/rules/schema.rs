@@ -9,6 +9,7 @@ use std::collections::BTreeMap;
 use rust_embed::RustEmbed;
 use serde::Deserialize;
 use serde_json::Value as JsonValue;
+use serde_json_path::JsonPath;
 
 /// The embedded rule assets.
 #[derive(RustEmbed)]
@@ -624,21 +625,21 @@ pub struct WrapSpec {
     /// A literal role. One of this and `role_from` is required.
     #[serde(default)]
     pub role: Option<String>,
-    /// A path whose value is the role, relative to the reading being wrapped.
+    /// A JSONPath whose value is the role, relative to the reading being wrapped.
     ///
     /// Several dialects put the role *in* the payload - Gemini's `{parts, role}` is the clearest case - so
     /// a literal here would either be wrong or need one rule per role.
     #[serde(default)]
-    pub role_from: Option<String>,
+    pub role_from: Option<JsonPath>,
     /// Rename a role the payload supplied.
     ///
     /// A provider's own vocabulary: one calls the assistant `model`, and normalising that here keeps the
     /// alias beside the dialect that uses it rather than in a shared table nothing points at.
     #[serde(default)]
     pub role_map: BTreeMap<String, String>,
-    /// A path whose value becomes the content, relative to the reading being wrapped.
+    /// A JSONPath whose value becomes the content, relative to the reading being wrapped.
     #[serde(default)]
-    pub content_from: Option<String>,
+    pub content_from: Option<JsonPath>,
     /// The member the read value becomes. Defaults to `content`.
     ///
     /// Not always content: a response carrying only tool calls has no content, and putting the calls
@@ -692,7 +693,7 @@ pub struct AttachSpec {
     /// Relative to the whole payload, deliberately: a dialect reports why a turn stopped beside the
     /// content rather than inside it, so the member being attached sits outside the part being wrapped.
     #[serde(default)]
-    pub from_path: Option<String>,
+    pub from_path: Option<JsonPath>,
     /// Lower-case the attached string.
     ///
     /// A provider writes finish reasons in upper case and the canonical form is lower; declared because
@@ -761,14 +762,14 @@ pub enum EmitTarget {
 pub struct Alternative {
     #[serde(default)]
     pub doc: Option<String>,
-    /// A path into the parsed value. Absent means the value itself.
+    /// An RFC 9535 JSONPath into the parsed value. Absent means the value itself.
     ///
-    /// Steps are separated by `.`, and a step ending in `[]` iterates an array - so
-    /// `tasks_output[].messages[]` reads every message of every task. Two array steps are what one dialect
-    /// needs and one step is what the rest do; a path is the honest way to say which, rather than a flag
-    /// per level.
+    /// A standard query rather than a hand-rolled path syntax - `$.tasks_output[*].messages[*]` reads every
+    /// turn of every task, and `$['event.name']` reads a member whose name contains a dot, which is where
+    /// the hand-built resolver had a bug. Compiled when the asset loads, so a malformed path is a startup
+    /// error naming its file rather than a query that silently finds nothing.
     #[serde(default)]
-    pub select: Option<String>,
+    pub select: Option<JsonPath>,
     /// Treat the selected value as a list and read each element.
     #[serde(default)]
     pub each: bool,
@@ -805,7 +806,7 @@ pub struct Alternative {
     /// under one of two spellings or are a declaration themselves, and deciding once for the whole array
     /// would drop the odd group out.
     #[serde(default)]
-    pub then_any_of: Vec<String>,
+    pub then_any_of: Vec<JsonPath>,
     /// Fall back to the element itself when none of `then_any_of` resolved.
     #[serde(default)]
     pub else_element: bool,
@@ -994,9 +995,9 @@ pub struct SectionBlock {
 #[derive(Debug, Deserialize, Clone, Default)]
 #[serde(deny_unknown_fields)]
 pub struct ValuePredicate {
-    /// The member to test. Absent means the value itself.
+    /// A JSONPath to the value under test. Absent means the value itself.
     #[serde(default)]
-    pub path: Option<String>,
+    pub path: Option<JsonPath>,
     /// The member must be present. Implied when the predicate names nothing else.
     #[serde(default)]
     pub exists: Option<bool>,
@@ -1067,9 +1068,9 @@ pub struct ElementsSpec {
     /// attributes are all it has.
     #[serde(default)]
     pub tags_are_events: bool,
-    /// A path to the array. Absent means the parsed value itself.
+    /// A JSONPath to the array. Absent means the parsed value itself.
     #[serde(default)]
-    pub select: Option<String>,
+    pub select: Option<JsonPath>,
     /// Passes over the elements, in order. Each scans every element.
     pub passes: Vec<ElementPass>,
 }
@@ -1089,7 +1090,7 @@ pub struct ElementPass {
     /// name is what downstream keys role derivation and ordering on, so tagging them all alike would erase
     /// the distinction the payload carries.
     #[serde(default)]
-    pub tag_from: Option<String>,
+    pub tag_from: Option<JsonPath>,
     /// Instead of emitting each element, group runs of them and emit one message per run.
     #[serde(default)]
     pub group: Option<GroupSpec>,
@@ -1108,7 +1109,7 @@ pub struct GroupSpec {
     ///
     /// One dialect's blocks carry the real content in a member and a human-readable summary beside it, so
     /// which part is collected is a fact about the payload rather than a default.
-    pub collect: String,
+    pub collect: JsonPath,
     /// The member the derived key becomes on the emitted message.
     pub key_as: String,
     /// The carrier each derived key is tagged with.

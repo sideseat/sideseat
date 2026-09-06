@@ -115,11 +115,11 @@
             "skip_when": {
               "all": [
                 {
-                  "path": "capture",
+                  "path": "$.capture",
                   "lacks_prefix": "toolu"
                 },
                 {
-                  "path": "body",
+                  "path": "$.body",
                   "starts_with": "{"
                 }
               ]

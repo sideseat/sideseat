@@ -61,7 +61,7 @@
                   "when": {
                     "all": [
                       {
-                        "path": "event\\.name",
+                        "path": "$['event.name']",
                         "one_of": [
                           "gen_ai.system.message",
                           "gen_ai.user.message",
@@ -76,14 +76,14 @@
                       }
                     ]
                   },
-                  "tag_from": "event\\.name"
+                  "tag_from": "$['event.name']"
                 },
                 {
                   "doc": "Everything else that carries structured data: this dialect emits multimodal content blocks as unnamed events, with the real content in `data` and a human-readable summary beside it. Runs of consecutive blocks of the same side become one message, because that is what they are - one turn's content, not one message per block. An event with no name reaches this pass, which is why the first condition is stated as 'not one of' rather than 'named something else'.",
                   "when": {
                     "all": [
                       {
-                        "path": "event\\.name",
+                        "path": "$['event.name']",
                         "none_of": [
                           "gen_ai.system.message",
                           "gen_ai.user.message",
@@ -97,13 +97,13 @@
                         ]
                       },
                       {
-                        "path": "data",
+                        "path": "$.data",
                         "kind": "object"
                       }
                     ]
                   },
                   "group": {
-                    "collect": "data",
+                    "collect": "$.data",
                     "key_as": "role",
                     "by": [
                       {
@@ -111,7 +111,7 @@
                         "when": {
                           "all": [
                             {
-                              "path": "data.type",
+                              "path": "$.data.type",
                               "starts_with": "input_"
                             }
                           ]
@@ -123,7 +123,7 @@
                         "when": {
                           "all": [
                             {
-                              "path": "data.type",
+                              "path": "$.data.type",
                               "starts_with": "output_"
                             }
                           ]
@@ -201,7 +201,7 @@
                 "require": {
                   "all": [
                     {
-                      "path": "messages",
+                      "path": "$.messages",
                       "kind": "array",
                       "non_empty": true
                     }
@@ -226,11 +226,11 @@
                 "require": {
                   "any": [
                     {
-                      "path": "message",
+                      "path": "$.message",
                       "kind": "object"
                     },
                     {
-                      "path": "combined_chunk_content",
+                      "path": "$.combined_chunk_content",
                       "kind": "string",
                       "non_empty": true
                     }

@@ -46,14 +46,14 @@
             "also": [
               {
                 "doc": "The system instruction: structured parts, a bare string, or the framework's own snake_case member.",
-                "select": "systemInstruction.parts",
+                "select": "$.systemInstruction.parts",
                 "wrap": {
                   "role": "system"
                 }
               },
               {
                 "doc": "The same instruction written as a string.",
-                "select": "systemInstruction",
+                "select": "$.systemInstruction",
                 "require": {
                   "all": [
                     {
@@ -68,7 +68,7 @@
               },
               {
                 "doc": "And the framework's own spelling.",
-                "select": "config.system_instruction",
+                "select": "$.config.system_instruction",
                 "require": {
                   "all": [
                     {
@@ -83,20 +83,20 @@
               },
               {
                 "doc": "The conversation. Gemini writes `{parts, role}`, so the role comes from the payload rather than a literal - one rule per role would be the alternative. Read structurally so the provider's payload is cloned unchanged; see the projection-language section of `server/docs/framework-rules-engine.md` for why.",
-                "select": "contents[]",
+                "select": "$.contents[*]",
                 "require": {
                   "all": [
                     {
-                      "path": "role"
+                      "path": "$.role"
                     },
                     {
-                      "path": "parts"
+                      "path": "$.parts"
                     }
                   ]
                 },
                 "wrap": {
-                  "role_from": "role",
-                  "content_from": "parts"
+                  "role_from": "$.role",
+                  "content_from": "$.parts"
                 }
               }
             ]
@@ -112,18 +112,18 @@
             "aggregate_into_array": true,
             "alternatives": [
               {
-                "select": "tools[]",
+                "select": "$.tools[*]",
                 "then_any_of": [
-                  "function_declarations[]",
-                  "functionDeclarations[]"
+                  "$.function_declarations[*]",
+                  "$.functionDeclarations[*]"
                 ],
                 "else_element": true
               },
               {
-                "select": "config.tools[]",
+                "select": "$.config.tools[*]",
                 "then_any_of": [
-                  "function_declarations[]",
-                  "functionDeclarations[]"
+                  "$.function_declarations[*]",
+                  "$.functionDeclarations[*]"
                 ],
                 "else_element": true
               }
@@ -155,26 +155,26 @@
             "emit": "message",
             "alternatives": [
               {
-                "select": "content",
+                "select": "$.content",
                 "require": {
                   "all": [
                     {
-                      "path": "role"
+                      "path": "$.role"
                     },
                     {
-                      "path": "parts"
+                      "path": "$.parts"
                     }
                   ]
                 },
                 "wrap": {
-                  "role_from": "role",
+                  "role_from": "$.role",
                   "role_map": {
                     "model": "assistant"
                   },
-                  "content_from": "parts",
+                  "content_from": "$.parts",
                   "attach": [
                     {
-                      "from_path": "finish_reason",
+                      "from_path": "$.finish_reason",
                       "as": "finish_reason",
                       "lowercase": true,
                       "after_content": true

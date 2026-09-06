@@ -796,66 +796,17 @@ fn all_readings(
     out
 }
 
-/// Follow a path into a value, iterating at each `[]` step.
+/// Query a value with a compiled JSONPath.
 ///
-/// Steps are separated by `.`; a step ending in `[]` iterates an array; and a literal dot inside a member
-/// name is written `\.`. The escape is not decoration - one dialect's events carry a member *called*
-/// `event.name`, which is indistinguishable from a nested `event` → `name` without it, and reading it as
-/// nested silently found nothing. Bounded by the path's own length: no wildcard, no recursion.
+/// One definition, so every path in the vocabulary is the same language. It replaced a hand-rolled resolver
+/// whose dotted-step syntax could not distinguish a member *named* `event.name` from a nested `event` ->
+/// `name` - a real defect, and the sort of thing a standard defines away (`$['event.name']`).
 ///
-/// One resolver for every path in the vocabulary - predicates, tags, collected parts, selections - because
-/// two spellings of "where in this value" would differ exactly where a key contains a dot, which is the
-/// case that already went wrong.
-fn resolve_path<'v>(value: &'v JsonValue, path: &str) -> Vec<&'v JsonValue> {
-    let mut current = vec![value];
-    for step in split_path(path) {
-        let (member, iterate) = match step.strip_suffix("[]") {
-            Some(name) => (name, true),
-            None => (step.as_str(), false),
-        };
-        let mut next = Vec::new();
-        for value in current {
-            let selected = if member.is_empty() {
-                Some(value)
-            } else {
-                value.get(member)
-            };
-            let Some(selected) = selected else { continue };
-            if iterate {
-                match selected.as_array() {
-                    Some(items) => next.extend(items.iter()),
-                    // Declared as a list and is not one: this path does not apply here.
-                    None => continue,
-                }
-            } else {
-                next.push(selected);
-            }
-        }
-        current = next;
-        if current.is_empty() {
-            return current;
-        }
-    }
-    current
-}
-
-/// Split a path on unescaped dots, unescaping `\.` into a literal dot.
-fn split_path(path: &str) -> Vec<String> {
-    let mut steps = Vec::new();
-    let mut current = String::new();
-    let mut chars = path.chars().peekable();
-    while let Some(c) = chars.next() {
-        match c {
-            '\\' if chars.peek() == Some(&'.') => {
-                chars.next();
-                current.push('.');
-            }
-            '.' => steps.push(std::mem::take(&mut current)),
-            other => current.push(other),
-        }
-    }
-    steps.push(current);
-    steps
+/// The nodes are **borrowed from the value queried**, which is the property the whole choice rests on:
+/// cloning one out keeps the provider's member order. See
+/// `the_selection_language_behaves_as_the_engine_assumes`.
+fn query<'v>(value: &'v JsonValue, path: &serde_json_path::JsonPath) -> Vec<&'v JsonValue> {
+    path.query(value).into_iter().collect()
 }
 
 /// The observations one payload yields, under the first alternative that produces any.
@@ -873,7 +824,7 @@ fn readings(
     }
     for alternative in alternatives {
         let selected: Vec<&JsonValue> = match &alternative.select {
-            Some(path) => resolve_path(parsed, path),
+            Some(path) => query(parsed, path),
             None => vec![parsed],
         };
         if selected.is_empty() {
@@ -908,7 +859,7 @@ fn readings(
                 let found = alternative
                     .then_any_of
                     .iter()
-                    .map(|path| resolve_path(element, path))
+                    .map(|path| query(element, path))
                     .find(|found| !found.is_empty());
                 match found {
                     Some(found) => found,
@@ -1088,7 +1039,7 @@ fn wrapped(
     let role = wrap
         .role_from
         .as_ref()
-        .and_then(|path| resolve_path(&value, path).into_iter().next())
+        .and_then(|path| query(&value, path).into_iter().next())
         .and_then(JsonValue::as_str)
         .map(|found| {
             wrap.role_map
@@ -1098,7 +1049,7 @@ fn wrapped(
         })
         .or_else(|| wrap.role.clone());
     let value = match &wrap.content_from {
-        Some(path) => match resolve_path(&value, path).into_iter().next() {
+        Some(path) => match query(&value, path).into_iter().next() {
             Some(found) => found.clone(),
             None => return JsonValue::Null,
         },
@@ -1167,7 +1118,7 @@ fn attached_value(
     // A member of the rule's own payload, where the dialect reports it beside the content rather than
     // inside it.
     if let Some(path) = &attach.from_path {
-        let found = payload.and_then(|payload| resolve_path(payload, path).into_iter().next())?;
+        let found = payload.and_then(|payload| query(payload, path).into_iter().next())?;
         let value = match (attach.lowercase, found.as_str()) {
             (true, Some(text)) => json!(text.to_lowercase()),
             _ => found.clone(),
@@ -1489,7 +1440,7 @@ fn emit_rule<'p>(rule: &'p CompiledMessageRule, ctx: &MessageContext<'_>) -> Vec
 /// Whether one predicate holds of a value.
 fn predicate_holds(value: &JsonValue, predicate: &ValuePredicate) -> bool {
     let Some(subject) = (match &predicate.path {
-        Some(path) => resolve_path(value, path).into_iter().next(),
+        Some(path) => query(value, path).into_iter().next(),
         None => Some(value),
     }) else {
         // Absent. Only a predicate asserting absence is satisfied - or one asserting the value is not in a
@@ -1580,7 +1531,7 @@ fn predicates_hold(value: &JsonValue, set: &PredicateSet) -> bool {
 /// rather than left to how a loop happens to be written.
 fn element_passes(parsed: &JsonValue, spec: &ElementsSpec) -> Vec<(String, JsonValue)> {
     let array = match &spec.select {
-        Some(path) => resolve_path(parsed, path).into_iter().next(),
+        Some(path) => query(parsed, path).into_iter().next(),
         None => Some(parsed),
     };
     let Some(items) = array.and_then(JsonValue::as_array) else {
@@ -1624,8 +1575,7 @@ fn element_passes(parsed: &JsonValue, spec: &ElementsSpec) -> Vec<(String, JsonV
                     else {
                         continue;
                     };
-                    let Some(part) = resolve_path(element, &group.collect).into_iter().next()
-                    else {
+                    let Some(part) = query(element, &group.collect).into_iter().next() else {
                         continue;
                     };
                     if run_key.as_ref() != Some(&key) {
@@ -1642,7 +1592,7 @@ fn element_passes(parsed: &JsonValue, spec: &ElementsSpec) -> Vec<(String, JsonV
                     continue;
                 };
                 for element in matching {
-                    let Some(tag) = resolve_path(element, tag_path)
+                    let Some(tag) = query(element, tag_path)
                         .into_iter()
                         .next()
                         .and_then(JsonValue::as_str)

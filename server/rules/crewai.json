@@ -67,51 +67,51 @@
       "also": [
         {
           "doc": "The conversation's turns.",
-          "select": "messages[]",
+          "select": "$.messages[*]",
           "require": {
             "all": [
               {
-                "path": "role"
+                "path": "$.role"
               }
             ],
             "any": [
               {
-                "path": "content"
+                "path": "$.content"
               },
               {
-                "path": "tool_calls"
+                "path": "$.tool_calls"
               },
               {
-                "path": "toolCalls"
+                "path": "$.toolCalls"
               }
             ]
           }
         },
         {
           "doc": "And each task's own turns.",
-          "select": "tasks_output[].messages[]",
+          "select": "$.tasks_output[*].messages[*]",
           "require": {
             "all": [
               {
-                "path": "role"
+                "path": "$.role"
               }
             ],
             "any": [
               {
-                "path": "content"
+                "path": "$.content"
               },
               {
-                "path": "tool_calls"
+                "path": "$.tool_calls"
               },
               {
-                "path": "toolCalls"
+                "path": "$.toolCalls"
               }
             ]
           }
         },
         {
           "doc": "The answer, which is a bare string beside them and so needs its own envelope.",
-          "select": "raw",
+          "select": "$.raw",
           "trim": true,
           "require": {
             "all": [
