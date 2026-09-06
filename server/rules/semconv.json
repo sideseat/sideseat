@@ -163,10 +163,17 @@
       "read": {
         "indexed_family": "gen_ai.prompt"
       },
-      "require_member": "content",
       "emit": "message",
       "legacy_rank": 100,
-      "reads_tool_spans": true
+      "reads_tool_spans": true,
+      "require_members": {
+        "any_of": [
+          {
+            "name": "content",
+            "presence": "either"
+          }
+        ]
+      }
     },
     {
       "id": "semconv.indexed_completion",
@@ -174,10 +181,17 @@
       "read": {
         "indexed_family": "gen_ai.completion"
       },
-      "require_member": "content",
       "emit": "message",
       "legacy_rank": 110,
-      "reads_tool_spans": true
+      "reads_tool_spans": true,
+      "require_members": {
+        "any_of": [
+          {
+            "name": "content",
+            "presence": "either"
+          }
+        ]
+      }
     },
     {
       "id": "semconv.system_instructions",

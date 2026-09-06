@@ -28,8 +28,8 @@ use std::collections::HashMap;
 use serde_json::{Value as JsonValue, json};
 
 use super::schema::{
-    Alternative, AttachSpec, BlockSpec, DetectMatch, EmitTarget, MessageRule, ParseMode, ReadSpec,
-    RuleFile, ShapeRequirement, WrapSpec,
+    Alternative, AttachSpec, BlockSpec, DetectMatch, EmitTarget, MemberPresence,
+    MemberRequirements, MessageRule, ParseMode, ReadSpec, RuleFile, ShapeRequirement, WrapSpec,
 };
 
 /// What an ingestion knows when it asks which carriers to read.
@@ -78,7 +78,7 @@ pub struct CompiledMessageRule {
     pub doc: Option<String>,
     pub read: ReadSpec,
     pub parse: Option<ParseMode>,
-    pub require_member: Option<String>,
+    pub require_members: Option<MemberRequirements>,
     pub wrap: Option<WrapSpec>,
     pub target: EmitTarget,
     pub when: Option<DetectMatch>,
@@ -176,7 +176,7 @@ pub fn compile(sources: &BTreeMap<String, Vec<u8>>) -> Result<MessagePlan, Messa
                 parse,
                 wrap,
                 emit,
-                require_member,
+                require_members,
                 require_non_empty,
                 reads_tool_spans,
                 unless,
@@ -200,7 +200,7 @@ pub fn compile(sources: &BTreeMap<String, Vec<u8>>) -> Result<MessagePlan, Messa
                 doc: doc.clone(),
                 read: read.clone(),
                 parse: *parse,
-                require_member: require_member.clone(),
+                require_members: require_members.clone(),
                 wrap: wrap.clone(),
                 target: *emit,
                 when: when.clone(),
@@ -280,9 +280,12 @@ impl MessagePlan {
                 continue;
             }
             if let Some(family) = rule.read.indexed_family.as_deref() {
-                for (carrier, value) in
-                    indexed_entries(ctx.span_attrs, family, rule.require_member.as_deref())
-                {
+                for (carrier, value) in indexed_entries(
+                    ctx.span_attrs,
+                    family,
+                    rule.read.entry_member.as_deref(),
+                    rule.require_members.as_ref(),
+                ) {
                     out.push(Emission {
                         rule_id: &rule.rule_id,
                         carrier: EmittedCarrier::Owned(carrier),
@@ -424,7 +427,8 @@ fn readings(parsed: &JsonValue, alternatives: &[Alternative]) -> Vec<JsonValue> 
 fn indexed_entries(
     attrs: &HashMap<String, String>,
     family: &str,
-    require_member: Option<&str>,
+    entry_member: Option<&str>,
+    require: Option<&MemberRequirements>,
 ) -> Vec<(String, JsonValue)> {
     let mut indices: std::collections::BTreeSet<usize> = std::collections::BTreeSet::new();
     let family_dot = format!("{family}.");
@@ -440,24 +444,41 @@ fn indexed_entries(
     let mut out = Vec::new();
     for index in indices {
         let entry_prefix = format!("{family}.{index}");
+        // Where the message sits: the entry itself, or a sub-level of it.
+        let subject_prefix = match entry_member {
+            Some(member) => format!("{entry_prefix}.{member}"),
+            None => entry_prefix.clone(),
+        };
+
         // An index exists as soon as any key mentions it, and a family holds keys that are not messages.
-        if let Some(member) = require_member {
-            let exact = format!("{entry_prefix}.{member}");
-            let nested = format!("{exact}.");
-            let present =
-                attrs.contains_key(&exact) || attrs.keys().any(|k| k.starts_with(nested.as_str()));
-            if !present {
-                continue;
-            }
+        if let Some(require) = require
+            && !members_present(attrs, &subject_prefix, require)
+        {
+            continue;
         }
-        let member_prefix = format!("{entry_prefix}.");
+
         let mut object = serde_json::Map::new();
+        // The subject's own members, unprefixed.
+        let subject_dot = format!("{subject_prefix}.");
         for (key, value) in attrs {
-            if let Some(member) = key.strip_prefix(member_prefix.as_str()) {
+            if let Some(member) = key.strip_prefix(subject_dot.as_str()) {
                 object.insert(member.to_string(), sniffed_value(value));
             }
         }
-        out.push((entry_prefix, JsonValue::Object(object)));
+        // Where the message is nested, the entry's *other* members come too: they belong to the same
+        // observation, and the sub-level's own keys are already in, so they are skipped here.
+        if let Some(nested_member) = entry_member {
+            let entry_dot = format!("{entry_prefix}.");
+            let skip = format!("{nested_member}.");
+            for (key, value) in attrs {
+                if let Some(member) = key.strip_prefix(entry_dot.as_str())
+                    && !member.starts_with(skip.as_str())
+                {
+                    object.insert(member.to_string(), sniffed_value(value));
+                }
+            }
+        }
+        out.push((subject_prefix, JsonValue::Object(object)));
     }
     out
 }
@@ -582,4 +603,25 @@ fn attached_value(attach: &AttachSpec, ctx: &MessageContext<'_>) -> Option<JsonV
         }
     }
     attach.default.clone()
+}
+
+/// Whether the members a rule requires are present under a prefix.
+fn members_present(
+    attrs: &HashMap<String, String>,
+    prefix: &str,
+    require: &MemberRequirements,
+) -> bool {
+    let present = |requirement: &super::schema::MemberRequirement| {
+        let exact = format!("{prefix}.{}", requirement.name);
+        let nested = format!("{exact}.");
+        match requirement.presence {
+            MemberPresence::Exact => attrs.contains_key(&exact),
+            MemberPresence::Nested => attrs.keys().any(|k| k.starts_with(nested.as_str())),
+            MemberPresence::Either => {
+                attrs.contains_key(&exact) || attrs.keys().any(|k| k.starts_with(nested.as_str()))
+            }
+        }
+    };
+    (require.all_of.is_empty() || require.all_of.iter().all(present))
+        && (require.any_of.is_empty() || require.any_of.iter().any(present))
 }

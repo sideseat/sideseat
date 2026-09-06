@@ -459,14 +459,17 @@ pub struct MessageRule {
     /// has text, and from its tool calls only when it does not, or one response would be emitted twice.
     #[serde(default)]
     pub unless: Option<DetectMatch>,
-    /// A member an indexed entry must carry to count as one.
+    /// What an indexed entry must carry to count as one.
     ///
-    /// An index exists as soon as *any* key mentions it, and a family legitimately holds keys that are
-    /// not messages, so without this a request's settings would each become a turn. Satisfied by the
-    /// member itself or by anything nested under it, since the convention writes both
-    /// `<prefix>.0.content` and `<prefix>.0.content.0.text`.
+    /// An index exists as soon as *any* key mentions it, and a family legitimately holds keys that are not
+    /// messages - so without this a request's settings each become a turn.
+    ///
+    /// Each member declares how its presence is decided, because the dialects genuinely differ and the
+    /// difference is observable: one writes `content` directly *and* `content.0.text`, so either proves it,
+    /// while another writes `contents.0.type` and never a bare `contents`, so only a nested key does. A
+    /// single rule for all of them would either miss entries or invent them.
     #[serde(default)]
-    pub require_member: Option<String>,
+    pub require_members: Option<MemberRequirements>,
     /// Position in the consulted order. See `MessagePlan` for why it is `legacy_`.
     #[serde(rename = "legacy_rank")]
     pub legacy_rank: i32,
@@ -501,6 +504,14 @@ pub struct ReadSpec {
     /// downstream.
     #[serde(default)]
     pub indexed_family: Option<String>,
+    /// A sub-level of each indexed entry whose members are read at the top of the object.
+    ///
+    /// One dialect nests the message inside the entry - `<prefix>.0.message.role` - while also putting
+    /// entry-level members beside it. Both are collected, the sub-level's names unprefixed and the rest as
+    /// they stand, and the observation is tagged with `<prefix>.<index>.<member>` because that is the
+    /// payload it came from.
+    #[serde(default)]
+    pub entry_member: Option<String>,
 }
 
 impl ReadSpec {
@@ -664,4 +675,38 @@ pub struct ShapeRequirement {
     /// At least one of these members must be present.
     #[serde(default)]
     pub any_of: Vec<String>,
+}
+
+/// Which members an indexed entry must carry.
+#[derive(Debug, Deserialize, Clone, Default)]
+#[serde(deny_unknown_fields)]
+pub struct MemberRequirements {
+    /// Every one of these must be present.
+    #[serde(default)]
+    pub all_of: Vec<MemberRequirement>,
+    /// At least one of these must be present.
+    #[serde(default)]
+    pub any_of: Vec<MemberRequirement>,
+}
+
+/// One member, and how its presence is decided.
+#[derive(Debug, Deserialize, Clone)]
+#[serde(deny_unknown_fields)]
+pub struct MemberRequirement {
+    pub name: String,
+    #[serde(default)]
+    pub presence: MemberPresence,
+}
+
+/// How a member's presence is established.
+#[derive(Debug, Deserialize, Clone, Copy, Default, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum MemberPresence {
+    /// The member's own key exists.
+    #[default]
+    Exact,
+    /// Some key nested under it exists - the member is an array or object flattened into dotted keys.
+    Nested,
+    /// Either.
+    Either,
 }

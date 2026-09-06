@@ -1,6 +1,6 @@
 {
   "id": "openinference",
-  "doc": "The OpenInference dialect: `llm.*` indexed message arrays, as emitted by OpenInference instrumentations and the frameworks that ship them.",
+  "doc": "The OpenInference dialect. Its indexed message families are still read in Rust, deliberately: `enrich_oi_multimodal_from_input_value` rebuilds multimodal content blocks from a LangChain-serialised `input.value` and operates on the messages that extractor itself produced, so declaring the families here would leave rules a Rust extractor shadows - dead data, which is the defect the contested-carrier check refuses one level down. They move when that enrichment has a primitive.",
   "carriers": [
     {
       "id": "openinference.output_messages",
@@ -35,6 +35,40 @@
         ]
       },
       "legacy_rank": 140
+    }
+  ],
+  "messages": [
+    {
+      "id": "openinference.reranker_query",
+      "doc": "The query a reranker was given, as prose. Carries a literal `_source` naming which carrier it came from, which is how the pipeline tells two role-`user` messages of a rerank span apart.",
+      "read": {
+        "attribute": "reranker.query"
+      },
+      "parse": "text",
+      "wrap": {
+        "role": "user",
+        "members": {
+          "_source": "reranker.query"
+        }
+      },
+      "emit": "message",
+      "legacy_rank": 220
+    },
+    {
+      "id": "openinference.embedding_text",
+      "doc": "The text an embedding span was given, under the same reading.",
+      "read": {
+        "attribute": "embedding.text"
+      },
+      "parse": "text",
+      "wrap": {
+        "role": "user",
+        "members": {
+          "_source": "embedding.text"
+        }
+      },
+      "emit": "message",
+      "legacy_rank": 230
     }
   ]
 }

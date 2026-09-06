@@ -1126,33 +1126,10 @@ pub(crate) fn try_openinference(
         }
     }
 
-    // reranker.query - Reranker query string
-    if let Some(query) = attrs.get(keys::RERANKER_QUERY) {
-        let mut msg = serde_json::Map::new();
-        msg.insert("role".to_string(), json!("user"));
-        msg.insert("content".to_string(), json!(query));
-        msg.insert("_source".to_string(), json!("reranker.query"));
-        messages.push(RawMessage::from_attr(
-            keys::RERANKER_QUERY,
-            timestamp,
-            JsonValue::Object(msg),
-        ));
-        found = true;
-    }
-
-    // embedding.text - Input text for embedding spans
-    if let Some(text) = attrs.get(keys::EMBEDDING_TEXT) {
-        let mut msg = serde_json::Map::new();
-        msg.insert("role".to_string(), json!("user"));
-        msg.insert("content".to_string(), json!(text));
-        msg.insert("_source".to_string(), json!("embedding.text"));
-        messages.push(RawMessage::from_attr(
-            keys::EMBEDDING_TEXT,
-            timestamp,
-            JsonValue::Object(msg),
-        ));
-        found = true;
-    }
+    // `reranker.query` and `embedding.text` are declared in `server/rules/openinference.json`. The
+    // indexed message families above stay here until the multimodal enrichment below has a primitive:
+    // it rebuilds content blocks from a serialised `input.value` and operates on the messages *this*
+    // extractor produced, so moving the families would silently disable it.
 
     if found {
         enrich_oi_multimodal_from_input_value(messages, attrs);

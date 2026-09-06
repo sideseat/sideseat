@@ -2317,8 +2317,10 @@ fn test_openinference_embedding_text() {
         ("embedding.model_name", "text-embedding-ada-002"),
     ]);
 
+    // This carrier's reading moved into `server/rules/openinference.json`, so the assertion is about the
+    // *reading*, which is what the test was ever checking - not about which function performs it.
     let mut messages = Vec::new();
-    let found = try_openinference(&mut messages, &mut Vec::new(), &attrs, "", Utc::now());
+    let found = try_declared_rules(&mut messages, &mut Vec::new(), &attrs, "", Utc::now());
 
     assert!(found);
     assert_eq!(messages.len(), 1);
@@ -2490,8 +2492,13 @@ fn test_openinference_reranker_documents() {
         ("reranker.output_documents.0.document.score", "0.98"),
     ]);
 
+    // Both paths, because this span's reading is now split: the documents are assembled in Rust (that
+    // aggregation has no primitive yet) while the query is declared in `server/rules/openinference.json`.
+    // Production runs both extractors over the same span, so the test does too.
     let mut messages = Vec::new();
-    let found = try_openinference(&mut messages, &mut Vec::new(), &attrs, "", Utc::now());
+    let time = Utc::now();
+    let found = try_openinference(&mut messages, &mut Vec::new(), &attrs, "", time)
+        | try_declared_rules(&mut messages, &mut Vec::new(), &attrs, "", time);
 
     assert!(found);
     // Should have: reranker.query (user), input_documents, output_documents
@@ -6926,8 +6933,9 @@ fn declared_message_rules_cover_what_they_claim() {
     let plan = &ruleset().messages;
     assert_eq!(
         plan.rule_count(),
-        25,
-        "the assets declare {} message rules; seven extractors were replaced by them",
+        27,
+        "the assets declare {} message rules; seven extractors were replaced by them, plus two \
+         carriers taken out of an eighth",
         plan.rule_count()
     );
     for rule in plan.rules() {
@@ -7005,4 +7013,42 @@ fn the_two_parse_modes_differ_where_it_matters() {
         "the strict rule must skip an unparseable value and the lenient one must keep it"
     );
     assert_eq!(emissions[0].value, serde_json::json!("not json"));
+}
+
+/// The two OpenInference carriers whose reading moved into the assets, expected explicitly.
+///
+/// No oracle here, and the reason matters: only *part* of that extractor moved, so there is no legacy
+/// function left to compare against. The expectation is therefore written out - including the `_source`
+/// literal, which is how the pipeline tells two role-`user` messages of one rerank span apart, and the
+/// member order, which content identity is hashed from.
+#[test]
+fn the_migrated_openinference_carriers_produce_what_the_code_did() {
+    let time = chrono::Utc::now();
+    let cases = [
+        (
+            rule_attrs(&[("reranker.query", "which doc")]),
+            r#"{"role":"user","_source":"reranker.query","content":"which doc"}"#,
+        ),
+        (
+            rule_attrs(&[("embedding.text", "embed me")]),
+            r#"{"role":"user","_source":"embedding.text","content":"embed me"}"#,
+        ),
+    ];
+    for (attrs, expected) in cases {
+        let mut messages: Vec<RawMessage> = Vec::new();
+        let mut tools: Vec<RawToolDefinition> = Vec::new();
+        assert!(try_declared_rules(
+            &mut messages,
+            &mut tools,
+            &attrs,
+            "span",
+            time
+        ));
+        assert_eq!(messages.len(), 1, "one message per carrier");
+        assert_eq!(
+            messages[0].content.to_string(),
+            expected,
+            "member order included: content identity is computed from this payload"
+        );
+    }
 }
