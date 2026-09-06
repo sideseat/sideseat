@@ -411,8 +411,10 @@ pub struct MessageRule {
     pub doc: Option<String>,
     /// The carrier to read.
     pub read: ReadSpec,
-    /// How to turn its raw string into a value.
-    pub parse: ParseMode,
+    /// How to turn its raw string into a value. Absent for an indexed family, which has no single
+    /// string to parse - each member is read on its own.
+    #[serde(default)]
+    pub parse: Option<ParseMode>,
     /// Wrap the parsed value in a message envelope with this role.
     ///
     /// Some carriers hold a bare payload rather than a message - a tool's arguments, say - and the role
@@ -436,6 +438,14 @@ pub struct MessageRule {
     /// three dialects migrated first needed.
     #[serde(default)]
     pub alternatives: Vec<Alternative>,
+    /// A member an indexed entry must carry to count as one.
+    ///
+    /// An index exists as soon as *any* key mentions it, and a family legitimately holds keys that are
+    /// not messages, so without this a request's settings would each become a turn. Satisfied by the
+    /// member itself or by anything nested under it, since the convention writes both
+    /// `<prefix>.0.content` and `<prefix>.0.content.0.text`.
+    #[serde(default)]
+    pub require_member: Option<String>,
     /// Position in the consulted order. See `MessagePlan` for why it is `legacy_`.
     #[serde(rename = "legacy_rank")]
     pub legacy_rank: i32,
@@ -454,12 +464,23 @@ pub struct ReadSpec {
     pub attribute: Option<String>,
     #[serde(default)]
     pub event: Option<String>,
+    /// An *indexed attribute family*: `<prefix>.0.role`, `<prefix>.0.content`, `<prefix>.1.role`, ...
+    ///
+    /// One entry per index, each assembled from every key under it with the prefix stripped. This is an
+    /// OpenTelemetry encoding - a list of objects flattened into dotted keys because attributes are a
+    /// flat map - so reading it is a generic capability, not a producer's policy. The carrier each entry
+    /// is tagged with is `<prefix>.<index>`, which is what makes two turns of one family distinguishable
+    /// downstream.
+    #[serde(default)]
+    pub indexed_family: Option<String>,
 }
 
 impl ReadSpec {
     /// How many carriers this names. Exactly one is required.
     pub fn named_count(&self) -> usize {
-        usize::from(self.attribute.is_some()) + usize::from(self.event.is_some())
+        usize::from(self.attribute.is_some())
+            + usize::from(self.event.is_some())
+            + usize::from(self.indexed_family.is_some())
     }
 }
 

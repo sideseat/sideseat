@@ -343,9 +343,7 @@ pub(crate) fn try_declared_rules(
             });
     let found = !emissions.is_empty();
     for emission in emissions {
-        let crate::domain::rules::EmittedCarrier::Attribute(key) = emission.carrier else {
-            continue;
-        };
+        let key = emission.carrier.name();
         match emission.target {
             crate::domain::rules::schema::EmitTarget::Message => {
                 messages.push(RawMessage::from_attr(key, timestamp, emission.value));
@@ -384,10 +382,6 @@ struct NamedExtractor {
 /// If you need to debug framework detection, enable SIDESEAT_LOG=trace to see
 /// which extractor is used for each span.
 const EXTRACTORS: &[NamedExtractor] = &[
-    NamedExtractor {
-        name: "gen_ai_indexed",
-        extractor: try_gen_ai_indexed,
-    },
     NamedExtractor {
         name: "otel_genai_messages",
         extractor: try_otel_genai_messages,
@@ -904,6 +898,7 @@ pub(crate) fn is_tool_execution_span(attrs: &HashMap<String, String>) -> bool {
 // FRAMEWORK-SPECIFIC EXTRACTORS
 // ============================================================================
 
+#[cfg(test)]
 pub(crate) fn try_gen_ai_indexed(
     messages: &mut Vec<RawMessage>,
     _tool_definitions: &mut Vec<RawToolDefinition>,
@@ -4069,6 +4064,7 @@ fn extract_indices(attrs: &HashMap<String, String>, prefix: &str) -> BTreeSet<us
         .collect()
 }
 
+#[cfg(test)]
 fn extract_indexed_message(
     attrs: &HashMap<String, String>,
     prefix: &str,

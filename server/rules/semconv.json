@@ -155,5 +155,27 @@
         "carrier_holds_span_output": false
       }
     }
+  ],
+  "messages": [
+    {
+      "id": "semconv.indexed_prompt",
+      "doc": "The request as an indexed attribute family - `gen_ai.prompt.0.role`, `.0.content`, `.1.role`. A list of objects flattened into dotted keys because OTel attributes are a flat map. `content` is required because an index exists as soon as any key mentions it, and the family also holds keys that are not turns.",
+      "read": {
+        "indexed_family": "gen_ai.prompt"
+      },
+      "require_member": "content",
+      "emit": "message",
+      "legacy_rank": 100
+    },
+    {
+      "id": "semconv.indexed_completion",
+      "doc": "The response in the same encoding.",
+      "read": {
+        "indexed_family": "gen_ai.completion"
+      },
+      "require_member": "content",
+      "emit": "message",
+      "legacy_rank": 110
+    }
   ]
 }

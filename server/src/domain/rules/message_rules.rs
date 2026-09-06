@@ -40,10 +40,22 @@ pub struct MessageContext<'a> {
 }
 
 /// Where an emitted observation came from, in the vocabulary the ingestion types use.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum EmittedCarrier<'a> {
     Attribute(&'a str),
     Event(&'a str),
+    /// A carrier name assembled at read time - one entry of an indexed family, `<prefix>.<index>`.
+    Owned(String),
+}
+
+impl EmittedCarrier<'_> {
+    /// The carrier's name, whichever form it took.
+    pub fn name(&self) -> &str {
+        match self {
+            Self::Attribute(name) | Self::Event(name) => name,
+            Self::Owned(name) => name.as_str(),
+        }
+    }
 }
 
 /// One observation a rule produced.
@@ -63,7 +75,8 @@ pub struct CompiledMessageRule {
     pub rule_id: String,
     pub doc: Option<String>,
     pub read: ReadSpec,
-    pub parse: ParseMode,
+    pub parse: Option<ParseMode>,
+    pub require_member: Option<String>,
     pub wrap_role: Option<String>,
     pub target: EmitTarget,
     pub when: Option<DetectMatch>,
@@ -158,6 +171,7 @@ pub fn compile(sources: &BTreeMap<String, Vec<u8>>) -> Result<MessagePlan, Messa
                 parse,
                 wrap,
                 emit,
+                require_member,
                 when,
                 alternatives,
                 legacy_rank,
@@ -177,6 +191,7 @@ pub fn compile(sources: &BTreeMap<String, Vec<u8>>) -> Result<MessagePlan, Messa
                 doc: doc.clone(),
                 read: read.clone(),
                 parse: *parse,
+                require_member: require_member.clone(),
                 wrap_role: wrap.as_ref().map(|w| w.role.clone()),
                 target: *emit,
                 when: when.clone(),
@@ -197,7 +212,8 @@ pub fn compile(sources: &BTreeMap<String, Vec<u8>>) -> Result<MessagePlan, Messa
     for (i, a) in rules.iter().enumerate() {
         for b in &rules[i + 1..] {
             let same_kind = (a.read.attribute.is_some() && b.read.attribute.is_some())
-                || (a.read.event.is_some() && b.read.event.is_some());
+                || (a.read.event.is_some() && b.read.event.is_some())
+                || (a.read.indexed_family.is_some() && b.read.indexed_family.is_some());
             if same_kind && carrier_name(&a.read) == carrier_name(&b.read) {
                 return Err(MessageCompileError::ContestedCarrier {
                     first: a.rule_id.clone(),
@@ -215,6 +231,7 @@ fn carrier_name(read: &ReadSpec) -> &str {
     read.attribute
         .as_deref()
         .or(read.event.as_deref())
+        .or(read.indexed_family.as_deref())
         .unwrap_or_default()
 }
 
@@ -223,6 +240,24 @@ impl MessagePlan {
     pub fn run<'p>(&'p self, ctx: &MessageContext<'_>) -> Vec<Emission<'p>> {
         let mut out = Vec::new();
         for rule in &self.rules {
+            if let Some(family) = rule.read.indexed_family.as_deref() {
+                if let Some(gate) = &rule.when
+                    && !super::detect_rules::signals_hold(gate, ctx.span_name, ctx.span_attrs)
+                {
+                    continue;
+                }
+                for (carrier, value) in
+                    indexed_entries(ctx.span_attrs, family, rule.require_member.as_deref())
+                {
+                    out.push(Emission {
+                        rule_id: &rule.rule_id,
+                        carrier: EmittedCarrier::Owned(carrier),
+                        target: rule.target,
+                        value,
+                    });
+                }
+                continue;
+            }
             // Event carriers are read from a span's events, not its attributes; no declared rule needs
             // one yet, and probing the attribute map for an event name would silently match nothing.
             let Some(attribute) = rule.read.attribute.as_deref() else {
@@ -236,7 +271,7 @@ impl MessagePlan {
             {
                 continue;
             }
-            let Some(parsed) = parse_value(raw, rule.parse) else {
+            let Some(parsed) = parse_value(raw, rule.parse.unwrap_or(ParseMode::Json)) else {
                 continue;
             };
             for value in readings(&parsed, &rule.alternatives) {
@@ -344,4 +379,66 @@ fn readings(parsed: &JsonValue, alternatives: &[Alternative]) -> Vec<JsonValue> 
         }
     }
     Vec::new()
+}
+
+/// One entry per index of a dotted attribute family, assembled from the keys under it.
+///
+/// The convention flattens a list of objects into `<prefix>.<index>.<member>`, so this is the inverse:
+/// gather every key of an index, strip the prefix, and keep the remainder as the member name - nested
+/// members included, so `content.0.text` stays `content.0.text` rather than being lost or guessed at.
+///
+/// Ordered by index, because a `BTreeMap` key is the number: reading the attribute map directly would
+/// order turns by hash.
+fn indexed_entries(
+    attrs: &HashMap<String, String>,
+    family: &str,
+    require_member: Option<&str>,
+) -> Vec<(String, JsonValue)> {
+    let mut indices: std::collections::BTreeSet<usize> = std::collections::BTreeSet::new();
+    let family_dot = format!("{family}.");
+    for key in attrs.keys() {
+        if let Some(rest) = key.strip_prefix(&family_dot)
+            && let Some(index) = rest.split('.').next()
+            && let Ok(parsed) = index.parse::<usize>()
+        {
+            indices.insert(parsed);
+        }
+    }
+
+    let mut out = Vec::new();
+    for index in indices {
+        let entry_prefix = format!("{family}.{index}");
+        // An index exists as soon as any key mentions it, and a family holds keys that are not messages.
+        if let Some(member) = require_member {
+            let exact = format!("{entry_prefix}.{member}");
+            let nested = format!("{exact}.");
+            let present =
+                attrs.contains_key(&exact) || attrs.keys().any(|k| k.starts_with(nested.as_str()));
+            if !present {
+                continue;
+            }
+        }
+        let member_prefix = format!("{entry_prefix}.");
+        let mut object = serde_json::Map::new();
+        for (key, value) in attrs {
+            if let Some(member) = key.strip_prefix(member_prefix.as_str()) {
+                object.insert(member.to_string(), sniffed_value(value));
+            }
+        }
+        out.push((entry_prefix, JsonValue::Object(object)));
+    }
+    out
+}
+
+/// A member of an indexed family: JSON where it looks like JSON, the text otherwise.
+///
+/// The sniff matters. Parsing everything would turn `true`, `42` and a bare word into non-strings, and
+/// parsing nothing would store an object as prose - so the test is whether the value *opens* as JSON,
+/// with the raw text kept when it opens that way and does not parse.
+fn sniffed_value(raw: &str) -> JsonValue {
+    if raw.starts_with('{') || raw.starts_with('[') {
+        serde_json::from_str(raw).unwrap_or_else(|_| json!(raw))
+    } else {
+        json!(raw)
+    }
 }

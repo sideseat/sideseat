@@ -6737,6 +6737,49 @@ fn the_rules_reproduce_the_extractors_they_replaced() {
             ("gen_ai.prompt", "not json"),
             ("gen_ai.completion", "also not json"),
         ]),
+        // Indexed families. Two turns, in the flattened encoding.
+        rule_attrs(&[
+            ("gen_ai.prompt.0.role", "system"),
+            ("gen_ai.prompt.0.content", "be brief"),
+            ("gen_ai.prompt.1.role", "user"),
+            ("gen_ai.prompt.1.content", "hello"),
+        ]),
+        // An index mentioned by a key that is not content: it must not become a turn.
+        rule_attrs(&[
+            ("gen_ai.prompt.0.role", "user"),
+            ("gen_ai.prompt.0.content", "q"),
+            ("gen_ai.prompt.1.role", "assistant"),
+        ]),
+        // Nested content, which the convention also writes: presence must be satisfied by it.
+        rule_attrs(&[
+            ("gen_ai.prompt.0.role", "user"),
+            ("gen_ai.prompt.0.content.0.text", "nested"),
+        ]),
+        // Both families at once, and out of key order - entries must come back by index.
+        rule_attrs(&[
+            ("gen_ai.completion.1.content", "second"),
+            ("gen_ai.completion.0.content", "first"),
+            ("gen_ai.prompt.0.role", "user"),
+            ("gen_ai.prompt.0.content", "q"),
+        ]),
+        // A member whose value opens as JSON, and one that merely contains a brace.
+        rule_attrs(&[
+            (
+                "gen_ai.completion.0.content",
+                r#"[{"type":"text","text":"a"}]"#,
+            ),
+            ("gen_ai.completion.0.finish_reason", "stop"),
+            ("gen_ai.completion.0.note", "not {json} really"),
+        ]),
+        // Opens as JSON and does not parse: the raw text must survive.
+        rule_attrs(&[("gen_ai.completion.0.content", "{ truncated")]),
+        // A double-digit index, so the parse is not one character wide.
+        rule_attrs(&[
+            ("gen_ai.prompt.10.role", "user"),
+            ("gen_ai.prompt.10.content", "tenth"),
+        ]),
+        // A family with no index at all.
+        rule_attrs(&[("gen_ai.prompt.content", "no index")]),
     ];
 
     let mut disagreements = Vec::new();
@@ -6745,7 +6788,13 @@ fn the_rules_reproduce_the_extractors_they_replaced() {
         let mut legacy_tools: Vec<RawToolDefinition> = Vec::new();
         let mut legacy_found = false;
         // In the order the `EXTRACTORS` list had them.
-        for f in [try_mlflow, try_traceloop, try_pydantic_ai, try_langsmith] {
+        for f in [
+            try_gen_ai_indexed,
+            try_mlflow,
+            try_traceloop,
+            try_pydantic_ai,
+            try_langsmith,
+        ] {
             legacy_found |= f(&mut legacy_msgs, &mut legacy_tools, case, "span", time);
         }
 
@@ -6792,8 +6841,8 @@ fn declared_message_rules_cover_what_they_claim() {
     let plan = &ruleset().messages;
     assert_eq!(
         plan.rule_count(),
-        9,
-        "the assets declare {} message rules; four extractors were replaced, reading nine carriers \
+        11,
+        "the assets declare {} message rules; five extractors were replaced, reading eleven carriers \
          between them",
         plan.rule_count()
     );
