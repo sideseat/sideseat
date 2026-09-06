@@ -274,8 +274,24 @@ bless a regression; an oracle cannot.
 5. Feed source / event / replay / ordering-family tables.
 6. Content and tool normalisation, with explicit named-chain precedence.
 7. Reconcile the three provider namespaces, then token / cost / model conventions.
-8. Easy and medium message extraction, plus attribute / session / finish-reason fallbacks.
-9. The hard cases, in order: Claude Code, LangGraph, AutoGen, CrewAI.
+8. 🔶 **Message extraction** — in progress. Nine of sixteen extractor entries retired,
+   each proved by an oracle and moved **wholesale** (see the constraint below), with 34
+   message rules declared:
+
+   | Retired | Still in Rust, and what each needs |
+   | --- | --- |
+   | `mlflow`, `traceloop`, `pydantic_ai` | `openinference` — its indexed families feed a multimodal enrichment that rebuilds content blocks from a serialised `input.value` and operates on the messages that extractor produced |
+   | `langsmith`, `gen_ai_indexed`, `livekit` | `logfire_events` — an event-array grouping, typed member conditions, and a cross-rule fallback |
+   | `otel_genai_messages`, `vercel_ai` | `google_adk` — Gemini `contents`/`parts` in both camelCase and snake_case |
+   | `claude_code` | `langgraph` — a bounded state-tree walk and a LangChain type-discriminator table |
+   | (plus two carriers out of `openinference`) | `autogen` — roughly thirteen message types; `crewai` — a Python-`repr` grammar |
+
+   **An extractor moves wholesale or not at all**, learned by breaking it: migrating
+   Vercel's prompt and tool call while leaving its response gave those spans *two*
+   claimants, so the narrower `FirstMatch` reading changed shape and
+   `reading_more_carriers_only_adds_messages` — the only monotonicity check — stopped
+   modelling anything.
+9. The hard cases above, each needing a primitive designed on its own evidence.
 10. Externalise the plain provider and MCP manifests; delete the legacy tables.
 
 Detection may move later than step 4, but it must never regain parser-selection authority.
