@@ -27,8 +27,9 @@ use std::collections::HashMap;
 
 use serde_json::{Value as JsonValue, json};
 
+use super::detect_rules::CompiledDetect;
 use super::schema::{
-    Alternative, AttachSpec, BlockSpec, ComposeSpec, DetectMatch, EmitTarget, MemberPresence,
+    Alternative, AttachSpec, BlockSpec, ComposeMember, ComposeSpec, EmitTarget, MemberPresence,
     MemberRequirements, MessageRule, ParseMode, ReadSpec, RuleFile, SectionsSpec, ShapeRequirement,
     WrapSpec,
 };
@@ -78,13 +79,13 @@ pub struct CompiledMessageRule {
     pub rule_id: String,
     pub doc: Option<String>,
     pub read: ReadSpec,
-    pub compose: Option<ComposeSpec>,
+    pub compose: Option<CompiledCompose>,
     pub parse: Option<ParseMode>,
     pub require_members: Option<MemberRequirements>,
     pub wrap: Option<WrapSpec>,
     pub target: EmitTarget,
-    pub when: Option<DetectMatch>,
-    pub unless: Option<DetectMatch>,
+    pub when: Option<CompiledDetect>,
+    pub unless: Option<CompiledDetect>,
     pub require_non_empty: bool,
     pub require_non_blank: bool,
     pub sections: Option<SectionsSpec>,
@@ -122,6 +123,15 @@ pub enum MessageCompileError {
     EmptyCarrier {
         rule: String,
     },
+    /// A construct the engine accepts but cannot execute, or a field it would silently ignore.
+    ///
+    /// Both are the same defect from a reader's point of view: the asset says something and nothing
+    /// happens. An engine that accepts a no-op is worse than one that refuses it, because the rule looks
+    /// live.
+    Inexpressible {
+        rule: String,
+        detail: &'static str,
+    },
     /// Two rules read the same carrier. One of them would never be reached, because the first claim of a
     /// carrier wins - so this is a rule that silently does nothing, not a precedence to resolve.
     ContestedCarrier {
@@ -139,6 +149,9 @@ impl std::fmt::Display for MessageCompileError {
                 f,
                 "message rule `{rule}` must name exactly one of `attribute` or `event`"
             ),
+            Self::Inexpressible { rule, detail } => {
+                write!(f, "message rule `{rule}`: {detail}")
+            }
             Self::DuplicateRuleId { rule } => {
                 write!(f, "message rule id `{rule}` is declared more than once")
             }
@@ -182,6 +195,7 @@ pub fn compile(sources: &BTreeMap<String, Vec<u8>>) -> Result<MessagePlan, Messa
                 parse,
                 wrap,
                 emit,
+                alternatives,
                 require_members,
                 require_non_empty,
                 require_non_blank,
@@ -190,7 +204,6 @@ pub fn compile(sources: &BTreeMap<String, Vec<u8>>) -> Result<MessagePlan, Messa
                 tag_as,
                 unless,
                 when,
-                alternatives,
                 legacy_rank,
             } = rule;
             if seen_ids.insert(id.clone(), ()).is_some() {
@@ -198,6 +211,109 @@ pub fn compile(sources: &BTreeMap<String, Vec<u8>>) -> Result<MessagePlan, Messa
             }
             if compose.is_none() && read.named_count() != 1 {
                 return Err(MessageCompileError::NotExactlyOneCarrier { rule: id.clone() });
+            }
+            // Every combination the runner would silently ignore is refused here instead. Each of these
+            // was accepted and did nothing, which reads as a rule that works.
+            let inexpressible = |detail: &'static str| MessageCompileError::Inexpressible {
+                rule: id.clone(),
+                detail,
+            };
+            for (label, gate) in [("when", when.as_ref()), ("unless", unless.as_ref())] {
+                if let Some(gate) = gate
+                    && super::detect_rules::unavailable_gate_dimension(gate).is_some()
+                {
+                    return Err(MessageCompileError::Inexpressible {
+                        rule: id.clone(),
+                        detail: if label == "when" {
+                            "`when` uses a resource dimension, and a message gate is given no resource \
+                             attributes - it could never hold"
+                        } else {
+                            "`unless` uses a resource dimension, and a message gate is given no resource \
+                             attributes - it could never hold"
+                        },
+                    });
+                }
+            }
+            if read.event.is_some() {
+                // Accepted by the schema and never executed: events are read from a span's events, and the
+                // runner only ever probes the attribute map. Refused until it is implemented.
+                return Err(inexpressible(
+                    "`read.event` is not implemented - events are not routed through the plan",
+                ));
+            }
+            if compose.is_some()
+                && (wrap.is_some()
+                    || sections.is_some()
+                    || !alternatives.is_empty()
+                    || parse.is_some())
+            {
+                return Err(inexpressible(
+                    "`compose` builds the whole message, so `wrap`, `sections`, `alternatives` and \
+                     `parse` would be ignored",
+                ));
+            }
+            if read.indexed_family.is_some() && (wrap.is_some() || !alternatives.is_empty()) {
+                return Err(inexpressible(
+                    "an indexed family assembles each entry itself, so `wrap` and `alternatives` would \
+                     be ignored",
+                ));
+            }
+            if sections.is_some() && (wrap.is_some() || !alternatives.is_empty()) {
+                return Err(inexpressible(
+                    "`sections` builds each section's message, so `wrap` and `alternatives` would be \
+                     ignored",
+                ));
+            }
+            if read.entry_member.is_some() && read.indexed_family.is_none() {
+                return Err(inexpressible(
+                    "`entry_member` is a sub-level of an indexed entry and means nothing without \
+                     `indexed_family`",
+                ));
+            }
+            if require_members.is_some() && read.indexed_family.is_none() {
+                return Err(inexpressible(
+                    "`require_members` is checked per indexed entry and means nothing without \
+                     `indexed_family`",
+                ));
+            }
+            if let Some(sections) = sections {
+                if sections.split_on.is_empty() {
+                    return Err(inexpressible("`sections.split_on` is empty"));
+                }
+                // A default route consumes every section, so anything after it is dead.
+                if let Some(position) = sections
+                    .routes
+                    .iter()
+                    .position(|route| route.tag_prefix.is_none())
+                    && position + 1 < sections.routes.len()
+                {
+                    return Err(inexpressible(
+                        "a route with no `tag_prefix` claims every section, so the routes after it can \
+                         never match",
+                    ));
+                }
+            }
+            if let Some(compose) = compose {
+                for member in &compose.members {
+                    if member.sweep_prefix.is_some()
+                        && (member.as_member.is_some() || !member.from_any_of.is_empty())
+                    {
+                        return Err(inexpressible(
+                            "a compose member is either a sweep or a named source, not both - the sweep \
+                             would silently win",
+                        ));
+                    }
+                    if member.sweep_prefix.as_deref() == Some("") {
+                        return Err(inexpressible(
+                            "a compose member has an empty `sweep_prefix`",
+                        ));
+                    }
+                    if member.sweep_prefix.is_none() && member.as_member.is_none() {
+                        return Err(inexpressible(
+                            "a compose member names neither a member nor a sweep",
+                        ));
+                    }
+                }
             }
             if let Some(compose) = compose {
                 if read.named_count() != 0 {
@@ -207,8 +323,17 @@ pub fn compile(sources: &BTreeMap<String, Vec<u8>>) -> Result<MessagePlan, Messa
                     return Err(MessageCompileError::EmptyCarrier { rule: id.clone() });
                 }
             } else {
-                let carriers = declared_carriers(read);
-                if carriers.is_empty() || carriers.iter().any(|name| name.is_empty()) {
+                // Every name the rule could read or tag with must be non-empty: an empty prefix
+                // matches every attribute of every span.
+                let named = [
+                    read.attribute.as_deref(),
+                    read.event.as_deref(),
+                    read.indexed_family.as_deref(),
+                    tag_as.as_deref(),
+                ];
+                if named.iter().flatten().any(|name| name.is_empty())
+                    || read.attribute_any_of.iter().any(String::is_empty)
+                {
                     return Err(MessageCompileError::EmptyCarrier { rule: id.clone() });
                 }
             }
@@ -217,13 +342,13 @@ pub fn compile(sources: &BTreeMap<String, Vec<u8>>) -> Result<MessagePlan, Messa
                 rule_id: id.clone(),
                 doc: doc.clone(),
                 read: read.clone(),
-                compose: compose.clone(),
+                compose: compose.as_ref().map(compile_compose),
                 parse: *parse,
                 require_members: require_members.clone(),
                 wrap: wrap.clone(),
                 target: *emit,
-                when: when.clone(),
-                unless: unless.clone(),
+                when: when.as_ref().map(super::detect_rules::compile_signals),
+                unless: unless.as_ref().map(super::detect_rules::compile_signals),
                 require_non_empty: *require_non_empty,
                 require_non_blank: *require_non_blank,
                 sections: sections.clone(),
@@ -241,30 +366,40 @@ pub fn compile(sources: &BTreeMap<String, Vec<u8>>) -> Result<MessagePlan, Messa
             .then_with(|| a.rule_id.cmp(&b.rule_id))
     });
 
-    // No two rules may read one carrier. Unlike detection, this is not a precedence question: the
-    // ingestion claims a carrier once, so a second rule reading it is dead weight that looks live.
+    // Two rules must not claim one carrier, in either direction.
+    //
+    // Previously this compared "the carrier a rule reads" and missed four real conflicts: a `tag_as` that
+    // emits a name the rule never read, an indexed family against an exact key it generates, a `compose`
+    // that consumes a carrier another rule emits, and a sweep overlapping an exact source. Comparing the
+    // *consumed* and *emitted* sets asks the question that matters - who owns this carrier - rather than
+    // one convenient projection of it.
     for (i, a) in rules.iter().enumerate() {
         for b in &rules[i + 1..] {
-            // A composed message claims its declared tag, so it contests like any other carrier.
-            let carriers_of = |rule: &CompiledMessageRule| -> Vec<String> {
-                let mut names: Vec<String> = declared_carriers(&rule.read)
-                    .into_iter()
-                    .map(str::to_string)
-                    .collect();
-                names.extend(compose_tag(rule).map(str::to_string));
-                names
-            };
-            let b_carriers = carriers_of(b);
-            let shared = carriers_of(a)
-                .into_iter()
-                .find(|name| b_carriers.contains(name));
-            let comparable =
-                same_kind(&a.read, &b.read) || a.compose.is_some() || b.compose.is_some();
-            if comparable && let Some(carrier) = shared {
+            let conflict = [
+                (consumed_carriers(a), consumed_carriers(b), "both read"),
+                (emitted_carriers(a), emitted_carriers(b), "both emit"),
+                (
+                    emitted_carriers(a),
+                    consumed_carriers(b),
+                    "one emits what the other reads",
+                ),
+                (
+                    consumed_carriers(a),
+                    emitted_carriers(b),
+                    "one reads what the other emits",
+                ),
+            ]
+            .into_iter()
+            .find_map(|(left, right, how)| {
+                left.iter()
+                    .find_map(|l| right.iter().find(|r| l.overlaps(r)).map(|_| l.describe()))
+                    .map(|carrier| (carrier, how))
+            });
+            if let Some((carrier, how)) = conflict {
                 return Err(MessageCompileError::ContestedCarrier {
                     first: a.rule_id.clone(),
                     second: b.rule_id.clone(),
-                    carrier,
+                    carrier: format!("{carrier} ({how})"),
                 });
             }
         }
@@ -273,39 +408,140 @@ pub fn compile(sources: &BTreeMap<String, Vec<u8>>) -> Result<MessagePlan, Messa
     Ok(MessagePlan { rules })
 }
 
-/// Every carrier name a rule may tag an observation with.
+/// A composed message with its gates compiled.
 ///
-/// Total over the read forms on purpose. A function returning "the" carrier name had to pick one, and
-/// each time a read form was added it silently returned nothing for it - reported as an empty carrier
-/// twice, once for indexed families and once for ordered alternatives. A list forces every form to be
-/// answered, and it is also the right input to the contested-carrier check, since a rule offering two
-/// spellings can contest either of them.
-fn declared_carriers(read: &ReadSpec) -> Vec<&str> {
-    let mut names = Vec::new();
-    if let Some(attribute) = read.attribute.as_deref() {
-        names.push(attribute);
-    }
-    if let Some(event) = read.event.as_deref() {
-        names.push(event);
-    }
-    if let Some(family) = read.indexed_family.as_deref() {
-        names.push(family);
-    }
-    names.extend(read.attribute_any_of.iter().map(String::as_str));
-    names
+/// Mirrors the asset form so the *gate* is built once rather than per observation - the same reason the
+/// rule's own gates are compiled.
+#[derive(Debug, Clone)]
+pub struct CompiledCompose {
+    pub tag: String,
+    pub members: Vec<CompiledComposeMember>,
+    pub trailing: std::collections::BTreeMap<String, JsonValue>,
 }
 
-/// The carrier a composed message is tagged with, for the contested-carrier check.
-fn compose_tag(rule: &CompiledMessageRule) -> Option<&str> {
-    rule.compose.as_ref().map(|c| c.tag.as_str())
+/// One member of a composed message, with any conditional source's gate compiled.
+#[derive(Debug, Clone)]
+pub struct CompiledComposeMember {
+    pub spec: ComposeMember,
+    pub fallback_gate: Option<CompiledDetect>,
 }
 
-/// Whether two rules read the same carrier in the same way.
-fn same_kind(a: &ReadSpec, b: &ReadSpec) -> bool {
-    let attribute_like = |r: &ReadSpec| r.attribute.is_some() || !r.attribute_any_of.is_empty();
-    (attribute_like(a) && attribute_like(b))
-        || (a.event.is_some() && b.event.is_some())
-        || (a.indexed_family.is_some() && b.indexed_family.is_some())
+fn compile_compose(compose: &ComposeSpec) -> CompiledCompose {
+    CompiledCompose {
+        tag: compose.tag.clone(),
+        members: compose
+            .members
+            .iter()
+            .map(|member| CompiledComposeMember {
+                spec: member.clone(),
+                fallback_gate: member
+                    .fallback
+                    .as_ref()
+                    .map(|f| super::detect_rules::compile_signals(&f.when)),
+            })
+            .collect(),
+        trailing: compose.trailing.clone(),
+    }
+}
+
+/// A carrier pattern: an exact name, or everything beneath a prefix.
+///
+/// Two sets are compiled per rule - what it *consumes* and what it *emits* - because they are different
+/// questions and conflating them missed real conflicts. A rule can emit a carrier another rule consumes
+/// (`compose` reads `ai.response.text` and emits `ai.response`), a rule can emit a name it never read
+/// (`tag_as`), and an indexed family consumes a whole prefix while emitting one name per index.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CarrierPattern {
+    Exact(String),
+    Prefix(String),
+}
+
+impl CarrierPattern {
+    /// Could these two patterns cover a common carrier?
+    fn overlaps(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::Exact(a), Self::Exact(b)) => a == b,
+            (Self::Exact(name), Self::Prefix(prefix))
+            | (Self::Prefix(prefix), Self::Exact(name)) => name.starts_with(prefix.as_str()),
+            (Self::Prefix(a), Self::Prefix(b)) => {
+                a.starts_with(b.as_str()) || b.starts_with(a.as_str())
+            }
+        }
+    }
+
+    fn describe(&self) -> String {
+        match self {
+            Self::Exact(name) => name.clone(),
+            Self::Prefix(prefix) => format!("{prefix}*"),
+        }
+    }
+}
+
+/// What a rule reads.
+fn consumed_carriers(rule: &CompiledMessageRule) -> Vec<CarrierPattern> {
+    let mut out = Vec::new();
+    if let Some(attribute) = rule.read.attribute.as_deref() {
+        out.push(CarrierPattern::Exact(attribute.to_string()));
+    }
+    if let Some(event) = rule.read.event.as_deref() {
+        out.push(CarrierPattern::Exact(event.to_string()));
+    }
+    out.extend(
+        rule.read
+            .attribute_any_of
+            .iter()
+            .map(|k| CarrierPattern::Exact(k.clone())),
+    );
+    if let Some(family) = rule.read.indexed_family.as_deref() {
+        // Every key beneath the family, since each index's members are read.
+        out.push(CarrierPattern::Prefix(format!("{family}.")));
+    }
+    if let Some(compose) = &rule.compose {
+        for member in compose.members.iter().map(|m| &m.spec) {
+            out.extend(
+                member
+                    .from_any_of
+                    .iter()
+                    .map(|k| CarrierPattern::Exact(k.clone())),
+            );
+            if let Some(fallback) = &member.fallback {
+                out.push(CarrierPattern::Exact(fallback.from.clone()));
+            }
+            if let Some(prefix) = &member.sweep_prefix {
+                out.push(CarrierPattern::Prefix(prefix.clone()));
+            }
+        }
+    }
+    out
+}
+
+/// What a rule tags its observations with.
+fn emitted_carriers(rule: &CompiledMessageRule) -> Vec<CarrierPattern> {
+    if let Some(tag) = &rule.tag_as {
+        // Overrides every read form: whatever was read, this is the tag.
+        return vec![CarrierPattern::Exact(tag.clone())];
+    }
+    if let Some(compose) = &rule.compose {
+        return vec![CarrierPattern::Exact(compose.tag.clone())];
+    }
+    let mut out = Vec::new();
+    if let Some(attribute) = rule.read.attribute.as_deref() {
+        out.push(CarrierPattern::Exact(attribute.to_string()));
+    }
+    if let Some(event) = rule.read.event.as_deref() {
+        out.push(CarrierPattern::Exact(event.to_string()));
+    }
+    out.extend(
+        rule.read
+            .attribute_any_of
+            .iter()
+            .map(|k| CarrierPattern::Exact(k.clone())),
+    );
+    if let Some(family) = rule.read.indexed_family.as_deref() {
+        // One tag per index, and per sub-level where there is one - a prefix covers them all.
+        out.push(CarrierPattern::Prefix(format!("{family}.")));
+    }
+    out
 }
 
 impl MessagePlan {
@@ -526,24 +762,33 @@ fn indexed_entries(
         }
 
         let mut object = serde_json::Map::new();
-        // The subject's own members, unprefixed.
+        // The subject's own members, unprefixed - sorted, because the attribute map's order is randomised
+        // per process and this object is persisted with its insertion order.
         let subject_dot = format!("{subject_prefix}.");
-        for (key, value) in attrs {
-            if let Some(member) = key.strip_prefix(subject_dot.as_str()) {
-                object.insert(member.to_string(), sniffed_value(value));
-            }
+        let mut own: Vec<(&str, &String)> = attrs
+            .iter()
+            .filter_map(|(key, value)| key.strip_prefix(subject_dot.as_str()).map(|m| (m, value)))
+            .collect();
+        own.sort_unstable_by_key(|(member, _)| *member);
+        for (member, value) in own {
+            object.insert(member.to_string(), sniffed_value(value));
         }
         // Where the message is nested, the entry's *other* members come too: they belong to the same
         // observation, and the sub-level's own keys are already in, so they are skipped here.
         if let Some(nested_member) = entry_member {
             let entry_dot = format!("{entry_prefix}.");
             let skip = format!("{nested_member}.");
-            for (key, value) in attrs {
-                if let Some(member) = key.strip_prefix(entry_dot.as_str())
-                    && !member.starts_with(skip.as_str())
-                {
-                    object.insert(member.to_string(), sniffed_value(value));
-                }
+            let mut siblings: Vec<(&str, &String)> = attrs
+                .iter()
+                .filter_map(|(key, value)| {
+                    key.strip_prefix(entry_dot.as_str())
+                        .filter(|member| !member.starts_with(skip.as_str()))
+                        .map(|member| (member, value))
+                })
+                .collect();
+            siblings.sort_unstable_by_key(|(member, _)| *member);
+            for (member, value) in siblings {
+                object.insert(member.to_string(), sniffed_value(value));
             }
         }
         out.push((subject_prefix, JsonValue::Object(object)));
@@ -570,12 +815,12 @@ fn gates_allow(rule: &CompiledMessageRule, ctx: &MessageContext<'_>) -> bool {
         return false;
     }
     if let Some(gate) = &rule.when
-        && !super::detect_rules::signals_hold(gate, ctx.span_name, ctx.span_attrs)
+        && !super::detect_rules::compiled_signals_hold(gate, ctx.span_name, ctx.span_attrs)
     {
         return false;
     }
     if let Some(gate) = &rule.unless
-        && super::detect_rules::signals_hold(gate, ctx.span_name, ctx.span_attrs)
+        && super::detect_rules::compiled_signals_hold(gate, ctx.span_name, ctx.span_attrs)
     {
         return false;
     }
@@ -711,19 +956,28 @@ fn members_present(
 ///
 /// Emitted only when at least one *source* member was filled - the trailing literals are not evidence of
 /// anything, so a rule whose sources all missed would otherwise emit a message consisting of a role.
-fn composed(compose: &ComposeSpec, ctx: &MessageContext<'_>) -> Option<JsonValue> {
+fn composed(compose: &CompiledCompose, ctx: &MessageContext<'_>) -> Option<JsonValue> {
     let attrs = ctx.span_attrs;
     let mut object = serde_json::Map::new();
 
-    for member in &compose.members {
+    for compiled in &compose.members {
+        let member = &compiled.spec;
         if let Some(prefix) = &member.sweep_prefix {
-            let dot_prefix = prefix.as_str();
-            for (key, value) in attrs {
-                if let Some(suffix) = key.strip_prefix(dot_prefix)
-                    && !member.except.iter().any(|skip| skip == suffix)
-                {
-                    object.insert(suffix.to_string(), sniffed_value(value));
-                }
+            // Sorted before insertion. The attribute map's iteration order is randomised per process, and
+            // this object is serialised with insertion order preserved and *persisted* - so an unsorted
+            // sweep writes different bytes for the same span on different runs. The equivalence oracle
+            // cannot see it: both implementations walk the same map in the same process.
+            let mut swept: Vec<(&str, &String)> = attrs
+                .iter()
+                .filter_map(|(key, value)| {
+                    key.strip_prefix(prefix.as_str())
+                        .filter(|suffix| !member.except.iter().any(|skip| skip == suffix))
+                        .map(|suffix| (suffix, value))
+                })
+                .collect();
+            swept.sort_unstable_by_key(|(suffix, _)| *suffix);
+            for (suffix, value) in swept {
+                object.insert(suffix.to_string(), sniffed_value(value));
             }
             continue;
         }
@@ -739,7 +993,8 @@ fn composed(compose: &ComposeSpec, ctx: &MessageContext<'_>) -> Option<JsonValue
             // The conditional last resort: a key that is not this dialect's own, read only on evidence
             // that the span is one of its spans.
             let fallback = member.fallback.as_ref()?;
-            if !super::detect_rules::signals_hold(&fallback.when, ctx.span_name, attrs) {
+            let gate = compiled.fallback_gate.as_ref()?;
+            if !super::detect_rules::compiled_signals_hold(gate, ctx.span_name, attrs) {
                 return None;
             }
             let raw = attrs.get(&fallback.from)?;

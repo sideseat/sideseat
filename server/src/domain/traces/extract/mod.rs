@@ -168,9 +168,11 @@ pub(super) mod keys {
     pub const LLM_COST_COMPLETION: &str = "llm.cost.completion";
 
     // OpenInference Embedding attributes
+    pub const EMBEDDING_TEXT: &str = "embedding.text";
     pub const EMBEDDING_MODEL_NAME: &str = "embedding.model_name";
 
     // OpenInference Reranker attributes
+    pub const RERANKER_QUERY: &str = "reranker.query";
     pub const RERANKER_MODEL_NAME: &str = "reranker.model_name";
 
     // HTTP
@@ -322,7 +324,9 @@ pub(super) mod keys {
     pub const AI_RESULT_TOOL_CALLS: &str = "ai.result.toolCalls";
     pub const AI_TOOLCALL_NAME: &str = "ai.toolCall.name";
     pub const AI_TOOLCALL_ID: &str = "ai.toolCall.id";
+    #[cfg(test)]
     pub const AI_TOOLCALL_ARGS: &str = "ai.toolCall.args";
+    #[cfg(test)]
     pub const AI_TOOLCALL_RESULT: &str = "ai.toolCall.result";
     pub const AI_TELEMETRY_SESSION_ID: &str = "ai.telemetry.metadata.sessionId";
     pub const AI_TELEMETRY_USER_ID: &str = "ai.telemetry.metadata.userId";

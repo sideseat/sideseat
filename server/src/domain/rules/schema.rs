@@ -659,10 +659,11 @@ pub struct AttachSpec {
     pub default: Option<JsonValue>,
     /// Place this member *after* the content member rather than before it.
     ///
-    /// Member order is declared because it is observable: this map preserves insertion order, the message
-    /// is stored as serialised JSON, and content identity is computed from that payload - so moving a
-    /// member changes a message's hash and with it what deduplication considers the same message. The
-    /// orders here reproduce what the extractors emitted, which is why they are stated rather than chosen.
+    /// Member order is declared because it is *observable*: this map preserves insertion order and the
+    /// message is stored as serialised JSON, so moving a member changes the persisted bytes and with them
+    /// the reconstruction cache digest. It does **not** change the normalised content hash - the feed sorts
+    /// object keys before hashing - so this is about reproducing what was stored, not about identity. The
+    /// orders here are what the extractors emitted, which is why they are stated rather than chosen.
     #[serde(default)]
     pub after_content: bool,
 }
@@ -768,7 +769,8 @@ pub struct ComposeSpec {
     /// Literal members added *after* every source member.
     ///
     /// Position matters and this is why it is a separate field: the code being replaced inserts the role
-    /// last, after everything it collected, so a payload built role-first would hash differently.
+    /// last, after everything it collected, so a payload built role-first would be stored with different
+    /// bytes - which changes the reconstruction cache digest, though not the normalised content hash.
     #[serde(default)]
     pub trailing: BTreeMap<String, JsonValue>,
 }

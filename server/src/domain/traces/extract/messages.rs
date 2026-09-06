@@ -1118,10 +1118,33 @@ pub(crate) fn try_openinference(
         }
     }
 
-    // `reranker.query` and `embedding.text` are declared in `server/rules/openinference.json`. The
-    // indexed message families above stay here until the multimodal enrichment below has a primitive:
-    // it rebuilds content blocks from a serialised `input.value` and operates on the messages *this*
-    // extractor produced, so moving the families would silently disable it.
+    // reranker.query - Reranker query string
+    if let Some(query) = attrs.get(keys::RERANKER_QUERY) {
+        let mut msg = serde_json::Map::new();
+        msg.insert("role".to_string(), json!("user"));
+        msg.insert("content".to_string(), json!(query));
+        msg.insert("_source".to_string(), json!("reranker.query"));
+        messages.push(RawMessage::from_attr(
+            keys::RERANKER_QUERY,
+            timestamp,
+            JsonValue::Object(msg),
+        ));
+        found = true;
+    }
+
+    // embedding.text - Input text for embedding spans
+    if let Some(text) = attrs.get(keys::EMBEDDING_TEXT) {
+        let mut msg = serde_json::Map::new();
+        msg.insert("role".to_string(), json!("user"));
+        msg.insert("content".to_string(), json!(text));
+        msg.insert("_source".to_string(), json!("embedding.text"));
+        messages.push(RawMessage::from_attr(
+            keys::EMBEDDING_TEXT,
+            timestamp,
+            JsonValue::Object(msg),
+        ));
+        found = true;
+    }
 
     if found {
         enrich_oi_multimodal_from_input_value(messages, attrs);
@@ -4329,46 +4352,14 @@ pub(super) fn extract_messages_for_span(
         }
     }
 
-    // Vercel AI toolCall spans: extract from ai.toolCall.* attributes
-    // These spans have no events, only attributes. Extract tool call input and result.
-    if is_tool_span && raw_messages.is_empty() {
-        if let Some(tool_args) = span_attrs.get(keys::AI_TOOLCALL_ARGS) {
-            let tool_name = span_attrs.get(keys::AI_TOOLCALL_NAME).map(|s| s.as_str());
-            let tool_id = span_attrs.get(keys::AI_TOOLCALL_ID).map(|s| s.as_str());
-            let args_val = serde_json::from_str::<JsonValue>(tool_args).unwrap_or(json!(tool_args));
-            let mut msg = serde_json::Map::new();
-            msg.insert("role".to_string(), json!("tool_call"));
-            if let Some(name) = tool_name {
-                msg.insert("name".to_string(), json!(name));
-            }
-            if let Some(id) = tool_id {
-                msg.insert("tool_call_id".to_string(), json!(id));
-            }
-            msg.insert("content".to_string(), args_val);
-            raw_messages.push(RawMessage::from_attr(
-                keys::AI_TOOLCALL_ARGS,
-                timestamp,
-                JsonValue::Object(msg),
-            ));
-        }
-
-        if let Some(tool_result) = span_attrs.get(keys::AI_TOOLCALL_RESULT) {
-            let tool_id = span_attrs.get(keys::AI_TOOLCALL_ID).map(|s| s.as_str());
-            let result_val =
-                serde_json::from_str::<JsonValue>(tool_result).unwrap_or(json!(tool_result));
-            let mut msg = serde_json::Map::new();
-            msg.insert("role".to_string(), json!("tool"));
-            if let Some(id) = tool_id {
-                msg.insert("tool_call_id".to_string(), json!(id));
-            }
-            msg.insert("content".to_string(), result_val);
-            raw_messages.push(RawMessage::from_attr(
-                keys::AI_TOOLCALL_RESULT,
-                timestamp,
-                JsonValue::Object(msg),
-            ));
-        }
-    }
+    // Vercel's tool-call attributes are declared in `server/rules/vercel-ai.json`, with tool-span
+    // permission, because that is the only kind of span they appear on - those spans carry no events, only
+    // attributes.
+    //
+    // The block that used to live here was gated on `raw_messages.is_empty()`, so any recognised event
+    // suppressed the call and the result entirely. That is a loss rather than a precedence, and it was
+    // invisible: the equivalence oracle applies the caller's tool-span exclusion, so it compared both
+    // implementations *after* the suppression.
 
     // Always extract tool definitions and tool names from any span (they're metadata, not conversation)
     let (defs, names) = extract_tool_definitions(span_attrs, timestamp);

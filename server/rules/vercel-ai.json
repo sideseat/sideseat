@@ -100,7 +100,7 @@
     },
     {
       "id": "vercel-ai.toolcall_args",
-      "doc": "A tool call, with the tool's name and the call id from the attributes beside it.",
+      "doc": "A tool call, with the tool's name and the call id from the attributes beside it. Reads a tool span, because that is the only kind of span it appears on: these spans carry no events, only attributes. The code this replaced was gated on no message having been produced yet, so any recognised event suppressed the call entirely - a loss, not a precedence.",
       "read": {
         "attribute": "ai.toolCall.args"
       },
@@ -119,7 +119,8 @@
         ]
       },
       "emit": "message",
-      "legacy_rank": 310
+      "legacy_rank": 310,
+      "reads_tool_spans": true
     },
     {
       "id": "vercel-ai.response",
@@ -184,6 +185,26 @@
       },
       "emit": "message",
       "legacy_rank": 320
+    },
+    {
+      "id": "vercel-ai.toolcall_result",
+      "doc": "What the tool returned, carrying the same call id so the result pairs with its call. The name is deliberately absent: the code this replaced did not attach it here.",
+      "read": {
+        "attribute": "ai.toolCall.result"
+      },
+      "parse": "json_or_string",
+      "reads_tool_spans": true,
+      "wrap": {
+        "role": "tool",
+        "attach": [
+          {
+            "from": "ai.toolCall.id",
+            "as": "tool_call_id"
+          }
+        ]
+      },
+      "emit": "message",
+      "legacy_rank": 315
     }
   ]
 }

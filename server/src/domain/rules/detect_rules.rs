@@ -259,18 +259,49 @@ pub fn compile(sources: &BTreeMap<String, Vec<u8>>) -> Result<DetectPlan, Detect
     Ok(plan)
 }
 
-/// Whether a set of signals holds for a span - the shared definition.
+/// A signal set compiled once, for a message rule's gate.
 ///
-/// Exposed so a message rule's `when` gate asks the same question detection asks, in the same way. Two
-/// implementations of "does this span carry this framework's marker" would drift, and the drift would be
-/// invisible: a rule would claim a carrier on a span detection did not attribute to that dialect.
-pub(super) fn signals_hold(
-    spec: &DetectMatch,
+/// Built at compile time rather than per observation. The previous form cloned the predicate, rebuilt its
+/// lowered needles and allocated an empty map on *every* gate evaluation - which is the opposite of what a
+/// "typed plan compiled once" is for.
+pub(super) fn compile_signals(spec: &DetectMatch) -> CompiledDetect {
+    probe_for(spec)
+}
+
+/// Whether a compiled signal set holds for a span.
+///
+/// One definition, shared with detection: two implementations of "does this span carry this marker" would
+/// drift, and invisibly - a rule would claim a carrier on a span detection did not attribute to that
+/// dialect.
+pub(super) fn compiled_signals_hold(
+    probe: &CompiledDetect,
     span_name: &str,
     span_attrs: &HashMap<String, String>,
 ) -> bool {
-    let resource_attrs = HashMap::new();
-    let probe = CompiledDetect {
+    // A message gate sees no resource attributes; dimensions that need them are refused at compile time,
+    // so an empty map here cannot silently change an answer.
+    static NO_RESOURCE: std::sync::OnceLock<HashMap<String, String>> = std::sync::OnceLock::new();
+    probe.matches(&DetectContext {
+        span_name,
+        span_attrs,
+        resource_attrs: NO_RESOURCE.get_or_init(HashMap::new),
+    })
+}
+
+/// Which gate dimensions a message rule cannot use, because a message gate is given no resource
+/// attributes - so such a predicate would be accepted and never hold.
+pub(super) fn unavailable_gate_dimension(spec: &DetectMatch) -> Option<&'static str> {
+    if !spec.service_name.is_empty() {
+        return Some("service_name");
+    }
+    if !spec.resource_attr_contains.is_empty() {
+        return Some("resource_attr_contains");
+    }
+    None
+}
+
+fn probe_for(spec: &DetectMatch) -> CompiledDetect {
+    CompiledDetect {
         rule_file: String::new(),
         rule_id: String::new(),
         doc: None,
@@ -297,12 +328,7 @@ pub(super) fn signals_hold(
             .as_ref()
             .map(|t| t.needles.iter().map(|n| n.to_lowercase()).collect())
             .unwrap_or_default(),
-    };
-    probe.matches(&DetectContext {
-        span_name,
-        span_attrs,
-        resource_attrs: &resource_attrs,
-    })
+    }
 }
 
 impl CompiledDetect {

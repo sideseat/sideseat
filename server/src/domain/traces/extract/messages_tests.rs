@@ -2317,10 +2317,8 @@ fn test_openinference_embedding_text() {
         ("embedding.model_name", "text-embedding-ada-002"),
     ]);
 
-    // This carrier's reading moved into `server/rules/openinference.json`, so the assertion is about the
-    // *reading*, which is what the test was ever checking - not about which function performs it.
     let mut messages = Vec::new();
-    let found = try_declared_rules(&mut messages, &mut Vec::new(), &attrs, "", Utc::now());
+    let found = try_openinference(&mut messages, &mut Vec::new(), &attrs, "", Utc::now());
 
     assert!(found);
     assert_eq!(messages.len(), 1);
@@ -2492,13 +2490,8 @@ fn test_openinference_reranker_documents() {
         ("reranker.output_documents.0.document.score", "0.98"),
     ]);
 
-    // Both paths, because this span's reading is now split: the documents are assembled in Rust (that
-    // aggregation has no primitive yet) while the query is declared in `server/rules/openinference.json`.
-    // Production runs both extractors over the same span, so the test does too.
     let mut messages = Vec::new();
-    let time = Utc::now();
-    let found = try_openinference(&mut messages, &mut Vec::new(), &attrs, "", time)
-        | try_declared_rules(&mut messages, &mut Vec::new(), &attrs, "", time);
+    let found = try_openinference(&mut messages, &mut Vec::new(), &attrs, "", Utc::now());
 
     assert!(found);
     // Should have: reranker.query (user), input_documents, output_documents
@@ -7205,14 +7198,40 @@ fn the_rules_reproduce_the_extractors_they_replaced() {
         // Compared as sets of serialised observations: the `EXTRACTORS` order decided which *extractor*
         // claimed a carrier, never the order observations sit in the vector - `extract_per_carrier`
         // claims by carrier name, and the pipeline sorts by provenance afterwards.
+        // Compared with object keys sorted, deliberately.
+        //
+        // Member *order* cannot be compared against this baseline, because for an indexed family the
+        // baseline had none: the code being replaced walked the attribute `HashMap`, whose order is
+        // randomised per process, straight into a map that preserves insertion order. So the legacy bytes
+        // are noise for those carriers, and the rules sort instead. Order does not affect the normalised
+        // content hash either - the feed sorts keys before hashing - only the persisted bytes and the
+        // reconstruction cache digest. What it *does* affect is reproducibility, which is checked on its
+        // own (`a_swept_payload_is_ordered_deterministically`) rather than against a nondeterministic
+        // oracle.
+        fn canonical(value: &JsonValue) -> JsonValue {
+            match value {
+                JsonValue::Object(map) => {
+                    let mut sorted: Vec<(&String, &JsonValue)> = map.iter().collect();
+                    sorted.sort_by_key(|(k, _)| k.as_str());
+                    JsonValue::Object(
+                        sorted
+                            .into_iter()
+                            .map(|(k, v)| (k.clone(), canonical(v)))
+                            .collect(),
+                    )
+                }
+                JsonValue::Array(items) => JsonValue::Array(items.iter().map(canonical).collect()),
+                other => other.clone(),
+            }
+        }
         let render = |msgs: &[RawMessage], tools: &[RawToolDefinition]| -> Vec<String> {
             let mut out: Vec<String> = msgs
                 .iter()
-                .map(|m| format!("msg {:?} {}", m.source, m.content))
+                .map(|m| format!("msg {:?} {}", m.source, canonical(&m.content)))
                 .chain(
                     tools
                         .iter()
-                        .map(|t| format!("tool {:?} {}", t.source, t.content)),
+                        .map(|t| format!("tool {:?} {}", t.source, canonical(&t.content))),
                 )
                 .collect();
             out.sort();
@@ -7220,6 +7239,21 @@ fn the_rules_reproduce_the_extractors_they_replaced() {
         };
         let legacy = render(&legacy_msgs, &legacy_tools);
         let rules = render(&rule_msgs, &rule_tools);
+        // One reviewed delta, named rather than tolerated: Vercel's tool-call attributes now reach a tool
+        // span. The code being replaced read them only when nothing else had produced a message, so any
+        // recognised event dropped the call and its result - and because this harness applies the caller's
+        // tool-span exclusion, the legacy side produces nothing for these carriers at all. Pinned by
+        // `an_event_does_not_suppress_a_tool_span_s_own_attributes`.
+        const REVIEWED_DELTA_CARRIERS: &[&str] = &["ai.toolCall.args", "ai.toolCall.result"];
+        let is_reviewed_delta = |rendered: &[String]| {
+            !rendered.is_empty()
+                && rendered
+                    .iter()
+                    .all(|line| REVIEWED_DELTA_CARRIERS.iter().any(|c| line.contains(c)))
+        };
+        if legacy.is_empty() && is_reviewed_delta(&rules) {
+            continue;
+        }
         if legacy != rules || legacy_found != rule_found {
             disagreements.push(format!(
                 "  span `{span_name}` {case:?}\n    table: found={legacy_found} {legacy:?}\n    \
@@ -7241,9 +7275,9 @@ fn declared_message_rules_cover_what_they_claim() {
     let plan = &ruleset().messages;
     assert_eq!(
         plan.rule_count(),
-        34,
-        "the assets declare {} message rules; seven extractors were replaced by them, plus two \
-         carriers taken out of an eighth",
+        33,
+        "the assets declare {} message rules, replacing nine extractors wholesale - a dialect moves \
+         whole or not at all, so there are no part-migrated carriers to count",
         plan.rule_count()
     );
     for rule in plan.rules() {
@@ -7323,40 +7357,216 @@ fn the_two_parse_modes_differ_where_it_matters() {
     assert_eq!(emissions[0].value, serde_json::json!("not json"));
 }
 
-/// The two OpenInference carriers whose reading moved into the assets, expected explicitly.
+/// A recognised event must not suppress a tool span's own tool-call attributes.
 ///
-/// No oracle here, and the reason matters: only *part* of that extractor moved, so there is no legacy
-/// function left to compare against. The expectation is therefore written out - including the `_source`
-/// literal, which is how the pipeline tells two role-`user` messages of one rerank span apart, and the
-/// member order, which content identity is hashed from.
+/// The shape the removed orchestration block lost. It read the Vercel tool attributes only when nothing
+/// else had produced a message, so any recognised event dropped the call *and* its result - and the
+/// equivalence oracle could not see it, because that oracle applies the caller's tool-span exclusion and so
+/// compared both implementations after the suppression. No captured fixture carries this shape either.
 #[test]
-fn the_migrated_openinference_carriers_produce_what_the_code_did() {
-    let time = chrono::Utc::now();
-    let cases = [
+fn an_event_does_not_suppress_a_tool_span_s_own_attributes() {
+    let attrs = rule_attrs(&[
+        ("ai.toolCall.name", "weather"),
+        ("ai.toolCall.id", "call_1"),
+        ("ai.toolCall.args", r#"{"city":"NYC"}"#),
+        ("ai.toolCall.result", r#"{"temp":21}"#),
+    ]);
+    assert!(
+        is_tool_execution_span(&attrs),
+        "name plus id makes this a tool execution span, which is what gated the lost block"
+    );
+
+    let mut messages: Vec<RawMessage> = Vec::new();
+    let mut tools: Vec<RawToolDefinition> = Vec::new();
+    // A message already present, standing for one a recognised event produced.
+    messages.push(RawMessage::from_attr(
+        "gen_ai.choice",
+        Utc::now(),
+        serde_json::json!({"role": "assistant", "content": "thinking"}),
+    ));
+    let found = try_declared_rules(&mut messages, &mut tools, &attrs, "ai.toolCall", Utc::now());
+
+    assert!(found);
+    let carriers: Vec<String> = messages
+        .iter()
+        .map(|m| match &m.source {
+            MessageSource::Attribute { key, .. } => key.clone(),
+            MessageSource::Event { name, .. } => name.clone(),
+        })
+        .collect();
+    assert!(
+        carriers.iter().any(|c| c == "ai.toolCall.args"),
+        "the call survives an earlier message: {carriers:?}"
+    );
+    assert!(
+        carriers.iter().any(|c| c == "ai.toolCall.result"),
+        "and so does its result: {carriers:?}"
+    );
+}
+
+/// A swept payload is ordered deterministically, whatever the attribute map's own order.
+///
+/// The property the oracle cannot check, because the baseline it compares against did not have it. An
+/// unsorted sweep writes different bytes for the same span on different runs - the map's iteration order is
+/// randomised per process and the payload is persisted with its insertion order - which changes the
+/// reconstruction cache digest for rows nobody touched.
+#[test]
+fn a_swept_payload_is_ordered_deterministically() {
+    // Enough members that a randomised walk would almost certainly differ between two orders.
+    let attrs = rule_attrs(&[
+        ("ai.response.text", "answer"),
+        ("ai.response.id", "r1"),
+        ("ai.response.model", "m"),
+        ("ai.response.providerMetadata", "{}"),
+        ("ai.response.timestamp", "t"),
+        ("ai.response.msgId", "x"),
+        ("ai.response.finishReason", "stop"),
+    ]);
+    let rendered: Vec<String> = (0..8)
+        .map(|_| {
+            let mut messages: Vec<RawMessage> = Vec::new();
+            let mut tools: Vec<RawToolDefinition> = Vec::new();
+            try_declared_rules(
+                &mut messages,
+                &mut tools,
+                &attrs,
+                "ai.generateText",
+                Utc::now(),
+            );
+            messages
+                .iter()
+                .map(|m| m.content.to_string())
+                .collect::<Vec<_>>()
+                .join("|")
+        })
+        .collect();
+    assert!(
+        rendered.windows(2).all(|w| w[0] == w[1]),
+        "the same span produced different bytes across runs: {rendered:?}"
+    );
+    // And the members really are in sorted order, which is what makes it stable across *processes* - equal
+    // runs inside one process would also pass if the map order happened to be fixed.
+    let payload = &rendered[0];
+    let finish = payload.find("finishReason").expect("swept member present");
+    let model = payload.find("\"model\"").expect("swept member present");
+    assert!(
+        finish < model,
+        "swept members are inserted in sorted order: {payload}"
+    );
+}
+
+/// The carrier-ownership check catches conflicts a single projection of it missed.
+///
+/// It used to compare "the carrier a rule reads" and so missed four real shapes: a `tag_as` emitting a name
+/// the rule never read, an indexed family against an exact key it generates, a `compose` consuming a carrier
+/// another rule emits, and a sweep overlapping an exact source. Each of those is a rule that silently never
+/// emits, or two rules writing the same carrier - and either way a reader cannot tell.
+#[test]
+fn carrier_ownership_conflicts_are_refused() {
+    let cases: &[(&str, &str)] = &[
         (
-            rule_attrs(&[("reranker.query", "which doc")]),
-            r#"{"role":"user","_source":"reranker.query","content":"which doc"}"#,
+            "tag_as collides with another rule's carrier",
+            r#"{"id":"t","doc":"d","messages":[
+                {"id":"a","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message",
+                 "legacy_rank":1},
+                {"id":"b","doc":"d","read":{"attribute":"y"},"tag_as":"x","parse":"json",
+                 "emit":"message","legacy_rank":2}]}"#,
         ),
         (
-            rule_attrs(&[("embedding.text", "embed me")]),
-            r#"{"role":"user","_source":"embedding.text","content":"embed me"}"#,
+            "an indexed family covers an exact key it generates",
+            r#"{"id":"t","doc":"d","messages":[
+                {"id":"a","doc":"d","read":{"indexed_family":"f"},"emit":"message","legacy_rank":1},
+                {"id":"b","doc":"d","read":{"attribute":"f.0"},"parse":"json","emit":"message",
+                 "legacy_rank":2}]}"#,
+        ),
+        (
+            "a compose consumes a carrier another rule emits",
+            r#"{"id":"t","doc":"d","messages":[
+                {"id":"a","doc":"d","read":{"attribute":"r.text"},"parse":"json","emit":"message",
+                 "legacy_rank":1},
+                {"id":"b","doc":"d","compose":{"tag":"r","members":[
+                    {"as":"content","from_any_of":["r.text"]}]},"emit":"message","legacy_rank":2}]}"#,
+        ),
+        (
+            "a sweep overlaps an exact source of another rule",
+            r#"{"id":"t","doc":"d","messages":[
+                {"id":"a","doc":"d","read":{"attribute":"p.one"},"parse":"json","emit":"message",
+                 "legacy_rank":1},
+                {"id":"b","doc":"d","compose":{"tag":"q","members":[
+                    {"sweep_prefix":"p."}]},"emit":"message","legacy_rank":2}]}"#,
         ),
     ];
-    for (attrs, expected) in cases {
-        let mut messages: Vec<RawMessage> = Vec::new();
-        let mut tools: Vec<RawToolDefinition> = Vec::new();
-        assert!(try_declared_rules(
-            &mut messages,
-            &mut tools,
-            &attrs,
-            "span",
-            time
-        ));
-        assert_eq!(messages.len(), 1, "one message per carrier");
-        assert_eq!(
-            messages[0].content.to_string(),
-            expected,
-            "member order included: content identity is computed from this payload"
+    for (what, asset) in cases {
+        let sources =
+            std::collections::BTreeMap::from([("t.json".to_string(), asset.as_bytes().to_vec())]);
+        assert!(
+            matches!(
+                compile(&sources),
+                Err(
+                    crate::domain::rules::message_rules::MessageCompileError::ContestedCarrier { .. }
+                )
+            ),
+            "should have been refused: {what}"
+        );
+    }
+}
+
+/// A construct the engine cannot execute, or a field it would ignore, is refused rather than accepted.
+#[test]
+fn inexpressible_rules_are_refused() {
+    let cases: &[(&str, &str)] = &[
+        (
+            "`read.event` is accepted by the schema and never executed",
+            r#"{"id":"t","doc":"d","messages":[
+                {"id":"a","doc":"d","read":{"event":"e"},"parse":"json","emit":"message",
+                 "legacy_rank":1}]}"#,
+        ),
+        (
+            "`compose` with `wrap`, which would be ignored",
+            r#"{"id":"t","doc":"d","messages":[
+                {"id":"a","doc":"d","compose":{"tag":"q","members":[{"as":"c","from_any_of":["k"]}]},
+                 "wrap":{"role":"user"},"emit":"message","legacy_rank":1}]}"#,
+        ),
+        (
+            "an indexed family with `wrap`, which would be ignored",
+            r#"{"id":"t","doc":"d","messages":[
+                {"id":"a","doc":"d","read":{"indexed_family":"f"},"wrap":{"role":"user"},
+                 "emit":"message","legacy_rank":1}]}"#,
+        ),
+        (
+            "`entry_member` without an indexed family",
+            r#"{"id":"t","doc":"d","messages":[
+                {"id":"a","doc":"d","read":{"attribute":"k","entry_member":"m"},"parse":"json",
+                 "emit":"message","legacy_rank":1}]}"#,
+        ),
+        (
+            "a default section route before another route, which can never match",
+            r#"{"id":"t","doc":"d","messages":[
+                {"id":"a","doc":"d","read":{"attribute":"k"},"parse":"text","emit":"message",
+                 "legacy_rank":1,
+                 "sections":{"split_on":"|","routes":[
+                    {"role":"user"},{"tag_prefix":"T:","role":"tool"}]}}]}"#,
+        ),
+        (
+            "a compose member that is both a sweep and a named source",
+            r#"{"id":"t","doc":"d","messages":[
+                {"id":"a","doc":"d","compose":{"tag":"q","members":[
+                    {"as":"c","from_any_of":["k"],"sweep_prefix":"p."}]},"emit":"message",
+                 "legacy_rank":1}]}"#,
+        ),
+        (
+            "a gate on a resource dimension a message rule is never given",
+            r#"{"id":"t","doc":"d","messages":[
+                {"id":"a","doc":"d","read":{"attribute":"k"},"parse":"json","emit":"message",
+                 "legacy_rank":1,"when":{"service_name":["svc"]}}]}"#,
+        ),
+    ];
+    for (what, asset) in cases {
+        let sources =
+            std::collections::BTreeMap::from([("t.json".to_string(), asset.as_bytes().to_vec())]);
+        assert!(
+            compile(&sources).is_err(),
+            "should have been refused: {what}"
         );
     }
 }
