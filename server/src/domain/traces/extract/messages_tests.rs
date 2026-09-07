@@ -6649,6 +6649,91 @@ fn the_rules_reproduce_the_extractors_they_replaced() {
     // A span *name* per case, because a rule may be gated on it - and a gated rule compared under a
     // name it cannot match proves nothing at all.
     let cases: Vec<(&str, HashMap<String, String>)> = vec![
+        // The OpenInference dialect: indexed message families, retrieval result sets, and the two
+        // single-attribute carriers.
+        (
+            "span",
+            rule_attrs(&[
+                ("llm.input_messages.0.message.role", "user"),
+                (
+                    "llm.input_messages.0.message.content",
+                    "what is the weather",
+                ),
+            ]),
+        ),
+        // A role with nothing to show is not a turn: an index exists as soon as any key mentions it.
+        (
+            "span",
+            rule_attrs(&[("llm.input_messages.0.message.role", "user")]),
+        ),
+        (
+            "span",
+            rule_attrs(&[
+                ("llm.input_messages.0.message.role", "user"),
+                (
+                    "llm.input_messages.0.message.contents.0.message_content.type",
+                    "text",
+                ),
+                (
+                    "llm.input_messages.0.message.contents.0.message_content.text",
+                    "see this",
+                ),
+                ("llm.input_messages.1.message.role", "assistant"),
+                (
+                    "llm.input_messages.1.message.tool_calls.0.tool_call.id",
+                    "c1",
+                ),
+                (
+                    "llm.input_messages.1.message.tool_calls.0.tool_call.function.name",
+                    "search",
+                ),
+            ]),
+        ),
+        (
+            "span",
+            rule_attrs(&[
+                ("llm.input_messages.0.message.role", "tool"),
+                ("llm.input_messages.0.message.tool_call_id", "c1"),
+            ]),
+        ),
+        (
+            "span",
+            rule_attrs(&[
+                ("llm.input_messages.0.message.role", "assistant"),
+                ("llm.input_messages.0.message.function_call.name", "legacy"),
+            ]),
+        ),
+        // An entry-level member beside the nested message, and a JSON-valued one.
+        (
+            "span",
+            rule_attrs(&[
+                ("llm.output_messages.0.message.role", "assistant"),
+                ("llm.output_messages.0.message.content", "sunny"),
+                ("llm.output_messages.0.finish_reason", "stop"),
+                ("llm.output_messages.0.message.extra", r#"{"a":1}"#),
+            ]),
+        ),
+        // Retrieval: one message holding every document, not one each.
+        (
+            "span",
+            rule_attrs(&[
+                ("retrieval.documents.0.document.id", "d1"),
+                ("retrieval.documents.0.document.content", "first"),
+                ("retrieval.documents.0.document.score", "0.9"),
+                ("retrieval.documents.0.document.metadata", r#"{"src":"kb"}"#),
+                ("retrieval.documents.1.document.content", "second"),
+                ("retrieval.documents.1.document.score", "not a number"),
+            ]),
+        ),
+        (
+            "span",
+            rule_attrs(&[
+                ("reranker.input_documents.0.document.content", "a"),
+                ("reranker.output_documents.0.document.content", "a"),
+                ("reranker.query", "which is best"),
+            ]),
+        ),
+        ("span", rule_attrs(&[("embedding.text", "vectorise me")])),
         // The AutoGen dialect, whose messages are typed objects: one case per type, the four
         // selection points it writes them at, and its logging channel.
         // The typed table, one case each.
@@ -7872,6 +7957,7 @@ fn the_rules_reproduce_the_extractors_they_replaced() {
             try_google_adk,
             try_langgraph,
             try_autogen,
+            try_openinference,
         ] {
             if is_tool_span {
                 continue;
@@ -7968,10 +8054,11 @@ fn declared_message_rules_cover_what_they_claim() {
     let plan = &ruleset().messages;
     assert_eq!(
         plan.rule_count(),
-        45,
-        "the assets declare {} message rules. Fourteen framework extractors are consolidated into the \
-         one generic entry, leaving `openinference`, the generic `raw_io` fallback and that \
-         entry - and a dialect moves whole or not at all, so there are no part-migrated carriers to count",
+        52,
+        "the assets declare {} message rules. **Every** framework extractor is consolidated into the one \
+         generic entry; the only other entry left is the generic `raw_io` fallback, which names no \
+         framework - and a dialect moves whole or not at all, so there are no part-migrated carriers to \
+         count. Two extractor entries where there were sixteen.",
         plan.rule_count()
     );
     for rule in plan.rules() {

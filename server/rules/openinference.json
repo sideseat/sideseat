@@ -1,6 +1,6 @@
 {
   "id": "openinference",
-  "doc": "The OpenInference dialect. Its message extraction is **not** declared here, deliberately: it moves wholesale or not at all. Two independent carriers (`reranker.query`, `embedding.text`) were migrated and reverted - a span carrying an indexed OpenInference message *and* one of those makes the narrower FirstMatch reading stop at the legacy extractor before the declared rules run, and the corpus happening to keep them on separate spans is not an invariant. The blocker is that `enrich_oi_multimodal_from_input_value` rebuilds multimodal content blocks from a serialised `input.value` and operates on the messages that extractor itself produced; the accepted plan is to make that a pure query-time join first, then migrate the dialect in one piece.",
+  "doc": "The OpenInference dialect. Its messages arrive as *indexed attribute families* - a list of objects flattened into dotted keys, because OTel attributes are a flat map - and its retrieval spans report documents the same way. The one thing that is not a plain read is the multimodal overlay: the dotted keys lose file blocks and redact URLs, while a serialised `input.value` on the same span holds the whole content, so the richer copy is joined on by position.",
   "carriers": [
     {
       "id": "openinference.output_messages",
@@ -37,5 +37,256 @@
       "legacy_rank": 140
     }
   ],
-  "messages": []
+  "messages": [
+    {
+      "id": "openinference.input_messages",
+      "doc": "The conversation the span received.",
+      "read": {
+        "indexed_family": "llm.input_messages",
+        "entry_member": "message",
+        "overlay": {
+          "doc": "The flattened family loses whole content blocks and writes `__REDACTED__` for a url, while this dialect's serialised copy of the same conversation keeps both - so where both describe one message, the richer one is preferred. Matched by position, and only for an entry whose content arrived flattened.",
+          "from": "input.value",
+          "parse": "json",
+          "select_any_of": [
+            "$.messages[0]",
+            "$.messages",
+            "$"
+          ],
+          "witness": {
+            "any": [
+              {
+                "path": "$[?count(@.id[*]) > 0]",
+                "exists": true
+              },
+              {
+                "path": "$[?@.lc]",
+                "exists": true
+              },
+              {
+                "path": "$[?@.kwargs]",
+                "exists": true
+              }
+            ]
+          },
+          "when_member_prefix": "contents.",
+          "content_any_of": [
+            "$.content",
+            "$.kwargs.content",
+            "$.text"
+          ],
+          "require": {
+            "all": [
+              {
+                "kind": "array"
+              }
+            ]
+          },
+          "as_member": "content"
+        }
+      },
+      "require_members": {
+        "all_of": [
+          {
+            "name": "role"
+          }
+        ],
+        "any_of": [
+          {
+            "name": "content"
+          },
+          {
+            "name": "contents",
+            "presence": "nested"
+          },
+          {
+            "name": "tool_calls",
+            "presence": "nested"
+          },
+          {
+            "name": "tool_call_id"
+          },
+          {
+            "name": "function_call",
+            "presence": "nested"
+          }
+        ]
+      },
+      "legacy_rank": 200
+    },
+    {
+      "id": "openinference.output_messages",
+      "doc": "What the span produced.",
+      "read": {
+        "indexed_family": "llm.output_messages",
+        "entry_member": "message"
+      },
+      "require_members": {
+        "all_of": [
+          {
+            "name": "role"
+          }
+        ],
+        "any_of": [
+          {
+            "name": "content"
+          },
+          {
+            "name": "contents",
+            "presence": "nested"
+          },
+          {
+            "name": "tool_calls",
+            "presence": "nested"
+          },
+          {
+            "name": "tool_call_id"
+          },
+          {
+            "name": "function_call",
+            "presence": "nested"
+          }
+        ]
+      },
+      "legacy_rank": 210
+    },
+    {
+      "id": "openinference.retrieval",
+      "doc": "What a retrieval returned. One message holding every document, not one each: they are a result set, and splitting them would read as a conversation.",
+      "read": {
+        "indexed_family": "retrieval.documents",
+        "entry_member": "document",
+        "numeric_members": [
+          "score"
+        ]
+      },
+      "require_members": {
+        "any_of": [
+          {
+            "name": "id"
+          },
+          {
+            "name": "content"
+          },
+          {
+            "name": "score"
+          },
+          {
+            "name": "metadata"
+          }
+        ]
+      },
+      "aggregate_into_array": true,
+      "tag_as": "retrieval.documents",
+      "wrap": {
+        "role": "documents",
+        "members": {
+          "_source": "retrieval.documents"
+        }
+      },
+      "legacy_rank": 220
+    },
+    {
+      "id": "openinference.reranker_input",
+      "doc": "The documents a reranker was given.",
+      "read": {
+        "indexed_family": "reranker.input_documents",
+        "entry_member": "document",
+        "numeric_members": [
+          "score"
+        ]
+      },
+      "require_members": {
+        "any_of": [
+          {
+            "name": "id"
+          },
+          {
+            "name": "content"
+          },
+          {
+            "name": "score"
+          },
+          {
+            "name": "metadata"
+          }
+        ]
+      },
+      "aggregate_into_array": true,
+      "tag_as": "reranker.input_documents",
+      "wrap": {
+        "role": "documents",
+        "members": {
+          "_source": "reranker.input_documents"
+        }
+      },
+      "legacy_rank": 230
+    },
+    {
+      "id": "openinference.reranker_output",
+      "doc": "The order it put them in.",
+      "read": {
+        "indexed_family": "reranker.output_documents",
+        "entry_member": "document",
+        "numeric_members": [
+          "score"
+        ]
+      },
+      "require_members": {
+        "any_of": [
+          {
+            "name": "id"
+          },
+          {
+            "name": "content"
+          },
+          {
+            "name": "score"
+          },
+          {
+            "name": "metadata"
+          }
+        ]
+      },
+      "aggregate_into_array": true,
+      "tag_as": "reranker.output_documents",
+      "wrap": {
+        "role": "documents",
+        "members": {
+          "_source": "reranker.output_documents"
+        }
+      },
+      "legacy_rank": 240
+    },
+    {
+      "id": "openinference.reranker_query",
+      "doc": "The query a reranker scored against.",
+      "read": {
+        "attribute": "reranker.query"
+      },
+      "parse": "text",
+      "wrap": {
+        "role": "user",
+        "members": {
+          "_source": "reranker.query"
+        }
+      },
+      "legacy_rank": 250
+    },
+    {
+      "id": "openinference.embedding_text",
+      "doc": "The text an embedding span turned into a vector.",
+      "read": {
+        "attribute": "embedding.text"
+      },
+      "parse": "text",
+      "wrap": {
+        "role": "user",
+        "members": {
+          "_source": "embedding.text"
+        }
+      },
+      "legacy_rank": 260
+    }
+  ]
 }

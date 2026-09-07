@@ -36,8 +36,9 @@ use serde_json::{Value as JsonValue, json};
 use super::detect_rules::CompiledDetect;
 use super::schema::{
     Alternative, AttachSpec, BlockSpec, ComposeMember, ComposeSpec, ElementsSpec, EmitTarget,
-    MemberPresence, MemberRequirements, MessageRule, ParseMode, PredicateSet, ReadSpec, RuleFile,
-    SectionsSpec, SingleToolCallSpec, ToolCallsSpec, ValueKind, ValuePredicate, WrapSpec,
+    MemberPresence, MemberRequirements, MessageRule, OverlaySpec, ParseMode, PredicateSet,
+    ReadSpec, RuleFile, SectionsSpec, SingleToolCallSpec, ToolCallsSpec, ValueKind, ValuePredicate,
+    WrapSpec,
 };
 
 /// One reading of a payload: the value, an envelope for this reading alone, and its target where it
@@ -281,8 +282,12 @@ fn compile_rule(
                  `parse` would be ignored",
         ));
     }
+    // A wrap is meaningful on an *aggregated* family: the entries become one array, and one array needs an
+    // envelope saying what it is - a result set is one observation, not one message per document.
     if read.indexed_family.is_some()
-        && (wrap.is_some() || !alternatives.is_empty() || !also.is_empty())
+        && ((wrap.is_some() && !aggregate_into_array)
+            || !alternatives.is_empty()
+            || !also.is_empty())
     {
         return Err(inexpressible(
             "an indexed family assembles each entry itself, so `wrap` and `alternatives` would \
@@ -1012,7 +1017,12 @@ fn indexed_entries(
     family: &str,
     entry_member: Option<&str>,
     require: Option<&MemberRequirements>,
+    numeric: &[String],
+    overlay: Option<&OverlaySpec>,
 ) -> Vec<(String, JsonValue)> {
+    // Parsed once for the whole family: the counterpart list describes every entry, so parsing it per
+    // entry would re-parse one payload as many times as there are messages.
+    let counterparts = overlay.and_then(|overlay| counterpart_list(attrs, overlay));
     let mut indices: std::collections::BTreeSet<usize> = std::collections::BTreeSet::new();
     let family_dot = format!("{family}.");
     for key in attrs.keys() {
@@ -1050,7 +1060,7 @@ fn indexed_entries(
             .collect();
         own.sort_unstable_by_key(|(member, _)| *member);
         for (member, value) in own {
-            object.insert(member.to_string(), sniffed_value(value));
+            object.insert(member.to_string(), member_value(member, value, numeric));
         }
         // Where the message is nested, the entry's *other* members come too: they belong to the same
         // observation, and the sub-level's own keys are already in, so they are skipped here.
@@ -1067,12 +1077,78 @@ fn indexed_entries(
                 .collect();
             siblings.sort_unstable_by_key(|(member, _)| *member);
             for (member, value) in siblings {
-                object.insert(member.to_string(), sniffed_value(value));
+                object.insert(member.to_string(), member_value(member, value, numeric));
             }
+        }
+        if let Some(overlay) = overlay
+            && let Some(content) = counterpart_content(overlay, counterparts.as_ref(), index)
+            && object
+                .keys()
+                .any(|member| member.starts_with(overlay.when_member_prefix.as_str()))
+        {
+            let flattened: Vec<String> = object
+                .keys()
+                .filter(|member| member.starts_with(overlay.when_member_prefix.as_str()))
+                .cloned()
+                .collect();
+            for member in flattened {
+                object.remove(&member);
+            }
+            object.insert(overlay.as_member.clone(), content);
         }
         out.push((subject_prefix, JsonValue::Object(object)));
     }
     out
+}
+
+/// The counterpart list a positional overlay joins against, where the span carries one this dialect wrote.
+fn counterpart_list(
+    attrs: &HashMap<String, String>,
+    overlay: &OverlaySpec,
+) -> Option<Vec<JsonValue>> {
+    let raw = attrs.get(overlay.from.as_str())?;
+    let parsed = parse_value(raw, overlay.parse.unwrap_or(ParseMode::Json))?;
+    let list = overlay.select_any_of.iter().find_map(|path| {
+        query(&parsed, path)
+            .into_iter()
+            .next()
+            .and_then(JsonValue::as_array)
+            // An array of objects: a serialiser may wrap the list once, so the first path that resolves
+            // to a *list of messages* is the list - not the first that resolves to anything.
+            .filter(|items| items.iter().all(JsonValue::is_object))
+    })?;
+    if list.is_empty() {
+        return None;
+    }
+    let witness = JsonValue::Array(list.clone());
+    if !predicates_hold(&witness, &overlay.witness) {
+        return None;
+    }
+    Some(list.clone())
+}
+
+/// The content the counterpart at this position holds, where it is an improvement on the flattened form.
+fn counterpart_content(
+    overlay: &OverlaySpec,
+    counterparts: Option<&Vec<JsonValue>>,
+    index: usize,
+) -> Option<JsonValue> {
+    let found = overlay
+        .content_any_of
+        .iter()
+        .find_map(|path| query(counterparts?.get(index)?, path).into_iter().next())?;
+    predicates_hold(found, &overlay.require).then(|| found.clone())
+}
+
+/// A named member read as a number where its text is one, otherwise the ordinary sniff.
+fn member_value(member: &str, raw: &str, numeric: &[String]) -> JsonValue {
+    if numeric.iter().any(|name| name == member)
+        && let Ok(number) = raw.parse::<f64>()
+        && let Some(number) = serde_json::Number::from_f64(number)
+    {
+        return JsonValue::Number(number);
+    }
+    sniffed_value(raw)
 }
 
 /// A member of an indexed family: JSON where it looks like JSON, the text otherwise.
@@ -1590,12 +1666,37 @@ fn emit_rule<'p>(rule: &'p CompiledMessageRule, ctx: &MessageContext<'_>) -> Vec
         return out;
     }
     if let Some(family) = rule.read.indexed_family.as_deref() {
-        for (carrier, value) in indexed_entries(
+        let entries = indexed_entries(
             ctx.span_attrs,
             family,
             rule.read.entry_member.as_deref(),
             rule.require_members.as_ref(),
-        ) {
+            &rule.read.numeric_members,
+            rule.read.overlay.as_ref(),
+        );
+        // A result set is one observation. Its entries are the array, and the envelope says what the array
+        // is - so the whole family is tagged once rather than one carrier per document.
+        if rule.aggregate_into_array {
+            if entries.is_empty() {
+                return out;
+            }
+            let array = JsonValue::Array(entries.into_iter().map(|(_, value)| value).collect());
+            let value = match &rule.wrap {
+                Some(wrap) => match wrapped(array, wrap, ctx, None) {
+                    Some(value) => value,
+                    None => return out,
+                },
+                None => array,
+            };
+            out.push(Emission {
+                rule_id: &rule.rule_id,
+                carrier: EmittedCarrier::Attribute(rule.tag_as.as_deref().unwrap_or(family)),
+                target: rule.target,
+                value,
+            });
+            return out;
+        }
+        for (carrier, value) in entries {
             out.push(Emission {
                 rule_id: &rule.rule_id,
                 carrier: EmittedCarrier::Owned(carrier),

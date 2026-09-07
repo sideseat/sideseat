@@ -170,10 +170,14 @@ pub(super) mod keys {
     pub const LLM_COST_COMPLETION: &str = "llm.cost.completion";
 
     // OpenInference Embedding attributes
+    /// Named by the OpenInference asset now; kept for the equivalence oracle's reference.
+    #[cfg(test)]
     pub const EMBEDDING_TEXT: &str = "embedding.text";
     pub const EMBEDDING_MODEL_NAME: &str = "embedding.model_name";
 
     // OpenInference Reranker attributes
+    /// Named by the OpenInference asset now; kept for the equivalence oracle's reference.
+    #[cfg(test)]
     pub const RERANKER_QUERY: &str = "reranker.query";
     pub const RERANKER_MODEL_NAME: &str = "reranker.model_name";
 

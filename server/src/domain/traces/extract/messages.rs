@@ -392,10 +392,6 @@ struct NamedExtractor {
 /// If you need to debug framework detection, enable SIDESEAT_LOG=trace to see
 /// which extractor is used for each span.
 const EXTRACTORS: &[NamedExtractor] = &[
-    NamedExtractor {
-        name: "openinference",
-        extractor: try_openinference,
-    },
     // Every dialect whose extraction is purely "claim this carrier and keep what it held" - declared in
     // `server/rules/*.json` rather than written here. Their carriers are read by no other extractor
     // (`ContestedCarrier` refuses a ruleset where two rules read one carrier), so collapsing three
@@ -1030,6 +1026,7 @@ pub(crate) fn try_otel_genai_messages(
     found
 }
 
+#[cfg(test)]
 pub(crate) fn try_openinference(
     messages: &mut Vec<RawMessage>,
     _tool_definitions: &mut Vec<RawToolDefinition>,
@@ -1146,6 +1143,7 @@ pub(crate) fn try_openinference(
 /// `input.value` contains the complete LangChain-serialized content with all blocks.
 /// For user messages with multimodal `contents.*` dotted keys, replace the dotted-key
 /// content with the richer content array from `input.value`.
+#[cfg(test)]
 fn enrich_oi_multimodal_from_input_value(
     messages: &mut [RawMessage],
     attrs: &HashMap<String, String>,
@@ -1242,6 +1240,7 @@ fn enrich_oi_multimodal_from_input_value(
 
 /// Find message array in input.value JSON.
 /// Handles: {"messages": [[m1,m2]]}, {"messages": [m1,m2]}, [m1,m2]
+#[cfg(test)]
 fn find_input_value_messages(parsed: &JsonValue) -> Option<&Vec<JsonValue>> {
     // {"messages": ...}
     if let Some(msgs) = parsed.get("messages") {
@@ -1262,6 +1261,7 @@ fn find_input_value_messages(parsed: &JsonValue) -> Option<&Vec<JsonValue>> {
 
 /// Extract the OI message index from a RawMessage source key.
 /// Source keys look like "llm.input_messages.N.message" → returns N.
+#[cfg(test)]
 fn extract_oi_message_index(msg: &RawMessage) -> Option<usize> {
     let key = match &msg.source {
         MessageSource::Attribute { key, .. } => key,
@@ -2533,6 +2533,7 @@ fn normalize_langchain_message(msg: &JsonValue) -> Option<JsonValue> {
 }
 
 /// Extract content from LangChain message (handles various formats)
+#[cfg(test)]
 fn extract_langchain_content(msg: &JsonValue) -> Option<JsonValue> {
     // Direct content field
     if let Some(content) = msg.get("content") {
@@ -4109,6 +4110,7 @@ fn extract_indexed_message(
     ))
 }
 
+#[cfg(test)]
 fn extract_openinference_message(
     attrs: &HashMap<String, String>,
     prefix: &str,
@@ -4190,6 +4192,7 @@ fn extract_openinference_message(
 }
 
 /// Extract OpenInference documents (retrieval.documents.N.* or reranker.*.documents.N.*)
+#[cfg(test)]
 fn extract_openinference_documents(
     attrs: &HashMap<String, String>,
     prefix: &str,

@@ -326,16 +326,39 @@ bless a regression; an oracle cannot.
 5. Feed source / event / replay / ordering-family tables.
 6. Content and tool normalisation, with explicit named-chain precedence.
 7. Reconcile the three provider namespaces, then token / cost / model conventions.
-8. 🔶 **Message extraction** — in progress. Fourteen of sixteen extractor entries retired,
-   each proved by an oracle and moved **wholesale** (see the constraint below), with 45
-   message rules declared:
+8. ✅ **Message extraction** — done. **Every** framework extractor entry is retired; the
+   two that remain name no framework: the generic `declared_rules` entry and the `raw_io`
+   fallback. Sixteen became two, with 52 message rules declared and each retirement proved
+   by `the_rules_reproduce_the_extractors_they_replaced` against the code it replaced.
 
-   | Retired | Still in Rust, and what it needs |
+   OpenInference was expected to be the hard one and was almost entirely already
+   expressible: `indexed_family` + `entry_member` + `require_members` with `nested` presence
+   had been built for exactly its shape, and nine probe shapes disagreed in **one** place —
+   a relevance score arriving as `"0.9"` where a score is a number (`numeric_members`, named
+   rather than sniffed, because a version or a postcode is text that happens to parse).
+
+   Codex's blocker turned out to be a claim about the implementation rather than about the
+   information. `enrich_oi_multimodal_from_input_value` mutates the messages that extractor
+   produced, which is why it read as "one rule reading another's output" — but both carriers
+   are attributes of **one span**, and the join is positional: entry *n* of the flattened
+   family and member *n* of the serialised list are the same message. So it is an
+   `overlay`, declared beside the family that needs it, and no query-time stage was
+   required. The flattened form loses whole content blocks and writes `__REDACTED__` for a
+   url while the serialised copy keeps both, so where both describe one message the richer
+   one wins — guarded by a witness predicate (this dialect's own serialisation, not any
+   array of objects that happens to sit at that path) and applied only to an entry whose
+   content actually arrived flattened.
+
+   An aggregated indexed family may now carry a `wrap`: a retrieval result set is **one**
+   observation holding every document, not one message per document, and one array needs an
+   envelope saying what it is.
+
+   | Retired | Still in Rust |
    | --- | --- |
-   | `mlflow`, `traceloop`, `pydantic_ai`, `langsmith` | `openinference` — its indexed families feed a multimodal enrichment that rebuilds content blocks from a serialised `input.value` and operates on the messages that extractor produced. Codex's ruling stands: that enrichment becomes a pure query-time `join_by_index` / `overlay_if` **before** the carriers move, because a rule cannot read what a previous rule emitted |
-   | `gen_ai_indexed`, `livekit`, `otel_genai_messages` | `crewai`'s Python-`repr` tool-definition grammar — separate always-on code rather than an extractor entry, and a sealed generic primitive with its type mapping in data |
+   | `mlflow`, `traceloop`, `pydantic_ai`, `langsmith` | CrewAI's Python-`repr` **tool-definition** grammar (21 functions), which is always-on code rather than an extractor entry — and is about tool definitions, not messages |
+   | `gen_ai_indexed`, `livekit`, `otel_genai_messages` | |
    | `vercel_ai`, `claude_code`, `logfire_events` | |
-   | `google_adk`, `langgraph`, `crewai`, `autogen` | |
+   | `google_adk`, `langgraph`, `crewai`, `autogen`, `openinference` | |
 
    AutoGen was the largest and shaped seven primitives, each named for a fact about a
    carrier rather than for the framework: a **claim** target (an aggregate span's

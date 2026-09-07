@@ -607,6 +607,48 @@ pub struct ReadSpec {
     /// payload it came from.
     #[serde(default)]
     pub entry_member: Option<String>,
+    /// Entry members to read as a number where the text is one.
+    ///
+    /// OTel attributes are strings, so a relevance score arrives as `"0.9"` - and a score is a number.
+    /// Named rather than sniffed, because a version, an id or a postcode is text that happens to parse.
+    #[serde(default)]
+    pub numeric_members: Vec<String>,
+    /// A richer copy of these same messages, held by another carrier and matched by position.
+    #[serde(default)]
+    pub overlay: Option<OverlaySpec>,
+}
+
+/// Another carrier of the same span describing the same messages at higher fidelity.
+///
+/// Not an enrichment of what some other reader produced - both carriers are attributes of one span, and
+/// the join is positional: entry *n* of the family and member *n* of the other carrier's list are the
+/// same message. A flattened family loses whole content blocks and redacts urls, while the serialised copy
+/// beside it keeps them, so where both describe one message the richer one is preferred.
+#[derive(Debug, Deserialize, Clone)]
+#[serde(deny_unknown_fields)]
+pub struct OverlaySpec {
+    pub doc: Option<String>,
+    /// The attribute holding the richer copy.
+    pub from: String,
+    #[serde(default)]
+    pub parse: Option<ParseMode>,
+    /// Ordered paths to the counterpart list; the first that resolves to an array of objects is used. A
+    /// serialiser may wrap the list in a single-element array, which is why more than one path is needed.
+    pub select_any_of: Vec<JsonPath>,
+    /// What the list must look like to be this dialect's own serialisation. Without it, any array of
+    /// objects at that path would be treated as the same messages.
+    #[serde(default)]
+    pub witness: PredicateSet,
+    /// Only entries carrying members under this prefix are overlaid - the flattened form of the content
+    /// that is known to be lossy.
+    pub when_member_prefix: String,
+    /// Ordered paths to the counterpart's content.
+    pub content_any_of: Vec<JsonPath>,
+    /// What that content must be for the overlay to be an improvement.
+    #[serde(default)]
+    pub require: PredicateSet,
+    /// The member the content becomes, replacing every member under `when_member_prefix`.
+    pub as_member: String,
 }
 
 impl ReadSpec {
