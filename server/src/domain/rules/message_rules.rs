@@ -452,61 +452,11 @@ fn compile_rule(
                  `tool_definitions` would be ignored",
         ));
     }
-    // A predicate that cannot hold, or asserts nothing, is refused like any other no-op.
-    let check_predicates = |set: &PredicateSet| -> Option<&'static str> {
-        for predicate in set.all.iter().chain(set.any.iter()) {
-            if predicate.non_empty.is_some()
-                && matches!(
-                    predicate.kind,
-                    Some(ValueKind::Number | ValueKind::Bool | ValueKind::Null)
-                )
-            {
-                return Some(
-                    "`non_empty` is meaningless for a number, boolean or null - only strings, \
-                         arrays and objects can be empty",
-                );
-            }
-            if predicate.exists == Some(false)
-                && (predicate.kind.is_some()
-                    || predicate.non_empty.is_some()
-                    || predicate.not_null.is_some()
-                    || predicate.identifier_like.is_some()
-                    || predicate.starts_with.is_some()
-                    || predicate.lacks_prefix.is_some())
-            {
-                return Some(
-                    "`exists: false` asserts the member is absent, so no other condition on it \
-                         can hold",
-                );
-            }
-            if predicate.starts_with.is_some() && predicate.lacks_prefix.is_some() {
-                return Some("`starts_with` and `lacks_prefix` on one predicate");
-            }
-        }
-        None
-    };
-    for alternative in alternatives.iter().chain(also).chain(fallback) {
-        if let Some(detail) = check_predicates(&alternative.require) {
-            return Err(inexpressible(detail));
-        }
-    }
-    // A composed rule's condition is a predicate set like any other, and skipping it here let a
-    // contradiction compile.
-    if let Some(compose) = compose
-        && let Some(detail) = check_predicates(&compose.require)
-    {
-        return Err(inexpressible(detail));
-    }
     // `alternatives` and `also` may coexist: the first list is the ordered question "which shape is
     // this", the second is "and read this as well, always". One carrier really does need both - a dialect's
     // response member holds the reply *and* the inner turns that produced it - and refusing the pair forced
     // that into two rules claiming one carrier, which the ownership check rightly refuses.
     if let Some(sections) = sections {
-        for route in &sections.routes {
-            if let Some(detail) = check_predicates(&route.skip_when) {
-                return Err(inexpressible(detail));
-            }
-        }
         if sections.split_on.is_empty() {
             return Err(inexpressible("`sections.split_on` is empty"));
         }
@@ -746,6 +696,17 @@ pub fn compile(sources: &BTreeMap<String, Vec<u8>>) -> Result<MessagePlan, Messa
         }
     }
 
+    // Predicates, checked once over every place a compiled rule holds one - after fragments and extra
+    // cases are inlined, which is the only point at which they are all visible.
+    for rule in &rules {
+        if let Some(detail) = predicate_sets(rule).into_iter().find_map(predicate_defect) {
+            return Err(MessageCompileError::Inexpressible {
+                rule: rule.rule_id.clone(),
+                detail,
+            });
+        }
+    }
+
     // An event name no asset recognises makes a rule *dead*: recognition rejects the event before the plan
     // is asked, so the rule compiles and never runs. That is the failure declaring recognition was meant to
     // remove, so it is refused rather than left to be discovered.
@@ -866,6 +827,124 @@ pub fn compile(sources: &BTreeMap<String, Vec<u8>>) -> Result<MessagePlan, Messa
         rules,
         metadata_candidates,
     })
+}
+
+/// A predicate that cannot hold, or asserts nothing, is refused like any other no-op.
+///
+/// One function, applied by one recursive pass over every predicate-bearing place a *compiled* rule has -
+/// after fragments and extra cases are inlined. Checking the direct alternatives only left the same
+/// contradiction reachable through `require_parent`, an attachment, an overlay, a prepended block, or any
+/// case a fragment contributed: the pass that ran before inlining could not see those at all.
+fn predicate_defect(set: &PredicateSet) -> Option<&'static str> {
+    for predicate in set.all.iter().chain(set.any.iter()) {
+        if predicate.non_empty.is_some()
+            && matches!(
+                predicate.kind,
+                Some(ValueKind::Number | ValueKind::Bool | ValueKind::Null)
+            )
+        {
+            return Some(
+                "`non_empty` is meaningless for a number, boolean or null - only strings, \
+                 arrays and objects can be empty",
+            );
+        }
+        if predicate.exists == Some(false)
+            && (predicate.kind.is_some()
+                || predicate.non_empty.is_some()
+                || predicate.not_null.is_some()
+                || predicate.identifier_like.is_some()
+                || predicate.starts_with.is_some()
+                || predicate.lacks_prefix.is_some())
+        {
+            return Some(
+                "`exists: false` asserts the member is absent, so no other condition on it \
+                 can hold",
+            );
+        }
+        if predicate.starts_with.is_some() && predicate.lacks_prefix.is_some() {
+            return Some("`starts_with` and `lacks_prefix` on one predicate");
+        }
+        // Every text condition needs a string. Declared beside a kind that is not one, it can never hold -
+        // and a predicate that can never hold is the same defect as one that asserts nothing.
+        if (predicate.identifier_like.is_some()
+            || predicate.starts_with.is_some()
+            || predicate.lacks_prefix.is_some()
+            || !predicate.one_of.is_empty())
+            && matches!(
+                predicate.kind,
+                Some(
+                    ValueKind::Number
+                        | ValueKind::Bool
+                        | ValueKind::Null
+                        | ValueKind::Array
+                        | ValueKind::Object
+                )
+            )
+        {
+            return Some(
+                "a text condition - `identifier_like`, `starts_with`, `lacks_prefix`, `one_of` - needs \
+                     a string, so beside a kind that is not one it can never hold",
+            );
+        }
+    }
+    None
+}
+
+/// Every predicate set a compiled rule holds, wherever the declaration put it.
+fn predicate_sets(rule: &CompiledMessageRule) -> Vec<&PredicateSet> {
+    let mut out = Vec::new();
+    if let Some(set) = &rule.branch_set {
+        for sub in set.primary.iter().chain(&set.fallback).chain(&set.always) {
+            out.extend(predicate_sets(sub));
+        }
+    }
+    if let Some(compose) = &rule.compose {
+        out.push(&compose.require);
+    }
+    if let Some(sections) = &rule.sections {
+        out.extend(sections.routes.iter().map(|route| &route.skip_when));
+    }
+    if let Some(overlay) = &rule.read.overlay {
+        out.push(&overlay.witness);
+        out.push(&overlay.require);
+    }
+    for reading in rule
+        .alternatives
+        .iter()
+        .chain(&rule.also)
+        .chain(&rule.fallback)
+    {
+        // The reading's own sets, and every case a fragment or this selection point contributed - which the
+        // pre-inlining pass could not reach.
+        for spec in std::iter::once(&reading.spec).chain(reading.fragment_cases.iter()) {
+            out.push(&spec.require);
+            out.push(&spec.require_parent);
+            if let Some(wrap) = &spec.wrap {
+                out.extend(wrap_predicate_sets(wrap));
+            }
+        }
+    }
+    if let Some(wrap) = &rule.wrap {
+        out.extend(wrap_predicate_sets(wrap));
+    }
+    out
+}
+
+/// Every predicate set an envelope holds.
+fn wrap_predicate_sets(wrap: &WrapSpec) -> Vec<&PredicateSet> {
+    let mut out = vec![&wrap.require_after];
+    out.extend(wrap.attach.iter().map(|attach| &attach.require));
+    if let Some(block) = &wrap.prepend_block {
+        out.push(&block.require);
+    }
+    for block in wrap
+        .block
+        .iter()
+        .chain(wrap.prepend_block.as_ref().map(|p| &p.block))
+    {
+        out.extend(block.attach.iter().map(|attach| &attach.require));
+    }
+    out
 }
 
 /// A reading with its fragment's cases inlined.

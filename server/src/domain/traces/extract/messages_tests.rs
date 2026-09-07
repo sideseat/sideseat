@@ -8117,20 +8117,26 @@ fn the_rules_reproduce_the_extractors_they_replaced() {
             matches!(&m.source, MessageSource::Attribute { key, .. }
                 if REVIEWED_DELTA_MESSAGE_CARRIERS.contains(&key.as_str()))
         };
+        // Messages are compared as a *set* and tool definitions **in order**, which is not a stylistic
+        // split. Message order is decided later, by the reconstruction pipeline, so the order they sit in
+        // this vector says nothing; a tool definition's order is semantic here, because merging keeps the
+        // *first* of two equal-quality definitions sharing a name - so the position decides which
+        // description and schema win. Sorting them together hid exactly that regression, and only a
+        // dedicated test caught it.
         let render = |msgs: &[RawMessage], tools: &[RawToolDefinition]| -> Vec<String> {
-            let mut out: Vec<String> = msgs
+            let mut messages: Vec<String> = msgs
                 .iter()
                 .filter(|m| !is_reviewed_delta_msg(m))
                 .map(|m| format!("msg {:?} {}", m.source, canonical(&m.content)))
-                .chain(
-                    tools
-                        .iter()
-                        .filter(|t| !is_reviewed_delta_tool(t))
-                        .map(|t| format!("tool {:?} {}", t.source, canonical(&t.content))),
-                )
                 .collect();
-            out.sort();
-            out
+            messages.sort();
+            messages.extend(
+                tools
+                    .iter()
+                    .filter(|t| !is_reviewed_delta_tool(t))
+                    .map(|t| format!("tool {:?} {}", t.source, canonical(&t.content))),
+            );
+            messages
         };
         // Why each carrier is a reviewed delta:
         //
@@ -9040,6 +9046,10 @@ fn the_fallback_inherits_what_the_dialect_stage_read() {
 /// synthetic aggregate reported under a parenthesised name, and the position - it ran *after* every other
 /// definition had been collected, and merging keeps the first of two equal-quality definitions with one
 /// name, so the order decides which description and schema win.
+///
+/// Copied from `extract_tool_definitions` as of **`08f69b86`**, the commit that declared it. A hand-copy is
+/// as trustworthy as any other reviewed data and no less so than a golden - but it cannot be re-derived, so
+/// the commit is named here for anyone who needs to check it against the original.
 fn legacy_single_tool_definition(
     attrs: &HashMap<String, String>,
     timestamp: DateTime<Utc>,
@@ -9130,5 +9140,36 @@ fn the_single_tool_triple_is_read_last() {
         order,
         vec!["llm.tools".to_string(), "gen_ai.tool.name".to_string()],
         "the triple must come last - merging keeps the first of two equal-quality definitions with one name"
+    );
+
+    // The consequence, asserted rather than described: with the *same* name in both, the position decides
+    // which description survives. Reversed, the triple's would win and the list's would be dropped.
+    let same_name = make_attrs(&[
+        (
+            "llm.tools",
+            r#"[{"type":"function","function":{"name":"shared","description":"from the list"}}]"#,
+        ),
+        ("gen_ai.tool.name", "shared"),
+        ("gen_ai.tool.description", "from the triple"),
+    ]);
+    let (defs, _) = extract_tool_definitions(&same_name, Utc::now());
+    let merged = crate::domain::sideml::tools::normalize_tools(&JsonValue::Array(
+        defs.iter()
+            .flat_map(|d| d.content.as_array().cloned().unwrap_or_default())
+            .collect(),
+    ));
+    let descriptions: Vec<&str> = merged
+        .as_array()
+        .expect("an array of tools")
+        .iter()
+        .filter_map(|t| t["function"]["description"].as_str())
+        .collect();
+    // The order survives normalisation, which is what the position guarantees at this level: the merge that
+    // keeps the first of two equal-quality definitions with one name happens later, in the feed, and it sees
+    // the list's definition first. Reversed here, the triple's description would be the one it kept.
+    assert_eq!(
+        descriptions,
+        vec!["from the list", "from the triple"],
+        "the order the merge will see is wrong: {merged:?}"
     );
 }
