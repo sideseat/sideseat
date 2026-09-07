@@ -8163,7 +8163,7 @@ fn declared_message_rules_cover_what_they_claim() {
     let plan = &ruleset().messages;
     assert_eq!(
         plan.rule_count(),
-        61,
+        60,
         "the assets declare {} message rules. **Every** framework extractor is consolidated into the one \
          generic entry; the only other entry left is the generic `raw_io` fallback, which names no \
          framework - and a dialect moves whole or not at all, so there are no part-migrated carriers to \
@@ -8692,4 +8692,35 @@ fn a_tools_list_beside_a_conversation_does_not_claim_the_carrier() {
         !from_input.is_empty(),
         "the conversation beside the tools was claimed away"
     );
+}
+
+/// A present-but-empty declaration wrapper has declared no tools, and is not itself a tool.
+///
+/// The retired code chose the wrapper member by *presence* and extended by its elements, so an empty
+/// `function_declarations: []` contributed nothing. Choosing "the first path that yielded something"
+/// instead skips the empty member and falls through to emitting the wrapper object as a tool - a tool
+/// called nothing, with the wrapper's own shape.
+#[test]
+fn an_empty_declaration_wrapper_yields_no_tool() {
+    let request = r#"{"tools":[{"function_declarations":[]}]}"#;
+    let attrs = make_attrs(&[("gcp.vertex.agent.llm_request", request)]);
+    let (tools, _) = extract_tool_definitions(&attrs, Utc::now());
+    assert!(
+        tools.is_empty(),
+        "an empty declaration wrapper produced a tool: {tools:?}"
+    );
+}
+
+/// Both spellings present: the first *declared* one wins, whichever is non-empty.
+#[test]
+fn the_first_declared_wrapper_spelling_wins() {
+    let request = r#"{"tools":[{"function_declarations":[{"name":"snake"}],"functionDeclarations":[{"name":"camel"}]}]}"#;
+    let attrs = make_attrs(&[("gcp.vertex.agent.llm_request", request)]);
+    let (tools, _) = extract_tool_definitions(&attrs, Utc::now());
+    let names: Vec<String> = tools
+        .iter()
+        .flat_map(|t| t.content.as_array().cloned().unwrap_or_default())
+        .filter_map(|t| t.get("name").and_then(|n| n.as_str()).map(str::to_string))
+        .collect();
+    assert_eq!(names, vec!["snake".to_string()]);
 }

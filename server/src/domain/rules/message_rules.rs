@@ -153,6 +153,13 @@ pub struct CompiledMessageRule {
 /// that is the state the rank exists to be retired from.
 #[derive(Debug, Default)]
 pub struct MessagePlan {
+    /// Indices of the rules that can produce a tool definition or a name list.
+    ///
+    /// Precomputed because the metadata path would otherwise evaluate every rule on every span - sixty
+    /// evaluations where thirteen can contribute, and a message rule's evaluation is not cheap: a bounded
+    /// state walk, JSONPath over a parsed payload, a `repr` grammar. `emit_rule` is pure, so this is cost
+    /// rather than correctness, and it is cost paid twice per span on the same payloads.
+    metadata_candidates: Vec<usize>,
     rules: Vec<CompiledMessageRule>,
 }
 
@@ -530,36 +537,6 @@ fn compile_rule(
             if set.primary.is_empty() {
                 return Err(inexpressible("a branch set declares no `primary` reading"));
             }
-            // A branch set is evaluated only by `run`, on the message axis, so a sub-rule that emits a tool
-            // definition or a name list is dropped there and never reaches the metadata path - dead. Tool
-            // metadata belongs to a top-level rule, which `tool_definitions()` reads on every span.
-            if set
-                .primary
-                .iter()
-                .chain(&set.fallback_if_primary_empty)
-                .chain(&set.always)
-                .any(|sub| {
-                    matches!(
-                        sub.emit,
-                        EmitTarget::ToolDefinitions | EmitTarget::ToolNames
-                    ) || sub.tool_repr.is_some()
-                        || sub
-                            .alternatives
-                            .iter()
-                            .chain(&sub.also)
-                            .chain(&sub.fallback)
-                            .any(|a| {
-                                matches!(
-                                    a.emit,
-                                    Some(EmitTarget::ToolDefinitions | EmitTarget::ToolNames)
-                                )
-                            })
-                })
-            {
-                return Err(inexpressible(
-                    "a branch-set sub-rule emits tool metadata, which only `run` evaluates and only on                          the message axis - it would be silently dropped; declare it as a top-level rule",
-                ));
-            }
             Some(CompiledBranchSet {
                 primary: compile_group(&set.primary)?,
                 fallback: compile_group(&set.fallback_if_primary_empty)?,
@@ -683,7 +660,17 @@ pub fn compile(sources: &BTreeMap<String, Vec<u8>>) -> Result<MessagePlan, Messa
     // rules contend only when both can emit on the message axis - a message rule and a pure
     // tool-definition rule reading the same carrier is the co-located case (one conversation, one tool
     // list) that routing-by-emission handles, not a conflict.
-    let reads_message_axis = |rule: &CompiledMessageRule| -> bool {
+    fn reads_message_axis(rule: &CompiledMessageRule) -> bool {
+        // A branch set has no readings of its own: its sub-rules are the rules, so the question is asked of
+        // them. Without this a branch-set rule was judged on its default target alone.
+        if let Some(set) = &rule.branch_set {
+            return set
+                .primary
+                .iter()
+                .chain(&set.fallback)
+                .chain(&set.always)
+                .any(reads_message_axis);
+        }
         rule.tool_repr.is_none()
             && std::iter::once(rule.target)
                 .chain(
@@ -694,7 +681,7 @@ pub fn compile(sources: &BTreeMap<String, Vec<u8>>) -> Result<MessagePlan, Messa
                         .filter_map(|a| a.spec.emit),
                 )
                 .any(|target| matches!(target, EmitTarget::Message | EmitTarget::Claim))
-    };
+    }
     for (i, a) in rules.iter().enumerate() {
         for b in &rules[i + 1..] {
             if !(reads_message_axis(a) && reads_message_axis(b)) {
@@ -735,7 +722,38 @@ pub fn compile(sources: &BTreeMap<String, Vec<u8>>) -> Result<MessagePlan, Messa
         }
     }
 
-    Ok(MessagePlan { rules })
+    // Which rules the metadata path needs to evaluate at all. A rule qualifies if it, or any of its
+    // readings, or any sub-rule of its branch set, can name a metadata target.
+    fn can_emit_metadata(rule: &CompiledMessageRule) -> bool {
+        if let Some(set) = &rule.branch_set {
+            return set
+                .primary
+                .iter()
+                .chain(&set.fallback)
+                .chain(&set.always)
+                .any(can_emit_metadata);
+        }
+        rule.tool_repr.is_some()
+            || std::iter::once(rule.target)
+                .chain(
+                    rule.alternatives
+                        .iter()
+                        .chain(&rule.also)
+                        .chain(&rule.fallback)
+                        .filter_map(|a| a.spec.emit),
+                )
+                .any(|target| matches!(target, EmitTarget::ToolDefinitions | EmitTarget::ToolNames))
+    }
+    let metadata_candidates = rules
+        .iter()
+        .enumerate()
+        .filter(|(_, rule)| can_emit_metadata(rule))
+        .map(|(index, _)| index)
+        .collect();
+    Ok(MessagePlan {
+        rules,
+        metadata_candidates,
+    })
 }
 
 /// A reading with its fragment's cases inlined.
@@ -895,6 +913,18 @@ fn consumed_carriers(rule: &CompiledMessageRule) -> Vec<CarrierPattern> {
 
 /// What a rule tags its observations with.
 fn emitted_carriers(rule: &CompiledMessageRule) -> Vec<CarrierPattern> {
+    // A branch set emits what its sub-rules emit - each is a rule in its own right, and one with `tag_as`
+    // emits a carrier this rule never names. Invisible here, two dialects could both emit one carrier from
+    // inside their branch sets.
+    if let Some(set) = &rule.branch_set {
+        return set
+            .primary
+            .iter()
+            .chain(&set.fallback)
+            .chain(&set.always)
+            .flat_map(emitted_carriers)
+            .collect();
+    }
     if let Some(tag) = &rule.tag_as {
         // Overrides every read form: whatever was read, this is the tag.
         return vec![CarrierPattern::Exact(tag.clone())];
@@ -935,9 +965,9 @@ impl MessagePlan {
         // run on every span. Routing by the emission's own target rather than the rule's is what lets one
         // carrier hold both a conversation and the tools it was offered - the conversation goes to `run`,
         // the tools come here, from the same rule.
-        self.rules
+        self.metadata_candidates
             .iter()
-            .flat_map(|rule| emit_rule(rule, ctx))
+            .flat_map(|&index| emit_rule(&self.rules[index], ctx))
             .filter(|emission| {
                 matches!(
                     emission.target,
@@ -963,33 +993,12 @@ impl MessagePlan {
             if ctx.is_tool_span && !rule.reads_tool_spans {
                 continue;
             }
-            // A branch set is several readings with a local order between them: the primaries, then the
-            // fallbacks only if those found nothing, then the unconditional ones. No rule ids, no shared
-            // state - the order lives inside this rule.
-            let produced = if let Some(set) = &rule.branch_set {
-                if !gates_allow(rule, ctx) {
-                    continue;
-                }
-                let mut produced = Vec::new();
-                for sub in &set.primary {
-                    produced.extend(emit_rule(sub, ctx));
-                }
-                if produced.is_empty() {
-                    for sub in &set.fallback {
-                        produced.extend(emit_rule(sub, ctx));
-                    }
-                }
-                for sub in &set.always {
-                    produced.extend(emit_rule(sub, ctx));
-                }
-                produced
-            } else {
-                emit_rule(rule, ctx)
-            };
             // Only the message emissions belong to `run`: a definition or a name list is metadata that
             // `tool_definitions` reads, on every span. Filtered by the emission's own target, so one rule
             // reading a carrier that holds both a conversation and a tool list contributes to both paths.
-            let messages = produced
+            // Branch-set expansion is inside `emit_rule`, so both paths see the same readings and the
+            // primary-empty decision is made on all emissions, not on one axis's slice of them.
+            let messages = emit_rule(rule, ctx)
                 .into_iter()
                 .filter(|e| matches!(e.target, EmitTarget::Message | EmitTarget::Claim));
             keep_unclaimed(messages.collect(), &mut claimed, &mut out);
@@ -1143,7 +1152,22 @@ fn readings(parsed: &JsonValue, alternatives: &[CompiledReading]) -> Vec<Reading
             // For each element, the first of these sub-paths that resolves - decided per element, because
             // one dialect's groups each either wrap their contents under one of two spellings or are the
             // content themselves, and choosing once for the whole array would drop the odd one out.
-            let element: Vec<&JsonValue> = if alternative.then_any_of.is_empty() {
+            let element: Vec<&JsonValue> = if !alternative.then_present_any_of.is_empty() {
+                // The first path that resolves *at all*. A present-but-empty member has declared nothing,
+                // and yields nothing - it does not fall through to the element itself.
+                match alternative
+                    .then_present_any_of
+                    .iter()
+                    .find_map(|path| query(element, path).into_iter().next())
+                {
+                    Some(found) => match found.as_array() {
+                        Some(items) => items.iter().collect(),
+                        None => vec![found],
+                    },
+                    None if alternative.else_element => vec![element],
+                    None => continue,
+                }
+            } else if alternative.then_any_of.is_empty() {
                 vec![element]
             } else {
                 let found = alternative
@@ -1892,6 +1916,29 @@ fn sectioned(raw: &str, spec: &SectionsSpec) -> Vec<JsonValue> {
 /// Separate from the plan's loop so a branch set's sub-readings run through exactly the same path as a
 /// top-level rule - a second evaluator would be a second place for the two to drift.
 fn emit_rule<'p>(rule: &'p CompiledMessageRule, ctx: &MessageContext<'_>) -> Vec<Emission<'p>> {
+    // A branch set is several readings with a local order between them: the primaries, then the fallbacks
+    // only if those found nothing, then the unconditional ones. Evaluated here, not in `run`, so the
+    // metadata path sees it too and the primary-empty decision is made on *all* emissions - a primary
+    // whose only output is a tool list still counts as matched, which is what stops a tools-only request
+    // from wrongly taking the fallback.
+    if let Some(set) = &rule.branch_set {
+        let mut out = Vec::new();
+        if !gates_allow(rule, ctx) {
+            return out;
+        }
+        for sub in &set.primary {
+            out.extend(emit_rule(sub, ctx));
+        }
+        if out.is_empty() {
+            for sub in &set.fallback {
+                out.extend(emit_rule(sub, ctx));
+            }
+        }
+        for sub in &set.always {
+            out.extend(emit_rule(sub, ctx));
+        }
+        return out;
+    }
     let mut out = Vec::new();
     if !gates_allow(rule, ctx) {
         return out;

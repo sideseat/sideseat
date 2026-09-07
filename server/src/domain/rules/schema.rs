@@ -1076,6 +1076,14 @@ pub struct Alternative {
     /// would drop the odd group out.
     #[serde(default)]
     pub then_any_of: Vec<JsonPath>,
+    /// Like `then_any_of`, but chosen by the member being **present** rather than by its yielding anything.
+    ///
+    /// The difference is load-bearing where a wrapper may legitimately be empty: a dialect that writes
+    /// `function_declarations: []` has declared no tools, and picking "the first path that yielded
+    /// something" skips the present-but-empty member and falls through to emitting the wrapper itself as a
+    /// tool. Presence also settles which of two spellings wins when both appear.
+    #[serde(default)]
+    pub then_present_any_of: Vec<JsonPath>,
     /// Fall back to the element itself when none of `then_any_of` resolved.
     #[serde(default)]
     pub else_element: bool,
