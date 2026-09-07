@@ -8724,3 +8724,85 @@ fn the_first_declared_wrapper_spelling_wins() {
         .collect();
     assert_eq!(names, vec!["snake".to_string()]);
 }
+
+/// An indexed entry that wraps one serialised payload *is* that payload.
+///
+/// The family's members arrive as `<prefix>.<n>.tool.json_schema`, so stripping the entry prefix leaves a
+/// member literally named `tool.json_schema` - a dot in the key, not a nesting - which is why the projection
+/// is bracket-quoted. Both rules over the family are pinned here: the schema list and the names projected
+/// out of it, which are different observations.
+#[test]
+fn an_indexed_entry_projects_its_leaf_payload() {
+    let attrs = make_attrs(&[
+        (
+            "llm.tools.0.tool.json_schema",
+            r#"{"type":"function","function":{"name":"search","parameters":{"type":"object"}}}"#,
+        ),
+        (
+            "llm.tools.1.tool.json_schema",
+            r#"{"type":"function","function":{"name":"calculator"}}"#,
+        ),
+    ]);
+    let (defs, names) = extract_tool_definitions(&attrs, Utc::now());
+    assert_eq!(defs.len(), 1, "the family is one observation: {defs:?}");
+    let schemas = defs[0].content.as_array().expect("an array of schemas");
+    assert_eq!(schemas.len(), 2);
+    assert_eq!(
+        schemas[0]["function"]["name"].as_str(),
+        Some("search"),
+        "the projection returned the wrapper rather than the schema: {schemas:?}"
+    );
+    assert_eq!(names.len(), 1, "the names are their own observation");
+    let listed: Vec<&str> = names[0]
+        .content
+        .as_array()
+        .expect("an array of names")
+        .iter()
+        .filter_map(|n| n.as_str())
+        .collect();
+    assert_eq!(listed, vec!["search", "calculator"]);
+}
+
+/// The single-tool triple yields to each of its two precedences independently.
+///
+/// Its gate is one `unless` naming two dimensions - this dialect's own list carriers, and the convention's
+/// single-tool attribute. A `DetectMatch` holds when **any** dimension does, which is what makes one gate
+/// express two independent precedences; were it all-of, neither alone would suppress the triple and the same
+/// tools would be reported twice. The retired code expressed both as a global "has anything produced tools
+/// yet" flag, which any unrelated dialect could satisfy first.
+#[test]
+fn the_single_tool_triple_yields_to_each_precedence_alone() {
+    let triple: &[(&str, &str)] = &[
+        ("tool.name", "secondary"),
+        ("tool.description", "a tool"),
+        ("tool.parameters", r#"{"type":"object"}"#),
+    ];
+    let names_of = |attrs: &HashMap<String, String>| -> Vec<String> {
+        extract_tool_definitions(attrs, Utc::now())
+            .0
+            .iter()
+            .flat_map(|t| t.content.as_array().cloned().unwrap_or_default())
+            .filter_map(|t| {
+                t["function"]["name"]
+                    .as_str()
+                    .or_else(|| t["name"].as_str())
+                    .map(str::to_string)
+            })
+            .collect()
+    };
+
+    // Alone, the triple is read.
+    let mut only = triple.to_vec();
+    assert!(names_of(&make_attrs(&only)).contains(&"secondary".to_string()));
+
+    // The dialect's own list carrier suppresses it - same tools, described once.
+    only.push(("llm.tools", r#"[{"name":"listed"}]"#));
+    assert!(!names_of(&make_attrs(&only)).contains(&"secondary".to_string()));
+
+    // And so does the convention's own single-tool attribute, on its own.
+    let mut with_convention = triple.to_vec();
+    with_convention.push(("gen_ai.tool.name", "primary"));
+    let seen = names_of(&make_attrs(&with_convention));
+    assert!(seen.contains(&"primary".to_string()));
+    assert!(!seen.contains(&"secondary".to_string()));
+}
