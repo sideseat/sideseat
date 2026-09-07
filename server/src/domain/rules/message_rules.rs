@@ -359,8 +359,31 @@ fn compile_rule(
                  `aggregate_into_array` would be ignored",
         ));
     }
+    if let Some(overlay) = &read.overlay {
+        if overlay.from.is_empty()
+            || overlay.when_member_prefix.is_empty()
+            || overlay.as_member.is_empty()
+        {
+            return Err(inexpressible(
+                "an overlay names a carrier, the flattened members it replaces and the member they \
+                     become; an empty one of those is not a name - and an empty prefix matches every \
+                     member, so the overlay would delete the whole entry",
+            ));
+        }
+        if overlay.select_any_of.is_empty() || overlay.content_any_of.is_empty() {
+            return Err(inexpressible(
+                "an overlay with no path to its counterpart list, or none to that counterpart's \
+                     content, can never find anything",
+            ));
+        }
+    }
     if tool_repr.is_some()
-        && (wrap.is_some()
+        && (*emit != EmitTarget::ToolDefinitions
+            || read.indexed_family.is_some()
+            || *aggregate_into_array
+            || *require_non_empty
+            || *require_non_blank
+            || wrap.is_some()
             || compose.is_some()
             || sections.is_some()
             || elements.is_some()
@@ -371,8 +394,9 @@ fn compile_rule(
             || !fallback.is_empty())
     {
         return Err(inexpressible(
-            "a `repr` grammar assembles the definitions itself, so a reading or an envelope beside it \
-                 would be ignored",
+            "a `repr` grammar assembles tool definitions itself from attribute carriers, so an indexed \
+                 family, an aggregate, a content requirement, a reading, an envelope, or any target but \
+                 `tool_definitions` would be ignored",
         ));
     }
     // A predicate that cannot hold, or asserts nothing, is refused like any other no-op.
@@ -859,7 +883,7 @@ impl MessagePlan {
     pub fn tool_definitions<'p>(&'p self, ctx: &MessageContext<'_>) -> Vec<Emission<'p>> {
         self.rules
             .iter()
-            .filter(|rule| rule.tool_repr.is_some())
+            .filter(|rule| is_metadata_rule(rule))
             .flat_map(|rule| emit_rule(rule, ctx))
             .collect()
     }
@@ -875,8 +899,9 @@ impl MessagePlan {
         let mut out = Vec::new();
         let mut claimed: std::collections::HashSet<OwnedCarrier> = std::collections::HashSet::new();
         for rule in &self.rules {
-            // A `repr` grammar declares tool definitions, which `tool_definitions` reads on every span.
-            if rule.tool_repr.is_some() {
+            // Metadata about the span rather than a reading of its conversation: `tool_definitions` reads
+            // these on every span, outside claiming and outside the tool-span gate.
+            if is_metadata_rule(rule) {
                 continue;
             }
             // A branch set is several readings with a local order between them: the primaries, then the
@@ -913,6 +938,19 @@ impl MessagePlan {
     pub fn rules(&self) -> impl Iterator<Item = &CompiledMessageRule> {
         self.rules.iter()
     }
+}
+
+/// Whether this rule's whole output is metadata about the span rather than a reading of its conversation.
+///
+/// Keyed on the *rule's* target, not on an individual emission's: a message rule may name
+/// `tool_definitions` on one of its readings - one carrier holding both a conversation and the tools it was
+/// offered - and that rule still belongs on the message axis.
+fn is_metadata_rule(rule: &CompiledMessageRule) -> bool {
+    rule.tool_repr.is_some()
+        || matches!(
+            rule.target,
+            EmitTarget::ToolDefinitions | EmitTarget::ToolNames
+        )
 }
 
 /// Keep one rule's emissions, unless a rule before it already owns their carrier.
@@ -952,6 +990,10 @@ fn keep_unclaimed<'p>(
 fn parse_value(raw: &str, mode: ParseMode) -> Option<JsonValue> {
     match mode {
         ParseMode::Json => serde_json::from_str(raw).ok(),
+        // The elements are each serialised, because an OTLP array attribute cannot nest.
+        ParseMode::StringifiedArray => serde_json::from_str(raw)
+            .ok()
+            .map(crate::utils::json::parse_stringified_array_elements),
         ParseMode::JsonOrString => Some(serde_json::from_str(raw).unwrap_or_else(|_| json!(raw))),
         // Prose. Parsing it would turn a bare word into a non-string and an accidental digit string
         // into a number.
@@ -1299,7 +1341,7 @@ fn gates_allow(rule: &CompiledMessageRule, ctx: &MessageContext<'_>) -> bool {
     // that tool's input and result rather than a model's turn. That is not a question about tool
     // *definitions*, and the path reading those has always run on every span - so a `repr` grammar is not
     // subject to it, or a framework's tool list vanishes on any span carrying a tool-execution signal.
-    if ctx.is_tool_span && !rule.reads_tool_spans && rule.tool_repr.is_none() {
+    if ctx.is_tool_span && !rule.reads_tool_spans && !is_metadata_rule(rule) {
         return false;
     }
     if let Some(gate) = &rule.when

@@ -56,33 +56,6 @@ fn truncate_for_log(s: &str, max_len: usize) -> String {
     }
 }
 
-/// Normalize an array that may contain stringified JSON elements.
-///
-/// OTLP arrays of objects are converted by `extract_attributes()` into arrays
-/// where each element is a JSON string. This function parses those strings
-/// to get the actual JSON objects.
-///
-/// Example input: `["{ \"name\": \"foo\" }", "{ \"name\": \"bar\" }"]`
-/// Example output: `[{ "name": "foo" }, { "name": "bar" }]`
-fn normalize_stringified_array(value: JsonValue) -> JsonValue {
-    match value {
-        JsonValue::Array(arr) => {
-            let normalized: Vec<JsonValue> = arr
-                .into_iter()
-                .map(|item| {
-                    if let JsonValue::String(s) = &item {
-                        serde_json::from_str(s).unwrap_or(item)
-                    } else {
-                        item
-                    }
-                })
-                .collect();
-            JsonValue::Array(normalized)
-        }
-        other => other,
-    }
-}
-
 // ============================================================================
 // RAW MESSAGE TYPES
 // ============================================================================
@@ -371,6 +344,10 @@ pub(crate) fn try_declared_rules(
             crate::domain::rules::schema::EmitTarget::ToolDefinitions => {
                 tool_definitions.push(RawToolDefinition::from_attr(key, timestamp, emission.value));
             }
+            // Read on the metadata path, which is where a rule targeting names is evaluated. Reaching here
+            // means a *message* rule named this target on one of its readings, which is not a shape any
+            // asset declares; the emission is dropped rather than filed as something it is not.
+            crate::domain::rules::schema::EmitTarget::ToolNames => {}
             // The claim itself is the whole effect: the carrier is this dialect's and holds no message.
             crate::domain::rules::schema::EmitTarget::Claim => {}
         }
@@ -650,66 +627,25 @@ pub(crate) fn extract_tool_definitions(
             is_tool_span: is_tool_execution_span(attrs),
         },
     ) {
-        tool_definitions.push(RawToolDefinition::from_attr(
-            emission.carrier.name(),
-            timestamp,
-            emission.value,
-        ));
-    }
-
-    // gen_ai.tool.definitions - full tool schemas (JSON array)
-    if let Some(definitions_json) = attrs.get(keys::GEN_AI_TOOL_DEFINITIONS) {
-        if let Ok(content) = serde_json::from_str::<JsonValue>(definitions_json) {
-            tool_definitions.push(RawToolDefinition::from_attr(
-                keys::GEN_AI_TOOL_DEFINITIONS,
-                timestamp,
-                content,
-            ));
+        let key = emission.carrier.name();
+        match emission.target {
+            // A list of names is not a list of definitions, and filing one as the other reports tools whose
+            // parameters are absent rather than unstated.
+            crate::domain::rules::schema::EmitTarget::ToolNames => {
+                tool_names.push(RawToolNames::from_attr(key, timestamp, emission.value));
+            }
+            _ => {
+                tool_definitions.push(RawToolDefinition::from_attr(key, timestamp, emission.value));
+            }
         }
     }
 
-    // gen_ai.agent.tools - list of tool names (separate from full definitions)
-    if let Some(tools_json) = attrs.get(keys::GEN_AI_AGENT_TOOLS) {
-        if let Ok(content) = serde_json::from_str::<JsonValue>(tools_json) {
-            tool_names.push(RawToolNames::from_attr(
-                keys::GEN_AI_AGENT_TOOLS,
-                timestamp,
-                content,
-            ));
-        }
-    }
-
-    // CrewAI tool lists from agent/task metadata.
-    // These attributes often coexist with event messages, so extraction must
-    // happen in this always-on metadata path (not only in fallback attr parser).
-    // ai.prompt.tools - Vercel AI SDK tool definitions
-    // Note: Vercel AI sends this as an OTLP array where each element is a JSON string.
-    // After extract_attributes(), we get a JSON array of strings: `["...", "..."]`.
-    // We need to parse each string element to get the actual tool objects.
-    if let Some(tools_json) = attrs.get(keys::AI_PROMPT_TOOLS) {
-        if let Ok(content) = serde_json::from_str::<JsonValue>(tools_json) {
-            let normalized = normalize_stringified_array(content);
-            tool_definitions.push(RawToolDefinition::from_attr(
-                keys::AI_PROMPT_TOOLS,
-                timestamp,
-                normalized,
-            ));
-        }
-    }
-
-    // llm.tools - OpenInference tool definitions (single JSON attribute)
-    if let Some(tools_json) = attrs.get(keys::LLM_TOOLS) {
-        if let Ok(content) = serde_json::from_str::<JsonValue>(tools_json) {
-            let normalized = normalize_stringified_array(content);
-            tool_definitions.push(RawToolDefinition::from_attr(
-                keys::LLM_TOOLS,
-                timestamp,
-                normalized,
-            ));
-        }
-    }
-
-    // llm.tools.N.tool.json_schema - OpenInference indexed tool definitions (LangGraph)
+    // The one tool-definition reader still in Rust, and why: an indexed family whose entries are
+    // *aggregated into one array* (which the engine can do) but that must also yield a second, separate
+    // list of names - and whose prefix `llm.tools` is also an exact carrier another rule reads flat. A
+    // declared rule cannot yet express "aggregate this family AND emit its names AND do not collide with
+    // the flat key of the same name". Left here deliberately, measured rather than hidden: it is the last
+    // framework-shaped carrier key in this file.
     let tool_indices = extract_indices(attrs, "llm.tools");
     if !tool_indices.is_empty() {
         let mut tools = Vec::new();
@@ -805,20 +741,6 @@ pub(crate) fn extract_tool_definitions(
     }
 
     // response attribute - OpenAI Agents full API response with tools field
-    if let Some(response_json) = attrs.get(keys::RESPONSE) {
-        if let Ok(response) = serde_json::from_str::<JsonValue>(response_json) {
-            if let Some(tools) = response.get("tools").and_then(|t| t.as_array()) {
-                if !tools.is_empty() {
-                    tool_definitions.push(RawToolDefinition::from_attr(
-                        keys::RESPONSE,
-                        timestamp,
-                        JsonValue::Array(tools.clone()),
-                    ));
-                }
-            }
-        }
-    }
-
     // request_data.tools - Logfire Chat Completions / Anthropic Messages
     // Older logfire versions (< 4.20) don't set gen_ai.tool.definitions separately;
     // tools are only inside the request_data JSON payload.

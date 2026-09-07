@@ -8033,6 +8033,24 @@ fn the_rules_reproduce_the_extractors_they_replaced() {
         let mut rule_msgs: Vec<RawMessage> = Vec::new();
         let mut rule_tools: Vec<RawToolDefinition> = Vec::new();
         let rule_found = try_declared_rules(&mut rule_msgs, &mut rule_tools, case, span_name, time);
+        // The metadata axis, which production reads on every span through `extract_tool_definitions`. The
+        // retired extractors pushed tool definitions into the same vector, so both axes are collected here
+        // or a declaration that moved to the always-on path would look like a loss.
+        for emission in crate::domain::rules::ruleset().messages.tool_definitions(
+            &crate::domain::rules::MessageContext {
+                span_name: "",
+                span_attrs: case,
+                is_tool_span,
+            },
+        ) {
+            if emission.target == crate::domain::rules::schema::EmitTarget::ToolDefinitions {
+                rule_tools.push(RawToolDefinition::from_attr(
+                    emission.carrier.name(),
+                    time,
+                    emission.value,
+                ));
+            }
+        }
 
         // Compared as sets of serialised observations: the `EXTRACTORS` order decided which *extractor*
         // claimed a carrier, never the order observations sit in the vector - `extract_per_carrier`
@@ -8078,12 +8096,37 @@ fn the_rules_reproduce_the_extractors_they_replaced() {
         };
         let legacy = render(&legacy_msgs, &legacy_tools);
         let rules = render(&rule_msgs, &rule_tools);
-        // One reviewed delta, named rather than tolerated: Vercel's tool-call attributes now reach a tool
-        // span. The code being replaced read them only when nothing else had produced a message, so any
-        // recognised event dropped the call and its result - and because this harness applies the caller's
-        // tool-span exclusion, the legacy side produces nothing for these carriers at all. Pinned by
-        // `an_event_does_not_suppress_a_tool_span_s_own_attributes`.
-        const REVIEWED_DELTA_CARRIERS: &[&str] = &["ai.toolCall.args", "ai.toolCall.result"];
+        // Reviewed deltas, named rather than tolerated:
+        //
+        // - Vercel's tool-call attributes now reach a tool span. The code being replaced read them only
+        //   when nothing else had produced a message, so any recognised event dropped the call and its
+        //   result; and because this harness applies the caller's tool-span exclusion, the legacy side
+        //   produces nothing for these carriers. Pinned by
+        //   `an_event_does_not_suppress_a_tool_span_s_own_attributes`.
+        //
+        // - CrewAI's `crew_tasks` / `crew_agents` **tool definitions**. Their reference is the sealed
+        //   `tool_repr` grammar, validated by the dedicated `test_crewai_tool_definitions_*` tests when it
+        //   moved - never by this message oracle, whose retired side had no CrewAI tool extraction at all
+        //   (`append_crewai_tool_definitions` was deleted with that migration). So a `tool` line on one of
+        //   those carriers is expected here and has its own coverage elsewhere.
+        const REVIEWED_DELTA_CARRIERS: &[&str] = &[
+            "ai.toolCall.args",
+            "ai.toolCall.result",
+            "crew_tasks",
+            "crew_agents",
+        ];
+        // A reviewed delta is a `tool` line on one of those carriers - never a `msg` line, so a message
+        // that moved is still caught. Dropped from both sides, and the remainder must match exactly.
+        let without_reviewed_tool_deltas = |rendered: &[String]| -> Vec<String> {
+            rendered
+                .iter()
+                .filter(|line| {
+                    !(line.starts_with("tool ")
+                        && REVIEWED_DELTA_CARRIERS.iter().any(|c| line.contains(c)))
+                })
+                .cloned()
+                .collect()
+        };
         let is_reviewed_delta = |rendered: &[String]| {
             !rendered.is_empty()
                 && rendered
@@ -8093,6 +8136,8 @@ fn the_rules_reproduce_the_extractors_they_replaced() {
         if legacy.is_empty() && is_reviewed_delta(&rules) {
             continue;
         }
+        let legacy = without_reviewed_tool_deltas(&legacy);
+        let rules = without_reviewed_tool_deltas(&rules);
         if legacy != rules || legacy_found != rule_found {
             disagreements.push(format!(
                 "  span `{span_name}` {case:?}\n    table: found={legacy_found} {legacy:?}\n    \
@@ -8114,7 +8159,7 @@ fn declared_message_rules_cover_what_they_claim() {
     let plan = &ruleset().messages;
     assert_eq!(
         plan.rule_count(),
-        55,
+        60,
         "the assets declare {} message rules. **Every** framework extractor is consolidated into the one \
          generic entry; the only other entry left is the generic `raw_io` fallback, which names no \
          framework - and a dialect moves whole or not at all, so there are no part-migrated carriers to \

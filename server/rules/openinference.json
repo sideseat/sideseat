@@ -289,6 +289,16 @@
         }
       },
       "legacy_rank": 260
+    },
+    {
+      "id": "openinference.tools",
+      "doc": "This dialect's tool schemas, in one attribute, elements possibly serialised.",
+      "read": {
+        "attribute": "llm.tools"
+      },
+      "parse": "stringified_array",
+      "emit": "tool_definitions",
+      "legacy_rank": 270
     }
   ],
   "span_facts": [

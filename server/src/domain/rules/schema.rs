@@ -772,6 +772,11 @@ pub enum ParseMode {
     Json,
     /// Parse as JSON, keeping the raw text as a string if it does not parse.
     JsonOrString,
+    /// Parse as JSON, then parse any *string* member of the resulting array as JSON too.
+    ///
+    /// An OTLP array attribute whose elements are each a serialised object arrives as an array of strings,
+    /// because the attribute type has no nesting. Generic: the encoding is OTLP's, not a producer's.
+    StringifiedArray,
     /// Keep the raw text. Some carriers hold prose, and parsing it would turn a bare word into a
     /// non-string or an accidental number into a number.
     Text,
@@ -977,6 +982,9 @@ pub enum EmitTarget {
     #[default]
     Message,
     ToolDefinitions,
+    /// A list of tool *names*, as opposed to their definitions. A framework that reports only the names
+    /// has said which tools were available, not what they take.
+    ToolNames,
     /// The carrier is claimed and nothing is read from it.
     ///
     /// A real shape, not a loophole: one dialect's agent spans aggregate what their children already

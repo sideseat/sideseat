@@ -24,5 +24,33 @@
       "slug": "openai-agents",
       "label": "OpenAIAgents"
     }
+  ],
+  "messages": [
+    {
+      "id": "openai-agents.response_tools",
+      "doc": "The whole API response is recorded, and the tools it was called with are inside it.",
+      "read": {
+        "attribute": "response"
+      },
+      "parse": "json",
+      "emit": "tool_definitions",
+      "require_non_empty": true,
+      "alternatives": [
+        {
+          "select": "$.tools",
+          "require": {
+            "all": [
+              {
+                "kind": "array"
+              },
+              {
+                "non_empty": true
+              }
+            ]
+          }
+        }
+      ],
+      "legacy_rank": 1350
+    }
   ]
 }

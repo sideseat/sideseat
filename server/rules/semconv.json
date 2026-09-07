@@ -372,6 +372,26 @@
       "emit": "message",
       "legacy_rank": 170,
       "reads_tool_spans": true
+    },
+    {
+      "id": "semconv.tool_definitions",
+      "doc": "The convention's own tool schemas, as one JSON array.",
+      "read": {
+        "attribute": "gen_ai.tool.definitions"
+      },
+      "parse": "json",
+      "emit": "tool_definitions",
+      "legacy_rank": 110
+    },
+    {
+      "id": "semconv.agent_tools",
+      "doc": "A list of tool *names* an agent had available - which tools, not what they take.",
+      "read": {
+        "attribute": "gen_ai.agent.tools"
+      },
+      "parse": "json",
+      "emit": "tool_names",
+      "legacy_rank": 120
     }
   ],
   "span_facts": [

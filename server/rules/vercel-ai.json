@@ -242,6 +242,16 @@
       },
       "emit": "message",
       "legacy_rank": 315
+    },
+    {
+      "id": "vercel-ai.prompt_tools",
+      "doc": "The tools offered to a generation. Each element arrives serialised, because an OTLP array attribute cannot nest.",
+      "read": {
+        "attribute": "ai.prompt.tools"
+      },
+      "parse": "stringified_array",
+      "emit": "tool_definitions",
+      "legacy_rank": 310
     }
   ],
   "span_facts": [

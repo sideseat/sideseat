@@ -123,13 +123,11 @@ pub(super) mod keys {
     // GenAI Agent/Tool
     pub const GEN_AI_AGENT_ID: &str = "gen_ai.agent.id";
     pub const GEN_AI_AGENT_NAME: &str = "gen_ai.agent.name";
-    pub const GEN_AI_AGENT_TOOLS: &str = "gen_ai.agent.tools";
     pub const GEN_AI_TOOL_NAME: &str = "gen_ai.tool.name";
     pub const GEN_AI_TOOL_CALL_ID: &str = "gen_ai.tool.call.id";
     pub const GEN_AI_TOOL_DESCRIPTION: &str = "gen_ai.tool.description";
     pub const GEN_AI_TOOL_JSON_SCHEMA: &str = "gen_ai.tool.json_schema";
     pub const GEN_AI_TOOL_STATUS: &str = "gen_ai.tool.status";
-    pub const GEN_AI_TOOL_DEFINITIONS: &str = "gen_ai.tool.definitions";
 
     // GenAI Performance
     pub const GEN_AI_TTFT: &str = "gen_ai.server.time_to_first_token";
@@ -156,7 +154,6 @@ pub(super) mod keys {
     pub const LANGSMITH_SPAN_KIND: &str = "langsmith.span.kind";
 
     // OpenInference LLM attributes
-    pub const LLM_TOOLS: &str = "llm.tools";
     pub const LLM_INVOCATION_PARAMETERS: &str = "llm.invocation_parameters";
 
     // OpenInference Tool attributes (single tool per span)
@@ -330,7 +327,6 @@ pub(super) mod keys {
     pub const AI_TOOLCALL_ID: &str = "ai.toolCall.id";
     #[cfg(test)]
     pub const GCP_VERTEX_TOOL_RESPONSE: &str = "gcp.vertex.agent.tool_response";
-    pub const AI_PROMPT_TOOLS: &str = "ai.prompt.tools";
     pub const AI_MODEL_ID: &str = "ai.model.id";
     pub const AI_MODEL_PROVIDER: &str = "ai.model.provider";
     pub const AI_OPERATION_ID: &str = "ai.operationId";

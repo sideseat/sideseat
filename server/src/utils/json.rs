@@ -48,6 +48,26 @@ pub fn hash_json_value<H: Hasher>(hasher: &mut H, value: &JsonValue) {
     }
 }
 
+/// Parse any *string* element of an array as JSON, leaving everything else alone.
+///
+/// An OTLP array attribute whose elements are each a serialised object arrives as an array of strings,
+/// because an attribute value cannot nest. The encoding is OTLP's, so undoing it is a generic capability
+/// rather than a producer's quirk - and an element that does not parse is kept as the string it is.
+pub fn parse_stringified_array_elements(value: serde_json::Value) -> serde_json::Value {
+    match value {
+        serde_json::Value::Array(items) => serde_json::Value::Array(
+            items
+                .into_iter()
+                .map(|item| match &item {
+                    serde_json::Value::String(text) => serde_json::from_str(text).unwrap_or(item),
+                    _ => item,
+                })
+                .collect(),
+        ),
+        other => other,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
