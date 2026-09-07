@@ -8163,7 +8163,7 @@ fn declared_message_rules_cover_what_they_claim() {
     let plan = &ruleset().messages;
     assert_eq!(
         plan.rule_count(),
-        67,
+        65,
         "the assets declare {} message rules. **Every** framework extractor is consolidated into the one \
          generic entry; the only other entry left is the generic `raw_io` fallback, which names no \
          framework - and a dialect moves whole or not at all, so there are no part-migrated carriers to \
@@ -8805,4 +8805,89 @@ fn the_single_tool_triple_yields_to_each_precedence_alone() {
     let seen = names_of(&make_attrs(&with_convention));
     assert!(seen.contains(&"primary".to_string()));
     assert!(!seen.contains(&"secondary".to_string()));
+}
+
+/// A malformed list carrier does not suppress a perfectly good single-tool triple.
+///
+/// The precedence is "the triple is read if the lists produced nothing" - which is what the retired code's
+/// flag tested. Expressed as an `attr_exists` gate it became "the triple is read if no list carrier is
+/// *present*", so an unparseable `llm.tools` took the tools away entirely rather than yielding to the
+/// triple. A branch set tests production, which is the condition that was always meant.
+#[test]
+fn a_malformed_list_carrier_yields_to_the_single_tool_triple() {
+    let attrs = make_attrs(&[
+        ("llm.tools", "not json at all"),
+        ("tool.name", "secondary"),
+        ("tool.description", "a tool"),
+    ]);
+    let (defs, _) = extract_tool_definitions(&attrs, Utc::now());
+    let names: Vec<String> = defs
+        .iter()
+        .flat_map(|t| t.content.as_array().cloned().unwrap_or_default())
+        .filter_map(|t| t["function"]["name"].as_str().map(str::to_string))
+        .collect();
+    assert_eq!(
+        names,
+        vec!["secondary".to_string()],
+        "a malformed list carrier suppressed the triple: {defs:?}"
+    );
+}
+
+/// A malformed indexed schema is dropped, not reported as a tool.
+///
+/// An indexed member is sniffed, so an unparseable schema arrives as the string it is. Projected without a
+/// declared parse mode that string became a "tool definition" - junk where the retired code, which required
+/// `serde_json::from_str` to succeed, reported nothing.
+#[test]
+fn a_malformed_indexed_schema_is_not_a_tool() {
+    let attrs = make_attrs(&[
+        ("llm.tools.0.tool.json_schema", "{not json"),
+        (
+            "llm.tools.1.tool.json_schema",
+            r#"{"type":"function","function":{"name":"good"}}"#,
+        ),
+    ]);
+    let (defs, _) = extract_tool_definitions(&attrs, Utc::now());
+    let schemas: Vec<JsonValue> = defs
+        .iter()
+        .flat_map(|t| t.content.as_array().cloned().unwrap_or_default())
+        .collect();
+    assert_eq!(
+        schemas.len(),
+        1,
+        "the malformed schema was reported as a tool: {schemas:?}"
+    );
+    assert_eq!(schemas[0]["function"]["name"].as_str(), Some("good"));
+}
+
+/// A present wrapper that is not a list has not declared its contents.
+///
+/// A wrapper member *is* a list of declarations. Present but scalar, it says nothing - and the retired code,
+/// which required the member to be an array, fell back to the enclosing tool group. Emitting the scalar
+/// itself would report a "tool" that is a string.
+#[test]
+fn a_non_array_declaration_wrapper_falls_back_to_the_group() {
+    let request = r#"{"tools":[{"name":"bare","function_declarations":"not a list"}]}"#;
+    let attrs = make_attrs(&[("gcp.vertex.agent.llm_request", request)]);
+    let (defs, _) = extract_tool_definitions(&attrs, Utc::now());
+    let tools: Vec<JsonValue> = defs
+        .iter()
+        .flat_map(|t| t.content.as_array().cloned().unwrap_or_default())
+        .collect();
+    assert_eq!(tools.len(), 1, "expected the enclosing group: {tools:?}");
+    assert_eq!(tools[0]["name"].as_str(), Some("bare"));
+}
+
+/// A tool with no name is not a tool definition.
+///
+/// `composed` emits as soon as *any* member resolved, so a span carrying only `tool.description` produced a
+/// canonical definition with no `name` - unusable, and the retired branch required the name to be there.
+#[test]
+fn a_nameless_single_tool_is_not_emitted() {
+    let attrs = make_attrs(&[("tool.description", "a tool with no name")]);
+    let (defs, _) = extract_tool_definitions(&attrs, Utc::now());
+    assert!(
+        defs.is_empty(),
+        "a nameless tool definition was emitted: {defs:?}"
+    );
 }

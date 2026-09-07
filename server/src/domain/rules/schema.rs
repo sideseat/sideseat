@@ -636,6 +636,11 @@ pub struct ReadSpec {
     /// called `tool`. The projection says which leaf is the datum.
     #[serde(default)]
     pub entry_value: Option<JsonPath>,
+    /// How the projected value is read. `json` **drops** an entry whose payload does not parse, which is
+    /// what a schema that failed to parse always meant - an indexed member is otherwise sniffed, and a
+    /// malformed schema would be emitted as the string it is, reported as a tool definition.
+    #[serde(default)]
+    pub entry_value_parse: Option<ParseMode>,
     /// A richer copy of these same messages, held by another carrier and matched by position.
     #[serde(default)]
     pub overlay: Option<OverlaySpec>,

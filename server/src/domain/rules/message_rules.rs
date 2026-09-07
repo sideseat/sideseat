@@ -350,7 +350,8 @@ fn compile_rule(
     if read.indexed_family.is_none()
         && (read.overlay.is_some()
             || !read.numeric_members.is_empty()
-            || read.entry_value.is_some())
+            || read.entry_value.is_some()
+            || read.entry_value_parse.is_some())
     {
         return Err(inexpressible(
             "`overlay`, `numeric_members` and `entry_value` describe an indexed family's entries and \
@@ -367,6 +368,16 @@ fn compile_rule(
         return Err(inexpressible(
             "an aggregate is one observation, so its target is the rule's; a per-reading `emit` beside \
                  `aggregate_into_array` would be ignored",
+        ));
+    }
+    // A canonical tool definition is a tool definition. Emitted on the message axis it would be a message
+    // shaped like one, which no reader expects.
+    if compose.as_ref().is_some_and(|c| c.as_tool_definition)
+        && *emit != EmitTarget::ToolDefinitions
+    {
+        return Err(inexpressible(
+            "`as_tool_definition` builds a canonical tool definition, so the rule's target must be \
+                 `tool_definitions`",
         ));
     }
     if let Some(overlay) = &read.overlay {
@@ -663,28 +674,15 @@ pub fn compile(sources: &BTreeMap<String, Vec<u8>>) -> Result<MessagePlan, Messa
     // rules contend only when both can emit on the message axis - a message rule and a pure
     // tool-definition rule reading the same carrier is the co-located case (one conversation, one tool
     // list) that routing-by-emission handles, not a conflict.
-    fn reads_message_axis(rule: &CompiledMessageRule) -> bool {
-        // A branch set has no readings of its own: its sub-rules are the rules, so the question is asked of
-        // them. Without this a branch-set rule was judged on its default target alone.
-        if let Some(set) = &rule.branch_set {
-            return set
-                .primary
-                .iter()
-                .chain(&set.fallback)
-                .chain(&set.always)
-                .any(reads_message_axis);
-        }
+    // `possible_targets` already looks everywhere a target can be declared - a branch set's leaves, a
+    // fragment's cases, a selection point's extra cases - so this is one question with one answer, and the
+    // metadata side asks it of the same function.
+    let reads_message_axis = |rule: &CompiledMessageRule| {
         rule.tool_repr.is_none()
-            && std::iter::once(rule.target)
-                .chain(
-                    rule.alternatives
-                        .iter()
-                        .chain(&rule.also)
-                        .chain(&rule.fallback)
-                        .filter_map(|a| a.spec.emit),
-                )
+            && possible_targets(rule)
+                .into_iter()
                 .any(|target| matches!(target, EmitTarget::Message | EmitTarget::Claim))
-    }
+    };
     for (i, a) in rules.iter().enumerate() {
         for b in &rules[i + 1..] {
             if !(reads_message_axis(a) && reads_message_axis(b)) {
@@ -725,28 +723,6 @@ pub fn compile(sources: &BTreeMap<String, Vec<u8>>) -> Result<MessagePlan, Messa
         }
     }
 
-    // Which rules the metadata path needs to evaluate at all. A rule qualifies if it, or any of its
-    // readings, or any sub-rule of its branch set, can name a metadata target.
-    fn can_emit_metadata(rule: &CompiledMessageRule) -> bool {
-        if let Some(set) = &rule.branch_set {
-            return set
-                .primary
-                .iter()
-                .chain(&set.fallback)
-                .chain(&set.always)
-                .any(can_emit_metadata);
-        }
-        rule.tool_repr.is_some()
-            || std::iter::once(rule.target)
-                .chain(
-                    rule.alternatives
-                        .iter()
-                        .chain(&rule.also)
-                        .chain(&rule.fallback)
-                        .filter_map(|a| a.spec.emit),
-                )
-                .any(|target| matches!(target, EmitTarget::ToolDefinitions | EmitTarget::ToolNames))
-    }
     let metadata_candidates = rules
         .iter()
         .enumerate()
@@ -996,7 +972,11 @@ impl MessagePlan {
         for rule in &self.rules {
             // The tool-span gate is a message-axis question - "may this rule read such a span *as a
             // conversation*" - so it lives here, not in `emit_rule`, which the metadata path also calls.
-            if ctx.is_tool_span && !rule.reads_tool_spans {
+            //
+            // Asked of every rule that could read, which for a branch set is its sub-rules: the parent
+            // declares no carrier of its own, so consulting only the parent let a permitted sub-rule be
+            // skipped and a forbidden one run.
+            if ctx.is_tool_span && !reads_tool_spans_anywhere(rule) {
                 continue;
             }
             // Only the message emissions belong to `run`: a definition or a name list is metadata that
@@ -1021,6 +1001,72 @@ impl MessagePlan {
     }
 }
 
+/// Every target this rule could name, wherever the declaration puts it.
+///
+/// Direct readings, a *fragment's* cases, the extra cases at one selection point, and a branch set's leaves.
+/// Asked in one place because two questions depend on it - which axis a rule reads, and whether the metadata
+/// path must evaluate it - and a target visible to one but not the other loses an emission on both axes: the
+/// message path filters it out and the metadata path never ran the rule.
+fn possible_targets(rule: &CompiledMessageRule) -> Vec<EmitTarget> {
+    if let Some(set) = &rule.branch_set {
+        return set
+            .primary
+            .iter()
+            .chain(&set.fallback)
+            .chain(&set.always)
+            .flat_map(possible_targets)
+            .collect();
+    }
+    let mut out = vec![rule.target];
+    for reading in rule
+        .alternatives
+        .iter()
+        .chain(&rule.also)
+        .chain(&rule.fallback)
+    {
+        out.extend(reading.spec.emit);
+        // A fragment's cases and this point's extra cases can each override the target.
+        out.extend(reading.fragment_cases.iter().filter_map(|case| case.emit));
+        out.extend(reading.spec.extra_cases.iter().filter_map(|case| case.emit));
+    }
+    out
+}
+
+/// Which rules the metadata path needs to evaluate at all.
+///
+/// A rule qualifies if it, or any of its readings, or any sub-rule of its branch set, can name a metadata
+/// target. Also read by the tool-span gate, which must exempt metadata: a tool definition is not a reading
+/// of the span's conversation, so it is not what that gate is about.
+fn can_emit_metadata(rule: &CompiledMessageRule) -> bool {
+    if let Some(set) = &rule.branch_set {
+        return set
+            .primary
+            .iter()
+            .chain(&set.fallback)
+            .chain(&set.always)
+            .any(can_emit_metadata);
+    }
+    rule.tool_repr.is_some()
+        || possible_targets(rule)
+            .into_iter()
+            .any(|target| matches!(target, EmitTarget::ToolDefinitions | EmitTarget::ToolNames))
+}
+
+/// Whether this rule, or any sub-rule of its branch set, may read a tool span as a conversation.
+///
+/// A branch-set parent declares no carrier, so its own flag says nothing about what its sub-rules read.
+fn reads_tool_spans_anywhere(rule: &CompiledMessageRule) -> bool {
+    match &rule.branch_set {
+        Some(set) => set
+            .primary
+            .iter()
+            .chain(&set.fallback)
+            .chain(&set.always)
+            .any(reads_tool_spans_anywhere),
+        None => rule.reads_tool_spans,
+    }
+}
+
 /// Keep one rule's emissions, unless a rule before it already owns their carrier.
 ///
 /// Per *rule*, not per emission: one rule legitimately emits many observations from one carrier - a list of
@@ -1031,7 +1077,14 @@ fn keep_unclaimed<'p>(
     claimed: &mut std::collections::HashSet<OwnedCarrier>,
     out: &mut Vec<Emission<'p>>,
 ) {
+    // Claimed within this batch as well as before it. A branch set's sub-rules are separate rules whose
+    // emissions arrive flattened into one vector, so two of them reading one carrier would both survive a
+    // check that only consulted earlier *top-level* claims.
+    //
+    // Per rule still, not per emission: one rule legitimately emits many observations from one carrier, so a
+    // carrier this batch has already claimed is only refused to a *different* rule within it.
     let mut mine: std::collections::HashSet<OwnedCarrier> = std::collections::HashSet::new();
+    let mut owner: std::collections::HashMap<OwnedCarrier, &str> = std::collections::HashMap::new();
     for emission in produced {
         // A tool definition is metadata about the span, not a reading of its conversation, so it neither
         // claims a carrier nor is blocked by one: a dialect legitimately states its tools on a carrier
@@ -1042,6 +1095,13 @@ fn keep_unclaimed<'p>(
         }
         if claimed.contains(&emission.owns) {
             continue;
+        }
+        match owner.get(&emission.owns) {
+            // A different rule in this batch already owns it.
+            Some(first) if *first != emission.rule_id => continue,
+            _ => {
+                owner.insert(emission.owns.clone(), emission.rule_id);
+            }
         }
         mine.insert(emission.owns.clone());
         out.push(emission);
@@ -1165,11 +1225,12 @@ fn readings(parsed: &JsonValue, alternatives: &[CompiledReading]) -> Vec<Reading
                     .then_present_any_of
                     .iter()
                     .find_map(|path| query(element, path).into_iter().next())
+                    // A wrapper *is* a list. A present member that is not one has not declared its
+                    // contents, so the element is not this shape - the same answer as the member being
+                    // absent, which is what the retired code did by requiring the member to be an array.
+                    .and_then(JsonValue::as_array)
                 {
-                    Some(found) => match found.as_array() {
-                        Some(items) => items.iter().collect(),
-                        None => vec![found],
-                    },
+                    Some(items) => items.iter().collect(),
                     None if alternative.else_element => vec![element],
                     None => continue,
                 }
@@ -1267,12 +1328,16 @@ fn readings(parsed: &JsonValue, alternatives: &[CompiledReading]) -> Vec<Reading
 fn indexed_entries(
     attrs: &HashMap<String, String>,
     family: &str,
-    entry_member: Option<&str>,
+    read: &ReadSpec,
     require: Option<&MemberRequirements>,
-    numeric: &[String],
-    overlay: Option<&OverlaySpec>,
-    entry_value: Option<&super::schema::JsonPath>,
 ) -> Vec<(String, JsonValue)> {
+    // Every other parameter was a facet of the same `ReadSpec`, and threading them one by one meant a new
+    // facet was a new argument at every call site.
+    let entry_member = read.entry_member.as_deref();
+    let numeric = &read.numeric_members;
+    let overlay = read.overlay.as_ref();
+    let entry_value = read.entry_value.as_ref();
+    let entry_value_parse = read.entry_value_parse;
     // Parsed once for the whole family: the counterpart list describes every entry, so parsing it per
     // entry would re-parse one payload as many times as there are messages.
     let counterparts = overlay.and_then(|overlay| counterpart_list(attrs, overlay));
@@ -1356,7 +1421,17 @@ fn indexed_entries(
             Some(path) => {
                 let assembled = JsonValue::Object(object);
                 if let Some(found) = query(&assembled, path).into_iter().next() {
-                    out.push((subject_prefix, found.clone()));
+                    // A declared parse mode decides what a malformed payload means. Without it the member
+                    // has already been sniffed to a string, and emitting that string as a tool definition
+                    // reports junk where the retired code reported nothing.
+                    let value = match (entry_value_parse, found.as_str()) {
+                        (Some(mode), Some(text)) => parse_value(text, mode),
+                        (Some(_), None) => Some(found.clone()),
+                        (None, _) => Some(found.clone()),
+                    };
+                    if let Some(value) = value {
+                        out.push((subject_prefix, value));
+                    }
                 }
             }
             None => out.push((subject_prefix, JsonValue::Object(object))),
@@ -1944,15 +2019,21 @@ fn emit_rule<'p>(rule: &'p CompiledMessageRule, ctx: &MessageContext<'_>) -> Vec
         if !gates_allow(rule, ctx) {
             return out;
         }
-        for sub in &set.primary {
+        // Per sub-rule, because the parent declares no carrier and its own flag says nothing about what a
+        // sub-rule reads. Metadata is exempt for the same reason it is at the top level: a tool definition
+        // is not a reading of the span's conversation.
+        let permitted = |sub: &CompiledMessageRule| {
+            !ctx.is_tool_span || sub.reads_tool_spans || can_emit_metadata(sub)
+        };
+        for sub in set.primary.iter().filter(|sub| permitted(sub)) {
             out.extend(emit_rule(sub, ctx));
         }
         if out.is_empty() {
-            for sub in &set.fallback {
+            for sub in set.fallback.iter().filter(|sub| permitted(sub)) {
                 out.extend(emit_rule(sub, ctx));
             }
         }
-        for sub in &set.always {
+        for sub in set.always.iter().filter(|sub| permitted(sub)) {
             out.extend(emit_rule(sub, ctx));
         }
         return out;
@@ -2001,11 +2082,8 @@ fn emit_rule<'p>(rule: &'p CompiledMessageRule, ctx: &MessageContext<'_>) -> Vec
         let entries = indexed_entries(
             ctx.span_attrs,
             family,
-            rule.read.entry_member.as_deref(),
+            &rule.read,
             rule.require_members.as_ref(),
-            &rule.read.numeric_members,
-            rule.read.overlay.as_ref(),
-            rule.read.entry_value.as_ref(),
         );
         // A result set is one observation. Its entries are the array, and the envelope says what the array
         // is - so the whole family is tagged once rather than one carrier per document.
