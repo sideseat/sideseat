@@ -323,6 +323,13 @@ pub(super) mod keys {
     // Vercel AI SDK
     pub const AI_PROMPT_MESSAGES: &str = "ai.prompt.messages";
     pub const AI_PROMPT: &str = "ai.prompt";
+    /// Named by the assets now; kept for the equivalence oracles' reference implementations.
+    #[cfg(test)]
+    pub const AI_TOOLCALL_NAME: &str = "ai.toolCall.name";
+    #[cfg(test)]
+    pub const AI_TOOLCALL_ID: &str = "ai.toolCall.id";
+    #[cfg(test)]
+    pub const GCP_VERTEX_TOOL_RESPONSE: &str = "gcp.vertex.agent.tool_response";
     pub const AI_PROMPT_TOOLS: &str = "ai.prompt.tools";
     pub const AI_MODEL_ID: &str = "ai.model.id";
     pub const AI_MODEL_PROVIDER: &str = "ai.model.provider";
@@ -333,8 +340,6 @@ pub(super) mod keys {
     pub const AI_RESULT_OBJECT: &str = "ai.result.object";
     #[cfg(test)]
     pub const AI_RESULT_TOOL_CALLS: &str = "ai.result.toolCalls";
-    pub const AI_TOOLCALL_NAME: &str = "ai.toolCall.name";
-    pub const AI_TOOLCALL_ID: &str = "ai.toolCall.id";
     #[cfg(test)]
     pub const AI_TOOLCALL_ARGS: &str = "ai.toolCall.args";
     #[cfg(test)]
@@ -345,7 +350,6 @@ pub(super) mod keys {
     // Google ADK
     pub const GCP_VERTEX_LLM_REQUEST: &str = "gcp.vertex.agent.llm_request";
     pub const GCP_VERTEX_LLM_RESPONSE: &str = "gcp.vertex.agent.llm_response";
-    pub const GCP_VERTEX_TOOL_RESPONSE: &str = "gcp.vertex.agent.tool_response";
     #[cfg(test)]
     pub const GCP_VERTEX_TOOL_CALL_ARGS: &str = "gcp.vertex.agent.tool_call_args";
     #[cfg(test)]

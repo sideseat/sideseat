@@ -827,41 +827,17 @@ pub(crate) fn extract_tool_definitions(
 }
 
 /// Check if span is a tool execution span based on attributes.
-/// Tool spans emit message events containing tool INPUT, not OUTPUT - skip them.
+/// Whether this span *is a tool running*, so its messages are the tool's input and result rather than a
+/// model's turn.
+///
+/// The evidence is declared per dialect (`span_facts`, `SpanFact::ToolExecution`) and the union answers,
+/// because one question has several conventions answering it - an operation name, a span-kind attribute, a
+/// pair of attributes that appear together only on a call being run - and which dialect supplied the
+/// answer is not something a reader of it should have to know.
 pub(crate) fn is_tool_execution_span(attrs: &HashMap<String, String>) -> bool {
-    // Primary: gen_ai.operation.name == "execute_tool"
-    if attrs
-        .get(keys::GEN_AI_OPERATION_NAME)
-        .is_some_and(|op| op == "execute_tool")
-    {
-        return true;
-    }
-
-    // OpenInference: openinference.span.kind == "TOOL"
-    if attrs
-        .get(keys::OPENINFERENCE_SPAN_KIND)
-        .is_some_and(|k| k.eq_ignore_ascii_case("tool"))
-    {
-        return true;
-    }
-
-    // Tool execution indicators: has both tool name AND tool call ID
-    // (having just tool name could be a chat span referencing tools)
-    if attrs.contains_key(keys::GEN_AI_TOOL_NAME) && attrs.contains_key(keys::GEN_AI_TOOL_CALL_ID) {
-        return true;
-    }
-
-    // ADK tool execution: has tool response attribute
-    if attrs.contains_key(keys::GCP_VERTEX_TOOL_RESPONSE) {
-        return true;
-    }
-
-    // Vercel AI: has ai.toolCall.name and ai.toolCall.id
-    if attrs.contains_key(keys::AI_TOOLCALL_NAME) && attrs.contains_key(keys::AI_TOOLCALL_ID) {
-        return true;
-    }
-
-    false
+    crate::domain::rules::ruleset()
+        .span_facts
+        .holds(crate::domain::rules::schema::SpanFact::ToolExecution, attrs)
 }
 
 // ============================================================================

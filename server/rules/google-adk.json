@@ -225,5 +225,19 @@
         ]
       }
     }
+  ],
+  "span_facts": [
+    {
+      "id": "google-adk.tool_execution",
+      "doc": "A tool's response is recorded only on the span that ran it.",
+      "fact": "tool_execution",
+      "signals": [
+        {
+          "attrs_present": [
+            "gcp.vertex.agent.tool_response"
+          ]
+        }
+      ]
+    }
   ]
 }

@@ -305,5 +305,28 @@
       "legacy_rank": 170,
       "reads_tool_spans": true
     }
+  ],
+  "span_facts": [
+    {
+      "id": "semconv.tool_execution",
+      "doc": "The convention's own statement, and the pair of attributes that only appear together on a call being run.",
+      "fact": "tool_execution",
+      "signals": [
+        {
+          "doc": "The operation the span reports performing.",
+          "attr_equals": {
+            "key": "gen_ai.operation.name",
+            "value": "execute_tool"
+          }
+        },
+        {
+          "doc": "A tool name *and* a call id. The name alone sits on a model span that merely mentions a tool; with an id it is a call being run.",
+          "attrs_present": [
+            "gen_ai.tool.name",
+            "gen_ai.tool.call.id"
+          ]
+        }
+      ]
+    }
   ]
 }

@@ -210,5 +210,20 @@
       "emit": "message",
       "legacy_rank": 315
     }
+  ],
+  "span_facts": [
+    {
+      "id": "vercel-ai.tool_execution",
+      "doc": "This dialect's own spelling of the name-and-id pair.",
+      "fact": "tool_execution",
+      "signals": [
+        {
+          "attrs_present": [
+            "ai.toolCall.name",
+            "ai.toolCall.id"
+          ]
+        }
+      ]
+    }
   ]
 }

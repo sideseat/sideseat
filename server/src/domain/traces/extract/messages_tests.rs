@@ -8351,3 +8351,80 @@ fn inexpressible_rules_are_refused() {
         );
     }
 }
+
+/// The declared evidence answers "is this a tool running" exactly as the retired list of branches did.
+///
+/// Written as the table it replaced, so a dialect whose signal is deleted from an asset fails here rather
+/// than silently letting rules read a tool span as a model's turn.
+#[test]
+fn the_declared_span_facts_reproduce_the_legacy_tool_span_test() {
+    /// A span's attributes, and whether the branches this replaced called it a tool execution.
+    type ToolSpanCase = (&'static str, Vec<(&'static str, &'static str)>, bool);
+    // Each case, and what the branches it replaced answered.
+    let cases: Vec<ToolSpanCase> = vec![
+        ("nothing at all", vec![], false),
+        (
+            "the operation the span reports",
+            vec![("gen_ai.operation.name", "execute_tool")],
+            true,
+        ),
+        (
+            "a different operation",
+            vec![("gen_ai.operation.name", "chat")],
+            false,
+        ),
+        (
+            "a span kind, in the capitals the convention writes",
+            vec![("openinference.span.kind", "TOOL")],
+            true,
+        ),
+        (
+            "the same, lowercase",
+            vec![("openinference.span.kind", "tool")],
+            true,
+        ),
+        (
+            "another kind",
+            vec![("openinference.span.kind", "LLM")],
+            false,
+        ),
+        // The conjunction, both ways round: a name alone sits on a model span that mentions a tool.
+        (
+            "a tool name alone",
+            vec![("gen_ai.tool.name", "search")],
+            false,
+        ),
+        (
+            "a call id alone",
+            vec![("gen_ai.tool.call.id", "c1")],
+            false,
+        ),
+        (
+            "a tool name and a call id",
+            vec![
+                ("gen_ai.tool.name", "search"),
+                ("gen_ai.tool.call.id", "c1"),
+            ],
+            true,
+        ),
+        (
+            "a tool response, which only the span that ran it records",
+            vec![("gcp.vertex.agent.tool_response", "{}")],
+            true,
+        ),
+        (
+            "one dialect's spelling of the pair",
+            vec![("ai.toolCall.name", "search"), ("ai.toolCall.id", "c1")],
+            true,
+        ),
+        ("half of it", vec![("ai.toolCall.name", "search")], false),
+    ];
+    for (what, attrs, expected) in cases {
+        let attrs = make_attrs(&attrs);
+        assert_eq!(
+            is_tool_execution_span(&attrs),
+            expected,
+            "{what}: the declared evidence disagrees with the branches it replaced"
+        );
+    }
+}

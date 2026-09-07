@@ -38,6 +38,13 @@ pub struct RuleFile {
     /// Which carriers an ingestion reads on this dialect's spans, and how each is parsed.
     #[serde(default)]
     pub messages: Vec<MessageRule>,
+    /// Facts about a *span* this dialect can establish, as opposed to about a carrier.
+    ///
+    /// "Is this a tool execution" is one question with several answers - an operation name, a span-kind
+    /// attribute, a pair of attributes that only appear together - and each dialect knows its own. The
+    /// union answers it, so a dialect declares its signal rather than the code carrying a list of them.
+    #[serde(default)]
+    pub span_facts: Vec<SpanFactRule>,
     /// Named reading tables other rules may apply.
     ///
     /// One dialect's message shapes are recognised at four different selection points - the node itself, a
@@ -618,6 +625,45 @@ pub struct ReadSpec {
     /// A richer copy of these same messages, held by another carrier and matched by position.
     #[serde(default)]
     pub overlay: Option<OverlaySpec>,
+}
+
+/// One dialect's evidence for a fact about a span.
+#[derive(Debug, Deserialize, Clone)]
+#[serde(deny_unknown_fields)]
+pub struct SpanFactRule {
+    pub id: String,
+    pub doc: Option<String>,
+    /// The fact this is evidence of.
+    pub fact: SpanFact,
+    /// Any one of these establishes it.
+    pub signals: Vec<SpanSignal>,
+}
+
+/// A fact about a span that rules and readers ask about by name.
+#[derive(Debug, Deserialize, Clone, Copy, PartialEq, Eq, Hash)]
+#[serde(rename_all = "snake_case")]
+pub enum SpanFact {
+    /// The span *is a tool running*, so its messages are that tool's input and result rather than a
+    /// model's turn. Rules that must not read such a span are gated on it (`reads_tool_spans`).
+    ToolExecution,
+}
+
+/// One piece of evidence. Exactly one form per signal.
+#[derive(Debug, Deserialize, Clone)]
+#[serde(deny_unknown_fields)]
+pub struct SpanSignal {
+    pub doc: Option<String>,
+    /// An attribute with this value.
+    #[serde(default)]
+    pub attr_equals: Option<KeyValue>,
+    /// Compare that value case-insensitively. One convention writes its span kind in capitals.
+    #[serde(default)]
+    pub ignore_case: bool,
+    /// **Every** one of these attributes is present. A conjunction, not a choice: a tool name alone sits on
+    /// a model span that merely mentions a tool, while the name *and* a call id together are a call
+    /// being run.
+    #[serde(default)]
+    pub attrs_present: Vec<String>,
 }
 
 /// Tool definitions a carrier holds as a language's `repr` rather than as JSON.

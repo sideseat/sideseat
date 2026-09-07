@@ -288,5 +288,21 @@
       },
       "legacy_rank": 260
     }
+  ],
+  "span_facts": [
+    {
+      "id": "openinference.tool_execution",
+      "doc": "This dialect states a span's kind directly, in capitals.",
+      "fact": "tool_execution",
+      "signals": [
+        {
+          "attr_equals": {
+            "key": "openinference.span.kind",
+            "value": "tool"
+          },
+          "ignore_case": true
+        }
+      ]
+    }
   ]
 }

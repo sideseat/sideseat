@@ -57,6 +57,69 @@ pub const UNCLAIMED_LABEL: &str = "Unknown";
 /// One `OnceLock` rather than a lazy per-lookup build: a compile that happened per span would put
 /// path resolution and table construction on the read path, which is what the typed plan exists to
 /// keep off it.
+/// Facts about a span, asked by name.
+///
+/// One question, several conventions answering it: an operation name, a span-kind attribute, a pair of
+/// attributes that only appear together. The union is the answer, so adding a dialect's evidence is a rule
+/// rather than a branch - and nothing that reads the answer has to know which dialect supplied it.
+#[derive(Debug, Default)]
+pub struct SpanFactPlan {
+    signals: Vec<(schema::SpanFact, schema::SpanSignal)>,
+}
+
+impl SpanFactPlan {
+    fn compile(sources: &std::collections::BTreeMap<String, Vec<u8>>) -> Self {
+        // Named in the panic, and never skipped: a file quietly dropped for a typo is how a whole
+        // dialect's rules once vanished with every test still green.
+        let files: Vec<schema::RuleFile> = sources
+            .iter()
+            .map(|(path, bytes)| {
+                serde_json::from_slice(bytes)
+                    .unwrap_or_else(|e| panic!("embedded span facts are malformed: {path}: {e}"))
+            })
+            .collect();
+        Self {
+            signals: files
+                .iter()
+                .flat_map(|file| &file.span_facts)
+                .flat_map(|rule| {
+                    rule.signals
+                        .iter()
+                        .map(move |signal| (rule.fact, signal.clone()))
+                })
+                .collect(),
+        }
+    }
+
+    /// Whether any dialect's evidence establishes this fact for the span.
+    pub fn holds(
+        &self,
+        fact: schema::SpanFact,
+        attrs: &std::collections::HashMap<String, String>,
+    ) -> bool {
+        self.signals
+            .iter()
+            .filter(|(declared, _)| *declared == fact)
+            .any(|(_, signal)| {
+                let equals = signal.attr_equals.as_ref().is_none_or(|want| {
+                    attrs.get(&want.key).is_some_and(|found| {
+                        if signal.ignore_case {
+                            found.eq_ignore_ascii_case(&want.value)
+                        } else {
+                            found == &want.value
+                        }
+                    })
+                });
+                // A conjunction: every named attribute present. One alone is not the evidence.
+                equals
+                    && signal
+                        .attrs_present
+                        .iter()
+                        .all(|key| attrs.contains_key(key))
+            })
+    }
+}
+
 pub struct Ruleset {
     /// Carrier semantics, indexed for lookup by exact name and by prefix.
     pub carriers: carrier_rules::CarrierPlan,
@@ -64,6 +127,8 @@ pub struct Ruleset {
     pub detect: detect_rules::DetectPlan,
     /// Which carriers an ingestion reads, declaratively.
     pub messages: message_rules::MessagePlan,
+    /// Facts about a span, each established by any dialect that can.
+    pub span_facts: SpanFactPlan,
     /// BLAKE3 of the asset bytes that produced this plan, hex-encoded.
     ///
     /// Joins the reconstruction cache key. That cache is a memo over a pure function of the rows, and
@@ -90,6 +155,7 @@ pub fn ruleset() -> &'static Ruleset {
             carriers,
             detect,
             messages,
+            span_facts: SpanFactPlan::compile(&sources),
             digest,
         }
     })
