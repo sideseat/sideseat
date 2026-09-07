@@ -66,18 +66,16 @@ impl ContentBlockPlan {
                 }
                 _ => None,
             };
-            // A form whose selectors are all empty always builds *something*, so with an empty `require` it
-            // recognises every block and swallows the rest of the chain. Empty selectors are defensible only
-            // when a `require` identifies the shape.
-            let builds_from_nothing = rule.tool_result.as_ref().is_some_and(|t| {
-                t.tool_use_id.is_empty() && t.content.is_empty() && t.is_error.is_empty()
-            }) || rule.json.as_ref().is_some_and(|j| j.data.is_empty());
+            // `tool_result` and `json` **always** build something: every one of their members is optional,
+            // so they return a block whether their selectors resolved or not. Emptiness of the selector list
+            // was the wrong test - `json: {"data": ["$.missing"]}` resolves nothing and still emits
+            // `{data: {}}` for every block it is offered. So the *condition* is what must identify the
+            // shape, and these two forms cannot be declared without one.
+            let always_builds = rule.tool_result.is_some() || rule.json.is_some();
             assert!(
-                !(builds_from_nothing
-                    && rule.require.all.is_empty()
-                    && rule.require.any.is_empty()),
-                "content-block rule `{}` names no selector and no condition, so it recognises every \
-                 block and swallows the chain",
+                !(always_builds && rule.require.all.is_empty() && rule.require.any.is_empty()),
+                "content-block rule `{}` names no condition, and its form builds a block whether its \
+                 selectors resolve or not - so it would recognise every block and swallow the chain",
                 rule.id
             );
             // A content selector that names the block *itself* re-enters this plan through the tool-result
@@ -262,13 +260,26 @@ mod tests {
     /// A form whose selectors are all empty always builds something, so with no condition it recognises
     /// every block and swallows the rest of the chain.
     #[test]
-    #[should_panic(expected = "swallows the chain")]
+    #[should_panic(expected = "swallow the chain")]
     fn a_rule_that_builds_from_nothing_is_refused() {
         plan_from(serde_json::json!({
             "id": "probe.catch_all",
             "at": "before_provider_formats",
             "legacy_rank": 1,
             "json": {},
+        }));
+    }
+
+    /// The same, with a selector that names something: it resolves nothing and still builds a block, which
+    /// is why emptiness of the selector list was the wrong test.
+    #[test]
+    #[should_panic(expected = "swallow the chain")]
+    fn a_rule_whose_selector_may_resolve_nothing_still_needs_a_condition() {
+        plan_from(serde_json::json!({
+            "id": "probe.unresolved",
+            "at": "before_provider_formats",
+            "legacy_rank": 1,
+            "json": {"data": ["$.missing"]},
         }));
     }
 
