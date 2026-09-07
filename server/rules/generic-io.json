@@ -57,5 +57,77 @@
         "position_provides_sequence_order": false
       }
     }
+  ],
+  "messages": [
+    {
+      "id": "generic-io.fallback_input",
+      "doc": "The generic input carrier, read only if no dialect recognised the span. `json_or_string` because these are documented as *any* JSON and a producer whose input is bare text writes exactly that - requiring JSON dropped every such answer silently.",
+      "stage": "fallback",
+      "read": {
+        "attribute": "input.value"
+      },
+      "parse": "json_or_string",
+      "wrap": {
+        "role": "user",
+        "only_plain_data": true
+      },
+      "emit": "message",
+      "legacy_rank": 9000
+    },
+    {
+      "id": "generic-io.fallback_raw_input",
+      "doc": "One dialect's stand-in for that carrier, read in the same stage and only where the carrier it stands in for is absent - it is the same datum under another name, not a second one.",
+      "stage": "fallback",
+      "read": {
+        "attribute": "raw_input"
+      },
+      "parse": "json",
+      "unless": {
+        "attr_exists": [
+          "input.value"
+        ]
+      },
+      "wrap": {
+        "role": "user",
+        "only_plain_data": true
+      },
+      "emit": "message",
+      "legacy_rank": 9010
+    },
+    {
+      "id": "generic-io.fallback_response",
+      "doc": "The same dialect's stand-in on the producing side.",
+      "stage": "fallback",
+      "read": {
+        "attribute": "response"
+      },
+      "parse": "json",
+      "unless": {
+        "attr_exists": [
+          "output.value"
+        ]
+      },
+      "wrap": {
+        "role": "assistant",
+        "only_plain_data": true
+      },
+      "emit": "message",
+      "legacy_rank": 9020
+    },
+    {
+      "id": "generic-io.fallback_output",
+      "doc": "The generic output carrier. Last, because the retired stage read it last and the order is observable.",
+      "stage": "fallback",
+      "read": {
+        "attribute": "output.value"
+      },
+      "parse": "json_or_string",
+      "wrap": {
+        "role": "assistant",
+        "only_plain_data": true
+      },
+      "emit": "message",
+      "legacy_rank": 9030
+    }
   ]
 }

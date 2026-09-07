@@ -690,21 +690,12 @@ fn message_extraction_names_no_framework() {
         })
     }
 
-    // The stated exceptions, each with the reason it cannot be a rule. An enumerated list is the point: a
-    // gate that quietly passes tells you nothing, and a criterion with unstated exceptions is not a
-    // criterion. Anything not on this list must be declared.
-    //
-    // `raw_input` and `response` are two dialects' stand-ins for the generic input/output pair, read in the
-    // **fallback stage** - only when no dialect recognised the span at all. That condition is cross-rule
-    // state ("has anything produced a message"), which the engine forbids by design, and gating them on the
-    // sibling carrier's absence instead was measurably broader: a span with a recognised conversation and an
-    // unrelated `response` gained an assistant message the retired path suppressed.
-    const STATED_EXCEPTIONS: &[&str] = &[
-        r#"&& let Some(parsed) = extract_json::<JsonValue>(attrs, "raw_input")"#,
-        r#"messages.push(RawMessage::from_attr("raw_input", timestamp, wrapped));"#,
-        r#"&& let Some(parsed) = extract_json::<JsonValue>(attrs, "response")"#,
-        r#"messages.push(RawMessage::from_attr("response", timestamp, wrapped));"#,
-    ];
+    // No stated exceptions. There were two - one dialect's stand-ins for the generic input/output pair,
+    // kept in Rust because "only if nothing recognised this span" is cross-rule state the engine forbids.
+    // That turned out to be a *stage*, which the engine can own: they are declared with `stage: fallback`
+    // now, and this list is empty. An enumerated exception would still be better than a silent one, so the
+    // list stays as the place a future one has to be written down.
+    const STATED_EXCEPTIONS: &[&str] = &[];
 
     let mut offenders = Vec::new();
     let mut in_test_item = false;

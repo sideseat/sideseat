@@ -439,6 +439,15 @@ pub struct MessageRule {
     pub id: String,
     #[serde(default)]
     pub doc: Option<String>,
+    /// When this rule is read: with the dialects, or only if none of them produced a message.
+    ///
+    /// A *stage*, owned by the engine rather than a rule asking about other rules. Some carriers really are
+    /// a last resort - the generic input/output pair, and two dialects' stand-ins for it - and "only if
+    /// nothing recognised this span" is what the retired fallback extractor's position in the list meant.
+    /// Gating on a sibling carrier's absence instead is measurably broader: a span with a recognised
+    /// conversation and an unrelated `response` gains a message it should not have.
+    #[serde(default)]
+    pub stage: MessageStage,
     /// The carrier to read. Absent for a `compose` rule, which has many sources rather than one.
     #[serde(default)]
     pub read: ReadSpec,
@@ -881,6 +890,14 @@ pub struct WrapSpec {
     /// its parent - so the question cannot be asked of either alone.
     #[serde(default)]
     pub require_after: PredicateSet,
+    /// Wrap only where the value is not already message-shaped.
+    ///
+    /// A generic carrier holds either a message or bare data: `output.value = "the answer"` is the answer,
+    /// and `output.value = {"role": …}` is already a message. Wrapping the second buries the conversation a
+    /// level down; not wrapping the first loses it entirely, because normalisation looks for `role` on a
+    /// string and finds nothing.
+    #[serde(default)]
+    pub only_plain_data: bool,
     /// Wrap the value in a *content block* first, and make that block the message's only content.
     ///
     /// A tool call is not a bare object under a role: it is a `tool_use` block, and the block shape is
@@ -1630,4 +1647,15 @@ pub struct TextBlock {
 pub struct MediaBlock {
     pub media_type: Vec<JsonPath>,
     pub data: Vec<JsonPath>,
+}
+
+/// When a rule is read.
+#[derive(Debug, Deserialize, Clone, Copy, Default, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum MessageStage {
+    /// With the dialects, in rank order. The ordinary case.
+    #[default]
+    Dialect,
+    /// Only if no dialect-stage rule produced a message or a claim.
+    Fallback,
 }

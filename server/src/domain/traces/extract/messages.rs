@@ -15,7 +15,6 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Value as JsonValue, json};
 
 use crate::data::types::ObservationType;
-use crate::domain::sideml::is_plain_data_value;
 use crate::utils::otlp::extract_attributes;
 use crate::utils::time::nanos_to_datetime;
 
@@ -392,11 +391,6 @@ const EXTRACTORS: &[NamedExtractor] = &[
         name: "declared_rules",
         extractor: try_declared_rules,
     },
-    // Before raw_io: guarded on span.type, so it only claims Claude Code CLI spans.
-    NamedExtractor {
-        name: "raw_io",
-        extractor: try_raw_io,
-    },
 ];
 
 /// How a span's attributes are shared out among the extractors.
@@ -417,11 +411,6 @@ pub(crate) enum ExtractionMode {
     /// extractor already produced one for that carrier.
     PerCarrier,
 }
-
-/// The generic fallback, which reads the framework-agnostic `input.value`/`output.value` pair. It runs
-/// only when no framework-specific extractor produced anything, so a specific reading is never joined
-/// by a generic copy of the same content.
-const FALLBACK_RULE: &str = "raw_io";
 
 /// The only extractor whose attributes mean "a message" on a **tool** span.
 ///
@@ -494,9 +483,6 @@ fn extract_per_carrier(
     let observation_type = super::attributes::detect_observation_type(span_name, attrs);
 
     for named in EXTRACTORS {
-        if named.name == FALLBACK_RULE {
-            continue;
-        }
         // A tool span reads the conventions and nothing else - see `SEMCONV_RULE`.
         if is_tool_span && named.name != SEMCONV_RULE {
             continue;
@@ -532,9 +518,7 @@ fn extract_per_carrier(
     }
 
     if !any_specific {
-        for named in EXTRACTORS.iter().filter(|e| e.name == FALLBACK_RULE) {
-            (named.extractor)(messages, tool_definitions, attrs, span_name, timestamp);
-        }
+        messages.extend(fallback_messages(attrs, span_name, timestamp));
         return;
     }
 
@@ -557,10 +541,7 @@ fn extract_per_carrier(
         return;
     }
 
-    let mut produced = Vec::new();
-    for named in EXTRACTORS.iter().filter(|e| e.name == FALLBACK_RULE) {
-        (named.extractor)(&mut produced, tool_definitions, attrs, span_name, timestamp);
-    }
+    let produced = fallback_messages(attrs, span_name, timestamp);
     for message in produced {
         if !carrier_holds_span_output(&message.source, span_name, observation_type) {
             continue;
@@ -3206,97 +3187,34 @@ pub(crate) fn try_claude_code(
 /// If the value is a plain data object without message-structure keys,
 /// wraps it as `{"role": <role>, "content": <value>}` so normalize() can process it.
 /// Non-plain-data values (already message-shaped, arrays, strings) pass through unchanged.
-fn wrap_plain_data(value: JsonValue, role: &str) -> JsonValue {
-    // A **scalar** is wrapped too, not only a plain object. `input.value` / `output.value` are
-    // documented as "any JSON", and a framework whose output is just text writes exactly that:
-    // `output.value = "the answer"`. Unwrapped, normalisation looks for `role` and `content` on a
-    // string, finds neither, and produces a message with no blocks - so the answer vanished, with no
-    // error anywhere. Measured on `_synthetic/plain_output_value`, where the answer invariant fires.
-    //
-    // An **array** is wrapped unless it is a list of *messages*. A message list is expanded upstream into
-    // its elements, so wrapping it would bury the conversation one level down; a list of content blocks
-    // (`[{"type": "text", ...}]`) or of plain values is this message's content and was lost the same way a
-    // scalar was. The two are told apart by whether the elements carry a `role`, which is what makes one a
-    // list of messages and the other a list of parts.
-    let is_scalar = value.is_string() || value.is_number() || value.is_boolean();
-    let is_content_list = value.as_array().is_some_and(|items| {
-        !items.is_empty()
-            && !items
-                .iter()
-                .any(|item| item.get("role").is_some() || item.get("messages").is_some())
-    });
-    if is_scalar || is_content_list || is_plain_data_value(&value) {
-        json!({"role": role, "content": value})
-    } else {
-        value
-    }
-}
-
-pub(crate) fn try_raw_io(
-    messages: &mut Vec<RawMessage>,
-    _tool_definitions: &mut Vec<RawToolDefinition>,
+/// The fallback stage's messages: the declared last-resort carriers, read for this span.
+fn fallback_messages(
     attrs: &HashMap<String, String>,
-    _: &str,
+    span_name: &str,
     timestamp: DateTime<Utc>,
-) -> bool {
-    /// A value that does not parse as JSON is still a value.
-    ///
-    /// `input.value` and `output.value` are generic by design - OpenInference pairs them with
-    /// `input.mime_type`/`output.mime_type`, and `text/plain` is a documented option - so requiring
-    /// `serde_json` to accept them dropped every answer a producer sent as bare text, silently and
-    /// whatever else the span carried. `_synthetic/openinference_plain_text_answer` is that shape.
-    fn json_or_text(attrs: &HashMap<String, String>, key: &str) -> Option<JsonValue> {
-        let raw = attrs.get(key)?;
-        Some(match serde_json::from_str::<JsonValue>(raw) {
-            Ok(parsed) => parsed,
-            Err(_) => JsonValue::String(raw.clone()),
+) -> Vec<RawMessage> {
+    crate::domain::rules::ruleset()
+        .messages
+        .fallback(&crate::domain::rules::MessageContext {
+            span_name,
+            span_attrs: attrs,
+            is_tool_span: is_tool_execution_span(attrs),
         })
-    }
-
-    // Note: system_prompt is extracted in extract_messages_for_span (mod.rs)
-
-    // input.value - preserve raw JSON, wrap plain data as user message
-    if let Some(parsed) = json_or_text(attrs, keys::INPUT_VALUE) {
-        let wrapped = wrap_plain_data(parsed, "user");
-        messages.push(RawMessage::from_attr(keys::INPUT_VALUE, timestamp, wrapped));
-    }
-
-    // Two dialect stand-ins for the generic pair, and they belong *here* rather than in the rules,
-    // deliberately. `try_raw_io` is the fallback stage: it runs only when no dialect recognised the span, so
-    // these are read only then. Declared as rules gated on the sibling carrier's absence they fired far more
-    // often - a span with a recognised conversation *and* an unrelated `response` gained an assistant
-    // message the retired path suppressed. "Only if nothing else produced a message" is cross-rule state,
-    // which the engine forbids by design and which this stage expresses structurally instead.
-    if attrs.get(keys::INPUT_VALUE).is_none()
-        && let Some(parsed) = extract_json::<JsonValue>(attrs, "raw_input")
-    {
-        let wrapped = wrap_plain_data(parsed, "user");
-        messages.push(RawMessage::from_attr("raw_input", timestamp, wrapped));
-    }
-    if attrs.get(keys::OUTPUT_VALUE).is_none()
-        && let Some(parsed) = extract_json::<JsonValue>(attrs, "response")
-    {
-        let wrapped = wrap_plain_data(parsed, "assistant");
-        messages.push(RawMessage::from_attr("response", timestamp, wrapped));
-    }
-
-    // output.value - preserve raw JSON, wrap plain data as assistant message
-    if let Some(parsed) = json_or_text(attrs, keys::OUTPUT_VALUE) {
-        let wrapped = wrap_plain_data(parsed, "assistant");
-        messages.push(RawMessage::from_attr(
-            keys::OUTPUT_VALUE,
-            timestamp,
-            wrapped,
-        ));
-    }
-
-    !messages.is_empty()
+        .into_iter()
+        .filter(|emission| {
+            matches!(
+                emission.target,
+                crate::domain::rules::schema::EmitTarget::Message
+            )
+        })
+        .map(|emission| RawMessage::from_attr(emission.carrier.name(), timestamp, emission.value))
+        .collect()
 }
 
+#[cfg(test)]
 // ============================================================================
 // INDEXED MESSAGE EXTRACTION
 // ============================================================================
-
 #[cfg(test)]
 fn extract_indices(attrs: &HashMap<String, String>, prefix: &str) -> BTreeSet<usize> {
     attrs

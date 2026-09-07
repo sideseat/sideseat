@@ -8163,11 +8163,11 @@ fn declared_message_rules_cover_what_they_claim() {
     let plan = &ruleset().messages;
     assert_eq!(
         plan.rule_count(),
-        63,
-        "the assets declare {} message rules. **Every** framework extractor is consolidated into the one \
-         generic entry; the only other entry left is the generic `raw_io` fallback, which names no \
-         framework - and a dialect moves whole or not at all, so there are no part-migrated carriers to \
-         count. Two extractor entries where there were sixteen, and the last always-on framework code - a tool-definition grammar - is a sealed generic parser reached through a declared vocabulary.",
+        67,
+        "the assets declare {} message rules. `EXTRACTORS` holds **one** entry where it held sixteen, and \
+         that entry is the generic declared-rules evaluator: even the last-resort carriers are declared \
+         now, with `stage: fallback`, so the fallback extractor is gone too. A dialect moves whole or not \
+         at all, so there are no part-migrated carriers to count.",
         plan.rule_count()
     );
     for rule in plan.rules() {
@@ -8890,4 +8890,30 @@ fn a_nameless_single_tool_is_not_emitted() {
         defs.is_empty(),
         "a nameless tool definition was emitted: {defs:?}"
     );
+}
+
+/// The declared fallback stage, in the retired extractor's shape.
+///
+/// `try_raw_io` is gone: its four carriers are declared with `stage: fallback`, and the stage is evaluated by
+/// the plan. These call sites assert the same behaviour through the declaration.
+fn try_raw_io(
+    messages: &mut Vec<RawMessage>,
+    _tool_definitions: &mut Vec<RawToolDefinition>,
+    attrs: &HashMap<String, String>,
+    span_name: &str,
+    timestamp: DateTime<Utc>,
+) -> bool {
+    let produced: Vec<RawMessage> = crate::domain::rules::ruleset()
+        .messages
+        .fallback(&crate::domain::rules::MessageContext {
+            span_name,
+            span_attrs: attrs,
+            is_tool_span: is_tool_execution_span(attrs),
+        })
+        .into_iter()
+        .map(|e| RawMessage::from_attr(e.carrier.name(), timestamp, e.value))
+        .collect();
+    let found = !produced.is_empty();
+    messages.extend(produced);
+    found
 }

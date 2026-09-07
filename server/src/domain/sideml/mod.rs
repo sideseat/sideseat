@@ -125,6 +125,24 @@ const MESSAGE_STRUCTURE_KEYS: &[&str] = &[
 /// Returns true for non-empty objects that lack any message-structure keys.
 /// Used to detect structured output like `{"name": "Jane", "age": 28}` that
 /// needs wrapping before normalization.
+/// Whether this value is bare data rather than something already message-shaped.
+///
+/// A generic carrier holds either. A **scalar** is bare data: `output.value = "the answer"` is the answer,
+/// and unwrapped, normalisation looks for `role` on a string, finds nothing, and produces a message with no
+/// blocks - the answer gone with no error anywhere. An **array** is bare data unless its elements carry a
+/// `role`, which is what tells a list of *messages* (expanded upstream, so wrapping it would bury the
+/// conversation) from a list of content blocks or plain values.
+pub(crate) fn is_plain_data_or_content(value: &JsonValue) -> bool {
+    let is_scalar = value.is_string() || value.is_number() || value.is_boolean();
+    let is_content_list = value.as_array().is_some_and(|items| {
+        !items.is_empty()
+            && !items
+                .iter()
+                .any(|item| item.get("role").is_some() || item.get("messages").is_some())
+    });
+    is_scalar || is_content_list || is_plain_data_value(value)
+}
+
 pub(crate) fn is_plain_data_value(val: &JsonValue) -> bool {
     let Some(obj) = val.as_object() else {
         return false;

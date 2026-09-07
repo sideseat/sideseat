@@ -134,6 +134,8 @@ pub struct CompiledMessageRule {
     pub require_non_empty: bool,
     pub require_non_blank: bool,
     pub branch_set: Option<CompiledBranchSet>,
+    /// When this rule is read: with the dialects, or only if none of them produced anything.
+    pub stage: super::schema::MessageStage,
     pub elements: Option<ElementsSpec>,
     pub walk: Option<super::schema::WalkSpec>,
     pub sections: Option<SectionsSpec>,
@@ -247,6 +249,7 @@ fn compile_rule(
     let MessageRule {
         id,
         doc,
+        stage,
         tool_repr,
         read,
         compose,
@@ -604,6 +607,7 @@ fn compile_rule(
         require_non_empty: *require_non_empty,
         require_non_blank: *require_non_blank,
         branch_set: compiled_branch_set,
+        stage: *stage,
         elements: elements.clone(),
         walk: walk.clone(),
         sections: sections.clone(),
@@ -728,6 +732,13 @@ pub fn compile(sources: &BTreeMap<String, Vec<u8>>) -> Result<MessagePlan, Messa
     for (i, a) in rules.iter().enumerate() {
         for b in &rules[i + 1..] {
             if !(reads_message_axis(a) && reads_message_axis(b)) {
+                continue;
+            }
+            // Different stages cannot contend: the fallback stage is read only when the dialect stage
+            // produced nothing, so the two never run for one span. That separation is the whole point of the
+            // stage, and it is stronger than a condition - it is a property of the evaluation, not of the
+            // span.
+            if a.stage != b.stage {
                 continue;
             }
             let conflict = [
@@ -1009,9 +1020,26 @@ impl MessagePlan {
     /// dialects really do read the same key - `message` is read by two - and the ownership check permits
     /// the collision precisely because a condition and a rank separate them.
     pub fn run<'p>(&'p self, ctx: &MessageContext<'_>) -> Vec<Emission<'p>> {
+        self.stage(ctx, super::schema::MessageStage::Dialect)
+    }
+
+    /// The last-resort carriers: the generic input/output pair and the dialect stand-ins for it.
+    ///
+    /// A stage rather than a rule asking about other rules. *When* it runs is the caller's policy - nothing
+    /// recognised the span, or a generation span's answer is still unaccounted for - and that policy is
+    /// generic, being a function of the observation type. Which carriers it reads is this plan's business.
+    pub fn fallback<'p>(&'p self, ctx: &MessageContext<'_>) -> Vec<Emission<'p>> {
+        self.stage(ctx, super::schema::MessageStage::Fallback)
+    }
+
+    fn stage<'p>(
+        &'p self,
+        ctx: &MessageContext<'_>,
+        stage: super::schema::MessageStage,
+    ) -> Vec<Emission<'p>> {
         let mut out = Vec::new();
         let mut claimed: std::collections::HashSet<OwnedCarrier> = std::collections::HashSet::new();
-        for rule in &self.rules {
+        for rule in self.rules.iter().filter(|rule| rule.stage == stage) {
             // The tool-span gate is a message-axis question - "may this rule read such a span *as a
             // conversation*" - so it lives here, not in `emit_rule`, which the metadata path also calls.
             //
@@ -1644,6 +1672,10 @@ fn wrapped(
             },
         }
     };
+    // Wrap only where the value is not already message-shaped: a generic carrier holds either.
+    if wrap.only_plain_data && !crate::domain::sideml::is_plain_data_or_content(&value) {
+        return Some(value);
+    }
     let value = match &wrap.block {
         Some(block) => JsonValue::Array(vec![built_block(value, block, ctx, payload, subject)]),
         None => value,

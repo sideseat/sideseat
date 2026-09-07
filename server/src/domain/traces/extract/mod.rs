@@ -211,6 +211,8 @@ pub(super) mod keys {
     pub const METADATA: &str = "metadata";
 
     // I/O Attributes
+    /// Named by the assets now; kept for the equivalence oracles.
+    #[cfg(test)]
     pub const INPUT_VALUE: &str = "input.value";
     pub const OUTPUT_VALUE: &str = "output.value";
     /// Named only by the AutoGen asset now; kept for the equivalence oracle's reference implementation.
