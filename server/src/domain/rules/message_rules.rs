@@ -836,6 +836,53 @@ pub fn compile(sources: &BTreeMap<String, Vec<u8>>) -> Result<MessagePlan, Messa
 /// contradiction reachable through `require_parent`, an attachment, an overlay, a prepended block, or any
 /// case a fragment contributed: the pass that ran before inlining could not see those at all.
 pub(super) fn predicate_defect(set: &PredicateSet) -> Option<&'static str> {
+    // Defects between *members* of a set, which no per-predicate check can see. `any` is a disjunction, so
+    // one member's negation of another makes the whole set hold for everything; `all` is a conjunction, so
+    // two members that cannot both hold make it hold for nothing. Compared on the same path, since two
+    // conditions on different members say nothing about each other.
+    let same_path = |a: &ValuePredicate, b: &ValuePredicate| {
+        a.path.as_ref().map(ToString::to_string) == b.path.as_ref().map(ToString::to_string)
+    };
+    for (i, left) in set.any.iter().enumerate() {
+        for right in &set.any[i + 1..] {
+            if same_path(left, right)
+                && ((left.not_null == Some(true) && right.not_null == Some(false))
+                    || (left.not_null == Some(false) && right.not_null == Some(true))
+                    || (left.exists == Some(true) && right.exists == Some(false))
+                    || (left.exists == Some(false) && right.exists == Some(true))
+                    || (left.non_empty == Some(true) && right.non_empty == Some(false))
+                    || (left.non_empty == Some(false) && right.non_empty == Some(true)))
+            {
+                return Some(
+                    "an `any` set holds one member and its negation, so it holds for every value",
+                );
+            }
+        }
+    }
+    for (i, left) in set.all.iter().enumerate() {
+        for right in &set.all[i + 1..] {
+            if !same_path(left, right) {
+                continue;
+            }
+            if let (Some(a), Some(b)) = (left.kind, right.kind)
+                && a != b
+            {
+                return Some("an `all` set names two kinds for one value, so it holds for nothing");
+            }
+            if (left.not_null == Some(true) && right.not_null == Some(false))
+                || (left.not_null == Some(false) && right.not_null == Some(true))
+                || (left.exists == Some(true) && right.exists == Some(false))
+                || (left.exists == Some(false) && right.exists == Some(true))
+                || (left.non_empty == Some(true) && right.non_empty == Some(false))
+                || (left.non_empty == Some(false) && right.non_empty == Some(true))
+            {
+                return Some(
+                    "an `all` set holds one member and its negation, so it holds for nothing",
+                );
+            }
+        }
+    }
+
     for predicate in set.all.iter().chain(set.any.iter()) {
         if predicate.non_empty.is_some()
             && matches!(
@@ -866,8 +913,15 @@ pub(super) fn predicate_defect(set: &PredicateSet) -> Option<&'static str> {
                  can hold",
             );
         }
-        if predicate.starts_with.is_some() && predicate.lacks_prefix.is_some() {
-            return Some("`starts_with` and `lacks_prefix` on one predicate");
+        // Only *overlapping* prefixes contradict. `starts_with: "ab"` with `lacks_prefix: "a"` cannot hold,
+        // and so can `lacks_prefix: "ab"` with `starts_with: "a"` - but `starts_with: "a"` beside
+        // `lacks_prefix: "b"` is an ordinary, satisfiable statement, and refusing it refused a real rule.
+        if let (Some(starts), Some(lacks)) = (&predicate.starts_with, &predicate.lacks_prefix)
+            && (starts.starts_with(lacks.as_str()) || lacks.starts_with(starts.as_str()))
+        {
+            return Some(
+                "`starts_with` and `lacks_prefix` name overlapping prefixes, so no value satisfies both",
+            );
         }
         // A predicate on the **root** that asserts nothing beyond presence is a tautology: the value being
         // tested always exists. `{}`, `{"path": "$"}` and `{"exists": true}` are the same statement, and each
@@ -877,6 +931,13 @@ pub(super) fn predicate_defect(set: &PredicateSet) -> Option<&'static str> {
             .path
             .as_ref()
             .is_none_or(|path| path.to_string() == "$");
+        // The root always exists, so asserting its absence can never hold. Judged *before* the
+        // presence-only rule below, which any other condition - `none_of`, say - would otherwise mask.
+        if on_root && predicate.exists == Some(false) {
+            return Some(
+                "`exists: false` on the root can never hold - the value being tested is always there",
+            );
+        }
         let asserts_only_presence = predicate.kind.is_none()
             && predicate.non_empty.is_none()
             && predicate.not_null.is_none()
@@ -885,6 +946,23 @@ pub(super) fn predicate_defect(set: &PredicateSet) -> Option<&'static str> {
             && predicate.lacks_prefix.is_none()
             && predicate.one_of.is_empty()
             && predicate.none_of.is_empty();
+        if matches!(predicate.kind, Some(ValueKind::Null)) && predicate.not_null == Some(true) {
+            return Some("`kind: null` and `not_null: true` on one predicate");
+        }
+        if predicate.kind.is_some()
+            && !matches!(predicate.kind, Some(ValueKind::Null))
+            && predicate.not_null == Some(false)
+        {
+            return Some("a kind that is not null, beside `not_null: false`");
+        }
+        if let Some(both) = predicate
+            .one_of
+            .iter()
+            .find(|value| predicate.none_of.contains(value))
+        {
+            let _ = both;
+            return Some("a value named by both `one_of` and `none_of`");
+        }
         if on_root && asserts_only_presence {
             return Some(
                 "a predicate on the root that asserts nothing beyond presence is a tautology - the \

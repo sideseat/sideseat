@@ -884,3 +884,107 @@ fn exists_false_beside_a_value_condition_is_refused() {
         "`none_of` accepts absence by design and must stay legal beside `exists: false`"
     );
 }
+
+/// No predicate that holds for every value, or that can never hold, is accepted - and every satisfiable
+/// one still is.
+///
+/// A **curated** table, not a sample. My first version generated field pairs and judged them by whether they
+/// held over eight example values, which accused `starts_with: "a"` on the root of being impossible - it is
+/// satisfiable, just not by any of those eight. "Unsatisfied by my sample" is not "unsatisfiable", and a test
+/// that confuses them argues for removing real rules.
+///
+/// Each defect in this class was found one at a time by review - `exists: false` against five conditions, a
+/// text condition against five kinds, a root tautology in three spellings, then set-level negation - so the
+/// satisfiable half matters as much: it is what stopped the fix from over-refusing.
+#[test]
+fn no_vacuous_or_impossible_predicate_is_accepted() {
+    use crate::domain::rules::message_rules::predicate_defect;
+    use crate::domain::rules::schema::PredicateSet;
+    use serde_json::json;
+
+    let set = |value: serde_json::Value| -> PredicateSet {
+        serde_json::from_value(value).expect("the probe set parses")
+    };
+
+    // Refused: each holds for everything, or for nothing.
+    let refused: Vec<(&str, serde_json::Value)> = vec![
+        ("the root always exists", json!({"all": [{}]})),
+        (
+            "the root, spelled out",
+            json!({"all": [{"path": "$", "exists": true}]}),
+        ),
+        (
+            "the root cannot be absent",
+            json!({"all": [{"path": "$", "exists": false, "none_of": ["x"]}]}),
+        ),
+        (
+            "null and not-null",
+            json!({"all": [{"path": "$.v", "kind": "null", "not_null": true}]}),
+        ),
+        (
+            "a kind that is not null, beside not_null false",
+            json!({"all": [{"path": "$.v", "kind": "string", "not_null": false}]}),
+        ),
+        (
+            "one value both required and forbidden",
+            json!({"all": [{"path": "$.v", "one_of": ["a"], "none_of": ["a"]}]}),
+        ),
+        (
+            "overlapping prefixes",
+            json!({"all": [{"path": "$.v", "starts_with": "ab", "lacks_prefix": "a"}]}),
+        ),
+        (
+            "a text condition on a number",
+            json!({"all": [{"path": "$.v", "kind": "number", "starts_with": "a"}]}),
+        ),
+        (
+            "an any set holding a member and its negation",
+            json!({"any": [{"path": "$.v", "not_null": true}, {"path": "$.v", "not_null": false}]}),
+        ),
+        (
+            "an all set naming two kinds",
+            json!({"all": [{"path": "$.v", "kind": "string"}, {"path": "$.v", "kind": "number"}]}),
+        ),
+    ];
+    for (why, value) in refused {
+        assert!(
+            predicate_defect(&set(value.clone())).is_some(),
+            "{why}: accepted, and it says nothing - {value}"
+        );
+    }
+
+    // Accepted: each is an ordinary statement some value satisfies and some does not.
+    let accepted: Vec<(&str, serde_json::Value)> = vec![
+        ("a member is present", json!({"all": [{"path": "$.v"}]})),
+        (
+            "a member is absent",
+            json!({"all": [{"path": "$.v", "exists": false}]}),
+        ),
+        (
+            "the root is a string",
+            json!({"all": [{"path": "$", "kind": "string"}]}),
+        ),
+        (
+            "non-overlapping prefixes",
+            json!({"all": [{"path": "$.v", "starts_with": "a", "lacks_prefix": "b"}]}),
+        ),
+        (
+            "absence, or a value not in a set - the reading that lets an unnamed event fall through",
+            json!({"all": [{"path": "$.v", "exists": false}], "any": [{"path": "$.w", "none_of": ["x"]}]}),
+        ),
+        (
+            "two kinds as alternatives, which is what `any` is for",
+            json!({"any": [{"path": "$.v", "kind": "string"}, {"path": "$.v", "kind": "number"}]}),
+        ),
+        (
+            "conditions on different members",
+            json!({"all": [{"path": "$.a", "kind": "string"}, {"path": "$.b", "kind": "number"}]}),
+        ),
+    ];
+    for (why, value) in accepted {
+        assert!(
+            predicate_defect(&set(value.clone())).is_none(),
+            "{why}: refused, and it is satisfiable - {value}"
+        );
+    }
+}
