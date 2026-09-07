@@ -3261,7 +3261,25 @@ pub(crate) fn try_raw_io(
         messages.push(RawMessage::from_attr(keys::INPUT_VALUE, timestamp, wrapped));
     }
 
-    // raw_input (Logfire fallback) - preserve raw array
+    // Two dialect stand-ins for the generic pair, and they belong *here* rather than in the rules,
+    // deliberately. `try_raw_io` is the fallback stage: it runs only when no dialect recognised the span, so
+    // these are read only then. Declared as rules gated on the sibling carrier's absence they fired far more
+    // often - a span with a recognised conversation *and* an unrelated `response` gained an assistant
+    // message the retired path suppressed. "Only if nothing else produced a message" is cross-rule state,
+    // which the engine forbids by design and which this stage expresses structurally instead.
+    if attrs.get(keys::INPUT_VALUE).is_none()
+        && let Some(parsed) = extract_json::<JsonValue>(attrs, "raw_input")
+    {
+        let wrapped = wrap_plain_data(parsed, "user");
+        messages.push(RawMessage::from_attr("raw_input", timestamp, wrapped));
+    }
+    if attrs.get(keys::OUTPUT_VALUE).is_none()
+        && let Some(parsed) = extract_json::<JsonValue>(attrs, "response")
+    {
+        let wrapped = wrap_plain_data(parsed, "assistant");
+        messages.push(RawMessage::from_attr("response", timestamp, wrapped));
+    }
+
     // output.value - preserve raw JSON, wrap plain data as assistant message
     if let Some(parsed) = json_or_text(attrs, keys::OUTPUT_VALUE) {
         let wrapped = wrap_plain_data(parsed, "assistant");

@@ -304,20 +304,10 @@
     },
     {
       "id": "openinference.tool_definitions",
-      "doc": "This dialect's tool definitions, in the order it prefers them: the flat list and the indexed family first, and the single-tool triple only if neither produced anything. A branch set rather than three rules with presence gates, because 'nothing was produced' is the condition the retired code actually tested.",
-      "emit": "tool_definitions",
+      "doc": "This dialect's tool definitions, in the order it reports them: the indexed family first, then the flat list, and the single-tool triple only if neither produced anything. The primary order is the *emission* order where both forms coexist, and persistence keeps it - so it is the retired rank order, not an arbitrary one. A branch set rather than three rules with presence gates, because 'nothing was produced' is the condition the retired code tested.",
       "legacy_rank": 260,
       "branch_set": {
         "primary": [
-          {
-            "id": "openinference.tools",
-            "doc": "This dialect's tool schemas, in one attribute, elements possibly serialised.",
-            "read": {
-              "attribute": "llm.tools"
-            },
-            "parse": "stringified_array",
-            "emit": "tool_definitions"
-          },
           {
             "id": "openinference.indexed_tools",
             "doc": "Tool schemas as an indexed family, one JSON schema per entry. The entry is a wrapper around that schema, so the projection names the leaf that is the datum - an entry without one is not this shape and contributes nothing. Aggregated because a tool list is one observation, not one per tool. A payload that does not parse is dropped: a malformed schema is not a tool definition, and an indexed member is otherwise sniffed to the string it is.",
@@ -329,6 +319,15 @@
             "emit": "tool_definitions",
             "aggregate_into_array": true,
             "tag_as": "llm.tools.N.tool.json_schema"
+          },
+          {
+            "id": "openinference.tools",
+            "doc": "This dialect's tool schemas, in one attribute, elements possibly serialised.",
+            "read": {
+              "attribute": "llm.tools"
+            },
+            "parse": "stringified_array",
+            "emit": "tool_definitions"
           }
         ],
         "fallback_if_primary_empty": [

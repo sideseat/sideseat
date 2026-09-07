@@ -8163,7 +8163,7 @@ fn declared_message_rules_cover_what_they_claim() {
     let plan = &ruleset().messages;
     assert_eq!(
         plan.rule_count(),
-        65,
+        63,
         "the assets declare {} message rules. **Every** framework extractor is consolidated into the one \
          generic entry; the only other entry left is the generic `raw_io` fallback, which names no \
          framework - and a dialect moves whole or not at all, so there are no part-migrated carriers to \

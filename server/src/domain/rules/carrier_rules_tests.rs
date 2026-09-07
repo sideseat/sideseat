@@ -667,6 +667,7 @@ fn message_extraction_names_no_framework() {
         "RAW_INPUT",
         "SYSTEM_PROMPT",
         "REQUEST_DATA",
+        "raw_input",
         // Constant identifiers for the same keys, and the SDK names used in log messages.
         "AI_PROMPT",
         "AI_TOOLCALL",
@@ -688,6 +689,22 @@ fn message_extraction_names_no_framework() {
             !preceded_by.is_some_and(|c| c.is_alphanumeric() || c == '_' || c == '.')
         })
     }
+
+    // The stated exceptions, each with the reason it cannot be a rule. An enumerated list is the point: a
+    // gate that quietly passes tells you nothing, and a criterion with unstated exceptions is not a
+    // criterion. Anything not on this list must be declared.
+    //
+    // `raw_input` and `response` are two dialects' stand-ins for the generic input/output pair, read in the
+    // **fallback stage** - only when no dialect recognised the span at all. That condition is cross-rule
+    // state ("has anything produced a message"), which the engine forbids by design, and gating them on the
+    // sibling carrier's absence instead was measurably broader: a span with a recognised conversation and an
+    // unrelated `response` gained an assistant message the retired path suppressed.
+    const STATED_EXCEPTIONS: &[&str] = &[
+        r#"&& let Some(parsed) = extract_json::<JsonValue>(attrs, "raw_input")"#,
+        r#"messages.push(RawMessage::from_attr("raw_input", timestamp, wrapped));"#,
+        r#"&& let Some(parsed) = extract_json::<JsonValue>(attrs, "response")"#,
+        r#"messages.push(RawMessage::from_attr("response", timestamp, wrapped));"#,
+    ];
 
     let mut offenders = Vec::new();
     let mut in_test_item = false;
@@ -718,7 +735,7 @@ fn message_extraction_names_no_framework() {
             }
             continue;
         }
-        if trimmed.starts_with("//") {
+        if trimmed.starts_with("//") || STATED_EXCEPTIONS.contains(&trimmed) {
             continue;
         }
         // Case-insensitively, because a constant is upper case and a key is lower, and the same fact must

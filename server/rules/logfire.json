@@ -257,21 +257,6 @@
       }
     },
     {
-      "id": "logfire.raw_input",
-      "doc": "This dialect's stand-in for the generic input carrier. Read only where that carrier is absent - it is a fallback for the same datum, not a second one, and reading both would duplicate the turn. A *declared* absence rather than a global \"has anything been produced yet\" flag, which is order-dependent and says nothing about which carrier stood in for which.",
-      "read": {
-        "attribute": "raw_input"
-      },
-      "parse": "json",
-      "unless": {
-        "attr_exists": [
-          "input.value"
-        ]
-      },
-      "emit": "message",
-      "legacy_rank": 410
-    },
-    {
       "id": "logfire.request_data_tools",
       "doc": "Tools inside the request payload. An older version of this dialect (< 4.20) did not also set the convention's own carrier, which is exactly the condition - stated here, rather than as a global \"nothing else produced tools\" flag that any unrelated dialect could satisfy first.",
       "read": {
@@ -292,24 +277,6 @@
         }
       ],
       "legacy_rank": 420
-    },
-    {
-      "id": "logfire.response",
-      "doc": "This dialect's stand-in for the generic output carrier, read only where that carrier is absent - a fallback for the same datum rather than a second one. The mirror of `logfire.raw_input` on the producing side.",
-      "read": {
-        "attribute": "response"
-      },
-      "parse": "json",
-      "unless": {
-        "attr_exists": [
-          "output.value"
-        ]
-      },
-      "wrap": {
-        "role": "assistant"
-      },
-      "emit": "message",
-      "legacy_rank": 415
     }
   ]
 }

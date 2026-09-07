@@ -347,6 +347,12 @@ fn compile_rule(
     }
     // Combinations the evaluator silently ignores. Each of these compiled and did nothing, which is worse
     // than a refusal: the rule reads as a statement the engine never makes.
+    if read.entry_value.is_none() && read.entry_value_parse.is_some() {
+        return Err(inexpressible(
+            "`entry_value_parse` says how the *projected* value is read, so it means nothing without \
+                 `entry_value`",
+        ));
+    }
     if read.indexed_family.is_none()
         && (read.overlay.is_some()
             || !read.numeric_members.is_empty()
@@ -551,6 +557,28 @@ fn compile_rule(
             if set.primary.is_empty() {
                 return Err(inexpressible("a branch set declares no `primary` reading"));
             }
+            // A branch parent is a *seam*: `emit_rule` delegates to its leaves immediately, so anything it
+            // declares about reading or emitting is dead. Only its id, rank, documentation, gates and the
+            // branch configuration are read - and a dead declaration is worse than a refused one, because it
+            // reads as a statement the engine never makes.
+            if read.named_count() != 0
+                || compose.is_some()
+                || wrap.is_some()
+                || sections.is_some()
+                || elements.is_some()
+                || walk.is_some()
+                || tool_repr.is_some()
+                || *aggregate_into_array
+                || !alternatives.is_empty()
+                || !also.is_empty()
+                || !fallback.is_empty()
+                || *emit != EmitTarget::Message
+            {
+                return Err(inexpressible(
+                    "a branch set delegates to its leaves, so a carrier, an envelope, a reading or a \
+                         target on the parent would be ignored - declare it on the leaf that means it",
+                ));
+            }
             Some(CompiledBranchSet {
                 primary: compile_group(&set.primary)?,
                 fallback: compile_group(&set.fallback_if_primary_empty)?,
@@ -640,10 +668,24 @@ pub fn compile(sources: &BTreeMap<String, Vec<u8>>) -> Result<MessagePlan, Messa
                 message: e.to_string(),
             })?;
         for rule in &file.messages {
-            if seen_ids.insert(rule.id.clone(), ()).is_some() {
-                return Err(MessageCompileError::DuplicateRuleId {
-                    rule: rule.id.clone(),
-                });
+            // Branch leaves too, not only top-level rules. A leaf's id is what `keep_unclaimed` uses to
+            // tell "this rule reading its own carrier again" from "a second rule reading it", so two leaves
+            // sharing an id would make that check silently pass a double read.
+            let ids = std::iter::once(&rule.id).chain(
+                rule.branch_set
+                    .iter()
+                    .flat_map(|set| {
+                        set.primary
+                            .iter()
+                            .chain(&set.fallback_if_primary_empty)
+                            .chain(&set.always)
+                    })
+                    .map(|sub| &sub.id),
+            );
+            for id in ids {
+                if seen_ids.insert(id.clone(), ()).is_some() {
+                    return Err(MessageCompileError::DuplicateRuleId { rule: id.clone() });
+                }
             }
             // A top-level rule's position among the others is policy somebody owns, so it is stated.
             if rule.legacy_rank.is_none() {
@@ -2019,22 +2061,34 @@ fn emit_rule<'p>(rule: &'p CompiledMessageRule, ctx: &MessageContext<'_>) -> Vec
         if !gates_allow(rule, ctx) {
             return out;
         }
-        // Per sub-rule, because the parent declares no carrier and its own flag says nothing about what a
-        // sub-rule reads. Metadata is exempt for the same reason it is at the top level: a tool definition
-        // is not a reading of the span's conversation.
-        let permitted = |sub: &CompiledMessageRule| {
-            !ctx.is_tool_span || sub.reads_tool_spans || can_emit_metadata(sub)
+        // Per sub-rule and **per axis**, because the parent declares no carrier and its own flag says
+        // nothing about what a sub-rule reads. A leaf that may not read a tool span as a conversation may
+        // still state that span's tools, so its metadata emissions are kept and its message emissions are
+        // not - a whole-leaf boolean let a mixed-axis leaf through on the strength of its metadata and `run`
+        // then retained its messages.
+        let from = |sub: &'p CompiledMessageRule| -> Vec<Emission<'p>> {
+            let forbidden = ctx.is_tool_span && !sub.reads_tool_spans;
+            emit_rule(sub, ctx)
+                .into_iter()
+                .filter(|emission| {
+                    !forbidden
+                        || matches!(
+                            emission.target,
+                            EmitTarget::ToolDefinitions | EmitTarget::ToolNames
+                        )
+                })
+                .collect()
         };
-        for sub in set.primary.iter().filter(|sub| permitted(sub)) {
-            out.extend(emit_rule(sub, ctx));
+        for sub in &set.primary {
+            out.extend(from(sub));
         }
         if out.is_empty() {
-            for sub in set.fallback.iter().filter(|sub| permitted(sub)) {
-                out.extend(emit_rule(sub, ctx));
+            for sub in &set.fallback {
+                out.extend(from(sub));
             }
         }
-        for sub in set.always.iter().filter(|sub| permitted(sub)) {
-            out.extend(emit_rule(sub, ctx));
+        for sub in &set.always {
+            out.extend(from(sub));
         }
         return out;
     }
