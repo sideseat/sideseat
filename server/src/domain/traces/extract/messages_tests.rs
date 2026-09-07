@@ -6649,6 +6649,38 @@ fn the_rules_reproduce_the_extractors_they_replaced() {
     // A span *name* per case, because a rule may be gated on it - and a gated rule compared under a
     // name it cannot match proves nothing at all.
     let cases: Vec<(&str, HashMap<String, String>)> = vec![
+        // The richer copy joined on by position: the flattened form redacts a url, and the serialised copy
+        // of the same conversation on the same span keeps it. The list opens with a member whose `id` is a
+        // *string*, so the witness - "some member states a class path, which this dialect writes as an
+        // array" - has to be asked of every match. Asked of the first only, the overlay would not fire and
+        // the redacted url would stand, which is what the retired code's `.any()` avoided.
+        (
+            "span",
+            rule_attrs(&[
+                ("llm.input_messages.0.message.role", "user"),
+                (
+                    "llm.input_messages.0.message.contents.0.message_content.type",
+                    "text",
+                ),
+                (
+                    "llm.input_messages.0.message.contents.0.message_content.text",
+                    "look",
+                ),
+                ("llm.input_messages.1.message.role", "user"),
+                (
+                    "llm.input_messages.1.message.contents.0.message_content.type",
+                    "image",
+                ),
+                (
+                    "llm.input_messages.1.message.contents.0.message_content.image.image.url",
+                    "__REDACTED__",
+                ),
+                (
+                    "input.value",
+                    r#"{"messages": [[{"id": "a string, not a class path", "content": "first"}, {"id": ["langchain", "schema", "messages", "HumanMessage"], "content": [{"type": "text", "text": "look"}, {"type": "image_url", "image_url": {"url": "https://real/img.png"}}]}]]}"#,
+                ),
+            ]),
+        ),
         // The OpenInference dialect: indexed message families, retrieval result sets, and the two
         // single-attribute carriers.
         (

@@ -1236,6 +1236,10 @@ pub struct SectionBlock {
 #[derive(Debug, Deserialize, Clone, Default)]
 #[serde(deny_unknown_fields)]
 pub struct ValuePredicate {
+    /// Why this condition is the right one, where that is not obvious from the condition. A field rather
+    /// than a comment, as everywhere else here, because the explain trace surfaces it.
+    #[serde(default)]
+    pub doc: Option<String>,
     /// A JSONPath to the value under test. Absent means the value itself.
     #[serde(default)]
     pub path: Option<JsonPath>,

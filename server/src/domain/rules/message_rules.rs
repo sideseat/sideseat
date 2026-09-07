@@ -1854,6 +1854,17 @@ fn emit_rule<'p>(rule: &'p CompiledMessageRule, ctx: &MessageContext<'_>) -> Vec
 
 /// Whether one predicate holds of a value.
 fn predicate_holds(value: &JsonValue, predicate: &ValuePredicate) -> bool {
+    // A path that can match more than once is asked **existentially**: some match satisfies the condition.
+    // Answering only about the first is a silent narrowing, and it would disagree with `exists`, which on a
+    // filter path already means "at least one".
+    if let Some(path) = &predicate.path {
+        let matches = query(value, path);
+        if matches.len() > 1 {
+            return matches
+                .into_iter()
+                .any(|subject| condition_holds(subject, predicate));
+        }
+    }
     let Some(subject) = (match &predicate.path {
         Some(path) => query(value, path).into_iter().next(),
         None => Some(value),
@@ -1871,6 +1882,11 @@ fn predicate_holds(value: &JsonValue, predicate: &ValuePredicate) -> bool {
                 && predicate.lacks_prefix.is_none()
                 && predicate.one_of.is_empty());
     };
+    condition_holds(subject, predicate)
+}
+
+/// The conditions a *present* value must satisfy.
+fn condition_holds(subject: &JsonValue, predicate: &ValuePredicate) -> bool {
     if predicate.exists == Some(false) {
         return false;
     }

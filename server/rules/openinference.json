@@ -56,8 +56,9 @@
           "witness": {
             "any": [
               {
-                "path": "$[?count(@.id[*]) > 0]",
-                "exists": true
+                "path": "$[*].id",
+                "kind": "array",
+                "doc": "This dialect writes a message class path as an array. Asked of every member, not the first: a list may open with a shape that omits it."
               },
               {
                 "path": "$[?@.lc]",
