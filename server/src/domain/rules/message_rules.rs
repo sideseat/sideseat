@@ -835,54 +835,88 @@ pub fn compile(sources: &BTreeMap<String, Vec<u8>>) -> Result<MessagePlan, Messa
 /// after fragments and extra cases are inlined. Checking the direct alternatives only left the same
 /// contradiction reachable through `require_parent`, an attachment, an overlay, a prepended block, or any
 /// case a fragment contributed: the pass that ran before inlining could not see those at all.
-pub(super) fn predicate_defect(set: &PredicateSet) -> Option<&'static str> {
-    // Defects between *members* of a set, which no per-predicate check can see. `any` is a disjunction, so
-    // one member's negation of another makes the whole set hold for everything; `all` is a conjunction, so
-    // two members that cannot both hold make it hold for nothing. Compared on the same path, since two
-    // conditions on different members say nothing about each other.
-    let same_path = |a: &ValuePredicate, b: &ValuePredicate| {
-        a.path.as_ref().map(ToString::to_string) == b.path.as_ref().map(ToString::to_string)
+pub(super) fn predicate_defect<'a>(set: &'a PredicateSet) -> Option<&'static str> {
+    // Defects between *members* of a set, which no per-predicate check can see - and restricted to the
+    // **root**, because only there is the reasoning sound. My first version compared any two members on the
+    // same path and was wrong three ways at once:
+    //
+    // - On a *member* path, `not_null: true` beside `not_null: false` is not a tautology: when the member is
+    //   absent both fail, so the pair means "the member exists".
+    // - A *plural* path makes each predicate existential, so `kind: string` and `kind: number` can both hold
+    //   against different matches of `$.*` - an ordinary statement the check refused.
+    // - Two spellings of one path (`$.v`, `$['v']`) render differently, so an equivalent-path contradiction
+    //   escaped while a satisfiable same-path pair was refused.
+    //
+    // At the root all three disappear: the value always exists, there is exactly one of it, and the path is
+    // either absent or `$`. That is also where the defect that prompted this lives - a content-block rule
+    // whose `require` holds for every block it is offered.
+    let on_root = |p: &ValuePredicate| p.path.as_ref().is_none_or(|path| path.to_string() == "$");
+    let root_of = |members: &'a [ValuePredicate]| -> Vec<&'a ValuePredicate> {
+        members.iter().filter(|p| on_root(p)).collect()
     };
-    for (i, left) in set.any.iter().enumerate() {
-        for right in &set.any[i + 1..] {
-            if same_path(left, right)
-                && ((left.not_null == Some(true) && right.not_null == Some(false))
-                    || (left.not_null == Some(false) && right.not_null == Some(true))
-                    || (left.exists == Some(true) && right.exists == Some(false))
-                    || (left.exists == Some(false) && right.exists == Some(true))
-                    || (left.non_empty == Some(true) && right.non_empty == Some(false))
-                    || (left.non_empty == Some(false) && right.non_empty == Some(true)))
-            {
-                return Some(
-                    "an `any` set holds one member and its negation, so it holds for every value",
-                );
-            }
-        }
-    }
-    for (i, left) in set.all.iter().enumerate() {
-        for right in &set.all[i + 1..] {
-            if !same_path(left, right) {
-                continue;
-            }
-            if let (Some(a), Some(b)) = (left.kind, right.kind)
-                && a != b
-            {
-                return Some("an `all` set names two kinds for one value, so it holds for nothing");
-            }
+    let any_root = root_of(&set.any);
+    let all_root = root_of(&set.all);
+    for (i, left) in any_root.iter().enumerate() {
+        for right in &any_root[i + 1..] {
+            // A disjunction of a condition and its negation holds for every value.
             if (left.not_null == Some(true) && right.not_null == Some(false))
                 || (left.not_null == Some(false) && right.not_null == Some(true))
-                || (left.exists == Some(true) && right.exists == Some(false))
-                || (left.exists == Some(false) && right.exists == Some(true))
                 || (left.non_empty == Some(true) && right.non_empty == Some(false))
                 || (left.non_empty == Some(false) && right.non_empty == Some(true))
             {
                 return Some(
-                    "an `all` set holds one member and its negation, so it holds for nothing",
+                    "an `any` set holds a root condition and its negation, so it holds for every value",
+                );
+            }
+            // The same shape written with the two set conditions.
+            if left
+                .one_of
+                .iter()
+                .any(|value| right.none_of.contains(value))
+                || right
+                    .one_of
+                    .iter()
+                    .any(|value| left.none_of.contains(value))
+            {
+                return Some(
+                    "an `any` set requires a root value in one member and forbids it in another, so it \
+                         holds for every value",
                 );
             }
         }
     }
-
+    // Two kinds for the root cannot both hold, whether they are two `all` members or one of each: the
+    // conjunction requires both.
+    let all_root_kinds: Vec<ValueKind> = all_root.iter().filter_map(|p| p.kind).collect();
+    if let Some(first) = all_root_kinds.first()
+        && all_root_kinds.iter().any(|kind| kind != first)
+    {
+        return Some("an `all` set names two kinds for the root, so it holds for nothing");
+    }
+    if let Some(required) = all_root_kinds.first()
+        && !any_root.is_empty()
+        && any_root
+            .iter()
+            .all(|p| p.kind.is_some_and(|kind| kind != *required))
+    {
+        return Some(
+            "an `all` set names one root kind and every `any` member names a different one, so it \
+                 holds for nothing",
+        );
+    }
+    for (i, left) in all_root.iter().enumerate() {
+        for right in &all_root[i + 1..] {
+            if (left.not_null == Some(true) && right.not_null == Some(false))
+                || (left.not_null == Some(false) && right.not_null == Some(true))
+                || (left.non_empty == Some(true) && right.non_empty == Some(false))
+                || (left.non_empty == Some(false) && right.non_empty == Some(true))
+            {
+                return Some(
+                    "an `all` set holds a root condition and its negation, so it holds for nothing",
+                );
+            }
+        }
+    }
     for predicate in set.all.iter().chain(set.any.iter()) {
         if predicate.non_empty.is_some()
             && matches!(
@@ -916,11 +950,14 @@ pub(super) fn predicate_defect(set: &PredicateSet) -> Option<&'static str> {
         // Only *overlapping* prefixes contradict. `starts_with: "ab"` with `lacks_prefix: "a"` cannot hold,
         // and so can `lacks_prefix: "ab"` with `starts_with: "a"` - but `starts_with: "a"` beside
         // `lacks_prefix: "b"` is an ordinary, satisfiable statement, and refusing it refused a real rule.
+        // Only when the required prefix *already begins with* the forbidden one: `starts_with: "ab"` with
+        // `lacks_prefix: "a"` cannot hold. The reverse is satisfiable - `starts_with: "a"` beside
+        // `lacks_prefix: "ab"` is met by `"ac"` - and refusing it refused a real rule.
         if let (Some(starts), Some(lacks)) = (&predicate.starts_with, &predicate.lacks_prefix)
-            && (starts.starts_with(lacks.as_str()) || lacks.starts_with(starts.as_str()))
+            && starts.starts_with(lacks.as_str())
         {
             return Some(
-                "`starts_with` and `lacks_prefix` name overlapping prefixes, so no value satisfies both",
+                "`starts_with` begins with the prefix `lacks_prefix` forbids, so no value satisfies both",
             );
         }
         // A predicate on the **root** that asserts nothing beyond presence is a tautology: the value being

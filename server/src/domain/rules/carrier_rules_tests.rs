@@ -930,20 +930,28 @@ fn no_vacuous_or_impossible_predicate_is_accepted() {
             json!({"all": [{"path": "$.v", "one_of": ["a"], "none_of": ["a"]}]}),
         ),
         (
-            "overlapping prefixes",
-            json!({"all": [{"path": "$.v", "starts_with": "ab", "lacks_prefix": "a"}]}),
-        ),
-        (
             "a text condition on a number",
             json!({"all": [{"path": "$.v", "kind": "number", "starts_with": "a"}]}),
         ),
         (
-            "an any set holding a member and its negation",
-            json!({"any": [{"path": "$.v", "not_null": true}, {"path": "$.v", "not_null": false}]}),
+            "an any set holding a root condition and its negation",
+            json!({"any": [{"not_null": true}, {"not_null": false}]}),
         ),
         (
-            "an all set naming two kinds",
-            json!({"all": [{"path": "$.v", "kind": "string"}, {"path": "$.v", "kind": "number"}]}),
+            "the same, with the two set conditions",
+            json!({"any": [{"one_of": ["a"]}, {"none_of": ["a"]}]}),
+        ),
+        (
+            "an all set naming two root kinds",
+            json!({"all": [{"kind": "string"}, {"kind": "number"}]}),
+        ),
+        (
+            "an all root kind that every any member contradicts",
+            json!({"all": [{"kind": "string"}], "any": [{"kind": "number"}]}),
+        ),
+        (
+            "a required prefix that begins with the forbidden one",
+            json!({"all": [{"path": "$.v", "starts_with": "ab", "lacks_prefix": "a"}]}),
         ),
     ];
     for (why, value) in refused {
@@ -979,6 +987,20 @@ fn no_vacuous_or_impossible_predicate_is_accepted() {
         (
             "conditions on different members",
             json!({"all": [{"path": "$.a", "kind": "string"}, {"path": "$.b", "kind": "number"}]}),
+        ),
+        // The three shapes a set-level check must *not* refuse. Each was refused by my first version, which
+        // compared any two members sharing a rendered path.
+        (
+            "a member and its negation: when the member is absent both fail, so the pair means it exists",
+            json!({"any": [{"path": "$.v", "not_null": true}, {"path": "$.v", "not_null": false}]}),
+        ),
+        (
+            "two kinds against a plural path, which each predicate tests existentially",
+            json!({"all": [{"path": "$.*", "kind": "string"}, {"path": "$.*", "kind": "number"}]}),
+        ),
+        (
+            "a forbidden prefix longer than the required one - `ac` satisfies both",
+            json!({"all": [{"path": "$.v", "starts_with": "a", "lacks_prefix": "ab"}]}),
         ),
     ];
     for (why, value) in accepted {
