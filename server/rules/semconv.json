@@ -395,7 +395,7 @@
     },
     {
       "id": "semconv.event_inference_details_input",
-      "doc": "The convention's inference-details event is a *container*: its own attributes are the request and the response, so the container itself is not a message - reporting it as well would give the conversation twice.",
+      "doc": "The convention's inference-details event is a *container*: its own attributes are the request and the response, so the container itself is not a message - reporting it as well would give the conversation twice. Read on a tool span too: the retired extractor answered this event before any tool-span check.",
       "when_event": [
         "gen_ai.client.inference.operation.details"
       ],
@@ -405,11 +405,12 @@
       },
       "parse": "json",
       "emit": "message",
-      "legacy_rank": 30
+      "legacy_rank": 30,
+      "reads_tool_spans": true
     },
     {
       "id": "semconv.event_inference_details_output",
-      "doc": "The response side of the same container.",
+      "doc": "The response side of the same container. Read on a tool span too: the retired extractor answered this event before any tool-span check.",
       "when_event": [
         "gen_ai.client.inference.operation.details"
       ],
@@ -419,7 +420,8 @@
       },
       "parse": "json",
       "emit": "message",
-      "legacy_rank": 31
+      "legacy_rank": 31,
+      "reads_tool_spans": true
     }
   ],
   "span_facts": [

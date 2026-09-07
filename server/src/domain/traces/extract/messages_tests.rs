@@ -8917,3 +8917,36 @@ fn try_raw_io(
     messages.extend(produced);
     found
 }
+
+/// The convention's inference-details container is read on a tool span too.
+///
+/// The retired extractor answered this event *before* any tool-span check, so declaring the rules without
+/// `reads_tool_spans` narrowed them. The bundled tool result is the opposite case and correctly stays
+/// gated: it was guarded by `!is_tool_span` in the code it replaced.
+#[test]
+fn the_inference_details_container_is_read_on_a_tool_span() {
+    let event = Event {
+        name: "gen_ai.client.inference.operation.details".to_string(),
+        time_unix_nano: 1_702_400_000_000_000_000,
+        attributes: vec![make_kv(
+            "gen_ai.input.messages",
+            r#"[{"role":"user","content":"hi"}]"#,
+        )],
+        dropped_attributes_count: 0,
+    };
+    let on_tool_span = extract_message_from_event(&event, true);
+    // The *carrier*, not the count: without the rule the raw event is emitted instead, which is also one
+    // message and would let this pass for the wrong reason.
+    let carriers: Vec<String> = on_tool_span
+        .iter()
+        .map(|m| match &m.source {
+            MessageSource::Event { name, .. } => name.clone(),
+            MessageSource::Attribute { key, .. } => key.clone(),
+        })
+        .collect();
+    assert_eq!(
+        carriers,
+        vec!["gen_ai.input.messages".to_string()],
+        "the container was narrowed on a tool span, or emitted as its own raw form"
+    );
+}

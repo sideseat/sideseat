@@ -385,6 +385,23 @@ fn compile_rule(
                  `aggregate_into_array` would be ignored",
         ));
     }
+    // `only_plain_data` answers "is this already a message" and returns the value untouched when it is, so
+    // anything that would have built a block or a call list is skipped. Silently: the declaration reads as
+    // though the block is built. Refused rather than reordered, because the two say contradictory things -
+    // one that the value may already be a message, the other that it is a payload to wrap.
+    if let Some(wrap) = wrap
+        && wrap.only_plain_data
+        && (wrap.block.is_some()
+            || wrap.prepend_block.is_some()
+            || wrap.tool_calls_from.is_some()
+            || wrap.tool_call_from.is_some())
+    {
+        return Err(inexpressible(
+            "`only_plain_data` passes an already-message-shaped value through untouched, so a block or a \
+                 tool-call constructor beside it would be skipped for exactly the values it exists to \
+                 recognise",
+        ));
+    }
     // A canonical tool definition is a tool definition. Emitted on the message axis it would be a message
     // shaped like one, which no reader expects.
     if compose.as_ref().is_some_and(|c| c.as_tool_definition)
