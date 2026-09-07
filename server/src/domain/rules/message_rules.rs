@@ -869,6 +869,28 @@ pub(super) fn predicate_defect(set: &PredicateSet) -> Option<&'static str> {
         if predicate.starts_with.is_some() && predicate.lacks_prefix.is_some() {
             return Some("`starts_with` and `lacks_prefix` on one predicate");
         }
+        // A predicate on the **root** that asserts nothing beyond presence is a tautology: the value being
+        // tested always exists. `{}`, `{"path": "$"}` and `{"exists": true}` are the same statement, and each
+        // makes a rule that requires it recognise everything. A member *path* with no conditions is
+        // different and stays legal - it asserts the member is there.
+        let on_root = predicate
+            .path
+            .as_ref()
+            .is_none_or(|path| path.to_string() == "$");
+        let asserts_only_presence = predicate.kind.is_none()
+            && predicate.non_empty.is_none()
+            && predicate.not_null.is_none()
+            && predicate.identifier_like.is_none()
+            && predicate.starts_with.is_none()
+            && predicate.lacks_prefix.is_none()
+            && predicate.one_of.is_empty()
+            && predicate.none_of.is_empty();
+        if on_root && asserts_only_presence {
+            return Some(
+                "a predicate on the root that asserts nothing beyond presence is a tautology - the \
+                     value being tested always exists, so the condition recognises everything",
+            );
+        }
         // Every text condition needs a string. Declared beside a kind that is not one, it can never hold -
         // and a predicate that can never hold is the same defect as one that asserts nothing.
         if (predicate.identifier_like.is_some()

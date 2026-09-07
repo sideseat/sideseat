@@ -296,6 +296,47 @@ mod tests {
         }));
     }
 
+    /// A condition that is a tautology is not a condition. `{}`, `{"path": "$"}` and `{"exists": true}` are
+    /// the same statement about the root, which always exists - so requiring one recognises everything, and
+    /// the "must name a condition" rule was bypassable by writing a syntactically non-empty one.
+    #[test]
+    #[should_panic(expected = "tautology")]
+    fn a_tautological_condition_is_refused() {
+        plan_from(serde_json::json!({
+            "id": "probe.tautology",
+            "at": "before_provider_formats",
+            "legacy_rank": 1,
+            "require": {"all": [{}]},
+            "json": {},
+        }));
+    }
+
+    /// The same statement written as an explicit root path.
+    #[test]
+    #[should_panic(expected = "tautology")]
+    fn a_root_path_with_no_condition_is_refused() {
+        plan_from(serde_json::json!({
+            "id": "probe.root_path",
+            "at": "before_provider_formats",
+            "legacy_rank": 1,
+            "require": {"all": [{"path": "$", "exists": true}]},
+            "json": {},
+        }));
+    }
+
+    /// And a *member* path with no conditions stays legal: it asserts the member is there.
+    #[test]
+    fn a_member_path_with_no_condition_is_legal() {
+        let plan = plan_from(serde_json::json!({
+            "id": "probe.member",
+            "at": "before_provider_formats",
+            "legacy_rank": 1,
+            "require": {"all": [{"path": "$.value"}]},
+            "json": {"data": ["$.value"]},
+        }));
+        assert_eq!(plan.rule_count(), 1);
+    }
+
     /// A predicate that can never hold decides which shape a block is read as, so it is refused here too -
     /// this plan compiles separately from the message rules and had no validation at all.
     #[test]
