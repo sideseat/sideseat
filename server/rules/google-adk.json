@@ -134,34 +134,6 @@
                 }
               }
             ]
-          },
-          {
-            "id": "google-adk.llm_request_tools",
-            "doc": "The tools the call was given, as one observation: a tool list is a set, not a sequence of messages. Each group either wraps its declarations under one of two spellings or is a declaration itself, decided per group - choosing once for the whole array would drop the odd group out.",
-            "read": {
-              "attribute": "gcp.vertex.agent.llm_request"
-            },
-            "parse": "json",
-            "emit": "tool_definitions",
-            "aggregate_into_array": true,
-            "alternatives": [
-              {
-                "select": "$.tools[*]",
-                "then_any_of": [
-                  "$.function_declarations[*]",
-                  "$.functionDeclarations[*]"
-                ],
-                "else_element": true
-              },
-              {
-                "select": "$.config.tools[*]",
-                "then_any_of": [
-                  "$.function_declarations[*]",
-                  "$.functionDeclarations[*]"
-                ],
-                "else_element": true
-              }
-            ]
           }
         ],
         "fallback_if_primary_empty": [

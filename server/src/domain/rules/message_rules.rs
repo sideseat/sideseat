@@ -530,6 +530,36 @@ fn compile_rule(
             if set.primary.is_empty() {
                 return Err(inexpressible("a branch set declares no `primary` reading"));
             }
+            // A branch set is evaluated only by `run`, on the message axis, so a sub-rule that emits a tool
+            // definition or a name list is dropped there and never reaches the metadata path - dead. Tool
+            // metadata belongs to a top-level rule, which `tool_definitions()` reads on every span.
+            if set
+                .primary
+                .iter()
+                .chain(&set.fallback_if_primary_empty)
+                .chain(&set.always)
+                .any(|sub| {
+                    matches!(
+                        sub.emit,
+                        EmitTarget::ToolDefinitions | EmitTarget::ToolNames
+                    ) || sub.tool_repr.is_some()
+                        || sub
+                            .alternatives
+                            .iter()
+                            .chain(&sub.also)
+                            .chain(&sub.fallback)
+                            .any(|a| {
+                                matches!(
+                                    a.emit,
+                                    Some(EmitTarget::ToolDefinitions | EmitTarget::ToolNames)
+                                )
+                            })
+                })
+            {
+                return Err(inexpressible(
+                    "a branch-set sub-rule emits tool metadata, which only `run` evaluates and only on                          the message axis - it would be silently dropped; declare it as a top-level rule",
+                ));
+            }
             Some(CompiledBranchSet {
                 primary: compile_group(&set.primary)?,
                 fallback: compile_group(&set.fallback_if_primary_empty)?,
