@@ -157,9 +157,6 @@ pub(super) mod keys {
     pub const LLM_INVOCATION_PARAMETERS: &str = "llm.invocation_parameters";
 
     // OpenInference Tool attributes (single tool per span)
-    pub const OI_TOOL_NAME: &str = "tool.name";
-    pub const OI_TOOL_DESCRIPTION: &str = "tool.description";
-    pub const OI_TOOL_PARAMETERS: &str = "tool.parameters";
 
     // OpenInference Cost Tracking
     pub const LLM_COST_TOTAL: &str = "llm.cost.total";
@@ -216,9 +213,7 @@ pub(super) mod keys {
     // I/O Attributes
     pub const INPUT_VALUE: &str = "input.value";
     pub const OUTPUT_VALUE: &str = "output.value";
-    pub const RAW_INPUT: &str = "raw_input";
     pub const RESPONSE: &str = "response";
-    pub const SYSTEM_PROMPT: &str = "system_prompt";
     /// Named only by the AutoGen asset now; kept for the equivalence oracle's reference implementation.
     #[cfg(test)]
     pub const MESSAGE: &str = "message";

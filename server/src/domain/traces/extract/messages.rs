@@ -714,53 +714,12 @@ pub(crate) fn extract_tool_definitions(
     }
 
     // OpenInference: tool.name + tool.description + tool.parameters (single tool per span)
-    if tool_definitions.is_empty() {
-        if let Some(tool_name) = attrs.get(keys::OI_TOOL_NAME) {
-            let description = attrs.get(keys::OI_TOOL_DESCRIPTION);
-            let parameters = attrs
-                .get(keys::OI_TOOL_PARAMETERS)
-                .and_then(|s| serde_json::from_str::<JsonValue>(s).ok());
-
-            let mut func = json!({ "name": tool_name });
-            if let Some(desc) = description {
-                func["description"] = json!(desc);
-            }
-            if let Some(params) = parameters {
-                func["parameters"] = params;
-            }
-
-            let content = json!([{
-                "type": "function",
-                "function": func
-            }]);
-            tool_definitions.push(RawToolDefinition::from_attr(
-                keys::OI_TOOL_NAME,
-                timestamp,
-                content,
-            ));
-        }
-    }
-
     // response attribute - OpenAI Agents full API response with tools field
     // Logfire's request payload carries tools when an older version (< 4.20) did not also set
     // `gen_ai.tool.definitions`. Still in Rust because its guard is *cross-rule state* -
     // `tool_definitions.is_empty()` - which the declarative engine cannot express by design: a rule cannot
     // ask whether another rule already produced tools. Declared unconditionally it would double a newer
     // Logfire's tools, which content dedup would usually collapse but not always. Measured, not hidden.
-    if tool_definitions.is_empty() {
-        if let Some(parsed) = extract_json::<JsonValue>(attrs, keys::REQUEST_DATA) {
-            if let Some(tools) = parsed.get("tools").and_then(|t| t.as_array()) {
-                if !tools.is_empty() {
-                    tool_definitions.push(RawToolDefinition::from_attr(
-                        keys::REQUEST_DATA,
-                        timestamp,
-                        JsonValue::Array(tools.clone()),
-                    ));
-                }
-            }
-        }
-    }
-
     (tool_definitions, tool_names)
 }
 
@@ -3343,13 +3302,6 @@ pub(crate) fn try_raw_io(
     }
 
     // raw_input (Logfire fallback) - preserve raw array
-    if attrs.get(keys::INPUT_VALUE).is_none() {
-        if let Some(parsed) = extract_json::<JsonValue>(attrs, keys::RAW_INPUT) {
-            let wrapped = wrap_plain_data(parsed, "user");
-            messages.push(RawMessage::from_attr(keys::RAW_INPUT, timestamp, wrapped));
-        }
-    }
-
     // output.value - preserve raw JSON, wrap plain data as assistant message
     if let Some(parsed) = json_or_text(attrs, keys::OUTPUT_VALUE) {
         let wrapped = wrap_plain_data(parsed, "assistant");
@@ -3586,37 +3538,11 @@ pub(super) fn extract_messages_for_span(
 ) -> (Vec<RawMessage>, Vec<RawToolDefinition>, Vec<RawToolNames>) {
     let is_tool_span = is_tool_execution_span(span_attrs);
 
-    // Debug: Check for VercelAISDK attributes
-    let has_ai_prompt = span_attrs.contains_key(keys::AI_PROMPT_MESSAGES)
-        || span_attrs.contains_key(keys::AI_PROMPT);
-    if has_ai_prompt {
-        tracing::debug!(
-            span_name = %otlp_span.name,
-            is_tool_span,
-            has_ai_prompt_messages = span_attrs.contains_key(keys::AI_PROMPT_MESSAGES),
-            has_ai_prompt = span_attrs.contains_key(keys::AI_PROMPT),
-            "VercelAISDK span detected with prompt attributes"
-        );
-    }
-
     let mut raw_messages = Vec::new();
     let mut tool_definitions = Vec::new();
     let mut tool_names = Vec::new();
 
     // Always extract system_prompt if present (comes before conversation)
-    if let Some(system_prompt) = span_attrs.get(keys::SYSTEM_PROMPT) {
-        if !system_prompt.is_empty() {
-            let mut raw = serde_json::Map::new();
-            raw.insert("role".to_string(), json!("system"));
-            raw.insert("content".to_string(), json!(system_prompt));
-            raw_messages.push(RawMessage::from_attr(
-                keys::SYSTEM_PROMPT,
-                timestamp,
-                JsonValue::Object(raw),
-            ));
-        }
-    }
-
     extract_messages_from_events(&mut raw_messages, &otlp_span.events, is_tool_span);
 
     // Enrich tool span messages with metadata from span attributes
@@ -3748,17 +3674,6 @@ pub(super) fn extract_messages_for_span(
     }
 
     // Debug: Log AutoGen extraction results
-    if otlp_span.name.starts_with("autogen") && span_attrs.contains_key("message") {
-        tracing::trace!(
-            span_name = %otlp_span.name,
-            is_tool_span,
-            event_count = otlp_span.events.len(),
-            raw_messages_count = raw_messages.len(),
-            has_message_attr = true,
-            "AutoGen span extraction result"
-        );
-    }
-
     (raw_messages, tool_definitions, tool_names)
 }
 

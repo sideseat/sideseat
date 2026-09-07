@@ -299,6 +299,48 @@
       "parse": "stringified_array",
       "emit": "tool_definitions",
       "legacy_rank": 270
+    },
+    {
+      "id": "openinference.single_tool",
+      "doc": "One tool per span, written as three separate attributes. Yielded to two things, each stated rather than left to evaluation order: this dialect's own *list* carriers, which describe the same tools, and the **convention's** single-tool attributes, which take precedence over a dialect's spelling of the same fact. The retired code expressed both as one global \"has anything produced tools yet\" flag - which any unrelated dialect could satisfy first, and which said nothing about why.",
+      "unless": {
+        "attr_exists": [
+          "llm.tools",
+          "gen_ai.tool.name"
+        ],
+        "attr_prefix": [
+          "llm.tools."
+        ]
+      },
+      "compose": {
+        "tag": "tool.name",
+        "as_tool_definition": true,
+        "members": [
+          {
+            "as": "name",
+            "from_any_of": [
+              "tool.name"
+            ],
+            "parse": "text"
+          },
+          {
+            "as": "description",
+            "from_any_of": [
+              "tool.description"
+            ],
+            "parse": "text"
+          },
+          {
+            "as": "parameters",
+            "from_any_of": [
+              "tool.parameters"
+            ],
+            "parse": "json"
+          }
+        ]
+      },
+      "emit": "tool_definitions",
+      "legacy_rank": 280
     }
   ],
   "span_facts": [

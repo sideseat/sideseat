@@ -780,6 +780,8 @@ pub struct CompiledBranchSet {
 /// rule's own gates are compiled.
 #[derive(Debug, Clone)]
 pub struct CompiledCompose {
+    /// The assembled members are one canonical tool definition, not a message.
+    pub as_tool_definition: bool,
     pub tag: String,
     pub members: Vec<CompiledComposeMember>,
     pub trailing: std::collections::BTreeMap<String, JsonValue>,
@@ -794,6 +796,7 @@ pub struct CompiledComposeMember {
 
 fn compile_compose(compose: &ComposeSpec) -> CompiledCompose {
     CompiledCompose {
+        as_tool_definition: compose.as_tool_definition,
         tag: compose.tag.clone(),
         members: compose
             .members
@@ -1945,6 +1948,13 @@ fn emit_rule<'p>(rule: &'p CompiledMessageRule, ctx: &MessageContext<'_>) -> Vec
     }
     if let Some(compose) = &rule.compose {
         if let Some(value) = composed(compose, ctx) {
+            // The canonical tool-definition shape, where the assembled members are one tool rather than a
+            // message. Wrapped here because the shape is ours and the members are the dialect's.
+            let value = if compose.as_tool_definition {
+                json!([{"type": "function", "function": value}])
+            } else {
+                value
+            };
             out.push(Emission {
                 rule_id: &rule.rule_id,
                 carrier: EmittedCarrier::Attribute(compose.tag.as_str()),

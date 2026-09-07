@@ -53,5 +53,21 @@
       "slug": "strands",
       "label": "StrandsAgents"
     }
+  ],
+  "messages": [
+    {
+      "id": "strands.system_prompt_message",
+      "doc": "The instruction the agent was given, read as a message. Ranked ahead of every conversation carrier because it frames the request rather than answering it - the retired code emitted it first for the same reason. Blank counts as absent: the attribute is written whether or not there is a prompt.",
+      "read": {
+        "attribute": "system_prompt"
+      },
+      "parse": "text",
+      "require_non_blank": true,
+      "wrap": {
+        "role": "system"
+      },
+      "emit": "message",
+      "legacy_rank": 10
+    }
   ]
 }

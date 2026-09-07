@@ -1153,6 +1153,14 @@ pub struct ComposeSpec {
     /// The members, in the order they are inserted - which is observable, since content identity is
     /// hashed from the payload.
     pub members: Vec<ComposeMember>,
+    /// Emit the assembled object as a canonical **tool definition** rather than as a message.
+    ///
+    /// A dialect that reports one tool per span writes its name, documentation and parameter schema as
+    /// three separate attributes. Assembling them is what `compose` does; the shape they become -
+    /// `[{type: "function", function: {…}}]` - is a canonical target, so it lives here and only the sources
+    /// are rule data.
+    #[serde(default)]
+    pub as_tool_definition: bool,
     /// Literal members added *after* every source member.
     ///
     /// Position matters and this is why it is a separate field: the code being replaced inserts the role
