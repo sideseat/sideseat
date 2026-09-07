@@ -632,8 +632,10 @@ fn the_selection_language_behaves_as_the_engine_assumes() {
 fn message_extraction_names_no_framework() {
     const SOURCE: &str = include_str!("../traces/extract/messages.rs");
 
-    // Producer names, and the *carrier keys* that are producer knowledge even when the identifier is not.
-    // `ai.prompt.tools` names no framework in its symbol, which is exactly how it survived an audit.
+    // Producer names, the *carrier keys* that are producer knowledge even when the identifier is not, and
+    // the **constant identifiers** that stand for those keys. Matching lowercase text alone was itself a
+    // source of false confidence: `keys::AI_PROMPT` and `"VercelAISDK"` are a framework fact that no
+    // lowercase marker sees, which is how two debug gates survived a pass that reported zero.
     const FRAMEWORK_MARKERS: &[&str] = &[
         "langgraph",
         "langchain",
@@ -665,6 +667,17 @@ fn message_extraction_names_no_framework() {
         "RAW_INPUT",
         "SYSTEM_PROMPT",
         "REQUEST_DATA",
+        // Constant identifiers for the same keys, and the SDK names used in log messages.
+        "AI_PROMPT",
+        "AI_TOOLCALL",
+        "AI_RESPONSE",
+        "AI_RESULT",
+        "LLM_TOOLS",
+        "LLM_INPUT",
+        "LLM_OUTPUT",
+        "GCP_VERTEX",
+        "vercelaisdk",
+        "langchain",
     ];
 
     // A marker counts only as a whole key: `gen_ai.prompt` is the *convention's* request family, not one
@@ -708,7 +721,13 @@ fn message_extraction_names_no_framework() {
         if trimmed.starts_with("//") {
             continue;
         }
-        if let Some(marker) = FRAMEWORK_MARKERS.iter().find(|m| names_marker(line, m)) {
+        // Case-insensitively, because a constant is upper case and a key is lower, and the same fact must
+        // not evade the gate by how it happens to be spelled.
+        let folded = line.to_ascii_lowercase();
+        if let Some(marker) = FRAMEWORK_MARKERS
+            .iter()
+            .find(|m| names_marker(&folded, &m.to_ascii_lowercase()))
+        {
             offenders.push(format!("  {}: {} <- `{marker}`", number + 1, trimmed));
         }
     }

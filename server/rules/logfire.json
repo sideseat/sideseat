@@ -292,6 +292,24 @@
         }
       ],
       "legacy_rank": 420
+    },
+    {
+      "id": "logfire.response",
+      "doc": "This dialect's stand-in for the generic output carrier, read only where that carrier is absent - a fallback for the same datum rather than a second one. The mirror of `logfire.raw_input` on the producing side.",
+      "read": {
+        "attribute": "response"
+      },
+      "parse": "json",
+      "unless": {
+        "attr_exists": [
+          "output.value"
+        ]
+      },
+      "wrap": {
+        "role": "assistant"
+      },
+      "emit": "message",
+      "legacy_rank": 415
     }
   ]
 }

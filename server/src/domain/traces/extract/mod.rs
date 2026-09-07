@@ -213,7 +213,6 @@ pub(super) mod keys {
     // I/O Attributes
     pub const INPUT_VALUE: &str = "input.value";
     pub const OUTPUT_VALUE: &str = "output.value";
-    pub const RESPONSE: &str = "response";
     /// Named only by the AutoGen asset now; kept for the equivalence oracle's reference implementation.
     #[cfg(test)]
     pub const MESSAGE: &str = "message";
@@ -312,10 +311,14 @@ pub(super) mod keys {
     #[cfg(test)]
     pub const TRACELOOP_ENTITY_OUTPUT: &str = "traceloop.entity.output";
 
-    // Vercel AI SDK
-    pub const AI_PROMPT_MESSAGES: &str = "ai.prompt.messages";
+    // Vercel AI SDK.
+    //
+    // Named by the assets in production; these are kept for the equivalence oracles' reference
+    // implementations, which are the retired extractors and legitimately name every dialect.
+    #[cfg(test)]
     pub const AI_PROMPT: &str = "ai.prompt";
-    /// Named by the assets now; kept for the equivalence oracles' reference implementations.
+    #[cfg(test)]
+    pub const AI_PROMPT_MESSAGES: &str = "ai.prompt.messages";
     #[cfg(test)]
     pub const AI_TOOLCALL_NAME: &str = "ai.toolCall.name";
     #[cfg(test)]

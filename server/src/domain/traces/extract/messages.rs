@@ -3272,14 +3272,6 @@ pub(crate) fn try_raw_io(
         ));
     }
 
-    // response (Logfire fallback) - preserve raw JSON
-    if attrs.get(keys::OUTPUT_VALUE).is_none() {
-        if let Some(parsed) = extract_json::<JsonValue>(attrs, keys::RESPONSE) {
-            let wrapped = wrap_plain_data(parsed, "assistant");
-            messages.push(RawMessage::from_attr(keys::RESPONSE, timestamp, wrapped));
-        }
-    }
-
     !messages.is_empty()
 }
 
@@ -3604,16 +3596,6 @@ pub(super) fn extract_messages_for_span(
     // overlap. Measured across all 111 fixtures and four views: removing the gate changed nothing.
 
     // Debug: Log extraction decision
-    if span_attrs.contains_key(keys::AI_PROMPT_MESSAGES) || span_attrs.contains_key(keys::AI_PROMPT)
-    {
-        tracing::debug!(
-            span_name = %otlp_span.name,
-            is_tool_span,
-            messages_before_attrs = raw_messages.len(),
-            "VercelAISDK extraction decision"
-        );
-    }
-
     extract_messages_from_attrs(
         &mut raw_messages,
         &mut tool_definitions,
@@ -3625,15 +3607,6 @@ pub(super) fn extract_messages_for_span(
     );
 
     // Debug: Log final message count
-    if span_attrs.contains_key(keys::AI_PROMPT_MESSAGES) || span_attrs.contains_key(keys::AI_PROMPT)
-    {
-        tracing::debug!(
-            span_name = %otlp_span.name,
-            final_messages = raw_messages.len(),
-            "VercelAISDK extraction complete"
-        );
-    }
-
     // Debug: Log AutoGen extraction results
     (raw_messages, tool_definitions, tool_names)
 }
