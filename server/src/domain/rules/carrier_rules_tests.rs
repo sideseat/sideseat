@@ -749,61 +749,83 @@ fn message_extraction_names_no_framework() {
     );
 }
 
-/// Every `PredicateSet` the schema declares is validated by somebody.
+/// Every `PredicateSet` the schema declares is validated by somebody, tracked by `Struct::field`.
 ///
-/// The recursive pass in `message_rules` grew one location at a time, each added after a review found it
-/// unvisited - `require_parent`, an overlay's witness, a fragment's cases, an element pass and its derived
-/// cases. A count is the only thing that makes the *next* one fail loudly instead of being evaluated at
-/// runtime and validated by nobody, which is how each of those was born.
-///
-/// Read from the schema source, so adding a field is what trips it - not adding a rule that uses one.
+/// The recursive pass grew one location at a time, each added after a review found it unvisited -
+/// `require_parent`, an overlay's witness, a fragment's cases, an element pass and its derived cases. What
+/// makes the *next* one fail loudly is this list, and it has to be keyed by struct as well as field: three
+/// structs declare a `require`, so matching on the name alone would accept a fourth without comment.
 #[test]
 fn every_predicate_set_in_the_schema_is_validated() {
     const SCHEMA: &str = include_str!("schema.rs");
 
-    // Each field, and where its validation lives. `message_rules::predicate_sets` reaches all but the last
-    // three; those are separate domains, named here so the exemption is a statement rather than an omission.
+    // `Struct::field` → where its validation lives. The first group is reached by
+    // `message_rules::predicate_sets`; the rest are separate domains, named so an exemption is a statement.
     const VALIDATED: &[(&str, &str)] = &[
-        ("witness", "predicate_sets: an overlay's witness"),
-        ("require_after", "predicate_sets: an envelope's post-check"),
+        ("OverlaySpec::witness", "predicate_sets"),
+        ("OverlaySpec::require", "predicate_sets"),
+        ("WrapSpec::require_after", "predicate_sets"),
         (
-            "require_parent",
-            "predicate_sets: a reading's enclosing condition",
+            "AttachSpec::require",
+            "predicate_sets, via every envelope's attachments",
         ),
-        ("skip_when", "predicate_sets: a section route"),
+        ("Alternative::require_parent", "predicate_sets"),
         (
-            "when",
-            "predicate_sets: an element pass, and each derived case of its grouping",
+            "Alternative::require",
+            "predicate_sets, including fragment and extra cases",
         ),
+        ("ComposeSpec::require", "predicate_sets"),
+        ("SectionRoute::skip_when", "predicate_sets"),
+        ("ElementPass::when", "predicate_sets"),
         (
-            "require",
-            "predicate_sets: a reading, an attachment, a compose, a prepended block, an overlay",
+            "DerivedCase::when",
+            "predicate_sets, via an element pass's grouping",
         ),
-        // Separate domains, deliberately: a content-block rule is compiled by its own plan, which applies
-        // the same `predicate_defect` to it.
-        ("require", "content_blocks::compile"),
+        ("PrependSpec::require", "predicate_sets"),
+        (
+            "ContentBlockRule::require",
+            "content_blocks::compile, its own plan",
+        ),
     ];
 
-    let declared: Vec<&str> = SCHEMA
-        .lines()
-        .filter_map(|line| {
-            let trimmed = line.trim();
-            let rest = trimmed.strip_prefix("pub ")?;
-            let (name, kind) = rest.split_once(": ")?;
-            (kind.trim_end_matches(',') == "PredicateSet").then_some(name)
-        })
-        .collect();
+    let mut declared: Vec<String> = Vec::new();
+    let mut current = String::new();
+    for line in SCHEMA.lines() {
+        let trimmed = line.trim();
+        if let Some(rest) = trimmed.strip_prefix("pub struct ") {
+            current = rest
+                .trim_end_matches(" {")
+                .split(&['<', ' '][..])
+                .next()
+                .unwrap_or_default()
+                .to_string();
+        }
+        if let Some(rest) = trimmed.strip_prefix("pub ")
+            && let Some((name, kind)) = rest.split_once(": ")
+            && kind.trim_end_matches(',') == "PredicateSet"
+        {
+            declared.push(format!("{current}::{name}"));
+        }
+    }
 
     assert!(
         !declared.is_empty(),
         "the schema should declare predicate sets; the reader is broken"
     );
-    for name in &declared {
+    for location in &declared {
         assert!(
-            VALIDATED.iter().any(|(field, _)| field == name),
-            "`{name}` is a `PredicateSet` the validation pass does not know about. Add it to \
-             `message_rules::predicate_sets`, or - if it belongs to a separate domain like \
-             `ContentBlockRule::require` - name it in VALIDATED with where that validation lives.",
+            VALIDATED.iter().any(|(known, _)| known == location),
+            "`{location}` is a `PredicateSet` the validation does not know about. Add it to \
+             `message_rules::predicate_sets`, or - if it belongs to a separate domain - name it in \
+             VALIDATED with where that validation lives."
+        );
+    }
+    // And the reverse: a location that stops existing should be removed here, not left as a claim about a
+    // field nobody declares.
+    for (known, _) in VALIDATED {
+        assert!(
+            declared.iter().any(|location| location == known),
+            "VALIDATED names `{known}`, which the schema no longer declares"
         );
     }
 }

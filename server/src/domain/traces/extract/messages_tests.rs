@@ -7988,6 +7988,21 @@ fn the_rules_reproduce_the_extractors_they_replaced() {
                 r#"[{"type":"function","function":{"name":"n"}}]"#,
             ),
         ];
+        // Every `crew_*` payload among the cases must have a literal. Matching on the exact string means an
+        // edited case would silently stop applying, and the comparison would then pass with *neither* side
+        // producing anything - a green oracle that checks nothing, which is worse than a named exemption.
+        // The tool carriers only - `crew_key` / `crew_id` / `task_key` are markers that gate the rules,
+        // not payloads they read.
+        for (carrier, raw) in attrs
+            .iter()
+            .filter(|(key, _)| matches!(key.as_str(), "crew_tasks" | "crew_agents"))
+        {
+            assert!(
+                CAPTURED.iter().any(|(c, r, _)| c == carrier && r == raw),
+                "`{carrier}` carries a payload with no captured output: {raw}\nAdd it to CAPTURED, or the \
+                 oracle compares nothing on this carrier."
+            );
+        }
         CAPTURED
             .iter()
             .filter(|(carrier, raw, _)| attrs.get(*carrier).map(String::as_str) == Some(*raw))

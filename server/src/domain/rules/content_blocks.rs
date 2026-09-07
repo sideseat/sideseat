@@ -66,6 +66,31 @@ impl ContentBlockPlan {
                 }
                 _ => None,
             };
+            // A form whose selectors are all empty always builds *something*, so with an empty `require` it
+            // recognises every block and swallows the rest of the chain. Empty selectors are defensible only
+            // when a `require` identifies the shape.
+            let builds_from_nothing = rule.tool_result.as_ref().is_some_and(|t| {
+                t.tool_use_id.is_empty() && t.content.is_empty() && t.is_error.is_empty()
+            }) || rule.json.as_ref().is_some_and(|j| j.data.is_empty());
+            assert!(
+                !(builds_from_nothing
+                    && rule.require.all.is_empty()
+                    && rule.require.any.is_empty()),
+                "content-block rule `{}` names no selector and no condition, so it recognises every \
+                 block and swallows the chain",
+                rule.id
+            );
+            // A content selector that names the block *itself* re-enters this plan through the tool-result
+            // normaliser, with the same value - unbounded recursion, admitted into a DSL whose whole point is
+            // that it cannot loop.
+            if let Some(spec) = &rule.tool_result {
+                assert!(
+                    !spec.content.iter().any(|path| path.to_string() == "$"),
+                    "content-block rule `{}` selects the whole block as its tool-result content, which \
+                     re-enters this plan with the same value",
+                    rule.id
+                );
+            }
             assert!(
                 empty_required.is_none(),
                 "content-block rule `{}` names no path for `{}`, which is required - the case would \
@@ -231,6 +256,32 @@ mod tests {
             "at": "after_provider_formats",
             "legacy_rank": 1,
             "text": {"text": []},
+        }));
+    }
+
+    /// A form whose selectors are all empty always builds something, so with no condition it recognises
+    /// every block and swallows the rest of the chain.
+    #[test]
+    #[should_panic(expected = "swallows the chain")]
+    fn a_rule_that_builds_from_nothing_is_refused() {
+        plan_from(serde_json::json!({
+            "id": "probe.catch_all",
+            "at": "before_provider_formats",
+            "legacy_rank": 1,
+            "json": {},
+        }));
+    }
+
+    /// Selecting the block itself as tool-result content re-enters this plan with the same value.
+    #[test]
+    #[should_panic(expected = "re-enters this plan")]
+    fn self_selecting_tool_result_content_is_refused() {
+        plan_from(serde_json::json!({
+            "id": "probe.recursive",
+            "at": "after_provider_formats",
+            "legacy_rank": 1,
+            "require": {"all": [{"path": "$.type", "one_of": ["tool-result"]}]},
+            "tool_result": {"content": ["$"]},
         }));
     }
 
