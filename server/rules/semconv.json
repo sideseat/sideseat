@@ -446,5 +446,39 @@
         }
       ]
     }
+  ],
+  "message_events": [
+    {
+      "name": "gen_ai.system.message",
+      "doc": "A system instruction, as an event."
+    },
+    {
+      "name": "gen_ai.user.message",
+      "doc": "A user turn."
+    },
+    {
+      "name": "gen_ai.assistant.message",
+      "doc": "An assistant turn - a replay for most dialects, and the reply itself for a choiceless generation span."
+    },
+    {
+      "name": "gen_ai.choice",
+      "doc": "What the model chose: this span's own output."
+    },
+    {
+      "name": "gen_ai.content.prompt",
+      "doc": "The deprecated spelling of the request."
+    },
+    {
+      "name": "gen_ai.content.completion",
+      "doc": "The deprecated spelling of the response."
+    },
+    {
+      "name": "gen_ai.tool.message",
+      "doc": "A tool result handed back to a model."
+    },
+    {
+      "name": "gen_ai.client.inference.operation.details",
+      "doc": "A container whose own attributes are the request and the response."
+    }
   ]
 }

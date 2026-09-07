@@ -8032,7 +8032,14 @@ fn the_rules_reproduce_the_extractors_they_replaced() {
 
         let mut rule_msgs: Vec<RawMessage> = Vec::new();
         let mut rule_tools: Vec<RawToolDefinition> = Vec::new();
-        let rule_found = try_declared_rules(&mut rule_msgs, &mut rule_tools, case, span_name, time);
+        let rule_found = try_declared_rules(
+            &mut rule_msgs,
+            &mut rule_tools,
+            case,
+            span_name,
+            time,
+            &mut Vec::new(),
+        );
         // The metadata axis, which production reads on every span through `extract_tool_definitions`. The
         // retired extractors pushed tool definitions into the same vector, so both axes are collected here
         // or a declaration that moved to the always-on path would look like a loss.
@@ -8274,7 +8281,14 @@ fn an_event_does_not_suppress_a_tool_span_s_own_attributes() {
         Utc::now(),
         serde_json::json!({"role": "assistant", "content": "thinking"}),
     ));
-    let found = try_declared_rules(&mut messages, &mut tools, &attrs, "ai.toolCall", Utc::now());
+    let found = try_declared_rules(
+        &mut messages,
+        &mut tools,
+        &attrs,
+        "ai.toolCall",
+        Utc::now(),
+        &mut Vec::new(),
+    );
 
     assert!(found);
     let carriers: Vec<String> = messages
@@ -8322,6 +8336,7 @@ fn a_swept_payload_is_ordered_deterministically() {
                 &attrs,
                 "ai.generateText",
                 Utc::now(),
+                &mut Vec::new(),
             );
             messages
                 .iter()
@@ -8552,7 +8567,14 @@ fn one_carrier_is_read_by_one_rule() {
     ]);
     let mut messages = Vec::new();
     let mut tools = Vec::new();
-    try_declared_rules(&mut messages, &mut tools, &attrs, "span", Utc::now());
+    try_declared_rules(
+        &mut messages,
+        &mut tools,
+        &attrs,
+        "span",
+        Utc::now(),
+        &mut Vec::new(),
+    );
     let from_message: Vec<&RawMessage> = messages
         .iter()
         .filter(|m| matches!(&m.source, MessageSource::Attribute { key, .. } if key == "message"))
@@ -8652,7 +8674,14 @@ fn a_message_rule_may_also_emit_tool_definitions() {
     // routed by each emission's own target, from the one rule.
     let mut messages = Vec::new();
     let mut unused = Vec::new();
-    try_declared_rules(&mut messages, &mut unused, &attrs, "span", Utc::now());
+    try_declared_rules(
+        &mut messages,
+        &mut unused,
+        &attrs,
+        "span",
+        Utc::now(),
+        &mut Vec::new(),
+    );
     assert!(!messages.is_empty(), "the conversation and reply were lost");
     let (tools, _) = extract_tool_definitions(&attrs, Utc::now());
     assert_eq!(
@@ -8905,11 +8934,14 @@ fn try_raw_io(
 ) -> bool {
     let produced: Vec<RawMessage> = crate::domain::rules::ruleset()
         .messages
-        .fallback(&crate::domain::rules::MessageContext {
-            span_name,
-            span_attrs: attrs,
-            is_tool_span: is_tool_execution_span(attrs),
-        })
+        .fallback(
+            &crate::domain::rules::MessageContext {
+                span_name,
+                span_attrs: attrs,
+                is_tool_span: is_tool_execution_span(attrs),
+            },
+            &[],
+        )
         .into_iter()
         .map(|e| RawMessage::from_attr(e.carrier.name(), timestamp, e.value))
         .collect();

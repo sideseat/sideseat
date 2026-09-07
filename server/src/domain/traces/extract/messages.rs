@@ -158,20 +158,15 @@ impl RawToolNames {
 // ============================================================================
 
 /// Check if an event name is a recognized message event.
+/// Whether this event carries messages at all.
+///
+/// Declared (`message_events`), not a list here: which events a producer writes messages on is the same kind
+/// of fact as which attributes it writes them on. As a Rust list it also made a new `when_event` rule a
+/// valid but *dead* declaration - the rule compiled, and the event was rejected before the plan was asked.
 fn is_message_event(event_name: &str) -> bool {
-    matches!(
-        event_name,
-        keys::EVENT_SYSTEM_MESSAGE
-            | keys::EVENT_USER_MESSAGE
-            | keys::EVENT_CONTENT_PROMPT
-            | keys::EVENT_ASSISTANT_MESSAGE
-            | keys::EVENT_CHOICE
-            | keys::EVENT_CONTENT_COMPLETION
-            | keys::EVENT_TOOL_MESSAGE
-            | keys::EVENT_INFERENCE_OPERATION_DETAILS
-            // Claude Code CLI tool result body (needs OTEL_LOG_TOOL_CONTENT=1)
-            | keys::EVENT_TOOL_OUTPUT
-    )
+    crate::domain::rules::ruleset()
+        .message_events
+        .contains(event_name)
 }
 
 // ============================================================================
@@ -262,6 +257,7 @@ pub(crate) fn try_declared_rules(
     attrs: &HashMap<String, String>,
     span_name: &str,
     timestamp: DateTime<Utc>,
+    claims: &mut Vec<String>,
 ) -> bool {
     let emissions =
         crate::domain::rules::ruleset()
@@ -281,6 +277,7 @@ pub(crate) fn try_declared_rules(
     // `ToolDefinitions` emission does **not**: a span stating a dialect's tool list has said nothing about
     // its conversation, and counting it let an `LLMCall` carrying only `tools` suppress an unrelated
     // `input.value`. The retired extractors counted it, and preserving that preserved the defect.
+    let mut claim_only: Vec<String> = Vec::new();
     let found = emissions.iter().any(|emission| {
         matches!(
             emission.target,
@@ -306,48 +303,15 @@ pub(crate) fn try_declared_rules(
             // means a *message* rule named this target on one of its readings, which is not a shape any
             // asset declares; the emission is dropped rather than filed as something it is not.
             crate::domain::rules::schema::EmitTarget::ToolNames => {}
-            // The claim itself is the whole effect: the carrier is this dialect's and holds no message.
-            crate::domain::rules::schema::EmitTarget::Claim => {}
+            // The claim itself is the whole effect: the carrier is this dialect's and holds no message. It
+            // is *reported* so the fallback stage can inherit it - a claimed carrier has been read, and the
+            // fallback reading it again would present the payload a dialect said holds nothing.
+            crate::domain::rules::schema::EmitTarget::Claim => claim_only.push(key.to_string()),
         }
     }
+    claims.extend(claim_only);
     found
 }
-
-/// Function signature for attribute-based message extractors.
-type AttrExtractor = fn(
-    &mut Vec<RawMessage>,
-    &mut Vec<RawToolDefinition>,
-    &HashMap<String, String>,
-    &str,
-    DateTime<Utc>,
-) -> bool;
-
-/// Named extractor for logging and debugging.
-struct NamedExtractor {
-    name: &'static str,
-    extractor: AttrExtractor,
-}
-
-/// Framework extractors in priority order.
-///
-/// The order matters: first matching extractor wins. This priority is designed to:
-/// 1. Check specific indexed formats first (gen_ai.prompt.0.*, gen_ai.completion.0.*)
-/// 2. Check OTEL standard formats (gen_ai.input.messages, gen_ai.output.messages)
-/// 3. Check framework-specific formats (OpenInference, Vercel AI, etc.)
-/// 4. Fall back to generic I/O formats (input.value, output.value)
-///
-/// If you need to debug framework detection, enable SIDESEAT_LOG=trace to see
-/// which extractor is used for each span.
-const EXTRACTORS: &[NamedExtractor] = &[
-    // Every dialect whose extraction is purely "claim this carrier and keep what it held" - declared in
-    // `server/rules/*.json` rather than written here. Their carriers are read by no other extractor
-    // (`ContestedCarrier` refuses a ruleset where two rules read one carrier), so collapsing three
-    // list positions into one cannot change which extractor claims what.
-    NamedExtractor {
-        name: "declared_rules",
-        extractor: try_declared_rules,
-    },
-];
 
 /// How a span's attributes are shared out among the extractors.
 ///
@@ -367,17 +331,6 @@ pub(crate) enum ExtractionMode {
     /// extractor already produced one for that carrier.
     PerCarrier,
 }
-
-/// The only extractor whose attributes mean "a message" on a **tool** span.
-///
-/// `gen_ai.tool.call.arguments` and `.result` are what the current conventions define for reporting a tool
-/// call, and they appear on exactly this kind of span. Every other carrier on a tool span is that framework's
-/// own echo of the parameters and the result - ADK's `gcp.vertex.agent.tool_call_args` is the case that
-/// proves it: ADK reports the call in its conversation stream as events, so reading the attribute too
-/// duplicated the call and made the order depend on which copy survived dedup, which
-/// `which_copy_survives_does_not_change_the_order` caught on `adk/tool_use`. So a tool span reads the
-/// conventions and nothing else.
-const SEMCONV_RULE: &str = "declared_rules";
 
 pub(crate) fn extract_messages_from_attrs(
     messages: &mut Vec<RawMessage>,
@@ -400,23 +353,23 @@ pub(crate) fn extract_messages_from_attrs(
         return;
     }
 
-    // Try extractors in priority order - stop at first match
-    for named in EXTRACTORS {
-        if is_tool_span && named.name != SEMCONV_RULE {
-            continue;
-        }
-        if (named.extractor)(messages, tool_definitions, attrs, span_name, timestamp) {
-            tracing::trace!(
-                extractor = named.name,
-                span_name = span_name,
-                messages_extracted = messages.len(),
-                "Framework extractor matched"
-            );
-            return;
-        }
+    let mut claims = Vec::new();
+    if try_declared_rules(
+        messages,
+        tool_definitions,
+        attrs,
+        span_name,
+        timestamp,
+        &mut claims,
+    ) {
+        return;
     }
-
-    tracing::trace!(span_name = span_name, "No framework extractor matched");
+    // The fallback stage, which this baseline used to lose entirely: a span carrying only the generic pair
+    // produced no messages at all under it, which also made the metamorphic oracle's baseline smaller than
+    // the thing it is a baseline for.
+    if !is_tool_span {
+        messages.extend(fallback_messages(attrs, span_name, timestamp, &[]));
+    }
 }
 
 /// Extractors claim *carriers*, not spans.
@@ -438,16 +391,24 @@ fn extract_per_carrier(
     let mut any_specific = false;
     let observation_type = super::attributes::detect_observation_type(span_name, attrs);
 
-    for named in EXTRACTORS {
-        // A tool span reads the conventions and nothing else - see `SEMCONV_RULE`.
-        if is_tool_span && named.name != SEMCONV_RULE {
-            continue;
-        }
+    // One evaluator, called directly: the table of framework extractors it replaced is gone, and with one
+    // entry left the indirection only hid which code runs.
+    {
         let mut produced = Vec::new();
-        if !(named.extractor)(&mut produced, tool_definitions, attrs, span_name, timestamp) {
-            continue;
+        let mut claims = Vec::new();
+        if try_declared_rules(
+            &mut produced,
+            tool_definitions,
+            attrs,
+            span_name,
+            timestamp,
+            &mut claims,
+        ) {
+            any_specific = true;
         }
-        any_specific = true;
+        // A claimed carrier has been read even though it produced nothing, so the fallback stage must not
+        // read it again - that is what a claim means.
+        claimed.extend(claims);
 
         // Carriers are recorded after the whole batch, not per message: one extractor legitimately
         // emits several observations for one carrier - an expanded message array is the usual case -
@@ -462,11 +423,6 @@ fn extract_per_carrier(
             messages.push(message);
         }
         claimed.extend(newly_claimed);
-        tracing::trace!(
-            extractor = named.name,
-            span_name = span_name,
-            "extractor claimed carriers"
-        );
     }
 
     if is_tool_span {
@@ -474,7 +430,7 @@ fn extract_per_carrier(
     }
 
     if !any_specific {
-        messages.extend(fallback_messages(attrs, span_name, timestamp));
+        messages.extend(fallback_messages(attrs, span_name, timestamp, &[]));
         return;
     }
 
@@ -497,7 +453,11 @@ fn extract_per_carrier(
         return;
     }
 
-    let produced = fallback_messages(attrs, span_name, timestamp);
+    // What a dialect already read. Passed in, because this call happens *after* the dialect stage produced
+    // something - the one case where the two stages meet, and where independent claim sets let one carrier be
+    // read twice.
+    let already_read: Vec<&str> = claimed.iter().map(String::as_str).collect();
+    let produced = fallback_messages(attrs, span_name, timestamp, &already_read);
     for message in produced {
         if !carrier_holds_span_output(&message.source, span_name, observation_type) {
             continue;
@@ -3148,14 +3108,18 @@ fn fallback_messages(
     attrs: &HashMap<String, String>,
     span_name: &str,
     timestamp: DateTime<Utc>,
+    already_read: &[&str],
 ) -> Vec<RawMessage> {
     crate::domain::rules::ruleset()
         .messages
-        .fallback(&crate::domain::rules::MessageContext {
-            span_name,
-            span_attrs: attrs,
-            is_tool_span: is_tool_execution_span(attrs),
-        })
+        .fallback(
+            &crate::domain::rules::MessageContext {
+                span_name,
+                span_attrs: attrs,
+                is_tool_span: is_tool_execution_span(attrs),
+            },
+            already_read,
+        )
         .into_iter()
         .filter(|emission| {
             matches!(

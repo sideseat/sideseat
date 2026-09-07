@@ -771,10 +771,12 @@ pub fn compile(sources: &BTreeMap<String, Vec<u8>>) -> Result<MessagePlan, Messa
             {
                 continue;
             }
-            // Different stages cannot contend: the fallback stage is read only when the dialect stage
-            // produced nothing, so the two never run for one span. That separation is the whole point of the
-            // stage, and it is stronger than a condition - it is a property of the evaluation, not of the
-            // span.
+            // Two stages may share a carrier, and the reason is *not* that they never run together - a
+            // generation span whose answer is unaccounted for reads the fallback after a dialect produced
+            // something, which is exactly when they do. What makes the pair safe is that the fallback
+            // **inherits** what the dialect stage read, including a carrier it only *claimed*: `fallback`
+            // takes those carriers and starts its claim set from them. So the guarantee is enforced at
+            // evaluation, not assumed here.
             if a.stage != b.stage {
                 continue;
             }
@@ -1077,6 +1079,7 @@ impl MessagePlan {
             is_tool_span,
         };
         let mut out = Vec::new();
+        let mut claimed: std::collections::HashSet<OwnedCarrier> = std::collections::HashSet::new();
         let mut replaces = false;
         for rule in self
             .rules
@@ -1092,7 +1095,15 @@ impl MessagePlan {
             if rule.replaces_raw_event {
                 replaces = true;
             }
-            out.extend(emit_rule(rule, &ctx));
+            // The same routing and ownership as a span: only message emissions, one rule per carrier. An
+            // event's attributes are a flat map a producer wrote, so nothing about them earns an exemption
+            // from either - and without this a `Claim` became a message and two rules could double-read one
+            // of the event's attributes.
+            let messages: Vec<Emission<'p>> = emit_rule(rule, &ctx)
+                .into_iter()
+                .filter(|e| matches!(e.target, EmitTarget::Message))
+                .collect();
+            keep_unclaimed(messages, &mut claimed, &mut out);
         }
         (out, replaces)
     }
@@ -1102,8 +1113,20 @@ impl MessagePlan {
     /// A stage rather than a rule asking about other rules. *When* it runs is the caller's policy - nothing
     /// recognised the span, or a generation span's answer is still unaccounted for - and that policy is
     /// generic, being a function of the observation type. Which carriers it reads is this plan's business.
-    pub fn fallback<'p>(&'p self, ctx: &MessageContext<'_>) -> Vec<Emission<'p>> {
-        self.stage(ctx, super::schema::MessageStage::Fallback)
+    pub fn fallback<'p>(
+        &'p self,
+        ctx: &MessageContext<'_>,
+        already_read: &[&str],
+    ) -> Vec<Emission<'p>> {
+        // The carriers a dialect already read are passed in, because the fallback is *not* only reached when
+        // the dialect stage produced nothing: a generation span whose answer is unaccounted for reads it
+        // afterwards. Without this the two stages had independent claim sets, so a dialect claim on
+        // `output.value` and the fallback's reading of it both survived.
+        let claimed = already_read
+            .iter()
+            .map(|name| OwnedCarrier::attribute(name))
+            .collect();
+        self.stage_with(ctx, super::schema::MessageStage::Fallback, claimed)
     }
 
     fn stage<'p>(
@@ -1111,8 +1134,16 @@ impl MessagePlan {
         ctx: &MessageContext<'_>,
         stage: super::schema::MessageStage,
     ) -> Vec<Emission<'p>> {
+        self.stage_with(ctx, stage, std::collections::HashSet::new())
+    }
+
+    fn stage_with<'p>(
+        &'p self,
+        ctx: &MessageContext<'_>,
+        stage: super::schema::MessageStage,
+        mut claimed: std::collections::HashSet<OwnedCarrier>,
+    ) -> Vec<Emission<'p>> {
         let mut out = Vec::new();
-        let mut claimed: std::collections::HashSet<OwnedCarrier> = std::collections::HashSet::new();
         for rule in self
             .rules
             .iter()

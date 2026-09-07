@@ -144,6 +144,8 @@ pub struct Ruleset {
     pub detect: detect_rules::DetectPlan,
     /// Which carriers an ingestion reads, declaratively.
     pub messages: message_rules::MessagePlan,
+    /// The event names that carry messages, from every asset.
+    pub message_events: std::collections::HashSet<String>,
     /// Content-block shapes, declared per dialect.
     pub content_blocks: content_blocks::ContentBlockPlan,
     /// Facts about a span, each established by any dialect that can.
@@ -187,6 +189,11 @@ pub fn ruleset() -> &'static Ruleset {
             detect,
             messages,
             content_blocks: content_blocks::ContentBlockPlan::compile(&parsed_files(&sources)),
+            message_events: parsed_files(&sources)
+                .iter()
+                .flat_map(|file| &file.message_events)
+                .map(|event| event.name.clone())
+                .collect(),
             span_facts: SpanFactPlan::compile(&sources),
             digest,
         }

@@ -193,5 +193,11 @@
       "emit": "message",
       "legacy_rank": 1430
     }
+  ],
+  "message_events": [
+    {
+      "name": "tool.output",
+      "doc": "The CLI's tool result body, emitted only with tool-content logging enabled - which is why no captured fixture exercises it, and why a unit test is what holds it."
+    }
   ]
 }

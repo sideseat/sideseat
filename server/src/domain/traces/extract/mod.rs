@@ -235,7 +235,6 @@ pub(super) mod keys {
     pub const CLAUDE_CODE_TOOL_INPUT: &str = "tool_input";
     #[cfg(test)]
     pub const CLAUDE_CODE_TOOL_USE_ID: &str = "tool_use_id";
-    pub const EVENT_TOOL_OUTPUT: &str = "tool.output";
 
     // Logfire
     #[cfg(test)]
@@ -356,15 +355,15 @@ pub(super) mod keys {
     // AWS Bedrock
     pub const AWS_BEDROCK_AGENT_ID: &str = "aws.bedrock.agent.id";
 
-    // OTEL Event Names
-    pub const EVENT_SYSTEM_MESSAGE: &str = "gen_ai.system.message";
+    // OTEL event names. Which events carry messages is declared (`message_events` in the assets); these
+    // remain for the equivalence oracles' reference implementations.
+    #[cfg(test)]
     pub const EVENT_USER_MESSAGE: &str = "gen_ai.user.message";
+    #[cfg(test)]
     pub const EVENT_ASSISTANT_MESSAGE: &str = "gen_ai.assistant.message";
     pub const EVENT_TOOL_MESSAGE: &str = "gen_ai.tool.message";
     pub const EVENT_CHOICE: &str = "gen_ai.choice";
-    pub const EVENT_CONTENT_PROMPT: &str = "gen_ai.content.prompt";
     pub const EVENT_CONTENT_COMPLETION: &str = "gen_ai.content.completion";
-    pub const EVENT_INFERENCE_OPERATION_DETAILS: &str = "gen_ai.client.inference.operation.details";
 }
 
 // ============================================================================

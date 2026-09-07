@@ -38,6 +38,14 @@ pub struct RuleFile {
     /// Which carriers an ingestion reads on this dialect's spans, and how each is parsed.
     #[serde(default)]
     pub messages: Vec<MessageRule>,
+    /// The events this dialect writes messages on.
+    ///
+    /// Recognition, not reading: an event named here is read, and one not named by any asset is ignored
+    /// entirely. Declared because it is the same kind of fact as a carrier - which key a producer writes -
+    /// and as a Rust list it meant a new `when_event` rule was a valid but *dead* declaration until
+    /// somebody also edited the list.
+    #[serde(default)]
+    pub message_events: Vec<MessageEvent>,
     /// Content-block shapes this dialect writes.
     #[serde(default)]
     pub content_blocks: Vec<ContentBlockRule>,
@@ -1676,4 +1684,12 @@ pub enum MessageStage {
     Dialect,
     /// Only if no dialect-stage rule produced a message or a claim.
     Fallback,
+}
+
+/// One event that carries messages.
+#[derive(Debug, Deserialize, Clone)]
+#[serde(deny_unknown_fields)]
+pub struct MessageEvent {
+    pub name: String,
+    pub doc: Option<String>,
 }
