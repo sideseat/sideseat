@@ -38,6 +38,15 @@ pub struct RuleFile {
     /// Which carriers an ingestion reads on this dialect's spans, and how each is parsed.
     #[serde(default)]
     pub messages: Vec<MessageRule>,
+    /// Named reading tables other rules may apply.
+    ///
+    /// One dialect's message shapes are recognised at four different selection points - the node itself, a
+    /// `messages` list, every member of a state object, and a nested state object - and a table repeated
+    /// per point is four places to fix a shape. Referenced as `<file id>.<name>`, resolved at compile time
+    /// by inlining, and a fragment's own cases may **not** reference a fragment: one level, no recursion,
+    /// nothing to bound at runtime.
+    #[serde(default)]
+    pub fragments: BTreeMap<String, Fragment>,
     /// The slugs an SDK may write into `sideseat.framework` for this framework, and the label they
     /// resolve to.
     ///
@@ -509,6 +518,14 @@ pub struct MessageRule {
     /// code happened to loop.
     #[serde(default)]
     pub elements: Option<ElementsSpec>,
+    /// Apply this rule's readings at every node of a bounded tree walk.
+    ///
+    /// One dialect's carrier is a *state object* its nodes write into, so a conversation can sit at the top
+    /// level, under one member, or nested a level or two down. Bounded on purpose - an explicit depth, and
+    /// members already read at each node are pruned - because the point is to find a state member, not to
+    /// trawl a payload for anything message-shaped.
+    #[serde(default)]
+    pub walk: Option<WalkSpec>,
     /// Split a text carrier into tagged sections and route each by its tag.
     ///
     /// A general text-carrier capability, and one dialect needs it: a single attribute holds either side
@@ -640,6 +657,12 @@ pub struct WrapSpec {
     /// A JSONPath whose value becomes the content, relative to the reading being wrapped.
     #[serde(default)]
     pub content_from: Option<JsonPath>,
+    /// Ordered paths for the content; the first that resolves wins.
+    ///
+    /// One dialect serialises a message three ways depending on how it was constructed, and the content sits
+    /// in a different member each time - so a single path reads two of the three as empty.
+    #[serde(default)]
+    pub content_from_any_of: Vec<JsonPath>,
     /// The member the read value becomes. Defaults to `content`.
     ///
     /// Not always content: a response carrying only tool calls has no content, and putting the calls
@@ -688,6 +711,17 @@ pub struct AttachSpec {
     /// The attribute to read. One of this and `from_path` is required.
     #[serde(default)]
     pub from: Option<String>,
+    /// Ordered paths into the value being wrapped; the first that resolves wins.
+    ///
+    /// The same serialisation variance as the content: a member may sit at the top level or under the
+    /// wrapper a serialiser added.
+    #[serde(default)]
+    pub from_value_any_of: Vec<JsonPath>,
+    /// The attached value must satisfy this, or the member is left off.
+    ///
+    /// An empty list is not a set of tool calls, and attaching one makes a plain reply look like a call.
+    #[serde(default)]
+    pub require: PredicateSet,
     /// A path into the rule's *own parsed payload*, rather than a sibling attribute.
     ///
     /// Relative to the whole payload, deliberately: a dialect reports why a turn stopped beside the
@@ -800,6 +834,12 @@ pub struct Alternative {
     /// Declared rather than always-on: trimming a payload that is meant to be verbatim would change it.
     #[serde(default)]
     pub trim: bool,
+    /// Apply this named fragment's cases to each selected element.
+    ///
+    /// The fragment decides what the element *is*; this reading decides *where to look*. Splitting them is
+    /// the point: one dialect's state object holds its messages in four places and recognises them one way.
+    #[serde(default)]
+    pub then_fragment: Option<String>,
     /// For each selected element, the first of these paths that resolves.
     ///
     /// Per *element*, which is the point: one dialect's tool groups each either wrap their declarations
@@ -1147,4 +1187,31 @@ pub struct BranchSet {
     /// request side was already found, because one gate covering both is what dropped the answer.
     #[serde(default)]
     pub always: Vec<MessageRule>,
+}
+
+/// A named table of readings, applied wherever a rule references it.
+#[derive(Debug, Deserialize, Clone)]
+#[serde(deny_unknown_fields)]
+pub struct Fragment {
+    #[serde(default)]
+    pub doc: Option<String>,
+    /// The cases, tried in order; the first that yields wins.
+    pub cases: Vec<Alternative>,
+}
+
+/// A bounded walk over a state object.
+#[derive(Debug, Deserialize, Clone)]
+#[serde(deny_unknown_fields)]
+pub struct WalkSpec {
+    /// How many levels below the carrier to descend. Zero means the carrier itself only.
+    pub max_depth: usize,
+    /// Members not descended into, because the readings already took them at each node.
+    #[serde(default)]
+    pub prune: Vec<String>,
+    /// Stop descending below a node that was itself read as a message.
+    ///
+    /// A message's own members are its content, not more state, so descending into one would read its parts
+    /// as though they were turns.
+    #[serde(default)]
+    pub stop_at_match: bool,
 }

@@ -105,12 +105,13 @@ pub struct CompiledMessageRule {
     pub require_non_blank: bool,
     pub branch_set: Option<CompiledBranchSet>,
     pub elements: Option<ElementsSpec>,
+    pub walk: Option<super::schema::WalkSpec>,
     pub sections: Option<SectionsSpec>,
     pub reads_tool_spans: bool,
     pub tag_as: Option<String>,
-    pub alternatives: Vec<Alternative>,
-    pub also: Vec<Alternative>,
-    pub fallback: Vec<Alternative>,
+    pub alternatives: Vec<CompiledReading>,
+    pub also: Vec<CompiledReading>,
+    pub fallback: Vec<CompiledReading>,
     pub legacy_rank: i32,
 }
 
@@ -142,6 +143,10 @@ pub enum MessageCompileError {
     EmptyCarrier {
         rule: String,
     },
+    /// A reading references a fragment nobody declares.
+    UnknownFragment {
+        fragment: String,
+    },
     /// A construct the engine accepts but cannot execute, or a field it would silently ignore.
     ///
     /// Both are the same defect from a reader's point of view: the asset says something and nothing
@@ -168,6 +173,9 @@ impl std::fmt::Display for MessageCompileError {
                 f,
                 "message rule `{rule}` must name exactly one of `attribute` or `event`"
             ),
+            Self::UnknownFragment { fragment } => {
+                write!(f, "no asset declares the fragment `{fragment}`")
+            }
             Self::Inexpressible { rule, detail } => {
                 write!(f, "message rule `{rule}`: {detail}")
             }
@@ -197,6 +205,7 @@ impl std::fmt::Display for MessageCompileError {
 fn compile_rule(
     file_id: &str,
     rule: &MessageRule,
+    fragments: &HashMap<String, Vec<Alternative>>,
 ) -> Result<CompiledMessageRule, MessageCompileError> {
     let MessageRule {
         id,
@@ -215,6 +224,7 @@ fn compile_rule(
         require_non_blank,
         branch_set,
         elements,
+        walk,
         sections,
         reads_tool_spans,
         tag_as,
@@ -405,7 +415,10 @@ fn compile_rule(
         Some(set) => {
             let compile_group =
                     |group: &Vec<MessageRule>| -> Result<Vec<CompiledMessageRule>, MessageCompileError> {
-                        group.iter().map(|sub| compile_rule(file_id, sub)).collect()
+                        group
+                                .iter()
+                                .map(|sub| compile_rule(file_id, sub, fragments))
+                                .collect()
                     };
             if set
                 .primary
@@ -447,12 +460,13 @@ fn compile_rule(
         require_non_blank: *require_non_blank,
         branch_set: compiled_branch_set,
         elements: elements.clone(),
+        walk: walk.clone(),
         sections: sections.clone(),
         reads_tool_spans: *reads_tool_spans,
         tag_as: tag_as.clone(),
-        alternatives: alternatives.clone(),
-        also: also.clone(),
-        fallback: fallback.clone(),
+        alternatives: inline_fragments(alternatives, fragments)?,
+        also: inline_fragments(also, fragments)?,
+        fallback: inline_fragments(fallback, fragments)?,
         legacy_rank: legacy_rank.unwrap_or(0),
     })
 }
@@ -461,6 +475,42 @@ fn compile_rule(
 pub fn compile(sources: &BTreeMap<String, Vec<u8>>) -> Result<MessagePlan, MessageCompileError> {
     let mut rules: Vec<CompiledMessageRule> = Vec::new();
     let mut seen_ids: HashMap<String, ()> = HashMap::new();
+
+    // Fragments first, across every asset: a rule may reference one defined in another file, which is what
+    // makes a shared dialect table shared.
+    let mut fragments: HashMap<String, Vec<Alternative>> = HashMap::new();
+    for (path, bytes) in sources {
+        let file: RuleFile =
+            serde_json::from_slice(bytes).map_err(|e| MessageCompileError::Parse {
+                path: path.clone(),
+                message: e.to_string(),
+            })?;
+        for (name, fragment) in &file.fragments {
+            if fragment.cases.is_empty() {
+                return Err(MessageCompileError::Inexpressible {
+                    rule: format!("{}.{name}", file.id),
+                    detail: "a fragment declares no cases",
+                });
+            }
+            // One level, no recursion: a fragment's cases may not reference a fragment.
+            if fragment.cases.iter().any(|c| c.then_fragment.is_some()) {
+                return Err(MessageCompileError::Inexpressible {
+                    rule: format!("{}.{name}", file.id),
+                    detail: "a fragment's own cases may not reference a fragment - one level, so there is \
+                             nothing to bound at runtime",
+                });
+            }
+            if fragments
+                .insert(format!("{}.{name}", file.id), fragment.cases.clone())
+                .is_some()
+            {
+                return Err(MessageCompileError::Inexpressible {
+                    rule: format!("{}.{name}", file.id),
+                    detail: "a fragment of this name is already declared",
+                });
+            }
+        }
+    }
 
     for (path, bytes) in sources {
         // Parsed, not skipped. Skipping is what hid a schema mistake that made *every* message rule
@@ -486,7 +536,7 @@ pub fn compile(sources: &BTreeMap<String, Vec<u8>>) -> Result<MessagePlan, Messa
                              the others",
                 });
             }
-            rules.push(compile_rule(&file.id, rule)?);
+            rules.push(compile_rule(&file.id, rule, &fragments)?);
         }
     }
 
@@ -541,6 +591,16 @@ pub fn compile(sources: &BTreeMap<String, Vec<u8>>) -> Result<MessagePlan, Messa
     }
 
     Ok(MessagePlan { rules })
+}
+
+/// A reading with its fragment's cases inlined.
+///
+/// Resolved at compile time, so there is no runtime indirection and no recursion to bound: a fragment's own
+/// cases may not reference a fragment, which the compiler checks.
+#[derive(Debug, Clone)]
+pub struct CompiledReading {
+    pub spec: Alternative,
+    pub fragment_cases: Vec<Alternative>,
 }
 
 /// A branch set with every sub-reading compiled.
@@ -817,12 +877,13 @@ fn query<'v>(value: &'v JsonValue, path: &serde_json_path::JsonPath) -> Vec<&'v 
 /// evidence the payload is in a different one of its documented forms.
 fn readings(
     parsed: &JsonValue,
-    alternatives: &[Alternative],
+    alternatives: &[CompiledReading],
 ) -> Vec<(JsonValue, Option<WrapSpec>)> {
     if alternatives.is_empty() {
         return vec![(parsed.clone(), None)];
     }
-    for alternative in alternatives {
+    for reading in alternatives {
+        let alternative = &reading.spec;
         let selected: Vec<&JsonValue> = match &alternative.select {
             Some(path) => query(parsed, path),
             None => vec![parsed],
@@ -891,9 +952,25 @@ fn readings(
                     (true, Some(text)) => json!(text.trim()),
                     _ => candidate,
                 };
-                if predicates_hold(&candidate, &alternative.require) {
-                    produced.push((candidate, alternative.wrap.clone()));
+                if !predicates_hold(&candidate, &alternative.require) {
+                    continue;
                 }
+                // The fragment decides what the element *is*; this reading decided where to look. Splitting
+                // them is why one dialect can recognise its message shapes at four selection points with one
+                // table.
+                if !reading.fragment_cases.is_empty() {
+                    let cases: Vec<CompiledReading> = reading
+                        .fragment_cases
+                        .iter()
+                        .map(|spec| CompiledReading {
+                            spec: spec.clone(),
+                            fragment_cases: Vec::new(),
+                        })
+                        .collect();
+                    produced.extend(readings(&candidate, &cases));
+                    continue;
+                }
+                produced.push((candidate, alternative.wrap.clone()));
             }
         }
         if !produced.is_empty() {
@@ -1034,6 +1111,10 @@ fn wrapped(
     ctx: &MessageContext<'_>,
     payload: Option<&JsonValue>,
 ) -> JsonValue {
+    // The reading as it arrived, before a content member was selected out of it: an attachment may name a
+    // sibling of the content, which is gone once the content replaces the value.
+    let subject = value.clone();
+    let subject = Some(&subject);
     // A content block, when the carrier holds one part of a block rather than a whole message.
     // The role, and the part of the reading that is the content, may both come from the payload.
     let role = wrap
@@ -1048,15 +1129,27 @@ fn wrapped(
                 .unwrap_or_else(|| found.to_string())
         })
         .or_else(|| wrap.role.clone());
-    let value = match &wrap.content_from {
-        Some(path) => match query(&value, path).into_iter().next() {
+    let content_paths: Vec<&serde_json_path::JsonPath> = wrap
+        .content_from
+        .as_ref()
+        .into_iter()
+        .chain(wrap.content_from_any_of.iter())
+        .collect();
+    let value = if content_paths.is_empty() {
+        value
+    } else {
+        // The first path that resolves: one dialect serialises a message three ways and the content sits in a
+        // different member each time.
+        match content_paths
+            .iter()
+            .find_map(|path| query(&value, path).into_iter().next())
+        {
             Some(found) => found.clone(),
             None => return JsonValue::Null,
-        },
-        None => value,
+        }
     };
     let value = match &wrap.block {
-        Some(block) => JsonValue::Array(vec![built_block(value, block, ctx, payload)]),
+        Some(block) => JsonValue::Array(vec![built_block(value, block, ctx, payload, subject)]),
         None => value,
     };
     let mut object = serde_json::Map::new();
@@ -1070,13 +1163,13 @@ fn wrapped(
     // Before the content member, then the content, then after - because the order is observable: see
     // `AttachSpec::after_content`.
     for attach in wrap.attach.iter().filter(|a| !a.after_content) {
-        if let Some(attached) = attached_value(attach, ctx, payload) {
+        if let Some(attached) = attached_value(attach, ctx, payload, subject) {
             object.insert(attach.as_member.clone(), attached);
         }
     }
     object.insert(content_member.to_string(), value);
     for attach in wrap.attach.iter().filter(|a| a.after_content) {
-        if let Some(attached) = attached_value(attach, ctx, payload) {
+        if let Some(attached) = attached_value(attach, ctx, payload, subject) {
             object.insert(attach.as_member.clone(), attached);
         }
     }
@@ -1089,11 +1182,12 @@ fn built_block(
     block: &BlockSpec,
     ctx: &MessageContext<'_>,
     payload: Option<&JsonValue>,
+    subject: Option<&JsonValue>,
 ) -> JsonValue {
     let mut object = serde_json::Map::new();
     object.insert("type".to_string(), json!(block.block_type));
     for attach in block.attach.iter().filter(|a| !a.after_content) {
-        if let Some(attached) = attached_value(attach, ctx, payload) {
+        if let Some(attached) = attached_value(attach, ctx, payload, subject) {
             object.insert(attach.as_member.clone(), attached);
         }
     }
@@ -1102,7 +1196,7 @@ fn built_block(
         value,
     );
     for attach in block.attach.iter().filter(|a| a.after_content) {
-        if let Some(attached) = attached_value(attach, ctx, payload) {
+        if let Some(attached) = attached_value(attach, ctx, payload, subject) {
             object.insert(attach.as_member.clone(), attached);
         }
     }
@@ -1114,7 +1208,22 @@ fn attached_value(
     attach: &AttachSpec,
     ctx: &MessageContext<'_>,
     payload: Option<&JsonValue>,
+    subject: Option<&JsonValue>,
 ) -> Option<JsonValue> {
+    // Ordered paths into the value being wrapped, for a member that may sit at the top level or under the
+    // wrapper a serialiser added.
+    if !attach.from_value_any_of.is_empty() {
+        let found = subject.and_then(|subject| {
+            attach
+                .from_value_any_of
+                .iter()
+                .find_map(|path| query(subject, path).into_iter().next())
+        })?;
+        if !predicates_hold(found, &attach.require) {
+            return None;
+        }
+        return Some(found.clone());
+    }
     // A member of the rule's own payload, where the dialect reports it beside the content rather than
     // inside it.
     if let Some(path) = &attach.from_path {
@@ -1405,7 +1514,13 @@ fn emit_rule<'p>(rule: &'p CompiledMessageRule, ctx: &MessageContext<'_>) -> Vec
     let Some(parsed) = parse_value(raw, rule.parse.unwrap_or(ParseMode::Json)) else {
         return out;
     };
-    let readings = all_readings(&parsed, rule);
+    // A state object its nodes write into: the readings are applied at every node of a bounded walk, so a
+    // conversation nested a level or two down is found without trawling the payload for anything
+    // message-shaped.
+    let readings = match &rule.walk {
+        Some(walk) => walked_readings(&parsed, rule, walk),
+        None => all_readings(&parsed, rule),
+    };
     // A tool list is a set, not a sequence of messages: the whole list is one observation, and emitting one
     // per tool would make each look like a separate declaration.
     if rule.aggregate_into_array {
@@ -1602,6 +1717,79 @@ fn element_passes(parsed: &JsonValue, spec: &ElementsSpec) -> Vec<(String, JsonV
                     out.push((tag.to_string(), element.clone()));
                 }
             }
+        }
+    }
+    out
+}
+
+/// Inline each reading's fragment reference, so the runtime holds cases rather than a name.
+fn inline_fragments(
+    readings: &[Alternative],
+    fragments: &HashMap<String, Vec<Alternative>>,
+) -> Result<Vec<CompiledReading>, MessageCompileError> {
+    readings
+        .iter()
+        .map(|spec| {
+            let fragment_cases = match &spec.then_fragment {
+                Some(name) => match fragments.get(name) {
+                    Some(cases) => cases.clone(),
+                    None => {
+                        return Err(MessageCompileError::UnknownFragment {
+                            fragment: name.clone(),
+                        });
+                    }
+                },
+                None => Vec::new(),
+            };
+            Ok(CompiledReading {
+                spec: spec.clone(),
+                fragment_cases,
+            })
+        })
+        .collect()
+}
+
+/// The readings of every node of a bounded walk.
+///
+/// Bounded three ways, all declared: the depth, the members pruned because the node-level readings already
+/// took them, and stopping below a node that was itself read as a message - a message's members are its
+/// content, so descending into one would read its parts as turns.
+fn walked_readings(
+    root: &JsonValue,
+    rule: &CompiledMessageRule,
+    walk: &super::schema::WalkSpec,
+) -> Vec<(JsonValue, Option<WrapSpec>)> {
+    let mut out = Vec::new();
+    let mut stack = vec![(root, walk.max_depth)];
+    while let Some((node, depth)) = stack.pop() {
+        let here = all_readings(node, rule);
+        let matched = !here.is_empty();
+        out.extend(here);
+        if depth == 0 || (matched && walk.stop_at_match) {
+            continue;
+        }
+        match node {
+            JsonValue::Object(map) => {
+                // A fixed order: the payload's own map order is what a reader sees, and the stack pops in
+                // reverse, so members are pushed reversed to visit them as written.
+                let members: Vec<&JsonValue> = map
+                    .iter()
+                    .filter(|(key, value)| {
+                        !walk.prune.iter().any(|pruned| pruned == *key)
+                            && (value.is_object() || value.is_array())
+                    })
+                    .map(|(_, value)| value)
+                    .collect();
+                for value in members.into_iter().rev() {
+                    stack.push((value, depth - 1));
+                }
+            }
+            JsonValue::Array(items) => {
+                for value in items.iter().rev().filter(|v| v.is_object() || v.is_array()) {
+                    stack.push((value, depth - 1));
+                }
+            }
+            _ => {}
         }
     }
     out

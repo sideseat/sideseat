@@ -1,6 +1,6 @@
 {
   "id": "langchain",
-  "doc": "The LangChain dialect.",
+  "doc": "The LangChain dialect. It also carries the shared **message fragment**: this vocabulary is how more than one framework serialises a conversation, and one dialect recognises these shapes at four different selection points, so the table lives here once rather than per point.",
   "carriers": [],
   "detect": [
     {
@@ -21,5 +21,279 @@
       "slug": "langchain",
       "label": "LangChain"
     }
-  ]
+  ],
+  "fragments": {
+    "message": {
+      "doc": "What a LangChain-serialised message is. The discriminator is read from three places because the library writes it in a different one depending on how the object was constructed - the type itself, the serialisation marker, or inside the constructor's kwargs - and the content likewise. Ordered cases: the first that recognises the shape wins.",
+      "cases": [
+        {
+          "doc": "A user turn.",
+          "require": {
+            "any": [
+              {
+                "path": "$.type",
+                "one_of": [
+                  "human",
+                  "HumanMessage"
+                ]
+              },
+              {
+                "path": "$.lc.type",
+                "one_of": [
+                  "human",
+                  "HumanMessage"
+                ]
+              },
+              {
+                "path": "$.kwargs.type",
+                "one_of": [
+                  "human",
+                  "HumanMessage"
+                ]
+              }
+            ]
+          },
+          "wrap": {
+            "role": "user",
+            "content_from_any_of": [
+              "$.content",
+              "$.kwargs.content",
+              "$.text"
+            ]
+          }
+        },
+        {
+          "doc": "The assistant's turn. Its tool calls may sit at the top level or under the kwargs wrapper, and an **empty** list is not a set of calls - attaching one makes a plain reply look like a call. A legacy single `function_call` is carried under its own member, and only when no `tool_calls` were found, which is the precedence the library itself uses.",
+          "require": {
+            "any": [
+              {
+                "path": "$.type",
+                "one_of": [
+                  "ai",
+                  "AIMessage"
+                ]
+              },
+              {
+                "path": "$.lc.type",
+                "one_of": [
+                  "ai",
+                  "AIMessage"
+                ]
+              },
+              {
+                "path": "$.kwargs.type",
+                "one_of": [
+                  "ai",
+                  "AIMessage"
+                ]
+              }
+            ]
+          },
+          "wrap": {
+            "role": "assistant",
+            "content_from_any_of": [
+              "$.content",
+              "$.kwargs.content",
+              "$.text"
+            ],
+            "attach": [
+              {
+                "as": "tool_calls",
+                "from_value_any_of": [
+                  "$.tool_calls",
+                  "$.kwargs.tool_calls",
+                  "$.additional_kwargs.tool_calls",
+                  "$.kwargs.additional_kwargs.tool_calls"
+                ],
+                "require": {
+                  "all": [
+                    {
+                      "kind": "array",
+                      "non_empty": true
+                    }
+                  ]
+                },
+                "after_content": true
+              },
+              {
+                "as": "function_call",
+                "from_value_any_of": [
+                  "$.additional_kwargs.function_call",
+                  "$.kwargs.additional_kwargs.function_call"
+                ],
+                "after_content": true
+              }
+            ]
+          }
+        },
+        {
+          "doc": "A system turn.",
+          "require": {
+            "any": [
+              {
+                "path": "$.type",
+                "one_of": [
+                  "system",
+                  "SystemMessage"
+                ]
+              },
+              {
+                "path": "$.lc.type",
+                "one_of": [
+                  "system",
+                  "SystemMessage"
+                ]
+              },
+              {
+                "path": "$.kwargs.type",
+                "one_of": [
+                  "system",
+                  "SystemMessage"
+                ]
+              }
+            ]
+          },
+          "wrap": {
+            "role": "system",
+            "content_from_any_of": [
+              "$.content",
+              "$.kwargs.content",
+              "$.text"
+            ]
+          }
+        },
+        {
+          "doc": "A tool's reply, carrying the call id that pairs it with its call, and the tool's name.",
+          "require": {
+            "any": [
+              {
+                "path": "$.type",
+                "one_of": [
+                  "tool",
+                  "ToolMessage"
+                ]
+              },
+              {
+                "path": "$.lc.type",
+                "one_of": [
+                  "tool",
+                  "ToolMessage"
+                ]
+              },
+              {
+                "path": "$.kwargs.type",
+                "one_of": [
+                  "tool",
+                  "ToolMessage"
+                ]
+              }
+            ]
+          },
+          "wrap": {
+            "role": "tool",
+            "content_from_any_of": [
+              "$.content",
+              "$.kwargs.content",
+              "$.text"
+            ],
+            "attach": [
+              {
+                "as": "tool_call_id",
+                "from_value_any_of": [
+                  "$.tool_call_id",
+                  "$.kwargs.tool_call_id"
+                ],
+                "after_content": true
+              },
+              {
+                "as": "name",
+                "from_value_any_of": [
+                  "$.name",
+                  "$.kwargs.name"
+                ],
+                "after_content": true
+              }
+            ]
+          }
+        },
+        {
+          "doc": "The older function-call form. Its name defaults rather than being omitted: the shape requires one, and an absent name and an empty one are different values to anything hashing the payload.",
+          "require": {
+            "any": [
+              {
+                "path": "$.type",
+                "one_of": [
+                  "function",
+                  "FunctionMessage"
+                ]
+              },
+              {
+                "path": "$.lc.type",
+                "one_of": [
+                  "function",
+                  "FunctionMessage"
+                ]
+              },
+              {
+                "path": "$.kwargs.type",
+                "one_of": [
+                  "function",
+                  "FunctionMessage"
+                ]
+              }
+            ]
+          },
+          "wrap": {
+            "role": "function",
+            "content_from_any_of": [
+              "$.content",
+              "$.kwargs.content",
+              "$.text"
+            ],
+            "attach": [
+              {
+                "as": "name",
+                "from_value_any_of": [
+                  "$.name",
+                  "$.kwargs.name"
+                ],
+                "default": "function"
+              }
+            ]
+          }
+        },
+        {
+          "doc": "Already in canonical form: a role and content, kept exactly as it arrived. Structural rather than rebuilt, so the provider's member order survives.",
+          "require": {
+            "all": [
+              {
+                "path": "$.role"
+              },
+              {
+                "path": "$.content"
+              }
+            ]
+          }
+        },
+        {
+          "doc": "A role with the content somewhere else. Last, so it cannot claim a message a typed case above would have recognised.",
+          "require": {
+            "all": [
+              {
+                "path": "$.role"
+              }
+            ]
+          },
+          "wrap": {
+            "role_from": "$.role",
+            "content_from_any_of": [
+              "$.content",
+              "$.kwargs.content",
+              "$.text"
+            ]
+          }
+        }
+      ]
+    }
+  }
 }

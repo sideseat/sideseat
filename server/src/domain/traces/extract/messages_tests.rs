@@ -7444,6 +7444,101 @@ fn the_rules_reproduce_the_extractors_they_replaced() {
         ),
         ("span", rule_attrs(&[("gcp.vertex.agent.data", "{}")])),
         ("span", rule_attrs(&[("gcp.vertex.agent.data", "[]")])),
+        // LangGraph: a state object, gated.
+        (
+            "span",
+            rule_attrs(&[(
+                "output.value",
+                r#"{"messages":[{"type":"human","content":"q"}]}"#,
+            )]),
+        ),
+        (
+            "span",
+            rule_attrs(&[
+                ("langgraph.node", "agent"),
+                (
+                    "output.value",
+                    r#"{"messages":[{"type":"human","content":"q"},
+                    {"type":"ai","content":"a"}]}"#,
+                ),
+            ]),
+        ),
+        // The answer beside the conversation - the shape that once lost every reply.
+        (
+            "span",
+            rule_attrs(&[
+                ("langgraph.node", "agent"),
+                (
+                    "output.value",
+                    r#"{"messages":[{"type":"human","content":"q"}],"raw":"the answer"}"#,
+                ),
+            ]),
+        ),
+        // Serialised form: the discriminator and content under the constructor's kwargs.
+        (
+            "span",
+            rule_attrs(&[
+                ("langgraph.thread_id", "t"),
+                (
+                    "output.value",
+                    r#"{"messages":[{"lc":{"type":"ai"},"kwargs":{"content":"a",
+                    "tool_calls":[{"name":"t"}]}}]}"#,
+                ),
+            ]),
+        ),
+        // An empty tool-call list must not attach.
+        (
+            "span",
+            rule_attrs(&[
+                ("langgraph.node", "n"),
+                (
+                    "output.value",
+                    r#"{"messages":[{"type":"ai","content":"a","tool_calls":[]}]}"#,
+                ),
+            ]),
+        ),
+        // A tool reply, with its call id and name.
+        (
+            "span",
+            rule_attrs(&[
+                ("langgraph.node", "n"),
+                (
+                    "output.value",
+                    r#"{"messages":[{"type":"tool","content":"r",
+                    "tool_call_id":"c1","name":"temp"}]}"#,
+                ),
+            ]),
+        ),
+        // Nested state, which the walk exists for.
+        (
+            "span",
+            rule_attrs(&[
+                ("langgraph.node", "n"),
+                (
+                    "output.value",
+                    r#"{"state":{"messages":[{"type":"human","content":"q"}]}}"#,
+                ),
+            ]),
+        ),
+        // Already canonical: kept exactly as it arrived.
+        (
+            "span",
+            rule_attrs(&[
+                ("langgraph.node", "n"),
+                (
+                    "output.value",
+                    r#"{"messages":[{"role":"user","content":"q","extra":1}]}"#,
+                ),
+            ]),
+        ),
+        // A single message on its own carrier.
+        (
+            "span",
+            rule_attrs(&[
+                ("langgraph.node", "n"),
+                ("message", r#"{"type":"system","content":"be brief"}"#),
+            ]),
+        ),
         // The answer must be read even when the request side was found - the asymmetry that
         // closed a real loss.
         (
@@ -7485,6 +7580,7 @@ fn the_rules_reproduce_the_extractors_they_replaced() {
             try_crewai,
             try_logfire_events,
             try_google_adk,
+            try_langgraph,
         ] {
             if is_tool_span {
                 continue;
@@ -7581,9 +7677,9 @@ fn declared_message_rules_cover_what_they_claim() {
     let plan = &ruleset().messages;
     assert_eq!(
         plan.rule_count(),
-        37,
-        "the assets declare {} message rules. Twelve framework extractors were consolidated into the \
-         one generic entry, leaving three specific extractors, the generic `raw_io` fallback and that \
+        40,
+        "the assets declare {} message rules. Thirteen framework extractors are consolidated into the \
+         one generic entry, leaving `openinference`, `autogen`, the generic `raw_io` fallback and that \
          entry - and a dialect moves whole or not at all, so there are no part-migrated carriers to count",
         plan.rule_count()
     );

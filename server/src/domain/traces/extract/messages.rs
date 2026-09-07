@@ -403,10 +403,6 @@ const EXTRACTORS: &[NamedExtractor] = &[
         extractor: try_declared_rules,
     },
     NamedExtractor {
-        name: "langgraph",
-        extractor: try_langgraph,
-    },
-    NamedExtractor {
         name: "autogen",
         extractor: try_autogen,
     },
@@ -2242,6 +2238,7 @@ pub(crate) fn try_langsmith(
     found
 }
 
+#[cfg(test)]
 pub(crate) fn try_langgraph(
     messages: &mut Vec<RawMessage>,
     _tool_definitions: &mut Vec<RawToolDefinition>,
@@ -2300,9 +2297,11 @@ pub(crate) fn try_langgraph(
 /// `{"state": {"messages": [...]}}` is an ordinary shape and used to yield nothing, because the search
 /// looked only at the top level and at direct values. Bounded rather than unbounded: the point is to find a
 /// state member, not to trawl a tool's arguments for anything message-shaped.
+#[cfg(test)]
 const LANGGRAPH_STATE_DEPTH: usize = 4;
 
 /// Extract messages from LangGraph state (handles nested messages in dicts/lists)
+#[cfg(test)]
 fn extract_langgraph_messages(
     messages: &mut Vec<RawMessage>,
     value: &JsonValue,
@@ -2318,6 +2317,7 @@ fn extract_langgraph_messages(
     )
 }
 
+#[cfg(test)]
 fn extract_langgraph_messages_at(
     messages: &mut Vec<RawMessage>,
     value: &JsonValue,
@@ -2406,6 +2406,7 @@ fn extract_langgraph_messages_at(
 }
 
 /// Normalize LangChain message types to standard SideML format
+#[cfg(test)]
 fn normalize_langchain_message(msg: &JsonValue) -> Option<JsonValue> {
     // Check for LangChain message type discriminator
     let msg_type = msg.get("type").and_then(|t| t.as_str());

@@ -1,6 +1,6 @@
 {
   "id": "langgraph",
-  "doc": "The LangGraph dialect.",
+  "doc": "LangGraph. Its carrier is a *state object* its nodes write into, so a conversation can sit at the top level, under `messages`, under a member the node named itself, or nested a level or two down - which is why the readings are applied at every node of a bounded walk rather than at fixed paths. Bounded on purpose: an explicit depth, `messages` and `raw` pruned because the node-level readings already took them, and no descent below a node that was itself a message, since a message's members are its content.",
   "carriers": [],
   "detect": [
     {
@@ -36,6 +36,162 @@
     {
       "slug": "langgraph",
       "label": "LangGraph"
+    }
+  ],
+  "messages": [
+    {
+      "id": "langgraph.input_value",
+      "doc": "A node's input state.",
+      "when": {
+        "attr_exists": [
+          "langgraph.node",
+          "langgraph.checkpoint_ns",
+          "langgraph.thread_id"
+        ],
+        "span_attr_contains": [
+          {
+            "key": "metadata",
+            "value": "langgraph_"
+          }
+        ]
+      },
+      "read": {
+        "attribute": "input.value"
+      },
+      "parse": "json",
+      "emit": "message",
+      "legacy_rank": 600,
+      "walk": {
+        "max_depth": 4,
+        "prune": [
+          "messages",
+          "raw"
+        ],
+        "stop_at_match": true
+      },
+      "also": [
+        {
+          "doc": "The node itself, when the whole payload is one message.",
+          "then_fragment": "langchain.message"
+        },
+        {
+          "doc": "The conversation this node holds.",
+          "select": "$.messages[*]",
+          "then_fragment": "langchain.message"
+        },
+        {
+          "doc": "Every other member of the state, since a node writes its messages under whatever name it chose. Read at this level only - descending is the walk's job, bounded there.",
+          "select": "$.*",
+          "then_fragment": "langchain.message"
+        },
+        {
+          "doc": "The final answer beside the conversation rather than inside it: one framework running through this one writes the history under `messages` and the answer under `raw`. Reading only the list claimed the carrier and left the answer unread by anything, so the trace showed the question and no reply. Only a string is taken - anything structured is a state member rather than a reply.",
+          "select": "$.raw",
+          "trim": true,
+          "require": {
+            "all": [
+              {
+                "kind": "string",
+                "non_empty": true
+              }
+            ]
+          },
+          "wrap": {
+            "role": "assistant"
+          }
+        }
+      ]
+    },
+    {
+      "id": "langgraph.output_value",
+      "doc": "A node's output state.",
+      "when": {
+        "attr_exists": [
+          "langgraph.node",
+          "langgraph.checkpoint_ns",
+          "langgraph.thread_id"
+        ],
+        "span_attr_contains": [
+          {
+            "key": "metadata",
+            "value": "langgraph_"
+          }
+        ]
+      },
+      "read": {
+        "attribute": "output.value"
+      },
+      "parse": "json",
+      "emit": "message",
+      "legacy_rank": 610,
+      "walk": {
+        "max_depth": 4,
+        "prune": [
+          "messages",
+          "raw"
+        ],
+        "stop_at_match": true
+      },
+      "also": [
+        {
+          "doc": "The node itself, when the whole payload is one message.",
+          "then_fragment": "langchain.message"
+        },
+        {
+          "doc": "The conversation this node holds.",
+          "select": "$.messages[*]",
+          "then_fragment": "langchain.message"
+        },
+        {
+          "doc": "Every other member of the state, since a node writes its messages under whatever name it chose. Read at this level only - descending is the walk's job, bounded there.",
+          "select": "$.*",
+          "then_fragment": "langchain.message"
+        },
+        {
+          "doc": "The final answer beside the conversation rather than inside it: one framework running through this one writes the history under `messages` and the answer under `raw`. Reading only the list claimed the carrier and left the answer unread by anything, so the trace showed the question and no reply. Only a string is taken - anything structured is a state member rather than a reply.",
+          "select": "$.raw",
+          "trim": true,
+          "require": {
+            "all": [
+              {
+                "kind": "string",
+                "non_empty": true
+              }
+            ]
+          },
+          "wrap": {
+            "role": "assistant"
+          }
+        }
+      ]
+    },
+    {
+      "id": "langgraph.message",
+      "doc": "A single message written on its own.",
+      "when": {
+        "attr_exists": [
+          "langgraph.node",
+          "langgraph.checkpoint_ns",
+          "langgraph.thread_id"
+        ],
+        "span_attr_contains": [
+          {
+            "key": "metadata",
+            "value": "langgraph_"
+          }
+        ]
+      },
+      "read": {
+        "attribute": "message"
+      },
+      "parse": "json",
+      "emit": "message",
+      "legacy_rank": 620,
+      "alternatives": [
+        {
+          "then_fragment": "langchain.message"
+        }
+      ]
     }
   ]
 }

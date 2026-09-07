@@ -145,7 +145,9 @@ pub(super) mod keys {
     pub const LANGSMITH_TRACE_NAME: &str = "langsmith.trace.name";
 
     // LangGraph
+    #[cfg(test)]
     pub const LANGGRAPH_CHECKPOINT_NS: &str = "langgraph.checkpoint_ns";
+    #[cfg(test)]
     pub const LANGGRAPH_NODE: &str = "langgraph.node";
     pub const LANGGRAPH_THREAD_ID: &str = "langgraph.thread_id";
 
