@@ -56,8 +56,9 @@ fn tool_from_repr(tool_repr: &str, spec: &ToolReprSpec) -> Option<JsonValue> {
 
     // Prefer the explicit description field when present; otherwise parse the
     // whole repr to catch labels in non-standard shapes.
-    let details = loosely_quoted_repr_field(tool_repr, &spec.description_field)
-        .unwrap_or_else(|| tool_repr.into());
+    let details =
+        loosely_quoted_repr_field(tool_repr, &spec.description_field, &spec.field_terminators)
+            .unwrap_or_else(|| tool_repr.into());
     let (name, description, parameters) = labelled_details(&details, &fallback_name, spec);
 
     let mut function = json!({ "name": name });
@@ -127,30 +128,29 @@ fn repr_field(input: &str, field: &str) -> Option<String> {
 ///
 /// A Python dict repr inside the documentation does exactly that, so the closing quote cannot be found
 /// by scanning - the value runs to the `')` that closes the constructor.
-fn loosely_quoted_repr_field(input: &str, field: &str) -> Option<String> {
+fn loosely_quoted_repr_field(input: &str, field: &str, terminators: &[String]) -> Option<String> {
     let opening = format!("{field}='");
     if let Some(start) = input.find(opening.as_str()) {
         let rest = &input[start + opening.len()..];
-        // CrewStructuredTool(...) form
+        // A constructor repr closes with `')`, whatever the language put inside it.
         if let Some(end) = rest.rfind("')") {
             return Some(rest[..end].to_string());
         }
-        // Fallback forms with additional repr fields after description
-        for needle in [
-            "' env_vars=",
-            "', env_vars=",
-            "' args_schema=",
-            "', args_schema=",
-        ] {
-            if let Some(end) = rest.find(needle) {
-                return Some(rest[..end].to_string());
+        // Otherwise the value ends where the next declared field begins. Which fields those are is the
+        // framework's own vocabulary, so they are declared - the two that used to be written here were one
+        // framework's, sitting in a module that claims to name none.
+        for terminator in terminators {
+            for needle in [format!("' {terminator}="), format!("', {terminator}=")] {
+                if let Some(end) = rest.find(needle.as_str()) {
+                    return Some(rest[..end].to_string());
+                }
             }
         }
-        // As a last resort, consume until end
+        // Nothing closes it: the value is the remainder.
         return Some(rest.to_string());
     }
-
-    repr_field(input, "description")
+    // The strictly-quoted spelling of the same field, not a fixed member name.
+    repr_field(input, field)
 }
 
 /// Extract one-line value from `Label: value` pattern.
@@ -472,7 +472,7 @@ fn normalised_parameters(value: &JsonValue, spec: &ToolReprSpec) -> Option<JsonV
     python_args_to_json_schema(value, spec)
 }
 
-fn tool_name(tool: &JsonValue) -> Option<String> {
+fn declared_name(tool: &JsonValue) -> Option<String> {
     tool.get("function")
         .and_then(|f| f.get("name"))
         .and_then(|n| n.as_str())
@@ -488,7 +488,7 @@ fn upsert_best(
     best_by_name: &mut HashMap<String, (i32, JsonValue)>,
     order: &mut Vec<String>,
 ) -> bool {
-    let Some(name) = tool_name(&tool) else {
+    let Some(name) = declared_name(&tool) else {
         return false;
     };
     let quality = tool_definition_quality(&tool);

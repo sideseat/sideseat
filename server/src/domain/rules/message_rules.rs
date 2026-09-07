@@ -315,6 +315,43 @@ fn compile_rule(
                  `indexed_family`",
         ));
     }
+    // Combinations the evaluator silently ignores. Each of these compiled and did nothing, which is worse
+    // than a refusal: the rule reads as a statement the engine never makes.
+    if read.indexed_family.is_none() && (read.overlay.is_some() || !read.numeric_members.is_empty())
+    {
+        return Err(inexpressible(
+            "`overlay` and `numeric_members` describe an indexed family's entries and are read only \
+                 for one",
+        ));
+    }
+    if *aggregate_into_array
+        && alternatives
+            .iter()
+            .chain(also)
+            .chain(fallback)
+            .any(|a| a.emit.is_some())
+    {
+        return Err(inexpressible(
+            "an aggregate is one observation, so its target is the rule's; a per-reading `emit` beside \
+                 `aggregate_into_array` would be ignored",
+        ));
+    }
+    if tool_repr.is_some()
+        && (wrap.is_some()
+            || compose.is_some()
+            || sections.is_some()
+            || elements.is_some()
+            || walk.is_some()
+            || branch_set.is_some()
+            || !alternatives.is_empty()
+            || !also.is_empty()
+            || !fallback.is_empty())
+    {
+        return Err(inexpressible(
+            "a `repr` grammar assembles the definitions itself, so a reading or an envelope beside it \
+                 would be ignored",
+        ));
+    }
     // A predicate that cannot hold, or asserts nothing, is refused like any other no-op.
     let check_predicates = |set: &PredicateSet| -> Option<&'static str> {
         for predicate in set.all.iter().chain(set.any.iter()) {
@@ -733,6 +770,13 @@ fn consumed_carriers(rule: &CompiledMessageRule) -> Vec<CarrierPattern> {
     if let Some(family) = rule.read.indexed_family.as_deref() {
         // Every key beneath the family, since each index's members are read.
         out.push(CarrierPattern::Prefix(format!("{family}.")));
+    }
+    // A branch set's subrules read carriers of their own, and they were invisible here - so two dialects
+    // could contend for one carrier as long as the collision was inside a branch set.
+    if let Some(set) = &rule.branch_set {
+        for sub in set.primary.iter().chain(&set.fallback).chain(&set.always) {
+            out.extend(consumed_carriers(sub));
+        }
     }
     if let Some(compose) = &rule.compose {
         for member in compose.members.iter().map(|m| &m.spec) {

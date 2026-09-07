@@ -232,6 +232,10 @@
           "$",
           "$.tools_names[*]",
           "$.tools[*]"
+        ],
+        "field_terminators": [
+          "env_vars",
+          "args_schema"
         ]
       },
       "legacy_rank": 1520
@@ -333,6 +337,10 @@
           "$.tools[*]",
           "$.tools",
           "$.tool"
+        ],
+        "field_terminators": [
+          "env_vars",
+          "args_schema"
         ]
       },
       "legacy_rank": 1530

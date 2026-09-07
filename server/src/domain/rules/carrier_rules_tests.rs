@@ -396,15 +396,28 @@ fn the_engine_names_no_framework() {
         ("carrier_rules.rs", include_str!("carrier_rules.rs")),
         ("detect_rules.rs", include_str!("detect_rules.rs")),
         ("message_rules.rs", include_str!("message_rules.rs")),
+        ("tool_repr.rs", include_str!("tool_repr.rs")),
     ];
 
     // The engine directory holds nothing else. A new module would otherwise be exempt by omission -
     // the same way `detect_rules.rs` was.
     let declared: Vec<&str> = ENGINE_SOURCES.iter().map(|(name, _)| *name).collect();
     let module_decls = include_str!("mod.rs");
+    let mut previous = "";
     for line in module_decls.lines() {
         let trimmed = line.trim();
-        if let Some(rest) = trimmed.strip_prefix("pub mod ")
+        // A test module is not engine source; it exists to name the frameworks the assets declare.
+        let is_test_module = previous == "#[cfg(test)]";
+        previous = trimmed;
+        if is_test_module {
+            continue;
+        }
+        // `mod` as well as `pub mod`: a private module is engine source too, and `tool_repr` was one -
+        // which is how the last framework grammar sat unread by this gate while it named two of that
+        // framework's own repr fields.
+        if let Some(rest) = trimmed
+            .strip_prefix("pub mod ")
+            .or_else(|| trimmed.strip_prefix("mod "))
             && let Some(name) = rest.strip_suffix(';')
         {
             assert!(

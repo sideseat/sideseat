@@ -693,6 +693,13 @@ pub struct ToolReprSpec {
     pub repr_markers: Vec<String>,
     /// Where a tool object states its parameters, in order.
     pub parameter_members: Vec<String>,
+    /// The repr fields that may follow a loosely-quoted one. Their appearance is where that value ends.
+    ///
+    /// A single-quoted value holding a dict repr contains unescaped single quotes, so its closing quote
+    /// cannot be found by scanning - the value runs either to the `')` that closes the constructor or to
+    /// the next field. Which fields those are is the framework's vocabulary, not the language's.
+    #[serde(default)]
+    pub field_terminators: Vec<String>,
     /// The language's type names, mapped to JSON Schema's. Compared case-insensitively, and ordered
     /// because the first match wins.
     pub type_map: Vec<(String, String)>,

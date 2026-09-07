@@ -343,6 +343,13 @@ pub(crate) fn try_declared_rules(
                 // of the span, and a rule declares whether it may read such a span.
                 is_tool_span: is_tool_execution_span(attrs),
             });
+    // Any emission means this dialect recognised the span, including one that produced no message.
+    //
+    // Restricting this to `Message` was tried and is wrong: a `Claim` exists precisely to say "this carrier
+    // is mine and holds nothing worth reading", and its whole effect is to stop the generic reader
+    // presenting that payload as a conversation - so not counting it reintroduces what it prevents. A
+    // tool-definition emission counts for the weaker but sufficient reason that a span stating a dialect's
+    // tool list is that dialect's span, which is what the retired extractors also reported.
     let found = !emissions.is_empty();
     for emission in emissions {
         let key = emission.carrier.name();
