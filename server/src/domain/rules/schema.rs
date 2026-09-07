@@ -654,6 +654,13 @@ pub struct WrapSpec {
     /// alias beside the dialect that uses it rather than in a shared table nothing points at.
     #[serde(default)]
     pub role_map: BTreeMap<String, String>,
+    /// Treat `role_map` as the complete list: a value not in it falls back to `role` rather than being used
+    /// as a role itself.
+    ///
+    /// One dialect names the *speaker* where another names the role - `source: "planner"` means an
+    /// assistant, not a role called `planner` - so which of the two a member is has to be declared.
+    #[serde(default)]
+    pub role_map_is_closed: bool,
     /// A JSONPath whose value becomes the content, relative to the reading being wrapped.
     #[serde(default)]
     pub content_from: Option<JsonPath>,
@@ -663,6 +670,12 @@ pub struct WrapSpec {
     /// in a different member each time - so a single path reads two of the three as empty.
     #[serde(default)]
     pub content_from_any_of: Vec<JsonPath>,
+    /// The content when none of the paths above resolve. Absent means the reading is not this shape.
+    ///
+    /// An explicit `null` is a default of JSON null, not the absence of one: a dialect reports a tool that
+    /// returned nothing that way, and the two readings differ.
+    #[serde(default, deserialize_with = "explicit_value")]
+    pub content_default: Option<JsonValue>,
     /// The member the read value becomes. Defaults to `content`.
     ///
     /// Not always content: a response carrying only tool calls has no content, and putting the calls
@@ -679,6 +692,33 @@ pub struct WrapSpec {
     /// belongs in an asset.
     #[serde(default)]
     pub attach: Vec<AttachSpec>,
+    /// Build a block from another member and put it **before** the content.
+    ///
+    /// One dialect reports a model's reasoning in a sibling member of its reply, and the canonical form is a
+    /// thinking block ahead of the text - so the two become one content list rather than two messages.
+    #[serde(default)]
+    pub prepend_block: Option<PrependSpec>,
+    /// Build the canonical tool-call list from an array of the dialect's own calls.
+    ///
+    /// A *typed* constructor for a canonical target, not a general object builder: the shape is
+    /// `{id, type: "function", function: {name, arguments}}` and only the sources are rule data. Arguments
+    /// arrive as a serialised JSON string as often as an object, so parsing them is declared here rather
+    /// than left to whoever reads the payload later.
+    #[serde(default)]
+    pub tool_calls_from: Option<ToolCallsSpec>,
+    /// Build a **single** tool call at a named member, as `{name, arguments}`.
+    ///
+    /// The normaliser already unwraps a `tool_call` member (`sideml/tools.rs`), so this is a canonical
+    /// target like the list above rather than a general object builder.
+    #[serde(default)]
+    pub tool_call_from: Option<SingleToolCallSpec>,
+    /// A condition on the **constructed** message, checked after the envelope is built.
+    ///
+    /// Some shapes can only be judged once assembled: one dialect's tool result is worth keeping if it
+    /// ended up with a name, a call id or content, and the call id may have come from the element or from
+    /// its parent - so the question cannot be asked of either alone.
+    #[serde(default)]
+    pub require_after: PredicateSet,
     /// Wrap the value in a *content block* first, and make that block the message's only content.
     ///
     /// A tool call is not a bare object under a role: it is a `tool_use` block, and the block shape is
@@ -746,8 +786,12 @@ pub struct AttachSpec {
     /// literal `"false"` would attach as a truthy value.
     #[serde(default)]
     pub when_equals: Option<String>,
-    /// The literal to attach instead of the attribute's value, for a flag.
-    #[serde(default)]
+    /// The literal to attach instead of the attribute's value, for a flag - or on its own, for a member
+    /// that is part of the shape rather than something read.
+    ///
+    /// An explicit `null` is a value: a content block declares an unsigned signature that way, and the
+    /// member has to be present rather than omitted.
+    #[serde(default, deserialize_with = "explicit_value")]
     pub value: Option<JsonValue>,
     /// Treat a blank value as absent, so the fallbacks below apply.
     #[serde(default)]
@@ -788,6 +832,13 @@ pub enum EmitTarget {
     #[default]
     Message,
     ToolDefinitions,
+    /// The carrier is claimed and nothing is read from it.
+    ///
+    /// A real shape, not a loophole: one dialect's agent spans aggregate what their children already
+    /// reported, and their `input.value` is a Python `repr` of framework internals. Claiming says "this is
+    /// mine and holds no message", which stops a generic reader from presenting that text as a
+    /// conversation - and saying it in a rule is what keeps the decision out of the code.
+    Claim,
 }
 
 /// One documented shape of a payload: where to look, what to require, and what to carry down.
@@ -816,6 +867,18 @@ pub struct Alternative {
     /// it loses the only record that a response was truncated.
     #[serde(default)]
     pub lift: Vec<String>,
+    /// Members taken from the value this selection came from, inserted only where the element lacks them.
+    ///
+    /// A dialect writes a tool result's call id on the result, and on the message enclosing a batch of
+    /// them when the batch shares one - so the enclosing value is a *fallback*, never an override.
+    #[serde(default)]
+    pub lift_from_parent: Vec<String>,
+    /// A condition on the value this selection came from, rather than on the selected element.
+    ///
+    /// What a batch of tool results *is* is stated on the message enclosing them - its type - while the
+    /// reading is one message per element, so the discriminator and the selection sit at different levels.
+    #[serde(default)]
+    pub require_parent: PredicateSet,
     /// The shape an observation must have to be emitted.
     ///
     /// A predicate set, so "has a role and content", "is an object" and "is a non-empty string" are one
@@ -840,6 +903,19 @@ pub struct Alternative {
     /// the point: one dialect's state object holds its messages in four places and recognises them one way.
     #[serde(default)]
     pub then_fragment: Option<String>,
+    /// What this reading is, where it differs from the rule's own target.
+    ///
+    /// A logged model call carries its conversation and the tools it was offered in one carrier, and they
+    /// are not the same kind of thing - so the target belongs to the reading, not only to the rule.
+    #[serde(default)]
+    pub emit: Option<EmitTarget>,
+    /// Shapes recognised at *this* selection point only, tried after the shared fragment's own cases.
+    ///
+    /// A shared table says what a message looks like in a dialect; a particular place that dialect writes
+    /// messages may accept one shape more loosely than the rest - a bare `{content}` passed through where
+    /// the table would refuse it. Putting that in the table would loosen every other point that reads it.
+    #[serde(default)]
+    pub extra_cases: Vec<Alternative>,
     /// For each selected element, the first of these paths that resolves.
     ///
     /// Per *element*, which is the point: one dialect's tool groups each either wrap their declarations
@@ -1047,6 +1123,10 @@ pub struct ValuePredicate {
     /// A string, array or object must not be empty. Meaningless for other kinds, and refused there.
     #[serde(default)]
     pub non_empty: Option<bool>,
+    /// The value is not JSON null. Distinct from `exists`, which a null member satisfies, and from
+    /// `non_empty`, which is about a string, array or object having contents.
+    #[serde(default)]
+    pub not_null: Option<bool>,
     /// A string must start with this.
     #[serde(default)]
     pub starts_with: Option<String>,
@@ -1214,4 +1294,64 @@ pub struct WalkSpec {
     /// as though they were turns.
     #[serde(default)]
     pub stop_at_match: bool,
+}
+
+/// One tool call at a named member, as the normaliser's `{name, arguments}` convention.
+#[derive(Debug, Deserialize, Clone)]
+#[serde(deny_unknown_fields)]
+pub struct SingleToolCallSpec {
+    pub name: JsonPath,
+    /// The name used when the path resolves to nothing. A call this dialect logged without one still
+    /// happened, so it is reported rather than dropped.
+    #[serde(default)]
+    pub name_default: Option<JsonValue>,
+    pub arguments: JsonPath,
+    /// The member the call becomes. Defaults to `tool_call`.
+    #[serde(default)]
+    pub as_member: Option<String>,
+    /// The value used when `arguments` resolves to nothing.
+    #[serde(default)]
+    pub arguments_default: Option<JsonValue>,
+}
+
+/// A block built from another member of the same value, placed before the content.
+#[derive(Debug, Deserialize, Clone)]
+#[serde(deny_unknown_fields)]
+pub struct PrependSpec {
+    /// Where the block's content is, relative to the value being wrapped. Absent means no block is added,
+    /// which is the ordinary case for a dialect that reports reasoning only sometimes.
+    pub from: JsonPath,
+    /// A condition on the value found there. A dialect writes this member as `null` when there was no
+    /// reasoning, and a null is not a thought.
+    #[serde(default)]
+    pub require: PredicateSet,
+    #[serde(flatten)]
+    pub block: BlockSpec,
+}
+
+/// The canonical tool-call list, built from a dialect's own array of calls.
+#[derive(Debug, Deserialize, Clone)]
+#[serde(deny_unknown_fields)]
+pub struct ToolCallsSpec {
+    /// The array of calls, relative to the value being wrapped.
+    pub select: JsonPath,
+    /// Where each call's id, name and arguments are. A call missing an id or a name is skipped: the id is
+    /// what pairs a result with its call, and a nameless call is unusable downstream.
+    pub id: JsonPath,
+    pub name: JsonPath,
+    pub arguments: JsonPath,
+    /// The member the list becomes. Defaults to `tool_calls`.
+    #[serde(default)]
+    pub as_member: Option<String>,
+}
+
+/// A default whose declared value may itself be `null`.
+///
+/// `Option<JsonValue>` would read an explicit `null` as "no default declared", which is a different
+/// statement from "the default is null".
+fn explicit_value<'de, D>(deserializer: D) -> Result<Option<JsonValue>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    JsonValue::deserialize(deserializer).map(Some)
 }

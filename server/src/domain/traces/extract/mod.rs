@@ -218,6 +218,8 @@ pub(super) mod keys {
     pub const RAW_INPUT: &str = "raw_input";
     pub const RESPONSE: &str = "response";
     pub const SYSTEM_PROMPT: &str = "system_prompt";
+    /// Named only by the AutoGen asset now; kept for the equivalence oracle's reference implementation.
+    #[cfg(test)]
     pub const MESSAGE: &str = "message";
     #[cfg(test)]
     pub const EVENTS: &str = "events";

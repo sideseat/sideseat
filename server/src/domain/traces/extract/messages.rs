@@ -359,6 +359,8 @@ pub(crate) fn try_declared_rules(
             crate::domain::rules::schema::EmitTarget::ToolDefinitions => {
                 tool_definitions.push(RawToolDefinition::from_attr(key, timestamp, emission.value));
             }
+            // The claim itself is the whole effect: the carrier is this dialect's and holds no message.
+            crate::domain::rules::schema::EmitTarget::Claim => {}
         }
     }
     found
@@ -401,10 +403,6 @@ const EXTRACTORS: &[NamedExtractor] = &[
     NamedExtractor {
         name: "declared_rules",
         extractor: try_declared_rules,
-    },
-    NamedExtractor {
-        name: "autogen",
-        extractor: try_autogen,
     },
     // Before raw_io: guarded on span.type, so it only claims Claude Code CLI spans.
     NamedExtractor {
@@ -2556,6 +2554,7 @@ fn extract_langchain_content(msg: &JsonValue) -> Option<JsonValue> {
     None
 }
 
+#[cfg(test)]
 pub(crate) fn try_autogen(
     messages: &mut Vec<RawMessage>,
     tool_definitions: &mut Vec<RawToolDefinition>,
@@ -2740,11 +2739,13 @@ pub(crate) fn try_autogen(
 
 /// AutoGen message types that should be silently skipped (not extracted as messages).
 /// ToolCallSummaryMessage concatenates tool results as Python repr() — duplicate noise.
+#[cfg(test)]
 fn is_autogen_skip_type(msg: &JsonValue) -> bool {
     msg.get("type").and_then(|t| t.as_str()) == Some("ToolCallSummaryMessage")
 }
 
 /// Determine role from AutoGen source field: "user" → "user", anything else → "assistant"
+#[cfg(test)]
 fn autogen_role_from_source(source: Option<&str>) -> &'static str {
     match source {
         Some("user") => "user",
@@ -2753,6 +2754,7 @@ fn autogen_role_from_source(source: Option<&str>) -> &'static str {
 }
 
 /// Convert AutoGen tool call array [{id, name, arguments}] to OpenAI-compatible format.
+#[cfg(test)]
 fn normalize_autogen_tool_calls(tool_calls: &[JsonValue]) -> Vec<JsonValue> {
     tool_calls
         .iter()
@@ -2781,6 +2783,7 @@ fn normalize_autogen_tool_calls(tool_calls: &[JsonValue]) -> Vec<JsonValue> {
 
 /// Convert AutoGen tool result array [{content, name, call_id}] to individual tool messages.
 /// Processes ALL items (not just first). Falls back to parent's call_id when item lacks one.
+#[cfg(test)]
 fn normalize_autogen_tool_results(items: &[JsonValue], parent: &JsonValue) -> Vec<JsonValue> {
     items
         .iter()
@@ -2811,6 +2814,7 @@ fn normalize_autogen_tool_results(items: &[JsonValue], parent: &JsonValue) -> Ve
 
 /// Infer AutoGen message type when the `type` field is missing.
 /// Uses content structure heuristics to determine the message kind.
+#[cfg(test)]
 fn infer_autogen_message_type(msg: &JsonValue) -> Vec<JsonValue> {
     // Already in SideML format (has role) — preserve as-is
     if msg.get("role").is_some() {
@@ -2889,6 +2893,7 @@ fn infer_autogen_message_type(msg: &JsonValue) -> Vec<JsonValue> {
 /// Returns a Vec because some message types (ToolCallExecutionEvent,
 /// FunctionExecutionResultMessage) contain arrays of results that expand
 /// to multiple individual messages.
+#[cfg(test)]
 fn normalize_autogen_message(msg: &JsonValue) -> Vec<JsonValue> {
     let msg_type = match msg.get("type").and_then(|t| t.as_str()) {
         Some(t) => t,
@@ -3051,6 +3056,7 @@ fn normalize_autogen_message(msg: &JsonValue) -> Vec<JsonValue> {
 }
 
 /// Normalize AutoGen LLM response to assistant message
+#[cfg(test)]
 fn normalize_autogen_response(response: &JsonValue) -> Option<JsonValue> {
     // Response may have content directly or in choices
     let content = response

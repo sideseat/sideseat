@@ -6649,6 +6649,296 @@ fn the_rules_reproduce_the_extractors_they_replaced() {
     // A span *name* per case, because a rule may be gated on it - and a gated rule compared under a
     // name it cannot match proves nothing at all.
     let cases: Vec<(&str, HashMap<String, String>)> = vec![
+        // The AutoGen dialect, whose messages are typed objects: one case per type, the four
+        // selection points it writes them at, and its logging channel.
+        // The typed table, one case each.
+        (
+            "autogen process",
+            rule_attrs(&[(
+                "message",
+                r#"{"type": "SystemMessage", "content": "be brief"}"#,
+            )]),
+        ),
+        (
+            "autogen process",
+            rule_attrs(&[(
+                "message",
+                r#"{"type": "UserMessage", "content": "hi", "source": "user"}"#,
+            )]),
+        ),
+        // Reasoning beside the reply becomes a thinking block ahead of it.
+        (
+            "autogen process",
+            rule_attrs(&[(
+                "message",
+                r#"{"type": "AssistantMessage", "content": "ok", "source": "planner", "thought": "thinking it over"}"#,
+            )]),
+        ),
+        // A null thought is not a thought.
+        (
+            "autogen process",
+            rule_attrs(&[(
+                "message",
+                r#"{"type": "AssistantMessage", "content": "ok", "source": "planner", "thought": null}"#,
+            )]),
+        ),
+        (
+            "autogen process",
+            rule_attrs(&[(
+                "message",
+                r#"{"type": "AssistantMessage", "content": "ok"}"#,
+            )]),
+        ),
+        // `source` names the speaker, so anything but the user is the assistant.
+        (
+            "autogen process",
+            rule_attrs(&[(
+                "message",
+                r#"{"type": "TextMessage", "content": "hello", "source": "user"}"#,
+            )]),
+        ),
+        (
+            "autogen process",
+            rule_attrs(&[(
+                "message",
+                r#"{"type": "TextMessage", "content": "hello", "source": "planner"}"#,
+            )]),
+        ),
+        (
+            "autogen process",
+            rule_attrs(&[("message", r#"{"type": "TextMessage", "content": "hello"}"#)]),
+        ),
+        (
+            "autogen process",
+            rule_attrs(&[(
+                "message",
+                r#"{"type": "MultiModalMessage", "content": [{"type": "text", "text": "see"}], "source": "critic"}"#,
+            )]),
+        ),
+        (
+            "autogen process",
+            rule_attrs(&[(
+                "message",
+                r#"{"type": "StopMessage", "content": "done", "source": "user"}"#,
+            )]),
+        ),
+        (
+            "autogen process",
+            rule_attrs(&[(
+                "message",
+                r#"{"type": "HandoffMessage", "content": "over to you", "source": "planner"}"#,
+            )]),
+        ),
+        // A non-string speaker names nobody.
+        (
+            "autogen process",
+            rule_attrs(&[(
+                "message",
+                r#"{"type": "HandoffMessage", "content": "over to you", "source": {"not": "a string"}}"#,
+            )]),
+        ),
+        (
+            "autogen process",
+            rule_attrs(&[(
+                "message",
+                r#"{"type": "ThoughtEvent", "content": "pondering"}"#,
+            )]),
+        ),
+        // An empty thought is not one.
+        (
+            "autogen process",
+            rule_attrs(&[("message", r#"{"type": "ThoughtEvent", "content": ""}"#)]),
+        ),
+        // Arguments arrive as serialised JSON as often as an object.
+        (
+            "autogen process",
+            rule_attrs(&[(
+                "message",
+                r#"{"type": "ToolCallRequestEvent", "source": "planner", "content": [{"id": "c1", "name": "search", "arguments": "{\"q\":\"x\"}"}]}"#,
+            )]),
+        ),
+        (
+            "autogen process",
+            rule_attrs(&[(
+                "message",
+                r#"{"type": "ToolCallRequestEvent", "content": [{"id": "c1", "name": "search", "arguments": {"q": "x"}}]}"#,
+            )]),
+        ),
+        // A call with no id pairs with nothing, so the reading finds none.
+        (
+            "autogen process",
+            rule_attrs(&[(
+                "message",
+                r#"{"type": "ToolCallRequestEvent", "content": [{"name": "nameless"}]}"#,
+            )]),
+        ),
+        (
+            "autogen process",
+            rule_attrs(&[(
+                "message",
+                r#"{"type": "ToolCallExecutionEvent", "content": [{"call_id": "c1", "name": "search", "content": "found"}]}"#,
+            )]),
+        ),
+        // The batch's call id is a fallback for a result that carries none.
+        (
+            "autogen process",
+            rule_attrs(&[(
+                "message",
+                r#"{"type": "FunctionExecutionResultMessage", "call_id": "c9", "content": [{"name": "search", "content": "found"}, {"content": "second"}]}"#,
+            )]),
+        ),
+        // A result with nothing in it at all.
+        (
+            "autogen process",
+            rule_attrs(&[(
+                "message",
+                r#"{"type": "ToolCallExecutionEvent", "content": [{}]}"#,
+            )]),
+        ),
+        // Claimed and read for nothing: the results are already reported individually.
+        (
+            "autogen process",
+            rule_attrs(&[(
+                "message",
+                r#"{"type": "ToolCallSummaryMessage", "content": "repr noise"}"#,
+            )]),
+        ),
+        // A type the table does not know still carries a message.
+        (
+            "autogen process",
+            rule_attrs(&[(
+                "message",
+                r#"{"type": "SomethingNew", "content": "unknown but usable"}"#,
+            )]),
+        ),
+        // ...and one that does not carries none.
+        (
+            "autogen process",
+            rule_attrs(&[("message", r#"{"type": "SomethingNew", "source": "x"}"#)]),
+        ),
+        // A list, including shapes the table refuses that this point still reads.
+        (
+            "autogen process",
+            rule_attrs(&[(
+                "message",
+                r#"{"messages": [{"type": "TextMessage", "content": "a", "source": "user"}, {"content": ""}, {"content": "loose"}], "output_task_messages": true}"#,
+            )]),
+        ),
+        (
+            "autogen process",
+            rule_attrs(&[(
+                "message",
+                r#"{"message": {"type": "ToolCallRequestEvent", "content": [{"id": "c2", "name": "t", "arguments": {}}]}}"#,
+            )]),
+        ),
+        (
+            "autogen process",
+            rule_attrs(&[("message", r#"{"message": {"content": "loose"}}"#)]),
+        ),
+        // A response carries its reply *and* the turns that produced it.
+        (
+            "autogen process",
+            rule_attrs(&[(
+                "message",
+                r#"{"response": {"chat_message": {"type": "TextMessage", "content": "final", "source": "planner"}, "inner_messages": [{"type": "ThoughtEvent", "content": "first"}]}}"#,
+            )]),
+        ),
+        // Untyped, recognised by shape.
+        (
+            "autogen process",
+            rule_attrs(&[("message", r#"{"content": "hi", "source": "planner"}"#)]),
+        ),
+        (
+            "autogen process",
+            rule_attrs(&[("message", r#"{"content": "hi", "source": "user"}"#)]),
+        ),
+        (
+            "autogen process",
+            rule_attrs(&[(
+                "message",
+                r#"{"role": "user", "content": "already a message"}"#,
+            )]),
+        ),
+        (
+            "autogen process",
+            rule_attrs(&[(
+                "message",
+                r#"{"content": [{"id": "c3", "name": "t", "arguments": {}}], "source": "planner"}"#,
+            )]),
+        ),
+        (
+            "autogen process",
+            rule_attrs(&[(
+                "message",
+                r#"{"content": [{"call_id": "c4", "content": "r"}]}"#,
+            )]),
+        ),
+        (
+            "autogen process",
+            rule_attrs(&[("message", r#"{"content": [{"name": "t", "content": "r"}]}"#)]),
+        ),
+        // Untyped and empty: nothing to read.
+        (
+            "autogen process",
+            rule_attrs(&[("message", r#"{"content": ""}"#)]),
+        ),
+        // The two sentinels the carrier uses for absence.
+        (
+            "autogen process",
+            rule_attrs(&[("message", r#"No Message"#)]),
+        ),
+        ("autogen process", rule_attrs(&[("message", r#"{}"#)])),
+        ("autogen process", rule_attrs(&[("message", r#"not json"#)])),
+        // An aggregate span's input: framework internals, claimed and read for nothing.
+        (
+            "autogen process",
+            rule_attrs(&[("input.value", r#"{"cancellation_token":"tok"}"#)]),
+        ),
+        (
+            "autogen process",
+            rule_attrs(&[("input.value", r#"{"output_task_messages":true}"#)]),
+        ),
+        // ...and one that is not, which this dialect does not claim.
+        (
+            "autogen process",
+            rule_attrs(&[("input.value", r#"{"other":1}"#)]),
+        ),
+        // The logging channel: one carrier holds the conversation, the reply and the tools.
+        (
+            "autogen process",
+            rule_attrs(&[(
+                "body",
+                r#"{"type": "LLMCall", "messages": [{"role": "user", "content": "q"}, {"content": ""}], "response": {"content": "a", "tool_calls": [{"id": "c5", "type": "function", "function": {"name": "t", "arguments": {}}}]}, "tools": [{"name": "t"}]}"#,
+            )]),
+        ),
+        // The reply in an OpenAI-shaped choice, with an empty call list that is not one.
+        (
+            "autogen process",
+            rule_attrs(&[(
+                "log.body",
+                r#"{"type": "LLMStreamEnd", "messages": [{"role": "user", "content": "q"}], "response": {"choices": [{"message": {"content": "a", "tool_calls": []}}]}}"#,
+            )]),
+        ),
+        (
+            "autogen process",
+            rule_attrs(&[(
+                "autogen.event",
+                r#"{"type": "ToolCall", "tool_name": "search", "arguments": {"q": "x"}, "result": "found"}"#,
+            )]),
+        ),
+        // A tool execution with nothing recorded but its type.
+        (
+            "autogen process",
+            rule_attrs(&[("autogen.event", r#"{"type": "ToolCall"}"#)]),
+        ),
+        // An event of another type: the gate is the type, so nothing is read.
+        (
+            "autogen process",
+            rule_attrs(&[(
+                "body",
+                r#"{"type": "Unrelated", "messages": [{"role": "user", "content": "q"}]}"#,
+            )]),
+        ),
         (
             "span",
             rule_attrs(&[("traceloop.entity.input", r#"{"a":1}"#)]),
@@ -7581,6 +7871,7 @@ fn the_rules_reproduce_the_extractors_they_replaced() {
             try_logfire_events,
             try_google_adk,
             try_langgraph,
+            try_autogen,
         ] {
             if is_tool_span {
                 continue;
@@ -7677,9 +7968,9 @@ fn declared_message_rules_cover_what_they_claim() {
     let plan = &ruleset().messages;
     assert_eq!(
         plan.rule_count(),
-        40,
-        "the assets declare {} message rules. Thirteen framework extractors are consolidated into the \
-         one generic entry, leaving `openinference`, `autogen`, the generic `raw_io` fallback and that \
+        45,
+        "the assets declare {} message rules. Fourteen framework extractors are consolidated into the \
+         one generic entry, leaving `openinference`, the generic `raw_io` fallback and that \
          entry - and a dialect moves whole or not at all, so there are no part-migrated carriers to count",
         plan.rule_count()
     );

@@ -326,17 +326,38 @@ bless a regression; an oracle cannot.
 5. Feed source / event / replay / ordering-family tables.
 6. Content and tool normalisation, with explicit named-chain precedence.
 7. Reconcile the three provider namespaces, then token / cost / model conventions.
-8. 🔶 **Message extraction** — in progress. Nine of sixteen extractor entries retired,
-   each proved by an oracle and moved **wholesale** (see the constraint below), with 34
+8. 🔶 **Message extraction** — in progress. Fourteen of sixteen extractor entries retired,
+   each proved by an oracle and moved **wholesale** (see the constraint below), with 45
    message rules declared:
 
-   | Retired | Still in Rust, and what each needs |
+   | Retired | Still in Rust, and what it needs |
    | --- | --- |
-   | `mlflow`, `traceloop`, `pydantic_ai` | `openinference` — its indexed families feed a multimodal enrichment that rebuilds content blocks from a serialised `input.value` and operates on the messages that extractor produced |
-   | `langsmith`, `gen_ai_indexed`, `livekit` | `logfire_events` — an event-array grouping, typed member conditions, and a cross-rule fallback |
-   | `otel_genai_messages`, `vercel_ai` | `google_adk` — Gemini `contents`/`parts` in both camelCase and snake_case |
-   | `claude_code` | `langgraph` — a bounded state-tree walk and a LangChain type-discriminator table |
-   | (plus two carriers out of `openinference`) | `autogen` — roughly thirteen message types; `crewai` — a Python-`repr` grammar |
+   | `mlflow`, `traceloop`, `pydantic_ai`, `langsmith` | `openinference` — its indexed families feed a multimodal enrichment that rebuilds content blocks from a serialised `input.value` and operates on the messages that extractor produced. Codex's ruling stands: that enrichment becomes a pure query-time `join_by_index` / `overlay_if` **before** the carriers move, because a rule cannot read what a previous rule emitted |
+   | `gen_ai_indexed`, `livekit`, `otel_genai_messages` | `crewai`'s Python-`repr` tool-definition grammar — separate always-on code rather than an extractor entry, and a sealed generic primitive with its type mapping in data |
+   | `vercel_ai`, `claude_code`, `logfire_events` | |
+   | `google_adk`, `langgraph`, `crewai`, `autogen` | |
+
+   AutoGen was the largest and shaped seven primitives, each named for a fact about a
+   carrier rather than for the framework: a **claim** target (an aggregate span's
+   `input.value` is a Python `repr` of framework internals, so the rule says "mine, and
+   holds no message"); `prepend_block` (reasoning in a sibling member becomes a thinking
+   block ahead of the reply, one turn rather than two); a canonical `tool_calls_from` and
+   singular `tool_call_from` constructor (both are canonical SideML targets, and only the
+   sources are data); `lift_from_parent` and `require_parent` (a batch of tool results
+   states its type and its shared call id on the message *enclosing* them, while the
+   reading is one message per element — the discriminator and the selection sit at
+   different levels); a closed `role_map` (`source: "planner"` names a *speaker*, so which
+   of the two a member is has to be declared); and `extra_cases` (a shared table says what
+   a message looks like; one place that dialect writes them accepts one shape more loosely,
+   and putting that in the table would loosen every other reader).
+
+   Two validations were relaxed, each with the shape that forced it recorded in the code:
+   `alternatives` and `also` may now coexist (a response member holds the reply *and* the
+   inner turns that produced it — "which shape is this" and "read this as well, always" are
+   different questions, and refusing the pair pushed one carrier into two rules, which the
+   ownership check rightly refuses); and a reading may name its own `emit` target (a logged
+   model call carries its conversation and the tools it was offered in one carrier, and
+   those are not the same kind of thing).
 
    **An extractor moves wholesale or not at all**, learned by breaking it: migrating
    Vercel's prompt and tool call while leaving its response gave those spans *two*

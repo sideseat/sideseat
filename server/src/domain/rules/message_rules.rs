@@ -37,8 +37,12 @@ use super::detect_rules::CompiledDetect;
 use super::schema::{
     Alternative, AttachSpec, BlockSpec, ComposeMember, ComposeSpec, ElementsSpec, EmitTarget,
     MemberPresence, MemberRequirements, MessageRule, ParseMode, PredicateSet, ReadSpec, RuleFile,
-    SectionsSpec, ValueKind, ValuePredicate, WrapSpec,
+    SectionsSpec, SingleToolCallSpec, ToolCallsSpec, ValueKind, ValuePredicate, WrapSpec,
 };
+
+/// One reading of a payload: the value, an envelope for this reading alone, and its target where it
+/// differs from the rule's.
+type Reading = (JsonValue, Option<WrapSpec>, Option<EmitTarget>);
 
 /// What an ingestion knows when it asks which carriers to read.
 #[derive(Debug, Clone, Copy)]
@@ -320,6 +324,7 @@ fn compile_rule(
             if predicate.exists == Some(false)
                 && (predicate.kind.is_some()
                     || predicate.non_empty.is_some()
+                    || predicate.not_null.is_some()
                     || predicate.starts_with.is_some()
                     || predicate.lacks_prefix.is_some())
             {
@@ -339,12 +344,10 @@ fn compile_rule(
             return Err(inexpressible(detail));
         }
     }
-    if !alternatives.is_empty() && !also.is_empty() {
-        return Err(inexpressible(
-            "`alternatives` means the first reading that yields wins and `also` means every one \
-                 contributes; one list cannot be both",
-        ));
-    }
+    // `alternatives` and `also` may coexist: the first list is the ordered question "which shape is
+    // this", the second is "and read this as well, always". One carrier really does need both - a dialect's
+    // response member holds the reply *and* the inner turns that produced it - and refusing the pair forced
+    // that into two rules claiming one carrier, which the ownership check rightly refuses.
     if let Some(sections) = sections {
         for route in &sections.routes {
             if let Some(detail) = check_predicates(&route.skip_when) {
@@ -833,10 +836,7 @@ fn parse_value(raw: &str, mode: ParseMode) -> Option<JsonValue> {
 /// The distinction between "first wins" and "all contribute" is not stylistic. One dialect writes a turn's
 /// history under one member and the answer itself under another, so reading them as alternatives dropped
 /// the assistant output of every run that carried history.
-fn all_readings(
-    parsed: &JsonValue,
-    rule: &CompiledMessageRule,
-) -> Vec<(JsonValue, Option<WrapSpec>)> {
+fn all_readings(parsed: &JsonValue, rule: &CompiledMessageRule) -> Vec<Reading> {
     let mut out = Vec::new();
     if !rule.alternatives.is_empty() {
         out.extend(readings(parsed, &rule.alternatives));
@@ -847,7 +847,7 @@ fn all_readings(
     if out.is_empty() {
         if rule.alternatives.is_empty() && rule.also.is_empty() && rule.fallback.is_empty() {
             // No readings declared at all: the payload is the observation.
-            return vec![(parsed.clone(), None)];
+            return vec![(parsed.clone(), None, None)];
         }
         for alternative in &rule.fallback {
             out.extend(readings(parsed, std::slice::from_ref(alternative)));
@@ -875,15 +875,17 @@ fn query<'v>(value: &'v JsonValue, path: &serde_json_path::JsonPath) -> Vec<&'v 
 /// which is what a carrier holding exactly one message needs. "The first that produces any" is the whole
 /// control flow, and it is deliberately all there is: a shape that yields nothing is not an error, it is
 /// evidence the payload is in a different one of its documented forms.
-fn readings(
-    parsed: &JsonValue,
-    alternatives: &[CompiledReading],
-) -> Vec<(JsonValue, Option<WrapSpec>)> {
+fn readings(parsed: &JsonValue, alternatives: &[CompiledReading]) -> Vec<Reading> {
     if alternatives.is_empty() {
-        return vec![(parsed.clone(), None)];
+        return vec![(parsed.clone(), None, None)];
     }
     for reading in alternatives {
         let alternative = &reading.spec;
+        // Asked of the enclosing value, before anything is selected out of it: the discriminator for a
+        // batch of results is the type of the message holding them.
+        if !predicates_hold(parsed, &alternative.require_parent) {
+            continue;
+        }
         let selected: Vec<&JsonValue> = match &alternative.select {
             Some(path) => query(parsed, path),
             None => vec![parsed],
@@ -945,7 +947,24 @@ fn readings(
                         }
                         carried
                     }
-                    None => element.clone(),
+                    None => {
+                        let mut candidate = element.clone();
+                        // The enclosing value as a fallback: inserted only where the element is silent, so
+                        // a result that carries its own call id keeps it.
+                        if !alternative.lift_from_parent.is_empty()
+                            && let Some(object) = candidate.as_object_mut()
+                        {
+                            for lifted in &alternative.lift_from_parent {
+                                if object.contains_key(lifted.as_str()) {
+                                    continue;
+                                }
+                                if let Some(value) = parsed.get(lifted.as_str()) {
+                                    object.insert(lifted.clone(), value.clone());
+                                }
+                            }
+                        }
+                        candidate
+                    }
                 };
                 // Trim declared per reading, because trimming a payload meant to be verbatim would change it.
                 let candidate = match (alternative.trim, candidate.as_str()) {
@@ -970,7 +989,7 @@ fn readings(
                     produced.extend(readings(&candidate, &cases));
                     continue;
                 }
-                produced.push((candidate, alternative.wrap.clone()));
+                produced.push((candidate, alternative.wrap.clone(), alternative.emit));
             }
         }
         if !produced.is_empty() {
@@ -1110,7 +1129,7 @@ fn wrapped(
     wrap: &WrapSpec,
     ctx: &MessageContext<'_>,
     payload: Option<&JsonValue>,
-) -> JsonValue {
+) -> Option<JsonValue> {
     // The reading as it arrived, before a content member was selected out of it: an attachment may name a
     // sibling of the content, which is gone once the content replaces the value.
     let subject = value.clone();
@@ -1122,11 +1141,11 @@ fn wrapped(
         .as_ref()
         .and_then(|path| query(&value, path).into_iter().next())
         .and_then(JsonValue::as_str)
-        .map(|found| {
-            wrap.role_map
-                .get(found)
-                .cloned()
-                .unwrap_or_else(|| found.to_string())
+        .and_then(|found| match wrap.role_map.get(found) {
+            Some(mapped) => Some(mapped.clone()),
+            // Closed: the member names a speaker rather than a role, so an unlisted value is not one.
+            None if wrap.role_map_is_closed => None,
+            None => Some(found.to_string()),
         })
         .or_else(|| wrap.role.clone());
     let content_paths: Vec<&serde_json_path::JsonPath> = wrap
@@ -1145,11 +1164,38 @@ fn wrapped(
             .find_map(|path| query(&value, path).into_iter().next())
         {
             Some(found) => found.clone(),
-            None => return JsonValue::Null,
+            None => match &wrap.content_default {
+                Some(default) => default.clone(),
+                None => return None,
+            },
         }
     };
     let value = match &wrap.block {
         Some(block) => JsonValue::Array(vec![built_block(value, block, ctx, payload, subject)]),
+        None => value,
+    };
+    // A block built from another member, placed before the content: one dialect reports a model's reasoning
+    // beside its reply, and the canonical form is a thinking block ahead of the text.
+    let value = match &wrap.prepend_block {
+        Some(spec) => {
+            match subject
+                .and_then(|s| query(s, &spec.from).into_iter().next())
+                .filter(|found| predicates_hold(found, &spec.require))
+            {
+                Some(found) => {
+                    let prefix = built_block(found.clone(), &spec.block, ctx, payload, subject);
+                    match value {
+                        JsonValue::Array(items) => {
+                            let mut all = vec![prefix];
+                            all.extend(items);
+                            JsonValue::Array(all)
+                        }
+                        other => JsonValue::Array(vec![prefix, other]),
+                    }
+                }
+                None => value,
+            }
+        }
         None => value,
     };
     let mut object = serde_json::Map::new();
@@ -1167,13 +1213,87 @@ fn wrapped(
             object.insert(attach.as_member.clone(), attached);
         }
     }
-    object.insert(content_member.to_string(), value);
+    // The canonical tool-call list replaces the content: a message that carries calls carries no text, and
+    // an empty list means the reading found nothing usable, which `require_after` is what refuses.
+    match &wrap.tool_calls_from {
+        Some(spec) => {
+            let member = spec.as_member.as_deref().unwrap_or("tool_calls");
+            object.insert(
+                member.to_string(),
+                JsonValue::Array(canonical_tool_calls(subject, spec)),
+            );
+        }
+        None => {
+            object.insert(content_member.to_string(), value);
+        }
+    }
+    if let Some(spec) = &wrap.tool_call_from
+        && let Some(call) = single_tool_call(subject, spec)
+    {
+        object.insert(
+            spec.as_member.as_deref().unwrap_or("tool_call").to_string(),
+            call,
+        );
+    }
     for attach in wrap.attach.iter().filter(|a| a.after_content) {
         if let Some(attached) = attached_value(attach, ctx, payload, subject) {
             object.insert(attach.as_member.clone(), attached);
         }
     }
-    JsonValue::Object(object)
+    let message = JsonValue::Object(object);
+    // Some shapes can only be judged once assembled - a tool result is worth keeping if it ended up with a
+    // name, a call id or content, and the call id may have come from the element or from its parent.
+    if !predicates_hold(&message, &wrap.require_after) {
+        return None;
+    }
+    Some(message)
+}
+
+/// One tool call as `{name, arguments}`, the convention `sideml/tools.rs` unwraps.
+fn single_tool_call(subject: Option<&JsonValue>, spec: &SingleToolCallSpec) -> Option<JsonValue> {
+    let subject = subject?;
+    let name = query(subject, &spec.name)
+        .into_iter()
+        .next()
+        .cloned()
+        .or_else(|| spec.name_default.clone())?;
+    let arguments = query(subject, &spec.arguments)
+        .into_iter()
+        .next()
+        .cloned()
+        .or_else(|| spec.arguments_default.clone())
+        .unwrap_or(json!({}));
+    Some(json!({"name": name, "arguments": arguments}))
+}
+
+/// The canonical tool-call list: `{id, type: "function", function: {name, arguments}}` per call.
+///
+/// A call with no id or no name is dropped - the id is what pairs a result with its call, and a nameless
+/// call names nothing to run. Arguments arrive as a serialised JSON string as often as an object, and are
+/// parsed here so nothing downstream has to know that one member is encoded twice.
+fn canonical_tool_calls(subject: Option<&JsonValue>, spec: &ToolCallsSpec) -> Vec<JsonValue> {
+    let Some(subject) = subject else {
+        return Vec::new();
+    };
+    query(subject, &spec.select)
+        .into_iter()
+        .filter_map(|call| {
+            let id = query(call, &spec.id).into_iter().next()?.as_str()?;
+            let name = query(call, &spec.name).into_iter().next()?.as_str()?;
+            let arguments = match query(call, &spec.arguments).into_iter().next() {
+                Some(found) => match found.as_str() {
+                    Some(text) => serde_json::from_str(text).unwrap_or(json!(text)),
+                    None => found.clone(),
+                },
+                None => json!({}),
+            };
+            Some(json!({
+                "id": id,
+                "type": "function",
+                "function": {"name": name, "arguments": arguments},
+            }))
+        })
+        .collect()
 }
 
 /// The block a rule builds around its read value.
@@ -1210,6 +1330,11 @@ fn attached_value(
     payload: Option<&JsonValue>,
     subject: Option<&JsonValue>,
 ) -> Option<JsonValue> {
+    // A literal on its own, naming no source: the member is part of the shape rather than something read.
+    // A content block's unsigned `signature` is exactly this, and its value is `null`.
+    if attach.from.is_none() && attach.from_value_any_of.is_empty() && attach.from_path.is_none() {
+        return attach.value.clone();
+    }
     // Ordered paths into the value being wrapped, for a member that may sit at the top level or under the
     // wrapper a serialiser added.
     if !attach.from_value_any_of.is_empty() {
@@ -1218,11 +1343,24 @@ fn attached_value(
                 .from_value_any_of
                 .iter()
                 .find_map(|path| query(subject, path).into_iter().next())
-        })?;
-        if !predicates_hold(found, &attach.require) {
-            return None;
+        });
+        if let Some(found) = found {
+            if !predicates_hold(found, &attach.require) {
+                return None;
+            }
+            let value = match attach.parse {
+                Some(mode) => match found.as_str() {
+                    // A member holding serialised JSON: parsed here, because leaving it a string means
+                    // whoever reads it later has to know that this one member is encoded twice.
+                    Some(text) => parse_value(text, mode)?,
+                    None => found.clone(),
+                },
+                None => found.clone(),
+            };
+            return Some(value);
         }
-        return Some(found.clone());
+        // Nothing in the value: fall through to the payload path below, which is how "the element's own, else
+        // its parent's" is one member rather than two that overwrite each other.
     }
     // A member of the rule's own payload, where the dialect reports it beside the content rather than
     // inside it.
@@ -1531,20 +1669,23 @@ fn emit_rule<'p>(rule: &'p CompiledMessageRule, ctx: &MessageContext<'_>) -> Vec
             rule_id: &rule.rule_id,
             carrier: EmittedCarrier::Attribute(rule.tag_as.as_deref().unwrap_or(attribute)),
             target: rule.target,
-            value: JsonValue::Array(readings.into_iter().map(|(value, _)| value).collect()),
+            value: JsonValue::Array(readings.into_iter().map(|(value, _, _)| value).collect()),
         });
         return out;
     }
-    for (value, per_reading_wrap) in readings {
+    for (value, per_reading_wrap, per_reading_target) in readings {
         let wrap = per_reading_wrap.or(rule.wrap.clone());
         let value = match &wrap {
-            Some(wrap) => wrapped(value, wrap, ctx, Some(&parsed)),
+            Some(wrap) => match wrapped(value, wrap, ctx, Some(&parsed)) {
+                Some(wrapped) => wrapped,
+                None => continue,
+            },
             None => value,
         };
         out.push(Emission {
             rule_id: &rule.rule_id,
             carrier: EmittedCarrier::Attribute(rule.tag_as.as_deref().unwrap_or(attribute)),
-            target: rule.target,
+            target: per_reading_target.unwrap_or(rule.target),
             value,
         });
     }
@@ -1566,6 +1707,7 @@ fn predicate_holds(value: &JsonValue, predicate: &ValuePredicate) -> bool {
                 && predicate.exists.is_none()
                 && predicate.kind.is_none()
                 && predicate.non_empty.is_none()
+                && predicate.not_null.is_none()
                 && predicate.starts_with.is_none()
                 && predicate.lacks_prefix.is_none()
                 && predicate.one_of.is_empty());
@@ -1575,6 +1717,11 @@ fn predicate_holds(value: &JsonValue, predicate: &ValuePredicate) -> bool {
     }
     if let Some(kind) = predicate.kind
         && !matches_kind(subject, kind)
+    {
+        return false;
+    }
+    if let Some(want_not_null) = predicate.not_null
+        && subject.is_null() == want_not_null
     {
         return false;
     }
@@ -1730,7 +1877,7 @@ fn inline_fragments(
     readings
         .iter()
         .map(|spec| {
-            let fragment_cases = match &spec.then_fragment {
+            let mut fragment_cases = match &spec.then_fragment {
                 Some(name) => match fragments.get(name) {
                     Some(cases) => cases.clone(),
                     None => {
@@ -1741,6 +1888,9 @@ fn inline_fragments(
                 },
                 None => Vec::new(),
             };
+            // After the shared table, never before: the table is the dialect's own answer and this is one
+            // place that accepts one more shape.
+            fragment_cases.extend(spec.extra_cases.iter().cloned());
             Ok(CompiledReading {
                 spec: spec.clone(),
                 fragment_cases,
@@ -1758,7 +1908,7 @@ fn walked_readings(
     root: &JsonValue,
     rule: &CompiledMessageRule,
     walk: &super::schema::WalkSpec,
-) -> Vec<(JsonValue, Option<WrapSpec>)> {
+) -> Vec<Reading> {
     let mut out = Vec::new();
     let mut stack = vec![(root, walk.max_depth)];
     while let Some((node, depth)) = stack.pop() {

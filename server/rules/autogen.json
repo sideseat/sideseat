@@ -1,6 +1,6 @@
 {
   "id": "autogen",
-  "doc": "The AutoGen dialect.",
+  "doc": "The AutoGen dialect. Its messages arrive as typed objects - a type name per shape - which is why the table below is a fragment: the same vocabulary is written at five different selection points.",
   "carriers": [],
   "detect": [
     {
@@ -30,5 +30,1163 @@
       "slug": "autogen",
       "label": "AutoGen"
     }
-  ]
+  ],
+  "messages": [
+    {
+      "id": "autogen.aggregate_input",
+      "doc": "An agent span's `input.value` holds a Python `repr` of framework internals - a cancellation token, a flag - rather than a conversation; the messages come from its children. Claimed so a generic reader does not present that text as one, and read for nothing.",
+      "read": {
+        "attribute": "input.value"
+      },
+      "parse": "json",
+      "emit": "claim",
+      "legacy_rank": 1600,
+      "alternatives": [
+        {
+          "doc": "Read for nothing; the claim is the whole effect.",
+          "require": {
+            "any": [
+              {
+                "path": "$.cancellation_token",
+                "exists": true
+              },
+              {
+                "path": "$.output_task_messages",
+                "exists": true
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "autogen.message",
+      "doc": "The dialect's message carrier. It holds a typed message, a list of them, one nested under `message`, or a response with its reply and the inner turns that produced it - so the shapes are ordered and the first that fits is read.",
+      "read": {
+        "attribute": "message"
+      },
+      "parse": "json",
+      "unless": {
+        "attr_equals": [
+          {
+            "key": "message",
+            "value": "No Message"
+          },
+          {
+            "key": "message",
+            "value": "{}"
+          }
+        ]
+      },
+      "alternatives": [
+        {
+          "doc": "The attribute is the message.",
+          "then_fragment": "autogen.message"
+        },
+        {
+          "doc": "A list of them.",
+          "select": "$.messages",
+          "each": true,
+          "then_fragment": "autogen.message",
+          "extra_cases": [
+            {
+              "doc": "A shape the table refused that still carries content - read here rather than dropped.",
+              "require": {
+                "all": [
+                  {
+                    "path": "$.content",
+                    "exists": true
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "doc": "One nested under `message`.",
+          "select": "$.message",
+          "then_fragment": "autogen.message",
+          "extra_cases": [
+            {
+              "doc": "A shape the table refused that still carries content - read here rather than dropped.",
+              "require": {
+                "all": [
+                  {
+                    "path": "$.content",
+                    "exists": true
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "doc": "A response's own reply.",
+          "select": "$.response.chat_message",
+          "then_fragment": "autogen.message"
+        },
+        {
+          "doc": "Neither, but message-shaped.",
+          "require": {
+            "all": [
+              {
+                "kind": "object"
+              }
+            ],
+            "any": [
+              {
+                "path": "$.content",
+                "exists": true
+              },
+              {
+                "path": "$.role",
+                "exists": true
+              }
+            ]
+          }
+        }
+      ],
+      "legacy_rank": 1610,
+      "also": [
+        {
+          "doc": "The turns inside a response, after its reply. Additive rather than ordered: a response carries both.",
+          "select": "$.response.inner_messages",
+          "each": true,
+          "then_fragment": "autogen.message"
+        }
+      ]
+    },
+    {
+      "id": "autogen.body",
+      "doc": "The dialect's own logging channel. One carrier holds a model call - the conversation it was given, its reply and the tools it was offered - or a single tool execution, so the readings are additive and each says what it is.",
+      "read": {
+        "attribute": "body"
+      },
+      "parse": "json",
+      "also": [
+        {
+          "require": {},
+          "select": "$.messages",
+          "each": true,
+          "then_fragment": "autogen.message",
+          "extra_cases": [
+            {
+              "doc": "A shape the table refused that carries a role or content.",
+              "require": {
+                "any": [
+                  {
+                    "path": "$.role",
+                    "exists": true
+                  },
+                  {
+                    "path": "$.content",
+                    "exists": true
+                  }
+                ]
+              }
+            }
+          ],
+          "require_parent": {
+            "all": [
+              {
+                "path": "$.type",
+                "one_of": [
+                  "LLMCall",
+                  "LLMStreamEnd"
+                ]
+              },
+              {
+                "path": "$.messages",
+                "exists": true
+              }
+            ]
+          }
+        },
+        {
+          "require": {},
+          "select": "$.response",
+          "wrap": {
+            "role": "assistant",
+            "content_from_any_of": [
+              "$.content",
+              "$.choices[0].message.content"
+            ],
+            "attach": [
+              {
+                "after_content": true,
+                "from_value_any_of": [
+                  "$.tool_calls",
+                  "$.choices[0].message.tool_calls"
+                ],
+                "require": {
+                  "all": [
+                    {
+                      "non_empty": true
+                    }
+                  ]
+                },
+                "as": "tool_calls"
+              }
+            ]
+          },
+          "require_parent": {
+            "all": [
+              {
+                "path": "$.type",
+                "one_of": [
+                  "LLMCall",
+                  "LLMStreamEnd"
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "require": {},
+          "select": "$.tools",
+          "emit": "tool_definitions",
+          "doc": "The tools the call was offered. A set, not a sequence of turns.",
+          "require_parent": {
+            "all": [
+              {
+                "path": "$.type",
+                "one_of": [
+                  "LLMCall",
+                  "LLMStreamEnd"
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "require": {
+            "all": [
+              {
+                "path": "$.type",
+                "one_of": [
+                  "ToolCall"
+                ]
+              }
+            ]
+          },
+          "wrap": {
+            "role": "tool",
+            "content_from": "$.result",
+            "content_default": null,
+            "attach": [
+              {
+                "from_value_any_of": [
+                  "$.tool_name"
+                ],
+                "default": "unknown",
+                "as": "name"
+              }
+            ],
+            "tool_call_from": {
+              "name": "$.tool_name",
+              "arguments": "$.arguments",
+              "arguments_default": {},
+              "name_default": "unknown"
+            }
+          }
+        }
+      ],
+      "legacy_rank": 1620
+    },
+    {
+      "id": "autogen.log_body",
+      "doc": "The dialect's own logging channel. One carrier holds a model call - the conversation it was given, its reply and the tools it was offered - or a single tool execution, so the readings are additive and each says what it is.",
+      "read": {
+        "attribute": "log.body"
+      },
+      "parse": "json",
+      "also": [
+        {
+          "require": {},
+          "select": "$.messages",
+          "each": true,
+          "then_fragment": "autogen.message",
+          "extra_cases": [
+            {
+              "doc": "A shape the table refused that carries a role or content.",
+              "require": {
+                "any": [
+                  {
+                    "path": "$.role",
+                    "exists": true
+                  },
+                  {
+                    "path": "$.content",
+                    "exists": true
+                  }
+                ]
+              }
+            }
+          ],
+          "require_parent": {
+            "all": [
+              {
+                "path": "$.type",
+                "one_of": [
+                  "LLMCall",
+                  "LLMStreamEnd"
+                ]
+              },
+              {
+                "path": "$.messages",
+                "exists": true
+              }
+            ]
+          }
+        },
+        {
+          "require": {},
+          "select": "$.response",
+          "wrap": {
+            "role": "assistant",
+            "content_from_any_of": [
+              "$.content",
+              "$.choices[0].message.content"
+            ],
+            "attach": [
+              {
+                "after_content": true,
+                "from_value_any_of": [
+                  "$.tool_calls",
+                  "$.choices[0].message.tool_calls"
+                ],
+                "require": {
+                  "all": [
+                    {
+                      "non_empty": true
+                    }
+                  ]
+                },
+                "as": "tool_calls"
+              }
+            ]
+          },
+          "require_parent": {
+            "all": [
+              {
+                "path": "$.type",
+                "one_of": [
+                  "LLMCall",
+                  "LLMStreamEnd"
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "require": {},
+          "select": "$.tools",
+          "emit": "tool_definitions",
+          "doc": "The tools the call was offered. A set, not a sequence of turns.",
+          "require_parent": {
+            "all": [
+              {
+                "path": "$.type",
+                "one_of": [
+                  "LLMCall",
+                  "LLMStreamEnd"
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "require": {
+            "all": [
+              {
+                "path": "$.type",
+                "one_of": [
+                  "ToolCall"
+                ]
+              }
+            ]
+          },
+          "wrap": {
+            "role": "tool",
+            "content_from": "$.result",
+            "content_default": null,
+            "attach": [
+              {
+                "from_value_any_of": [
+                  "$.tool_name"
+                ],
+                "default": "unknown",
+                "as": "name"
+              }
+            ],
+            "tool_call_from": {
+              "name": "$.tool_name",
+              "arguments": "$.arguments",
+              "arguments_default": {},
+              "name_default": "unknown"
+            }
+          }
+        }
+      ],
+      "legacy_rank": 1630
+    },
+    {
+      "id": "autogen.autogen_event",
+      "doc": "The dialect's own logging channel. One carrier holds a model call - the conversation it was given, its reply and the tools it was offered - or a single tool execution, so the readings are additive and each says what it is.",
+      "read": {
+        "attribute": "autogen.event"
+      },
+      "parse": "json",
+      "also": [
+        {
+          "require": {},
+          "select": "$.messages",
+          "each": true,
+          "then_fragment": "autogen.message",
+          "extra_cases": [
+            {
+              "doc": "A shape the table refused that carries a role or content.",
+              "require": {
+                "any": [
+                  {
+                    "path": "$.role",
+                    "exists": true
+                  },
+                  {
+                    "path": "$.content",
+                    "exists": true
+                  }
+                ]
+              }
+            }
+          ],
+          "require_parent": {
+            "all": [
+              {
+                "path": "$.type",
+                "one_of": [
+                  "LLMCall",
+                  "LLMStreamEnd"
+                ]
+              },
+              {
+                "path": "$.messages",
+                "exists": true
+              }
+            ]
+          }
+        },
+        {
+          "require": {},
+          "select": "$.response",
+          "wrap": {
+            "role": "assistant",
+            "content_from_any_of": [
+              "$.content",
+              "$.choices[0].message.content"
+            ],
+            "attach": [
+              {
+                "after_content": true,
+                "from_value_any_of": [
+                  "$.tool_calls",
+                  "$.choices[0].message.tool_calls"
+                ],
+                "require": {
+                  "all": [
+                    {
+                      "non_empty": true
+                    }
+                  ]
+                },
+                "as": "tool_calls"
+              }
+            ]
+          },
+          "require_parent": {
+            "all": [
+              {
+                "path": "$.type",
+                "one_of": [
+                  "LLMCall",
+                  "LLMStreamEnd"
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "require": {},
+          "select": "$.tools",
+          "emit": "tool_definitions",
+          "doc": "The tools the call was offered. A set, not a sequence of turns.",
+          "require_parent": {
+            "all": [
+              {
+                "path": "$.type",
+                "one_of": [
+                  "LLMCall",
+                  "LLMStreamEnd"
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "require": {
+            "all": [
+              {
+                "path": "$.type",
+                "one_of": [
+                  "ToolCall"
+                ]
+              }
+            ]
+          },
+          "wrap": {
+            "role": "tool",
+            "content_from": "$.result",
+            "content_default": null,
+            "attach": [
+              {
+                "from_value_any_of": [
+                  "$.tool_name"
+                ],
+                "default": "unknown",
+                "as": "name"
+              }
+            ],
+            "tool_call_from": {
+              "name": "$.tool_name",
+              "arguments": "$.arguments",
+              "arguments_default": {},
+              "name_default": "unknown"
+            }
+          }
+        }
+      ],
+      "legacy_rank": 1640
+    }
+  ],
+  "fragments": {
+    "message": {
+      "doc": "What an AutoGen message is. The discriminator is the `type` member; a value the table does not know is passed through rather than dropped, and an untyped object is recognised by its shape. Ordered cases: the first that fits wins.",
+      "cases": [
+        {
+          "doc": "A system instruction.",
+          "require": {
+            "all": [
+              {
+                "path": "$.type",
+                "one_of": [
+                  "SystemMessage"
+                ]
+              },
+              {
+                "path": "$.content",
+                "exists": true
+              }
+            ]
+          },
+          "wrap": {
+            "role": "system",
+            "content_from": "$.content"
+          }
+        },
+        {
+          "doc": "A user turn addressed to the model.",
+          "require": {
+            "all": [
+              {
+                "path": "$.type",
+                "one_of": [
+                  "UserMessage"
+                ]
+              },
+              {
+                "path": "$.content",
+                "exists": true
+              }
+            ]
+          },
+          "wrap": {
+            "role": "user",
+            "content_from": "$.content",
+            "attach": [
+              {
+                "from_value_any_of": [
+                  "$.source"
+                ],
+                "after_content": true,
+                "as": "name"
+              }
+            ]
+          }
+        },
+        {
+          "doc": "The model's reply. Reasoning arrives in a sibling member and becomes a thinking block ahead of the text, so the two are one turn rather than two messages.",
+          "require": {
+            "all": [
+              {
+                "path": "$.type",
+                "one_of": [
+                  "AssistantMessage"
+                ]
+              },
+              {
+                "path": "$.content",
+                "exists": true
+              }
+            ]
+          },
+          "wrap": {
+            "role": "assistant",
+            "content_from": "$.content",
+            "attach": [
+              {
+                "from_value_any_of": [
+                  "$.source"
+                ],
+                "as": "name"
+              }
+            ],
+            "prepend_block": {
+              "type": "thinking",
+              "content_as": "text",
+              "attach": [
+                {
+                  "value": null,
+                  "after_content": true,
+                  "as": "signature"
+                }
+              ],
+              "from": "$.thought",
+              "require": {
+                "all": [
+                  {
+                    "not_null": true
+                  },
+                  {
+                    "non_empty": true
+                  }
+                ]
+              }
+            }
+          }
+        },
+        {
+          "require": {
+            "all": [
+              {
+                "path": "$.type",
+                "one_of": [
+                  "TextMessage"
+                ]
+              },
+              {
+                "path": "$.content",
+                "exists": true
+              }
+            ]
+          },
+          "wrap": {
+            "role_from": "$.source",
+            "role_map": {
+              "user": "user"
+            },
+            "role_map_is_closed": true,
+            "role": "assistant",
+            "content_from": "$.content",
+            "attach": [
+              {
+                "from_value_any_of": [
+                  "$.source"
+                ],
+                "require": {
+                  "all": [
+                    {
+                      "none_of": [
+                        "user"
+                      ]
+                    }
+                  ]
+                },
+                "after_content": true,
+                "as": "name"
+              }
+            ]
+          },
+          "doc": "An agent's utterance; `source` names the speaker."
+        },
+        {
+          "require": {
+            "all": [
+              {
+                "path": "$.type",
+                "one_of": [
+                  "MultiModalMessage"
+                ]
+              },
+              {
+                "path": "$.content",
+                "exists": true
+              }
+            ]
+          },
+          "wrap": {
+            "role_from": "$.source",
+            "role_map": {
+              "user": "user"
+            },
+            "role_map_is_closed": true,
+            "role": "assistant",
+            "content_from": "$.content",
+            "attach": [
+              {
+                "from_value_any_of": [
+                  "$.source"
+                ],
+                "require": {
+                  "all": [
+                    {
+                      "none_of": [
+                        "user"
+                      ]
+                    }
+                  ]
+                },
+                "after_content": true,
+                "as": "name"
+              }
+            ]
+          },
+          "doc": "An utterance carrying images beside its text."
+        },
+        {
+          "require": {
+            "all": [
+              {
+                "path": "$.type",
+                "one_of": [
+                  "StopMessage"
+                ]
+              },
+              {
+                "path": "$.content",
+                "exists": true
+              }
+            ]
+          },
+          "wrap": {
+            "role_from": "$.source",
+            "role_map": {
+              "user": "user"
+            },
+            "role_map_is_closed": true,
+            "role": "assistant",
+            "content_from": "$.content",
+            "attach": [
+              {
+                "from_value_any_of": [
+                  "$.source"
+                ],
+                "require": {
+                  "all": [
+                    {
+                      "none_of": [
+                        "user"
+                      ]
+                    }
+                  ]
+                },
+                "after_content": true,
+                "as": "name"
+              }
+            ]
+          },
+          "doc": "The utterance that ended a conversation."
+        },
+        {
+          "doc": "One agent handing the conversation to another.",
+          "require": {
+            "all": [
+              {
+                "path": "$.type",
+                "one_of": [
+                  "HandoffMessage"
+                ]
+              },
+              {
+                "path": "$.content",
+                "exists": true
+              }
+            ]
+          },
+          "wrap": {
+            "role": "assistant",
+            "content_from": "$.content",
+            "attach": [
+              {
+                "from_value_any_of": [
+                  "$.source"
+                ],
+                "after_content": true,
+                "require": {
+                  "all": [
+                    {
+                      "kind": "string"
+                    }
+                  ]
+                },
+                "as": "name"
+              }
+            ]
+          }
+        },
+        {
+          "doc": "Reasoning reported on its own, as a thinking block. An empty one is not a thought.",
+          "require": {
+            "all": [
+              {
+                "path": "$.type",
+                "one_of": [
+                  "ThoughtEvent"
+                ]
+              },
+              {
+                "path": "$.content",
+                "exists": true
+              },
+              {
+                "path": "$.content",
+                "non_empty": true
+              }
+            ]
+          },
+          "wrap": {
+            "role": "assistant",
+            "content_from": "$.content",
+            "block": {
+              "type": "thinking",
+              "content_as": "text",
+              "attach": [
+                {
+                  "value": null,
+                  "after_content": true,
+                  "as": "signature"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "doc": "The model asking for tools to run.",
+          "require": {
+            "all": [
+              {
+                "path": "$.type",
+                "one_of": [
+                  "ToolCallRequestEvent"
+                ]
+              },
+              {
+                "path": "$.content",
+                "kind": "array"
+              },
+              {
+                "path": "$.content[?@.id && @.name]",
+                "exists": true
+              }
+            ]
+          },
+          "wrap": {
+            "role": "assistant",
+            "tool_calls_from": {
+              "select": "$.content[*]",
+              "id": "$.id",
+              "name": "$.name",
+              "arguments": "$.arguments"
+            },
+            "attach": [
+              {
+                "from_value_any_of": [
+                  "$.source"
+                ],
+                "after_content": true,
+                "as": "name"
+              }
+            ]
+          }
+        },
+        {
+          "doc": "A batch of tool results, one message each.",
+          "select": "$.content",
+          "each": true,
+          "lift_from_parent": [
+            "call_id"
+          ],
+          "require": {
+            "any": [
+              {
+                "path": "$.call_id",
+                "exists": true
+              },
+              {
+                "path": "$.name",
+                "exists": true
+              },
+              {
+                "path": "$.content",
+                "non_empty": true
+              }
+            ]
+          },
+          "wrap": {
+            "role": "tool",
+            "content_from": "$.content",
+            "content_default": "",
+            "attach": [
+              {
+                "from_value_any_of": [
+                  "$.name"
+                ],
+                "after_content": true,
+                "as": "name"
+              },
+              {
+                "from_value_any_of": [
+                  "$.call_id"
+                ],
+                "after_content": true,
+                "as": "tool_call_id"
+              }
+            ]
+          },
+          "require_parent": {
+            "all": [
+              {
+                "path": "$.type",
+                "one_of": [
+                  "ToolCallExecutionEvent",
+                  "FunctionExecutionResultMessage"
+                ]
+              },
+              {
+                "path": "$.content",
+                "kind": "array"
+              },
+              {
+                "path": "$.content",
+                "non_empty": true
+              }
+            ]
+          }
+        },
+        {
+          "doc": "The dialect's own concatenation of tool results as Python `repr`. Claimed and read for nothing: every one of those results is reported individually, and this would repeat them as prose.",
+          "require": {
+            "all": [
+              {
+                "path": "$.type",
+                "one_of": [
+                  "ToolCallSummaryMessage"
+                ]
+              }
+            ]
+          },
+          "emit": "claim"
+        },
+        {
+          "doc": "A type this table does not know, carrying something a reader can still use. Passed through rather than dropped: an unrecognised name is not evidence there is no message.",
+          "require": {
+            "all": [
+              {
+                "path": "$.type",
+                "exists": true
+              }
+            ],
+            "any": [
+              {
+                "path": "$.role",
+                "exists": true
+              },
+              {
+                "path": "$.content",
+                "exists": true
+              }
+            ]
+          }
+        },
+        {
+          "doc": "Untyped and already carrying a role: this is a message, not a dialect shape.",
+          "require": {
+            "all": [
+              {
+                "path": "$.type",
+                "exists": false
+              },
+              {
+                "path": "$.role",
+                "exists": true
+              }
+            ]
+          }
+        },
+        {
+          "doc": "Untyped tool calls, recognised by an array whose members carry arguments.",
+          "require": {
+            "all": [
+              {
+                "path": "$.type",
+                "exists": false
+              },
+              {
+                "path": "$.content",
+                "kind": "array"
+              },
+              {
+                "path": "$.content[0].arguments",
+                "exists": true
+              },
+              {
+                "path": "$.content[?@.id && @.name]",
+                "exists": true
+              }
+            ]
+          },
+          "wrap": {
+            "role": "assistant",
+            "tool_calls_from": {
+              "select": "$.content[*]",
+              "id": "$.id",
+              "name": "$.name",
+              "arguments": "$.arguments"
+            },
+            "attach": [
+              {
+                "from_value_any_of": [
+                  "$.source"
+                ],
+                "after_content": true,
+                "as": "name"
+              }
+            ]
+          }
+        },
+        {
+          "doc": "Untyped tool results: an array whose members name a call, or name a tool and carry content without asking for one.",
+          "select": "$.content",
+          "each": true,
+          "lift_from_parent": [
+            "call_id"
+          ],
+          "require": {
+            "any": [
+              {
+                "path": "$.call_id",
+                "exists": true
+              },
+              {
+                "path": "$.name",
+                "exists": true
+              },
+              {
+                "path": "$.content",
+                "non_empty": true
+              }
+            ]
+          },
+          "wrap": {
+            "role": "tool",
+            "content_from": "$.content",
+            "content_default": "",
+            "attach": [
+              {
+                "from_value_any_of": [
+                  "$.name"
+                ],
+                "after_content": true,
+                "as": "name"
+              },
+              {
+                "from_value_any_of": [
+                  "$.call_id"
+                ],
+                "after_content": true,
+                "as": "tool_call_id"
+              }
+            ]
+          },
+          "require_parent": {
+            "all": [
+              {
+                "path": "$.type",
+                "exists": false
+              },
+              {
+                "path": "$.content",
+                "kind": "array"
+              }
+            ],
+            "any": [
+              {
+                "path": "$.content[0].call_id",
+                "exists": true
+              },
+              {
+                "path": "$.content[0].name",
+                "exists": true
+              }
+            ]
+          }
+        },
+        {
+          "doc": "Untyped text; `source` names the speaker.",
+          "require": {
+            "all": [
+              {
+                "path": "$.type",
+                "exists": false
+              },
+              {
+                "path": "$.content",
+                "kind": "string"
+              },
+              {
+                "path": "$.content",
+                "non_empty": true
+              }
+            ]
+          },
+          "wrap": {
+            "role_from": "$.source",
+            "role_map": {
+              "user": "user"
+            },
+            "role_map_is_closed": true,
+            "role": "assistant",
+            "content_from": "$.content",
+            "attach": [
+              {
+                "from_value_any_of": [
+                  "$.source"
+                ],
+                "require": {
+                  "all": [
+                    {
+                      "none_of": [
+                        "user"
+                      ]
+                    }
+                  ]
+                },
+                "after_content": true,
+                "as": "name"
+              }
+            ]
+          }
+        }
+      ]
+    }
+  }
 }
