@@ -355,10 +355,25 @@ bless a regression; an oracle cannot.
 
    | Retired | Still in Rust |
    | --- | --- |
-   | `mlflow`, `traceloop`, `pydantic_ai`, `langsmith` | CrewAI's Python-`repr` **tool-definition** grammar (21 functions), which is always-on code rather than an extractor entry — and is about tool definitions, not messages |
+   | `mlflow`, `traceloop`, `pydantic_ai`, `langsmith` | **Nothing.** `messages.rs` has 17 functions outside `#[cfg(test)]` and not one names a framework |
    | `gen_ai_indexed`, `livekit`, `otel_genai_messages` | |
    | `vercel_ai`, `claude_code`, `logfire_events` | |
    | `google_adk`, `langgraph`, `crewai`, `autogen`, `openinference` | |
+
+   The last always-on framework code was a **tool-definition grammar**: a framework that builds its tools
+   as objects and logs them with `str()` leaves a string that is neither JSON nor prose. That grammar is a
+   property of the *language*, so it is sealed in `rules/tool_repr.rs` and reached only through a declared
+   `ToolReprSpec` — which member of a carrier holds the tools, which repr fields name them, which labels
+   its embedded documentation uses, how its type names map to JSON Schema's, and what makes a string a
+   `repr` rather than a bare tool name. Nineteen functions moved; the module names no framework and the
+   type table is data.
+
+   Two facts that shaped it. The entries are walked **one at a time**, with the declared paths tried inside
+   each — path-major order would report two entries' tool lists interleaved differently from the way the
+   framework wrote them. And the rule is evaluated by `MessagePlan::tool_definitions`, *not* by `run`:
+   a tool definition is not a message, the tool-definition path has always run on every span, and carrier
+   claiming is about messages — a framework may state its tools on a carrier another rule reads as a
+   conversation, and both statements are true.
 
    AutoGen was the largest and shaped seven primitives, each named for a fact about a
    carrier rather than for the framework: a **claim** target (an aggregate span's

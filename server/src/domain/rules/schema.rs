@@ -435,6 +435,8 @@ pub struct MessageRule {
     /// family swept up. There is no single carrier to read, so there is no single value to wrap.
     #[serde(default)]
     pub compose: Option<ComposeSpec>,
+    #[serde(default)]
+    pub tool_repr: Option<ToolReprSpec>,
     /// How to turn its raw string into a value. Absent for an indexed family, which has no single
     /// string to parse - each member is read on its own.
     #[serde(default)]
@@ -616,6 +618,41 @@ pub struct ReadSpec {
     /// A richer copy of these same messages, held by another carrier and matched by position.
     #[serde(default)]
     pub overlay: Option<OverlaySpec>,
+}
+
+/// Tool definitions a carrier holds as a language's `repr` rather than as JSON.
+///
+/// The grammar is sealed in `rules::tool_repr` because it is a property of the *language*. Everything a
+/// particular framework calls its own - which member holds the tools, which repr fields name them, which
+/// labels its embedded documentation uses, how its type names map to JSON Schema's - is here, because
+/// that is its vocabulary and not a fact about Python.
+#[derive(Debug, Deserialize, Clone)]
+#[serde(deny_unknown_fields)]
+pub struct ToolReprSpec {
+    pub doc: Option<String>,
+    /// The carrier's entries. One entry at a time, so two entries each holding a list interleave as the
+    /// payload has them rather than by path - which is what keeps the reported order the framework's own.
+    pub entries: JsonPath,
+    /// Where an entry holds tools, in order. Each resolved value is tried as a tool definition.
+    pub candidates: Vec<JsonPath>,
+    /// The repr fields naming a tool and its documentation - `name='search'`.
+    pub name_field: String,
+    pub description_field: String,
+    /// The labels the embedded documentation uses.
+    pub name_label: String,
+    pub description_label: String,
+    pub arguments_label: String,
+    /// What makes a string a `repr` rather than a bare tool name. Without these a name containing a space
+    /// would be parsed as a repr and yield nothing.
+    pub repr_markers: Vec<String>,
+    /// Where a tool object states its parameters, in order.
+    pub parameter_members: Vec<String>,
+    /// The language's type names, mapped to JSON Schema's. Compared case-insensitively, and ordered
+    /// because the first match wins.
+    pub type_map: Vec<(String, String)>,
+    /// The type for a name the map does not hold. A tool whose argument type is unrecognised is still a
+    /// tool, so the definition is reported with the widest type rather than dropped.
+    pub type_default: String,
 }
 
 /// Another carrier of the same span describing the same messages at higher fidelity.

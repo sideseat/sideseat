@@ -22,6 +22,7 @@ pub mod carrier_rules;
 pub mod detect_rules;
 pub mod message_rules;
 pub mod schema;
+mod tool_repr;
 
 #[cfg(test)]
 mod carrier_rules_tests;

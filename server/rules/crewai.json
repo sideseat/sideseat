@@ -131,6 +131,211 @@
           "doc": "No documented shape matched: keep the payload rather than nothing."
         }
       ]
+    },
+    {
+      "id": "crewai.agent_task_tools",
+      "doc": "The tools this dialect names in its agent and task metadata. An entry may be a tool itself or hold a list of them, and the same tool appears under both keys at different richness - so every carrier is read and the best copy per name wins.",
+      "read": {
+        "attribute_any_of": [
+          "crew_agents",
+          "crew_tasks"
+        ]
+      },
+      "emit": "tool_definitions",
+      "parse": "json",
+      "when": {
+        "attr_exists": [
+          "crew_key",
+          "crew_id",
+          "crew_tasks",
+          "task_key",
+          "crew_agents"
+        ]
+      },
+      "tool_repr": {
+        "name_field": "name",
+        "description_field": "description",
+        "name_label": "Tool Name:",
+        "description_label": "Tool Description:",
+        "arguments_label": "Tool Arguments:",
+        "repr_markers": [
+          "name=",
+          "Tool Name:",
+          "CrewStructuredTool("
+        ],
+        "parameter_members": [
+          "parameters",
+          "input_schema",
+          "args",
+          "arguments",
+          "tool_args",
+          "tool_arguments"
+        ],
+        "type_map": [
+          [
+            "str",
+            "string"
+          ],
+          [
+            "string",
+            "string"
+          ],
+          [
+            "int",
+            "integer"
+          ],
+          [
+            "integer",
+            "integer"
+          ],
+          [
+            "float",
+            "number"
+          ],
+          [
+            "double",
+            "number"
+          ],
+          [
+            "number",
+            "number"
+          ],
+          [
+            "bool",
+            "boolean"
+          ],
+          [
+            "boolean",
+            "boolean"
+          ],
+          [
+            "list",
+            "array"
+          ],
+          [
+            "array",
+            "array"
+          ],
+          [
+            "dict",
+            "object"
+          ],
+          [
+            "object",
+            "object"
+          ]
+        ],
+        "type_default": "string",
+        "doc": "An array of agent or task entries.",
+        "entries": "$[*]",
+        "candidates": [
+          "$",
+          "$.tools_names[*]",
+          "$.tools[*]"
+        ]
+      },
+      "legacy_rank": 1520
+    },
+    {
+      "id": "crewai.input_value_tools",
+      "doc": "The richer copy: this dialect logs its tool objects' `repr` here, with the arguments schema and the documentation embedded in a labelled string.",
+      "read": {
+        "attribute": "input.value"
+      },
+      "emit": "tool_definitions",
+      "parse": "json",
+      "when": {
+        "attr_exists": [
+          "crew_key",
+          "crew_id",
+          "crew_tasks",
+          "task_key",
+          "crew_agents"
+        ]
+      },
+      "tool_repr": {
+        "name_field": "name",
+        "description_field": "description",
+        "name_label": "Tool Name:",
+        "description_label": "Tool Description:",
+        "arguments_label": "Tool Arguments:",
+        "repr_markers": [
+          "name=",
+          "Tool Name:",
+          "CrewStructuredTool("
+        ],
+        "parameter_members": [
+          "parameters",
+          "input_schema",
+          "args",
+          "arguments",
+          "tool_args",
+          "tool_arguments"
+        ],
+        "type_map": [
+          [
+            "str",
+            "string"
+          ],
+          [
+            "string",
+            "string"
+          ],
+          [
+            "int",
+            "integer"
+          ],
+          [
+            "integer",
+            "integer"
+          ],
+          [
+            "float",
+            "number"
+          ],
+          [
+            "double",
+            "number"
+          ],
+          [
+            "number",
+            "number"
+          ],
+          [
+            "bool",
+            "boolean"
+          ],
+          [
+            "boolean",
+            "boolean"
+          ],
+          [
+            "list",
+            "array"
+          ],
+          [
+            "array",
+            "array"
+          ],
+          [
+            "dict",
+            "object"
+          ],
+          [
+            "object",
+            "object"
+          ]
+        ],
+        "type_default": "string",
+        "doc": "One object holding a list of tools, a single tool, or both.",
+        "entries": "$",
+        "candidates": [
+          "$.tools[*]",
+          "$.tools",
+          "$.tool"
+        ]
+      },
+      "legacy_rank": 1530
     }
   ]
 }

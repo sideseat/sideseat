@@ -37,8 +37,8 @@ use super::detect_rules::CompiledDetect;
 use super::schema::{
     Alternative, AttachSpec, BlockSpec, ComposeMember, ComposeSpec, ElementsSpec, EmitTarget,
     MemberPresence, MemberRequirements, MessageRule, OverlaySpec, ParseMode, PredicateSet,
-    ReadSpec, RuleFile, SectionsSpec, SingleToolCallSpec, ToolCallsSpec, ValueKind, ValuePredicate,
-    WrapSpec,
+    ReadSpec, RuleFile, SectionsSpec, SingleToolCallSpec, ToolCallsSpec, ToolReprSpec, ValueKind,
+    ValuePredicate, WrapSpec,
 };
 
 /// One reading of a payload: the value, an envelope for this reading alone, and its target where it
@@ -94,6 +94,8 @@ pub struct Emission<'a> {
 /// A compiled message rule.
 #[derive(Debug, Clone)]
 pub struct CompiledMessageRule {
+    /// Tool definitions written as a language's `repr`; the grammar is sealed, its vocabulary declared.
+    tool_repr: Option<ToolReprSpec>,
     pub rule_file: String,
     pub rule_id: String,
     pub doc: Option<String>,
@@ -215,6 +217,7 @@ fn compile_rule(
     let MessageRule {
         id,
         doc,
+        tool_repr,
         read,
         compose,
         parse,
@@ -452,6 +455,7 @@ fn compile_rule(
         None => None,
     };
     Ok(CompiledMessageRule {
+        tool_repr: tool_repr.clone(),
         rule_file: file_id.to_string(),
         rule_id: id.clone(),
         doc: doc.clone(),
@@ -780,9 +784,26 @@ fn emitted_carriers(rule: &CompiledMessageRule) -> Vec<CarrierPattern> {
 
 impl MessagePlan {
     /// Every observation the declared rules find on this span.
+    /// Tool definitions this span declares, from every rule that reads a `repr` grammar.
+    ///
+    /// Separate from `run`, and deliberately not subject to carrier claiming: a tool *definition* is not a
+    /// message, and the tool-definition path has always run on every span. A framework may state its tools
+    /// on the same carrier another rule reads as a conversation, and both statements are true.
+    pub fn tool_definitions<'p>(&'p self, ctx: &MessageContext<'_>) -> Vec<Emission<'p>> {
+        self.rules
+            .iter()
+            .filter(|rule| rule.tool_repr.is_some())
+            .flat_map(|rule| emit_rule(rule, ctx))
+            .collect()
+    }
+
     pub fn run<'p>(&'p self, ctx: &MessageContext<'_>) -> Vec<Emission<'p>> {
         let mut out = Vec::new();
         for rule in &self.rules {
+            // A `repr` grammar declares tool definitions, which `tool_definitions` reads on every span.
+            if rule.tool_repr.is_some() {
+                continue;
+            }
             // A branch set is several readings with a local order between them: the primaries, then the
             // fallbacks only if those found nothing, then the unconditional ones. No rule ids, no shared
             // state - the order lives inside this rule.
@@ -870,7 +891,10 @@ fn all_readings(parsed: &JsonValue, rule: &CompiledMessageRule) -> Vec<Reading> 
 /// The nodes are **borrowed from the value queried**, which is the property the whole choice rests on:
 /// cloning one out keeps the provider's member order. See
 /// `the_selection_language_behaves_as_the_engine_assumes`.
-fn query<'v>(value: &'v JsonValue, path: &serde_json_path::JsonPath) -> Vec<&'v JsonValue> {
+pub(super) fn query<'v>(
+    value: &'v JsonValue,
+    path: &serde_json_path::JsonPath,
+) -> Vec<&'v JsonValue> {
     path.query(value).into_iter().collect()
 }
 
@@ -1187,6 +1211,24 @@ fn gates_allow(rule: &CompiledMessageRule, ctx: &MessageContext<'_>) -> bool {
 ///
 /// Returns the key *found*, not the key asked for, because that key becomes the carrier tag and two
 /// spellings of one payload must stay distinguishable.
+/// Every carrier this rule names that the span carries, in declared order.
+///
+/// Not the first, unlike an ordinary read: a framework may write the same tools under several keys at
+/// different richness, and each is its own observation - so all of them are read and the best copy per
+/// name wins downstream, rather than the richest being hidden behind whichever key was declared first.
+fn carrier_texts<'p, 's>(
+    rule: &'p CompiledMessageRule,
+    ctx: &MessageContext<'s>,
+) -> Vec<(&'p str, &'s str)> {
+    rule.read
+        .attribute
+        .as_deref()
+        .into_iter()
+        .chain(rule.read.attribute_any_of.iter().map(String::as_str))
+        .filter_map(|key| ctx.span_attrs.get(key).map(|raw| (key, raw.as_str())))
+        .collect()
+}
+
 fn resolve_attribute<'p, 's>(
     read: &'p ReadSpec,
     attrs: &'s HashMap<String, String>,
@@ -1662,6 +1704,22 @@ fn emit_rule<'p>(rule: &'p CompiledMessageRule, ctx: &MessageContext<'_>) -> Vec
                 target: rule.target,
                 value,
             });
+        }
+        return out;
+    }
+    // Tool definitions written as a language's `repr`: the grammar is sealed, its vocabulary declared.
+    if let Some(spec) = &rule.tool_repr {
+        for (attribute, raw) in carrier_texts(rule, ctx) {
+            if let Some(parsed) = parse_value(raw, rule.parse.unwrap_or(ParseMode::Json))
+                && let Some(tools) = super::tool_repr::tools_from_carrier(&parsed, spec)
+            {
+                out.push(Emission {
+                    rule_id: &rule.rule_id,
+                    carrier: EmittedCarrier::Attribute(rule.tag_as.as_deref().unwrap_or(attribute)),
+                    target: rule.target,
+                    value: JsonValue::Array(tools),
+                });
+            }
         }
         return out;
     }
