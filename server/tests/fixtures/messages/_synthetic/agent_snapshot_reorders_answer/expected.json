@@ -220,9 +220,9 @@
         "user",
         "assistant",
         "assistant",
-        "assistant",
         "tool",
-        "tool"
+        "tool",
+        "assistant"
       ],
       "tool_names": [],
       "tool_definition_count": 2,
@@ -238,15 +238,6 @@
         {
           "index": 1,
           "role": "assistant",
-          "entry_type": "text",
-          "content": "Here is the forecast: sunny then light rain.",
-          "content_digest": "fcf0cd3bb92d715a",
-          "finish_reason": "Stop",
-          "observation_type": "generation"
-        },
-        {
-          "index": 2,
-          "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"c1\",\"name\":\"temp\",\"input\":{\"city\":\"NYC\"}}",
           "content_digest": "3f4a0f557d58e33e",
@@ -254,7 +245,7 @@
           "observation_type": "agent"
         },
         {
-          "index": 3,
+          "index": 2,
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"c2\",\"name\":\"precip\",\"input\":{\"city\":\"NYC\"}}",
@@ -263,7 +254,7 @@
           "observation_type": "agent"
         },
         {
-          "index": 4,
+          "index": 3,
           "role": "tool",
           "entry_type": "tool_result",
           "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"c1\",\"name\":\"temp\",\"content\":{\"v\":\"sunny\"}}",
@@ -272,13 +263,22 @@
           "observation_type": "tool"
         },
         {
-          "index": 5,
+          "index": 4,
           "role": "tool",
           "entry_type": "tool_result",
           "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"c2\",\"name\":\"precip\",\"content\":{\"v\":\"light rain\"}}",
           "content_digest": "b3f34f9c8d712962",
           "tool_name": "precip",
           "observation_type": "tool"
+        },
+        {
+          "index": 5,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Here is the forecast: sunny then light rain.",
+          "content_digest": "fcf0cd3bb92d715a",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
         }
       ]
     }

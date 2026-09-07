@@ -103,6 +103,14 @@ pub(super) struct OrderEvidence {
     /// generation was given, reported beside the conversation. A carrier fact, never a role fact:
     /// see `CarrierSemantics::carrier_is_detached_request_frame`.
     detached_frame: bool,
+    /// The span is an *accumulator* - an agent, chain or plain span, which collects what its children
+    /// produced rather than producing it.
+    accumulator: bool,
+    /// The interned spans this observation's span sits under, nearest ancestor last.
+    ///
+    /// Ancestry, not membership of the trace: "some other span also has this message" is true of a replay
+    /// and says nothing, while "a span *below* this one produced it" is what makes a re-listing redundant.
+    ancestor_spans: Vec<usize>,
     /// The ordered-input carrier *family* this observation belongs to, interned per span, when its
     /// carrier is an ordered input array of a generation span. `llm.input_messages.0.message` and
     /// `.1.message` are one array, and the family is what groups them - the exact key interns them
@@ -136,6 +144,16 @@ pub(super) fn collect_order_evidence(
             let credible = is_credible_emission(block);
             let next_span = spans.len();
             let span = *spans.entry(block.span_id.as_str()).or_insert(next_span);
+            // Ancestors interned eagerly, since a parent may be met after its child.
+            let ancestor_spans: Vec<usize> = block
+                .span_path
+                .iter()
+                .take(block.span_path.len().saturating_sub(1))
+                .map(|ancestor| {
+                    let next = spans.len();
+                    *spans.entry(ancestor.as_str()).or_insert(next)
+                })
+                .collect();
             // One resolution per observation, and every fact this loop needs comes off it. The clause
             // carries the facts *and* the ordering family, so asking twice - once for each - looked up
             // the same declaration twice and, worse, allowed the two answers to come from different
@@ -220,6 +238,8 @@ pub(super) fn collect_order_evidence(
                 carrier_ordered: semantics.position_provides_sequence_order && !block.is_history,
                 is_output: block.is_output_source(),
                 from_generation: block.is_generation_span(),
+                accumulator: block.is_accumulator_span(),
+                ancestor_spans,
                 detached_frame: semantics.carrier_is_detached_request_frame,
                 input_family,
             }
@@ -272,6 +292,87 @@ fn is_credible_emission(block: &BlockEntry) -> bool {
     block.is_output_source()
         && crate::domain::sideml::carrier::semantics_for_context(&block.carrier_context())
             .carrier_is_atomic_emission
+}
+
+/// Which emission instances are a *redundant re-listing* - present, but with no authority over order.
+/// Which emission instances are a *redundant re-listing*, and so contribute presence but not order.
+///
+/// The Vercel defect: a root agent span re-lists a whole turn as its own output, answer first, while the
+/// `chat` spans below it emitted the calls and the answer separately. Read as an emission its stated
+/// order is trusted and the answer sorts ahead of the tool calls that produced it.
+///
+/// The discriminator is **not** the carrier - the same carrier name on a generation span is that span's
+/// own emission - and not "some other span has this message either", which is true of every replay. It
+/// is whether every message the instance lists was independently produced by a *descendant* span. Then
+/// the re-listing adds nothing but an order, and its order is the one thing it gets wrong.
+///
+/// Deliberately all-or-nothing: an instance only *partly* covered still carries evidence about the
+/// messages nobody below it produced, so it keeps all of it. Guessing per message would mean splitting
+/// one emission's order across two readings.
+fn redundant_relistings(
+    evidence: &[OrderEvidence],
+    survivors: &[BlockEntry],
+    survivor_of: &impl Fn(usize) -> Option<usize>,
+) -> HashSet<usize> {
+    // Where each instance sits, and what it claims.
+    let mut instance_span: HashMap<usize, usize> = HashMap::new();
+    let mut instance_accumulator: HashMap<usize, bool> = HashMap::new();
+    let mut instance_ancestors: HashMap<usize, Vec<usize>> = HashMap::new();
+    let mut claimed: HashMap<usize, HashSet<usize>> = HashMap::new();
+    for (observation, seen) in evidence.iter().enumerate() {
+        let Some(instance) = seen.emission else {
+            continue;
+        };
+        instance_span.insert(instance, seen.span);
+        instance_accumulator.insert(instance, seen.accumulator);
+        instance_ancestors.insert(instance, seen.ancestor_spans.clone());
+        if let Some(survivor) = survivor_of(observation) {
+            claimed.entry(instance).or_default().insert(survivor);
+        }
+    }
+    let mut out = HashSet::new();
+    for (&instance, members) in &claimed {
+        if members.is_empty() || instance_accumulator.get(&instance) != Some(&true) {
+            continue;
+        }
+        let Some(&span) = instance_span.get(&instance) else {
+            continue;
+        };
+        // A witness is another instance on a span strictly below this one.
+        let witnessed = |survivor: &usize| {
+            claimed.iter().any(|(&other, others)| {
+                other != instance
+                    && others.contains(survivor)
+                    && instance_ancestors
+                        .get(&other)
+                        .is_some_and(|ancestors| ancestors.contains(&span))
+            })
+        };
+        // A model cannot answer its own call inside one response: it emits the calls, and the results
+        // come back from tools afterwards. So an instance holding **both** a message the span produced
+        // and a result answering one is not one emission - it is a re-listing of a whole turn, whatever
+        // carrier it arrived on.
+        //
+        // This is what separates it from the emissions whose contraction is load-bearing. A turn's intro
+        // text and the call it introduces are one response (`[assistant/text, assistant/tool_use]`) and
+        // must stay contracted; a span re-listing `[text, call, call, result, result]` is reporting what
+        // its children did, and its order is the one thing it gets wrong.
+        let holds_own_output = members
+            .iter()
+            .any(|&m| survivors[m].role == crate::domain::sideml::types::ChatRole::Assistant);
+        // `entry_type`, which is what the rest of this resolver keys a result on (see the call/result edges
+        // below) - not the content variant, so the two cannot disagree about what a result is.
+        let holds_an_answer = members
+            .iter()
+            .any(|&m| survivors[m].entry_type == "tool_result");
+        if !(holds_own_output && holds_an_answer) {
+            continue;
+        }
+        if members.iter().all(witnessed) {
+            out.insert(instance);
+        }
+    }
+    out
 }
 
 /// A disjoint-set over survivor indices, used to contract co-emitted identities into one unit.
@@ -692,6 +793,8 @@ pub(super) fn resolve(
         ));
     }
 
+    let redundant = redundant_relistings(evidence, survivors, &survivor_of);
+
     // Contract each instance's survivors into one unit, and remember the source order within it.
     //
     // Iterated in a deterministic order: a HashMap's iteration order varies per run, and while
@@ -713,7 +816,12 @@ pub(super) fn resolve(
     // which is the only answer that cannot claim to satisfy evidence it contradicts.
     let mut uf = UnionFind::new(n);
     let mut intra_edges: Vec<(usize, usize)> = Vec::new();
-    for (_, members) in instances {
+    for (&instance, members) in instances {
+        // A redundant re-listing is not contracted and states no order: every message in it was produced
+        // below, where the real emission's own sequence already says how it went.
+        if redundant.contains(&instance) {
+            continue;
+        }
         let mut legacy: Vec<usize> = members.iter().map(|&(_, _, s)| s).collect();
         legacy.sort_unstable();
         legacy.dedup();
@@ -784,6 +892,14 @@ pub(super) fn resolve(
         };
         record(unit_of[survivor], seen.effective, &mut from_any_observation);
         if !seen.credible {
+            continue;
+        }
+        // A redundant re-listing's time is when it was assembled, not when anything happened - the
+        // descendant that produced the message has the occurrence.
+        if seen
+            .emission
+            .is_some_and(|instance| redundant.contains(&instance))
+        {
             continue;
         }
         record(unit_of[survivor], seen.effective, &mut from_emission);
@@ -923,6 +1039,14 @@ pub(super) fn resolve(
         let mut by_carrier: HashMap<usize, Vec<(i32, i32, usize)>> = HashMap::new();
         for (observation, seen) in evidence.iter().enumerate() {
             if !seen.carrier_ordered {
+                continue;
+            }
+            // Nor does it state a sequence: it is the *order* a re-listing gets wrong, so taking its
+            // positions as edges is taking the one thing it has no authority over.
+            if seen
+                .emission
+                .is_some_and(|instance| redundant.contains(&instance))
+            {
                 continue;
             }
             let Some(survivor) = survivor_of(observation) else {
@@ -1467,6 +1591,8 @@ mod cycle_tests {
 
     fn evidence(carrier: usize, position: i32) -> OrderEvidence {
         OrderEvidence {
+            accumulator: false,
+            ancestor_spans: Vec::new(),
             emission: None,
             message_index: position,
             entry_index: 0,
@@ -1524,6 +1650,118 @@ mod cycle_tests {
             seen,
             vec!["span-a", "span-b"],
             "every survivor appears exactly once"
+        );
+    }
+
+    /// A re-listing is only discounted on evidence from *below* it, and only when it is a re-listing.
+    ///
+    /// The rule that fixed the aggregator ordering defect, and the two ways it must not fire. Both matter:
+    /// without the descendant requirement, "some other span also has this message" would discount every
+    /// replay, which is most of the corpus; without the both-sides requirement it would discount a turn's
+    /// intro text and the call it introduces, whose contraction is a documented repair.
+    #[test]
+    fn a_relisting_is_discounted_only_on_evidence_from_below_it() {
+        // Three blocks of one turn: the assistant's answer, its call, and the result answering it.
+        let turn_block = |role: ChatRole, entry: &str, span: &str, path: &[&str]| {
+            let mut b = block(span, "x");
+            b.role = role;
+            b.entry_type = entry.to_string();
+            b.span_path = path.iter().map(|s| s.to_string()).collect();
+            b
+        };
+        let block = turn_block;
+        let survivors = vec![
+            block(ChatRole::Assistant, "text", "root", &["root"]),
+            block(ChatRole::Assistant, "tool_use", "root", &["root"]),
+            block(ChatRole::Tool, "tool_result", "root", &["root"]),
+        ];
+        // One accumulator instance on `root` claiming all three - the whole turn, both sides.
+        let relisting = |accumulator: bool, ancestors: Vec<usize>, span: usize| {
+            (0..3)
+                .map(|i| OrderEvidence {
+                    emission: Some(0),
+                    message_index: i,
+                    entry_index: 0,
+                    effective: Utc.timestamp_opt(1_700_000_000, 0).unwrap(),
+                    credible: true,
+                    span,
+                    carrier: 0,
+                    carrier_ordered: true,
+                    is_output: true,
+                    from_generation: false,
+                    accumulator,
+                    ancestor_spans: ancestors.clone(),
+                    detached_frame: false,
+                    input_family: None,
+                })
+                .collect::<Vec<_>>()
+        };
+        // A witness instance, on a span whose ancestry includes `root` (span 0).
+        let witness = |instance: usize, member: usize, ancestors: Vec<usize>| OrderEvidence {
+            emission: Some(instance),
+            message_index: member as i32,
+            entry_index: 0,
+            effective: Utc.timestamp_opt(1_700_000_000, 0).unwrap(),
+            credible: true,
+            span: 1,
+            carrier: 1,
+            carrier_ordered: true,
+            is_output: true,
+            from_generation: true,
+            accumulator: false,
+            ancestor_spans: ancestors,
+            detached_frame: false,
+            input_family: None,
+        };
+        let lineage = |n: usize| move |o: usize| Some(o % n);
+
+        // Fully witnessed from below: discounted.
+        let mut evidence = relisting(true, Vec::new(), 0);
+        evidence.extend([
+            witness(1, 0, vec![0]),
+            witness(1, 1, vec![0]),
+            witness(1, 2, vec![0]),
+        ]);
+        let of = lineage(3);
+        assert!(
+            redundant_relistings(&evidence, &survivors, &of).contains(&0),
+            "a whole-turn re-listing whose every message a descendant produced has no authority over order"
+        );
+
+        // The same, witnessed by a *sibling* rather than a descendant: not discounted.
+        let mut evidence = relisting(true, vec![9], 0);
+        evidence.extend([
+            witness(1, 0, vec![9]),
+            witness(1, 1, vec![9]),
+            witness(1, 2, vec![9]),
+        ]);
+        assert!(
+            redundant_relistings(&evidence, &survivors, &of).is_empty(),
+            "a sibling holding the same messages is a replay, and every replay would qualify"
+        );
+
+        // One witness missing: not discounted, because the re-listing is the only evidence for that message.
+        let mut evidence = relisting(true, Vec::new(), 0);
+        evidence.extend([witness(1, 0, vec![0]), witness(1, 1, vec![0])]);
+        assert!(
+            redundant_relistings(&evidence, &survivors, &of).is_empty(),
+            "partial coverage keeps all of it: splitting one emission's order across two readings would \
+             be a guess"
+        );
+
+        // A genuine emission - one side of a turn only - is never discounted, however well witnessed.
+        let one_sided = vec![
+            block(ChatRole::Assistant, "text", "root", &["root"]),
+            block(ChatRole::Assistant, "tool_use", "root", &["root"]),
+        ];
+        let mut evidence: Vec<OrderEvidence> =
+            relisting(true, Vec::new(), 0).into_iter().take(2).collect();
+        evidence.extend([witness(1, 0, vec![0]), witness(1, 1, vec![0])]);
+        let of_two = lineage(2);
+        assert!(
+            redundant_relistings(&evidence, &one_sided, &of_two).is_empty(),
+            "a turn's intro text and the call it introduces are one response; contracting them is a \
+             documented repair, not a re-listing"
         );
     }
 }
