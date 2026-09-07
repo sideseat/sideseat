@@ -8000,10 +8000,17 @@ fn the_rules_reproduce_the_extractors_they_replaced() {
                 continue;
             }
             let mut produced = Vec::new();
+            let tools_before = legacy_tools.len();
             if !f(&mut produced, &mut legacy_tools, case, span_name, time) {
                 continue;
             }
-            legacy_found = true;
+            // A reviewed delta, and the only one: an extractor whose whole contribution was a *tool
+            // definition* reported success, and the caller reads that as "the message payload was handled"
+            // and stops asking. A span stating a dialect's tool list has said nothing about its
+            // conversation, so it does not count here either. An extractor that produced nothing at all
+            // still counts - that is the claim case, whose entire purpose is to stop the generic reader.
+            let tools_only = produced.is_empty() && legacy_tools.len() > tools_before;
+            legacy_found |= !tools_only;
             // Recorded after the whole batch, never per message: one extractor legitimately emits several
             // observations for one carrier, and claiming as it goes would keep only the first.
             let mut newly_claimed = Vec::new();
@@ -8107,7 +8114,7 @@ fn declared_message_rules_cover_what_they_claim() {
     let plan = &ruleset().messages;
     assert_eq!(
         plan.rule_count(),
-        54,
+        55,
         "the assets declare {} message rules. **Every** framework extractor is consolidated into the one \
          generic entry; the only other entry left is the generic `raw_io` fallback, which names no \
          framework - and a dialect moves whole or not at all, so there are no part-migrated carriers to \
@@ -8538,5 +8545,45 @@ fn declared_tool_definitions_survive_a_tool_execution_span() {
         tool_defs.len(),
         1,
         "a tool span lost its declared tool definitions"
+    );
+}
+
+/// A carrier whose whole content is a tool list is not also a conversation.
+///
+/// The repr grammar runs on the metadata axis, outside claiming, which is right - a tool definition is not
+/// a message. But it still *reads* a carrier, and when that carrier holds nothing but the tool list, the
+/// generic fallback would go on to present the same Python `repr` as a user turn. So a repr rule that
+/// recognised the carrier claims it on the message axis too, saying "mine, and no conversation".
+#[test]
+fn a_carrier_holding_only_a_tool_list_is_not_read_as_a_conversation() {
+    let repr = r#"{"tools": ["CrewStructuredTool(name='search', description='Tool Arguments: {\"q\": {\"type\": \"str\"}}')"]}"#;
+    let attrs = make_attrs(&[("crew_key", "k"), ("input.value", repr)]);
+    let (tool_defs, _) = extract_tool_definitions(&attrs, Utc::now());
+    assert_eq!(tool_defs.len(), 1, "the tool list should be read");
+
+    let mut messages = Vec::new();
+    let mut defs = Vec::new();
+    extract_messages_from_attrs(
+        &mut messages,
+        &mut defs,
+        &attrs,
+        "span",
+        Utc::now(),
+        ExtractionMode::PerCarrier,
+        is_tool_execution_span(&attrs),
+    );
+    let from_input: Vec<&RawMessage> = messages
+        .iter()
+        .filter(
+            |m| matches!(&m.source, MessageSource::Attribute { key, .. } if key == "input.value"),
+        )
+        .collect();
+    assert!(
+        from_input.is_empty(),
+        "the tool list was also presented as a conversation: {:?}",
+        from_input
+            .iter()
+            .map(|m| m.content.to_string())
+            .collect::<Vec<_>>()
     );
 }

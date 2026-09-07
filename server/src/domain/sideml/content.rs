@@ -331,12 +331,25 @@ pub fn normalize_content_block(block: &JsonValue) -> Option<JsonValue> {
     // First check if block is already in SideML format (idempotent operation)
     try_sideml_passthrough(block)
         // OpenInference nested message_content wrapper
+        // Declared shapes, at the two positions the chain's order makes load-bearing.
+        .or_else(|| {
+            crate::domain::rules::ruleset().content_blocks.normalize(
+                block,
+                crate::domain::rules::schema::ChainPosition::BeforeProviderFormats,
+            )
+        })
         .or_else(|| try_openinference_message_content(block))
         // Then try provider-specific formats
         .or_else(|| try_openai_format(block))
         .or_else(|| try_anthropic_format(block))
         .or_else(|| try_bedrock_format(block))
         .or_else(|| try_gemini_format(block))
+        .or_else(|| {
+            crate::domain::rules::ruleset().content_blocks.normalize(
+                block,
+                crate::domain::rules::schema::ChainPosition::AfterProviderFormats,
+            )
+        })
         .or_else(|| try_vercel_format(block))
         // Universal media patterns (mime_type fields, nested self-named media)
         .or_else(|| try_media_fallback(block))
@@ -406,6 +419,12 @@ fn try_normalize_provider_format(block: &JsonValue) -> Option<JsonValue> {
         .or_else(|| try_anthropic_format(block))
         .or_else(|| try_bedrock_format(block))
         .or_else(|| try_gemini_format(block))
+        .or_else(|| {
+            crate::domain::rules::ruleset().content_blocks.normalize(
+                block,
+                crate::domain::rules::schema::ChainPosition::AfterProviderFormats,
+            )
+        })
         .or_else(|| try_vercel_format(block))
         .or_else(|| try_media_fallback(block))
     // No unknown fallback - returns None if no provider format matches
@@ -428,7 +447,7 @@ fn get_block_type(block: &JsonValue) -> Option<&str> {
 ///
 /// Deduplication handles cases where the same data appears in multiple formats,
 /// e.g., Vercel AI SDK sends both raw data and `{type: "json", value: ...}` wrapper.
-fn normalize_tool_result_content(content: Option<JsonValue>) -> JsonValue {
+pub(crate) fn normalize_tool_result_content(content: Option<JsonValue>) -> JsonValue {
     match content {
         None => json!(null),
         Some(JsonValue::Array(arr)) => {
@@ -1470,7 +1489,19 @@ fn parse_data_url(url: &str) -> (&'static str, String, Option<String>) {
 }
 
 /// Map MIME type to content block type.
-fn mime_to_content_type(mime: &str) -> &'static str {
+/// Whether a media member holds the bytes or a reference to a stored file.
+///
+/// Derived from the value, not declared: a producer writes the same member either way, and which it is is a
+/// fact about the value.
+pub(crate) fn data_source_kind(data: &str) -> &'static str {
+    if files::is_file_uri(data) {
+        "file"
+    } else {
+        "base64"
+    }
+}
+
+pub(crate) fn mime_to_content_type(mime: &str) -> &'static str {
     if mime.starts_with("image/") {
         "image"
     } else if mime.starts_with("audio/") {

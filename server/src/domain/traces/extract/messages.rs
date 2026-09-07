@@ -343,14 +343,20 @@ pub(crate) fn try_declared_rules(
                 // of the span, and a rule declares whether it may read such a span.
                 is_tool_span: is_tool_execution_span(attrs),
             });
-    // Any emission means this dialect recognised the span, including one that produced no message.
+    // "Was the message payload handled?" - which is what the caller does with this answer, since it uses it
+    // to decide whether the generic reader still needs to run.
     //
-    // Restricting this to `Message` was tried and is wrong: a `Claim` exists precisely to say "this carrier
-    // is mine and holds nothing worth reading", and its whole effect is to stop the generic reader
-    // presenting that payload as a conversation - so not counting it reintroduces what it prevents. A
-    // tool-definition emission counts for the weaker but sufficient reason that a span stating a dialect's
-    // tool list is that dialect's span, which is what the retired extractors also reported.
-    let found = !emissions.is_empty();
+    // A `Claim` counts: it exists precisely to say "this carrier is mine and holds nothing worth reading",
+    // and its whole effect is to stop the generic reader presenting that payload as a conversation. A
+    // `ToolDefinitions` emission does **not**: a span stating a dialect's tool list has said nothing about
+    // its conversation, and counting it let an `LLMCall` carrying only `tools` suppress an unrelated
+    // `input.value`. The retired extractors counted it, and preserving that preserved the defect.
+    let found = emissions.iter().any(|emission| {
+        !matches!(
+            emission.target,
+            crate::domain::rules::schema::EmitTarget::ToolDefinitions
+        )
+    });
     for emission in emissions {
         let key = emission.carrier.name();
         match emission.target {

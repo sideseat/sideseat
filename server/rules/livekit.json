@@ -48,9 +48,9 @@
     },
     {
       "id": "livekit.response",
-      "doc": "What the agent said back.",
+      "doc": "What the agent said back. The trailing dot is the family - without it `lk.responses` and `lk.response_time` would read as output too, and direction feeds timing, dedup and ordering.",
       "match": {
-        "attribute_prefix": "lk.response"
+        "attribute_prefix": "lk.response."
       },
       "facts": {
         "preset": "snapshot",

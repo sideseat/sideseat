@@ -87,8 +87,31 @@ pub struct Emission<'a> {
     /// The clause that produced it, for the explain trace.
     pub rule_id: &'a str,
     pub carrier: EmittedCarrier<'a>,
+    /// The carrier this emission *read*, which is what it owns - separate from the tag above.
+    ///
+    /// A rule with `tag_as` reads one key and reports another, and claiming the report would leave the key
+    /// it actually read free for a second rule to read as well. The kind travels with the name because an
+    /// attribute and an event of the same name are different carriers, which the retired implementation
+    /// said with `attr:` and `event:` prefixes.
+    pub owns: OwnedCarrier,
     pub target: EmitTarget,
     pub value: JsonValue,
+}
+
+/// The carrier an emission read: its kind and its key.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct OwnedCarrier {
+    pub is_event: bool,
+    pub name: String,
+}
+
+impl OwnedCarrier {
+    fn attribute(name: &str) -> Self {
+        Self {
+            is_event: false,
+            name: name.to_string(),
+        }
+    }
 }
 
 /// A compiled message rule.
@@ -850,7 +873,7 @@ impl MessagePlan {
     /// the collision precisely because a condition and a rank separate them.
     pub fn run<'p>(&'p self, ctx: &MessageContext<'_>) -> Vec<Emission<'p>> {
         let mut out = Vec::new();
-        let mut claimed: std::collections::HashSet<String> = std::collections::HashSet::new();
+        let mut claimed: std::collections::HashSet<OwnedCarrier> = std::collections::HashSet::new();
         for rule in &self.rules {
             // A `repr` grammar declares tool definitions, which `tool_definitions` reads on every span.
             if rule.tool_repr.is_some() {
@@ -899,16 +922,22 @@ impl MessagePlan {
 /// and the next rule reading that carrier keeps nothing.
 fn keep_unclaimed<'p>(
     produced: Vec<Emission<'p>>,
-    claimed: &mut std::collections::HashSet<String>,
+    claimed: &mut std::collections::HashSet<OwnedCarrier>,
     out: &mut Vec<Emission<'p>>,
 ) {
-    let mut mine: std::collections::HashSet<String> = std::collections::HashSet::new();
+    let mut mine: std::collections::HashSet<OwnedCarrier> = std::collections::HashSet::new();
     for emission in produced {
-        let carrier = emission.carrier.name();
-        if claimed.contains(carrier) {
+        // A tool definition is metadata about the span, not a reading of its conversation, so it neither
+        // claims a carrier nor is blocked by one: a dialect legitimately states its tools on a carrier
+        // another rule reads as a conversation, and both statements are true.
+        if emission.target == EmitTarget::ToolDefinitions {
+            out.push(emission);
             continue;
         }
-        mine.insert(carrier.to_string());
+        if claimed.contains(&emission.owns) {
+            continue;
+        }
+        mine.insert(emission.owns.clone());
         out.push(emission);
     }
     claimed.extend(mine);
@@ -1784,6 +1813,7 @@ fn emit_rule<'p>(rule: &'p CompiledMessageRule, ctx: &MessageContext<'_>) -> Vec
             out.push(Emission {
                 rule_id: &rule.rule_id,
                 carrier: EmittedCarrier::Attribute(compose.tag.as_str()),
+                owns: OwnedCarrier::attribute(compose.tag.as_str()),
                 target: rule.target,
                 value,
             });
@@ -1799,6 +1829,7 @@ fn emit_rule<'p>(rule: &'p CompiledMessageRule, ctx: &MessageContext<'_>) -> Vec
                 out.push(Emission {
                     rule_id: &rule.rule_id,
                     carrier: EmittedCarrier::Attribute(rule.tag_as.as_deref().unwrap_or(attribute)),
+                    owns: OwnedCarrier::attribute(attribute),
                     target: rule.target,
                     value: JsonValue::Array(tools),
                 });
@@ -1832,6 +1863,7 @@ fn emit_rule<'p>(rule: &'p CompiledMessageRule, ctx: &MessageContext<'_>) -> Vec
             out.push(Emission {
                 rule_id: &rule.rule_id,
                 carrier: EmittedCarrier::Attribute(rule.tag_as.as_deref().unwrap_or(family)),
+                owns: OwnedCarrier::attribute(family),
                 target: rule.target,
                 value,
             });
@@ -1840,6 +1872,7 @@ fn emit_rule<'p>(rule: &'p CompiledMessageRule, ctx: &MessageContext<'_>) -> Vec
         for (carrier, value) in entries {
             out.push(Emission {
                 rule_id: &rule.rule_id,
+                owns: OwnedCarrier::attribute(&carrier),
                 carrier: EmittedCarrier::Owned(carrier),
                 target: rule.target,
                 value,
@@ -1864,15 +1897,18 @@ fn emit_rule<'p>(rule: &'p CompiledMessageRule, ctx: &MessageContext<'_>) -> Vec
             return out;
         };
         for (carrier, value) in element_passes(&parsed, elements) {
+            // An event carrier is kept as one: carrier semantics are looked up by kind, so reporting an
+            // event as an attribute changes what the pipeline reads it as evidence of.
+            let tagged = if elements.tags_are_events {
+                EmittedCarrier::OwnedEvent(carrier)
+            } else {
+                EmittedCarrier::Owned(carrier)
+            };
             out.push(Emission {
                 rule_id: &rule.rule_id,
-                // An event carrier is kept as one: carrier semantics are looked up by kind, so reporting
-                // an event as an attribute changes what the pipeline reads it as evidence of.
-                carrier: if elements.tags_are_events {
-                    EmittedCarrier::OwnedEvent(carrier)
-                } else {
-                    EmittedCarrier::Owned(carrier)
-                },
+                // The array attribute is what was read; each element's tag is a name for one of its parts.
+                owns: OwnedCarrier::attribute(attribute),
+                carrier: tagged,
                 target: rule.target,
                 value,
             });
@@ -1885,6 +1921,7 @@ fn emit_rule<'p>(rule: &'p CompiledMessageRule, ctx: &MessageContext<'_>) -> Vec
             out.push(Emission {
                 rule_id: &rule.rule_id,
                 carrier: EmittedCarrier::Attribute(rule.tag_as.as_deref().unwrap_or(attribute)),
+                owns: OwnedCarrier::attribute(attribute),
                 target: rule.target,
                 value,
             });
@@ -1910,6 +1947,7 @@ fn emit_rule<'p>(rule: &'p CompiledMessageRule, ctx: &MessageContext<'_>) -> Vec
         out.push(Emission {
             rule_id: &rule.rule_id,
             carrier: EmittedCarrier::Attribute(rule.tag_as.as_deref().unwrap_or(attribute)),
+            owns: OwnedCarrier::attribute(attribute),
             target: rule.target,
             value: JsonValue::Array(readings.into_iter().map(|(value, _, _)| value).collect()),
         });
@@ -1927,6 +1965,7 @@ fn emit_rule<'p>(rule: &'p CompiledMessageRule, ctx: &MessageContext<'_>) -> Vec
         out.push(Emission {
             rule_id: &rule.rule_id,
             carrier: EmittedCarrier::Attribute(rule.tag_as.as_deref().unwrap_or(attribute)),
+            owns: OwnedCarrier::attribute(attribute),
             target: per_reading_target.unwrap_or(rule.target),
             value,
         });
@@ -2039,7 +2078,7 @@ fn matches_kind(value: &JsonValue, kind: ValueKind) -> bool {
 }
 
 /// Whether a predicate set holds of a value. An empty set holds.
-fn predicates_hold(value: &JsonValue, set: &PredicateSet) -> bool {
+pub(super) fn predicates_hold(value: &JsonValue, set: &PredicateSet) -> bool {
     (set.all.is_empty() || set.all.iter().all(|p| predicate_holds(value, p)))
         && (set.any.is_empty() || set.any.iter().any(|p| predicate_holds(value, p)))
 }

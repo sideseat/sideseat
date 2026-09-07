@@ -19,6 +19,7 @@
 //! be dishonest.
 
 pub mod carrier_rules;
+pub mod content_blocks;
 pub mod detect_rules;
 pub mod message_rules;
 pub mod schema;
@@ -93,15 +94,7 @@ impl SpanFactPlan {
     }
 
     fn compile_unvalidated(sources: &std::collections::BTreeMap<String, Vec<u8>>) -> Self {
-        // Named in the panic, and never skipped: a file quietly dropped for a typo is how a whole
-        // dialect's rules once vanished with every test still green.
-        let files: Vec<schema::RuleFile> = sources
-            .iter()
-            .map(|(path, bytes)| {
-                serde_json::from_slice(bytes)
-                    .unwrap_or_else(|e| panic!("embedded span facts are malformed: {path}: {e}"))
-            })
-            .collect();
+        let files = parsed_files(sources);
         Self {
             signals: files
                 .iter()
@@ -151,6 +144,8 @@ pub struct Ruleset {
     pub detect: detect_rules::DetectPlan,
     /// Which carriers an ingestion reads, declaratively.
     pub messages: message_rules::MessagePlan,
+    /// Content-block shapes, declared per dialect.
+    pub content_blocks: content_blocks::ContentBlockPlan,
     /// Facts about a span, each established by any dialect that can.
     pub span_facts: SpanFactPlan,
     /// BLAKE3 of the asset bytes that produced this plan, hex-encoded.
@@ -165,6 +160,18 @@ static RULESET: OnceLock<Ruleset> = OnceLock::new();
 
 /// The compiled ruleset. Panics only if an *embedded* asset is malformed, which is a build defect: the
 /// assets ship inside the binary, so there is no runtime input that can reach this.
+/// Every asset, parsed. Named in the panic and never skipped: a file quietly dropped for a typo is how a
+/// whole dialect's rules once vanished with every test still green.
+fn parsed_files(sources: &std::collections::BTreeMap<String, Vec<u8>>) -> Vec<schema::RuleFile> {
+    sources
+        .iter()
+        .map(|(path, bytes)| {
+            serde_json::from_slice(bytes)
+                .unwrap_or_else(|e| panic!("embedded rules are malformed: {path}: {e}"))
+        })
+        .collect()
+}
+
 pub fn ruleset() -> &'static Ruleset {
     RULESET.get_or_init(|| {
         let sources = schema::embedded_sources();
@@ -179,6 +186,7 @@ pub fn ruleset() -> &'static Ruleset {
             carriers,
             detect,
             messages,
+            content_blocks: content_blocks::ContentBlockPlan::compile(&parsed_files(&sources)),
             span_facts: SpanFactPlan::compile(&sources),
             digest,
         }

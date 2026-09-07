@@ -9,7 +9,7 @@ use std::collections::BTreeMap;
 use rust_embed::RustEmbed;
 use serde::Deserialize;
 use serde_json::Value as JsonValue;
-use serde_json_path::JsonPath;
+pub use serde_json_path::JsonPath;
 
 /// The embedded rule assets.
 #[derive(RustEmbed)]
@@ -38,6 +38,9 @@ pub struct RuleFile {
     /// Which carriers an ingestion reads on this dialect's spans, and how each is parsed.
     #[serde(default)]
     pub messages: Vec<MessageRule>,
+    /// Content-block shapes this dialect writes.
+    #[serde(default)]
+    pub content_blocks: Vec<ContentBlockRule>,
     /// Facts about a *span* this dialect can establish, as opposed to about a carrier.
     ///
     /// "Is this a tool execution" is one question with several answers - an operation name, a span-kind
@@ -1500,4 +1503,95 @@ where
     D: serde::Deserializer<'de>,
 {
     JsonValue::deserialize(deserializer).map(Some)
+}
+
+/// One content-block shape, and the canonical block it becomes.
+///
+/// Exactly one target form per rule, checked at compile time. The forms are the canonical SideML blocks,
+/// so this is not a general object builder: a rule says *where* a call's name is, never what a tool_use
+/// block looks like.
+#[derive(Debug, Deserialize, Clone)]
+#[serde(deny_unknown_fields)]
+pub struct ContentBlockRule {
+    pub id: String,
+    pub doc: Option<String>,
+    /// Where in the normalisation chain this case is tried. Declared, because the chain's order decides
+    /// which dialect answers for a shape more than one of them recognises.
+    pub at: ChainPosition,
+    /// Position among the cases at that point.
+    pub legacy_rank: i32,
+    /// The shape this case recognises.
+    #[serde(default)]
+    pub require: PredicateSet,
+    #[serde(default)]
+    pub tool_use: Option<ToolUseBlock>,
+    #[serde(default)]
+    pub tool_result: Option<ToolResultBlock>,
+    #[serde(default)]
+    pub json: Option<JsonDataBlock>,
+    #[serde(default)]
+    pub text: Option<TextBlock>,
+    #[serde(default)]
+    pub media: Option<MediaBlock>,
+}
+
+/// Where a content-block case sits relative to the provider wire formats.
+#[derive(Debug, Deserialize, Clone, Copy, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum ChainPosition {
+    /// Tried before any provider format. For a dialect whose own spelling a provider format would
+    /// otherwise claim.
+    BeforeProviderFormats,
+    /// Tried after them, which is where a dialect's additions to a provider's vocabulary belong.
+    AfterProviderFormats,
+}
+
+/// A model asking for a tool to be run.
+#[derive(Debug, Deserialize, Clone)]
+#[serde(deny_unknown_fields)]
+pub struct ToolUseBlock {
+    /// Ordered; absent is reported as null, because a provider that omits an id has still made the call.
+    #[serde(default)]
+    pub id: Vec<JsonPath>,
+    /// Required: a nameless call names nothing to run, so the case does not recognise the block.
+    pub name: Vec<JsonPath>,
+    /// Ordered, and an **empty object counts as absent** - a dialect that renamed this member leaves the
+    /// unused one present as `{}`, so "the first that resolves" would always pick the empty one.
+    #[serde(default)]
+    pub input: Vec<JsonPath>,
+}
+
+/// What a tool returned.
+#[derive(Debug, Deserialize, Clone)]
+#[serde(deny_unknown_fields)]
+pub struct ToolResultBlock {
+    #[serde(default)]
+    pub tool_use_id: Vec<JsonPath>,
+    #[serde(default)]
+    pub content: Vec<JsonPath>,
+    #[serde(default)]
+    pub is_error: Vec<JsonPath>,
+}
+
+/// Structured data that is not prose.
+#[derive(Debug, Deserialize, Clone)]
+#[serde(deny_unknown_fields)]
+pub struct JsonDataBlock {
+    #[serde(default)]
+    pub data: Vec<JsonPath>,
+}
+
+/// Prose. Only a string is text.
+#[derive(Debug, Deserialize, Clone)]
+#[serde(deny_unknown_fields)]
+pub struct TextBlock {
+    pub text: Vec<JsonPath>,
+}
+
+/// Bytes, or a reference to them. The block's kind and whether it is a reference are both *derived*.
+#[derive(Debug, Deserialize, Clone)]
+#[serde(deny_unknown_fields)]
+pub struct MediaBlock {
+    pub media_type: Vec<JsonPath>,
+    pub data: Vec<JsonPath>,
 }

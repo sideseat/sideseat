@@ -397,6 +397,7 @@ fn the_engine_names_no_framework() {
         ("detect_rules.rs", include_str!("detect_rules.rs")),
         ("message_rules.rs", include_str!("message_rules.rs")),
         ("tool_repr.rs", include_str!("tool_repr.rs")),
+        ("content_blocks.rs", include_str!("content_blocks.rs")),
     ];
 
     // The engine directory holds nothing else. A new module would otherwise be exempt by omission -
