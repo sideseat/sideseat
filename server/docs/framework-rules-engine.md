@@ -80,7 +80,7 @@ reliably semantic. Scope constraints *narrow* candidates; carrier and shape rema
    plus a parse cache keyed by ruleset hash); note `MESSAGE_CONTENT_FILTER` excludes rows whose
    ingestion-time extraction produced nothing, so re-interpreting archived spans at query time would
    still miss exactly the spans a new rule would newly recognise.
-2. `EXTRACTORS` holds **16** entries — 15 framework extractors plus `raw_io`.
+2. `EXTRACTORS` held **16** entries — 15 framework extractors plus `raw_io`. It no longer exists.
 3. The six carrier facts are **not** the whole policy surface. `order_graph.rs:188` hardcodes
    `llm.input_messages` as the fragmented-input family — a seventh semantic fact hiding in Rust — and
    source-direction, event→role and expandable-array tables live in `normalize.rs` and
@@ -353,12 +353,23 @@ bless a regression; an oracle cannot.
    observation holding every document, not one message per document, and one array needs an
    envelope saying what it is.
 
-   | Retired | Still in Rust |
+   **`EXTRACTORS` no longer exists.** It held sixteen entries, then two, then one - and a table with one
+   entry only hides which code runs, so `try_declared_rules` is called directly. Everything a framework
+   writes is declared: messages, tool definitions, tool *names*, and events.
+
+   | What moved | Where it lives now |
    | --- | --- |
-   | `mlflow`, `traceloop`, `pydantic_ai`, `langsmith` | **Nothing.** `messages.rs` has 17 functions outside `#[cfg(test)]` and not one names a framework |
-   | `gen_ai_indexed`, `livekit`, `otel_genai_messages` | |
-   | `vercel_ai`, `claude_code`, `logfire_events` | |
-   | `google_adk`, `langgraph`, `crewai`, `autogen`, `openinference` | |
+   | Sixteen framework message extractors | 71 rules across 32 asset files |
+   | The always-on tool-definition readers, including the convention's single-tool triple and its identifier test | `emit: tool_definitions` / `tool_names` rules, read by `MessagePlan::tool_definitions` on every span |
+   | `try_raw_io`, the generic last resort | `stage: fallback` rules; the stage is the engine's, *when* it runs is the caller's (generic: nothing recognised the span, or a generation span's answer is unaccounted for) |
+   | The event whitelist and its two Strands shapes | `message_events` per asset, plus `when_event` rules read by `MessagePlan::from_event` |
+   | CrewAI's Python-`repr` tool grammar | sealed in `rules/tool_repr.rs`, reached through a declared `ToolReprSpec` |
+
+   Measured and **enforced**: `messages.rs` has 12 functions outside `#[cfg(test)]`, not one names a
+   framework, and `message_extraction_names_no_framework` reads the source for producer names *and* carrier
+   keys *and* the constant identifiers that stand for them, case-insensitively, with an empty
+   stated-exceptions list. It is mutation-verified, and it earned its keep: matching lowercase text alone
+   had let `keys::AI_PROMPT` and `"VercelAISDK"` past a pass that reported zero.
 
    The last always-on framework code was a **tool-definition grammar**: a framework that builds its tools
    as objects and logs them with `str()` leaves a string that is neither JSON nor prose. That grammar is a
