@@ -648,7 +648,7 @@ pub enum SpanFact {
     ToolExecution,
 }
 
-/// One piece of evidence. Exactly one form per signal.
+/// One piece of evidence. At least one form, and both together read as a conjunction.
 #[derive(Debug, Deserialize, Clone)]
 #[serde(deny_unknown_fields)]
 pub struct SpanSignal {
@@ -715,9 +715,15 @@ pub struct OverlaySpec {
     pub from: String,
     #[serde(default)]
     pub parse: Option<ParseMode>,
-    /// Ordered paths to the counterpart list; the first that resolves to an array of objects is used. A
-    /// serialiser may wrap the list in a single-element array, which is why more than one path is needed.
+    /// Ordered paths to the counterpart list; the first that resolves to an array is used.
     pub select_any_of: Vec<JsonPath>,
+    /// Unwrap a list of exactly one list. A serialiser that accepts a batch of conversations writes one
+    /// conversation as a batch of one, and the members of *that* are the messages.
+    ///
+    /// Exactly one, deliberately: a batch of two is two conversations, and joining a family by position
+    /// against the first of them would attribute one conversation's content to another's messages.
+    #[serde(default)]
+    pub unwrap_single_element_list: bool,
     /// What the list must look like to be this dialect's own serialisation. Without it, any array of
     /// objects at that path would be treated as the same messages.
     #[serde(default)]

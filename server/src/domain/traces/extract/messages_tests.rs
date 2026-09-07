@@ -7973,28 +7973,49 @@ fn the_rules_reproduce_the_extractors_they_replaced() {
         // Without it the oracle compares at two different levels - the rules apply the gate internally
         // (it is a declared rule property now) while these functions expected their caller to.
         let is_tool_span = is_tool_execution_span(case);
-        // In the order the `EXTRACTORS` list had them.
+        // In rank order, which is the order the `EXTRACTORS` list had them - and **claiming per
+        // extractor**, exactly as `extract_per_carrier` does. Without the claiming this side reports
+        // duplicates production never produced: two dialects do read `message`, and the earlier extractor
+        // owned it. The oracle was blind to that until consolidating the extractors made the two rules run
+        // in one call, where nothing discarded the second.
+        let mut legacy_claimed: HashSet<String> = HashSet::new();
         for f in [
+            try_otel_genai_messages,
             try_gen_ai_indexed,
+            try_openinference,
+            try_vercel_ai,
+            try_logfire_events,
+            try_google_adk,
+            try_langgraph,
             try_mlflow,
             try_traceloop,
             try_pydantic_ai,
             try_langsmith,
             try_livekit,
-            try_otel_genai_messages,
-            try_vercel_ai,
             try_claude_code,
             try_crewai,
-            try_logfire_events,
-            try_google_adk,
-            try_langgraph,
             try_autogen,
-            try_openinference,
         ] {
             if is_tool_span {
                 continue;
             }
-            legacy_found |= f(&mut legacy_msgs, &mut legacy_tools, case, span_name, time);
+            let mut produced = Vec::new();
+            if !f(&mut produced, &mut legacy_tools, case, span_name, time) {
+                continue;
+            }
+            legacy_found = true;
+            // Recorded after the whole batch, never per message: one extractor legitimately emits several
+            // observations for one carrier, and claiming as it goes would keep only the first.
+            let mut newly_claimed = Vec::new();
+            for message in produced {
+                let carrier = carrier_of(&message.source);
+                if legacy_claimed.contains(&carrier) {
+                    continue;
+                }
+                newly_claimed.push(carrier);
+                legacy_msgs.push(message);
+            }
+            legacy_claimed.extend(newly_claimed);
         }
         if is_tool_span {
             // Only the conventions read a tool span, and they still do - as declared rules.
@@ -8459,4 +8480,63 @@ fn the_declared_span_facts_reproduce_the_legacy_tool_span_test() {
             "{what}: the declared evidence disagrees with the branches it replaced"
         );
     }
+}
+
+/// Two dialects that both read one carrier must not both emit from it.
+///
+/// The ranks exist to decide which is tried first, and the ownership check permits a collision only when a
+/// condition separates them - so the *first* rule to read a carrier owns it, as one extractor claiming a
+/// carrier used to mean. Without that, consolidating extractors into one entry turned "the earlier one
+/// won" into "both emit", which a reader sees as the same turn twice.
+#[test]
+fn one_carrier_is_read_by_one_rule() {
+    let attrs = make_attrs(&[
+        ("langgraph.node", "agent"),
+        ("message", r#"{"type":"HumanMessage","content":"hi"}"#),
+    ]);
+    let mut messages = Vec::new();
+    let mut tools = Vec::new();
+    try_declared_rules(&mut messages, &mut tools, &attrs, "span", Utc::now());
+    let from_message: Vec<&RawMessage> = messages
+        .iter()
+        .filter(|m| matches!(&m.source, MessageSource::Attribute { key, .. } if key == "message"))
+        .collect();
+    assert_eq!(
+        from_message.len(),
+        1,
+        "the `message` carrier produced {} observations: {:?}",
+        from_message.len(),
+        from_message
+            .iter()
+            .map(|m| m.content.to_string())
+            .collect::<Vec<_>>()
+    );
+}
+
+/// A declared tool definition is read on every span, including one that is a tool running.
+///
+/// `reads_tool_spans` asks whether a rule may read a tool span **as a conversation** - its messages are
+/// that tool's input and result, not a model's turn. That is not a question about tool *definitions*, and
+/// the path reading them has always run on every span. Routing them through the message evaluator applied
+/// the message gate, so a framework's tool list vanished on any span that also carried a tool-execution
+/// signal.
+#[test]
+fn declared_tool_definitions_survive_a_tool_execution_span() {
+    let agents = r#"[{"role":"Weather Expert","tools_names":["get_weather"]}]"#;
+    let attrs = make_attrs(&[
+        ("crew_agents", agents),
+        ("crew_key", "k"),
+        // Any declared tool-execution signal.
+        ("gen_ai.operation.name", "execute_tool"),
+    ]);
+    assert!(
+        is_tool_execution_span(&attrs),
+        "the case has to be a tool span for this to mean anything"
+    );
+    let (tool_defs, _) = extract_tool_definitions(&attrs, Utc::now());
+    assert_eq!(
+        tool_defs.len(),
+        1,
+        "a tool span lost its declared tool definitions"
+    );
 }

@@ -69,6 +69,30 @@ pub struct SpanFactPlan {
 
 impl SpanFactPlan {
     fn compile(sources: &std::collections::BTreeMap<String, Vec<u8>>) -> Self {
+        let plan = Self::compile_unvalidated(sources);
+        for (fact, signal) in &plan.signals {
+            // A signal that asserts nothing holds for **every** span, which for `tool_execution` would
+            // classify every span as a tool running and gate almost every message rule out. Refused rather
+            // than warned about: the failure is total and silent.
+            if signal.attr_equals.is_none() && signal.attrs_present.is_empty() {
+                panic!(
+                    "span fact `{fact:?}` has a signal that asserts nothing, so it holds for every span"
+                );
+            }
+            if signal.attrs_present.iter().any(String::is_empty) {
+                panic!("span fact `{fact:?}` names an empty attribute key");
+            }
+            // Case-folding a comparison that is not made is a statement about nothing.
+            if signal.ignore_case && signal.attr_equals.is_none() {
+                panic!(
+                    "span fact `{fact:?}` asks for a case-insensitive compare with nothing to compare"
+                );
+            }
+        }
+        plan
+    }
+
+    fn compile_unvalidated(sources: &std::collections::BTreeMap<String, Vec<u8>>) -> Self {
         // Named in the panic, and never skipped: a file quietly dropped for a typo is how a whole
         // dialect's rules once vanished with every test still green.
         let files: Vec<schema::RuleFile> = sources

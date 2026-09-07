@@ -49,7 +49,6 @@
           "from": "input.value",
           "parse": "json",
           "select_any_of": [
-            "$.messages[0]",
             "$.messages",
             "$"
           ],
@@ -83,7 +82,8 @@
               }
             ]
           },
-          "as_member": "content"
+          "as_member": "content",
+          "unwrap_single_element_list": true
         }
       },
       "require_members": {

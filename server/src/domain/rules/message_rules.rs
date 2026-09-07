@@ -797,8 +797,16 @@ impl MessagePlan {
             .collect()
     }
 
+    /// Every carrier this span carries that a rule reads, read by **one** rule each.
+    ///
+    /// The first rule to produce from a carrier owns it, and the ranks decide who is first. That is not a
+    /// tie-break bolted on: it is what one extractor claiming a carrier meant, and consolidating sixteen
+    /// extractors into one entry would otherwise have turned "the earlier one won" into "both emit". Two
+    /// dialects really do read the same key - `message` is read by two - and the ownership check permits
+    /// the collision precisely because a condition and a rank separate them.
     pub fn run<'p>(&'p self, ctx: &MessageContext<'_>) -> Vec<Emission<'p>> {
         let mut out = Vec::new();
+        let mut claimed: std::collections::HashSet<String> = std::collections::HashSet::new();
         for rule in &self.rules {
             // A `repr` grammar declares tool definitions, which `tool_definitions` reads on every span.
             if rule.tool_repr.is_some() {
@@ -823,10 +831,10 @@ impl MessagePlan {
                 for sub in &set.always {
                     produced.extend(emit_rule(sub, ctx));
                 }
-                out.extend(produced);
+                keep_unclaimed(produced, &mut claimed, &mut out);
                 continue;
             }
-            out.extend(emit_rule(rule, ctx));
+            keep_unclaimed(emit_rule(rule, ctx), &mut claimed, &mut out);
         }
         out
     }
@@ -838,6 +846,28 @@ impl MessagePlan {
     pub fn rules(&self) -> impl Iterator<Item = &CompiledMessageRule> {
         self.rules.iter()
     }
+}
+
+/// Keep one rule's emissions, unless a rule before it already owns their carrier.
+///
+/// Per *rule*, not per emission: one rule legitimately emits many observations from one carrier - a list of
+/// turns is one carrier and many messages - so a rule that owns a carrier keeps everything it read from it,
+/// and the next rule reading that carrier keeps nothing.
+fn keep_unclaimed<'p>(
+    produced: Vec<Emission<'p>>,
+    claimed: &mut std::collections::HashSet<String>,
+    out: &mut Vec<Emission<'p>>,
+) {
+    let mut mine: std::collections::HashSet<String> = std::collections::HashSet::new();
+    for emission in produced {
+        let carrier = emission.carrier.name();
+        if claimed.contains(carrier) {
+            continue;
+        }
+        mine.insert(carrier.to_string());
+        out.push(emission);
+    }
+    claimed.extend(mine);
 }
 
 /// Parse a raw attribute value in the declared mode.
@@ -1132,15 +1162,17 @@ fn counterpart_list(
 ) -> Option<Vec<JsonValue>> {
     let raw = attrs.get(overlay.from.as_str())?;
     let parsed = parse_value(raw, overlay.parse.unwrap_or(ParseMode::Json))?;
-    let list = overlay.select_any_of.iter().find_map(|path| {
-        query(&parsed, path)
-            .into_iter()
-            .next()
-            .and_then(JsonValue::as_array)
-            // An array of objects: a serialiser may wrap the list once, so the first path that resolves
-            // to a *list of messages* is the list - not the first that resolves to anything.
-            .filter(|items| items.iter().all(JsonValue::is_object))
-    })?;
+    let list = overlay
+        .select_any_of
+        .iter()
+        .find_map(|path| query(&parsed, path).into_iter().next()?.as_array())?;
+    // A batch of exactly one conversation: its single member is the list of messages. Not a mixed or
+    // longer list - two batches are two conversations, and the witness below decides whether whatever is
+    // left is this dialect's own serialisation.
+    let list = match (overlay.unwrap_single_element_list, list.as_slice()) {
+        (true, [only]) => only.as_array().unwrap_or(list),
+        _ => list,
+    };
     if list.is_empty() {
         return None;
     }
@@ -1190,7 +1222,11 @@ fn sniffed_value(raw: &str) -> JsonValue {
 
 /// Both gates, in one place so every read form is subject to them.
 fn gates_allow(rule: &CompiledMessageRule, ctx: &MessageContext<'_>) -> bool {
-    if ctx.is_tool_span && !rule.reads_tool_spans {
+    // The tool-span gate asks whether a rule may read such a span **as a conversation**: its messages are
+    // that tool's input and result rather than a model's turn. That is not a question about tool
+    // *definitions*, and the path reading those has always run on every span - so a `repr` grammar is not
+    // subject to it, or a framework's tool list vanishes on any span carrying a tool-execution signal.
+    if ctx.is_tool_span && !rule.reads_tool_spans && rule.tool_repr.is_none() {
         return false;
     }
     if let Some(gate) = &rule.when
@@ -1370,9 +1406,12 @@ fn wrapped(
 /// One tool call as `{name, arguments}`, the convention `sideml/tools.rs` unwraps.
 fn single_tool_call(subject: Option<&JsonValue>, spec: &SingleToolCallSpec) -> Option<JsonValue> {
     let subject = subject?;
+    // Only a string names a tool. A number or an object here is not a name, and the declared default is
+    // what the retired path used - reporting the structure as a name builds an unusable canonical call.
     let name = query(subject, &spec.name)
         .into_iter()
         .next()
+        .filter(|found| found.is_string())
         .cloned()
         .or_else(|| spec.name_default.clone())?;
     let arguments = query(subject, &spec.arguments)
