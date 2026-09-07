@@ -8081,22 +8081,45 @@ fn the_rules_reproduce_the_extractors_they_replaced() {
                 other => other.clone(),
             }
         }
+        // A reviewed delta is a tool *definition* on one of these carriers - decided on the typed
+        // observation, before rendering, so it cannot match a message nor a tool whose *content* merely
+        // mentions the string. See the comment below the constant for why each is here.
+        const REVIEWED_DELTA_CARRIERS: &[&str] = &[
+            "ai.toolCall.args",
+            "ai.toolCall.result",
+            "crew_tasks",
+            "crew_agents",
+        ];
+        let is_reviewed_delta_tool = |t: &RawToolDefinition| -> bool {
+            matches!(&t.source, ToolDefinitionSource::Attribute { key, .. }
+                if REVIEWED_DELTA_CARRIERS.contains(&key.as_str()))
+        };
+        // Vercel's tool-call attributes now also reach a tool span as *messages* - the call and its result.
+        // The retired code read them only when nothing else had produced a message, and this harness
+        // applies the tool-span exclusion, so the legacy side has nothing here. Keyed on the typed message
+        // source, so only these two carriers are exempt and any other moved message is still compared.
+        const REVIEWED_DELTA_MESSAGE_CARRIERS: &[&str] =
+            &["ai.toolCall.args", "ai.toolCall.result"];
+        let is_reviewed_delta_msg = |m: &RawMessage| -> bool {
+            matches!(&m.source, MessageSource::Attribute { key, .. }
+                if REVIEWED_DELTA_MESSAGE_CARRIERS.contains(&key.as_str()))
+        };
         let render = |msgs: &[RawMessage], tools: &[RawToolDefinition]| -> Vec<String> {
             let mut out: Vec<String> = msgs
                 .iter()
+                .filter(|m| !is_reviewed_delta_msg(m))
                 .map(|m| format!("msg {:?} {}", m.source, canonical(&m.content)))
                 .chain(
                     tools
                         .iter()
+                        .filter(|t| !is_reviewed_delta_tool(t))
                         .map(|t| format!("tool {:?} {}", t.source, canonical(&t.content))),
                 )
                 .collect();
             out.sort();
             out
         };
-        let legacy = render(&legacy_msgs, &legacy_tools);
-        let rules = render(&rule_msgs, &rule_tools);
-        // Reviewed deltas, named rather than tolerated:
+        // Why each carrier is a reviewed delta:
         //
         // - Vercel's tool-call attributes now reach a tool span. The code being replaced read them only
         //   when nothing else had produced a message, so any recognised event dropped the call and its
@@ -8106,39 +8129,20 @@ fn the_rules_reproduce_the_extractors_they_replaced() {
         //
         // - CrewAI's `crew_tasks` / `crew_agents` **tool definitions**. Their reference is the sealed
         //   `tool_repr` grammar, validated by the dedicated `test_crewai_tool_definitions_*` tests when it
-        //   moved - never by this message oracle, whose retired side had no CrewAI tool extraction at all
-        //   (`append_crewai_tool_definitions` was deleted with that migration). So a `tool` line on one of
-        //   those carriers is expected here and has its own coverage elsewhere.
-        const REVIEWED_DELTA_CARRIERS: &[&str] = &[
-            "ai.toolCall.args",
-            "ai.toolCall.result",
-            "crew_tasks",
-            "crew_agents",
-        ];
-        // A reviewed delta is a `tool` line on one of those carriers - never a `msg` line, so a message
-        // that moved is still caught. Dropped from both sides, and the remainder must match exactly.
-        let without_reviewed_tool_deltas = |rendered: &[String]| -> Vec<String> {
-            rendered
-                .iter()
-                .filter(|line| {
-                    !(line.starts_with("tool ")
-                        && REVIEWED_DELTA_CARRIERS.iter().any(|c| line.contains(c)))
-                })
-                .cloned()
-                .collect()
-        };
-        let is_reviewed_delta = |rendered: &[String]| {
-            !rendered.is_empty()
-                && rendered
-                    .iter()
-                    .all(|line| REVIEWED_DELTA_CARRIERS.iter().any(|c| line.contains(c)))
-        };
-        if legacy.is_empty() && is_reviewed_delta(&rules) {
-            continue;
-        }
-        let legacy = without_reviewed_tool_deltas(&legacy);
-        let rules = without_reviewed_tool_deltas(&rules);
-        if legacy != rules || legacy_found != rule_found {
+        //   moved - never by this message oracle, whose retired side had no CrewAI tool extraction at all.
+        //
+        // Both are dropped from the tool vector *before* rendering, keyed on the typed source carrier, so a
+        // message that moved is still compared and a tool on another carrier is untouched.
+        let legacy = render(&legacy_msgs, &legacy_tools);
+        let rules = render(&rule_msgs, &rule_tools);
+        // The `found` flags can differ only by a reviewed delta: on a tool span the rules recognise
+        // Vercel's tool-call carriers and the harness-excluded legacy side does not. Compared only when the
+        // rendered observations agree, so `found` is not a second channel that can hide a real change.
+        let found_differs_by_delta = legacy == rules
+            && rule_found
+            && !legacy_found
+            && rule_msgs.iter().any(is_reviewed_delta_msg);
+        if (legacy != rules || legacy_found != rule_found) && !found_differs_by_delta {
             disagreements.push(format!(
                 "  span `{span_name}` {case:?}\n    table: found={legacy_found} {legacy:?}\n    \
                  rules: found={rule_found} {rules:?}"
@@ -8159,7 +8163,7 @@ fn declared_message_rules_cover_what_they_claim() {
     let plan = &ruleset().messages;
     assert_eq!(
         plan.rule_count(),
-        60,
+        61,
         "the assets declare {} message rules. **Every** framework extractor is consolidated into the one \
          generic entry; the only other entry left is the generic `raw_io` fallback, which names no \
          framework - and a dialect moves whole or not at all, so there are no part-migrated carriers to \
@@ -8630,5 +8634,62 @@ fn a_carrier_holding_only_a_tool_list_is_not_read_as_a_conversation() {
             .iter()
             .map(|m| m.content.to_string())
             .collect::<Vec<_>>()
+    );
+}
+
+/// A message rule that also declares tools on the same carrier yields both.
+///
+/// AutoGen's logging channel carries the conversation, the reply and the tools offered, in one carrier via
+/// `also`. The whole rule is on the message axis (its target is `Message`), so it runs through `run` - and
+/// its tool-definition reading has to survive that path, or a framework that co-locates tools and
+/// conversation loses its tools. This is the shape `is_metadata_rule` must not mishandle by routing the
+/// whole rule one way.
+#[test]
+fn a_message_rule_may_also_emit_tool_definitions() {
+    let body = r#"{"type": "LLMCall", "messages": [{"role": "user", "content": "q"}], "response": {"content": "a"}, "tools": [{"name": "search"}]}"#;
+    let attrs = make_attrs(&[("body", body)]);
+    // The conversation is read on the message axis, the tools on the metadata axis - two entry points,
+    // routed by each emission's own target, from the one rule.
+    let mut messages = Vec::new();
+    let mut unused = Vec::new();
+    try_declared_rules(&mut messages, &mut unused, &attrs, "span", Utc::now());
+    assert!(!messages.is_empty(), "the conversation and reply were lost");
+    let (tools, _) = extract_tool_definitions(&attrs, Utc::now());
+    assert_eq!(
+        tools.len(),
+        1,
+        "the tool list co-located with the conversation was lost: {tools:?}"
+    );
+}
+
+/// The tools-only claim must not swallow a conversation that sits beside the tools.
+///
+/// Codex's case: `{tools: [...], messages: [...]}`. The tool parser reads the list on the metadata axis,
+/// but the carrier also holds a real conversation, so claiming it as "mine and empty" loses the turn.
+/// Excluding only `context` did not establish "holds only tools" - `messages` is a conversation too.
+#[test]
+fn a_tools_list_beside_a_conversation_does_not_claim_the_carrier() {
+    let mixed = r#"{"tools": ["search"], "messages": [{"role": "user", "content": "hello"}]}"#;
+    let attrs = make_attrs(&[("crew_key", "k"), ("input.value", mixed)]);
+    let mut messages = Vec::new();
+    let mut unused = Vec::new();
+    extract_messages_from_attrs(
+        &mut messages,
+        &mut unused,
+        &attrs,
+        "span",
+        Utc::now(),
+        ExtractionMode::PerCarrier,
+        is_tool_execution_span(&attrs),
+    );
+    let from_input: Vec<&RawMessage> = messages
+        .iter()
+        .filter(
+            |m| matches!(&m.source, MessageSource::Attribute { key, .. } if key == "input.value"),
+        )
+        .collect();
+    assert!(
+        !from_input.is_empty(),
+        "the conversation beside the tools was claimed away"
     );
 }

@@ -347,7 +347,7 @@
     },
     {
       "id": "crewai.aggregate_input",
-      "doc": "On a Crew span, `input.value` carries the framework's own state, including its tool objects' Python `repr`. The tools are read from it on the metadata axis; left unclaimed on the message axis, the generic reader presented that repr to the user as a turn.",
+      "doc": "On a Crew span, `input.value` may be the framework's own state - agents, tasks, tool `repr` - with no conversation. The tools are read on the metadata axis; claimed here so the repr is not shown as a turn. Claimed only where it holds tools and **no** conversation member (`context`, `messages`), because a carrier that has one of those is a conversation this must not swallow.",
       "read": {
         "attribute": "input.value"
       },
@@ -371,6 +371,11 @@
                 "path": "$.context",
                 "exists": false,
                 "doc": "The conversation, where this carrier has one."
+              },
+              {
+                "path": "$.messages",
+                "exists": false,
+                "doc": "A conversation under its other name - CrewAI-through-LangGraph writes `messages`. Claiming a carrier that has one would take the turn away, which `crewai/error` already proved for `context`."
               }
             ],
             "any": [

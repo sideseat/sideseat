@@ -325,9 +325,10 @@ pub(crate) fn try_declared_rules(
     // its conversation, and counting it let an `LLMCall` carrying only `tools` suppress an unrelated
     // `input.value`. The retired extractors counted it, and preserving that preserved the defect.
     let found = emissions.iter().any(|emission| {
-        !matches!(
+        matches!(
             emission.target,
-            crate::domain::rules::schema::EmitTarget::ToolDefinitions
+            crate::domain::rules::schema::EmitTarget::Message
+                | crate::domain::rules::schema::EmitTarget::Claim
         )
     });
     for emission in emissions {
@@ -741,9 +742,11 @@ pub(crate) fn extract_tool_definitions(
     }
 
     // response attribute - OpenAI Agents full API response with tools field
-    // request_data.tools - Logfire Chat Completions / Anthropic Messages
-    // Older logfire versions (< 4.20) don't set gen_ai.tool.definitions separately;
-    // tools are only inside the request_data JSON payload.
+    // Logfire's request payload carries tools when an older version (< 4.20) did not also set
+    // `gen_ai.tool.definitions`. Still in Rust because its guard is *cross-rule state* -
+    // `tool_definitions.is_empty()` - which the declarative engine cannot express by design: a rule cannot
+    // ask whether another rule already produced tools. Declared unconditionally it would double a newer
+    // Logfire's tools, which content dedup would usually collapse but not always. Measured, not hidden.
     if tool_definitions.is_empty() {
         if let Some(parsed) = extract_json::<JsonValue>(attrs, keys::REQUEST_DATA) {
             if let Some(tools) = parsed.get("tools").and_then(|t| t.as_array()) {

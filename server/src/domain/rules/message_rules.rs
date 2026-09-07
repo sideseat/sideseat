@@ -649,8 +649,27 @@ pub fn compile(sources: &BTreeMap<String, Vec<u8>>) -> Result<MessagePlan, Messa
     // that consumes a carrier another rule emits, and a sweep overlapping an exact source. Comparing the
     // *consumed* and *emitted* sets asks the question that matters - who owns this carrier - rather than
     // one convenient projection of it.
+    // Claiming is a message-axis mechanism: `run` claims carriers, `tool_definitions` does not. So two
+    // rules contend only when both can emit on the message axis - a message rule and a pure
+    // tool-definition rule reading the same carrier is the co-located case (one conversation, one tool
+    // list) that routing-by-emission handles, not a conflict.
+    let reads_message_axis = |rule: &CompiledMessageRule| -> bool {
+        rule.tool_repr.is_none()
+            && std::iter::once(rule.target)
+                .chain(
+                    rule.alternatives
+                        .iter()
+                        .chain(&rule.also)
+                        .chain(&rule.fallback)
+                        .filter_map(|a| a.spec.emit),
+                )
+                .any(|target| matches!(target, EmitTarget::Message | EmitTarget::Claim))
+    };
     for (i, a) in rules.iter().enumerate() {
         for b in &rules[i + 1..] {
+            if !(reads_message_axis(a) && reads_message_axis(b)) {
+                continue;
+            }
             let conflict = [
                 (consumed_carriers(a), consumed_carriers(b), "both read"),
                 (emitted_carriers(a), emitted_carriers(b), "both emit"),
@@ -881,10 +900,20 @@ impl MessagePlan {
     /// message, and the tool-definition path has always run on every span. A framework may state its tools
     /// on the same carrier another rule reads as a conversation, and both statements are true.
     pub fn tool_definitions<'p>(&'p self, ctx: &MessageContext<'_>) -> Vec<Emission<'p>> {
+        // Every rule, filtered to the *metadata* emissions - a definition or a name list. Not gated on the
+        // tool-span check: a tool definition is metadata about a span, and the path reading it has always
+        // run on every span. Routing by the emission's own target rather than the rule's is what lets one
+        // carrier hold both a conversation and the tools it was offered - the conversation goes to `run`,
+        // the tools come here, from the same rule.
         self.rules
             .iter()
-            .filter(|rule| is_metadata_rule(rule))
             .flat_map(|rule| emit_rule(rule, ctx))
+            .filter(|emission| {
+                matches!(
+                    emission.target,
+                    EmitTarget::ToolDefinitions | EmitTarget::ToolNames
+                )
+            })
             .collect()
     }
 
@@ -899,15 +928,15 @@ impl MessagePlan {
         let mut out = Vec::new();
         let mut claimed: std::collections::HashSet<OwnedCarrier> = std::collections::HashSet::new();
         for rule in &self.rules {
-            // Metadata about the span rather than a reading of its conversation: `tool_definitions` reads
-            // these on every span, outside claiming and outside the tool-span gate.
-            if is_metadata_rule(rule) {
+            // The tool-span gate is a message-axis question - "may this rule read such a span *as a
+            // conversation*" - so it lives here, not in `emit_rule`, which the metadata path also calls.
+            if ctx.is_tool_span && !rule.reads_tool_spans {
                 continue;
             }
             // A branch set is several readings with a local order between them: the primaries, then the
             // fallbacks only if those found nothing, then the unconditional ones. No rule ids, no shared
             // state - the order lives inside this rule.
-            if let Some(set) = &rule.branch_set {
+            let produced = if let Some(set) = &rule.branch_set {
                 if !gates_allow(rule, ctx) {
                     continue;
                 }
@@ -923,10 +952,17 @@ impl MessagePlan {
                 for sub in &set.always {
                     produced.extend(emit_rule(sub, ctx));
                 }
-                keep_unclaimed(produced, &mut claimed, &mut out);
-                continue;
-            }
-            keep_unclaimed(emit_rule(rule, ctx), &mut claimed, &mut out);
+                produced
+            } else {
+                emit_rule(rule, ctx)
+            };
+            // Only the message emissions belong to `run`: a definition or a name list is metadata that
+            // `tool_definitions` reads, on every span. Filtered by the emission's own target, so one rule
+            // reading a carrier that holds both a conversation and a tool list contributes to both paths.
+            let messages = produced
+                .into_iter()
+                .filter(|e| matches!(e.target, EmitTarget::Message | EmitTarget::Claim));
+            keep_unclaimed(messages.collect(), &mut claimed, &mut out);
         }
         out
     }
@@ -938,19 +974,6 @@ impl MessagePlan {
     pub fn rules(&self) -> impl Iterator<Item = &CompiledMessageRule> {
         self.rules.iter()
     }
-}
-
-/// Whether this rule's whole output is metadata about the span rather than a reading of its conversation.
-///
-/// Keyed on the *rule's* target, not on an individual emission's: a message rule may name
-/// `tool_definitions` on one of its readings - one carrier holding both a conversation and the tools it was
-/// offered - and that rule still belongs on the message axis.
-fn is_metadata_rule(rule: &CompiledMessageRule) -> bool {
-    rule.tool_repr.is_some()
-        || matches!(
-            rule.target,
-            EmitTarget::ToolDefinitions | EmitTarget::ToolNames
-        )
 }
 
 /// Keep one rule's emissions, unless a rule before it already owns their carrier.
@@ -1337,13 +1360,6 @@ fn sniffed_value(raw: &str) -> JsonValue {
 
 /// Both gates, in one place so every read form is subject to them.
 fn gates_allow(rule: &CompiledMessageRule, ctx: &MessageContext<'_>) -> bool {
-    // The tool-span gate asks whether a rule may read such a span **as a conversation**: its messages are
-    // that tool's input and result rather than a model's turn. That is not a question about tool
-    // *definitions*, and the path reading those has always run on every span - so a `repr` grammar is not
-    // subject to it, or a framework's tool list vanishes on any span carrying a tool-execution signal.
-    if ctx.is_tool_span && !rule.reads_tool_spans && !is_metadata_rule(rule) {
-        return false;
-    }
     if let Some(gate) = &rule.when
         && !super::detect_rules::compiled_signals_hold(gate, ctx.span_name, ctx.span_attrs)
     {

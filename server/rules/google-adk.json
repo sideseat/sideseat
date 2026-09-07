@@ -258,6 +258,39 @@
           }
         ]
       }
+    },
+    {
+      "id": "google-adk.request_tools",
+      "doc": "The tools a Gemini request was given. They sit under `tools` or `config.tools`, and each group either wraps its declarations under one of two spellings or is a bare tool - the per-group unwrap the retired code did with `function_declarations`/`functionDeclarations`.",
+      "read": {
+        "attribute": "gcp.vertex.agent.llm_request"
+      },
+      "parse": "json",
+      "emit": "tool_definitions",
+      "aggregate_into_array": true,
+      "alternatives": [
+        {
+          "doc": "The native top-level list, preferred.",
+          "select": "$.tools",
+          "each": true,
+          "then_any_of": [
+            "$.function_declarations[*]",
+            "$.functionDeclarations[*]"
+          ],
+          "else_element": true
+        },
+        {
+          "doc": "The nested list, where there is no top-level one.",
+          "select": "$.config.tools",
+          "each": true,
+          "then_any_of": [
+            "$.function_declarations[*]",
+            "$.functionDeclarations[*]"
+          ],
+          "else_element": true
+        }
+      ],
+      "legacy_rank": 530
     }
   ],
   "span_facts": [
