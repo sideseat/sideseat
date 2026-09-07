@@ -7968,50 +7968,37 @@ fn the_rules_reproduce_the_extractors_they_replaced() {
     // module, so copying it would compare that module against itself. Its *outputs* can be, and are the
     // thing that matters - taken from the pre-`9b013f86` implementation for exactly these shapes.
     let frozen_crew_tools = |attrs: &HashMap<String, String>| -> Vec<RawToolDefinition> {
-        [
-            ("crew_agents", "tools_names"),
-            ("crew_tasks", "tools_names"),
-        ]
-        .iter()
-        .filter_map(|(carrier, member)| {
-            let raw = attrs.get(*carrier)?;
-            let parsed: JsonValue = serde_json::from_str(raw).ok()?;
-            let mut names = Vec::new();
-            for entry in parsed.as_array()? {
-                if let Some(name) = entry.get("name").and_then(|n| n.as_str()) {
-                    names.push(name.to_string());
-                }
-                for listed in entry
-                    .get(*member)
-                    .or_else(|| entry.get("tools"))
-                    .and_then(|v| v.as_array())
-                    .into_iter()
-                    .flatten()
-                {
-                    if let Some(name) = listed.as_str() {
-                        names.push(name.to_string());
-                    } else if let Some(name) = listed.get("name").and_then(|n| n.as_str()) {
-                        names.push(name.to_string());
-                    }
-                }
-            }
-            if names.is_empty() {
-                return None;
-            }
-            // The canonical shape the retired reader emitted, in first-seen order.
-            let mut seen = std::collections::HashSet::new();
-            let tools: Vec<JsonValue> = names
-                .into_iter()
-                .filter(|name| seen.insert(name.clone()))
-                .map(|name| json!({"type": "function", "function": {"name": name}}))
-                .collect();
-            Some(RawToolDefinition::from_attr(
-                carrier,
-                time,
-                JsonValue::Array(tools),
-            ))
-        })
-        .collect()
+        // **Literal captured outputs** for the exact shapes the cases carry - not a reimplementation. My
+        // first attempt re-derived the name collection and was wrong twice over: it read `tools_names` *or*
+        // `tools` where the retired reader read both, and it dropped the rich-definition quality selection
+        // entirely - so it could have agreed with the rules for the wrong reason. A literal is either right
+        // or visibly wrong.
+        //
+        // The retired reader's *code* cannot be frozen here: its grammar moved into the sealed `tool_repr`
+        // module, so a copy would compare that module against itself.
+        const CAPTURED: &[(&str, &str, &str)] = &[
+            (
+                "crew_tasks",
+                r#"[{"name":"research"}]"#,
+                r#"[{"type":"function","function":{"name":"research"}}]"#,
+            ),
+            (
+                "crew_tasks",
+                r#"[{"name":"n"}]"#,
+                r#"[{"type":"function","function":{"name":"n"}}]"#,
+            ),
+        ];
+        CAPTURED
+            .iter()
+            .filter(|(carrier, raw, _)| attrs.get(*carrier).map(String::as_str) == Some(*raw))
+            .map(|(carrier, _, expected)| {
+                RawToolDefinition::from_attr(
+                    carrier,
+                    time,
+                    serde_json::from_str(expected).expect("the captured output parses"),
+                )
+            })
+            .collect()
     };
 
     let mut disagreements = Vec::new();
@@ -9224,4 +9211,94 @@ fn the_single_tool_triple_is_read_last() {
         vec!["from the list", "from the triple"],
         "the order the merge will see is wrong: {merged:?}"
     );
+}
+
+/// CrewAI's metadata carriers, over the matrix the oracle's two cases do not reach.
+///
+/// The oracle compares only the shapes its cases carry, and those are two minimal `crew_tasks` payloads.
+/// This covers what the retired reader actually did and what a re-derivation gets wrong: **both** carriers,
+/// **both** member names *together* (it read `tools_names` and `tools`, not one or the other), a rich
+/// definition beside a bare name for the same tool (quality selection, which decides which survives), and a
+/// `repr` string (the grammar, reached through the declared vocabulary).
+#[test]
+fn the_crew_metadata_carriers_yield_what_the_retired_reader_did() {
+    let names_of = |defs: &[RawToolDefinition], carrier: &str| -> Vec<String> {
+        defs.iter()
+            .filter(
+                |d| matches!(&d.source, ToolDefinitionSource::Attribute { key, .. } if key == carrier),
+            )
+            .flat_map(|d| d.content.as_array().cloned().unwrap_or_default())
+            .filter_map(|t| {
+                t["function"]["name"]
+                    .as_str()
+                    .or_else(|| t["name"].as_str())
+                    .map(str::to_string)
+            })
+            .collect()
+    };
+
+    // Both carriers are read, each as its own observation.
+    let attrs = make_attrs(&[
+        ("crew_key", "k"),
+        ("crew_agents", r#"[{"tools_names":["from_agents"]}]"#),
+        ("crew_tasks", r#"[{"tools_names":["from_tasks"]}]"#),
+    ]);
+    let (defs, _) = extract_tool_definitions(&attrs, Utc::now());
+    assert_eq!(
+        names_of(&defs, "crew_agents"),
+        vec!["from_agents".to_string()]
+    );
+    assert_eq!(
+        names_of(&defs, "crew_tasks"),
+        vec!["from_tasks".to_string()]
+    );
+
+    // Both member names in one entry, together - not one or the other.
+    let attrs = make_attrs(&[
+        ("crew_key", "k"),
+        (
+            "crew_agents",
+            r#"[{"tools_names":["named"],"tools":[{"name":"listed"}]}]"#,
+        ),
+    ]);
+    let (defs, _) = extract_tool_definitions(&attrs, Utc::now());
+    let mut both = names_of(&defs, "crew_agents");
+    both.sort();
+    assert_eq!(
+        both,
+        vec!["listed".to_string(), "named".to_string()],
+        "both member names are read, which a re-derivation reading one *or* the other misses"
+    );
+
+    // A rich definition beside a bare name for one tool: the richer one survives.
+    let attrs = make_attrs(&[
+        ("crew_key", "k"),
+        (
+            "crew_agents",
+            r#"[{"tools_names":["shared"],"tools":[{"name":"shared","description":"the rich one"}]}]"#,
+        ),
+    ]);
+    let (defs, _) = extract_tool_definitions(&attrs, Utc::now());
+    let described: Vec<String> = defs
+        .iter()
+        .flat_map(|d| d.content.as_array().cloned().unwrap_or_default())
+        .filter_map(|t| t["function"]["description"].as_str().map(str::to_string))
+        .collect();
+    assert_eq!(
+        described,
+        vec!["the rich one".to_string()],
+        "quality selection keeps the richer definition of one name: {defs:?}"
+    );
+    assert_eq!(names_of(&defs, "crew_agents"), vec!["shared".to_string()]);
+
+    // A `repr` string, reached through the declared vocabulary.
+    let attrs = make_attrs(&[
+        ("crew_key", "k"),
+        (
+            "crew_agents",
+            r#"[{"tools":["CrewStructuredTool(name='search', description='Tool Arguments: {\"q\": {\"type\": \"str\"}}')"]}]"#,
+        ),
+    ]);
+    let (defs, _) = extract_tool_definitions(&attrs, Utc::now());
+    assert_eq!(names_of(&defs, "crew_agents"), vec!["search".to_string()]);
 }

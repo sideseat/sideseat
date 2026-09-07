@@ -854,7 +854,12 @@ pub(super) fn predicate_defect(set: &PredicateSet) -> Option<&'static str> {
                 || predicate.not_null.is_some()
                 || predicate.identifier_like.is_some()
                 || predicate.starts_with.is_some()
-                || predicate.lacks_prefix.is_some())
+                || predicate.lacks_prefix.is_some()
+                // `one_of` needs a value to be one of them, so it cannot hold on an absent member - and the
+                // absent branch returns before consulting it, so it was silently ignored. `none_of` is
+                // deliberately not here: its documented reading accepts absence, which is how a dialect's
+                // unnamed events fall through to the reading that handles them.
+                || !predicate.one_of.is_empty())
         {
             return Some(
                 "`exists: false` asserts the member is absent, so no other condition on it \
@@ -2790,12 +2795,14 @@ fn inline_fragments(
                 .iter()
                 .find(|case| case.then_fragment.is_some() || !case.extra_cases.is_empty())
             {
-                let _ = nested;
+                // Named by the offending *case*, not by the reading that holds it: an `extra_cases` entry on
+                // an unnamed reading was reported as "a reading", which does not locate anything.
                 return Err(MessageCompileError::Inexpressible {
-                    rule: spec
-                        .then_fragment
+                    rule: nested
+                        .doc
                         .clone()
-                        .unwrap_or_else(|| "a reading".to_string()),
+                        .or_else(|| spec.then_fragment.clone())
+                        .unwrap_or_else(|| "an undocumented case".to_string()),
                     detail: "a fragment case or extra case is a leaf, so a `then_fragment` or \
                              `extra_cases` on it would be ignored",
                 });

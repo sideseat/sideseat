@@ -50,6 +50,29 @@ impl ContentBlockPlan {
             if let Some(defect) = predicate_defect(&rule.require) {
                 panic!("content-block rule `{}`: {defect}", rule.id);
             }
+            // A required selector with no paths can never resolve, so the case recognises a block and then
+            // refuses it - permanently dead, and it reads as though it builds something.
+            let empty_required: Option<&str> = match rule {
+                r if r.tool_use.as_ref().is_some_and(|t| t.name.is_empty()) => {
+                    Some("tool_use.name")
+                }
+                r if r.text.as_ref().is_some_and(|t| t.text.is_empty()) => Some("text.text"),
+                r if r
+                    .media
+                    .as_ref()
+                    .is_some_and(|m| m.media_type.is_empty() || m.data.is_empty()) =>
+                {
+                    Some("media.media_type or media.data")
+                }
+                _ => None,
+            };
+            assert!(
+                empty_required.is_none(),
+                "content-block rule `{}` names no path for `{}`, which is required - the case would \
+                 recognise a block and then build nothing",
+                rule.id,
+                empty_required.unwrap_or_default()
+            );
         }
         for rule in all {
             match rule.at {
@@ -195,6 +218,19 @@ mod tests {
             "legacy_rank": 1,
             "text": {"text": ["$.value"]},
             "json": {"data": ["$.value"]},
+        }));
+    }
+
+    /// A required selector with no paths can never resolve, so the case recognises a block and then builds
+    /// nothing - dead, while reading as though it builds something.
+    #[test]
+    #[should_panic(expected = "names no path for `text.text`")]
+    fn a_required_selector_with_no_paths_is_refused() {
+        plan_from(serde_json::json!({
+            "id": "probe.empty_text",
+            "at": "after_provider_formats",
+            "legacy_rank": 1,
+            "text": {"text": []},
         }));
     }
 

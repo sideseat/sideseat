@@ -748,3 +748,117 @@ fn message_extraction_names_no_framework() {
         offenders.join("\n")
     );
 }
+
+/// Every `PredicateSet` the schema declares is validated by somebody.
+///
+/// The recursive pass in `message_rules` grew one location at a time, each added after a review found it
+/// unvisited - `require_parent`, an overlay's witness, a fragment's cases, an element pass and its derived
+/// cases. A count is the only thing that makes the *next* one fail loudly instead of being evaluated at
+/// runtime and validated by nobody, which is how each of those was born.
+///
+/// Read from the schema source, so adding a field is what trips it - not adding a rule that uses one.
+#[test]
+fn every_predicate_set_in_the_schema_is_validated() {
+    const SCHEMA: &str = include_str!("schema.rs");
+
+    // Each field, and where its validation lives. `message_rules::predicate_sets` reaches all but the last
+    // three; those are separate domains, named here so the exemption is a statement rather than an omission.
+    const VALIDATED: &[(&str, &str)] = &[
+        ("witness", "predicate_sets: an overlay's witness"),
+        ("require_after", "predicate_sets: an envelope's post-check"),
+        (
+            "require_parent",
+            "predicate_sets: a reading's enclosing condition",
+        ),
+        ("skip_when", "predicate_sets: a section route"),
+        (
+            "when",
+            "predicate_sets: an element pass, and each derived case of its grouping",
+        ),
+        (
+            "require",
+            "predicate_sets: a reading, an attachment, a compose, a prepended block, an overlay",
+        ),
+        // Separate domains, deliberately: a content-block rule is compiled by its own plan, which applies
+        // the same `predicate_defect` to it.
+        ("require", "content_blocks::compile"),
+    ];
+
+    let declared: Vec<&str> = SCHEMA
+        .lines()
+        .filter_map(|line| {
+            let trimmed = line.trim();
+            let rest = trimmed.strip_prefix("pub ")?;
+            let (name, kind) = rest.split_once(": ")?;
+            (kind.trim_end_matches(',') == "PredicateSet").then_some(name)
+        })
+        .collect();
+
+    assert!(
+        !declared.is_empty(),
+        "the schema should declare predicate sets; the reader is broken"
+    );
+    for name in &declared {
+        assert!(
+            VALIDATED.iter().any(|(field, _)| field == name),
+            "`{name}` is a `PredicateSet` the validation pass does not know about. Add it to \
+             `message_rules::predicate_sets`, or - if it belongs to a separate domain like \
+             `ContentBlockRule::require` - name it in VALIDATED with where that validation lives.",
+        );
+    }
+}
+
+/// `exists: false` beside a condition that needs a value is refused, for every such condition.
+///
+/// The absent-value branch returns before most conditions are consulted, so each one declared beside
+/// `exists: false` is silently ignored rather than failing. `one_of` was missed twice - once when the check
+/// was written, and once when I added it to the wrong block - so every member of the set is asserted here
+/// rather than trusted.
+#[test]
+fn exists_false_beside_a_value_condition_is_refused() {
+    use crate::domain::rules::schema::{PredicateSet, ValuePredicate};
+
+    let with = |mutate: fn(&mut ValuePredicate)| -> PredicateSet {
+        let mut predicate: ValuePredicate =
+            serde_json::from_value(serde_json::json!({"path": "$.x", "exists": false}))
+                .expect("a predicate parses");
+        mutate(&mut predicate);
+        PredicateSet {
+            all: vec![predicate],
+            any: Vec::new(),
+        }
+    };
+
+    let cases: Vec<(&str, PredicateSet)> = vec![
+        (
+            "kind",
+            with(|p| p.kind = Some(crate::domain::rules::schema::ValueKind::String)),
+        ),
+        ("non_empty", with(|p| p.non_empty = Some(true))),
+        ("not_null", with(|p| p.not_null = Some(true))),
+        ("identifier_like", with(|p| p.identifier_like = Some(true))),
+        (
+            "starts_with",
+            with(|p| p.starts_with = Some("a".to_string())),
+        ),
+        (
+            "lacks_prefix",
+            with(|p| p.lacks_prefix = Some("a".to_string())),
+        ),
+        ("one_of", with(|p| p.one_of = vec!["a".to_string()])),
+    ];
+    for (name, set) in cases {
+        assert!(
+            crate::domain::rules::message_rules::predicate_defect(&set).is_some(),
+            "`exists: false` beside `{name}` compiled, and the condition is ignored at runtime"
+        );
+    }
+
+    // `none_of` is the exception, and it is documented: its reading accepts absence, which is how a
+    // dialect's unnamed events fall through to the reading that handles them.
+    let none_of = with(|p| p.none_of = vec!["a".to_string()]);
+    assert!(
+        crate::domain::rules::message_rules::predicate_defect(&none_of).is_none(),
+        "`none_of` accepts absence by design and must stay legal beside `exists: false`"
+    );
+}

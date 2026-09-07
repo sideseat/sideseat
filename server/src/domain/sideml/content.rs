@@ -415,7 +415,17 @@ fn try_sideml_passthrough(block: &JsonValue) -> Option<JsonValue> {
 /// - Provider content blocks: `{"text": "hello"}` → normalize to SideML
 /// - Structured data: `{"temp": 72}` → keep as-is (returns None)
 fn try_normalize_provider_format(block: &JsonValue) -> Option<JsonValue> {
-    try_openai_format(block)
+    // Both declared positions, in the same order the full chain uses them. Consulting only the *after* one
+    // meant a tool result written as a bare object skipped every `before_provider_formats` case, while the
+    // same result inside an array ran the whole chain - so the first such declaration would have behaved
+    // differently according to whether the producer wrapped it.
+    crate::domain::rules::ruleset()
+        .content_blocks
+        .normalize(
+            block,
+            crate::domain::rules::schema::ChainPosition::BeforeProviderFormats,
+        )
+        .or_else(|| try_openai_format(block))
         .or_else(|| try_anthropic_format(block))
         .or_else(|| try_bedrock_format(block))
         .or_else(|| try_gemini_format(block))
