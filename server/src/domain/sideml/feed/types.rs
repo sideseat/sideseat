@@ -380,31 +380,13 @@ impl BlockEntry {
     /// - Input events (gen_ai.user.message, etc.)
     #[inline]
     pub fn is_input_source(&self) -> bool {
-        self.source_attribute.as_ref().is_some_and(|attr| {
-            // Standard OTel / OpenInference
-            attr.starts_with("llm.input_messages")
-                || attr.starts_with("gen_ai.input.")
-                || attr.starts_with("gen_ai.prompt.")
-                || attr == "input.value"
-                // ADK / Vertex
-                || attr == "gcp.vertex.agent.llm_request"
-                || attr == "gcp.vertex.agent.data"
-                // Vercel AI SDK
-                || attr == "ai.prompt"
-                // LiveKit
-                || attr == "lk.input_text"
-                || attr == "lk.user_input"
-                || attr == "lk.instructions"
-                || attr == "lk.chat_ctx"
-                // MLflow
-                || attr == "mlflow.spanInputs"
-                // TraceLoop
-                || attr == "traceloop.entity.input"
-                // Pydantic AI
-                || attr == "pydantic_ai.all_messages"
-                // Logfire (instrument_openai, instrument_anthropic)
-                || attr == "request_data"
-        }) || self.is_input_event()
+        // Every carrier's direction is *declared*. The residue list this used to fall back to is gone:
+        // every key it named is in an asset, `carrier_semantics_are_declared` has an empty exemption list,
+        // and a list that outlived its entries is a second answer waiting to disagree with the first - which
+        // is exactly how Vercel's responses came to read as received when the SDK renamed `ai.result.*`.
+        crate::domain::sideml::carrier::declared_semantics_for_context(&self.carrier_context())
+            .is_some_and(|declared| declared.carrier_holds_span_input)
+            || self.is_input_event()
     }
 
     /// Check if this block came from OUTPUT attributes (results FROM the span).
@@ -422,47 +404,19 @@ impl BlockEntry {
     /// - Output events (gen_ai.choice, etc.)
     #[inline]
     pub fn is_output_source(&self) -> bool {
-        // A *declared* carrier is authoritative, in both directions.
+        // Declared, with no residue list behind it - see `is_input_source`.
         //
-        // This used to consult the declaration, and then fall through to the list below when it said
-        // `false` - which made a declaration that a carrier is *received* worth nothing: the residual
-        // list could still call it output, and no asset could ever state the negative. A rule that only
-        // one of its two answers is believed is not a rule. So a matched clause ends the question, and
-        // the list is consulted only where **nothing** declared the carrier.
-        //
-        // The list is the residue: carriers no asset names yet, kept here rather than silently reading as
-        // input. Vercel is why it exists - the SDK moved from `ai.result.*` to `ai.response.*` and the
-        // extractor followed while this list did not, so every Vercel response read as received.
+        // The promotion stays, because it is a fact about *this block* rather than about the carrier: a
+        // choiceless generation span carries its reply on `gen_ai.assistant.message`, which is a replay for
+        // every other framework, so the carrier reads as received and `classify_blocks` promotes the block.
+        // Read from its own field rather than inferred from the category it also sets, or the promotion is
+        // visible to the timestamp rules and invisible to the order resolver.
         if let Some(declared) =
             crate::domain::sideml::carrier::declared_semantics_for_context(&self.carrier_context())
         {
             return declared.carrier_holds_span_output || self.promoted_to_span_output;
         }
-        // Direction is a property of the carrier *and* of what the pipeline has since decided about
-        // this block - so the promotion is read from its own field rather than inferred from the
-        // category it also sets. A choiceless generation span (Logfire, OpenAI Agents) carries its
-        // reply on `gen_ai.assistant.message`, which is a replay for every other framework, so the
-        // carrier reads as received and `classify_blocks` promotes the block instead. Without this the
-        // promotion was visible to the timestamp rules and invisible to the order resolver, which then
-        // treated a span's own reply as something it received.
-        if self.promoted_to_span_output {
-            return true;
-        }
-        self.source_attribute.as_ref().is_some_and(|attr| {
-            attr.starts_with("gen_ai.completion.")
-                // ADK / Vertex
-                || attr == "gcp.vertex.agent.llm_response"
-                // Vercel AI SDK, before `ai.response.*`
-                || attr.starts_with("ai.result.")
-                // LiveKit
-                || attr.starts_with("lk.response.")
-                // MLflow
-                || attr == "mlflow.spanOutputs"
-                // TraceLoop
-                || attr == "traceloop.entity.output"
-                // Logfire (instrument_openai, instrument_anthropic)
-                || attr == "response_data"
-        }) || self.is_output_event()
+        self.promoted_to_span_output
     }
 
     /// Check if this block has the GenAIChoice category.

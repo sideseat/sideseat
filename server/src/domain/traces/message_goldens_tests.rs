@@ -2873,11 +2873,7 @@ fn carrier_semantics_are_declared() {
     // The mlflow and traceloop entries this list used to carry were removed by the membership check
     // below: no fixture exercises those carriers, so the exemptions excused nothing - and if a capture
     // ever arrives, failing loudly with "undeclared" is the correct prompt to classify them.
-    const KNOWN_DEFAULTED: &[&str] = &[
-        "attr:gcp.vertex.agent.llm_request",
-        "attr:gcp.vertex.agent.llm_response",
-        "attr:response_data",
-    ];
+    const KNOWN_DEFAULTED: &[&str] = &[];
 
     let mut seen: BTreeSet<String> = BTreeSet::new();
     for (_, paths) in discover_fixtures() {

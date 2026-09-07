@@ -171,6 +171,12 @@ fn resolve_facts(clause_id: &str, facts: &Facts) -> Result<CarrierSemantics, Com
     if let Some(v) = facts.carrier_holds_span_output {
         semantics.carrier_holds_span_output = v;
     }
+    if let Some(v) = facts.carrier_holds_span_input {
+        semantics.carrier_holds_span_input = v;
+    }
+    if let Some(v) = facts.carrier_holds_expandable_message_array {
+        semantics.carrier_holds_expandable_message_array = v;
+    }
     if let Some(v) = facts.carrier_is_detached_request_frame {
         semantics.carrier_is_detached_request_frame = v;
     }

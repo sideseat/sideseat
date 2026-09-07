@@ -9,7 +9,21 @@
         "attribute": "request_data"
       },
       "facts": {
-        "preset": "snapshot"
+        "preset": "snapshot",
+        "carrier_holds_span_input": true,
+        "carrier_holds_expandable_message_array": true
+      }
+    },
+    {
+      "id": "logfire.response_data",
+      "doc": "The response payload, an array that expands into one observation per message.",
+      "match": {
+        "attribute": "response_data"
+      },
+      "facts": {
+        "preset": "snapshot",
+        "carrier_holds_span_output": true,
+        "carrier_holds_expandable_message_array": true
       }
     }
   ],

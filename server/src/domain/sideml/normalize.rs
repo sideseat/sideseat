@@ -156,32 +156,16 @@ pub fn to_sideml_batch(raw_messages: &[Vec<RawMessage>]) -> Vec<Vec<SideMLMessag
 // MESSAGE EXPANSION (Query-Time)
 // ============================================================================
 
-/// Source names that contain message arrays which should be expanded.
+/// Whether this carrier holds an array of messages that expands into one observation each.
 ///
-/// These are framework-specific attribute/event keys that store arrays of messages.
-/// At query time, these arrays are expanded into individual messages for proper
-/// deduplication and processing.
+/// Declared per key rather than per family, because `ai.prompt` is a request while `ai.prompt.messages` is
+/// the array inside it, and expanding the wrong one turns one message into fragments. Not every array is
+/// expandable: a content-block list, a tool manifest and a context array all stay whole.
 ///
-/// Note: Not all array sources should be expanded. Some arrays are meant to be
-/// kept together (e.g., Logfire events, context arrays). Only add keys here that
-/// represent expandable message sequences.
-const MESSAGE_ARRAY_SOURCES: &[&str] = &[
-    // OTEL GenAI standard
-    "gen_ai.input.messages",
-    "gen_ai.output.messages",
-    // Vercel AI SDK
-    "ai.prompt.messages",
-    // MLflow
-    "mlflow.spanInputs",
-    "mlflow.spanOutputs",
-    // Logfire (instrument_openai, instrument_anthropic)
-    "request_data",
-    "response_data",
-];
-
-/// Check if a source name indicates a message array that should be expanded.
+/// There is no residue list behind it: every key the retired one named is in an asset, and a list that
+/// outlived its entries is a second answer waiting to disagree with the first.
 fn is_expandable_message_array_source(source_name: &str) -> bool {
-    MESSAGE_ARRAY_SOURCES.contains(&source_name)
+    crate::domain::sideml::carrier::holds_expandable_message_array(source_name)
 }
 
 /// Expand bundled messages into individual messages at query time.

@@ -1,7 +1,63 @@
 {
   "id": "livekit",
   "doc": "The LiveKit dialect.",
-  "carriers": [],
+  "carriers": [
+    {
+      "id": "livekit.input_text",
+      "doc": "The turn a caller spoke.",
+      "match": {
+        "attribute": "lk.input_text"
+      },
+      "facts": {
+        "preset": "snapshot",
+        "carrier_holds_span_input": true
+      }
+    },
+    {
+      "id": "livekit.user_input",
+      "doc": "The same, under this dialect's other name for it.",
+      "match": {
+        "attribute": "lk.user_input"
+      },
+      "facts": {
+        "preset": "snapshot",
+        "carrier_holds_span_input": true
+      }
+    },
+    {
+      "id": "livekit.instructions",
+      "doc": "The instructions the agent was given.",
+      "match": {
+        "attribute": "lk.instructions"
+      },
+      "facts": {
+        "preset": "snapshot",
+        "carrier_holds_span_input": true
+      }
+    },
+    {
+      "id": "livekit.chat_ctx",
+      "doc": "The conversation so far.",
+      "match": {
+        "attribute": "lk.chat_ctx"
+      },
+      "facts": {
+        "preset": "snapshot",
+        "carrier_holds_span_input": true
+      }
+    },
+    {
+      "id": "livekit.response",
+      "doc": "What the agent said back.",
+      "match": {
+        "attribute_prefix": "lk.response"
+      },
+      "facts": {
+        "preset": "snapshot",
+        "carrier_holds_span_output": true
+      }
+    }
+  ],
   "detect": [
     {
       "id": "livekit.detect",

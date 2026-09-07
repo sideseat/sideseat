@@ -23,6 +23,28 @@
       }
     },
     {
+      "id": "vercel-ai.prompt.request",
+      "doc": "The request itself: what this span was given.",
+      "match": {
+        "attribute": "ai.prompt"
+      },
+      "facts": {
+        "preset": "snapshot",
+        "carrier_holds_span_input": true
+      }
+    },
+    {
+      "id": "vercel-ai.prompt.messages",
+      "doc": "The conversation inside that request, as an array that expands into one observation per message.",
+      "match": {
+        "attribute": "ai.prompt.messages"
+      },
+      "facts": {
+        "preset": "snapshot",
+        "carrier_holds_expandable_message_array": true
+      }
+    },
+    {
       "id": "vercel-ai.tool_call_result",
       "doc": "A tool span's result.",
       "match": {
@@ -41,6 +63,17 @@
       "facts": {
         "preset": "emission",
         "carrier_holds_span_output": false
+      }
+    },
+    {
+      "id": "vercel-ai.result",
+      "doc": "The SDK's former name for its response namespace, kept because a deployed version still writes it.",
+      "match": {
+        "attribute_prefix": "ai.result."
+      },
+      "facts": {
+        "preset": "snapshot",
+        "carrier_holds_span_output": true
       }
     }
   ],

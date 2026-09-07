@@ -1,7 +1,30 @@
 {
   "id": "traceloop",
   "doc": "The TraceLoop dialect.",
-  "carriers": [],
+  "carriers": [
+    {
+      "id": "traceloop.entity_input",
+      "doc": "What the entity received.",
+      "match": {
+        "attribute": "traceloop.entity.input"
+      },
+      "facts": {
+        "preset": "snapshot",
+        "carrier_holds_span_input": true
+      }
+    },
+    {
+      "id": "traceloop.entity_output",
+      "doc": "What it produced.",
+      "match": {
+        "attribute": "traceloop.entity.output"
+      },
+      "facts": {
+        "preset": "snapshot",
+        "carrier_holds_span_output": true
+      }
+    }
+  ],
   "detect": [
     {
       "id": "traceloop.detect",

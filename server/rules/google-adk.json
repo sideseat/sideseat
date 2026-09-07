@@ -1,7 +1,41 @@
 {
   "id": "google-adk",
   "doc": "The GoogleADK dialect.",
-  "carriers": [],
+  "carriers": [
+    {
+      "id": "google-adk.llm_request",
+      "doc": "The request handed to the model.",
+      "match": {
+        "attribute": "gcp.vertex.agent.llm_request"
+      },
+      "facts": {
+        "preset": "snapshot",
+        "carrier_holds_span_input": true
+      }
+    },
+    {
+      "id": "google-adk.agent_data",
+      "doc": "State handed to an agent invocation.",
+      "match": {
+        "attribute": "gcp.vertex.agent.data"
+      },
+      "facts": {
+        "preset": "snapshot",
+        "carrier_holds_span_input": true
+      }
+    },
+    {
+      "id": "google-adk.llm_response",
+      "doc": "What the model returned.",
+      "match": {
+        "attribute": "gcp.vertex.agent.llm_response"
+      },
+      "facts": {
+        "preset": "snapshot",
+        "carrier_holds_span_output": true
+      }
+    }
+  ],
   "detect": [
     {
       "id": "google-adk.detect",

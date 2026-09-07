@@ -1,7 +1,32 @@
 {
   "id": "mlflow",
   "doc": "The MLflow dialect.",
-  "carriers": [],
+  "carriers": [
+    {
+      "id": "mlflow.span_inputs",
+      "doc": "What the span received, as an array that expands into one observation per message.",
+      "match": {
+        "attribute": "mlflow.spanInputs"
+      },
+      "facts": {
+        "preset": "snapshot",
+        "carrier_holds_span_input": true,
+        "carrier_holds_expandable_message_array": true
+      }
+    },
+    {
+      "id": "mlflow.span_outputs",
+      "doc": "What it produced, likewise an array.",
+      "match": {
+        "attribute": "mlflow.spanOutputs"
+      },
+      "facts": {
+        "preset": "snapshot",
+        "carrier_holds_span_output": true,
+        "carrier_holds_expandable_message_array": true
+      }
+    }
+  ],
   "detect": [
     {
       "id": "mlflow.detect",

@@ -114,13 +114,37 @@
       }
     },
     {
+      "id": "semconv.attr.output_messages.array",
+      "doc": "The family's root: the array itself, which expands into one observation per message. A key *beneath* it is one message's own member and stays whole.",
+      "match": {
+        "attribute": "gen_ai.output.messages"
+      },
+      "facts": {
+        "preset": "emission",
+        "carrier_holds_expandable_message_array": true
+      }
+    },
+    {
       "id": "semconv.attr.input_messages",
       "doc": "What this span received: a conversation as it saw it, which may re-state earlier turns.",
       "match": {
         "attribute_prefix": "gen_ai.input.messages"
       },
       "facts": {
-        "preset": "snapshot"
+        "preset": "snapshot",
+        "carrier_holds_span_input": true
+      }
+    },
+    {
+      "id": "semconv.attr.input_messages.array",
+      "doc": "The family's root: the array itself, which expands into one observation per message. A key *beneath* it is one message's own member and stays whole.",
+      "match": {
+        "attribute": "gen_ai.input.messages"
+      },
+      "facts": {
+        "preset": "snapshot",
+        "carrier_holds_span_input": true,
+        "carrier_holds_expandable_message_array": true
       }
     },
     {
@@ -153,6 +177,50 @@
       "facts": {
         "preset": "emission",
         "carrier_holds_span_output": false
+      }
+    },
+    {
+      "id": "semconv.attr.prompt_family",
+      "doc": "The deprecated indexed request family. Received, like the current spelling.",
+      "match": {
+        "attribute_prefix": "gen_ai.prompt."
+      },
+      "facts": {
+        "preset": "snapshot",
+        "carrier_holds_span_input": true
+      }
+    },
+    {
+      "id": "semconv.attr.completion_family",
+      "doc": "The deprecated indexed response family.",
+      "match": {
+        "attribute_prefix": "gen_ai.completion."
+      },
+      "facts": {
+        "preset": "snapshot",
+        "carrier_holds_span_output": true
+      }
+    },
+    {
+      "id": "semconv.attr.input_family",
+      "doc": "Anything else under the current request namespace: received by definition.",
+      "match": {
+        "attribute_prefix": "gen_ai.input."
+      },
+      "facts": {
+        "preset": "snapshot",
+        "carrier_holds_span_input": true
+      }
+    },
+    {
+      "id": "semconv.attr.output_family",
+      "doc": "Anything else under the current response namespace: produced by definition.",
+      "match": {
+        "attribute_prefix": "gen_ai.output."
+      },
+      "facts": {
+        "preset": "snapshot",
+        "carrier_holds_span_output": true
       }
     }
   ],

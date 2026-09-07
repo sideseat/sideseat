@@ -385,6 +385,10 @@ pub struct Facts {
     pub carrier_holds_span_output: Option<bool>,
     #[serde(default)]
     pub carrier_is_detached_request_frame: Option<bool>,
+    #[serde(default)]
+    pub carrier_holds_span_input: Option<bool>,
+    #[serde(default)]
+    pub carrier_holds_expandable_message_array: Option<bool>,
 }
 
 /// Every embedded asset, keyed by path so the order is deterministic.

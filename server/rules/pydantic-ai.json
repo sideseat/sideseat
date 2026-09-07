@@ -1,7 +1,19 @@
 {
   "id": "pydantic-ai",
   "doc": "The pydantic-ai dialect.",
-  "carriers": [],
+  "carriers": [
+    {
+      "id": "pydantic-ai.all_messages",
+      "doc": "The whole conversation as this dialect reports it.",
+      "match": {
+        "attribute": "pydantic_ai.all_messages"
+      },
+      "facts": {
+        "preset": "snapshot",
+        "carrier_holds_span_input": true
+      }
+    }
+  ],
   "messages": [
     {
       "id": "pydantic-ai.tool_arguments",

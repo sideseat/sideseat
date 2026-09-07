@@ -59,11 +59,26 @@ pub struct CarrierSemantics {
     /// is the edge the ordering resolver builds from it: a frame is not a turn that happened after the
     /// question, it is the frame the request was made in.
     pub carrier_is_detached_request_frame: bool,
+    /// The carrier holds what the span *received*: the conversation, prompt or state given to it.
+    ///
+    /// Declared for the same reason the output side is, and it is **not** the negation of it: a carrier may
+    /// be neither (a tool manifest), and a snapshot a span both received and re-reports is one it received.
+    /// Deriving one side from the other made a tool answer read as a precondition of the call that
+    /// produced it.
+    pub carrier_holds_span_input: bool,
+    /// The carrier holds an array of *messages* that is expanded into one observation each.
+    ///
+    /// A fact about the carrier, not about the value: plenty of carriers hold arrays that must stay whole -
+    /// a content-block list, a tool manifest, a context array - and expanding one of those turns a single
+    /// message into several fragments.
+    pub carrier_holds_expandable_message_array: bool,
 }
 
 impl CarrierSemantics {
     /// One emission: everything in it happened now, and two of anything are two.
     pub(crate) const EMISSION: Self = Self {
+        carrier_holds_span_input: false,
+        carrier_holds_expandable_message_array: false,
         position_proves_distinct_occurrence: true,
         position_provides_sequence_order: true,
         carrier_is_atomic_emission: true,
@@ -75,6 +90,8 @@ impl CarrierSemantics {
     /// A conversation as one span saw it: ordered, may repeat earlier turns, and a repeat inside it
     /// is a re-statement rather than a second occurrence.
     pub(crate) const SNAPSHOT: Self = Self {
+        carrier_holds_span_input: false,
+        carrier_holds_expandable_message_array: false,
         position_proves_distinct_occurrence: false,
         position_provides_sequence_order: true,
         carrier_is_atomic_emission: false,
@@ -89,6 +106,8 @@ impl CarrierSemantics {
     /// still being a re-listing rather than one emission. That combination is why direction cannot be
     /// derived from `carrier_is_atomic_emission`.
     pub(crate) const ACCUMULATED_STATE: Self = Self {
+        carrier_holds_span_input: false,
+        carrier_holds_expandable_message_array: false,
         position_proves_distinct_occurrence: false,
         position_provides_sequence_order: true,
         carrier_is_atomic_emission: false,
@@ -141,6 +160,22 @@ pub fn semantics_for_context(ctx: &crate::domain::rules::CarrierContext<'_>) -> 
 /// facts, and `carrier_semantics_are_declared` needs to tell them apart - a test that compared the
 /// value could not, and reported every declared snapshot carrier as unclassified.
 ///
+/// Whether a carrier of this name holds an array of messages that expands into one observation each.
+///
+/// Asked by **name alone**, which is what the retired list did, and the fact is a property of the key
+/// rather than of the span: an array of messages is one whether a chain or an agent wrote it. A clause
+/// that needs span context therefore does not answer here, and such a carrier falls to the caller's
+/// residue list rather than being guessed at.
+pub fn holds_expandable_message_array(attribute: &str) -> bool {
+    crate::domain::rules::ruleset()
+        .carriers
+        .resolve(&crate::domain::rules::CarrierContext::carrier_only(
+            None,
+            Some(attribute),
+        ))
+        .is_some_and(|clause| clause.semantics.carrier_holds_expandable_message_array)
+}
+
 /// Test-only for the same reason as [`semantics_for`]: production asks with context.
 #[cfg(test)]
 pub fn declared_semantics(
@@ -178,6 +213,61 @@ pub fn declared_semantics_for_context(
 /// regression.
 #[cfg(test)]
 pub(crate) fn legacy_declared_semantics(
+    event: Option<&str>,
+    attribute: Option<&str>,
+) -> Option<CarrierSemantics> {
+    let mut semantics = legacy_declared_semantics_without_direction(event, attribute)?;
+    let (input, expandable) = legacy_direction_facts(attribute);
+    semantics.carrier_holds_span_input = input;
+    semantics.carrier_holds_expandable_message_array = expandable;
+    Some(semantics)
+}
+
+/// What the retired `is_input_source` list said, and what `MESSAGE_ARRAY_SOURCES` said.
+///
+/// The reference for these two facts is a *list*, not the table: direction on the receiving side and
+/// "this array expands into one message each" were decided in `feed/types.rs` and `normalize.rs` while the
+/// table decided the other four. The oracle composes both, so the assets are held to what production did
+/// rather than to whichever half is convenient.
+#[cfg(test)]
+fn legacy_direction_facts(attribute: Option<&str>) -> (bool, bool) {
+    const LEGACY_INPUT_PREFIXES: &[&str] =
+        &["llm.input_messages", "gen_ai.input.", "gen_ai.prompt."];
+    const LEGACY_INPUT_EXACT: &[&str] = &[
+        "input.value",
+        "gcp.vertex.agent.llm_request",
+        "gcp.vertex.agent.data",
+        "ai.prompt",
+        "lk.input_text",
+        "lk.user_input",
+        "lk.instructions",
+        "lk.chat_ctx",
+        "mlflow.spanInputs",
+        "traceloop.entity.input",
+        "pydantic_ai.all_messages",
+        "request_data",
+    ];
+    const LEGACY_EXPANDABLE: &[&str] = &[
+        "gen_ai.input.messages",
+        "gen_ai.output.messages",
+        "ai.prompt.messages",
+        "mlflow.spanInputs",
+        "mlflow.spanOutputs",
+        "request_data",
+        "response_data",
+    ];
+    let Some(attribute) = attribute else {
+        return (false, false);
+    };
+    let input = LEGACY_INPUT_EXACT.contains(&attribute)
+        || LEGACY_INPUT_PREFIXES
+            .iter()
+            .any(|prefix| attribute.starts_with(prefix));
+    (input, LEGACY_EXPANDABLE.contains(&attribute))
+}
+
+#[cfg(test)]
+fn legacy_declared_semantics_without_direction(
     event: Option<&str>,
     attribute: Option<&str>,
 ) -> Option<CarrierSemantics> {

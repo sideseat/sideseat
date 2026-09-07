@@ -19,7 +19,8 @@
         "attribute_prefix": "llm.input_messages"
       },
       "facts": {
-        "preset": "snapshot"
+        "preset": "snapshot",
+        "carrier_holds_span_input": true
       },
       "ordering_family": "openinference.input_messages"
     }
