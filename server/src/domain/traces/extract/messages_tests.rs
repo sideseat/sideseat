@@ -8029,6 +8029,12 @@ fn the_rules_reproduce_the_extractors_they_replaced() {
             legacy_found |=
                 try_otel_genai_messages(&mut legacy_msgs, &mut legacy_tools, case, "span", time);
         }
+        // The convention's single-tool triple, frozen from the retired always-on path. It is *appended*,
+        // which is where it ran: after every other definition had been collected. Not a reviewed delta any
+        // more - there is a counterpart now, so the comparison is real.
+        if let Some(triple) = legacy_single_tool_definition(case, time) {
+            legacy_tools.push(triple);
+        }
 
         let mut rule_msgs: Vec<RawMessage> = Vec::new();
         let mut rule_tools: Vec<RawToolDefinition> = Vec::new();
@@ -8096,7 +8102,6 @@ fn the_rules_reproduce_the_extractors_they_replaced() {
             "ai.toolCall.result",
             "crew_tasks",
             "crew_agents",
-            "gen_ai.tool.name",
         ];
         let is_reviewed_delta_tool = |t: &RawToolDefinition| -> bool {
             matches!(&t.source, ToolDefinitionSource::Attribute { key, .. }
@@ -8134,12 +8139,6 @@ fn the_rules_reproduce_the_extractors_they_replaced() {
         //   result; and because this harness applies the caller's tool-span exclusion, the legacy side
         //   produces nothing for these carriers. Pinned by
         //   `an_event_does_not_suppress_a_tool_span_s_own_attributes`.
-        //
-        // - The convention's single-tool triple, tagged `gen_ai.tool.name`. It lived in
-        //   `extract_tool_definitions` - the always-on path this oracle's legacy side does not run - so
-        //   there is no counterpart to compare against, and production produced it before the migration as
-        //   it does after. Its own behaviour, including the identifier test that excludes a synthetic
-        //   aggregate, is held by `test_gen_ai_tool_*`.
         //
         // - CrewAI's `crew_tasks` / `crew_agents` **tool definitions**. Their reference is the sealed
         //   `tool_repr` grammar, validated by the dedicated `test_crewai_tool_definitions_*` tests when it
@@ -9032,5 +9031,104 @@ fn the_fallback_inherits_what_the_dialect_stage_read() {
     assert!(
         !inherited.iter().any(|e| e.carrier.name() == "output.value"),
         "the fallback re-read a carrier the dialect stage had already read: {inherited:?}"
+    );
+}
+
+/// The retired single-tool triple, frozen as the equivalence oracle's reference.
+///
+/// Not history: the declared rule must reproduce it, including the identifier test that excludes a
+/// synthetic aggregate reported under a parenthesised name, and the position - it ran *after* every other
+/// definition had been collected, and merging keeps the first of two equal-quality definitions with one
+/// name, so the order decides which description and schema win.
+fn legacy_single_tool_definition(
+    attrs: &HashMap<String, String>,
+    timestamp: DateTime<Utc>,
+) -> Option<RawToolDefinition> {
+    let tool_name = attrs.get("gen_ai.tool.name")?;
+    if !tool_name.starts_with(|c: char| c.is_alphanumeric() || c == '_') {
+        return None;
+    }
+    let mut func = json!({ "name": tool_name });
+    if let Some(desc) = attrs.get("gen_ai.tool.description") {
+        func["description"] = json!(desc);
+    }
+    if let Some(schema) = attrs
+        .get("gen_ai.tool.json_schema")
+        .and_then(|s| serde_json::from_str::<JsonValue>(s).ok())
+    {
+        func["parameters"] = schema;
+    }
+    Some(RawToolDefinition::from_attr(
+        "gen_ai.tool.name",
+        timestamp,
+        json!([{"type": "function", "function": func}]),
+    ))
+}
+
+/// The declared triple reproduces the retired one, and comes last.
+#[test]
+fn the_declared_single_tool_triple_reproduces_the_retired_one() {
+    let cases: Vec<Vec<(&str, &str)>> = vec![
+        vec![("gen_ai.tool.name", "weather")],
+        vec![
+            ("gen_ai.tool.name", "weather"),
+            ("gen_ai.tool.description", "looks it up"),
+        ],
+        vec![
+            ("gen_ai.tool.name", "weather"),
+            ("gen_ai.tool.description", "looks it up"),
+            ("gen_ai.tool.json_schema", r#"{"type":"object"}"#),
+        ],
+        // The synthetic aggregate one dialect reports: not a tool anyone can call.
+        vec![("gen_ai.tool.name", "(merged tools)")],
+        vec![("gen_ai.tool.name", "_private")],
+        vec![("gen_ai.tool.name", "9lives")],
+        // A malformed schema is not a schema.
+        vec![
+            ("gen_ai.tool.name", "weather"),
+            ("gen_ai.tool.json_schema", "{not json"),
+        ],
+    ];
+    for case in cases {
+        let attrs = make_attrs(&case);
+        let expected = legacy_single_tool_definition(&attrs, Utc::now());
+        let (defs, _) = extract_tool_definitions(&attrs, Utc::now());
+        let declared: Vec<&RawToolDefinition> = defs
+            .iter()
+            .filter(
+                |d| matches!(&d.source, ToolDefinitionSource::Attribute { key, .. } if key == "gen_ai.tool.name"),
+            )
+            .collect();
+        match expected {
+            None => assert!(
+                declared.is_empty(),
+                "the declared rule emitted a definition the retired one refused: {case:?} -> {declared:?}"
+            ),
+            Some(want) => {
+                assert_eq!(declared.len(), 1, "{case:?}");
+                assert_eq!(declared[0].content, want.content, "{case:?}");
+            }
+        }
+    }
+}
+
+/// The triple comes after every other tool definition, which is what decides the merge.
+#[test]
+fn the_single_tool_triple_is_read_last() {
+    let attrs = make_attrs(&[
+        ("llm.tools", r#"[{"name":"listed"}]"#),
+        ("gen_ai.tool.name", "triple"),
+    ]);
+    let (defs, _) = extract_tool_definitions(&attrs, Utc::now());
+    let order: Vec<String> = defs
+        .iter()
+        .map(|d| match &d.source {
+            ToolDefinitionSource::Attribute { key, .. } => key.clone(),
+        })
+        .collect();
+    assert_eq!(
+        order,
+        vec!["llm.tools".to_string(), "gen_ai.tool.name".to_string()],
+        "the triple must come last - merging keeps the first of two equal-quality definitions with one name"
     );
 }

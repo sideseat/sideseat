@@ -425,7 +425,7 @@
     },
     {
       "id": "semconv.single_tool",
-      "doc": "The convention's own single-tool triple: a name, its documentation and its schema, as three attributes. Emitted only where the name is one a caller could use - one dialect reports a synthetic aggregate under a name in parentheses, which is not a tool.",
+      "doc": "The convention's own single-tool triple: a name, its documentation and its schema, as three attributes. Emitted only where the name is one a caller could use - one dialect reports a synthetic aggregate under a name in parentheses, which is not a tool. Ranked last among the tool readers, which is where the retired block sat: it ran after every other definition had been collected, and merging keeps the *first* of two equal-quality definitions with one name - so the order decides which description and schema win, not merely the stored bytes.",
       "compose": {
         "tag": "gen_ai.tool.name",
         "as_tool_definition": true,
@@ -463,7 +463,7 @@
         ]
       },
       "emit": "tool_definitions",
-      "legacy_rank": 130
+      "legacy_rank": 9500
     }
   ],
   "span_facts": [

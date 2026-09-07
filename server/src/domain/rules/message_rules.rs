@@ -470,6 +470,7 @@ fn compile_rule(
                 && (predicate.kind.is_some()
                     || predicate.non_empty.is_some()
                     || predicate.not_null.is_some()
+                    || predicate.identifier_like.is_some()
                     || predicate.starts_with.is_some()
                     || predicate.lacks_prefix.is_some())
             {
@@ -488,6 +489,13 @@ fn compile_rule(
         if let Some(detail) = check_predicates(&alternative.require) {
             return Err(inexpressible(detail));
         }
+    }
+    // A composed rule's condition is a predicate set like any other, and skipping it here let a
+    // contradiction compile.
+    if let Some(compose) = compose
+        && let Some(detail) = check_predicates(&compose.require)
+    {
+        return Err(inexpressible(detail));
     }
     // `alternatives` and `also` may coexist: the first list is the ordered question "which shape is
     // this", the second is "and read this as well, always". One carrier really does need both - a dialect's
@@ -661,6 +669,13 @@ pub fn compile(sources: &BTreeMap<String, Vec<u8>>) -> Result<MessagePlan, Messa
                 path: path.clone(),
                 message: e.to_string(),
             })?;
+        if file.message_events.iter().any(|e| e.name.is_empty()) {
+            return Err(MessageCompileError::Inexpressible {
+                rule: format!("{}.message_events", file.id),
+                detail: "declares an event with no name, which would make every unnamed event a message \
+                         event",
+            });
+        }
         recognised_events.extend(file.message_events.iter().map(|e| e.name.clone()));
         for (name, fragment) in &file.fragments {
             if fragment.cases.is_empty() {
@@ -2481,6 +2496,7 @@ fn predicate_holds(value: &JsonValue, predicate: &ValuePredicate) -> bool {
                 && predicate.kind.is_none()
                 && predicate.non_empty.is_none()
                 && predicate.not_null.is_none()
+                && predicate.identifier_like.is_none()
                 && predicate.starts_with.is_none()
                 && predicate.lacks_prefix.is_none()
                 && predicate.one_of.is_empty());

@@ -568,17 +568,9 @@ pub(crate) fn extract_tool_definitions(
         }
     }
 
-    // OpenInference: tool.name + tool.description + tool.parameters (single tool per span)
-    // response attribute - OpenAI Agents full API response with tools field
-    // Logfire's request payload carries tools when an older version (< 4.20) did not also set
-    // `gen_ai.tool.definitions`. Still in Rust because its guard is *cross-rule state* -
-    // `tool_definitions.is_empty()` - which the declarative engine cannot express by design: a rule cannot
-    // ask whether another rule already produced tools. Declared unconditionally it would double a newer
-    // Logfire's tools, which content dedup would usually collapse but not always. Measured, not hidden.
     (tool_definitions, tool_names)
 }
 
-/// Check if span is a tool execution span based on attributes.
 /// Whether this span *is a tool running*, so its messages are the tool's input and result rather than a
 /// model's turn.
 ///
