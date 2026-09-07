@@ -8038,7 +8038,7 @@ fn the_rules_reproduce_the_extractors_they_replaced() {
             case,
             span_name,
             time,
-            &mut Vec::new(),
+            &mut std::collections::HashSet::new(),
         );
         // The metadata axis, which production reads on every span through `extract_tool_definitions`. The
         // retired extractors pushed tool definitions into the same vector, so both axes are collected here
@@ -8096,6 +8096,7 @@ fn the_rules_reproduce_the_extractors_they_replaced() {
             "ai.toolCall.result",
             "crew_tasks",
             "crew_agents",
+            "gen_ai.tool.name",
         ];
         let is_reviewed_delta_tool = |t: &RawToolDefinition| -> bool {
             matches!(&t.source, ToolDefinitionSource::Attribute { key, .. }
@@ -8134,6 +8135,12 @@ fn the_rules_reproduce_the_extractors_they_replaced() {
         //   produces nothing for these carriers. Pinned by
         //   `an_event_does_not_suppress_a_tool_span_s_own_attributes`.
         //
+        // - The convention's single-tool triple, tagged `gen_ai.tool.name`. It lived in
+        //   `extract_tool_definitions` - the always-on path this oracle's legacy side does not run - so
+        //   there is no counterpart to compare against, and production produced it before the migration as
+        //   it does after. Its own behaviour, including the identifier test that excludes a synthetic
+        //   aggregate, is held by `test_gen_ai_tool_*`.
+        //
         // - CrewAI's `crew_tasks` / `crew_agents` **tool definitions**. Their reference is the sealed
         //   `tool_repr` grammar, validated by the dedicated `test_crewai_tool_definitions_*` tests when it
         //   moved - never by this message oracle, whose retired side had no CrewAI tool extraction at all.
@@ -8170,7 +8177,7 @@ fn declared_message_rules_cover_what_they_claim() {
     let plan = &ruleset().messages;
     assert_eq!(
         plan.rule_count(),
-        70,
+        71,
         "the assets declare {} message rules. `EXTRACTORS` holds **one** entry where it held sixteen, and \
          that entry is the generic declared-rules evaluator: even the last-resort carriers are declared \
          now, with `stage: fallback`, so the fallback extractor is gone too. A dialect moves whole or not \
@@ -8287,7 +8294,7 @@ fn an_event_does_not_suppress_a_tool_span_s_own_attributes() {
         &attrs,
         "ai.toolCall",
         Utc::now(),
-        &mut Vec::new(),
+        &mut std::collections::HashSet::new(),
     );
 
     assert!(found);
@@ -8336,7 +8343,7 @@ fn a_swept_payload_is_ordered_deterministically() {
                 &attrs,
                 "ai.generateText",
                 Utc::now(),
-                &mut Vec::new(),
+                &mut std::collections::HashSet::new(),
             );
             messages
                 .iter()
@@ -8573,7 +8580,7 @@ fn one_carrier_is_read_by_one_rule() {
         &attrs,
         "span",
         Utc::now(),
-        &mut Vec::new(),
+        &mut std::collections::HashSet::new(),
     );
     let from_message: Vec<&RawMessage> = messages
         .iter()
@@ -8680,7 +8687,7 @@ fn a_message_rule_may_also_emit_tool_definitions() {
         &attrs,
         "span",
         Utc::now(),
-        &mut Vec::new(),
+        &mut std::collections::HashSet::new(),
     );
     assert!(!messages.is_empty(), "the conversation and reply were lost");
     let (tools, _) = extract_tool_definitions(&attrs, Utc::now());
@@ -8940,7 +8947,7 @@ fn try_raw_io(
                 span_attrs: attrs,
                 is_tool_span: is_tool_execution_span(attrs),
             },
-            &[],
+            &std::collections::HashSet::new(),
         )
         .into_iter()
         .map(|e| RawMessage::from_attr(e.carrier.name(), timestamp, e.value))
@@ -8980,5 +8987,50 @@ fn the_inference_details_container_is_read_on_a_tool_span() {
         carriers,
         vec!["gen_ai.input.messages".to_string()],
         "the container was narrowed on a tool span, or emitted as its own raw form"
+    );
+}
+
+/// The fallback stage does not re-read a carrier the dialect stage already read.
+///
+/// The two stages meet on one path: a generation span whose *answer* is unaccounted for reads the fallback
+/// after a dialect produced something. With independent claim sets, a dialect's reading of `output.value`
+/// and the fallback's reading of it both survive - the answer twice. That is the shape the compiler permits
+/// (a dialect `Claim` on the generic carrier) and no asset currently produces, so it is tested at the
+/// mechanism rather than through a fixture.
+///
+/// Asserted on the **inheritance** itself, because the names carry their kind as an `attr:` / `event:`
+/// prefix - the caller's own spelling. Taking them as bare attribute names was a defect that made this do
+/// nothing at all, and a span-level test could not see it.
+#[test]
+fn the_fallback_inherits_what_the_dialect_stage_read() {
+    let attrs = make_attrs(&[(
+        "output.value",
+        r#"{"role":"assistant","content":"the answer"}"#,
+    )]);
+    let ctx = crate::domain::rules::MessageContext {
+        span_name: "call_llm",
+        span_attrs: &attrs,
+        is_tool_span: false,
+    };
+    let plan = &ruleset().messages;
+
+    let read_afresh = plan.fallback(&ctx, &std::collections::HashSet::new());
+    assert!(
+        read_afresh
+            .iter()
+            .any(|e| e.carrier.name() == "output.value"),
+        "the fallback should read the generic carrier when nothing has"
+    );
+
+    let inherited = plan.fallback(
+        &ctx,
+        &std::collections::HashSet::from([crate::domain::rules::message_rules::OwnedCarrier {
+            is_event: false,
+            name: "output.value".to_string(),
+        }]),
+    );
+    assert!(
+        !inherited.iter().any(|e| e.carrier.name() == "output.value"),
+        "the fallback re-read a carrier the dialect stage had already read: {inherited:?}"
     );
 }

@@ -257,7 +257,7 @@ pub(crate) fn try_declared_rules(
     attrs: &HashMap<String, String>,
     span_name: &str,
     timestamp: DateTime<Utc>,
-    claims: &mut Vec<String>,
+    claims: &mut std::collections::HashSet<crate::domain::rules::message_rules::OwnedCarrier>,
 ) -> bool {
     let emissions =
         crate::domain::rules::ruleset()
@@ -277,7 +277,11 @@ pub(crate) fn try_declared_rules(
     // `ToolDefinitions` emission does **not**: a span stating a dialect's tool list has said nothing about
     // its conversation, and counting it let an `LLMCall` carrying only `tools` suppress an unrelated
     // `input.value`. The retired extractors counted it, and preserving that preserved the defect.
-    let mut claim_only: Vec<String> = Vec::new();
+    // What each retained observation *owns* - the carrier it read. Taken from the emission rather than
+    // derived from a message's source, because a `tag_as` rule reports under a name it never read, so
+    // reconstructing ownership from the report leaves the key it actually read unclaimed.
+    let mut owned: std::collections::HashSet<crate::domain::rules::message_rules::OwnedCarrier> =
+        std::collections::HashSet::new();
     let found = emissions.iter().any(|emission| {
         matches!(
             emission.target,
@@ -287,6 +291,13 @@ pub(crate) fn try_declared_rules(
     });
     for emission in emissions {
         let key = emission.carrier.name();
+        if matches!(
+            emission.target,
+            crate::domain::rules::schema::EmitTarget::Message
+                | crate::domain::rules::schema::EmitTarget::Claim
+        ) {
+            owned.insert(emission.owns.clone());
+        }
         match emission.target {
             // An event carrier is recorded as one: carrier semantics are looked up by kind, so reporting
             // an event as an attribute would change what the pipeline reads it as evidence of.
@@ -306,10 +317,12 @@ pub(crate) fn try_declared_rules(
             // The claim itself is the whole effect: the carrier is this dialect's and holds no message. It
             // is *reported* so the fallback stage can inherit it - a claimed carrier has been read, and the
             // fallback reading it again would present the payload a dialect said holds nothing.
-            crate::domain::rules::schema::EmitTarget::Claim => claim_only.push(key.to_string()),
+            // The claim itself is the whole effect: the carrier is this dialect's and holds no message.
+            // What it *owns* is recorded above, so the fallback stage inherits it.
+            crate::domain::rules::schema::EmitTarget::Claim => {}
         }
     }
-    claims.extend(claim_only);
+    claims.extend(owned);
     found
 }
 
@@ -353,7 +366,7 @@ pub(crate) fn extract_messages_from_attrs(
         return;
     }
 
-    let mut claims = Vec::new();
+    let mut claims = std::collections::HashSet::new();
     if try_declared_rules(
         messages,
         tool_definitions,
@@ -368,7 +381,13 @@ pub(crate) fn extract_messages_from_attrs(
     // produced no messages at all under it, which also made the metamorphic oracle's baseline smaller than
     // the thing it is a baseline for.
     if !is_tool_span {
-        messages.extend(fallback_messages(attrs, span_name, timestamp, &[]));
+        // Nothing was produced, so nothing has been read.
+        messages.extend(fallback_messages(
+            attrs,
+            span_name,
+            timestamp,
+            &std::collections::HashSet::new(),
+        ));
     }
 }
 
@@ -388,6 +407,11 @@ fn extract_per_carrier(
     is_tool_span: bool,
 ) {
     let mut claimed: HashSet<String> = messages.iter().map(|m| carrier_of(&m.source)).collect();
+    // What the dialect stage owns, typed and taken from the emissions themselves - which is what the
+    // fallback stage inherits when answer recovery reaches it.
+    let mut owned_by_dialects: std::collections::HashSet<
+        crate::domain::rules::message_rules::OwnedCarrier,
+    > = std::collections::HashSet::new();
     let mut any_specific = false;
     let observation_type = super::attributes::detect_observation_type(span_name, attrs);
 
@@ -395,7 +419,7 @@ fn extract_per_carrier(
     // entry left the indirection only hid which code runs.
     {
         let mut produced = Vec::new();
-        let mut claims = Vec::new();
+        let mut claims = std::collections::HashSet::new();
         if try_declared_rules(
             &mut produced,
             tool_definitions,
@@ -408,7 +432,7 @@ fn extract_per_carrier(
         }
         // A claimed carrier has been read even though it produced nothing, so the fallback stage must not
         // read it again - that is what a claim means.
-        claimed.extend(claims);
+        owned_by_dialects.extend(claims);
 
         // Carriers are recorded after the whole batch, not per message: one extractor legitimately
         // emits several observations for one carrier - an expanded message array is the usual case -
@@ -430,7 +454,12 @@ fn extract_per_carrier(
     }
 
     if !any_specific {
-        messages.extend(fallback_messages(attrs, span_name, timestamp, &[]));
+        messages.extend(fallback_messages(
+            attrs,
+            span_name,
+            timestamp,
+            &std::collections::HashSet::new(),
+        ));
         return;
     }
 
@@ -456,8 +485,7 @@ fn extract_per_carrier(
     // What a dialect already read. Passed in, because this call happens *after* the dialect stage produced
     // something - the one case where the two stages meet, and where independent claim sets let one carrier be
     // read twice.
-    let already_read: Vec<&str> = claimed.iter().map(String::as_str).collect();
-    let produced = fallback_messages(attrs, span_name, timestamp, &already_read);
+    let produced = fallback_messages(attrs, span_name, timestamp, &owned_by_dialects);
     for message in produced {
         if !carrier_holds_span_output(&message.source, span_name, observation_type) {
             continue;
@@ -537,36 +565,6 @@ pub(crate) fn extract_tool_definitions(
             _ => {
                 tool_definitions.push(RawToolDefinition::from_attr(key, timestamp, emission.value));
             }
-        }
-    }
-
-    // Assemble tool definition from individual gen_ai.tool.* attributes.
-    // Only create if name looks like a valid identifier (starts with alphanumeric or underscore).
-    // Filters framework-internal names like "(merged tools)" from Google ADK.
-    if let Some(tool_name) = attrs.get(keys::GEN_AI_TOOL_NAME) {
-        if tool_name.starts_with(|c: char| c.is_alphanumeric() || c == '_') {
-            let description = attrs.get(keys::GEN_AI_TOOL_DESCRIPTION);
-            let json_schema = attrs
-                .get(keys::GEN_AI_TOOL_JSON_SCHEMA)
-                .and_then(|s| serde_json::from_str::<JsonValue>(s).ok());
-
-            let mut func = json!({ "name": tool_name });
-            if let Some(desc) = description {
-                func["description"] = json!(desc);
-            }
-            if let Some(schema) = json_schema {
-                func["parameters"] = schema;
-            }
-
-            let content = json!([{
-                "type": "function",
-                "function": func
-            }]);
-            tool_definitions.push(RawToolDefinition::from_attr(
-                keys::GEN_AI_TOOL_NAME,
-                timestamp,
-                content,
-            ));
         }
     }
 
@@ -3108,7 +3106,7 @@ fn fallback_messages(
     attrs: &HashMap<String, String>,
     span_name: &str,
     timestamp: DateTime<Utc>,
-    already_read: &[&str],
+    already_read: &std::collections::HashSet<crate::domain::rules::message_rules::OwnedCarrier>,
 ) -> Vec<RawMessage> {
     crate::domain::rules::ruleset()
         .messages

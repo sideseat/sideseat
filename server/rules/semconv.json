@@ -422,6 +422,48 @@
       "emit": "message",
       "legacy_rank": 31,
       "reads_tool_spans": true
+    },
+    {
+      "id": "semconv.single_tool",
+      "doc": "The convention's own single-tool triple: a name, its documentation and its schema, as three attributes. Emitted only where the name is one a caller could use - one dialect reports a synthetic aggregate under a name in parentheses, which is not a tool.",
+      "compose": {
+        "tag": "gen_ai.tool.name",
+        "as_tool_definition": true,
+        "require": {
+          "all": [
+            {
+              "path": "$.name",
+              "identifier_like": true,
+              "doc": "A synthetic aggregate is reported under a parenthesised name; a tool anyone can call begins like an identifier."
+            }
+          ]
+        },
+        "members": [
+          {
+            "as": "name",
+            "from_any_of": [
+              "gen_ai.tool.name"
+            ],
+            "parse": "text"
+          },
+          {
+            "as": "description",
+            "from_any_of": [
+              "gen_ai.tool.description"
+            ],
+            "parse": "text"
+          },
+          {
+            "as": "parameters",
+            "from_any_of": [
+              "gen_ai.tool.json_schema"
+            ],
+            "parse": "json"
+          }
+        ]
+      },
+      "emit": "tool_definitions",
+      "legacy_rank": 130
     }
   ],
   "span_facts": [

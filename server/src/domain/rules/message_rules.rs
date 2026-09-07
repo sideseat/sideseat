@@ -13,17 +13,17 @@
 //!
 //! Which is a declaration with a function around it. This module is the declaration without one.
 //!
-//! What it does **not** cover, as of now: a state tree walked to a bounded depth (LangGraph), a decision
-//! table over ~13 message types (AutoGen), a positional join between an indexed family and a serialised
-//! state member (OpenInference's multimodal enrichment), and a serialisation grammar that is not JSON
-//! (CrewAI's tool definitions, still read in Rust even though its *messages* are declared). Indexed
-//! families and tagged text sections **are** covered - they were on this list and are not any more.
+//! Every shape this list once excepted is now covered, which is why the list is gone: the bounded state
+//! walk, the typed-message decision table, the positional join against a serialised state member, and the
+//! `repr` grammar that is not JSON (sealed in `tool_repr`, reached through a declared vocabulary). Messages,
+//! tool definitions, tool names and *events* are all declared, and `messages.rs` names no framework.
 //!
-//! The vocabulary here has also grown past what one module should own, which is the acknowledged reason
-//! for the next step: selection, projection, predicates and object construction move to **JMESPath**, a
-//! published spec with an existing parser, leaving this module the structural algebra that JMESPath
-//! cannot express - claiming, precedence, bounded traversal, positional joins, grouping and non-JSON
-//! parsing. See `server/docs/framework-rules-engine.md`.
+//! Selection is RFC 9535 **JSONPath** (`serde_json_path`), not JMESPath: a JSONPath query returns *borrowed*
+//! references into the original value, so member order survives, where JMESPath re-materialises through a
+//! sorted map and alphabetised every provider payload it touched. That was measured, not assumed - it
+//! reordered goldens. What stays in this module is the structural algebra a query language cannot express:
+//! claiming, stages and precedence, bounded traversal, positional joins, grouping, and the canonical
+//! constructors. See `server/docs/framework-rules-engine.md`.
 //!
 //! The engine emits *values*, not `RawMessage`s: the ingestion types live in `domain::traces`, and the
 //! engine having to know them would point the dependency the wrong way for no benefit.
@@ -651,14 +651,17 @@ pub fn compile(sources: &BTreeMap<String, Vec<u8>>) -> Result<MessagePlan, Messa
     let mut seen_ids: HashMap<String, ()> = HashMap::new();
 
     // Fragments first, across every asset: a rule may reference one defined in another file, which is what
-    // makes a shared dialect table shared.
+    // makes a shared dialect table shared. Recognised events are collected in the same pass, for the same
+    // reason - a rule may name an event another file recognises.
     let mut fragments: HashMap<String, Vec<Alternative>> = HashMap::new();
+    let mut recognised_events: std::collections::HashSet<String> = std::collections::HashSet::new();
     for (path, bytes) in sources {
         let file: RuleFile =
             serde_json::from_slice(bytes).map_err(|e| MessageCompileError::Parse {
                 path: path.clone(),
                 message: e.to_string(),
             })?;
+        recognised_events.extend(file.message_events.iter().map(|e| e.name.clone()));
         for (name, fragment) in &file.fragments {
             if fragment.cases.is_empty() {
                 return Err(MessageCompileError::Inexpressible {
@@ -725,6 +728,29 @@ pub fn compile(sources: &BTreeMap<String, Vec<u8>>) -> Result<MessagePlan, Messa
                 });
             }
             rules.push(compile_rule(&file.id, rule, &fragments)?);
+        }
+    }
+
+    // An event name no asset recognises makes a rule *dead*: recognition rejects the event before the plan
+    // is asked, so the rule compiles and never runs. That is the failure declaring recognition was meant to
+    // remove, so it is refused rather than left to be discovered.
+    for rule in &rules {
+        if rule.when_event.iter().any(String::is_empty) {
+            return Err(MessageCompileError::Inexpressible {
+                rule: rule.rule_id.clone(),
+                detail: "names an empty event",
+            });
+        }
+        if rule
+            .when_event
+            .iter()
+            .any(|name| !recognised_events.contains(name))
+        {
+            return Err(MessageCompileError::Inexpressible {
+                rule: rule.rule_id.clone(),
+                detail: "names an event no asset recognises, so it would never run - declare it in a \
+                         `message_events` list",
+            });
         }
     }
 
@@ -851,6 +877,8 @@ pub struct CompiledBranchSet {
 /// rule's own gates are compiled.
 #[derive(Debug, Clone)]
 pub struct CompiledCompose {
+    /// A condition on the assembled object, checked before it is emitted.
+    pub require: PredicateSet,
     /// The assembled members are one canonical tool definition, not a message.
     pub as_tool_definition: bool,
     pub tag: String,
@@ -867,6 +895,7 @@ pub struct CompiledComposeMember {
 
 fn compile_compose(compose: &ComposeSpec) -> CompiledCompose {
     CompiledCompose {
+        require: compose.require.clone(),
         as_tool_definition: compose.as_tool_definition,
         tag: compose.tag.clone(),
         members: compose
@@ -1089,6 +1118,11 @@ impl MessagePlan {
             if is_tool_span && !rule.reads_tool_spans {
                 continue;
             }
+            // A rule whose condition fails says nothing about the event, so it must not suppress the raw
+            // form either. Asked before `replaces` is set, where it used to be set first.
+            if !gates_allow(rule, &ctx) {
+                continue;
+            }
             // Whether the event's raw form is a message is a fact about the *event*, not about whether
             // this reading found anything: a container is a container even when empty, and emitting the
             // empty container would report a message the retired path never did.
@@ -1099,11 +1133,16 @@ impl MessagePlan {
             // event's attributes are a flat map a producer wrote, so nothing about them earns an exemption
             // from either - and without this a `Claim` became a message and two rules could double-read one
             // of the event's attributes.
-            let messages: Vec<Emission<'p>> = emit_rule(rule, &ctx)
+            // `Message | Claim` through ownership, as a span does - a claim on an event's attribute means
+            // the same thing it means on a span's, and filtering it out beforehand left it with no effect at
+            // all. The claims are dropped from the *observations* afterwards, since a claim is not a message.
+            let readings: Vec<Emission<'p>> = emit_rule(rule, &ctx)
                 .into_iter()
-                .filter(|e| matches!(e.target, EmitTarget::Message))
+                .filter(|e| matches!(e.target, EmitTarget::Message | EmitTarget::Claim))
                 .collect();
-            keep_unclaimed(messages, &mut claimed, &mut out);
+            let mut kept = Vec::new();
+            keep_unclaimed(readings, &mut claimed, &mut kept);
+            out.extend(kept.into_iter().filter(|e| e.target == EmitTarget::Message));
         }
         (out, replaces)
     }
@@ -1116,17 +1155,21 @@ impl MessagePlan {
     pub fn fallback<'p>(
         &'p self,
         ctx: &MessageContext<'_>,
-        already_read: &[&str],
+        already_read: &std::collections::HashSet<OwnedCarrier>,
     ) -> Vec<Emission<'p>> {
-        // The carriers a dialect already read are passed in, because the fallback is *not* only reached when
-        // the dialect stage produced nothing: a generation span whose answer is unaccounted for reads it
+        // The carriers a dialect already read, **typed**, because the fallback is not only reached when the
+        // dialect stage produced nothing: a generation span whose answer is unaccounted for reads it
         // afterwards. Without this the two stages had independent claim sets, so a dialect claim on
         // `output.value` and the fallback's reading of it both survived.
-        let claimed = already_read
-            .iter()
-            .map(|name| OwnedCarrier::attribute(name))
-            .collect();
-        self.stage_with(ctx, super::schema::MessageStage::Fallback, claimed)
+        //
+        // Taken as `Emission::owns` rather than rebuilt from the emitted carrier: a rule with `tag_as` reads
+        // one key and reports another, so reconstructing ownership from the report leaves the key it
+        // actually read unclaimed - the same defect the `owns` field exists to remove.
+        self.stage_with(
+            ctx,
+            super::schema::MessageStage::Fallback,
+            already_read.clone(),
+        )
     }
 
     fn stage<'p>(
@@ -2238,7 +2281,11 @@ fn emit_rule<'p>(rule: &'p CompiledMessageRule, ctx: &MessageContext<'_>) -> Vec
         return out;
     }
     if let Some(compose) = &rule.compose {
-        if let Some(value) = composed(compose, ctx) {
+        if let Some(value) = composed(compose, ctx).filter(|value| {
+            // Judged once the members are together: a name a dialect reported may not be a tool anyone can
+            // call, and only the assembled object shows it.
+            predicates_hold(value, &compose.require)
+        }) {
             // The canonical tool-definition shape, where the assembled members are one tool rather than a
             // message. Wrapped here because the shape is ours and the members are the dialect's.
             let value = if compose.as_tool_definition {
@@ -2450,6 +2497,14 @@ fn condition_holds(subject: &JsonValue, predicate: &ValuePredicate) -> bool {
         && !matches_kind(subject, kind)
     {
         return false;
+    }
+    if let Some(want_identifier) = predicate.identifier_like {
+        let looks_like_one = subject
+            .as_str()
+            .is_some_and(|text| text.starts_with(|c: char| c.is_alphanumeric() || c == '_'));
+        if looks_like_one != want_identifier {
+            return false;
+        }
     }
     if let Some(want_not_null) = predicate.not_null
         && subject.is_null() == want_not_null

@@ -125,8 +125,6 @@ pub(super) mod keys {
     pub const GEN_AI_AGENT_NAME: &str = "gen_ai.agent.name";
     pub const GEN_AI_TOOL_NAME: &str = "gen_ai.tool.name";
     pub const GEN_AI_TOOL_CALL_ID: &str = "gen_ai.tool.call.id";
-    pub const GEN_AI_TOOL_DESCRIPTION: &str = "gen_ai.tool.description";
-    pub const GEN_AI_TOOL_JSON_SCHEMA: &str = "gen_ai.tool.json_schema";
     pub const GEN_AI_TOOL_STATUS: &str = "gen_ai.tool.status";
 
     // GenAI Performance

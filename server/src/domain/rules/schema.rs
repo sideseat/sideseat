@@ -1208,6 +1208,13 @@ pub struct ComposeSpec {
     /// The members, in the order they are inserted - which is observable, since content identity is
     /// hashed from the payload.
     pub members: Vec<ComposeMember>,
+    /// A condition on the **assembled** object, checked before it is emitted.
+    ///
+    /// The mirror of `require_after` on an envelope, and needed for the same reason: some shapes can only be
+    /// judged once the members are together - whether the name a dialect reported is a tool anyone could
+    /// call, for instance.
+    #[serde(default)]
+    pub require: PredicateSet,
     /// Emit the assembled object as a canonical **tool definition** rather than as a message.
     ///
     /// A dialect that reports one tool per span writes its name, documentation and parameter schema as
@@ -1351,6 +1358,14 @@ pub struct ValuePredicate {
     /// A string, array or object must not be empty. Meaningless for other kinds, and refused there.
     #[serde(default)]
     pub non_empty: Option<bool>,
+    /// The value begins like an identifier - a letter, a digit or an underscore.
+    ///
+    /// Generic in form, and declared per rule rather than folded into the tool-definition constructor: one
+    /// dialect reports a synthetic aggregate under a name in parentheses, which is not a tool anyone can
+    /// call, while another dialect's carriers have never needed the test. Making it canonical would change
+    /// what every other carrier accepts, silently.
+    #[serde(default)]
+    pub identifier_like: Option<bool>,
     /// The value is not JSON null. Distinct from `exists`, which a null member satisfies, and from
     /// `non_empty`, which is about a string, array or object having contents.
     #[serde(default)]
