@@ -629,6 +629,13 @@ pub struct ReadSpec {
     /// Named rather than sniffed, because a version, an id or a postcode is text that happens to parse.
     #[serde(default)]
     pub numeric_members: Vec<String>,
+    /// Read one *value* out of each indexed entry, rather than the entry's assembled members.
+    ///
+    /// A family whose entries each hold a single serialised payload - one tool's JSON schema at
+    /// `<prefix>.<n>.tool.json_schema` - is a list of those payloads, not a list of objects with a member
+    /// called `tool`. The projection says which leaf is the datum.
+    #[serde(default)]
+    pub entry_value: Option<JsonPath>,
     /// A richer copy of these same messages, held by another carrier and matched by position.
     #[serde(default)]
     pub overlay: Option<OverlaySpec>,

@@ -341,6 +341,30 @@
       },
       "emit": "tool_definitions",
       "legacy_rank": 280
+    },
+    {
+      "id": "openinference.indexed_tools",
+      "doc": "Tool schemas as an indexed family, one JSON schema per entry. The entry is a wrapper around that schema, so the projection names the leaf that is the datum - an entry without one is not this shape and contributes nothing. Aggregated because a tool list is one observation, not one per tool.",
+      "read": {
+        "indexed_family": "llm.tools",
+        "entry_value": "$['tool.json_schema']"
+      },
+      "emit": "tool_definitions",
+      "aggregate_into_array": true,
+      "tag_as": "llm.tools.N.tool.json_schema",
+      "legacy_rank": 260
+    },
+    {
+      "id": "openinference.indexed_tool_names",
+      "doc": "The same family's names, projected from each schema's function definition. A separate rule because a name list and a definition list are different observations - one says which tools were available, the other what they take.",
+      "read": {
+        "indexed_family": "llm.tools",
+        "entry_value": "$['tool.json_schema'].function.name"
+      },
+      "emit": "tool_names",
+      "aggregate_into_array": true,
+      "tag_as": "llm.tools.N.tool.json_schema",
+      "legacy_rank": 265
     }
   ],
   "span_facts": [

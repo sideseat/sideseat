@@ -4,7 +4,9 @@
 
 #![allow(clippy::collapsible_if)]
 
-use std::collections::{BTreeSet, HashMap, HashSet};
+#[cfg(test)]
+use std::collections::BTreeSet;
+use std::collections::{HashMap, HashSet};
 
 use chrono::{DateTime, Utc};
 use opentelemetry_proto::tonic::trace::v1::Span;
@@ -638,48 +640,6 @@ pub(crate) fn extract_tool_definitions(
             _ => {
                 tool_definitions.push(RawToolDefinition::from_attr(key, timestamp, emission.value));
             }
-        }
-    }
-
-    // The one tool-definition reader still in Rust, and why: an indexed family whose entries are
-    // *aggregated into one array* (which the engine can do) but that must also yield a second, separate
-    // list of names - and whose prefix `llm.tools` is also an exact carrier another rule reads flat. A
-    // declared rule cannot yet express "aggregate this family AND emit its names AND do not collide with
-    // the flat key of the same name". Left here deliberately, measured rather than hidden: it is the last
-    // framework-shaped carrier key in this file.
-    let tool_indices = extract_indices(attrs, "llm.tools");
-    if !tool_indices.is_empty() {
-        let mut tools = Vec::new();
-        let mut names = Vec::new();
-        for idx in tool_indices {
-            let json_schema_key = format!("llm.tools.{}.tool.json_schema", idx);
-            if let Some(schema_str) = attrs.get(&json_schema_key) {
-                if let Ok(schema) = serde_json::from_str::<JsonValue>(schema_str) {
-                    // Extract tool name from function definition
-                    if let Some(name) = schema
-                        .get("function")
-                        .and_then(|f| f.get("name"))
-                        .and_then(|n| n.as_str())
-                    {
-                        names.push(json!(name));
-                    }
-                    tools.push(schema);
-                }
-            }
-        }
-        if !tools.is_empty() {
-            tool_definitions.push(RawToolDefinition::from_attr(
-                "llm.tools.N.tool.json_schema",
-                timestamp,
-                JsonValue::Array(tools),
-            ));
-        }
-        if !names.is_empty() {
-            tool_names.push(RawToolNames::from_attr(
-                "llm.tools.N.tool.json_schema",
-                timestamp,
-                JsonValue::Array(names),
-            ));
         }
     }
 
@@ -3327,6 +3287,7 @@ pub(crate) fn try_raw_io(
 // INDEXED MESSAGE EXTRACTION
 // ============================================================================
 
+#[cfg(test)]
 fn extract_indices(attrs: &HashMap<String, String>, prefix: &str) -> BTreeSet<usize> {
     attrs
         .keys()

@@ -620,3 +620,104 @@ fn the_selection_language_behaves_as_the_engine_assumes() {
         );
     }
 }
+
+/// The *extraction* layer names no framework either.
+///
+/// `the_engine_names_no_framework` reads the rules engine; this reads the code that calls it. That was the
+/// gap Codex named: every framework message and tool-definition carrier had moved into the assets, and
+/// nothing held the file to it - a new hardcoded carrier key would compile, pass, and quietly re-open the
+/// hole. Measured on the source, ignoring `#[cfg(test)]` items, which are the retired reference
+/// implementations the equivalence oracles compare against and legitimately name every dialect.
+#[test]
+fn message_extraction_names_no_framework() {
+    const SOURCE: &str = include_str!("../traces/extract/messages.rs");
+
+    // Producer names, and the *carrier keys* that are producer knowledge even when the identifier is not.
+    // `ai.prompt.tools` names no framework in its symbol, which is exactly how it survived an audit.
+    const FRAMEWORK_MARKERS: &[&str] = &[
+        "langgraph",
+        "langchain",
+        "crewai",
+        "crew_",
+        "autogen",
+        "vercel",
+        "strands",
+        "pydantic",
+        "logfire",
+        "mlflow",
+        "livekit",
+        "traceloop",
+        "langsmith",
+        "openinference",
+        "claude_code",
+        "gcp_vertex",
+        "gcp.vertex",
+        "ai.prompt",
+        "ai.toolCall",
+        "ai.result",
+        "ai.response",
+        "llm.tools",
+        "llm.input_messages",
+        "llm.output_messages",
+        "lk.",
+        "pydantic_ai",
+        "OI_TOOL",
+        "RAW_INPUT",
+        "SYSTEM_PROMPT",
+        "REQUEST_DATA",
+    ];
+
+    // A marker counts only as a whole key: `gen_ai.prompt` is the *convention's* request family, not one
+    // dialect's `ai.prompt`, and a substring search cannot tell them apart.
+    fn names_marker(line: &str, marker: &str) -> bool {
+        line.match_indices(marker).any(|(at, _)| {
+            let preceded_by = line[..at].chars().next_back();
+            !preceded_by.is_some_and(|c| c.is_alphanumeric() || c == '_' || c == '.')
+        })
+    }
+
+    let mut offenders = Vec::new();
+    let mut in_test_item = false;
+    let mut seen_open = false;
+    let mut test_depth: i32 = 0;
+    let mut pending_test = false;
+    for (number, line) in SOURCE.lines().enumerate() {
+        let trimmed = line.trim();
+        if trimmed.contains("#[cfg(test)]") {
+            pending_test = true;
+            continue;
+        }
+        if pending_test {
+            // The item the attribute applies to: skipped until its braces balance, or - for a `const` or a
+            // `use` - until its statement ends.
+            in_test_item = true;
+            seen_open = false;
+            test_depth = 0;
+            pending_test = false;
+        }
+        if in_test_item {
+            test_depth += line.matches('{').count() as i32 - line.matches('}').count() as i32;
+            if line.contains('{') {
+                seen_open = true;
+            }
+            if (seen_open && test_depth <= 0) || (!seen_open && trimmed.ends_with(';')) {
+                in_test_item = false;
+            }
+            continue;
+        }
+        if trimmed.starts_with("//") {
+            continue;
+        }
+        if let Some(marker) = FRAMEWORK_MARKERS.iter().find(|m| names_marker(line, m)) {
+            offenders.push(format!("  {}: {} <- `{marker}`", number + 1, trimmed));
+        }
+    }
+
+    assert!(
+        offenders.is_empty(),
+        "message extraction names {} framework fact(s) in production code. Every carrier a framework \
+         writes belongs in `server/rules/*.json`:\n{}",
+        offenders.len(),
+        offenders.join("\n")
+    );
+}

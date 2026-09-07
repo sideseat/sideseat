@@ -347,11 +347,14 @@ fn compile_rule(
     }
     // Combinations the evaluator silently ignores. Each of these compiled and did nothing, which is worse
     // than a refusal: the rule reads as a statement the engine never makes.
-    if read.indexed_family.is_none() && (read.overlay.is_some() || !read.numeric_members.is_empty())
+    if read.indexed_family.is_none()
+        && (read.overlay.is_some()
+            || !read.numeric_members.is_empty()
+            || read.entry_value.is_some())
     {
         return Err(inexpressible(
-            "`overlay` and `numeric_members` describe an indexed family's entries and are read only \
-                 for one",
+            "`overlay`, `numeric_members` and `entry_value` describe an indexed family's entries and \
+                 are read only for one",
         ));
     }
     if *aggregate_into_array
@@ -1268,6 +1271,7 @@ fn indexed_entries(
     require: Option<&MemberRequirements>,
     numeric: &[String],
     overlay: Option<&OverlaySpec>,
+    entry_value: Option<&super::schema::JsonPath>,
 ) -> Vec<(String, JsonValue)> {
     // Parsed once for the whole family: the counterpart list describes every entry, so parsing it per
     // entry would re-parse one payload as many times as there are messages.
@@ -1345,7 +1349,18 @@ fn indexed_entries(
             }
             object.insert(overlay.as_member.clone(), content);
         }
-        out.push((subject_prefix, JsonValue::Object(object)));
+        // A projection reads one value out of the entry: the entry is a wrapper around a single payload,
+        // and the payload is the datum. An entry the projection does not find contributes nothing - it is
+        // not this shape - rather than contributing the wrapper.
+        match entry_value {
+            Some(path) => {
+                let assembled = JsonValue::Object(object);
+                if let Some(found) = query(&assembled, path).into_iter().next() {
+                    out.push((subject_prefix, found.clone()));
+                }
+            }
+            None => out.push((subject_prefix, JsonValue::Object(object))),
+        }
     }
     out
 }
@@ -1990,6 +2005,7 @@ fn emit_rule<'p>(rule: &'p CompiledMessageRule, ctx: &MessageContext<'_>) -> Vec
             rule.require_members.as_ref(),
             &rule.read.numeric_members,
             rule.read.overlay.as_ref(),
+            rule.read.entry_value.as_ref(),
         );
         // A result set is one observation. Its entries are the array, and the envelope says what the array
         // is - so the whole family is tagged once rather than one carrier per document.
