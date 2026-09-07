@@ -68,6 +68,32 @@
       },
       "emit": "message",
       "legacy_rank": 10
+    },
+    {
+      "id": "strands.choice_bundled_tool_result",
+      "doc": "A choice event may carry a bundled tool result beside the model's reply, in the provider's own envelope. Reported as its own observation - and *added* to the event's raw form rather than replacing it, because the reply is wanted too. Tagged as a tool result rather than a tool message, so history filtering does not remove it; the bundle is split at query time, which is what keeps a fix applying to stored data.",
+      "when_event": [
+        "gen_ai.choice"
+      ],
+      "read": {
+        "attribute": "tool.result"
+      },
+      "parse": "json",
+      "tag_as": "gen_ai.tool.result",
+      "wrap": {
+        "content_as": "content",
+        "attach": [
+          {
+            "as": "tool_call_id",
+            "from_value_any_of": [
+              "$[*].toolResult.toolUseId"
+            ],
+            "doc": "The first identified call in the bundle, which identifies the message; the rest are recovered when it is split."
+          }
+        ]
+      },
+      "emit": "message",
+      "legacy_rank": 20
     }
   ]
 }

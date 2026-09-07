@@ -392,6 +392,34 @@
       "parse": "json",
       "emit": "tool_names",
       "legacy_rank": 120
+    },
+    {
+      "id": "semconv.event_inference_details_input",
+      "doc": "The convention's inference-details event is a *container*: its own attributes are the request and the response, so the container itself is not a message - reporting it as well would give the conversation twice.",
+      "when_event": [
+        "gen_ai.client.inference.operation.details"
+      ],
+      "replaces_raw_event": true,
+      "read": {
+        "attribute": "gen_ai.input.messages"
+      },
+      "parse": "json",
+      "emit": "message",
+      "legacy_rank": 30
+    },
+    {
+      "id": "semconv.event_inference_details_output",
+      "doc": "The response side of the same container.",
+      "when_event": [
+        "gen_ai.client.inference.operation.details"
+      ],
+      "replaces_raw_event": true,
+      "read": {
+        "attribute": "gen_ai.output.messages"
+      },
+      "parse": "json",
+      "emit": "message",
+      "legacy_rank": 31
     }
   ],
   "span_facts": [

@@ -8163,7 +8163,7 @@ fn declared_message_rules_cover_what_they_claim() {
     let plan = &ruleset().messages;
     assert_eq!(
         plan.rule_count(),
-        67,
+        70,
         "the assets declare {} message rules. `EXTRACTORS` holds **one** entry where it held sixteen, and \
          that entry is the generic declared-rules evaluator: even the last-resort carriers are declared \
          now, with `stage: fallback`, so the fallback extractor is gone too. A dialect moves whole or not \

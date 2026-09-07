@@ -439,6 +439,20 @@ pub struct MessageRule {
     pub id: String,
     #[serde(default)]
     pub doc: Option<String>,
+    /// The *events* this rule applies to. Non-empty makes it an event rule: its reads resolve against the
+    /// event's own attributes rather than the span's, and its observations are tagged as events.
+    ///
+    /// A separate dimension from `when`, because an event name is not a span attribute and a rule gated on
+    /// one would otherwise never hold.
+    #[serde(default)]
+    pub when_event: Vec<String>,
+    /// Whether this rule's readings *replace* the event's raw form rather than adding to it.
+    ///
+    /// One convention event is a container: its own attributes are the two message carriers inside it, and
+    /// emitting the container as well would report the conversation twice. Another carries a message *and* a
+    /// bundled tool result, where both are wanted. Which it is, is a fact about the event.
+    #[serde(default)]
+    pub replaces_raw_event: bool,
     /// When this rule is read: with the dialects, or only if none of them produced a message.
     ///
     /// A *stage*, owned by the engine rather than a rule asking about other rules. Some carriers really are
@@ -927,6 +941,10 @@ pub struct BlockSpec {
 #[derive(Debug, Deserialize, Clone)]
 #[serde(deny_unknown_fields)]
 pub struct AttachSpec {
+    /// Why this member is taken from where it is, where that is not obvious. A field rather than a comment,
+    /// as everywhere else here, because the explain trace surfaces it.
+    #[serde(default)]
+    pub doc: Option<String>,
     /// The attribute to read. One of this and `from_path` is required.
     #[serde(default)]
     pub from: Option<String>,

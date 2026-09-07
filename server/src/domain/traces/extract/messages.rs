@@ -18,7 +18,9 @@ use crate::data::types::ObservationType;
 use crate::utils::otlp::extract_attributes;
 use crate::utils::time::nanos_to_datetime;
 
-use super::{extract_json, keys};
+#[cfg(test)]
+use super::extract_json;
+use super::keys;
 
 // ============================================================================
 // JSON PARSING HELPERS
@@ -195,10 +197,20 @@ pub(crate) fn extract_message_from_event(event: &Event, is_tool_span: bool) -> V
     let attrs = extract_attributes(&event.attributes);
     let event_time = nanos_to_datetime(event.time_unix_nano);
 
-    // Strands new convention: gen_ai.client.inference.operation.details contains
-    // gen_ai.input.messages and gen_ai.output.messages as event attributes
-    if event.name == keys::EVENT_INFERENCE_OPERATION_DETAILS {
-        return extract_inference_operation_details_event(&attrs, event_time);
+    // What the assets declare about *this* event, read from its own attributes. `replaces` says whether the
+    // event's raw form is a message as well: a container event's attributes *are* the messages inside it, so
+    // emitting the container too would report the conversation twice, while an event carrying a reply and a
+    // bundled tool result wants both.
+    let (declared, replaces) =
+        crate::domain::rules::ruleset()
+            .messages
+            .from_event(&event.name, &attrs, is_tool_span);
+    let declared: Vec<RawMessage> = declared
+        .into_iter()
+        .map(|emission| RawMessage::from_event(emission.carrier.name(), event_time, emission.value))
+        .collect();
+    if replaces {
+        return declared;
     }
 
     // Build raw message preserving literal attributes only (no metadata)
@@ -223,64 +235,8 @@ pub(crate) fn extract_message_from_event(event: &Event, is_tool_span: bool) -> V
         JsonValue::Object(raw.clone()),
     )];
 
-    // Strands: gen_ai.choice events may have "tool.result" attribute with full Bedrock toolResult.
-    // Store as-is; splitting bundled results happens at query time in conversation pipeline
-    // for ingestion-independence (fixes apply to historical data without re-ingestion).
-    // Use EVENT_TOOL_RESULT (not EVENT_TOOL_MESSAGE) to avoid history filtering.
-    // Role derived at query-time from event name.
-    if event.name == keys::EVENT_CHOICE && !is_tool_span {
-        if let Some(tool_result) = raw.get("tool.result") {
-            let mut tool_msg = serde_json::Map::new();
-            tool_msg.insert("content".to_string(), tool_result.clone());
-            // Extract first tool_call_id for message-level identification (will be split at query time)
-            if let Some(arr) = tool_result.as_array() {
-                for block in arr {
-                    if let Some(tr) = block.get("toolResult") {
-                        if let Some(id) = tr.get("toolUseId").and_then(|v| v.as_str()) {
-                            tool_msg.insert("tool_call_id".to_string(), json!(id));
-                            break;
-                        }
-                    }
-                }
-            }
-            messages.push(RawMessage::from_event(
-                keys::EVENT_TOOL_RESULT,
-                event_time,
-                JsonValue::Object(tool_msg),
-            ));
-        }
-    }
-
-    messages
-}
-
-/// Extract messages from Strands gen_ai.client.inference.operation.details event.
-/// This event contains gen_ai.input.messages and/or gen_ai.output.messages.
-/// Arrays are stored as-is; expansion happens at query time in SideML pipeline
-/// for ingestion-independence (fixes apply to historical data without re-ingestion).
-fn extract_inference_operation_details_event(
-    attrs: &HashMap<String, String>,
-    event_time: DateTime<Utc>,
-) -> Vec<RawMessage> {
-    let mut messages = Vec::new();
-
-    // Extract input messages (request/prompt) - store as-is, expand at query time
-    if let Some(parsed) = extract_json::<JsonValue>(attrs, keys::GEN_AI_INPUT_MESSAGES) {
-        messages.push(RawMessage::from_event(
-            keys::GEN_AI_INPUT_MESSAGES,
-            event_time,
-            parsed,
-        ));
-    }
-
-    // Extract output messages (response/completion) - store as-is, expand at query time
-    if let Some(parsed) = extract_json::<JsonValue>(attrs, keys::GEN_AI_OUTPUT_MESSAGES) {
-        messages.push(RawMessage::from_event(
-            keys::GEN_AI_OUTPUT_MESSAGES,
-            event_time,
-            parsed,
-        ));
-    }
+    // Whatever the assets said about this event, beside its raw form.
+    messages.extend(declared);
 
     messages
 }

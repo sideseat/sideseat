@@ -258,6 +258,8 @@ pub(super) mod keys {
     pub const GEN_AI_SYSTEM_INSTRUCTIONS: &str = "gen_ai.system_instructions";
 
     // OTEL Standard GenAI Messages
+    /// Named by the assets now; kept for the equivalence oracles.
+    #[cfg(test)]
     pub const GEN_AI_INPUT_MESSAGES: &str = "gen_ai.input.messages";
     pub const GEN_AI_OUTPUT_MESSAGES: &str = "gen_ai.output.messages";
     #[cfg(test)]
@@ -363,10 +365,6 @@ pub(super) mod keys {
     pub const EVENT_CONTENT_PROMPT: &str = "gen_ai.content.prompt";
     pub const EVENT_CONTENT_COMPLETION: &str = "gen_ai.content.completion";
     pub const EVENT_INFERENCE_OPERATION_DETAILS: &str = "gen_ai.client.inference.operation.details";
-
-    /// Synthetic event name for tool results extracted from tool.result attribute.
-    /// Distinct from EVENT_TOOL_MESSAGE to avoid history filtering.
-    pub const EVENT_TOOL_RESULT: &str = "gen_ai.tool.result";
 }
 
 // ============================================================================

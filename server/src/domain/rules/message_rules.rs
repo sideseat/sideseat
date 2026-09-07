@@ -136,6 +136,10 @@ pub struct CompiledMessageRule {
     pub branch_set: Option<CompiledBranchSet>,
     /// When this rule is read: with the dialects, or only if none of them produced anything.
     pub stage: super::schema::MessageStage,
+    /// The events this rule applies to; non-empty makes it an event rule.
+    pub when_event: Vec<String>,
+    /// Whether its readings replace the event's raw form.
+    pub replaces_raw_event: bool,
     pub elements: Option<ElementsSpec>,
     pub walk: Option<super::schema::WalkSpec>,
     pub sections: Option<SectionsSpec>,
@@ -249,6 +253,8 @@ fn compile_rule(
     let MessageRule {
         id,
         doc,
+        when_event,
+        replaces_raw_event,
         stage,
         tool_repr,
         read,
@@ -608,6 +614,8 @@ fn compile_rule(
         require_non_blank: *require_non_blank,
         branch_set: compiled_branch_set,
         stage: *stage,
+        when_event: when_event.clone(),
+        replaces_raw_event: *replaces_raw_event,
         elements: elements.clone(),
         walk: walk.clone(),
         sections: sections.clone(),
@@ -732,6 +740,18 @@ pub fn compile(sources: &BTreeMap<String, Vec<u8>>) -> Result<MessagePlan, Messa
     for (i, a) in rules.iter().enumerate() {
         for b in &rules[i + 1..] {
             if !(reads_message_axis(a) && reads_message_axis(b)) {
+                continue;
+            }
+            // An event rule reads an *event's* attributes; a span rule reads the span's. Two different maps,
+            // so a key appearing in both is two different carriers - `gen_ai.input.messages` is a span
+            // attribute for one convention and an attribute *of* the inference-details event for another.
+            if a.when_event.is_empty() != b.when_event.is_empty() {
+                continue;
+            }
+            // Two event rules contend only if they can apply to the same event.
+            if !a.when_event.is_empty()
+                && !a.when_event.iter().any(|name| b.when_event.contains(name))
+            {
                 continue;
             }
             // Different stages cannot contend: the fallback stage is read only when the dialect stage
@@ -1023,6 +1043,43 @@ impl MessagePlan {
         self.stage(ctx, super::schema::MessageStage::Dialect)
     }
 
+    /// What this *event* declares, and whether it replaces the event's raw form.
+    ///
+    /// An event's attributes are read exactly as a span's are - the same envelopes, the same predicates -
+    /// because they are the same kind of thing: a flat map a producer wrote. Only where they are found
+    /// differs, which is why this is an entry point rather than a new vocabulary.
+    pub fn from_event<'p>(
+        &'p self,
+        event_name: &str,
+        event_attrs: &HashMap<String, String>,
+        is_tool_span: bool,
+    ) -> (Vec<Emission<'p>>, bool) {
+        let ctx = MessageContext {
+            span_name: "",
+            span_attrs: event_attrs,
+            is_tool_span,
+        };
+        let mut out = Vec::new();
+        let mut replaces = false;
+        for rule in self
+            .rules
+            .iter()
+            .filter(|rule| rule.when_event.iter().any(|name| name == event_name))
+        {
+            if is_tool_span && !rule.reads_tool_spans {
+                continue;
+            }
+            // Whether the event's raw form is a message is a fact about the *event*, not about whether
+            // this reading found anything: a container is a container even when empty, and emitting the
+            // empty container would report a message the retired path never did.
+            if rule.replaces_raw_event {
+                replaces = true;
+            }
+            out.extend(emit_rule(rule, &ctx));
+        }
+        (out, replaces)
+    }
+
     /// The last-resort carriers: the generic input/output pair and the dialect stand-ins for it.
     ///
     /// A stage rather than a rule asking about other rules. *When* it runs is the caller's policy - nothing
@@ -1039,7 +1096,11 @@ impl MessagePlan {
     ) -> Vec<Emission<'p>> {
         let mut out = Vec::new();
         let mut claimed: std::collections::HashSet<OwnedCarrier> = std::collections::HashSet::new();
-        for rule in self.rules.iter().filter(|rule| rule.stage == stage) {
+        for rule in self
+            .rules
+            .iter()
+            .filter(|rule| rule.stage == stage && rule.when_event.is_empty())
+        {
             // The tool-span gate is a message-axis question - "may this rule read such a span *as a
             // conversation*" - so it lives here, not in `emit_rule`, which the metadata path also calls.
             //
