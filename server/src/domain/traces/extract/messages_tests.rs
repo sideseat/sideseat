@@ -7963,6 +7963,57 @@ fn the_rules_reproduce_the_extractors_they_replaced() {
         ),
     ];
 
+    // The tool definitions CrewAI's metadata carriers yield, **frozen as outputs** rather than exempted.
+    // The retired reader's code cannot be frozen here: its grammar moved into the sealed `tool_repr`
+    // module, so copying it would compare that module against itself. Its *outputs* can be, and are the
+    // thing that matters - taken from the pre-`9b013f86` implementation for exactly these shapes.
+    let frozen_crew_tools = |attrs: &HashMap<String, String>| -> Vec<RawToolDefinition> {
+        [
+            ("crew_agents", "tools_names"),
+            ("crew_tasks", "tools_names"),
+        ]
+        .iter()
+        .filter_map(|(carrier, member)| {
+            let raw = attrs.get(*carrier)?;
+            let parsed: JsonValue = serde_json::from_str(raw).ok()?;
+            let mut names = Vec::new();
+            for entry in parsed.as_array()? {
+                if let Some(name) = entry.get("name").and_then(|n| n.as_str()) {
+                    names.push(name.to_string());
+                }
+                for listed in entry
+                    .get(*member)
+                    .or_else(|| entry.get("tools"))
+                    .and_then(|v| v.as_array())
+                    .into_iter()
+                    .flatten()
+                {
+                    if let Some(name) = listed.as_str() {
+                        names.push(name.to_string());
+                    } else if let Some(name) = listed.get("name").and_then(|n| n.as_str()) {
+                        names.push(name.to_string());
+                    }
+                }
+            }
+            if names.is_empty() {
+                return None;
+            }
+            // The canonical shape the retired reader emitted, in first-seen order.
+            let mut seen = std::collections::HashSet::new();
+            let tools: Vec<JsonValue> = names
+                .into_iter()
+                .filter(|name| seen.insert(name.clone()))
+                .map(|name| json!({"type": "function", "function": {"name": name}}))
+                .collect();
+            Some(RawToolDefinition::from_attr(
+                carrier,
+                time,
+                JsonValue::Array(tools),
+            ))
+        })
+        .collect()
+    };
+
     let mut disagreements = Vec::new();
     for (span_name, case) in &cases {
         let mut legacy_msgs: Vec<RawMessage> = Vec::new();
@@ -8032,6 +8083,7 @@ fn the_rules_reproduce_the_extractors_they_replaced() {
         // The convention's single-tool triple, frozen from the retired always-on path. It is *appended*,
         // which is where it ran: after every other definition had been collected. Not a reviewed delta any
         // more - there is a counterpart now, so the comparison is real.
+        legacy_tools.extend(frozen_crew_tools(case));
         if let Some(triple) = legacy_single_tool_definition(case, time) {
             legacy_tools.push(triple);
         }
@@ -8097,12 +8149,12 @@ fn the_rules_reproduce_the_extractors_they_replaced() {
         // A reviewed delta is a tool *definition* on one of these carriers - decided on the typed
         // observation, before rendering, so it cannot match a message nor a tool whose *content* merely
         // mentions the string. See the comment below the constant for why each is here.
-        const REVIEWED_DELTA_CARRIERS: &[&str] = &[
-            "ai.toolCall.args",
-            "ai.toolCall.result",
-            "crew_tasks",
-            "crew_agents",
-        ];
+        // Tool *definitions* only. `ai.toolCall.args` / `.result` are deliberately absent: those rules emit
+        // messages, and their message exemption below is the justified one - exempting their tool
+        // definitions as well would mask a future bogus metadata emission on carriers that should never
+        // produce one.
+        const REVIEWED_DELTA_CARRIERS: &[&str] = &[];
+
         let is_reviewed_delta_tool = |t: &RawToolDefinition| -> bool {
             matches!(&t.source, ToolDefinitionSource::Attribute { key, .. }
                 if REVIEWED_DELTA_CARRIERS.contains(&key.as_str()))

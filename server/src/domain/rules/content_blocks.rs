@@ -10,7 +10,7 @@
 
 use serde_json::{Value as JsonValue, json};
 
-use super::message_rules::{predicates_hold, query};
+use super::message_rules::{predicate_defect, predicates_hold, query};
 use super::schema::{ChainPosition, ContentBlockRule, RuleFile};
 
 /// The declared cases, in the order they are tried, split by where in the normalisation chain they sit.
@@ -30,6 +30,27 @@ impl ContentBlockPlan {
         let mut all: Vec<&ContentBlockRule> =
             files.iter().flat_map(|f| &f.content_blocks).collect();
         all.sort_by_key(|rule| rule.legacy_rank);
+        for rule in &all {
+            // **Exactly one** target form. Zero means the rule recognises a block and builds nothing - and
+            // with an empty `require` it recognises *every* block, so it would swallow the rest of the
+            // chain. More than one means `built` silently takes whichever it checks first, which is an order
+            // nobody declared.
+            let forms = usize::from(rule.tool_use.is_some())
+                + usize::from(rule.tool_result.is_some())
+                + usize::from(rule.json.is_some())
+                + usize::from(rule.text.is_some())
+                + usize::from(rule.media.is_some());
+            assert!(
+                forms == 1,
+                "content-block rule `{}` declares {forms} target forms; exactly one is required",
+                rule.id
+            );
+            // The same predicate validation the message rules get. This plan compiles separately, and a
+            // predicate that can never hold decides which shape a block is read as.
+            if let Some(defect) = predicate_defect(&rule.require) {
+                panic!("content-block rule `{}`: {defect}", rule.id);
+            }
+        }
         for rule in all {
             match rule.at {
                 ChainPosition::BeforeProviderFormats => plan.before.push(rule.clone()),
@@ -124,4 +145,70 @@ fn built(block: &JsonValue, rule: &ContentBlockRule) -> Option<JsonValue> {
         }));
     }
     None
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn plan_from(rule: serde_json::Value) -> ContentBlockPlan {
+        let file: RuleFile = serde_json::from_value(serde_json::json!({
+            "id": "probe",
+            "content_blocks": [rule],
+        }))
+        .expect("the probe asset parses");
+        ContentBlockPlan::compile(&[file])
+    }
+
+    /// One target form, and the reason it must be exactly one.
+    #[test]
+    fn a_rule_declares_exactly_one_target_form() {
+        // One is fine.
+        let plan = plan_from(serde_json::json!({
+            "id": "probe.text",
+            "at": "after_provider_formats",
+            "legacy_rank": 1,
+            "require": {"all": [{"path": "$.type", "one_of": ["text"]}]},
+            "text": {"text": ["$.value"]},
+        }));
+        assert_eq!(plan.rule_count(), 1);
+    }
+
+    /// Zero forms recognises a block and builds nothing - with an empty `require`, *every* block.
+    #[test]
+    #[should_panic(expected = "declares 0 target forms")]
+    fn a_rule_with_no_target_form_is_refused() {
+        plan_from(serde_json::json!({
+            "id": "probe.nothing",
+            "at": "after_provider_formats",
+            "legacy_rank": 1,
+        }));
+    }
+
+    /// Two forms means `built` takes whichever it checks first, which is an order nobody declared.
+    #[test]
+    #[should_panic(expected = "declares 2 target forms")]
+    fn a_rule_with_two_target_forms_is_refused() {
+        plan_from(serde_json::json!({
+            "id": "probe.both",
+            "at": "after_provider_formats",
+            "legacy_rank": 1,
+            "text": {"text": ["$.value"]},
+            "json": {"data": ["$.value"]},
+        }));
+    }
+
+    /// A predicate that can never hold decides which shape a block is read as, so it is refused here too -
+    /// this plan compiles separately from the message rules and had no validation at all.
+    #[test]
+    #[should_panic(expected = "can never hold")]
+    fn a_contradictory_predicate_is_refused() {
+        plan_from(serde_json::json!({
+            "id": "probe.contradiction",
+            "at": "after_provider_formats",
+            "legacy_rank": 1,
+            "require": {"all": [{"path": "$.type", "kind": "number", "identifier_like": true}]},
+            "text": {"text": ["$.value"]},
+        }));
+    }
 }

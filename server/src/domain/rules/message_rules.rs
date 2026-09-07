@@ -835,7 +835,7 @@ pub fn compile(sources: &BTreeMap<String, Vec<u8>>) -> Result<MessagePlan, Messa
 /// after fragments and extra cases are inlined. Checking the direct alternatives only left the same
 /// contradiction reachable through `require_parent`, an attachment, an overlay, a prepended block, or any
 /// case a fragment contributed: the pass that ran before inlining could not see those at all.
-fn predicate_defect(set: &PredicateSet) -> Option<&'static str> {
+pub(super) fn predicate_defect(set: &PredicateSet) -> Option<&'static str> {
     for predicate in set.all.iter().chain(set.any.iter()) {
         if predicate.non_empty.is_some()
             && matches!(
@@ -903,6 +903,16 @@ fn predicate_sets(rule: &CompiledMessageRule) -> Vec<&PredicateSet> {
     }
     if let Some(sections) = &rule.sections {
         out.extend(sections.routes.iter().map(|route| &route.skip_when));
+    }
+    // An array read pass by pass has predicates at two levels - the pass's own, and each derived case of its
+    // grouping - and both are evaluated. This is a live path, not a latent one.
+    if let Some(elements) = &rule.elements {
+        for pass in &elements.passes {
+            out.push(&pass.when);
+            if let Some(group) = &pass.group {
+                out.extend(group.by.iter().map(|case| &case.when));
+            }
+        }
     }
     if let Some(overlay) = &rule.read.overlay {
         out.push(&overlay.witness);
@@ -2772,6 +2782,24 @@ fn inline_fragments(
             // After the shared table, never before: the table is the dialect's own answer and this is one
             // place that accepts one more shape.
             fragment_cases.extend(spec.extra_cases.iter().cloned());
+            // A case is a *leaf*. `Alternative` is one type, so it structurally permits a nested
+            // `then_fragment` or `extra_cases` - and a leaf's own `fragment_cases` is forced empty when it
+            // runs, so such a declaration is silently ignored. Refused rather than left to be discovered,
+            // which is the same reason a fragment may not reference a fragment.
+            if let Some(nested) = fragment_cases
+                .iter()
+                .find(|case| case.then_fragment.is_some() || !case.extra_cases.is_empty())
+            {
+                let _ = nested;
+                return Err(MessageCompileError::Inexpressible {
+                    rule: spec
+                        .then_fragment
+                        .clone()
+                        .unwrap_or_else(|| "a reading".to_string()),
+                    detail: "a fragment case or extra case is a leaf, so a `then_fragment` or \
+                             `extra_cases` on it would be ignored",
+                });
+            }
             Ok(CompiledReading {
                 spec: spec.clone(),
                 fragment_cases,
