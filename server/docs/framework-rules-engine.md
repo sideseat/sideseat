@@ -266,10 +266,12 @@ tree transformation is involved and pulling them into the DSL buys nothing.
 The generic `gen_ai.*` semconv is itself just a rule file, and the one every framework file may
 import.
 
-**Provider vocabulary reconciliation is a prerequisite** for the token/cost migration: three
-namespaces currently coexist (litellm provider names, `gen_ai.system` aliases, UI credential keys such
-as `vertex-ai` / `azure-ai-foundry`). They must be reconciled into one declared mapping before any
-cost convention moves, or the rules will encode the confusion.
+**Provider vocabulary reconciliation is still open**, and the prerequisite turned out to be narrower than
+this paragraph assumed. Three namespaces coexist (litellm provider names, `gen_ai.system` aliases, UI
+credential keys such as `vertex-ai` / `azure-ai-foundry`). What the token and cost migration actually needed
+was the part a *framework* owns - where a producer names a provider under its own spelling, which is
+`provider_aliases` - and that moved. The remaining two tables are provider vocabulary rather than framework
+knowledge, so they sit with step 10, outside the acceptance.
 
 ## Verification
 
@@ -285,8 +287,11 @@ cost convention moves, or the rules will encode the confusion.
   `String` parameter can smuggle it, so this is a dataflow check, not a literal search); no callback or
   custom-transform registration; one-way module dependency; and every enabled rule has fixtures or an
   explicitly tested shared-dialect inheritance.
-- **Explainability**: every emitted *and* rejected message reports rule, clause, selected path,
-  transformation, carrier claim and rejection reason.
+- **Explainability** — a **design target**, partly built. Explain *data* is on every compiled clause
+  (asset, id, doc) and compile-time diagnostics name the rule and the reason; the **rendered per-message
+  trace** - every emitted *and* rejected message reporting rule, clause, selected path, transformation,
+  carrier claim and rejection reason - is not built. Step 3 is marked landed on its behavioural conditions;
+  condition 13 below is this one, and it is the part outstanding.
 - Dual-run comparison covers canonical attributes, raw messages *including provenance and position*,
   tool definitions, assigned carrier semantics, and all four views. Goldens are never regenerated to
   make a migration pass.
@@ -300,8 +305,10 @@ imposes depth/iteration/emitted/decoded-byte budgets, and keeps iteration order 
 
 The **ruleset hash joins the reconstruction cache key**. That cache is a memo over a pure function of
 the rows (`feed/cache.rs`); once rules can change, they are part of that function, and a dev hot-load
-would otherwise serve answers built by another ruleset. Production rules are embedded and immutable;
-dev hot-load replaces a validated plan atomically and changes the cache generation.
+would otherwise serve answers built by another ruleset. Production rules are embedded and immutable, which
+is what ships today; **there is no reload mechanism** - the atomic swap of a validated plan and the cache
+generation that goes with it are a design target, and the digest is already in the cache key so that
+building one cannot silently serve the previous ruleset's answers.
 
 A bounded LRU may cache plan selection by span-shape fingerprint, but indexed attributes make shape
 cardinality unbounded, so it is a cache and never a correctness assumption.
@@ -336,16 +343,28 @@ bless a regression; an oracle cannot.
    is load-bearing — the SideSeat SDK defaults `service.name` to one framework's name, so that rule's
    service-name signal must be last or it claims every span of every framework using the SDK.
 5. ✅ **Feed source / event / replay / ordering-family tables** — 9 `message_events` hold the event
-   vocabulary, and the replay and ordering families are the four independent facts each of the 55 `carriers`
-   declares (`sideml/carrier.rs`): whether position proves a distinct occurrence, whether it provides
-   sequence order, whether the carrier is one atomic emission, and whether it may hold history or state.
+   vocabulary, and the replay and ordering knowledge is **eight** independent facts per carrier plus a named
+   `ordering_family`, declared by each of the 55 `carriers` (`CarrierSemantics`, `sideml/carrier.rs`). Four
+   are about what *position* within the carrier proves: `position_proves_distinct_occurrence`,
+   `position_provides_sequence_order`, `carrier_is_atomic_emission`,
+   `carrier_may_contain_history_or_state`. Four are about what the carrier *is*:
+   `carrier_holds_span_input`, `carrier_holds_span_output`, `carrier_is_detached_request_frame`,
+   `carrier_holds_expandable_message_array`. They are separate booleans rather than one enum because a
+   conversation snapshot and accumulated framework state are both ordered and both may hold history, and
+   differ only in whether position proves multiplicity.
 6. ✅ **Content and tool normalisation, with explicit named-chain precedence** — 9 `content_blocks` over
    three named chain positions (`message_envelope`, `before_provider_formats`, `after_provider_formats`),
    which are named rather than numbered because the envelope position exists for a reason a number cannot
    record: the nested chain, a tool's returned value, must not consult the envelopes.
-7. ✅ **The three provider namespaces, and the token / cost / model conventions** — 47 `span_fields` across
-   the semantic, GenAI, display and usage targets, one ordered resolver per typed target, plus
-   `provider_aliases` where a producer names a provider the catalogue prices under another name.
+7. ✅ **Framework-owned span fields and provider aliases** — 47 `span_fields` across the semantic, GenAI,
+   display and usage targets, one ordered resolver per typed target, plus `provider_aliases` where a
+   producer names a provider the catalogue prices under another name.
+
+   **Renamed, because the original title claimed more than landed.** Reconciling the *three provider
+   namespaces* is not done: two framework-owned Google ADK aliases moved, and the litellm spelling table
+   and the UI credential catalogue are still separate Rust tables. That reconciliation belongs with step 10
+   and is outside the acceptance - it is provider vocabulary, not framework knowledge, and the token and
+   cost conventions that depend on a *framework's* spelling are the part that moved.
 8. ✅ **Message extraction** — done. **Every** framework extractor entry is retired; the
    two that remain name no framework: the generic `declared_rules` entry and the `raw_io`
    fallback. Sixteen became two, with 52 message rules declared and each retirement proved
@@ -475,7 +494,10 @@ The slice is landed only when all of these are true:
 10. Existing goldens are unchanged, except explicitly reviewed defect corrections.
 11. A persisted-row test proves the fix applies without re-ingestion.
 12. The feed cache key includes the ruleset digest.
-13. Explain output identifies the matched clause and the fallback path.
+13. Explain output identifies the matched clause and the fallback path. **Outstanding** — the compile-time
+    diagnostics do this and the per-message rendered trace does not, so step 3 is landed on its behavioural
+    conditions with this one open. Recorded here rather than quietly satisfied: it is the condition that
+    makes a wrong answer diagnosable, which is worth more the further the ruleset grows.
 14. Read and feed benchmarks stay within the existing ceilings.
 
 ## Stop conditions
