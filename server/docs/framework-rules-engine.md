@@ -85,10 +85,16 @@ Rules compile into **global indexes** by carrier, event, key, scope, span shape 
 Rule files are organisational units; their clauses are indexed globally. Detection never selects a
 parser.
 
-*What landed:* the last sentence holds — detection never selects a parser. The indexing is partial:
-**carrier** rules are indexed by exact name and by prefix, and everything else is a compiled vector scanned
-per span (`from_event` filters on `when_event`, `stage` walks a stage's rules). See **Performance** for the
-three parts of that design that are not built.
+*What landed:* the last sentence holds — detection never selects a parser. The indexing is partial, and
+which half is which matters:
+
+| Keyed | Scanned per span |
+| --- | --- |
+| Carrier rules, by exact name and by prefix; `event_roles`, `provider_aliases`, `tagged_source_names` and the member vocabulary as maps; `sdk_slugs` by slug | Message rules (`from_event` filters on `when_event`; `stage` walks a stage's rules), both classifications, span-field resolvers and content-block candidates |
+
+So the lookups that are a question about *one name* are keyed, and the ones that are "which of these ordered
+rules applies" are linear in the ruleset. See **Performance** for the three parts of that design that are
+not built.
 
 `scope_name` / `scope_version` (instrumentation-library identity, already extracted, persisted, and
 part of the feed cache digest) is **high-confidence matching evidence, not an exclusive dispatch key**:
@@ -157,6 +163,27 @@ never gets a private hook.
 ## The primitive vocabulary
 
 Derived from what the 16 extractors measurably do, not invented up front.
+
+> **A requirements table, not an inventory.** These are the *capabilities* the survey found the extractors
+> needed. Almost none of the names survived into the schema — the capability landed under a name that says
+> what the rule states rather than what the engine does to it, which is the whole point of a declarative
+> asset. So `best_by`, `dedupe`, `flat_map`, `group_consecutive`, `decision_table`, `coerce` and `unflatten`
+> exist nowhere; what landed is:
+>
+> | Capability | What it is called |
+> | --- | --- |
+> | Path and wildcard selection, indexed-prefix capture, dotted-key unflattening | JSONPath, `indexed_family`, `entry_member` |
+> | Predicates, `all`/`any`/`not`, ordered coalesce, decision tables | `require` with `all` / `any`, `alternatives`, `role_map` |
+> | JSON and stringified-JSON decode, Python-literal subset, scalar coercion | `parse: ParseMode`, `ToolReprSpec`, `numeric_members` |
+> | Bounded tree `walk` with match / prune / emit | `walk`, used by one asset |
+> | Split with captured header/tag, quoted-field, balanced-delimiter | `SectionsSpec` (`split_on`, `routes`), and the balanced grammar sealed in `rules/tool_repr.rs` |
+> | Bind / join / lookup by captured index or key | `overlay` |
+> | Canonical message/block/tool emitters, emit-many, conditional fields | `tool_calls_from`, `tool_call_from`, `prepend_block`, `wrap`, `extra_cases`, `lift_from_parent`, `require_parent` |
+> | Carrier claiming, fallback conditions, provenance, semantics assignment | `Emission::owns`, `stage: fallback`, `PositionPath`, `carriers` |
+>
+> The per-element list operations are the row with no counterpart, and that is a finding rather than an
+> omission: a reading emits many messages and deduplication happens in the pipeline, so no rule ever needed
+> to *express* a map or a fold. A vocabulary that had them would have been larger and no more capable.
 
 | Capability | Required by |
 | --- | --- |
@@ -558,10 +585,13 @@ Detection may move later than step 4, but it must never regain parser-selection 
 
 ## Step 3 in full, because it is the first behavioural slice
 
-`semantics_for` is span-blind: `gen_ai.output.messages` is classified `EMISSION` unconditionally. On a
-generation span that is right. On an **aggregator** span — Vercel's `invoke_agent` re-listing the whole
-turn — it is a re-listing of state, and reading it as an emission makes the final answer sort *before*
-the tool calls that produced it. `_synthetic/agent_snapshot_reorders_answer` is that shape.
+*Historical, and the defect is fixed:* `semantics_for` **was** span-blind — `gen_ai.output.messages`
+classified `EMISSION` unconditionally. On a generation span that is right. On an **aggregator** span —
+Vercel's `invoke_agent` re-listing the whole turn — it is a re-listing of state, and reading it as an
+emission makes the final answer sort *before* the tool calls that produced it.
+`_synthetic/agent_snapshot_reorders_answer` is that shape. `semantics_for` is now `#[cfg(test)]`, an
+equivalence oracle; production resolves carrier semantics from the declared clauses with the span's context
+everywhere.
 
 The correct resolution is **`ACCUMULATED_STATE`**, not `SNAPSHOT`: the carrier both re-lists history
 *and* holds the span's output, and those are separate facts in the model already.
@@ -614,7 +644,20 @@ and does not establish.
 ## Acceptance
 
 The mandate was that the engine be *designed and accepted together with Codex*, so the acceptance is its
-statement rather than a summary of it. Forty review cycles; cycle 40 found nothing, on `d57afd7c`.
+statement rather than a summary of it. Cycle 40 found nothing, on `d57afd7c`.
+
+> **The cycle-40 acceptance was invalidated by a later finding, and is kept here for the record rather than
+> as the current verdict.** Criterion (a) was **false** at `d57afd7c`: `role_from_event_name_with_context`
+> was still a Rust table in `normalize.rs`, and one of its arms existed only because the Claude Code CLI
+> writes its tool result on a `tool.output` event. The sweep could not see it — the name is spelled as a
+> *value*, which is the blind spot that sweep documents — and no review had checked all four items of the
+> survey's third correction, only the ones a finding had named. It was restored by `8e3ab002`, which moved
+> the table to `event_roles`; `d76ad8b4` then fixed a reachable defect the move exposed, where a tagged
+> source name took no declared role and a tool's answer was presented as a user message.
+>
+> So this section records **two** things that must not be conflated: what Codex accepted at cycle 40, and
+> that the acceptance rested on a claim which turned out to be untrue there. A final acceptance attaches to
+> a review taken *after* those fixes, not to cycle 40 alone.
 
 ### What the whole-server sweep establishes
 
@@ -719,7 +762,7 @@ fixed later — each is a boundary of what the evidence can carry.
 - **Unexercised rules, which is a different count.** `no_declared_rule_is_dead_across_the_corpus` lists
   **39 message-rule leaves** that no fixture reaches, each with the reason. Not the same set as the 21
   producers: it includes shapes belonging to producers the corpus *does* cover, and it is scoped to message
-  rules rather than to all 338 declarations. Conflating the two reads as though covering those producers
+  rules rather than to all 347 declarations. Conflating the two reads as though covering those producers
   would exercise everything. "All frameworks parse correctly" is true of the corpus and is an open-world claim
   beyond it; `the_corpus_matches_the_support_matrix` is what keeps the boundary legible rather than implied.
 - **Eight `UNOBSERVED` members.** Declared in the member vocabulary and reached by no captured object. The
