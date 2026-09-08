@@ -384,6 +384,7 @@
       "fact": "tool_execution",
       "signals": [
         {
+          "id": "span_kind",
           "attr_equals": {
             "key": "openinference.span.kind",
             "value": "tool"

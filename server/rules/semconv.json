@@ -473,6 +473,7 @@
       "fact": "tool_execution",
       "signals": [
         {
+          "id": "operation_name",
           "doc": "The operation the span reports performing.",
           "attr_equals": {
             "key": "gen_ai.operation.name",
@@ -480,6 +481,7 @@
           }
         },
         {
+          "id": "tool_name",
           "doc": "A tool name *and* a call id. The name alone sits on a model span that merely mentions a tool; with an id it is a call being run.",
           "attrs_present": [
             "gen_ai.tool.name",

@@ -71,6 +71,7 @@
             "elements": {
               "passes": [
                 {
+                  "id": "name",
                   "doc": "Recognised message events, each tagged with its own name - downstream keys role derivation and ordering on that name, so tagging them alike would erase what the payload carries.",
                   "when": {
                     "all": [
@@ -93,6 +94,7 @@
                   "tag_from": "$['event.name']"
                 },
                 {
+                  "id": "everything_else_that_carries",
                   "doc": "Everything else that carries structured data: this dialect emits multimodal content blocks as unnamed events, with the real content in `data` and a human-readable summary beside it. Runs of consecutive blocks of the same side become one message, because that is what they are - one turn's content, not one message per block. An event with no name reaches this pass, which is why the first condition is stated as 'not one of' rather than 'named something else'.",
                   "when": {
                     "all": [
@@ -121,6 +123,7 @@
                     "key_as": "role",
                     "by": [
                       {
+                        "id": "user",
                         "doc": "Input blocks are the user's side.",
                         "when": {
                           "all": [
@@ -133,6 +136,7 @@
                         "value": "user"
                       },
                       {
+                        "id": "assistant",
                         "doc": "Output blocks are the assistant's.",
                         "when": {
                           "all": [
@@ -165,6 +169,7 @@
             "emit": "message",
             "alternatives": [
               {
+                "id": "the_payload_is_an",
                 "doc": "The payload is an array of messages; non-objects are not turns.",
                 "each": true,
                 "require": {
@@ -187,6 +192,7 @@
             "emit": "message",
             "alternatives": [
               {
+                "id": "the_payload_is_an_2",
                 "doc": "The payload is an array of messages; non-objects are not turns.",
                 "each": true,
                 "require": {
@@ -211,6 +217,7 @@
             "emit": "message",
             "alternatives": [
               {
+                "id": "messages",
                 "doc": "Kept whole; the structural reading happens at query time.",
                 "require": {
                   "all": [
@@ -236,6 +243,7 @@
             "emit": "message",
             "alternatives": [
               {
+                "id": "message",
                 "doc": "Kept whole; the structural reading happens at query time.",
                 "require": {
                   "any": [
@@ -272,6 +280,7 @@
       "aggregate_into_array": true,
       "alternatives": [
         {
+          "id": "tools",
           "select": "$.tools",
           "each": true
         }

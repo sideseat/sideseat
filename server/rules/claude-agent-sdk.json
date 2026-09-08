@@ -105,6 +105,7 @@
         "split_on": "\n\n---\n\n",
         "routes": [
           {
+            "id": "tool_result",
             "doc": "A tool result. The tag's remainder is the call id, which is what pairs the result with its tool_use block rather than leaving it to be guessed from content. The name-tagged form is the same result as raw structured telemetry, so it is dropped - narrowly: only when the capture lacks the id prefix *and* the body opens as JSON, so if that prefix changes an unrecognised section still reaches the feed unlinked instead of vanishing.",
             "tag_prefix": "TOOL RESULT:",
             "role": "tool",
@@ -126,6 +127,7 @@
             }
           },
           {
+            "id": "as_user",
             "doc": "Anything else is the user's turn - including an unrecognised tag, which is read rather than discarded.",
             "role": "user"
           }

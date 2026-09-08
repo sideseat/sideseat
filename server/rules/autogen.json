@@ -43,6 +43,7 @@
       "legacy_rank": 1600,
       "alternatives": [
         {
+          "id": "cancellation_token",
           "doc": "Read for nothing; the claim is the whole effect.",
           "require": {
             "any": [
@@ -80,16 +81,19 @@
       },
       "alternatives": [
         {
+          "id": "message",
           "doc": "The attribute is the message.",
           "then_fragment": "autogen.message"
         },
         {
+          "id": "messages",
           "doc": "A list of them.",
           "select": "$.messages",
           "each": true,
           "then_fragment": "autogen.message",
           "extra_cases": [
             {
+              "id": "content",
               "doc": "A shape the table refused that still carries content - read here rather than dropped.",
               "require": {
                 "all": [
@@ -103,11 +107,13 @@
           ]
         },
         {
+          "id": "message_2",
           "doc": "One nested under `message`.",
           "select": "$.message",
           "then_fragment": "autogen.message",
           "extra_cases": [
             {
+              "id": "content_2",
               "doc": "A shape the table refused that still carries content - read here rather than dropped.",
               "require": {
                 "all": [
@@ -121,11 +127,13 @@
           ]
         },
         {
+          "id": "chat_message",
           "doc": "A response's own reply.",
           "select": "$.response.chat_message",
           "then_fragment": "autogen.message"
         },
         {
+          "id": "content_3",
           "doc": "Neither, but message-shaped.",
           "require": {
             "all": [
@@ -149,6 +157,7 @@
       "legacy_rank": 1610,
       "also": [
         {
+          "id": "inner_messages",
           "doc": "The turns inside a response, after its reply. Additive rather than ordered: a response carries both.",
           "select": "$.response.inner_messages",
           "each": true,
@@ -165,12 +174,14 @@
       "parse": "json",
       "also": [
         {
+          "id": "messages",
           "require": {},
           "select": "$.messages",
           "each": true,
           "then_fragment": "autogen.message",
           "extra_cases": [
             {
+              "id": "role",
               "doc": "A shape the table refused that carries a role or content.",
               "require": {
                 "any": [
@@ -203,6 +214,7 @@
           }
         },
         {
+          "id": "response",
           "require": {},
           "select": "$.response",
           "wrap": {
@@ -242,6 +254,7 @@
           }
         },
         {
+          "id": "tools",
           "require": {},
           "select": "$.tools",
           "emit": "tool_definitions",
@@ -259,6 +272,7 @@
           }
         },
         {
+          "id": "as_tool",
           "require": {
             "all": [
               {
@@ -302,12 +316,14 @@
       "parse": "json",
       "also": [
         {
+          "id": "messages",
           "require": {},
           "select": "$.messages",
           "each": true,
           "then_fragment": "autogen.message",
           "extra_cases": [
             {
+              "id": "role",
               "doc": "A shape the table refused that carries a role or content.",
               "require": {
                 "any": [
@@ -340,6 +356,7 @@
           }
         },
         {
+          "id": "response",
           "require": {},
           "select": "$.response",
           "wrap": {
@@ -379,6 +396,7 @@
           }
         },
         {
+          "id": "tools",
           "require": {},
           "select": "$.tools",
           "emit": "tool_definitions",
@@ -396,6 +414,7 @@
           }
         },
         {
+          "id": "as_tool",
           "require": {
             "all": [
               {
@@ -439,12 +458,14 @@
       "parse": "json",
       "also": [
         {
+          "id": "messages",
           "require": {},
           "select": "$.messages",
           "each": true,
           "then_fragment": "autogen.message",
           "extra_cases": [
             {
+              "id": "role",
               "doc": "A shape the table refused that carries a role or content.",
               "require": {
                 "any": [
@@ -477,6 +498,7 @@
           }
         },
         {
+          "id": "response",
           "require": {},
           "select": "$.response",
           "wrap": {
@@ -516,6 +538,7 @@
           }
         },
         {
+          "id": "tools",
           "require": {},
           "select": "$.tools",
           "emit": "tool_definitions",
@@ -533,6 +556,7 @@
           }
         },
         {
+          "id": "as_tool",
           "require": {
             "all": [
               {
@@ -573,6 +597,7 @@
       "doc": "What an AutoGen message is. The discriminator is the `type` member; a value the table does not know is passed through rather than dropped, and an untyped object is recognised by its shape. Ordered cases: the first that fits wins.",
       "cases": [
         {
+          "id": "as_system",
           "doc": "A system instruction.",
           "require": {
             "all": [
@@ -594,6 +619,7 @@
           }
         },
         {
+          "id": "as_user",
           "doc": "A user turn addressed to the model.",
           "require": {
             "all": [
@@ -624,6 +650,7 @@
           }
         },
         {
+          "id": "as_assistant",
           "doc": "The model's reply. Reasoning arrives in a sibling member and becomes a thinking block ahead of the text, so the two are one turn rather than two messages.",
           "require": {
             "all": [
@@ -675,6 +702,7 @@
           }
         },
         {
+          "id": "as_assistant_2",
           "require": {
             "all": [
               {
@@ -719,6 +747,7 @@
           "doc": "An agent's utterance; `source` names the speaker."
         },
         {
+          "id": "as_assistant_3",
           "require": {
             "all": [
               {
@@ -763,6 +792,7 @@
           "doc": "An utterance carrying images beside its text."
         },
         {
+          "id": "as_assistant_4",
           "require": {
             "all": [
               {
@@ -807,6 +837,7 @@
           "doc": "The utterance that ended a conversation."
         },
         {
+          "id": "as_assistant_5",
           "doc": "One agent handing the conversation to another.",
           "require": {
             "all": [
@@ -844,6 +875,7 @@
           }
         },
         {
+          "id": "as_assistant_6",
           "doc": "Reasoning reported on its own, as a thinking block. An empty one is not a thought.",
           "require": {
             "all": [
@@ -880,6 +912,7 @@
           }
         },
         {
+          "id": "as_assistant_7",
           "doc": "The model asking for tools to run.",
           "require": {
             "all": [
@@ -919,6 +952,7 @@
           }
         },
         {
+          "id": "content",
           "doc": "A batch of tool results, one message each.",
           "select": "$.content",
           "each": true,
@@ -983,6 +1017,7 @@
           }
         },
         {
+          "id": "toolcallsummarymessage",
           "doc": "The dialect's own concatenation of tool results as Python `repr`. Claimed and read for nothing: every one of those results is reported individually, and this would repeat them as prose.",
           "require": {
             "all": [
@@ -997,6 +1032,7 @@
           "emit": "claim"
         },
         {
+          "id": "type",
           "doc": "A type this table does not know, carrying something a reader can still use. Passed through rather than dropped: an unrecognised name is not evidence there is no message.",
           "require": {
             "all": [
@@ -1018,6 +1054,7 @@
           }
         },
         {
+          "id": "type_2",
           "doc": "Untyped and already carrying a role: this is a message, not a dialect shape.",
           "require": {
             "all": [
@@ -1033,6 +1070,7 @@
           }
         },
         {
+          "id": "as_assistant_8",
           "doc": "Untyped tool calls, recognised by an array whose members carry arguments.",
           "require": {
             "all": [
@@ -1074,6 +1112,7 @@
           }
         },
         {
+          "id": "content_2",
           "doc": "Untyped tool results: an array whose members name a call, or name a tool and carry content without asking for one.",
           "select": "$.content",
           "each": true,
@@ -1141,6 +1180,7 @@
           }
         },
         {
+          "id": "as_assistant_9",
           "doc": "Untyped text; `source` names the speaker.",
           "require": {
             "all": [

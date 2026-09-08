@@ -8707,7 +8707,7 @@ fn a_tautological_requirement_is_not_a_condition() {
             "an `exists` complement, which holds of every payload",
             r#"{"id":"t","doc":"d","messages":[
                 {"id":"a","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message","legacy_rank":1,
-                 "alternatives":[{"require":{"any":[
+                 "alternatives":[{"id":"probe.alt","require":{"any":[
                     {"path":"$.v","exists":true},{"path":"$.v","exists":false}]},
                   "wrap":{"role":"user","content_from_any_of":["$.content"]}}]},
                 {"id":"b","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message",
@@ -8753,7 +8753,7 @@ fn a_tautological_requirement_is_not_a_condition() {
             "a single `exists` requirement, which is a real condition",
             r#"{"id":"t","doc":"d","messages":[
                 {"id":"a","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message","legacy_rank":1,
-                 "alternatives":[{"require":{"any":[{"path":"$.v","exists":true}]},
+                 "alternatives":[{"id":"probe.alt","require":{"any":[{"path":"$.v","exists":true}]},
                   "wrap":{"role":"user","content_from_any_of":["$.content"]}}]},
                 {"id":"b","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message",
                  "legacy_rank":2}]}"#,
@@ -8822,7 +8822,7 @@ fn a_condition_separates_two_rules_only_when_it_differs() {
             "a `one_of`/`none_of` complement on a member path",
             r#"{"id":"t","doc":"d","messages":[
                 {"id":"a","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message","legacy_rank":1,
-                 "alternatives":[{"require":{"any":[
+                 "alternatives":[{"id":"probe.alt","require":{"any":[
                     {"path":"$.v","one_of":["a"]},{"path":"$.v","none_of":["a"]}]},
                   "wrap":{"role":"user","content_from_any_of":["$.content"]}}]},
                 {"id":"b","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message",
@@ -8832,7 +8832,7 @@ fn a_condition_separates_two_rules_only_when_it_differs() {
             "the same complement with the path written in bracket form",
             r#"{"id":"t","doc":"d","messages":[
                 {"id":"a","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message","legacy_rank":1,
-                 "alternatives":[{"require":{"any":[
+                 "alternatives":[{"id":"probe.alt","require":{"any":[
                     {"path":"$.v","exists":true},{"path":"$['v']","exists":false}]},
                   "wrap":{"role":"user","content_from_any_of":["$.content"]}}]},
                 {"id":"b","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message",
@@ -8876,7 +8876,7 @@ fn a_condition_separates_two_rules_only_when_it_differs() {
             "a `none_of` that forbids a value nothing else requires",
             r#"{"id":"t","doc":"d","messages":[
                 {"id":"a","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message","legacy_rank":1,
-                 "alternatives":[{"require":{"any":[
+                 "alternatives":[{"id":"probe.alt","require":{"any":[
                     {"path":"$.v","one_of":["a"]},{"path":"$.v","none_of":["a","b"]}]},
                   "wrap":{"role":"user","content_from_any_of":["$.content"]}}]},
                 {"id":"b","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message",
@@ -8960,11 +8960,11 @@ fn an_unreadable_source_stops_a_chain_and_not_a_merge() {
 
     let asset = br#"{"id":"t","doc":"d","span_fields":[
         {"id":"merged","doc":"d","target":"tags","combine":"merge_all","sources":[
-            {"json":{"attribute":"metadata","path":"$.tags"}},
-            {"attribute":"tags"}]},
+            {"id":"s1","json":{"attribute":"metadata","path":"$.tags"}},
+            {"id":"s2","attribute":"tags"}]},
         {"id":"chained","doc":"d","target":"http_status_code","sources":[
-            {"attribute":"http.status_code"},
-            {"attribute":"http.response.status_code"}]}]}"#;
+            {"id":"s1","attribute":"http.status_code"},
+            {"id":"s2","attribute":"http.response.status_code"}]}]}"#;
     let sources = std::collections::BTreeMap::from([("t.json".to_string(), asset.to_vec())]);
     let plan = compile(&sources).expect("compiles");
 
@@ -9010,8 +9010,8 @@ fn an_unreadable_source_stops_a_chain_and_not_a_merge() {
     // has another behind it: `Integer(0)` answers the chain, `Absent` lets the next source speak.
     let chained = br#"{"id":"t","doc":"d","span_fields":[
         {"id":"summed","doc":"d","target":"usage_input_tokens","sources":[
-            {"json":{"attribute":"output.value","path":"$.messages[*].models_usage.prompt_tokens","reduce":"sum"}},
-            {"attribute":"gen_ai.usage.input_tokens"}]}]}"#;
+            {"id":"s1","json":{"attribute":"output.value","path":"$.messages[*].models_usage.prompt_tokens","reduce":"sum"}},
+            {"id":"s2","attribute":"gen_ai.usage.input_tokens"}]}]}"#;
     let sources = std::collections::BTreeMap::from([("t.json".to_string(), chained.to_vec())]);
     let plan = compile(&sources).expect("compiles");
     let no_messages = rule_attrs(&[
@@ -9080,79 +9080,79 @@ fn a_field_source_may_not_declare_a_gate_that_never_holds() {
             "a gate with no signal at all",
             r#"{"id":"t","doc":"d","span_fields":[
                 {"id":"f","doc":"d","target":"user_id",
-                 "sources":[{"attribute":"k","when":{}}]}]}"#,
+                 "sources":[{"id":"probe.src","attribute":"k","when":{}}]}]}"#,
         ),
         (
             "an empty span-name prefix, which matches every span",
             r#"{"id":"t","doc":"d","span_fields":[
                 {"id":"f","doc":"d","target":"user_id",
-                 "sources":[{"attribute":"k","when":{"span_name":[""]}}]}]}"#,
+                 "sources":[{"id":"probe.src","attribute":"k","when":{"span_name":[""]}}]}]}"#,
         ),
         (
             "an empty attribute key, which nothing writes",
             r#"{"id":"t","doc":"d","span_fields":[
                 {"id":"f","doc":"d","target":"user_id",
-                 "sources":[{"attribute":"k","unless":{"attr_exists":[""]}}]}]}"#,
+                 "sources":[{"id":"probe.src","attribute":"k","unless":{"attr_exists":[""]}}]}]}"#,
         ),
         (
             "a reduction on a witness, which asks only whether a member is there",
             r#"{"id":"t","doc":"d","span_fields":[
                 {"id":"f","doc":"d","target":"usage_input_tokens",
-                 "sources":[{"value":"1","when_json":{"attribute":"output.value","path":"$.messages[*].n","reduce":"sum"}}]}]}"#,
+                 "sources":[{"id":"probe.src","value":"1","when_json":{"attribute":"output.value","path":"$.messages[*].n","reduce":"sum"}}]}]}"#,
         ),
         (
             "a reduction on a field that does not hold a number",
             r#"{"id":"t","doc":"d","span_fields":[
                 {"id":"f","doc":"d","target":"user_id",
-                 "sources":[{"json":{"attribute":"output.value","path":"$.messages[*].n","reduce":"sum"}}]}]}"#,
+                 "sources":[{"id":"probe.src","json":{"attribute":"output.value","path":"$.messages[*].n","reduce":"sum"}}]}]}"#,
         ),
         (
             "a reduction over a first-present group, which takes one path of several",
             r#"{"id":"t","doc":"d","span_fields":[
                 {"id":"f","doc":"d","target":"usage_input_tokens",
-                 "sources":[{"json":{"attribute":"output.value","first_present_of":["$.a","$.b"],"reduce":"sum"}}]}]}"#,
+                 "sources":[{"id":"probe.src","json":{"attribute":"output.value","first_present_of":["$.a","$.b"],"reduce":"sum"}}]}]}"#,
         ),
         (
             "a JSON witness naming no member, which always answers false",
             r#"{"id":"t","doc":"d","span_fields":[
                 {"id":"f","doc":"d","target":"user_id",
-                 "sources":[{"value":"x","when_json":{"attribute":"request_data"}}]}]}"#,
+                 "sources":[{"id":"probe.src","value":"x","when_json":{"attribute":"request_data"}}]}]}"#,
         ),
         (
             "a JSON witness naming two ways of naming one member",
             r#"{"id":"t","doc":"d","span_fields":[
                 {"id":"f","doc":"d","target":"user_id",
-                 "sources":[{"value":"x","when_json":{"attribute":"request_data","path":"$.a","first_present_of":["$.b"]}}]}]}"#,
+                 "sources":[{"id":"probe.src","value":"x","when_json":{"attribute":"request_data","path":"$.a","first_present_of":["$.b"]}}]}]}"#,
         ),
         (
             "a JSON read naming no member",
             r#"{"id":"t","doc":"d","span_fields":[
                 {"id":"f","doc":"d","target":"user_id",
-                 "sources":[{"json":{"attribute":"request_data"}}]}]}"#,
+                 "sources":[{"id":"probe.src","json":{"attribute":"request_data"}}]}]}"#,
         ),
         (
             "a first-present search over the span name and an attribute, whose order is not preserved",
             r#"{"id":"t","doc":"d","span_fields":[
                 {"id":"f","doc":"d","target":"user_id",
-                 "sources":[{"attribute":"k","when":{"text_contains":{"sources":["attr:model","span_name"],"needles":["embed"],"first_present_source":true}}}]}]}"#,
+                 "sources":[{"id":"probe.src","attribute":"k","when":{"text_contains":{"sources":["attr:model","span_name"],"needles":["embed"],"first_present_source":true}}}]}]}"#,
         ),
         (
             "a phrase search naming a source the probe does not read",
             r#"{"id":"t","doc":"d","span_fields":[
                 {"id":"f","doc":"d","target":"user_id",
-                 "sources":[{"attribute":"k","when":{"text_contains":{"sources":["span"],"needles":["foo"]}}}]}]}"#,
+                 "sources":[{"id":"probe.src","attribute":"k","when":{"text_contains":{"sources":["span"],"needles":["foo"]}}}]}]}"#,
         ),
         (
             "a phrase search naming `attr:` with no key",
             r#"{"id":"t","doc":"d","span_fields":[
                 {"id":"f","doc":"d","target":"user_id",
-                 "sources":[{"attribute":"k","when":{"text_contains":{"sources":["attr:"],"needles":["foo"]}}}]}]}"#,
+                 "sources":[{"id":"probe.src","attribute":"k","when":{"text_contains":{"sources":["attr:"],"needles":["foo"]}}}]}]}"#,
         ),
         (
             "a phrase search with no needle",
             r#"{"id":"t","doc":"d","span_fields":[
                 {"id":"f","doc":"d","target":"user_id",
-                 "sources":[{"attribute":"k","when":{"text_contains":{"sources":["span_name"],"needles":[]}}}]}]}"#,
+                 "sources":[{"id":"probe.src","attribute":"k","when":{"text_contains":{"sources":["span_name"],"needles":[]}}}]}]}"#,
         ),
     ];
     for (what, asset) in refused {
@@ -9166,13 +9166,13 @@ fn a_field_source_may_not_declare_a_gate_that_never_holds() {
     // A real gate compiles, phrase search included.
     let ok = r#"{"id":"t","doc":"d","span_fields":[
         {"id":"f","doc":"d","target":"user_id",
-         "sources":[{"attribute":"k","when":{"attr_exists":["marker"]}}]},
+         "sources":[{"id":"probe.src","attribute":"k","when":{"attr_exists":["marker"]}}]},
         {"id":"g","doc":"d","target":"http_method",
-         "sources":[{"attribute":"m","when":{"text_contains":{"sources":["span_name","attr:k"],"needles":["chat"]}}}]},
+         "sources":[{"id":"probe.src","attribute":"m","when":{"text_contains":{"sources":["span_name","attr:k"],"needles":["chat"]}}}]},
         {"id":"h","doc":"d","target":"http_url",
-         "sources":[{"attribute":"u","when":{"text_contains":{"sources":["attr:a","attr:b"],"needles":["x"],"first_present_source":true}}}]},
+         "sources":[{"id":"probe.src","attribute":"u","when":{"text_contains":{"sources":["attr:a","attr:b"],"needles":["x"],"first_present_source":true}}}]},
         {"id":"i","doc":"d","target":"db_name",
-         "sources":[{"attribute":"d","when":{"text_contains":{"sources":["span_name"],"needles":["x"],"first_present_source":true}}}]}]}"#;
+         "sources":[{"id":"probe.src","attribute":"d","when":{"text_contains":{"sources":["span_name"],"needles":["x"],"first_present_source":true}}}]}]}"#;
     let sources =
         std::collections::BTreeMap::from([("t.json".to_string(), ok.as_bytes().to_vec())]);
     assert!(
@@ -9300,7 +9300,7 @@ fn a_wider_gate_suppresses_a_narrower_one() {
             "a root `starts_with` beside its own negation, which holds of every value",
             r#"{"id":"t","doc":"d","messages":[
                 {"id":"a","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message","legacy_rank":1,
-                 "alternatives":[{"require":{"any":[
+                 "alternatives":[{"id":"probe.alt","require":{"any":[
                     {"starts_with":"a"},{"lacks_prefix":"a"}]},
                   "wrap":{"role":"user","content_from_any_of":["$.content"]}}]},
                 {"id":"b","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message",
@@ -9337,7 +9337,7 @@ fn a_wider_gate_suppresses_a_narrower_one() {
             r#"{"id":"t","doc":"d","messages":[
                 {"id":"a","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message",
                  "when":{"attr_exists":["marker"]},"tag_as":"a.tag","legacy_rank":1,
-                 "alternatives":[{"require":{"any":[{"path":"$.kind","one_of":["first"]}]},
+                 "alternatives":[{"id":"probe.alt","require":{"any":[{"path":"$.kind","one_of":["first"]}]},
                   "wrap":{"role":"user","content_from_any_of":["$.content"]}}]},
                 {"id":"b","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message",
                  "when":{"attr_exists":["marker"]},"tag_as":"b.tag","legacy_rank":2}]}"#,
@@ -9355,7 +9355,7 @@ fn a_wider_gate_suppresses_a_narrower_one() {
             r#"{"id":"t","doc":"d","messages":[
                 {"id":"a","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message",
                  "tag_as":"a.tag","legacy_rank":1,
-                 "alternatives":[{"require_parent":{"any":[{"path":"$.kind","one_of":["k"]}]},
+                 "alternatives":[{"id":"probe.alt","require_parent":{"any":[{"path":"$.kind","one_of":["k"]}]},
                   "wrap":{"role":"user","content_from_any_of":["$.content"]}}]},
                 {"id":"b","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message",
                  "tag_as":"b.tag","legacy_rank":2}]}"#,
@@ -9422,7 +9422,7 @@ fn conditionality_is_a_property_of_the_carrier_not_of_the_rule() {
     // every span; rule B reads `x` too.
     let unconditional_fallback = r#"{"id":"t","doc":"d","messages":[
         {"id":"a","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message","legacy_rank":1,
-         "alternatives":[{"require":{"any":[{"path":"$.marker","exists":true}]},
+         "alternatives":[{"id":"probe.alt","require":{"any":[{"path":"$.marker","exists":true}]},
                           "wrap":{"role":"user","content_from_any_of":["$.content"]}}],
          "fallback":[{"wrap":{"role":"user","content_from_any_of":["$.content"]}}]},
         {"id":"b","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message",
@@ -9431,7 +9431,7 @@ fn conditionality_is_a_property_of_the_carrier_not_of_the_rule() {
     // recognises and the pair is genuine.
     let all_readings_required = r#"{"id":"t","doc":"d","messages":[
         {"id":"a","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message","legacy_rank":1,
-         "alternatives":[{"require":{"any":[{"path":"$.marker","exists":true}]},
+         "alternatives":[{"id":"probe.alt","require":{"any":[{"path":"$.marker","exists":true}]},
                           "wrap":{"role":"user","content_from_any_of":["$.content"]}}]},
         {"id":"b","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message",
          "legacy_rank":2}]}"#;

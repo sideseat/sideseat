@@ -71,20 +71,24 @@
       },
       "also": [
         {
+          "id": "message",
           "doc": "The node itself, when the whole payload is one message.",
           "then_fragment": "langchain.message"
         },
         {
+          "id": "messages",
           "doc": "The conversation this node holds.",
           "select": "$.messages[*]",
           "then_fragment": "langchain.message"
         },
         {
+          "id": "also_3",
           "doc": "Every other member of the state, since a node writes its messages under whatever name it chose. Read at this level only - descending is the walk's job, bounded there.",
           "select": "$.*",
           "then_fragment": "langchain.message"
         },
         {
+          "id": "raw",
           "doc": "The final answer beside the conversation rather than inside it: one framework running through this one writes the history under `messages` and the answer under `raw`. Reading only the list claimed the carrier and left the answer unread by anything, so the trace showed the question and no reply. Only a string is taken - anything structured is a state member rather than a reply.",
           "select": "$.raw",
           "trim": true,
@@ -134,20 +138,24 @@
       },
       "also": [
         {
+          "id": "message",
           "doc": "The node itself, when the whole payload is one message.",
           "then_fragment": "langchain.message"
         },
         {
+          "id": "messages",
           "doc": "The conversation this node holds.",
           "select": "$.messages[*]",
           "then_fragment": "langchain.message"
         },
         {
+          "id": "also_3",
           "doc": "Every other member of the state, since a node writes its messages under whatever name it chose. Read at this level only - descending is the walk's job, bounded there.",
           "select": "$.*",
           "then_fragment": "langchain.message"
         },
         {
+          "id": "raw",
           "doc": "The final answer beside the conversation rather than inside it: one framework running through this one writes the history under `messages` and the answer under `raw`. Reading only the list claimed the carrier and left the answer unread by anything, so the trace showed the question and no reply. Only a string is taken - anything structured is a state member rather than a reply.",
           "select": "$.raw",
           "trim": true,
@@ -189,6 +197,7 @@
       "legacy_rank": 620,
       "alternatives": [
         {
+          "id": "message",
           "then_fragment": "langchain.message"
         }
       ]

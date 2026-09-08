@@ -79,6 +79,7 @@
             "emit": "message",
             "also": [
               {
+                "id": "parts",
                 "doc": "The system instruction: structured parts, a bare string, or the framework's own snake_case member.",
                 "select": "$.systemInstruction.parts",
                 "wrap": {
@@ -86,6 +87,7 @@
                 }
               },
               {
+                "id": "systeminstruction",
                 "doc": "The same instruction written as a string.",
                 "select": "$.systemInstruction",
                 "require": {
@@ -101,6 +103,7 @@
                 }
               },
               {
+                "id": "system_instruction",
                 "doc": "And the framework's own spelling.",
                 "select": "$.config.system_instruction",
                 "require": {
@@ -116,6 +119,7 @@
                 }
               },
               {
+                "id": "contents",
                 "doc": "The conversation. Gemini writes `{parts, role}`, so the role comes from the payload rather than a literal - one rule per role would be the alternative. Read structurally so the provider's payload is cloned unchanged; see the projection-language section of `server/docs/framework-rules-engine.md` for why.",
                 "select": "$.contents[*]",
                 "require": {
@@ -146,6 +150,7 @@
             "aggregate_into_array": true,
             "alternatives": [
               {
+                "id": "tools",
                 "select": "$.tools",
                 "each": true,
                 "else_element": true,
@@ -155,6 +160,7 @@
                 ]
               },
               {
+                "id": "tools_2",
                 "select": "$.config.tools",
                 "each": true,
                 "else_element": true,
@@ -191,6 +197,7 @@
             "emit": "message",
             "alternatives": [
               {
+                "id": "content",
                 "select": "$.content",
                 "require": {
                   "all": [
@@ -242,6 +249,7 @@
             "emit": "message",
             "alternatives": [
               {
+                "id": "alternative_1",
                 "require": {
                   "all": [
                     {
@@ -269,6 +277,7 @@
       "fact": "tool_execution",
       "signals": [
         {
+          "id": "agent_tool_response",
           "attrs_present": [
             "gcp.vertex.agent.tool_response"
           ]

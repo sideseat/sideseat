@@ -2442,7 +2442,7 @@ fn a_scalar_only_that_cannot_apply_is_refused() {
             "span_fields": [{
                 "id": "probe.field",
                 "target": target,
-                "sources": [{"json": json}],
+                "sources": [{"id": "probe.source", "json": json}],
             }],
         });
         super::span_fields::compile(&std::collections::BTreeMap::from([(
@@ -2495,6 +2495,7 @@ fn a_scalar_only_that_cannot_apply_is_refused() {
                 "id": "probe.field",
                 "target": "gen_ai_finish_reasons",
                 "sources": [{
+                    "id": "probe.source",
                     "attribute": "probe.flat",
                     "when_json": {
                         "attribute": "probe.payload",
@@ -2542,7 +2543,7 @@ fn a_fold_that_can_do_nothing_is_refused() {
             "span_fields": [{
                 "id": "probe.field",
                 "target": target,
-                "sources": [{"attribute": "probe.attribute", "lowercase": lowercase}],
+                "sources": [{"id": "probe.source", "attribute": "probe.attribute", "lowercase": lowercase}],
             }],
         });
         super::span_fields::compile(&std::collections::BTreeMap::from([(
@@ -4036,5 +4037,127 @@ fn a_superseded_rule_is_dominated_transitively() {
     assert!(
         plan.overlapping_candidates(&ctx).is_empty(),
         "the winner dominates both others - directly and transitively - so no overlap is unresolved"
+    );
+}
+
+/// Every clause id is non-empty and unique within the rule or fragment that holds it.
+///
+/// The ids exist so an emission can say **which** clause answered - a rule with four readings used to report
+/// only the rule's id, and `doc` was standing in for an identity. That only works if an id identifies something:
+/// two clauses sharing one inside a rule make a diagnostic ambiguous exactly where it is being read, and an
+/// empty one names nothing.
+///
+/// Checked over the raw assets rather than per compiler, because the six clause types are compiled by three
+/// different modules and this is one property about all of them - so a seventh type is covered the day it is
+/// added, provided it is listed here.
+#[test]
+fn a_clause_id_is_unique_within_its_owner() {
+    /// The array members that are answer-capable clauses, and therefore carry an id.
+    const CLAUSE_ARRAYS: &[&str] = &[
+        "alternatives",
+        "also",
+        "fallback",
+        "extra_cases",
+        "cases",
+        "passes",
+        "by",
+        "routes",
+        "sources",
+        "signals",
+    ];
+
+    fn collect(
+        value: &serde_json::Value,
+        member: Option<&str>,
+        found: &mut Vec<String>,
+        problems: &mut Vec<String>,
+        owner: &str,
+    ) {
+        match value {
+            serde_json::Value::Object(members) => {
+                for (key, inner) in members {
+                    collect(inner, Some(key), found, problems, owner);
+                }
+            }
+            serde_json::Value::Array(items) => {
+                let is_clause = member.is_some_and(|name| CLAUSE_ARRAYS.contains(&name));
+                for item in items {
+                    if is_clause && item.is_object() {
+                        match item.get("id").and_then(serde_json::Value::as_str) {
+                            Some(id) if !id.is_empty() => found.push(id.to_string()),
+                            Some(_) => problems
+                                .push(format!("  {owner}: a clause declares an empty id")),
+                            // The schema requires it, so this is a shape no asset can have - asserted so the
+                            // list above staying in step with the schema is checked rather than assumed.
+                            None => problems.push(format!(
+                                "  {owner}: a clause in `{}` has no id, so the schema no longer requires one \
+                                 there",
+                                member.unwrap_or("?")
+                            )),
+                        }
+                    }
+                    collect(item, member, found, problems, owner);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    let mut problems: Vec<String> = Vec::new();
+    let mut total = 0_usize;
+    for (path, bytes) in crate::domain::rules::schema::embedded_sources() {
+        let asset: serde_json::Value = serde_json::from_slice(&bytes).expect("the asset parses");
+        let Some(members) = asset.as_object() else {
+            continue;
+        };
+        // One id space per owner: a top-level entry of a rule section, or a named fragment.
+        let mut owners: Vec<(String, &serde_json::Value)> = Vec::new();
+        for (section, value) in members {
+            match value {
+                serde_json::Value::Array(items) => {
+                    for (index, item) in items.iter().enumerate() {
+                        let name = item
+                            .get("id")
+                            .and_then(serde_json::Value::as_str)
+                            .map(str::to_string)
+                            .unwrap_or_else(|| format!("{section}[{index}]"));
+                        owners.push((format!("{path}/{section}/{name}"), item));
+                    }
+                }
+                // `fragments` is a map, and each entry is its own id space.
+                serde_json::Value::Object(fragments) if section == "fragments" => {
+                    for (name, fragment) in fragments {
+                        owners.push((format!("{path}/fragments/{name}"), fragment));
+                    }
+                }
+                _ => {}
+            }
+        }
+        for (owner, value) in owners {
+            let mut found = Vec::new();
+            collect(value, None, &mut found, &mut problems, &owner);
+            total += found.len();
+            let mut seen: std::collections::BTreeSet<&String> = std::collections::BTreeSet::new();
+            for id in &found {
+                if !seen.insert(id) {
+                    problems.push(format!(
+                        "  {owner}: two clauses share the id `{id}`, so a diagnostic naming it is ambiguous"
+                    ));
+                }
+            }
+        }
+    }
+    assert!(
+        total > 190,
+        "only {total} clause ids were found, and the assets declare over 200 - the list of clause arrays is \
+         probably out of step with the schema"
+    );
+    problems.sort();
+    problems.dedup();
+    assert!(
+        problems.is_empty(),
+        "{} clause id problem(s):\n{}",
+        problems.len(),
+        problems.join("\n")
     );
 }

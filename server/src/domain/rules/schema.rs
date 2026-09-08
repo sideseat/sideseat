@@ -304,6 +304,16 @@ pub enum FieldCombine {
 #[derive(Debug, Deserialize, Clone)]
 #[serde(deny_unknown_fields)]
 pub struct FieldSource {
+    /// This clause's own name, unique within the rule or fragment that holds it.
+    ///
+    /// Required, because an emission has to be able to say **which** clause answered. Before this, a rule with
+    /// four readings reported only the rule's id: a direct shape and a shape reached through a fragment were
+    /// indistinguishable in a diagnostic, and `doc` was being used as a stand-in for an identity.
+    ///
+    /// Required rather than optional-with-a-derived-fallback, which was considered and is the worst of the
+    /// three: adding an id later would *change* the clause's identity, a positional edit would change every
+    /// identity after it, and nothing could safely reference one.
+    pub id: String,
     #[serde(default)]
     pub doc: Option<String>,
     /// What a **present but unreadable** value means for the rest of the chain.
@@ -1163,6 +1173,16 @@ pub enum SpanFact {
 #[derive(Debug, Deserialize, Clone)]
 #[serde(deny_unknown_fields)]
 pub struct SpanSignal {
+    /// This clause's own name, unique within the rule or fragment that holds it.
+    ///
+    /// Required, because an emission has to be able to say **which** clause answered. Before this, a rule with
+    /// four readings reported only the rule's id: a direct shape and a shape reached through a fragment were
+    /// indistinguishable in a diagnostic, and `doc` was being used as a stand-in for an identity.
+    ///
+    /// Required rather than optional-with-a-derived-fallback, which was considered and is the worst of the
+    /// three: adding an id later would *change* the clause's identity, a positional edit would change every
+    /// identity after it, and nothing could safely reference one.
+    pub id: String,
     pub doc: Option<String>,
     /// An attribute with this value.
     #[serde(default)]
@@ -1513,6 +1533,16 @@ pub enum EmitTarget {
 #[derive(Debug, Deserialize, Clone, Default)]
 #[serde(deny_unknown_fields)]
 pub struct Alternative {
+    /// This clause's own name, unique within the rule or fragment that holds it.
+    ///
+    /// Required, because an emission has to be able to say **which** clause answered. Before this, a rule with
+    /// four readings reported only the rule's id: a direct shape and a shape reached through a fragment were
+    /// indistinguishable in a diagnostic, and `doc` was being used as a stand-in for an identity.
+    ///
+    /// Required rather than optional-with-a-derived-fallback, which was considered and is the worst of the
+    /// three: adding an id later would *change* the clause's identity, a positional edit would change every
+    /// identity after it, and nothing could safely reference one.
+    pub id: String,
     #[serde(default)]
     pub doc: Option<String>,
     /// An RFC 9535 JSONPath into the parsed value. Absent means the value itself.
@@ -1724,6 +1754,16 @@ pub struct SectionsSpec {
 #[derive(Debug, Deserialize, Clone)]
 #[serde(deny_unknown_fields)]
 pub struct SectionRoute {
+    /// This clause's own name, unique within the rule or fragment that holds it.
+    ///
+    /// Required, because an emission has to be able to say **which** clause answered. Before this, a rule with
+    /// four readings reported only the rule's id: a direct shape and a shape reached through a fragment were
+    /// indistinguishable in a diagnostic, and `doc` was being used as a stand-in for an identity.
+    ///
+    /// Required rather than optional-with-a-derived-fallback, which was considered and is the worst of the
+    /// three: adding an id later would *change* the clause's identity, a positional edit would change every
+    /// identity after it, and nothing could safely reference one.
+    pub id: String,
     #[serde(default)]
     pub doc: Option<String>,
     /// The tag prefix this route claims. Absent means "any section not claimed above".
@@ -1881,6 +1921,16 @@ pub struct ElementsSpec {
 #[derive(Debug, Deserialize, Clone)]
 #[serde(deny_unknown_fields)]
 pub struct ElementPass {
+    /// This clause's own name, unique within the rule or fragment that holds it.
+    ///
+    /// Required, because an emission has to be able to say **which** clause answered. Before this, a rule with
+    /// four readings reported only the rule's id: a direct shape and a shape reached through a fragment were
+    /// indistinguishable in a diagnostic, and `doc` was being used as a stand-in for an identity.
+    ///
+    /// Required rather than optional-with-a-derived-fallback, which was considered and is the worst of the
+    /// three: adding an id later would *change* the clause's identity, a positional edit would change every
+    /// identity after it, and nothing could safely reference one.
+    pub id: String,
     #[serde(default)]
     pub doc: Option<String>,
     /// Which elements this pass reads.
@@ -1922,6 +1972,16 @@ pub struct GroupSpec {
 #[derive(Debug, Deserialize, Clone)]
 #[serde(deny_unknown_fields)]
 pub struct DerivedCase {
+    /// This clause's own name, unique within the rule or fragment that holds it.
+    ///
+    /// Required, because an emission has to be able to say **which** clause answered. Before this, a rule with
+    /// four readings reported only the rule's id: a direct shape and a shape reached through a fragment were
+    /// indistinguishable in a diagnostic, and `doc` was being used as a stand-in for an identity.
+    ///
+    /// Required rather than optional-with-a-derived-fallback, which was considered and is the worst of the
+    /// three: adding an id later would *change* the clause's identity, a positional edit would change every
+    /// identity after it, and nothing could safely reference one.
+    pub id: String,
     #[serde(default)]
     pub doc: Option<String>,
     pub when: PredicateSet,

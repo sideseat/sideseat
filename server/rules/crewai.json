@@ -66,6 +66,7 @@
       "legacy_rank": 1510,
       "also": [
         {
+          "id": "messages",
           "doc": "The conversation's turns.",
           "select": "$.messages[*]",
           "require": {
@@ -88,6 +89,7 @@
           }
         },
         {
+          "id": "messages_2",
           "doc": "And each task's own turns.",
           "select": "$.tasks_output[*].messages[*]",
           "require": {
@@ -110,6 +112,7 @@
           }
         },
         {
+          "id": "raw",
           "doc": "The answer, which is a bare string beside them and so needs its own envelope.",
           "select": "$.raw",
           "trim": true,
@@ -128,6 +131,7 @@
       ],
       "fallback": [
         {
+          "id": "no_documented_shape_matched",
           "doc": "No documented shape matched: keep the payload rather than nothing."
         }
       ]
@@ -364,6 +368,7 @@
       "emit": "claim",
       "alternatives": [
         {
+          "id": "context",
           "doc": "Only where the tool list is what it holds. An **empty** list is not evidence of one - `crewai/error` carries `tools: []` beside the conversation, and claiming on presence alone took that turn away. And a `context` member is the conversation, so a carrier holding one is read rather than claimed.",
           "require": {
             "all": [

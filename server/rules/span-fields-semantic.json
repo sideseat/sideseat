@@ -8,30 +8,39 @@
       "doc": "The conversation a span belongs to. `gen_ai.conversation.id` is the semconv 1.37 spelling and every compliant emitter sets it - without it their spans do not group into sessions at all. An **empty** value is not a value and the chain steps over it: a producer writing `session.id=\"\"` beside a real conversation id would otherwise win, and retrieval reads a stored empty session id as *no session*, which loses the session view, the sibling load and the feed's context widening.",
       "sources": [
         {
+          "id": "session_id",
           "attribute": "session.id"
         },
         {
+          "id": "conversation_id",
           "attribute": "gen_ai.conversation.id"
         },
         {
+          "id": "session_id_2",
           "attribute": "langsmith.session.id"
         },
         {
+          "id": "trace_session_id",
           "attribute": "langsmith.trace.session_id"
         },
         {
+          "id": "agent_session_id",
           "attribute": "gcp.vertex.agent.session_id"
         },
         {
+          "id": "metadata_sessionid",
           "attribute": "ai.telemetry.metadata.sessionId"
         },
         {
+          "id": "langgraph_thread_id",
           "attribute": "langgraph.thread_id"
         },
         {
+          "id": "trace_session",
           "attribute": "mlflow.trace.session"
         },
         {
+          "id": "metadata_thread_id",
           "doc": "Inside a metadata object rather than under a key of its own, which is how a framework that has no attribute for it still says so.",
           "json": {
             "attribute": "metadata",
@@ -39,6 +48,7 @@
           }
         },
         {
+          "id": "metadata_langgraph_thread_id",
           "json": {
             "attribute": "metadata",
             "path": "$.langgraph_thread_id"
@@ -52,18 +62,23 @@
       "doc": "Who the call was for.",
       "sources": [
         {
+          "id": "user_id",
           "attribute": "user.id"
         },
         {
+          "id": "enduser_id",
           "attribute": "enduser.id"
         },
         {
+          "id": "metadata_userid",
           "attribute": "ai.telemetry.metadata.userId"
         },
         {
+          "id": "trace_user",
           "attribute": "mlflow.trace.user"
         },
         {
+          "id": "metadata_user_id",
           "json": {
             "attribute": "metadata",
             "path": "$.user_id"
@@ -77,9 +92,11 @@
       "doc": "The older spelling first, because that is the order the chain it replaced used and a span carrying both means the same thing either way.",
       "sources": [
         {
+          "id": "http_method",
           "attribute": "http.method"
         },
         {
+          "id": "request_method",
           "attribute": "http.request.method"
         }
       ]
@@ -89,9 +106,11 @@
       "target": "http_url",
       "sources": [
         {
+          "id": "http_url",
           "attribute": "http.url"
         },
         {
+          "id": "url_full",
           "attribute": "url.full"
         }
       ]
@@ -102,9 +121,11 @@
       "doc": "An integer field, so a source carrying anything else is *malformed* rather than absent - a producer writing a status as a phrase is a producer bug, and reporting it as missing hides it.",
       "sources": [
         {
+          "id": "http_status_code",
           "attribute": "http.status_code"
         },
         {
+          "id": "response_status_code",
           "attribute": "http.response.status_code"
         }
       ]
@@ -114,6 +135,7 @@
       "target": "db_system",
       "sources": [
         {
+          "id": "db_system",
           "attribute": "db.system",
           "accept_empty": true
         }
@@ -125,6 +147,7 @@
       "target": "db_name",
       "sources": [
         {
+          "id": "db_name",
           "attribute": "db.name",
           "accept_empty": true
         }
@@ -136,6 +159,7 @@
       "target": "db_operation",
       "sources": [
         {
+          "id": "db_operation",
           "attribute": "db.operation",
           "accept_empty": true
         }
@@ -147,6 +171,7 @@
       "target": "db_statement",
       "sources": [
         {
+          "id": "db_statement",
           "attribute": "db.statement",
           "accept_empty": true
         }
@@ -159,6 +184,7 @@
       "doc": "Which cloud, for a span that touched object storage. Read directly rather than through a chain, so an empty value the producer wrote is a value: reporting it absent is a different statement about the span.",
       "sources": [
         {
+          "id": "cloud_provider",
           "attribute": "cloud.provider",
           "accept_empty": true
         }
@@ -169,9 +195,11 @@
       "target": "storage_bucket",
       "sources": [
         {
+          "id": "s3_bucket",
           "attribute": "aws.s3.bucket"
         },
         {
+          "id": "gcs_bucket",
           "attribute": "gcp.gcs.bucket"
         }
       ]
@@ -181,9 +209,11 @@
       "target": "storage_object",
       "sources": [
         {
+          "id": "s3_key",
           "attribute": "aws.s3.key"
         },
         {
+          "id": "gcs_object",
           "attribute": "gcp.gcs.object"
         }
       ]
@@ -193,6 +223,7 @@
       "target": "messaging_system",
       "sources": [
         {
+          "id": "messaging_system",
           "attribute": "messaging.system",
           "accept_empty": true
         }
@@ -204,9 +235,11 @@
       "target": "messaging_destination",
       "sources": [
         {
+          "id": "messaging_destination",
           "attribute": "messaging.destination"
         },
         {
+          "id": "destination_name",
           "attribute": "messaging.destination.name"
         }
       ]
@@ -218,12 +251,15 @@
       "combine": "merge_all",
       "sources": [
         {
+          "id": "tags",
           "attribute": "tags"
         },
         {
+          "id": "langsmith_tags",
           "attribute": "langsmith.tags"
         },
         {
+          "id": "tag_tags",
           "attribute": "tag.tags"
         }
       ]

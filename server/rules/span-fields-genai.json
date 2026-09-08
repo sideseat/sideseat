@@ -8,21 +8,27 @@
       "doc": "Which provider served the call. `gen_ai.system` is deprecated in favour of `gen_ai.provider.name`, so the newer spelling leads.",
       "sources": [
         {
+          "id": "provider_name",
           "attribute": "gen_ai.provider.name"
         },
         {
+          "id": "gen_ai_system",
           "attribute": "gen_ai.system"
         },
         {
+          "id": "inference_model_provider",
           "attribute": "az.ai.inference.model_provider"
         },
         {
+          "id": "model_provider",
           "attribute": "ai.model.provider"
         },
         {
+          "id": "llm_provider",
           "attribute": "llm.provider"
         },
         {
+          "id": "literal_anthropic",
           "doc": "A dialect that names no provider still says which one it is by the *shape* of its request: a top-level `system` member is Anthropic's spelling, and a `messages` list is OpenAI's. The literal and the shape that identifies it are both stated here.",
           "value": "anthropic",
           "when_json": {
@@ -31,6 +37,7 @@
           }
         },
         {
+          "id": "literal_openai",
           "value": "openai",
           "when_json": {
             "attribute": "request_data",
@@ -45,10 +52,12 @@
       "doc": "What the call was. Read directly, so an empty value the producer wrote stays one.",
       "sources": [
         {
+          "id": "operation_name",
           "attribute": "gen_ai.operation.name",
           "accept_empty": true
         },
         {
+          "id": "literal_chat",
           "doc": "A request holding a message list is a chat completion, whatever else the span omits.",
           "value": "chat",
           "when_json": {
@@ -64,21 +73,27 @@
       "doc": "The model asked for. An embedding or reranker model name is the same fact for spans that have no chat model, which is why they close the chain rather than opening one of their own.",
       "sources": [
         {
+          "id": "request_model",
           "attribute": "gen_ai.request.model"
         },
         {
+          "id": "model_id",
           "attribute": "ai.model.id"
         },
         {
+          "id": "llm_model_name",
           "attribute": "llm.model_name"
         },
         {
+          "id": "embedding_model_name",
           "attribute": "embedding.model_name"
         },
         {
+          "id": "reranker_model_name",
           "attribute": "reranker.model_name"
         },
         {
+          "id": "agent_llm_request_model",
           "doc": "Inside the request a dialect serialises whole.",
           "json": {
             "attribute": "gcp.vertex.agent.llm_request",
@@ -87,6 +102,7 @@
           "on_malformed": "continue"
         },
         {
+          "id": "crew_agents_llm",
           "doc": "One dialect states the model on each agent it configured, so the answer is the first agent that named one - an agent with an empty `llm` is not the answer, and neither is one with no `llm` at all.",
           "json": {
             "attribute": "crew_agents",
@@ -95,6 +111,7 @@
           "on_malformed": "continue"
         },
         {
+          "id": "request_data_model",
           "json": {
             "attribute": "request_data",
             "path": "$.model"
@@ -109,9 +126,11 @@
       "doc": "The model that answered, which a provider may report as a different version from the one asked for.",
       "sources": [
         {
+          "id": "response_model",
           "attribute": "gen_ai.response.model"
         },
         {
+          "id": "response_model_2",
           "attribute": "llm.response.model"
         }
       ]
@@ -121,6 +140,7 @@
       "target": "gen_ai_response_id",
       "sources": [
         {
+          "id": "response_id",
           "attribute": "gen_ai.response.id",
           "accept_empty": true
         }
@@ -131,10 +151,12 @@
       "target": "gen_ai_temperature",
       "sources": [
         {
+          "id": "request_temperature",
           "attribute": "gen_ai.request.temperature",
           "on_malformed": "continue"
         },
         {
+          "id": "llm_invocation_parameters_temperature",
           "json": {
             "attribute": "llm.invocation_parameters",
             "path": "$.temperature"
@@ -149,10 +171,12 @@
       "target": "gen_ai_top_p",
       "sources": [
         {
+          "id": "request_top_p",
           "attribute": "gen_ai.request.top_p",
           "on_malformed": "continue"
         },
         {
+          "id": "llm_invocation_parameters_top_p",
           "json": {
             "attribute": "llm.invocation_parameters",
             "path": "$.top_p"
@@ -167,10 +191,12 @@
       "target": "gen_ai_top_k",
       "sources": [
         {
+          "id": "request_top_k",
           "attribute": "gen_ai.request.top_k",
           "on_malformed": "continue"
         },
         {
+          "id": "llm_invocation_parameters_top_k",
           "json": {
             "attribute": "llm.invocation_parameters",
             "path": "$.top_k"
@@ -186,10 +212,12 @@
       "doc": "The output ceiling. Four spellings across three places, and the order is the retired chain's: the flat attribute, then the serialised request, then the invocation parameters - each with its own dialect's member name beside the conventional one.",
       "sources": [
         {
+          "id": "request_max_tokens",
           "attribute": "gen_ai.request.max_tokens",
           "on_malformed": "continue"
         },
         {
+          "id": "request_data_max_tokens",
           "doc": "Both spellings this dialect uses, in one object: the first *present* one answers. As separate sources a badly written `max_tokens` would be stepped over and `max_completion_tokens` would answer, where the retired code let the bad one end this carrier and the next carrier answer.",
           "json": {
             "attribute": "request_data",
@@ -201,6 +229,7 @@
           "on_malformed": "continue"
         },
         {
+          "id": "llm_invocation_parameters_max_tokens",
           "json": {
             "attribute": "llm.invocation_parameters",
             "first_present_of": [
@@ -217,10 +246,12 @@
       "target": "gen_ai_frequency_penalty",
       "sources": [
         {
+          "id": "request_frequency_penalty",
           "attribute": "gen_ai.request.frequency_penalty",
           "on_malformed": "continue"
         },
         {
+          "id": "llm_invocation_parameters_frequency_penalty",
           "json": {
             "attribute": "llm.invocation_parameters",
             "path": "$.frequency_penalty"
@@ -234,10 +265,12 @@
       "target": "gen_ai_presence_penalty",
       "sources": [
         {
+          "id": "request_presence_penalty",
           "attribute": "gen_ai.request.presence_penalty",
           "on_malformed": "continue"
         },
         {
+          "id": "llm_invocation_parameters_presence_penalty",
           "json": {
             "attribute": "llm.invocation_parameters",
             "path": "$.presence_penalty"
@@ -251,6 +284,7 @@
       "target": "gen_ai_stop_sequences",
       "sources": [
         {
+          "id": "request_stop_sequences",
           "attribute": "gen_ai.request.stop_sequences"
         }
       ]
@@ -261,9 +295,11 @@
       "doc": "Every source a *span attribute* can carry, in the order the retired chain tried them. Only the conventions' `gen_ai.choice` **event** stays in Rust, because field resolution is given a span's attributes and not its events - so that one fallback now runs *after* these rather than before them. Reachable for a span carrying both a choice event with a reason and one of these attributes; the reason is the same in every such shape the corpus has, and the alternative is leaving four producers' spellings in Rust to preserve a precedence between an event and an attribute that no producer states.",
       "sources": [
         {
+          "id": "response_finish_reasons",
           "attribute": "gen_ai.response.finish_reasons"
         },
         {
+          "id": "gen_ai_completion_finish_reason",
           "json": {
             "attribute": "gen_ai.completion",
             "path": "$.choices[0:].finish_reason",
@@ -273,6 +309,7 @@
           "doc": "A serialised completion, whose choices each state why they stopped. Every one of them, because a completion with two choices has two reasons and reporting one is a statement the producer did not make. A **slice** rather than a wildcard, because a slice applies to arrays only: the retired reader required `choices` to be an array and a wildcard would also match the members of an object that merely has that name."
         },
         {
+          "id": "output_messages_finish_reason",
           "json": {
             "attribute": "gen_ai.output.messages",
             "path": "$[0:].finish_reason",
@@ -282,6 +319,7 @@
           "doc": "A serialised output message list. The first match that yields, which is what the retired loop's `break` did - and a **slice**, because the retired reader decoded the payload as a list and fell through when it was not one. A wildcard matched an object's members too, so `{\"x\": {\"finish_reason\": ...}}` answered here instead of falling through to the next source."
         },
         {
+          "id": "agent_llm_response_finish_reason",
           "json": {
             "attribute": "gcp.vertex.agent.llm_response",
             "path": "$.finish_reason",
@@ -292,6 +330,7 @@
           "doc": "A dialect that serialises its whole response and writes the reason in upper case. Folded, because the stored form is lower case and whose casing it is carries no information."
         },
         {
+          "id": "response_data_finish_reason",
           "json": {
             "attribute": "response_data",
             "path": "$.finish_reason",
@@ -307,9 +346,11 @@
       "target": "gen_ai_agent_id",
       "sources": [
         {
+          "id": "agent_id",
           "attribute": "gen_ai.agent.id"
         },
         {
+          "id": "agent_id_2",
           "attribute": "aws.bedrock.agent.id"
         }
       ]
@@ -320,18 +361,23 @@
       "doc": "Who was running. Four dialect spellings past the conventional one, including the two a hand-off writes for each side of it.",
       "sources": [
         {
+          "id": "agent_name",
           "attribute": "gen_ai.agent.name"
         },
         {
+          "id": "agent_name_2",
           "attribute": "agent.name"
         },
         {
+          "id": "agent_role",
           "attribute": "agent_role"
         },
         {
+          "id": "recipient_agent_class",
           "attribute": "recipient_agent_class"
         },
         {
+          "id": "sender_agent_class",
           "attribute": "sender_agent_class"
         }
       ]
@@ -342,19 +388,24 @@
       "doc": "Which tool ran. The last source is the span's own name, because the conventions prescribe `execute_tool {name}` there - the name is stated *in* the span rather than beside it, and a span named exactly the prefix has no name past it.",
       "sources": [
         {
+          "id": "tool_name",
           "attribute": "gen_ai.tool.name"
         },
         {
+          "id": "tool_name_2",
           "attribute": "tool.name"
         },
         {
+          "id": "tool_name_3",
           "attribute": "tool_name"
         },
         {
+          "id": "logfire_msg",
           "doc": "One dialect puts a descriptive tool name in the message field it writes for every span.",
           "attribute": "logfire.msg"
         },
         {
+          "id": "span_name_execute_tool",
           "doc": "A span named *exactly* the prefix has an empty name past it, and that is kept rather than dropped - the retired `strip_prefix` produced `Some(\"\")` there, and reporting no tool name instead is a different statement about the span.",
           "span_name_strip_prefix": "execute_tool ",
           "accept_empty": true
@@ -366,6 +417,7 @@
       "target": "gen_ai_tool_call_id",
       "sources": [
         {
+          "id": "call_id",
           "attribute": "gen_ai.tool.call.id",
           "accept_empty": true
         }
@@ -376,6 +428,7 @@
       "target": "gen_ai_server_ttft_ms",
       "sources": [
         {
+          "id": "server_time_to_first_token",
           "attribute": "gen_ai.server.time_to_first_token",
           "on_malformed": "continue"
         }
@@ -386,6 +439,7 @@
       "target": "gen_ai_server_request_duration_ms",
       "sources": [
         {
+          "id": "server_request_duration",
           "attribute": "gen_ai.server.request_duration",
           "on_malformed": "continue"
         }

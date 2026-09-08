@@ -7,6 +7,7 @@
       "target": "usage_input_tokens",
       "sources": [
         {
+          "id": "usage_input_tokens",
           "doc": "On a span whose name says which producer wrote it, the bare `input_tokens` is part of the **same** first-present group as the conventional spellings - which is what the retired table did, one selection across primary, aliases and scoped names alike. As a source *after* the group it would answer when a conventional counter was present but unreadable, where the retired chain stopped and let an embedded carrier speak.",
           "attribute_first_present_of": [
             "gen_ai.usage.input_tokens",
@@ -24,6 +25,7 @@
           "on_malformed": "continue"
         },
         {
+          "id": "usage_input_tokens_2",
           "doc": "Every other span: the conventional spellings only. The bare name is too generic to consult without evidence of who wrote it, and that evidence is the span's name.",
           "attribute_first_present_of": [
             "gen_ai.usage.input_tokens",
@@ -35,6 +37,7 @@
           "on_malformed": "continue"
         },
         {
+          "id": "chat_tokenusage_prompt_tokens",
           "json": {
             "attribute": "mlflow.chat.tokenUsage",
             "first_present_of": [
@@ -46,6 +49,7 @@
           "doc": "The usage object one dialect serialises, whose two spellings are one statement."
         },
         {
+          "id": "agent_llm_response_prompt_token_count",
           "json": {
             "attribute": "gcp.vertex.agent.llm_response",
             "path": "$.usage_metadata.prompt_token_count"
@@ -54,6 +58,7 @@
           "doc": "The usage a dialect nests inside its serialised response."
         },
         {
+          "id": "response_data_input_tokens",
           "json": {
             "attribute": "response_data",
             "first_present_of": [
@@ -71,6 +76,7 @@
       "target": "usage_output_tokens",
       "sources": [
         {
+          "id": "usage_output_tokens",
           "doc": "On a span whose name says which producer wrote it, the bare `output_tokens` is part of the **same** first-present group as the conventional spellings - which is what the retired table did, one selection across primary, aliases and scoped names alike. As a source *after* the group it would answer when a conventional counter was present but unreadable, where the retired chain stopped and let an embedded carrier speak.",
           "attribute_first_present_of": [
             "gen_ai.usage.output_tokens",
@@ -88,6 +94,7 @@
           "on_malformed": "continue"
         },
         {
+          "id": "usage_output_tokens_2",
           "doc": "Every other span: the conventional spellings only. The bare name is too generic to consult without evidence of who wrote it, and that evidence is the span's name.",
           "attribute_first_present_of": [
             "gen_ai.usage.output_tokens",
@@ -99,6 +106,7 @@
           "on_malformed": "continue"
         },
         {
+          "id": "chat_tokenusage_completion_tokens",
           "json": {
             "attribute": "mlflow.chat.tokenUsage",
             "first_present_of": [
@@ -109,6 +117,7 @@
           "on_malformed": "continue"
         },
         {
+          "id": "agent_llm_response_candidates_token_count",
           "json": {
             "attribute": "gcp.vertex.agent.llm_response",
             "path": "$.usage_metadata.candidates_token_count"
@@ -116,6 +125,7 @@
           "on_malformed": "continue"
         },
         {
+          "id": "response_data_output_tokens",
           "json": {
             "attribute": "response_data",
             "first_present_of": [
@@ -133,6 +143,7 @@
       "doc": "The total the provider *stated*, kept apart from the one synthesised from parts so enrichment can redo the synthesis once pricing has resolved whose convention applies.",
       "sources": [
         {
+          "id": "usage_total_tokens",
           "attribute_first_present_of": [
             "gen_ai.usage.total_tokens",
             "llm.token_count.total"
@@ -145,6 +156,7 @@
       "target": "usage_cache_read_tokens",
       "sources": [
         {
+          "id": "usage_cache_read_input_tokens",
           "doc": "On a span whose name says which producer wrote it, the bare `cache_read_tokens` is part of the **same** first-present group as the conventional spellings - which is what the retired table did, one selection across primary, aliases and scoped names alike. As a source *after* the group it would answer when a conventional counter was present but unreadable, where the retired chain stopped and let an embedded carrier speak.",
           "attribute_first_present_of": [
             "gen_ai.usage.cache_read_input_tokens",
@@ -162,6 +174,7 @@
           "on_malformed": "continue"
         },
         {
+          "id": "usage_cache_read_input_tokens_2",
           "doc": "Every other span: the conventional spellings only. The bare name is too generic to consult without evidence of who wrote it, and that evidence is the span's name.",
           "attribute_first_present_of": [
             "gen_ai.usage.cache_read_input_tokens",
@@ -173,6 +186,7 @@
           "on_malformed": "continue"
         },
         {
+          "id": "response_data_cache_read_input_tokens",
           "json": {
             "attribute": "response_data",
             "path": "$.usage.cache_read_input_tokens"
@@ -186,6 +200,7 @@
       "target": "usage_cache_write_tokens",
       "sources": [
         {
+          "id": "usage_cache_creation_input_tokens",
           "doc": "On a span whose name says which producer wrote it, the bare `cache_creation_tokens` is part of the **same** first-present group as the conventional spellings - which is what the retired table did, one selection across primary, aliases and scoped names alike. As a source *after* the group it would answer when a conventional counter was present but unreadable, where the retired chain stopped and let an embedded carrier speak.",
           "attribute_first_present_of": [
             "gen_ai.usage.cache_creation_input_tokens",
@@ -203,6 +218,7 @@
           "on_malformed": "continue"
         },
         {
+          "id": "usage_cache_creation_input_tokens_2",
           "doc": "Every other span: the conventional spellings only. The bare name is too generic to consult without evidence of who wrote it, and that evidence is the span's name.",
           "attribute_first_present_of": [
             "gen_ai.usage.cache_creation_input_tokens",
@@ -214,6 +230,7 @@
           "on_malformed": "continue"
         },
         {
+          "id": "response_data_cache_creation_input_tokens",
           "json": {
             "attribute": "response_data",
             "path": "$.usage.cache_creation_input_tokens"
@@ -227,6 +244,7 @@
       "target": "usage_reasoning_tokens",
       "sources": [
         {
+          "id": "usage_output_reasoning_tokens",
           "attribute_first_present_of": [
             "gen_ai.usage.output_reasoning_tokens",
             "gen_ai.usage.thoughts_token_count",
@@ -242,6 +260,7 @@
       "target": "usage_candidate_input",
       "sources": [
         {
+          "id": "output_value_prompt_tokens",
           "json": {
             "attribute": "output.value",
             "path": "$.token_usage.prompt_tokens"
@@ -264,6 +283,7 @@
       "target": "usage_candidate_output",
       "sources": [
         {
+          "id": "output_value_completion_tokens",
           "json": {
             "attribute": "output.value",
             "path": "$.token_usage.completion_tokens"
@@ -285,6 +305,7 @@
       "target": "usage_candidate_cache_read",
       "sources": [
         {
+          "id": "output_value_cached_prompt_tokens",
           "json": {
             "attribute": "output.value",
             "path": "$.token_usage.cached_prompt_tokens"
@@ -306,6 +327,7 @@
       "target": "usage_candidate_total",
       "sources": [
         {
+          "id": "output_value_total_tokens",
           "json": {
             "attribute": "output.value",
             "path": "$.token_usage.total_tokens"
@@ -329,6 +351,7 @@
       "doc": "One dialect records usage per message, so the call's count is the sum of `prompt_tokens` across them - a statement no single match carries. A candidate rather than a counter source, because that dialect fills both sides together when either summed to anything.",
       "sources": [
         {
+          "id": "output_value_prompt_tokens",
           "json": {
             "attribute": "output.value",
             "path": "$.messages[*].models_usage.prompt_tokens",
@@ -344,6 +367,7 @@
       "doc": "One dialect records usage per message, so the call's count is the sum of `completion_tokens` across them - a statement no single match carries. A candidate rather than a counter source, because that dialect fills both sides together when either summed to anything.",
       "sources": [
         {
+          "id": "output_value_completion_tokens",
           "json": {
             "attribute": "output.value",
             "path": "$.messages[*].models_usage.completion_tokens",

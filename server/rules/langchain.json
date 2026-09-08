@@ -27,6 +27,7 @@
       "doc": "What a LangChain-serialised message is. The discriminator is read from three places because the library writes it in a different one depending on how the object was constructed - the type itself, the serialisation marker, or inside the constructor's kwargs - and the content likewise. Ordered cases: the first that recognises the shape wins.",
       "cases": [
         {
+          "id": "as_user",
           "doc": "A user turn.",
           "require": {
             "any": [
@@ -64,6 +65,7 @@
           }
         },
         {
+          "id": "as_assistant",
           "doc": "The assistant's turn. Its tool calls may sit at the top level or under the kwargs wrapper, and an **empty** list is not a set of calls - attaching one makes a plain reply look like a call. A legacy single `function_call` is carried under its own member, and only when no `tool_calls` were found, which is the precedence the library itself uses.",
           "require": {
             "any": [
@@ -128,6 +130,7 @@
           }
         },
         {
+          "id": "as_system",
           "doc": "A system turn.",
           "require": {
             "any": [
@@ -164,6 +167,7 @@
           }
         },
         {
+          "id": "as_tool",
           "doc": "A tool's reply, carrying the call id that pairs it with its call, and the tool's name.",
           "require": {
             "any": [
@@ -218,6 +222,7 @@
           }
         },
         {
+          "id": "as_function",
           "doc": "The older function-call form. Its name defaults rather than being omitted: the shape requires one, and an absent name and an empty one are different values to anything hashing the payload.",
           "require": {
             "any": [
@@ -264,6 +269,7 @@
           }
         },
         {
+          "id": "role",
           "doc": "Already in canonical form: a role and content, kept exactly as it arrived. Structural rather than rebuilt, so the provider's member order survives.",
           "require": {
             "all": [
@@ -277,6 +283,7 @@
           }
         },
         {
+          "id": "role_2",
           "doc": "A role with the content somewhere else. Last, so it cannot claim a message a typed case above would have recognised.",
           "require": {
             "all": [

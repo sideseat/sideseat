@@ -7,6 +7,7 @@
       "target": "display_span_name",
       "sources": [
         {
+          "id": "logfire_msg",
           "doc": "The resolved sentence, where the span name is a template. The gate is the *template* attribute, because that is what says the name needs resolving - a dialect that writes the message without a template has a name that is already the name. An empty resolved message is not a name, so the chain steps over it.",
           "attribute": "logfire.msg",
           "when": {
@@ -16,6 +17,7 @@
           }
         },
         {
+          "id": "raw_span_name",
           "doc": "Otherwise the producer's own name. An empty one is *not* declared as acceptable, because it cannot be told from silence here: the sink only writes a value it was given, and an empty raw name leaves the field as `set_core_fields` set it - which is that same empty name. Declaring `accept_empty` would be a statement no test can hold to account.",
           "raw_span_name": true
         }

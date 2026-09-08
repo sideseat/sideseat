@@ -24,6 +24,7 @@
       "legacy_rank": 1200,
       "alternatives": [
         {
+          "id": "messages",
           "doc": "A messages array. Each element must be a message - role and content both - so a request's other members are not mistaken for turns.",
           "select": "$.messages",
           "each": true,
@@ -39,6 +40,7 @@
           }
         },
         {
+          "id": "role",
           "doc": "One message, written directly.",
           "require": {
             "all": [
@@ -74,6 +76,7 @@
       "legacy_rank": 1210,
       "alternatives": [
         {
+          "id": "choices",
           "doc": "The choices array, descending to each choice's message and carrying its finish reason down.",
           "select": "$.choices",
           "each": true,
@@ -93,6 +96,7 @@
           }
         },
         {
+          "id": "role",
           "doc": "One message, written directly. `any_of` here rather than `all_of`: a response may carry content with no role, which a request may not.",
           "require": {
             "any": [

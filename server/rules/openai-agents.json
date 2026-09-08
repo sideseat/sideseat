@@ -37,6 +37,7 @@
       "require_non_empty": true,
       "alternatives": [
         {
+          "id": "tools",
           "select": "$.tools",
           "require": {
             "all": [

@@ -123,6 +123,7 @@
       "legacy_rank": 300,
       "alternatives": [
         {
+          "id": "the_payload_is_the",
           "doc": "The payload is the array itself.",
           "each": true,
           "require": {
@@ -261,6 +262,7 @@
       "fact": "tool_execution",
       "signals": [
         {
+          "id": "toolcall_name",
           "attrs_present": [
             "ai.toolCall.name",
             "ai.toolCall.id"
