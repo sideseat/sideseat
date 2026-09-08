@@ -22,6 +22,7 @@ pub mod carrier_rules;
 pub mod classify;
 pub mod content_blocks;
 pub mod detect_rules;
+pub mod expr;
 pub mod members;
 pub mod message_rules;
 pub mod schema;

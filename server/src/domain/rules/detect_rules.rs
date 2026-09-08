@@ -252,6 +252,16 @@ pub fn compile(sources: &BTreeMap<String, Vec<u8>>) -> Result<DetectPlan, Detect
 /// Built at compile time rather than per observation. The previous form cloned the predicate, rebuilt its
 /// lowered needles and allocated an empty map on *every* gate evaluation - which is the opposite of what a
 /// "typed plan compiled once" is for.
+/// The retired shell's answer for a span, reachable from the oracle that holds the boolean grammar to it.
+#[cfg(test)]
+pub(crate) fn signals_hold_for_test(
+    spec: &DetectMatch,
+    span_name: &str,
+    span_attrs: &HashMap<String, String>,
+) -> bool {
+    compiled_signals_hold(&compile_signals(spec), span_name, span_attrs)
+}
+
 pub(super) fn compile_signals(spec: &DetectMatch) -> CompiledDetect {
     probe_for(spec)
 }
