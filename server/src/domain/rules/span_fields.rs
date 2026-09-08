@@ -293,6 +293,9 @@ fn source_label(spec: &FieldSource) -> String {
             _ => json.attribute.clone(),
         };
     }
+    if spec.raw_span_name {
+        return "the span's own name".to_string();
+    }
     if let Some(prefix) = &spec.span_name_strip_prefix {
         return format!("the span name past `{prefix}`");
     }
@@ -314,6 +317,9 @@ fn read_source<'a>(
             return Reading::Absent;
         };
         return from_text(raw, field_type);
+    }
+    if spec.raw_span_name {
+        return from_text(span_name, field_type);
     }
     if let Some(prefix) = &spec.span_name_strip_prefix {
         // An **empty** suffix is kept as an empty reading rather than dropped, which is what the retired
@@ -610,7 +616,8 @@ fn compile_rule(file_id: &str, rule: &SpanFieldRule) -> Result<CompiledRule, Fie
         let forms = usize::from(spec.attribute.is_some())
             + usize::from(spec.json.is_some())
             + usize::from(spec.span_name_strip_prefix.is_some())
-            + usize::from(spec.value.is_some());
+            + usize::from(spec.value.is_some())
+            + usize::from(spec.raw_span_name);
         if forms == 0 {
             return Err(FieldCompileError::SourceReadsNothing {
                 file: file_id.to_string(),
@@ -623,7 +630,9 @@ fn compile_rule(file_id: &str, rule: &SpanFieldRule) -> Result<CompiledRule, Fie
                 rule: rule.id.clone(),
             });
         }
-        if let Some(json) = &spec.json {
+        // Both the read and the **witness**, which had no such check: a witness naming no member always
+        // answers false, so its source is permanently dead, and one naming both silently ignores the second.
+        for json in [&spec.json, &spec.when_json].into_iter().flatten() {
             let ways =
                 usize::from(json.path.is_some()) + usize::from(!json.first_present_of.is_empty());
             if ways != 1 {

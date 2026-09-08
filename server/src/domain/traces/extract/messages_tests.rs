@@ -8992,6 +8992,24 @@ fn a_field_source_may_not_declare_a_gate_that_never_holds() {
                  "sources":[{"attribute":"k","unless":{"attr_exists":[""]}}]}]}"#,
         ),
         (
+            "a JSON witness naming no member, which always answers false",
+            r#"{"id":"t","doc":"d","span_fields":[
+                {"id":"f","doc":"d","target":"user_id",
+                 "sources":[{"value":"x","when_json":{"attribute":"request_data"}}]}]}"#,
+        ),
+        (
+            "a JSON witness naming two ways of naming one member",
+            r#"{"id":"t","doc":"d","span_fields":[
+                {"id":"f","doc":"d","target":"user_id",
+                 "sources":[{"value":"x","when_json":{"attribute":"request_data","path":"$.a","first_present_of":["$.b"]}}]}]}"#,
+        ),
+        (
+            "a JSON read naming no member",
+            r#"{"id":"t","doc":"d","span_fields":[
+                {"id":"f","doc":"d","target":"user_id",
+                 "sources":[{"json":{"attribute":"request_data"}}]}]}"#,
+        ),
+        (
             "a phrase search naming a source the probe does not read",
             r#"{"id":"t","doc":"d","span_fields":[
                 {"id":"f","doc":"d","target":"user_id",
@@ -10621,4 +10639,98 @@ fn the_genai_field_rules_reproduce_the_chains_they_replaced() {
             "the declared GenAI resolvers disagree with the chains they replaced: {what}"
         );
     }
+}
+
+/// The declared display-name target produces what the retired resolution produced, and the **raw** name is
+/// what every behavioural check still sees.
+///
+/// The second half is the load-bearing one. Detection, token scoping, classification and every message rule
+/// are given the producer's own name; the display name is stored beside it. Resolving one into the other would
+/// change what a Claude Code span is scoped as, which is how a bare `input_tokens` is credited to the right
+/// producer.
+#[test]
+fn the_display_name_is_declared_and_the_raw_name_is_untouched() {
+    let cases: Vec<(&str, &str, HashMap<String, String>)> = vec![
+        ("no attributes at all", "GET /things", rule_attrs(&[])),
+        (
+            "a template resolved into a sentence",
+            "chat {model}",
+            rule_attrs(&[
+                ("logfire.msg_template", "chat {model}"),
+                ("logfire.msg", "chat gpt-4o"),
+            ]),
+        ),
+        (
+            "a resolved message with no template, which is not a resolution",
+            "agent run",
+            rule_attrs(&[("logfire.msg", "running the calculator")]),
+        ),
+        (
+            "a template with no resolved message",
+            "chat {model}",
+            rule_attrs(&[("logfire.msg_template", "chat {model}")]),
+        ),
+        (
+            "a template whose resolved message is empty",
+            "chat {model}",
+            rule_attrs(&[
+                ("logfire.msg_template", "chat {model}"),
+                ("logfire.msg", ""),
+            ]),
+        ),
+        (
+            "braces in the name with no template attribute",
+            "chat {model}",
+            rule_attrs(&[]),
+        ),
+        ("an empty span name", "", rule_attrs(&[])),
+    ];
+
+    for (what, raw_name, attrs) in cases {
+        // As `set_core_fields` leaves it: the raw name, which the display resolution then may replace.
+        let mut declared = SpanData {
+            span_name: raw_name.to_string(),
+            ..SpanData::default()
+        };
+        apply_span_fields(&mut declared, raw_name, &attrs);
+
+        let mut legacy = SpanData {
+            span_name: raw_name.to_string(),
+            ..SpanData::default()
+        };
+        crate::domain::traces::extract::attributes::resolve_span_name(&mut legacy, &attrs);
+
+        assert_eq!(
+            declared.span_name, legacy.span_name,
+            "the declared display name disagrees with the resolution it replaced: {what}"
+        );
+    }
+
+    // And the raw name a behavioural check reads is the producer's, whatever the display name became.
+    let attrs = rule_attrs(&[
+        ("logfire.msg_template", "chat {model}"),
+        ("logfire.msg", "chat gpt-4o"),
+    ]);
+    let mut span = SpanData {
+        span_name: "claude_code.api_request".to_string(),
+        ..SpanData::default()
+    };
+    apply_span_fields(&mut span, "claude_code.api_request", &attrs);
+    assert_eq!(
+        span.span_name, "chat gpt-4o",
+        "the display name is resolved"
+    );
+    // The scoped token fallback is keyed on the *raw* name, so it still recognises this span.
+    let mut scoped = SpanData::default();
+    let mut with_tokens = attrs.clone();
+    with_tokens.insert("input_tokens".to_string(), "17".to_string());
+    crate::domain::traces::extract::attributes::tests::extract_genai_as_production_does(
+        &mut scoped,
+        &with_tokens,
+        "claude_code.api_request",
+    );
+    assert_eq!(
+        scoped.gen_ai_usage_input_tokens, 17,
+        "the bare counter is credited because scoping reads the raw span name, not the display name"
+    );
 }

@@ -282,7 +282,9 @@ pub(super) mod keys {
     #[cfg(test)]
     pub const REQUEST_DATA: &str = "request_data";
     pub const RESPONSE_DATA: &str = "response_data";
+    #[cfg(test)]
     pub const LOGFIRE_MSG_TEMPLATE: &str = "logfire.msg_template";
+    #[cfg(test)]
     pub const LOGFIRE_MSG: &str = "logfire.msg";
 
     // Pydantic AI (via Logfire)
@@ -452,9 +454,7 @@ pub(super) fn extract_attributes_batch(request: &ExportTraceServiceRequest) -> V
                 // Core OTLP fields
                 attributes::set_core_fields(&mut span, otlp_span);
 
-                // Resolve display name from attributes when the raw span name
-                // is a template or otherwise not human-readable
-                attributes::resolve_span_name(&mut span, &span_attrs);
+                // The display name is a declared field now, resolved with all the others below.
 
                 // Extract resource attributes
                 span.project_id = resource_attrs.get(keys::PROJECT_ID).cloned();

@@ -111,6 +111,10 @@ pub struct SpanFieldRule {
 #[derive(Debug, Deserialize, Clone, Copy, PartialEq, Eq, Hash)]
 #[serde(rename_all = "snake_case")]
 pub enum FieldTarget {
+    /// The name a reader sees. **Not** the raw span name, which everything behavioural keys on: detection,
+    /// token scoping, classification and every rule are given the producer's own name, and this is a
+    /// presentation value stored beside it.
+    DisplaySpanName,
     SessionId,
     GenAiSystem,
     GenAiOperationName,
@@ -184,7 +188,8 @@ impl FieldTarget {
             | Self::GenAiAgentId
             | Self::GenAiAgentName
             | Self::GenAiToolName
-            | Self::GenAiToolCallId => FieldType::Text,
+            | Self::GenAiToolCallId
+            | Self::DisplaySpanName => FieldType::Text,
         }
     }
 }
@@ -231,6 +236,12 @@ pub struct FieldSource {
     /// A member of a JSON-valued attribute, reached by RFC 9535 JSONPath.
     #[serde(default)]
     pub json: Option<JsonFieldSource>,
+    /// The span's own name, exactly as the producer wrote it.
+    ///
+    /// A source rather than an implicit default, so a display name states where it comes from - and the
+    /// resolver has the raw name whatever the target is.
+    #[serde(default)]
+    pub raw_span_name: bool,
     /// The span's own name, with this prefix stripped.
     ///
     /// A name rather than an attribute, because the conventions prescribe `execute_tool {name}` - the tool's

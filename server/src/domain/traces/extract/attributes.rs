@@ -172,6 +172,10 @@ fn status_code_to_string(code: i32) -> &'static str {
 /// - **Logfire** (`logfire.msg_template` + `logfire.msg`): Span name is a Python
 ///   f-string template like `"Chat Completion with {request_data[model]!r}"`.
 ///   When `logfire.msg_template` exists, the resolved `logfire.msg` is used.
+///
+/// Retired: the display name is the `display_span_name` field target now, declared in
+/// `rules/span-fields-display.json`. Kept as the equivalence oracle.
+#[cfg(test)]
 pub(super) fn resolve_span_name(span: &mut SpanData, attrs: &HashMap<String, String>) {
     // Logfire: span name is the unresolved msg_template; logfire.msg is the resolved version
     if attrs.contains_key(keys::LOGFIRE_MSG_TEMPLATE) {
@@ -1161,6 +1165,14 @@ fn apply_field(span: &mut SpanData, resolved: &crate::domain::rules::span_fields
         _ => Vec::new(),
     };
     match resolved.target {
+        // Presentation only. The raw name stays in `set_core_fields`' hands and is what every behavioural
+        // check is given; a producer's unresolved template is a poor thing to show a reader and a fine thing
+        // to key on.
+        T::DisplaySpanName => {
+            if let Some(name) = text() {
+                span.span_name = name;
+            }
+        }
         T::SessionId => span.session_id = text(),
         T::UserId => span.user_id = text(),
         T::HttpMethod => span.http_method = text(),
