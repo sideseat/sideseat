@@ -111,6 +111,15 @@ pub struct SpanFieldRule {
 #[derive(Debug, Deserialize, Clone, Copy, PartialEq, Eq, Hash)]
 #[serde(rename_all = "snake_case")]
 pub enum FieldTarget {
+    /// Token counters. These do **not** reach the stored span through `apply_field`: the columns are `i64` and
+    /// never null, so writing one there would lose the difference between a counter nothing carried and a
+    /// genuine `0` - which every framework fallback downstream needs, and which no arithmetic can recover.
+    UsageInputTokens,
+    UsageOutputTokens,
+    UsageTotalTokensReported,
+    UsageCacheReadTokens,
+    UsageCacheWriteTokens,
+    UsageReasoningTokens,
     /// The name a reader sees. **Not** the raw span name, which everything behavioural keys on: detection,
     /// token scoping, classification and every rule are given the producer's own name, and this is a
     /// presentation value stored beside it.
@@ -159,7 +168,13 @@ impl FieldTarget {
             | Self::GenAiTopK
             | Self::GenAiMaxTokens
             | Self::GenAiServerTtftMs
-            | Self::GenAiServerRequestDurationMs => FieldType::Integer,
+            | Self::GenAiServerRequestDurationMs
+            | Self::UsageInputTokens
+            | Self::UsageOutputTokens
+            | Self::UsageTotalTokensReported
+            | Self::UsageCacheReadTokens
+            | Self::UsageCacheWriteTokens
+            | Self::UsageReasoningTokens => FieldType::Integer,
             Self::GenAiTemperature
             | Self::GenAiTopP
             | Self::GenAiFrequencyPenalty
@@ -233,6 +248,15 @@ pub struct FieldSource {
     /// A flat span attribute holding the value directly.
     #[serde(default)]
     pub attribute: Option<String>,
+    /// Several attribute spellings of one value, where the **first present** one is the answer.
+    ///
+    /// The flat counterpart of `JsonFieldSource::first_present_of`, and needed for the same reason: as separate
+    /// sources an empty primary would be stepped over and a later alias would answer, while the retired chain
+    /// selected the primary by presence and then converted - so an empty one ended the flat chain and an
+    /// *embedded* carrier answered instead. Which is a different producer's statement, not a later spelling of
+    /// the same one.
+    #[serde(default)]
+    pub attribute_first_present_of: Vec<String>,
     /// A member of a JSON-valued attribute, reached by RFC 9535 JSONPath.
     #[serde(default)]
     pub json: Option<JsonFieldSource>,

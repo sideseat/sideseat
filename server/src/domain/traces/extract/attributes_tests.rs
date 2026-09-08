@@ -24,8 +24,8 @@ pub(crate) fn extract_genai_as_production_does(
     attrs: &HashMap<String, String>,
     span_name: &str,
 ) {
-    apply_span_fields(span, span_name, attrs);
-    extract_genai(span, attrs, span_name);
+    let tokens = apply_span_fields(span, span_name, attrs);
+    extract_genai(span, attrs, span_name, &tokens);
 }
 
 #[test]

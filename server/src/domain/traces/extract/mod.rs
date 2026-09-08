@@ -464,10 +464,10 @@ pub(super) fn extract_attributes_batch(request: &ExportTraceServiceRequest) -> V
                     .cloned();
 
                 // Every declared span field, resolved once.
-                attributes::apply_span_fields(&mut span, &otlp_span.name, &span_attrs);
+                let tokens = attributes::apply_span_fields(&mut span, &otlp_span.name, &span_attrs);
 
                 // Extract GenAI attributes
-                attributes::extract_genai(&mut span, &span_attrs, &otlp_span.name);
+                attributes::extract_genai(&mut span, &span_attrs, &otlp_span.name, &tokens);
 
                 // Extract finish_reason from various sources if not already set
                 if span.gen_ai_finish_reasons.is_empty() {

@@ -10734,3 +10734,130 @@ fn the_display_name_is_declared_and_the_raw_name_is_untouched() {
         "the bare counter is credited because scoping reads the raw span name, not the display name"
     );
 }
+
+/// The declared counter resolvers find exactly what the retired table found - value **and** presence.
+///
+/// Presence is half the point: a counter nothing carried and a genuine `0` are different statements about a
+/// call, and every framework fallback downstream tests the difference. So this compares `Option<i64>` per
+/// counter rather than the stored `i64`, which cannot hold it.
+///
+/// The shapes that distinguish them: an empty primary alias with a good one behind it (the retired chain
+/// selected by presence and then converted, so the empty one ended the *flat* group), a bare scoped name on a
+/// span whose name admits it and on one that does not, a reported zero, and each dialect's spelling.
+#[test]
+fn the_token_rules_reproduce_the_table_they_replaced() {
+    let cases: Vec<(&str, &str, HashMap<String, String>)> = vec![
+        ("nothing at all", "chat", rule_attrs(&[])),
+        (
+            "the conventional spellings",
+            "chat",
+            rule_attrs(&[
+                ("gen_ai.usage.input_tokens", "100"),
+                ("gen_ai.usage.output_tokens", "50"),
+                ("gen_ai.usage.total_tokens", "150"),
+                ("gen_ai.usage.cache_read_input_tokens", "20"),
+                ("gen_ai.usage.cache_creation_input_tokens", "10"),
+                ("gen_ai.usage.output_reasoning_tokens", "5"),
+            ]),
+        ),
+        (
+            "a reported zero, which is a count and not a silence",
+            "chat",
+            rule_attrs(&[
+                ("gen_ai.usage.input_tokens", "0"),
+                ("gen_ai.usage.output_tokens", "0"),
+            ]),
+        ),
+        (
+            "an empty primary with a good alias behind it",
+            "chat",
+            rule_attrs(&[
+                ("gen_ai.usage.input_tokens", ""),
+                ("llm.usage.prompt_tokens", "10"),
+            ]),
+        ),
+        (
+            "an unreadable primary with a good alias behind it",
+            "chat",
+            rule_attrs(&[
+                ("gen_ai.usage.input_tokens", "many"),
+                ("llm.usage.prompt_tokens", "10"),
+            ]),
+        ),
+        (
+            "only a later alias",
+            "chat",
+            rule_attrs(&[
+                ("llm.token_count.prompt", "7"),
+                ("ai.usage.completionTokens", "3"),
+                ("llm.token_count.total", "10"),
+            ]),
+        ),
+        (
+            "the dotted cache spellings",
+            "chat",
+            rule_attrs(&[
+                ("gen_ai.usage.cache_read.input_tokens", "11"),
+                ("gen_ai.usage.cache_creation.input_tokens", "12"),
+                ("gen_ai.usage.reasoning.output_tokens", "13"),
+            ]),
+        ),
+        (
+            "one dialect's cache-write spelling",
+            "chat",
+            rule_attrs(&[("gen_ai.usage.cache_write_input_tokens", "14")]),
+        ),
+        (
+            "bare names on a span whose name admits them",
+            "claude_code.api_request",
+            rule_attrs(&[
+                ("input_tokens", "17"),
+                ("output_tokens", "18"),
+                ("cache_read_tokens", "19"),
+                ("cache_creation_tokens", "20"),
+            ]),
+        ),
+        (
+            "the same bare names on a span whose name does not",
+            "chat",
+            rule_attrs(&[
+                ("input_tokens", "17"),
+                ("output_tokens", "18"),
+                ("cache_read_tokens", "19"),
+                ("cache_creation_tokens", "20"),
+            ]),
+        ),
+        (
+            "a conventional counter beside a bare one, on a span that admits both",
+            "claude_code.api_request",
+            rule_attrs(&[("gen_ai.usage.input_tokens", "100"), ("input_tokens", "17")]),
+        ),
+        (
+            "an empty conventional counter beside a bare one",
+            "claude_code.api_request",
+            rule_attrs(&[("gen_ai.usage.input_tokens", ""), ("input_tokens", "17")]),
+        ),
+    ];
+
+    for (what, span_name, attrs) in cases {
+        let mut span = SpanData::default();
+        let declared = apply_span_fields(&mut span, span_name, &attrs);
+        let legacy =
+            crate::domain::traces::extract::attributes::token_readings_legacy(&attrs, span_name);
+        let facet = |t: &crate::domain::traces::extract::attributes::TokenReadings| {
+            vec![
+                format!("input={:?}", t.input),
+                format!("output={:?}", t.output),
+                format!("total_reported={:?}", t.total_reported),
+                format!("cache_read={:?}", t.cache_read),
+                format!("cache_write={:?}", t.cache_write),
+                format!("reasoning={:?}", t.reasoning),
+            ]
+        };
+        assert_eq!(
+            facet(&declared),
+            facet(&legacy),
+            "the declared counter resolvers disagree with the table they replaced: {what}"
+        );
+    }
+}

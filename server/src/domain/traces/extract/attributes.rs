@@ -312,6 +312,10 @@ pub struct SpanData {
 // ============================================================================
 
 /// Token count extraction configuration with fallback keys.
+///
+/// Retired: where each counter is written is declared in `rules/span-fields-usage.json`. Kept as the
+/// equivalence oracle - the arithmetic that reads the counters was never here.
+#[cfg(test)]
 struct TokenConfig {
     primary: &'static str,
     fallbacks: &'static [&'static str],
@@ -321,6 +325,23 @@ struct TokenConfig {
     scoped_fallbacks: &'static [&'static str],
 }
 
+/// Every counter as the retired table read it, for the equivalence oracle.
+#[cfg(test)]
+pub(super) fn token_readings_legacy(
+    attrs: &HashMap<String, String>,
+    span_name: &str,
+) -> TokenReadings {
+    TokenReadings {
+        input: INPUT_TOKENS.extract_opt_for_span(attrs, span_name),
+        output: OUTPUT_TOKENS.extract_opt_for_span(attrs, span_name),
+        total_reported: TOTAL_TOKENS.extract_opt_for_span(attrs, span_name),
+        cache_read: CACHE_READ_TOKENS.extract_opt_for_span(attrs, span_name),
+        cache_write: CACHE_WRITE_TOKENS.extract_opt_for_span(attrs, span_name),
+        reasoning: REASONING_TOKENS.extract_opt_for_span(attrs, span_name),
+    }
+}
+
+#[cfg(test)]
 impl TokenConfig {
     const fn new(primary: &'static str, fallbacks: &'static [&'static str]) -> Self {
         Self {
@@ -376,10 +397,15 @@ impl TokenConfig {
 
 /// Spans emitted by the Claude Code CLI, which names token attributes outside the
 /// `gen_ai.usage.*` conventions.
+///
+/// Retired with the table it scoped: the same gate is `when: {span_name: ["claude_code."]}` on the source that
+/// needs it.
+#[cfg(test)]
 fn is_claude_code_span(span_name: &str) -> bool {
     span_name.starts_with("claude_code.")
 }
 
+#[cfg(test)]
 const INPUT_TOKENS: TokenConfig = TokenConfig::with_scoped(
     "gen_ai.usage.input_tokens",
     &[
@@ -391,6 +417,7 @@ const INPUT_TOKENS: TokenConfig = TokenConfig::with_scoped(
     &["input_tokens"], // Claude Code CLI (Claude Agent SDK)
 );
 
+#[cfg(test)]
 const OUTPUT_TOKENS: TokenConfig = TokenConfig::with_scoped(
     "gen_ai.usage.output_tokens",
     &[
@@ -402,9 +429,11 @@ const OUTPUT_TOKENS: TokenConfig = TokenConfig::with_scoped(
     &["output_tokens"], // Claude Code CLI (Claude Agent SDK)
 );
 
+#[cfg(test)]
 const TOTAL_TOKENS: TokenConfig =
     TokenConfig::new("gen_ai.usage.total_tokens", &["llm.token_count.total"]);
 
+#[cfg(test)]
 const CACHE_READ_TOKENS: TokenConfig = TokenConfig::with_scoped(
     "gen_ai.usage.cache_read_input_tokens",
     &[
@@ -417,6 +446,7 @@ const CACHE_READ_TOKENS: TokenConfig = TokenConfig::with_scoped(
     &["cache_read_tokens"], // Claude Code CLI (Claude Agent SDK)
 );
 
+#[cfg(test)]
 const CACHE_WRITE_TOKENS: TokenConfig = TokenConfig::with_scoped(
     "gen_ai.usage.cache_creation_input_tokens",
     &[
@@ -428,6 +458,7 @@ const CACHE_WRITE_TOKENS: TokenConfig = TokenConfig::with_scoped(
     &["cache_creation_tokens"], // Claude Code CLI (Claude Agent SDK)
 );
 
+#[cfg(test)]
 const REASONING_TOKENS: TokenConfig = TokenConfig::new(
     "gen_ai.usage.output_reasoning_tokens",
     &[
@@ -1120,11 +1151,26 @@ fn extract_autogen_tokens(attrs: &HashMap<String, String>) -> (i64, i64) {
 /// Every chain this replaced was an ordered `&[&str]` of provider spellings - framework knowledge in the
 /// code, where adding a producer meant editing a list. The order is declared in
 /// `rules/span-fields-semantic.json`; the retired chains stay below as the equivalence oracle.
+/// What the declared resolvers found for each token counter.
+///
+/// `Option`, not the stored `i64`, because presence is the fact the fallbacks downstream need and the column
+/// cannot hold it: a counter nothing carried and a genuine `0` are different statements about a call, and no
+/// arithmetic recovers the difference once it is gone. Returned rather than written, for the same reason.
+#[derive(Debug, Default, Clone, Copy)]
+pub(crate) struct TokenReadings {
+    pub input: Option<i64>,
+    pub output: Option<i64>,
+    pub total_reported: Option<i64>,
+    pub cache_read: Option<i64>,
+    pub cache_write: Option<i64>,
+    pub reasoning: Option<i64>,
+}
+
 pub(crate) fn apply_span_fields(
     span: &mut SpanData,
     span_name: &str,
     attrs: &HashMap<String, String>,
-) {
+) -> TokenReadings {
     // Its own step, not a subroutine of either legacy function. Resolution is over *every* declared rule, so
     // calling it from two entry points wrote the same answers twice and made "which entry point owns a target"
     // a question with no answer - while calling it from one left the other silently not doing what its name
@@ -1132,19 +1178,25 @@ pub(crate) fn apply_span_fields(
     //
     // The **real** span name, because a source may read it and a gate may ask about it. Passed as `""` this
     // was the same defect the message path had: such a declaration compiles and can never hold.
+    let mut tokens = TokenReadings::default();
     for resolved in crate::domain::rules::ruleset()
         .span_fields
         .resolve(span_name, attrs)
     {
-        apply_field(span, &resolved);
+        apply_field(span, &resolved, &mut tokens);
     }
+    tokens
 }
 
 /// Write one resolved field onto the span.
 ///
 /// The one place that knows the shape of **our own** DTO, which is not framework knowledge: a target names a
 /// column, and the resolver has already decided what a source had to produce to fill it.
-fn apply_field(span: &mut SpanData, resolved: &crate::domain::rules::span_fields::Resolved) {
+fn apply_field(
+    span: &mut SpanData,
+    resolved: &crate::domain::rules::span_fields::Resolved,
+    tokens: &mut TokenReadings,
+) {
     use crate::domain::rules::schema::FieldTarget as T;
     use crate::domain::rules::span_fields::Reading;
 
@@ -1173,6 +1225,13 @@ fn apply_field(span: &mut SpanData, resolved: &crate::domain::rules::span_fields
                 span.span_name = name;
             }
         }
+        // The counters go to the caller, not to a column: see `TokenReadings`.
+        T::UsageInputTokens => tokens.input = integer(),
+        T::UsageOutputTokens => tokens.output = integer(),
+        T::UsageTotalTokensReported => tokens.total_reported = integer(),
+        T::UsageCacheReadTokens => tokens.cache_read = integer(),
+        T::UsageCacheWriteTokens => tokens.cache_write = integer(),
+        T::UsageReasoningTokens => tokens.reasoning = integer(),
         T::SessionId => span.session_id = text(),
         T::UserId => span.user_id = text(),
         T::HttpMethod => span.http_method = text(),
@@ -1305,12 +1364,17 @@ pub(super) fn extract_semantic_legacy(span: &mut SpanData, attrs: &HashMap<Strin
 ///
 /// Arithmetic, a synthesised total and every pricing-dependent decision are statements about our own
 /// accounting rather than about a producer's spelling, which is why they are code and not data.
-pub(crate) fn extract_genai(span: &mut SpanData, attrs: &HashMap<String, String>, span_name: &str) {
-    // Token usage
-    // Presence, not value, is what the framework fallbacks below must test - a genuine `0` is a reported
-    // count and must not be replaced.
-    let flat_input = INPUT_TOKENS.extract_opt_for_span(attrs, span_name);
-    let flat_output = OUTPUT_TOKENS.extract_opt_for_span(attrs, span_name);
+pub(crate) fn extract_genai(
+    span: &mut SpanData,
+    attrs: &HashMap<String, String>,
+    span_name: &str,
+    tokens: &TokenReadings,
+) {
+    // Where each counter was written is declared (`rules/span-fields-usage.json`); the resolver hands them over
+    // as `Option`, so presence - which is what every framework fallback below tests, since a genuine `0` is a
+    // reported count and must not be replaced - survives the boundary.
+    let flat_input = tokens.input;
+    let flat_output = tokens.output;
     span.gen_ai_usage_input_tokens = flat_input.unwrap_or(0);
     span.gen_ai_usage_output_tokens = flat_output.unwrap_or(0);
     // Whether each counter has been *supplied* - by the flat attributes or by a fallback that already ran.
@@ -1412,25 +1476,19 @@ pub(crate) fn extract_genai(span: &mut SpanData, attrs: &HashMap<String, String>
     // Presence, not the value, for the total as well: with only the number, "the provider said 1,100" and
     // "nobody said anything" are the same 0, and a framework fallback's `max` could then raise a total the
     // provider had stated explicitly.
-    let total_supplied = TOTAL_TOKENS
-        .extract_opt_for_span(attrs, span_name)
-        .is_some();
-    let mut reported_total = TOTAL_TOKENS.extract(attrs);
+    let total_supplied = tokens.total_reported.is_some();
+    let mut reported_total = tokens.total_reported.unwrap_or(0);
     // Presence, not the value: a reported `0` is a fact the framework fallbacks must not overwrite, exactly
     // as for the input and output sides.
     //
     // `mut`, because a *later source* supplying the counter makes it supplied too. As a record of "a flat
     // attribute existed", the Logfire path below could fill in a cache read of 17 and the CrewAI path then
     // overwrite it with 100 - the flag has to describe the span, not one of the sources that write to it.
-    let mut cache_read_supplied = CACHE_READ_TOKENS
-        .extract_opt_for_span(attrs, span_name)
-        .is_some();
-    let mut cache_write_supplied = CACHE_WRITE_TOKENS
-        .extract_opt_for_span(attrs, span_name)
-        .is_some();
-    span.gen_ai_usage_cache_read_tokens = CACHE_READ_TOKENS.extract_for_span(attrs, span_name);
-    span.gen_ai_usage_cache_write_tokens = CACHE_WRITE_TOKENS.extract_for_span(attrs, span_name);
-    span.gen_ai_usage_reasoning_tokens = REASONING_TOKENS.extract(attrs);
+    let mut cache_read_supplied = tokens.cache_read.is_some();
+    let mut cache_write_supplied = tokens.cache_write.is_some();
+    span.gen_ai_usage_cache_read_tokens = tokens.cache_read.unwrap_or(0);
+    span.gen_ai_usage_cache_write_tokens = tokens.cache_write.unwrap_or(0);
+    span.gen_ai_usage_reasoning_tokens = tokens.reasoning.unwrap_or(0);
 
     // Logfire: cache tokens from response_data.usage (after flat attribute extraction).
     //

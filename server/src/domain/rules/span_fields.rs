@@ -286,6 +286,9 @@ fn source_label(spec: &FieldSource) -> String {
     if let Some(attribute) = &spec.attribute {
         return attribute.clone();
     }
+    if let [first, ..] = spec.attribute_first_present_of.as_slice() {
+        return format!("first of {first} ...");
+    }
     if let Some(json) = &spec.json {
         return match (&json.path, json.first_present_of.as_slice()) {
             (Some(path), _) => format!("{}{}", json.attribute, path),
@@ -317,6 +320,19 @@ fn read_source<'a>(
             return Reading::Absent;
         };
         return from_text(raw, field_type);
+    }
+    // Several spellings of one value: the **first present** one answers, and is then converted. Selecting by
+    // conversion instead would answer from a later alias when the first is written badly or empty, where the
+    // retired chain let the first one end this group and a *different carrier* answer.
+    if !spec.attribute_first_present_of.is_empty() {
+        return match spec
+            .attribute_first_present_of
+            .iter()
+            .find_map(|key| attrs.get(key))
+        {
+            Some(raw) => from_text(raw, field_type),
+            None => Reading::Absent,
+        };
     }
     if spec.raw_span_name {
         return from_text(span_name, field_type);
@@ -614,6 +630,7 @@ fn compile_rule(file_id: &str, rule: &SpanFieldRule) -> Result<CompiledRule, Fie
         // be expressible - so this counts rather than pattern-matching a pair, which is what stopped covering
         // the forms as they were added.
         let forms = usize::from(spec.attribute.is_some())
+            + usize::from(!spec.attribute_first_present_of.is_empty())
             + usize::from(spec.json.is_some())
             + usize::from(spec.span_name_strip_prefix.is_some())
             + usize::from(spec.value.is_some())
@@ -664,6 +681,7 @@ fn compile_rule(file_id: &str, rule: &SpanFieldRule) -> Result<CompiledRule, Fie
                 .as_deref()
                 .is_some_and(str::is_empty)
             || spec.value.as_deref().is_some_and(str::is_empty)
+            || spec.attribute_first_present_of.iter().any(String::is_empty)
             || spec
                 .when_json
                 .as_ref()
