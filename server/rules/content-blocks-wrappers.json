@@ -6,7 +6,7 @@
       "id": "wrappers.content_member",
       "at": "message_envelope",
       "legacy_rank": 10,
-      "doc": "The content is inside a member and is an ordinary block of whatever shape, so the chain starts again with it. Two member names: one dialect's own, and the generic one several SDKs use. A wrapper whose content this chain cannot read leaves the *original* block to the rest of the chain, which is why an unwrap is not a claim.",
+      "doc": "The content is inside a member and is an ordinary block of whatever shape, so the chain starts again with it. Two member names: one dialect's own, and the generic one several SDKs use. The condition is that the member is *there*, so a match claims the block: a wrapper whose content this chain cannot read answers nothing and leaves the **original** block to the rest of the chain - not to a lower-ranked envelope beside it, which is what the retired reader did and what a fall-through would get wrong.",
       "require": {
         "any": [
           {

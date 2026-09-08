@@ -336,6 +336,19 @@ pub(super) fn gate_defect(spec: &DetectMatch) -> Option<&'static str> {
             "names an empty span-name prefix, attribute key or service name, which matches either              everything or nothing rather than what it reads as",
         );
     }
+    // A first-present search over *mixed* sources cannot be honoured: compilation splits them into "the span
+    // name" and a list of attribute keys, so the declared order between the two is lost and the span name is
+    // always reached first. Refused rather than silently reordered - no asset needs the mix, and the fix if one
+    // ever does is to compile an ordered list of sources rather than a flag and a list.
+    if let Some(text) = &spec.text_contains
+        && text.first_present_source
+        && text.sources.iter().any(|s| s == "span_name")
+        && text.sources.iter().any(|s| s != "span_name")
+    {
+        return Some(
+            "searches the first source that has a value over a mix of the span name and attributes, and the              declared order between those two is not preserved - name them separately, or use one kind",
+        );
+    }
     let text_defect = spec.text_contains.as_ref().is_some_and(|text| {
         text.needles.is_empty()
             || text.needles.iter().any(String::is_empty)

@@ -319,6 +319,21 @@ fn is_sparse_array_placeholder(value: &JsonValue) -> bool {
 /// - Plain JSON objects without type → `{"type": "json", "data": ...}` (structured output)
 /// - Objects with unrecognized type → `{"type": "unknown", "raw": ...}` (preserved for debugging)
 pub fn normalize_content_block(block: &JsonValue) -> Option<JsonValue> {
+    normalize_block(block, true)
+}
+
+/// The same chain **without** the message-envelope cases, for a value a tool returned.
+///
+/// An element of a tool's returned array is a returned value, exactly as a singleton returned object is - not a
+/// message's content block. Sending one through the message chain consulted the envelope cases too, and a
+/// returned `{"value": …}` then had its own member stripped: the same defect that made `MessageEnvelope` a
+/// position of its own, one caller further along. It needs the *whole* rest of the chain, fallbacks included,
+/// which is why this is the same function with one step withheld rather than the provider chain.
+pub(crate) fn normalize_returned_value_block(block: &JsonValue) -> Option<JsonValue> {
+    normalize_block(block, false)
+}
+
+fn normalize_block(block: &JsonValue, consult_envelopes: bool) -> Option<JsonValue> {
     // Handle raw strings in mixed arrays (e.g., AutoGen MultiModalMessage ["text", {image}])
     if let Some(s) = block.as_str() {
         return if s.is_empty() {
@@ -338,13 +353,15 @@ pub fn normalize_content_block(block: &JsonValue) -> Option<JsonValue> {
                 crate::domain::rules::schema::ChainPosition::BeforeProviderFormats,
             )
         })
-        // Envelopes around a *message's* content block, which the nested tool-result chain must not consult;
+        // Envelopes around a *message's* content block, which the tool-result chains must not consult;
         // see `rules/content-blocks-wrappers.json`.
         .or_else(|| {
-            crate::domain::rules::ruleset().content_blocks.normalize(
-                block,
-                crate::domain::rules::schema::ChainPosition::MessageEnvelope,
-            )
+            consult_envelopes.then(|| {
+                crate::domain::rules::ruleset().content_blocks.normalize(
+                    block,
+                    crate::domain::rules::schema::ChainPosition::MessageEnvelope,
+                )
+            })?
         })
         // Then try provider-specific formats
         .or_else(|| try_openai_format(block))
@@ -469,9 +486,11 @@ pub(crate) fn normalize_tool_result_content(content: Option<JsonValue>) -> JsonV
         Some(JsonValue::Array(arr)) => {
             // Each block with the source it came from: what makes two normalised blocks the *same datum*
             // is that the carrier wrote it twice in two encodings, and only the sources say so.
+            // Envelope-free, as the singleton object below is: an element of a returned array is a returned
+            // value, not a message's content block.
             let normalized: Vec<(JsonValue, JsonValue)> = arr
                 .iter()
-                .filter_map(|src| normalize_content_block(src).map(|out| (out, src.clone())))
+                .filter_map(|src| normalize_returned_value_block(src).map(|out| (out, src.clone())))
                 .collect();
             if normalized.is_empty() {
                 json!(null)
@@ -1588,6 +1607,37 @@ fn extract_thinking_text(block: &JsonValue) -> String {
 mod tests {
     use super::*;
 
+    /// A value a tool **returned** is not a message's content block, in an array as much as alone.
+    ///
+    /// The message chain consults the envelope cases, and one dialect's structured output is a `json` block whose
+    /// payload sits under `value` - so a returned `{"value": …}` had its own member stripped. The singleton path
+    /// was already envelope-free; the array path was not, which is one caller further along than the golden
+    /// fixture that first exposed this.
+    #[test]
+    fn a_returned_value_keeps_its_own_members() {
+        let single = normalize_tool_result_content(Some(json!({"value": {"amount": 7}})));
+        let in_array = normalize_tool_result_content(Some(json!([{"value": {"amount": 7}}])));
+
+        // Alone: kept as it is, because nothing in the provider chain claims it.
+        assert_eq!(
+            single,
+            json!({"value": {"amount": 7}}),
+            "a returned object nothing recognises is the result itself"
+        );
+        // In an array: the same members survive. What matters is that `value` is still there - stripping it
+        // would report the tool as having returned `{"amount": 7}`.
+        let elements = in_array.as_array().expect("an array of blocks");
+        assert_eq!(elements.len(), 1);
+        let data = elements[0]
+            .get("data")
+            .or_else(|| elements[0].get("raw"))
+            .expect("the block carries what was returned");
+        assert!(
+            data.get("value").is_some(),
+            "the returned member survived normalisation: {in_array}"
+        );
+    }
+
     /// The declared wrapper cases answer exactly as `try_openinference_message_content` does.
     ///
     /// Every wrapper it unwraps, the reasoning members, the serialisation envelope, and - just as important -
@@ -1620,6 +1670,14 @@ mod tests {
             (
                 "a wrapper whose content this chain cannot read",
                 json!({"message_content": {"utterly": "unknown"}}),
+            ),
+            (
+                "an unreadable wrapper beside a reasoning member - the wrapper still claims the block",
+                json!({"message_content": "", "reasoning_content": {"text": "thinking"}}),
+            ),
+            (
+                "an unreadable wrapper beside a serialisation envelope",
+                json!({"value": "", "kwargs": {"content": "hello"}}),
             ),
             (
                 "a wrapper holding a bare string",

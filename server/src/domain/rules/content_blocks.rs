@@ -157,10 +157,25 @@ impl ContentBlockPlan {
             ChainPosition::BeforeProviderFormats => &self.before,
             ChainPosition::AfterProviderFormats => &self.after,
         };
-        cases
+        // First match wins for an **unwrap**, whether or not its member normalises. Its condition is that the
+        // member is *there*, so a matching unwrap has claimed the block - and answering nothing then means "the
+        // chain cannot read what was inside", which is the retired readers' behaviour and leaves the *original*
+        // block to the rest of the chain rather than to a lower-ranked envelope. Without this, a wrapper holding
+        // an empty string fell through to a reasoning member beside it and the block came back as reasoning.
+        //
+        // Every other form may fall through, which is equally deliberate: a `text` case whose member holds a
+        // structure has not recognised prose, and something later reads that shape properly.
+        for rule in cases
             .iter()
             .filter(|rule| predicates_hold(block, &rule.require))
-            .find_map(|rule| built(block, rule))
+        {
+            match built(block, rule) {
+                Some(out) => return Some(out),
+                None if rule.unwrap.is_some() => return None,
+                None => continue,
+            }
+        }
+        None
     }
 
     pub fn rule_count(&self) -> usize {

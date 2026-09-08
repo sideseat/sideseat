@@ -9090,6 +9090,12 @@ fn a_field_source_may_not_declare_a_gate_that_never_holds() {
                  "sources":[{"json":{"attribute":"request_data"}}]}]}"#,
         ),
         (
+            "a first-present search over the span name and an attribute, whose order is not preserved",
+            r#"{"id":"t","doc":"d","span_fields":[
+                {"id":"f","doc":"d","target":"user_id",
+                 "sources":[{"attribute":"k","when":{"text_contains":{"sources":["attr:model","span_name"],"needles":["embed"],"first_present_source":true}}}]}]}"#,
+        ),
+        (
             "a phrase search naming a source the probe does not read",
             r#"{"id":"t","doc":"d","span_fields":[
                 {"id":"f","doc":"d","target":"user_id",
@@ -9121,7 +9127,11 @@ fn a_field_source_may_not_declare_a_gate_that_never_holds() {
         {"id":"f","doc":"d","target":"user_id",
          "sources":[{"attribute":"k","when":{"attr_exists":["marker"]}}]},
         {"id":"g","doc":"d","target":"http_method",
-         "sources":[{"attribute":"m","when":{"text_contains":{"sources":["span_name","attr:k"],"needles":["chat"]}}}]}]}"#;
+         "sources":[{"attribute":"m","when":{"text_contains":{"sources":["span_name","attr:k"],"needles":["chat"]}}}]},
+        {"id":"h","doc":"d","target":"http_url",
+         "sources":[{"attribute":"u","when":{"text_contains":{"sources":["attr:a","attr:b"],"needles":["x"],"first_present_source":true}}}]},
+        {"id":"i","doc":"d","target":"db_name",
+         "sources":[{"attribute":"d","when":{"text_contains":{"sources":["span_name"],"needles":["x"],"first_present_source":true}}}]}]}"#;
     let sources =
         std::collections::BTreeMap::from([("t.json".to_string(), ok.as_bytes().to_vec())]);
     assert!(

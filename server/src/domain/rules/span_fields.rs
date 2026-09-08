@@ -178,13 +178,28 @@ impl SpanFieldPlan {
             .filter(|rule| targets.contains(&rule.target))
             .flat_map(|rule| &rule.sources)
             .flat_map(|source| {
-                source.spec.attribute.as_deref().into_iter().chain(
-                    source
-                        .spec
-                        .attribute_first_present_of
-                        .iter()
-                        .map(String::as_str),
-                )
+                source
+                    .spec
+                    .attribute
+                    .as_deref()
+                    .into_iter()
+                    .chain(
+                        source
+                            .spec
+                            .attribute_first_present_of
+                            .iter()
+                            .map(String::as_str),
+                    )
+                    // The carrier a JSON source parses is read too, so a counter taken from inside one is
+                    // accounted for. `when_json` is *not*: a witness is evidence about the span rather than
+                    // the place the value came from, and counting it would hide a member nothing reads.
+                    .chain(
+                        source
+                            .spec
+                            .json
+                            .as_ref()
+                            .map(|json| json.attribute.as_str()),
+                    )
             })
             .collect()
     }
