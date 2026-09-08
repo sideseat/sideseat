@@ -567,3 +567,9 @@ server/tests/fixtures/messages/vercel-ai-js/image-gen/
 # whole model config into a span attribute, including aws_secret_access_key and
 # aws_session_token. Never commit it - re-capture locally if you need the sample.
 server/tests/fixtures/messages/crewai/agent_core/
+
+# TLC scratch output. The specs and their configs are the artefact; a model-checking run leaves trace
+# fingerprints and a states directory beside them, and 7 MB of those had been committed once.
+server/specs/states/
+server/specs/*_TTrace_*.bin
+server/specs/*.out

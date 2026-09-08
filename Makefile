@@ -500,19 +500,38 @@ harden-supply:
 		echo "  SKIPPED: cargo-machete not installed (cargo install cargo-machete)"; \
 	fi
 
-# Model-checks the AG-UI invoke protocol. The invariants correspond to the ones
-# stated in prose in server/protocol/ws-v1/invoke-flow.md.
+# Model-checks **every** spec in server/specs. Each one's invariants correspond to properties stated in prose
+# elsewhere in the tree, named at the top of the spec.
+#
+# Every spec, not a named one: `OrderGraph.tla` existed for months and no target ever checked it, which makes a
+# spec decorative - it reads as a proof and is not run. A new spec is checked the day it is written, and a
+# violation **fails** rather than being printed into a log nobody reads.
+#
+# Runtime is minutes, not seconds: OrderGraph explores ~83k states in about seven on an M-series laptop. That
+# is why this is its own target and not part of `check`.
 harden-spec:
-	@echo "[harden-spec] TLA+ model check of the invoke flow..."
 	@if [ ! -f .tools/tla2tools.jar ]; then \
-		echo "  fetching tla2tools..."; \
+		echo "[harden-spec] fetching tla2tools..."; \
 		mkdir -p .tools; \
 		curl -sSL -o .tools/tla2tools.jar \
 			https://github.com/tlaplus/tlaplus/releases/download/v1.8.0/tla2tools.jar; \
 	fi
-	@cd server/spec && java -cp ../../.tools/tla2tools.jar tlc2.TLC \
-		-config InvokeFlow.cfg InvokeFlow.tla | tail -4
-	@rm -rf server/spec/states server/spec/*_TTrace_*.tla
+	@failed=0; \
+	for cfg in server/specs/*.cfg; do \
+		spec=$$(basename $$cfg .cfg); \
+		printf "[harden-spec] %-16s " "$$spec"; \
+		out=$$(cd server/specs && java -XX:+UseParallelGC -cp ../../.tools/tla2tools.jar tlc2.TLC \
+			-workers auto -config $$spec.cfg $$spec.tla 2>&1); \
+		if echo "$$out" | grep -q "Model checking completed. No error has been found"; then \
+			echo "$$out" | grep -oE "[0-9]+ distinct states found" | head -1; \
+		else \
+			echo "FAILED"; \
+			echo "$$out" | tail -25; \
+			failed=1; \
+		fi; \
+	done; \
+	rm -rf server/specs/states server/specs/*_TTrace_*.bin server/specs/*_TTrace_*.tla; \
+	exit $$failed
 
 # =============================================================================
 # Test

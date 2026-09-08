@@ -3035,3 +3035,103 @@ fn a_scalar_is_neither_empty_nor_non_empty() {
         );
     }
 }
+
+/// A **composed** reading cannot be starved by a lower-ranked rule.
+///
+/// Found by writing `specs/CarrierClaiming.tla`, not by reading the code. The spec's first form asserted
+/// "the lowest-ranked rule that reads a carrier gets it", and TLC refuted it in seconds: a rule takes a
+/// carrier only if it can take **every** carrier it reads, so a rank-1 rule reading one attribute leaves a
+/// rank-4 rule that composes that attribute with another unable to take either - and the second attribute
+/// then ends up owned by nobody even though a rule reads it.
+///
+/// Not reachable in today's ruleset: both composed readings have no lower-ranked competitor for any of their
+/// attributes. That is exactly why this is worth pinning - the failure is silent (a whole dialect's response
+/// reading disappears), it depends on a *rank relation between two rules in different assets*, and nothing
+/// about either rule looks wrong on its own.
+///
+/// Scoped to a member's **only** spelling. A compose member listing two spellings survives losing one, so
+/// requiring every spelling to be free would refuse rulesets that work.
+#[test]
+fn a_composed_reading_cannot_be_starved_by_a_lower_ranked_rule() {
+    use crate::domain::rules::schema::RuleFile;
+
+    #[derive(Debug)]
+    struct Reading {
+        id: String,
+        rank: i32,
+        /// Attributes it takes when it wins, in any of its forms.
+        reads: std::collections::BTreeSet<String>,
+        /// Attributes it *must* have, one entry per compose member with a single spelling.
+        requires: std::collections::BTreeSet<String>,
+    }
+
+    let mut readings: Vec<Reading> = Vec::new();
+    for (path, bytes) in crate::domain::rules::schema::embedded_sources() {
+        let file: RuleFile = serde_json::from_slice(&bytes).expect("the asset parses");
+        for rule in &file.messages {
+            let Some(rank) = rule.legacy_rank else {
+                continue;
+            };
+            let mut reads = std::collections::BTreeSet::new();
+            let mut requires = std::collections::BTreeSet::new();
+            if let Some(attribute) = &rule.read.attribute {
+                reads.insert(attribute.clone());
+            }
+            reads.extend(rule.read.attribute_any_of.iter().cloned());
+            if let Some(compose) = &rule.compose {
+                for member in &compose.members {
+                    reads.extend(member.from_any_of.iter().cloned());
+                    // One spelling only: losing it loses the member, and losing a member loses the compose.
+                    if let [only] = member.from_any_of.as_slice() {
+                        requires.insert(only.clone());
+                    }
+                }
+            }
+            if reads.is_empty() {
+                continue;
+            }
+            let _ = &path;
+            readings.push(Reading {
+                id: rule.id.clone(),
+                rank,
+                reads,
+                requires,
+            });
+        }
+    }
+    assert!(
+        readings.iter().any(|r| r.requires.len() > 1),
+        "no composed reading was found, so this test is checking nothing - the shape it guards is a \
+         `compose` whose members each name a single attribute"
+    );
+
+    let mut starvable: Vec<String> = Vec::new();
+    for composed in readings.iter().filter(|r| r.requires.len() > 1) {
+        for taker in &readings {
+            if taker.id == composed.id || taker.rank >= composed.rank {
+                continue;
+            }
+            let stolen: Vec<&String> = composed
+                .requires
+                .iter()
+                .filter(|attribute| taker.reads.contains(*attribute))
+                .collect();
+            if !stolen.is_empty() {
+                starvable.push(format!(
+                    "  `{}` (rank {}) needs {:?}, and `{}` (rank {}) reads it first",
+                    composed.id, composed.rank, stolen, taker.id, taker.rank
+                ));
+            }
+        }
+    }
+    starvable.sort();
+    assert!(
+        starvable.is_empty(),
+        "{} composed reading(s) can be starved. A rule takes a carrier only if it can take every carrier it \
+         reads, so the composed rule will read *nothing* and its other attributes will be owned by nobody - \
+         silently, and neither rule looks wrong on its own. Rank the composed reading above the rule that \
+         takes its parts, or give that member a second spelling:\n{}",
+        starvable.len(),
+        starvable.join("\n")
+    );
+}
