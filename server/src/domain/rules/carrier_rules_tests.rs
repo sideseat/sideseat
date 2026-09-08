@@ -3891,3 +3891,150 @@ fn a_shared_message_rank_is_refused_only_where_the_order_shows() {
         "a fallback rule's rank orders nothing against a dialect rule's"
     );
 }
+
+/// A `supersedes` edge that cannot take effect is refused.
+///
+/// The field waives the **overlap report** - the instrument that names which predicates are not yet
+/// sufficient - and it does *not* order anything: `legacy_rank` still decides the winner, and the waiver is
+/// read only from the rule that already won. So three shapes compiled silently and were inspected by nobody:
+/// an edge naming a rule that does not exist, an edge to itself, and Codex's case - an edge from a
+/// **higher**-ranked rule to a lower-ranked one, where the superseding rule never becomes the winner whose
+/// waiver is consulted.
+///
+/// All eight edges in the shipped assets point from the rank-winner to the rank-loser, so today the field
+/// documents why a rank is what it is. That is a fine thing for it to be; what it must not be is a statement
+/// an author believes orders their rules.
+#[test]
+fn a_supersedes_edge_that_cannot_take_effect_is_refused() {
+    let compiled = |first_rank: i32, second_rank: i32, supersedes: &str| {
+        let asset = serde_json::json!({
+            "id": "probe",
+            "detect": [
+                {
+                    "id": "probe.specific",
+                    "label": "strands",
+                    "legacy_rank": first_rank,
+                    "match": {"attr_prefix": ["probe.specific."]},
+                    "supersedes": [supersedes],
+                },
+                {
+                    "id": "probe.generic",
+                    "label": "langchain",
+                    "legacy_rank": second_rank,
+                    "match": {"attr_prefix": ["probe."]},
+                },
+            ],
+        });
+        crate::domain::rules::detect_rules::compile(&std::collections::BTreeMap::from([(
+            "probe.json".to_string(),
+            serde_json::to_vec(&asset).expect("the probe serialises"),
+        )]))
+    };
+
+    // The shape that works: the superseding rule outranks its target, so its waiver is the one read.
+    assert!(
+        compiled(10, 20, "probe.generic").is_ok(),
+        "an edge from the rank-winner to the rank-loser is the shape the assets use"
+    );
+    // Codex's case: the edge points the wrong way down the ranks and is inspected by nobody.
+    assert!(
+        compiled(20, 10, "probe.generic").is_err(),
+        "an edge from a rule its target outranks can never take effect"
+    );
+    // A target nothing declares.
+    assert!(
+        compiled(10, 20, "probe.absent").is_err(),
+        "an edge naming a rule no asset declares can never take effect"
+    );
+    // An edge to itself.
+    assert!(
+        compiled(10, 20, "probe.specific").is_err(),
+        "a rule cannot supersede itself"
+    );
+
+    // Named twice: one of the two says nothing.
+    let repeated = serde_json::json!({
+        "id": "probe",
+        "detect": [
+            {
+                "id": "probe.specific",
+                "label": "strands",
+                "legacy_rank": 10,
+                "match": {"attr_prefix": ["probe.specific."]},
+                "supersedes": ["probe.generic", "probe.generic"],
+            },
+            {
+                "id": "probe.generic",
+                "label": "langchain",
+                "legacy_rank": 20,
+                "match": {"attr_prefix": ["probe."]},
+            },
+        ],
+    });
+    assert!(
+        crate::domain::rules::detect_rules::compile(&std::collections::BTreeMap::from([(
+            "probe.json".to_string(),
+            serde_json::to_vec(&repeated).expect("serialises"),
+        )]))
+        .is_err(),
+        "a target named twice by one rule must be refused"
+    );
+
+    // A **cycle** needs no test here, and that is a statement rather than a gap: every edge must point at a
+    // rule its declarer outranks, so a cycle is unconstructible and the separate check written for it could
+    // never fire. It comes back when `legacy_rank` does not.
+}
+
+/// `supersedes` is **transitive** where the overlap report reads it.
+///
+/// The report is the instrument for retiring `legacy_rank`: it names the spans where several rules match and no
+/// ordering has been declared. Reading only *direct* edges made it report an overlap whose order **is**
+/// declared - a rule superseding one that supersedes a third - which is noise in the one place that must be
+/// signal.
+#[test]
+fn a_superseded_rule_is_dominated_transitively() {
+    let asset = serde_json::json!({
+        "id": "probe",
+        "detect": [
+            {
+                "id": "probe.most_specific",
+                "label": "strands",
+                "legacy_rank": 10,
+                "match": {"attr_exists": ["probe.marker"]},
+                "supersedes": ["probe.middle"],
+            },
+            {
+                "id": "probe.middle",
+                "label": "langchain",
+                "legacy_rank": 20,
+                "match": {"attr_exists": ["probe.marker"]},
+                "supersedes": ["probe.generic"],
+            },
+            {
+                "id": "probe.generic",
+                "label": "crewai",
+                "legacy_rank": 30,
+                "match": {"attr_exists": ["probe.marker"]},
+            },
+        ],
+    });
+    let plan = crate::domain::rules::detect_rules::compile(&std::collections::BTreeMap::from([(
+        "probe.json".to_string(),
+        serde_json::to_vec(&asset).expect("serialises"),
+    )]))
+    .expect("the probe compiles");
+
+    let mut attrs = std::collections::HashMap::new();
+    attrs.insert("probe.marker".to_string(), "1".to_string());
+    let ctx = crate::domain::rules::detect_rules::DetectContext {
+        span_name: "probe.span",
+        span_attrs: &attrs,
+        resource_attrs: &std::collections::HashMap::new(),
+    };
+    // All three match. The winner supersedes the middle directly and the generic *through* it, so nothing is
+    // unresolved and the report must be empty.
+    assert!(
+        plan.overlapping_candidates(&ctx).is_empty(),
+        "the winner dominates both others - directly and transitively - so no overlap is unresolved"
+    );
+}

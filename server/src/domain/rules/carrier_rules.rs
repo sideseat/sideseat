@@ -55,8 +55,6 @@ pub struct CompiledClause {
     pub match_spec: MatchSpec,
     pub semantics: CarrierSemantics,
     pub ordering_family: Option<String>,
-    /// Clause ids this one beats where their languages overlap and neither contains the other.
-    pub supersedes: Vec<String>,
 }
 
 /// The resolved answer, with the clause that produced it.
@@ -211,7 +209,6 @@ pub fn compile(sources: &BTreeMap<String, Vec<u8>>) -> Result<CarrierPlan, Compi
                 match_spec,
                 facts,
                 ordering_family,
-                supersedes,
             } = rule;
             if seen_ids.insert(id.clone(), ()).is_some() {
                 return Err(CompileError::DuplicateClauseId { clause: id.clone() });
@@ -257,7 +254,6 @@ pub fn compile(sources: &BTreeMap<String, Vec<u8>>) -> Result<CarrierPlan, Compi
                 match_spec: match_spec.clone(),
                 semantics: resolve_facts(id, facts)?,
                 ordering_family: ordering_family.clone(),
-                supersedes: supersedes.clone(),
             });
         }
     }
@@ -330,7 +326,13 @@ pub fn compile(sources: &BTreeMap<String, Vec<u8>>) -> Result<CarrierPlan, Compi
 /// The test is **subsumption**, not a score: two clauses may both match, provided one's match language is
 /// contained in the other's, because then "the more specific" is a fact rather than an arithmetic
 /// accident. Where the languages overlap and neither contains the other, the ruleset is genuinely
-/// ambiguous and one clause must say in data that it supersedes the other.
+/// ambiguous, and the specs must be made strictly ordered rather than the pair being waived.
+///
+/// There **was** a waiver - a `supersedes` list on a carrier clause - and it is gone. It licensed the
+/// ambiguity without resolving it: compilation accepted the pair and `better()` never read the edge, so
+/// whichever incomparable clause was declared first still won and reordering the declarations changed the
+/// answer. No asset used it. A refusal an author cannot silence is the honest form here: two clauses that
+/// match the same span and neither of which is more specific have no order to discover.
 ///
 /// Bounded, and worth stating precisely: `can_both_match` is conservative, so a pair it cannot prove
 /// disjoint is reported. That errs toward asking for an explicit decision rather than assuming
@@ -349,9 +351,6 @@ fn reject_ambiguity(clauses: &[CompiledClause]) -> Result<(), CompileError> {
             let b_in_a = b.match_spec.contains_language_of(&a.match_spec);
             if a_in_b != b_in_a {
                 continue; // one is strictly more specific; that is an order, not a collision
-            }
-            if a.supersedes.contains(&b.clause_id) || b.supersedes.contains(&a.clause_id) {
-                continue; // declared, by name, in data
             }
             return Err(CompileError::Ambiguous {
                 first: a.clause_id.clone(),

@@ -77,6 +77,12 @@ pub enum DetectCompileError {
     DuplicateSlug {
         slug: String,
     },
+    /// A `supersedes` edge that cannot take effect.
+    UselessSupersedes {
+        rule: String,
+        target: String,
+        detail: &'static str,
+    },
     BadTextSource {
         rule: String,
         source: String,
@@ -87,6 +93,17 @@ impl std::fmt::Display for DetectCompileError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Parse { path, message } => write!(f, "{path}: {message}"),
+            Self::UselessSupersedes {
+                rule,
+                target,
+                detail,
+            } => write!(
+                f,
+                "detection rule `{rule}` supersedes `{target}`, which {detail}. `supersedes` waives the \
+                 *overlap report* that names which predicates are not yet sufficient - it does not order \
+                 anything, and `legacy_rank` still decides the winner. An edge that cannot take effect reads \
+                 as one that does"
+            ),
             Self::EmptyLiteral { rule, dimension } => write!(
                 f,
                 "detection rule `{rule}` has an empty value in `{dimension}`, which matches everything"
@@ -240,6 +257,47 @@ pub fn compile(sources: &BTreeMap<String, Vec<u8>>) -> Result<DetectPlan, Detect
                 first: pair[0].rule_id.clone(),
                 second: pair[1].rule_id.clone(),
             });
+        }
+    }
+
+    // Every `supersedes` edge must be able to take effect. The field waives the overlap *report*, and that
+    // waiver is only consulted for the rule that already won by rank - so an edge from a higher-ranked rule
+    // to a lower-ranked one is inspected by nobody, and an edge naming a rule that does not exist or itself
+    // is inspected by nobody either. All three compiled silently, which is how a reader comes to believe the
+    // field orders things.
+    let rank_of: HashMap<&str, i32> = rules
+        .iter()
+        .map(|rule| (rule.rule_id.as_str(), rule.legacy_rank))
+        .collect();
+    for rule in &rules {
+        let mut seen: std::collections::BTreeSet<&str> = std::collections::BTreeSet::new();
+        for target in &rule.supersedes {
+            if !seen.insert(target.as_str()) {
+                return Err(DetectCompileError::UselessSupersedes {
+                    rule: rule.rule_id.clone(),
+                    target: target.clone(),
+                    detail: "is named twice by this rule",
+                });
+            }
+            let detail = if target == &rule.rule_id {
+                Some("is the rule itself")
+            } else {
+                match rank_of.get(target.as_str()) {
+                    None => Some("no asset declares"),
+                    // The waiver is read from the *winner*, so it must point at a rule this one outranks.
+                    Some(other) if *other < rule.legacy_rank => Some(
+                        "outranks it, so this rule never becomes the winner whose waiver is read",
+                    ),
+                    Some(_) => None,
+                }
+            };
+            if let Some(detail) = detail {
+                return Err(DetectCompileError::UselessSupersedes {
+                    rule: rule.rule_id.clone(),
+                    target: target.clone(),
+                    detail,
+                });
+            }
         }
     }
 
@@ -623,17 +681,45 @@ impl DetectPlan {
         if matching.len() < 2 {
             return Vec::new();
         }
-        let winner = matching[0];
+        // **Transitively** dominated, not only directly. `supersedes` is a DAG, so a rule that supersedes a
+        // rule which supersedes a third owns that overlap too - reading direct edges only reported an overlap
+        // whose ordering is in fact declared, which is noise in the one instrument meant to say where ordering
+        // is *not* yet declared.
+        let dominated = self.dominated_by(matching[0].rule_id.as_str());
         let contested: Vec<&CompiledDetect> = matching
             .iter()
             .skip(1)
-            .filter(|other| !winner.supersedes.contains(&other.rule_id))
+            .filter(|other| !dominated.contains(other.rule_id.as_str()))
             .copied()
             .collect();
         if contested.is_empty() {
             return Vec::new();
         }
         matching
+    }
+
+    /// Every rule the named one supersedes, directly or through another.
+    ///
+    /// The transitive closure, because precedence is a DAG: a rule that supersedes one which supersedes a third
+    /// has settled its ordering against all of them. Compilation refuses a cycle, so this terminates.
+    fn dominated_by(&self, rule_id: &str) -> std::collections::BTreeSet<&str> {
+        let mut out: std::collections::BTreeSet<&str> = std::collections::BTreeSet::new();
+        let mut queue: Vec<&str> = vec![rule_id];
+        while let Some(current) = queue.pop() {
+            let Some(rule) = self
+                .rules
+                .iter()
+                .find(|candidate| candidate.rule_id == current)
+            else {
+                continue;
+            };
+            for target in &rule.supersedes {
+                if out.insert(target.as_str()) {
+                    queue.push(target.as_str());
+                }
+            }
+        }
+        out
     }
 
     /// The label a declaration resolves to, when it names exactly one framework this server knows.

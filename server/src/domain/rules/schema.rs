@@ -643,13 +643,6 @@ pub struct CarrierRule {
     /// Rust, that no rule file could state.
     #[serde(default)]
     pub ordering_family: Option<String>,
-    /// Clause ids this clause beats where their languages overlap and neither contains the other.
-    ///
-    /// The escape hatch for a genuine overlap between predicates that cannot be ordered by subsumption -
-    /// stated in data, by name, rather than resolved by load order or by a number. Without it such a pair
-    /// fails compilation, which is the point: somebody has to own the decision.
-    #[serde(default)]
-    pub supersedes: Vec<String>,
 }
 
 /// What an observation must look like for a clause to apply. Every field is optional and all present
