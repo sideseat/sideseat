@@ -403,6 +403,26 @@ fn compile_rule(
                  be ignored",
         ));
     }
+    // `elements` reads an array element by element and derives each element's own tag, so a `tag_as` beside
+    // it is a name the rule never emits - and the static conflict analysis modelled that name while the
+    // runtime emitted the derived one. The rest of the list is what the elements branch returns before
+    // reaching: it parses the carrier itself and emits each element, with no envelope and no readings.
+    if elements.is_some()
+        && (tag_as.is_some()
+            || wrap.is_some()
+            || sections.is_some()
+            || walk.is_some()
+            || aggregate
+            || require_members.is_some()
+            || !alternatives.is_empty()
+            || !also.is_empty()
+            || !fallback.is_empty())
+    {
+        return Err(inexpressible(
+            "`elements` derives each element's own tag and emits it directly, so `tag_as`, an envelope, \
+                 a walk, an aggregate or a reading would be ignored",
+        ));
+    }
     if sections.is_some() && (wrap.is_some() || !alternatives.is_empty() || !also.is_empty()) {
         return Err(inexpressible(
             "`sections` builds each section's message, so `wrap` and `alternatives` would be \
@@ -901,23 +921,48 @@ pub fn compile(sources: &BTreeMap<String, Vec<u8>>) -> Result<MessagePlan, Messa
             // reading of it - the same key, resolved by whichever rank comes first.
             let a_reads = consumed_carriers(a);
             let b_reads = consumed_carriers(b);
-            let share_a_carrier = a_reads
-                .iter()
-                .any(|l| b_reads.iter().any(|r| l.pattern.overlaps(&r.pattern)));
-            let emitted = |rule: &CompiledMessageRule| {
-                emitted_carriers(rule)
+            // The exemption for a tag collision has to be about the carriers the colliding *emissions*
+            // necessarily own, not any carrier either rule might read. A rule reading
+            // `attribute_any_of: ["first", "second"]` beside one reading `second` overlaps statically and
+            // owns `first` at runtime when both are present - so both emissions survive under one tag, which
+            // is the defect the exemption was meant to exclude. Same for an unused compose fallback or an
+            // unrelated branch leaf.
+            let shared_ownership = match (necessarily_owned(a), necessarily_owned(b)) {
+                (Some(left), Some(right)) => left == right,
+                _ => false,
+            };
+            // For the **both emit** comparison only: two rules tagging one carrier are separated at runtime
+            // when ownership provably resolves them, and read-conditionality is not that proof. The cross
+            // comparisons below keep each emission's own condition, because "A emits what B reads" is a
+            // question about whether A emits at all.
+            let emitted_tags = |rule: &CompiledMessageRule| {
+                emitted_patterns(rule)
                     .into_iter()
-                    .map(|pattern| Consumed {
-                        pattern,
-                        conditional: share_a_carrier,
+                    .map(|mut emitted| {
+                        emitted.condition = if shared_ownership {
+                            // Ownership resolves them: one rank wins the carrier, the other is refused.
+                            Condition::Payload
+                        } else {
+                            // Nothing separates two emissions under one tag, whatever narrows either rule.
+                            Condition::Always
+                        };
+                        emitted
                     })
                     .collect::<Vec<_>>()
             };
             let conflict = [
                 (a_reads.clone(), b_reads.clone(), "both read"),
-                (emitted(a), emitted(b), "both emit"),
-                (emitted(a), b_reads, "one emits what the other reads"),
-                (a_reads, emitted(b), "one reads what the other emits"),
+                (emitted_tags(a), emitted_tags(b), "both emit"),
+                (
+                    emitted_carriers(a),
+                    b_reads,
+                    "one emits what the other reads",
+                ),
+                (
+                    a_reads,
+                    emitted_carriers(b),
+                    "one reads what the other emits",
+                ),
             ]
             .into_iter()
             .find_map(|(left, right, how)| {
@@ -926,7 +971,8 @@ pub fn compile(sources: &BTreeMap<String, Vec<u8>>) -> Result<MessagePlan, Messa
                         right
                             .iter()
                             .find(|r| {
-                                !l.conditional && !r.conditional && l.pattern.overlaps(&r.pattern)
+                                l.condition.coincides_with(&r.condition)
+                                    && l.pattern.overlaps(&r.pattern)
                             })
                             .map(|_| l.pattern.describe())
                     })
@@ -1015,21 +1061,40 @@ pub(super) fn predicate_defect(set: &PredicateSet) -> Option<&'static str> {
     // Load-bearing beyond being a no-op: `rule_is_wholly_conditional` reads "every reading carries a
     // `require`" as evidence that a rule yields its carrier on some span. A tautological `require` makes that
     // a false statement, and the second rule reading the same carrier is then permanently dead.
+    let same_path = |a: &ValuePredicate, b: &ValuePredicate| match (&a.path, &b.path) {
+        (Some(a), Some(b)) => canonical_path(a) == canonical_path(b),
+        (None, None) => true,
+        _ => false,
+    };
+    // A tautology needs every forbidden value to be required by the other branch: with
+    // `none_of: ["a", "b"]` beside `one_of: ["a"]`, the value `"b"` satisfies neither.
+    let covers = |required: &ValuePredicate, forbidden: &ValuePredicate| {
+        sole(required)
+            && sole(forbidden)
+            && !forbidden.none_of.is_empty()
+            && forbidden
+                .none_of
+                .iter()
+                .all(|value| required.one_of.contains(value))
+    };
     for (i, left) in set.any.iter().enumerate() {
         for right in &set.any[i + 1..] {
-            let same_path = match (&left.path, &right.path) {
-                (Some(a), Some(b)) => a.to_string() == b.to_string(),
-                (None, None) => true,
-                _ => false,
-            };
-            if same_path
-                && sole(left)
+            if !same_path(left, right) {
+                continue;
+            }
+            if sole(left)
                 && sole(right)
                 && ((left.exists == Some(true) && right.exists == Some(false))
                     || (left.exists == Some(false) && right.exists == Some(true)))
             {
                 return Some(
                     "an `any` set requires a value to exist and to be absent, which holds of every value",
+                );
+            }
+            if covers(left, right) || covers(right, left) {
+                return Some(
+                    "an `any` set forbids only values another member requires, and a sole `none_of` \
+                     also holds of an absent value - so it holds for every value",
                 );
             }
         }
@@ -1041,23 +1106,6 @@ pub(super) fn predicate_defect(set: &PredicateSet) -> Option<&'static str> {
             if complements(left, right) {
                 return Some(
                     "an `any` set holds a root condition and its negation, so it holds for every value",
-                );
-            }
-            // A tautology needs every forbidden value to be required by the other branch: with
-            // `none_of: ["a", "b"]` beside `one_of: ["a"]`, the value `"b"` satisfies neither.
-            let covers = |required: &ValuePredicate, forbidden: &ValuePredicate| {
-                sole(required)
-                    && sole(forbidden)
-                    && !forbidden.none_of.is_empty()
-                    && forbidden
-                        .none_of
-                        .iter()
-                        .all(|value| required.one_of.contains(value))
-            };
-            if covers(left, right) || covers(right, left) {
-                return Some(
-                    "an `any` set forbids only root values another member requires, so it holds for \
-                         every value",
                 );
             }
         }
@@ -1386,9 +1434,17 @@ impl CarrierPattern {
 ///
 /// Reachable in practice: the generic `output.value` is read by one dialect as a gated last resort and by
 /// another as its own output, and they are told apart by the span they are on.
-fn rule_is_wholly_conditional(rule: &CompiledMessageRule) -> bool {
+fn rule_condition(rule: &CompiledMessageRule) -> Condition {
     if rule.when.is_some() || rule.unless.is_some() {
-        return true;
+        // Compared by its declared form. Two rules gated on the same thing run on the same spans, so the
+        // second can never own a carrier the first reads - a boolean "is conditional" called that pair safe.
+        // Different gates are still accepted: they may or may not overlap, and the original reading holds -
+        // each fires where its condition admits and the ranks decide.
+        return Condition::Gate(format!(
+            "{:?}|{:?}",
+            rule.when.as_ref().map(|g| &g.match_spec),
+            rule.unless.as_ref().map(|g| &g.match_spec)
+        ));
     }
     // Every reading this rule can produce is gated on the payload itself, so it claims nothing on a span
     // whose payload no reading recognises. Asked of **all three** lists, because `all_readings` emits
@@ -1404,10 +1460,89 @@ fn rule_is_wholly_conditional(rule: &CompiledMessageRule) -> bool {
     for reading in readings {
         any = true;
         if reading.spec.require.is_empty() {
-            return false;
+            return Condition::Always;
         }
     }
-    any
+    if any {
+        Condition::Payload
+    } else {
+        Condition::Always
+    }
+}
+
+/// A JSONPath rendered so two spellings of one path compare equal.
+///
+/// `$.v` and `$['v']` select the same member and render differently, so a same-path check on the rendered
+/// string missed a contradiction written the second way. Only the identifier case is folded, because that is
+/// the whole of the ambiguity: a bracket segment holding anything else has no dot spelling.
+fn canonical_path(path: &super::schema::JsonPath) -> String {
+    let rendered = path.to_string();
+    let mut out = String::with_capacity(rendered.len());
+    let mut rest = rendered.as_str();
+    while let Some(open) = rest.find("['") {
+        let after = &rest[open + 2..];
+        let Some(close) = after.find("']") else { break };
+        let name = &after[..close];
+        let foldable = !name.is_empty()
+            && name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
+            && !name.starts_with(|c: char| c.is_ascii_digit());
+        out.push_str(&rest[..open]);
+        if foldable {
+            out.push('.');
+            out.push_str(name);
+        } else {
+            out.push_str(&rest[open..open + 2 + close + 2]);
+        }
+        rest = &after[close + 2..];
+    }
+    out.push_str(rest);
+    out
+}
+
+/// The one carrier every emission of this rule owns, where the rule leaves no choice about it.
+///
+/// Deliberately narrow: a single named attribute, and nothing else that could contribute another carrier or
+/// choose between several. Anything looser is not a *proof* that two emissions are resolved by ownership, and
+/// an unproven exemption is how two messages end up under one carrier tag with nothing to tell them apart.
+fn necessarily_owned(rule: &CompiledMessageRule) -> Option<&str> {
+    if rule.branch_set.is_some()
+        || rule.compose.is_some()
+        || rule.read.overlay.is_some()
+        || rule.read.indexed_family.is_some()
+        || !rule.read.attribute_any_of.is_empty()
+    {
+        return None;
+    }
+    rule.read.attribute.as_deref()
+}
+
+/// What narrows a claim on a carrier - and, where it can be said, *which* condition.
+///
+/// A boolean was not enough twice over: two rules narrowed by one gate are live on the same spans, and a
+/// payload condition is one this cannot compare, so two of them are assumed to differ.
+#[derive(Clone, PartialEq)]
+enum Condition {
+    /// Nothing narrows it: wherever the carrier exists, this rule claims it.
+    Always,
+    /// The rule runs only where this gate holds, in its declared form.
+    Gate(String),
+    /// Narrowed by the payload, or by which spelling of the carrier a producer used.
+    Payload,
+}
+
+impl Condition {
+    /// Whether two claims can *both* be live on one span, which is when the later rule is dead.
+    ///
+    /// `Payload` never collides, because this cannot compare two payload conditions and assuming they
+    /// coincide would refuse working rules. Identical gates do collide - that is the whole point of carrying
+    /// the gate rather than a flag.
+    fn coincides_with(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::Always, Self::Always) => true,
+            (Self::Gate(a), Self::Gate(b)) => a == b,
+            _ => false,
+        }
+    }
 }
 
 /// One carrier a rule reads, and whether *that* claim is conditional.
@@ -1417,16 +1552,19 @@ fn rule_is_wholly_conditional(rule: &CompiledMessageRule) -> bool {
 #[derive(Clone)]
 struct Consumed {
     pattern: CarrierPattern,
-    conditional: bool,
+    condition: Condition,
 }
 
-/// What a rule reads, each carrier paired with whether the claim on it is conditional.
+/// What a rule reads, each carrier paired with what narrows the claim on it.
 fn consumed_carriers(rule: &CompiledMessageRule) -> Vec<Consumed> {
-    let wholly = rule_is_wholly_conditional(rule);
+    let wholly = rule_condition(rule);
     consumed_patterns(rule)
         .into_iter()
         .map(|mut consumed| {
-            consumed.conditional |= wholly;
+            // A rule-wide condition narrows every carrier; a per-carrier one is already the narrower answer.
+            if consumed.condition == Condition::Always {
+                consumed.condition = wholly.clone();
+            }
             consumed
         })
         .collect()
@@ -1436,11 +1574,11 @@ fn consumed_patterns(rule: &CompiledMessageRule) -> Vec<Consumed> {
     let mut out: Vec<Consumed> = Vec::new();
     let always = |pattern: CarrierPattern| Consumed {
         pattern,
-        conditional: false,
+        condition: Condition::Always,
     };
     let only_sometimes = |pattern: CarrierPattern| Consumed {
         pattern,
-        conditional: true,
+        condition: Condition::Payload,
     };
     if let Some(attribute) = rule.read.attribute.as_deref() {
         out.push(always(CarrierPattern::Exact(attribute.to_string())));
@@ -1520,7 +1658,25 @@ fn consumed_patterns(rule: &CompiledMessageRule) -> Vec<Consumed> {
 }
 
 /// What a rule tags its observations with.
-fn emitted_carriers(rule: &CompiledMessageRule) -> Vec<CarrierPattern> {
+fn emitted_carriers(rule: &CompiledMessageRule) -> Vec<Consumed> {
+    let wholly = rule_condition(rule);
+    emitted_patterns(rule)
+        .into_iter()
+        .map(|mut emitted| {
+            if emitted.condition == Condition::Always {
+                emitted.condition = wholly.clone();
+            }
+            emitted
+        })
+        .collect()
+}
+
+/// The tags themselves, each with whatever narrows *that* emission.
+fn emitted_patterns(rule: &CompiledMessageRule) -> Vec<Consumed> {
+    let always = |pattern: CarrierPattern| Consumed {
+        pattern,
+        condition: Condition::Always,
+    };
     // A branch set emits what its sub-rules emit - each is a rule in its own right, and one with `tag_as`
     // emits a carrier this rule never names. Invisible here, two dialects could both emit one carrier from
     // inside their branch sets.
@@ -1535,27 +1691,42 @@ fn emitted_carriers(rule: &CompiledMessageRule) -> Vec<CarrierPattern> {
     }
     if let Some(tag) = &rule.tag_as {
         // Overrides every read form: whatever was read, this is the tag.
-        return vec![CarrierPattern::Exact(tag.clone())];
+        return vec![always(CarrierPattern::Exact(tag.clone()))];
     }
     if let Some(compose) = &rule.compose {
-        return vec![CarrierPattern::Exact(compose.tag.clone())];
+        return vec![always(CarrierPattern::Exact(compose.tag.clone()))];
     }
     let mut out = Vec::new();
     if let Some(attribute) = rule.read.attribute.as_deref() {
-        out.push(CarrierPattern::Exact(attribute.to_string()));
+        out.push(always(CarrierPattern::Exact(attribute.to_string())));
     }
     if let Some(event) = rule.read.event.as_deref() {
-        out.push(CarrierPattern::Exact(event.to_string()));
+        out.push(always(CarrierPattern::Exact(event.to_string())));
     }
-    out.extend(
-        rule.read
-            .attribute_any_of
-            .iter()
-            .map(|k| CarrierPattern::Exact(k.clone())),
-    );
+    // A tag per spelling, and only the first is emitted whatever the span carries.
+    for (position, key) in rule.read.attribute_any_of.iter().enumerate() {
+        let pattern = CarrierPattern::Exact(key.clone());
+        out.push(if position == 0 {
+            always(pattern)
+        } else {
+            Consumed {
+                pattern,
+                condition: Condition::Payload,
+            }
+        });
+    }
     if let Some(family) = rule.read.indexed_family.as_deref() {
-        // One tag per index, and per sub-level where there is one - a prefix covers them all.
-        out.push(CarrierPattern::Prefix(format!("{family}.")));
+        // One tag per index, and per sub-level where there is one - a prefix covers them all. Emitted only
+        // for entries that satisfy the required members, which is why the condition mirrors the read side.
+        let pattern = CarrierPattern::Prefix(format!("{family}."));
+        out.push(if rule.require_members.is_some() {
+            Consumed {
+                pattern,
+                condition: Condition::Payload,
+            }
+        } else {
+            always(pattern)
+        });
     }
     out
 }

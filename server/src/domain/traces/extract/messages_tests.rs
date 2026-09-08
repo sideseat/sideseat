@@ -8733,6 +8733,114 @@ fn a_tautological_requirement_is_not_a_condition() {
     }
 }
 
+/// A condition separates two rules only when it is a *different* condition, and a shared tag needs a proof.
+///
+/// Four shapes, each a rule that compiled and could never emit:
+///
+/// - two rules gated on the **same** thing, both reading one carrier: whenever the gate holds the earlier
+///   owns the carrier, and otherwise neither runs. A boolean "is conditional" called that pair safe;
+/// - a tag collision excused by *any* static overlap between the rules' reads. A rule reading
+///   `attribute_any_of: ["first", "second"]` owns `first` when both are present, so a rule reading `second`
+///   under the same tag is not resolved by ownership at all;
+/// - a `one_of`/`none_of` complement on a *member* path, which is a tautology for the same reason the
+///   `exists` pair is: a sole `none_of` holds of an absent value, so between them every value and its
+///   absence are covered;
+/// - the same written `$['v']`, which rendered differently and escaped a same-path check.
+#[test]
+fn a_condition_separates_two_rules_only_when_it_differs() {
+    let refused = [
+        (
+            "two rules gated on the same thing, reading one carrier",
+            r#"{"id":"t","doc":"d","messages":[
+                {"id":"a","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message",
+                 "when":{"attr_exists":["marker"]},"tag_as":"a.tag","legacy_rank":1},
+                {"id":"b","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message",
+                 "when":{"attr_exists":["marker"]},"tag_as":"b.tag","legacy_rank":2}]}"#,
+        ),
+        (
+            "a shared tag where ownership does not resolve the pair",
+            r#"{"id":"t","doc":"d","messages":[
+                {"id":"a","doc":"d","read":{"attribute_any_of":["first","second"]},"parse":"json",
+                 "emit":"message","tag_as":"shared","legacy_rank":1},
+                {"id":"b","doc":"d","read":{"attribute":"second"},"parse":"json","emit":"message",
+                 "tag_as":"shared","legacy_rank":2}]}"#,
+        ),
+        (
+            "a `one_of`/`none_of` complement on a member path",
+            r#"{"id":"t","doc":"d","messages":[
+                {"id":"a","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message","legacy_rank":1,
+                 "alternatives":[{"require":{"any":[
+                    {"path":"$.v","one_of":["a"]},{"path":"$.v","none_of":["a"]}]},
+                  "wrap":{"role":"user","content_from_any_of":["$.content"]}}]},
+                {"id":"b","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message",
+                 "legacy_rank":2}]}"#,
+        ),
+        (
+            "the same complement with the path written in bracket form",
+            r#"{"id":"t","doc":"d","messages":[
+                {"id":"a","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message","legacy_rank":1,
+                 "alternatives":[{"require":{"any":[
+                    {"path":"$.v","exists":true},{"path":"$['v']","exists":false}]},
+                  "wrap":{"role":"user","content_from_any_of":["$.content"]}}]},
+                {"id":"b","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message",
+                 "legacy_rank":2}]}"#,
+        ),
+        (
+            "`elements` beside a `tag_as` it never emits",
+            r#"{"id":"t","doc":"d","messages":[
+                {"id":"a","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message",
+                 "tag_as":"declared","legacy_rank":1,
+                 "elements":{"passes":[{"tag_from":"$.name"}]}}]}"#,
+        ),
+    ];
+    for (what, asset) in refused {
+        let sources =
+            std::collections::BTreeMap::from([("t.json".to_string(), asset.as_bytes().to_vec())]);
+        assert!(
+            compile(&sources).is_err(),
+            "should have been refused: {what}"
+        );
+    }
+
+    let accepted = [
+        (
+            "two rules gated on different things",
+            r#"{"id":"t","doc":"d","messages":[
+                {"id":"a","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message",
+                 "when":{"attr_exists":["marker.a"]},"tag_as":"a.tag","legacy_rank":1},
+                {"id":"b","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message",
+                 "when":{"attr_exists":["marker.b"]},"tag_as":"b.tag","legacy_rank":2}]}"#,
+        ),
+        (
+            "a shared tag where both rules necessarily own one carrier",
+            r#"{"id":"t","doc":"d","messages":[
+                {"id":"a","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message",
+                 "tag_as":"shared","when":{"attr_exists":["marker"]},"legacy_rank":1},
+                {"id":"b","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message",
+                 "tag_as":"shared","legacy_rank":2}]}"#,
+        ),
+        (
+            "a `none_of` that forbids a value nothing else requires",
+            r#"{"id":"t","doc":"d","messages":[
+                {"id":"a","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message","legacy_rank":1,
+                 "alternatives":[{"require":{"any":[
+                    {"path":"$.v","one_of":["a"]},{"path":"$.v","none_of":["a","b"]}]},
+                  "wrap":{"role":"user","content_from_any_of":["$.content"]}}]},
+                {"id":"b","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message",
+                 "legacy_rank":2}]}"#,
+        ),
+    ];
+    for (what, asset) in accepted {
+        let sources =
+            std::collections::BTreeMap::from([("t.json".to_string(), asset.as_bytes().to_vec())]);
+        assert!(
+            compile(&sources).is_ok(),
+            "should have been accepted: {what} - {:?}",
+            compile(&sources).err()
+        );
+    }
+}
+
 /// A conditional claim is conditional about **one carrier**, not about every carrier its rule reads.
 ///
 /// Two shapes, each a rule that would be permanently dead while compilation called the pair conditional:
