@@ -63,6 +63,16 @@ pub struct Resolved {
     pub reading: Reading,
     /// Which rule answered, for the explain trace.
     pub rule_id: String,
+    /// Which **source** supplied the answer, and for a merge every source that contributed.
+    ///
+    /// The rule id alone was not enough: a chain like the session id's names five spellings, and knowing that
+    /// `span-fields.session_id` answered says nothing about *which* producer's attribute was believed. The
+    /// `refused` list beside this records the sources that were present and unreadable, which is a different
+    /// question - it never named the winner.
+    ///
+    /// `None` where nothing answered, so an unset field is distinguishable from one set by a source nobody can
+    /// name.
+    pub evidence: Option<super::expr::EvidenceSet>,
     /// Every source consulted that did not answer, and why. Kept because "no producer wrote this" and
     /// "three producers wrote it malformed" are different diagnoses of an empty column.
     pub refused: Vec<(String, Reading)>,
@@ -239,6 +249,12 @@ impl SpanFieldPlan {
         let mut refused = Vec::new();
         let mut merged: Vec<String> = Vec::new();
         let mut answer = Reading::Absent;
+        // The sources that actually supplied the answer: one for a first-wins chain, every contributor for a
+        // merge.
+        let mut witnesses: Vec<super::expr::ClausePath> = Vec::new();
+        let witness_of = |source: &CompiledSource| {
+            super::expr::ClausePath::root(rule.rule_id.clone()).then(source.spec.id.clone())
+        };
 
         for source in &rule.sources {
             if !source_applies(source, span_name, attrs) {
@@ -280,6 +296,8 @@ impl SpanFieldPlan {
                     FieldType::Text => Reading::Text(String::new()),
                     _ => reading,
                 };
+                // An empty value a producer wrote *is* an answer, so the source that wrote it is the witness.
+                witnesses.push(witness_of(source));
                 if rule.combine == FieldCombine::FirstWins {
                     break;
                 }
@@ -294,14 +312,22 @@ impl SpanFieldPlan {
             match rule.combine {
                 FieldCombine::FirstWins => {
                     answer = reading;
+                    witnesses.push(witness_of(source));
                     break;
                 }
                 FieldCombine::MergeAll => {
                     if let Reading::StringList(items) = reading {
+                        // A contributor, not the winner: a merge has as many witnesses as sources that
+                        // supplied something, and reporting one of them would misdescribe the answer.
+                        let mut contributed = false;
                         for item in items {
                             if !merged.contains(&item) {
                                 merged.push(item);
+                                contributed = true;
                             }
+                        }
+                        if contributed {
+                            witnesses.push(witness_of(source));
                         }
                     }
                 }
@@ -320,6 +346,7 @@ impl SpanFieldPlan {
             target: rule.target,
             reading: answer,
             rule_id: rule.rule_id.clone(),
+            evidence: super::expr::EvidenceSet::of(witnesses),
             refused,
         }
     }

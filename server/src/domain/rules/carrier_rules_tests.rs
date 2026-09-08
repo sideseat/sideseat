@@ -4243,3 +4243,67 @@ fn an_answer_names_the_declaration_that_produced_it() {
         "an answer with no evidence is the absence of an answer"
     );
 }
+
+/// A field answer names the **source** that supplied it, and a merge names every contributor.
+///
+/// The rule id alone was not enough. The session id's chain names five spellings, so knowing that
+/// `span-fields.session_id` answered says nothing about which producer's attribute was believed - and the
+/// `refused` list beside it records sources that were present and unreadable, which is a different question and
+/// never named the winner.
+#[test]
+fn a_field_answer_names_the_source_that_supplied_it() {
+    use crate::domain::rules::schema::FieldTarget;
+    use std::collections::HashMap;
+
+    let resolve = |attrs: &HashMap<String, String>, target: FieldTarget| {
+        crate::domain::rules::ruleset()
+            .span_fields
+            .resolve("some.span", attrs)
+            .into_iter()
+            .find(|resolved| resolved.target == target)
+    };
+
+    // Two spellings of the session id, both present. The chain is first-wins, so exactly one source answered -
+    // and which one is the fact this evidence exists to carry.
+    let mut both = HashMap::new();
+    both.insert("session.id".to_string(), "session-a".to_string());
+    both.insert(
+        "gen_ai.conversation.id".to_string(),
+        "session-b".to_string(),
+    );
+    let resolved = resolve(&both, FieldTarget::SessionId).expect("a session id is resolved");
+    let evidence = resolved
+        .evidence
+        .as_ref()
+        .expect("an answer carries the source that supplied it");
+    assert_eq!(
+        evidence.paths().len(),
+        1,
+        "a first-wins chain has exactly one witness, not one per present source"
+    );
+    // The winner is the source whose value was stored, so the two must agree.
+    let winner = evidence.paths()[0].to_string();
+    assert!(
+        winner.contains("session_id"),
+        "the witness must name the source inside the rule: {winner}"
+    );
+
+    // A **merge**: every source that contributed, because a merge's answer is made of all of them and naming
+    // one would misdescribe it.
+    let mut tags = HashMap::new();
+    tags.insert("tags".to_string(), r#"["a"]"#.to_string());
+    tags.insert("langsmith.tags".to_string(), r#"["b"]"#.to_string());
+    let merged = resolve(&tags, FieldTarget::Tags).expect("tags are resolved");
+    let evidence = merged.evidence.as_ref().expect("a merge carries witnesses");
+    assert!(
+        evidence.paths().len() >= 2,
+        "a merge that took values from two sources must name both: {evidence}"
+    );
+
+    // Nothing answered: no evidence, which is distinguishable from an answer nobody can name.
+    let empty = resolve(&HashMap::new(), FieldTarget::SessionId);
+    assert!(
+        empty.is_none_or(|resolved| resolved.evidence.is_none()),
+        "an unset field must carry no witness"
+    );
+}
