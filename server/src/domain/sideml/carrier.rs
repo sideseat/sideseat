@@ -10,7 +10,12 @@
 //!   same call appears at two positions while describing one call.
 //!
 //! Both are ordered and both may contain history. They differ only in whether *position* proves
-//! multiplicity - which is why this is four independent facts rather than one enum. The distinction
+//! multiplicity - which is why this is independent facts rather than one enum.
+//!
+//! Note what that sentence is **not** saying: it describes a snapshot against accumulated *framework state*,
+//! and it is not the difference between the `snapshot` and `accumulated_state` presets, which differ only in
+//! whether the carrier holds the span's output. An `EMISSION` also may **not** contain history, which the
+//! sentence above would otherwise seem to allow. The distinction
 //! was previously an unstated global rule ("trust the id, fall back to position"), which happened to
 //! give the right answer for both cases and said nothing about why.
 //!

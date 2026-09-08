@@ -875,7 +875,12 @@ pub fn in_family(key: &str, root: &str) -> bool {
             .is_some_and(|rest| rest.starts_with('.'))
 }
 
-/// The six carrier facts, named by preset with optional per-field overrides.
+/// The **eight** carrier facts, named by preset with optional per-field overrides.
+///
+/// A preset is a constructor, not a category: `snapshot` and `accumulated_state` differ in one bit, so two
+/// declarations that read as different kinds of thing can be the same eight facts - and the name does not
+/// survive compilation. 37 of the 55 shipped clauses override something, and nearly all of those overrides are
+/// compensating for direction or encoding being bundled into a preset that is otherwise about *reconstruction*.
 ///
 /// A preset plus overrides rather than six booleans spelled out per clause: the presets are the
 /// vocabulary the model is stated in, and a clause that writes them all out invites one being wrong in

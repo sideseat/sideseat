@@ -121,7 +121,7 @@ reliably semantic. Scope constraints *narrow* candidates; carrier and shape rema
    ingestion-time extraction produced nothing, so re-interpreting archived spans at query time would
    still miss exactly the spans a new rule would newly recognise.
 2. `EXTRACTORS` held **16** entries — 15 framework extractors plus `raw_io`. It no longer exists.
-3. The six carrier facts are **not** the whole policy surface. `order_graph.rs:188` hardcodes
+3. The carrier facts (six then, eight now) are **not** the whole policy surface. `order_graph.rs:188` hardcodes
    `llm.input_messages` as the fragmented-input family — a seventh semantic fact hiding in Rust — and
    source-direction, event→role and expandable-array tables live in `normalize.rs` and
    `feed/types.rs`. A migration that touches only `try_*` fails the criterion.
@@ -477,7 +477,11 @@ bless a regression; an oracle cannot.
    `carrier_holds_span_input`, `carrier_holds_span_output`, `carrier_is_detached_request_frame`,
    `carrier_holds_expandable_message_array`. They are separate booleans rather than one enum because a
    conversation snapshot and accumulated framework state are both ordered and both may hold history, and
-   differ only in whether position proves multiplicity.
+   differ only in whether position proves multiplicity. **That sentence is about the two carrier kinds, not
+   about the two presets that carry those names**: the `snapshot` and `accumulated_state` presets differ in
+   exactly one bit — whether the carrier holds the span's output — and 37 of the 55 clauses override something.
+   So the presets are historical constructors for an eight-bit value rather than a vocabulary the engine acts
+   on, and what refuses a vector the model cannot mean is `incoherent()`, not the preset list.
 6. ✅ **Content and tool normalisation, with explicit named-chain precedence** — 9 `content_blocks` over
    three named chain positions (`message_envelope`, `before_provider_formats`, `after_provider_formats`),
    which are named rather than numbered because the envelope position exists for a reason a number cannot

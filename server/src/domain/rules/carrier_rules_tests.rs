@@ -4456,3 +4456,129 @@ fn a_family_root_respects_the_separator() {
         "a raw prefix ending in `.` still selects the keys below it"
     );
 }
+
+/// A fact vector the model cannot mean is refused.
+///
+/// The eight overrides are applied independently, so **any** vector compiled - including ones where the facts
+/// contradict each other and a reader could not say which the engine would act on. Each rule below holds across
+/// all 55 shipped clauses, which is what makes it a statement about the model rather than a preference.
+///
+/// One implication is **absent on purpose**, and it is the interesting one: a detached request frame ought to
+/// hold the span's input, and all three shipped frames declare that it does not. Their own docs say they are
+/// what the model was given, so the rule is true of the model and false of the assets. Correcting the three
+/// declarations was tried and measured - `carrier_holds_span_input` also gates history detection, so making the
+/// declaration true changed what gets *filtered*: four fixtures moved, a span view lost two messages, and an
+/// assistant's intro text sorted after its own tool call. Enforcing it now would refuse the shipped ruleset for
+/// a defect that is real and not yet safely fixable.
+#[test]
+fn a_fact_vector_the_model_cannot_mean_is_refused() {
+    let compiled = |facts: serde_json::Value, ordering_family: Option<&str>| {
+        let mut clause = serde_json::json!({
+            "id": "probe.clause",
+            "match": {"attribute": "answer"},
+            "facts": facts,
+        });
+        if let (Some(object), Some(family)) = (clause.as_object_mut(), ordering_family) {
+            object.insert("ordering_family".to_string(), serde_json::json!(family));
+        }
+        let asset = serde_json::json!({"id": "probe", "carriers": [clause]});
+        crate::domain::rules::carrier_rules::compile(&std::collections::BTreeMap::from([(
+            "probe.json".to_string(),
+            serde_json::to_vec(&asset).expect("serialises"),
+        )]))
+    };
+
+    for (what, facts, family) in [
+        (
+            "one atomic emission whose positions prove nothing",
+            serde_json::json!({"preset": "emission", "position_proves_distinct_occurrence": false}),
+            None,
+        ),
+        (
+            "one atomic emission that may also be a re-listing",
+            serde_json::json!({"preset": "emission", "carrier_may_contain_history_or_state": true}),
+            None,
+        ),
+        (
+            "a request frame that holds the span's output",
+            serde_json::json!({
+                "preset": "emission",
+                "carrier_is_detached_request_frame": true,
+                "carrier_holds_span_output": true,
+            }),
+            None,
+        ),
+        (
+            "an ordering family whose positions carry no order",
+            serde_json::json!({
+                "preset": "snapshot",
+                "position_provides_sequence_order": false,
+                "carrier_holds_span_input": true,
+            }),
+            Some("probe.family"),
+        ),
+        (
+            "an ordering family on the output side",
+            serde_json::json!({"preset": "accumulated_state", "carrier_holds_span_input": true}),
+            Some("probe.family"),
+        ),
+        (
+            "an ordering family that is not the input side at all",
+            serde_json::json!({"preset": "snapshot"}),
+            Some("probe.family"),
+        ),
+        (
+            "an expandable array whose positions carry no order",
+            serde_json::json!({
+                "preset": "snapshot",
+                "carrier_holds_expandable_message_array": true,
+                "position_provides_sequence_order": false,
+            }),
+            None,
+        ),
+    ] {
+        assert!(
+            compiled(facts, family).is_err(),
+            "{what} must be refused: the facts contradict each other, so no reader can say which the engine \
+             acts on"
+        );
+    }
+
+    // And the coherent shapes still compile, or the refusals are simply a ban on overriding.
+    for (what, facts, family) in [
+        (
+            "a plain emission",
+            serde_json::json!({"preset": "emission"}),
+            None,
+        ),
+        (
+            "a snapshot that is the input side",
+            serde_json::json!({"preset": "snapshot", "carrier_holds_span_input": true}),
+            None,
+        ),
+        (
+            "an ordered input family",
+            serde_json::json!({"preset": "snapshot", "carrier_holds_span_input": true}),
+            Some("probe.family"),
+        ),
+        (
+            "accumulated state, which is output and a re-listing at once",
+            serde_json::json!({"preset": "accumulated_state"}),
+            None,
+        ),
+        (
+            "a carrier that is both sides",
+            serde_json::json!({
+                "preset": "snapshot",
+                "carrier_holds_span_input": true,
+                "carrier_holds_span_output": true,
+            }),
+            None,
+        ),
+    ] {
+        assert!(
+            compiled(facts, family).is_ok(),
+            "{what} is coherent and must compile"
+        );
+    }
+}

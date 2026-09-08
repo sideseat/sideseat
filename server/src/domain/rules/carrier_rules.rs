@@ -90,6 +90,11 @@ pub struct CarrierPlan {
 /// Why a ruleset would not compile.
 #[derive(Debug)]
 pub enum CompileError {
+    /// A combination of facts the model cannot mean.
+    IncoherentFacts {
+        clause: String,
+        detail: &'static str,
+    },
     /// An observation type that is not one, or a list of them that holds for everything.
     UnknownObservationType {
         clause: String,
@@ -130,6 +135,9 @@ pub enum CompileError {
 impl std::fmt::Display for CompileError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            Self::IncoherentFacts { clause, detail } => {
+                write!(f, "carrier clause `{clause}` {detail}")
+            }
             Self::UnknownObservationType { clause, declared } => write!(
                 f,
                 "carrier clause `{clause}` is qualified by observation type `{declared}`, which is not one \
@@ -168,8 +176,20 @@ impl std::fmt::Display for CompileError {
     }
 }
 
-/// Resolve a preset name to the six facts, then apply the clause's overrides.
-fn resolve_facts(clause_id: &str, facts: &Facts) -> Result<CarrierSemantics, CompileError> {
+/// Resolve a preset name to the eight facts, then apply the clause's overrides, then refuse a vector the
+/// model cannot mean.
+///
+/// **The presets are not a semantic vocabulary**, and saying so here is more use than the names suggest.
+/// `snapshot` and `accumulated_state` differ in exactly one bit - whether the carrier holds the span's output -
+/// so `{preset: accumulated_state}` and `{preset: snapshot, carrier_holds_span_output: true}` are the same
+/// declaration written two ways, and the corpus contains both spellings. Nor does the preset name survive
+/// compilation: only the bits do. So they are historical constructors for an eight-bit value rather than
+/// categories the engine acts on, and the honest form is orthogonal axes with one spelling each.
+fn resolve_facts(
+    clause_id: &str,
+    facts: &Facts,
+    ordering_family: &Option<String>,
+) -> Result<CarrierSemantics, CompileError> {
     let mut semantics = match facts.preset.as_str() {
         "emission" => CarrierSemantics::EMISSION,
         "snapshot" => CarrierSemantics::SNAPSHOT,
@@ -205,7 +225,80 @@ fn resolve_facts(clause_id: &str, facts: &Facts) -> Result<CarrierSemantics, Com
     if let Some(v) = facts.carrier_is_detached_request_frame {
         semantics.carrier_is_detached_request_frame = v;
     }
+    if let Some(detail) = incoherent(&semantics, ordering_family) {
+        return Err(CompileError::IncoherentFacts {
+            clause: clause_id.to_string(),
+            detail,
+        });
+    }
     Ok(semantics)
+}
+
+/// A combination of facts the model cannot mean.
+///
+/// The eight overrides are applied independently, so any vector at all compiled - including ones where the
+/// facts contradict each other and a reader could not say which the engine would act on. Each rule here holds
+/// across all 55 shipped clauses, which is what makes it a statement about the model rather than a preference.
+///
+/// **One implication is deliberately absent: a detached request frame must hold the span's input.** All three
+/// shipped frames declare `carrier_holds_span_input: false` while their own docs say they are what the model
+/// was given, so the rule is *true of the model and false of the assets*. Correcting the three declarations was
+/// tried and measured: that flag also gates **history detection**, not only ordering, so making the declaration
+/// true changed what gets *filtered* - four fixtures moved, a span view lost two messages, and an assistant's
+/// intro text sorted after its own tool call. The declarations and the ordering consumer have to move together,
+/// which is separate work; enforcing the implication now would refuse the shipped ruleset for a defect that is
+/// real and not yet safely fixable.
+fn incoherent(
+    semantics: &CarrierSemantics,
+    ordering_family: &Option<String>,
+) -> Option<&'static str> {
+    if semantics.carrier_is_atomic_emission && !semantics.position_proves_distinct_occurrence {
+        return Some(
+            "is one atomic emission and says its positions do not prove distinct occurrences - the whole \
+             point of an emission is that each position in it is a separate thing that happened",
+        );
+    }
+    if semantics.carrier_is_atomic_emission && semantics.carrier_may_contain_history_or_state {
+        return Some(
+            "is one atomic emission and may contain history - an emission is what this span produced now, so \
+             it cannot also be a re-listing of earlier turns",
+        );
+    }
+    if semantics.carrier_is_detached_request_frame && semantics.carrier_holds_span_output {
+        return Some(
+            "is a detached request frame and holds the span's output - a frame precedes what the request saw, \
+             so it is on the input side by definition",
+        );
+    }
+    if ordering_family.is_some() {
+        if !semantics.position_provides_sequence_order {
+            return Some(
+                "names an ordering family and says its positions carry no sequence order, so the family \
+                 orders nothing",
+            );
+        }
+        if semantics.carrier_holds_span_output {
+            return Some(
+                "names an ordering family and holds the span's output - the families order a request's \
+                 *inputs*, so the resolver never reads it",
+            );
+        }
+        if !semantics.carrier_holds_span_input {
+            return Some(
+                "names an ordering family and does not hold the span's input, which is the side those \
+                 families order",
+            );
+        }
+    }
+    if semantics.carrier_holds_expandable_message_array
+        && !semantics.position_provides_sequence_order
+    {
+        return Some(
+            "expands into one observation per message and says its positions carry no sequence order - the \
+             expansion is what gives each message its position",
+        );
+    }
+    None
 }
 
 /// Compile every asset into one plan.
@@ -316,7 +409,7 @@ pub fn compile(sources: &BTreeMap<String, Vec<u8>>) -> Result<CarrierPlan, Compi
                 clause_id: id.clone(),
                 doc: doc.clone(),
                 match_spec: match_spec.clone(),
-                semantics: resolve_facts(id, facts)?,
+                semantics: resolve_facts(id, facts, ordering_family)?,
                 ordering_family: ordering_family.clone(),
             });
         }
