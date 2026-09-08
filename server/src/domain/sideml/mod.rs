@@ -95,6 +95,12 @@ use serde_json::{Value as JsonValue, json};
 
 // Message-structure keys that indicate a value is a proper message wrapper,
 // not plain structured output data.
+/// The retired list, for the equivalence oracle: the declared vocabulary must mean this and no more.
+#[cfg(test)]
+pub(crate) fn message_structure_keys_legacy() -> &'static [&'static str] {
+    MESSAGE_STRUCTURE_KEYS
+}
+
 #[cfg(test)]
 const MESSAGE_STRUCTURE_KEYS: &[&str] = &[
     "role",

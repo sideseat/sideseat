@@ -212,36 +212,71 @@ pub fn ruleset() -> &'static Ruleset {
                 .unwrap_or_else(|e| panic!("embedded classification rules are malformed: {e}")),
             message_members: members::compile(&sources)
                 .unwrap_or_else(|e| panic!("embedded member rules are malformed: {e}")),
-            provider_aliases: compile_provider_aliases(&parsed_files(&sources)),
+            provider_aliases: compile_provider_aliases(&parsed_files(&sources))
+                .unwrap_or_else(|e| panic!("embedded provider aliases are malformed: {e}")),
             digest,
         }
     })
 }
 
-/// The declared `gen_ai.system` → provider aliases, refusing a value that two assets answer differently.
-fn compile_provider_aliases(
+/// The declared `gen_ai.system` → provider aliases.
+///
+/// Every refusal here is a declaration that could not take effect, which reads as one that does. A `Result`
+/// rather than a panic, so a test can state the refusals rather than catching an unwind - the same shape the
+/// other compile functions have.
+pub(super) fn compile_provider_aliases(
     files: &[schema::RuleFile],
-) -> std::collections::BTreeMap<String, String> {
+) -> Result<std::collections::BTreeMap<String, String>, String> {
     let mut out: std::collections::BTreeMap<String, String> = std::collections::BTreeMap::new();
     for file in files {
         for alias in &file.provider_aliases {
-            assert!(
-                !alias.system.is_empty() && !alias.provider.is_empty(),
-                "provider alias in `{}` names an empty system or provider",
-                file.id
-            );
+            if alias.system.is_empty() || alias.provider.is_empty() {
+                return Err(format!(
+                    "provider alias in `{}` names an empty system or provider",
+                    file.id
+                ));
+            }
+            // The value is matched **after** normalisation, so a key normalisation would never produce can never
+            // be reached.
+            let normalised = alias.system.to_lowercase().replace(['-', ' '], "_");
+            if normalised != alias.system {
+                return Err(format!(
+                    "provider alias `{}` in `{}` is not in the form the lookup normalises to (`{normalised}`), \
+                     so it would never be reached",
+                    alias.system, file.id
+                ));
+            }
+            // A key the catalogue's own table already answers is shadowed by that table - the ordering makes it
+            // harmless and this makes it visible.
+            let shadowed = crate::domain::pricing::builtin_provider(&normalised);
+            if !shadowed.is_empty() {
+                return Err(format!(
+                    "provider alias `{}` in `{}` names a value the catalogue already reads as provider \
+                     `{shadowed}`, so the declaration could never take effect",
+                    alias.system, file.id
+                ));
+            }
+            // And the provider it names has to be one the catalogue knows, or the alias resolves to a name
+            // nothing prices - which looks like a priced call and is not.
+            if crate::domain::pricing::builtin_provider(&alias.provider) != alias.provider {
+                return Err(format!(
+                    "provider alias `{}` in `{}` names provider `{}`, which the catalogue does not read as a \
+                     provider of its own",
+                    alias.system, file.id, alias.provider
+                ));
+            }
             if let Some(first) = out.insert(alias.system.clone(), alias.provider.clone())
                 && first != alias.provider
             {
-                panic!(
+                return Err(format!(
                     "`{}` is declared as provider `{first}` and as `{}`, so which one prices a call would \
                      depend on load order",
                     alias.system, alias.provider
-                );
+                ));
             }
         }
     }
-    out
+    Ok(out)
 }
 
 /// The ruleset digest, for the reconstruction cache key.

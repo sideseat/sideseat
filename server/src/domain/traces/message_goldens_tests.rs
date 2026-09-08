@@ -4142,3 +4142,153 @@ fn the_declared_classification_matches_the_sweep_across_the_corpus() {
     );
     eprintln!("classification over {spans} corpus spans: {seen:?}");
 }
+
+/// The migrated member vocabulary answers as the retired lists did for **every raw message of the corpus**, and
+/// every declared member is reached by one.
+///
+/// The goldens compare the *finished* views, so a divergence inside normalisation that two paths happen to
+/// cancel out would not show. This compares the migrated units directly, over corpus data rather than
+/// hand-written shapes - and reports which declared members no captured message carries, so a member that is
+/// there for a framework nobody has captured is visible rather than assumed exercised.
+#[test]
+fn the_member_vocabulary_answers_as_it_did_across_the_corpus() {
+    use crate::domain::sideml::{is_plain_data_value, is_plain_data_value_legacy};
+
+    let plan = &crate::domain::rules::ruleset().message_members;
+    let mut values = 0_usize;
+    let mut disagreements = Vec::new();
+    let mut members_seen: BTreeSet<String> = BTreeSet::new();
+
+    // Every JSON value any captured span carries, walked - a message, a content block, a nested part. What
+    // matters is that these are shapes producers actually wrote rather than shapes I thought of.
+    fn walk(
+        value: &serde_json::Value,
+        depth: usize,
+        seen: &mut BTreeSet<String>,
+        count: &mut usize,
+        disagreements: &mut Vec<String>,
+    ) {
+        if depth > 8 {
+            return;
+        }
+        match value {
+            serde_json::Value::Object(map) => {
+                *count += 1;
+                for key in map.keys() {
+                    seen.insert(key.clone());
+                }
+                if is_plain_data_value(value) != is_plain_data_value_legacy(value) {
+                    disagreements.push(format!(
+                        "bare-data disagreement on {}",
+                        &value.to_string()[..value.to_string().len().min(160)]
+                    ));
+                }
+                for inner in map.values() {
+                    walk(inner, depth + 1, seen, count, disagreements);
+                }
+            }
+            serde_json::Value::Array(items) => {
+                for inner in items {
+                    walk(inner, depth + 1, seen, count, disagreements);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    for (_, paths) in discover_fixtures() {
+        for path in &paths {
+            let request = decode_request(path);
+            for resource in &request.resource_spans {
+                for scope in &resource.scope_spans {
+                    for span in &scope.spans {
+                        for attr in &span.attributes {
+                            let Some(text) = attr
+                                .value
+                                .as_ref()
+                                .and_then(|v| v.value.as_ref())
+                                .and_then(|v| match v {
+                                    opentelemetry_proto::tonic::common::v1::any_value::Value::StringValue(s) => Some(s),
+                                    _ => None,
+                                })
+                            else {
+                                continue;
+                            };
+                            if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(text) {
+                                walk(
+                                    &parsed,
+                                    0,
+                                    &mut members_seen,
+                                    &mut values,
+                                    &mut disagreements,
+                                );
+                            }
+                        }
+                        for event in &span.events {
+                            for attr in &event.attributes {
+                                let Some(text) = attr
+                                    .value
+                                    .as_ref()
+                                    .and_then(|v| v.value.as_ref())
+                                    .and_then(|v| match v {
+                                        opentelemetry_proto::tonic::common::v1::any_value::Value::StringValue(s) => Some(s),
+                                        _ => None,
+                                    })
+                                else {
+                                    continue;
+                                };
+                                if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(text)
+                                {
+                                    walk(
+                                        &parsed,
+                                        0,
+                                        &mut members_seen,
+                                        &mut values,
+                                        &mut disagreements,
+                                    );
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    assert!(
+        values > 1_000,
+        "the corpus produced only {values} objects to compare, which is too few to mean anything"
+    );
+    assert!(
+        disagreements.is_empty(),
+        "{} of {values} corpus objects answer differently:\n{}",
+        disagreements.len(),
+        disagreements.join("\n")
+    );
+
+    // Which declared members the corpus actually carries. Not an assertion that all of them do - several are
+    // there for dialects nobody has captured, exactly as the unreached message rules are - but the numbers are
+    // reported so a vocabulary that has stopped being exercised is visible.
+    let declared: BTreeSet<&str> = crate::domain::rules::ruleset()
+        .message_members
+        .content_in_order()
+        .chain(plan.message_shaped_members())
+        .chain(plan.content_block_members())
+        .collect();
+    let reached: Vec<&&str> = declared
+        .iter()
+        .filter(|m| members_seen.contains(**m))
+        .collect();
+    eprintln!(
+        "member vocabulary over {values} corpus objects: {} of {} declared members appear",
+        reached.len(),
+        declared.len()
+    );
+    assert!(
+        reached.len() * 2 > declared.len(),
+        "only {} of {} declared members appear anywhere in the corpus, which suggests the vocabulary no longer \
+         describes what producers write",
+        reached.len(),
+        declared.len()
+    );
+}

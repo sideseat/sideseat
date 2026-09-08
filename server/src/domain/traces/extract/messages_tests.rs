@@ -11701,6 +11701,21 @@ fn the_declared_members_reproduce_the_lists_they_replaced() {
         );
     }
 
+    // The message-shape vocabulary as a set too, in both directions - the same reason: a member missing from it
+    // makes a turn look like bare data to be wrapped, and one added makes a producer's own JSON look like a
+    // message with no blocks. Comparing only the *predicate* over chosen shapes cannot see a member neither
+    // shape carries.
+    let retired_shape: std::collections::BTreeSet<&str> =
+        crate::domain::sideml::message_structure_keys_legacy()
+            .iter()
+            .copied()
+            .collect();
+    let declared_shape: std::collections::BTreeSet<&str> = plan.message_shaped_members().collect();
+    assert_eq!(
+        declared_shape, retired_shape,
+        "the declared message-shape vocabulary is not exactly the retired list"
+    );
+
     // The content-block vocabulary, as a **set**: the declared one must mean exactly what the retired list
     // meant, since a member missing from it turns a malformed block into plain structured output and one added
     // to it turns plain data into an unknown block.

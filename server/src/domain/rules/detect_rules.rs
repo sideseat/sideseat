@@ -212,6 +212,16 @@ pub fn compile(sources: &BTreeMap<String, Vec<u8>>) -> Result<DetectPlan, Detect
                     dimension: "text_contains",
                 });
             }
+            // The same refusal a field-source gate gets. This path validates a *detection* rule and does not go
+            // through `gate_defect`, so the mixed-source case was refused for one caller and compiled for the
+            // other - and compilation loses the declared order between the span name and an attribute, so such
+            // a rule matches on a source its author put second.
+            if mixed_first_present_sources(spec) {
+                return Err(DetectCompileError::EmptyLiteral {
+                    rule: rule.id.clone(),
+                    dimension: "text_contains.first_present_source",
+                });
+            }
             let (mut span_source, mut attr_keys, mut needles) = (false, Vec::new(), Vec::new());
             if let Some(TextContains {
                 sources,
@@ -310,6 +320,20 @@ pub(super) fn unavailable_gate_dimension(spec: &DetectMatch) -> Option<&'static 
     None
 }
 
+/// A first-present search over *mixed* sources, which cannot be honoured.
+///
+/// Compilation splits sources into "the span name" and a list of attribute keys, so the declared order between
+/// the two is lost and the span name is always reached first. Refused rather than silently reordered - no asset
+/// needs the mix, and the fix if one ever does is to compile an ordered list of sources rather than a flag and a
+/// list. One definition, because the two compile paths refused it inconsistently.
+pub(super) fn mixed_first_present_sources(spec: &DetectMatch) -> bool {
+    spec.text_contains.as_ref().is_some_and(|text| {
+        text.first_present_source
+            && text.sources.iter().any(|s| s == "span_name")
+            && text.sources.iter().any(|s| s != "span_name")
+    })
+}
+
 /// Why a gate could never hold, where that is decidable from the declaration alone.
 ///
 /// A gate is a *disjunction*, so an empty one is not "match anything" - it is `false`, and every rule carrying
@@ -336,15 +360,7 @@ pub(super) fn gate_defect(spec: &DetectMatch) -> Option<&'static str> {
             "names an empty span-name prefix, attribute key or service name, which matches either              everything or nothing rather than what it reads as",
         );
     }
-    // A first-present search over *mixed* sources cannot be honoured: compilation splits them into "the span
-    // name" and a list of attribute keys, so the declared order between the two is lost and the span name is
-    // always reached first. Refused rather than silently reordered - no asset needs the mix, and the fix if one
-    // ever does is to compile an ordered list of sources rather than a flag and a list.
-    if let Some(text) = &spec.text_contains
-        && text.first_present_source
-        && text.sources.iter().any(|s| s == "span_name")
-        && text.sources.iter().any(|s| s != "span_name")
-    {
+    if mixed_first_present_sources(spec) {
         return Some(
             "searches the first source that has a value over a mix of the span name and attributes, and the              declared order between those two is not preserved - name them separately, or use one kind",
         );

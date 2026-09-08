@@ -594,16 +594,29 @@ fn map_system_to_litellm_provider(system: &str) -> &'static str {
     // hand is how `amazon-bedrock` came to be missing altogether, which cost it both its Bedrock prices and
     // its cache-counter convention.
     let normalised = system.to_lowercase().replace(['-', ' '], "_");
-    // A framework naming *itself* here is declared by the asset that owns that framework: it is a statement
-    // about a producer, not about the catalogue's vocabulary. Consulted first, so such a value never has to be
-    // spelled below as if it were a provider's own name.
-    if let Some(provider) = crate::domain::rules::ruleset()
-        .provider_aliases
-        .get(&normalised)
-    {
-        return provider;
+    match builtin_provider(&normalised) {
+        "" => {
+            // A framework naming *itself* here is declared by the asset that owns that framework - a statement
+            // about a producer rather than about the catalogue's vocabulary. Consulted **after** the table
+            // above, not before: an alias then cannot shadow a provider's own spelling, whatever an asset
+            // declares. Compilation refuses such a declaration as well, but the ordering is what makes it
+            // impossible rather than merely caught.
+            crate::domain::rules::ruleset()
+                .provider_aliases
+                .get(&normalised)
+                .map(String::as_str)
+                .unwrap_or("")
+        }
+        found => found,
     }
-    match normalised.as_str() {
+}
+
+/// The catalogue's own provider vocabulary: spellings of a provider, mapped to the name the catalogue uses.
+///
+/// Separate from the entry point because it must be callable **while the ruleset is compiling** - that is where
+/// a declared alias is checked against it, and re-entering `ruleset()` there would deadlock on its own lock.
+pub(crate) fn builtin_provider(normalised: &str) -> &'static str {
+    match normalised {
         // Direct mappings
         "openai" => "openai",
         "anthropic" => "anthropic",

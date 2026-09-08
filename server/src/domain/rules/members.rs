@@ -68,6 +68,11 @@ impl MemberPlan {
         members.into_iter().any(|m| self.content_block.contains(m))
     }
 
+    /// Every member that means the value is message-shaped, for a test that checks the vocabulary as a set.
+    pub fn message_shaped_members(&self) -> impl Iterator<Item = &str> {
+        self.message_shaped.iter().map(String::as_str)
+    }
+
     /// Every member that means the value is a content block, for a test that checks the vocabulary as a set.
     pub fn content_block_members(&self) -> impl Iterator<Item = &str> {
         self.content_block.iter().map(String::as_str)

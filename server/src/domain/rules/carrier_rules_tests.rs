@@ -1332,3 +1332,54 @@ fn a_classification_rule_answers_in_its_own_vocabulary() {
         "the refusal says the answer is unknown, and lists the ones that are not"
     );
 }
+
+/// A declared provider alias must be reachable, must not shadow the catalogue, and must name a provider it knows.
+///
+/// The alias table answers only where the catalogue's own table says nothing, so a shadowing declaration cannot
+/// take effect - and a declaration that cannot take effect reads as one that does, which is the class this engine
+/// refuses. Two more, for the same reason: a key normalisation would never produce is unreachable, and a target
+/// the catalogue does not read as a provider resolves to a name nothing prices, which looks like a priced call.
+#[test]
+fn a_provider_alias_must_be_reachable_and_not_shadow_the_catalogue() {
+    use super::schema::RuleFile;
+
+    let compiled = |alias: serde_json::Value| {
+        let file: RuleFile = serde_json::from_value(serde_json::json!({
+            "id": "probe",
+            "provider_aliases": [alias],
+        }))
+        .expect("the probe asset parses");
+        super::compile_provider_aliases(&[file])
+    };
+
+    for (what, alias) in [
+        (
+            "a key the catalogue already reads as a provider",
+            serde_json::json!({"system": "openai", "provider": "gemini"}),
+        ),
+        (
+            "a key normalisation would never produce",
+            serde_json::json!({"system": "google-adk", "provider": "gemini"}),
+        ),
+        (
+            "a key with upper case, which normalisation folds away",
+            serde_json::json!({"system": "Google_ADK", "provider": "gemini"}),
+        ),
+        (
+            "a provider the catalogue does not know",
+            serde_json::json!({"system": "some_framework", "provider": "not_a_provider"}),
+        ),
+        (
+            "an empty system",
+            serde_json::json!({"system": "", "provider": "gemini"}),
+        ),
+    ] {
+        assert!(compiled(alias).is_err(), "should have been refused: {what}");
+    }
+
+    // And the shape the shipped asset uses compiles.
+    assert!(
+        compiled(serde_json::json!({"system": "some_framework", "provider": "gemini"})).is_ok(),
+        "a framework naming a provider the catalogue knows is the whole point"
+    );
+}

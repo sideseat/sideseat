@@ -160,3 +160,50 @@ fn detection_asks_no_question_about_framework_identity() {
         );
     }
 }
+
+/// A first-present phrase search over mixed sources is refused on **both** compile paths.
+///
+/// Compilation splits sources into "the span name" and a list of attribute keys, so the declared order between
+/// the two is lost and the name is always reached first. The detection path validates rules of its own and does
+/// not go through `gate_defect`, so this was refused for a field source and accepted here - one definition now,
+/// because that is the shape of the defect.
+#[test]
+fn a_mixed_first_present_search_is_refused_here_too() {
+    let mixed = br#"{
+      "id": "t", "doc": "d",
+      "detect": [
+        {"id": "x", "doc": "d", "label": "X", "legacy_rank": 10,
+         "match": {"text_contains": {"sources": ["attr:model", "span_name"], "needles": ["embed"],
+                                     "first_present_source": true}}}
+      ]
+    }"#;
+    let sources = std::collections::BTreeMap::from([("t.json".to_string(), mixed.to_vec())]);
+    assert!(
+        compile(&sources).is_err(),
+        "the declared order between the span name and an attribute is not preserved, so this must not compile"
+    );
+
+    // One kind of source is fine, and so is the same mix *without* the flag - where every source is searched and
+    // there is no order to lose.
+    for asset in [
+        br#"{"id":"t","doc":"d","detect":[
+            {"id":"x","doc":"d","label":"X","legacy_rank":10,
+             "match":{"text_contains":{"sources":["attr:a","attr:b"],"needles":["e"],"first_present_source":true}}}]}"#
+            .to_vec(),
+        br#"{"id":"t","doc":"d","detect":[
+            {"id":"x","doc":"d","label":"X","legacy_rank":10,
+             "match":{"text_contains":{"sources":["span_name"],"needles":["e"],"first_present_source":true}}}]}"#
+            .to_vec(),
+        br#"{"id":"t","doc":"d","detect":[
+            {"id":"x","doc":"d","label":"X","legacy_rank":10,
+             "match":{"text_contains":{"sources":["attr:model","span_name"],"needles":["e"]}}}]}"#
+            .to_vec(),
+    ] {
+        let sources = std::collections::BTreeMap::from([("t.json".to_string(), asset)]);
+        assert!(
+            compile(&sources).is_ok(),
+            "there is no order to lose here: {:?}",
+            compile(&sources).err()
+        );
+    }
+}
