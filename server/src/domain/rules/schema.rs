@@ -325,6 +325,14 @@ pub struct FieldSource {
     /// resolver has the raw name whatever the target is.
     #[serde(default)]
     pub raw_span_name: bool,
+    /// Fold the answer to lower case.
+    ///
+    /// For a field whose values are a **case-insensitive enum** and are stored lower case. One dialect writes
+    /// `STOP` where the conventions write `stop`, and both mean the same thing - so the alternative is a
+    /// stored value whose case depends on which producer wrote the span, which every reader then has to fold
+    /// again. Generic: it says the producer's casing is not information, and any source may say so.
+    #[serde(default)]
+    pub lowercase: bool,
     /// The span's own name, with this prefix stripped.
     ///
     /// A name rather than an attribute, because the conventions prescribe `execute_tool {name}` - the tool's

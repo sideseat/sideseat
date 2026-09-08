@@ -2407,3 +2407,83 @@ fn detection_overlaps_are_reported() {
         "sanity: cannot overlap on more shapes than were probed"
     );
 }
+
+/// The declared finish-reason source answers as the Rust block it replaced did.
+///
+/// One dialect serialises its whole response and writes the reason in **upper case**, which is why the source
+/// declares `lowercase`. Both halves matter: the value and its casing, since the retired block folded it and a
+/// stored `STOP` beside every other producer's `stop` is a value whose case depends on who wrote the span.
+#[test]
+fn the_declared_finish_reason_source_reproduces_the_retired_block() {
+    use crate::domain::rules::ruleset;
+
+    let resolve = |attrs: &std::collections::HashMap<String, String>| -> Vec<String> {
+        ruleset()
+            .span_fields
+            .resolve("some.span", attrs)
+            .into_iter()
+            .find(|r| {
+                matches!(
+                    r.target,
+                    crate::domain::rules::schema::FieldTarget::GenAiFinishReasons
+                )
+            })
+            .and_then(|r| match r.reading {
+                crate::domain::rules::span_fields::Reading::StringList(items) => Some(items),
+                crate::domain::rules::span_fields::Reading::Text(text) => Some(vec![text]),
+                _ => None,
+            })
+            .unwrap_or_default()
+    };
+
+    // The retired block: parse the attribute, take `finish_reason`, lower-case it.
+    let retired = |attrs: &std::collections::HashMap<String, String>| -> Vec<String> {
+        attrs
+            .get("gcp.vertex.agent.llm_response")
+            .and_then(|response| serde_json::from_str::<serde_json::Value>(response).ok())
+            .and_then(|json| {
+                json.get("finish_reason")
+                    .and_then(|r| r.as_str())
+                    .map(|r| vec![r.to_lowercase()])
+            })
+            .unwrap_or_default()
+    };
+
+    for payload in [
+        r#"{"finish_reason": "STOP"}"#,
+        r#"{"finish_reason": "stop"}"#,
+        r#"{"finish_reason": "MAX_TOKENS"}"#,
+        // No reason in it, and a payload that is not an object: both must answer nothing.
+        r#"{"candidates": []}"#,
+        r#"{"finish_reason": null}"#,
+        r#"[]"#,
+        r#"not json at all"#,
+    ] {
+        let mut attrs = std::collections::HashMap::new();
+        attrs.insert(
+            "gcp.vertex.agent.llm_response".to_string(),
+            payload.to_string(),
+        );
+        assert_eq!(
+            resolve(&attrs),
+            retired(&attrs),
+            "the declared source disagrees with the retired block on `{payload}`"
+        );
+    }
+
+    // And the conventional attribute still wins, which is the chain's order and not an accident.
+    let mut both = std::collections::HashMap::new();
+    both.insert(
+        "gen_ai.response.finish_reasons".to_string(),
+        "tool_use".to_string(),
+    );
+    both.insert(
+        "gcp.vertex.agent.llm_response".to_string(),
+        r#"{"finish_reason": "STOP"}"#.to_string(),
+    );
+    assert_eq!(
+        resolve(&both),
+        vec!["tool_use".to_string()],
+        "the conventional attribute is first in the chain and must win"
+    );
+}

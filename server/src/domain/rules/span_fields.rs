@@ -239,7 +239,10 @@ impl SpanFieldPlan {
             {
                 continue;
             }
-            let reading = read_source(&source.spec, field_type, span_name, attrs, parsed);
+            let reading = folded_if_declared(
+                read_source(&source.spec, field_type, span_name, attrs, parsed),
+                source.spec.lowercase,
+            );
             if let Reading::Malformed { .. } = &reading
                 && source.spec.on_malformed == MalformedPolicy::Stop
             {
@@ -353,6 +356,25 @@ fn source_label(spec: &FieldSource) -> String {
         return format!("the literal `{value}`");
     }
     String::new()
+}
+
+/// The reading with its text folded to lower case, where the source declared the producer's casing is not
+/// information.
+///
+/// Applied once, where a source's reading is produced, rather than inside each read: the flag is a statement
+/// about the *field's* vocabulary, so it must mean the same thing whether the value came from a flat
+/// attribute, a JSON path or a first-present group. A number is left alone, having no case.
+fn folded_if_declared(reading: Reading, lowercase: bool) -> Reading {
+    if !lowercase {
+        return reading;
+    }
+    match reading {
+        Reading::Text(text) => Reading::Text(text.to_lowercase()),
+        Reading::StringList(items) => {
+            Reading::StringList(items.iter().map(|item| item.to_lowercase()).collect())
+        }
+        other => other,
+    }
 }
 
 fn read_source<'a>(

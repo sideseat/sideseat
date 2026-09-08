@@ -1384,6 +1384,31 @@ fn a_provider_alias_must_be_reachable_and_not_shadow_the_catalogue() {
     );
 }
 
+/// Assets that identify **no producer**: the conventions and this engine's own shared vocabulary. Each is
+/// checked to declare no `detect` rule, which is the property that makes it shared - so an entry that does
+/// identify a producer cannot hide here.
+const SHARED_VOCABULARY: &[&str] = &[
+    "semconv",
+    "generic-io",
+    "message-members",
+    "observation-types",
+    "span-categories",
+    "span-fields-display",
+    "span-fields-genai",
+    "span-fields-semantic",
+    "span-fields-usage",
+    "content-blocks-vercel",
+    "content-blocks-wrappers",
+];
+
+/// Assets naming a **provider** rather than a framework. The pricing catalogue is entitled to those names,
+/// and each is checked against the catalogue's own table - so a *framework* cannot hide here either.
+///
+/// Exclusions rather than a list of frameworks, because the frameworks are the part that grows: a new asset
+/// is a new name the sweep must know, and deriving it means adding one cannot be forgotten. And exclusions
+/// need a property each, or the list is a way to make the sweep quiet.
+const PROVIDERS: &[&str] = &["bedrock", "azure-openai", "vertex-ai"];
+
 /// **No production module names a framework**, across the whole server, with the exemptions named.
 ///
 /// The two extraction files have their own gate above, with the carrier keys and constant identifiers that are
@@ -1409,31 +1434,6 @@ fn a_provider_alias_must_be_reachable_and_not_shadow_the_catalogue() {
 ///   run of literals is joined as tokens - so `concat!("lang", "graph")` is `langgraph` even split across lines.
 #[test]
 fn no_production_module_names_a_framework() {
-    /// Assets that identify **no producer**: the conventions and this engine's own shared vocabulary. Each is
-    /// checked to declare no `detect` rule, which is the property that makes it shared - so an entry that does
-    /// identify a producer cannot hide here.
-    const SHARED_VOCABULARY: &[&str] = &[
-        "semconv",
-        "generic-io",
-        "message-members",
-        "observation-types",
-        "span-categories",
-        "span-fields-display",
-        "span-fields-genai",
-        "span-fields-semantic",
-        "span-fields-usage",
-        "content-blocks-vercel",
-        "content-blocks-wrappers",
-    ];
-
-    /// Assets naming a **provider** rather than a framework. The pricing catalogue is entitled to those names,
-    /// and each is checked against the catalogue's own table - so a *framework* cannot hide here either.
-    ///
-    /// Exclusions rather than a list of frameworks, because the frameworks are the part that grows: a new asset
-    /// is a new name the sweep must know, and deriving it means adding one cannot be forgotten. And exclusions
-    /// need a property each, or the list is a way to make the sweep quiet.
-    const PROVIDERS: &[&str] = &["bedrock", "azure-openai", "vertex-ai"];
-
     /// A shorter name the same producer goes by, tied to the asset it belongs to.
     ///
     /// Deriving separator variants of an asset id is not enough, and the gap is the shape the code actually used:
@@ -2276,5 +2276,180 @@ fn an_event_role_declaration_must_be_able_to_answer_and_must_not_depend_on_load_
         ),
     ] {
         assert!(compiled(roles).is_ok(), "{what} was refused");
+    }
+}
+
+/// **No production module carries a framework's telemetry key as a literal**, which is the blind spot the
+/// name sweep documents and cannot close.
+///
+/// The name sweep reads framework *names*. It passed while `role_from_event_name_with_context` held an arm
+/// that existed only because one CLI writes its tool result on `tool.output` - a framework fact spelled as a
+/// value, naming nobody. That arm invalidated the acceptance it was given under, so the class is worth a gate
+/// of its own rather than a sentence saying it is not covered.
+///
+/// A key counts as a framework's when it appears in **exactly one** framework asset and in no shared or
+/// provider asset, so the conventions' own vocabulary is not implicated. Only dotted names, and only as a
+/// whole string literal, because a bare word is not evidence of anything.
+///
+/// What it still cannot see, stated for the same reason the other sweep states its limits: a key no asset
+/// declares (nothing identifies it as a producer's), one two frameworks share, a value that is not a dotted
+/// key - a role string, a magic number - and a key assembled at runtime.
+#[test]
+fn no_production_module_carries_a_framework_telemetry_key() {
+    /// Files whose subject is the key itself, and why.
+    const EXEMPT: &[(&str, &str)] = &[(
+        "src/api/mcp/tools.rs",
+        "generates integration documentation, which has to show the attribute names a framework writes",
+    )];
+
+    let sources = crate::domain::rules::schema::embedded_sources();
+    let mut per_asset: std::collections::BTreeMap<String, std::collections::BTreeSet<String>> =
+        std::collections::BTreeMap::new();
+    for (path, bytes) in &sources {
+        let id = path.trim_end_matches(".json").to_string();
+        let value: serde_json::Value = serde_json::from_slice(bytes).expect("the asset parses");
+        let mut keys = std::collections::BTreeSet::new();
+        collect_telemetry_keys(&value, None, &mut keys);
+        per_asset.insert(id, keys);
+    }
+    // A key the **conventions** name is not one framework's, however many frameworks also write it. Only
+    // `semconv` and `generic-io` count for that, and the distinction is the whole difficulty: the other
+    // shared assets are ordered *fallback chains*, and a chain enumerates producers' spellings by design -
+    // `span-fields-usage` lists one dialect's `gcp.vertex.agent.llm_response` beside the conventional
+    // counter. Treating that as evidence the key is generic is what made the first version of this sweep
+    // pass while three production sites read exactly that attribute.
+    const CONVENTIONS: &[&str] = &["semconv", "generic-io"];
+    let neutral = |id: &str| SHARED_VOCABULARY.contains(&id) && !CONVENTIONS.contains(&id);
+    let shared: std::collections::BTreeSet<&String> = per_asset
+        .iter()
+        .filter(|(id, _)| CONVENTIONS.contains(&id.as_str()) || PROVIDERS.contains(&id.as_str()))
+        .flat_map(|(_, keys)| keys)
+        .collect();
+    let mut owners: std::collections::BTreeMap<&String, Vec<&String>> =
+        std::collections::BTreeMap::new();
+    for (id, keys) in &per_asset {
+        if CONVENTIONS.contains(&id.as_str()) || PROVIDERS.contains(&id.as_str()) || neutral(id) {
+            continue;
+        }
+        for key in keys {
+            owners.entry(key).or_default().push(id);
+        }
+    }
+    let exclusive: Vec<(&String, &String)> = owners
+        .iter()
+        .filter(|(key, assets)| {
+            // The conventions' **namespace** is theirs whoever else writes it. `gen_ai.tool.name` is listed
+            // by one dialect's asset and by nobody else's, and it is still a conventional attribute - so
+            // ownership by namespace, not only by which asset happened to enumerate it.
+            assets.len() == 1
+                && !shared.contains(**key)
+                && !key.starts_with("gen_ai.")
+                && !key.starts_with("sideseat.")
+        })
+        .map(|(key, assets)| (*key, assets[0]))
+        .collect();
+    assert!(
+        exclusive.len() > 30,
+        "only {} framework-exclusive keys were derived, which cannot be right",
+        exclusive.len()
+    );
+
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+    let mut offenders: Vec<String> = Vec::new();
+    let mut exempt_used: std::collections::BTreeSet<&str> = std::collections::BTreeSet::new();
+    walk_rust_sources(&root, &mut |path, source| {
+        let relative = path
+            .strip_prefix(std::path::Path::new(env!("CARGO_MANIFEST_DIR")))
+            .unwrap_or(path)
+            .to_string_lossy()
+            .replace('\\', "/");
+        if relative.contains("_tests.rs") || relative.ends_with("/tests.rs") {
+            return;
+        }
+        if let Some((name, _)) = EXEMPT.iter().find(|(file, _)| relative.ends_with(file)) {
+            exempt_used.insert(name);
+            return;
+        }
+        for (number, text) in production_names(source, &relative) {
+            // A whole string literal, which is what a key is written as. `production_names` yields a literal
+            // with its quotes, so this is an exact comparison rather than a search.
+            let literal = text.trim_matches('"');
+            if literal.len() == text.len() {
+                continue;
+            }
+            if let Some((key, asset)) = exclusive.iter().find(|(key, _)| *key == literal) {
+                offenders.push(format!("  {relative}:{number}: \"{key}\" is {asset}'s"));
+            }
+        }
+    });
+    for (file, _) in EXEMPT {
+        assert!(
+            exempt_used.contains(file),
+            "EXEMPT names `{file}`, which the sweep did not find"
+        );
+    }
+    offenders.sort();
+    offenders.dedup();
+    assert!(
+        offenders.is_empty(),
+        "{} production line(s) carry a framework's telemetry key. A key a framework writes belongs in its \
+         asset; if a module genuinely has to name one, add it to EXEMPT with the reason:\n{}",
+        offenders.len(),
+        offenders.join("\n")
+    );
+}
+
+/// Every value an asset uses as a **producer's** key, from the members that hold one.
+///
+/// A member allowlist rather than every string, because most strings in an asset are its own vocabulary: a
+/// rule id, a doc, an emit target, a role. Reading those as producers' keys would make the sweep accuse the
+/// engine of naming things it invented.
+#[cfg(test)]
+fn collect_telemetry_keys(
+    value: &serde_json::Value,
+    under: Option<&str>,
+    out: &mut std::collections::BTreeSet<String>,
+) {
+    const KEY_MEMBERS: &[&str] = &[
+        "attribute",
+        "attributes",
+        "event",
+        "when_event",
+        "indexed_family",
+        "key",
+        "attr_exists",
+        "attr_prefix",
+        "sources",
+        "tag_as",
+        "name",
+        "family",
+        "prefix",
+        "first_present_of",
+        "span_name_prefix",
+    ];
+    match value {
+        // Dotted, so a bare word is not taken for a key, and long enough not to be a fragment.
+        serde_json::Value::String(text)
+            if under.is_some_and(|member| KEY_MEMBERS.contains(&member))
+                && text.contains('.')
+                && !text.ends_with('.')
+                && text.len() > 7 =>
+        {
+            out.insert(text.clone());
+        }
+        serde_json::Value::Object(members) => {
+            for (member, inner) in members {
+                if member == "doc" || member == "id" {
+                    continue;
+                }
+                collect_telemetry_keys(inner, Some(member), out);
+            }
+        }
+        serde_json::Value::Array(items) => {
+            for item in items {
+                collect_telemetry_keys(item, under, out);
+            }
+        }
+        _ => {}
     }
 }

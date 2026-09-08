@@ -258,10 +258,19 @@
     {
       "id": "span-fields.gen_ai_finish_reasons",
       "target": "gen_ai_finish_reasons",
-      "doc": "Only the flat attribute. The event-based fallback stays in Rust because field resolution is given a span's attributes and not its events.",
+      "doc": "The flat attribute, and one dialect's serialised response. Three fallbacks stay in Rust and each for a reason this vocabulary cannot express: the conventions' `gen_ai.choice` **event**, because field resolution is given a span's attributes and not its events; and the two that read the conventions' own `gen_ai.completion` and `gen_ai.output.messages`, which are not a framework's knowledge and whose order relative to the event would flip if they moved here. So a span carrying *both* this dialect's response and one of those now prefers this one - reachable only for a span written by two dialects at once, and this dialect uses neither.",
       "sources": [
         {
           "attribute": "gen_ai.response.finish_reasons"
+        },
+        {
+          "json": {
+            "attribute": "gcp.vertex.agent.llm_response",
+            "path": "$.finish_reason"
+          },
+          "lowercase": true,
+          "on_malformed": "continue",
+          "doc": "A dialect that serialises its whole response and writes the reason in upper case. Folded, because the stored form is lower case and whose casing it is carries no information."
         }
       ]
     },

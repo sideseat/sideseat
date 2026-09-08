@@ -412,6 +412,7 @@ pub(super) mod keys {
     // Google ADK
     #[cfg(test)]
     pub const GCP_VERTEX_LLM_REQUEST: &str = "gcp.vertex.agent.llm_request";
+    #[cfg(test)]
     pub const GCP_VERTEX_LLM_RESPONSE: &str = "gcp.vertex.agent.llm_response";
     #[cfg(test)]
     pub const GCP_VERTEX_TOOL_CALL_ARGS: &str = "gcp.vertex.agent.tool_call_args";
@@ -537,19 +538,7 @@ pub(super) fn extract_attributes_batch(request: &ExportTraceServiceRequest) -> V
                 }
 
                 if span.gen_ai_finish_reasons.is_empty() {
-                    // 4. Try ADK/Vertex response (gcp.vertex.llm.response)
-                    if let Some(response) = span_attrs.get(keys::GCP_VERTEX_LLM_RESPONSE) {
-                        if let Ok(json) = serde_json::from_str::<JsonValue>(response) {
-                            if let Some(reason) = json.get("finish_reason").and_then(|r| r.as_str())
-                            {
-                                span.gen_ai_finish_reasons = vec![reason.to_lowercase()];
-                            }
-                        }
-                    }
-                }
-
-                if span.gen_ai_finish_reasons.is_empty() {
-                    // 5. Try logfire response_data (Text Completions: {finish_reason, text, usage})
+                    // 4. Try logfire response_data (Text Completions: {finish_reason, text, usage})
                     if let Some(response) = span_attrs.get(keys::RESPONSE_DATA) {
                         if let Ok(json) = serde_json::from_str::<JsonValue>(response) {
                             if let Some(reason) = json.get("finish_reason").and_then(|r| r.as_str())
