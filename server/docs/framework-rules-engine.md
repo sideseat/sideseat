@@ -264,8 +264,9 @@ cost convention moves, or the rules will encode the confusion.
 
 ## Verification
 
-- The **119 goldens** are the equivalence gate per framework — and are *not* proof of coverage: the
-  fixtures README records 11 of 32 recognised frameworks. A strong regression gate, nothing more.
+- The **122 goldens** are the equivalence gate per framework — and are *not* proof of coverage: the
+  corpus holds 13 suites, and 9 of the 30 producers the assets declare are represented in them. A strong
+  regression gate, nothing more.
 - The **independent invariants** must keep holding (scope containment, per-trace dedup, tool-id
   correspondence, answer-present, determinism, carrier subsequence).
 - A **structural gate** that is more than a name grep: no producer ids, carrier keys, tags or type
@@ -460,9 +461,118 @@ Redesign or halt if any of these appears:
 - a framework label reaches a behavioural API, under any parameter name;
 - a "generic transform" is a renaming trick;
 - the DSL grows into an unbounded language — B, built by accident, without B's sandbox or tooling;
-- the 119 goldens are treated as complete coverage;
+- the 122 goldens are treated as complete coverage;
 - historical rule fixes are promised without changing filtering and materialisation;
 - rules are not explainable;
 - one-file-per-framework duplicates a dialect;
 - executable provider connectors are described as data;
 - the structural gate is just a framework-name grep.
+
+The last one was reached and answered rather than avoided; see **Acceptance** below for what the gate does
+and does not establish.
+
+## Acceptance
+
+The mandate was that the engine be *designed and accepted together with Codex*, so the acceptance is its
+statement rather than a summary of it. Forty review cycles; cycle 40 found nothing, on `d57afd7c`.
+
+### What the whole-server sweep establishes
+
+Recorded in Codex's words, because the distinction is the point and a paraphrase would blur it:
+
+> The sweep is recordable as enforcement of the syntactic invariant it states: concrete framework names may
+> not appear in production server tokens outside the scoped exemptions. It is not semantic proof against
+> unnamed magic values, prose, externally assembled source, or names constructed from non-adjacent parts.
+
+Three cycles were spent getting it to that standing, and each gap is worth keeping in view because each one
+made a passing sweep mean less than it appeared to:
+
+| Gap | Why a passing sweep meant nothing |
+| --- | --- |
+| A hand-written marker inventory | It omitted six declared frameworks. A list maintained beside the thing it describes is a list that drifts, so the markers are **derived** from the asset ids, with aliases each tied to an existing asset |
+| A whole-file exemption | A hole the size of the file: `fn parse_haystack_telemetry` written into a provider connector passed. Exemptions are **marker-scoped** now, and each allowance must be used or it fails |
+| Reading source a line at a time | Not one bypass but a class. A brace inside a string literal sent the `#[cfg(test)]` stripper hunting for a close brace and it consumed every production item after it; a name written as `concat!("lang", "graph")` across lines could not be joined at all. Tokenised (`proc-macro2`), so both are gone by construction |
+
+Two consequences of tokenising are themselves decisions. **Prose is skipped** — the explanations in this tree
+name the producers whose telemetry motivated each rule, deliberately, and reading them would force either mass
+whole-file exemptions or deleting the explanations. And a marker is a **word**, not a substring: `agno` is a
+framework and also the middle of `diagnostic` and `backend-agnostic`, so `contains` accused the S3 error
+formatter. A matcher that is too strict is the quieter failure, which is why
+`a_marker_matches_a_word_and_not_a_fragment` pins thirteen cases in both directions.
+
+### The statement
+
+Codex's acceptance, verbatim:
+
+> **Acceptance — cycle 40, `d57afd7c`**
+>
+> The declarative framework-rules migration satisfies both success criteria.
+>
+> **(a) Framework independence.** Production telemetry parsing, extraction, classification, and
+> normalisation contain no concrete agent-framework knowledge. Framework-specific facts, carrier names,
+> precedence, message shapes, classifications, content forms, and provider aliases are declared in embedded
+> rule assets and interpreted by generic Rust engines. The only production naming exceptions are explicitly
+> scoped non-parser concerns: the MCP integration-guide catalogue and Azure AI Foundry provider-connector
+> code.
+>
+> This boundary is enforced by rule compilation, exact vocabulary tests, and a tokenised whole-server source
+> sweep whose marker inventory is derived from the assets, whose aliases are tied to existing assets, and
+> whose exemptions are marker-scoped and self-checking.
+>
+> **(b) Parsing correctness.** Every framework represented in the captured corpus parses equivalently to the
+> retired implementation. This is supported by unchanged golden fixtures, targeted precedence and refusal
+> tests, classifier shadow comparisons over every captured span, and message/member equivalence comparisons
+> over captured JSON objects.
+>
+> The acceptance is intentionally corpus-bounded. It does not prove unseen producer versions or shapes.
+> Eight declared message members remain explicitly listed in `UNOBSERVED`; the JSON-object walk is bounded
+> to depth eight. The source sweep detects framework names, not unnamed framework-specific magic values; it
+> excludes prose and documentation, source outside `server/src`, and names assembled from non-adjacent or
+> computed parts. Those limits are documented rather than presented as guarantees.
+>
+> Within those stated boundaries, the work is complete.
+
+### What is declared, measured
+
+41 assets holding 338 rules:
+
+| Kind | Count | Kind | Count |
+| --- | --- | --- | --- |
+| `messages` | 71 | `sdk_slugs` | 26 |
+| `carriers` | 55 | `span_categories` | 22 |
+| `span_fields` | 47 | `message_events` | 9 |
+| `observation_types` | 33 | `content_blocks` | 9 |
+| `message_members` | 32 | `span_facts` | 4 |
+| `detect` | 28 | `provider_aliases` | 2 |
+
+Each retirement is held to the code it replaced by an **equivalence oracle** rather than by the goldens,
+because a golden can be regenerated and bless a regression. Thirteen of them, in three shapes: against the
+retired table directly (`the_rules_reproduce_the_legacy_carrier_table`,
+`the_rules_reproduce_the_legacy_detection`, `the_rules_reproduce_the_extractors_they_replaced`,
+`the_declared_dialect_blocks_match_the_reader_they_replace` and four more), against the retired *sweep* over
+every captured span (`the_declared_classification_matches_the_sweep_across_the_corpus`,
+`the_member_vocabulary_answers_as_it_did_across_the_corpus`), and against the corpus as a whole
+(`no_declared_rule_is_dead_across_the_corpus`, which names the 39 rules no fixture reaches — so an untested
+rule is a listed fact rather than an assumption).
+
+### The limits, in one place
+
+Stated here because a document about enforcement reads as exhaustive, and none of these is a defect to be
+fixed later — each is a boundary of what the evidence can carry.
+
+- **Corpus-bounded equivalence.** 13 suites at the SDK versions the fixtures were captured at, and they
+  reach **9 of the 30 producers the assets declare** - the other two suites, `openai` and `anthropic`, are
+  provider telemetry read by the conventions rather than by a dialect of their own. So 21 declared producers
+  have rules and no captured fixture, which is what `no_declared_rule_is_dead_across_the_corpus` enumerates
+  rather than leaves to be discovered. "All frameworks parse correctly" is true of the corpus and is an open-world claim
+  beyond it; `the_corpus_matches_the_support_matrix` is what keeps the boundary legible rather than implied.
+- **Eight `UNOBSERVED` members.** Declared in the member vocabulary and reached by no captured object. The
+  set is exact and asserted, so it shrinks when a fixture reaches one and cannot grow silently.
+- **A depth-8 walk.** The member-vocabulary comparison walks captured JSON to depth eight. Deeper nesting is
+  unexamined by that oracle.
+- **Names, not values.** The sweep reads framework *names*. A module hard-coding a framework's magic
+  attribute value without naming it is not caught — which is why the oracles matter more than the sweep.
+- **Prose.** Doc comments are not read, including the one place `schemars` turns a doc comment into a
+  shipped schema description.
+- **Outside `server/src`.** The SDKs are separate crates and are *meant* to name the framework they
+  instrument.
