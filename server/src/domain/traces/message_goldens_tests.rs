@@ -3734,3 +3734,273 @@ fn ordering_contradictions_are_pinned() {
         );
     }
 }
+
+// ============================================================================
+// Dead-rule measurement
+// ============================================================================
+
+/// Every declared rule id, branch leaves included - a leaf emits under its own id.
+fn declared_rule_ids() -> BTreeSet<String> {
+    fn walk(
+        rule: &crate::domain::rules::message_rules::CompiledMessageRule,
+        out: &mut BTreeSet<String>,
+    ) {
+        // A branch **parent** never emits under its own id: `emit_rule` delegates to the leaves immediately,
+        // and the parent's own reading fields are refused at compile time. So it is not a candidate for
+        // deadness - only its leaves are.
+        match &rule.branch_set {
+            Some(set) => {
+                for sub in set.primary.iter().chain(&set.fallback).chain(&set.always) {
+                    walk(sub, out);
+                }
+            }
+            None => {
+                out.insert(rule.rule_id.clone());
+            }
+        }
+    }
+    let mut out = BTreeSet::new();
+    for rule in crate::domain::rules::ruleset().messages.rules() {
+        walk(rule, &mut out);
+    }
+    out
+}
+
+/// Which rules actually emit something, over every captured request of the whole corpus.
+fn rules_that_emit() -> BTreeSet<String> {
+    use crate::domain::rules::MessageContext;
+    use crate::domain::rules::message_rules::OwnedCarrier;
+    use crate::utils::otlp::extract_attributes;
+
+    let plan = &crate::domain::rules::ruleset().messages;
+    let mut fired = BTreeSet::new();
+    for (_, paths) in discover_fixtures() {
+        for path in &paths {
+            let request = decode_request(path);
+            for resource in &request.resource_spans {
+                for scope in &resource.scope_spans {
+                    for span in &scope.spans {
+                        let attrs = extract_attributes(&span.attributes);
+                        // The same declared fact the extractor asks, so this measures the plan as ingestion
+                        // exercises it rather than a variant of it.
+                        let is_tool = crate::domain::rules::ruleset().span_facts.holds(
+                            crate::domain::rules::schema::SpanFact::ToolExecution,
+                            &attrs,
+                        );
+                        let ctx = MessageContext::for_span(&span.name, &attrs, is_tool);
+                        let mut read: std::collections::HashSet<OwnedCarrier> =
+                            std::collections::HashSet::new();
+                        for emission in plan.run(&ctx) {
+                            fired.insert(emission.rule_id.to_string());
+                            read.extend(emission.owns.iter().cloned());
+                        }
+                        // The fallback stage inherits what the dialects read, exactly as ingestion does -
+                        // asked with an empty set it would credit rules the dialects had already claimed.
+                        for emission in plan.fallback(&ctx, &read) {
+                            fired.insert(emission.rule_id.to_string());
+                        }
+                        for emission in plan.tool_definitions(&ctx) {
+                            fired.insert(emission.rule_id.to_string());
+                        }
+                        for event in &span.events {
+                            let event_attrs = extract_attributes(&event.attributes);
+                            let (emissions, _) = plan.from_event(
+                                &event.name,
+                                &event_attrs,
+                                &span.name,
+                                &attrs,
+                                is_tool,
+                            );
+                            for emission in emissions {
+                                fired.insert(emission.rule_id.to_string());
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    fired
+}
+
+/// No declared rule is dead, measured rather than reasoned about.
+///
+/// The compile-time conflict check is a *static approximation* of a runtime property, and six review cycles
+/// running found successively deeper approximation errors - each one "this rule can never emit and compilation
+/// accepted it". Some of those cases need a satisfiability decision over payload predicates, which the checker
+/// deliberately is not. This is the measurement that covers them: a rule that emits nothing anywhere in the
+/// corpus is either dead or exercised by nothing, and both want to be visible.
+///
+/// The exemption list is the honest part. Every entry is a rule the corpus does not reach, with the reason,
+/// and it is checked in **both** directions - an exempted rule that starts firing fails too, so the list
+/// cannot rot into a permanent excuse.
+#[test]
+fn no_declared_rule_is_dead_across_the_corpus() {
+    /// Rules no captured request exercises, and why. Unreached is not the same as dead, and the difference is
+    /// what each reason has to say. Two thirds of the list is one cause - a supported dialect nobody has
+    /// captured - and the rest are shapes the captured runs never produced.
+    const UNREACHED: &[(&str, &str)] = &[
+        (
+            "autogen.aggregate_input",
+            "no captured fixture: the suite needs a first-party API key, so nothing has been captured",
+        ),
+        (
+            "autogen.autogen_event",
+            "no captured fixture: the suite needs a first-party API key, so nothing has been captured",
+        ),
+        (
+            "autogen.body",
+            "no captured fixture: the suite needs a first-party API key, so nothing has been captured",
+        ),
+        (
+            "autogen.log_body",
+            "no captured fixture: the suite needs a first-party API key, so nothing has been captured",
+        ),
+        (
+            "autogen.message",
+            "no captured fixture: the suite needs a first-party API key, so nothing has been captured",
+        ),
+        (
+            "crewai.aggregate_input",
+            "the suite is captured; no fixture has framework state under `input.value` with tools and no conversation member",
+        ),
+        (
+            "google-adk.data",
+            "the suite is captured; `gcp.vertex.agent.data` appears in no fixture",
+        ),
+        (
+            "google-adk.tool_call_args",
+            "the suite is captured, but that attribute appears only on **tool execution** spans, which this branch may not read",
+        ),
+        (
+            "google-adk.tool_response",
+            "the suite is captured, but that attribute appears only on **tool execution** spans, which this branch may not read",
+        ),
+        (
+            "langgraph.message",
+            "the suite is captured; no fixture writes a single message under a bare `message` key",
+        ),
+        ("langsmith.completion", "no captured fixture for the suite"),
+        ("langsmith.prompt", "no captured fixture for the suite"),
+        ("livekit.chat_ctx", "no captured fixture for the suite"),
+        (
+            "livekit.function_tools",
+            "no captured fixture for the suite",
+        ),
+        ("livekit.instructions", "no captured fixture for the suite"),
+        (
+            "livekit.response_calls_only",
+            "no captured fixture for the suite",
+        ),
+        ("livekit.response_text", "no captured fixture for the suite"),
+        (
+            "livekit.tool_arguments",
+            "no captured fixture for the suite",
+        ),
+        ("livekit.tool_output", "no captured fixture for the suite"),
+        ("livekit.user_input", "no captured fixture for the suite"),
+        (
+            "logfire.all_messages_events",
+            "no captured fixture for the suite",
+        ),
+        ("logfire.prompt", "no captured fixture for the suite"),
+        (
+            "logfire.request_data_tools",
+            "no captured fixture for the suite",
+        ),
+        ("mlflow.chat_tools", "no captured fixture for the suite"),
+        ("mlflow.span_inputs", "no captured fixture for the suite"),
+        ("mlflow.span_outputs", "no captured fixture for the suite"),
+        (
+            "openinference.embedding_text",
+            "the dialect is captured; no fixture has an embedding span",
+        ),
+        (
+            "openinference.reranker_input",
+            "the dialect is captured; no fixture has a reranker span",
+        ),
+        (
+            "openinference.reranker_output",
+            "the dialect is captured; no fixture has a reranker span",
+        ),
+        (
+            "openinference.reranker_query",
+            "the dialect is captured; no fixture has a reranker span",
+        ),
+        (
+            "openinference.retrieval",
+            "the dialect is captured; no fixture has a retrieval span",
+        ),
+        (
+            "openinference.tools",
+            "the dialect is captured; no fixture states its tools under this key",
+        ),
+        (
+            "pydantic-ai.tool_arguments",
+            "no captured fixture for the suite",
+        ),
+        (
+            "pydantic-ai.tool_response",
+            "no captured fixture for the suite",
+        ),
+        (
+            "semconv.all_messages",
+            "no captured producer writes the whole conversation under one convention key",
+        ),
+        (
+            "semconv.indexed_completion",
+            "no captured producer uses the indexed convention spelling",
+        ),
+        (
+            "semconv.indexed_prompt",
+            "no captured producer uses the indexed convention spelling",
+        ),
+        (
+            "traceloop.entity_input",
+            "no captured fixture for the suite",
+        ),
+        (
+            "traceloop.entity_output",
+            "no captured fixture for the suite",
+        ),
+    ];
+
+    let declared = declared_rule_ids();
+    let fired = rules_that_emit();
+    let exempt: BTreeSet<String> = UNREACHED.iter().map(|(id, _)| id.to_string()).collect();
+
+    let silent: Vec<&String> = declared
+        .iter()
+        .filter(|id| !fired.contains(*id) && !exempt.contains(*id))
+        .collect();
+    assert!(
+        silent.is_empty(),
+        "{} of {} declared rules emit nothing anywhere in the corpus - each is dead, or exercised by no \
+         captured request. Add it to UNREACHED with the reason, or fix the rule:\n{}",
+        silent.len(),
+        declared.len(),
+        silent
+            .iter()
+            .map(|id| format!("  {id}"))
+            .collect::<Vec<_>>()
+            .join("\n")
+    );
+
+    let now_firing: Vec<&(&str, &str)> = UNREACHED
+        .iter()
+        .filter(|(id, _)| fired.contains(*id))
+        .collect();
+    assert!(
+        now_firing.is_empty(),
+        "listed as unreached and now firing - remove from UNREACHED: {now_firing:?}"
+    );
+    // A rule id in the list that no longer exists is a stale excuse.
+    let unknown: Vec<&(&str, &str)> = UNREACHED
+        .iter()
+        .filter(|(id, _)| !declared.contains(*id))
+        .collect();
+    assert!(
+        unknown.is_empty(),
+        "UNREACHED names rules that do not exist: {unknown:?}"
+    );
+}

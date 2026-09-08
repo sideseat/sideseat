@@ -8841,6 +8841,118 @@ fn a_condition_separates_two_rules_only_when_it_differs() {
     }
 }
 
+/// A gate is a **disjunction**, so one gate can hold wherever another does without being the same gate.
+///
+/// Equality was the wrong relation. `attr_exists: ["a", "b"]` holds everywhere `attr_exists: ["a"]` does, so
+/// the wider-gated rule suppresses the narrower one whenever it comes first - and their declared forms differ,
+/// which is all an equality test could see. The relation is directional and rank-aware: the question is
+/// whether the *earlier* rule leaves anything for the later one.
+///
+/// It also has to be two facets rather than one label. A rule can be gated **and** payload-narrowed, and
+/// folding them together made "same gate, mutually exclusive payloads" - a working pair - look dead.
+#[test]
+fn a_wider_gate_suppresses_a_narrower_one() {
+    let refused = [
+        (
+            "a superset gate at the earlier rank",
+            r#"{"id":"t","doc":"d","messages":[
+                {"id":"a","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message",
+                 "when":{"attr_exists":["a","b"]},"tag_as":"a.tag","legacy_rank":1},
+                {"id":"b","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message",
+                 "when":{"attr_exists":["a"]},"tag_as":"b.tag","legacy_rank":2}]}"#,
+        ),
+        (
+            "a shorter span-name prefix, which covers every longer one",
+            r#"{"id":"t","doc":"d","messages":[
+                {"id":"a","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message",
+                 "when":{"span_name":["chat"]},"tag_as":"a.tag","legacy_rank":1},
+                {"id":"b","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message",
+                 "when":{"span_name":["chat.completions"]},"tag_as":"b.tag","legacy_rank":2}]}"#,
+        ),
+        (
+            "a root `starts_with` beside its own negation, which holds of every value",
+            r#"{"id":"t","doc":"d","messages":[
+                {"id":"a","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message","legacy_rank":1,
+                 "alternatives":[{"require":{"any":[
+                    {"starts_with":"a"},{"lacks_prefix":"a"}]},
+                  "wrap":{"role":"user","content_from_any_of":["$.content"]}}]},
+                {"id":"b","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message",
+                 "legacy_rank":2}]}"#,
+        ),
+        (
+            "`elements` beside an explicitly false aggregate, which it also ignores",
+            r#"{"id":"t","doc":"d","messages":[
+                {"id":"a","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message",
+                 "aggregate_into_array":false,"legacy_rank":1,
+                 "elements":{"passes":[{"tag_from":"$.name"}]}}]}"#,
+        ),
+    ];
+    for (what, asset) in refused {
+        let sources =
+            std::collections::BTreeMap::from([("t.json".to_string(), asset.as_bytes().to_vec())]);
+        assert!(
+            compile(&sources).is_err(),
+            "should have been refused: {what}"
+        );
+    }
+
+    let accepted = [
+        (
+            "the subset gate at the earlier rank, which leaves spans for the wider one",
+            r#"{"id":"t","doc":"d","messages":[
+                {"id":"a","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message",
+                 "when":{"attr_exists":["a"]},"tag_as":"a.tag","legacy_rank":1},
+                {"id":"b","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message",
+                 "when":{"attr_exists":["a","b"]},"tag_as":"b.tag","legacy_rank":2}]}"#,
+        ),
+        (
+            "the same gate, where the earlier rule may read nothing on a span it runs on",
+            r#"{"id":"t","doc":"d","messages":[
+                {"id":"a","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message",
+                 "when":{"attr_exists":["marker"]},"tag_as":"a.tag","legacy_rank":1,
+                 "alternatives":[{"require":{"any":[{"path":"$.kind","one_of":["first"]}]},
+                  "wrap":{"role":"user","content_from_any_of":["$.content"]}}]},
+                {"id":"b","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message",
+                 "when":{"attr_exists":["marker"]},"tag_as":"b.tag","legacy_rank":2}]}"#,
+        ),
+        (
+            "two composes sharing a tag, which every emission owns",
+            r#"{"id":"t","doc":"d","messages":[
+                {"id":"a","doc":"d","legacy_rank":1,"when":{"attr_exists":["m.a"]},
+                 "compose":{"tag":"shared","members":[{"as":"content","from_any_of":["k1"]}]}},
+                {"id":"b","doc":"d","legacy_rank":2,"when":{"attr_exists":["m.b"]},
+                 "compose":{"tag":"shared","members":[{"as":"content","from_any_of":["k2"]}]}}]}"#,
+        ),
+        (
+            "a reading narrowed only by `require_parent`, which narrows as `require` does",
+            r#"{"id":"t","doc":"d","messages":[
+                {"id":"a","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message",
+                 "tag_as":"a.tag","legacy_rank":1,
+                 "alternatives":[{"require_parent":{"any":[{"path":"$.kind","one_of":["k"]}]},
+                  "wrap":{"role":"user","content_from_any_of":["$.content"]}}]},
+                {"id":"b","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message",
+                 "tag_as":"b.tag","legacy_rank":2}]}"#,
+        ),
+        (
+            "a single-spelling `attribute_any_of`, which is not a choice",
+            r#"{"id":"t","doc":"d","messages":[
+                {"id":"a","doc":"d","read":{"attribute_any_of":["only"]},"parse":"json","emit":"message",
+                 "tag_as":"shared","when":{"attr_exists":["m"]},"legacy_rank":1},
+                {"id":"b","doc":"d","read":{"attribute":"only"},"parse":"json","emit":"message",
+                 "tag_as":"shared","legacy_rank":2}]}"#,
+        ),
+    ];
+    for (what, asset) in accepted {
+        let sources =
+            std::collections::BTreeMap::from([("t.json".to_string(), asset.as_bytes().to_vec())]);
+        assert!(
+            compile(&sources).is_ok(),
+            "should have been accepted: {what} - {:?}",
+            compile(&sources).err()
+        );
+    }
+}
+
 /// A conditional claim is conditional about **one carrier**, not about every carrier its rule reads.
 ///
 /// Two shapes, each a rule that would be permanently dead while compilation called the pair conditional:
