@@ -2581,20 +2581,42 @@ fn producer_key_inventory() -> std::collections::BTreeMap<String, String> {
         .filter(|(id, _)| CONVENTIONS.contains(&id.as_str()))
         .flat_map(|(_, keys)| keys.iter().filter_map(|key| namespace(key)))
         .collect();
-    // Each declared namespace must be one the conventions actually write under, or it is a way to excuse a
-    // producer's namespace by naming it.
-    for declared in &declared_namespaces {
-        assert!(
-            from_conventions.contains(declared)
-                || per_asset
-                    .iter()
-                    .filter(|(id, _)| SHARED_VOCABULARY.contains(&id.as_str()))
-                    .any(|(_, keys)| keys
-                        .iter()
-                        .any(|key| namespace(key).as_ref() == Some(declared))),
-            "`{declared}` is declared a convention namespace and nothing conventional writes under it"
-        );
-    }
+    // The declared set is **exact**, asserted here rather than checked by a property.
+    //
+    // A property was tried twice and both spellings accepted producer evidence. "Something conventional writes
+    // under it" cannot be tested against the *shared* assets, because those are fallback chains that enumerate
+    // producers' spellings by design: add `acme.trace.id` to a shared chain, declare `acme`, and the property
+    // passes while the inventory suppresses the key. And the conventions' own asset does not write under
+    // `session.` or `http.` at all - the general OTel attributes reach this engine only through those chains -
+    // so requiring evidence from `semconv` alone would reject the very namespaces the list exists to
+    // recognise.
+    //
+    // Which namespaces are OTel's is knowledge somebody has to state. Stated once, in the conventions' asset,
+    // and pinned exactly here: widening it is then a visible change to this list, reviewed as such, rather
+    // than a property quietly satisfied by the producer key it was meant to catch.
+    let expected_namespaces: std::collections::BTreeSet<String> = [
+        "aws",
+        "cloud",
+        "db",
+        "enduser",
+        "gen_ai",
+        "http",
+        "messaging",
+        "rpc",
+        "session",
+        "url",
+        "user",
+    ]
+    .into_iter()
+    .map(str::to_string)
+    .collect();
+    assert_eq!(
+        declared_namespaces, expected_namespaces,
+        "`convention_namespaces` in `semconv` has changed. Each entry suppresses every key under it, so a new \
+         one is how a producer's namespace gets excused - state the new namespace here and say why it is the \
+         conventions' rather than a producer's"
+    );
+    let _ = &from_conventions;
     let conventional = |key: &str| {
         // `sideseat.` is **this server's** own namespace rather than a convention: it is written by the
         // ingestion path, not declared by any asset, so it is excluded here rather than in the asset's list -

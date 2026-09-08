@@ -275,7 +275,8 @@
         {
           "json": {
             "attribute": "gen_ai.output.messages",
-            "path": "$[0:].finish_reason"
+            "path": "$[0:].finish_reason",
+            "scalar_only": true
           },
           "on_malformed": "continue",
           "doc": "A serialised output message list. The first match that yields, which is what the retired loop's `break` did - and a **slice**, because the retired reader decoded the payload as a list and fell through when it was not one. A wildcard matched an object's members too, so `{\"x\": {\"finish_reason\": ...}}` answered here instead of falling through to the next source."
@@ -283,7 +284,8 @@
         {
           "json": {
             "attribute": "gcp.vertex.agent.llm_response",
-            "path": "$.finish_reason"
+            "path": "$.finish_reason",
+            "scalar_only": true
           },
           "lowercase": true,
           "on_malformed": "continue",
@@ -292,7 +294,8 @@
         {
           "json": {
             "attribute": "response_data",
-            "path": "$.finish_reason"
+            "path": "$.finish_reason",
+            "scalar_only": true
           },
           "on_malformed": "continue",
           "doc": "A dialect that serialises the whole response beside the request. Last, as it was."

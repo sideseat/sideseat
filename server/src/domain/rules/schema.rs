@@ -420,6 +420,15 @@ pub struct JsonFieldSource {
     /// matches nothing, so "no such shape" stays distinguishable from a genuine zero.
     #[serde(default)]
     pub reduce: Option<Reduction>,
+    /// Each match must be a **scalar string**; an array at the match is malformed here.
+    ///
+    /// For a list-valued field whose *sources* are single values. `gen_ai.response.finish_reasons` genuinely
+    /// holds a list, so the field's type has to accept one - but a producer writing one reason per message
+    /// writes a string, and the retired readers took `as_str()`, so a member holding `["stop"]` was **ignored**
+    /// and the chain moved to the next producer. Read as a list it answered instead, with a different
+    /// producer's value: not a formatting difference but a different statement about why the model stopped.
+    #[serde(default)]
+    pub scalar_only: bool,
     /// Several spellings of one member, where the **first present** one is the answer.
     ///
     /// Not the same as listing them as separate sources, and the difference is load-bearing: separate sources

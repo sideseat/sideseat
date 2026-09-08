@@ -469,7 +469,9 @@ fn read_json<'a>(
     if let Some(Reduction::CollectAll) = json.reduce {
         let mut items: Vec<String> = Vec::new();
         for found in path.query(value).iter() {
-            // Only a **scalar string**, and a match that is not one contributes nothing - as `Sum`'s
+            // Only a **scalar string** - implied here, whatever `scalar_only` says, because collecting is
+            // per match and a match that is a list is the same malformed member. A match that is not one
+            // contributes nothing - as `Sum`'s
             // non-numeric match does, and as the retired reader's `as_str()` did. Read as a string *list*
             // instead, a member holding `["stop", "length"]` contributed two reasons where the retired reader
             // ignored it: a malformed member became two statements the producer never made.
@@ -521,8 +523,22 @@ fn read_json<'a>(
     // out as the diagnosis, since that is the one a reader would look at.
     let matched = path.query(value);
     let mut first = Reading::Absent;
+    // Where the source says each match is a scalar string, read it as text and lift it into the field's list -
+    // so an array *at the match* is malformed and the chain moves on, which is what the retired `as_str()`
+    // readers did. Reading it as the field's own list type accepted `["stop"]` and answered here instead of
+    // falling through to the next producer's statement.
+    let read_as = if json.scalar_only {
+        FieldType::Text
+    } else {
+        field_type
+    };
     for (position, found) in matched.iter().enumerate() {
-        let reading = from_json(found, field_type);
+        let reading = match (json.scalar_only, from_json(found, read_as)) {
+            (true, Reading::Text(text)) if field_type == FieldType::StringList => {
+                Reading::StringList(vec![text])
+            }
+            (_, other) => other,
+        };
         if reading.yielded() {
             return reading;
         }

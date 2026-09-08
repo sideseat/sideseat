@@ -2572,6 +2572,30 @@ fn the_declared_finish_reason_chain_reproduces_the_retired_blocks() {
             ),
             ("response_data", r#"{"finish_reason":"length"}"#),
         ],
+        // A member that is not a scalar string, on **every** source. The retired readers all took `as_str()`,
+        // so an array-valued member was ignored and the chain moved to the next producer - a different
+        // statement about why the model stopped, not a formatting difference. `collect_all` fixed only the
+        // completion source; the other three read the field's own *list* type and answered here instead.
+        &[(
+            "gen_ai.output.messages",
+            r#"[{"finish_reason":["stop"]},{"finish_reason":"length"}]"#,
+        )],
+        &[
+            ("gen_ai.output.messages", r#"[{"finish_reason":["stop"]}]"#),
+            ("response_data", r#"{"finish_reason":"length"}"#),
+        ],
+        &[
+            (
+                "gcp.vertex.agent.llm_response",
+                r#"{"finish_reason":["STOP"]}"#,
+            ),
+            ("response_data", r#"{"finish_reason":"length"}"#),
+        ],
+        &[("response_data", r#"{"finish_reason":["length"]}"#)],
+        &[
+            ("gen_ai.response.finish_reasons", "[]"),
+            ("response_data", r#"{"finish_reason":"length"}"#),
+        ],
         // A member that is not a scalar string. `as_str()` ignored it; collected as a list it became two.
         &[(
             "gen_ai.completion",
@@ -2602,4 +2626,85 @@ fn the_declared_finish_reason_chain_reproduces_the_retired_blocks() {
             "the declared chain disagrees with the retired blocks on {case:?}"
         );
     }
+}
+
+/// The `gen_ai.choice` **event** is the last finish-reason source, not the first, and that is now the order.
+///
+/// The four attribute sources moved into the declared chain (`ff0d3cdf`), and the declared chain runs before
+/// the Rust fallback - so the event, which was second in the retired order, is now last. That is a real change
+/// and it belongs in a test rather than only in the asset's prose: a reader who believes the old order would
+/// expect `stop` here.
+///
+/// End to end through `extract_attributes_batch`, because that is the only way the event side is reachable -
+/// field resolution is given a span's attributes and never its events, which is exactly why this one fallback
+/// could not move.
+#[test]
+fn the_choice_event_is_the_last_finish_reason_source() {
+    use opentelemetry_proto::tonic::collector::trace::v1::ExportTraceServiceRequest;
+    use opentelemetry_proto::tonic::common::v1::{AnyValue, KeyValue, any_value};
+    use opentelemetry_proto::tonic::trace::v1::{ResourceSpans, ScopeSpans, Span, span::Event};
+
+    let kv = |key: &str, value: &str| KeyValue {
+        key: key.to_string(),
+        value: Some(AnyValue {
+            value: Some(any_value::Value::StringValue(value.to_string())),
+        }),
+    };
+
+    let span_with = |attrs: Vec<KeyValue>, with_event: bool| {
+        let events = if with_event {
+            vec![Event {
+                time_unix_nano: 1_700_000_000_000_000_000,
+                name: "gen_ai.choice".to_string(),
+                attributes: vec![kv("finish_reason", "stop")],
+                dropped_attributes_count: 0,
+            }]
+        } else {
+            Vec::new()
+        };
+        let request = ExportTraceServiceRequest {
+            resource_spans: vec![ResourceSpans {
+                resource: None,
+                scope_spans: vec![ScopeSpans {
+                    scope: None,
+                    spans: vec![Span {
+                        trace_id: vec![1; 16],
+                        span_id: vec![2; 8],
+                        name: "chat".to_string(),
+                        kind: 1,
+                        start_time_unix_nano: 1_700_000_000_000_000_000,
+                        end_time_unix_nano: 1_700_000_000_100_000_000,
+                        attributes: attrs,
+                        events,
+                        ..Default::default()
+                    }],
+                    schema_url: String::new(),
+                }],
+                schema_url: String::new(),
+            }],
+        };
+        crate::domain::traces::extract::extract_attributes_batch(&request)
+            .into_iter()
+            .next()
+            .expect("one span")
+            .gen_ai_finish_reasons
+    };
+
+    // An attribute source and the event disagreeing: the attribute wins, because the declared chain runs first.
+    assert_eq!(
+        span_with(
+            vec![kv("response_data", r#"{"finish_reason":"length"}"#)],
+            true
+        ),
+        vec!["length".to_string()],
+        "the declared chain runs before the event fallback, so `response_data` answers"
+    );
+    // The event alone still answers, which is what keeps it a fallback rather than dead code.
+    assert_eq!(
+        span_with(Vec::new(), true),
+        vec!["stop".to_string()],
+        "with no attribute source the event must still answer"
+    );
+    // And neither: no reason at all, rather than an empty string.
+    assert!(span_with(Vec::new(), false).is_empty());
 }
