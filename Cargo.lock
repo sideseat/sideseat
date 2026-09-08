@@ -5525,6 +5525,7 @@ dependencies = [
  "moka",
  "opentelemetry-proto",
  "parking_lot",
+ "proc-macro2",
  "proptest",
  "prost",
  "rand 0.8.5",

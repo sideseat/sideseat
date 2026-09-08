@@ -98,3 +98,8 @@ default = []
 [dev-dependencies]
 tempfile = "3"
 proptest = "1"
+# A real tokeniser for the structural sweeps, which read this crate's own source. `span-locations` is what lets
+# a finding name a line. Line matching was a class of bypass rather than one: a brace inside a string literal
+# sent the `#[cfg(test)]` stripper hunting for a close brace and it consumed the production items after it, and a
+# name written as `concat!("lang",\n "graph")` was invisible because the pieces sit on different lines.
+proc-macro2 = { version = "1", features = ["span-locations"] }
