@@ -48,7 +48,9 @@ pub struct RuleFile {
     pub message_events: Vec<MessageEvent>,
     /// Attribute namespaces the **conventions** own, as opposed to a producer's own.
     ///
-    /// Declared by the conventions' asset and nowhere else. A key's first segment says who coined it, and the
+    /// Declared by the conventions' asset and nowhere else, which is **refused** rather than assumed: a
+    /// declaration elsewhere is ignored, and a dialect could otherwise state that its own namespace is a
+    /// convention and read as having done so. A key's first segment says who coined it, and the
     /// structural sweep that forbids a producer's key in production Rust needs to know which segments are not
     /// a producer's - `session.id` and `enduser.id` are OTel's and appear only in a shared fallback chain,
     /// exactly where `ai.usage.promptTokens` appears. Inferring it from *absence* - no dialect file mentions

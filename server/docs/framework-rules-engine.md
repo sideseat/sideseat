@@ -787,8 +787,9 @@ fixed later — each is a boundary of what the evidence can carry.
   conventions' own asset, and pinned exactly by the test. Deriving it was tried twice and both spellings
   accepted producer evidence: "no framework asset declares under it" is not evidence of anything, and
   "some shared asset writes under it" is worse, because the shared assets are fallback chains that enumerate
-  producers' spellings by design. So an exact list is the honest form — widening it is a reviewed change
-  rather than a property quietly satisfied by the key it was meant to catch. It cannot see: a key no asset
+  producers' spellings by design. So an exact list is the honest form, with **no property** behind it —
+  widening it is a reviewed change to a pinned set rather than a property quietly satisfied by the key it was
+  meant to catch, and only the conventions' asset may declare it. It cannot see: a key no asset
   declares (nothing identifies it as a producer's), a **value that is not a dotted key** — a role string, a
   magic number, a bare word like `response_data` before it was declared — and a key assembled at runtime.
   Its derivation is pinned in both directions by

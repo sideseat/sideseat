@@ -107,6 +107,13 @@ pub enum FieldCompileError {
          producer's casing is not information, and a number has no casing"
     )]
     FoldWithoutText { file: String, rule: String },
+    #[error(
+        "span field rule `{rule}` in `{file}` declares `scalar_only` where it cannot apply - it says each \
+         match of **one path** is a single string, so it means nothing on a witness, nothing beside a \
+         reduction that is already per match, nothing on a first-present group that selects a whole member, \
+         and nothing on a field that does not hold a list"
+    )]
+    ScalarOnlyWithoutAPath { file: String, rule: String },
     #[error("span field rule `{rule}` in `{file}` names an empty attribute")]
     EmptyAttribute { file: String, rule: String },
     #[error(
@@ -469,14 +476,19 @@ fn read_json<'a>(
     if let Some(Reduction::CollectAll) = json.reduce {
         let mut items: Vec<String> = Vec::new();
         for found in path.query(value).iter() {
-            // Only a **scalar string** - implied here, whatever `scalar_only` says, because collecting is
-            // per match and a match that is a list is the same malformed member. A match that is not one
-            // contributes nothing - as `Sum`'s
-            // non-numeric match does, and as the retired reader's `as_str()` did. Read as a string *list*
-            // instead, a member holding `["stop", "length"]` contributed two reasons where the retired reader
-            // ignored it: a malformed member became two statements the producer never made.
-            if let Reading::Text(text) = from_json(found, FieldType::Text) {
-                items.push(text);
+            // Only a **scalar string** - implied here, whatever `scalar_only` says, because collecting is per
+            // match and a match that is a list is the same malformed member. A match that is not one
+            // contributes nothing, as `Sum`'s non-numeric match does and as the retired `as_str()` did; read
+            // as a string *list* instead, a member holding `["stop", "length"]` contributed two reasons the
+            // producer never stated.
+            //
+            // An **empty** string is a value, not an absence: `as_str()` returned `Some("")` and the retired
+            // reader pushed it, which also *ended* the chain - so discarding it here both lost the value and
+            // let a later producer's reason answer in its place.
+            match from_json(found, FieldType::Text) {
+                Reading::Text(text) => items.push(text),
+                Reading::Empty => items.push(String::new()),
+                _ => {}
             }
         }
         return if items.is_empty() {
@@ -536,6 +548,12 @@ fn read_json<'a>(
         let reading = match (json.scalar_only, from_json(found, read_as)) {
             (true, Reading::Text(text)) if field_type == FieldType::StringList => {
                 Reading::StringList(vec![text])
+            }
+            // Present and empty is a **value** here, for the reason the collecting path gives: the retired
+            // `as_str()` returned `Some("")`, pushed it, and stopped looking - so treating it as an absence
+            // both lost the value and let the next producer's reason answer instead.
+            (true, Reading::Empty) if field_type == FieldType::StringList => {
+                Reading::StringList(vec![String::new()])
             }
             (_, other) => other,
         };
@@ -813,6 +831,22 @@ fn compile_rule(file_id: &str, rule: &SpanFieldRule) -> Result<CompiledRule, Fie
                 .when_json
                 .as_ref()
                 .is_some_and(|w| std::ptr::eq(w, json));
+            // `scalar_only` says each match of one path is a single string. Its whole domain is an unreduced
+            // read through a `path` into a list-valued field: a witness only asks whether a member is there, a
+            // reduction is already per match, and a first-present group selects a *member* rather than
+            // matching many - so on any of those the declaration was accepted and did nothing, which reads as
+            // protection that is not there.
+            if json.scalar_only
+                && (is_witness
+                    || json.reduce.is_some()
+                    || json.path.is_none()
+                    || rule.target.field_type() != FieldType::StringList)
+            {
+                return Err(FieldCompileError::ScalarOnlyWithoutAPath {
+                    file: file_id.to_string(),
+                    rule: rule.id.clone(),
+                });
+            }
             let reduction_fits = match json.reduce {
                 None => true,
                 Some(Reduction::Sum) => rule.target.field_type() == FieldType::Integer,

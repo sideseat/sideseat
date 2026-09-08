@@ -2608,6 +2608,23 @@ fn the_declared_finish_reason_chain_reproduces_the_retired_blocks() {
             ),
             ("response_data", r#"{"finish_reason":"content_filter"}"#),
         ],
+        // An **empty** reason is a value, and it ends the chain. `as_str()` returned `Some("")`, so the
+        // retired reader pushed it and stopped looking - discarding it lost the value *and* let a later
+        // producer's reason answer in its place.
+        &[("gen_ai.completion", r#"{"choices":[{"finish_reason":""}]}"#)],
+        &[
+            ("gen_ai.completion", r#"{"choices":[{"finish_reason":""}]}"#),
+            ("response_data", r#"{"finish_reason":"length"}"#),
+        ],
+        &[
+            ("gen_ai.output.messages", r#"[{"finish_reason":""}]"#),
+            ("response_data", r#"{"finish_reason":"length"}"#),
+        ],
+        &[
+            ("gcp.vertex.agent.llm_response", r#"{"finish_reason":""}"#),
+            ("response_data", r#"{"finish_reason":"length"}"#),
+        ],
+        &[("response_data", r#"{"finish_reason":""}"#)],
         // Nothing readable anywhere.
         &[("gen_ai.completion", "not json")],
         &[("response_data", r#"{"finish_reason":null}"#)],

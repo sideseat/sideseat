@@ -2424,6 +2424,81 @@ fn collect_telemetry_keys(
     }
 }
 
+/// `scalar_only` is refused everywhere it could not apply.
+///
+/// It says each match of **one path** is a single string. On a witness it means nothing (a witness only asks
+/// whether a member is there); beside a reduction it means nothing (a reduction is already per match); on a
+/// first-present group it means nothing (that selects a *member* rather than matching many, and the code path
+/// returns before the flag is read); and on a field that does not hold a list there is nowhere to lift the
+/// string to. Each of those was accepted and did nothing, which reads as protection that is not there - and
+/// the first-present case was the one where a caller could reasonably expect an array to be rejected and it
+/// was not.
+#[test]
+fn a_scalar_only_that_cannot_apply_is_refused() {
+    let compiled = |target: &str, json: serde_json::Value| {
+        let asset = serde_json::json!({
+            "id": "probe",
+            "span_fields": [{
+                "id": "probe.field",
+                "target": target,
+                "sources": [{"json": json}],
+            }],
+        });
+        super::span_fields::compile(&std::collections::BTreeMap::from([(
+            "probe.json".to_string(),
+            serde_json::to_vec(&asset).expect("the probe serialises"),
+        )]))
+    };
+    for (what, target, json) in [
+        (
+            "a first-present group, which selects a member rather than matching many",
+            "gen_ai_finish_reasons",
+            serde_json::json!({
+                "attribute": "probe.payload",
+                "first_present_of": ["$.reason"],
+                "scalar_only": true,
+            }),
+        ),
+        (
+            "beside a reduction, which is already per match",
+            "gen_ai_finish_reasons",
+            serde_json::json!({
+                "attribute": "probe.payload",
+                "path": "$.choices[0:].finish_reason",
+                "reduce": "collect_all",
+                "scalar_only": true,
+            }),
+        ),
+        (
+            "on a field that holds no list",
+            "gen_ai_system",
+            serde_json::json!({
+                "attribute": "probe.payload",
+                "path": "$.reason",
+                "scalar_only": true,
+            }),
+        ),
+    ] {
+        assert!(
+            compiled(target, json).is_err(),
+            "`scalar_only` on {what} was accepted, and it does nothing there"
+        );
+    }
+    // Its whole domain: an unreduced read through one path into a list-valued field.
+    assert!(
+        compiled(
+            "gen_ai_finish_reasons",
+            serde_json::json!({
+                "attribute": "probe.payload",
+                "path": "$.reason",
+                "scalar_only": true,
+            })
+        )
+        .is_ok(),
+        "an unreduced path into a list-valued field is where `scalar_only` applies"
+    );
+}
+
 /// A `lowercase` on a field that holds no text is refused, not silently ignored.
 ///
 /// The flag says a producer's casing is not information. On a count there is no casing, so the declaration
@@ -2572,6 +2647,19 @@ fn producer_key_inventory() -> std::collections::BTreeMap<String, String> {
     // without a list in this file that a reader here has to trust.
     let namespace = |key: &str| key.split_once('.').map(|(head, _)| head.to_string());
     let declared_namespaces: std::collections::BTreeSet<String> = {
+        // Only the conventions' asset may say which namespaces are the conventions'. Anywhere else the
+        // declaration was silently ignored, which is worse than refusing it: a dialect could state that its
+        // own namespace is a convention and read as having done so.
+        for (path, bytes) in &sources {
+            let file: crate::domain::rules::schema::RuleFile =
+                serde_json::from_slice(bytes).expect("the asset parses");
+            assert!(
+                file.convention_namespaces.is_empty() || path == "semconv.json",
+                "`{path}` declares `convention_namespaces`, which only the conventions' asset may do - \
+                 elsewhere it is ignored, so a dialect could claim its own namespace is a convention and \
+                 read as having done so"
+            );
+        }
         let conventions: crate::domain::rules::schema::RuleFile =
             serde_json::from_slice(&sources["semconv.json"]).expect("the conventions asset parses");
         conventions.convention_namespaces.iter().cloned().collect()
@@ -2581,15 +2669,14 @@ fn producer_key_inventory() -> std::collections::BTreeMap<String, String> {
         .filter(|(id, _)| CONVENTIONS.contains(&id.as_str()))
         .flat_map(|(_, keys)| keys.iter().filter_map(|key| namespace(key)))
         .collect();
-    // The declared set is **exact**, asserted here rather than checked by a property.
+    // The declared set is **exact**, asserted here, and there is deliberately **no property** behind it.
     //
-    // A property was tried twice and both spellings accepted producer evidence. "Something conventional writes
-    // under it" cannot be tested against the *shared* assets, because those are fallback chains that enumerate
-    // producers' spellings by design: add `acme.trace.id` to a shared chain, declare `acme`, and the property
-    // passes while the inventory suppresses the key. And the conventions' own asset does not write under
-    // `session.` or `http.` at all - the general OTel attributes reach this engine only through those chains -
-    // so requiring evidence from `semconv` alone would reject the very namespaces the list exists to
-    // recognise.
+    // Two were tried and both accepted producer evidence. "No framework asset declares under it" is not
+    // evidence of anything. "Some shared asset writes under it" is worse, because the shared assets are
+    // fallback chains that enumerate producers' spellings by design: add `acme.trace.id` to a chain, declare
+    // `acme`, and the property passes while the inventory suppresses the key. And `semconv` itself writes
+    // under neither `session.` nor `http.` - the general OTel attributes reach this engine only through those
+    // chains - so requiring its evidence alone would reject the very namespaces the list exists to recognise.
     //
     // Which namespaces are OTel's is knowledge somebody has to state. Stated once, in the conventions' asset,
     // and pinned exactly here: widening it is then a visible change to this list, reviewed as such, rather
