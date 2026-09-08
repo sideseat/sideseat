@@ -338,7 +338,14 @@ pub fn normalize_content_block(block: &JsonValue) -> Option<JsonValue> {
                 crate::domain::rules::schema::ChainPosition::BeforeProviderFormats,
             )
         })
-        .or_else(|| try_openinference_message_content(block))
+        // Envelopes around a *message's* content block, which the nested tool-result chain must not consult;
+        // see `rules/content-blocks-wrappers.json`.
+        .or_else(|| {
+            crate::domain::rules::ruleset().content_blocks.normalize(
+                block,
+                crate::domain::rules::schema::ChainPosition::MessageEnvelope,
+            )
+        })
         // Then try provider-specific formats
         .or_else(|| try_openai_format(block))
         .or_else(|| try_anthropic_format(block))
@@ -1253,6 +1260,10 @@ const PROVIDER_CONTENT_FIELDS: &[&str] = &[
 /// - Some SDKs: `{ "value": { "type": "text", "text": "..." } }`
 ///
 /// This function handles all known wrapper patterns universally.
+/// Retired: declared in `rules/content-blocks-wrappers.json`, at the `before_provider_formats` position. Kept
+/// as the equivalence oracle - `the_declared_wrappers_match_the_reader_they_replace` runs both over every
+/// wrapper it unwrapped and every shape where it declined.
+#[cfg(test)]
 fn try_openinference_message_content(block: &JsonValue) -> Option<JsonValue> {
     // Known content wrapper field names
     const CONTENT_WRAPPER_FIELDS: &[&str] = &[
@@ -1576,6 +1587,109 @@ fn extract_thinking_text(block: &JsonValue) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The declared wrapper cases answer exactly as `try_openinference_message_content` does.
+    ///
+    /// Every wrapper it unwraps, the reasoning members, the serialisation envelope, and - just as important -
+    /// the shapes where it declines, since declining is what leaves a block to the rest of the chain.
+    #[test]
+    fn the_declared_wrappers_match_the_reader_they_replace() {
+        use crate::domain::rules::schema::ChainPosition;
+
+        let plan = &crate::domain::rules::ruleset().content_blocks;
+        let cases: Vec<(&str, JsonValue)> = vec![
+            (
+                "one dialect's content wrapper around text",
+                json!({"message_content": {"type": "text", "text": "hello"}}),
+            ),
+            (
+                "the generic wrapper around text",
+                json!({"value": {"type": "text", "text": "hello"}}),
+            ),
+            (
+                "both wrappers, where the dialect's own is tried first",
+                json!({
+                    "message_content": {"type": "text", "text": "first"},
+                    "value": {"type": "text", "text": "second"}
+                }),
+            ),
+            (
+                "a wrapper around an image",
+                json!({"message_content": {"type": "image_url", "image_url": {"url": "https://x/y.png"}}}),
+            ),
+            (
+                "a wrapper whose content this chain cannot read",
+                json!({"message_content": {"utterly": "unknown"}}),
+            ),
+            (
+                "a wrapper holding a bare string",
+                json!({"message_content": "hello"}),
+            ),
+            ("a wrapper holding null", json!({"message_content": null})),
+            (
+                "reasoning with text and a signature",
+                json!({"reasoning_content": {"text": "thinking", "signature": "sig"}}),
+            ),
+            (
+                "reasoning with text alone",
+                json!({"reasoning_content": {"text": "thinking"}}),
+            ),
+            (
+                "reasoning with a signature alone",
+                json!({"reasoning_content": {"signature": "sig"}}),
+            ),
+            (
+                "reasoning under the other SDK's member name",
+                json!({"reasoning": {"text": "thinking", "signature": "sig"}}),
+            ),
+            (
+                "a reasoning member holding a bare string",
+                json!({"reasoning": "thinking"}),
+            ),
+            (
+                "a reasoning member holding an empty object",
+                json!({"reasoning_content": {}}),
+            ),
+            (
+                "a wrapper beside a reasoning member - the wrapper is tried first",
+                json!({
+                    "value": {"type": "text", "text": "hello"},
+                    "reasoning_content": {"text": "thinking"}
+                }),
+            ),
+            (
+                "a serialisation envelope carrying content",
+                json!({"kwargs": {"content": "hello", "type": "human"}}),
+            ),
+            (
+                "an envelope carrying only a type",
+                json!({"kwargs": {"type": "text", "text": "hello"}}),
+            ),
+            (
+                "an envelope carrying neither",
+                json!({"kwargs": {"id": "x"}}),
+            ),
+            (
+                "an envelope whose content this chain cannot read",
+                json!({"kwargs": {"content": {"utterly": "unknown"}}}),
+            ),
+            (
+                "a block with none of these members",
+                json!({"type": "text", "text": "hello"}),
+            ),
+            ("a bare string", json!("hello")),
+            ("a list", json!([1, 2])),
+        ];
+
+        for (what, block) in cases {
+            let declared = plan.normalize(&block, ChainPosition::MessageEnvelope);
+            let retired = try_openinference_message_content(&block);
+            assert_eq!(
+                declared, retired,
+                "the declared wrappers disagree with the reader they replace: {what}"
+            );
+        }
+    }
 
     /// The declared cases for one dialect answer exactly as `try_vercel_format` does.
     ///

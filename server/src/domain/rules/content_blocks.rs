@@ -20,6 +20,8 @@ use super::schema::{ChainPosition, ContentBlockRule, RuleFile};
 /// position from a rank alone would silently re-order that.
 #[derive(Debug, Default)]
 pub struct ContentBlockPlan {
+    /// Consulted only by the message-content chain; see `ChainPosition::MessageEnvelope`.
+    envelopes: Vec<ContentBlockRule>,
     before: Vec<ContentBlockRule>,
     after: Vec<ContentBlockRule>,
 }
@@ -39,7 +41,9 @@ impl ContentBlockPlan {
                 + usize::from(rule.tool_result.is_some())
                 + usize::from(rule.json.is_some())
                 + usize::from(rule.text.is_some())
-                + usize::from(rule.media.is_some());
+                + usize::from(rule.media.is_some())
+                + usize::from(rule.thinking.is_some())
+                + usize::from(rule.unwrap.is_some());
             assert!(
                 forms == 1,
                 "content-block rule `{}` declares {forms} target forms; exactly one is required",
@@ -71,7 +75,10 @@ impl ContentBlockPlan {
             // was the wrong test - `json: {"data": ["$.missing"]}` resolves nothing and still emits
             // `{data: {}}` for every block it is offered. So the *condition* is what must identify the
             // shape, and these two forms cannot be declared without one.
-            let always_builds = rule.tool_result.is_some() || rule.json.is_some();
+            // `thinking` joins these two: its members are all optional, so it emits a block whether they
+            // resolved or not, and without a condition it would claim every block it is offered.
+            let always_builds =
+                rule.tool_result.is_some() || rule.json.is_some() || rule.thinking.is_some();
             assert!(
                 !(always_builds && rule.require.all.is_empty() && rule.require.any.is_empty()),
                 "content-block rule `{}` names no condition, and its form builds a block whether its \
@@ -89,6 +96,22 @@ impl ContentBlockPlan {
                     rule.id
                 );
             }
+            // The same bound for an unwrap, which re-enters the chain by construction: a member naming the
+            // block itself would recurse forever, in a language whose whole point is that it cannot loop.
+            if let Some(spec) = &rule.unwrap {
+                assert!(
+                    !spec.from.is_empty(),
+                    "content-block rule `{}` unwraps nothing, so it recognises a block and answers with it \
+                     unchanged - which is the chain it is already in",
+                    rule.id
+                );
+                assert!(
+                    !spec.from.iter().any(|path| path.to_string() == "$"),
+                    "content-block rule `{}` unwraps the whole block, which re-enters the chain with the \
+                     same value",
+                    rule.id
+                );
+            }
             assert!(
                 empty_required.is_none(),
                 "content-block rule `{}` names no path for `{}`, which is required - the case would \
@@ -99,6 +122,7 @@ impl ContentBlockPlan {
         }
         for rule in all {
             match rule.at {
+                ChainPosition::MessageEnvelope => plan.envelopes.push(rule.clone()),
                 ChainPosition::BeforeProviderFormats => plan.before.push(rule.clone()),
                 ChainPosition::AfterProviderFormats => plan.after.push(rule.clone()),
             }
@@ -107,7 +131,11 @@ impl ContentBlockPlan {
         // answers for a shape more than one of them recognises, so two cases at the same rank would be
         // resolved by whichever asset loaded first. Across positions a rank means nothing - one runs before
         // the provider formats and the other after - so they are checked apart.
-        for (position, rules) in [("before", &plan.before), ("after", &plan.after)] {
+        for (position, rules) in [
+            ("message_envelope", &plan.envelopes),
+            ("before", &plan.before),
+            ("after", &plan.after),
+        ] {
             for pair in rules.windows(2) {
                 assert!(
                     pair[0].legacy_rank != pair[1].legacy_rank,
@@ -125,6 +153,7 @@ impl ContentBlockPlan {
     /// The first declared case at this position that recognises the block.
     pub fn normalize(&self, block: &JsonValue, at: ChainPosition) -> Option<JsonValue> {
         let cases = match at {
+            ChainPosition::MessageEnvelope => &self.envelopes,
             ChainPosition::BeforeProviderFormats => &self.before,
             ChainPosition::AfterProviderFormats => &self.after,
         };
@@ -135,6 +164,10 @@ impl ContentBlockPlan {
     }
 
     pub fn rule_count(&self) -> usize {
+        self.envelopes.len() + self.rule_count_at_provider_positions()
+    }
+
+    fn rule_count_at_provider_positions(&self) -> usize {
         self.before.len() + self.after.len()
     }
 }
@@ -193,6 +226,26 @@ fn built(block: &JsonValue, rule: &ContentBlockRule) -> Option<JsonValue> {
         // case must fall through to whatever recognises it rather than stringifying it here.
         let text = member(block, &spec.text, false)?.as_str()?;
         return Some(json!({"type": "text", "text": text}));
+    }
+    if let Some(spec) = &rule.thinking {
+        // Neither member is required: a producer that names the block as reasoning has said what it is, and the
+        // retired reader emitted an empty one rather than letting something else claim it.
+        let text = member(block, &spec.text, false)
+            .and_then(|v| v.as_str().map(str::to_string))
+            .unwrap_or_default();
+        let signature =
+            member(block, &spec.signature, false).and_then(|v| v.as_str().map(str::to_string));
+        return Some(json!({"type": "thinking", "text": text, "signature": signature}));
+    }
+    if let Some(spec) = &rule.unwrap {
+        // The first member that is *present*, normalised in the block's place. Present, not resolvable to a
+        // block: a wrapper whose content this chain cannot read leaves the **original** block to the rest of
+        // the chain, which is what the retired readers did.
+        let inner = spec
+            .from
+            .iter()
+            .find_map(|path| super::message_rules::query(block, path).into_iter().next())?;
+        return crate::domain::sideml::content::normalize_content_block(inner);
     }
     if let Some(spec) = &rule.media {
         let media_type = member(block, &spec.media_type, false)?.as_str()?;

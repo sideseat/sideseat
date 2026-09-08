@@ -1980,12 +1980,23 @@ pub struct ContentBlockRule {
     pub text: Option<TextBlock>,
     #[serde(default)]
     pub media: Option<MediaBlock>,
+    #[serde(default)]
+    pub thinking: Option<ThinkingBlock>,
+    #[serde(default)]
+    pub unwrap: Option<UnwrapSpec>,
 }
 
 /// Where a content-block case sits relative to the provider wire formats.
 #[derive(Debug, Deserialize, Clone, Copy, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum ChainPosition {
+    /// Before any provider format, and **only when normalising a message's own content block**.
+    ///
+    /// The nested chain - a tool's returned value - deliberately does not consult this position. An envelope
+    /// around a message's content is not something a tool's *result* carries, and reading it there changes what
+    /// a result means: one dialect writes `{"type": "json", "value": …}` for structured output, and a wrapper
+    /// case looking at `value` would unwrap it instead of letting the dialect's own case read it.
+    MessageEnvelope,
     /// Tried before any provider format. For a dialect whose own spelling a provider format would
     /// otherwise claim.
     BeforeProviderFormats,
@@ -2033,6 +2044,35 @@ pub struct JsonDataBlock {
 #[serde(deny_unknown_fields)]
 pub struct TextBlock {
     pub text: Vec<JsonPath>,
+}
+
+/// A model's own reasoning.
+///
+/// `text` is **not** required: a producer that wraps its reasoning in a member holding no text has still said
+/// the block is reasoning, and the retired reader emitted an empty one rather than falling through - which is
+/// what stops a signature-only block from being read as something else.
+#[derive(Debug, Deserialize, Clone)]
+#[serde(deny_unknown_fields)]
+pub struct ThinkingBlock {
+    #[serde(default)]
+    pub text: Vec<JsonPath>,
+    #[serde(default)]
+    pub signature: Vec<JsonPath>,
+}
+
+/// A wrapper: the block's content is *inside* a member, and the member is normalised in its place.
+///
+/// The one form that does not build a block. Several dialects wrap a content block in a member of their own -
+/// a serialisation envelope, a constructor's keyword arguments - and what is inside is an ordinary block of
+/// whatever shape. So the case selects it and the chain starts again from the top with that value.
+///
+/// A case whose member does not normalise answers nothing, which leaves the **original** block to the rest of
+/// the chain: that is what the retired readers did, and it is why an unwrap is not a claim.
+#[derive(Debug, Deserialize, Clone)]
+#[serde(deny_unknown_fields)]
+pub struct UnwrapSpec {
+    /// Ordered; the first member that is present is unwrapped, whether or not it normalises.
+    pub from: Vec<JsonPath>,
 }
 
 /// Bytes, or a reference to them. The block's kind and whether it is a reference are both *derived*.
