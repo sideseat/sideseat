@@ -2484,6 +2484,35 @@ fn a_scalar_only_that_cannot_apply_is_refused() {
             "`scalar_only` on {what} was accepted, and it does nothing there"
         );
     }
+
+    // A **witness**, valid in every other respect - one path, no reduction, a list-valued field - so only
+    // `is_witness` can refuse it. Without a probe this narrow, removing that condition left the suite green.
+    let witness = {
+        let asset = serde_json::json!({
+            "id": "probe",
+            "span_fields": [{
+                "id": "probe.field",
+                "target": "gen_ai_finish_reasons",
+                "sources": [{
+                    "attribute": "probe.flat",
+                    "when_json": {
+                        "attribute": "probe.payload",
+                        "path": "$.reason",
+                        "scalar_only": true,
+                    },
+                }],
+            }],
+        });
+        super::span_fields::compile(&std::collections::BTreeMap::from([(
+            "probe.json".to_string(),
+            serde_json::to_vec(&asset).expect("the probe serialises"),
+        )]))
+    };
+    assert!(
+        witness.is_err(),
+        "`scalar_only` on a witness was accepted - a witness only asks whether a member is there, so it says \
+         nothing about the shape of what it holds"
+    );
     // Its whole domain: an unreduced read through one path into a list-valued field.
     assert!(
         compiled(
@@ -2669,18 +2698,17 @@ fn producer_key_inventory() -> std::collections::BTreeMap<String, String> {
         .filter(|(id, _)| CONVENTIONS.contains(&id.as_str()))
         .flat_map(|(_, keys)| keys.iter().filter_map(|key| namespace(key)))
         .collect();
-    // The declared set is **exact**, asserted here, and there is deliberately **no property** behind it.
+    // Convention namespaces are an explicit **policy set** in `semconv.json`, mirrored by an exact test
+    // expectation. No property independently proves their ownership; changes therefore require explicit
+    // review.
     //
-    // Two were tried and both accepted producer evidence. "No framework asset declares under it" is not
-    // evidence of anything. "Some shared asset writes under it" is worse, because the shared assets are
-    // fallback chains that enumerate producers' spellings by design: add `acme.trace.id` to a chain, declare
-    // `acme`, and the property passes while the inventory suppresses the key. And `semconv` itself writes
-    // under neither `session.` nor `http.` - the general OTel attributes reach this engine only through those
-    // chains - so requiring its evidence alone would reject the very namespaces the list exists to recognise.
-    //
-    // Which namespaces are OTel's is knowledge somebody has to state. Stated once, in the conventions' asset,
-    // and pinned exactly here: widening it is then a visible change to this list, reviewed as such, rather
-    // than a property quietly satisfied by the producer key it was meant to catch.
+    // Two properties were tried and both accepted producer evidence, which is why there is none. "No framework
+    // asset declares under it" is not evidence of anything. "Some shared asset writes under it" is worse,
+    // because the shared assets are fallback chains that enumerate producers' spellings by design: add
+    // `acme.trace.id` to a chain, declare `acme`, and the property passes while the inventory suppresses the
+    // key. And `semconv` itself writes under neither `session.` nor `http.` - the general OTel attributes
+    // reach this engine only through those chains - so requiring its evidence alone would reject the very
+    // namespaces the set exists to recognise.
     let expected_namespaces: std::collections::BTreeSet<String> = [
         "aws",
         "cloud",
@@ -2706,8 +2734,8 @@ fn producer_key_inventory() -> std::collections::BTreeMap<String, String> {
     let _ = &from_conventions;
     let conventional = |key: &str| {
         // `sideseat.` is **this server's** own namespace rather than a convention: it is written by the
-        // ingestion path, not declared by any asset, so it is excluded here rather than in the asset's list -
-        // where it would fail that list's own property, since nothing conventional writes under it.
+        // ingestion path, so it is excluded here rather than added to the conventions' policy set, which is
+        // about OTel's namespaces and not about ours.
         key.starts_with("sideseat.")
             || namespace(key).is_some_and(|head| {
                 from_conventions.contains(&head) || declared_namespaces.contains(&head)

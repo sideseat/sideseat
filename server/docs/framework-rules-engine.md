@@ -783,13 +783,13 @@ fixed later — each is a boundary of what the evidence can carry.
   (`no_production_module_names_a_framework`) and one over the telemetry *keys* the assets declare
   (`no_production_module_carries_a_framework_telemetry_key`). The second collects every dotted string in the
   assets except a closed list of the engine's own vocabulary, canonicalises the `attr:` selector form, and
-  attributes each key to the declaring asset. Which namespaces are the conventions' is **stated** — in the
-  conventions' own asset, and pinned exactly by the test. Deriving it was tried twice and both spellings
-  accepted producer evidence: "no framework asset declares under it" is not evidence of anything, and
-  "some shared asset writes under it" is worse, because the shared assets are fallback chains that enumerate
-  producers' spellings by design. So an exact list is the honest form, with **no property** behind it —
-  widening it is a reviewed change to a pinned set rather than a property quietly satisfied by the key it was
-  meant to catch, and only the conventions' asset may declare it. It cannot see: a key no asset
+  attributes each key to the declaring asset. Convention namespaces are an explicit **policy set** in
+  `semconv.json`, mirrored by an exact test expectation. No property independently proves their ownership;
+  changes therefore require explicit review. Two properties were tried and both accepted producer evidence,
+  which is why there is none: "no framework asset declares under it" is not evidence of anything, and "some
+  shared asset writes under it" is worse, because the shared assets are fallback chains that enumerate
+  producers' spellings by design. Only the conventions' asset may declare the set, which is refused rather
+  than assumed. It cannot see: a key no asset
   declares (nothing identifies it as a producer's), a **value that is not a dotted key** — a role string, a
   magic number, a bare word like `response_data` before it was declared — and a key assembled at runtime.
   Its derivation is pinned in both directions by
