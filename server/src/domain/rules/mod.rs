@@ -149,8 +149,14 @@ pub struct Ruleset {
     pub messages: message_rules::MessagePlan,
     /// The event names that carry messages, from every asset.
     pub message_events: std::collections::HashSet<String>,
-    /// Which role each event's message carries, and which instead on a tool execution span.
+    /// Which role each source name carries, and which instead on a tool execution span.
     pub event_roles: std::collections::BTreeMap<String, DeclaredEventRole>,
+    /// Source names this engine assigns itself, through a rule's `tag_as`.
+    ///
+    /// A tagged emission is an *attribute* whose key this engine chose, so consulting its declared role is
+    /// right; a producer's own attribute that happens to share the name is not, which is why this is the set
+    /// of tags rather than "any attribute key".
+    pub tagged_source_names: std::collections::BTreeSet<String>,
     /// Content-block shapes, declared per dialect.
     pub content_blocks: content_blocks::ContentBlockPlan,
     /// Facts about a span, each established by any dialect that can.
@@ -209,6 +215,10 @@ pub fn ruleset() -> &'static Ruleset {
                 .collect(),
             event_roles: compile_event_roles(&parsed_files(&sources))
                 .unwrap_or_else(|e| panic!("embedded event roles are malformed: {e}")),
+            tagged_source_names: parsed_files(&sources)
+                .iter()
+                .flat_map(|file| file.messages.iter().filter_map(|m| m.tag_as.clone()))
+                .collect(),
             span_facts: SpanFactPlan::compile(&sources),
             span_fields: span_fields::compile(&sources)
                 .unwrap_or_else(|e| panic!("embedded span field rules are malformed: {e}")),
@@ -223,13 +233,24 @@ pub fn ruleset() -> &'static Ruleset {
     })
 }
 
-/// The role an event's message carries, by event name.
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
+/// The role a source name carries, resolved to the enum at compile time and carrying its provenance.
+///
+/// The roles are `ChatRole`, not strings: a plan is typed so nothing is dispatched on a string per span, and
+/// a name outside the vocabulary is a build defect rather than a role silently derived from content instead.
+/// The asset, rule id and doc travel with it for the reason every other compiled clause carries them - a
+/// diagnostic that cannot say *which* declaration answered explains nothing.
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DeclaredEventRole {
     /// On an ordinary span. `None` leaves the role to the content.
-    pub role: Option<String>,
-    /// On a tool execution span, where two events mean the opposite of what they mean elsewhere.
-    pub in_tool_span: Option<String>,
+    pub role: Option<crate::domain::sideml::ChatRole>,
+    /// On a tool execution span, where two names mean the opposite of what they mean elsewhere.
+    pub in_tool_span: Option<crate::domain::sideml::ChatRole>,
+    /// The asset that declared it.
+    pub asset: String,
+    /// The rule id, so a diagnostic can name the declaration rather than only the name it answered for.
+    pub rule_id: String,
+    /// Why, for the explain trace.
+    pub doc: Option<String>,
 }
 
 /// The roles each message event declares, gathered across every asset.
@@ -242,15 +263,34 @@ pub struct DeclaredEventRole {
 pub(super) fn compile_event_roles(
     files: &[schema::RuleFile],
 ) -> Result<std::collections::BTreeMap<String, DeclaredEventRole>, String> {
-    /// The roles an event may declare. Ours, not any producer's - so a misspelling is a build defect rather
-    /// than a silent fall back to deriving the role from the content.
+    use crate::domain::sideml::ChatRole;
+    /// The roles a source name may declare. Ours, not any producer's - so a misspelling is a build defect
+    /// rather than a silent fall back to deriving the role from the content.
     const ROLES: &[&str] = &["system", "user", "assistant", "tool"];
+    // The names that can actually occur: an event a producer emits, or one a rule assigns with `tag_as`. A
+    // declaration for anything else can never answer, and a rule that can never answer reads as protection.
+    let occurring: std::collections::BTreeSet<&str> = files
+        .iter()
+        .flat_map(|file| {
+            file.message_events
+                .iter()
+                .map(|event| event.name.as_str())
+                .chain(file.messages.iter().filter_map(|m| m.tag_as.as_deref()))
+        })
+        .collect();
     let mut out: std::collections::BTreeMap<String, DeclaredEventRole> =
         std::collections::BTreeMap::new();
     for file in files {
         for event in &file.event_roles {
             if event.name.is_empty() {
                 return Err(format!("`{}` declares an event role with no name", file.id));
+            }
+            if !occurring.contains(event.name.as_str()) {
+                return Err(format!(
+                    "event role `{}` in `{}` names something no asset produces - it is neither a \
+                     `message_events` entry nor any rule's `tag_as`, so it could never answer",
+                    event.name, file.id
+                ));
             }
             for role in [&event.role, &event.role_in_tool_span]
                 .into_iter()
@@ -265,13 +305,18 @@ pub(super) fn compile_event_roles(
                     ));
                 }
             }
+            let resolve =
+                |named: &Option<String>| named.as_deref().and_then(ChatRole::try_from_str);
             let declared = DeclaredEventRole {
-                role: event.role.clone(),
-                in_tool_span: event.role_in_tool_span.clone(),
+                role: resolve(&event.role),
+                in_tool_span: resolve(&event.role_in_tool_span),
+                asset: file.id.clone(),
+                rule_id: format!("{}.event_role.{}", file.id, event.name),
+                doc: event.doc.clone(),
             };
             // A name that says nothing about the role is not a declaration, and accepting it would let an
             // empty entry silently replace a real one.
-            if declared == DeclaredEventRole::default() {
+            if declared.role.is_none() && declared.in_tool_span.is_none() {
                 return Err(format!(
                     "event role `{}` in `{}` names no role at all, so it states nothing - leave the entry \
                      out to leave the role to the content",
@@ -282,13 +327,22 @@ pub(super) fn compile_event_roles(
                 None => {
                     out.insert(event.name.clone(), declared);
                 }
-                // A repeat that agrees is a dialect re-stating a convention, which is allowed.
-                Some(existing) if *existing == declared => {}
+                // A repeat that agrees about the *roles* is a dialect re-stating a convention, which is
+                // allowed - the provenance differs by definition and says nothing about the answer.
+                Some(existing)
+                    if existing.role == declared.role
+                        && existing.in_tool_span == declared.in_tool_span => {}
                 Some(existing) => {
                     return Err(format!(
-                        "event `{}` is declared with role {existing:?} and also with {declared:?} - which \
+                        "source name `{}` is declared {:?}/{:?} in `{}` and {:?}/{:?} in `{}` - which \
                          applies would depend on load order",
-                        event.name
+                        event.name,
+                        existing.role,
+                        existing.in_tool_span,
+                        existing.asset,
+                        declared.role,
+                        declared.in_tool_span,
+                        declared.asset
                     ));
                 }
             }

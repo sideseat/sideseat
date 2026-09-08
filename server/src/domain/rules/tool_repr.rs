@@ -219,6 +219,23 @@ fn balanced_braces(input: &str) -> Option<&str> {
 }
 
 /// Parse Python repr JSON-like strings (`{'k': True, 'v': None}`) into JSON.
+///
+/// **The accepted language, specified rather than described**, because "Python repr" names a language far
+/// larger than this and a rule author needs to know where the edge is. It is JSON with four differences:
+///
+/// | Accepted | Meaning |
+/// | --- | --- |
+/// | A leading `{` or `[` | Required. Anything else is refused outright, so a bare word or a sentence is not a literal |
+/// | `'…'` as well as `"…"` | Either quote opens a string, and the closing quote must be the same character |
+/// | `True`, `False`, `None` | Outside a string only, and only as whole words - `Nonetheless` is not `null` |
+/// | Everything else | Passed through unchanged, so numbers, nesting and separators are JSON's |
+///
+/// So the whole of it is: reject anything not object- or array-shaped, rewrite quotes and those three words,
+/// and hand the rest to a JSON parser. **Not** accepted, each a real Python literal, and each refused
+/// because what comes out is not JSON: a tuple `(1, 2)`, a set `{1, 2}`, a trailing comma, `b'bytes'`, an
+/// `f'…'` string, `1_000`, `0x1f`, `inf`/`nan`, a concatenated pair of adjacent string literals, and any
+/// escape sequence Python spells differently from JSON. A refusal is `None`, which leaves the string to be
+/// read as text - so the failure mode is a tool definition not recognised, never a wrong one.
 fn python_literal_to_json(s: &str) -> Option<JsonValue> {
     if !s.starts_with('{') && !s.starts_with('[') {
         return None;
@@ -520,4 +537,10 @@ fn in_first_seen_order(
     }
 
     if tools.is_empty() { None } else { Some(tools) }
+}
+
+/// The `repr` grammar, reachable from the structural test that pins its specified language.
+#[cfg(test)]
+pub(crate) fn python_literal_to_json_for_test(s: &str) -> Option<JsonValue> {
+    python_literal_to_json(s)
 }

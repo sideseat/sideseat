@@ -5822,3 +5822,122 @@ fn the_declared_event_roles_reproduce_the_table_they_replaced() {
         }
     }
 }
+
+/// A **tagged** source name takes its declared role, end to end, not only through the lookup helper.
+///
+/// This is the shape the event-role move first left open. A dialect tags a bundled tool result
+/// `gen_ai.tool.result` with `tag_as`, which makes the emission an *attribute* whose key the engine chose. A
+/// bundle of **one** is not split - splitting exists to separate results that would otherwise share an
+/// identity, and one needs no separating - so it reached role derivation as an attribute, matched nothing,
+/// and was normalised as a **user** message: the tool's answer presented as the user's question.
+///
+/// Two-sided on purpose. A *producer's own* attribute of the same name must **not** take the role, because
+/// the declaration is a statement about names this engine assigns; and a reading that already stated a role
+/// keeps it, because that is more specific than the name it was tagged with.
+#[test]
+fn a_tagged_source_name_takes_its_declared_role() {
+    let one_result = json!({
+        "content": [{
+            "toolResult": {
+                "toolUseId": "call_1",
+                "content": [{"text": "17"}],
+                "status": "success"
+            }
+        }],
+        "tool_call_id": "call_1"
+    });
+
+    let tagged = vec![RawMessage {
+        source: MessageSource::Attribute {
+            key: "gen_ai.tool.result".to_string(),
+            time: Utc.with_ymd_and_hms(2024, 1, 15, 10, 30, 0).unwrap(),
+        },
+        content: one_result.clone(),
+    }];
+    let out = to_sideml(&tagged);
+    assert_eq!(out.len(), 1, "one bundled result is one message");
+    assert_eq!(
+        out[0].sideml.role,
+        ChatRole::Tool,
+        "a tagged `gen_ai.tool.result` is a tool's answer; as a user message it reads as the question"
+    );
+
+    // A **declared** name that no rule tags. `gen_ai.choice` has a declared role and is an *event* name, so
+    // an attribute carrying that key is a producer's own and must not take it. Chosen deliberately over an
+    // undeclared key like `gen_ai.prompt.0.content`: that one answers nothing either way, so it cannot tell
+    // "only tags consult the declarations" from "any attribute key does", which is the property at stake.
+    let untagged = vec![RawMessage {
+        source: MessageSource::Attribute {
+            key: "gen_ai.choice".to_string(),
+            time: Utc.with_ymd_and_hms(2024, 1, 15, 10, 30, 0).unwrap(),
+        },
+        content: one_result.clone(),
+    }];
+    assert_ne!(
+        to_sideml(&untagged)[0].sideml.role,
+        ChatRole::Assistant,
+        "a producer's own attribute must not be given the role this engine declares for its own tags"
+    );
+
+    // A reading that states the role keeps it: more specific than the name it was tagged with.
+    let mut stated = one_result.clone();
+    stated["role"] = json!("assistant");
+    let explicit = vec![RawMessage {
+        source: MessageSource::Attribute {
+            key: "gen_ai.tool.result".to_string(),
+            time: Utc.with_ymd_and_hms(2024, 1, 15, 10, 30, 0).unwrap(),
+        },
+        content: stated,
+    }];
+    assert_eq!(
+        to_sideml(&explicit)[0].sideml.role,
+        ChatRole::Assistant,
+        "a role the reading stated is more specific than the tag's declaration"
+    );
+}
+
+/// Every declared source name is one that can occur, and every name the retired table knew is declared.
+///
+/// The equivalence oracle beside this one samples names; this compares the **key sets**, in both directions.
+/// Sampling leaves a new declaration invisible - adding `new.magic` would have kept it green - and a
+/// declaration for a name nothing produces can never answer, which reads as protection that is not there.
+#[test]
+fn the_declared_source_names_are_exactly_the_ones_that_can_occur() {
+    let ruleset = crate::domain::rules::ruleset();
+    let declared: std::collections::BTreeSet<&str> =
+        ruleset.event_roles.keys().map(String::as_str).collect();
+
+    // Every name the retired table answered for must still be declared, or a role silently disappears.
+    let retired = [
+        "gen_ai.system.message",
+        "gen_ai.user.message",
+        "gen_ai.content.prompt",
+        "gen_ai.tool.message",
+        "gen_ai.tool.result",
+        "tool.output",
+        "gen_ai.assistant.message",
+        "gen_ai.choice",
+        "gen_ai.content.completion",
+    ];
+    for name in retired {
+        assert!(
+            declared.contains(name),
+            "`{name}` had a role in the table the assets replaced and no longer has one"
+        );
+    }
+    // And nothing else, so a new declaration is a deliberate change to this list rather than a silent one.
+    let expected: std::collections::BTreeSet<&str> = retired.into_iter().collect();
+    assert_eq!(
+        declared, expected,
+        "the declared source names have changed; if that is intended, state the new one here"
+    );
+
+    // Each must be producible: an event some asset lists, or a name some rule assigns. The compile refuses
+    // otherwise, and this states the property the refusal exists for.
+    for name in &declared {
+        assert!(
+            ruleset.message_events.contains(*name) || ruleset.tagged_source_names.contains(*name),
+            "`{name}` declares a role and nothing produces it"
+        );
+    }
+}

@@ -609,6 +609,8 @@ fn emit_non_tool_message(
 /// it lives in that dialect's own asset. Two names mean the opposite thing on a tool execution span, which
 /// is why the span's kind is part of the question.
 ///
+/// Resolved to `ChatRole` at compile time, so nothing here dispatches on a string.
+///
 /// Derived at query time, so a correction applies to stored spans without re-ingestion.
 ///
 /// # Returns
@@ -619,28 +621,42 @@ pub(crate) fn role_from_event_name_with_context(
     event_name: &str,
     is_tool_span: bool,
 ) -> Option<ChatRole> {
-    let declared = crate::domain::rules::ruleset().event_roles.get(event_name);
-    let Some(declared) = declared else {
+    let Some(declared) = crate::domain::rules::ruleset().event_roles.get(event_name) else {
         // Not a name any asset speaks for. Logged only for the conventions' namespace, where an unrecognised
         // name is more likely to be a spelling this server should know than a producer's own invention.
         if event_name.starts_with("gen_ai.") {
             tracing::trace!(
                 event_name = event_name,
                 is_tool_span = is_tool_span,
-                "no declared role for this event name, role will be derived from content"
+                "no declared role for this source name, role will be derived from content"
             );
         }
         return None;
     };
-    let named = if is_tool_span {
-        declared
-            .in_tool_span
-            .as_deref()
-            .or(declared.role.as_deref())
+    if is_tool_span {
+        declared.in_tool_span.or(declared.role)
     } else {
-        declared.role.as_deref()
-    };
-    named.and_then(ChatRole::try_from_str)
+        declared.role
+    }
+}
+
+/// The role a **tagged** source name implies - a name this engine assigned with `tag_as`.
+///
+/// A tagged emission is an *attribute* whose key the engine chose, which is why it consults the same
+/// declarations while a producer's own attribute of the same name does not: the role of a name is a
+/// statement about this engine's vocabulary there, not about the producer's.
+///
+/// This is the gap the event-role move first left open, and it was reachable. A dialect tags a bundled tool
+/// result `gen_ai.tool.result`; a bundle of **one** is not split (splitting exists to separate results that
+/// would otherwise share an identity, and one needs no separating), so it reached role derivation as an
+/// attribute, matched nothing, and was normalised as a **user** message - the model's question, showing the
+/// tool's answer. `a_tagged_source_name_takes_its_declared_role` is that shape.
+fn role_from_tagged_source(key: &str, is_tool_span: bool) -> Option<ChatRole> {
+    crate::domain::rules::ruleset()
+        .tagged_source_names
+        .contains(key)
+        .then(|| role_from_event_name_with_context(key, is_tool_span))
+        .flatten()
 }
 
 /// Special roles that MUST NOT be overridden by event-based role derivation.
@@ -681,7 +697,24 @@ fn derive_role_from_source_with_context(raw: &RawMessage, is_tool_span: bool) ->
             }
             raw.content.clone()
         }
-        MessageSource::Attribute { .. } => raw.content.clone(),
+        MessageSource::Attribute { key, .. } => {
+            // Only a name this engine assigned, and only where the content has not already said so - a
+            // reading that states the role is more specific than the name it was tagged with.
+            if let Some(existing) = raw.content.get("role").and_then(|r| r.as_str())
+                && !existing.is_empty()
+            {
+                let _ = existing;
+                return raw.content.clone();
+            }
+            match role_from_tagged_source(key, is_tool_span) {
+                Some(role) => {
+                    let mut content = raw.content.clone();
+                    content["role"] = json!(role.as_str());
+                    content
+                }
+                None => raw.content.clone(),
+            }
+        }
     }
 }
 

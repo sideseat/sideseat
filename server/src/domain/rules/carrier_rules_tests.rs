@@ -2144,3 +2144,137 @@ fn an_unfamiliar_cfg_mentioning_test_is_refused() {
         "an unfamiliar cfg",
     );
 }
+
+/// The `repr` primitive accepts exactly the language its documentation specifies.
+///
+/// The design's fifth test required the accepted language to be *specified* rather than described as
+/// "Python repr", which names something far larger. A specification nobody checks is a comment, so each
+/// line of that table is a case here - and the refusals matter more than the acceptances: a refusal leaves
+/// the string to be read as text, while a wrong parse invents a tool definition.
+#[test]
+fn the_repr_primitive_accepts_the_language_it_specifies() {
+    use crate::domain::rules::tool_repr::python_literal_to_json_for_test as parse;
+    for accepted in [
+        "{'k': True}",
+        "{\"k\": False}",
+        "{'k': None}",
+        "[{'a': 1}, {'b': 2}]",
+        "{'k': 'Nonetheless'}",
+        "{'nested': {'deep': [1, 2, 3]}}",
+    ] {
+        assert!(
+            parse(accepted).is_some(),
+            "`{accepted}` is in the specified language and was refused"
+        );
+    }
+    // A whole-word check, not a substring one: a value that merely starts with `None` is a string.
+    assert_eq!(
+        parse("{'k': 'Nonetheless'}").and_then(|v| v["k"].as_str().map(str::to_owned)),
+        Some("Nonetheless".to_string()),
+        "a string containing a literal's name must survive as that string"
+    );
+    for refused in [
+        // Not object- or array-shaped: refused before anything else, so prose cannot become a definition.
+        "True",
+        "search",
+        "Tool Arguments: none",
+        "",
+        // Python literals outside the accepted subset. Each must refuse rather than parse to something.
+        "(1, 2)",
+        "{'k': (1, 2)}",
+        "{'k': b'bytes'}",
+        "{'k': 1_000}",
+        "{'k': 0x1f}",
+        "{'k': inf}",
+        "{'k': 'a' 'b'}",
+        "{'k': 1,}",
+        "{1, 2}",
+        "{'k': f'x'}",
+    ] {
+        assert!(
+            parse(refused).is_none(),
+            "`{refused}` is outside the specified language and was accepted - a wrong parse invents a \
+             tool definition, where a refusal only fails to find one"
+        );
+    }
+}
+
+/// Every refusal `compile_event_roles` makes, as a test rather than as a mutation I ran once.
+///
+/// Mutation verification shows a check works today; it does not stop the check being removed tomorrow. Each
+/// of these is a declaration that could not take effect, or one whose effect would depend on load order, and
+/// both read as a statement that holds.
+#[test]
+fn an_event_role_declaration_must_be_able_to_answer_and_must_not_depend_on_load_order() {
+    use super::schema::RuleFile;
+
+    // A probe asset carrying an event, a tag, and whatever event roles the case declares.
+    let compiled = |roles: serde_json::Value| {
+        let file: RuleFile = serde_json::from_value(serde_json::json!({
+            "id": "probe",
+            "message_events": [{"name": "probe.event"}],
+            "messages": [{
+                "id": "probe.tagging_rule",
+                "read": {"attribute": "probe.attribute"},
+                "tag_as": "probe.tag",
+                "emit": "message",
+            }],
+            "event_roles": roles,
+        }))
+        .expect("the probe asset parses");
+        super::compile_event_roles(&[file])
+    };
+
+    for (what, roles) in [
+        (
+            "a role outside the vocabulary, which would silently leave the role to the content",
+            serde_json::json!([{"name": "probe.event", "role": "narrator"}]),
+        ),
+        (
+            "a tool-span role outside it, which the ordinary role would mask on a chat span",
+            serde_json::json!([{"name": "probe.event", "role": "user", "role_in_tool_span": "narrator"}]),
+        ),
+        (
+            "no role at all, which states nothing and would replace a real declaration",
+            serde_json::json!([{"name": "probe.event"}]),
+        ),
+        ("no name", serde_json::json!([{"name": "", "role": "user"}])),
+        (
+            "a name nothing produces - neither an event nor any rule's tag",
+            serde_json::json!([{"name": "probe.absent", "role": "user"}]),
+        ),
+        (
+            "two declarations that disagree, where which applies depends on load order",
+            serde_json::json!([
+                {"name": "probe.event", "role": "user"},
+                {"name": "probe.event", "role": "assistant"},
+            ]),
+        ),
+        (
+            "two that disagree only about the tool span, which is the half easiest to overlook",
+            serde_json::json!([
+                {"name": "probe.event", "role": "user", "role_in_tool_span": "tool"},
+                {"name": "probe.event", "role": "user"},
+            ]),
+        ),
+    ] {
+        assert!(compiled(roles).is_err(), "{what} was accepted");
+    }
+
+    // And the two shapes that must be accepted, or the refusals are simply a ban.
+    for (what, roles) in [
+        (
+            "a repeat that agrees, which is a dialect re-stating a convention",
+            serde_json::json!([
+                {"name": "probe.event", "role": "user"},
+                {"name": "probe.event", "role": "user"},
+            ]),
+        ),
+        (
+            "a role for a name a rule assigns with `tag_as`, which no producer emits",
+            serde_json::json!([{"name": "probe.tag", "role": "tool"}]),
+        ),
+    ] {
+        assert!(compiled(roles).is_ok(), "{what} was refused");
+    }
+}
