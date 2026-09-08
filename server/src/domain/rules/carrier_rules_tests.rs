@@ -1037,3 +1037,46 @@ fn the_selected_root_level_predicate_defects_are_refused() {
         );
     }
 }
+
+/// A compose owns every attribute it read, not just its synthetic tag.
+///
+/// Reachable in the shipped assets: Vercel's `ai.response` compose falls back to `output.value` on an `ai.*`
+/// span carrying `ai.prompt.messages`, and LangGraph reads `output.value` directly. Owning only the tag left
+/// the attribute unclaimed, so a span holding both dialects' evidence emitted the answer twice - and rank
+/// could not separate them, because the two rules were never competing for the same name.
+#[test]
+fn a_compose_claims_the_attributes_it_read_not_only_its_tag() {
+    let plan = &super::ruleset().messages;
+    let mut attrs = std::collections::HashMap::new();
+    // Vercel's own evidence, with no `ai.response.text`: the compose reaches its `output.value` fallback.
+    attrs.insert(
+        "ai.prompt.messages".to_string(),
+        r#"[{"role":"user","content":"q"}]"#.to_string(),
+    );
+    // LangGraph's evidence, so its `output.value` rule is live on the same span.
+    attrs.insert("langgraph.node".to_string(), "agent".to_string());
+    attrs.insert(
+        "metadata".to_string(),
+        r#"{"langgraph_step":1}"#.to_string(),
+    );
+    attrs.insert(
+        "output.value".to_string(),
+        r#"{"role":"assistant","content":"the answer"}"#.to_string(),
+    );
+    let ctx =
+        super::message_rules::MessageContext::for_span("ai.generateText.doGenerate", &attrs, false);
+
+    let emissions = plan.run(&ctx);
+    // Not "who declared ownership" but "who emitted the payload": with the compose owning only its tag,
+    // both rules read `output.value` and the span reported the answer twice.
+    let readers: Vec<&str> = emissions
+        .iter()
+        .filter(|e| e.value.to_string().contains("the answer"))
+        .map(|e| e.rule_id)
+        .collect();
+    assert_eq!(
+        readers.len(),
+        1,
+        "two rules emitted the same output.value payload: {readers:?} - the compose must own what it read"
+    );
+}

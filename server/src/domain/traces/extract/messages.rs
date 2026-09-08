@@ -176,14 +176,28 @@ fn is_message_event(event_name: &str) -> bool {
 pub(crate) fn extract_messages_from_events(
     messages: &mut Vec<RawMessage>,
     events: &[Event],
+    span_name: &str,
+    span_attrs: &HashMap<String, String>,
     is_tool_span: bool,
 ) {
     for event in events {
-        messages.extend(extract_message_from_event(event, is_tool_span));
+        messages.extend(extract_message_from_event(
+            event,
+            span_name,
+            span_attrs,
+            is_tool_span,
+        ));
     }
 }
 
-pub(crate) fn extract_message_from_event(event: &Event, is_tool_span: bool) -> Vec<RawMessage> {
+/// The span is passed as well as the event, because a rule's gate asks about the span while its `read` draws
+/// from the event. With only the event, a `span_name` gate compiled and could never hold.
+pub(crate) fn extract_message_from_event(
+    event: &Event,
+    span_name: &str,
+    span_attrs: &HashMap<String, String>,
+    is_tool_span: bool,
+) -> Vec<RawMessage> {
     // Only process known message events
     if !is_message_event(&event.name) {
         return vec![];
@@ -196,10 +210,13 @@ pub(crate) fn extract_message_from_event(event: &Event, is_tool_span: bool) -> V
     // event's raw form is a message as well: a container event's attributes *are* the messages inside it, so
     // emitting the container too would report the conversation twice, while an event carrying a reply and a
     // bundled tool result wants both.
-    let (declared, replaces) =
-        crate::domain::rules::ruleset()
-            .messages
-            .from_event(&event.name, &attrs, is_tool_span);
+    let (declared, replaces) = crate::domain::rules::ruleset().messages.from_event(
+        &event.name,
+        &attrs,
+        span_name,
+        span_attrs,
+        is_tool_span,
+    );
     let declared: Vec<RawMessage> = declared
         .into_iter()
         .map(|emission| RawMessage::from_event(emission.carrier.name(), event_time, emission.value))
@@ -259,16 +276,15 @@ pub(crate) fn try_declared_rules(
     timestamp: DateTime<Utc>,
     claims: &mut std::collections::HashSet<crate::domain::rules::message_rules::OwnedCarrier>,
 ) -> bool {
-    let emissions =
-        crate::domain::rules::ruleset()
-            .messages
-            .run(&crate::domain::rules::MessageContext {
-                span_name,
-                span_attrs: attrs,
-                // Asked here rather than threaded through the extractor signature: it is a pure function
-                // of the span, and a rule declares whether it may read such a span.
-                is_tool_span: is_tool_execution_span(attrs),
-            });
+    let emissions = crate::domain::rules::ruleset().messages.run(
+        &crate::domain::rules::MessageContext::for_span(
+            span_name,
+            attrs,
+            // Asked here rather than threaded through the extractor signature: it is a pure function
+            // of the span, and a rule declares whether it may read such a span.
+            is_tool_execution_span(attrs),
+        ),
+    );
     // "Was the message payload handled?" - which is what the caller does with this answer, since it uses it
     // to decide whether the generic reader still needs to run.
     //
@@ -296,7 +312,7 @@ pub(crate) fn try_declared_rules(
             crate::domain::rules::schema::EmitTarget::Message
                 | crate::domain::rules::schema::EmitTarget::Claim
         ) {
-            owned.insert(emission.owns.clone());
+            owned.extend(emission.owns.iter().cloned());
         }
         match emission.target {
             // An event carrier is recorded as one: carrier semantics are looked up by kind, so reporting
@@ -539,6 +555,7 @@ fn carrier_of(source: &MessageSource) -> String {
 /// are metadata that should be extracted from tool execution spans too,
 /// not just chat spans.
 pub(crate) fn extract_tool_definitions(
+    span_name: &str,
     attrs: &HashMap<String, String>,
     timestamp: DateTime<Utc>,
 ) -> (Vec<RawToolDefinition>, Vec<RawToolNames>) {
@@ -549,11 +566,11 @@ pub(crate) fn extract_tool_definitions(
     // message, so carrier claiming does not apply - a framework may state its tools on a carrier another
     // rule reads as a conversation, and both statements are true.
     for emission in crate::domain::rules::ruleset().messages.tool_definitions(
-        &crate::domain::rules::MessageContext {
-            span_name: "",
-            span_attrs: attrs,
-            is_tool_span: is_tool_execution_span(attrs),
-        },
+        &crate::domain::rules::MessageContext::for_span(
+            span_name,
+            attrs,
+            is_tool_execution_span(attrs),
+        ),
     ) {
         let key = emission.carrier.name();
         match emission.target {
@@ -3103,11 +3120,11 @@ fn fallback_messages(
     crate::domain::rules::ruleset()
         .messages
         .fallback(
-            &crate::domain::rules::MessageContext {
+            &crate::domain::rules::MessageContext::for_span(
                 span_name,
-                span_attrs: attrs,
-                is_tool_span: is_tool_execution_span(attrs),
-            },
+                attrs,
+                is_tool_execution_span(attrs),
+            ),
             already_read,
         )
         .into_iter()
@@ -3342,7 +3359,13 @@ pub(super) fn extract_messages_for_span(
     let mut tool_names = Vec::new();
 
     // Always extract system_prompt if present (comes before conversation)
-    extract_messages_from_events(&mut raw_messages, &otlp_span.events, is_tool_span);
+    extract_messages_from_events(
+        &mut raw_messages,
+        &otlp_span.events,
+        &otlp_span.name,
+        span_attrs,
+        is_tool_span,
+    );
 
     // Enrich tool span messages with metadata from span attributes
     // Check event name (not role) since role is now derived at query-time
@@ -3416,7 +3439,7 @@ pub(super) fn extract_messages_for_span(
     // implementations *after* the suppression.
 
     // Always extract tool definitions and tool names from any span (they're metadata, not conversation)
-    let (defs, names) = extract_tool_definitions(span_attrs, timestamp);
+    let (defs, names) = extract_tool_definitions(&otlp_span.name, span_attrs, timestamp);
     tool_definitions.extend(defs);
     tool_names.extend(names);
 

@@ -49,9 +49,47 @@ type Reading = (JsonValue, Option<WrapSpec>, Option<EmitTarget>);
 #[derive(Debug, Clone, Copy)]
 pub struct MessageContext<'a> {
     pub span_name: &'a str,
+    /// The map a rule's `read` draws from - a span's attributes, or an event's when reading one.
     pub span_attrs: &'a HashMap<String, String>,
+    /// The map a rule's `when`/`unless` asks about, which is always the **span's**.
+    ///
+    /// Separate from the read source because an event's attributes are not a span's: with one field, an
+    /// event rule's `attr_exists` silently asked about the event's own map, and a `span_name` gate compiled
+    /// against an empty name and could only ever fail.
+    pub gate_attrs: &'a HashMap<String, String>,
     /// Whether this is a tool execution span, which only some rules may read.
     pub is_tool_span: bool,
+}
+
+impl<'a> MessageContext<'a> {
+    /// A span read as itself: the gates and the reads see the same map.
+    pub fn for_span(
+        span_name: &'a str,
+        span_attrs: &'a HashMap<String, String>,
+        is_tool_span: bool,
+    ) -> Self {
+        Self {
+            span_name,
+            span_attrs,
+            gate_attrs: span_attrs,
+            is_tool_span,
+        }
+    }
+
+    /// One of a span's events: read from the event, gated on the span that carries it.
+    pub fn for_event(
+        span_name: &'a str,
+        span_attrs: &'a HashMap<String, String>,
+        event_attrs: &'a HashMap<String, String>,
+        is_tool_span: bool,
+    ) -> Self {
+        Self {
+            span_name,
+            span_attrs: event_attrs,
+            gate_attrs: span_attrs,
+            is_tool_span,
+        }
+    }
 }
 
 /// Where an emitted observation came from, in the vocabulary the ingestion types use.
@@ -87,13 +125,17 @@ pub struct Emission<'a> {
     /// The clause that produced it, for the explain trace.
     pub rule_id: &'a str,
     pub carrier: EmittedCarrier<'a>,
-    /// The carrier this emission *read*, which is what it owns - separate from the tag above.
+    /// The carriers this emission *read*, which is what it owns - separate from the tag above.
+    ///
+    /// A **set**, because a `compose` reads several: owning only its synthetic tag left every attribute it
+    /// consumed free for another rule to read as well, which is reachable today - one dialect composes from
+    /// `output.value` and another reads that carrier directly.
     ///
     /// A rule with `tag_as` reads one key and reports another, and claiming the report would leave the key
     /// it actually read free for a second rule to read as well. The kind travels with the name because an
     /// attribute and an event of the same name are different carriers, which the retired implementation
     /// said with `attr:` and `event:` prefixes.
-    pub owns: OwnedCarrier,
+    pub owns: Vec<OwnedCarrier>,
     pub target: EmitTarget,
     pub value: JsonValue,
 }
@@ -111,6 +153,11 @@ impl OwnedCarrier {
             is_event: false,
             name: name.to_string(),
         }
+    }
+
+    /// One attribute, as the single-carrier set an ordinary reading owns.
+    fn just(name: &str) -> Vec<Self> {
+        vec![Self::attribute(name)]
     }
 }
 
@@ -523,7 +570,28 @@ fn compile_rule(
                     |group: &Vec<MessageRule>| -> Result<Vec<CompiledMessageRule>, MessageCompileError> {
                         group
                                 .iter()
-                                .map(|sub| compile_rule(file_id, sub, fragments))
+                                .map(|sub| {
+                                    // The mirror of the parent's no-dead-fields rule. A leaf is reached
+                                    // through its parent, so the fields the *entry points* consult are read
+                                    // from the parent alone: `stage` selects which top-level rules a stage
+                                    // runs, `when_event`/`replaces_raw_event` are asked of a top-level rule
+                                    // by the event path, and a branch's order is positional, so a leaf's
+                                    // rank orders nothing. Each compiled silently and stated something the
+                                    // engine never reads.
+                                    if sub.stage != super::schema::MessageStage::default()
+                                        || !sub.when_event.is_empty()
+                                        || sub.replaces_raw_event
+                                        || sub.legacy_rank.is_some()
+                                    {
+                                        return Err(inexpressible(
+                                            "a branch leaf is reached through its parent, so `stage`, \
+                                             `when_event`, `replaces_raw_event` and `legacy_rank` are read \
+                                             from the parent and would be ignored here - declare them on \
+                                             the rule that owns the branch set",
+                                        ));
+                                    }
+                                    compile_rule(file_id, sub, fragments)
+                                })
                                 .collect()
                     };
             if set
@@ -1377,13 +1445,11 @@ impl MessagePlan {
         &'p self,
         event_name: &str,
         event_attrs: &HashMap<String, String>,
+        span_name: &str,
+        span_attrs: &HashMap<String, String>,
         is_tool_span: bool,
     ) -> (Vec<Emission<'p>>, bool) {
-        let ctx = MessageContext {
-            span_name: "",
-            span_attrs: event_attrs,
-            is_tool_span,
-        };
+        let ctx = MessageContext::for_event(span_name, span_attrs, event_attrs, is_tool_span);
         let mut out = Vec::new();
         let mut claimed: std::collections::HashSet<OwnedCarrier> = std::collections::HashSet::new();
         let mut replaces = false;
@@ -1592,17 +1658,21 @@ fn keep_unclaimed<'p>(
             out.push(emission);
             continue;
         }
-        if claimed.contains(&emission.owns) {
+        if emission.owns.iter().any(|owned| claimed.contains(owned)) {
             continue;
         }
-        match owner.get(&emission.owns) {
-            // A different rule in this batch already owns it.
-            Some(first) if *first != emission.rule_id => continue,
-            _ => {
-                owner.insert(emission.owns.clone(), emission.rule_id);
-            }
+        if emission.owns.iter().any(|owned| {
+            owner
+                .get(owned)
+                .is_some_and(|first| *first != emission.rule_id)
+        }) {
+            // A different rule in this batch already owns one of them.
+            continue;
         }
-        mine.insert(emission.owns.clone());
+        for owned in &emission.owns {
+            owner.insert(owned.clone(), emission.rule_id);
+            mine.insert(owned.clone());
+        }
         out.push(emission);
     }
     claimed.extend(mine);
@@ -2007,12 +2077,12 @@ fn sniffed_value(raw: &str) -> JsonValue {
 /// Both gates, in one place so every read form is subject to them.
 fn gates_allow(rule: &CompiledMessageRule, ctx: &MessageContext<'_>) -> bool {
     if let Some(gate) = &rule.when
-        && !super::detect_rules::compiled_signals_hold(gate, ctx.span_name, ctx.span_attrs)
+        && !super::detect_rules::compiled_signals_hold(gate, ctx.span_name, ctx.gate_attrs)
     {
         return false;
     }
     if let Some(gate) = &rule.unless
-        && super::detect_rules::compiled_signals_hold(gate, ctx.span_name, ctx.span_attrs)
+        && super::detect_rules::compiled_signals_hold(gate, ctx.span_name, ctx.gate_attrs)
     {
         return false;
     }
@@ -2375,7 +2445,11 @@ fn members_present(
 ///
 /// Emitted only when at least one *source* member was filled - the trailing literals are not evidence of
 /// anything, so a rule whose sources all missed would otherwise emit a message consisting of a role.
-fn composed(compose: &CompiledCompose, ctx: &MessageContext<'_>) -> Option<JsonValue> {
+fn composed(
+    compose: &CompiledCompose,
+    ctx: &MessageContext<'_>,
+    read: &mut Vec<OwnedCarrier>,
+) -> Option<JsonValue> {
     let attrs = ctx.span_attrs;
     let mut object = serde_json::Map::new();
 
@@ -2396,6 +2470,7 @@ fn composed(compose: &CompiledCompose, ctx: &MessageContext<'_>) -> Option<JsonV
                 .collect();
             swept.sort_unstable_by_key(|(suffix, _)| *suffix);
             for (suffix, value) in swept {
+                read.push(OwnedCarrier::attribute(&format!("{prefix}{suffix}")));
                 object.insert(suffix.to_string(), sniffed_value(value));
             }
             continue;
@@ -2406,17 +2481,23 @@ fn composed(compose: &CompiledCompose, ctx: &MessageContext<'_>) -> Option<JsonV
         let direct = member
             .from_any_of
             .iter()
-            .find_map(|key| attrs.get(key))
-            .and_then(|raw| parse_value(raw, member.parse.unwrap_or(ParseMode::Text)));
+            .find_map(|key| attrs.get(key).map(|raw| (key, raw)))
+            .and_then(|(key, raw)| {
+                // The carrier this member actually read. Recorded so the emission owns it: a compose that
+                // owned only its synthetic tag left every attribute it consumed free for another rule.
+                read.push(OwnedCarrier::attribute(key));
+                parse_value(raw, member.parse.unwrap_or(ParseMode::Text))
+            });
         let value = direct.or_else(|| {
             // The conditional last resort: a key that is not this dialect's own, read only on evidence
             // that the span is one of its spans.
             let fallback = member.fallback.as_ref()?;
             let gate = compiled.fallback_gate.as_ref()?;
-            if !super::detect_rules::compiled_signals_hold(gate, ctx.span_name, attrs) {
+            if !super::detect_rules::compiled_signals_hold(gate, ctx.span_name, ctx.gate_attrs) {
                 return None;
             }
             let raw = attrs.get(&fallback.from)?;
+            read.push(OwnedCarrier::attribute(&fallback.from));
             parse_value(raw, fallback.parse.unwrap_or(ParseMode::Text))
         });
         if let Some(value) = value {
@@ -2558,7 +2639,10 @@ fn emit_rule<'p>(rule: &'p CompiledMessageRule, ctx: &MessageContext<'_>) -> Vec
         return out;
     }
     if let Some(compose) = &rule.compose {
-        if let Some(value) = composed(compose, ctx).filter(|value| {
+        // Every physical attribute the compose read, so the emission owns them all. Owning only the
+        // synthetic tag left each consumed attribute free for another dialect to read as conversation.
+        let mut read_carriers = Vec::new();
+        if let Some(value) = composed(compose, ctx, &mut read_carriers).filter(|value| {
             // Judged once the members are together: a name a dialect reported may not be a tool anyone can
             // call, and only the assembled object shows it.
             predicates_hold(value, &compose.require)
@@ -2570,10 +2654,11 @@ fn emit_rule<'p>(rule: &'p CompiledMessageRule, ctx: &MessageContext<'_>) -> Vec
             } else {
                 value
             };
+            read_carriers.push(OwnedCarrier::attribute(compose.tag.as_str()));
             out.push(Emission {
                 rule_id: &rule.rule_id,
                 carrier: EmittedCarrier::Attribute(compose.tag.as_str()),
-                owns: OwnedCarrier::attribute(compose.tag.as_str()),
+                owns: read_carriers,
                 target: rule.target,
                 value,
             });
@@ -2589,7 +2674,7 @@ fn emit_rule<'p>(rule: &'p CompiledMessageRule, ctx: &MessageContext<'_>) -> Vec
                 out.push(Emission {
                     rule_id: &rule.rule_id,
                     carrier: EmittedCarrier::Attribute(rule.tag_as.as_deref().unwrap_or(attribute)),
-                    owns: OwnedCarrier::attribute(attribute),
+                    owns: OwnedCarrier::just(attribute),
                     target: rule.target,
                     value: JsonValue::Array(tools),
                 });
@@ -2610,6 +2695,14 @@ fn emit_rule<'p>(rule: &'p CompiledMessageRule, ctx: &MessageContext<'_>) -> Vec
             if entries.is_empty() {
                 return out;
             }
+            // Every entry the aggregate consumed, plus the family itself. Owning the family name alone left
+            // each `family.N` free for another rule, which is what the unaggregated form of this same read
+            // owns - so the two spellings disagreed about what had been read.
+            let mut owns: Vec<OwnedCarrier> = entries
+                .iter()
+                .map(|(carrier, _)| OwnedCarrier::attribute(carrier))
+                .collect();
+            owns.push(OwnedCarrier::attribute(family));
             let array = JsonValue::Array(entries.into_iter().map(|(_, value)| value).collect());
             let value = match &rule.wrap {
                 Some(wrap) => match wrapped(array, wrap, ctx, None) {
@@ -2621,7 +2714,7 @@ fn emit_rule<'p>(rule: &'p CompiledMessageRule, ctx: &MessageContext<'_>) -> Vec
             out.push(Emission {
                 rule_id: &rule.rule_id,
                 carrier: EmittedCarrier::Attribute(rule.tag_as.as_deref().unwrap_or(family)),
-                owns: OwnedCarrier::attribute(family),
+                owns,
                 target: rule.target,
                 value,
             });
@@ -2630,7 +2723,7 @@ fn emit_rule<'p>(rule: &'p CompiledMessageRule, ctx: &MessageContext<'_>) -> Vec
         for (carrier, value) in entries {
             out.push(Emission {
                 rule_id: &rule.rule_id,
-                owns: OwnedCarrier::attribute(&carrier),
+                owns: OwnedCarrier::just(&carrier),
                 carrier: EmittedCarrier::Owned(carrier),
                 target: rule.target,
                 value,
@@ -2665,7 +2758,7 @@ fn emit_rule<'p>(rule: &'p CompiledMessageRule, ctx: &MessageContext<'_>) -> Vec
             out.push(Emission {
                 rule_id: &rule.rule_id,
                 // The array attribute is what was read; each element's tag is a name for one of its parts.
-                owns: OwnedCarrier::attribute(attribute),
+                owns: OwnedCarrier::just(attribute),
                 carrier: tagged,
                 target: rule.target,
                 value,
@@ -2679,7 +2772,7 @@ fn emit_rule<'p>(rule: &'p CompiledMessageRule, ctx: &MessageContext<'_>) -> Vec
             out.push(Emission {
                 rule_id: &rule.rule_id,
                 carrier: EmittedCarrier::Attribute(rule.tag_as.as_deref().unwrap_or(attribute)),
-                owns: OwnedCarrier::attribute(attribute),
+                owns: OwnedCarrier::just(attribute),
                 target: rule.target,
                 value,
             });
@@ -2705,7 +2798,7 @@ fn emit_rule<'p>(rule: &'p CompiledMessageRule, ctx: &MessageContext<'_>) -> Vec
         out.push(Emission {
             rule_id: &rule.rule_id,
             carrier: EmittedCarrier::Attribute(rule.tag_as.as_deref().unwrap_or(attribute)),
-            owns: OwnedCarrier::attribute(attribute),
+            owns: OwnedCarrier::just(attribute),
             target: rule.target,
             value: JsonValue::Array(readings.into_iter().map(|(value, _, _)| value).collect()),
         });
@@ -2723,7 +2816,7 @@ fn emit_rule<'p>(rule: &'p CompiledMessageRule, ctx: &MessageContext<'_>) -> Vec
         out.push(Emission {
             rule_id: &rule.rule_id,
             carrier: EmittedCarrier::Attribute(rule.tag_as.as_deref().unwrap_or(attribute)),
-            owns: OwnedCarrier::attribute(attribute),
+            owns: OwnedCarrier::just(attribute),
             target: per_reading_target.unwrap_or(rule.target),
             value,
         });

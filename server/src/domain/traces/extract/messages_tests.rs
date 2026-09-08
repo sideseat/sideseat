@@ -465,7 +465,7 @@ fn test_crewai_tool_definitions_from_input_value_tools_array() {
     let input_json = r#"{"tools":["name='temperature_forecast' description=\"Tool Name: temperature_forecast\nTool Arguments: {'city': {'description': 'City name', 'type': 'str'}, 'days': {'description': None, 'type': 'int'}}\nTool Description: Get temperature forecast\""]}"#;
     let attrs = make_attrs(&[("input.value", input_json), ("crew_key", "test")]);
 
-    let (tool_definitions, _tool_names) = extract_tool_definitions(&attrs, Utc::now());
+    let (tool_definitions, _tool_names) = extract_tool_definitions("", &attrs, Utc::now());
     assert_eq!(tool_definitions.len(), 1);
 
     let tools = tool_definitions[0].content.as_array().unwrap();
@@ -495,7 +495,7 @@ fn test_crewai_tool_definitions_from_input_value_structured_tool() {
     let input_json = r#"{"tool":"CrewStructuredTool(name='precipitation_forecast', description='Tool Name: precipitation_forecast\nTool Arguments: {'city': {'description': None, 'type': 'str'}}\nTool Description: Get precipitation forecast')"}"#;
     let attrs = make_attrs(&[("input.value", input_json), ("crew_key", "test")]);
 
-    let (tool_definitions, _tool_names) = extract_tool_definitions(&attrs, Utc::now());
+    let (tool_definitions, _tool_names) = extract_tool_definitions("", &attrs, Utc::now());
     assert_eq!(tool_definitions.len(), 1);
 
     let tools = tool_definitions[0].content.as_array().unwrap();
@@ -519,7 +519,7 @@ fn test_crewai_tool_definitions_from_input_value_escaped_newlines() {
     let input_json = r#"{"tools":["name='temperature_forecast' description=\"Tool Name: temperature_forecast\\nTool Arguments: {'city': {'description': None, 'type': 'str'}}\\nTool Description: Get temperature forecast\""]}"#;
     let attrs = make_attrs(&[("input.value", input_json), ("crew_key", "test")]);
 
-    let (tool_definitions, _tool_names) = extract_tool_definitions(&attrs, Utc::now());
+    let (tool_definitions, _tool_names) = extract_tool_definitions("", &attrs, Utc::now());
     assert_eq!(tool_definitions.len(), 1);
 
     let tools = tool_definitions[0].content.as_array().unwrap();
@@ -559,7 +559,7 @@ fn test_crewai_tool_definitions_from_input_value_object_tools() {
     }"#;
     let attrs = make_attrs(&[("input.value", input_json), ("crew_key", "test")]);
 
-    let (tool_definitions, _tool_names) = extract_tool_definitions(&attrs, Utc::now());
+    let (tool_definitions, _tool_names) = extract_tool_definitions("", &attrs, Utc::now());
     assert_eq!(tool_definitions.len(), 1);
 
     let tools = tool_definitions[0].content.as_array().unwrap();
@@ -605,7 +605,7 @@ fn test_crewai_tool_definitions_prefers_rich_over_name_only() {
     }"#;
     let attrs = make_attrs(&[("input.value", input_json), ("crew_key", "test")]);
 
-    let (tool_definitions, _tool_names) = extract_tool_definitions(&attrs, Utc::now());
+    let (tool_definitions, _tool_names) = extract_tool_definitions("", &attrs, Utc::now());
     assert_eq!(tool_definitions.len(), 1);
 
     let tools = tool_definitions[0].content.as_array().unwrap();
@@ -640,7 +640,7 @@ fn test_crewai_tool_definitions_from_agents_tools_object() {
     ]"#;
     let attrs = make_attrs(&[("crew_agents", crew_agents_json)]);
 
-    let (tool_definitions, _tool_names) = extract_tool_definitions(&attrs, Utc::now());
+    let (tool_definitions, _tool_names) = extract_tool_definitions("", &attrs, Utc::now());
     assert_eq!(tool_definitions.len(), 1);
 
     let tools = tool_definitions[0].content.as_array().unwrap();
@@ -663,7 +663,7 @@ fn test_event_explicit_role_not_overwritten() {
         dropped_attributes_count: 0,
     };
 
-    let msgs = extract_message_from_event(&event, false);
+    let msgs = extract_message_from_event(&event, "", &HashMap::new(), false);
     let msg = &msgs[0];
 
     // Explicit role should be preserved
@@ -684,7 +684,7 @@ fn test_event_raw_json_content_preserved() {
         dropped_attributes_count: 0,
     };
 
-    let msgs = extract_message_from_event(&event, false);
+    let msgs = extract_message_from_event(&event, "", &HashMap::new(), false);
     let msg = &msgs[0];
 
     let content = msg.content.get("content").unwrap();
@@ -707,7 +707,7 @@ fn test_event_extracts_raw_without_role_assistant_message() {
         dropped_attributes_count: 0,
     };
 
-    let msgs = extract_message_from_event(&event, false);
+    let msgs = extract_message_from_event(&event, "", &HashMap::new(), false);
     let msg = &msgs[0];
 
     // Role NOT set at extraction - derived at query-time
@@ -734,7 +734,7 @@ fn test_event_extracts_raw_without_role_choice() {
         dropped_attributes_count: 0,
     };
 
-    let msgs = extract_message_from_event(&event, false);
+    let msgs = extract_message_from_event(&event, "", &HashMap::new(), false);
     let msg = &msgs[0];
 
     // Role NOT set at extraction - derived at query-time
@@ -757,7 +757,7 @@ fn test_event_extracts_raw_without_role_system_message() {
         dropped_attributes_count: 0,
     };
 
-    let msgs = extract_message_from_event(&event, false);
+    let msgs = extract_message_from_event(&event, "", &HashMap::new(), false);
     let msg = &msgs[0];
 
     assert!(
@@ -779,7 +779,7 @@ fn test_event_extracts_raw_without_role_tool_message() {
         dropped_attributes_count: 0,
     };
 
-    let msgs = extract_message_from_event(&event, false);
+    let msgs = extract_message_from_event(&event, "", &HashMap::new(), false);
     let msg = &msgs[0];
 
     assert!(
@@ -801,7 +801,7 @@ fn test_event_extracts_raw_without_role_user_message() {
         dropped_attributes_count: 0,
     };
 
-    let msgs = extract_message_from_event(&event, false);
+    let msgs = extract_message_from_event(&event, "", &HashMap::new(), false);
     let msg = &msgs[0];
 
     assert!(
@@ -859,7 +859,7 @@ fn test_extract_message_from_event() {
         dropped_attributes_count: 0,
     };
 
-    let msgs = extract_message_from_event(&event, false);
+    let msgs = extract_message_from_event(&event, "", &HashMap::new(), false);
     assert_eq!(msgs.len(), 1);
     let msg = &msgs[0];
 
@@ -895,7 +895,7 @@ fn test_gen_ai_tool_names_and_definitions_together() {
         ("gen_ai.tool.definitions", definitions_json),
     ]);
 
-    let (tool_definitions, tool_names) = extract_tool_definitions(&attrs, Utc::now());
+    let (tool_definitions, tool_names) = extract_tool_definitions("", &attrs, Utc::now());
 
     // tool_definitions should have 1 item (from gen_ai.tool.definitions)
     assert_eq!(tool_definitions.len(), 1);
@@ -918,7 +918,7 @@ fn test_gen_ai_tool_names_extraction() {
     let tools_json = r#"["get_weather", "search", "calculator"]"#;
     let attrs = make_attrs(&[("gen_ai.agent.tools", tools_json)]);
 
-    let (tool_definitions, tool_names) = extract_tool_definitions(&attrs, Utc::now());
+    let (tool_definitions, tool_names) = extract_tool_definitions("", &attrs, Utc::now());
 
     // tool_definitions should be empty (no gen_ai.tool.definitions)
     assert!(tool_definitions.is_empty());
@@ -960,7 +960,7 @@ fn test_gen_ai_tool_names_with_conversation_messages() {
     // Extract conversation messages
     let found = try_otel_genai_messages(&mut messages, &mut Vec::new(), &attrs, "", Utc::now());
     // Extract tool definitions and tool names separately
-    let (tool_definitions, tool_names) = extract_tool_definitions(&attrs, Utc::now());
+    let (tool_definitions, tool_names) = extract_tool_definitions("", &attrs, Utc::now());
 
     assert!(found);
     // Messages should have: input, output (tool definitions are separate now)
@@ -999,7 +999,7 @@ fn test_crewai_tool_definitions_extracted_from_agents_metadata() {
         ),
     ]);
 
-    let (tool_definitions, _tool_names) = extract_tool_definitions(&attrs, Utc::now());
+    let (tool_definitions, _tool_names) = extract_tool_definitions("", &attrs, Utc::now());
 
     assert_eq!(tool_definitions.len(), 1);
     let tools = tool_definitions[0].content.as_array().unwrap();
@@ -1016,7 +1016,7 @@ fn test_crewai_tool_definitions_extracted_from_tasks_metadata() {
     let tasks_json = r#"[{"key":"t1","tools_names":["temperature_forecast","precipitation_forecast"]},{"key":"t2","tools":[{"name":"wind_forecast"},"precipitation_forecast",{"function":{"name":"humidity_forecast"}}]}]"#;
     let attrs = make_attrs(&[("crew_tasks", tasks_json), ("crew_id", "crew-123")]);
 
-    let (tool_definitions, _tool_names) = extract_tool_definitions(&attrs, Utc::now());
+    let (tool_definitions, _tool_names) = extract_tool_definitions("", &attrs, Utc::now());
 
     assert_eq!(tool_definitions.len(), 1);
     let tools = tool_definitions[0].content.as_array().unwrap();
@@ -1091,7 +1091,7 @@ fn test_gen_ai_tool_definitions_extraction() {
     ]"#;
     let attrs = make_attrs(&[("gen_ai.tool.definitions", definitions_json)]);
 
-    let (tool_definitions, _tool_names) = extract_tool_definitions(&attrs, Utc::now());
+    let (tool_definitions, _tool_names) = extract_tool_definitions("", &attrs, Utc::now());
 
     assert!(!tool_definitions.is_empty());
     assert_eq!(tool_definitions.len(), 1);
@@ -1122,7 +1122,7 @@ fn test_gen_ai_tool_definitions_invalid_json() {
     let invalid_json = "not valid json";
     let attrs = make_attrs(&[("gen_ai.tool.definitions", invalid_json)]);
 
-    let (tool_definitions, _tool_names) = extract_tool_definitions(&attrs, Utc::now());
+    let (tool_definitions, _tool_names) = extract_tool_definitions("", &attrs, Utc::now());
 
     // Invalid JSON should be skipped
     assert!(tool_definitions.is_empty());
@@ -1148,7 +1148,7 @@ fn test_gen_ai_tool_individual_attributes() {
         ("gen_ai.tool.json_schema", json_schema),
     ]);
 
-    let (tool_definitions, _tool_names) = extract_tool_definitions(&attrs, Utc::now());
+    let (tool_definitions, _tool_names) = extract_tool_definitions("", &attrs, Utc::now());
 
     assert!(!tool_definitions.is_empty());
     assert_eq!(tool_definitions.len(), 1);
@@ -2133,7 +2133,7 @@ fn test_logfire_tool_definitions_via_otel() {
     // Logfire/PydanticAI can use OTEL gen_ai.tool.definitions
     let defs = r#"[{"name":"web_search","description":"Search the web"}]"#;
     let attrs = make_attrs(&[("gen_ai.tool.definitions", defs)]);
-    let (tool_definitions, _tool_names) = extract_tool_definitions(&attrs, Utc::now());
+    let (tool_definitions, _tool_names) = extract_tool_definitions("", &attrs, Utc::now());
 
     assert!(!tool_definitions.is_empty());
     // Content is directly the tools array
@@ -2296,7 +2296,7 @@ fn test_openai_style_tool_definitions() {
     ]"#;
     let attrs = make_attrs(&[("gen_ai.tool.definitions", definitions_json)]);
 
-    let (tool_definitions, _tool_names) = extract_tool_definitions(&attrs, Utc::now());
+    let (tool_definitions, _tool_names) = extract_tool_definitions("", &attrs, Utc::now());
 
     assert!(!tool_definitions.is_empty());
     let def = &tool_definitions[0];
@@ -2403,7 +2403,7 @@ fn test_openinference_llm_messages_with_tool_calls() {
     assert_eq!(messages.len(), 2); // 2 messages: user input, assistant output
 
     // Tool definitions extracted separately by extract_tool_definitions()
-    let (tool_definitions, _) = extract_tool_definitions(&attrs, Utc::now());
+    let (tool_definitions, _) = extract_tool_definitions("", &attrs, Utc::now());
     assert_eq!(tool_definitions.len(), 1);
 
     // Input message - literal content only, no metadata
@@ -2464,7 +2464,7 @@ fn test_openinference_llm_tools_extraction() {
     assert_eq!(messages.len(), 1); // Only user message
 
     // Tool definitions extracted separately
-    let (tool_definitions, _) = extract_tool_definitions(&attrs, Utc::now());
+    let (tool_definitions, _) = extract_tool_definitions("", &attrs, Utc::now());
     assert_eq!(tool_definitions.len(), 1);
 
     let tools_def = &tool_definitions[0];
@@ -2597,7 +2597,7 @@ fn test_openinference_tool_definitions_extraction() {
     let tools = r#"[{"name":"search","description":"Search the web"},{"name":"calculator","description":"Do math"}]"#;
     let attrs = make_attrs(&[("llm.tools", tools)]);
 
-    let (tool_definitions, _) = extract_tool_definitions(&attrs, Utc::now());
+    let (tool_definitions, _) = extract_tool_definitions("", &attrs, Utc::now());
 
     assert_eq!(tool_definitions.len(), 1);
     // Content is directly the tools array
@@ -2665,7 +2665,7 @@ fn test_openinference_tool_message() {
 fn test_otel_tool_names_extraction() {
     let tools = r#"["get_weather","send_email","search"]"#;
     let attrs = make_attrs(&[("gen_ai.agent.tools", tools)]);
-    let (tool_definitions, tool_names) = extract_tool_definitions(&attrs, Utc::now());
+    let (tool_definitions, tool_names) = extract_tool_definitions("", &attrs, Utc::now());
 
     // tool_definitions should be empty (no gen_ai.tool.definitions)
     assert!(tool_definitions.is_empty());
@@ -2764,7 +2764,7 @@ fn test_otel_tool_call_result_extraction() {
 fn test_otel_tool_definitions_extraction() {
     let tool_defs = r#"[{"name":"get_weather","description":"Get weather for a city","parameters":{"type":"object","properties":{"city":{"type":"string"}}}}]"#;
     let attrs = make_attrs(&[("gen_ai.tool.definitions", tool_defs)]);
-    let (tool_definitions, _tool_names) = extract_tool_definitions(&attrs, Utc::now());
+    let (tool_definitions, _tool_names) = extract_tool_definitions("", &attrs, Utc::now());
 
     assert!(!tool_definitions.is_empty());
     assert_eq!(tool_definitions.len(), 1);
@@ -3296,7 +3296,7 @@ fn test_strands_agents_assistant_message_with_tool_use() {
         dropped_attributes_count: 0,
     };
 
-    let msgs = extract_message_from_event(&event, false);
+    let msgs = extract_message_from_event(&event, "", &HashMap::new(), false);
     let msg = &msgs[0];
 
     // Literal content preserved
@@ -3324,7 +3324,7 @@ fn test_strands_agents_choice_with_tool_result_attribute() {
         dropped_attributes_count: 0,
     };
 
-    let msgs = extract_message_from_event(&event, false);
+    let msgs = extract_message_from_event(&event, "", &HashMap::new(), false);
 
     // Should create TWO messages: assistant (tool_use) + tool (tool_result)
     assert_eq!(
@@ -3379,7 +3379,7 @@ fn test_strands_agents_choice_with_tool_use() {
         dropped_attributes_count: 0,
     };
 
-    let msgs = extract_message_from_event(&event, false);
+    let msgs = extract_message_from_event(&event, "", &HashMap::new(), false);
     let msg = &msgs[0];
 
     // Literal content preserved
@@ -3446,7 +3446,7 @@ fn test_strands_agents_inference_operation_details_event_both_input_and_output()
         dropped_attributes_count: 0,
     };
 
-    let msgs = extract_message_from_event(&event, false);
+    let msgs = extract_message_from_event(&event, "", &HashMap::new(), false);
     // Each array stored as single RawMessage (expansion at query time)
     assert_eq!(msgs.len(), 2);
 
@@ -3495,7 +3495,7 @@ fn test_strands_agents_inference_operation_details_event_complex_messages() {
         dropped_attributes_count: 0,
     };
 
-    let msgs = extract_message_from_event(&event, false);
+    let msgs = extract_message_from_event(&event, "", &HashMap::new(), false);
     // Array stored as single RawMessage (expansion at query time)
     assert_eq!(msgs.len(), 1);
     let content = &msgs[0].content;
@@ -3534,7 +3534,7 @@ fn test_strands_agents_inference_operation_details_event_input() {
         dropped_attributes_count: 0,
     };
 
-    let msgs = extract_message_from_event(&event, false);
+    let msgs = extract_message_from_event(&event, "", &HashMap::new(), false);
     // Array stored as single RawMessage (expansion at query time)
     assert_eq!(msgs.len(), 1);
     let msg = &msgs[0];
@@ -3564,7 +3564,7 @@ fn test_strands_agents_inference_operation_details_event_no_messages() {
         dropped_attributes_count: 0,
     };
 
-    let msgs = extract_message_from_event(&event, false);
+    let msgs = extract_message_from_event(&event, "", &HashMap::new(), false);
     assert!(msgs.is_empty());
 }
 
@@ -3580,7 +3580,7 @@ fn test_strands_agents_inference_operation_details_event_output() {
         dropped_attributes_count: 0,
     };
 
-    let msgs = extract_message_from_event(&event, false);
+    let msgs = extract_message_from_event(&event, "", &HashMap::new(), false);
     // Array stored as single RawMessage (expansion at query time)
     assert_eq!(msgs.len(), 1);
     let msg = &msgs[0];
@@ -3617,7 +3617,7 @@ fn test_strands_agents_tool_input_event() {
         dropped_attributes_count: 0,
     };
 
-    let msgs = extract_message_from_event(&event, false);
+    let msgs = extract_message_from_event(&event, "", &HashMap::new(), false);
     let msg = &msgs[0];
 
     assert_eq!(
@@ -3644,7 +3644,7 @@ fn test_strands_agents_tool_message_with_result() {
         dropped_attributes_count: 0,
     };
 
-    let msgs = extract_message_from_event(&event, false);
+    let msgs = extract_message_from_event(&event, "", &HashMap::new(), false);
     let msg = &msgs[0];
 
     // Literal content preserved
@@ -3673,7 +3673,7 @@ fn test_strands_agents_user_message_event() {
         dropped_attributes_count: 0,
     };
 
-    let msgs = extract_message_from_event(&event, false);
+    let msgs = extract_message_from_event(&event, "", &HashMap::new(), false);
     let msg = &msgs[0];
 
     // Literal content preserved
@@ -3709,7 +3709,7 @@ fn test_strands_style_tool_definitions() {
     ]"#;
     let attrs = make_attrs(&[("gen_ai.tool.definitions", definitions_json)]);
 
-    let (tool_definitions, _tool_names) = extract_tool_definitions(&attrs, Utc::now());
+    let (tool_definitions, _tool_names) = extract_tool_definitions("", &attrs, Utc::now());
 
     assert!(!tool_definitions.is_empty());
     let def = &tool_definitions[0];
@@ -3735,7 +3735,7 @@ fn test_strands_tool_result_in_tool_message_event() {
         dropped_attributes_count: 0,
     };
 
-    let msgs = extract_message_from_event(&event, false);
+    let msgs = extract_message_from_event(&event, "", &HashMap::new(), false);
     assert_eq!(msgs.len(), 1);
     let msg = &msgs[0];
     let content_val = msg.content.get("content").unwrap();
@@ -3758,7 +3758,7 @@ fn test_strands_tool_use_in_choice_event() {
         dropped_attributes_count: 0,
     };
 
-    let msgs = extract_message_from_event(&event, false);
+    let msgs = extract_message_from_event(&event, "", &HashMap::new(), false);
     assert_eq!(msgs.len(), 1);
     let msg = &msgs[0];
     let message_val = msg.content.get("message").unwrap();
@@ -3882,7 +3882,7 @@ fn test_vercel_ai_prompt_tools_extraction() {
         r#"[{"type":"function","function":{"name":"get_weather","description":"Get weather","inputSchema":{"type":"object"}}}]"#,
     )]);
 
-    let (tool_definitions, _) = extract_tool_definitions(&attrs, Utc::now());
+    let (tool_definitions, _) = extract_tool_definitions("", &attrs, Utc::now());
 
     assert_eq!(
         tool_definitions.len(),
@@ -3903,7 +3903,7 @@ fn test_vercel_ai_prompt_tools_with_tool_choice() {
         ("ai.prompt.toolChoice", r#"{"type":"required"}"#),
     ]);
 
-    let (tool_definitions, _) = extract_tool_definitions(&attrs, Utc::now());
+    let (tool_definitions, _) = extract_tool_definitions("", &attrs, Utc::now());
 
     assert_eq!(tool_definitions.len(), 1, "Should extract tool definitions");
     // Tool definitions stored as array (tool_choice not stored in simplified format)
@@ -4236,7 +4236,7 @@ fn test_vercel_tool_definitions_extraction() {
     let tools = r#"[{"type":"function","function":{"name":"get_weather","description":"Get weather","parameters":{"type":"object"}}}]"#;
     let attrs = make_attrs(&[("ai.prompt.tools", tools)]);
 
-    let (tool_definitions, _) = extract_tool_definitions(&attrs, Utc::now());
+    let (tool_definitions, _) = extract_tool_definitions("", &attrs, Utc::now());
 
     assert_eq!(tool_definitions.len(), 1);
     assert!(tool_definitions[0].content.is_array());
@@ -4252,7 +4252,7 @@ fn test_vercel_tool_definitions_with_tool_choice() {
         ("ai.prompt.toolChoice", tool_choice),
     ]);
 
-    let (tool_definitions, _) = extract_tool_definitions(&attrs, Utc::now());
+    let (tool_definitions, _) = extract_tool_definitions("", &attrs, Utc::now());
 
     assert_eq!(tool_definitions.len(), 1);
     assert!(tool_definitions[0].content.is_array());
@@ -4296,7 +4296,7 @@ fn test_tool_span_events_are_extracted() {
     };
 
     // extract_message_from_event should extract the message regardless of span type
-    let msgs = extract_message_from_event(&event, false);
+    let msgs = extract_message_from_event(&event, "", &HashMap::new(), false);
     assert_eq!(msgs.len(), 1, "Tool message event should be extracted");
     assert_eq!(msgs[0].content["role"], "tool");
 }
@@ -4785,7 +4785,7 @@ fn test_extract_tool_definitions_vercel_ai_prompt_tools() {
     let tools = r#"[{"type":"function","function":{"name":"get_weather","description":"Get weather for a city"}}]"#;
     let attrs = make_attrs(&[("ai.prompt.tools", tools)]);
 
-    let (tool_definitions, tool_names) = extract_tool_definitions(&attrs, Utc::now());
+    let (tool_definitions, tool_names) = extract_tool_definitions("", &attrs, Utc::now());
 
     assert_eq!(tool_definitions.len(), 1, "Should extract ai.prompt.tools");
     assert!(tool_names.is_empty());
@@ -4806,7 +4806,7 @@ fn test_extract_tool_definitions_openinference_llm_tools() {
     let tools = r#"[{"name":"search","description":"Search the web"}]"#;
     let attrs = make_attrs(&[("llm.tools", tools)]);
 
-    let (tool_definitions, tool_names) = extract_tool_definitions(&attrs, Utc::now());
+    let (tool_definitions, tool_names) = extract_tool_definitions("", &attrs, Utc::now());
 
     assert_eq!(tool_definitions.len(), 1, "Should extract llm.tools");
     assert!(tool_names.is_empty());
@@ -4823,7 +4823,7 @@ fn test_extract_tool_definitions_gen_ai_tool_definitions() {
     let tools = r#"[{"type":"function","function":{"name":"calculator"}}]"#;
     let attrs = make_attrs(&[("gen_ai.tool.definitions", tools)]);
 
-    let (tool_definitions, tool_names) = extract_tool_definitions(&attrs, Utc::now());
+    let (tool_definitions, tool_names) = extract_tool_definitions("", &attrs, Utc::now());
 
     assert_eq!(
         tool_definitions.len(),
@@ -4843,7 +4843,7 @@ fn test_extract_tool_definitions_multiple_sources() {
         ("gen_ai.tool.definitions", otel_tools),
     ]);
 
-    let (tool_definitions, _) = extract_tool_definitions(&attrs, Utc::now());
+    let (tool_definitions, _) = extract_tool_definitions("", &attrs, Utc::now());
 
     assert_eq!(
         tool_definitions.len(),
@@ -4860,7 +4860,7 @@ fn test_extract_tool_definitions_vercel_stringified_array() {
     let tools = r#"["{\"type\":\"function\",\"name\":\"weather\",\"description\":\"Get weather\"}","{\"type\":\"function\",\"name\":\"search\",\"description\":\"Search the web\"}"]"#;
     let attrs = make_attrs(&[("ai.prompt.tools", tools)]);
 
-    let (tool_definitions, _) = extract_tool_definitions(&attrs, Utc::now());
+    let (tool_definitions, _) = extract_tool_definitions("", &attrs, Utc::now());
 
     assert_eq!(tool_definitions.len(), 1, "Should extract ai.prompt.tools");
 
@@ -4884,7 +4884,7 @@ fn test_extract_tool_definitions_from_request_data() {
     let request_data = r#"{"messages":[{"role":"user","content":"Weather?"}],"model":"gpt-4o","tools":[{"type":"function","function":{"name":"get_weather","description":"Get weather","parameters":{"type":"object","properties":{"location":{"type":"string"}}}}}]}"#;
     let attrs = make_attrs(&[("request_data", request_data)]);
 
-    let (tool_definitions, tool_names) = extract_tool_definitions(&attrs, Utc::now());
+    let (tool_definitions, tool_names) = extract_tool_definitions("", &attrs, Utc::now());
 
     assert_eq!(
         tool_definitions.len(),
@@ -4908,7 +4908,7 @@ fn test_extract_tool_definitions_gen_ai_takes_precedence_over_request_data() {
         ("request_data", request_data),
     ]);
 
-    let (tool_definitions, _) = extract_tool_definitions(&attrs, Utc::now());
+    let (tool_definitions, _) = extract_tool_definitions("", &attrs, Utc::now());
 
     assert_eq!(
         tool_definitions.len(),
@@ -4923,7 +4923,7 @@ fn test_extract_tool_definitions_request_data_no_tools() {
     let request_data = r#"{"messages":[{"role":"user","content":"Hi"}],"model":"gpt-4o"}"#;
     let attrs = make_attrs(&[("request_data", request_data)]);
 
-    let (tool_definitions, tool_names) = extract_tool_definitions(&attrs, Utc::now());
+    let (tool_definitions, tool_names) = extract_tool_definitions("", &attrs, Utc::now());
 
     assert!(tool_definitions.is_empty());
     assert!(tool_names.is_empty());
@@ -5148,7 +5148,7 @@ fn regression_langgraph_indexed_tool_definitions() {
     );
 
     let timestamp = Utc::now();
-    let (tool_definitions, tool_names) = extract_tool_definitions(&attrs, timestamp);
+    let (tool_definitions, tool_names) = extract_tool_definitions("", &attrs, timestamp);
 
     // Should extract tool definitions
     assert_eq!(
@@ -5210,7 +5210,7 @@ fn regression_langgraph_indexed_tool_definitions_sparse() {
     );
 
     let timestamp = Utc::now();
-    let (tool_definitions, tool_names) = extract_tool_definitions(&attrs, timestamp);
+    let (tool_definitions, tool_names) = extract_tool_definitions("", &attrs, timestamp);
 
     // Should extract both tools despite sparse indices
     assert!(!tool_definitions.is_empty(), "Should have tool definitions");
@@ -5654,7 +5654,7 @@ fn test_crewai_tool_names_from_crew_agents() {
     // Tool definitions are now extracted by extract_tool_definitions(), not try_crewai().
     let agents_json = r#"[{"role":"Weather Expert","tools_names":["get_weather","get_forecast"]},{"role":"Data Analyst","tools_names":["analyze_data"]}]"#;
     let attrs = make_attrs(&[("crew_agents", agents_json), ("crew_key", "test-key")]);
-    let (tool_defs, _) = extract_tool_definitions(&attrs, Utc::now());
+    let (tool_defs, _) = extract_tool_definitions("", &attrs, Utc::now());
 
     assert_eq!(tool_defs.len(), 1);
     let tools = tool_defs[0].content.as_array().unwrap();
@@ -5670,7 +5670,7 @@ fn test_crewai_tool_names_deduplicated() {
     // Tool definitions are now extracted by extract_tool_definitions(), not try_crewai().
     let agents_json = r#"[{"role":"Agent A","tools_names":["shared_tool","unique_a"]},{"role":"Agent B","tools_names":["shared_tool","unique_b"]}]"#;
     let attrs = make_attrs(&[("crew_agents", agents_json), ("crew_id", "test")]);
-    let (tool_defs, _) = extract_tool_definitions(&attrs, Utc::now());
+    let (tool_defs, _) = extract_tool_definitions("", &attrs, Utc::now());
 
     assert_eq!(tool_defs.len(), 1);
     let tools = tool_defs[0].content.as_array().unwrap();
@@ -5687,7 +5687,7 @@ fn test_openai_agents_tool_definitions_from_response() {
     // OpenAI Agents SDK stores tool schemas in the response attribute
     let response_json = r#"{"id":"resp_1","output":[],"tools":[{"type":"function","name":"get_weather","description":"Get weather","parameters":{"type":"object","properties":{"city":{"type":"string"}},"required":["city"]},"strict":true}]}"#;
     let attrs = make_attrs(&[("response", response_json)]);
-    let (tool_defs, _) = extract_tool_definitions(&attrs, Utc::now());
+    let (tool_defs, _) = extract_tool_definitions("", &attrs, Utc::now());
 
     assert_eq!(tool_defs.len(), 1);
     let tools = tool_defs[0].content.as_array().unwrap();
@@ -5701,7 +5701,7 @@ fn test_openai_agents_response_empty_tools_skipped() {
     // Empty tools array in response → no tool_definitions produced
     let response_json = r#"{"id":"resp_2","output":[],"tools":[]}"#;
     let attrs = make_attrs(&[("response", response_json)]);
-    let (tool_defs, _) = extract_tool_definitions(&attrs, Utc::now());
+    let (tool_defs, _) = extract_tool_definitions("", &attrs, Utc::now());
 
     assert!(tool_defs.is_empty());
 }
@@ -5711,7 +5711,7 @@ fn test_openai_agents_response_no_tools_field() {
     // Response without tools field (e.g., non-agent response) → no tool_definitions
     let response_json = r#"{"id":"resp_3","output":[{"type":"message","content":[{"type":"text","text":"hello"}]}]}"#;
     let attrs = make_attrs(&[("response", response_json)]);
-    let (tool_defs, _) = extract_tool_definitions(&attrs, Utc::now());
+    let (tool_defs, _) = extract_tool_definitions("", &attrs, Utc::now());
 
     assert!(tool_defs.is_empty());
 }
@@ -5725,7 +5725,7 @@ fn test_openinference_tool_attributes_extraction() {
         ("tool.description", "Search the web for information"),
         ("tool.parameters", params),
     ]);
-    let (tool_defs, _) = extract_tool_definitions(&attrs, Utc::now());
+    let (tool_defs, _) = extract_tool_definitions("", &attrs, Utc::now());
 
     assert_eq!(tool_defs.len(), 1);
     let tools = tool_defs[0].content.as_array().unwrap();
@@ -5745,7 +5745,7 @@ fn test_openinference_tool_attributes_extraction() {
 fn test_openinference_tool_name_only() {
     // tool.name without description or parameters
     let attrs = make_attrs(&[("tool.name", "simple_tool")]);
-    let (tool_defs, _) = extract_tool_definitions(&attrs, Utc::now());
+    let (tool_defs, _) = extract_tool_definitions("", &attrs, Utc::now());
 
     assert_eq!(tool_defs.len(), 1);
     let func = &tool_defs[0].content[0]["function"];
@@ -5761,7 +5761,7 @@ fn test_openinference_tool_skipped_when_genai_tool_exists() {
         ("gen_ai.tool.name", "primary_tool"),
         ("tool.name", "secondary_tool"),
     ]);
-    let (tool_defs, _) = extract_tool_definitions(&attrs, Utc::now());
+    let (tool_defs, _) = extract_tool_definitions("", &attrs, Utc::now());
 
     // gen_ai.tool.name takes priority; tool.name is skipped
     let all_names: Vec<&str> = tool_defs
@@ -5798,7 +5798,7 @@ fn test_tool_definition_skips_synthetic_names() {
 
     for (name, should_be_empty) in cases {
         let attrs = make_attrs(&[("gen_ai.tool.name", name)]);
-        let (tool_definitions, _) = extract_tool_definitions(&attrs, Utc::now());
+        let (tool_definitions, _) = extract_tool_definitions("", &attrs, Utc::now());
 
         if should_be_empty {
             assert!(
@@ -8104,11 +8104,7 @@ fn the_rules_reproduce_the_extractors_they_replaced() {
         // retired extractors pushed tool definitions into the same vector, so both axes are collected here
         // or a declaration that moved to the always-on path would look like a loss.
         for emission in crate::domain::rules::ruleset().messages.tool_definitions(
-            &crate::domain::rules::MessageContext {
-                span_name: "",
-                span_attrs: case,
-                is_tool_span,
-            },
+            &crate::domain::rules::MessageContext::for_span("", case, is_tool_span),
         ) {
             if emission.target == crate::domain::rules::schema::EmitTarget::ToolDefinitions {
                 rule_tools.push(RawToolDefinition::from_attr(
@@ -8306,11 +8302,7 @@ fn the_two_parse_modes_differ_where_it_matters() {
     let sources = std::collections::BTreeMap::from([("t.json".to_string(), both.to_vec())]);
     let plan = compile(&sources).expect("compiles");
     let span_attrs = rule_attrs(&[("strict", "not json"), ("lenient", "not json")]);
-    let emissions = plan.run(&MessageContext {
-        span_name: "s",
-        span_attrs: &span_attrs,
-        is_tool_span: false,
-    });
+    let emissions = plan.run(&MessageContext::for_span("s", &span_attrs, false));
     let ids: Vec<&str> = emissions.iter().map(|e| e.rule_id).collect();
     assert_eq!(
         ids,
@@ -8531,6 +8523,40 @@ fn inexpressible_rules_are_refused() {
                 {"id":"a","doc":"d","read":{"attribute":"k"},"parse":"json","emit":"message",
                  "legacy_rank":1,"when":{"service_name":["svc"]}}]}"#,
         ),
+        // A branch leaf's own copy of a field only the entry points read. Four spellings, because the
+        // parent's no-dead-fields rule had no mirror here and each of these compiled into silence.
+        (
+            "a branch leaf declaring a stage",
+            r#"{"id":"t","doc":"d","messages":[
+                {"id":"a","doc":"d","emit":"message","legacy_rank":1,
+                 "branch_set":{"primary":[
+                    {"id":"a.1","doc":"d","read":{"attribute":"k"},"parse":"json","emit":"message",
+                     "stage":"fallback"}]}}]}"#,
+        ),
+        (
+            "a branch leaf declaring an event",
+            r#"{"id":"t","doc":"d","messages":[
+                {"id":"a","doc":"d","emit":"message","legacy_rank":1,
+                 "branch_set":{"primary":[
+                    {"id":"a.1","doc":"d","read":{"attribute":"k"},"parse":"json","emit":"message",
+                     "when_event":["some.event"]}]}}]}"#,
+        ),
+        (
+            "a branch leaf claiming to replace an event's raw form",
+            r#"{"id":"t","doc":"d","messages":[
+                {"id":"a","doc":"d","emit":"message","legacy_rank":1,
+                 "branch_set":{"primary":[
+                    {"id":"a.1","doc":"d","read":{"attribute":"k"},"parse":"json","emit":"message",
+                     "replaces_raw_event":true}]}}]}"#,
+        ),
+        (
+            "a branch leaf declaring a rank, which orders nothing - the branch order is positional",
+            r#"{"id":"t","doc":"d","messages":[
+                {"id":"a","doc":"d","emit":"message","legacy_rank":1,
+                 "branch_set":{"primary":[
+                    {"id":"a.1","doc":"d","read":{"attribute":"k"},"parse":"json","emit":"message",
+                     "legacy_rank":2}]}}]}"#,
+        ),
     ];
     for (what, asset) in cases {
         let sources =
@@ -8540,6 +8566,71 @@ fn inexpressible_rules_are_refused() {
             "should have been refused: {what}"
         );
     }
+}
+
+/// An event rule's gate asks about the **span**, and its `read` draws from the **event**.
+///
+/// Both dimensions were unavailable at that entry point: the span name was passed as `""`, so a `span_name`
+/// gate compiled and could only ever fail, and the event's own attribute map stood in for the span's, so an
+/// `attr_exists` gate asked about the wrong map. Neither was an error - the rule simply never fired, which is
+/// the shape this whole engine exists to make impossible.
+///
+/// One dimension per rule, because gate signals are ORed: a rule naming two would be satisfied by either and
+/// could not tell which one the engine actually consulted.
+#[test]
+fn an_event_rules_gate_asks_about_its_span_not_about_the_event() {
+    let asset = br#"{"id":"t","doc":"d",
+      "message_events":[{"name":"some.event","doc":"a probe event"}],
+      "messages":[
+        {"id":"by_name","doc":"d","when_event":["some.event"],
+         "when":{"span_name":["chat "]},
+         "read":{"attribute":"payload"},"parse":"json","emit":"message","legacy_rank":1},
+        {"id":"by_attr","doc":"d","when_event":["some.event"],
+         "when":{"attr_exists":["framework.marker"]},
+         "read":{"attribute":"other"},"parse":"json","emit":"message","legacy_rank":2}]}"#;
+    let sources = std::collections::BTreeMap::from([("t.json".to_string(), asset.to_vec())]);
+    let plan = compile(&sources).expect("an event rule may be gated on the span that carries it");
+
+    let event_attrs = rule_attrs(&[
+        ("payload", r#"{"role":"user","content":"q"}"#),
+        ("other", r#"{"role":"user","content":"r"}"#),
+    ]);
+    let marked = rule_attrs(&[("framework.marker", "yes")]);
+    let bare = rule_attrs(&[]);
+    let fired = |span_name: &str, span_attrs: &HashMap<String, String>| -> Vec<String> {
+        plan.from_event("some.event", &event_attrs, span_name, span_attrs, false)
+            .0
+            .iter()
+            .map(|e| e.rule_id.to_string())
+            .collect()
+    };
+
+    assert_eq!(
+        fired("chat model", &bare),
+        vec!["by_name"],
+        "the span name is the real one, so the name-gated rule reads its event"
+    );
+    assert_eq!(
+        fired("tool execution", &marked),
+        vec!["by_attr"],
+        "the attribute gate asks about the span's map, which carries the marker"
+    );
+    assert!(
+        fired("tool execution", &bare).is_empty(),
+        "neither gate holds of this span"
+    );
+    // And the gate is not satisfiable from the event's own map, which used to stand in for the span's.
+    let self_marked = rule_attrs(&[
+        ("payload", r#"{"role":"user","content":"q"}"#),
+        ("other", r#"{"role":"user","content":"r"}"#),
+        ("framework.marker", "yes"),
+    ]);
+    assert!(
+        plan.from_event("some.event", &self_marked, "tool execution", &bare, false)
+            .0
+            .is_empty(),
+        "an event carrying the marker is not a span carrying it"
+    );
 }
 
 /// The declared evidence answers "is this a tool running" exactly as the retired list of branches did.
@@ -8677,7 +8768,7 @@ fn declared_tool_definitions_survive_a_tool_execution_span() {
         is_tool_execution_span(&attrs),
         "the case has to be a tool span for this to mean anything"
     );
-    let (tool_defs, _) = extract_tool_definitions(&attrs, Utc::now());
+    let (tool_defs, _) = extract_tool_definitions("", &attrs, Utc::now());
     assert_eq!(
         tool_defs.len(),
         1,
@@ -8695,7 +8786,7 @@ fn declared_tool_definitions_survive_a_tool_execution_span() {
 fn a_carrier_holding_only_a_tool_list_is_not_read_as_a_conversation() {
     let repr = r#"{"tools": ["CrewStructuredTool(name='search', description='Tool Arguments: {\"q\": {\"type\": \"str\"}}')"]}"#;
     let attrs = make_attrs(&[("crew_key", "k"), ("input.value", repr)]);
-    let (tool_defs, _) = extract_tool_definitions(&attrs, Utc::now());
+    let (tool_defs, _) = extract_tool_definitions("", &attrs, Utc::now());
     assert_eq!(tool_defs.len(), 1, "the tool list should be read");
 
     let mut messages = Vec::new();
@@ -8749,7 +8840,7 @@ fn a_message_rule_may_also_emit_tool_definitions() {
         &mut std::collections::HashSet::new(),
     );
     assert!(!messages.is_empty(), "the conversation and reply were lost");
-    let (tools, _) = extract_tool_definitions(&attrs, Utc::now());
+    let (tools, _) = extract_tool_definitions("", &attrs, Utc::now());
     assert_eq!(
         tools.len(),
         1,
@@ -8799,7 +8890,7 @@ fn a_tools_list_beside_a_conversation_does_not_claim_the_carrier() {
 fn an_empty_declaration_wrapper_yields_no_tool() {
     let request = r#"{"tools":[{"function_declarations":[]}]}"#;
     let attrs = make_attrs(&[("gcp.vertex.agent.llm_request", request)]);
-    let (tools, _) = extract_tool_definitions(&attrs, Utc::now());
+    let (tools, _) = extract_tool_definitions("", &attrs, Utc::now());
     assert!(
         tools.is_empty(),
         "an empty declaration wrapper produced a tool: {tools:?}"
@@ -8811,7 +8902,7 @@ fn an_empty_declaration_wrapper_yields_no_tool() {
 fn the_first_declared_wrapper_spelling_wins() {
     let request = r#"{"tools":[{"function_declarations":[{"name":"snake"}],"functionDeclarations":[{"name":"camel"}]}]}"#;
     let attrs = make_attrs(&[("gcp.vertex.agent.llm_request", request)]);
-    let (tools, _) = extract_tool_definitions(&attrs, Utc::now());
+    let (tools, _) = extract_tool_definitions("", &attrs, Utc::now());
     let names: Vec<String> = tools
         .iter()
         .flat_map(|t| t.content.as_array().cloned().unwrap_or_default())
@@ -8838,7 +8929,7 @@ fn an_indexed_entry_projects_its_leaf_payload() {
             r#"{"type":"function","function":{"name":"calculator"}}"#,
         ),
     ]);
-    let (defs, names) = extract_tool_definitions(&attrs, Utc::now());
+    let (defs, names) = extract_tool_definitions("", &attrs, Utc::now());
     assert_eq!(defs.len(), 1, "the family is one observation: {defs:?}");
     let schemas = defs[0].content.as_array().expect("an array of schemas");
     assert_eq!(schemas.len(), 2);
@@ -8873,7 +8964,7 @@ fn the_single_tool_triple_yields_to_each_precedence_alone() {
         ("tool.parameters", r#"{"type":"object"}"#),
     ];
     let names_of = |attrs: &HashMap<String, String>| -> Vec<String> {
-        extract_tool_definitions(attrs, Utc::now())
+        extract_tool_definitions("", attrs, Utc::now())
             .0
             .iter()
             .flat_map(|t| t.content.as_array().cloned().unwrap_or_default())
@@ -8915,7 +9006,7 @@ fn a_malformed_list_carrier_yields_to_the_single_tool_triple() {
         ("tool.name", "secondary"),
         ("tool.description", "a tool"),
     ]);
-    let (defs, _) = extract_tool_definitions(&attrs, Utc::now());
+    let (defs, _) = extract_tool_definitions("", &attrs, Utc::now());
     let names: Vec<String> = defs
         .iter()
         .flat_map(|t| t.content.as_array().cloned().unwrap_or_default())
@@ -8942,7 +9033,7 @@ fn a_malformed_indexed_schema_is_not_a_tool() {
             r#"{"type":"function","function":{"name":"good"}}"#,
         ),
     ]);
-    let (defs, _) = extract_tool_definitions(&attrs, Utc::now());
+    let (defs, _) = extract_tool_definitions("", &attrs, Utc::now());
     let schemas: Vec<JsonValue> = defs
         .iter()
         .flat_map(|t| t.content.as_array().cloned().unwrap_or_default())
@@ -8964,7 +9055,7 @@ fn a_malformed_indexed_schema_is_not_a_tool() {
 fn a_non_array_declaration_wrapper_falls_back_to_the_group() {
     let request = r#"{"tools":[{"name":"bare","function_declarations":"not a list"}]}"#;
     let attrs = make_attrs(&[("gcp.vertex.agent.llm_request", request)]);
-    let (defs, _) = extract_tool_definitions(&attrs, Utc::now());
+    let (defs, _) = extract_tool_definitions("", &attrs, Utc::now());
     let tools: Vec<JsonValue> = defs
         .iter()
         .flat_map(|t| t.content.as_array().cloned().unwrap_or_default())
@@ -8980,7 +9071,7 @@ fn a_non_array_declaration_wrapper_falls_back_to_the_group() {
 #[test]
 fn a_nameless_single_tool_is_not_emitted() {
     let attrs = make_attrs(&[("tool.description", "a tool with no name")]);
-    let (defs, _) = extract_tool_definitions(&attrs, Utc::now());
+    let (defs, _) = extract_tool_definitions("", &attrs, Utc::now());
     assert!(
         defs.is_empty(),
         "a nameless tool definition was emitted: {defs:?}"
@@ -9001,11 +9092,11 @@ fn try_raw_io(
     let produced: Vec<RawMessage> = crate::domain::rules::ruleset()
         .messages
         .fallback(
-            &crate::domain::rules::MessageContext {
+            &crate::domain::rules::MessageContext::for_span(
                 span_name,
-                span_attrs: attrs,
-                is_tool_span: is_tool_execution_span(attrs),
-            },
+                attrs,
+                is_tool_execution_span(attrs),
+            ),
             &std::collections::HashSet::new(),
         )
         .into_iter()
@@ -9032,7 +9123,7 @@ fn the_inference_details_container_is_read_on_a_tool_span() {
         )],
         dropped_attributes_count: 0,
     };
-    let on_tool_span = extract_message_from_event(&event, true);
+    let on_tool_span = extract_message_from_event(&event, "", &HashMap::new(), true);
     // The *carrier*, not the count: without the rule the raw event is emitted instead, which is also one
     // message and would let this pass for the wrong reason.
     let carriers: Vec<String> = on_tool_span
@@ -9066,11 +9157,7 @@ fn the_fallback_inherits_what_the_dialect_stage_read() {
         "output.value",
         r#"{"role":"assistant","content":"the answer"}"#,
     )]);
-    let ctx = crate::domain::rules::MessageContext {
-        span_name: "call_llm",
-        span_attrs: &attrs,
-        is_tool_span: false,
-    };
+    let ctx = crate::domain::rules::MessageContext::for_span("call_llm", &attrs, false);
     let plan = &ruleset().messages;
 
     let read_afresh = plan.fallback(&ctx, &std::collections::HashSet::new());
@@ -9156,7 +9243,7 @@ fn the_declared_single_tool_triple_reproduces_the_retired_one() {
     for case in cases {
         let attrs = make_attrs(&case);
         let expected = legacy_single_tool_definition(&attrs, Utc::now());
-        let (defs, _) = extract_tool_definitions(&attrs, Utc::now());
+        let (defs, _) = extract_tool_definitions("", &attrs, Utc::now());
         let declared: Vec<&RawToolDefinition> = defs
             .iter()
             .filter(
@@ -9183,7 +9270,7 @@ fn the_single_tool_triple_is_read_last() {
         ("llm.tools", r#"[{"name":"listed"}]"#),
         ("gen_ai.tool.name", "triple"),
     ]);
-    let (defs, _) = extract_tool_definitions(&attrs, Utc::now());
+    let (defs, _) = extract_tool_definitions("", &attrs, Utc::now());
     let order: Vec<String> = defs
         .iter()
         .map(|d| match &d.source {
@@ -9206,7 +9293,7 @@ fn the_single_tool_triple_is_read_last() {
         ("gen_ai.tool.name", "shared"),
         ("gen_ai.tool.description", "from the triple"),
     ]);
-    let (defs, _) = extract_tool_definitions(&same_name, Utc::now());
+    let (defs, _) = extract_tool_definitions("", &same_name, Utc::now());
     let merged = crate::domain::sideml::tools::normalize_tools(&JsonValue::Array(
         defs.iter()
             .flat_map(|d| d.content.as_array().cloned().unwrap_or_default())
@@ -9258,7 +9345,7 @@ fn the_crew_metadata_carriers_yield_what_the_retired_reader_did() {
         ("crew_agents", r#"[{"tools_names":["from_agents"]}]"#),
         ("crew_tasks", r#"[{"tools_names":["from_tasks"]}]"#),
     ]);
-    let (defs, _) = extract_tool_definitions(&attrs, Utc::now());
+    let (defs, _) = extract_tool_definitions("", &attrs, Utc::now());
     assert_eq!(
         names_of(&defs, "crew_agents"),
         vec!["from_agents".to_string()]
@@ -9276,7 +9363,7 @@ fn the_crew_metadata_carriers_yield_what_the_retired_reader_did() {
             r#"[{"tools_names":["named"],"tools":[{"name":"listed"}]}]"#,
         ),
     ]);
-    let (defs, _) = extract_tool_definitions(&attrs, Utc::now());
+    let (defs, _) = extract_tool_definitions("", &attrs, Utc::now());
     let mut both = names_of(&defs, "crew_agents");
     both.sort();
     assert_eq!(
@@ -9293,7 +9380,7 @@ fn the_crew_metadata_carriers_yield_what_the_retired_reader_did() {
             r#"[{"tools_names":["shared"],"tools":[{"name":"shared","description":"the rich one"}]}]"#,
         ),
     ]);
-    let (defs, _) = extract_tool_definitions(&attrs, Utc::now());
+    let (defs, _) = extract_tool_definitions("", &attrs, Utc::now());
     let described: Vec<String> = defs
         .iter()
         .flat_map(|d| d.content.as_array().cloned().unwrap_or_default())
@@ -9314,6 +9401,6 @@ fn the_crew_metadata_carriers_yield_what_the_retired_reader_did() {
             r#"[{"tools":["CrewStructuredTool(name='search', description='Tool Arguments: {\"q\": {\"type\": \"str\"}}')"]}]"#,
         ),
     ]);
-    let (defs, _) = extract_tool_definitions(&attrs, Utc::now());
+    let (defs, _) = extract_tool_definitions("", &attrs, Utc::now());
     assert_eq!(names_of(&defs, "crew_agents"), vec!["search".to_string()]);
 }
