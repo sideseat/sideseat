@@ -69,13 +69,14 @@ pub const UNCLAIMED_LABEL: &str = "Unknown";
 /// rather than a branch - and nothing that reads the answer has to know which dialect supplied it.
 #[derive(Debug, Default)]
 pub struct SpanFactPlan {
-    signals: Vec<(schema::SpanFact, schema::SpanSignal)>,
+    /// Each signal with the rule it came from, so an established fact can name every witness.
+    signals: Vec<(schema::SpanFact, String, schema::SpanSignal)>,
 }
 
 impl SpanFactPlan {
     fn compile(sources: &std::collections::BTreeMap<String, Vec<u8>>) -> Self {
         let plan = Self::compile_unvalidated(sources);
-        for (fact, signal) in &plan.signals {
+        for (fact, _, signal) in &plan.signals {
             // A signal that asserts nothing holds for **every** span, which for `tool_execution` would
             // classify every span as a tool running and gate almost every message rule out. Refused rather
             // than warned about: the failure is total and silent.
@@ -106,7 +107,7 @@ impl SpanFactPlan {
                 .flat_map(|rule| {
                     rule.signals
                         .iter()
-                        .map(move |signal| (rule.fact, signal.clone()))
+                        .map(move |signal| (rule.fact, rule.id.clone(), signal.clone()))
                 })
                 .collect(),
         }
@@ -118,10 +119,38 @@ impl SpanFactPlan {
         fact: schema::SpanFact,
         attrs: &std::collections::HashMap<String, String>,
     ) -> bool {
-        self.signals
+        self.established(fact, attrs).is_some()
+    }
+
+    /// The fact and **every** signal that establishes it, or `None` where none does.
+    ///
+    /// Every witness, not the first: a fact holds if any dialect's evidence establishes it, so which ones did
+    /// is a set. Reporting one arbitrarily is what a `bool` did - and there is deliberately no
+    /// `Verdict<bool>`, because a negative answer is not a clause saying "false", it is no clause answering.
+    pub fn established(
+        &self,
+        fact: schema::SpanFact,
+        attrs: &std::collections::HashMap<String, String>,
+    ) -> Option<expr::Verdict<schema::SpanFact>> {
+        let witnesses: Vec<expr::ClausePath> = self
+            .signals
             .iter()
-            .filter(|(declared, _)| *declared == fact)
-            .any(|(_, signal)| {
+            .filter(|(declared, _, _)| *declared == fact)
+            .filter(|(_, _, signal)| Self::signal_holds(signal, attrs))
+            .map(|(_, rule_id, signal)| {
+                expr::ClausePath::root(rule_id.clone()).then(signal.id.clone())
+            })
+            .collect();
+        expr::EvidenceSet::of(witnesses).map(|evidence| expr::Verdict::new(fact, evidence))
+    }
+
+    fn signal_holds(
+        signal: &schema::SpanSignal,
+        attrs: &std::collections::HashMap<String, String>,
+    ) -> bool {
+        {
+            let signal = &signal;
+            {
                 let equals = signal.attr_equals.as_ref().is_none_or(|want| {
                     attrs.get(&want.key).is_some_and(|found| {
                         if signal.ignore_case {
@@ -137,7 +166,8 @@ impl SpanFactPlan {
                         .attrs_present
                         .iter()
                         .all(|key| attrs.contains_key(key))
-            })
+            }
+        }
     }
 }
 

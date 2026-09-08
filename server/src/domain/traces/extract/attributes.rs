@@ -1038,10 +1038,11 @@ impl SemanticKind {
 /// As with the observation type, the one thing left here is which stored value each label means, and that "no
 /// rule held" answers `other` - our vocabulary rather than any dialect's.
 pub(crate) fn categorize_span(span_name: &str, attrs: &HashMap<String, String>) -> SpanCategory {
-    match crate::domain::rules::ruleset()
+    // The verdict's label; the evidence is what a diagnostic reads, and the enum is what is stored.
+    let verdict = crate::domain::rules::ruleset()
         .observation_types
-        .span_category(span_name, attrs)
-    {
+        .span_category(span_name, attrs);
+    match verdict.as_ref().map(|verdict| verdict.value) {
         Some("llm") => SpanCategory::LLM,
         Some("tool") => SpanCategory::Tool,
         Some("agent") => SpanCategory::Agent,
@@ -1158,10 +1159,10 @@ pub(crate) fn detect_observation_type(
     span_name: &str,
     attrs: &HashMap<String, String>,
 ) -> ObservationType {
-    match crate::domain::rules::ruleset()
+    let verdict = crate::domain::rules::ruleset()
         .observation_types
-        .observation_type(span_name, attrs)
-    {
+        .observation_type(span_name, attrs);
+    match verdict.as_ref().map(|verdict| verdict.value) {
         Some("generation") => ObservationType::Generation,
         Some("embedding") => ObservationType::Embedding,
         Some("agent") => ObservationType::Agent,

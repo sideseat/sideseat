@@ -83,12 +83,16 @@ impl ClassifyPlan {
         &self,
         span_name: &str,
         attrs: &HashMap<String, String>,
-    ) -> Option<&str> {
+    ) -> Option<super::expr::Verdict<&str>> {
         first_match(&self.observation_types, span_name, attrs)
     }
 
     /// Which category this span falls in, or `None` where no rule holds.
-    pub fn span_category(&self, span_name: &str, attrs: &HashMap<String, String>) -> Option<&str> {
+    pub fn span_category(
+        &self,
+        span_name: &str,
+        attrs: &HashMap<String, String>,
+    ) -> Option<super::expr::Verdict<&str>> {
         first_match(&self.span_categories, span_name, attrs)
     }
 }
@@ -97,7 +101,7 @@ fn first_match<'a>(
     rules: &'a [CompiledRule],
     span_name: &str,
     attrs: &HashMap<String, String>,
-) -> Option<&'a str> {
+) -> Option<super::expr::Verdict<&'a str>> {
     rules
         .iter()
         .find(|rule| {
@@ -105,7 +109,15 @@ fn first_match<'a>(
                 super::detect_rules::compiled_signals_hold(signals, span_name, attrs)
             })
         })
-        .map(|rule| rule.result.as_str())
+        .map(|rule| {
+            // The rule that answered, named. A classification used to return the label alone, so "this span is
+            // a plain span" and "no rule recognised it" were the same answer to a reader, and the rule's id -
+            // which compilation keeps - was discarded at the one moment it is useful.
+            super::expr::Verdict::from_one(
+                rule.result.as_str(),
+                super::expr::ClausePath::root(rule.rule_id.clone()),
+            )
+        })
 }
 
 /// Compile every asset's classification rules into one ordered plan.

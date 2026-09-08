@@ -11418,7 +11418,7 @@ fn the_declared_classification_matches_the_sweep_it_shadows() {
     for (what, span_name, attrs) in cases {
         let declared = plan
             .observation_type(span_name, &attrs)
-            .map(str::to_string)
+            .map(|verdict| verdict.value.to_string())
             // No rule holding is what "a plain span" means, which the caller names rather than the assets.
             .unwrap_or_else(|| label(ObservationType::Span));
         let swept = label(detect_observation_type_legacy(span_name, &attrs));
@@ -11616,7 +11616,7 @@ fn the_declared_category_matches_the_sweep_it_shadows() {
     for (what, span_name, attrs) in cases {
         let declared = plan
             .span_category(span_name, &attrs)
-            .map(str::to_string)
+            .map(|verdict| verdict.value.to_string())
             .unwrap_or_else(|| SpanCategory::Other.as_str().to_string());
         let swept = categorize_span_legacy(span_name, &attrs)
             .as_str()

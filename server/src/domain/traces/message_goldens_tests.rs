@@ -4097,7 +4097,7 @@ fn the_declared_classification_matches_the_sweep_across_the_corpus() {
                         spans += 1;
                         let declared = plan
                             .observation_type(&span.name, &attrs)
-                            .map(str::to_string)
+                            .map(|verdict| verdict.value.to_string())
                             .unwrap_or_else(|| ObservationType::Span.as_str().to_string());
                         let swept = detect_observation_type_legacy(&span.name, &attrs)
                             .as_str()
@@ -4113,7 +4113,7 @@ fn the_declared_classification_matches_the_sweep_across_the_corpus() {
                         // comparison over the same spans.
                         let declared_category = plan
                             .span_category(&span.name, &attrs)
-                            .map(str::to_string)
+                            .map(|verdict| verdict.value.to_string())
                             .unwrap_or_else(|| SpanCategory::Other.as_str().to_string());
                         let swept_category = categorize_span_legacy(&span.name, &attrs)
                             .as_str()

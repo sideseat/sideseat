@@ -4147,3 +4147,99 @@ fn a_clause_id_is_unique_within_its_owner() {
         "only the conventions' asset may declare which namespaces are no producer's"
     );
 }
+
+/// An answer names the declaration that produced it, and a fact names **every** witness.
+///
+/// Both resolvers used to answer with a value alone: a classification returned `"span"` whether a rule said so
+/// or nothing recognised the span, and a span fact returned `true` with no way to ask which of a dialect's
+/// signals established it. Compilation was keeping the ids all along and discarding them at the one moment they
+/// are useful.
+///
+/// There is deliberately no `Verdict<bool>`. A negative answer is not a clause saying "false" - it is no clause
+/// answering - so absence is `None` and a verdict always carries at least one witness.
+#[test]
+fn an_answer_names_the_declaration_that_produced_it() {
+    use crate::domain::rules::schema::SpanFact;
+    use std::collections::HashMap;
+
+    let ruleset = crate::domain::rules::ruleset();
+
+    // A transport attribute makes a span a plain span, and the rule that says so is `category.transport`.
+    let mut http = HashMap::new();
+    http.insert("http.method".to_string(), "GET".to_string());
+    let category = ruleset
+        .observation_types
+        .span_category("some.span", &http)
+        .expect("a transport attribute is classified");
+    assert_eq!(category.value, "http");
+    assert_eq!(
+        category.evidence.paths().len(),
+        1,
+        "a first-match classification has exactly one witness"
+    );
+    assert!(
+        category.evidence.to_string().contains("transport"),
+        "the verdict must name the rule that answered, not merely the label: {}",
+        category.evidence
+    );
+
+    // Nothing recognised: no verdict at all, which is a different answer from "a rule said `other`".
+    assert!(
+        ruleset
+            .observation_types
+            .span_category("some.span", &HashMap::new())
+            .is_none(),
+        "no rule holding must be distinguishable from a rule answering"
+    );
+
+    // A span fact, with **every** signal that establishes it. The conventions and a dialect can each recognise
+    // a tool span, and which ones did is a set rather than whichever was declared first.
+    let mut tool = HashMap::new();
+    tool.insert("gen_ai.tool.name".to_string(), "search".to_string());
+    tool.insert("gen_ai.tool.call.id".to_string(), "call-1".to_string());
+    let established = ruleset
+        .span_facts
+        .established(SpanFact::ToolExecution, &tool)
+        .expect("a named tool with a call id is a tool execution");
+    assert_eq!(established.value, SpanFact::ToolExecution);
+    assert!(
+        !established.evidence.paths().is_empty(),
+        "an established fact carries its witnesses"
+    );
+    // Each witness names its rule *and* the signal inside it, which is what the clause ids are for.
+    for path in established.evidence.paths() {
+        assert!(
+            !path.steps.is_empty(),
+            "a witness must name the signal, not only the rule that holds it: {path}"
+        );
+    }
+    // And `holds` agrees with `established`, so the boolean is a view of the same answer rather than a second
+    // implementation of it.
+    assert!(ruleset.span_facts.holds(SpanFact::ToolExecution, &tool));
+    assert!(
+        !ruleset
+            .span_facts
+            .holds(SpanFact::ToolExecution, &HashMap::new())
+    );
+    assert!(
+        ruleset
+            .span_facts
+            .established(SpanFact::ToolExecution, &HashMap::new())
+            .is_none()
+    );
+
+    // Evidence is ordered and free of repeats, so a diagnostic reads the same way twice.
+    use crate::domain::rules::expr::{ClausePath, EvidenceSet};
+    let set = EvidenceSet::of(vec![
+        ClausePath::root("b").then("two"),
+        ClausePath::root("a").then("one"),
+        ClausePath::root("b").then("two"),
+    ])
+    .expect("three paths");
+    assert_eq!(set.paths().len(), 2, "a repeated witness is one witness");
+    assert_eq!(set.to_string(), "a → one, b → two");
+    assert!(
+        EvidenceSet::of(Vec::new()).is_none(),
+        "an answer with no evidence is the absence of an answer"
+    );
+}
