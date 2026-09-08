@@ -1245,6 +1245,13 @@ fn infer_source_type(data: &str) -> &'static str {
 /// This catches cases like `{"text": "hello", "extra": "field"}` which looks like
 /// a Bedrock text block with extra fields - better to flag as unknown than assume
 /// it's structured output.
+/// The retired list, for the equivalence oracle: the declared vocabulary must mean this and no more.
+#[cfg(test)]
+pub(crate) fn provider_content_fields_legacy() -> &'static [&'static str] {
+    PROVIDER_CONTENT_FIELDS
+}
+
+#[cfg(test)]
 const PROVIDER_CONTENT_FIELDS: &[&str] = &[
     // Bedrock/Strands
     "text",
@@ -1347,12 +1354,14 @@ fn try_unknown_fallback(block: &JsonValue) -> Option<JsonValue> {
         return Some(json!({"type": "unknown", "raw": block.clone()}));
     }
 
-    // Has provider-specific field but didn't match in earlier handlers
-    // This is a malformed content block - preserve as unknown
-    for field in PROVIDER_CONTENT_FIELDS {
-        if obj.contains_key(*field) {
-            return Some(json!({"type": "unknown", "raw": block.clone()}));
-        }
+    // A member that means "content block", declared in `rules/message-members.json`, on a block no case
+    // recognised: malformed rather than plain data, and worth seeing as such. The policy is the only part left
+    // here - which members say so is the producers' business.
+    if crate::domain::rules::ruleset()
+        .message_members
+        .any_means_content_block(obj.keys())
+    {
+        return Some(json!({"type": "unknown", "raw": block.clone()}));
     }
 
     // Plain JSON object without type or provider fields

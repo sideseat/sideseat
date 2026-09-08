@@ -22,6 +22,7 @@ pub mod carrier_rules;
 pub mod classify;
 pub mod content_blocks;
 pub mod detect_rules;
+pub mod members;
 pub mod message_rules;
 pub mod schema;
 pub mod span_fields;
@@ -156,6 +157,10 @@ pub struct Ruleset {
     pub span_fields: span_fields::SpanFieldPlan,
     /// What kind of observation a span is, as ordered first-match rules.
     pub observation_types: classify::ClassifyPlan,
+    /// Member names a producer uses, and what each one's presence means.
+    pub message_members: members::MemberPlan,
+    /// `gen_ai.system` values that are a framework's own name and mean a provider the catalogue prices.
+    pub provider_aliases: std::collections::BTreeMap<String, String>,
     /// BLAKE3 of the asset bytes that produced this plan, hex-encoded.
     ///
     /// Joins the reconstruction cache key. That cache is a memo over a pure function of the rows, and
@@ -205,9 +210,38 @@ pub fn ruleset() -> &'static Ruleset {
                 .unwrap_or_else(|e| panic!("embedded span field rules are malformed: {e}")),
             observation_types: classify::compile(&sources)
                 .unwrap_or_else(|e| panic!("embedded classification rules are malformed: {e}")),
+            message_members: members::compile(&sources)
+                .unwrap_or_else(|e| panic!("embedded member rules are malformed: {e}")),
+            provider_aliases: compile_provider_aliases(&parsed_files(&sources)),
             digest,
         }
     })
+}
+
+/// The declared `gen_ai.system` → provider aliases, refusing a value that two assets answer differently.
+fn compile_provider_aliases(
+    files: &[schema::RuleFile],
+) -> std::collections::BTreeMap<String, String> {
+    let mut out: std::collections::BTreeMap<String, String> = std::collections::BTreeMap::new();
+    for file in files {
+        for alias in &file.provider_aliases {
+            assert!(
+                !alias.system.is_empty() && !alias.provider.is_empty(),
+                "provider alias in `{}` names an empty system or provider",
+                file.id
+            );
+            if let Some(first) = out.insert(alias.system.clone(), alias.provider.clone())
+                && first != alias.provider
+            {
+                panic!(
+                    "`{}` is declared as provider `{first}` and as `{}`, so which one prices a call would \
+                     depend on load order",
+                    alias.system, alias.provider
+                );
+            }
+        }
+    }
+    out
 }
 
 /// The ruleset digest, for the reconstruction cache key.

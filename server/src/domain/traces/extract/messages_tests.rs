@@ -11625,3 +11625,134 @@ fn the_usage_details_are_what_no_declared_counter_reads() {
     assert_eq!(details["cost_estimate"], serde_json::json!(0.25));
     assert_eq!(details["tier"], serde_json::json!("flex"));
 }
+
+/// The declared member vocabulary answers exactly as the three retired lists did.
+///
+/// All three questions, because a member usually answers more than one and the lists had drifted: which member
+/// holds a value's content (ordered), which mean it is message-shaped, and which mean it is a content block.
+#[test]
+fn the_declared_members_reproduce_the_lists_they_replaced() {
+    use crate::domain::sideml::{is_plain_data_value, is_plain_data_value_legacy};
+
+    let plan = &crate::domain::rules::ruleset().message_members;
+
+    // The ordered content chain: the first member the value *has*, not the first holding something.
+    let chain: Vec<&str> = plan.content_in_order().collect();
+    assert_eq!(
+        chain,
+        vec![
+            "content",
+            "contents",
+            "message",
+            "parts",
+            "text",
+            "object",
+            "arguments"
+        ],
+        "the declared order is the retired chain's"
+    );
+    let first_present = |value: &serde_json::Value| -> Option<serde_json::Value> {
+        plan.content_in_order()
+            .find_map(|member| value.get(member))
+            .cloned()
+    };
+    assert_eq!(
+        first_present(&serde_json::json!({"content": null, "parts": ["x"]})),
+        Some(serde_json::json!(null)),
+        "a null content outranks a populated later member, which a set could not say"
+    );
+    assert_eq!(
+        first_present(&serde_json::json!({"parts": ["x"], "text": "y"})),
+        Some(serde_json::json!(["x"])),
+        "the earlier member wins"
+    );
+    assert_eq!(
+        first_present(&serde_json::json!({"unrelated": 1})),
+        None,
+        "a value with none of them has no declared content member"
+    );
+
+    // Message-shaped, against the retired list, over the shapes that distinguish the two answers.
+    let shapes = [
+        serde_json::json!({}),
+        serde_json::json!({"name": "Jane", "age": 28}),
+        serde_json::json!({"role": "user", "content": "hi"}),
+        serde_json::json!({"contents": []}),
+        serde_json::json!({"parts": []}),
+        serde_json::json!({"choices": []}),
+        serde_json::json!({"generations": []}),
+        serde_json::json!({"toolUse": {}}),
+        serde_json::json!({"reasoningContent": {}}),
+        serde_json::json!({"finishReason": "stop"}),
+        serde_json::json!({"finish_reason": "stop"}),
+        serde_json::json!({"toolCalls": []}),
+        serde_json::json!({"type": "text"}),
+        serde_json::json!({"arguments": "{}"}),
+        serde_json::json!({"object": {"a": 1}}),
+        serde_json::json!("a string"),
+        serde_json::json!([1, 2]),
+        serde_json::json!(null),
+    ];
+    for shape in &shapes {
+        assert_eq!(
+            is_plain_data_value(shape),
+            is_plain_data_value_legacy(shape),
+            "the declared vocabulary disagrees about whether this is bare data: {shape}"
+        );
+    }
+
+    // The content-block vocabulary, as a **set**: the declared one must mean exactly what the retired list
+    // meant, since a member missing from it turns a malformed block into plain structured output and one added
+    // to it turns plain data into an unknown block.
+    let retired: std::collections::BTreeSet<&str> =
+        crate::domain::sideml::content::provider_content_fields_legacy()
+            .iter()
+            .copied()
+            .collect();
+    for member in &retired {
+        assert!(
+            plan.any_means_content_block(std::iter::once(&member.to_string())),
+            "the retired list means `{member}` is a content-block member and the declared vocabulary does not"
+        );
+    }
+    // And nothing beyond it, checked from the other side: every declared member that means "content block" is
+    // in the retired list.
+    for member in crate::domain::rules::ruleset()
+        .message_members
+        .content_block_members()
+    {
+        assert!(
+            retired.contains(member),
+            "the declared vocabulary means `{member}` is a content-block member and the retired list did not"
+        );
+    }
+
+    // And the recognition as the normaliser reads it. Only a member no earlier case claims can be exercised
+    // this way - most of the vocabulary is read by a provider handler first, which is the point of the
+    // recognition step being a last resort - so the set comparison above is what covers the rest.
+    for (what, block, expected_type) in [
+        (
+            "a member that means content block, unrecognised",
+            serde_json::json!({"toolCallId": "x"}),
+            "unknown",
+        ),
+        (
+            "the same with an extra member, which is what makes a block malformed rather than unrecognised",
+            serde_json::json!({"toolCallId": "x", "extra": 1}),
+            "unknown",
+        ),
+        (
+            "no such member, so plain structured output",
+            serde_json::json!({"name": "Jane", "age": 28}),
+            "json",
+        ),
+    ] {
+        let out = crate::domain::sideml::content::normalize_content_block(&block)
+            .unwrap_or_else(|| panic!("{what}: nothing normalised {block}"));
+        assert_eq!(
+            out.get("type").and_then(|t| t.as_str()),
+            Some(expected_type),
+            "{what}: {out}"
+        );
+    }
+}

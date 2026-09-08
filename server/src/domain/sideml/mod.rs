@@ -95,6 +95,7 @@ use serde_json::{Value as JsonValue, json};
 
 // Message-structure keys that indicate a value is a proper message wrapper,
 // not plain structured output data.
+#[cfg(test)]
 const MESSAGE_STRUCTURE_KEYS: &[&str] = &[
     "role",
     "content",
@@ -144,6 +145,21 @@ pub(crate) fn is_plain_data_or_content(value: &JsonValue) -> bool {
 }
 
 pub(crate) fn is_plain_data_value(val: &JsonValue) -> bool {
+    let Some(obj) = val.as_object() else {
+        return false;
+    };
+    if obj.is_empty() {
+        return false;
+    }
+    // Declared: which members mean a value is message-shaped rather than bare data.
+    !crate::domain::rules::ruleset()
+        .message_members
+        .any_means_message_shaped(obj.keys())
+}
+
+/// Whether a value is bare data, as the retired key list decided it. The equivalence oracle.
+#[cfg(test)]
+pub(crate) fn is_plain_data_value_legacy(val: &JsonValue) -> bool {
     let Some(obj) = val.as_object() else {
         return false;
     };
@@ -207,16 +223,14 @@ pub fn normalize(raw: &JsonValue) -> ChatMessage {
     let role = ChatRole::from_str_normalized(role_str);
     let tool_use_id = tools::extract_tool_use_id(&raw, role_str);
 
-    // Extract content from multiple possible fields (framework-specific)
-    // Note: Sparse array placeholder filtering happens universally in normalize_content()
-    let raw_content = raw
-        .get("content") // Standard: OpenAI, Anthropic, most frameworks
-        .or_else(|| raw.get("contents")) // OpenInference nested format (plural)
-        .or_else(|| raw.get("message")) // Some frameworks wrap in message field
-        .or_else(|| raw.get("parts")) // Gemini format
-        .or_else(|| raw.get("text")) // Simple text-only format
-        .or_else(|| raw.get("object")) // Structured output
-        .or_else(|| raw.get("arguments")) // Tool call arguments
+    // Which member holds the content is declared (`rules/message-members.json`), in order - the first the
+    // value *has*, not the first that holds something: a `content` of `null` beside a populated `parts` is a
+    // message whose content is null, which is what the retired chain said.
+    // Sparse array placeholder filtering happens universally in `normalize_content`.
+    let raw_content = crate::domain::rules::ruleset()
+        .message_members
+        .content_in_order()
+        .find_map(|member| raw.get(member))
         // Defense-in-depth: if no known field matched but the whole value is
         // a plain data object (structured output), pass it to normalize_content
         .or_else(|| {

@@ -275,5 +275,17 @@
         }
       ]
     }
+  ],
+  "provider_aliases": [
+    {
+      "doc": "This framework names itself in `gen_ai.system`, and its models are served by a provider the catalogue prices - so the value has to resolve to that provider or every one of its calls is priced from the model name alone. Declared here, in the asset that owns the framework, rather than beside the catalogue's own provider spellings.",
+      "system": "google_adk",
+      "provider": "gemini"
+    },
+    {
+      "doc": "The same value with no separator, which is how one exporter writes it. Both spellings, because normalisation replaces `-` and a space with `_` rather than removing them - so this is a different value, not a variant of the one above.",
+      "system": "googleadk",
+      "provider": "gemini"
+    }
   ]
 }

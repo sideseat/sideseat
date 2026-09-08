@@ -594,6 +594,15 @@ fn map_system_to_litellm_provider(system: &str) -> &'static str {
     // hand is how `amazon-bedrock` came to be missing altogether, which cost it both its Bedrock prices and
     // its cache-counter convention.
     let normalised = system.to_lowercase().replace(['-', ' '], "_");
+    // A framework naming *itself* here is declared by the asset that owns that framework: it is a statement
+    // about a producer, not about the catalogue's vocabulary. Consulted first, so such a value never has to be
+    // spelled below as if it were a provider's own name.
+    if let Some(provider) = crate::domain::rules::ruleset()
+        .provider_aliases
+        .get(&normalised)
+    {
+        return provider;
+    }
     match normalised.as_str() {
         // Direct mappings
         "openai" => "openai",
@@ -615,7 +624,6 @@ fn map_system_to_litellm_provider(system: &str) -> &'static str {
         // Google variants
         "google" | "gemini" | "google_ai_studio" => "gemini",
         "vertex" | "vertex_ai" | "vertexai" | "google_vertexai" => "vertex_ai",
-        "google_adk" | "googleadk" => "gemini",
 
         // Other providers
         "groq" => "groq",
@@ -4320,5 +4328,37 @@ mod tests {
             output.cache_read_cost > 0.0,
             "{model}: cache reads are charged"
         );
+    }
+}
+
+#[cfg(test)]
+mod declared_provider_alias_tests {
+    use super::map_system_to_litellm_provider;
+
+    /// A framework that names itself in `gen_ai.system` resolves to the provider that serves its models.
+    ///
+    /// Declared by the asset that owns the framework (`rules/google-adk.json`), not beside the catalogue's own
+    /// provider spellings - and consulted before them, so the claim never has to be written as if a provider
+    /// had made it. Both spellings, because normalisation replaces a separator rather than removing it.
+    #[test]
+    fn a_declared_framework_alias_resolves_to_its_provider() {
+        for spelling in [
+            "google_adk",
+            "googleadk",
+            "google-adk",
+            "Google ADK",
+            "GOOGLE_ADK",
+        ] {
+            assert_eq!(
+                map_system_to_litellm_provider(spelling),
+                "gemini",
+                "`{spelling}` must price from that provider's catalogue entries"
+            );
+        }
+        // And a framework that names *no* provider still answers nothing, so the catalogue is searched by model
+        // name instead - which is the whole reason the deleted list said nothing.
+        for spelling in ["crewai", "langgraph", "strands-agents", "something_new"] {
+            assert_eq!(map_system_to_litellm_provider(spelling), "");
+        }
     }
 }

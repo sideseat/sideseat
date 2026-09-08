@@ -1,0 +1,199 @@
+{
+  "id": "message-members",
+  "doc": "Member names producers use, and what each one's presence means. Three questions about one vocabulary.\n\n**Which member holds a message's content** is *ordered*, because a value carrying two of them has one answer and the order is what picks it - a `content` of `null` beside a populated `parts` is a message whose content is null, which is what the retired chain said and what a set could not.\n\n**Which members mean the value is message-shaped** decides whether a generic carrier holds a turn or bare structured output that has to be wrapped before normalisation. Get it wrong the wrong way and a producer's own JSON is read as a message with no blocks; the other way and a turn is buried inside a wrapper.\n\n**Which mean the value is a content block** decides what an *unrecognised* block becomes: one carrying such a member is malformed and reported as unknown, while one carrying none is plain data and reported as JSON. A block naming a call id that no case could read is a producer defect worth seeing, not a datum.\n\nOne section rather than three lists, because a member usually answers more than one question - and as three lists in Rust they drifted.",
+  "message_members": [
+    {
+      "id": "members.content",
+      "member": "content",
+      "rank": 10,
+      "holds_content": true,
+      "means_message_shaped": true,
+      "doc": "The conventional member, and the one nearly every producer writes."
+    },
+    {
+      "id": "members.contents",
+      "member": "contents",
+      "rank": 20,
+      "holds_content": true,
+      "means_message_shaped": true,
+      "doc": "The plural, which one dialect writes for a nested content list."
+    },
+    {
+      "id": "members.message",
+      "member": "message",
+      "rank": 30,
+      "holds_content": true,
+      "means_message_shaped": true,
+      "doc": "Some producers wrap the content in a message member of their own."
+    },
+    {
+      "id": "members.parts",
+      "member": "parts",
+      "rank": 40,
+      "holds_content": true,
+      "means_message_shaped": true,
+      "doc": "One provider's name for the same list."
+    },
+    {
+      "id": "members.text",
+      "member": "text",
+      "rank": 50,
+      "holds_content": true,
+      "means_message_shaped": true,
+      "means_content_block": true,
+      "doc": "A text-only message, whose content *is* the text."
+    },
+    {
+      "id": "members.object",
+      "member": "object",
+      "rank": 60,
+      "holds_content": true,
+      "means_message_shaped": true,
+      "doc": "Structured output, which is content as much as prose is."
+    },
+    {
+      "id": "members.arguments",
+      "member": "arguments",
+      "rank": 70,
+      "holds_content": true,
+      "means_message_shaped": true,
+      "doc": "A tool call's arguments, which are the content of a call."
+    },
+    {
+      "id": "members.choices",
+      "member": "choices",
+      "means_message_shaped": true,
+      "doc": "The same, under the other spelling."
+    },
+    {
+      "id": "members.finishReason",
+      "member": "finishReason",
+      "means_message_shaped": true
+    },
+    {
+      "id": "members.finish_reason",
+      "member": "finish_reason",
+      "means_message_shaped": true
+    },
+    {
+      "id": "members.functionCall",
+      "member": "functionCall",
+      "means_message_shaped": true,
+      "means_content_block": true
+    },
+    {
+      "id": "members.functionResponse",
+      "member": "functionResponse",
+      "means_message_shaped": true,
+      "means_content_block": true
+    },
+    {
+      "id": "members.generations",
+      "member": "generations",
+      "means_message_shaped": true,
+      "doc": "A provider's response envelope, which holds turns rather than being one."
+    },
+    {
+      "id": "members.inline_data",
+      "member": "inline_data",
+      "means_message_shaped": true,
+      "means_content_block": true
+    },
+    {
+      "id": "members.reasoningContent",
+      "member": "reasoningContent",
+      "means_message_shaped": true,
+      "means_content_block": true
+    },
+    {
+      "id": "members.role",
+      "member": "role",
+      "means_message_shaped": true,
+      "doc": "The member that makes a value a message more than any other: something with a role is a turn."
+    },
+    {
+      "id": "members.toolCalls",
+      "member": "toolCalls",
+      "means_message_shaped": true
+    },
+    {
+      "id": "members.toolResult",
+      "member": "toolResult",
+      "means_message_shaped": true,
+      "means_content_block": true
+    },
+    {
+      "id": "members.toolUse",
+      "member": "toolUse",
+      "means_message_shaped": true,
+      "means_content_block": true
+    },
+    {
+      "id": "members.tool_calls",
+      "member": "tool_calls",
+      "means_message_shaped": true,
+      "doc": "Calls attached to a turn, in either spelling."
+    },
+    {
+      "id": "members.type",
+      "member": "type",
+      "means_message_shaped": true,
+      "doc": "A discriminator, which only something already shaped carries."
+    },
+    {
+      "id": "members.document",
+      "member": "document",
+      "means_content_block": true
+    },
+    {
+      "id": "members.file_data",
+      "member": "file_data",
+      "means_content_block": true
+    },
+    {
+      "id": "members.function_call",
+      "member": "function_call",
+      "means_content_block": true
+    },
+    {
+      "id": "members.function_response",
+      "member": "function_response",
+      "means_content_block": true
+    },
+    {
+      "id": "members.image",
+      "member": "image",
+      "means_content_block": true
+    },
+    {
+      "id": "members.reasoning",
+      "member": "reasoning",
+      "means_content_block": true
+    },
+    {
+      "id": "members.source",
+      "member": "source",
+      "means_content_block": true
+    },
+    {
+      "id": "members.thinking",
+      "member": "thinking",
+      "means_content_block": true
+    },
+    {
+      "id": "members.toolCallId",
+      "member": "toolCallId",
+      "means_content_block": true
+    },
+    {
+      "id": "members.toolName",
+      "member": "toolName",
+      "means_content_block": true
+    },
+    {
+      "id": "members.video",
+      "member": "video",
+      "means_content_block": true
+    }
+  ]
+}

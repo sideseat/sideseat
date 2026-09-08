@@ -49,6 +49,24 @@ pub struct RuleFile {
     /// Content-block shapes this dialect writes.
     #[serde(default)]
     pub content_blocks: Vec<ContentBlockRule>,
+    /// A value a producer writes in `gen_ai.system` that names a **provider** the catalogue knows.
+    ///
+    /// Only the ones that are a *framework's* own name: a framework is not a provider, but one of them names
+    /// itself in that attribute while its models are served by a provider the catalogue prices. Provider
+    /// spellings proper (`azure_openai`, `amazon-bedrock`) stay in Rust, because those are the catalogue's
+    /// vocabulary rather than any framework's - and this table is consulted before them, so a framework's claim
+    /// about itself never has to be spelled as if it were a provider's.
+    #[serde(default)]
+    pub provider_aliases: Vec<ProviderAlias>,
+    /// Member names a producer uses, and what each one's presence means.
+    ///
+    /// Three questions about one vocabulary, which is why they are one section: which member holds a message's
+    /// content (ordered - the first present one wins), which members mean a value is *message-shaped* rather
+    /// than bare data, and which mean it is a content **block**. A member usually answers more than one, and as
+    /// three lists in Rust they drifted: `contents` held content and said "message-shaped", while `toolCallId`
+    /// said "content block" only.
+    #[serde(default)]
+    pub message_members: Vec<MessageMemberRule>,
     /// Which broad category a span falls in, as ordered first-match rules.
     ///
     /// A separate question from the observation type and with its own precedence: a transport call is an HTTP
@@ -383,6 +401,44 @@ pub struct JsonFieldSource {
     /// one object are one statement by one producer; two carriers are two.
     #[serde(default)]
     pub first_present_of: Vec<JsonPath>,
+}
+
+/// One `gen_ai.system` value, and the catalogue provider it means.
+#[derive(Debug, Deserialize, Clone)]
+#[serde(deny_unknown_fields)]
+pub struct ProviderAlias {
+    #[serde(default)]
+    pub doc: Option<String>,
+    /// The value as the producer writes it, **after** separator and case normalisation - which stays in Rust,
+    /// since it is about spelling rather than about who wrote it.
+    pub system: String,
+    /// The provider in the catalogue's own vocabulary.
+    pub provider: String,
+}
+
+/// One member name, and what its presence means.
+#[derive(Debug, Deserialize, Clone)]
+#[serde(deny_unknown_fields)]
+pub struct MessageMemberRule {
+    pub id: String,
+    #[serde(default)]
+    pub doc: Option<String>,
+    /// The member, as the producer writes it.
+    pub member: String,
+    /// Where this sits among the members that hold content. Required when `holds_content` is set, and refused
+    /// otherwise: a rank that orders nothing is a statement the engine does not read.
+    #[serde(default)]
+    pub rank: Option<i32>,
+    /// This member holds a message's content, at the rank above.
+    #[serde(default)]
+    pub holds_content: bool,
+    /// Its presence means the value is message-shaped, so it is not bare structured output to be wrapped.
+    #[serde(default)]
+    pub means_message_shaped: bool,
+    /// Its presence means the value is a content **block** - so a block carrying it that no case recognised is
+    /// a *malformed* block rather than plain data, and is reported as unknown instead of as JSON.
+    #[serde(default)]
+    pub means_content_block: bool,
 }
 
 /// One classification rule: the conditions a span must satisfy, and what it is then.
