@@ -441,6 +441,28 @@ fn compile_rule(
                  `indexed_family`",
         ));
     }
+    // The requirement's own literals, which nothing checked. An empty member name makes the evaluator look
+    // for `<entry>.` or `<entry>..`, so the rule is dead - and an explicitly empty group holds
+    // unconditionally, which is the opposite of "at least one of these".
+    if let Some(members) = require_members {
+        if members
+            .all_of
+            .iter()
+            .chain(&members.any_of)
+            .any(|requirement| requirement.name.is_empty())
+        {
+            return Err(inexpressible(
+                "a `require_members` entry names an empty member, so it asks for `<entry>.` and can \
+                 never hold",
+            ));
+        }
+        if members.all_of.is_empty() && members.any_of.is_empty() {
+            return Err(inexpressible(
+                "`require_members` is declared with no requirement, which holds for every entry - leave \
+                 it out to require nothing",
+            ));
+        }
+    }
     // Combinations the evaluator silently ignores. Each of these compiled and did nothing, which is worse
     // than a refusal: the rule reads as a statement the engine never makes.
     if read.entry_value.is_none() && read.entry_value_parse.is_some() {
@@ -756,8 +778,12 @@ pub fn compile(sources: &BTreeMap<String, Vec<u8>>) -> Result<MessagePlan, Messa
             if fragment.cases.iter().any(|c| c.then_fragment.is_some()) {
                 return Err(MessageCompileError::Inexpressible {
                     rule: format!("{}.{name}", file.id),
-                    detail: "a fragment's own cases may not reference a fragment - one level, so there is \
-                             nothing to bound at runtime",
+                    detail: "a fragment's own cases may not reference a fragment. One level, deliberately: \
+                             composition would be a compile-time expansion - splice the named fragment's \
+                             cases in place, refuse a cycle, bound the depth - and no asset needs it, so \
+                             building it now would add a capability nothing exercises, which is the defect \
+                             this engine refuses everywhere else. Lift it when a second level is what an \
+                             asset actually wants to say",
                 });
             }
             if fragments
@@ -3386,6 +3412,12 @@ fn emit_rule<'p>(rule: &'p CompiledMessageRule, ctx: &MessageContext<'_>) -> Vec
 }
 
 /// Whether one predicate holds of a value.
+/// One value predicate, reachable from the test that pins what `non_empty` means for a scalar.
+#[cfg(test)]
+pub(crate) fn predicate_holds_for_test(predicate: &ValuePredicate, value: &JsonValue) -> bool {
+    predicate_holds(value, predicate)
+}
+
 fn predicate_holds(value: &JsonValue, predicate: &ValuePredicate) -> bool {
     // A path that can match more than once is asked **existentially**: some match satisfies the condition.
     // Answering only about the first is a silent narrowing, and it would disagree with `exists`, which on a
@@ -3447,9 +3479,11 @@ fn condition_holds(subject: &JsonValue, predicate: &ValuePredicate) -> bool {
             JsonValue::String(text) => !text.is_empty(),
             JsonValue::Array(items) => !items.is_empty(),
             JsonValue::Object(map) => !map.is_empty(),
-            // A scalar is neither empty nor non-empty; the compiler refuses the combination, so this arm
-            // only guards a ruleset built in-process by a test.
-            _ => true,
+            // A scalar is neither empty **nor** non-empty in this vocabulary, so it fails the predicate
+            // whichever way it was asked. `true` here made `{"path": "$.content", "non_empty": true}` hold
+            // for `{"content": 0}` - a number reported as filled content - and the compiler's refusal does
+            // not cover it, because the refusal is about the *declaration* and this is about the value.
+            _ => return false,
         };
         if filled != want_non_empty {
             return false;

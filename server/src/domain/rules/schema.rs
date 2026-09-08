@@ -540,7 +540,13 @@ pub struct SdkSlug {
 }
 
 /// A pair of strings - an attribute key and the value or substring it must hold.
+///
+/// Strict, like every other type here. It was the one predicate type without it, so
+/// `{"key": …, "value": …, "ignore_case": true}` parsed and the flag was **discarded** - a comparison an
+/// author had asked to be case-insensitive stayed case-sensitive, silently. Case folding is a *separate
+/// dimension* (`attr_equals_ignore_case`), which is exactly the mistake this made easy to write.
 #[derive(Debug, Deserialize, Clone)]
+#[serde(deny_unknown_fields)]
 pub struct KeyValue {
     pub key: String,
     pub value: String,
@@ -1603,27 +1609,6 @@ pub struct Alternative {
     /// Fall back to the element itself when none of `then_any_of` resolved.
     #[serde(default)]
     pub else_element: bool,
-}
-
-/// What an emitted value must look like. Both forms exist because the extractors use both, and the
-/// difference is real: a message needs a role *and* content to be a message, while a *response* may
-/// legitimately carry content with no role.
-#[derive(Debug, Deserialize, Clone, Default)]
-#[serde(deny_unknown_fields)]
-pub struct ShapeRequirement {
-    /// Every one of these members must be present.
-    #[serde(default)]
-    pub all_of: Vec<String>,
-    /// At least one of these members must be present.
-    #[serde(default)]
-    pub any_of: Vec<String>,
-    /// The value must be an object.
-    ///
-    /// Its own fact, because a member requirement cannot express it: a scalar has no members, so an
-    /// empty requirement admits it. One dialect's prompt array legitimately holds non-objects, and
-    /// emitting one as a message produces a turn with no role and no content.
-    #[serde(default)]
-    pub is_object: bool,
 }
 
 /// Which members an indexed entry must carry.

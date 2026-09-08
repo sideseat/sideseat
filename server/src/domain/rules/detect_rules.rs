@@ -173,53 +173,21 @@ pub fn compile(sources: &BTreeMap<String, Vec<u8>>) -> Result<DetectPlan, Detect
                     rule: rule.id.clone(),
                 });
             }
-            // An empty prefix or needle matches every span, which turns a narrow rule into a catch-all
-            // wherever its rank sits. Refused rather than trusted to be a typo nobody makes.
+            // Through the shared atom validator, not a copy of it: the two had drifted in both directions.
             let spec = &rule.match_spec;
-            for (dimension, values) in [
-                ("span_name", &spec.span_name),
-                ("attr_prefix", &spec.attr_prefix),
-                ("attr_exists", &spec.attr_exists),
-                ("service_name", &spec.service_name),
-            ] {
-                if values.iter().any(String::is_empty) {
-                    return Err(DetectCompileError::EmptyLiteral {
+            if let Some(defect) = atom_literal_defect(spec) {
+                // The variant a caller's own diagnostic wants: detection has a dedicated error for an
+                // unreadable phrase source, and collapsing every defect into one variant made that
+                // diagnostic worse than it was.
+                return Err(match defect {
+                    AtomDefect::BadTextSource(source) => DetectCompileError::BadTextSource {
                         rule: rule.id.clone(),
-                        dimension,
-                    });
-                }
-            }
-            for (dimension, pairs) in [
-                ("attr_equals", &spec.attr_equals),
-                ("attr_equals_ignore_case", &spec.attr_equals_ignore_case),
-                ("span_attr_contains", &spec.span_attr_contains),
-                ("resource_attr_contains", &spec.resource_attr_contains),
-            ] {
-                if pairs.iter().any(|kv| kv.key.is_empty()) {
-                    return Err(DetectCompileError::EmptyLiteral {
+                        source,
+                    },
+                    other => DetectCompileError::EmptyLiteral {
                         rule: rule.id.clone(),
-                        dimension,
-                    });
-                }
-            }
-            if let Some(text) = &spec.text_contains
-                && (text.needles.iter().any(String::is_empty)
-                    || text.sources.is_empty()
-                    || text.needles.is_empty())
-            {
-                return Err(DetectCompileError::EmptyLiteral {
-                    rule: rule.id.clone(),
-                    dimension: "text_contains",
-                });
-            }
-            // The same refusal a field-source gate gets. This path validates a *detection* rule and does not go
-            // through `gate_defect`, so the mixed-source case was refused for one caller and compiled for the
-            // other - and compilation loses the declared order between the span name and an attribute, so such
-            // a rule matches on a source its author put second.
-            if mixed_first_present_sources(spec) {
-                return Err(DetectCompileError::EmptyLiteral {
-                    rule: rule.id.clone(),
-                    dimension: "text_contains.first_present_source",
+                        dimension: other.dimension(),
+                    },
                 });
             }
             let (mut span_source, mut attr_keys, mut needles) = (false, Vec::new(), Vec::new());
@@ -340,50 +308,121 @@ pub(super) fn mixed_first_present_sources(spec: &DetectMatch) -> bool {
 /// it is dead. An empty needle inside a dimension is the opposite mistake: `span_name: [""]` matches every
 /// span by prefix and `attr_exists: [""]` names a key nothing writes, so one is far broader than it reads and
 /// the other narrower. Both compiled silently.
-pub(super) fn gate_defect(spec: &DetectMatch) -> Option<&'static str> {
-    let empty_needle = spec
-        .span_name
-        .iter()
-        .chain(&spec.attr_prefix)
-        .chain(&spec.attr_exists)
-        .chain(&spec.service_name)
-        .any(String::is_empty)
-        || spec
-            .attr_equals
-            .iter()
-            .chain(&spec.attr_equals_ignore_case)
-            .chain(&spec.span_attr_contains)
-            .chain(&spec.resource_attr_contains)
-            .any(|pair| pair.key.is_empty());
-    if empty_needle {
-        return Some(
-            "names an empty span-name prefix, attribute key or service name, which matches either              everything or nothing rather than what it reads as",
-        );
+/// The literal defects of a span-match atom, wherever it is declared.
+///
+/// **One validator for detection and for every gate.** They were two, and had already drifted apart in both
+/// directions: an empty `attr:` source was accepted by detection and refused by a gate, and an empty substring
+/// *value* was refused by neither. A predicate whose meaning depends on where it was written is not a
+/// predicate.
+pub(super) enum AtomDefect {
+    /// A literal that matches everything or nothing, on the named dimension.
+    EmptyLiteral(&'static str),
+    /// A phrase search naming a source the probe does not read, and which one.
+    BadTextSource(String),
+    /// A phrase search with nothing to search for.
+    NoNeedle,
+    /// A first-present search mixing the span name with attributes, whose order compilation loses.
+    MixedFirstPresentSources,
+    /// A substring search for `""`, which every present value contains.
+    EmptySubstring(&'static str),
+}
+
+impl AtomDefect {
+    /// The dimension a diagnostic should name.
+    pub(super) fn dimension(&self) -> &'static str {
+        match self {
+            Self::EmptyLiteral(dimension) | Self::EmptySubstring(dimension) => dimension,
+            Self::BadTextSource(_) | Self::NoNeedle => "text_contains",
+            Self::MixedFirstPresentSources => "text_contains.first_present_source",
+        }
+    }
+
+    /// Why, for a caller whose error type carries prose rather than a variant per cause.
+    pub(super) fn reason(&self) -> &'static str {
+        match self {
+            Self::EmptyLiteral(_) => {
+                "names an empty span-name prefix, attribute key or service name, which matches either \
+                 everything or nothing rather than what it reads as"
+            }
+            Self::EmptySubstring(_) => {
+                "searches for an empty substring, which every present value contains"
+            }
+            Self::BadTextSource(_) => {
+                "declares a phrase search over a source that is neither `span_name` nor `attr:<key>` - so \
+                 it can never hold"
+            }
+            Self::NoNeedle => {
+                "declares a phrase search with no needle or no source, so it can never hold"
+            }
+            Self::MixedFirstPresentSources => {
+                "searches the first source that has a value over a mix of the span name and attributes, and \
+                 the declared order between those two is not preserved - name them separately, or use one \
+                 kind"
+            }
+        }
+    }
+}
+
+pub(super) fn atom_literal_defect(spec: &DetectMatch) -> Option<AtomDefect> {
+    for (dimension, values) in [
+        ("span_name", &spec.span_name),
+        ("attr_prefix", &spec.attr_prefix),
+        ("attr_exists", &spec.attr_exists),
+        ("service_name", &spec.service_name),
+    ] {
+        if values.iter().any(String::is_empty) {
+            return Some(AtomDefect::EmptyLiteral(dimension));
+        }
+    }
+    for (dimension, pairs) in [
+        ("attr_equals", &spec.attr_equals),
+        ("attr_equals_ignore_case", &spec.attr_equals_ignore_case),
+        ("span_attr_contains", &spec.span_attr_contains),
+        ("resource_attr_contains", &spec.resource_attr_contains),
+    ] {
+        if pairs.iter().any(|kv| kv.key.is_empty()) {
+            return Some(AtomDefect::EmptyLiteral(dimension));
+        }
+    }
+    // An empty **value** is refused for the substring dimensions and stays legal for equality. Every present
+    // string contains `""`, so `span_attr_contains` with an empty value matches every span carrying the key at
+    // all - a narrow rule turned catch-all wherever its rank sits. An attribute that genuinely holds the empty
+    // string is something a producer can write, so `attr_equals` keeps it.
+    for (dimension, pairs) in [
+        ("span_attr_contains", &spec.span_attr_contains),
+        ("resource_attr_contains", &spec.resource_attr_contains),
+    ] {
+        if pairs.iter().any(|kv| kv.value.is_empty()) {
+            return Some(AtomDefect::EmptySubstring(dimension));
+        }
     }
     if mixed_first_present_sources(spec) {
-        return Some(
-            "searches the first source that has a value over a mix of the span name and attributes, and the              declared order between those two is not preserved - name them separately, or use one kind",
-        );
+        return Some(AtomDefect::MixedFirstPresentSources);
     }
-    let text_defect = spec.text_contains.as_ref().is_some_and(|text| {
-        text.needles.is_empty()
+    if let Some(text) = &spec.text_contains {
+        // Every source has to be a form the probe reads. A misspelling like `span` is *silently dropped*
+        // there, so a search naming only that one can never hold.
+        if text.needles.is_empty()
             || text.needles.iter().any(String::is_empty)
             || text.sources.is_empty()
-            // Every source has to be a form the probe reads. A misspelling like `span` is *silently dropped*
-            // there, so a search naming only that one can never hold - and detection already refuses this
-            // spelling, which is what made the omission here a divergence rather than a gap.
-            || text.sources.iter().any(|source| {
-                source != "span_name"
-                    && source
-                        .strip_prefix("attr:")
-                        .is_none_or(|key| key.is_empty())
-            })
-    });
-    if text_defect {
-        return Some(
-            "declares a phrase search with no needle, no source, or a source that is neither \
-             `span_name` nor `attr:<key>` - so it can never hold",
-        );
+        {
+            return Some(AtomDefect::NoNeedle);
+        }
+        if let Some(source) = text.sources.iter().find(|source| {
+            *source != "span_name"
+                && source
+                    .strip_prefix("attr:")
+                    .is_none_or(|key| key.is_empty())
+        }) {
+            return Some(AtomDefect::BadTextSource(source.clone()));
+        }
+    }
+    None
+}
+
+pub(super) fn gate_defect(spec: &DetectMatch) -> Option<&'static str> {
+    if let Some(defect) = atom_literal_defect(spec) {
+        return Some(defect.reason());
     }
     let any_signal = !spec.span_name.is_empty()
         || !spec.attr_prefix.is_empty()

@@ -2833,3 +2833,205 @@ fn a_branch_fallback_asks_about_its_own_kind_of_emission() {
         "a primary produced a message, so the fallback must stand down: {answers:?}"
     );
 }
+
+/// Every code name the architecture diagrams use resolves in this tree.
+///
+/// A diagram is a claim about the code, and a stale one is worse than none: a reader trusts it precisely
+/// because they are not reading the code. So a rename breaks the build rather than the picture.
+///
+/// Which tokens count is decided **structurally**, not by a list of prose words to skip: a token containing
+/// `::`, or an underscore between word characters, or an internal capital, is a code name; English words in a
+/// label contain none of those. That direction is deliberate - a code name the discriminator fails to
+/// recognise is missed silently, while a prose word it wrongly recognises **fails the test**, which is the
+/// mistake that gets noticed.
+#[test]
+fn the_diagrams_name_things_that_exist() {
+    let diagrams =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("docs/architecture-diagrams.md");
+    let text = std::fs::read_to_string(&diagrams)
+        .unwrap_or_else(|e| panic!("the diagrams must be readable: {e}"));
+
+    // The whole source tree, once, as the haystack every name is looked for in.
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+    let mut sources = String::new();
+    walk_rust_sources(&root, &mut |_, source| sources.push_str(source));
+    // Plus the asset section names, which are `RuleFile` members and appear in the assets themselves.
+    for bytes in crate::domain::rules::schema::embedded_sources().values() {
+        sources.push_str(&String::from_utf8_lossy(bytes));
+    }
+
+    let is_code_name = |token: &str| {
+        let bytes = token.as_bytes();
+        token.contains("::")
+            || bytes.windows(3).any(|w| {
+                w[1] == b'_' && w[0].is_ascii_alphanumeric() && w[2].is_ascii_alphanumeric()
+            })
+            || bytes
+                .windows(2)
+                .any(|w| w[0].is_ascii_lowercase() && w[1].is_ascii_uppercase())
+    };
+
+    let mut checked = 0_usize;
+    let mut missing: Vec<String> = Vec::new();
+    // Only inside the diagrams: the prose around them is prose, and holding it to this would be the same
+    // mistake as reading a doc comment for framework names.
+    for block in text.split("```mermaid").skip(1) {
+        let block = block.split("```").next().unwrap_or_default();
+        for token in block.split(|c: char| !(c.is_ascii_alphanumeric() || c == '_' || c == ':')) {
+            let token = token.trim_matches(':');
+            if token.len() < 4 || !is_code_name(token) {
+                continue;
+            }
+            // A path is checked by its last segment: the module structure is what the diagram groups by, and
+            // an item's own name is what a rename changes.
+            let needle = token.rsplit("::").next().unwrap_or(token);
+            if needle.len() < 4 {
+                continue;
+            }
+            checked += 1;
+            if !sources.contains(needle) {
+                missing.push(token.to_string());
+            }
+        }
+    }
+
+    assert!(
+        checked > 60,
+        "only {checked} code names were checked in the diagrams, which cannot be right - the discriminator \
+         is probably no longer recognising them"
+    );
+    missing.sort();
+    missing.dedup();
+    assert!(
+        missing.is_empty(),
+        "the architecture diagrams name {} thing(s) this tree does not contain. A diagram is a claim about \
+         the code, and a reader trusts it because they are not reading the code:\n  {}",
+        missing.len(),
+        missing.join("\n  ")
+    );
+}
+
+/// Predicates that hold when they should not, and declarations that could never hold.
+///
+/// Each of these compiled or held before the format review, and each is the same failure at predicate level:
+/// a condition that reads as narrow and matches everything, or reads as a requirement and asks for nothing.
+#[test]
+fn a_predicate_that_could_never_mean_what_it_says_is_refused() {
+    use crate::domain::rules::schema::RuleFile;
+
+    // `KeyValue` was the one predicate type without strict decoding, so a flag on it was **discarded** and
+    // the comparison an author asked to be case-insensitive stayed case-sensitive.
+    let with_stray_member = serde_json::from_value::<RuleFile>(serde_json::json!({
+        "id": "probe",
+        "detect": [{
+            "id": "probe.detect",
+            "label": "probe",
+            "legacy_rank": 1,
+            "match": {"attr_equals": [{"key": "span.kind", "value": "TOOL", "ignore_case": true}]},
+        }],
+    }));
+    assert!(
+        with_stray_member.is_err(),
+        "a stray member on a key/value predicate must be refused, or the flag is silently discarded"
+    );
+
+    // An empty substring: every present value contains it, so the rule matches every span carrying the key.
+    // Refused for both detection and a gate, through one validator - they had drifted apart in both
+    // directions, so this asserts the *same* answer from both callers.
+    let contains_nothing = serde_json::json!({
+        "span_attr_contains": [{"key": "metadata", "value": ""}],
+    });
+    let spec: crate::domain::rules::schema::DetectMatch =
+        serde_json::from_value(contains_nothing).expect("the probe parses");
+    assert!(
+        crate::domain::rules::detect_rules::atom_literal_defect(&spec).is_some(),
+        "an empty substring search must be refused: every present value contains it"
+    );
+
+    // An equality against the empty string stays legal - a producer can write an attribute that holds it.
+    let equals_empty: crate::domain::rules::schema::DetectMatch =
+        serde_json::from_value(serde_json::json!({"attr_equals": [{"key": "k", "value": ""}]}))
+            .expect("the probe parses");
+    assert!(
+        crate::domain::rules::detect_rules::atom_literal_defect(&equals_empty).is_none(),
+        "an attribute that holds the empty string is a thing a producer writes"
+    );
+
+    // A member requirement naming nothing asks for `<entry>.`, so the rule is dead; a requirement with no
+    // entries holds for every entry, which is the opposite of "at least one of these".
+    let probe_family = |require: serde_json::Value| {
+        let asset = serde_json::json!({
+            "id": "probe",
+            "messages": [{
+                "id": "probe.family",
+                "legacy_rank": 1,
+                "read": {"indexed_family": "probe.items"},
+                "emit": "message",
+                "require_members": require,
+            }],
+        });
+        crate::domain::rules::message_rules::compile(&std::collections::BTreeMap::from([(
+            "probe.json".to_string(),
+            serde_json::to_vec(&asset).expect("the probe serialises"),
+        )]))
+    };
+    assert!(
+        probe_family(serde_json::json!({"all_of": [{"name": ""}]})).is_err(),
+        "a requirement naming an empty member asks for `<entry>.` and can never hold"
+    );
+    assert!(
+        probe_family(serde_json::json!({})).is_err(),
+        "a requirement with no entries holds for every entry, which is not a requirement"
+    );
+    assert!(
+        probe_family(serde_json::json!({"all_of": [{"name": "role"}]})).is_ok(),
+        "a requirement naming a member must compile"
+    );
+}
+
+/// `non_empty` asks a question a scalar cannot answer, so a scalar fails it either way.
+///
+/// `{"path": "$.content", "non_empty": true}` held for `{"content": 0}` - a number reported as filled
+/// content. The compiler's refusal does not cover it: that one is about the *declaration*, and this is about
+/// the value that arrives.
+#[test]
+fn a_scalar_is_neither_empty_nor_non_empty() {
+    use crate::domain::rules::message_rules::predicate_holds_for_test as holds;
+
+    for (subject, want) in [
+        (serde_json::json!("text"), true),
+        (serde_json::json!(""), false),
+        (serde_json::json!([1]), true),
+        (serde_json::json!([]), false),
+        (serde_json::json!({"a": 1}), true),
+        (serde_json::json!({}), false),
+        // Neither, whichever way it is asked.
+        (serde_json::json!(0), false),
+        (serde_json::json!(7), false),
+        (serde_json::json!(true), false),
+        (serde_json::json!(serde_json::Value::Null), false),
+    ] {
+        let predicate: crate::domain::rules::schema::ValuePredicate =
+            serde_json::from_value(serde_json::json!({"non_empty": true}))
+                .expect("the probe parses");
+        assert_eq!(
+            holds(&predicate, &subject),
+            want,
+            "`non_empty: true` over {subject}"
+        );
+        let negated: crate::domain::rules::schema::ValuePredicate =
+            serde_json::from_value(serde_json::json!({"non_empty": false}))
+                .expect("the probe parses");
+        // A string, array or object answers the negation; a scalar still fails, because the vocabulary has
+        // nothing to say about it.
+        let scalar = matches!(
+            subject,
+            serde_json::Value::Number(_) | serde_json::Value::Bool(_) | serde_json::Value::Null
+        );
+        assert_eq!(
+            holds(&negated, &subject),
+            !scalar && !want,
+            "`non_empty: false` over {subject}"
+        );
+    }
+}
