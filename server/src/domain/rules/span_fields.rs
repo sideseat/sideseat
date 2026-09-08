@@ -102,6 +102,11 @@ pub enum FieldCompileError {
          takes one of them - a reduction combines the matches of one path"
     )]
     ReductionWithoutAPath { file: String, rule: String },
+    #[error(
+        "span field rule `{rule}` in `{file}` folds a field that holds no text - `lowercase` says a \
+         producer's casing is not information, and a number has no casing"
+    )]
+    FoldWithoutText { file: String, rule: String },
     #[error("span field rule `{rule}` in `{file}` names an empty attribute")]
     EmptyAttribute { file: String, rule: String },
     #[error(
@@ -460,6 +465,22 @@ fn read_json<'a>(
     let Some(path) = &json.path else {
         return Reading::Absent;
     };
+    // Every match kept, in the order the path found them.
+    if let Some(Reduction::CollectAll) = json.reduce {
+        let mut items: Vec<String> = Vec::new();
+        for found in path.query(value).iter() {
+            // A match that is not a string contributes nothing, as `Sum`'s non-numeric match does: one
+            // choice without a reason does not invalidate the others'.
+            if let Reading::StringList(texts) = from_json(found, FieldType::StringList) {
+                items.extend(texts);
+            }
+        }
+        return if items.is_empty() {
+            Reading::Absent
+        } else {
+            Reading::StringList(items)
+        };
+    }
     // Every match combined into one value. `Absent` for no matches, so "the span has no such shape" stays
     // distinguishable from a call that genuinely used no tokens.
     if let Some(Reduction::Sum) = json.reduce {
@@ -723,6 +744,18 @@ fn compile_rule(file_id: &str, rule: &SpanFieldRule) -> Result<CompiledRule, Fie
     }
     let mut sources = Vec::with_capacity(rule.sources.len());
     for spec in &rule.sources {
+        // A declaration that could not take effect reads as one that does.
+        if spec.lowercase
+            && !matches!(
+                rule.target.field_type(),
+                FieldType::Text | FieldType::StringList
+            )
+        {
+            return Err(FieldCompileError::FoldWithoutText {
+                file: file_id.to_string(),
+                rule: rule.id.clone(),
+            });
+        }
         // Exactly one form. Two would make the read ambiguous and none makes the source dead, and both used to
         // be expressible - so this counts rather than pattern-matching a pair, which is what stopped covering
         // the forms as they were added.
@@ -762,9 +795,12 @@ fn compile_rule(file_id: &str, rule: &SpanFieldRule) -> Result<CompiledRule, Fie
                 .when_json
                 .as_ref()
                 .is_some_and(|w| std::ptr::eq(w, json));
-            if json.reduce.is_some()
-                && (is_witness || rule.target.field_type() != FieldType::Integer)
-            {
+            let reduction_fits = match json.reduce {
+                None => true,
+                Some(Reduction::Sum) => rule.target.field_type() == FieldType::Integer,
+                Some(Reduction::CollectAll) => rule.target.field_type() == FieldType::StringList,
+            };
+            if json.reduce.is_some() && (is_witness || !reduction_fits) {
                 return Err(FieldCompileError::ReductionThatCannotYield {
                     file: file_id.to_string(),
                     rule: rule.id.clone(),

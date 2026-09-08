@@ -698,12 +698,19 @@ fn derive_role_from_source_with_context(raw: &RawMessage, is_tool_span: bool) ->
             raw.content.clone()
         }
         MessageSource::Attribute { key, .. } => {
-            // Only a name this engine assigned, and only where the content has not already said so - a
-            // reading that states the role is more specific than the name it was tagged with.
-            if let Some(existing) = raw.content.get("role").and_then(|r| r.as_str())
-                && !existing.is_empty()
+            // Only a name this engine assigned, and only where the content has already said something
+            // this pipeline can *read*. A role it recognises, or one of the special roles that survive
+            // derivation, is more specific than the name the reading was tagged with. An unrecognised string
+            // is not: it normalises to `user` further down, so treating it as authoritative turned a tool's
+            // answer into the user's question on the strength of a value nothing understands.
+            let stated = raw
+                .content
+                .get("role")
+                .and_then(|r| r.as_str())
+                .unwrap_or("");
+            if ChatRole::try_from_str(stated).is_some()
+                || SPECIAL_ROLES.contains(&stated.to_lowercase().as_str())
             {
-                let _ = existing;
                 return raw.content.clone();
             }
             match role_from_tagged_source(key, is_tool_span) {

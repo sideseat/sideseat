@@ -2210,19 +2210,34 @@ fn an_event_role_declaration_must_be_able_to_answer_and_must_not_depend_on_load_
 
     // A probe asset carrying an event, a tag, and whatever event roles the case declares.
     let compiled = |roles: serde_json::Value| {
-        let file: RuleFile = serde_json::from_value(serde_json::json!({
+        let probe = serde_json::json!({
             "id": "probe",
             "message_events": [{"name": "probe.event"}],
             "messages": [{
                 "id": "probe.tagging_rule",
                 "read": {"attribute": "probe.attribute"},
-                "tag_as": "probe.tag",
                 "emit": "message",
+                // Nested in a **branch leaf**, deliberately: that is where one asset's tag already sits, and
+                // reading only the top level left it out of both indexes at once.
+                "branch_set": {
+                    "primary": [{
+                        "id": "probe.branch_leaf",
+                        "read": {"attribute": "probe.other"},
+                        "emit": "message",
+                        "tag_as": "probe.tag",
+                    }],
+                },
             }],
             "event_roles": roles,
-        }))
-        .expect("the probe asset parses");
-        super::compile_event_roles(&[file])
+        });
+        let file: RuleFile = serde_json::from_value(probe.clone()).expect("the probe asset parses");
+        // The tags the probe's own rules assign, gathered the way the ruleset gathers them - so a nested
+        // tag is reachable here too, which is the defect the recursive collector fixed.
+        let tags = super::tag_names(&std::collections::BTreeMap::from([(
+            "probe.json".to_string(),
+            serde_json::to_vec(&probe).expect("the probe serialises"),
+        )]));
+        super::compile_event_roles(&[file], &tags)
     };
 
     for (what, roles) in [
@@ -2302,57 +2317,13 @@ fn no_production_module_carries_a_framework_telemetry_key() {
         "generates integration documentation, which has to show the attribute names a framework writes",
     )];
 
-    let sources = crate::domain::rules::schema::embedded_sources();
-    let mut per_asset: std::collections::BTreeMap<String, std::collections::BTreeSet<String>> =
-        std::collections::BTreeMap::new();
-    for (path, bytes) in &sources {
-        let id = path.trim_end_matches(".json").to_string();
-        let value: serde_json::Value = serde_json::from_slice(bytes).expect("the asset parses");
-        let mut keys = std::collections::BTreeSet::new();
-        collect_telemetry_keys(&value, None, &mut keys);
-        per_asset.insert(id, keys);
-    }
-    // A key the **conventions** name is not one framework's, however many frameworks also write it. Only
-    // `semconv` and `generic-io` count for that, and the distinction is the whole difficulty: the other
-    // shared assets are ordered *fallback chains*, and a chain enumerates producers' spellings by design -
-    // `span-fields-usage` lists one dialect's `gcp.vertex.agent.llm_response` beside the conventional
-    // counter. Treating that as evidence the key is generic is what made the first version of this sweep
-    // pass while three production sites read exactly that attribute.
-    const CONVENTIONS: &[&str] = &["semconv", "generic-io"];
-    let neutral = |id: &str| SHARED_VOCABULARY.contains(&id) && !CONVENTIONS.contains(&id);
-    let shared: std::collections::BTreeSet<&String> = per_asset
-        .iter()
-        .filter(|(id, _)| CONVENTIONS.contains(&id.as_str()) || PROVIDERS.contains(&id.as_str()))
-        .flat_map(|(_, keys)| keys)
-        .collect();
-    let mut owners: std::collections::BTreeMap<&String, Vec<&String>> =
-        std::collections::BTreeMap::new();
-    for (id, keys) in &per_asset {
-        if CONVENTIONS.contains(&id.as_str()) || PROVIDERS.contains(&id.as_str()) || neutral(id) {
-            continue;
-        }
-        for key in keys {
-            owners.entry(key).or_default().push(id);
-        }
-    }
-    let exclusive: Vec<(&String, &String)> = owners
-        .iter()
-        .filter(|(key, assets)| {
-            // The conventions' **namespace** is theirs whoever else writes it. `gen_ai.tool.name` is listed
-            // by one dialect's asset and by nobody else's, and it is still a conventional attribute - so
-            // ownership by namespace, not only by which asset happened to enumerate it.
-            assets.len() == 1
-                && !shared.contains(**key)
-                && !key.starts_with("gen_ai.")
-                && !key.starts_with("sideseat.")
-        })
-        .map(|(key, assets)| (*key, assets[0]))
-        .collect();
+    let inventory = producer_key_inventory();
     assert!(
-        exclusive.len() > 30,
-        "only {} framework-exclusive keys were derived, which cannot be right",
-        exclusive.len()
+        inventory.len() > 30,
+        "only {} producer keys were derived, which cannot be right",
+        inventory.len()
     );
+    let exclusive: Vec<(&String, &String)> = inventory.iter().collect();
 
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
     let mut offenders: Vec<String> = Vec::new();
@@ -2399,49 +2370,41 @@ fn no_production_module_carries_a_framework_telemetry_key() {
     );
 }
 
-/// Every value an asset uses as a **producer's** key, from the members that hold one.
+/// Every value an asset states about a producer's telemetry: a key, a prefix, an event name, or a value it
+/// matches on.
 ///
-/// A member allowlist rather than every string, because most strings in an asset are its own vocabulary: a
-/// rule id, a doc, an emit target, a role. Reading those as producers' keys would make the sweep accuse the
-/// engine of naming things it invented.
+/// **Everything dotted except a closed list of the engine's own vocabulary**, which is the opposite of the
+/// first version's allowlist of key-bearing members. That allowlist was a hand-maintained projection of the
+/// schema and it was already incomplete - `attribute_any_of`, `from_any_of`, `attrs_present`, `attr:`-encoded
+/// text sources and a prefix ending in `.` all held keys it never read - so a key declared only through one of
+/// those could be hard-coded in Rust and this sweep would say nothing.
+///
+/// Inverted, the maintenance burden fails **loudly**: a new key-bearing member is covered the day it exists,
+/// and a new *engine* member holding a dotted token that nobody excludes makes the sweep demand it be
+/// accounted for, which is a visible failure rather than a silent hole.
 #[cfg(test)]
 fn collect_telemetry_keys(
     value: &serde_json::Value,
     under: Option<&str>,
     out: &mut std::collections::BTreeSet<String>,
 ) {
-    const KEY_MEMBERS: &[&str] = &[
-        "attribute",
-        "attributes",
-        "event",
-        "when_event",
-        "indexed_family",
-        "key",
-        "attr_exists",
-        "attr_prefix",
-        "sources",
-        "tag_as",
-        "name",
-        "family",
-        "prefix",
-        "first_present_of",
-        "span_name_prefix",
+    /// Members holding the **engine's** own dotted vocabulary rather than a producer's: a rule id, prose, a
+    /// fragment's name, an ordering class's name. Everything else dotted is taken as a producer's.
+    const OURS: &[&str] = &[
+        "id",
+        "doc",
+        "then_fragment",
+        "ordering_family",
+        "supersedes",
     ];
     match value {
-        // Dotted, so a bare word is not taken for a key, and long enough not to be a fragment.
         serde_json::Value::String(text)
-            if under.is_some_and(|member| KEY_MEMBERS.contains(&member))
-                && text.contains('.')
-                && !text.ends_with('.')
-                && text.len() > 7 =>
+            if text.contains('.') && !under.is_some_and(|m| OURS.contains(&m)) =>
         {
             out.insert(text.clone());
         }
         serde_json::Value::Object(members) => {
             for (member, inner) in members {
-                if member == "doc" || member == "id" {
-                    continue;
-                }
                 collect_telemetry_keys(inner, Some(member), out);
             }
         }
@@ -2452,4 +2415,180 @@ fn collect_telemetry_keys(
         }
         _ => {}
     }
+}
+
+/// A `lowercase` on a field that holds no text is refused, not silently ignored.
+///
+/// The flag says a producer's casing is not information. On a count there is no casing, so the declaration
+/// could not take effect - and a declaration that cannot take effect reads as one that does, which is the same
+/// objection this file makes to a dead event role and to an unused reduction.
+#[test]
+fn a_fold_that_can_do_nothing_is_refused() {
+    let compiled = |target: &str, lowercase: bool| {
+        let asset = serde_json::json!({
+            "id": "probe",
+            "span_fields": [{
+                "id": "probe.field",
+                "target": target,
+                "sources": [{"attribute": "probe.attribute", "lowercase": lowercase}],
+            }],
+        });
+        super::span_fields::compile(&std::collections::BTreeMap::from([(
+            "probe.json".to_string(),
+            serde_json::to_vec(&asset).expect("the probe serialises"),
+        )]))
+    };
+    assert!(
+        compiled("usage_input_tokens", true).is_err(),
+        "folding a count was accepted, and it can do nothing there"
+    );
+    assert!(
+        compiled("gen_ai_temperature", true).is_err(),
+        "folding a number was accepted, and it can do nothing there"
+    );
+    // The two shapes it does apply to, or the refusal is simply a ban.
+    for target in ["gen_ai_system", "gen_ai_finish_reasons"] {
+        assert!(
+            compiled(target, true).is_ok(),
+            "folding `{target}` was refused, and its values are text"
+        );
+        assert!(compiled(target, false).is_ok(), "`{target}` must compile");
+    }
+}
+
+/// The key sweep's derivation tells a producer's key from a convention, in both directions.
+///
+/// Load-bearing in the quiet direction: a derivation that stops recognising producer keys makes the sweep pass
+/// while naming nothing, which is exactly how its first version passed while three production sites read one
+/// dialect's attribute. Each case here is one the derivation got wrong at some point:
+///
+/// - reachable only through a member the hand-written allowlist missed (`from_any_of`, `attrs_present`);
+/// - declared only in a **shared chain**, whose enumeration of producers' spellings was first read as
+///   evidence the key is generic;
+/// - a span-name prefix rather than an attribute;
+/// - an OTel convention outside the `gen_ai.` namespace, which a namespace list written by hand omitted.
+#[test]
+fn the_key_sweep_tells_a_producer_key_from_a_convention() {
+    let inventory = producer_key_inventory();
+    for (key, owner) in [
+        ("ai.result.object", "vercel-ai"),
+        ("ai.toolCall.id", "vercel-ai"),
+        ("ai.usage.promptTokens", "span-fields-usage"),
+        ("llm.usage.prompt_tokens", "span-fields-usage"),
+        ("lk.chat_ctx", "livekit"),
+        ("gcp.vertex.agent.data", "google-adk"),
+        ("LangGraph.", "langgraph"),
+    ] {
+        assert_eq!(
+            inventory.get(key).map(String::as_str),
+            Some(owner),
+            "`{key}` is a producer's and the sweep would not recognise it"
+        );
+    }
+    for conventional in [
+        "session.id",
+        "enduser.id",
+        "user.id",
+        "http.method",
+        "db.system",
+        "gen_ai.tool.name",
+    ] {
+        assert!(
+            !inventory.contains_key(conventional),
+            "`{conventional}` is the conventions' and reporting it would be a false accusation"
+        );
+    }
+}
+
+/// Every telemetry key the assets state about a **producer**, with the asset that declares it.
+///
+/// Its own function because two tests read it: the production sweep, and the one that holds the derivation to
+/// account. A derivation that quietly stopped recognising producer keys would make the sweep pass while naming
+/// nothing, which is how its first version passed while three production sites read one dialect's attribute.
+#[cfg(test)]
+fn producer_key_inventory() -> std::collections::BTreeMap<String, String> {
+    let sources = crate::domain::rules::schema::embedded_sources();
+    let mut per_asset: std::collections::BTreeMap<String, std::collections::BTreeSet<String>> =
+        std::collections::BTreeMap::new();
+    for (path, bytes) in &sources {
+        let id = path.trim_end_matches(".json").to_string();
+        let value: serde_json::Value = serde_json::from_slice(bytes).expect("the asset parses");
+        let mut keys = std::collections::BTreeSet::new();
+        collect_telemetry_keys(&value, None, &mut keys);
+        per_asset.insert(id, keys);
+    }
+    // A key the **conventions** name is not one framework's, however many frameworks also write it. Only
+    // `semconv` and `generic-io` count for that, and the distinction is the whole difficulty: the other
+    // shared assets are ordered *fallback chains*, and a chain enumerates producers' spellings by design -
+    // `span-fields-usage` lists one dialect's `gcp.vertex.agent.llm_response` beside the conventional
+    // counter. Treating that as evidence the key is generic is what made the first version of this sweep
+    // pass while three production sites read exactly that attribute.
+    const CONVENTIONS: &[&str] = &["semconv", "generic-io"];
+    let shared: std::collections::BTreeSet<&String> = per_asset
+        .iter()
+        .filter(|(id, _)| CONVENTIONS.contains(&id.as_str()) || PROVIDERS.contains(&id.as_str()))
+        .flat_map(|(_, keys)| keys)
+        .collect();
+    let mut owners: std::collections::BTreeMap<&String, Vec<&String>> =
+        std::collections::BTreeMap::new();
+    // A neutral asset **contributes** keys while conferring no sharedness. Its chains enumerate producers'
+    // spellings, so `ai.usage.promptTokens` sitting in a shared usage chain is still one producer's key and
+    // hard-coding it in Rust is the same defect - while its presence there is no evidence that it is generic.
+    // Skipping such assets entirely was the second half of the same mistake as treating them as conventions.
+    for (id, keys) in &per_asset {
+        if CONVENTIONS.contains(&id.as_str()) || PROVIDERS.contains(&id.as_str()) {
+            continue;
+        }
+        for key in keys {
+            owners.entry(key).or_default().push(id);
+        }
+    }
+    // Which **namespaces** are the conventions', derived rather than listed. A key's first segment decides,
+    // and a namespace is the conventions' when either the conventions declare something under it, or no
+    // framework asset does. That is what separates `session.id` and `enduser.id` - OTel's own, enumerated in
+    // a shared chain and by nobody's dialect - from `ai.usage.promptTokens`, which sits in the same kind of
+    // chain and is one producer's. Listing the namespaces by hand would have been the same
+    // hand-maintained projection this sweep exists to avoid.
+    let namespace = |key: &str| key.split_once('.').map(|(head, _)| head.to_string());
+    let framework_namespaces: std::collections::BTreeSet<String> = per_asset
+        .iter()
+        .filter(|(id, _)| {
+            !CONVENTIONS.contains(&id.as_str())
+                && !PROVIDERS.contains(&id.as_str())
+                && !SHARED_VOCABULARY.contains(&id.as_str())
+        })
+        .flat_map(|(_, keys)| keys.iter().filter_map(|key| namespace(key)))
+        .collect();
+    let convention_namespaces: std::collections::BTreeSet<String> = per_asset
+        .iter()
+        .filter(|(id, _)| CONVENTIONS.contains(&id.as_str()))
+        .flat_map(|(_, keys)| keys.iter().filter_map(|key| namespace(key)))
+        .collect();
+    let conventional = |key: &str| {
+        namespace(key).is_some_and(|head| {
+            convention_namespaces.contains(&head) || !framework_namespaces.contains(&head)
+        })
+    };
+    // Pinned by `the_key_sweep_tells_a_producer_key_from_a_convention`, because a derivation that quietly
+    // stopped recognising producer keys would make this whole sweep pass while naming nothing.
+    let exclusive: Vec<(&String, &String)> = owners
+        .iter()
+        .filter(|(key, _)| {
+            // **Every** non-convention key, not only one a single asset declares. Two frameworks sharing a
+            // spelling makes it shared *dialect* knowledge, which is still not the engine's - the earlier
+            // single-owner rule excused exactly the keys several producers agree on.
+            !shared.contains(**key) && !conventional(key) && !key.starts_with("sideseat.")
+        })
+        .map(|(key, assets)| (*key, assets[0]))
+        .collect();
+    assert!(
+        exclusive.len() > 30,
+        "only {} framework-exclusive keys were derived, which cannot be right",
+        exclusive.len()
+    );
+
+    exclusive
+        .into_iter()
+        .map(|(key, asset)| (key.clone(), asset.clone()))
+        .collect()
 }

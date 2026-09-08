@@ -5879,7 +5879,25 @@ fn a_tagged_source_name_takes_its_declared_role() {
         "a producer's own attribute must not be given the role this engine declares for its own tags"
     );
 
-    // A reading that states the role keeps it: more specific than the name it was tagged with.
+    // A role the reading states but this pipeline cannot read is **not** authoritative: it normalises to
+    // `user` further down, so treating it as a statement turned the tool's answer into the user's question on
+    // the strength of a value nothing understands.
+    let mut bogus = one_result.clone();
+    bogus["role"] = json!("bogus");
+    let unreadable = vec![RawMessage {
+        source: MessageSource::Attribute {
+            key: "gen_ai.tool.result".to_string(),
+            time: Utc.with_ymd_and_hms(2024, 1, 15, 10, 30, 0).unwrap(),
+        },
+        content: bogus,
+    }];
+    assert_eq!(
+        to_sideml(&unreadable)[0].sideml.role,
+        ChatRole::Tool,
+        "an unrecognised role is not a statement, and the tag's declaration should stand"
+    );
+
+    // A reading that states a role this pipeline *can* read keeps it: more specific than the tag.
     let mut stated = one_result.clone();
     stated["role"] = json!("assistant");
     let explicit = vec![RawMessage {

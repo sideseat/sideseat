@@ -368,6 +368,13 @@ pub struct FieldSource {
 pub enum Reduction {
     /// Add them. A non-numeric match contributes nothing, as the retired reduction's `unwrap_or(0)` did.
     Sum,
+    /// Keep every match, in the order the path found them.
+    ///
+    /// For a list-valued field only. Without it a plural path takes the *first match that yields*, which is
+    /// right for "the model sits on whichever agent declared it" and wrong for a field that genuinely is a
+    /// list: a completion with two choices has two finish reasons, and reporting one of them is a statement
+    /// the producer did not make. Duplicates are kept, because two choices that ended the same way are two.
+    CollectAll,
 }
 
 /// What a source does when the value it names is present and cannot be read as the field's type.

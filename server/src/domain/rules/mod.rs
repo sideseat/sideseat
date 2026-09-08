@@ -213,12 +213,9 @@ pub fn ruleset() -> &'static Ruleset {
                 .flat_map(|file| &file.message_events)
                 .map(|event| event.name.clone())
                 .collect(),
-            event_roles: compile_event_roles(&parsed_files(&sources))
+            event_roles: compile_event_roles(&parsed_files(&sources), &tag_names(&sources))
                 .unwrap_or_else(|e| panic!("embedded event roles are malformed: {e}")),
-            tagged_source_names: parsed_files(&sources)
-                .iter()
-                .flat_map(|file| file.messages.iter().filter_map(|m| m.tag_as.clone()))
-                .collect(),
+            tagged_source_names: tag_names(&sources),
             span_facts: SpanFactPlan::compile(&sources),
             span_fields: span_fields::compile(&sources)
                 .unwrap_or_else(|e| panic!("embedded span field rules are malformed: {e}")),
@@ -231,6 +228,44 @@ pub fn ruleset() -> &'static Ruleset {
             digest,
         }
     })
+}
+
+/// Every name a rule assigns with `tag_as`, at **any** depth.
+///
+/// Walked over the raw asset JSON rather than the typed tree, and that is the point: `tag_as` sits on a
+/// message rule, and a rule nests - a branch leaf, an alternative, a fallback each hold one, and one asset's
+/// branch leaf already carries a tag. Reading only the top level left such a tag out of both indexes at once,
+/// which is worse than either alone: a role declared for it is refused as unreachable, and without the
+/// declaration the message normalises as a user turn. A walk has no level to forget, including a nesting
+/// added later.
+pub(super) fn tag_names(
+    sources: &std::collections::BTreeMap<String, Vec<u8>>,
+) -> std::collections::BTreeSet<String> {
+    fn walk(value: &serde_json::Value, out: &mut std::collections::BTreeSet<String>) {
+        match value {
+            serde_json::Value::Object(members) => {
+                if let Some(serde_json::Value::String(tag)) = members.get("tag_as") {
+                    out.insert(tag.clone());
+                }
+                for inner in members.values() {
+                    walk(inner, out);
+                }
+            }
+            serde_json::Value::Array(items) => {
+                for item in items {
+                    walk(item, out);
+                }
+            }
+            _ => {}
+        }
+    }
+    let mut out = std::collections::BTreeSet::new();
+    for bytes in sources.values() {
+        if let Ok(value) = serde_json::from_slice::<serde_json::Value>(bytes) {
+            walk(&value, &mut out);
+        }
+    }
+    out
 }
 
 /// The role a source name carries, resolved to the enum at compile time and carrying its provenance.
@@ -262,6 +297,7 @@ pub struct DeclaredEventRole {
 /// resolved by load order, which is not a statement anybody made.
 pub(super) fn compile_event_roles(
     files: &[schema::RuleFile],
+    tagged: &std::collections::BTreeSet<String>,
 ) -> Result<std::collections::BTreeMap<String, DeclaredEventRole>, String> {
     use crate::domain::sideml::ChatRole;
     /// The roles a source name may declare. Ours, not any producer's - so a misspelling is a build defect
@@ -271,12 +307,8 @@ pub(super) fn compile_event_roles(
     // declaration for anything else can never answer, and a rule that can never answer reads as protection.
     let occurring: std::collections::BTreeSet<&str> = files
         .iter()
-        .flat_map(|file| {
-            file.message_events
-                .iter()
-                .map(|event| event.name.as_str())
-                .chain(file.messages.iter().filter_map(|m| m.tag_as.as_deref()))
-        })
+        .flat_map(|file| file.message_events.iter().map(|event| event.name.as_str()))
+        .chain(tagged.iter().map(String::as_str))
         .collect();
     let mut out: std::collections::BTreeMap<String, DeclaredEventRole> =
         std::collections::BTreeMap::new();

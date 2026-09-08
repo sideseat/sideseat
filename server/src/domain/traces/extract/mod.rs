@@ -297,6 +297,7 @@ pub(super) mod keys {
     pub const ALL_MESSAGES_EVENTS: &str = "all_messages_events";
     #[cfg(test)]
     pub const REQUEST_DATA: &str = "request_data";
+    #[cfg(test)]
     pub const RESPONSE_DATA: &str = "response_data";
     #[cfg(test)]
     pub const LOGFIRE_MSG_TEMPLATE: &str = "logfire.msg_template";
@@ -317,6 +318,7 @@ pub(super) mod keys {
     /// Named by the assets now; kept for the equivalence oracles.
     #[cfg(test)]
     pub const GEN_AI_INPUT_MESSAGES: &str = "gen_ai.input.messages";
+    #[cfg(test)]
     pub const GEN_AI_OUTPUT_MESSAGES: &str = "gen_ai.output.messages";
     #[cfg(test)]
     pub const GEN_AI_TOOL_CALL_ARGUMENTS: &str = "gen_ai.tool.call.arguments";
@@ -326,6 +328,7 @@ pub(super) mod keys {
     // LangSmith OTEL Exporter
     #[cfg(test)]
     pub const GEN_AI_PROMPT: &str = "gen_ai.prompt";
+    #[cfg(test)]
     pub const GEN_AI_COMPLETION: &str = "gen_ai.completion";
 
     // LiveKit
@@ -499,51 +502,6 @@ pub(super) fn extract_attributes_batch(request: &ExportTraceServiceRequest) -> V
                             if let Some(reason) = event_attrs.get("finish_reason") {
                                 span.gen_ai_finish_reasons = vec![reason.clone()];
                                 break;
-                            }
-                        }
-                    }
-                }
-
-                if span.gen_ai_finish_reasons.is_empty() {
-                    // 2. Try gen_ai.completion JSON (OpenLLMetry, LangSmith)
-                    if let Some(completion) = span_attrs.get(keys::GEN_AI_COMPLETION) {
-                        if let Ok(json) = serde_json::from_str::<JsonValue>(completion) {
-                            if let Some(choices) = json.get("choices").and_then(|c| c.as_array()) {
-                                for choice in choices {
-                                    if let Some(reason) =
-                                        choice.get("finish_reason").and_then(|r| r.as_str())
-                                    {
-                                        span.gen_ai_finish_reasons.push(reason.to_string());
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-
-                if span.gen_ai_finish_reasons.is_empty() {
-                    // 3. Try gen_ai.output.messages JSON (PydanticAI)
-                    if let Some(output_msgs) = span_attrs.get(keys::GEN_AI_OUTPUT_MESSAGES) {
-                        if let Ok(msgs) = serde_json::from_str::<Vec<JsonValue>>(output_msgs) {
-                            for msg in &msgs {
-                                if let Some(reason) =
-                                    msg.get("finish_reason").and_then(|r| r.as_str())
-                                {
-                                    span.gen_ai_finish_reasons.push(reason.to_string());
-                                    break;
-                                }
-                            }
-                        }
-                    }
-                }
-
-                if span.gen_ai_finish_reasons.is_empty() {
-                    // 4. Try logfire response_data (Text Completions: {finish_reason, text, usage})
-                    if let Some(response) = span_attrs.get(keys::RESPONSE_DATA) {
-                        if let Ok(json) = serde_json::from_str::<JsonValue>(response) {
-                            if let Some(reason) = json.get("finish_reason").and_then(|r| r.as_str())
-                            {
-                                span.gen_ai_finish_reasons = vec![reason.to_string()];
                             }
                         }
                     }
