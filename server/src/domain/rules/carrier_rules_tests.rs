@@ -3050,8 +3050,12 @@ fn a_scalar_is_neither_empty_nor_non_empty() {
 /// reading disappears), it depends on a *rank relation between two rules in different assets*, and nothing
 /// about either rule looks wrong on its own.
 ///
-/// Scoped to a member's **only** spelling. A compose member listing two spellings survives losing one, so
-/// requiring every spelling to be free would refuse rulesets that work.
+/// **Every spelling a member might select**, not only a member with one. My first version of this test scoped
+/// it to single-spelling members on the reasoning that a member listing two survives losing one - which is
+/// false, and Codex caught it: `composed()` takes the **first present** spelling with `find_map` and never
+/// retries. So a span carrying `x`, `x_backup` and `y` where a lower-ranked rule reads `x` selects `x`, builds
+/// an emission owning `x` and `y`, and loses the whole emission - the backup spelling is never tried. The
+/// remediation the old message suggested ("give that member a second spelling") would not have worked either.
 #[test]
 fn a_composed_reading_cannot_be_starved_by_a_lower_ranked_rule() {
     use crate::domain::rules::schema::RuleFile;
@@ -3082,10 +3086,9 @@ fn a_composed_reading_cannot_be_starved_by_a_lower_ranked_rule() {
             if let Some(compose) = &rule.compose {
                 for member in &compose.members {
                     reads.extend(member.from_any_of.iter().cloned());
-                    // One spelling only: losing it loses the member, and losing a member loses the compose.
-                    if let [only] = member.from_any_of.as_slice() {
-                        requires.insert(only.clone());
-                    }
+                    // Every spelling: whichever one the span happens to carry first is the one selected, and
+                    // if that one is claimed the emission is lost whole.
+                    requires.extend(member.from_any_of.iter().cloned());
                 }
             }
             if reads.is_empty() {
@@ -3102,8 +3105,7 @@ fn a_composed_reading_cannot_be_starved_by_a_lower_ranked_rule() {
     }
     assert!(
         readings.iter().any(|r| r.requires.len() > 1),
-        "no composed reading was found, so this test is checking nothing - the shape it guards is a \
-         `compose` whose members each name a single attribute"
+        "no composed reading was found, so this test is checking nothing"
     );
 
     let mut starvable: Vec<String> = Vec::new();
@@ -3128,10 +3130,11 @@ fn a_composed_reading_cannot_be_starved_by_a_lower_ranked_rule() {
     starvable.sort();
     assert!(
         starvable.is_empty(),
-        "{} composed reading(s) can be starved. A rule takes a carrier only if it can take every carrier it \
-         reads, so the composed rule will read *nothing* and its other attributes will be owned by nobody - \
-         silently, and neither rule looks wrong on its own. Rank the composed reading above the rule that \
-         takes its parts, or give that member a second spelling:\n{}",
+        "{} composed reading(s) can be starved. A compose selects the **first present** spelling of each \
+         member and never retries, and an emission is accepted only if its whole ownership set is free - so \
+         the composed rule loses its emission entirely and its other attributes end up owned by nobody. \
+         Silently, and neither rule looks wrong on its own. Rank the composed reading **above** the rule that \
+         takes its parts; a second spelling does not help, because the taken one is the one selected:\n{}",
         starvable.len(),
         starvable.join("\n")
     );
@@ -3436,5 +3439,455 @@ fn the_boolean_grammar_answers_as_the_shell_it_replaces() {
             .cloned()
             .collect::<Vec<_>>()
             .join("\n")
+    );
+}
+
+/// The JSON half of the grammar answers as the shell it replaces, including the witness binding.
+///
+/// The binding is the finding this test exists for. A `ValuePredicate` carries a path and several conditions,
+/// and the retired evaluator required **one selected value** to satisfy them all - so
+/// `{path: "$.items[*]", starts_with: "a", one_of: ["apple","banana"]}` is false for `["avocado","banando"]`.
+/// Translating each condition into its own atom under `all` makes that *true*, with different elements
+/// witnessing the two clauses: a silent change of meaning in every multi-condition rule. So the first case
+/// below is Codex's exact example, and the rest is every predicate the assets declare over generated payloads.
+#[test]
+fn the_json_grammar_answers_as_the_shell_it_replaces() {
+    use crate::domain::rules::expr::json_expr_of_predicate;
+    use crate::domain::rules::message_rules::predicate_holds_for_test as retired;
+    use crate::domain::rules::schema::ValuePredicate;
+
+    let evaluate = |predicate: &ValuePredicate, payload: &serde_json::Value| -> (bool, bool) {
+        let old = retired(predicate, payload);
+        let new = json_expr_of_predicate(predicate)
+            .map(|expr| expr.eval(&mut |atom| atom.eval(payload)).holds())
+            // A predicate stating nothing translates to nothing; the retired evaluator held for it.
+            .unwrap_or(true);
+        (old, new)
+    };
+
+    // The witness case, named explicitly so a regression says what broke.
+    let witness: ValuePredicate = serde_json::from_value(serde_json::json!({
+        "path": "$.items[*]",
+        "starts_with": "a",
+        "one_of": ["apple", "banana"],
+    }))
+    .expect("the probe parses");
+    let split = serde_json::json!({"items": ["avocado", "banana"]});
+    let (old, new) = evaluate(&witness, &split);
+    assert!(
+        !old,
+        "the retired evaluator required one value to satisfy every condition"
+    );
+    assert_eq!(
+        new, old,
+        "two different elements must not witness two clauses of one predicate - the conditions share a \
+         selection, which is why a predicate becomes one `some` holding a sub-expression rather than several \
+         atoms under `all`"
+    );
+    // And a payload where one element does satisfy both must still hold.
+    let together = serde_json::json!({"items": ["apple", "cherry"]});
+    let (old, new) = evaluate(&witness, &together);
+    assert!(old && new, "one element satisfying both must hold");
+
+    // Every predicate the assets declare, over payloads generated from its own literals.
+    let mut predicates: Vec<(String, ValuePredicate)> = Vec::new();
+    for (path, bytes) in crate::domain::rules::schema::embedded_sources() {
+        let value: serde_json::Value = serde_json::from_slice(&bytes).expect("the asset parses");
+        fn walk(value: &serde_json::Value, path: &str, out: &mut Vec<(String, ValuePredicate)>) {
+            match value {
+                serde_json::Value::Object(members) => {
+                    // A predicate set sits under many member names, so it is recognised by *shape*: an object
+                    // with `all` or `any` holding objects that parse as predicates.
+                    for key in ["all", "any"] {
+                        if let Some(serde_json::Value::Array(items)) = members.get(key) {
+                            for item in items {
+                                if let Ok(predicate) =
+                                    serde_json::from_value::<ValuePredicate>(item.clone())
+                                {
+                                    out.push((format!("{path}/{key}"), predicate));
+                                }
+                            }
+                        }
+                    }
+                    for inner in members.values() {
+                        walk(inner, path, out);
+                    }
+                }
+                serde_json::Value::Array(items) => {
+                    for item in items {
+                        walk(item, path, out);
+                    }
+                }
+                _ => {}
+            }
+        }
+        walk(&value, &path, &mut predicates);
+    }
+    assert!(
+        predicates.len() > 30,
+        "only {} predicates were found in the assets, which cannot be right",
+        predicates.len()
+    );
+
+    let mut compared = 0_usize;
+    let mut disagreements: Vec<String> = Vec::new();
+    for (id, predicate) in &predicates {
+        // Values this predicate mentions, plus the shapes that sit on its boundaries.
+        let mut mentioned: Vec<serde_json::Value> = predicate
+            .one_of
+            .iter()
+            .chain(&predicate.none_of)
+            .map(|text| serde_json::json!(text))
+            .collect();
+        if let Some(prefix) = &predicate.starts_with {
+            mentioned.push(serde_json::json!(prefix));
+            mentioned.push(serde_json::json!(format!("{prefix}more")));
+        }
+        if let Some(prefix) = &predicate.lacks_prefix {
+            mentioned.push(serde_json::json!(prefix));
+            mentioned.push(serde_json::json!(format!("{prefix}more")));
+        }
+        mentioned.extend([
+            serde_json::json!("something else"),
+            serde_json::json!(""),
+            serde_json::json!(0),
+            serde_json::json!(7),
+            serde_json::json!(true),
+            serde_json::Value::Null,
+            serde_json::json!([]),
+            serde_json::json!(["a"]),
+            serde_json::json!({}),
+            serde_json::json!({"k": "v"}),
+        ]);
+
+        // The path's own leading member, so a payload can actually place a value where it looks.
+        let member = predicate
+            .path
+            .as_ref()
+            .map(ToString::to_string)
+            .unwrap_or_default()
+            .trim_start_matches("$.")
+            .trim_start_matches("$['")
+            .split(['.', '[', '\''])
+            .next()
+            .unwrap_or("value")
+            .to_string();
+
+        let mut payloads: Vec<serde_json::Value> = vec![
+            serde_json::json!({}),
+            serde_json::json!([]),
+            serde_json::json!("a bare string"),
+        ];
+        for value in &mentioned {
+            payloads.push(serde_json::json!({member.clone(): value.clone()}));
+            payloads.push(value.clone());
+            // A list at the member, so a plural path selects more than one - which is where the witness
+            // binding shows.
+            payloads.push(serde_json::json!({member.clone(): [value.clone()]}));
+            for other in mentioned.iter().take(3) {
+                payloads.push(serde_json::json!({member.clone(): [value.clone(), other.clone()]}));
+            }
+        }
+
+        for payload in &payloads {
+            let (old, new) = evaluate(predicate, payload);
+            compared += 1;
+            if old != new {
+                disagreements.push(format!(
+                    "  {id}: {predicate:?} over {payload} - retired said {old}, the grammar says {new}"
+                ));
+            }
+        }
+    }
+    assert!(
+        compared > 2000,
+        "only {compared} comparisons were made, which cannot exercise the translation"
+    );
+    disagreements.sort();
+    disagreements.dedup();
+    assert!(
+        disagreements.is_empty(),
+        "{} of {compared} comparisons disagree:\n{}",
+        disagreements.len(),
+        disagreements
+            .iter()
+            .take(10)
+            .cloned()
+            .collect::<Vec<_>>()
+            .join("\n")
+    );
+}
+
+/// The third truth value is observable, and this is where.
+///
+/// The translation oracle cannot see it: no *translated* expression negates a `some`, so `Unknown` and `False`
+/// are indistinguishable through it - both fail `holds()`. Removing the empty-selection case therefore passed
+/// that oracle. The distinction exists for expressions an author writes directly, where the whole point is that
+/// `not` over "there was nothing to ask about" does **not** become "yes".
+///
+/// That is the trap this repository knows from SQL: `NOT IN (…)` over a nullable column drops the rows with no
+/// value, and `Filter::positive_twin` exists because negating "is this session" dropped every trace with no
+/// session. `none_of` is the same mistake at predicate level.
+#[test]
+fn a_negation_over_nothing_does_not_hold() {
+    use crate::domain::rules::expr::{Expr, JsonAtom, JsonSubjectAtom, Truth};
+
+    // The constructors return `Option`, because an empty group is unconstructible by design. Every group here
+    // is written with two children, so the invariant holds and these say so.
+    fn two_all(children: Vec<Expr<JsonAtom>>) -> Expr<JsonAtom> {
+        Expr::all(children).expect("two children were written out")
+    }
+    fn two_any(children: Vec<Expr<JsonAtom>>) -> Expr<JsonAtom> {
+        Expr::any(children).expect("two children were written out")
+    }
+    use crate::domain::rules::schema::{JsonPath, ValueKind};
+
+    let path = JsonPath::parse("$.name").expect("a path");
+    let payload = serde_json::json!({"other": "value"});
+    let present = serde_json::json!({"name": "alice"});
+
+    let some_is = |values: Vec<&str>| {
+        Expr::Atom(JsonAtom::Some {
+            path: path.clone(),
+            satisfies: Box::new(Expr::Atom(JsonSubjectAtom::OneOf {
+                values: values.into_iter().map(str::to_string).collect(),
+            })),
+        })
+    };
+    let eval =
+        |expr: &Expr<JsonAtom>, value: &serde_json::Value| expr.eval(&mut |atom| atom.eval(value));
+
+    // The member is absent: the question cannot be asked.
+    assert_eq!(eval(&some_is(vec!["bob"]), &payload), Truth::Unknown);
+    // And negating it stays Unknown, so the condition does not hold. Two-valued, this would be `true` - a rule
+    // saying "the name is not bob" would match a payload with no name at all.
+    assert_eq!(
+        eval(&Expr::Not(Box::new(some_is(vec!["bob"]))), &payload),
+        Truth::Unknown
+    );
+    assert!(
+        !eval(&Expr::Not(Box::new(some_is(vec!["bob"]))), &payload).holds(),
+        "a negation over an absent value must not hold"
+    );
+
+    // Present and not in the set: a real no, so the negation is a real yes.
+    assert_eq!(eval(&some_is(vec!["bob"]), &present), Truth::False);
+    assert!(eval(&Expr::Not(Box::new(some_is(vec!["bob"]))), &present).holds());
+
+    // Presence itself is **total**, which is how absence is stated: asking about presence always has an answer,
+    // so its negation is a real yes.
+    let exists = Expr::Atom(JsonAtom::Exists { path: path.clone() });
+    assert_eq!(eval(&exists, &payload), Truth::False);
+    assert!(eval(&Expr::Not(Box::new(exists)), &payload).holds());
+
+    // `all` and `any` are strong Kleene: a False child settles a conjunction whatever else is Unknown, and a
+    // True child settles a disjunction. Without that, one unanswerable atom would poison a whole condition.
+    let unknown = some_is(vec!["bob"]);
+    let definitely_false = Expr::Atom(JsonAtom::Some {
+        path: JsonPath::parse("$.other").expect("a path"),
+        satisfies: Box::new(Expr::Atom(JsonSubjectAtom::Kind {
+            kind: ValueKind::Number,
+        })),
+    });
+    assert_eq!(
+        eval(
+            &two_all(vec![unknown.clone(), definitely_false.clone()]),
+            &payload
+        ),
+        Truth::False
+    );
+    assert_eq!(
+        eval(&two_any(vec![unknown.clone(), definitely_false]), &payload),
+        Truth::Unknown
+    );
+    let definitely_true = Expr::Atom(JsonAtom::Some {
+        path: JsonPath::parse("$.other").expect("a path"),
+        satisfies: Box::new(Expr::Atom(JsonSubjectAtom::Kind {
+            kind: ValueKind::String,
+        })),
+    });
+    assert_eq!(
+        eval(
+            &two_any(vec![unknown.clone(), definitely_true.clone()]),
+            &payload
+        ),
+        Truth::True
+    );
+    assert_eq!(
+        eval(&two_all(vec![unknown, definitely_true]), &payload),
+        Truth::Unknown
+    );
+}
+
+/// A shared rank is refused where the order is observable, and allowed where it is not.
+///
+/// The tie-break was the rule **id**, so renaming a rule changed which of two contenders read a carrier. A rule
+/// id must not be a control-flow primitive - and classification and detection already refuse a shared rank
+/// outright, so message rules were the one resolver where it was silently policy.
+///
+/// Not refused globally, and the second half of this test is why: the five shared ranks in the shipped assets
+/// each pair a *message* rule with a *metadata* one, whose orders are independent. Refusing those would force
+/// five renumberings that state nothing.
+#[test]
+fn a_shared_message_rank_is_refused_only_where_the_order_shows() {
+    let compiled = |rules: serde_json::Value| {
+        // The events the probes select on have to be declared, or compilation refuses them for that reason
+        // instead - which is a different refusal and would make this test pass for the wrong reason.
+        let asset = serde_json::json!({
+            "id": "probe",
+            "message_events": [
+                {"name": "probe.first"},
+                {"name": "probe.second"},
+                {"name": "probe.shared"},
+                {"name": "probe.other"},
+            ],
+            "messages": rules,
+        });
+        crate::domain::rules::message_rules::compile(&std::collections::BTreeMap::from([(
+            "probe.json".to_string(),
+            serde_json::to_vec(&asset).expect("the probe serialises"),
+        )]))
+    };
+
+    // Codex's case: two conditional message rules reading one attribute at one rank. `a` wins today because
+    // ids sort; renaming it to `zz` would hand the carrier to the other.
+    let contending = serde_json::json!([
+        {
+            "id": "probe.a",
+            "legacy_rank": 10,
+            "read": {"attribute": "shared"},
+            "parse": "text",
+            "when": {"attr_exists": ["left"]},
+            "emit": "message",
+        },
+        {
+            "id": "probe.z",
+            "legacy_rank": 10,
+            "read": {"attribute": "other"},
+            "parse": "text",
+            "when": {"attr_exists": ["right"]},
+            "emit": "message",
+        },
+    ]);
+    assert!(
+        compiled(contending).is_err(),
+        "two message rules at one rank in the same stage must be refused: the tie-break is their ids"
+    );
+
+    // Different **axes**: a message and a tool definition are never read by the same path.
+    let cross_axis = serde_json::json!([
+        {
+            "id": "probe.message",
+            "legacy_rank": 10,
+            "read": {"attribute": "one"},
+            "parse": "text",
+            "emit": "message",
+        },
+        {
+            "id": "probe.tools",
+            "legacy_rank": 10,
+            "read": {"attribute": "two"},
+            "parse": "json",
+            "emit": "tool_definitions",
+        },
+    ]);
+    assert!(
+        compiled(cross_axis).is_ok(),
+        "a message rule and a metadata rule at one rank order nothing relative to each other"
+    );
+
+    // Different **event domains**: selected by name, and the names do not intersect.
+    let disjoint_events = serde_json::json!([
+        {
+            "id": "probe.one",
+            "legacy_rank": 20,
+            "when_event": ["probe.first"],
+            "read": {"attribute": "one"},
+            "parse": "text",
+            "emit": "message",
+        },
+        {
+            "id": "probe.two",
+            "legacy_rank": 20,
+            "when_event": ["probe.second"],
+            "read": {"attribute": "two"},
+            "parse": "text",
+            "emit": "message",
+        },
+    ]);
+    assert!(
+        compiled(disjoint_events).is_ok(),
+        "two event rules at one rank whose names never coincide are never candidates together"
+    );
+
+    // An event rule beside a **span** rule: one is selected by event name and the other reads a span's
+    // attributes, so they are never candidates in the same pass.
+    let event_beside_span = serde_json::json!([
+        {
+            "id": "probe.event",
+            "legacy_rank": 25,
+            "when_event": ["probe.first"],
+            "read": {"attribute": "one"},
+            "parse": "text",
+            "emit": "message",
+        },
+        {
+            "id": "probe.span",
+            "legacy_rank": 25,
+            "read": {"attribute": "two"},
+            "parse": "text",
+            "emit": "message",
+        },
+    ]);
+    assert!(
+        compiled(event_beside_span).is_ok(),
+        "an event rule and a span rule at one rank are never candidates together"
+    );
+
+    // The same, where the names *do* intersect.
+    let overlapping_events = serde_json::json!([
+        {
+            "id": "probe.one",
+            "legacy_rank": 20,
+            "when_event": ["probe.shared"],
+            "read": {"attribute": "one"},
+            "parse": "text",
+            "emit": "message",
+        },
+        {
+            "id": "probe.two",
+            "legacy_rank": 20,
+            "when_event": ["probe.shared", "probe.other"],
+            "read": {"attribute": "two"},
+            "parse": "text",
+            "emit": "message",
+        },
+    ]);
+    assert!(
+        compiled(overlapping_events).is_err(),
+        "two event rules at one rank sharing an event name contend on that event"
+    );
+
+    // Different **stages**: a fallback rule runs only where the dialect stage produced nothing.
+    let cross_stage = serde_json::json!([
+        {
+            "id": "probe.dialect",
+            "legacy_rank": 30,
+            "read": {"attribute": "one"},
+            "parse": "text",
+            "emit": "message",
+        },
+        {
+            "id": "probe.fallback",
+            "legacy_rank": 30,
+            "stage": "fallback",
+            "read": {"attribute": "two"},
+            "parse": "text",
+            "emit": "message",
+        },
+    ]);
+    assert!(
+        compiled(cross_stage).is_ok(),
+        "a fallback rule's rank orders nothing against a dialect rule's"
     );
 }

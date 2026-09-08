@@ -880,6 +880,29 @@ pub fn compile(sources: &BTreeMap<String, Vec<u8>>) -> Result<MessagePlan, Messa
             .then_with(|| a.rule_id.cmp(&b.rule_id))
     });
 
+    // A shared rank is refused **within an ordering arena**, because the tie-break above is the rule *id*:
+    // renaming a rule would change which of two contenders reads a carrier, and a rule id must not be a
+    // control-flow primitive. Classification and detection already refuse a shared rank outright; this path
+    // did not, and five pairs in the shipped assets share one.
+    //
+    // Not refused globally, because those five pairs are legitimate: each puts a *message* rule beside a
+    // *metadata* rule, and their orders are independent - a tool definition is not a reading of the
+    // conversation and the two paths never contend. So an arena is a set of rules whose relative order is
+    // observable: the same stage, an overlapping output axis, and either both reading a span's attributes or
+    // both reading events whose names intersect.
+    for (index, rule) in rules.iter().enumerate() {
+        for other in rules.iter().skip(index + 1) {
+            if rule.legacy_rank != other.legacy_rank || !share_an_arena(rule, other) {
+                continue;
+            }
+            return Err(MessageCompileError::Inexpressible {
+                rule: format!("{} and {}", rule.rule_id, other.rule_id),
+                detail: "share a rank in one ordering arena, so which of them reads a contested carrier is \
+                         decided by comparing their *ids* - renaming a rule would change the answer",
+            });
+        }
+    }
+
     // Two rules must not claim one carrier, in either direction.
     //
     // Previously this compared "the carrier a rule reads" and missed four real conflicts: a `tag_as` that
@@ -2117,6 +2140,46 @@ fn possible_targets(rule: &CompiledMessageRule) -> Vec<EmitTarget> {
         out.extend(reading.spec.extra_cases.iter().filter_map(|case| case.emit));
     }
     out
+}
+
+/// Whether two rules' relative order is observable.
+///
+/// Three conditions, and each excludes a pair that legitimately shares a rank:
+///
+/// - **The same stage.** A fallback-stage rule runs only where the dialect stage produced nothing, so its rank
+///   relative to a dialect rule orders nothing.
+/// - **An overlapping output axis.** A message and a tool definition are not read by the same path: the
+///   metadata path filters messages out and the message path filters metadata out. All five shared ranks in the
+///   shipped assets are of this kind.
+/// - **The same input domain.** A rule with `when_event` is selected by event name, so two such rules contend
+///   only where their name sets intersect; a rule without one reads a span's attributes.
+fn share_an_arena(a: &CompiledMessageRule, b: &CompiledMessageRule) -> bool {
+    if a.stage != b.stage {
+        return false;
+    }
+    let axis = |rule: &CompiledMessageRule| {
+        let targets = possible_targets(rule);
+        let message = targets
+            .iter()
+            .any(|target| matches!(target, EmitTarget::Message | EmitTarget::Claim));
+        let metadata = targets
+            .iter()
+            .any(|target| matches!(target, EmitTarget::ToolDefinitions | EmitTarget::ToolNames));
+        (message, metadata)
+    };
+    let (a_message, a_metadata) = axis(a);
+    let (b_message, b_metadata) = axis(b);
+    if !((a_message && b_message) || (a_metadata && b_metadata)) {
+        return false;
+    }
+    match (a.when_event.is_empty(), b.when_event.is_empty()) {
+        // Both read a span's attributes.
+        (true, true) => true,
+        // One is selected by event name and the other is not, so they are never candidates together.
+        (true, false) | (false, true) => false,
+        // Both are, and they contend only where an event name is in both sets.
+        (false, false) => a.when_event.iter().any(|name| b.when_event.contains(name)),
+    }
 }
 
 /// Which rules the metadata path needs to evaluate at all.

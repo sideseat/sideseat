@@ -1,8 +1,30 @@
 -------------------------- MODULE CarrierClaiming --------------------------
 (***************************************************************************)
-(* Model of the mechanism the whole declarative format rests on: which     *)
-(* rule gets to read a span's attribute, and what happens to the ones that *)
-(* nobody claimed.                                                         *)
+(* An abstract **fixed-ownership greedy kernel**: which rule gets to read a *)
+(* span's attribute, when each rule's ownership set is known in advance.    *)
+(*                                                                         *)
+(* WHAT THIS IS NOT A MODEL OF.  It is deliberately not a refinement model *)
+(* of `MessagePlan`, and claiming otherwise was this spec's first mistake. *)
+(* Three differences, each real:                                           *)
+(*                                                                         *)
+(*   1. It assumes distinct ranks.  Message compilation does *not* require *)
+(*      them; equal ranks are broken by rule id, which is a defect recorded *)
+(*      elsewhere, not a property this spec may assume away.               *)
+(*                                                                         *)
+(*   2. Ownership here is fixed per rule.  In the engine it is *value      *)
+(*      dependent*: `from_any_of` selects whichever spelling the span      *)
+(*      carries, a sweep discovers keys at read time, and a compose emits   *)
+(*      when any member filled - so the ownership set is a property of the  *)
+(*      emission, not of the rule.                                        *)
+(*                                                                         *)
+(*   3. Fallback here runs only when nothing emitted or claimed.  The      *)
+(*      engine may also run it after dialect output, when a generation      *)
+(*      span's answer is unaccounted for.                                  *)
+(*                                                                         *)
+(* What the kernel is still worth checking: the interaction between rank    *)
+(* order and all-or-nothing ownership, which is where the starvation        *)
+(* counterexample below comes from, and which holds in the engine for the   *)
+(* same reason it holds here.                                              *)
 (*                                                                         *)
 (* Several dialects describe the same attribute - `output.value` is read by *)
 (* four of them - and every message the server shows comes from exactly    *)
@@ -34,7 +56,8 @@
 (*                          payload twice, without "if" a span whose shape  *)
 (*                          no dialect describes returns nothing.           *)
 (*                                                                         *)
-(*   GreedyInRankOrder    - the outcome is the rank-ordered greedy one. Note *)
+(*   GreedyInRankOrder    - within the kernel, the outcome is the           *)
+(*                          rank-ordered greedy one. Note                    *)
 (*                          what this is *not*: "the lowest-ranked rule that *)
 (*                          reads a carrier gets it". TLC refuted that       *)
 (*                          within seconds of the spec being written, and    *)
@@ -71,8 +94,11 @@ ASSUME Rules \subseteq Nat
 ASSUME Rank \in [Rules -> Nat]
 ASSUME Reads \in [Rules -> SUBSET Carriers]
 ASSUME ClaimOnly \subseteq Rules
-\* Distinct ranks: the compiler refuses a shared rank precisely because the
-\* winner would otherwise depend on load order, which is what this models.
+\* Distinct ranks. **An assumption of the kernel, not a fact about the engine**:
+\* classification refuses a shared rank and detection does too, but *message*
+\* compilation does not - it breaks a tie by rule id, so renaming a rule can
+\* change behaviour. That is a defect recorded in the Rust tree rather than a
+\* property this spec may assume; here it is stated as the assumption it is.
 ASSUME \A r1, r2 \in Rules : r1 # r2 => Rank[r1] # Rank[r2]
 
 VARIABLES
