@@ -1,0 +1,257 @@
+{
+  "id": "span-categories",
+  "doc": "Which broad category a span falls in. Ordered first-match rules, like the observation type, and a **separate question with its own precedence**: a transport call is an HTTP category and a plain observation, and one dialect's operation names name an agent here where the conventions leave them unclassified there.\n\nThe transport rules come first for the same reason they do there - with a framework SDK also instrumenting, that span is a duplicate view of the real generation, and one provider's own API calls announce themselves only as an RPC system. Whether such traces are visible at all is the trace list's business.",
+  "span_categories": [
+    {
+      "id": "category.transport",
+      "rank": 10,
+      "doc": "One provider's API calls arrive as `rpc.system`, and would otherwise be categorised from their `gen_ai.*` attributes as the generation they duplicate.",
+      "all_of": [
+        {
+          "attr_exists": ["http.method", "http.request.method", "rpc.system"]
+        }
+      ],
+      "result": "http"
+    },
+    {
+      "id": "category.database",
+      "rank": 20,
+      "all_of": [{ "attr_exists": ["db.system"] }],
+      "result": "db"
+    },
+    {
+      "id": "category.messaging",
+      "rank": 30,
+      "all_of": [{ "attr_exists": ["messaging.system"] }],
+      "result": "messaging"
+    },
+    {
+      "id": "category.object_storage",
+      "rank": 40,
+      "doc": "Any attribute under one provider's object-storage prefix, which is what a bucket or key operation carries.",
+      "all_of": [{ "attr_prefix": ["aws.s3."] }],
+      "result": "storage"
+    },
+    {
+      "id": "category.chat_of_an_embedding_model",
+      "rank": 50,
+      "doc": "The same correction the observation type makes: telemetry that reports an embedding call as a chat completion, settled by the model's own name, case-insensitively.",
+      "all_of": [
+        {
+          "attr_equals": [
+            { "key": "gen_ai.operation.name", "value": "chat" },
+            { "key": "gen_ai.operation.name", "value": "text_completion" }
+          ]
+        },
+        {
+          "text_contains": {
+            "sources": [
+              "attr:gen_ai.request.model",
+              "attr:gen_ai.response.model"
+            ],
+            "needles": ["embed"]
+          }
+        }
+      ],
+      "result": "embedding"
+    },
+    {
+      "id": "category.chat",
+      "rank": 60,
+      "all_of": [
+        {
+          "attr_equals": [
+            { "key": "gen_ai.operation.name", "value": "chat" },
+            { "key": "gen_ai.operation.name", "value": "text_completion" }
+          ]
+        }
+      ],
+      "result": "llm"
+    },
+    {
+      "id": "category.embeddings",
+      "rank": 70,
+      "all_of": [
+        {
+          "attr_equals": [
+            { "key": "gen_ai.operation.name", "value": "embeddings" }
+          ]
+        }
+      ],
+      "result": "embedding"
+    },
+    {
+      "id": "category.tool_execution",
+      "rank": 80,
+      "all_of": [
+        {
+          "attr_equals": [
+            { "key": "gen_ai.operation.name", "value": "execute_tool" }
+          ]
+        }
+      ],
+      "result": "tool"
+    },
+    {
+      "id": "category.agent_operations",
+      "rank": 90,
+      "doc": "Three operation names that all mean an agent was running: the conventional one, and two a dialect adds for a group of agents and for one turn of its own loop.",
+      "all_of": [
+        {
+          "attr_equals": [
+            { "key": "gen_ai.operation.name", "value": "invoke_agent" },
+            { "key": "gen_ai.operation.name", "value": "invoke_swarm" },
+            {
+              "key": "gen_ai.operation.name",
+              "value": "execute_event_loop_cycle"
+            }
+          ]
+        }
+      ],
+      "result": "agent"
+    },
+    {
+      "id": "category.named_tool",
+      "rank": 100,
+      "doc": "A tool name outranks an agent name here, which is the reverse of neither: the observation type asks the same pair in the other order, and both were transcribed as they stood.",
+      "all_of": [{ "attr_exists": ["gen_ai.tool.name"] }],
+      "result": "tool"
+    },
+    {
+      "id": "category.named_agent",
+      "rank": 110,
+      "all_of": [{ "attr_exists": ["gen_ai.agent.name"] }],
+      "result": "agent"
+    },
+    {
+      "id": "category.kind.llm",
+      "rank": 120,
+      "doc": "One dialect's span kind. Only that dialect's here - the observation type reads a second dialect's spelling too, and this one never did. Two kinds map to no category of their own and are left to the fallback, which is what makes them absent from this list rather than mapped to `other`.",
+      "all_of": [
+        {
+          "attr_equals_ignore_case": [
+            { "key": "openinference.span.kind", "value": "LLM" }
+          ]
+        }
+      ],
+      "result": "llm"
+    },
+    {
+      "id": "category.kind.embedding",
+      "rank": 121,
+      "all_of": [
+        {
+          "attr_equals_ignore_case": [
+            { "key": "openinference.span.kind", "value": "EMBEDDING" }
+          ]
+        }
+      ],
+      "result": "embedding"
+    },
+    {
+      "id": "category.kind.agent",
+      "rank": 122,
+      "all_of": [
+        {
+          "attr_equals_ignore_case": [
+            { "key": "openinference.span.kind", "value": "AGENT" }
+          ]
+        }
+      ],
+      "result": "agent"
+    },
+    {
+      "id": "category.kind.tool",
+      "rank": 123,
+      "all_of": [
+        {
+          "attr_equals_ignore_case": [
+            { "key": "openinference.span.kind", "value": "TOOL" }
+          ]
+        }
+      ],
+      "result": "tool"
+    },
+    {
+      "id": "category.kind.chain",
+      "rank": 124,
+      "all_of": [
+        {
+          "attr_equals_ignore_case": [
+            { "key": "openinference.span.kind", "value": "CHAIN" }
+          ]
+        }
+      ],
+      "result": "chain"
+    },
+    {
+      "id": "category.kind.retriever",
+      "rank": 125,
+      "all_of": [
+        {
+          "attr_equals_ignore_case": [
+            { "key": "openinference.span.kind", "value": "RETRIEVER" }
+          ]
+        }
+      ],
+      "result": "retriever"
+    },
+    {
+      "id": "category.kind.guardrail",
+      "rank": 126,
+      "doc": "A guardrail and an evaluator are observation types of their own and belong to no category of their own, so both answer `other` here - stated rather than left to the fallback, because falling through would let a *span name* answer instead, and the kind attribute is the stronger evidence.",
+      "all_of": [
+        {
+          "attr_equals_ignore_case": [
+            { "key": "openinference.span.kind", "value": "GUARDRAIL" }
+          ]
+        }
+      ],
+      "result": "other"
+    },
+    {
+      "id": "category.kind.evaluator",
+      "rank": 127,
+      "all_of": [
+        {
+          "attr_equals_ignore_case": [
+            { "key": "openinference.span.kind", "value": "EVALUATOR" }
+          ]
+        }
+      ],
+      "result": "other"
+    },
+    {
+      "id": "category.name_says_a_model_call",
+      "rank": 130,
+      "doc": "The span name, last and weakest. Two needles for one answer, and `chat` before `embed` - so a name saying both is a model call, which is what the retired order said.",
+      "all_of": [
+        {
+          "text_contains": {
+            "sources": ["span_name"],
+            "needles": ["llm", "chat"]
+          }
+        }
+      ],
+      "result": "llm"
+    },
+    {
+      "id": "category.name_says_embedding",
+      "rank": 131,
+      "all_of": [
+        { "text_contains": { "sources": ["span_name"], "needles": ["embed"] } }
+      ],
+      "result": "embedding"
+    },
+    {
+      "id": "category.name_says_retrieval",
+      "rank": 132,
+      "all_of": [
+        {
+          "text_contains": { "sources": ["span_name"], "needles": ["retriev"] }
+        }
+      ],
+      "result": "retriever"
+    }
+  ]
+}

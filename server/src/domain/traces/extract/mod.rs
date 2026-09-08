@@ -113,8 +113,11 @@ pub(super) mod keys {
     pub const GEN_AI_SYSTEM: &str = "gen_ai.system";
     #[cfg(test)]
     pub const GEN_AI_PROVIDER_NAME: &str = "gen_ai.provider.name"; // New OTEL semconv
+    #[cfg(test)]
     pub const GEN_AI_OPERATION_NAME: &str = "gen_ai.operation.name";
+    #[cfg(test)]
     pub const GEN_AI_REQUEST_MODEL: &str = "gen_ai.request.model";
+    #[cfg(test)]
     pub const GEN_AI_RESPONSE_MODEL: &str = "gen_ai.response.model";
     #[cfg(test)]
     pub const GEN_AI_RESPONSE_ID: &str = "gen_ai.response.id";
@@ -140,6 +143,7 @@ pub(super) mod keys {
     // GenAI Agent/Tool
     #[cfg(test)]
     pub const GEN_AI_AGENT_ID: &str = "gen_ai.agent.id";
+    #[cfg(test)]
     pub const GEN_AI_AGENT_NAME: &str = "gen_ai.agent.name";
     pub const GEN_AI_TOOL_NAME: &str = "gen_ai.tool.name";
     pub const GEN_AI_TOOL_CALL_ID: &str = "gen_ai.tool.call.id";
@@ -172,6 +176,7 @@ pub(super) mod keys {
     pub const LANGGRAPH_THREAD_ID: &str = "langgraph.thread_id";
 
     // Span Kind Attributes
+    #[cfg(test)]
     pub const OPENINFERENCE_SPAN_KIND: &str = "openinference.span.kind";
     #[cfg(test)]
     pub const LANGSMITH_SPAN_KIND: &str = "langsmith.span.kind";
@@ -202,7 +207,9 @@ pub(super) mod keys {
     pub const RERANKER_MODEL_NAME: &str = "reranker.model_name";
 
     // HTTP
+    #[cfg(test)]
     pub const HTTP_METHOD: &str = "http.method";
+    #[cfg(test)]
     pub const HTTP_REQUEST_METHOD: &str = "http.request.method";
     #[cfg(test)]
     pub const HTTP_URL: &str = "http.url";
@@ -214,9 +221,11 @@ pub(super) mod keys {
     pub const HTTP_RESPONSE_STATUS_CODE: &str = "http.response.status_code";
 
     // RPC
+    #[cfg(test)]
     pub const RPC_SYSTEM: &str = "rpc.system";
 
     // Database
+    #[cfg(test)]
     pub const DB_SYSTEM: &str = "db.system";
     #[cfg(test)]
     pub const DB_NAME: &str = "db.name";
@@ -238,6 +247,7 @@ pub(super) mod keys {
     pub const GCP_GCS_OBJECT: &str = "gcp.gcs.object";
 
     // Messaging
+    #[cfg(test)]
     pub const MESSAGING_SYSTEM: &str = "messaging.system";
     #[cfg(test)]
     pub const MESSAGING_DESTINATION: &str = "messaging.destination";

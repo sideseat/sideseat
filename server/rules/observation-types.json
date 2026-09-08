@@ -16,7 +16,7 @@
           ]
         }
       ],
-      "observation_type": "span"
+      "result": "span"
     },
     {
       "id": "observation.chat_of_an_embedding_model",
@@ -47,7 +47,7 @@
           }
         }
       ],
-      "observation_type": "embedding"
+      "result": "embedding"
     },
     {
       "id": "observation.chat",
@@ -66,7 +66,7 @@
           ]
         }
       ],
-      "observation_type": "generation"
+      "result": "generation"
     },
     {
       "id": "observation.embeddings",
@@ -81,7 +81,7 @@
           ]
         }
       ],
-      "observation_type": "embedding"
+      "result": "embedding"
     },
     {
       "id": "observation.agent_construction",
@@ -105,7 +105,7 @@
           ]
         }
       ],
-      "observation_type": "span"
+      "result": "span"
     },
     {
       "id": "observation.kind.openinference.llm",
@@ -121,7 +121,7 @@
           ]
         }
       ],
-      "observation_type": "generation"
+      "result": "generation"
     },
     {
       "id": "observation.kind.openinference.embedding",
@@ -136,7 +136,7 @@
           ]
         }
       ],
-      "observation_type": "embedding"
+      "result": "embedding"
     },
     {
       "id": "observation.kind.openinference.agent",
@@ -151,7 +151,7 @@
           ]
         }
       ],
-      "observation_type": "agent"
+      "result": "agent"
     },
     {
       "id": "observation.kind.openinference.tool",
@@ -166,7 +166,7 @@
           ]
         }
       ],
-      "observation_type": "tool"
+      "result": "tool"
     },
     {
       "id": "observation.kind.openinference.chain",
@@ -181,7 +181,7 @@
           ]
         }
       ],
-      "observation_type": "chain"
+      "result": "chain"
     },
     {
       "id": "observation.kind.openinference.retriever",
@@ -196,7 +196,7 @@
           ]
         }
       ],
-      "observation_type": "retriever"
+      "result": "retriever"
     },
     {
       "id": "observation.kind.openinference.guardrail",
@@ -211,7 +211,7 @@
           ]
         }
       ],
-      "observation_type": "guardrail"
+      "result": "guardrail"
     },
     {
       "id": "observation.kind.openinference.evaluator",
@@ -226,7 +226,7 @@
           ]
         }
       ],
-      "observation_type": "evaluator"
+      "result": "evaluator"
     },
     {
       "id": "observation.kind.langsmith.llm",
@@ -242,7 +242,7 @@
           ]
         }
       ],
-      "observation_type": "generation"
+      "result": "generation"
     },
     {
       "id": "observation.kind.langsmith.embedding",
@@ -257,7 +257,7 @@
           ]
         }
       ],
-      "observation_type": "embedding"
+      "result": "embedding"
     },
     {
       "id": "observation.kind.langsmith.agent",
@@ -272,7 +272,7 @@
           ]
         }
       ],
-      "observation_type": "agent"
+      "result": "agent"
     },
     {
       "id": "observation.kind.langsmith.tool",
@@ -287,7 +287,7 @@
           ]
         }
       ],
-      "observation_type": "tool"
+      "result": "tool"
     },
     {
       "id": "observation.kind.langsmith.chain",
@@ -302,7 +302,7 @@
           ]
         }
       ],
-      "observation_type": "chain"
+      "result": "chain"
     },
     {
       "id": "observation.kind.langsmith.retriever",
@@ -317,7 +317,7 @@
           ]
         }
       ],
-      "observation_type": "retriever"
+      "result": "retriever"
     },
     {
       "id": "observation.kind.langsmith.guardrail",
@@ -332,7 +332,7 @@
           ]
         }
       ],
-      "observation_type": "guardrail"
+      "result": "guardrail"
     },
     {
       "id": "observation.kind.langsmith.evaluator",
@@ -347,7 +347,7 @@
           ]
         }
       ],
-      "observation_type": "evaluator"
+      "result": "evaluator"
     },
     {
       "id": "observation.sdk_embedding_call",
@@ -369,7 +369,7 @@
           ]
         }
       ],
-      "observation_type": "embedding"
+      "result": "embedding"
     },
     {
       "id": "observation.sdk_model_call",
@@ -382,7 +382,7 @@
           ]
         }
       ],
-      "observation_type": "generation"
+      "result": "generation"
     },
     {
       "id": "observation.named_agent",
@@ -395,7 +395,7 @@
           ]
         }
       ],
-      "observation_type": "agent"
+      "result": "agent"
     },
     {
       "id": "observation.named_tool",
@@ -408,7 +408,7 @@
           ]
         }
       ],
-      "observation_type": "tool"
+      "result": "tool"
     },
     {
       "id": "observation.name_says_embedding",
@@ -426,7 +426,7 @@
           }
         }
       ],
-      "observation_type": "embedding"
+      "result": "embedding"
     },
     {
       "id": "observation.name_says_agent",
@@ -443,7 +443,7 @@
           }
         }
       ],
-      "observation_type": "agent"
+      "result": "agent"
     },
     {
       "id": "observation.name_says_tool",
@@ -460,7 +460,7 @@
           }
         }
       ],
-      "observation_type": "tool"
+      "result": "tool"
     },
     {
       "id": "observation.name_says_retriever",
@@ -477,7 +477,7 @@
           }
         }
       ],
-      "observation_type": "retriever"
+      "result": "retriever"
     },
     {
       "id": "observation.name_says_guardrail",
@@ -494,7 +494,7 @@
           }
         }
       ],
-      "observation_type": "guardrail"
+      "result": "guardrail"
     },
     {
       "id": "observation.name_says_evaluator",
@@ -511,7 +511,7 @@
           }
         }
       ],
-      "observation_type": "evaluator"
+      "result": "evaluator"
     },
     {
       "id": "observation.tagged_as_a_model_call",
@@ -529,7 +529,7 @@
           }
         }
       ],
-      "observation_type": "generation"
+      "result": "generation"
     },
     {
       "id": "observation.has_a_model",
@@ -543,7 +543,7 @@
           ]
         }
       ],
-      "observation_type": "generation"
+      "result": "generation"
     }
   ]
 }

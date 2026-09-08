@@ -49,6 +49,13 @@ pub struct RuleFile {
     /// Content-block shapes this dialect writes.
     #[serde(default)]
     pub content_blocks: Vec<ContentBlockRule>,
+    /// Which broad category a span falls in, as ordered first-match rules.
+    ///
+    /// A separate question from the observation type and with its own precedence: a transport call is an HTTP
+    /// span *and* a plain observation, and one dialect's operation names name an agent here where the
+    /// conventions leave them unclassified there.
+    #[serde(default)]
+    pub span_categories: Vec<ClassifyRule>,
     /// What kind of observation a span is, as ordered first-match rules.
     ///
     /// Ordered because the answer is a *precedence*, not a set of independent facts: a transport attribute
@@ -395,7 +402,7 @@ pub struct ClassifyRule {
     pub all_of: Vec<DetectMatch>,
     /// What the span is, in the stored vocabulary. Mapped to the enum by the caller, which is the one thing
     /// about this that is not a producer's business.
-    pub observation_type: String,
+    pub result: String,
 }
 
 /// One detection rule: signals that identify a producer, and the label they yield.

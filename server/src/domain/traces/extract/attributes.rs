@@ -34,6 +34,9 @@ use super::keys;
 /// Check if haystack contains needle (case-insensitive, ASCII only).
 /// Zero-allocation alternative to `haystack.to_lowercase().contains(needle)`.
 #[inline]
+/// Retired with the sweeps that used it: the declared form asks the same question through a case-insensitive
+/// phrase search over a named attribute.
+#[cfg(test)]
 fn contains_ascii_ignore_case(haystack: &str, needle: &str) -> bool {
     if needle.is_empty() {
         return true;
@@ -962,6 +965,7 @@ fn declared_framework(resource_attrs: &HashMap<String, String>) -> Option<Framew
 
 #[derive(Clone, Copy)]
 #[allow(clippy::upper_case_acronyms)]
+#[cfg(test)]
 enum SemanticKind {
     LLM,
     Embedding,
@@ -973,6 +977,7 @@ enum SemanticKind {
     Evaluator,
 }
 
+#[cfg(test)]
 impl SemanticKind {
     fn parse(kind: &str) -> Option<Self> {
         match kind.to_uppercase().as_str() {
@@ -1020,7 +1025,42 @@ impl SemanticKind {
 // ============================================================================
 
 /// Categorize span based on attributes and name patterns.
+/// Which category this span falls in, from the declared ordered rules.
+///
+/// As with the observation type, the one thing left here is which stored value each label means, and that "no
+/// rule held" answers `other` - our vocabulary rather than any dialect's.
 pub(crate) fn categorize_span(span_name: &str, attrs: &HashMap<String, String>) -> SpanCategory {
+    match crate::domain::rules::ruleset()
+        .observation_types
+        .span_category(span_name, attrs)
+    {
+        Some("llm") => SpanCategory::LLM,
+        Some("tool") => SpanCategory::Tool,
+        Some("agent") => SpanCategory::Agent,
+        Some("chain") => SpanCategory::Chain,
+        Some("retriever") => SpanCategory::Retriever,
+        Some("embedding") => SpanCategory::Embedding,
+        Some("db") => SpanCategory::DB,
+        Some("storage") => SpanCategory::Storage,
+        Some("http") => SpanCategory::HTTP,
+        Some("messaging") => SpanCategory::Messaging,
+        Some("other") | None => SpanCategory::Other,
+        Some(other) => {
+            debug_assert!(
+                false,
+                "classification rule named an unknown span category `{other}`"
+            );
+            SpanCategory::Other
+        }
+    }
+}
+
+/// The ordered sweep the declared rules shadow, kept as the equivalence oracle.
+#[cfg(test)]
+pub(crate) fn categorize_span_legacy(
+    span_name: &str,
+    attrs: &HashMap<String, String>,
+) -> SpanCategory {
     // Priority 0: External service indicators (HTTP/RPC/DB) are NEVER GenAI spans
     // This must be checked FIRST to prevent AWS Bedrock API calls (rpc.system=aws-api)
     // from being classified as LLM even if they have gen_ai.* attributes: when a framework

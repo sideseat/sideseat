@@ -4076,8 +4076,10 @@ fn no_declared_rule_is_dead_across_the_corpus() {
 /// rule that no captured span reaches is visible rather than assumed exercised.
 #[test]
 fn the_declared_classification_matches_the_sweep_across_the_corpus() {
-    use crate::data::types::ObservationType;
-    use crate::domain::traces::extract::attributes::detect_observation_type_legacy;
+    use crate::data::types::{ObservationType, SpanCategory};
+    use crate::domain::traces::extract::attributes::{
+        categorize_span_legacy, detect_observation_type_legacy,
+    };
     use crate::utils::otlp::extract_attributes;
 
     let plan = &crate::domain::rules::ruleset().observation_types;
@@ -4103,7 +4105,25 @@ fn the_declared_classification_matches_the_sweep_across_the_corpus() {
                         *seen.entry(declared.clone()).or_default() += 1;
                         if declared != swept {
                             disagreements.push(format!(
-                                "{label} / {}: declared {declared}, swept {swept}",
+                                "{label} / {}: observation declared {declared}, swept {swept}",
+                                span.name
+                            ));
+                        }
+                        // The category is a separate question with its own precedence, so it gets its own
+                        // comparison over the same spans.
+                        let declared_category = plan
+                            .span_category(&span.name, &attrs)
+                            .map(str::to_string)
+                            .unwrap_or_else(|| SpanCategory::Other.as_str().to_string());
+                        let swept_category = categorize_span_legacy(&span.name, &attrs)
+                            .as_str()
+                            .to_string();
+                        *seen
+                            .entry(format!("category:{declared_category}"))
+                            .or_default() += 1;
+                        if declared_category != swept_category {
+                            disagreements.push(format!(
+                                "{label} / {}: category declared {declared_category}, swept {swept_category}",
                                 span.name
                             ));
                         }

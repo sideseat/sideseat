@@ -11359,3 +11359,184 @@ fn the_declared_classification_matches_the_sweep_it_shadows() {
         );
     }
 }
+
+/// The declared category plan answers exactly as `categorize_span` does.
+///
+/// The shadow comparison's precedence half, written from specific arms of the retired sweep - including the two
+/// places the two classifications deliberately disagree with each other: a tool name outranks an agent name
+/// here and the reverse there, and this one reads only the first dialect's span kind where the other reads two.
+#[test]
+fn the_declared_category_matches_the_sweep_it_shadows() {
+    use crate::data::types::SpanCategory;
+    use crate::domain::traces::extract::attributes::categorize_span_legacy;
+
+    let cases: Vec<(&str, &str, HashMap<String, String>)> = vec![
+        ("nothing at all", "some span", rule_attrs(&[])),
+        (
+            "a transport call beside a model, which it duplicates",
+            "chat",
+            rule_attrs(&[
+                ("rpc.system", "aws-api"),
+                ("gen_ai.operation.name", "chat"),
+                ("gen_ai.request.model", "claude-3"),
+            ]),
+        ),
+        (
+            "an http call",
+            "POST /v1",
+            rule_attrs(&[("http.method", "POST")]),
+        ),
+        (
+            "the newer http spelling",
+            "POST",
+            rule_attrs(&[("http.request.method", "POST")]),
+        ),
+        (
+            "a database call",
+            "select",
+            rule_attrs(&[("db.system", "postgresql")]),
+        ),
+        (
+            "a queue",
+            "send",
+            rule_attrs(&[("messaging.system", "sqs")]),
+        ),
+        (
+            "an object-storage call, recognised by prefix",
+            "S3.GetObject",
+            rule_attrs(&[("aws.s3.bucket", "b"), ("aws.s3.key", "k")]),
+        ),
+        (
+            "a database call beside a queue - the database wins",
+            "select",
+            rule_attrs(&[("db.system", "postgresql"), ("messaging.system", "sqs")]),
+        ),
+        (
+            "a chat completion",
+            "chat",
+            rule_attrs(&[("gen_ai.operation.name", "chat")]),
+        ),
+        (
+            "a chat completion of an embedding model",
+            "chat",
+            rule_attrs(&[
+                ("gen_ai.operation.name", "text_completion"),
+                ("gen_ai.request.model", "amazon.titan-EMBED-text-v2:0"),
+            ]),
+        ),
+        (
+            "an embeddings operation",
+            "embed",
+            rule_attrs(&[("gen_ai.operation.name", "embeddings")]),
+        ),
+        (
+            "a tool execution",
+            "execute_tool x",
+            rule_attrs(&[("gen_ai.operation.name", "execute_tool")]),
+        ),
+        (
+            "an agent invocation",
+            "invoke",
+            rule_attrs(&[("gen_ai.operation.name", "invoke_agent")]),
+        ),
+        (
+            "a swarm invocation",
+            "invoke",
+            rule_attrs(&[("gen_ai.operation.name", "invoke_swarm")]),
+        ),
+        (
+            "one turn of a dialect's own loop",
+            "cycle",
+            rule_attrs(&[("gen_ai.operation.name", "execute_event_loop_cycle")]),
+        ),
+        (
+            "an unrecognised operation name, which falls through",
+            "some span",
+            rule_attrs(&[("gen_ai.operation.name", "rerank")]),
+        ),
+        (
+            "a tool name beside an agent name - the tool wins here",
+            "run",
+            rule_attrs(&[
+                ("gen_ai.tool.name", "search"),
+                ("gen_ai.agent.name", "Researcher"),
+            ]),
+        ),
+        (
+            "a named agent alone",
+            "run",
+            rule_attrs(&[("gen_ai.agent.name", "Researcher")]),
+        ),
+        (
+            "an agent *id* alone, which this classification does not read",
+            "run",
+            rule_attrs(&[("gen_ai.agent.id", "a-1")]),
+        ),
+        (
+            "a dialect's span kind",
+            "RunnableSequence",
+            rule_attrs(&[("openinference.span.kind", "CHAIN")]),
+        ),
+        (
+            "the same in lower case",
+            "run",
+            rule_attrs(&[("openinference.span.kind", "retriever")]),
+        ),
+        (
+            "a kind with no category of its own",
+            "run",
+            rule_attrs(&[("openinference.span.kind", "GUARDRAIL")]),
+        ),
+        (
+            "the other dialect's span kind, which this classification does not read",
+            "run",
+            rule_attrs(&[("langsmith.span.kind", "TOOL")]),
+        ),
+        (
+            "a kind nobody recognises, which falls through to the name",
+            "chat request",
+            rule_attrs(&[("openinference.span.kind", "SOMETHING_ELSE")]),
+        ),
+        (
+            "a name mentioning a model call",
+            "LLM call",
+            rule_attrs(&[]),
+        ),
+        ("a name mentioning chat", "ChatOpenAI", rule_attrs(&[])),
+        (
+            "a name mentioning both chat and embedding - the model call wins",
+            "chat embedding",
+            rule_attrs(&[]),
+        ),
+        (
+            "a name mentioning embedding",
+            "Embedding request",
+            rule_attrs(&[]),
+        ),
+        (
+            "a name mentioning retrieval",
+            "Retriever.get",
+            rule_attrs(&[]),
+        ),
+        (
+            "a name mentioning a tool, which is not a category signal",
+            "execute_tool search",
+            rule_attrs(&[]),
+        ),
+    ];
+
+    let plan = &crate::domain::rules::ruleset().observation_types;
+    for (what, span_name, attrs) in cases {
+        let declared = plan
+            .span_category(span_name, &attrs)
+            .map(str::to_string)
+            .unwrap_or_else(|| SpanCategory::Other.as_str().to_string());
+        let swept = categorize_span_legacy(span_name, &attrs)
+            .as_str()
+            .to_string();
+        assert_eq!(
+            declared, swept,
+            "the declared category disagrees with the sweep it shadows: {what}"
+        );
+    }
+}
