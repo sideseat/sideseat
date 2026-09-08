@@ -87,6 +87,11 @@ pub enum FieldCompileError {
          makes every source after it dead"
     )]
     UngatedLiteral { file: String, rule: String },
+    #[error(
+        "span field rule `{rule}` in `{file}` has a JSON source that names either no member or two ways of \
+         naming one"
+    )]
+    JsonNamesNoMember { file: String, rule: String },
     #[error("span field rule `{rule}` in `{file}` names an empty attribute")]
     EmptyAttribute { file: String, rule: String },
     #[error(
@@ -178,6 +183,13 @@ impl SpanFieldPlan {
 
         for source in &rule.sources {
             if !source_applies(source, span_name, attrs) {
+                continue;
+            }
+            // A JSON witness admits the source or not, and asking it here rather than in `source_applies` is
+            // what lets it share the parse cache with the reads.
+            if let Some(witness) = &source.spec.when_json
+                && !json_member_present(witness, attrs, parsed)
+            {
                 continue;
             }
             let reading = read_source(&source.spec, field_type, span_name, attrs, parsed);
@@ -275,7 +287,11 @@ fn source_label(spec: &FieldSource) -> String {
         return attribute.clone();
     }
     if let Some(json) = &spec.json {
-        return format!("{}{}", json.attribute, json.path);
+        return match (&json.path, json.first_present_of.as_slice()) {
+            (Some(path), _) => format!("{}{}", json.attribute, path),
+            (_, [first, ..]) => format!("{} (first of {first} ...)", json.attribute),
+            _ => json.attribute.clone(),
+        };
     }
     if let Some(prefix) = &spec.span_name_strip_prefix {
         return format!("the span name past `{prefix}`");
@@ -339,11 +355,25 @@ fn read_json<'a>(
             detail: format!("`{}` is not JSON", json.attribute),
         };
     };
+    // Several aliases of one member: the **first present** one answers, and then it is converted. Selecting by
+    // conversion instead would answer from a *later alias* when the first is written badly, where the retired
+    // code let the badly written one end this carrier and the next carrier answer.
+    if !json.first_present_of.is_empty() {
+        for path in &json.first_present_of {
+            if let Some(found) = path.query(value).first() {
+                return from_json(found, field_type);
+            }
+        }
+        return Reading::Absent;
+    }
+    let Some(path) = &json.path else {
+        return Reading::Absent;
+    };
     // The first match that **yields**, not the first match. A dialect writes its agents as a list and the model
     // sits on whichever one declared it, so stopping at element 0's empty or absent member reported no model at
     // all - the same reason a flat chain steps over an empty value. Only the first match's outcome is carried
     // out as the diagnosis, since that is the one a reader would look at.
-    let matched = json.path.query(value);
+    let matched = path.query(value);
     let mut first = Reading::Absent;
     for (position, found) in matched.iter().enumerate() {
         let reading = from_json(found, field_type);
@@ -355,6 +385,33 @@ fn read_json<'a>(
         }
     }
     first
+}
+
+/// Whether a JSON member exists at all, whatever it holds.
+///
+/// Presence, not a value: the retired test was `req.get("system").is_some()`, which a `null` member satisfies.
+fn json_member_present<'a>(
+    witness: &'a JsonFieldSource,
+    attrs: &HashMap<String, String>,
+    parsed: &mut HashMap<&'a str, Option<JsonValue>>,
+) -> bool {
+    let key = witness.attribute.as_str();
+    if !attrs.contains_key(key) {
+        return false;
+    }
+    let value = parsed.entry(key).or_insert_with(|| {
+        attrs
+            .get(key)
+            .and_then(|raw| serde_json::from_str(raw).ok())
+    });
+    let Some(value) = value.as_ref() else {
+        return false;
+    };
+    // A witness names one path, or several of which any is enough.
+    match (&witness.path, witness.first_present_of.as_slice()) {
+        (Some(path), _) => !path.query(value).is_empty(),
+        (_, paths) => paths.iter().any(|path| !path.query(value).is_empty()),
+    }
 }
 
 /// A flat attribute's text, read as the field's type.
@@ -566,9 +623,23 @@ fn compile_rule(file_id: &str, rule: &SpanFieldRule) -> Result<CompiledRule, Fie
                 rule: rule.id.clone(),
             });
         }
+        if let Some(json) = &spec.json {
+            let ways =
+                usize::from(json.path.is_some()) + usize::from(!json.first_present_of.is_empty());
+            if ways != 1 {
+                return Err(FieldCompileError::JsonNamesNoMember {
+                    file: file_id.to_string(),
+                    rule: rule.id.clone(),
+                });
+            }
+        }
         // A literal with no gate is not a source: it answers on every span, so every source after it is dead
         // and the field is a constant.
-        if spec.value.is_some() && spec.when.is_none() && spec.unless.is_none() {
+        if spec.value.is_some()
+            && spec.when.is_none()
+            && spec.unless.is_none()
+            && spec.when_json.is_none()
+        {
             return Err(FieldCompileError::UngatedLiteral {
                 file: file_id.to_string(),
                 rule: rule.id.clone(),
@@ -584,6 +655,10 @@ fn compile_rule(file_id: &str, rule: &SpanFieldRule) -> Result<CompiledRule, Fie
                 .as_deref()
                 .is_some_and(str::is_empty)
             || spec.value.as_deref().is_some_and(str::is_empty)
+            || spec
+                .when_json
+                .as_ref()
+                .is_some_and(|witness| witness.attribute.is_empty())
         {
             return Err(FieldCompileError::EmptyAttribute {
                 file: file_id.to_string(),

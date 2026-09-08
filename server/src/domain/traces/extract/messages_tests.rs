@@ -10,7 +10,7 @@ use serde_json::json;
 use super::*;
 
 // Cross-module imports for integration tests
-use crate::domain::traces::extract::attributes::{SpanData, extract_genai, extract_semantic};
+use crate::domain::traces::extract::attributes::{SpanData, apply_span_fields};
 
 fn make_attrs(pairs: &[(&str, &str)]) -> HashMap<String, String> {
     pairs
@@ -2187,7 +2187,7 @@ fn test_mlflow_session_id_extraction() {
         ("mlflow.spanInputs", "{}"),
     ]);
     let mut span = SpanData::default();
-    extract_semantic(&mut span, "", &attrs);
+    apply_span_fields(&mut span, "", &attrs);
 
     assert_eq!(span.session_id, Some("mlflow-session-123".to_string()));
 }
@@ -2263,7 +2263,7 @@ fn test_mlflow_user_id_extraction() {
         ("mlflow.spanInputs", "{}"),
     ]);
     let mut span = SpanData::default();
-    extract_semantic(&mut span, "", &attrs);
+    apply_span_fields(&mut span, "", &attrs);
 
     assert_eq!(span.user_id, Some("mlflow-user-456".to_string()));
 }
@@ -2347,7 +2347,11 @@ fn test_openinference_invocation_parameters() {
     ]);
 
     let mut span = SpanData::default();
-    extract_genai(&mut span, &attrs, "test_span");
+    crate::domain::traces::extract::attributes::tests::extract_genai_as_production_does(
+        &mut span,
+        &attrs,
+        "test_span",
+    );
 
     assert_eq!(span.gen_ai_temperature, Some(0.7));
     assert_eq!(span.gen_ai_max_tokens, Some(1000));
@@ -2363,7 +2367,11 @@ fn test_openinference_invocation_parameters_does_not_override() {
     ]);
 
     let mut span = SpanData::default();
-    extract_genai(&mut span, &attrs, "test_span");
+    crate::domain::traces::extract::attributes::tests::extract_genai_as_production_does(
+        &mut span,
+        &attrs,
+        "test_span",
+    );
 
     // Explicit attribute should take precedence
     assert_eq!(span.gen_ai_temperature, Some(0.5));
@@ -2903,7 +2911,11 @@ fn test_pydantic_ai_logfire_msg_for_span_name() {
     ]);
 
     let mut span = SpanData::default();
-    extract_genai(&mut span, &attrs, "tool_call");
+    crate::domain::traces::extract::attributes::tests::extract_genai_as_production_does(
+        &mut span,
+        &attrs,
+        "tool_call",
+    );
 
     // logfire.msg could be used for tool name extraction
     // This is optional but would improve observability
@@ -3277,7 +3289,7 @@ fn test_session_id_from_ai_telemetry_metadata() {
     let attrs = make_attrs(&[("ai.telemetry.metadata.sessionId", "session-12345")]);
 
     let mut span = SpanData::default();
-    extract_semantic(&mut span, "", &attrs);
+    apply_span_fields(&mut span, "", &attrs);
 
     assert_eq!(
         span.session_id,
@@ -3797,7 +3809,7 @@ fn test_user_id_from_ai_telemetry_metadata() {
     let attrs = make_attrs(&[("ai.telemetry.metadata.userId", "user-67890")]);
 
     let mut span = SpanData::default();
-    extract_semantic(&mut span, "", &attrs);
+    apply_span_fields(&mut span, "", &attrs);
 
     assert_eq!(
         span.user_id,
@@ -10285,7 +10297,7 @@ fn the_field_rules_reproduce_the_chains_they_replaced() {
 
     for (what, attrs) in cases {
         let mut declared = SpanData::default();
-        crate::domain::traces::extract::attributes::extract_semantic(
+        crate::domain::traces::extract::attributes::apply_span_fields(
             &mut declared,
             "a.span",
             &attrs,
@@ -10496,6 +10508,65 @@ fn the_genai_field_rules_reproduce_the_chains_they_replaced() {
             ]),
         ),
         (
+            "a request naming a tool `system`, which is not a top-level `system` member",
+            "chat",
+            rule_attrs(&[(
+                "request_data",
+                r#"{"model":"gpt-4o","messages":[],"tools":[{"name":"system"}]}"#,
+            )]),
+        ),
+        (
+            "a carrier that is not JSON at all, beside one that is",
+            "call_llm",
+            rule_attrs(&[
+                ("gcp.vertex.agent.llm_request", "not json"),
+                ("request_data", r#"{"model":"gpt-4o","messages":[]}"#),
+            ]),
+        ),
+        (
+            "an agent list that is not a list, beside a serialised request that names the model",
+            "Crew.kickoff",
+            rule_attrs(&[
+                ("crew_agents", r#"{"not":"a list"}"#),
+                ("request_data", r#"{"model":"gpt-4o-mini","messages":[]}"#),
+            ]),
+        ),
+        (
+            "one alias written badly beside its sibling, and another carrier behind both",
+            "chat",
+            rule_attrs(&[
+                (
+                    "request_data",
+                    r#"{"max_tokens":"bad","max_completion_tokens":600,"messages":[]}"#,
+                ),
+                ("llm.invocation_parameters", r#"{"max_tokens":222}"#),
+            ]),
+        ),
+        (
+            "the same shape in the invocation object",
+            "RunnableSequence",
+            rule_attrs(&[(
+                "llm.invocation_parameters",
+                r#"{"max_tokens":"bad","max_output_tokens":700}"#,
+            )]),
+        ),
+        (
+            "a parameter in the serialised request only, which the retired chain never read",
+            "chat",
+            rule_attrs(&[(
+                "request_data",
+                r#"{"temperature":0.1,"top_p":0.2,"top_k":3,"messages":[]}"#,
+            )]),
+        ),
+        (
+            "the serialised request and the invocation object disagreeing about a parameter",
+            "chat",
+            rule_attrs(&[
+                ("request_data", r#"{"temperature":0.1,"messages":[]}"#),
+                ("llm.invocation_parameters", r#"{"temperature":0.9}"#),
+            ]),
+        ),
+        (
             "malformed objects, which yield nothing rather than failing",
             "chat",
             rule_attrs(&[
@@ -10508,7 +10579,7 @@ fn the_genai_field_rules_reproduce_the_chains_they_replaced() {
 
     for (what, span_name, attrs) in cases {
         let mut declared = SpanData::default();
-        crate::domain::traces::extract::attributes::extract_semantic(
+        crate::domain::traces::extract::attributes::apply_span_fields(
             &mut declared,
             span_name,
             &attrs,

@@ -463,8 +463,8 @@ pub(super) fn extract_attributes_batch(request: &ExportTraceServiceRequest) -> V
                     .or_else(|| resource_attrs.get(keys::DEPLOYMENT_ENV_NAME))
                     .cloned();
 
-                // Extract semantic conventions
-                attributes::extract_semantic(&mut span, &otlp_span.name, &span_attrs);
+                // Every declared span field, resolved once.
+                attributes::apply_span_fields(&mut span, &otlp_span.name, &span_attrs);
 
                 // Extract GenAI attributes
                 attributes::extract_genai(&mut span, &span_attrs, &otlp_span.name);

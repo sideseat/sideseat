@@ -1116,11 +1116,16 @@ fn extract_autogen_tokens(attrs: &HashMap<String, String>) -> (i64, i64) {
 /// Every chain this replaced was an ordered `&[&str]` of provider spellings - framework knowledge in the
 /// code, where adding a producer meant editing a list. The order is declared in
 /// `rules/span-fields-semantic.json`; the retired chains stay below as the equivalence oracle.
-pub(crate) fn extract_semantic(
+pub(crate) fn apply_span_fields(
     span: &mut SpanData,
     span_name: &str,
     attrs: &HashMap<String, String>,
 ) {
+    // Its own step, not a subroutine of either legacy function. Resolution is over *every* declared rule, so
+    // calling it from two entry points wrote the same answers twice and made "which entry point owns a target"
+    // a question with no answer - while calling it from one left the other silently not doing what its name
+    // says. The plan is asked once per span, here.
+    //
     // The **real** span name, because a source may read it and a gate may ask about it. Passed as `""` this
     // was the same defect the message path had: such a declaration compiles and can never hold.
     for resolved in crate::domain::rules::ruleset()
@@ -1284,14 +1289,11 @@ pub(super) fn extract_semantic_legacy(span: &mut SpanData, attrs: &HashMap<Strin
 /// The field half is declared in `rules/span-fields-genai.json`; the retired chains are kept below as the
 /// equivalence oracle. Token arithmetic stays here, because a synthesised total and every pricing decision are
 /// statements about our own accounting rather than about a producer's spelling.
+/// The token accounting of a span: what the declared field resolvers deliberately do not do.
+///
+/// Arithmetic, a synthesised total and every pricing-dependent decision are statements about our own
+/// accounting rather than about a producer's spelling, which is why they are code and not data.
 pub(crate) fn extract_genai(span: &mut SpanData, attrs: &HashMap<String, String>, span_name: &str) {
-    for resolved in crate::domain::rules::ruleset()
-        .span_fields
-        .resolve(span_name, attrs)
-    {
-        apply_field(span, &resolved);
-    }
-
     // Token usage
     // Presence, not value, is what the framework fallbacks below must test - a genuine `0` is a reported
     // count and must not be replaced.
@@ -1604,7 +1606,7 @@ pub(crate) fn extract_genai(span: &mut SpanData, attrs: &HashMap<String, String>
 
 #[cfg(test)]
 #[path = "attributes_tests.rs"]
-mod tests;
+pub(crate) mod tests;
 
 /// The GenAI field chains the declared resolvers replaced, kept as the equivalence oracle.
 #[cfg(test)]

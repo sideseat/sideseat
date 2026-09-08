@@ -17,6 +17,17 @@ fn make_attrs(pairs: &[(&str, &str)]) -> HashMap<String, String> {
 // HELPER FUNCTION TESTS
 // ============================================================================
 
+/// The two steps production runs per span, in production's order: every declared field, then the token
+/// accounting. A test calling only one of them was asserting against half the pipeline.
+pub(crate) fn extract_genai_as_production_does(
+    span: &mut SpanData,
+    attrs: &HashMap<String, String>,
+    span_name: &str,
+) {
+    apply_span_fields(span, span_name, attrs);
+    extract_genai(span, attrs, span_name);
+}
+
 #[test]
 fn test_contains_ascii_ignore_case() {
     // Basic cases
@@ -65,7 +76,7 @@ fn test_aws_bedrock_agent_id_extraction() {
     let attrs = make_attrs(&[("aws.bedrock.agent.id", "agent-abc123")]);
 
     let mut span = SpanData::default();
-    extract_genai(&mut span, &attrs, "test");
+    extract_genai_as_production_does(&mut span, &attrs, "test");
 
     assert_eq!(span.gen_ai_agent_id, Some("agent-abc123".to_string()));
 }
@@ -309,7 +320,7 @@ fn test_regression_embedding_model_with_text_completion_op() {
 fn test_extract_agent_tool_from_span_name() {
     let attrs = HashMap::new();
     let mut span = SpanData::default();
-    extract_genai(&mut span, &attrs, "execute_tool get_weather");
+    extract_genai_as_production_does(&mut span, &attrs, "execute_tool get_weather");
     assert_eq!(span.gen_ai_tool_name, Some("get_weather".to_string()));
 }
 
@@ -322,7 +333,7 @@ fn test_extract_genai_agent_fields() {
         ("gen_ai.tool.call.id", "tooluse_ehAKs6dKRFS5DAfnsNn_xQ"),
     ]);
     let mut span = SpanData::default();
-    extract_genai(&mut span, &attrs, "execute_tool");
+    extract_genai_as_production_does(&mut span, &attrs, "execute_tool");
 
     assert_eq!(
         span.gen_ai_agent_name,
@@ -346,7 +357,7 @@ fn test_extract_genai_models() {
         ("gen_ai.response.model", "gpt-4-0613"),
     ]);
     let mut span = SpanData::default();
-    extract_genai(&mut span, &attrs, "test");
+    extract_genai_as_production_does(&mut span, &attrs, "test");
     assert_eq!(span.gen_ai_request_model, Some("gpt-4".to_string()));
     assert_eq!(span.gen_ai_response_model, Some("gpt-4-0613".to_string()));
 }
@@ -358,7 +369,7 @@ fn test_extract_genai_performance_metrics() {
         ("gen_ai.server.request_duration", "1143"),
     ]);
     let mut span = SpanData::default();
-    extract_genai(&mut span, &attrs, "chat");
+    extract_genai_as_production_does(&mut span, &attrs, "chat");
 
     assert_eq!(span.gen_ai_server_ttft_ms, Some(993));
     assert_eq!(span.gen_ai_server_request_duration_ms, Some(1143));
@@ -368,12 +379,12 @@ fn test_extract_genai_performance_metrics() {
 fn test_extract_genai_system() {
     let attrs = make_attrs(&[("gen_ai.system", "openai")]);
     let mut span = SpanData::default();
-    extract_genai(&mut span, &attrs, "test");
+    extract_genai_as_production_does(&mut span, &attrs, "test");
     assert_eq!(span.gen_ai_system, Some("openai".to_string()));
 
     let attrs = make_attrs(&[("llm.provider", "anthropic")]);
     let mut span = SpanData::default();
-    extract_genai(&mut span, &attrs, "test");
+    extract_genai_as_production_does(&mut span, &attrs, "test");
     assert_eq!(span.gen_ai_system, Some("anthropic".to_string()));
 }
 
@@ -384,7 +395,7 @@ fn test_extract_genai_usage() {
         ("gen_ai.usage.output_tokens", "50"),
     ]);
     let mut span = SpanData::default();
-    extract_genai(&mut span, &attrs, "test");
+    extract_genai_as_production_does(&mut span, &attrs, "test");
     assert_eq!(span.gen_ai_usage_input_tokens, 100);
     assert_eq!(span.gen_ai_usage_output_tokens, 50);
     assert_eq!(span.gen_ai_usage_total_tokens, 150);
@@ -397,7 +408,7 @@ fn test_extract_session_from_metadata() {
         r#"{"thread_id": "langgraph-demo-dea531b92e3b4dd0", "user_id": "demo-user"}"#,
     )]);
     let mut span = SpanData::default();
-    extract_semantic(&mut span, "", &attrs);
+    apply_span_fields(&mut span, "", &attrs);
 
     assert_eq!(
         span.session_id,
@@ -414,7 +425,7 @@ fn test_extract_tags_all_sources() {
         ("tag.tags", r#"["openinference"]"#),
     ]);
     let mut span = SpanData::default();
-    extract_semantic(&mut span, "", &attrs);
+    apply_span_fields(&mut span, "", &attrs);
 
     assert!(span.tags.contains(&"base".to_string()));
     assert!(span.tags.contains(&"langsmith".to_string()));
@@ -429,7 +440,7 @@ fn test_extract_tags_merge() {
         ("langsmith.tags", r#"["test", "weather"]"#),
     ]);
     let mut span = SpanData::default();
-    extract_semantic(&mut span, "", &attrs);
+    apply_span_fields(&mut span, "", &attrs);
 
     assert!(span.tags.contains(&"production".to_string()));
     assert!(span.tags.contains(&"weather".to_string()));
@@ -444,7 +455,7 @@ fn test_extract_tags_openinference_tag_tags() {
         ("tag.tags", r#"["openinference", "phoenix"]"#),
     ]);
     let mut span = SpanData::default();
-    extract_semantic(&mut span, "", &attrs);
+    apply_span_fields(&mut span, "", &attrs);
 
     assert!(span.tags.contains(&"existing".to_string()));
     assert!(span.tags.contains(&"openinference".to_string()));
@@ -460,7 +471,7 @@ fn test_extract_usage_openinference() {
         ("llm.token_count.total", "691"),
     ]);
     let mut span = SpanData::default();
-    extract_genai(&mut span, &attrs, "test");
+    extract_genai_as_production_does(&mut span, &attrs, "test");
     assert_eq!(span.gen_ai_usage_input_tokens, 618);
     assert_eq!(span.gen_ai_usage_output_tokens, 73);
     assert_eq!(span.gen_ai_usage_total_tokens, 691);
@@ -536,7 +547,7 @@ fn test_langsmith_session_id_extraction() {
         ("langsmith.span.kind", "chain"),
     ]);
     let mut span = SpanData::default();
-    extract_semantic(&mut span, "", &attrs);
+    apply_span_fields(&mut span, "", &attrs);
 
     assert_eq!(span.session_id, Some("session-abc-123".to_string()));
 }
@@ -636,7 +647,7 @@ fn test_pydantic_ai_agent_name_extraction() {
     let attrs = make_attrs(&[("gen_ai.agent.name", "weather_agent")]);
 
     let mut span = SpanData::default();
-    extract_genai(&mut span, &attrs, "invoke_agent weather_agent");
+    extract_genai_as_production_does(&mut span, &attrs, "invoke_agent weather_agent");
 
     assert_eq!(
         span.gen_ai_agent_name,
@@ -654,7 +665,7 @@ fn test_pydantic_ai_logfire_msg_not_override_explicit_tool_name() {
     ]);
 
     let mut span = SpanData::default();
-    extract_genai(&mut span, &attrs, "running tool");
+    extract_genai_as_production_does(&mut span, &attrs, "running tool");
 
     assert_eq!(
         span.gen_ai_tool_name,
@@ -669,7 +680,7 @@ fn test_pydantic_ai_tool_name_from_logfire_msg() {
     let attrs = make_attrs(&[("logfire.msg", "get_weather")]);
 
     let mut span = SpanData::default();
-    extract_genai(&mut span, &attrs, "running tool");
+    extract_genai_as_production_does(&mut span, &attrs, "running tool");
 
     assert_eq!(
         span.gen_ai_tool_name,
@@ -687,7 +698,7 @@ fn test_session_id_priority_session_id_over_telemetry() {
     ]);
 
     let mut span = SpanData::default();
-    extract_semantic(&mut span, "", &attrs);
+    apply_span_fields(&mut span, "", &attrs);
 
     assert_eq!(
         span.session_id,
@@ -707,7 +718,7 @@ fn test_strands_agents_agent_span_attributes() {
     ]);
 
     let mut span = SpanData::default();
-    extract_genai(&mut span, &attrs, "invoke_agent weather_agent");
+    extract_genai_as_production_does(&mut span, &attrs, "invoke_agent weather_agent");
 
     assert_eq!(span.gen_ai_operation_name, Some("invoke_agent".to_string()));
     assert_eq!(span.gen_ai_agent_name, Some("weather_agent".to_string()));
@@ -720,7 +731,7 @@ fn test_strands_agents_cache_read_tokens() {
     let attrs = make_attrs(&[("gen_ai.usage.cache_read_input_tokens", "75")]);
 
     let mut span = SpanData::default();
-    extract_genai(&mut span, &attrs, "chat");
+    extract_genai_as_production_does(&mut span, &attrs, "chat");
 
     assert_eq!(span.gen_ai_usage_cache_read_tokens, 75);
 }
@@ -735,7 +746,7 @@ fn test_strands_agents_cache_write_tokens() {
     ]);
 
     let mut span = SpanData::default();
-    extract_genai(&mut span, &attrs, "chat");
+    extract_genai_as_production_does(&mut span, &attrs, "chat");
 
     assert_eq!(span.gen_ai_usage_input_tokens, 100);
     assert_eq!(span.gen_ai_usage_output_tokens, 50);
@@ -760,7 +771,7 @@ fn test_claude_agent_sdk_token_extraction() {
         ("span.type", "llm_request"),
     ]);
     let mut span = SpanData::default();
-    extract_genai(&mut span, &attrs, "claude_code.llm_request");
+    extract_genai_as_production_does(&mut span, &attrs, "claude_code.llm_request");
 
     assert_eq!(span.gen_ai_usage_input_tokens, 10);
     assert_eq!(span.gen_ai_usage_output_tokens, 205);
@@ -779,7 +790,7 @@ fn test_standard_usage_keys_win_over_bare_fallbacks() {
         ("output_tokens", "2"),
     ]);
     let mut span = SpanData::default();
-    extract_genai(&mut span, &attrs, "chat");
+    extract_genai_as_production_does(&mut span, &attrs, "chat");
 
     assert_eq!(span.gen_ai_usage_input_tokens, 100);
     assert_eq!(span.gen_ai_usage_output_tokens, 200);
@@ -924,7 +935,7 @@ fn test_strands_agents_performance_metrics() {
     ]);
 
     let mut span = SpanData::default();
-    extract_genai(&mut span, &attrs, "chat");
+    extract_genai_as_production_does(&mut span, &attrs, "chat");
 
     assert_eq!(span.gen_ai_server_ttft_ms, Some(150));
     // Note: request_duration uses a different key
@@ -939,7 +950,7 @@ fn test_strands_agents_tool_status_extraction() {
     ]);
 
     let mut span = SpanData::default();
-    extract_genai(&mut span, &attrs, "execute_tool get_weather");
+    extract_genai_as_production_does(&mut span, &attrs, "execute_tool get_weather");
 
     assert_eq!(span.gen_ai_tool_name, Some("get_weather".to_string()));
     // Tool status is available in attributes
@@ -1048,7 +1059,7 @@ fn test_google_adk_model_from_llm_request() {
         r#"{"model":"gemini-2.0-flash","contents":[{"role":"user","parts":[{"text":"hi"}]}]}"#,
     )]);
     let mut span = SpanData::default();
-    extract_genai(&mut span, &attrs, "call_llm");
+    extract_genai_as_production_does(&mut span, &attrs, "call_llm");
     assert_eq!(
         span.gen_ai_request_model,
         Some("gemini-2.0-flash".to_string())
@@ -1062,7 +1073,7 @@ fn test_google_adk_tokens_from_llm_response() {
         r#"{"candidates":[{"content":{"role":"model","parts":[{"text":"hello"}]}}],"usage_metadata":{"prompt_token_count":3788,"candidates_token_count":92,"total_token_count":3880}}"#,
     )]);
     let mut span = SpanData::default();
-    extract_genai(&mut span, &attrs, "call_llm");
+    extract_genai_as_production_does(&mut span, &attrs, "call_llm");
     assert_eq!(span.gen_ai_usage_input_tokens, 3788);
     assert_eq!(span.gen_ai_usage_output_tokens, 92);
     assert_eq!(span.gen_ai_usage_total_tokens, 3880);
@@ -1084,7 +1095,7 @@ fn test_google_adk_standard_attrs_not_overwritten() {
         ),
     ]);
     let mut span = SpanData::default();
-    extract_genai(&mut span, &attrs, "call_llm");
+    extract_genai_as_production_does(&mut span, &attrs, "call_llm");
     assert_eq!(
         span.gen_ai_request_model,
         Some("claude-3-haiku".to_string()),
@@ -1107,7 +1118,7 @@ fn test_crewai_tokens_from_output_value() {
         ),
     ]);
     let mut span = SpanData::default();
-    extract_genai(&mut span, &attrs, "Crew.kickoff");
+    extract_genai_as_production_does(&mut span, &attrs, "Crew.kickoff");
     assert_eq!(span.gen_ai_usage_input_tokens, 567);
     assert_eq!(span.gen_ai_usage_output_tokens, 678);
     assert_eq!(span.gen_ai_usage_total_tokens, 1245);
@@ -1125,7 +1136,7 @@ fn test_crewai_tokens_total_honors_reported_total() {
         ),
     ]);
     let mut span = SpanData::default();
-    extract_genai(&mut span, &attrs, "Crew.kickoff");
+    extract_genai_as_production_does(&mut span, &attrs, "Crew.kickoff");
     assert_eq!(span.gen_ai_usage_input_tokens, 500);
     assert_eq!(span.gen_ai_usage_output_tokens, 600);
     assert_eq!(
@@ -1146,7 +1157,7 @@ fn test_crewai_tokens_standard_attrs_not_overwritten() {
         ),
     ]);
     let mut span = SpanData::default();
-    extract_genai(&mut span, &attrs, "Crew.kickoff");
+    extract_genai_as_production_does(&mut span, &attrs, "Crew.kickoff");
     assert_eq!(
         span.gen_ai_usage_input_tokens, 200,
         "Standard tokens should not be overwritten by CrewAI fallback"
@@ -1161,7 +1172,7 @@ fn test_crewai_tokens_not_extracted_without_crewai_attrs() {
         r#"{"raw":"result","token_usage":{"prompt_tokens":567,"completion_tokens":678}}"#,
     )]);
     let mut span = SpanData::default();
-    extract_genai(&mut span, &attrs, "some.span");
+    extract_genai_as_production_does(&mut span, &attrs, "some.span");
     assert_eq!(
         span.gen_ai_usage_input_tokens, 0,
         "Should not extract CrewAI tokens without CrewAI attributes"
@@ -1179,7 +1190,7 @@ fn test_crewai_tokens_no_token_usage_field() {
         ),
     ]);
     let mut span = SpanData::default();
-    extract_genai(&mut span, &attrs, "Task._execute_core");
+    extract_genai_as_production_does(&mut span, &attrs, "Task._execute_core");
     assert_eq!(span.gen_ai_usage_input_tokens, 0);
     assert_eq!(span.gen_ai_usage_output_tokens, 0);
 }
@@ -1191,7 +1202,7 @@ fn test_crewai_model_from_crew_agents() {
         r#"[{"key":"abc","id":"1","role":"Forecaster","llm":"global.anthropic.claude-haiku-4-5-20251001-v1:0","tools_names":["temp"]}]"#,
     )]);
     let mut span = SpanData::default();
-    extract_genai(&mut span, &attrs, "Crew.kickoff");
+    extract_genai_as_production_does(&mut span, &attrs, "Crew.kickoff");
     assert_eq!(
         span.gen_ai_request_model.as_deref(),
         Some("global.anthropic.claude-haiku-4-5-20251001-v1:0")
@@ -1205,7 +1216,7 @@ fn test_crewai_model_standard_attrs_priority() {
         ("crew_agents", r#"[{"llm":"bedrock/some-other-model"}]"#),
     ]);
     let mut span = SpanData::default();
-    extract_genai(&mut span, &attrs, "Crew.kickoff");
+    extract_genai_as_production_does(&mut span, &attrs, "Crew.kickoff");
     assert_eq!(
         span.gen_ai_request_model.as_deref(),
         Some("claude-3-5-sonnet")
@@ -1216,7 +1227,7 @@ fn test_crewai_model_standard_attrs_priority() {
 fn test_crewai_model_missing_llm_field() {
     let attrs = make_attrs(&[("crew_agents", r#"[{"key":"abc","role":"Forecaster"}]"#)]);
     let mut span = SpanData::default();
-    extract_genai(&mut span, &attrs, "Crew.kickoff");
+    extract_genai_as_production_does(&mut span, &attrs, "Crew.kickoff");
     assert_eq!(span.gen_ai_request_model, None);
 }
 
@@ -1315,7 +1326,7 @@ fn test_bare_token_names_are_scoped_to_claude_code_spans() {
     ]);
 
     let mut other = SpanData::default();
-    extract_genai(&mut other, &attrs, "some.other.framework.span");
+    extract_genai_as_production_does(&mut other, &attrs, "some.other.framework.span");
     assert_eq!(
         other.gen_ai_usage_input_tokens, 0,
         "must not leak to others"
@@ -1325,7 +1336,7 @@ fn test_bare_token_names_are_scoped_to_claude_code_spans() {
     assert_eq!(other.gen_ai_usage_cache_write_tokens, 0);
 
     let mut cc = SpanData::default();
-    extract_genai(&mut cc, &attrs, "claude_code.llm_request");
+    extract_genai_as_production_does(&mut cc, &attrs, "claude_code.llm_request");
     assert_eq!(cc.gen_ai_usage_input_tokens, 10);
     assert_eq!(cc.gen_ai_usage_output_tokens, 205);
     assert_eq!(cc.gen_ai_usage_cache_read_tokens, 7);
@@ -1336,10 +1347,10 @@ fn test_bare_token_names_are_scoped_to_claude_code_spans() {
 fn test_semconv_conversation_id_populates_session() {
     // gen_ai.conversation.id is the standard semconv session identifier. Without it in the
     // fallback chain, spans from any compliant emitter never group into a session.
-    // session_id is populated by extract_semantic, not extract_genai.
+    // session_id is populated by apply_span_fields, not extract_genai.
     let attrs = make_attrs(&[("gen_ai.conversation.id", "conv-42")]);
     let mut span = SpanData::default();
-    extract_semantic(&mut span, "", &attrs);
+    apply_span_fields(&mut span, "", &attrs);
     assert_eq!(span.session_id.as_deref(), Some("conv-42"));
 }
 
@@ -1347,7 +1358,7 @@ fn test_semconv_conversation_id_populates_session() {
 fn test_openinference_agent_name_is_extracted() {
     let attrs = make_attrs(&[("agent.name", "ResearchAgent")]);
     let mut span = SpanData::default();
-    extract_genai(&mut span, &attrs, "agent");
+    extract_genai_as_production_does(&mut span, &attrs, "agent");
     assert_eq!(span.gen_ai_agent_name.as_deref(), Some("ResearchAgent"));
 }
 
@@ -1357,9 +1368,9 @@ fn test_openinference_agent_name_does_not_change_category() {
     // the extraction chain must not reclassify existing OpenInference spans.
     let attrs = make_attrs(&[("agent.name", "ResearchAgent")]);
     let mut with_alias = SpanData::default();
-    extract_genai(&mut with_alias, &attrs, "some.span");
+    extract_genai_as_production_does(&mut with_alias, &attrs, "some.span");
     let mut without = SpanData::default();
-    extract_genai(&mut without, &make_attrs(&[]), "some.span");
+    extract_genai_as_production_does(&mut without, &make_attrs(&[]), "some.span");
     assert_eq!(with_alias.observation_type, without.observation_type);
     assert_eq!(with_alias.span_category, without.span_category);
 }
@@ -1372,7 +1383,7 @@ fn test_dotted_cache_and_reasoning_token_spellings() {
         ("gen_ai.usage.reasoning.output_tokens", "33"),
     ]);
     let mut span = SpanData::default();
-    extract_genai(&mut span, &attrs, "chat");
+    extract_genai_as_production_does(&mut span, &attrs, "chat");
     assert_eq!(span.gen_ai_usage_cache_read_tokens, 11);
     assert_eq!(span.gen_ai_usage_cache_write_tokens, 22);
     assert_eq!(span.gen_ai_usage_reasoning_tokens, 33);
@@ -1496,7 +1507,7 @@ fn a_partial_usage_counter_still_reaches_the_adk_fallback() {
             r#"{"usage_metadata":{"prompt_token_count":100,"candidates_token_count":20}}"#,
         ),
     ]);
-    extract_genai(&mut span, &attrs, "chat");
+    extract_genai_as_production_does(&mut span, &attrs, "chat");
     assert_eq!(span.gen_ai_usage_input_tokens, 100);
     assert_eq!(
         span.gen_ai_usage_output_tokens, 20,
@@ -1516,7 +1527,7 @@ fn a_partial_usage_counter_still_reaches_the_logfire_fallback() {
             r#"{"usage":{"input_tokens":100,"output_tokens":42}}"#,
         ),
     ]);
-    extract_genai(&mut span, &attrs, "chat");
+    extract_genai_as_production_does(&mut span, &attrs, "chat");
     assert_eq!(span.gen_ai_usage_input_tokens, 100);
     assert_eq!(
         span.gen_ai_usage_output_tokens, 42,
@@ -1535,7 +1546,7 @@ fn a_json_max_tokens_survives_an_absent_flat_attribute() {
         keys::REQUEST_DATA,
         r#"{"max_completion_tokens":1024,"messages":[]}"#,
     )]);
-    extract_genai(&mut span, &attrs, "chat");
+    extract_genai_as_production_does(&mut span, &attrs, "chat");
     assert_eq!(
         span.gen_ai_max_tokens,
         Some(1024),
@@ -1548,7 +1559,7 @@ fn a_json_max_tokens_survives_an_absent_flat_attribute() {
         (keys::GEN_AI_MAX_TOKENS, "512"),
         (keys::REQUEST_DATA, r#"{"max_completion_tokens":1024}"#),
     ]);
-    extract_genai(&mut span, &attrs, "chat");
+    extract_genai_as_production_does(&mut span, &attrs, "chat");
     assert_eq!(span.gen_ai_max_tokens, Some(512));
 }
 
@@ -1568,7 +1579,7 @@ fn a_reported_zero_is_not_overwritten_by_a_fallback() {
             r#"{"usage":{"input_tokens":100,"output_tokens":42}}"#,
         ),
     ]);
-    extract_genai(&mut span, &attrs, "chat");
+    extract_genai_as_production_does(&mut span, &attrs, "chat");
     assert_eq!(
         span.gen_ai_usage_output_tokens, 0,
         "a reported zero must survive; the fallback is for an *absent* counter"
@@ -1588,7 +1599,7 @@ fn a_json_max_tokens_is_reachable_when_model_and_system_are_known() {
         ("gen_ai.system", "openai"),
         (keys::REQUEST_DATA, r#"{"max_completion_tokens":1024}"#),
     ]);
-    extract_genai(&mut span, &attrs, "chat");
+    extract_genai_as_production_does(&mut span, &attrs, "chat");
     assert_eq!(
         span.gen_ai_max_tokens,
         Some(1024),
@@ -1612,7 +1623,7 @@ fn a_reported_zero_survives_the_mlflow_fallback() {
             r#"{"prompt_tokens":100,"completion_tokens":42}"#,
         ),
     ]);
-    extract_genai(&mut span, &attrs, "chat");
+    extract_genai_as_production_does(&mut span, &attrs, "chat");
     assert_eq!(
         span.gen_ai_usage_output_tokens, 0,
         "a reported zero must survive the MLflow fallback"
@@ -1634,7 +1645,7 @@ fn a_later_json_fallback_does_not_overwrite_an_earlier_one() {
             r#"{"usage":{"input_tokens":99,"output_tokens":88}}"#,
         ),
     ]);
-    extract_genai(&mut span, &attrs, "chat");
+    extract_genai_as_production_does(&mut span, &attrs, "chat");
     assert_eq!(span.gen_ai_usage_input_tokens, 11);
     assert_eq!(
         span.gen_ai_usage_output_tokens, 22,
@@ -1659,7 +1670,7 @@ fn a_separately_reported_cache_counter_is_in_the_synthesised_total() {
     );
 
     let mut span = SpanData::default();
-    extract_genai(&mut span, &attrs, "chat anthropic");
+    extract_genai_as_production_does(&mut span, &attrs, "chat anthropic");
 
     assert_eq!(span.gen_ai_usage_cache_write_tokens, 17_649);
     assert_eq!(
@@ -1681,7 +1692,7 @@ fn an_included_cache_counter_is_not_added_to_the_total() {
     );
 
     let mut span = SpanData::default();
-    extract_genai(&mut span, &attrs, "chat openai");
+    extract_genai_as_production_does(&mut span, &attrs, "chat openai");
 
     assert_eq!(span.gen_ai_usage_cache_read_tokens, 800);
     assert_eq!(
@@ -1708,7 +1719,7 @@ fn gemini_counts_its_thoughts_beside_the_output_and_its_cache_inside_the_input()
     );
 
     let mut span = SpanData::default();
-    extract_genai(&mut span, &attrs, "chat gemini");
+    extract_genai_as_production_does(&mut span, &attrs, "chat gemini");
 
     assert_eq!(
         span.gen_ai_usage_total_tokens,
@@ -1728,7 +1739,7 @@ fn a_reported_total_larger_than_the_counters_is_honoured() {
     attrs.insert("gen_ai.usage.total_tokens".to_string(), "9999".to_string());
 
     let mut span = SpanData::default();
-    extract_genai(&mut span, &attrs, "chat anthropic");
+    extract_genai_as_production_does(&mut span, &attrs, "chat anthropic");
 
     assert_eq!(span.gen_ai_usage_total_tokens, 9_999);
 }
@@ -1752,7 +1763,7 @@ fn a_fallback_fills_the_missing_side_when_the_other_was_reported() {
     );
 
     let mut span = SpanData::default();
-    extract_genai(&mut span, &attrs, "crew");
+    extract_genai_as_production_does(&mut span, &attrs, "crew");
 
     assert_eq!(span.gen_ai_usage_input_tokens, 200);
     assert_eq!(
@@ -1778,7 +1789,7 @@ fn a_reported_zero_survives_a_fallback() {
     );
 
     let mut span = SpanData::default();
-    extract_genai(&mut span, &attrs, "crew");
+    extract_genai_as_production_does(&mut span, &attrs, "crew");
 
     assert_eq!(
         (
@@ -1813,7 +1824,7 @@ fn a_reported_zero_cache_counter_survives_a_fallback() {
     );
 
     let mut span = SpanData::default();
-    extract_genai(&mut span, &attrs, "crew");
+    extract_genai_as_production_does(&mut span, &attrs, "crew");
 
     assert_eq!(span.gen_ai_usage_input_tokens, 10);
     assert_eq!(
@@ -1845,7 +1856,7 @@ fn an_imported_total_is_only_used_when_it_describes_the_imported_parts() {
     );
 
     let mut span = SpanData::default();
-    extract_genai(&mut span, &attrs, "crew");
+    extract_genai_as_production_does(&mut span, &attrs, "crew");
 
     assert_eq!(
         (
@@ -1886,7 +1897,7 @@ fn an_embedded_cache_counter_is_read_even_when_both_sides_were_reported() {
     );
 
     let mut span = SpanData::default();
-    extract_genai(&mut span, &attrs, "crew");
+    extract_genai_as_production_does(&mut span, &attrs, "crew");
 
     assert_eq!(span.gen_ai_usage_cache_read_tokens, 100);
     assert_eq!(
@@ -1914,7 +1925,7 @@ fn a_framework_fallback_does_not_overwrite_an_earlier_fallback_s_cache_count() {
     );
 
     let mut span = SpanData::default();
-    extract_genai(&mut span, &attrs, "crew");
+    extract_genai_as_production_does(&mut span, &attrs, "crew");
 
     assert_eq!(
         span.gen_ai_usage_cache_read_tokens, 17,
@@ -1946,7 +1957,7 @@ fn an_embedded_total_does_not_override_an_explicit_flat_total() {
     );
 
     let mut span = SpanData::default();
-    extract_genai(&mut span, &attrs, "crew");
+    extract_genai_as_production_does(&mut span, &attrs, "crew");
 
     assert_eq!(
         span.gen_ai_usage_total_tokens, 1_100,

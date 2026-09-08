@@ -237,6 +237,14 @@ pub struct FieldSource {
     /// name is stated *in* the span rather than beside it. Generic: the prefix is the asset's.
     #[serde(default)]
     pub span_name_strip_prefix: Option<String>,
+    /// A JSON member whose *presence* admits this source, whatever it holds.
+    ///
+    /// Distinct from `when`, which asks about the span. A substring search over a serialised payload is not a
+    /// test for a **top-level member**: a request naming a tool `system` contains `"system"` and has no
+    /// `system` member, and the retired code asked `req.get("system").is_some()`. Read through the same parse
+    /// cache as a `json` source, so witnessing a payload costs nothing extra.
+    #[serde(default)]
+    pub when_json: Option<JsonFieldSource>,
     /// A literal this engine states because a *shape* implies it.
     ///
     /// The one thing a key cannot carry: a dialect that names no provider still says which one it is by the
@@ -276,7 +284,17 @@ pub struct JsonFieldSource {
     /// The attribute whose text is parsed. Parsed once per span however many sources name it.
     pub attribute: String,
     /// Where in it the value sits.
-    pub path: JsonPath,
+    #[serde(default)]
+    pub path: Option<JsonPath>,
+    /// Several spellings of one member, where the **first present** one is the answer.
+    ///
+    /// Not the same as listing them as separate sources, and the difference is load-bearing: separate sources
+    /// select the first that *converts*, so a badly written `max_tokens` beside a good `max_completion_tokens`
+    /// would answer from the second - while the retired `or_else` selected by presence and then converted, so
+    /// the badly written one ended this carrier's contribution and the *next carrier* answered. Two aliases in
+    /// one object are one statement by one producer; two carriers are two.
+    #[serde(default)]
+    pub first_present_of: Vec<JsonPath>,
 }
 
 /// One detection rule: signals that identify a producer, and the label they yield.

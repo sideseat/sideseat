@@ -7,24 +7,34 @@
       "target": "gen_ai_system",
       "doc": "Which provider served the call. `gen_ai.system` is deprecated in favour of `gen_ai.provider.name`, so the newer spelling leads.",
       "sources": [
-        { "attribute": "gen_ai.provider.name" },
-        { "attribute": "gen_ai.system" },
-        { "attribute": "az.ai.inference.model_provider" },
-        { "attribute": "ai.model.provider" },
-        { "attribute": "llm.provider" },
+        {
+          "attribute": "gen_ai.provider.name"
+        },
+        {
+          "attribute": "gen_ai.system"
+        },
+        {
+          "attribute": "az.ai.inference.model_provider"
+        },
+        {
+          "attribute": "ai.model.provider"
+        },
+        {
+          "attribute": "llm.provider"
+        },
         {
           "doc": "A dialect that names no provider still says which one it is by the *shape* of its request: a top-level `system` member is Anthropic's spelling, and a `messages` list is OpenAI's. The literal and the shape that identifies it are both stated here.",
           "value": "anthropic",
-          "when": {
-            "span_attr_contains": [{ "key": "request_data", "value": "\"system\"" }]
+          "when_json": {
+            "attribute": "request_data",
+            "path": "$.system"
           }
         },
         {
           "value": "openai",
-          "when": {
-            "span_attr_contains": [
-              { "key": "request_data", "value": "\"messages\"" }
-            ]
+          "when_json": {
+            "attribute": "request_data",
+            "path": "$.messages"
           }
         }
       ]
@@ -34,14 +44,16 @@
       "target": "gen_ai_operation_name",
       "doc": "What the call was. Read directly, so an empty value the producer wrote stays one.",
       "sources": [
-        { "attribute": "gen_ai.operation.name", "accept_empty": true },
+        {
+          "attribute": "gen_ai.operation.name",
+          "accept_empty": true
+        },
         {
           "doc": "A request holding a message list is a chat completion, whatever else the span omits.",
           "value": "chat",
-          "when": {
-            "span_attr_contains": [
-              { "key": "request_data", "value": "\"messages\"" }
-            ]
+          "when_json": {
+            "attribute": "request_data",
+            "path": "$.messages"
           }
         }
       ]
@@ -51,21 +63,43 @@
       "target": "gen_ai_request_model",
       "doc": "The model asked for. An embedding or reranker model name is the same fact for spans that have no chat model, which is why they close the chain rather than opening one of their own.",
       "sources": [
-        { "attribute": "gen_ai.request.model" },
-        { "attribute": "ai.model.id" },
-        { "attribute": "llm.model_name" },
-        { "attribute": "embedding.model_name" },
-        { "attribute": "reranker.model_name" },
+        {
+          "attribute": "gen_ai.request.model"
+        },
+        {
+          "attribute": "ai.model.id"
+        },
+        {
+          "attribute": "llm.model_name"
+        },
+        {
+          "attribute": "embedding.model_name"
+        },
+        {
+          "attribute": "reranker.model_name"
+        },
         {
           "doc": "Inside the request a dialect serialises whole.",
-          "json": { "attribute": "gcp.vertex.agent.llm_request", "path": "$.model" }
+          "json": {
+            "attribute": "gcp.vertex.agent.llm_request",
+            "path": "$.model"
+          },
+          "on_malformed": "continue"
         },
         {
           "doc": "One dialect states the model on each agent it configured, so the answer is the first agent that named one - an agent with an empty `llm` is not the answer, and neither is one with no `llm` at all.",
-          "json": { "attribute": "crew_agents", "path": "$[*].llm" }
+          "json": {
+            "attribute": "crew_agents",
+            "path": "$[*].llm"
+          },
+          "on_malformed": "continue"
         },
         {
-          "json": { "attribute": "request_data", "path": "$.model" }
+          "json": {
+            "attribute": "request_data",
+            "path": "$.model"
+          },
+          "on_malformed": "continue"
         }
       ]
     },
@@ -74,22 +108,30 @@
       "target": "gen_ai_response_model",
       "doc": "The model that answered, which a provider may report as a different version from the one asked for.",
       "sources": [
-        { "attribute": "gen_ai.response.model" },
-        { "attribute": "llm.response.model" }
+        {
+          "attribute": "gen_ai.response.model"
+        },
+        {
+          "attribute": "llm.response.model"
+        }
       ]
     },
     {
       "id": "span-fields.gen_ai_response_id",
       "target": "gen_ai_response_id",
-      "sources": [{ "attribute": "gen_ai.response.id", "accept_empty": true }]
+      "sources": [
+        {
+          "attribute": "gen_ai.response.id",
+          "accept_empty": true
+        }
+      ]
     },
     {
       "id": "span-fields.gen_ai_temperature",
       "target": "gen_ai_temperature",
       "sources": [
-        { "attribute": "gen_ai.request.temperature", "on_malformed": "continue" },
         {
-          "json": { "attribute": "request_data", "path": "$.temperature" },
+          "attribute": "gen_ai.request.temperature",
           "on_malformed": "continue"
         },
         {
@@ -99,66 +141,72 @@
           },
           "on_malformed": "continue"
         }
-      ]
+      ],
+      "doc": "Flat attribute, then the invocation object - which is the retired chain. This dialect's serialised request also carries the parameter, and reading it would be *new* support rather than the same behaviour, so it is left out until that is a decision of its own."
     },
     {
       "id": "span-fields.gen_ai_top_p",
       "target": "gen_ai_top_p",
       "sources": [
-        { "attribute": "gen_ai.request.top_p", "on_malformed": "continue" },
         {
-          "json": { "attribute": "request_data", "path": "$.top_p" },
+          "attribute": "gen_ai.request.top_p",
           "on_malformed": "continue"
         },
         {
-          "json": { "attribute": "llm.invocation_parameters", "path": "$.top_p" },
+          "json": {
+            "attribute": "llm.invocation_parameters",
+            "path": "$.top_p"
+          },
           "on_malformed": "continue"
         }
-      ]
+      ],
+      "doc": "Flat attribute, then the invocation object - which is the retired chain. This dialect's serialised request also carries the parameter, and reading it would be *new* support rather than the same behaviour, so it is left out until that is a decision of its own."
     },
     {
       "id": "span-fields.gen_ai_top_k",
       "target": "gen_ai_top_k",
       "sources": [
-        { "attribute": "gen_ai.request.top_k", "on_malformed": "continue" },
         {
-          "json": { "attribute": "request_data", "path": "$.top_k" },
+          "attribute": "gen_ai.request.top_k",
           "on_malformed": "continue"
         },
         {
-          "json": { "attribute": "llm.invocation_parameters", "path": "$.top_k" },
+          "json": {
+            "attribute": "llm.invocation_parameters",
+            "path": "$.top_k"
+          },
           "on_malformed": "continue"
         }
-      ]
+      ],
+      "doc": "Flat attribute, then the invocation object - which is the retired chain. This dialect's serialised request also carries the parameter, and reading it would be *new* support rather than the same behaviour, so it is left out until that is a decision of its own."
     },
     {
       "id": "span-fields.gen_ai_max_tokens",
       "target": "gen_ai_max_tokens",
       "doc": "The output ceiling. Four spellings across three places, and the order is the retired chain's: the flat attribute, then the serialised request, then the invocation parameters - each with its own dialect's member name beside the conventional one.",
       "sources": [
-        { "attribute": "gen_ai.request.max_tokens", "on_malformed": "continue" },
         {
-          "json": { "attribute": "request_data", "path": "$.max_tokens" },
+          "attribute": "gen_ai.request.max_tokens",
           "on_malformed": "continue"
         },
         {
+          "doc": "Both spellings this dialect uses, in one object: the first *present* one answers. As separate sources a badly written `max_tokens` would be stepped over and `max_completion_tokens` would answer, where the retired code let the bad one end this carrier and the next carrier answer.",
           "json": {
             "attribute": "request_data",
-            "path": "$.max_completion_tokens"
+            "first_present_of": [
+              "$.max_tokens",
+              "$.max_completion_tokens"
+            ]
           },
           "on_malformed": "continue"
         },
         {
           "json": {
             "attribute": "llm.invocation_parameters",
-            "path": "$.max_tokens"
-          },
-          "on_malformed": "continue"
-        },
-        {
-          "json": {
-            "attribute": "llm.invocation_parameters",
-            "path": "$.max_output_tokens"
+            "first_present_of": [
+              "$.max_tokens",
+              "$.max_output_tokens"
+            ]
           },
           "on_malformed": "continue"
         }
@@ -201,20 +249,32 @@
     {
       "id": "span-fields.gen_ai_stop_sequences",
       "target": "gen_ai_stop_sequences",
-      "sources": [{ "attribute": "gen_ai.request.stop_sequences" }]
+      "sources": [
+        {
+          "attribute": "gen_ai.request.stop_sequences"
+        }
+      ]
     },
     {
       "id": "span-fields.gen_ai_finish_reasons",
       "target": "gen_ai_finish_reasons",
       "doc": "Only the flat attribute. The event-based fallback stays in Rust because field resolution is given a span's attributes and not its events.",
-      "sources": [{ "attribute": "gen_ai.response.finish_reasons" }]
+      "sources": [
+        {
+          "attribute": "gen_ai.response.finish_reasons"
+        }
+      ]
     },
     {
       "id": "span-fields.gen_ai_agent_id",
       "target": "gen_ai_agent_id",
       "sources": [
-        { "attribute": "gen_ai.agent.id" },
-        { "attribute": "aws.bedrock.agent.id" }
+        {
+          "attribute": "gen_ai.agent.id"
+        },
+        {
+          "attribute": "aws.bedrock.agent.id"
+        }
       ]
     },
     {
@@ -222,11 +282,21 @@
       "target": "gen_ai_agent_name",
       "doc": "Who was running. Four dialect spellings past the conventional one, including the two a hand-off writes for each side of it.",
       "sources": [
-        { "attribute": "gen_ai.agent.name" },
-        { "attribute": "agent.name" },
-        { "attribute": "agent_role" },
-        { "attribute": "recipient_agent_class" },
-        { "attribute": "sender_agent_class" }
+        {
+          "attribute": "gen_ai.agent.name"
+        },
+        {
+          "attribute": "agent.name"
+        },
+        {
+          "attribute": "agent_role"
+        },
+        {
+          "attribute": "recipient_agent_class"
+        },
+        {
+          "attribute": "sender_agent_class"
+        }
       ]
     },
     {
@@ -234,9 +304,15 @@
       "target": "gen_ai_tool_name",
       "doc": "Which tool ran. The last source is the span's own name, because the conventions prescribe `execute_tool {name}` there - the name is stated *in* the span rather than beside it, and a span named exactly the prefix has no name past it.",
       "sources": [
-        { "attribute": "gen_ai.tool.name" },
-        { "attribute": "tool.name" },
-        { "attribute": "tool_name" },
+        {
+          "attribute": "gen_ai.tool.name"
+        },
+        {
+          "attribute": "tool.name"
+        },
+        {
+          "attribute": "tool_name"
+        },
         {
           "doc": "One dialect puts a descriptive tool name in the message field it writes for every span.",
           "attribute": "logfire.msg"
@@ -251,7 +327,12 @@
     {
       "id": "span-fields.gen_ai_tool_call_id",
       "target": "gen_ai_tool_call_id",
-      "sources": [{ "attribute": "gen_ai.tool.call.id", "accept_empty": true }]
+      "sources": [
+        {
+          "attribute": "gen_ai.tool.call.id",
+          "accept_empty": true
+        }
+      ]
     },
     {
       "id": "span-fields.gen_ai_server_ttft_ms",
