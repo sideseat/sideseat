@@ -8889,6 +8889,70 @@ fn a_leaf_runs_under_both_gates() {
     );
 }
 
+/// A source that cannot be read stops a **chain** and not a **merge**.
+///
+/// The two are different questions. In a chain, continuing past a present-but-unreadable value substitutes a
+/// later spelling's value for the one this key was meant to carry - `http.status_code = "OK"` beside another
+/// key's `503` answered 503. A merge is a union, so one unreadable source leaves the others' contributions
+/// intact, which is also what the retired `merge_tags` did: an unparseable value contributed nothing and the
+/// loop went on.
+///
+/// Pinned at the engine level because no shipped asset can reach it: every tag source today is a flat
+/// attribute, where an unparseable list reads as *empty* rather than malformed. It takes a JSON list source to
+/// produce the outcome, which is exactly the shape the next slice adds.
+#[test]
+fn an_unreadable_source_stops_a_chain_and_not_a_merge() {
+    use crate::domain::rules::schema::FieldTarget;
+    use crate::domain::rules::span_fields::{Reading, compile};
+
+    let asset = br#"{"id":"t","doc":"d","span_fields":[
+        {"id":"merged","doc":"d","target":"tags","combine":"merge_all","sources":[
+            {"json":{"attribute":"metadata","path":"$.tags"}},
+            {"attribute":"tags"}]},
+        {"id":"chained","doc":"d","target":"http_status_code","sources":[
+            {"attribute":"http.status_code"},
+            {"attribute":"http.response.status_code"}]}]}"#;
+    let sources = std::collections::BTreeMap::from([("t.json".to_string(), asset.to_vec())]);
+    let plan = compile(&sources).expect("compiles");
+
+    let attrs = rule_attrs(&[
+        ("metadata", r#"{"tags":{}}"#),
+        ("tags", r#"["valid"]"#),
+        ("http.status_code", "OK"),
+        ("http.response.status_code", "503"),
+    ]);
+    let resolved = plan.resolve("a.span", &attrs);
+    let of = |target: FieldTarget| {
+        resolved
+            .iter()
+            .find(|r| r.target == target)
+            .expect("every declared target resolves")
+    };
+    assert_eq!(
+        of(FieldTarget::Tags).reading,
+        Reading::StringList(vec!["valid".to_string()]),
+        "the merge keeps what the readable source contributed"
+    );
+
+    let status = of(FieldTarget::HttpStatusCode);
+    assert_eq!(
+        status.reading,
+        Reading::Absent,
+        "the chain stops rather than answering with another key's number"
+    );
+    // And says which source stopped it. An unfilled column and an unfilled column with a named cause are
+    // different facts, which is why the resolution carries both.
+    assert!(
+        status
+            .refused
+            .iter()
+            .any(|(label, reading)| label == "http.status_code"
+                && matches!(reading, Reading::Malformed { .. })),
+        "the refusal names the source and why: {:?}",
+        status.refused
+    );
+}
+
 /// A gate that could never hold is refused where a field source declares one.
 ///
 /// Signals are ORed, so an **empty** gate is `false` rather than "anything" - every source carrying one is
@@ -8916,6 +8980,18 @@ fn a_field_source_may_not_declare_a_gate_that_never_holds() {
                  "sources":[{"attribute":"k","unless":{"attr_exists":[""]}}]}]}"#,
         ),
         (
+            "a phrase search naming a source the probe does not read",
+            r#"{"id":"t","doc":"d","span_fields":[
+                {"id":"f","doc":"d","target":"user_id",
+                 "sources":[{"attribute":"k","when":{"text_contains":{"sources":["span"],"needles":["foo"]}}}]}]}"#,
+        ),
+        (
+            "a phrase search naming `attr:` with no key",
+            r#"{"id":"t","doc":"d","span_fields":[
+                {"id":"f","doc":"d","target":"user_id",
+                 "sources":[{"attribute":"k","when":{"text_contains":{"sources":["attr:"],"needles":["foo"]}}}]}]}"#,
+        ),
+        (
             "a phrase search with no needle",
             r#"{"id":"t","doc":"d","span_fields":[
                 {"id":"f","doc":"d","target":"user_id",
@@ -8930,10 +9006,12 @@ fn a_field_source_may_not_declare_a_gate_that_never_holds() {
             "should have been refused: {what}"
         );
     }
-    // A real gate compiles.
+    // A real gate compiles, phrase search included.
     let ok = r#"{"id":"t","doc":"d","span_fields":[
         {"id":"f","doc":"d","target":"user_id",
-         "sources":[{"attribute":"k","when":{"attr_exists":["marker"]}}]}]}"#;
+         "sources":[{"attribute":"k","when":{"attr_exists":["marker"]}}]},
+        {"id":"g","doc":"d","target":"http_method",
+         "sources":[{"attribute":"m","when":{"text_contains":{"sources":["span_name","attr:k"],"needles":["chat"]}}}]}]}"#;
     let sources =
         std::collections::BTreeMap::from([("t.json".to_string(), ok.as_bytes().to_vec())]);
     assert!(
@@ -10194,6 +10272,14 @@ fn the_field_rules_reproduce_the_chains_they_replaced() {
         (
             "an empty value on a field that *is* a chain, with nothing after it",
             rule_attrs(&[("session.id", ""), ("http.method", "")]),
+        ),
+        (
+            "a tag source that cannot be read, beside two that can - a merge is a union",
+            rule_attrs(&[
+                ("tags", r#"{"not":"a list"}"#),
+                ("langsmith.tags", r#"["b"]"#),
+                ("tag.tags", "c"),
+            ]),
         ),
     ];
 

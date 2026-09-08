@@ -329,9 +329,21 @@ pub(super) fn gate_defect(spec: &DetectMatch) -> Option<&'static str> {
         text.needles.is_empty()
             || text.needles.iter().any(String::is_empty)
             || text.sources.is_empty()
+            // Every source has to be a form the probe reads. A misspelling like `span` is *silently dropped*
+            // there, so a search naming only that one can never hold - and detection already refuses this
+            // spelling, which is what made the omission here a divergence rather than a gap.
+            || text.sources.iter().any(|source| {
+                source != "span_name"
+                    && source
+                        .strip_prefix("attr:")
+                        .is_none_or(|key| key.is_empty())
+            })
     });
     if text_defect {
-        return Some("declares a phrase search with no needle or no source, so it can never hold");
+        return Some(
+            "declares a phrase search with no needle, no source, or a source that is neither \
+             `span_name` nor `attr:<key>` - so it can never hold",
+        );
     }
     let any_signal = !spec.span_name.is_empty()
         || !spec.attr_prefix.is_empty()

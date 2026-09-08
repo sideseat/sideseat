@@ -176,7 +176,14 @@ impl SpanFieldPlan {
                 // key's `503` then answered 503 for a call whose own status attribute says otherwise. An empty
                 // value is the opposite case, and stepping over that is what a chain is for.
                 refused.push((source_label(&source.spec), reading));
-                break;
+                // A **merge** is a union, so one unreadable source does not invalidate the others - which is
+                // also what the retired `merge_tags` did, since an unparseable value contributed nothing and
+                // the loop went on. Only a first-wins chain stops, where continuing would substitute a later
+                // spelling's value for the one this key was meant to carry.
+                match rule.combine {
+                    FieldCombine::FirstWins => break,
+                    FieldCombine::MergeAll => continue,
+                }
             }
             if reading == Reading::Empty && source.spec.accept_empty {
                 // An empty value the producer wrote, kept as one. Text becomes the empty string, which is

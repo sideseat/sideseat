@@ -3796,6 +3796,13 @@ fn rules_that_emit() -> BTreeSet<String> {
                         for emission in plan.run(&ctx) {
                             fired.insert(emission.rule_id.to_string());
                             read.extend(emission.owns.iter().cloned());
+                            // Only a *message* is output. A `Claim` enters ownership and produces nothing, so
+                            // counting one as the span's answer made the measurement skip the recovery pass
+                            // that ingestion still runs.
+                            if emission.target != crate::domain::rules::schema::EmitTarget::Message
+                            {
+                                continue;
+                            }
                             let time = chrono::Utc::now();
                             let name = emission.carrier.name().to_string();
                             dialect_output.push(if emission.carrier.is_event() {
