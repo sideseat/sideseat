@@ -2682,14 +2682,15 @@ fn producer_key_inventory() -> std::collections::BTreeMap<String, String> {
         // Only the conventions' asset may say which namespaces are the conventions'. Anywhere else the
         // declaration was silently ignored, which is worse than refusing it: a dialect could state that its
         // own namespace is a convention and read as having done so.
+        // The ownership rule is `RuleFile::declaration_defect`'s, checked in production for every asset - so
+        // this reads it rather than restating it, and cannot drift from it.
         for (path, bytes) in &sources {
             let file: crate::domain::rules::schema::RuleFile =
                 serde_json::from_slice(bytes).expect("the asset parses");
             assert!(
-                file.convention_namespaces.is_empty() || path == "semconv.json",
-                "`{path}` declares `convention_namespaces`, which only the conventions' asset may do - \
-                 elsewhere it is ignored, so a dialect could claim its own namespace is a convention and \
-                 read as having done so"
+                file.declaration_defect().is_none(),
+                "`{path}`: {:?}",
+                file.declaration_defect()
             );
         }
         let conventions: crate::domain::rules::schema::RuleFile =
@@ -4040,124 +4041,109 @@ fn a_superseded_rule_is_dominated_transitively() {
     );
 }
 
-/// Every clause id is non-empty and unique within the rule or fragment that holds it.
+/// Every clause id is non-empty and unique within the rule or fragment that holds it - and the **production**
+/// validator says so, not this test.
 ///
-/// The ids exist so an emission can say **which** clause answered - a rule with four readings used to report
-/// only the rule's id, and `doc` was standing in for an identity. That only works if an id identifies something:
-/// two clauses sharing one inside a rule make a diagnostic ambiguous exactly where it is being read, and an
-/// empty one names nothing.
+/// The rule used to live here alone, restated over the raw JSON with a hand-maintained list of member names. It
+/// guarded the embedded corpus and nothing else: the generic compiler accepted two clauses sharing an id, so
+/// anything that loaded a file some other way got two clauses with the same provenance path - which is exactly
+/// what the ids exist to prevent. `RuleFile::declaration_defect` is the single place now, walked over the
+/// **typed** tree so a clause type that gains a nesting is covered by construction.
 ///
-/// Checked over the raw assets rather than per compiler, because the six clause types are compiled by three
-/// different modules and this is one property about all of them - so a seventh type is covered the day it is
-/// added, provided it is listed here.
+/// What this test adds is the other direction: that the validator actually sees the corpus, and that it refuses
+/// each defect. A validator nothing exercises is the shape this whole review keeps finding.
 #[test]
 fn a_clause_id_is_unique_within_its_owner() {
-    /// The array members that are answer-capable clauses, and therefore carry an id.
-    const CLAUSE_ARRAYS: &[&str] = &[
-        "alternatives",
-        "also",
-        "fallback",
-        "extra_cases",
-        "cases",
-        "passes",
-        "by",
-        "routes",
-        "sources",
-        "signals",
-    ];
-
-    fn collect(
-        value: &serde_json::Value,
-        member: Option<&str>,
-        found: &mut Vec<String>,
-        problems: &mut Vec<String>,
-        owner: &str,
-    ) {
-        match value {
-            serde_json::Value::Object(members) => {
-                for (key, inner) in members {
-                    collect(inner, Some(key), found, problems, owner);
-                }
-            }
-            serde_json::Value::Array(items) => {
-                let is_clause = member.is_some_and(|name| CLAUSE_ARRAYS.contains(&name));
-                for item in items {
-                    if is_clause && item.is_object() {
-                        match item.get("id").and_then(serde_json::Value::as_str) {
-                            Some(id) if !id.is_empty() => found.push(id.to_string()),
-                            Some(_) => problems
-                                .push(format!("  {owner}: a clause declares an empty id")),
-                            // The schema requires it, so this is a shape no asset can have - asserted so the
-                            // list above staying in step with the schema is checked rather than assumed.
-                            None => problems.push(format!(
-                                "  {owner}: a clause in `{}` has no id, so the schema no longer requires one \
-                                 there",
-                                member.unwrap_or("?")
-                            )),
-                        }
-                    }
-                    collect(item, member, found, problems, owner);
-                }
-            }
-            _ => {}
-        }
-    }
-
-    let mut problems: Vec<String> = Vec::new();
-    let mut total = 0_usize;
+    let mut owners = 0_usize;
+    let mut clauses = 0_usize;
     for (path, bytes) in crate::domain::rules::schema::embedded_sources() {
-        let asset: serde_json::Value = serde_json::from_slice(&bytes).expect("the asset parses");
-        let Some(members) = asset.as_object() else {
-            continue;
-        };
-        // One id space per owner: a top-level entry of a rule section, or a named fragment.
-        let mut owners: Vec<(String, &serde_json::Value)> = Vec::new();
-        for (section, value) in members {
-            match value {
-                serde_json::Value::Array(items) => {
-                    for (index, item) in items.iter().enumerate() {
-                        let name = item
-                            .get("id")
-                            .and_then(serde_json::Value::as_str)
-                            .map(str::to_string)
-                            .unwrap_or_else(|| format!("{section}[{index}]"));
-                        owners.push((format!("{path}/{section}/{name}"), item));
-                    }
-                }
-                // `fragments` is a map, and each entry is its own id space.
-                serde_json::Value::Object(fragments) if section == "fragments" => {
-                    for (name, fragment) in fragments {
-                        owners.push((format!("{path}/fragments/{name}"), fragment));
-                    }
-                }
-                _ => {}
-            }
-        }
-        for (owner, value) in owners {
-            let mut found = Vec::new();
-            collect(value, None, &mut found, &mut problems, &owner);
-            total += found.len();
-            let mut seen: std::collections::BTreeSet<&String> = std::collections::BTreeSet::new();
-            for id in &found {
-                if !seen.insert(id) {
-                    problems.push(format!(
-                        "  {owner}: two clauses share the id `{id}`, so a diagnostic naming it is ambiguous"
-                    ));
-                }
-            }
+        let file: crate::domain::rules::schema::RuleFile =
+            serde_json::from_slice(&bytes).expect("the asset parses");
+        assert!(
+            file.declaration_defect().is_none(),
+            "`{path}` has a declaration defect: {:?}",
+            file.declaration_defect()
+        );
+        for (_, ids) in file.clause_ids() {
+            owners += 1;
+            clauses += ids.len();
         }
     }
     assert!(
-        total > 190,
-        "only {total} clause ids were found, and the assets declare over 200 - the list of clause arrays is \
-         probably out of step with the schema"
+        clauses > 190 && owners > 50,
+        "the validator saw {clauses} clauses across {owners} owners, and the assets declare over 200 across \
+         more than fifty - it is not walking the tree it is meant to"
     );
-    problems.sort();
-    problems.dedup();
+
+    // And each defect is refused. Built as typed assets so the shapes are the ones production would meet.
+    let with = |messages: serde_json::Value, extra: serde_json::Value| {
+        let mut asset = serde_json::json!({"id": "probe", "messages": messages});
+        if let (Some(object), Some(more)) = (asset.as_object_mut(), extra.as_object()) {
+            for (key, value) in more {
+                object.insert(key.clone(), value.clone());
+            }
+        }
+        serde_json::from_value::<crate::domain::rules::schema::RuleFile>(asset)
+            .expect("the probe parses")
+            .declaration_defect()
+    };
+    let two_readings = |first: &str, second: &str| {
+        serde_json::json!([{
+            "id": "probe.message",
+            "legacy_rank": 1,
+            "read": {"attribute": "probe"},
+            "parse": "json",
+            "emit": "message",
+            "alternatives": [
+                {"id": first, "select": "$.a"},
+                {"id": second, "select": "$.b"},
+            ],
+        }])
+    };
     assert!(
-        problems.is_empty(),
-        "{} clause id problem(s):\n{}",
-        problems.len(),
-        problems.join("\n")
+        with(two_readings("same", "same"), serde_json::json!({})).is_some(),
+        "two clauses of one rule sharing an id must be refused"
+    );
+    assert!(
+        with(two_readings("", "other"), serde_json::json!({})).is_some(),
+        "an empty clause id must be refused"
+    );
+    assert!(
+        with(two_readings("first", "second"), serde_json::json!({})).is_none(),
+        "distinct ids must be accepted"
+    );
+    // The same id in two *different* rules is fine: an id space is per owner.
+    let two_rules = serde_json::json!([
+        {
+            "id": "probe.one",
+            "legacy_rank": 1,
+            "read": {"attribute": "one"},
+            "parse": "json",
+            "emit": "message",
+            "alternatives": [{"id": "shared", "select": "$.a"}],
+        },
+        {
+            "id": "probe.two",
+            "legacy_rank": 2,
+            "read": {"attribute": "two"},
+            "parse": "json",
+            "emit": "message",
+            "alternatives": [{"id": "shared", "select": "$.a"}],
+        },
+    ]);
+    assert!(
+        with(two_rules, serde_json::json!({})).is_none(),
+        "an id space is per owner, so two rules may each have a `shared` reading"
+    );
+
+    // `convention_namespaces` belongs to the conventions' asset alone. It parsed anywhere and was read
+    // nowhere, so a dialect could claim its own namespace is a convention and read as having done so.
+    assert!(
+        with(
+            serde_json::json!([]),
+            serde_json::json!({"convention_namespaces": ["acme"]})
+        )
+        .is_some(),
+        "only the conventions' asset may declare which namespaces are no producer's"
     );
 }

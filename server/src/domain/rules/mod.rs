@@ -188,8 +188,15 @@ fn parsed_files(sources: &std::collections::BTreeMap<String, Vec<u8>>) -> Vec<sc
     sources
         .iter()
         .map(|(path, bytes)| {
-            serde_json::from_slice(bytes)
-                .unwrap_or_else(|e| panic!("embedded rules are malformed: {path}: {e}"))
+            let file: schema::RuleFile = serde_json::from_slice(bytes)
+                .unwrap_or_else(|e| panic!("embedded rules are malformed: {path}: {e}"));
+            // Declaration defects, in production and not only in a test over this tree: the clause-uniqueness
+            // rule is one property about six types compiled by three different modules, so it had no single
+            // place to live and the generic compiler accepted two clauses sharing an id.
+            if let Some(defect) = file.declaration_defect() {
+                panic!("embedded rules are malformed: {path}: {defect}");
+            }
+            file
         })
         .collect()
 }

@@ -49,7 +49,16 @@ Rust tables today, held instead by the two scoped exemptions the sweep records. 
 acceptance rather than covered by it, so "the work is complete" below means complete against the two success
 criteria, not against every step listed here.
 
-## Verdict: a versioned, non-Turing-complete tree-transformation DSL, compiled to a typed plan
+## Verdict: a release-coupled, non-Turing-complete tree-transformation DSL, compiled to a typed plan
+
+**Release-coupled, not versioned**, and the distinction is one a reader would otherwise get wrong: there is no
+format version, no parser negotiation and no package compatibility boundary. The assets are embedded in the
+binary and ship with the interpreter that reads them, so "which version of the format is this" is answered by
+"the one this server was built with". A `"version": 1` on each asset would advertise independent compatibility
+the system does not provide - and could not describe what actually happens during a migration, which is per
+grammar *family* and per field, so one file legitimately holds a migrated span expression beside an unmigrated
+JSON predicate. If assets ever ship out of tree, the thing to version is the **package**, with a manifest the
+loader reads before choosing a parser; the built-in corpus keeps an implicit "this server's format".
 
 | | Model | Ruling |
 | --- | --- | --- |

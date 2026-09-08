@@ -2274,3 +2274,127 @@ pub struct EventRole {
     pub role_in_tool_span: Option<String>,
     pub doc: Option<String>,
 }
+
+impl RuleFile {
+    /// Why this file's clause declarations could not mean what they say.
+    ///
+    /// **Production validation**, not a repository test. The six clause types are compiled by three different
+    /// modules, and the uniqueness rule is one property about all of them - so it lived in a test over the
+    /// embedded corpus, and the generic compiler accepted two clauses sharing an id. That is fine while the
+    /// only assets are the ones in this tree and a test guards them, and it is a hole the moment anything else
+    /// loads a file: two clauses with the same provenance path, which is precisely what the ids exist to
+    /// prevent. The test now calls this rather than restating it.
+    ///
+    /// Two rules, and both are about a declaration that cannot take effect:
+    ///
+    /// - a clause id must be non-empty and unique **within its owner** - a top-level rule, or a named fragment;
+    /// - `convention_namespaces` may only be declared by the conventions' own asset, since it decides which
+    ///   telemetry namespaces are not any producer's. Elsewhere it parsed and was ignored, so a dialect could
+    ///   state that its own namespace is a convention and read as having done so.
+    pub fn declaration_defect(&self) -> Option<String> {
+        if !self.convention_namespaces.is_empty() && self.id != CONVENTIONS_ASSET {
+            return Some(format!(
+                "`{}` declares `convention_namespaces`, which only `{CONVENTIONS_ASSET}` may do - it decides \
+                 which namespaces are no producer's, and elsewhere the declaration is read by nothing",
+                self.id
+            ));
+        }
+        for (owner, clauses) in self.clause_ids() {
+            let mut seen: std::collections::BTreeSet<&str> = std::collections::BTreeSet::new();
+            for id in &clauses {
+                if id.is_empty() {
+                    return Some(format!(
+                        "`{}`: a clause of `{owner}` declares an empty id, which names nothing",
+                        self.id
+                    ));
+                }
+                if !seen.insert(id.as_str()) {
+                    return Some(format!(
+                        "`{}`: two clauses of `{owner}` share the id `{id}`, so a diagnostic naming it is \
+                         ambiguous exactly where it is read",
+                        self.id
+                    ));
+                }
+            }
+        }
+        None
+    }
+
+    /// Every clause id, grouped by the owner whose id space it belongs to.
+    ///
+    /// Walked over the typed tree, so a clause type that gains a nesting is covered by construction rather
+    /// than by remembering to extend a list of member names.
+    pub fn clause_ids(&self) -> Vec<(String, Vec<String>)> {
+        fn from_alternatives(alternatives: &[Alternative], out: &mut Vec<String>) {
+            for alternative in alternatives {
+                out.push(alternative.id.clone());
+                from_alternatives(&alternative.extra_cases, out);
+            }
+        }
+        fn from_message(rule: &MessageRule, out: &mut Vec<String>) {
+            from_alternatives(&rule.alternatives, out);
+            from_alternatives(&rule.also, out);
+            from_alternatives(&rule.fallback, out);
+            if let Some(elements) = &rule.elements {
+                for pass in &elements.passes {
+                    out.push(pass.id.clone());
+                    if let Some(group) = &pass.group {
+                        for case in &group.by {
+                            out.push(case.id.clone());
+                        }
+                    }
+                }
+            }
+            if let Some(sections) = &rule.sections {
+                for route in &sections.routes {
+                    out.push(route.id.clone());
+                }
+            }
+            if let Some(branches) = &rule.branch_set {
+                for leaf in branches
+                    .primary
+                    .iter()
+                    .chain(&branches.fallback_if_primary_empty)
+                    .chain(&branches.always)
+                {
+                    // A branch leaf is a rule of its own, so its clauses belong to *its* id space.
+                    from_message(leaf, out);
+                }
+            }
+        }
+
+        let mut out: Vec<(String, Vec<String>)> = Vec::new();
+        for rule in &self.messages {
+            let mut ids = Vec::new();
+            from_message(rule, &mut ids);
+            out.push((rule.id.clone(), ids));
+        }
+        for (name, fragment) in &self.fragments {
+            let mut ids = Vec::new();
+            from_alternatives(&fragment.cases, &mut ids);
+            out.push((name.clone(), ids));
+        }
+        for rule in &self.span_fields {
+            out.push((
+                rule.id.clone(),
+                rule.sources
+                    .iter()
+                    .map(|source| source.id.clone())
+                    .collect(),
+            ));
+        }
+        for rule in &self.span_facts {
+            out.push((
+                rule.id.clone(),
+                rule.signals
+                    .iter()
+                    .map(|signal| signal.id.clone())
+                    .collect(),
+            ));
+        }
+        out
+    }
+}
+
+/// The asset that owns the conventions' own vocabulary.
+pub const CONVENTIONS_ASSET: &str = "semconv";
