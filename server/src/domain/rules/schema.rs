@@ -462,6 +462,11 @@ pub struct MatchSpec {
     #[serde(default)]
     pub observation_type: Vec<String>,
     /// Span name prefix.
+    ///
+    /// **Refused at compile time today.** Carrier semantics are resolved when a span is *read*, from a stored
+    /// row whose `span_name` is the *display* name - and for a dialect that writes an unresolved template that
+    /// is not the name the producer sent. A clause qualified by this would hold during ingestion and fail on
+    /// the same span at query time. It becomes usable once the raw name is persisted beside the display name.
     #[serde(default)]
     pub span_name_prefix: Option<String>,
     /// Instrumentation scope name substring.

@@ -86,6 +86,11 @@ pub struct CarrierPlan {
 /// Why a ruleset would not compile.
 #[derive(Debug)]
 pub enum CompileError {
+    /// A dimension the *query-time* resolver is not given, so a clause using it could not hold there.
+    UnavailableDimension {
+        clause: String,
+        dimension: &'static str,
+    },
     Parse {
         path: String,
         message: String,
@@ -116,6 +121,12 @@ pub enum CompileError {
 impl std::fmt::Display for CompileError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            Self::UnavailableDimension { clause, dimension } => write!(
+                f,
+                "carrier clause `{clause}` is qualified by `{dimension}`, which the query-time resolver is \
+                 given only as the *display* span name - so the clause would hold during ingestion and fail \
+                 on the same span when read"
+            ),
             Self::Parse { path, message } => write!(f, "{path}: {message}"),
             Self::UnknownPreset { clause, preset } => write!(
                 f,
@@ -226,6 +237,18 @@ pub fn compile(sources: &BTreeMap<String, Vec<u8>>) -> Result<CarrierPlan, Compi
                 || match_spec.scope_version_prefix.as_deref() == Some("")
             {
                 return Err(CompileError::EmptyLiteral { clause: id.clone() });
+            }
+            // Carrier semantics are resolved at **query** time, from a stored row - and the stored `span_name`
+            // is the *display* name, which for a dialect that writes an unresolved template is not the name the
+            // producer sent. So a clause qualified by span-name prefix would hold during ingestion and fail on
+            // the same span when read, and the generic reading would win. Refused rather than documented,
+            // because a declaration that cannot work is the class this engine exists to remove; it becomes
+            // expressible once the raw name is persisted beside the display name.
+            if match_spec.span_name_prefix.is_some() {
+                return Err(CompileError::UnavailableDimension {
+                    clause: id.clone(),
+                    dimension: "span_name_prefix",
+                });
             }
             clauses.push(CompiledClause {
                 rule_file: file.id.clone(),

@@ -315,6 +315,56 @@ fn a_clause_constraining_no_carrier_is_refused() {
     );
 }
 
+/// A clause qualified by span-name prefix is refused, because the resolver is not given that name.
+///
+/// Carrier semantics are resolved when a span is **read**, from a stored row whose `span_name` is the *display*
+/// name - and for a dialect writing an unresolved template that is not the name the producer sent. Such a
+/// clause would hold during ingestion and fail on the same span at query time, with the generic reading winning
+/// and ordering and deduplication silently changing. Refused rather than documented, which is the discipline
+/// everywhere else here: a declaration that cannot work is not a declaration.
+///
+/// It becomes expressible once the raw name is persisted beside the display name. Nothing declares one today,
+/// which is why no fixture moves.
+#[test]
+fn a_clause_qualified_by_span_name_is_refused_until_the_raw_name_is_stored() {
+    let qualified = br#"{
+      "id": "test", "doc": "d",
+      "carriers": [
+        {"id": "a", "doc": "d",
+         "match": {"attribute": "k", "span_name_prefix": "claude_code."},
+         "facts": {"preset": "emission"}}
+      ]
+    }"#;
+    let sources = std::collections::BTreeMap::from([("t.json".to_string(), qualified.to_vec())]);
+    assert!(
+        matches!(
+            compile(&sources),
+            Err(CompileError::UnavailableDimension {
+                dimension: "span_name_prefix",
+                ..
+            })
+        ),
+        "the query-time resolver sees the display name, so this clause could not hold there"
+    );
+
+    // The same clause without that dimension is ordinary and compiles, so this is a refusal of one dimension
+    // rather than of span-qualified clauses in general - `observation_type` still qualifies one.
+    let ok = br#"{
+      "id": "test", "doc": "d",
+      "carriers": [
+        {"id": "a", "doc": "d",
+         "match": {"attribute": "k", "observation_type": ["generation"]},
+         "facts": {"preset": "emission"}}
+      ]
+    }"#;
+    let sources = std::collections::BTreeMap::from([("t.json".to_string(), ok.to_vec())]);
+    assert!(
+        compile(&sources).is_ok(),
+        "a clause qualified by observation type is unaffected: {:?}",
+        compile(&sources).err()
+    );
+}
+
 #[test]
 fn a_duplicate_clause_id_is_refused() {
     let dup = br#"{
