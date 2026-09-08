@@ -2671,9 +2671,10 @@ fn producer_key_inventory() -> std::collections::BTreeMap<String, String> {
     // a shared chain, under a namespace no dialect file mentions, was classified conventional and could be
     // hard-coded in Rust unnoticed. Absence of a framework declaration says nothing about who owns a name.
     //
-    // So the conventions' own asset carries the answer as data (`convention_namespaces` in `semconv`), which
-    // is what lets OTel's general attributes - `session.id`, `enduser.id`, `http.method` - be recognised
-    // without a list in this file that a reader here has to trust.
+    // The conventions asset carries the policy data; the exact expected set below intentionally mirrors it.
+    // That duplication is the review gate, not an independent derivation - which is what lets OTel's general
+    // attributes (`session.id`, `enduser.id`, `http.method`) be recognised while a new entry stays a change
+    // somebody has to look at.
     let namespace = |key: &str| key.split_once('.').map(|(head, _)| head.to_string());
     let declared_namespaces: std::collections::BTreeSet<String> = {
         // Only the conventions' asset may say which namespaces are the conventions'. Anywhere else the

@@ -797,9 +797,7 @@ fixed later — each is a boundary of what the evidence can carry.
   naming less than they appeared to: an allowlist of key-bearing members that missed five forms; a shared
   chain read as evidence of genericness; a namespace list written by hand; and — twice over — a key stored as
   the *selector* that names it (`attr:logfire.tags`), which no Rust literal can equal, plus namespace
-  *absence* read as convention ownership, which excused any producer key declared only in a shared chain. The
-  convention namespaces are declared in the conventions' own asset now (`convention_namespaces` in
-  `semconv`), and each must be one something conventional actually writes under.
+  *absence* read as convention ownership, which excused any producer key declared only in a shared chain.
 - **Prose.** Doc comments are not read, including the one place `schemars` turns a doc comment into a
   shipped schema description.
 - **Outside `server/src`.** The SDKs are separate crates and are *meant* to name the framework they
