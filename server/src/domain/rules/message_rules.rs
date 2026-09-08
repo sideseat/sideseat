@@ -375,11 +375,22 @@ fn compile_rule(
             || !alternatives.is_empty()
             || !also.is_empty()
             || !fallback.is_empty()
-            || parse.is_some())
+            || parse.is_some()
+            // `tag_as` is the dangerous one: a compose always emits `compose.tag`, while the static
+            // conflict analysis models `tag_as` - so a compose declaring both emitted one carrier and was
+            // checked for collisions against another. The rest are ignored the same way the list above is.
+            || tag_as.is_some()
+            || aggregate_into_array.is_some()
+            || elements.is_some()
+            || walk.is_some()
+            || require_non_empty.is_some()
+            || require_non_blank.is_some()
+            || require_members.is_some())
     {
         return Err(inexpressible(
-            "`compose` builds the whole message, so `wrap`, `sections`, `alternatives` and \
-                 `parse` would be ignored",
+            "`compose` builds the whole message and tags it with its own `tag`, so `wrap`, \
+                 `sections`, `alternatives`, `parse`, `tag_as` and the reading requirements would be \
+                 ignored",
         ));
     }
     // A wrap is meaningful on an *aggregated* family: the entries become one array, and one array needs an
@@ -877,29 +888,36 @@ pub fn compile(sources: &BTreeMap<String, Vec<u8>>) -> Result<MessagePlan, Messa
             // against a side payload only where a witness holds is conditional about the payload and not
             // about the family - and as a rule-wide flag it waived every conflict the rule was in, so a
             // second rule reading one of the family's own keys was accepted while being permanently dead.
-            let emitted_by = |rule: &CompiledMessageRule| {
-                let conditional = rule_is_wholly_conditional(rule);
+            // What runtime ownership is *over*: the carrier a rule read (`Emission::owns`). So a conditional
+            // read excuses a read collision - the two take turns and the ranks decide - while for an
+            // **emitted** collision the question is different. Two rules tagging one carrier are separated at
+            // runtime only when they also read one, because that is what ownership resolves. A gated rule
+            // reading `x` and an ungated one reading `y`, both tagging `shared`, own different carriers, so
+            // both emissions survive and nothing downstream tells them apart: the tag is what carrier
+            // semantics, identity and ordering all key on.
+            //
+            // Read-conditionality is therefore *not* an excuse for an emitted collision; shared physical
+            // ownership is. That is what makes one dialect's claim on `input.value` coexist with another's
+            // reading of it - the same key, resolved by whichever rank comes first.
+            let a_reads = consumed_carriers(a);
+            let b_reads = consumed_carriers(b);
+            let share_a_carrier = a_reads
+                .iter()
+                .any(|l| b_reads.iter().any(|r| l.pattern.overlaps(&r.pattern)));
+            let emitted = |rule: &CompiledMessageRule| {
                 emitted_carriers(rule)
                     .into_iter()
                     .map(|pattern| Consumed {
                         pattern,
-                        conditional,
+                        conditional: share_a_carrier,
                     })
                     .collect::<Vec<_>>()
             };
             let conflict = [
-                (consumed_carriers(a), consumed_carriers(b), "both read"),
-                (emitted_by(a), emitted_by(b), "both emit"),
-                (
-                    emitted_by(a),
-                    consumed_carriers(b),
-                    "one emits what the other reads",
-                ),
-                (
-                    consumed_carriers(a),
-                    emitted_by(b),
-                    "one reads what the other emits",
-                ),
+                (a_reads.clone(), b_reads.clone(), "both read"),
+                (emitted(a), emitted(b), "both emit"),
+                (emitted(a), b_reads, "one emits what the other reads"),
+                (a_reads, emitted(b), "one reads what the other emits"),
             ]
             .into_iter()
             .find_map(|(left, right, how)| {
@@ -988,6 +1006,34 @@ pub(super) fn predicate_defect(set: &PredicateSet) -> Option<&'static str> {
                 || (a.identifier_like == Some(true) && b.identifier_like == Some(false))
                 || (a.identifier_like == Some(false) && b.identifier_like == Some(true)))
     };
+    // `exists` is the one complement that is a tautology on **any** path, and it is exactly why: it is the
+    // predicate that decides presence, so "present" beside "absent" covers every value there is. On a
+    // singular path one branch or the other always holds; on a plural one a match either exists (the first
+    // branch) or there are none and the singular branch answers `exists: false`. So this pair is checked
+    // wherever it appears, unlike the value complements above, which a *member* path makes satisfiable.
+    //
+    // Load-bearing beyond being a no-op: `rule_is_wholly_conditional` reads "every reading carries a
+    // `require`" as evidence that a rule yields its carrier on some span. A tautological `require` makes that
+    // a false statement, and the second rule reading the same carrier is then permanently dead.
+    for (i, left) in set.any.iter().enumerate() {
+        for right in &set.any[i + 1..] {
+            let same_path = match (&left.path, &right.path) {
+                (Some(a), Some(b)) => a.to_string() == b.to_string(),
+                (None, None) => true,
+                _ => false,
+            };
+            if same_path
+                && sole(left)
+                && sole(right)
+                && ((left.exists == Some(true) && right.exists == Some(false))
+                    || (left.exists == Some(false) && right.exists == Some(true)))
+            {
+                return Some(
+                    "an `any` set requires a value to exist and to be absent, which holds of every value",
+                );
+            }
+        }
+    }
     let any_root: Vec<&ValuePredicate> = set.any.iter().filter(|p| on_root(p)).collect();
     let all_root: Vec<&ValuePredicate> = set.all.iter().filter(|p| on_root(p)).collect();
     for (i, left) in any_root.iter().enumerate() {
@@ -1368,6 +1414,7 @@ fn rule_is_wholly_conditional(rule: &CompiledMessageRule) -> bool {
 ///
 /// Per pattern rather than per rule, because a rule can hold both kinds at once: an indexed family it always
 /// reads, beside a side payload it reads only where a witness holds.
+#[derive(Clone)]
 struct Consumed {
     pattern: CarrierPattern,
     conditional: bool,
@@ -1401,15 +1448,27 @@ fn consumed_patterns(rule: &CompiledMessageRule) -> Vec<Consumed> {
     if let Some(event) = rule.read.event.as_deref() {
         out.push(always(CarrierPattern::Exact(event.to_string())));
     }
-    out.extend(
-        rule.read
-            .attribute_any_of
-            .iter()
-            .map(|k| always(CarrierPattern::Exact(k.clone()))),
-    );
+    // Only the *first* alternative is claimed unconditionally: the rest are read where no earlier spelling
+    // was present, so a rule reading a later one yields whenever an earlier one is there.
+    for (position, key) in rule.read.attribute_any_of.iter().enumerate() {
+        let pattern = CarrierPattern::Exact(key.clone());
+        out.push(if position == 0 {
+            always(pattern)
+        } else {
+            only_sometimes(pattern)
+        });
+    }
     if let Some(family) = rule.read.indexed_family.as_deref() {
         // Every key beneath the family, since each index's members are read.
-        out.push(always(CarrierPattern::Prefix(format!("{family}."))));
+        //
+        // Conditional where members are required: an entry lacking them contributes nothing, so a second rule
+        // reading one of the family's keys is live on a span whose entries this rule rejects.
+        let pattern = CarrierPattern::Prefix(format!("{family}."));
+        out.push(if rule.require_members.is_some() {
+            only_sometimes(pattern)
+        } else {
+            always(pattern)
+        });
     }
     if let Some(overlay) = &rule.read.overlay {
         // The payload a positional overlay joins against is read too, and it is not beneath the family.
@@ -1417,12 +1476,16 @@ fn consumed_patterns(rule: &CompiledMessageRule) -> Vec<Consumed> {
         // Conditional where the join is witnessed: the rule consumes this payload only on spans whose
         // counterpart list is this dialect's own serialisation, and yields it elsewhere. The *family* above
         // stays unconditional, which is the distinction a rule-wide flag could not express.
+        // `require` narrows the same way a witness does: the joined content has to satisfy it, and where it
+        // does not the payload is not consumed.
         let pattern = CarrierPattern::Exact(overlay.from.clone());
-        out.push(if overlay.witness.is_empty() {
-            always(pattern)
-        } else {
-            only_sometimes(pattern)
-        });
+        out.push(
+            if overlay.witness.is_empty() && overlay.require.is_empty() {
+                always(pattern)
+            } else {
+                only_sometimes(pattern)
+            },
+        );
     }
     // A branch set's subrules read carriers of their own, and they were invisible here - so two dialects
     // could contend for one carrier as long as the collision was inside a branch set.
@@ -1433,12 +1496,16 @@ fn consumed_patterns(rule: &CompiledMessageRule) -> Vec<Consumed> {
     }
     if let Some(compose) = &rule.compose {
         for member in compose.members.iter().map(|m| &m.spec) {
-            out.extend(
-                member
-                    .from_any_of
-                    .iter()
-                    .map(|k| always(CarrierPattern::Exact(k.clone()))),
-            );
+            // The first spelling is the one this member always takes; a later one is read only where the
+            // earlier is absent.
+            for (position, key) in member.from_any_of.iter().enumerate() {
+                let pattern = CarrierPattern::Exact(key.clone());
+                out.push(if position == 0 {
+                    always(pattern)
+                } else {
+                    only_sometimes(pattern)
+                });
+            }
             if let Some(fallback) = &member.fallback {
                 // Read only where the member's own gate holds, which is what makes a dialect's stand-in for
                 // the generic pair coexist with the dialect that owns it.

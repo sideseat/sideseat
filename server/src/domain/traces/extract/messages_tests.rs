@@ -8632,6 +8632,107 @@ fn inexpressible_rules_are_refused() {
     }
 }
 
+/// A `require` that holds of every payload is not a condition, and a tag collision is not a read collision.
+///
+/// Four shapes, each one a rule that compiles and cannot work:
+///
+/// - `exists: true` beside `exists: false` on one path holds of every value there is, so a rule whose only
+///   reading carries it claims its carrier always - while `rule_is_wholly_conditional` read the non-empty
+///   `require` as evidence that it sometimes yields, and a second rule on that carrier was permanently dead.
+///   The pair is a tautology on **any** path, unlike the value complements, because `exists` is the predicate
+///   that decides presence.
+/// - Two rules tagging one carrier from *different* attributes both survive: runtime ownership is over the
+///   carrier a rule read, so nothing separates them, and the tag is what carrier semantics, identity and
+///   ordering key on. Shared physical ownership is what excuses such a pair - the accepted half below - and a
+///   conditional read is not.
+/// - A `compose` always emits `compose.tag`, so a `tag_as` beside it was checked for collisions under a name
+///   the rule never emits.
+#[test]
+fn a_tautological_requirement_is_not_a_condition() {
+    let refused = [
+        (
+            "an `exists` complement, which holds of every payload",
+            r#"{"id":"t","doc":"d","messages":[
+                {"id":"a","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message","legacy_rank":1,
+                 "alternatives":[{"require":{"any":[
+                    {"path":"$.v","exists":true},{"path":"$.v","exists":false}]},
+                  "wrap":{"role":"user","content_from_any_of":["$.content"]}}]},
+                {"id":"b","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message",
+                 "legacy_rank":2}]}"#,
+        ),
+        (
+            "two rules tagging one carrier from different attributes",
+            r#"{"id":"t","doc":"d","messages":[
+                {"id":"a","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message",
+                 "tag_as":"shared","when":{"attr_exists":["marker"]},"legacy_rank":1},
+                {"id":"b","doc":"d","read":{"attribute":"y"},"parse":"json","emit":"message",
+                 "tag_as":"shared","legacy_rank":2}]}"#,
+        ),
+        (
+            "a compose declaring a tag it does not emit",
+            r#"{"id":"t","doc":"d","messages":[
+                {"id":"a","doc":"d","tag_as":"declared","legacy_rank":1,
+                 "compose":{"tag":"actual","members":[{"as":"content","from_any_of":["k"]}]}}]}"#,
+        ),
+    ];
+    for (what, asset) in refused {
+        let sources =
+            std::collections::BTreeMap::from([("t.json".to_string(), asset.as_bytes().to_vec())]);
+        assert!(
+            compile(&sources).is_err(),
+            "should have been refused: {what}"
+        );
+    }
+
+    // Accepted, and each for a reason the refusals above depend on. A tag collision between two rules reading
+    // *one* carrier is resolved by ownership - which is what lets one dialect claim `input.value` while
+    // another reads it - and a genuine `exists` condition on one side is a condition.
+    let accepted = [
+        (
+            "two rules tagging one carrier and reading the same attribute",
+            r#"{"id":"t","doc":"d","messages":[
+                {"id":"a","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message",
+                 "tag_as":"shared","when":{"attr_exists":["marker"]},"legacy_rank":1},
+                {"id":"b","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message",
+                 "tag_as":"shared","legacy_rank":2}]}"#,
+        ),
+        (
+            "a single `exists` requirement, which is a real condition",
+            r#"{"id":"t","doc":"d","messages":[
+                {"id":"a","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message","legacy_rank":1,
+                 "alternatives":[{"require":{"any":[{"path":"$.v","exists":true}]},
+                  "wrap":{"role":"user","content_from_any_of":["$.content"]}}]},
+                {"id":"b","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message",
+                 "legacy_rank":2}]}"#,
+        ),
+        (
+            "an indexed family requiring members, beside a rule reading one of its keys",
+            r#"{"id":"t","doc":"d","messages":[
+                {"id":"a","doc":"d","read":{"indexed_family":"f"},"emit":"message","legacy_rank":1,
+                 "require_members":{"all_of":[{"name":"content"}]}},
+                {"id":"b","doc":"d","read":{"attribute":"f.0.role"},"parse":"json","emit":"message",
+                 "tag_as":"b.own.tag","legacy_rank":2}]}"#,
+        ),
+        (
+            "a rule reading a later spelling of a carrier another rule reads first",
+            r#"{"id":"t","doc":"d","messages":[
+                {"id":"a","doc":"d","read":{"attribute_any_of":["first","second"]},"parse":"json",
+                 "emit":"message","tag_as":"a.own.tag","legacy_rank":1},
+                {"id":"b","doc":"d","read":{"attribute":"second"},"parse":"json","emit":"message",
+                 "tag_as":"b.own.tag","legacy_rank":2}]}"#,
+        ),
+    ];
+    for (what, asset) in accepted {
+        let sources =
+            std::collections::BTreeMap::from([("t.json".to_string(), asset.as_bytes().to_vec())]);
+        assert!(
+            compile(&sources).is_ok(),
+            "should have been accepted: {what} - {:?}",
+            compile(&sources).err()
+        );
+    }
+}
+
 /// A conditional claim is conditional about **one carrier**, not about every carrier its rule reads.
 ///
 /// Two shapes, each a rule that would be permanently dead while compilation called the pair conditional:
