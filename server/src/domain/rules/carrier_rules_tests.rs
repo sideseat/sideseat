@@ -885,8 +885,12 @@ fn exists_false_beside_a_value_condition_is_refused() {
     );
 }
 
-/// No predicate that holds for every value, or that can never hold, is accepted - and every satisfiable
-/// one still is.
+/// The **selected** root-level defects are refused, and every satisfiable predicate is still accepted.
+///
+/// Selected, deliberately: this is not a satisfiability decision procedure. It proves a chosen set of
+/// defects at the *root*, where the value always exists, is singular, and has one spelling - and accepts
+/// everything else, including a genuine contradiction on a singular member path. Under-refusing is the right
+/// failure here: every over-refusal in this area has been mine, and each one rejected a working rule.
 ///
 /// A **curated** table, not a sample. My first version generated field pairs and judged them by whether they
 /// held over eight example values, which accused `starts_with: "a"` on the root of being impossible - it is
@@ -897,7 +901,7 @@ fn exists_false_beside_a_value_condition_is_refused() {
 /// text condition against five kinds, a root tautology in three spellings, then set-level negation - so the
 /// satisfiable half matters as much: it is what stopped the fix from over-refusing.
 #[test]
-fn no_vacuous_or_impossible_predicate_is_accepted() {
+fn the_selected_root_level_predicate_defects_are_refused() {
     use crate::domain::rules::message_rules::predicate_defect;
     use crate::domain::rules::schema::PredicateSet;
     use serde_json::json;
@@ -948,6 +952,14 @@ fn no_vacuous_or_impossible_predicate_is_accepted() {
         (
             "an all root kind that every any member contradicts",
             json!({"all": [{"kind": "string"}], "any": [{"kind": "number"}]}),
+        ),
+        (
+            "a root kind that is not null, beside a required branch asserting it is null",
+            json!({"all": [{"kind": "string"}], "any": [{"not_null": false}]}),
+        ),
+        (
+            "an any set holding identifier-like and its negation",
+            json!({"any": [{"identifier_like": true}, {"identifier_like": false}]}),
         ),
         (
             "a required prefix that begins with the forbidden one",
@@ -1001,6 +1013,21 @@ fn no_vacuous_or_impossible_predicate_is_accepted() {
         (
             "a forbidden prefix longer than the required one - `ac` satisfies both",
             json!({"all": [{"path": "$.v", "starts_with": "a", "lacks_prefix": "ab"}]}),
+        ),
+        // A complement pair whose branches *narrow*: false for a non-null number, so not a tautology.
+        (
+            "one branch of a complement pair carries another condition",
+            json!({"any": [{"kind": "string", "not_null": true}, {"not_null": false}]}),
+        ),
+        // The forbidden set is wider than the required one, so `"b"` satisfies neither branch.
+        (
+            "a forbidden set wider than the required one",
+            json!({"any": [{"one_of": ["a"]}, {"none_of": ["a", "b"]}]}),
+        ),
+        // Accepted, and stated as such: a singular *member* path contradiction is outside what this proves.
+        (
+            "two kinds on a singular member path - a real contradiction this deliberately does not catch",
+            json!({"all": [{"path": "$.v", "kind": "string"}, {"path": "$.v", "kind": "number"}]}),
         ),
     ];
     for (why, value) in accepted {

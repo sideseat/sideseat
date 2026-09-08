@@ -829,13 +829,18 @@ pub fn compile(sources: &BTreeMap<String, Vec<u8>>) -> Result<MessagePlan, Messa
     })
 }
 
-/// A predicate that cannot hold, or asserts nothing, is refused like any other no-op.
+/// A **selected** set of predicate defects, refused like any other no-op.
+///
+/// Not a satisfiability decision procedure, and the distinction is load-bearing: it proves chosen defects at
+/// the *root*, and accepts everything else - including a genuine contradiction on a singular member path.
+/// Under-refusing is the right failure, because an over-refusal deletes a working rule, and every
+/// over-refusal in this area has been one of mine.
 ///
 /// One function, applied by one recursive pass over every predicate-bearing place a *compiled* rule has -
 /// after fragments and extra cases are inlined. Checking the direct alternatives only left the same
 /// contradiction reachable through `require_parent`, an attachment, an overlay, a prepended block, or any
 /// case a fragment contributed: the pass that ran before inlining could not see those at all.
-pub(super) fn predicate_defect<'a>(set: &'a PredicateSet) -> Option<&'static str> {
+pub(super) fn predicate_defect(set: &PredicateSet) -> Option<&'static str> {
     // Defects between *members* of a set, which no per-predicate check can see - and restricted to the
     // **root**, because only there is the reasoning sound. My first version compared any two members on the
     // same path and was wrong three ways at once:
@@ -851,42 +856,59 @@ pub(super) fn predicate_defect<'a>(set: &'a PredicateSet) -> Option<&'static str
     // either absent or `$`. That is also where the defect that prompted this lives - a content-block rule
     // whose `require` holds for every block it is offered.
     let on_root = |p: &ValuePredicate| p.path.as_ref().is_none_or(|path| path.to_string() == "$");
-    let root_of = |members: &'a [ValuePredicate]| -> Vec<&'a ValuePredicate> {
-        members.iter().filter(|p| on_root(p)).collect()
+    // How many conditions a predicate asserts. A complement pair is a tautology only when *neither* side
+    // narrows any further: `{kind: string, not_null: true}` beside `{not_null: false}` is false for a
+    // non-null number, so the extra `kind` makes the pair an ordinary statement.
+    let sole = |p: &ValuePredicate| -> bool {
+        usize::from(p.exists.is_some())
+            + usize::from(p.kind.is_some())
+            + usize::from(p.non_empty.is_some())
+            + usize::from(p.not_null.is_some())
+            + usize::from(p.identifier_like.is_some())
+            + usize::from(p.starts_with.is_some())
+            + usize::from(p.lacks_prefix.is_some())
+            + usize::from(!p.one_of.is_empty())
+            + usize::from(!p.none_of.is_empty())
+            == 1
     };
-    let any_root = root_of(&set.any);
-    let all_root = root_of(&set.all);
+    let complements = |a: &ValuePredicate, b: &ValuePredicate| -> bool {
+        sole(a)
+            && sole(b)
+            && ((a.not_null == Some(true) && b.not_null == Some(false))
+                || (a.not_null == Some(false) && b.not_null == Some(true))
+                || (a.non_empty == Some(true) && b.non_empty == Some(false))
+                || (a.non_empty == Some(false) && b.non_empty == Some(true))
+                || (a.identifier_like == Some(true) && b.identifier_like == Some(false))
+                || (a.identifier_like == Some(false) && b.identifier_like == Some(true)))
+    };
+    let any_root: Vec<&ValuePredicate> = set.any.iter().filter(|p| on_root(p)).collect();
+    let all_root: Vec<&ValuePredicate> = set.all.iter().filter(|p| on_root(p)).collect();
     for (i, left) in any_root.iter().enumerate() {
         for right in &any_root[i + 1..] {
-            // A disjunction of a condition and its negation holds for every value.
-            if (left.not_null == Some(true) && right.not_null == Some(false))
-                || (left.not_null == Some(false) && right.not_null == Some(true))
-                || (left.non_empty == Some(true) && right.non_empty == Some(false))
-                || (left.non_empty == Some(false) && right.non_empty == Some(true))
-            {
+            if complements(left, right) {
                 return Some(
                     "an `any` set holds a root condition and its negation, so it holds for every value",
                 );
             }
-            // The same shape written with the two set conditions.
-            if left
-                .one_of
-                .iter()
-                .any(|value| right.none_of.contains(value))
-                || right
-                    .one_of
-                    .iter()
-                    .any(|value| left.none_of.contains(value))
-            {
+            // A tautology needs every forbidden value to be required by the other branch: with
+            // `none_of: ["a", "b"]` beside `one_of: ["a"]`, the value `"b"` satisfies neither.
+            let covers = |required: &ValuePredicate, forbidden: &ValuePredicate| {
+                sole(required)
+                    && sole(forbidden)
+                    && !forbidden.none_of.is_empty()
+                    && forbidden
+                        .none_of
+                        .iter()
+                        .all(|value| required.one_of.contains(value))
+            };
+            if covers(left, right) || covers(right, left) {
                 return Some(
-                    "an `any` set requires a root value in one member and forbids it in another, so it \
-                         holds for every value",
+                    "an `any` set forbids only root values another member requires, so it holds for \
+                         every value",
                 );
             }
         }
     }
-    // Two kinds for the root cannot both hold, whether they are two `all` members or one of each: the
-    // conjunction requires both.
     let all_root_kinds: Vec<ValueKind> = all_root.iter().filter_map(|p| p.kind).collect();
     if let Some(first) = all_root_kinds.first()
         && all_root_kinds.iter().any(|kind| kind != first)
@@ -904,19 +926,28 @@ pub(super) fn predicate_defect<'a>(set: &'a PredicateSet) -> Option<&'static str
                  holds for nothing",
         );
     }
+    // A kind that is not null cannot also be null. Reached across the branches, since the `all` side is
+    // required and every `any` member must hold something compatible with it.
+    if let Some(required) = all_root_kinds.first()
+        && *required != ValueKind::Null
+        && (all_root.iter().any(|p| p.not_null == Some(false))
+            || (!any_root.is_empty() && any_root.iter().all(|p| p.not_null == Some(false))))
+    {
+        return Some(
+            "an `all` set requires a root kind that is not null while a required branch asserts the \
+                 root is null, so it holds for nothing",
+        );
+    }
     for (i, left) in all_root.iter().enumerate() {
         for right in &all_root[i + 1..] {
-            if (left.not_null == Some(true) && right.not_null == Some(false))
-                || (left.not_null == Some(false) && right.not_null == Some(true))
-                || (left.non_empty == Some(true) && right.non_empty == Some(false))
-                || (left.non_empty == Some(false) && right.non_empty == Some(true))
-            {
+            if complements(left, right) {
                 return Some(
                     "an `all` set holds a root condition and its negation, so it holds for nothing",
                 );
             }
         }
     }
+
     for predicate in set.all.iter().chain(set.any.iter()) {
         if predicate.non_empty.is_some()
             && matches!(
