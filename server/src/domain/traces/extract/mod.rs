@@ -108,20 +108,30 @@ pub(super) mod keys {
 
     // GenAI Core
     pub const GEN_AI_SYSTEM: &str = "gen_ai.system";
+    #[cfg(test)]
     pub const GEN_AI_PROVIDER_NAME: &str = "gen_ai.provider.name"; // New OTEL semconv
     pub const GEN_AI_OPERATION_NAME: &str = "gen_ai.operation.name";
     pub const GEN_AI_REQUEST_MODEL: &str = "gen_ai.request.model";
     pub const GEN_AI_RESPONSE_MODEL: &str = "gen_ai.response.model";
+    #[cfg(test)]
     pub const GEN_AI_RESPONSE_ID: &str = "gen_ai.response.id";
 
     // GenAI Request Parameters
+    #[cfg(test)]
     pub const GEN_AI_TEMPERATURE: &str = "gen_ai.request.temperature";
+    #[cfg(test)]
     pub const GEN_AI_TOP_P: &str = "gen_ai.request.top_p";
+    #[cfg(test)]
     pub const GEN_AI_TOP_K: &str = "gen_ai.request.top_k";
+    #[cfg(test)]
     pub const GEN_AI_MAX_TOKENS: &str = "gen_ai.request.max_tokens";
+    #[cfg(test)]
     pub const GEN_AI_FREQUENCY_PENALTY: &str = "gen_ai.request.frequency_penalty";
+    #[cfg(test)]
     pub const GEN_AI_PRESENCE_PENALTY: &str = "gen_ai.request.presence_penalty";
+    #[cfg(test)]
     pub const GEN_AI_STOP_SEQUENCES: &str = "gen_ai.request.stop_sequences";
+    #[cfg(test)]
     pub const GEN_AI_FINISH_REASONS: &str = "gen_ai.response.finish_reasons";
 
     // GenAI Agent/Tool
@@ -132,7 +142,9 @@ pub(super) mod keys {
     pub const GEN_AI_TOOL_STATUS: &str = "gen_ai.tool.status";
 
     // GenAI Performance
+    #[cfg(test)]
     pub const GEN_AI_TTFT: &str = "gen_ai.server.time_to_first_token";
+    #[cfg(test)]
     pub const GEN_AI_REQUEST_DURATION: &str = "gen_ai.server.request_duration";
 
     // Framework Session IDs
@@ -160,6 +172,7 @@ pub(super) mod keys {
     pub const LANGSMITH_SPAN_KIND: &str = "langsmith.span.kind";
 
     // OpenInference LLM attributes
+    #[cfg(test)]
     pub const LLM_INVOCATION_PARAMETERS: &str = "llm.invocation_parameters";
 
     // OpenInference Tool attributes (single tool per span)
@@ -173,12 +186,14 @@ pub(super) mod keys {
     /// Named by the OpenInference asset now; kept for the equivalence oracle's reference.
     #[cfg(test)]
     pub const EMBEDDING_TEXT: &str = "embedding.text";
+    #[cfg(test)]
     pub const EMBEDDING_MODEL_NAME: &str = "embedding.model_name";
 
     // OpenInference Reranker attributes
     /// Named by the OpenInference asset now; kept for the equivalence oracle's reference.
     #[cfg(test)]
     pub const RERANKER_QUERY: &str = "reranker.query";
+    #[cfg(test)]
     pub const RERANKER_MODEL_NAME: &str = "reranker.model_name";
 
     // HTTP
@@ -264,6 +279,7 @@ pub(super) mod keys {
     pub const PROMPT: &str = "prompt";
     #[cfg(test)]
     pub const ALL_MESSAGES_EVENTS: &str = "all_messages_events";
+    #[cfg(test)]
     pub const REQUEST_DATA: &str = "request_data";
     pub const RESPONSE_DATA: &str = "response_data";
     pub const LOGFIRE_MSG_TEMPLATE: &str = "logfire.msg_template";
@@ -372,6 +388,7 @@ pub(super) mod keys {
     pub const AI_TELEMETRY_USER_ID: &str = "ai.telemetry.metadata.userId";
 
     // Google ADK
+    #[cfg(test)]
     pub const GCP_VERTEX_LLM_REQUEST: &str = "gcp.vertex.agent.llm_request";
     pub const GCP_VERTEX_LLM_RESPONSE: &str = "gcp.vertex.agent.llm_response";
     #[cfg(test)]
@@ -380,6 +397,7 @@ pub(super) mod keys {
     pub const GCP_VERTEX_DATA: &str = "gcp.vertex.agent.data";
 
     // AWS Bedrock
+    #[cfg(test)]
     pub const AWS_BEDROCK_AGENT_ID: &str = "aws.bedrock.agent.id";
 
     // OTEL event names. Which events carry messages is declared (`message_events` in the assets); these

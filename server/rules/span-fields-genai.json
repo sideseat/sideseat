@@ -1,0 +1,277 @@
+{
+  "id": "span-fields-genai",
+  "doc": "Where a span's GenAI scalar fields are written. Same shape as the semantic fields: one resolver per target, sources in the order they are preferred, and the only framework-specific part is a key name.\n\nThree things the retired code did that the order here has to keep. A **flat attribute wins** over a serialised parameter object, because the flat one is the convention and the object is a framework's own copy. Where two objects both hold a parameter, `request_data` precedes `llm.invocation_parameters` - that is the order the retired chain used, and reversing it would silently prefer a different producer's value. And a parameter written badly is *stepped over* (`on_malformed: continue`) rather than ending the chain: the flat attribute is one of several places one framework states the same value, unlike a status code, where a second key's number would be a different attribute's answer.",
+  "span_fields": [
+    {
+      "id": "span-fields.gen_ai_system",
+      "target": "gen_ai_system",
+      "doc": "Which provider served the call. `gen_ai.system` is deprecated in favour of `gen_ai.provider.name`, so the newer spelling leads.",
+      "sources": [
+        { "attribute": "gen_ai.provider.name" },
+        { "attribute": "gen_ai.system" },
+        { "attribute": "az.ai.inference.model_provider" },
+        { "attribute": "ai.model.provider" },
+        { "attribute": "llm.provider" },
+        {
+          "doc": "A dialect that names no provider still says which one it is by the *shape* of its request: a top-level `system` member is Anthropic's spelling, and a `messages` list is OpenAI's. The literal and the shape that identifies it are both stated here.",
+          "value": "anthropic",
+          "when": {
+            "span_attr_contains": [{ "key": "request_data", "value": "\"system\"" }]
+          }
+        },
+        {
+          "value": "openai",
+          "when": {
+            "span_attr_contains": [
+              { "key": "request_data", "value": "\"messages\"" }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "span-fields.gen_ai_operation_name",
+      "target": "gen_ai_operation_name",
+      "doc": "What the call was. Read directly, so an empty value the producer wrote stays one.",
+      "sources": [
+        { "attribute": "gen_ai.operation.name", "accept_empty": true },
+        {
+          "doc": "A request holding a message list is a chat completion, whatever else the span omits.",
+          "value": "chat",
+          "when": {
+            "span_attr_contains": [
+              { "key": "request_data", "value": "\"messages\"" }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "span-fields.gen_ai_request_model",
+      "target": "gen_ai_request_model",
+      "doc": "The model asked for. An embedding or reranker model name is the same fact for spans that have no chat model, which is why they close the chain rather than opening one of their own.",
+      "sources": [
+        { "attribute": "gen_ai.request.model" },
+        { "attribute": "ai.model.id" },
+        { "attribute": "llm.model_name" },
+        { "attribute": "embedding.model_name" },
+        { "attribute": "reranker.model_name" },
+        {
+          "doc": "Inside the request a dialect serialises whole.",
+          "json": { "attribute": "gcp.vertex.agent.llm_request", "path": "$.model" }
+        },
+        {
+          "doc": "One dialect states the model on each agent it configured, so the answer is the first agent that named one - an agent with an empty `llm` is not the answer, and neither is one with no `llm` at all.",
+          "json": { "attribute": "crew_agents", "path": "$[*].llm" }
+        },
+        {
+          "json": { "attribute": "request_data", "path": "$.model" }
+        }
+      ]
+    },
+    {
+      "id": "span-fields.gen_ai_response_model",
+      "target": "gen_ai_response_model",
+      "doc": "The model that answered, which a provider may report as a different version from the one asked for.",
+      "sources": [
+        { "attribute": "gen_ai.response.model" },
+        { "attribute": "llm.response.model" }
+      ]
+    },
+    {
+      "id": "span-fields.gen_ai_response_id",
+      "target": "gen_ai_response_id",
+      "sources": [{ "attribute": "gen_ai.response.id", "accept_empty": true }]
+    },
+    {
+      "id": "span-fields.gen_ai_temperature",
+      "target": "gen_ai_temperature",
+      "sources": [
+        { "attribute": "gen_ai.request.temperature", "on_malformed": "continue" },
+        {
+          "json": { "attribute": "request_data", "path": "$.temperature" },
+          "on_malformed": "continue"
+        },
+        {
+          "json": {
+            "attribute": "llm.invocation_parameters",
+            "path": "$.temperature"
+          },
+          "on_malformed": "continue"
+        }
+      ]
+    },
+    {
+      "id": "span-fields.gen_ai_top_p",
+      "target": "gen_ai_top_p",
+      "sources": [
+        { "attribute": "gen_ai.request.top_p", "on_malformed": "continue" },
+        {
+          "json": { "attribute": "request_data", "path": "$.top_p" },
+          "on_malformed": "continue"
+        },
+        {
+          "json": { "attribute": "llm.invocation_parameters", "path": "$.top_p" },
+          "on_malformed": "continue"
+        }
+      ]
+    },
+    {
+      "id": "span-fields.gen_ai_top_k",
+      "target": "gen_ai_top_k",
+      "sources": [
+        { "attribute": "gen_ai.request.top_k", "on_malformed": "continue" },
+        {
+          "json": { "attribute": "request_data", "path": "$.top_k" },
+          "on_malformed": "continue"
+        },
+        {
+          "json": { "attribute": "llm.invocation_parameters", "path": "$.top_k" },
+          "on_malformed": "continue"
+        }
+      ]
+    },
+    {
+      "id": "span-fields.gen_ai_max_tokens",
+      "target": "gen_ai_max_tokens",
+      "doc": "The output ceiling. Four spellings across three places, and the order is the retired chain's: the flat attribute, then the serialised request, then the invocation parameters - each with its own dialect's member name beside the conventional one.",
+      "sources": [
+        { "attribute": "gen_ai.request.max_tokens", "on_malformed": "continue" },
+        {
+          "json": { "attribute": "request_data", "path": "$.max_tokens" },
+          "on_malformed": "continue"
+        },
+        {
+          "json": {
+            "attribute": "request_data",
+            "path": "$.max_completion_tokens"
+          },
+          "on_malformed": "continue"
+        },
+        {
+          "json": {
+            "attribute": "llm.invocation_parameters",
+            "path": "$.max_tokens"
+          },
+          "on_malformed": "continue"
+        },
+        {
+          "json": {
+            "attribute": "llm.invocation_parameters",
+            "path": "$.max_output_tokens"
+          },
+          "on_malformed": "continue"
+        }
+      ]
+    },
+    {
+      "id": "span-fields.gen_ai_frequency_penalty",
+      "target": "gen_ai_frequency_penalty",
+      "sources": [
+        {
+          "attribute": "gen_ai.request.frequency_penalty",
+          "on_malformed": "continue"
+        },
+        {
+          "json": {
+            "attribute": "llm.invocation_parameters",
+            "path": "$.frequency_penalty"
+          },
+          "on_malformed": "continue"
+        }
+      ]
+    },
+    {
+      "id": "span-fields.gen_ai_presence_penalty",
+      "target": "gen_ai_presence_penalty",
+      "sources": [
+        {
+          "attribute": "gen_ai.request.presence_penalty",
+          "on_malformed": "continue"
+        },
+        {
+          "json": {
+            "attribute": "llm.invocation_parameters",
+            "path": "$.presence_penalty"
+          },
+          "on_malformed": "continue"
+        }
+      ]
+    },
+    {
+      "id": "span-fields.gen_ai_stop_sequences",
+      "target": "gen_ai_stop_sequences",
+      "sources": [{ "attribute": "gen_ai.request.stop_sequences" }]
+    },
+    {
+      "id": "span-fields.gen_ai_finish_reasons",
+      "target": "gen_ai_finish_reasons",
+      "doc": "Only the flat attribute. The event-based fallback stays in Rust because field resolution is given a span's attributes and not its events.",
+      "sources": [{ "attribute": "gen_ai.response.finish_reasons" }]
+    },
+    {
+      "id": "span-fields.gen_ai_agent_id",
+      "target": "gen_ai_agent_id",
+      "sources": [
+        { "attribute": "gen_ai.agent.id" },
+        { "attribute": "aws.bedrock.agent.id" }
+      ]
+    },
+    {
+      "id": "span-fields.gen_ai_agent_name",
+      "target": "gen_ai_agent_name",
+      "doc": "Who was running. Four dialect spellings past the conventional one, including the two a hand-off writes for each side of it.",
+      "sources": [
+        { "attribute": "gen_ai.agent.name" },
+        { "attribute": "agent.name" },
+        { "attribute": "agent_role" },
+        { "attribute": "recipient_agent_class" },
+        { "attribute": "sender_agent_class" }
+      ]
+    },
+    {
+      "id": "span-fields.gen_ai_tool_name",
+      "target": "gen_ai_tool_name",
+      "doc": "Which tool ran. The last source is the span's own name, because the conventions prescribe `execute_tool {name}` there - the name is stated *in* the span rather than beside it, and a span named exactly the prefix has no name past it.",
+      "sources": [
+        { "attribute": "gen_ai.tool.name" },
+        { "attribute": "tool.name" },
+        { "attribute": "tool_name" },
+        {
+          "doc": "One dialect puts a descriptive tool name in the message field it writes for every span.",
+          "attribute": "logfire.msg"
+        },
+        {
+          "doc": "A span named *exactly* the prefix has an empty name past it, and that is kept rather than dropped - the retired `strip_prefix` produced `Some(\"\")` there, and reporting no tool name instead is a different statement about the span.",
+          "span_name_strip_prefix": "execute_tool ",
+          "accept_empty": true
+        }
+      ]
+    },
+    {
+      "id": "span-fields.gen_ai_tool_call_id",
+      "target": "gen_ai_tool_call_id",
+      "sources": [{ "attribute": "gen_ai.tool.call.id", "accept_empty": true }]
+    },
+    {
+      "id": "span-fields.gen_ai_server_ttft_ms",
+      "target": "gen_ai_server_ttft_ms",
+      "sources": [
+        {
+          "attribute": "gen_ai.server.time_to_first_token",
+          "on_malformed": "continue"
+        }
+      ]
+    },
+    {
+      "id": "span-fields.gen_ai_server_request_duration_ms",
+      "target": "gen_ai_server_request_duration_ms",
+      "sources": [
+        {
+          "attribute": "gen_ai.server.request_duration",
+          "on_malformed": "continue"
+        }
+      ]
+    }
+  ]
+}

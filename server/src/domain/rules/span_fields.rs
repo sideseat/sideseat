@@ -17,7 +17,8 @@ use std::collections::HashMap;
 use serde_json::Value as JsonValue;
 
 use super::schema::{
-    DetectMatch, FieldCombine, FieldSource, FieldTarget, FieldType, JsonFieldSource, SpanFieldRule,
+    DetectMatch, FieldCombine, FieldSource, FieldTarget, FieldType, JsonFieldSource,
+    MalformedPolicy, SpanFieldRule,
 };
 
 /// What reading one source produced.
@@ -27,7 +28,9 @@ use super::schema::{
 /// that is absent and one that is `0` are different statements about the call. `Malformed` is separate from
 /// both because it is evidence the key was meant to carry this field and the payload cannot be read - a
 /// silence there hides a producer bug behind a fallback.
-#[derive(Debug, Clone, PartialEq, Eq)]
+/// `PartialEq` only, no `Eq`: a float has no total equality, and deriving one would make `NaN` compare equal
+/// to itself here and not elsewhere. A non-finite value never becomes a `Float` anyway - it is `Malformed`.
+#[derive(Debug, Clone, PartialEq)]
 pub enum Reading {
     /// No key in this source's position carried anything.
     Absent,
@@ -40,12 +43,16 @@ pub enum Reading {
     /// A value of the field's own type.
     Text(String),
     Integer(i64),
+    Float(f64),
     StringList(Vec<String>),
 }
 
 impl Reading {
     fn yielded(&self) -> bool {
-        matches!(self, Self::Text(_) | Self::Integer(_) | Self::StringList(_))
+        matches!(
+            self,
+            Self::Text(_) | Self::Integer(_) | Self::Float(_) | Self::StringList(_)
+        )
     }
 }
 
@@ -75,6 +82,11 @@ pub enum FieldCompileError {
         "span field rule `{rule}` in `{file}` has a source that is both an attribute and a JSON member"
     )]
     SourceReadsTwoThings { file: String, rule: String },
+    #[error(
+        "span field rule `{rule}` in `{file}` states a literal with no gate, which answers on every span and \
+         makes every source after it dead"
+    )]
+    UngatedLiteral { file: String, rule: String },
     #[error("span field rule `{rule}` in `{file}` names an empty attribute")]
     EmptyAttribute { file: String, rule: String },
     #[error(
@@ -168,8 +180,10 @@ impl SpanFieldPlan {
             if !source_applies(source, span_name, attrs) {
                 continue;
             }
-            let reading = read_source(&source.spec, field_type, attrs, parsed);
-            if let Reading::Malformed { .. } = &reading {
+            let reading = read_source(&source.spec, field_type, span_name, attrs, parsed);
+            if let Reading::Malformed { .. } = &reading
+                && source.spec.on_malformed == MalformedPolicy::Stop
+            {
                 // A present value that does not convert **ends** the search. The key exists and holds the
                 // wrong shape, which is evidence the producer meant it to carry this field: stepping over it
                 // reports a *later* spelling's value as this one, and `http.status_code = "OK"` beside another
@@ -257,16 +271,25 @@ fn source_applies(
 }
 
 fn source_label(spec: &FieldSource) -> String {
-    match (&spec.attribute, &spec.json) {
-        (Some(attribute), _) => attribute.clone(),
-        (_, Some(json)) => format!("{}{}", json.attribute, json.path),
-        _ => String::new(),
+    if let Some(attribute) = &spec.attribute {
+        return attribute.clone();
     }
+    if let Some(json) = &spec.json {
+        return format!("{}{}", json.attribute, json.path);
+    }
+    if let Some(prefix) = &spec.span_name_strip_prefix {
+        return format!("the span name past `{prefix}`");
+    }
+    if let Some(value) = &spec.value {
+        return format!("the literal `{value}`");
+    }
+    String::new()
 }
 
 fn read_source<'a>(
     spec: &'a FieldSource,
     field_type: FieldType,
+    span_name: &str,
     attrs: &HashMap<String, String>,
     parsed: &mut HashMap<&'a str, Option<JsonValue>>,
 ) -> Reading {
@@ -275,6 +298,17 @@ fn read_source<'a>(
             return Reading::Absent;
         };
         return from_text(raw, field_type);
+    }
+    if let Some(prefix) = &spec.span_name_strip_prefix {
+        // An **empty** suffix is kept as an empty reading rather than dropped, which is what the retired
+        // `strip_prefix` produced: a span named exactly the prefix has no name past it.
+        return match span_name.strip_prefix(prefix.as_str()) {
+            Some(rest) => from_text(rest, field_type),
+            None => Reading::Absent,
+        };
+    }
+    if let Some(value) = &spec.value {
+        return from_text(value, field_type);
     }
     let Some(json) = &spec.json else {
         return Reading::Absent;
@@ -305,10 +339,22 @@ fn read_json<'a>(
             detail: format!("`{}` is not JSON", json.attribute),
         };
     };
-    let Some(found) = json.path.query(value).first() else {
-        return Reading::Absent;
-    };
-    from_json(found, field_type)
+    // The first match that **yields**, not the first match. A dialect writes its agents as a list and the model
+    // sits on whichever one declared it, so stopping at element 0's empty or absent member reported no model at
+    // all - the same reason a flat chain steps over an empty value. Only the first match's outcome is carried
+    // out as the diagnosis, since that is the one a reader would look at.
+    let matched = json.path.query(value);
+    let mut first = Reading::Absent;
+    for (position, found) in matched.iter().enumerate() {
+        let reading = from_json(found, field_type);
+        if reading.yielded() {
+            return reading;
+        }
+        if position == 0 {
+            first = reading;
+        }
+    }
+    first
 }
 
 /// A flat attribute's text, read as the field's type.
@@ -331,6 +377,22 @@ fn from_text(raw: &str, field_type: FieldType) -> Reading {
                         detail: error.to_string(),
                     },
                 }
+            }
+        }
+        FieldType::Float => {
+            if raw.is_empty() {
+                return Reading::Empty;
+            }
+            match raw.parse::<f64>() {
+                // A non-finite value is **not** a number this can store: it survives no JSON round trip and
+                // reads back as null, so it is a producer's mistake rather than a measurement.
+                Ok(value) if value.is_finite() => Reading::Float(value),
+                Ok(_) => Reading::Malformed {
+                    detail: "not a finite number".to_string(),
+                },
+                Err(error) => Reading::Malformed {
+                    detail: error.to_string(),
+                },
             }
         }
         FieldType::StringList => {
@@ -376,6 +438,19 @@ fn from_json(value: &JsonValue, field_type: FieldType) -> Reading {
                     detail: error.to_string(),
                 },
             },
+            JsonValue::Null => Reading::Absent,
+            other => Reading::Malformed {
+                detail: format!("expected a number, found {}", kind_of(other)),
+            },
+        },
+        FieldType::Float => match value {
+            JsonValue::Number(number) => match number.as_f64() {
+                Some(found) if found.is_finite() => Reading::Float(found),
+                _ => Reading::Malformed {
+                    detail: format!("{number} is not a finite number"),
+                },
+            },
+            JsonValue::String(text) if text.is_empty() => Reading::Empty,
             JsonValue::Null => Reading::Absent,
             other => Reading::Malformed {
                 detail: format!("expected a number, found {}", kind_of(other)),
@@ -472,26 +547,43 @@ fn compile_rule(file_id: &str, rule: &SpanFieldRule) -> Result<CompiledRule, Fie
     }
     let mut sources = Vec::with_capacity(rule.sources.len());
     for spec in &rule.sources {
-        match (&spec.attribute, &spec.json) {
-            (None, None) => {
-                return Err(FieldCompileError::SourceReadsNothing {
-                    file: file_id.to_string(),
-                    rule: rule.id.clone(),
-                });
-            }
-            (Some(_), Some(_)) => {
-                return Err(FieldCompileError::SourceReadsTwoThings {
-                    file: file_id.to_string(),
-                    rule: rule.id.clone(),
-                });
-            }
-            _ => {}
+        // Exactly one form. Two would make the read ambiguous and none makes the source dead, and both used to
+        // be expressible - so this counts rather than pattern-matching a pair, which is what stopped covering
+        // the forms as they were added.
+        let forms = usize::from(spec.attribute.is_some())
+            + usize::from(spec.json.is_some())
+            + usize::from(spec.span_name_strip_prefix.is_some())
+            + usize::from(spec.value.is_some());
+        if forms == 0 {
+            return Err(FieldCompileError::SourceReadsNothing {
+                file: file_id.to_string(),
+                rule: rule.id.clone(),
+            });
+        }
+        if forms > 1 {
+            return Err(FieldCompileError::SourceReadsTwoThings {
+                file: file_id.to_string(),
+                rule: rule.id.clone(),
+            });
+        }
+        // A literal with no gate is not a source: it answers on every span, so every source after it is dead
+        // and the field is a constant.
+        if spec.value.is_some() && spec.when.is_none() && spec.unless.is_none() {
+            return Err(FieldCompileError::UngatedLiteral {
+                file: file_id.to_string(),
+                rule: rule.id.clone(),
+            });
         }
         if spec.attribute.as_deref().is_some_and(str::is_empty)
             || spec
                 .json
                 .as_ref()
                 .is_some_and(|json| json.attribute.is_empty())
+            || spec
+                .span_name_strip_prefix
+                .as_deref()
+                .is_some_and(str::is_empty)
+            || spec.value.as_deref().is_some_and(str::is_empty)
         {
             return Err(FieldCompileError::EmptyAttribute {
                 file: file_id.to_string(),

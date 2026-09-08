@@ -112,6 +112,25 @@ pub struct SpanFieldRule {
 #[serde(rename_all = "snake_case")]
 pub enum FieldTarget {
     SessionId,
+    GenAiSystem,
+    GenAiOperationName,
+    GenAiRequestModel,
+    GenAiResponseModel,
+    GenAiResponseId,
+    GenAiTemperature,
+    GenAiTopP,
+    GenAiTopK,
+    GenAiMaxTokens,
+    GenAiFrequencyPenalty,
+    GenAiPresencePenalty,
+    GenAiStopSequences,
+    GenAiFinishReasons,
+    GenAiAgentId,
+    GenAiAgentName,
+    GenAiToolName,
+    GenAiToolCallId,
+    GenAiServerTtftMs,
+    GenAiServerRequestDurationMs,
     UserId,
     HttpMethod,
     HttpUrl,
@@ -132,8 +151,18 @@ impl FieldTarget {
     /// What a source must produce to fill this field.
     pub fn field_type(self) -> FieldType {
         match self {
-            Self::HttpStatusCode => FieldType::Integer,
-            Self::Tags => FieldType::StringList,
+            Self::HttpStatusCode
+            | Self::GenAiTopK
+            | Self::GenAiMaxTokens
+            | Self::GenAiServerTtftMs
+            | Self::GenAiServerRequestDurationMs => FieldType::Integer,
+            Self::GenAiTemperature
+            | Self::GenAiTopP
+            | Self::GenAiFrequencyPenalty
+            | Self::GenAiPresencePenalty => FieldType::Float,
+            Self::Tags | Self::GenAiStopSequences | Self::GenAiFinishReasons => {
+                FieldType::StringList
+            }
             Self::SessionId
             | Self::UserId
             | Self::HttpMethod
@@ -146,7 +175,16 @@ impl FieldTarget {
             | Self::StorageBucket
             | Self::StorageObject
             | Self::MessagingSystem
-            | Self::MessagingDestination => FieldType::Text,
+            | Self::MessagingDestination
+            | Self::GenAiSystem
+            | Self::GenAiOperationName
+            | Self::GenAiRequestModel
+            | Self::GenAiResponseModel
+            | Self::GenAiResponseId
+            | Self::GenAiAgentId
+            | Self::GenAiAgentName
+            | Self::GenAiToolName
+            | Self::GenAiToolCallId => FieldType::Text,
         }
     }
 }
@@ -156,6 +194,7 @@ impl FieldTarget {
 pub enum FieldType {
     Text,
     Integer,
+    Float,
     StringList,
 }
 
@@ -176,6 +215,9 @@ pub enum FieldCombine {
 pub struct FieldSource {
     #[serde(default)]
     pub doc: Option<String>,
+    /// What a **present but unreadable** value means for the rest of the chain.
+    #[serde(default)]
+    pub on_malformed: MalformedPolicy,
     /// Whether an **empty** value from this source is an answer rather than something to step over.
     ///
     /// A chain steps over an empty value, which is what a chain is for. A field with one source is not a
@@ -189,12 +231,42 @@ pub struct FieldSource {
     /// A member of a JSON-valued attribute, reached by RFC 9535 JSONPath.
     #[serde(default)]
     pub json: Option<JsonFieldSource>,
+    /// The span's own name, with this prefix stripped.
+    ///
+    /// A name rather than an attribute, because the conventions prescribe `execute_tool {name}` - the tool's
+    /// name is stated *in* the span rather than beside it. Generic: the prefix is the asset's.
+    #[serde(default)]
+    pub span_name_strip_prefix: Option<String>,
+    /// A literal this engine states because a *shape* implies it.
+    ///
+    /// The one thing a key cannot carry: a dialect that names no provider still says which one it is by the
+    /// shape of its request. The literal and the shape that identifies it are both the asset's; the engine
+    /// knows only "this typed literal, where the gate holds".
+    #[serde(default)]
+    pub value: Option<String>,
     /// Consulted only when this holds of the span. Signals are ORed, as everywhere else.
     #[serde(default)]
     pub when: Option<DetectMatch>,
     /// Skipped when this holds of the span.
     #[serde(default)]
     pub unless: Option<DetectMatch>,
+}
+
+/// What a source does when the value it names is present and cannot be read as the field's type.
+///
+/// Declared per source because the retired chains disagreed, and each disagreement was deliberate. A status
+/// code written as a phrase means the producer's own status attribute is wrong, and answering from a *second*
+/// key reports another attribute's number as this call's. A request parameter written badly is different: the
+/// flat attribute is one of several places a framework may state it, and the retired code fell through to the
+/// serialised parameter object - which is the same value from the same producer, not a different call's.
+#[derive(Debug, Deserialize, Clone, Copy, Default, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum MalformedPolicy {
+    /// The field is not filled, and the source that stopped it is named in the diagnosis.
+    #[default]
+    Stop,
+    /// Step over it and keep looking, as a chain does for an empty value.
+    Continue,
 }
 
 /// A value inside a JSON-valued attribute.

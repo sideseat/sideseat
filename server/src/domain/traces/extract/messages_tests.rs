@@ -10320,3 +10320,234 @@ fn the_field_rules_reproduce_the_chains_they_replaced() {
         );
     }
 }
+
+/// The declared GenAI resolvers produce exactly what the chains they replaced produced.
+///
+/// The shapes that distinguish them, and every one of these was a decision in the retired code rather than an
+/// accident: a flat parameter written badly falls through to the serialised object (unlike a status code, where
+/// a second key's number is a different attribute's answer), `request_data` precedes
+/// `llm.invocation_parameters` where both hold a parameter, a provider is implied by the *shape* of a request
+/// that names none, an agent list is searched for the first agent that declared a model, and a tool's name
+/// comes from the span name when no attribute carries it.
+#[test]
+fn the_genai_field_rules_reproduce_the_chains_they_replaced() {
+    let cases: Vec<(&str, &str, HashMap<String, String>)> = vec![
+        ("nothing at all", "plain span", rule_attrs(&[])),
+        (
+            "the conventional spellings",
+            "chat gpt-4o",
+            rule_attrs(&[
+                ("gen_ai.provider.name", "openai"),
+                ("gen_ai.operation.name", "chat"),
+                ("gen_ai.request.model", "gpt-4o"),
+                ("gen_ai.response.model", "gpt-4o-2024-08-06"),
+                ("gen_ai.response.id", "resp-1"),
+                ("gen_ai.request.temperature", "0.7"),
+                ("gen_ai.request.top_p", "0.95"),
+                ("gen_ai.request.top_k", "40"),
+                ("gen_ai.request.max_tokens", "1024"),
+                ("gen_ai.request.frequency_penalty", "0.1"),
+                ("gen_ai.request.presence_penalty", "0.2"),
+                ("gen_ai.request.stop_sequences", r#"["\n\n","END"]"#),
+                ("gen_ai.response.finish_reasons", r#"["stop"]"#),
+                ("gen_ai.agent.id", "agent-1"),
+                ("gen_ai.agent.name", "Researcher"),
+                ("gen_ai.tool.name", "search"),
+                ("gen_ai.tool.call.id", "call-1"),
+                ("gen_ai.server.time_to_first_token", "120"),
+                ("gen_ai.server.request_duration", "980"),
+            ]),
+        ),
+        (
+            "the dialect spellings, none of them conventional",
+            "ai.generateText",
+            rule_attrs(&[
+                ("llm.provider", "anthropic"),
+                ("llm.model_name", "claude-3-5-sonnet"),
+                ("llm.response.model", "claude-3-5-sonnet-20241022"),
+                ("agent_role", "Planner"),
+                ("tool_name", "fetch"),
+                ("aws.bedrock.agent.id", "bedrock-agent-1"),
+            ]),
+        ),
+        (
+            "an embedding span, whose model is the only one it has",
+            "embedding",
+            rule_attrs(&[("embedding.model_name", "text-embedding-3-small")]),
+        ),
+        (
+            "a reranker span",
+            "reranking",
+            rule_attrs(&[("reranker.model_name", "rerank-v3")]),
+        ),
+        (
+            "parameters only inside the invocation object",
+            "RunnableSequence",
+            rule_attrs(&[(
+                "llm.invocation_parameters",
+                r#"{"temperature":0.3,"top_p":0.8,"top_k":10,"max_tokens":256,"frequency_penalty":0.4,"presence_penalty":0.5}"#,
+            )]),
+        ),
+        (
+            "the other max-token spelling in the invocation object",
+            "RunnableSequence",
+            rule_attrs(&[("llm.invocation_parameters", r#"{"max_output_tokens":512}"#)]),
+        ),
+        (
+            "a flat parameter written badly, with the object holding a real one",
+            "RunnableSequence",
+            rule_attrs(&[
+                ("gen_ai.request.temperature", "hot"),
+                ("llm.invocation_parameters", r#"{"temperature":0.7}"#),
+            ]),
+        ),
+        (
+            "a request the dialect serialised whole, naming no provider",
+            "chat",
+            rule_attrs(&[(
+                "request_data",
+                r#"{"model":"claude-3-haiku","system":"be brief","max_tokens":800}"#,
+            )]),
+        ),
+        (
+            "the same, in the other provider's shape",
+            "chat",
+            rule_attrs(&[(
+                "request_data",
+                r#"{"model":"gpt-4o-mini","messages":[{"role":"user","content":"hi"}],"max_completion_tokens":600}"#,
+            )]),
+        ),
+        (
+            "a serialised request beside a flat model, where only the ceiling is missing",
+            "chat",
+            rule_attrs(&[
+                ("gen_ai.request.model", "gpt-4o"),
+                ("gen_ai.provider.name", "openai"),
+                ("gen_ai.operation.name", "chat"),
+                (
+                    "request_data",
+                    r#"{"model":"ignored","messages":[],"max_tokens":700}"#,
+                ),
+            ]),
+        ),
+        (
+            "both objects holding the same parameter",
+            "chat",
+            rule_attrs(&[
+                ("request_data", r#"{"max_tokens":111,"messages":[]}"#),
+                ("llm.invocation_parameters", r#"{"max_tokens":222}"#),
+            ]),
+        ),
+        (
+            "a flat ceiling beside both objects",
+            "chat",
+            rule_attrs(&[
+                ("gen_ai.request.max_tokens", "999"),
+                ("request_data", r#"{"max_tokens":111,"messages":[]}"#),
+                ("llm.invocation_parameters", r#"{"max_tokens":222}"#),
+            ]),
+        ),
+        (
+            "the model on an agent list, the first agent having none",
+            "Crew.kickoff",
+            rule_attrs(&[(
+                "crew_agents",
+                r#"[{"role":"a"},{"role":"b","llm":""},{"role":"c","llm":"gpt-4o-mini"}]"#,
+            )]),
+        ),
+        (
+            "a dialect's serialised request naming the model",
+            "call_llm",
+            rule_attrs(&[(
+                "gcp.vertex.agent.llm_request",
+                r#"{"model":"gemini-2.0-flash"}"#,
+            )]),
+        ),
+        (
+            "a tool name only in the span name",
+            "execute_tool temperature_forecast",
+            rule_attrs(&[]),
+        ),
+        (
+            "a span named exactly the tool prefix",
+            "execute_tool ",
+            rule_attrs(&[]),
+        ),
+        (
+            "a descriptive tool name in the message field",
+            "agent run",
+            rule_attrs(&[("logfire.msg", "running the calculator")]),
+        ),
+        (
+            "empty values on the fields read directly",
+            "plain span",
+            rule_attrs(&[
+                ("gen_ai.operation.name", ""),
+                ("gen_ai.response.id", ""),
+                ("gen_ai.tool.call.id", ""),
+            ]),
+        ),
+        (
+            "a hand-off, which names both sides",
+            "transfer",
+            rule_attrs(&[
+                ("recipient_agent_class", "Writer"),
+                ("sender_agent_class", "Planner"),
+            ]),
+        ),
+        (
+            "malformed objects, which yield nothing rather than failing",
+            "chat",
+            rule_attrs(&[
+                ("request_data", "not json"),
+                ("llm.invocation_parameters", "{{{"),
+                ("crew_agents", "[[["),
+            ]),
+        ),
+    ];
+
+    for (what, span_name, attrs) in cases {
+        let mut declared = SpanData::default();
+        crate::domain::traces::extract::attributes::extract_semantic(
+            &mut declared,
+            span_name,
+            &attrs,
+        );
+        let mut legacy = SpanData::default();
+        crate::domain::traces::extract::attributes::extract_genai_fields_legacy(
+            &mut legacy,
+            &attrs,
+            span_name,
+        );
+
+        // Named facets, so a mismatch names the field that moved.
+        let facet = |span: &SpanData| {
+            vec![
+                format!("system={:?}", span.gen_ai_system),
+                format!("operation={:?}", span.gen_ai_operation_name),
+                format!("request_model={:?}", span.gen_ai_request_model),
+                format!("response_model={:?}", span.gen_ai_response_model),
+                format!("response_id={:?}", span.gen_ai_response_id),
+                format!("temperature={:?}", span.gen_ai_temperature),
+                format!("top_p={:?}", span.gen_ai_top_p),
+                format!("top_k={:?}", span.gen_ai_top_k),
+                format!("max_tokens={:?}", span.gen_ai_max_tokens),
+                format!("frequency_penalty={:?}", span.gen_ai_frequency_penalty),
+                format!("presence_penalty={:?}", span.gen_ai_presence_penalty),
+                format!("stop_sequences={:?}", span.gen_ai_stop_sequences),
+                format!("finish_reasons={:?}", span.gen_ai_finish_reasons),
+                format!("agent_id={:?}", span.gen_ai_agent_id),
+                format!("agent_name={:?}", span.gen_ai_agent_name),
+                format!("tool_name={:?}", span.gen_ai_tool_name),
+                format!("tool_call_id={:?}", span.gen_ai_tool_call_id),
+                format!("ttft={:?}", span.gen_ai_server_ttft_ms),
+                format!("duration={:?}", span.gen_ai_server_request_duration_ms),
+            ]
+        };
+        assert_eq!(
+            facet(&declared),
+            facet(&legacy),
+            "the declared GenAI resolvers disagree with the chains they replaced: {what}"
+        );
+    }
+}

@@ -16,6 +16,7 @@ use crate::data::types::{ObservationType, SpanCategory};
 #[cfg(test)]
 use crate::data::types::Framework;
 use crate::domain::pricing;
+#[cfg(test)]
 use crate::utils::string::parse_string_array;
 use crate::utils::time::nanos_to_datetime;
 
@@ -71,6 +72,7 @@ pub(super) fn merge_tags(attrs: &HashMap<String, String>, tag_keys: &[&str]) -> 
 /// no session view, a trace read could not load its siblings, and the project feed could not widen its context,
 /// which lets replayed history through as duplicates. Present-but-empty is exactly the shape a chain exists to
 /// step over, and no caller wants an empty string in preference to a real one.
+#[cfg(test)]
 pub(super) fn get_first(attrs: &HashMap<String, String>, keys: &[&str]) -> Option<String> {
     keys.iter()
         .filter_map(|k| attrs.get(*k))
@@ -1141,17 +1143,43 @@ fn apply_field(span: &mut SpanData, resolved: &crate::domain::rules::span_fields
         Reading::Text(value) => Some(value.clone()),
         _ => None,
     };
+    let integer = || match &resolved.reading {
+        Reading::Integer(value) => Some(*value),
+        _ => None,
+    };
+    let float = || match &resolved.reading {
+        Reading::Float(value) => Some(*value),
+        _ => None,
+    };
+    let list = || match &resolved.reading {
+        Reading::StringList(items) => items.clone(),
+        _ => Vec::new(),
+    };
     match resolved.target {
         T::SessionId => span.session_id = text(),
         T::UserId => span.user_id = text(),
         T::HttpMethod => span.http_method = text(),
         T::HttpUrl => span.http_url = text(),
-        T::HttpStatusCode => {
-            span.http_status_code = match &resolved.reading {
-                Reading::Integer(value) => Some(*value),
-                _ => None,
-            }
-        }
+        T::HttpStatusCode => span.http_status_code = integer(),
+        T::GenAiSystem => span.gen_ai_system = text(),
+        T::GenAiOperationName => span.gen_ai_operation_name = text(),
+        T::GenAiRequestModel => span.gen_ai_request_model = text(),
+        T::GenAiResponseModel => span.gen_ai_response_model = text(),
+        T::GenAiResponseId => span.gen_ai_response_id = text(),
+        T::GenAiTemperature => span.gen_ai_temperature = float(),
+        T::GenAiTopP => span.gen_ai_top_p = float(),
+        T::GenAiTopK => span.gen_ai_top_k = integer(),
+        T::GenAiMaxTokens => span.gen_ai_max_tokens = integer(),
+        T::GenAiFrequencyPenalty => span.gen_ai_frequency_penalty = float(),
+        T::GenAiPresencePenalty => span.gen_ai_presence_penalty = float(),
+        T::GenAiStopSequences => span.gen_ai_stop_sequences = list(),
+        T::GenAiFinishReasons => span.gen_ai_finish_reasons = list(),
+        T::GenAiAgentId => span.gen_ai_agent_id = text(),
+        T::GenAiAgentName => span.gen_ai_agent_name = text(),
+        T::GenAiToolName => span.gen_ai_tool_name = text(),
+        T::GenAiToolCallId => span.gen_ai_tool_call_id = text(),
+        T::GenAiServerTtftMs => span.gen_ai_server_ttft_ms = integer(),
+        T::GenAiServerRequestDurationMs => span.gen_ai_server_request_duration_ms = integer(),
         T::DbSystem => span.db_system = text(),
         T::DbName => span.db_name = text(),
         T::DbOperation => span.db_operation = text(),
@@ -1161,12 +1189,7 @@ fn apply_field(span: &mut SpanData, resolved: &crate::domain::rules::span_fields
         T::StorageObject => span.storage_object = text(),
         T::MessagingSystem => span.messaging_system = text(),
         T::MessagingDestination => span.messaging_destination = text(),
-        T::Tags => {
-            span.tags = match &resolved.reading {
-                Reading::StringList(items) => items.clone(),
-                _ => Vec::new(),
-            }
-        }
+        T::Tags => span.tags = list(),
     }
 }
 
@@ -1256,181 +1279,18 @@ pub(super) fn extract_semantic_legacy(span: &mut SpanData, attrs: &HashMap<Strin
     span.tags = merge_tags(attrs, &[keys::TAGS, keys::LANGSMITH_TAGS, keys::TAG_TAGS]);
 }
 
+/// The GenAI fields of a span: everything but the token accounting.
+///
+/// The field half is declared in `rules/span-fields-genai.json`; the retired chains are kept below as the
+/// equivalence oracle. Token arithmetic stays here, because a synthesised total and every pricing decision are
+/// statements about our own accounting rather than about a producer's spelling.
 pub(crate) fn extract_genai(span: &mut SpanData, attrs: &HashMap<String, String>, span_name: &str) {
-    // System and operation
-    span.gen_ai_system = get_first(
-        attrs,
-        &[
-            keys::GEN_AI_PROVIDER_NAME,
-            keys::GEN_AI_SYSTEM,
-            "az.ai.inference.model_provider",
-            "ai.model.provider",
-            "llm.provider",
-        ],
-    );
-    span.gen_ai_operation_name = attrs.get(keys::GEN_AI_OPERATION_NAME).cloned();
-
-    // Models (including embedding/reranker model names as fallback)
-    span.gen_ai_request_model = get_first(
-        attrs,
-        &[
-            keys::GEN_AI_REQUEST_MODEL,
-            "ai.model.id",
-            "llm.model_name",
-            keys::EMBEDDING_MODEL_NAME,
-            keys::RERANKER_MODEL_NAME,
-        ],
-    );
-    span.gen_ai_response_model =
-        get_first(attrs, &[keys::GEN_AI_RESPONSE_MODEL, "llm.response.model"]);
-    span.gen_ai_response_id = attrs.get(keys::GEN_AI_RESPONSE_ID).cloned();
-
-    // Google ADK: model from llm_request JSON
-    if span.gen_ai_request_model.is_none() {
-        if let Some(req) = extract_json::<JsonValue>(attrs, keys::GCP_VERTEX_LLM_REQUEST) {
-            if let Some(model) = req.get("model").and_then(|v| v.as_str()) {
-                if !model.is_empty() {
-                    span.gen_ai_request_model = Some(model.to_string());
-                }
-            }
-        }
-    }
-
-    // CrewAI: model from crew_agents JSON (agent.llm field)
-    if span.gen_ai_request_model.is_none() {
-        if let Some(agents) = extract_json::<JsonValue>(attrs, "crew_agents") {
-            if let Some(arr) = agents.as_array() {
-                for agent in arr {
-                    if let Some(model) = agent.get("llm").and_then(|v| v.as_str()) {
-                        if !model.is_empty() {
-                            span.gen_ai_request_model = Some(model.to_string());
-                            break;
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    // Logfire: model, system, operation name and max tokens from request_data JSON.
-    //
-    // The gate covers *everything this block can fill*, not just the model and system. Gated on those two
-    // alone, a span that already carried a flat model and provider skipped the parse entirely - so
-    // `request_data.max_tokens` / `max_completion_tokens` and the operation-name fallback were unreachable
-    // exactly when the rest of the span was well populated, which is the common Logfire shape rather than an
-    // edge one. Each field inside is still filled only when it is the one missing.
-    if span.gen_ai_request_model.is_none()
-        || span.gen_ai_system.is_none()
-        || span.gen_ai_operation_name.is_none()
-        || span.gen_ai_max_tokens.is_none()
+    for resolved in crate::domain::rules::ruleset()
+        .span_fields
+        .resolve(span_name, attrs)
     {
-        if let Some(req) = extract_json::<JsonValue>(attrs, keys::REQUEST_DATA) {
-            if span.gen_ai_request_model.is_none() {
-                if let Some(model) = req.get("model").and_then(|v| v.as_str()) {
-                    if !model.is_empty() {
-                        span.gen_ai_request_model = Some(model.to_string());
-                    }
-                }
-            }
-            if span.gen_ai_system.is_none() {
-                // Anthropic: top-level "system" key (string/array); OpenAI: messages[0].role=system
-                if req.get("system").is_some() {
-                    span.gen_ai_system = Some("anthropic".to_string());
-                } else if req.get("messages").is_some() {
-                    span.gen_ai_system = Some("openai".to_string());
-                }
-            }
-            if span.gen_ai_operation_name.is_none() && req.get("messages").is_some() {
-                span.gen_ai_operation_name = Some("chat".to_string());
-            }
-            if span.gen_ai_max_tokens.is_none() {
-                span.gen_ai_max_tokens = req
-                    .get("max_tokens")
-                    .or_else(|| req.get("max_completion_tokens"))
-                    .and_then(|v| v.as_i64());
-            }
-        }
+        apply_field(span, &resolved);
     }
-
-    // Request parameters
-    span.gen_ai_temperature = parse_opt(attrs, keys::GEN_AI_TEMPERATURE);
-    span.gen_ai_top_p = parse_opt(attrs, keys::GEN_AI_TOP_P);
-    span.gen_ai_top_k = parse_opt(attrs, keys::GEN_AI_TOP_K);
-    // Only when the flat attribute is actually present. Assigning unconditionally overwrote the
-    // `request_data` fallback above with `None` whenever the flat attribute was absent - which is every
-    // Logfire span, so `request_data.max_tokens` / `max_completion_tokens` never survived extraction.
-    if let Some(max_tokens) = parse_opt(attrs, keys::GEN_AI_MAX_TOKENS) {
-        span.gen_ai_max_tokens = Some(max_tokens);
-    }
-    span.gen_ai_frequency_penalty = parse_opt(attrs, keys::GEN_AI_FREQUENCY_PENALTY);
-    span.gen_ai_presence_penalty = parse_opt(attrs, keys::GEN_AI_PRESENCE_PENALTY);
-
-    // OpenInference llm.invocation_parameters fallback
-    if let Some(params_json) = attrs.get(keys::LLM_INVOCATION_PARAMETERS) {
-        if let Ok(params) = serde_json::from_str::<JsonValue>(params_json) {
-            if span.gen_ai_temperature.is_none() {
-                span.gen_ai_temperature = params.get("temperature").and_then(|v| v.as_f64());
-            }
-            if span.gen_ai_top_p.is_none() {
-                span.gen_ai_top_p = params.get("top_p").and_then(|v| v.as_f64());
-            }
-            if span.gen_ai_top_k.is_none() {
-                span.gen_ai_top_k = params.get("top_k").and_then(|v| v.as_i64());
-            }
-            if span.gen_ai_max_tokens.is_none() {
-                span.gen_ai_max_tokens = params
-                    .get("max_tokens")
-                    .or_else(|| params.get("max_output_tokens"))
-                    .and_then(|v| v.as_i64());
-            }
-            if span.gen_ai_frequency_penalty.is_none() {
-                span.gen_ai_frequency_penalty =
-                    params.get("frequency_penalty").and_then(|v| v.as_f64());
-            }
-            if span.gen_ai_presence_penalty.is_none() {
-                span.gen_ai_presence_penalty =
-                    params.get("presence_penalty").and_then(|v| v.as_f64());
-            }
-        }
-    }
-
-    if let Some(stops) = attrs.get(keys::GEN_AI_STOP_SEQUENCES) {
-        span.gen_ai_stop_sequences = parse_string_array(stops);
-    }
-    if let Some(reasons) = attrs.get(keys::GEN_AI_FINISH_REASONS) {
-        span.gen_ai_finish_reasons = parse_string_array(reasons);
-    }
-
-    // Agent fields
-    span.gen_ai_agent_id = get_first(attrs, &[keys::GEN_AI_AGENT_ID, keys::AWS_BEDROCK_AGENT_ID]);
-    span.gen_ai_agent_name = get_first(
-        attrs,
-        &[
-            keys::GEN_AI_AGENT_NAME,
-            // OpenInference agent span attribute.
-            "agent.name",
-            "agent_role",
-            "recipient_agent_class",
-            "sender_agent_class",
-        ],
-    );
-
-    // Tool fields - logfire.msg is used by Pydantic AI for descriptive tool names
-    span.gen_ai_tool_name = get_first(
-        attrs,
-        &[
-            keys::GEN_AI_TOOL_NAME,
-            "tool.name",
-            "tool_name",
-            keys::LOGFIRE_MSG,
-        ],
-    )
-    .or_else(|| span_name.strip_prefix("execute_tool ").map(String::from));
-    span.gen_ai_tool_call_id = attrs.get(keys::GEN_AI_TOOL_CALL_ID).cloned();
-
-    // Performance
-    span.gen_ai_server_ttft_ms = parse_opt(attrs, keys::GEN_AI_TTFT);
-    span.gen_ai_server_request_duration_ms = parse_opt(attrs, keys::GEN_AI_REQUEST_DURATION);
 
     // Token usage
     // Presence, not value, is what the framework fallbacks below must test - a genuine `0` is a reported
@@ -1745,3 +1605,186 @@ pub(crate) fn extract_genai(span: &mut SpanData, attrs: &HashMap<String, String>
 #[cfg(test)]
 #[path = "attributes_tests.rs"]
 mod tests;
+
+/// The GenAI field chains the declared resolvers replaced, kept as the equivalence oracle.
+#[cfg(test)]
+pub(super) fn extract_genai_fields_legacy(
+    span: &mut SpanData,
+    attrs: &HashMap<String, String>,
+    span_name: &str,
+) {
+    // System and operation
+    span.gen_ai_system = get_first(
+        attrs,
+        &[
+            keys::GEN_AI_PROVIDER_NAME,
+            keys::GEN_AI_SYSTEM,
+            "az.ai.inference.model_provider",
+            "ai.model.provider",
+            "llm.provider",
+        ],
+    );
+    span.gen_ai_operation_name = attrs.get(keys::GEN_AI_OPERATION_NAME).cloned();
+
+    // Models (including embedding/reranker model names as fallback)
+    span.gen_ai_request_model = get_first(
+        attrs,
+        &[
+            keys::GEN_AI_REQUEST_MODEL,
+            "ai.model.id",
+            "llm.model_name",
+            keys::EMBEDDING_MODEL_NAME,
+            keys::RERANKER_MODEL_NAME,
+        ],
+    );
+    span.gen_ai_response_model =
+        get_first(attrs, &[keys::GEN_AI_RESPONSE_MODEL, "llm.response.model"]);
+    span.gen_ai_response_id = attrs.get(keys::GEN_AI_RESPONSE_ID).cloned();
+
+    // Google ADK: model from llm_request JSON
+    if span.gen_ai_request_model.is_none() {
+        if let Some(req) = extract_json::<JsonValue>(attrs, keys::GCP_VERTEX_LLM_REQUEST) {
+            if let Some(model) = req.get("model").and_then(|v| v.as_str()) {
+                if !model.is_empty() {
+                    span.gen_ai_request_model = Some(model.to_string());
+                }
+            }
+        }
+    }
+
+    // CrewAI: model from crew_agents JSON (agent.llm field)
+    if span.gen_ai_request_model.is_none() {
+        if let Some(agents) = extract_json::<JsonValue>(attrs, "crew_agents") {
+            if let Some(arr) = agents.as_array() {
+                for agent in arr {
+                    if let Some(model) = agent.get("llm").and_then(|v| v.as_str()) {
+                        if !model.is_empty() {
+                            span.gen_ai_request_model = Some(model.to_string());
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Logfire: model, system, operation name and max tokens from request_data JSON.
+    //
+    // The gate covers *everything this block can fill*, not just the model and system. Gated on those two
+    // alone, a span that already carried a flat model and provider skipped the parse entirely - so
+    // `request_data.max_tokens` / `max_completion_tokens` and the operation-name fallback were unreachable
+    // exactly when the rest of the span was well populated, which is the common Logfire shape rather than an
+    // edge one. Each field inside is still filled only when it is the one missing.
+    if span.gen_ai_request_model.is_none()
+        || span.gen_ai_system.is_none()
+        || span.gen_ai_operation_name.is_none()
+        || span.gen_ai_max_tokens.is_none()
+    {
+        if let Some(req) = extract_json::<JsonValue>(attrs, keys::REQUEST_DATA) {
+            if span.gen_ai_request_model.is_none() {
+                if let Some(model) = req.get("model").and_then(|v| v.as_str()) {
+                    if !model.is_empty() {
+                        span.gen_ai_request_model = Some(model.to_string());
+                    }
+                }
+            }
+            if span.gen_ai_system.is_none() {
+                // Anthropic: top-level "system" key (string/array); OpenAI: messages[0].role=system
+                if req.get("system").is_some() {
+                    span.gen_ai_system = Some("anthropic".to_string());
+                } else if req.get("messages").is_some() {
+                    span.gen_ai_system = Some("openai".to_string());
+                }
+            }
+            if span.gen_ai_operation_name.is_none() && req.get("messages").is_some() {
+                span.gen_ai_operation_name = Some("chat".to_string());
+            }
+            if span.gen_ai_max_tokens.is_none() {
+                span.gen_ai_max_tokens = req
+                    .get("max_tokens")
+                    .or_else(|| req.get("max_completion_tokens"))
+                    .and_then(|v| v.as_i64());
+            }
+        }
+    }
+
+    // Request parameters
+    span.gen_ai_temperature = parse_opt(attrs, keys::GEN_AI_TEMPERATURE);
+    span.gen_ai_top_p = parse_opt(attrs, keys::GEN_AI_TOP_P);
+    span.gen_ai_top_k = parse_opt(attrs, keys::GEN_AI_TOP_K);
+    // Only when the flat attribute is actually present. Assigning unconditionally overwrote the
+    // `request_data` fallback above with `None` whenever the flat attribute was absent - which is every
+    // Logfire span, so `request_data.max_tokens` / `max_completion_tokens` never survived extraction.
+    if let Some(max_tokens) = parse_opt(attrs, keys::GEN_AI_MAX_TOKENS) {
+        span.gen_ai_max_tokens = Some(max_tokens);
+    }
+    span.gen_ai_frequency_penalty = parse_opt(attrs, keys::GEN_AI_FREQUENCY_PENALTY);
+    span.gen_ai_presence_penalty = parse_opt(attrs, keys::GEN_AI_PRESENCE_PENALTY);
+
+    // OpenInference llm.invocation_parameters fallback
+    if let Some(params_json) = attrs.get(keys::LLM_INVOCATION_PARAMETERS) {
+        if let Ok(params) = serde_json::from_str::<JsonValue>(params_json) {
+            if span.gen_ai_temperature.is_none() {
+                span.gen_ai_temperature = params.get("temperature").and_then(|v| v.as_f64());
+            }
+            if span.gen_ai_top_p.is_none() {
+                span.gen_ai_top_p = params.get("top_p").and_then(|v| v.as_f64());
+            }
+            if span.gen_ai_top_k.is_none() {
+                span.gen_ai_top_k = params.get("top_k").and_then(|v| v.as_i64());
+            }
+            if span.gen_ai_max_tokens.is_none() {
+                span.gen_ai_max_tokens = params
+                    .get("max_tokens")
+                    .or_else(|| params.get("max_output_tokens"))
+                    .and_then(|v| v.as_i64());
+            }
+            if span.gen_ai_frequency_penalty.is_none() {
+                span.gen_ai_frequency_penalty =
+                    params.get("frequency_penalty").and_then(|v| v.as_f64());
+            }
+            if span.gen_ai_presence_penalty.is_none() {
+                span.gen_ai_presence_penalty =
+                    params.get("presence_penalty").and_then(|v| v.as_f64());
+            }
+        }
+    }
+
+    if let Some(stops) = attrs.get(keys::GEN_AI_STOP_SEQUENCES) {
+        span.gen_ai_stop_sequences = parse_string_array(stops);
+    }
+    if let Some(reasons) = attrs.get(keys::GEN_AI_FINISH_REASONS) {
+        span.gen_ai_finish_reasons = parse_string_array(reasons);
+    }
+
+    // Agent fields
+    span.gen_ai_agent_id = get_first(attrs, &[keys::GEN_AI_AGENT_ID, keys::AWS_BEDROCK_AGENT_ID]);
+    span.gen_ai_agent_name = get_first(
+        attrs,
+        &[
+            keys::GEN_AI_AGENT_NAME,
+            // OpenInference agent span attribute.
+            "agent.name",
+            "agent_role",
+            "recipient_agent_class",
+            "sender_agent_class",
+        ],
+    );
+
+    // Tool fields - logfire.msg is used by Pydantic AI for descriptive tool names
+    span.gen_ai_tool_name = get_first(
+        attrs,
+        &[
+            keys::GEN_AI_TOOL_NAME,
+            "tool.name",
+            "tool_name",
+            keys::LOGFIRE_MSG,
+        ],
+    )
+    .or_else(|| span_name.strip_prefix("execute_tool ").map(String::from));
+    span.gen_ai_tool_call_id = attrs.get(keys::GEN_AI_TOOL_CALL_ID).cloned();
+
+    // Performance
+    span.gen_ai_server_ttft_ms = parse_opt(attrs, keys::GEN_AI_TTFT);
+    span.gen_ai_server_request_duration_ms = parse_opt(attrs, keys::GEN_AI_REQUEST_DURATION);
+}
