@@ -210,7 +210,7 @@ Qualifications that matter:
   stage. Step 8 records why.
 
 "Minimal" cannot be proved from goldens. A **branch ledger** — proposed here, **never built**; what was
-built instead is the sixteen equivalence oracles, which hold each migration to the code it replaced rather
+built instead is the seventeen equivalence oracles, which hold each migration to the code it replaced rather
 than to an inventory of its branches — maps every legacy branch and helper to a
 rule clause, a primitive and a focused test, and dual-run comparison happens **before** downstream
 dedup, because final goldens can hide extractor differences.
@@ -646,18 +646,23 @@ and does not establish.
 The mandate was that the engine be *designed and accepted together with Codex*, so the acceptance is its
 statement rather than a summary of it. Cycle 40 found nothing, on `d57afd7c`.
 
-> **The cycle-40 acceptance was invalidated by a later finding, and is kept here for the record rather than
-> as the current verdict.** Criterion (a) was **false** at `d57afd7c`: `role_from_event_name_with_context`
-> was still a Rust table in `normalize.rs`, and one of its arms existed only because the Claude Code CLI
-> writes its tool result on a `tool.output` event. The sweep could not see it — the name is spelled as a
-> *value*, which is the blind spot that sweep documents — and no review had checked all four items of the
-> survey's third correction, only the ones a finding had named. It was restored by `8e3ab002`, which moved
-> the table to `event_roles`; `d76ad8b4` then fixed a reachable defect the move exposed, where a tagged
-> source name took no declared role and a tool's answer was presented as a user message.
+> **The cycle-40 acceptance was invalidated twice over, and is kept here for the record rather than as the
+> current verdict.** Criterion (a) was **false** at `d57afd7c`, and the two things that made it false are the
+> same defect at different scales:
+>
+> | Found at | What was still Rust's knowledge |
+> | --- | --- |
+> | Cycle 43 | `role_from_event_name_with_context` in `normalize.rs`, one arm of it existing only because the Claude Code CLI writes its tool result on a `tool.output` event. Moved to `event_roles` by `8e3ab002`; `d76ad8b4` then fixed a reachable defect the move exposed, where a tagged source name took no declared role and a tool's answer was presented as a user message |
+> | Cycle 45 | `response_data` and its `$.finish_reason` shape, one of four attribute-based finish-reason fallbacks. All four are declared by `ff0d3cdf`; only the `gen_ai.choice` **event** remains, which field resolution cannot see |
+>
+> Neither was visible to the name sweep, because a key is a *value* and names nobody — and both were found
+> only by auditing all of a survey correction rather than the part a review had named. That is what the
+> value-level gate is for, and its first two versions passed vacuously; see the limits below for what it
+> can and cannot see.
 >
 > So this section records **two** things that must not be conflated: what Codex accepted at cycle 40, and
-> that the acceptance rested on a claim which turned out to be untrue there. A final acceptance attaches to
-> a review taken *after* those fixes, not to cycle 40 alone.
+> that the acceptance rested on a claim untrue there. A final acceptance attaches to a review taken *after*
+> those fixes, not to cycle 40 alone.
 
 ### What the whole-server sweep establishes
 
@@ -730,7 +735,7 @@ Codex's acceptance, verbatim:
 | `sdk_slugs` | 26 | | |
 
 Each retirement is held to the code it replaced by an **equivalence oracle** rather than by the goldens,
-because a golden can be regenerated and bless a regression. **Sixteen**, in two shapes, and one thing that
+because a golden can be regenerated and bless a regression. **Seventeen**, in two shapes, and one thing that
 is not an oracle at all. Codex's classification, at cycle 42 when there were fifteen:
 
 > Thirteen focused equivalence tests compare individual migrations with the retired implementation. Two
@@ -743,9 +748,10 @@ The focused thirteen are `the_rules_reproduce_the_legacy_carrier_table`,
 field-chain and token-table oracles, the two content-block readers, the member lists, the single-tool
 triple, the span facts, and the two classification sweeps in their focused form. The corpus-wide two are
 `the_declared_classification_matches_the_sweep_across_the_corpus` and
-`the_member_vocabulary_answers_as_it_did_across_the_corpus`. The fourteenth focused one is
-`the_declared_event_roles_reproduce_the_table_they_replaced`, added with the event-role move (`8e3ab002`) —
-which is why the total is sixteen and the quotation says fifteen.
+`the_member_vocabulary_answers_as_it_did_across_the_corpus`. Two focused ones came after that count:
+`the_declared_event_roles_reproduce_the_table_they_replaced` with the event-role move (`8e3ab002`) and
+`the_declared_finish_reason_source_reproduces_the_retired_block` with the finish-reason move (`ff0d3cdf`) —
+which is why the total is seventeen and the quotation says fifteen.
 
 Keeping the coverage inventory out of that count is the point: it says which rules were *exercised*, which
 is a different question from whether the ones that ran agree with the code they replaced.
@@ -769,8 +775,19 @@ fixed later — each is a boundary of what the evidence can carry.
   set is exact and asserted, so it shrinks when a fixture reaches one and cannot grow silently.
 - **A depth-8 walk.** The member-vocabulary comparison walks captured JSON to depth eight. Deeper nesting is
   unexamined by that oracle.
-- **Names, not values.** The sweep reads framework *names*. A module hard-coding a framework's magic
-  attribute value without naming it is not caught — which is why the oracles matter more than the sweep.
+- **Values are gated too, and the gate has its own limits.** Two sweeps run, because the first could not see
+  the defect that invalidated the cycle-40 acceptance: one over framework *names*
+  (`no_production_module_names_a_framework`) and one over the telemetry *keys* the assets declare
+  (`no_production_module_carries_a_framework_telemetry_key`). The second collects every dotted string in the
+  assets except a closed list of the engine's own vocabulary, attributes it to the declaring asset, and
+  derives which namespaces are the conventions' rather than listing them — a namespace is theirs when the
+  conventions declare under it or no framework asset does, which is what separates OTel's `session.id` from
+  Vercel's `ai.usage.promptTokens` when both sit in the same shared chain. It cannot see: a key no asset
+  declares (nothing identifies it as a producer's), a **value that is not a dotted key** — a role string, a
+  magic number, a bare word like `response_data` before it was declared — and a key assembled at runtime.
+  Its derivation is pinned in both directions by
+  `the_key_sweep_tells_a_producer_key_from_a_convention`, because two earlier versions passed while naming
+  nothing.
 - **Prose.** Doc comments are not read, including the one place `schemars` turns a doc comment into a
   shipped schema description.
 - **Outside `server/src`.** The SDKs are separate crates and are *meant* to name the framework they
