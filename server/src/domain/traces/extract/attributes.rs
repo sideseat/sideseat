@@ -4,7 +4,7 @@
 
 #![allow(clippy::collapsible_if)]
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 
 use chrono::{DateTime, Utc};
 use opentelemetry_proto::tonic::trace::v1::Span;
@@ -43,10 +43,14 @@ fn contains_ascii_ignore_case(haystack: &str, needle: &str) -> bool {
         .any(|window| window.eq_ignore_ascii_case(needle.as_bytes()))
 }
 
-/// Merge tags from multiple attribute keys, deduplicating
+/// Merge tags from multiple attribute keys, deduplicating.
+///
+/// Only the oracle's now: the declared `merge_all` combine does this, and a producer's tag key is stated in
+/// the asset rather than in a list here.
+#[cfg(test)]
 pub(super) fn merge_tags(attrs: &HashMap<String, String>, tag_keys: &[&str]) -> Vec<String> {
     let mut tags = Vec::new();
-    let mut seen = HashSet::new();
+    let mut seen = std::collections::HashSet::new();
     for key in tag_keys {
         if let Some(val) = attrs.get(*key) {
             for tag in parse_string_array(val) {
@@ -1105,7 +1109,67 @@ fn extract_autogen_tokens(attrs: &HashMap<String, String>) -> (i64, i64) {
 // ATTRIBUTE EXTRACTION
 // ============================================================================
 
+/// The stored fields whose only framework-specific part is *which key* carries them.
+///
+/// Every chain this replaced was an ordered `&[&str]` of provider spellings - framework knowledge in the
+/// code, where adding a producer meant editing a list. The order is declared in
+/// `rules/span-fields-semantic.json`; the retired chains stay below as the equivalence oracle.
 pub(crate) fn extract_semantic(span: &mut SpanData, attrs: &HashMap<String, String>) {
+    for resolved in crate::domain::rules::ruleset()
+        .span_fields
+        .resolve("", attrs)
+    {
+        apply_field(span, &resolved);
+    }
+}
+
+/// Write one resolved field onto the span.
+///
+/// The one place that knows the shape of **our own** DTO, which is not framework knowledge: a target names a
+/// column, and the resolver has already decided what a source had to produce to fill it.
+fn apply_field(span: &mut SpanData, resolved: &crate::domain::rules::span_fields::Resolved) {
+    use crate::domain::rules::schema::FieldTarget as T;
+    use crate::domain::rules::span_fields::Reading;
+
+    let text = || match &resolved.reading {
+        Reading::Text(value) => Some(value.clone()),
+        _ => None,
+    };
+    match resolved.target {
+        T::SessionId => span.session_id = text(),
+        T::UserId => span.user_id = text(),
+        T::HttpMethod => span.http_method = text(),
+        T::HttpUrl => span.http_url = text(),
+        T::HttpStatusCode => {
+            span.http_status_code = match &resolved.reading {
+                Reading::Integer(value) => Some(*value),
+                _ => None,
+            }
+        }
+        T::DbSystem => span.db_system = text(),
+        T::DbName => span.db_name = text(),
+        T::DbOperation => span.db_operation = text(),
+        T::DbStatement => span.db_statement = text(),
+        T::StorageSystem => span.storage_system = text(),
+        T::StorageBucket => span.storage_bucket = text(),
+        T::StorageObject => span.storage_object = text(),
+        T::MessagingSystem => span.messaging_system = text(),
+        T::MessagingDestination => span.messaging_destination = text(),
+        T::Tags => {
+            span.tags = match &resolved.reading {
+                Reading::StringList(items) => items.clone(),
+                _ => Vec::new(),
+            }
+        }
+    }
+}
+
+/// The chains the declared resolvers replaced, kept as the equivalence oracle.
+///
+/// `the_field_rules_reproduce_the_chains_they_replaced` runs both over every span of the corpus and requires
+/// the same answer, which is what makes the migration a provable no-op rather than a hope.
+#[cfg(test)]
+pub(super) fn extract_semantic_legacy(span: &mut SpanData, attrs: &HashMap<String, String>) {
     let metadata: Option<JsonValue> = extract_json(attrs, keys::METADATA);
 
     // Session ID with framework fallbacks (including Vercel AI telemetry metadata)

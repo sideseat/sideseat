@@ -9882,3 +9882,127 @@ fn the_crew_metadata_carriers_yield_what_the_retired_reader_did() {
     let (defs, _) = extract_tool_definitions("", &attrs, Utc::now());
     assert_eq!(names_of(&defs, "crew_agents"), vec!["search".to_string()]);
 }
+
+// ============================================================================
+// SPAN-FIELD EQUIVALENCE: the declared resolvers against the chains they replaced
+// ============================================================================
+
+/// The declared field resolvers produce exactly what the ordered `&[&str]` chains produced.
+///
+/// Every shape that distinguishes the resolvers: an empty value the chain must step over, a value only a
+/// later spelling carries, a value only inside `metadata`, a status code that is not a number, and tag keys
+/// that overlap. The oracle is the retired code itself, so this is a provable no-op rather than a hope -
+/// which matters because a session id silently lost is a conversation with no session view.
+#[test]
+fn the_field_rules_reproduce_the_chains_they_replaced() {
+    let cases: Vec<(&str, HashMap<String, String>)> = vec![
+        ("nothing at all", rule_attrs(&[])),
+        (
+            "the standard spellings",
+            rule_attrs(&[
+                ("session.id", "s-1"),
+                ("user.id", "u-1"),
+                ("http.method", "GET"),
+                ("http.url", "https://example/x"),
+                ("http.status_code", "200"),
+                ("db.system", "postgresql"),
+                ("db.name", "main"),
+                ("db.operation", "SELECT"),
+                ("db.statement", "select 1"),
+                ("cloud.provider", "aws"),
+                ("aws.s3.bucket", "b"),
+                ("aws.s3.key", "k"),
+                ("messaging.system", "sqs"),
+                ("messaging.destination", "q"),
+                ("tags", r#"["a","b"]"#),
+            ]),
+        ),
+        (
+            "an empty value the chain steps over, and a real one further down",
+            rule_attrs(&[
+                ("session.id", ""),
+                ("gen_ai.conversation.id", "conv-1"),
+                ("user.id", ""),
+                ("enduser.id", "u-2"),
+            ]),
+        ),
+        (
+            "only the newer spellings",
+            rule_attrs(&[
+                ("http.request.method", "POST"),
+                ("url.full", "https://example/y"),
+                ("http.response.status_code", "503"),
+                ("messaging.destination.name", "topic"),
+                ("gcp.gcs.bucket", "gb"),
+                ("gcp.gcs.object", "go"),
+            ]),
+        ),
+        (
+            "a session and user only inside metadata",
+            rule_attrs(&[(
+                "metadata",
+                r#"{"thread_id":"t-1","user_id":"u-3","langgraph_step":2}"#,
+            )]),
+        ),
+        (
+            "the other metadata spelling of a thread",
+            rule_attrs(&[("metadata", r#"{"langgraph_thread_id":"t-2"}"#)]),
+        ),
+        (
+            "a status code that is not a number",
+            rule_attrs(&[("http.status_code", "OK")]),
+        ),
+        (
+            "tags under several keys, overlapping",
+            rule_attrs(&[
+                ("tags", r#"["a","b"]"#),
+                ("langsmith.tags", r#"["b","c"]"#),
+                ("tag.tags", "d"),
+            ]),
+        ),
+        (
+            "framework session and user keys",
+            rule_attrs(&[
+                ("langsmith.session.id", "ls-1"),
+                ("ai.telemetry.metadata.userId", "vu-1"),
+            ]),
+        ),
+        (
+            "malformed metadata beside a real session key",
+            rule_attrs(&[("session.id", "s-2"), ("metadata", "not json at all")]),
+        ),
+    ];
+
+    for (what, attrs) in cases {
+        let mut declared = SpanData::default();
+        crate::domain::traces::extract::attributes::extract_semantic(&mut declared, &attrs);
+        let mut legacy = SpanData::default();
+        crate::domain::traces::extract::attributes::extract_semantic_legacy(&mut legacy, &attrs);
+
+        // Named facets rather than a tuple, so a mismatch names the field that moved.
+        let facet = |span: &SpanData| {
+            vec![
+                format!("session_id={:?}", span.session_id),
+                format!("user_id={:?}", span.user_id),
+                format!("http_method={:?}", span.http_method),
+                format!("http_url={:?}", span.http_url),
+                format!("http_status_code={:?}", span.http_status_code),
+                format!("db_system={:?}", span.db_system),
+                format!("db_name={:?}", span.db_name),
+                format!("db_operation={:?}", span.db_operation),
+                format!("db_statement={:?}", span.db_statement),
+                format!("storage_system={:?}", span.storage_system),
+                format!("storage_bucket={:?}", span.storage_bucket),
+                format!("storage_object={:?}", span.storage_object),
+                format!("messaging_system={:?}", span.messaging_system),
+                format!("messaging_destination={:?}", span.messaging_destination),
+                format!("tags={:?}", span.tags),
+            ]
+        };
+        assert_eq!(
+            facet(&declared),
+            facet(&legacy),
+            "the declared resolvers disagree with the chains they replaced: {what}"
+        );
+    }
+}

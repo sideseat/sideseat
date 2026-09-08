@@ -73,6 +73,131 @@ pub struct RuleFile {
     /// to no framework file, which is how they keep resolving to nothing.
     #[serde(default)]
     pub sdk_slugs: Vec<SdkSlug>,
+    /// Which keys carry a *span field* - a scalar or list on the stored span, as opposed to a message.
+    ///
+    /// The same kind of fact as a carrier, at a different granularity: `gen_ai.usage.input_tokens`,
+    /// `ai.usage.promptTokens` and a bare `input_tokens` are three spellings of one number, and as an
+    /// ordered `&[&str]` in Rust they were a list of frameworks the code had to know.
+    #[serde(default)]
+    pub span_fields: Vec<SpanFieldRule>,
+}
+
+/// One stored field, and every key a producer might carry it under.
+///
+/// Ordered: the **first source that yields a value of the target's type** wins, which is what a fallback
+/// chain means. Not claimed, unlike a message carrier - a key naming a model is evidence about the model
+/// whoever else reads it, and two fields legitimately read one key (`gen_ai.request.model` answers both the
+/// request model and, for a provider that never states a response model, nothing else).
+#[derive(Debug, Deserialize, Clone)]
+#[serde(deny_unknown_fields)]
+pub struct SpanFieldRule {
+    pub id: String,
+    #[serde(default)]
+    pub doc: Option<String>,
+    /// The stored field this resolves. This engine's own vocabulary, not any producer's.
+    pub target: FieldTarget,
+    /// How several yielding sources combine.
+    #[serde(default)]
+    pub combine: FieldCombine,
+    /// The sources, in the order they are consulted.
+    pub sources: Vec<FieldSource>,
+}
+
+/// A stored field a rule may resolve.
+///
+/// An enum rather than a free string: a typo in an asset would otherwise be a field that is silently never
+/// filled, and the sink has to know each field's *type* - the outcome of reading `http.status_code` is an
+/// integer or a malformed value, and "the string 200" is not an answer this can store.
+#[derive(Debug, Deserialize, Clone, Copy, PartialEq, Eq, Hash)]
+#[serde(rename_all = "snake_case")]
+pub enum FieldTarget {
+    SessionId,
+    UserId,
+    HttpMethod,
+    HttpUrl,
+    HttpStatusCode,
+    DbSystem,
+    DbName,
+    DbOperation,
+    DbStatement,
+    StorageSystem,
+    StorageBucket,
+    StorageObject,
+    MessagingSystem,
+    MessagingDestination,
+    Tags,
+}
+
+impl FieldTarget {
+    /// What a source must produce to fill this field.
+    pub fn field_type(self) -> FieldType {
+        match self {
+            Self::HttpStatusCode => FieldType::Integer,
+            Self::Tags => FieldType::StringList,
+            Self::SessionId
+            | Self::UserId
+            | Self::HttpMethod
+            | Self::HttpUrl
+            | Self::DbSystem
+            | Self::DbName
+            | Self::DbOperation
+            | Self::DbStatement
+            | Self::StorageSystem
+            | Self::StorageBucket
+            | Self::StorageObject
+            | Self::MessagingSystem
+            | Self::MessagingDestination => FieldType::Text,
+        }
+    }
+}
+
+/// The shape a field holds, which decides what counts as a source yielding.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FieldType {
+    Text,
+    Integer,
+    StringList,
+}
+
+/// What happens when more than one source yields.
+#[derive(Debug, Deserialize, Clone, Copy, Default, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum FieldCombine {
+    /// The first yielding source answers and the rest are not consulted.
+    #[default]
+    FirstWins,
+    /// Every source contributes, in order, duplicates dropped. Only a list field may say this.
+    MergeAll,
+}
+
+/// One place a field's value may be written.
+#[derive(Debug, Deserialize, Clone)]
+#[serde(deny_unknown_fields)]
+pub struct FieldSource {
+    #[serde(default)]
+    pub doc: Option<String>,
+    /// A flat span attribute holding the value directly.
+    #[serde(default)]
+    pub attribute: Option<String>,
+    /// A member of a JSON-valued attribute, reached by RFC 9535 JSONPath.
+    #[serde(default)]
+    pub json: Option<JsonFieldSource>,
+    /// Consulted only when this holds of the span. Signals are ORed, as everywhere else.
+    #[serde(default)]
+    pub when: Option<DetectMatch>,
+    /// Skipped when this holds of the span.
+    #[serde(default)]
+    pub unless: Option<DetectMatch>,
+}
+
+/// A value inside a JSON-valued attribute.
+#[derive(Debug, Deserialize, Clone)]
+#[serde(deny_unknown_fields)]
+pub struct JsonFieldSource {
+    /// The attribute whose text is parsed. Parsed once per span however many sources name it.
+    pub attribute: String,
+    /// Where in it the value sits.
+    pub path: JsonPath,
 }
 
 /// One detection rule: signals that identify a producer, and the label they yield.

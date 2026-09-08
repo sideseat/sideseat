@@ -23,6 +23,7 @@ pub mod content_blocks;
 pub mod detect_rules;
 pub mod message_rules;
 pub mod schema;
+pub mod span_fields;
 mod tool_repr;
 
 #[cfg(test)]
@@ -150,6 +151,8 @@ pub struct Ruleset {
     pub content_blocks: content_blocks::ContentBlockPlan,
     /// Facts about a span, each established by any dialect that can.
     pub span_facts: SpanFactPlan,
+    /// Where each stored span field is written, per producer.
+    pub span_fields: span_fields::SpanFieldPlan,
     /// BLAKE3 of the asset bytes that produced this plan, hex-encoded.
     ///
     /// Joins the reconstruction cache key. That cache is a memo over a pure function of the rows, and
@@ -195,6 +198,8 @@ pub fn ruleset() -> &'static Ruleset {
                 .map(|event| event.name.clone())
                 .collect(),
             span_facts: SpanFactPlan::compile(&sources),
+            span_fields: span_fields::compile(&sources)
+                .unwrap_or_else(|e| panic!("embedded span field rules are malformed: {e}")),
             digest,
         }
     })

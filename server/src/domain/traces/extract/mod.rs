@@ -98,8 +98,11 @@ pub(super) mod keys {
     pub const SIDESEAT_FRAMEWORK: &str = "sideseat.framework";
 
     // Session/User
+    #[cfg(test)]
     pub const SESSION_ID: &str = "session.id";
+    #[cfg(test)]
     pub const USER_ID: &str = "user.id";
+    #[cfg(test)]
     pub const ENDUSER_ID: &str = "enduser.id";
 
     // GenAI Core
@@ -132,8 +135,11 @@ pub(super) mod keys {
     pub const GEN_AI_REQUEST_DURATION: &str = "gen_ai.server.request_duration";
 
     // Framework Session IDs
+    #[cfg(test)]
     pub const LANGSMITH_SESSION_ID: &str = "langsmith.session.id";
+    #[cfg(test)]
     pub const LANGSMITH_TRACE_SESSION_ID: &str = "langsmith.trace.session_id";
+    #[cfg(test)]
     pub const GCP_VERTEX_SESSION_ID: &str = "gcp.vertex.agent.session_id";
 
     // LangSmith
@@ -145,6 +151,7 @@ pub(super) mod keys {
     pub const LANGGRAPH_CHECKPOINT_NS: &str = "langgraph.checkpoint_ns";
     #[cfg(test)]
     pub const LANGGRAPH_NODE: &str = "langgraph.node";
+    #[cfg(test)]
     pub const LANGGRAPH_THREAD_ID: &str = "langgraph.thread_id";
 
     // Span Kind Attributes
@@ -176,9 +183,13 @@ pub(super) mod keys {
     // HTTP
     pub const HTTP_METHOD: &str = "http.method";
     pub const HTTP_REQUEST_METHOD: &str = "http.request.method";
+    #[cfg(test)]
     pub const HTTP_URL: &str = "http.url";
+    #[cfg(test)]
     pub const URL_FULL: &str = "url.full";
+    #[cfg(test)]
     pub const HTTP_STATUS_CODE: &str = "http.status_code";
+    #[cfg(test)]
     pub const HTTP_RESPONSE_STATUS_CODE: &str = "http.response.status_code";
 
     // RPC
@@ -186,25 +197,38 @@ pub(super) mod keys {
 
     // Database
     pub const DB_SYSTEM: &str = "db.system";
+    #[cfg(test)]
     pub const DB_NAME: &str = "db.name";
+    #[cfg(test)]
     pub const DB_OPERATION: &str = "db.operation";
+    #[cfg(test)]
     pub const DB_STATEMENT: &str = "db.statement";
 
     // Storage
+    #[cfg(test)]
     pub const CLOUD_PROVIDER: &str = "cloud.provider";
+    #[cfg(test)]
     pub const AWS_S3_BUCKET: &str = "aws.s3.bucket";
+    #[cfg(test)]
     pub const AWS_S3_KEY: &str = "aws.s3.key";
+    #[cfg(test)]
     pub const GCP_GCS_BUCKET: &str = "gcp.gcs.bucket";
+    #[cfg(test)]
     pub const GCP_GCS_OBJECT: &str = "gcp.gcs.object";
 
     // Messaging
     pub const MESSAGING_SYSTEM: &str = "messaging.system";
+    #[cfg(test)]
     pub const MESSAGING_DESTINATION: &str = "messaging.destination";
+    #[cfg(test)]
     pub const MESSAGING_DESTINATION_NAME: &str = "messaging.destination.name";
 
     // Tags/Metadata
+    #[cfg(test)]
     pub const TAGS: &str = "tags";
+    #[cfg(test)]
     pub const LANGSMITH_TAGS: &str = "langsmith.tags";
+    #[cfg(test)]
     pub const TAG_TAGS: &str = "tag.tags";
     pub const METADATA: &str = "metadata";
 
@@ -303,7 +327,9 @@ pub(super) mod keys {
     #[cfg(test)]
     pub const MLFLOW_CHAT_TOOLS: &str = "mlflow.chat.tools";
     pub const MLFLOW_CHAT_TOKEN_USAGE: &str = "mlflow.chat.tokenUsage";
+    #[cfg(test)]
     pub const MLFLOW_TRACE_SESSION: &str = "mlflow.trace.session";
+    #[cfg(test)]
     pub const MLFLOW_TRACE_USER: &str = "mlflow.trace.user";
 
     // TraceLoop
@@ -339,7 +365,9 @@ pub(super) mod keys {
     pub const AI_TOOLCALL_ARGS: &str = "ai.toolCall.args";
     #[cfg(test)]
     pub const AI_TOOLCALL_RESULT: &str = "ai.toolCall.result";
+    #[cfg(test)]
     pub const AI_TELEMETRY_SESSION_ID: &str = "ai.telemetry.metadata.sessionId";
+    #[cfg(test)]
     pub const AI_TELEMETRY_USER_ID: &str = "ai.telemetry.metadata.userId";
 
     // Google ADK
