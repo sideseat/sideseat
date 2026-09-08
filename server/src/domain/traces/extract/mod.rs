@@ -31,7 +31,8 @@
 
 #![allow(clippy::collapsible_if)]
 
-mod attributes;
+#[cfg_attr(test, allow(unreachable_pub))]
+pub(crate) mod attributes;
 pub mod files;
 mod messages;
 

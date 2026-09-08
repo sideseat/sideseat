@@ -1601,7 +1601,6 @@ fn gate_covers(wider: &DetectMatch, narrower: &DetectMatch) -> bool {
                 .any(|ours| ours.key == theirs.key && subsumes(&ours.value, &theirs.value))
         })
     };
-    let exactly = |ours: &str, theirs: &str| ours == theirs;
     // A span-name signal matches by equality *or* prefix, so a longer needle is covered by a shorter one.
     let prefix_of = |ours: &str, theirs: &str| theirs.starts_with(ours);
     // A `contains` needle covers any needle that contains it.
@@ -1615,12 +1614,35 @@ fn gate_covers(wider: &DetectMatch, narrower: &DetectMatch) -> bool {
         || !narrower.span_attr_contains.is_empty()
         || !narrower.resource_attr_contains.is_empty();
 
+    // Across dimensions where one runtime signal *implies* another. `attr_equals(k, v)` reads the key, so it
+    // cannot hold unless `attr_exists(k)` does; and `attr_prefix(p)` holds of any key starting with `p`, so an
+    // exact key that starts with `p` implies it. Same-dimension comparison alone let a wide `attr_exists`
+    // rule sit ahead of a narrow `attr_equals` one on the same carrier, where the second can never own it.
+    let key_covered = |key: &str| {
+        wider.attr_exists.iter().any(|ours| ours == key)
+            || wider
+                .attr_prefix
+                .iter()
+                .any(|prefix| key.starts_with(prefix.as_str()))
+    };
+    let equals_covered = narrower.attr_equals.iter().all(|theirs| {
+        key_covered(&theirs.key)
+            || wider
+                .attr_equals
+                .iter()
+                .any(|ours| ours.key == theirs.key && ours.value == theirs.value)
+    });
+    let exists_covered = narrower
+        .attr_exists
+        .iter()
+        .all(|theirs| key_covered(theirs));
+
     any_signal
         && all_covered(&narrower.span_name, &wider.span_name, prefix_of)
         && all_covered(&narrower.attr_prefix, &wider.attr_prefix, prefix_of)
-        && all_covered(&narrower.attr_exists, &wider.attr_exists, exactly)
+        && exists_covered
         && all_covered(&narrower.service_name, &wider.service_name, inside)
-        && pairs_covered(&narrower.attr_equals, &wider.attr_equals, exactly)
+        && equals_covered
         && pairs_covered(
             &narrower.span_attr_contains,
             &wider.span_attr_contains,
@@ -1645,14 +1667,26 @@ struct Consumed {
 
 /// What a rule reads, each carrier paired with what narrows the claim on it.
 fn consumed_carriers(rule: &CompiledMessageRule) -> Vec<Consumed> {
-    let wholly = rule_condition(rule);
-    consumed_patterns(rule)
+    narrow_with(consumed_patterns(rule), &rule_condition(rule))
+}
+
+/// Apply a rule-wide condition to patterns that do not already carry a narrower one of their own.
+///
+/// A **branch leaf keeps its own gate**. Flattening replaced every child condition with the parent's, so an
+/// ungated parent made a `when`-gated leaf look unconditional and the leaf could then convict a rule that is
+/// live on spans its gate excludes. A leaf's gate is at least as narrow as its parent's - the parent's gate is
+/// checked first and then the leaf's - so combining them means keeping the leaf's where it has one.
+fn narrow_with(patterns: Vec<Consumed>, wholly: &Condition) -> Vec<Consumed> {
+    patterns
         .into_iter()
         .map(|mut consumed| {
-            // A rule-wide condition narrows every carrier; a per-carrier `narrowed` is already the
-            // narrower answer and keeps it.
-            if !consumed.condition.narrowed {
+            if consumed.condition.narrowed {
+                // Already the narrower answer.
+            } else if consumed.condition.gate.is_none() {
                 consumed.condition = wholly.clone();
+            } else if wholly.narrowed {
+                // The parent may read nothing where it runs, which narrows the leaf too.
+                consumed.condition.narrowed = true;
             }
             consumed
         })
@@ -1720,8 +1754,16 @@ fn consumed_patterns(rule: &CompiledMessageRule) -> Vec<Consumed> {
     // A branch set's subrules read carriers of their own, and they were invisible here - so two dialects
     // could contend for one carrier as long as the collision was inside a branch set.
     if let Some(set) = &rule.branch_set {
-        for sub in set.primary.iter().chain(&set.fallback).chain(&set.always) {
+        for sub in set.primary.iter().chain(&set.always) {
             out.extend(consumed_carriers(sub));
+        }
+        // A `fallback_if_primary_empty` leaf reads only where every primary reading came up empty - a
+        // condition on the payload that nothing here can relate to another rule's, so it is narrowed.
+        for sub in &set.fallback {
+            out.extend(consumed_carriers(sub).into_iter().map(|mut c| {
+                c.condition.narrowed = true;
+                c
+            }));
         }
     }
     if let Some(compose) = &rule.compose {
@@ -1751,16 +1793,7 @@ fn consumed_patterns(rule: &CompiledMessageRule) -> Vec<Consumed> {
 
 /// What a rule tags its observations with.
 fn emitted_carriers(rule: &CompiledMessageRule) -> Vec<Consumed> {
-    let wholly = rule_condition(rule);
-    emitted_patterns(rule)
-        .into_iter()
-        .map(|mut emitted| {
-            if !emitted.condition.narrowed {
-                emitted.condition = wholly.clone();
-            }
-            emitted
-        })
-        .collect()
+    narrow_with(emitted_patterns(rule), &rule_condition(rule))
 }
 
 /// The tags themselves, each with whatever narrows *that* emission.
@@ -1773,13 +1806,17 @@ fn emitted_patterns(rule: &CompiledMessageRule) -> Vec<Consumed> {
     // emits a carrier this rule never names. Invisible here, two dialects could both emit one carrier from
     // inside their branch sets.
     if let Some(set) = &rule.branch_set {
-        return set
+        let mut out: Vec<Consumed> = set
             .primary
             .iter()
-            .chain(&set.fallback)
             .chain(&set.always)
             .flat_map(emitted_carriers)
             .collect();
+        out.extend(set.fallback.iter().flat_map(emitted_carriers).map(|mut c| {
+            c.condition.narrowed = true;
+            c
+        }));
+        return out;
     }
     if let Some(tag) = &rule.tag_as {
         // Overrides every read form: whatever was read, this is the tag.

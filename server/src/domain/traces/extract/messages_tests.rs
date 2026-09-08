@@ -8841,6 +8841,92 @@ fn a_condition_separates_two_rules_only_when_it_differs() {
     }
 }
 
+/// A branch leaf keeps its own gate, and one runtime signal can imply another across dimensions.
+///
+/// Two shapes flattening got wrong. A leaf's condition was replaced by its parent's, so an **ungated** parent
+/// made a `when`-gated leaf look unconditional - and that leaf then convicted a rule live on spans its gate
+/// excludes. And a `fallback_if_primary_empty` leaf reads only where every primary came up empty, which is a
+/// payload condition nothing here can compare, so it must not convict anything either.
+///
+/// The cross-dimension case is the mirror: `attr_equals(k, v)` cannot hold unless `attr_exists(k)` does, so a
+/// wide `attr_exists` rule at the earlier rank really does suppress a narrow `attr_equals` one - and comparing
+/// each dimension only with itself saw two unrelated gates.
+#[test]
+fn a_branch_leaf_keeps_its_own_gate() {
+    let accepted = [
+        (
+            "a gated leaf under an ungated parent, beside a rule its gate excludes",
+            r#"{"id":"t","doc":"d","messages":[
+                {"id":"a","doc":"d","legacy_rank":1,
+                 "branch_set":{"primary":[
+                    {"id":"a.1","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message",
+                     "when":{"attr_exists":["only.a"]},"tag_as":"a.tag"}]}},
+                {"id":"b","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message",
+                 "when":{"attr_exists":["only.b"]},"tag_as":"b.tag","legacy_rank":2}]}"#,
+        ),
+        (
+            "a fallback-group leaf, which reads only where the primaries found nothing",
+            r#"{"id":"t","doc":"d","messages":[
+                {"id":"a","doc":"d","legacy_rank":1,
+                 "branch_set":{"primary":[
+                    {"id":"a.1","doc":"d","read":{"attribute":"p"},"parse":"json","emit":"message",
+                     "tag_as":"a.1.tag"}],
+                  "fallback_if_primary_empty":[
+                    {"id":"a.2","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message",
+                     "tag_as":"a.2.tag"}]}},
+                {"id":"b","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message",
+                 "tag_as":"b.tag","legacy_rank":2}]}"#,
+        ),
+    ];
+    for (what, asset) in accepted {
+        let sources =
+            std::collections::BTreeMap::from([("t.json".to_string(), asset.as_bytes().to_vec())]);
+        assert!(
+            compile(&sources).is_ok(),
+            "should have been accepted: {what} - {:?}",
+            compile(&sources).err()
+        );
+    }
+
+    let refused = [
+        (
+            "an `attr_exists` rule ahead of an `attr_equals` one on the same key",
+            r#"{"id":"t","doc":"d","messages":[
+                {"id":"a","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message",
+                 "when":{"attr_exists":["marker"]},"tag_as":"a.tag","legacy_rank":1},
+                {"id":"b","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message",
+                 "when":{"attr_equals":[{"key":"marker","value":"yes"}]},"tag_as":"b.tag",
+                 "legacy_rank":2}]}"#,
+        ),
+        (
+            "an `attr_prefix` rule ahead of an exact key beneath that prefix",
+            r#"{"id":"t","doc":"d","messages":[
+                {"id":"a","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message",
+                 "when":{"attr_prefix":["dialect."]},"tag_as":"a.tag","legacy_rank":1},
+                {"id":"b","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message",
+                 "when":{"attr_exists":["dialect.node"]},"tag_as":"b.tag","legacy_rank":2}]}"#,
+        ),
+        (
+            "an ungated leaf under an ungated parent, which really does suppress",
+            r#"{"id":"t","doc":"d","messages":[
+                {"id":"a","doc":"d","legacy_rank":1,
+                 "branch_set":{"primary":[
+                    {"id":"a.1","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message",
+                     "tag_as":"a.tag"}]}},
+                {"id":"b","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message",
+                 "tag_as":"b.tag","legacy_rank":2}]}"#,
+        ),
+    ];
+    for (what, asset) in refused {
+        let sources =
+            std::collections::BTreeMap::from([("t.json".to_string(), asset.as_bytes().to_vec())]);
+        assert!(
+            compile(&sources).is_err(),
+            "should have been refused: {what}"
+        );
+    }
+}
+
 /// A gate is a **disjunction**, so one gate can hold wherever another does without being the same gate.
 ///
 /// Equality was the wrong relation. `attr_exists: ["a", "b"]` holds everywhere `attr_exists: ["a"]` does, so

@@ -3794,10 +3794,35 @@ fn rules_that_emit() -> BTreeSet<String> {
                             fired.insert(emission.rule_id.to_string());
                             read.extend(emission.owns.iter().cloned());
                         }
-                        // The fallback stage inherits what the dialects read, exactly as ingestion does -
-                        // asked with an empty set it would credit rules the dialects had already claimed.
-                        for emission in plan.fallback(&ctx, &read) {
-                            fired.insert(emission.rule_id.to_string());
+                        // The fallback stage, gated as ingestion gates it: never on a tool span; with an
+                        // **empty** claimed set when no dialect read anything (there is nothing to inherit);
+                        // and otherwise only on a *generation* span, where `output.value` means "the answer"
+                        // rather than a chain node's state. Asked unconditionally it credited a fallback rule
+                        // on spans ingestion never asks, which would hide a genuinely dead one.
+                        //
+                        // Residual, stated rather than papered over: ingestion also skips the recovery pass
+                        // when a dialect already produced the span's *output*, and that test lives in a
+                        // private helper. So a fallback rule can still be credited slightly more widely than
+                        // ingestion reaches it - an over-credit, which can hide a dead rule but cannot invent
+                        // a live one.
+                        if !is_tool {
+                            let observation =
+                                crate::domain::traces::extract::attributes::detect_observation_type(
+                                    &span.name, &attrs,
+                                );
+                            let generation = observation
+                                == crate::data::duckdb::models::ObservationType::Generation;
+                            if read.is_empty() {
+                                for emission in
+                                    plan.fallback(&ctx, &std::collections::HashSet::new())
+                                {
+                                    fired.insert(emission.rule_id.to_string());
+                                }
+                            } else if generation {
+                                for emission in plan.fallback(&ctx, &read) {
+                                    fired.insert(emission.rule_id.to_string());
+                                }
+                            }
                         }
                         for emission in plan.tool_definitions(&ctx) {
                             fired.insert(emission.rule_id.to_string());
@@ -3868,13 +3893,28 @@ fn no_declared_rule_is_dead_across_the_corpus() {
             "google-adk.data",
             "the suite is captured; `gcp.vertex.agent.data` appears in no fixture",
         ),
+        // The two ADK leaves that read a **tool execution** span, which the branch may not - and the reason is
+        // measured rather than assumed. Granting the permission to `tool_response` alone (the per-leaf, per-axis
+        // filter keeps its siblings out) does repair the span views: an ADK tool span goes from 0 messages to
+        // its 1 result, which is what it carried. It also *duplicates the trace view* - 7 messages to 10 on
+        // `adk/tool_use` - and neither route out works:
+        //
+        // - Attaching the span's `gen_ai.tool.call.id` makes the result an orphan: ADK's tool spans carry real
+        //   `tooluse_*` ids while the model's own `tool_use` blocks arrive with **no** id and get a synthesised
+        //   one, so the two are different id spaces. The tool-id correspondence invariant catches it.
+        // - Leaving it id-less relies on content identity, and the raw response normalises to a different value
+        //   from the copy the model re-sends, so two of the three still stand beside it.
+        //
+        // A blank span view is the lesser fault: a duplicated turn in the trace view is what a user reads as
+        // the model having answered twice. Closing this needs evidence the telemetry does not carry - a link
+        // between ADK's tool-span call id and the call the model actually issued.
         (
             "google-adk.tool_call_args",
-            "the suite is captured, but that attribute appears only on **tool execution** spans, which this branch may not read",
+            "reads a tool execution span, which this branch may not - see the note above",
         ),
         (
             "google-adk.tool_response",
-            "the suite is captured, but that attribute appears only on **tool execution** spans, which this branch may not read",
+            "reads a tool execution span, which this branch may not - see the note above",
         ),
         (
             "langgraph.message",
