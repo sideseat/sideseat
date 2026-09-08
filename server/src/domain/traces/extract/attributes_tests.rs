@@ -2408,16 +2408,27 @@ fn detection_overlaps_are_reported() {
     );
 }
 
-/// The declared finish-reason source answers as the Rust block it replaced did.
+/// The declared finish-reason chain answers exactly as the four Rust blocks it replaced did, and in their
+/// order.
 ///
-/// One dialect serialises its whole response and writes the reason in **upper case**, which is why the source
-/// declares `lowercase`. Both halves matter: the value and its casing, since the retired block folded it and a
-/// stored `STOP` beside every other producer's `stop` is a value whose case depends on who wrote the span.
+/// Four attribute sources moved (`ff0d3cdf`); only the `gen_ai.choice` **event** stayed, which field
+/// resolution cannot see. Three things this pins that the goldens cannot, because no captured span carries
+/// the shapes:
+///
+/// - **The order**, spelled out: the flat attribute, then a serialised completion's choices, then a
+///   serialised output-message list, then one dialect's serialised response, then another's. A reordering of
+///   the asset is a silent change in which producer's statement is believed.
+/// - **The array requirement.** Two of the retired readers decoded a *list* and fell through when the payload
+///   was not one. A JSONPath wildcard matches an object's members too, so `{"x": {"finish_reason": …}}`
+///   answered where the retired chain moved on - and answered with a different producer's value.
+/// - **Scalar strings only.** The retired readers took `as_str()`, so a member holding `["stop", "length"]`
+///   was ignored; collected as a string *list* it contributed two reasons the producer never stated.
 #[test]
-fn the_declared_finish_reason_source_reproduces_the_retired_block() {
+fn the_declared_finish_reason_chain_reproduces_the_retired_blocks() {
     use crate::domain::rules::ruleset;
+    use std::collections::HashMap;
 
-    let resolve = |attrs: &std::collections::HashMap<String, String>| -> Vec<String> {
+    let resolve = |attrs: &HashMap<String, String>| -> Vec<String> {
         ruleset()
             .span_fields
             .resolve("some.span", attrs)
@@ -2436,54 +2447,159 @@ fn the_declared_finish_reason_source_reproduces_the_retired_block() {
             .unwrap_or_default()
     };
 
-    // The retired block: parse the attribute, take `finish_reason`, lower-case it.
-    let retired = |attrs: &std::collections::HashMap<String, String>| -> Vec<String> {
-        attrs
-            .get("gcp.vertex.agent.llm_response")
-            .and_then(|response| serde_json::from_str::<serde_json::Value>(response).ok())
-            .and_then(|json| {
-                json.get("finish_reason")
-                    .and_then(|r| r.as_str())
-                    .map(|r| vec![r.to_lowercase()])
-            })
-            .unwrap_or_default()
-    };
+    /// The four retired blocks, in their order, verbatim in behaviour.
+    fn retired(attrs: &HashMap<String, String>) -> Vec<String> {
+        let mut out: Vec<String> = Vec::new();
+        if let Some(flat) = attrs.get("gen_ai.response.finish_reasons") {
+            // The flat attribute, read as the stored list form.
+            if let Ok(items) = serde_json::from_str::<Vec<String>>(flat) {
+                out = items;
+            } else if !flat.is_empty() {
+                out = vec![flat.clone()];
+            }
+        }
+        if out.is_empty()
+            && let Some(completion) = attrs.get("gen_ai.completion")
+            && let Ok(json) = serde_json::from_str::<serde_json::Value>(completion)
+            && let Some(choices) = json.get("choices").and_then(|c| c.as_array())
+        {
+            for choice in choices {
+                if let Some(reason) = choice.get("finish_reason").and_then(|r| r.as_str()) {
+                    out.push(reason.to_string());
+                }
+            }
+        }
+        if out.is_empty()
+            && let Some(messages) = attrs.get("gen_ai.output.messages")
+            && let Ok(list) = serde_json::from_str::<Vec<serde_json::Value>>(messages)
+        {
+            for message in &list {
+                if let Some(reason) = message.get("finish_reason").and_then(|r| r.as_str()) {
+                    out.push(reason.to_string());
+                    break;
+                }
+            }
+        }
+        if out.is_empty()
+            && let Some(response) = attrs.get("gcp.vertex.agent.llm_response")
+            && let Ok(json) = serde_json::from_str::<serde_json::Value>(response)
+            && let Some(reason) = json.get("finish_reason").and_then(|r| r.as_str())
+        {
+            out = vec![reason.to_lowercase()];
+        }
+        if out.is_empty()
+            && let Some(response) = attrs.get("response_data")
+            && let Ok(json) = serde_json::from_str::<serde_json::Value>(response)
+            && let Some(reason) = json.get("finish_reason").and_then(|r| r.as_str())
+        {
+            out = vec![reason.to_string()];
+        }
+        out
+    }
 
-    for payload in [
-        r#"{"finish_reason": "STOP"}"#,
-        r#"{"finish_reason": "stop"}"#,
-        r#"{"finish_reason": "MAX_TOKENS"}"#,
-        // No reason in it, and a payload that is not an object: both must answer nothing.
-        r#"{"candidates": []}"#,
-        r#"{"finish_reason": null}"#,
-        r#"[]"#,
-        r#"not json at all"#,
-    ] {
-        let mut attrs = std::collections::HashMap::new();
-        attrs.insert(
-            "gcp.vertex.agent.llm_response".to_string(),
-            payload.to_string(),
-        );
+    // Each case names every attribute it sets, so the order is exercised by conflicting values rather than
+    // asserted about. Every shape the retired readers refused is here, because a refusal *is* the order:
+    // falling through is how the next producer's statement gets believed.
+    let cases: &[&[(&str, &str)]] = &[
+        // One source at a time.
+        &[("gen_ai.response.finish_reasons", "tool_use")],
+        &[(
+            "gen_ai.completion",
+            r#"{"choices":[{"finish_reason":"stop"}]}"#,
+        )],
+        &[(
+            "gen_ai.completion",
+            r#"{"choices":[{"finish_reason":"stop"},{"finish_reason":"length"}]}"#,
+        )],
+        &[(
+            "gen_ai.output.messages",
+            r#"[{"finish_reason":"stop"},{"finish_reason":"length"}]"#,
+        )],
+        &[(
+            "gcp.vertex.agent.llm_response",
+            r#"{"finish_reason":"STOP"}"#,
+        )],
+        &[("response_data", r#"{"finish_reason":"length"}"#)],
+        // The order, by conflict: each earlier source must win.
+        &[
+            ("gen_ai.response.finish_reasons", "tool_use"),
+            (
+                "gen_ai.completion",
+                r#"{"choices":[{"finish_reason":"stop"}]}"#,
+            ),
+            ("gen_ai.output.messages", r#"[{"finish_reason":"length"}]"#),
+            (
+                "gcp.vertex.agent.llm_response",
+                r#"{"finish_reason":"STOP"}"#,
+            ),
+            ("response_data", r#"{"finish_reason":"content_filter"}"#),
+        ],
+        &[
+            (
+                "gen_ai.completion",
+                r#"{"choices":[{"finish_reason":"stop"}]}"#,
+            ),
+            ("gen_ai.output.messages", r#"[{"finish_reason":"length"}]"#),
+            ("response_data", r#"{"finish_reason":"content_filter"}"#),
+        ],
+        &[
+            ("gen_ai.output.messages", r#"[{"finish_reason":"length"}]"#),
+            (
+                "gcp.vertex.agent.llm_response",
+                r#"{"finish_reason":"STOP"}"#,
+            ),
+        ],
+        &[
+            (
+                "gcp.vertex.agent.llm_response",
+                r#"{"finish_reason":"STOP"}"#,
+            ),
+            ("response_data", r#"{"finish_reason":"content_filter"}"#),
+        ],
+        // The shapes a refusal must let through. An **object** where a list was required: the retired reader
+        // decoded a `Vec` and fell through, and a JSONPath wildcard would have answered here instead.
+        &[
+            (
+                "gen_ai.output.messages",
+                r#"{"x":{"finish_reason":"stop"}}"#,
+            ),
+            ("response_data", r#"{"finish_reason":"length"}"#),
+        ],
+        &[
+            (
+                "gen_ai.completion",
+                r#"{"choices":{"a":{"finish_reason":"stop"}}}"#,
+            ),
+            ("response_data", r#"{"finish_reason":"length"}"#),
+        ],
+        // A member that is not a scalar string. `as_str()` ignored it; collected as a list it became two.
+        &[(
+            "gen_ai.completion",
+            r#"{"choices":[{"finish_reason":["stop","length"]}]}"#,
+        )],
+        &[
+            (
+                "gen_ai.completion",
+                r#"{"choices":[{"finish_reason":["stop","length"]}]}"#,
+            ),
+            ("response_data", r#"{"finish_reason":"content_filter"}"#),
+        ],
+        // Nothing readable anywhere.
+        &[("gen_ai.completion", "not json")],
+        &[("response_data", r#"{"finish_reason":null}"#)],
+        &[("gcp.vertex.agent.llm_response", "[]")],
+        &[],
+    ];
+
+    for case in cases {
+        let attrs: HashMap<String, String> = case
+            .iter()
+            .map(|(k, v)| ((*k).to_string(), (*v).to_string()))
+            .collect();
         assert_eq!(
             resolve(&attrs),
             retired(&attrs),
-            "the declared source disagrees with the retired block on `{payload}`"
+            "the declared chain disagrees with the retired blocks on {case:?}"
         );
     }
-
-    // And the conventional attribute still wins, which is the chain's order and not an accident.
-    let mut both = std::collections::HashMap::new();
-    both.insert(
-        "gen_ai.response.finish_reasons".to_string(),
-        "tool_use".to_string(),
-    );
-    both.insert(
-        "gcp.vertex.agent.llm_response".to_string(),
-        r#"{"finish_reason": "STOP"}"#.to_string(),
-    );
-    assert_eq!(
-        resolve(&both),
-        vec!["tool_use".to_string()],
-        "the conventional attribute is first in the chain and must win"
-    );
 }

@@ -568,5 +568,18 @@
       "role_in_tool_span": "tool",
       "doc": "The deprecated spelling of the response, following `gen_ai.choice` exactly."
     }
+  ],
+  "convention_namespaces": [
+    "gen_ai",
+    "session",
+    "enduser",
+    "user",
+    "http",
+    "db",
+    "rpc",
+    "messaging",
+    "cloud",
+    "url",
+    "aws"
   ]
 }

@@ -46,6 +46,16 @@ pub struct RuleFile {
     /// somebody also edited the list.
     #[serde(default)]
     pub message_events: Vec<MessageEvent>,
+    /// Attribute namespaces the **conventions** own, as opposed to a producer's own.
+    ///
+    /// Declared by the conventions' asset and nowhere else. A key's first segment says who coined it, and the
+    /// structural sweep that forbids a producer's key in production Rust needs to know which segments are not
+    /// a producer's - `session.id` and `enduser.id` are OTel's and appear only in a shared fallback chain,
+    /// exactly where `ai.usage.promptTokens` appears. Inferring it from *absence* - no dialect file mentions
+    /// the namespace - was tried and is not evidence: a producer key declared only in a shared chain under a
+    /// namespace nothing else names would be excused by it.
+    #[serde(default)]
+    pub convention_namespaces: Vec<String>,
     /// What role a message's source name implies, where the name decides it.
     #[serde(default)]
     pub event_roles: Vec<EventRole>,

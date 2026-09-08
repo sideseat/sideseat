@@ -469,10 +469,12 @@ fn read_json<'a>(
     if let Some(Reduction::CollectAll) = json.reduce {
         let mut items: Vec<String> = Vec::new();
         for found in path.query(value).iter() {
-            // A match that is not a string contributes nothing, as `Sum`'s non-numeric match does: one
-            // choice without a reason does not invalidate the others'.
-            if let Reading::StringList(texts) = from_json(found, FieldType::StringList) {
-                items.extend(texts);
+            // Only a **scalar string**, and a match that is not one contributes nothing - as `Sum`'s
+            // non-numeric match does, and as the retired reader's `as_str()` did. Read as a string *list*
+            // instead, a member holding `["stop", "length"]` contributed two reasons where the retired reader
+            // ignored it: a malformed member became two statements the producer never made.
+            if let Reading::Text(text) = from_json(found, FieldType::Text) {
+                items.push(text);
             }
         }
         return if items.is_empty() {

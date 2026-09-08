@@ -749,9 +749,12 @@ field-chain and token-table oracles, the two content-block readers, the member l
 triple, the span facts, and the two classification sweeps in their focused form. The corpus-wide two are
 `the_declared_classification_matches_the_sweep_across_the_corpus` and
 `the_member_vocabulary_answers_as_it_did_across_the_corpus`. Two focused ones came after that count:
-`the_declared_event_roles_reproduce_the_table_they_replaced` with the event-role move (`8e3ab002`) and
-`the_declared_finish_reason_source_reproduces_the_retired_block` with the finish-reason move (`ff0d3cdf`) —
-which is why the total is seventeen and the quotation says fifteen.
+`the_declared_event_roles_reproduce_the_table_they_replaced` with the event-role move (`8e3ab002`), and
+`the_declared_finish_reason_chain_reproduces_the_retired_blocks` — which began in `baaffd7c` covering the one
+ADK source and was widened only later to all four migrated fallbacks and their **order**, which is the
+version worth citing: it compares against the four retired blocks over conflicting values, over the array
+roots two of them required, and over a member that is not a scalar string. So the total is seventeen and the
+quotation says fifteen.
 
 Keeping the coverage inventory out of that count is the point: it says which rules were *exercised*, which
 is a different question from whether the ones that ran agree with the code they replaced.
@@ -786,8 +789,13 @@ fixed later — each is a boundary of what the evidence can carry.
   declares (nothing identifies it as a producer's), a **value that is not a dotted key** — a role string, a
   magic number, a bare word like `response_data` before it was declared — and a key assembled at runtime.
   Its derivation is pinned in both directions by
-  `the_key_sweep_tells_a_producer_key_from_a_convention`, because two earlier versions passed while naming
-  nothing.
+  `the_key_sweep_tells_a_producer_key_from_a_convention`, because **four** earlier versions of it passed while
+  naming less than they appeared to: an allowlist of key-bearing members that missed five forms; a shared
+  chain read as evidence of genericness; a namespace list written by hand; and — twice over — a key stored as
+  the *selector* that names it (`attr:logfire.tags`), which no Rust literal can equal, plus namespace
+  *absence* read as convention ownership, which excused any producer key declared only in a shared chain. The
+  convention namespaces are declared in the conventions' own asset now (`convention_namespaces` in
+  `semconv`), and each must be one something conventional actually writes under.
 - **Prose.** Doc comments are not read, including the one place `schemars` turns a doc comment into a
   shipped schema description.
 - **Outside `server/src`.** The SDKs are separate crates and are *meant* to name the framework they

@@ -2231,12 +2231,9 @@ fn an_event_role_declaration_must_be_able_to_answer_and_must_not_depend_on_load_
             "event_roles": roles,
         });
         let file: RuleFile = serde_json::from_value(probe.clone()).expect("the probe asset parses");
-        // The tags the probe's own rules assign, gathered the way the ruleset gathers them - so a nested
-        // tag is reachable here too, which is the defect the recursive collector fixed.
-        let tags = super::tag_names(&std::collections::BTreeMap::from([(
-            "probe.json".to_string(),
-            serde_json::to_vec(&probe).expect("the probe serialises"),
-        )]));
+        // The tags the probe's own rules assign, gathered the way the ruleset gathers them - so a tag nested
+        // in a branch leaf is reachable here too, which is the defect the recursive walk fixed.
+        let tags = super::tag_names(std::slice::from_ref(&file));
         super::compile_event_roles(&[file], &tags)
     };
 
@@ -2401,7 +2398,17 @@ fn collect_telemetry_keys(
         serde_json::Value::String(text)
             if text.contains('.') && !under.is_some_and(|m| OURS.contains(&m)) =>
         {
-            out.insert(text.clone());
+            // A JSONPath is a path into a *payload*, not an attribute key, and its `$` root is nobody's
+            // namespace. Left in, it made `$` look like a namespace several dialects write under.
+            if text.starts_with('$') {
+                return;
+            }
+            // A text source names its attribute through an **encoded selector**, `attr:<key>`. Stored as
+            // written, the inventory held `attr:logfire.tags` and a production literal `"logfire.tags"` went
+            // unnoticed - the sweep compares whole literals, so an inventory entry that is not the key is not
+            // an entry at all. Canonicalised here rather than at the comparison, so every reader of the
+            // inventory sees the key.
+            out.insert(text.strip_prefix("attr:").unwrap_or(text).to_string());
         }
         serde_json::Value::Object(members) => {
             for (member, inner) in members {
@@ -2478,6 +2485,13 @@ fn the_key_sweep_tells_a_producer_key_from_a_convention() {
         ("lk.chat_ctx", "livekit"),
         ("gcp.vertex.agent.data", "google-adk"),
         ("LangGraph.", "langgraph"),
+        // Named only through an **encoded selector** (`attr:logfire.tags`). Stored as written, the inventory
+        // held a string no Rust literal can equal, so the key it names went unnoticed.
+        ("logfire.tags", "observation-types"),
+        // A producer's key under a namespace **no dialect file mentions**, declared only in a shared chain.
+        // Reading "no framework declares under it" as evidence of convention ownership excused exactly this.
+        ("tag.tags", "span-fields-semantic"),
+        ("agent.name", "span-fields-genai"),
     ] {
         assert_eq!(
             inventory.get(key).map(String::as_str),
@@ -2492,6 +2506,10 @@ fn the_key_sweep_tells_a_producer_key_from_a_convention() {
         "http.method",
         "db.system",
         "gen_ai.tool.name",
+        // The engine's own namespace, which is not a convention either but is certainly not a producer's.
+        "sideseat.project_id",
+        // A JSONPath is a path into a payload, not an attribute key.
+        "$.usage_metadata.prompt_token_count",
     ] {
         assert!(
             !inventory.contains_key(conventional),
@@ -2543,31 +2561,48 @@ fn producer_key_inventory() -> std::collections::BTreeMap<String, String> {
             owners.entry(key).or_default().push(id);
         }
     }
-    // Which **namespaces** are the conventions', derived rather than listed. A key's first segment decides,
-    // and a namespace is the conventions' when either the conventions declare something under it, or no
-    // framework asset does. That is what separates `session.id` and `enduser.id` - OTel's own, enumerated in
-    // a shared chain and by nobody's dialect - from `ai.usage.promptTokens`, which sits in the same kind of
-    // chain and is one producer's. Listing the namespaces by hand would have been the same
-    // hand-maintained projection this sweep exists to avoid.
+    // Which **namespaces** are the conventions', and this **fails closed**: a namespace is theirs only when
+    // the conventions themselves declare something under it. The first version read "no framework asset
+    // declares under it" as evidence too, which is not evidence of anything - a producer key declared only in
+    // a shared chain, under a namespace no dialect file mentions, was classified conventional and could be
+    // hard-coded in Rust unnoticed. Absence of a framework declaration says nothing about who owns a name.
+    //
+    // So the conventions' own asset carries the answer as data (`convention_namespaces` in `semconv`), which
+    // is what lets OTel's general attributes - `session.id`, `enduser.id`, `http.method` - be recognised
+    // without a list in this file that a reader here has to trust.
     let namespace = |key: &str| key.split_once('.').map(|(head, _)| head.to_string());
-    let framework_namespaces: std::collections::BTreeSet<String> = per_asset
-        .iter()
-        .filter(|(id, _)| {
-            !CONVENTIONS.contains(&id.as_str())
-                && !PROVIDERS.contains(&id.as_str())
-                && !SHARED_VOCABULARY.contains(&id.as_str())
-        })
-        .flat_map(|(_, keys)| keys.iter().filter_map(|key| namespace(key)))
-        .collect();
-    let convention_namespaces: std::collections::BTreeSet<String> = per_asset
+    let declared_namespaces: std::collections::BTreeSet<String> = {
+        let conventions: crate::domain::rules::schema::RuleFile =
+            serde_json::from_slice(&sources["semconv.json"]).expect("the conventions asset parses");
+        conventions.convention_namespaces.iter().cloned().collect()
+    };
+    let from_conventions: std::collections::BTreeSet<String> = per_asset
         .iter()
         .filter(|(id, _)| CONVENTIONS.contains(&id.as_str()))
         .flat_map(|(_, keys)| keys.iter().filter_map(|key| namespace(key)))
         .collect();
+    // Each declared namespace must be one the conventions actually write under, or it is a way to excuse a
+    // producer's namespace by naming it.
+    for declared in &declared_namespaces {
+        assert!(
+            from_conventions.contains(declared)
+                || per_asset
+                    .iter()
+                    .filter(|(id, _)| SHARED_VOCABULARY.contains(&id.as_str()))
+                    .any(|(_, keys)| keys
+                        .iter()
+                        .any(|key| namespace(key).as_ref() == Some(declared))),
+            "`{declared}` is declared a convention namespace and nothing conventional writes under it"
+        );
+    }
     let conventional = |key: &str| {
-        namespace(key).is_some_and(|head| {
-            convention_namespaces.contains(&head) || !framework_namespaces.contains(&head)
-        })
+        // `sideseat.` is **this server's** own namespace rather than a convention: it is written by the
+        // ingestion path, not declared by any asset, so it is excluded here rather than in the asset's list -
+        // where it would fail that list's own property, since nothing conventional writes under it.
+        key.starts_with("sideseat.")
+            || namespace(key).is_some_and(|head| {
+                from_conventions.contains(&head) || declared_namespaces.contains(&head)
+            })
     };
     // Pinned by `the_key_sweep_tells_a_producer_key_from_a_convention`, because a derivation that quietly
     // stopped recognising producer keys would make this whole sweep pass while naming nothing.

@@ -213,9 +213,12 @@ pub fn ruleset() -> &'static Ruleset {
                 .flat_map(|file| &file.message_events)
                 .map(|event| event.name.clone())
                 .collect(),
-            event_roles: compile_event_roles(&parsed_files(&sources), &tag_names(&sources))
-                .unwrap_or_else(|e| panic!("embedded event roles are malformed: {e}")),
-            tagged_source_names: tag_names(&sources),
+            event_roles: compile_event_roles(
+                &parsed_files(&sources),
+                &tag_names(&parsed_files(&sources)),
+            )
+            .unwrap_or_else(|e| panic!("embedded event roles are malformed: {e}")),
+            tagged_source_names: tag_names(&parsed_files(&sources)),
             span_facts: SpanFactPlan::compile(&sources),
             span_fields: span_fields::compile(&sources)
                 .unwrap_or_else(|e| panic!("embedded span field rules are malformed: {e}")),
@@ -230,39 +233,38 @@ pub fn ruleset() -> &'static Ruleset {
     })
 }
 
-/// Every name a rule assigns with `tag_as`, at **any** depth.
+/// Every name a rule assigns with `tag_as`, at **any** depth of the rule tree.
 ///
-/// Walked over the raw asset JSON rather than the typed tree, and that is the point: `tag_as` sits on a
-/// message rule, and a rule nests - a branch leaf, an alternative, a fallback each hold one, and one asset's
-/// branch leaf already carries a tag. Reading only the top level left such a tag out of both indexes at once,
-/// which is worse than either alone: a role declared for it is refused as unreachable, and without the
-/// declaration the message normalises as a user turn. A walk has no level to forget, including a nesting
-/// added later.
-pub(super) fn tag_names(
-    sources: &std::collections::BTreeMap<String, Vec<u8>>,
-) -> std::collections::BTreeSet<String> {
-    fn walk(value: &serde_json::Value, out: &mut std::collections::BTreeSet<String>) {
-        match value {
-            serde_json::Value::Object(members) => {
-                if let Some(serde_json::Value::String(tag)) = members.get("tag_as") {
-                    out.insert(tag.clone());
-                }
-                for inner in members.values() {
-                    walk(inner, out);
-                }
+/// Over the **typed** rules, not the raw JSON, and both halves of that matter. A `tag_as` sits on a message
+/// rule and a rule nests - a branch set's primary, its empty-fallback and its always-read lists each hold
+/// rules, and one asset's branch leaf already carries a tag. Reading only the top level left such a tag out of
+/// both indexes at once, which is worse than either alone: a role declared for it is refused as unreachable,
+/// and without the declaration its message normalises as a user turn.
+///
+/// A raw-JSON walk was the first fix and is wrong in the other direction: any object member named `tag_as`
+/// would count, including one inside a rule's *literal data* - a composed trailing value, an example payload -
+/// so an `event_roles` declaration could compile against a tag no rule ever assigns. The typed walk can only
+/// see the member where it means something.
+pub(super) fn tag_names(files: &[schema::RuleFile]) -> std::collections::BTreeSet<String> {
+    fn walk(rule: &schema::MessageRule, out: &mut std::collections::BTreeSet<String>) {
+        if let Some(tag) = &rule.tag_as {
+            out.insert(tag.clone());
+        }
+        if let Some(branches) = &rule.branch_set {
+            for leaf in branches
+                .primary
+                .iter()
+                .chain(&branches.fallback_if_primary_empty)
+                .chain(&branches.always)
+            {
+                walk(leaf, out);
             }
-            serde_json::Value::Array(items) => {
-                for item in items {
-                    walk(item, out);
-                }
-            }
-            _ => {}
         }
     }
     let mut out = std::collections::BTreeSet::new();
-    for bytes in sources.values() {
-        if let Ok(value) = serde_json::from_slice::<serde_json::Value>(bytes) {
-            walk(&value, &mut out);
+    for file in files {
+        for rule in &file.messages {
+            walk(rule, &mut out);
         }
     }
     out

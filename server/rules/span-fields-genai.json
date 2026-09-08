@@ -266,19 +266,19 @@
         {
           "json": {
             "attribute": "gen_ai.completion",
-            "path": "$.choices[*].finish_reason",
+            "path": "$.choices[0:].finish_reason",
             "reduce": "collect_all"
           },
           "on_malformed": "continue",
-          "doc": "A serialised completion, whose choices each state why they stopped. Every one of them, because a completion with two choices has two reasons and reporting one is a statement the producer did not make."
+          "doc": "A serialised completion, whose choices each state why they stopped. Every one of them, because a completion with two choices has two reasons and reporting one is a statement the producer did not make. A **slice** rather than a wildcard, because a slice applies to arrays only: the retired reader required `choices` to be an array and a wildcard would also match the members of an object that merely has that name."
         },
         {
           "json": {
             "attribute": "gen_ai.output.messages",
-            "path": "$[*].finish_reason"
+            "path": "$[0:].finish_reason"
           },
           "on_malformed": "continue",
-          "doc": "A serialised output message list. The first match that yields, which is what the retired loop's `break` did."
+          "doc": "A serialised output message list. The first match that yields, which is what the retired loop's `break` did - and a **slice**, because the retired reader decoded the payload as a list and fell through when it was not one. A wildcard matched an object's members too, so `{\"x\": {\"finish_reason\": ...}}` answered here instead of falling through to the next source."
         },
         {
           "json": {
