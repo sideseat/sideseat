@@ -29,6 +29,15 @@ clients with real auth flows; that is executable adapter code, and calling it "p
 dishonest. Connector implementations stay in Rust, outside this engine. If they ever need to be
 pluggable, that is a separate driver interface, designed separately.
 
+**What the cycle-40 acceptance covers is narrower than this mandate**, and the difference matters because a
+document that states one scope and accepts another reads as accepting the larger. The acceptance is about
+**agent-framework telemetry interpretation**: detection, extraction, carrier semantics, normalisation,
+classification, content forms, and the token / cost / model conventions. The *product metadata* half of the
+mandate - the MCP setup guide and the provider catalogue - is **step 10, and it is not done**: both are
+Rust tables today, held instead by the two scoped exemptions the sweep records. They are outside the
+acceptance rather than covered by it, so "the work is complete" below means complete against the two success
+criteria, not against every step listed here.
+
 ## Verdict: a versioned, non-Turing-complete tree-transformation DSL, compiled to a typed plan
 
 | | Model | Ruling |
@@ -264,9 +273,11 @@ cost convention moves, or the rules will encode the confusion.
 
 ## Verification
 
-- The **122 goldens** are the equivalence gate per framework — and are *not* proof of coverage: the
-  corpus holds 13 suites, and 9 of the 30 producers the assets declare are represented in them. A strong
-  regression gate, nothing more.
+- The **120 committed goldens** are the equivalence gate per framework — 104 captured and 16 `_synthetic` —
+  and are *not* proof of coverage: 13 captured suites plus `_synthetic`, reaching 9 of the 30 producers the
+  assets declare. A strong regression gate, nothing more. (A working copy holds 122: two `image-gen`
+  fixtures are gitignored and excluded from the support matrix deliberately, so a count taken from disk
+  overstates what a checkout can verify.)
 - The **independent invariants** must keep holding (scope containment, per-trace dedup, tool-id
   correspondence, answer-present, determinism, carrier subsequence).
 - A **structural gate** that is more than a name grep: no producer ids, carrier keys, tags or type
@@ -324,9 +335,17 @@ bless a regression; an oracle cannot.
    rank fails compilation because their relative order would otherwise depend on load order. That order
    is load-bearing — the SideSeat SDK defaults `service.name` to one framework's name, so that rule's
    service-name signal must be last or it claims every span of every framework using the SDK.
-5. Feed source / event / replay / ordering-family tables.
-6. Content and tool normalisation, with explicit named-chain precedence.
-7. Reconcile the three provider namespaces, then token / cost / model conventions.
+5. ✅ **Feed source / event / replay / ordering-family tables** — 9 `message_events` hold the event
+   vocabulary, and the replay and ordering families are the four independent facts each of the 55 `carriers`
+   declares (`sideml/carrier.rs`): whether position proves a distinct occurrence, whether it provides
+   sequence order, whether the carrier is one atomic emission, and whether it may hold history or state.
+6. ✅ **Content and tool normalisation, with explicit named-chain precedence** — 9 `content_blocks` over
+   three named chain positions (`message_envelope`, `before_provider_formats`, `after_provider_formats`),
+   which are named rather than numbered because the envelope position exists for a reason a number cannot
+   record: the nested chain, a tool's returned value, must not consult the envelopes.
+7. ✅ **The three provider namespaces, and the token / cost / model conventions** — 47 `span_fields` across
+   the semantic, GenAI, display and usage targets, one ordered resolver per typed target, plus
+   `provider_aliases` where a producer names a provider the catalogue prices under another name.
 8. ✅ **Message extraction** — done. **Every** framework extractor entry is retired; the
    two that remain name no framework: the generic `declared_rules` entry and the `raw_io`
    fallback. Sixteen became two, with 52 message rules declared and each retirement proved
@@ -414,8 +433,16 @@ bless a regression; an oracle cannot.
    claimants, so the narrower `FirstMatch` reading changed shape and
    `reading_more_carriers_only_adds_messages` — the only monotonicity check — stopped
    modelling anything.
-9. The hard cases above, each needing a primitive designed on its own evidence.
-10. Externalise the plain provider and MCP manifests; delete the legacy tables.
+9. ✅ **The hard cases above**, each needing a primitive designed on its own evidence — AutoGen's seven are
+   recorded under step 8, each named for a fact about a carrier rather than for the framework.
+10. ⬜ **Externalise the plain provider and MCP manifests; delete the legacy tables** — **not done, and
+    outside the cycle-40 acceptance.** Both are Rust tables, held by the two scoped exemptions the sweep
+    records: `api/mcp/tools.rs` with its argument schema, and the three Azure AI Foundry connector files.
+    Neither interprets telemetry, which is why the acceptance stands without them.
+
+    The legacy tables are also **deliberately not deleted**: each is retained under `#[cfg(test)]` as an
+    equivalence oracle, because a golden can be regenerated and bless a regression while an oracle cannot.
+    So this step's second clause is superseded rather than pending.
 
 Detection may move later than step 4, but it must never regain parser-selection authority.
 
@@ -461,7 +488,7 @@ Redesign or halt if any of these appears:
 - a framework label reaches a behavioural API, under any parameter name;
 - a "generic transform" is a renaming trick;
 - the DSL grows into an unbounded language — B, built by accident, without B's sandbox or tooling;
-- the 122 goldens are treated as complete coverage;
+- the 120 committed goldens are treated as complete coverage;
 - historical rule fixes are promised without changing filtering and materialisation;
 - rules are not explainable;
 - one-file-per-framework duplicates a dialect;
@@ -546,25 +573,37 @@ Codex's acceptance, verbatim:
 | `detect` | 28 | `provider_aliases` | 2 |
 
 Each retirement is held to the code it replaced by an **equivalence oracle** rather than by the goldens,
-because a golden can be regenerated and bless a regression. Thirteen of them, in three shapes: against the
-retired table directly (`the_rules_reproduce_the_legacy_carrier_table`,
-`the_rules_reproduce_the_legacy_detection`, `the_rules_reproduce_the_extractors_they_replaced`,
-`the_declared_dialect_blocks_match_the_reader_they_replace` and four more), against the retired *sweep* over
-every captured span (`the_declared_classification_matches_the_sweep_across_the_corpus`,
-`the_member_vocabulary_answers_as_it_did_across_the_corpus`), and against the corpus as a whole
-(`no_declared_rule_is_dead_across_the_corpus`, which names the 39 rules no fixture reaches — so an untested
-rule is a listed fact rather than an assumption).
+because a golden can be regenerated and bless a regression. **Fifteen**, in two shapes, and one thing that
+is not an oracle at all:
+
+> Thirteen focused equivalence tests compare individual migrations with the retired implementation. Two
+> further corpus-wide equivalence tests compare classifications across every captured span and
+> member-vocabulary answers across captured JSON objects. Separately,
+> `no_declared_rule_is_dead_across_the_corpus` is a bidirectional coverage inventory.
+
+The focused thirteen are `the_rules_reproduce_the_legacy_carrier_table`,
+`the_rules_reproduce_the_legacy_detection`, `the_rules_reproduce_the_extractors_they_replaced`, the three
+field-chain and token-table oracles, the two content-block readers, the member lists, the single-tool
+triple, the span facts, and the two classification sweeps in their focused form. The corpus-wide two are
+`the_declared_classification_matches_the_sweep_across_the_corpus` and
+`the_member_vocabulary_answers_as_it_did_across_the_corpus`. Keeping the coverage inventory out of that
+count is the point: it says which rules were *exercised*, which is a different question from whether the
+ones that ran agree with the code they replaced.
 
 ### The limits, in one place
 
 Stated here because a document about enforcement reads as exhaustive, and none of these is a defect to be
 fixed later — each is a boundary of what the evidence can carry.
 
-- **Corpus-bounded equivalence.** 13 suites at the SDK versions the fixtures were captured at, and they
-  reach **9 of the 30 producers the assets declare** - the other two suites, `openai` and `anthropic`, are
-  provider telemetry read by the conventions rather than by a dialect of their own. So 21 declared producers
-  have rules and no captured fixture, which is what `no_declared_rule_is_dead_across_the_corpus` enumerates
-  rather than leaves to be discovered. "All frameworks parse correctly" is true of the corpus and is an open-world claim
+- **Corpus-bounded equivalence.** 13 captured suites at the SDK versions the fixtures were captured at,
+  reaching **9 of the 30 producers the assets declare** - the other two suites, `openai` and `anthropic`,
+  are provider telemetry read by the conventions rather than by a dialect of their own. So **21 declared
+  producers have rules and no captured fixture at all**.
+- **Unexercised rules, which is a different count.** `no_declared_rule_is_dead_across_the_corpus` lists
+  **39 message-rule leaves** that no fixture reaches, each with the reason. Not the same set as the 21
+  producers: it includes shapes belonging to producers the corpus *does* cover, and it is scoped to message
+  rules rather than to all 338 declarations. Conflating the two reads as though covering those producers
+  would exercise everything. "All frameworks parse correctly" is true of the corpus and is an open-world claim
   beyond it; `the_corpus_matches_the_support_matrix` is what keeps the boundary legible rather than implied.
 - **Eight `UNOBSERVED` members.** Declared in the member vocabulary and reached by no captured object. The
   set is exact and asserted, so it shrinks when a fixture reaches one and cannot grow silently.
@@ -576,3 +615,10 @@ fixed later — each is a boundary of what the evidence can carry.
   shipped schema description.
 - **Outside `server/src`.** The SDKs are separate crates and are *meant* to name the framework they
   instrument.
+- **Names that are computed.** A name assembled from non-adjacent parts, or built from a variable rather
+  than written, is not matched. Adjacent literals are, wherever they are laid out.
+- **Data-only extension holds for shapes the vocabulary already expresses.** Adding a framework whose
+  telemetry fits the existing primitives is an asset edit and needs no release. One that does not is a
+  *producer-neutral primitive* plus a server release - which is the design working as intended, not a
+  loophole, but it means "add a framework without shipping code" is a claim about expressible shapes rather
+  than about all future producers.
