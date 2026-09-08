@@ -141,7 +141,10 @@ pub struct Emission<'a> {
 }
 
 /// The carrier an emission read: its kind and its key.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+///
+/// Ordered so an owned *set* can be normalised - a family's members are collected in attribute-map order,
+/// which is randomised per process, and two runs must agree about what an emission owns.
+#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct OwnedCarrier {
     pub is_event: bool,
     pub name: String,
@@ -326,6 +329,14 @@ fn compile_rule(
         when,
         legacy_rank,
     } = rule;
+    // The values every check below reads, resolved once. The *declarations* above keep their presence, which
+    // is a separate question and is asked only by the branch-seam refusals: a field written out with its
+    // default value is still a statement the engine does not read where it was written.
+    let emit_target = emit.unwrap_or(EmitTarget::Message);
+    let aggregate = aggregate_into_array.unwrap_or(false);
+    let non_empty = require_non_empty.unwrap_or(false);
+    let non_blank = require_non_blank.unwrap_or(false);
+    let tool_spans = reads_tool_spans.unwrap_or(false);
     if compose.is_none() && branch_set.is_none() && read.named_count() != 1 {
         return Err(MessageCompileError::NotExactlyOneCarrier { rule: id.clone() });
     }
@@ -374,9 +385,7 @@ fn compile_rule(
     // A wrap is meaningful on an *aggregated* family: the entries become one array, and one array needs an
     // envelope saying what it is - a result set is one observation, not one message per document.
     if read.indexed_family.is_some()
-        && ((wrap.is_some() && !aggregate_into_array)
-            || !alternatives.is_empty()
-            || !also.is_empty())
+        && ((wrap.is_some() && !aggregate) || !alternatives.is_empty() || !also.is_empty())
     {
         return Err(inexpressible(
             "an indexed family assembles each entry itself, so `wrap` and `alternatives` would \
@@ -420,7 +429,7 @@ fn compile_rule(
                  are read only for one",
         ));
     }
-    if *aggregate_into_array
+    if aggregate
         && alternatives
             .iter()
             .chain(also)
@@ -452,7 +461,7 @@ fn compile_rule(
     // A canonical tool definition is a tool definition. Emitted on the message axis it would be a message
     // shaped like one, which no reader expects.
     if compose.as_ref().is_some_and(|c| c.as_tool_definition)
-        && *emit != EmitTarget::ToolDefinitions
+        && emit_target != EmitTarget::ToolDefinitions
     {
         return Err(inexpressible(
             "`as_tool_definition` builds a canonical tool definition, so the rule's target must be \
@@ -478,11 +487,11 @@ fn compile_rule(
         }
     }
     if tool_repr.is_some()
-        && (*emit != EmitTarget::ToolDefinitions
+        && (emit_target != EmitTarget::ToolDefinitions
             || read.indexed_family.is_some()
-            || *aggregate_into_array
-            || *require_non_empty
-            || *require_non_blank
+            || aggregate
+            || non_empty
+            || non_blank
             || wrap.is_some()
             || compose.is_some()
             || sections.is_some()
@@ -578,9 +587,9 @@ fn compile_rule(
                                     // by the event path, and a branch's order is positional, so a leaf's
                                     // rank orders nothing. Each compiled silently and stated something the
                                     // engine never reads.
-                                    if sub.stage != super::schema::MessageStage::default()
-                                        || !sub.when_event.is_empty()
-                                        || sub.replaces_raw_event
+                                    if sub.stage.is_some()
+                                        || sub.when_event.is_some()
+                                        || sub.replaces_raw_event.is_some()
                                         || sub.legacy_rank.is_some()
                                     {
                                         return Err(inexpressible(
@@ -620,15 +629,26 @@ fn compile_rule(
                 || elements.is_some()
                 || walk.is_some()
                 || tool_repr.is_some()
-                || *aggregate_into_array
+                || aggregate_into_array.is_some()
                 || !alternatives.is_empty()
                 || !also.is_empty()
                 || !fallback.is_empty()
-                || *emit != EmitTarget::Message
+                || emit.is_some()
+                // Each of these was accepted and ignored. `reads_tool_spans` is the observable one: the
+                // permission is read from the *leaves* (`reads_tool_spans_anywhere`), so a parent granting it
+                // over ordinary leaves made the whole branch silently skipped on a tool span. `parse`,
+                // `tag_as` and the two emptiness requirements describe a reading the parent does not perform.
+                || parse.is_some()
+                || tag_as.is_some()
+                || require_non_empty.is_some()
+                || require_non_blank.is_some()
+                || reads_tool_spans.is_some()
+                || require_members.is_some()
             {
                 return Err(inexpressible(
-                    "a branch set delegates to its leaves, so a carrier, an envelope, a reading or a \
-                         target on the parent would be ignored - declare it on the leaf that means it",
+                    "a branch set delegates to its leaves, so a carrier, an envelope, a reading, a \
+                         requirement, a tool-span permission or a target on the parent would be ignored - \
+                         declare it on the leaf that means it",
                 ));
             }
             Some(CompiledBranchSet {
@@ -649,20 +669,20 @@ fn compile_rule(
         parse: *parse,
         require_members: require_members.clone(),
         wrap: wrap.clone(),
-        target: *emit,
-        aggregate_into_array: *aggregate_into_array,
+        target: emit_target,
+        aggregate_into_array: aggregate,
         when: when.as_ref().map(super::detect_rules::compile_signals),
         unless: unless.as_ref().map(super::detect_rules::compile_signals),
-        require_non_empty: *require_non_empty,
-        require_non_blank: *require_non_blank,
+        require_non_empty: non_empty,
+        require_non_blank: non_blank,
         branch_set: compiled_branch_set,
-        stage: *stage,
-        when_event: when_event.clone(),
-        replaces_raw_event: *replaces_raw_event,
+        stage: stage.unwrap_or_default(),
+        when_event: when_event.clone().unwrap_or_default(),
+        replaces_raw_event: replaces_raw_event.unwrap_or(false),
         elements: elements.clone(),
         walk: walk.clone(),
         sections: sections.clone(),
-        reads_tool_spans: *reads_tool_spans,
+        reads_tool_spans: tool_spans,
         tag_as: tag_as.clone(),
         alternatives: inline_fragments(alternatives, fragments)?,
         also: inline_fragments(also, fragments)?,
@@ -1306,12 +1326,34 @@ fn claim_is_conditional(rule: &CompiledMessageRule) -> bool {
         return true;
     }
     // A compose member's fallback is read only where its own gate holds.
-    rule.compose.as_ref().is_some_and(|compose| {
+    if rule.compose.as_ref().is_some_and(|compose| {
         compose
             .members
             .iter()
             .any(|member| member.fallback_gate.is_some())
-    })
+    }) {
+        return true;
+    }
+    // An overlay is a *join*, and it happens only where the counterpart list satisfies the witness. So the
+    // dialect that assembles a family from its flattened members consumes the serialised copy on the spans
+    // where that copy is its own, and yields it elsewhere.
+    if rule
+        .read
+        .overlay
+        .as_ref()
+        .is_some_and(|overlay| !overlay.witness.is_empty())
+    {
+        return true;
+    }
+    // Every reading this rule has is gated on the payload itself. A rule with *no* unconditional
+    // alternative cannot claim a carrier whose payload another dialect owns - which is how one dialect's
+    // "this text is framework internals, not a conversation" claim coexists with another's reading of the
+    // same key.
+    !rule.alternatives.is_empty()
+        && rule
+            .alternatives
+            .iter()
+            .all(|alternative| !alternative.spec.require.is_empty())
 }
 
 /// What a rule reads.
@@ -1332,6 +1374,10 @@ fn consumed_carriers(rule: &CompiledMessageRule) -> Vec<CarrierPattern> {
     if let Some(family) = rule.read.indexed_family.as_deref() {
         // Every key beneath the family, since each index's members are read.
         out.push(CarrierPattern::Prefix(format!("{family}.")));
+    }
+    if let Some(overlay) = &rule.read.overlay {
+        // The payload a positional overlay joins against is read too, and it is not beneath the family.
+        out.push(CarrierPattern::Exact(overlay.from.clone()));
     }
     // A branch set's subrules read carriers of their own, and they were invisible here - so two dialects
     // could contend for one carrier as long as the collision was inside a branch set.
@@ -1899,7 +1945,7 @@ fn indexed_entries(
     family: &str,
     read: &ReadSpec,
     require: Option<&MemberRequirements>,
-) -> Vec<(String, JsonValue)> {
+) -> Vec<IndexedEntry> {
     // Every other parameter was a facet of the same `ReadSpec`, and threading them one by one meant a new
     // facet was a new argument at every call site.
     let entry_member = read.entry_member.as_deref();
@@ -1921,8 +1967,12 @@ fn indexed_entries(
         }
     }
 
-    let mut out = Vec::new();
+    let mut out: Vec<IndexedEntry> = Vec::new();
     for index in indices {
+        // The physical keys this entry read. An entry's *tag* is `family.N`, which is a name for the entry
+        // and not a key any producer wrote - so owning the tag left `family.N.content` free for another
+        // rule, and the overlay's own attribute free for the dialect that reads it as a whole payload.
+        let mut consumed: Vec<String> = Vec::new();
         let entry_prefix = format!("{family}.{index}");
         // Where the message sits: the entry itself, or a sub-level of it.
         let subject_prefix = match entry_member {
@@ -1947,6 +1997,7 @@ fn indexed_entries(
             .collect();
         own.sort_unstable_by_key(|(member, _)| *member);
         for (member, value) in own {
+            consumed.push(format!("{subject_dot}{member}"));
             object.insert(member.to_string(), member_value(member, value, numeric));
         }
         // Where the message is nested, the entry's *other* members come too: they belong to the same
@@ -1964,6 +2015,7 @@ fn indexed_entries(
                 .collect();
             siblings.sort_unstable_by_key(|(member, _)| *member);
             for (member, value) in siblings {
+                consumed.push(format!("{entry_dot}{member}"));
                 object.insert(member.to_string(), member_value(member, value, numeric));
             }
         }
@@ -1981,6 +2033,10 @@ fn indexed_entries(
             for member in flattened {
                 object.remove(&member);
             }
+            // The overlay's payload was read, so this entry owns it: a dialect joining its flattened family
+            // against a serialised copy has consumed that copy, and leaving it unclaimed let the dialect
+            // that reads it whole emit the same turn again.
+            consumed.push(overlay.from.clone());
             object.insert(overlay.as_member.clone(), content);
         }
         // A projection reads one value out of the entry: the entry is a wrapper around a single payload,
@@ -1999,14 +2055,33 @@ fn indexed_entries(
                         (None, _) => Some(found.clone()),
                     };
                     if let Some(value) = value {
-                        out.push((subject_prefix, value));
+                        out.push(IndexedEntry {
+                            carrier: subject_prefix,
+                            value,
+                            consumed,
+                        });
                     }
                 }
             }
-            None => out.push((subject_prefix, JsonValue::Object(object))),
+            None => out.push(IndexedEntry {
+                carrier: subject_prefix,
+                value: JsonValue::Object(object),
+                consumed,
+            }),
         }
     }
     out
+}
+
+/// One entry of an indexed family: its tag, its assembled payload, and the physical keys it read.
+///
+/// The keys are separate from the tag because they are different kinds of name. `llm.input_messages.0.message`
+/// is assembled here to identify the entry; `llm.input_messages.0.message.role` is a key a producer wrote,
+/// and only the second is something another rule could also read.
+struct IndexedEntry {
+    carrier: String,
+    value: JsonValue,
+    consumed: Vec<String>,
 }
 
 /// The counterpart list a positional overlay joins against, where the span carries one this dialect wrote.
@@ -2695,15 +2770,23 @@ fn emit_rule<'p>(rule: &'p CompiledMessageRule, ctx: &MessageContext<'_>) -> Vec
             if entries.is_empty() {
                 return out;
             }
-            // Every entry the aggregate consumed, plus the family itself. Owning the family name alone left
-            // each `family.N` free for another rule, which is what the unaggregated form of this same read
-            // owns - so the two spellings disagreed about what had been read.
-            let mut owns: Vec<OwnedCarrier> = entries
-                .iter()
-                .map(|(carrier, _)| OwnedCarrier::attribute(carrier))
-                .collect();
+            // Every key the aggregate consumed, plus each entry's tag and the family's own name. Owning the
+            // family name alone left every physical member free for another rule, and the entry tags are
+            // names this engine assembled rather than keys a producer wrote.
+            let mut owns: Vec<OwnedCarrier> = Vec::new();
+            for entry in &entries {
+                owns.push(OwnedCarrier::attribute(&entry.carrier));
+                owns.extend(
+                    entry
+                        .consumed
+                        .iter()
+                        .map(|key| OwnedCarrier::attribute(key)),
+                );
+            }
             owns.push(OwnedCarrier::attribute(family));
-            let array = JsonValue::Array(entries.into_iter().map(|(_, value)| value).collect());
+            owns.sort_unstable();
+            owns.dedup();
+            let array = JsonValue::Array(entries.into_iter().map(|entry| entry.value).collect());
             let value = match &rule.wrap {
                 Some(wrap) => match wrapped(array, wrap, ctx, None) {
                     Some(value) => value,
@@ -2720,13 +2803,24 @@ fn emit_rule<'p>(rule: &'p CompiledMessageRule, ctx: &MessageContext<'_>) -> Vec
             });
             return out;
         }
-        for (carrier, value) in entries {
+        for entry in entries {
+            // The entry's tag *and* every key it read. The tag alone is a name for the entry, not a key, so
+            // it conflicted with nothing a second rule could reach.
+            let mut owns = OwnedCarrier::just(&entry.carrier);
+            owns.extend(
+                entry
+                    .consumed
+                    .iter()
+                    .map(|key| OwnedCarrier::attribute(key)),
+            );
+            owns.sort_unstable();
+            owns.dedup();
             out.push(Emission {
                 rule_id: &rule.rule_id,
-                owns: OwnedCarrier::just(&carrier),
-                carrier: EmittedCarrier::Owned(carrier),
+                owns,
+                carrier: EmittedCarrier::Owned(entry.carrier),
                 target: rule.target,
-                value,
+                value: entry.value,
             });
         }
         return out;

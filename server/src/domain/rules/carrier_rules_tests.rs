@@ -1080,3 +1080,57 @@ fn a_compose_claims_the_attributes_it_read_not_only_its_tag() {
         "two rules emitted the same output.value payload: {readers:?} - the compose must own what it read"
     );
 }
+
+/// An indexed family owns every physical key it read, including a positional overlay's payload.
+///
+/// Reachable in the shipped assets, as the compose case was: OpenInference assembles a user turn from
+/// `llm.input_messages.0.message.*` and overlays the richer serialised copy out of `input.value`, while
+/// LangGraph reads `input.value` as a node's state. With the family owning only its assembled entry tag -
+/// `llm.input_messages.0.message`, a name no producer wrote - the overlay's payload stayed unclaimed and the
+/// same user turn came back twice.
+#[test]
+fn an_indexed_family_claims_the_overlay_payload_it_joined_against() {
+    let plan = &super::ruleset().messages;
+    let mut attrs = std::collections::HashMap::new();
+    attrs.insert(
+        "llm.input_messages.0.message.role".to_string(),
+        "user".to_string(),
+    );
+    // Flattened content, which is the shape the overlay exists to improve on.
+    attrs.insert(
+        "llm.input_messages.0.message.contents.0.message_content.type".to_string(),
+        "text".to_string(),
+    );
+    attrs.insert(
+        "llm.input_messages.0.message.contents.0.message_content.text".to_string(),
+        "look".to_string(),
+    );
+    // The serialised copy, in this dialect's own shape so the overlay's witness holds.
+    attrs.insert(
+        "input.value".to_string(),
+        r#"{"messages":[{"id":["langchain","schema","messages","HumanMessage"],"type":"human","content":[{"type":"text","text":"look at the picture"}]}]}"#
+            .to_string(),
+    );
+    // LangGraph's evidence, so its own reading of `input.value` is live on this span.
+    attrs.insert("langgraph.node".to_string(), "agent".to_string());
+    attrs.insert(
+        "metadata".to_string(),
+        r#"{"langgraph_step":1}"#.to_string(),
+    );
+
+    let ctx = super::message_rules::MessageContext::for_span("RunnableSequence", &attrs, false);
+    // Both dialects recognise this payload on their own, which is what makes the claim load-bearing rather
+    // than incidental: without it OpenInference emitted the turn from its overlay and LangGraph emitted the
+    // same turn from the same attribute.
+    let readers: Vec<&str> = plan
+        .run(&ctx)
+        .iter()
+        .filter(|e| e.value.to_string().contains("look at the picture"))
+        .map(|e| e.rule_id)
+        .collect();
+    assert_eq!(
+        readers.len(),
+        1,
+        "two rules emitted the same input.value payload: {readers:?} - the overlay's source must be owned"
+    );
+}

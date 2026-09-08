@@ -452,15 +452,18 @@ pub struct MessageRule {
     ///
     /// A separate dimension from `when`, because an event name is not a span attribute and a rule gated on
     /// one would otherwise never hold.
+    ///
+    /// `Option` so an explicit `[]` is distinguishable from silence: a branch leaf may not declare this at
+    /// all, and a check comparing against the default accepted the explicit spelling as a no-op.
     #[serde(default)]
-    pub when_event: Vec<String>,
+    pub when_event: Option<Vec<String>>,
     /// Whether this rule's readings *replace* the event's raw form rather than adding to it.
     ///
     /// One convention event is a container: its own attributes are the two message carriers inside it, and
     /// emitting the container as well would report the conversation twice. Another carries a message *and* a
     /// bundled tool result, where both are wanted. Which it is, is a fact about the event.
     #[serde(default)]
-    pub replaces_raw_event: bool,
+    pub replaces_raw_event: Option<bool>,
     /// When this rule is read: with the dialects, or only if none of them produced a message.
     ///
     /// A *stage*, owned by the engine rather than a rule asking about other rules. Some carriers really are
@@ -469,7 +472,7 @@ pub struct MessageRule {
     /// Gating on a sibling carrier's absence instead is measurably broader: a span with a recognised
     /// conversation and an unrelated `response` gains a message it should not have.
     #[serde(default)]
-    pub stage: MessageStage,
+    pub stage: Option<MessageStage>,
     /// The carrier to read. Absent for a `compose` rule, which has many sources rather than one.
     #[serde(default)]
     pub read: ReadSpec,
@@ -497,13 +500,13 @@ pub struct MessageRule {
     /// Defaults to a message, and a branch set's parent declares none: its sub-readings each say what they
     /// emit, so a value here would be unused.
     #[serde(default)]
-    pub emit: EmitTarget,
+    pub emit: Option<EmitTarget>,
     /// Emit one observation whose value is the array of everything read, rather than one per reading.
     ///
     /// Tool definitions arrive as a set rather than a sequence of messages, so a dialect's whole tool list
     /// is one observation - emitting one per tool would make each look like a separate declaration.
     #[serde(default)]
-    pub aggregate_into_array: bool,
+    pub aggregate_into_array: Option<bool>,
     /// A gate on the span, in the detection vocabulary: the rule is consulted only where this holds.
     ///
     /// Several extractors refuse to read a carrier whose name they share with other dialects unless the
@@ -548,7 +551,7 @@ pub struct MessageRule {
     /// span hold the enclosing agent's state - read there they duplicate the turn. That was a hardcoded
     /// exemption for one extractor by name; it is a property of a rule now.
     #[serde(default)]
-    pub reads_tool_spans: bool,
+    pub reads_tool_spans: Option<bool>,
     /// Several carrier readings with a *local* order between them.
     ///
     /// One dialect reads a carrier only when nothing else supplied the conversation - a condition about
@@ -585,13 +588,13 @@ pub struct MessageRule {
     /// Distinct from `require_non_empty`, which rejects only the empty string: one dialect treats
     /// whitespace as absence and another does not, and collapsing the two would change both.
     #[serde(default)]
-    pub require_non_blank: bool,
+    pub require_non_blank: Option<bool>,
     /// Skip a carrier whose value is empty.
     ///
     /// An attribute present and empty is not evidence of a message, and wrapping it produces a turn with
     /// nothing in it - which the no-empty-content invariant then rejects downstream.
     #[serde(default)]
-    pub require_non_empty: bool,
+    pub require_non_empty: Option<bool>,
     /// A negative gate: the rule is skipped where this holds.
     ///
     /// Symmetric to `when`, and needed for a genuine either/or - a response is read from its text when it

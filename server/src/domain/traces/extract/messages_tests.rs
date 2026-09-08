@@ -8557,6 +8557,70 @@ fn inexpressible_rules_are_refused() {
                     {"id":"a.1","doc":"d","read":{"attribute":"k"},"parse":"json","emit":"message",
                      "legacy_rank":2}]}}]}"#,
         ),
+        // Presence, not value: each of these writes out the field's own default, which is still a statement
+        // the engine reads from somewhere else. A check comparing against the default accepted all three.
+        (
+            "a branch leaf declaring the default stage explicitly",
+            r#"{"id":"t","doc":"d","messages":[
+                {"id":"a","doc":"d","legacy_rank":1,
+                 "branch_set":{"primary":[
+                    {"id":"a.1","doc":"d","read":{"attribute":"k"},"parse":"json","emit":"message",
+                     "stage":"dialect"}]}}]}"#,
+        ),
+        (
+            "a branch leaf declaring an empty event list",
+            r#"{"id":"t","doc":"d","messages":[
+                {"id":"a","doc":"d","legacy_rank":1,
+                 "branch_set":{"primary":[
+                    {"id":"a.1","doc":"d","read":{"attribute":"k"},"parse":"json","emit":"message",
+                     "when_event":[]}]}}]}"#,
+        ),
+        (
+            "a branch leaf declaring that it does not replace an event's raw form",
+            r#"{"id":"t","doc":"d","messages":[
+                {"id":"a","doc":"d","legacy_rank":1,
+                 "branch_set":{"primary":[
+                    {"id":"a.1","doc":"d","read":{"attribute":"k"},"parse":"json","emit":"message",
+                     "replaces_raw_event":false}]}}]}"#,
+        ),
+        // The parent's own dead fields. `reads_tool_spans` is the observable one: the permission is read
+        // from the leaves, so a parent granting it made the whole branch skipped on a tool span.
+        (
+            "a branch parent granting tool-span permission its leaves do not have",
+            r#"{"id":"t","doc":"d","messages":[
+                {"id":"a","doc":"d","legacy_rank":1,"reads_tool_spans":true,
+                 "branch_set":{"primary":[
+                    {"id":"a.1","doc":"d","read":{"attribute":"k"},"parse":"json","emit":"message"}]}}]}"#,
+        ),
+        (
+            "a branch parent declaring a parse mode for a carrier it does not read",
+            r#"{"id":"t","doc":"d","messages":[
+                {"id":"a","doc":"d","legacy_rank":1,"parse":"json",
+                 "branch_set":{"primary":[
+                    {"id":"a.1","doc":"d","read":{"attribute":"k"},"parse":"json","emit":"message"}]}}]}"#,
+        ),
+        (
+            "a branch parent declaring a carrier tag its leaves override",
+            r#"{"id":"t","doc":"d","messages":[
+                {"id":"a","doc":"d","legacy_rank":1,"tag_as":"q",
+                 "branch_set":{"primary":[
+                    {"id":"a.1","doc":"d","read":{"attribute":"k"},"parse":"json","emit":"message"}]}}]}"#,
+        ),
+        (
+            "a branch parent requiring a non-empty value it never reads",
+            r#"{"id":"t","doc":"d","messages":[
+                {"id":"a","doc":"d","legacy_rank":1,"require_non_empty":true,
+                 "branch_set":{"primary":[
+                    {"id":"a.1","doc":"d","read":{"attribute":"k"},"parse":"json","emit":"message"}]}}]}"#,
+        ),
+        (
+            "a branch parent requiring members of an entry it never assembles",
+            r#"{"id":"t","doc":"d","messages":[
+                {"id":"a","doc":"d","legacy_rank":1,
+                 "require_members":{"all_of":[{"name":"role"}]},
+                 "branch_set":{"primary":[
+                    {"id":"a.1","doc":"d","read":{"attribute":"k"},"parse":"json","emit":"message"}]}}]}"#,
+        ),
     ];
     for (what, asset) in cases {
         let sources =
