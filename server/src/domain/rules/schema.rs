@@ -111,6 +111,24 @@ pub struct SpanFieldRule {
 #[derive(Debug, Deserialize, Clone, Copy, PartialEq, Eq, Hash)]
 #[serde(rename_all = "snake_case")]
 pub enum FieldTarget {
+    /// Usage **candidates**: what one dialect's embedded object states, resolved whatever the counter chains
+    /// answered.
+    ///
+    /// Separate targets rather than further sources on the counters, because the decision that reads them is
+    /// not "which source wins": that dialect's embedded *total* is usable only when the parts actually stored
+    /// are the parts it describes, so the test needs its candidate values even where a flat attribute won.
+    /// Ordinary resolution would have hidden them. The paths and the gate are data; the agreement test is
+    /// arithmetic about our own accounting and stays code.
+    UsageCandidateInput,
+    UsageCandidateOutput,
+    UsageCandidateCacheRead,
+    UsageCandidateTotal,
+    /// Usage a dialect records **per message**, summed. Candidates rather than counter sources, because the
+    /// decision reading them is a *pair*: that dialect fills both sides together when either summed to
+    /// anything, so one side's silence is not the same fact as the pair being absent. The paths are data; the
+    /// pairing is arithmetic and stays code.
+    UsageSummedInput,
+    UsageSummedOutput,
     /// Token counters. These do **not** reach the stored span through `apply_field`: the columns are `i64` and
     /// never null, so writing one there would lose the difference between a counter nothing carried and a
     /// genuine `0` - which every framework fallback downstream needs, and which no arithmetic can recover.
@@ -174,7 +192,13 @@ impl FieldTarget {
             | Self::UsageTotalTokensReported
             | Self::UsageCacheReadTokens
             | Self::UsageCacheWriteTokens
-            | Self::UsageReasoningTokens => FieldType::Integer,
+            | Self::UsageReasoningTokens
+            | Self::UsageCandidateInput
+            | Self::UsageCandidateOutput
+            | Self::UsageCandidateCacheRead
+            | Self::UsageCandidateTotal
+            | Self::UsageSummedInput
+            | Self::UsageSummedOutput => FieldType::Integer,
             Self::GenAiTemperature
             | Self::GenAiTopP
             | Self::GenAiFrequencyPenalty
@@ -295,6 +319,14 @@ pub struct FieldSource {
     pub unless: Option<DetectMatch>,
 }
 
+/// How several matches of one path become one value.
+#[derive(Debug, Deserialize, Clone, Copy, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum Reduction {
+    /// Add them. A non-numeric match contributes nothing, as the retired reduction's `unwrap_or(0)` did.
+    Sum,
+}
+
 /// What a source does when the value it names is present and cannot be read as the field's type.
 ///
 /// Declared per source because the retired chains disagreed, and each disagreement was deliberate. A status
@@ -321,6 +353,13 @@ pub struct JsonFieldSource {
     /// Where in it the value sits.
     #[serde(default)]
     pub path: Option<JsonPath>,
+    /// Combine every match of a plural path into one value, rather than taking one of them.
+    ///
+    /// A generic reduction, and the only one: a dialect that records usage per message states the call's usage
+    /// as the total across them, which is a statement no single match carries. Yields nothing where the path
+    /// matches nothing, so "no such shape" stays distinguishable from a genuine zero.
+    #[serde(default)]
+    pub reduce: Option<Reduction>,
     /// Several spellings of one member, where the **first present** one is the answer.
     ///
     /// Not the same as listing them as separate sources, and the difference is load-bearing: separate sources

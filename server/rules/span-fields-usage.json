@@ -1,6 +1,6 @@
 {
   "id": "span-fields-usage",
-  "doc": "Where each token counter is written. **Only** where: the arithmetic, the synthesised total, whether each counter was *supplied*, and every pricing decision stay in Rust, because those are statements about our own accounting rather than about a producer's spelling.\n\nEach counter is one group of aliases followed by a scoped last resort. The group is `attribute_first_present_of` rather than separate sources, and that is load-bearing: the retired chain selected the primary by presence and then converted, so an empty or unreadable primary ended the *flat* chain and an embedded carrier answered - a different producer's statement, not a later spelling of the same one.\n\nThe scoped sources are bare names (`input_tokens`) that any framework might use for anything, so they are read only on spans whose name says which producer wrote them. That gate is the whole reason they are safe to consult at all.\n\nAfter the flat groups come the **embedded** usage objects, in the order the retired fallbacks ran: one dialect's own usage blob, then the usage nested in a serialised response, then a third dialect's response object. Each is consulted only for a counter nothing before it supplied, which is what an ordered chain already means - and the flat groups carry `on_malformed: continue` so an unreadable flat value does not hide the embedded object behind it, which is exactly when the retired chain reached for one.",
+  "doc": "Where each token counter is written. **Only** where: the arithmetic, the synthesised total, whether each counter was *supplied*, and every pricing decision stay in Rust, because those are statements about our own accounting rather than about a producer's spelling.\n\nEach counter is one group of aliases followed by a scoped last resort. The group is `attribute_first_present_of` rather than separate sources, and that is load-bearing: the retired chain selected the primary by presence and then converted, so an empty or unreadable primary ended the *flat* chain and an embedded carrier answered - a different producer's statement, not a later spelling of the same one.\n\nThe scoped sources are bare names (`input_tokens`) that any framework might use for anything, so they are read only on spans whose name says which producer wrote them. That gate is the whole reason they are safe to consult at all.\n\nAfter the flat groups come the **embedded** usage objects, in the order the retired fallbacks ran: one dialect's own usage blob, then the usage nested in a serialised response, then a third dialect's response object. Each is consulted only for a counter nothing before it supplied, which is what an ordered chain already means - and the flat groups carry `on_malformed: continue` so an unreadable flat value does not hide the embedded object behind it, which is exactly when the retired chain reached for one.\n\nTwo dialects state usage in a shape the chain alone cannot express. One records it **per message**, so the call's count is the sum across them (`reduce: sum`) - resolved as its own candidate, because that dialect fills both sides together when either summed to anything and a per-side chain cannot say that. The other's embedded object carries a *total* beside its parts, which is usable only when the parts actually stored are the ones it describes - so its four values are resolved as their own `usage_candidate_*` targets, whatever the chains answered, and what may be done with them is decided in Rust.",
   "span_fields": [
     {
       "id": "span-fields.usage_input_tokens",
@@ -234,6 +234,122 @@
             "gen_ai.usage.reasoning_tokens",
             "ai.usage.reasoningTokens"
           ]
+        }
+      ]
+    },
+    {
+      "id": "span-fields.usage_candidate_input",
+      "target": "usage_candidate_input",
+      "sources": [
+        {
+          "json": {
+            "attribute": "output.value",
+            "path": "$.token_usage.prompt_tokens"
+          },
+          "when": {
+            "attr_exists": [
+              "crew_key",
+              "crew_id",
+              "crew_tasks",
+              "task_key"
+            ]
+          },
+          "on_malformed": "continue"
+        }
+      ],
+      "doc": "What this dialect's embedded usage object states for the input side."
+    },
+    {
+      "id": "span-fields.usage_candidate_output",
+      "target": "usage_candidate_output",
+      "sources": [
+        {
+          "json": {
+            "attribute": "output.value",
+            "path": "$.token_usage.completion_tokens"
+          },
+          "when": {
+            "attr_exists": [
+              "crew_key",
+              "crew_id",
+              "crew_tasks",
+              "task_key"
+            ]
+          },
+          "on_malformed": "continue"
+        }
+      ]
+    },
+    {
+      "id": "span-fields.usage_candidate_cache_read",
+      "target": "usage_candidate_cache_read",
+      "sources": [
+        {
+          "json": {
+            "attribute": "output.value",
+            "path": "$.token_usage.cached_prompt_tokens"
+          },
+          "when": {
+            "attr_exists": [
+              "crew_key",
+              "crew_id",
+              "crew_tasks",
+              "task_key"
+            ]
+          },
+          "on_malformed": "continue"
+        }
+      ]
+    },
+    {
+      "id": "span-fields.usage_candidate_total",
+      "target": "usage_candidate_total",
+      "sources": [
+        {
+          "json": {
+            "attribute": "output.value",
+            "path": "$.token_usage.total_tokens"
+          },
+          "when": {
+            "attr_exists": [
+              "crew_key",
+              "crew_id",
+              "crew_tasks",
+              "task_key"
+            ]
+          },
+          "on_malformed": "continue"
+        }
+      ],
+      "doc": "The total it states, which describes the members beside it rather than whatever ended up stored - so what may be done with it is a decision, made in Rust."
+    },
+    {
+      "id": "span-fields.usage_summed_input",
+      "target": "usage_summed_input",
+      "doc": "One dialect records usage per message, so the call's count is the sum of `prompt_tokens` across them - a statement no single match carries. A candidate rather than a counter source, because that dialect fills both sides together when either summed to anything.",
+      "sources": [
+        {
+          "json": {
+            "attribute": "output.value",
+            "path": "$.messages[*].models_usage.prompt_tokens",
+            "reduce": "sum"
+          },
+          "on_malformed": "continue"
+        }
+      ]
+    },
+    {
+      "id": "span-fields.usage_summed_output",
+      "target": "usage_summed_output",
+      "doc": "One dialect records usage per message, so the call's count is the sum of `completion_tokens` across them - a statement no single match carries. A candidate rather than a counter source, because that dialect fills both sides together when either summed to anything.",
+      "sources": [
+        {
+          "json": {
+            "attribute": "output.value",
+            "path": "$.messages[*].models_usage.completion_tokens",
+            "reduce": "sum"
+          },
+          "on_malformed": "continue"
         }
       ]
     }

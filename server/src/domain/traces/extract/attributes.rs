@@ -22,7 +22,10 @@ use crate::utils::time::nanos_to_datetime;
 
 use super::truncate_bytes;
 
-use super::{extract_json, keys};
+/// Only the oracles parse a JSON attribute here now; production reads through the declared resolvers.
+#[cfg(test)]
+use super::extract_json;
+use super::keys;
 
 // ============================================================================
 // SHARED HELPER FUNCTIONS
@@ -396,6 +399,21 @@ pub(super) fn token_readings_legacy(
             }
         }
     }
+    // Another dialect's embedded object, resolved whatever the chains answered.
+    let embedded = |member: &str| -> Option<i64> {
+        let gated = attrs.contains_key("crew_key")
+            || attrs.contains_key("crew_id")
+            || attrs.contains_key("crew_tasks")
+            || attrs.contains_key("task_key");
+        if !gated {
+            return None;
+        }
+        extract_json::<JsonValue>(attrs, keys::OUTPUT_VALUE)?
+            .get("token_usage")?
+            .get(member)?
+            .as_i64()
+    };
+
     TokenReadings {
         input,
         output,
@@ -403,6 +421,12 @@ pub(super) fn token_readings_legacy(
         cache_read,
         cache_write,
         reasoning: REASONING_TOKENS.extract_opt_for_span(attrs, span_name),
+        candidate_input: embedded("prompt_tokens"),
+        candidate_output: embedded("completion_tokens"),
+        candidate_cache_read: embedded("cached_prompt_tokens"),
+        candidate_total: embedded("total_tokens"),
+        summed_input: Some(extract_autogen_tokens(attrs).0),
+        summed_output: Some(extract_autogen_tokens(attrs).1),
     }
 }
 
@@ -1181,6 +1205,8 @@ pub(crate) fn detect_observation_type(
 /// Sum `models_usage.prompt_tokens` / `completion_tokens` from AutoGen `output.value`.
 /// Only extracts from chain spans (`output.value.messages[]`) to avoid double-counting —
 /// the same message appears in multiple routing (process) spans.
+/// Retired: the two sums are declared (`usage_summed_input`/`_output`, `reduce: sum`). The oracle's copy.
+#[cfg(test)]
 fn extract_autogen_tokens(attrs: &HashMap<String, String>) -> (i64, i64) {
     let output = match extract_json::<JsonValue>(attrs, keys::OUTPUT_VALUE) {
         Some(v) => v,
@@ -1229,6 +1255,18 @@ pub(crate) struct TokenReadings {
     pub cache_read: Option<i64>,
     pub cache_write: Option<i64>,
     pub reasoning: Option<i64>,
+    /// What one dialect's embedded object states, resolved whatever the chains above answered.
+    ///
+    /// Its embedded *total* describes the embedded parts, so it is usable only when the parts actually stored
+    /// are those parts - and that test needs the candidate values even where a flat attribute won, which
+    /// ordinary resolution would have hidden.
+    pub candidate_input: Option<i64>,
+    pub candidate_output: Option<i64>,
+    pub candidate_cache_read: Option<i64>,
+    pub candidate_total: Option<i64>,
+    /// Usage a dialect records per message, summed - see `UsageSummedInput`.
+    pub summed_input: Option<i64>,
+    pub summed_output: Option<i64>,
 }
 
 pub(crate) fn apply_span_fields(
@@ -1297,6 +1335,12 @@ fn apply_field(
         T::UsageCacheReadTokens => tokens.cache_read = integer(),
         T::UsageCacheWriteTokens => tokens.cache_write = integer(),
         T::UsageReasoningTokens => tokens.reasoning = integer(),
+        T::UsageCandidateInput => tokens.candidate_input = integer(),
+        T::UsageCandidateOutput => tokens.candidate_output = integer(),
+        T::UsageCandidateCacheRead => tokens.candidate_cache_read = integer(),
+        T::UsageCandidateTotal => tokens.candidate_total = integer(),
+        T::UsageSummedInput => tokens.summed_input = integer(),
+        T::UsageSummedOutput => tokens.summed_output = integer(),
         T::SessionId => span.session_id = text(),
         T::UserId => span.user_id = text(),
         T::HttpMethod => span.http_method = text(),
@@ -1497,32 +1541,27 @@ pub(crate) fn extract_genai(
     // sides present, `{prompt:500, completion:600, total:2000, cached:100}` stored a total of 1,100 and no
     // cache at all. Each value inside decides for itself whether it was already supplied.
     {
-        let is_crewai = attrs.contains_key("crew_key")
-            || attrs.contains_key("crew_id")
-            || attrs.contains_key("crew_tasks")
-            || attrs.contains_key("task_key");
-        if is_crewai {
-            if let Some(output) = extract_json::<JsonValue>(attrs, keys::OUTPUT_VALUE) {
-                if let Some(usage) = output.get("token_usage") {
+        {
+            {
+                {
+                    let usage_candidate = |member: &str| match member {
+                        "prompt_tokens" => tokens.candidate_input,
+                        "completion_tokens" => tokens.candidate_output,
+                        _ => None,
+                    };
                     let mut took_input = false;
                     let mut took_output = false;
-                    if !input_supplied
-                        && let Some(v) = usage.get("prompt_tokens").and_then(|v| v.as_i64())
-                    {
+                    if !input_supplied && let Some(v) = tokens.candidate_input {
                         span.gen_ai_usage_input_tokens = v;
                         input_supplied = true;
                         took_input = true;
                     }
-                    if !output_supplied
-                        && let Some(v) = usage.get("completion_tokens").and_then(|v| v.as_i64())
-                    {
+                    if !output_supplied && let Some(v) = tokens.candidate_output {
                         span.gen_ai_usage_output_tokens = v;
                         output_supplied = true;
                         took_output = true;
                     }
-                    if !cache_read_supplied
-                        && let Some(v) = usage.get("cached_prompt_tokens").and_then(|v| v.as_i64())
-                    {
+                    if !cache_read_supplied && let Some(v) = tokens.candidate_cache_read {
                         span.gen_ai_usage_cache_read_tokens = v;
                         cache_read_supplied = true;
                     }
@@ -1533,7 +1572,7 @@ pub(crate) fn extract_genai(
                     // the same value; taking it regardless produced a row whose total did not match its own
                     // input and output, claiming 1,099 for 0 + 100 tokens.
                     let side_agrees = |took: bool, stored: i64, key: &str| {
-                        took || usage.get(key).and_then(|v| v.as_i64()) == Some(stored)
+                        took || usage_candidate(key) == Some(stored)
                     };
                     // And only when the provider did not state a total itself: `max` against an explicit
                     // flat total can only raise it, which replaces the provider's own statement about the
@@ -1546,21 +1585,19 @@ pub(crate) fn extract_genai(
                             "completion_tokens",
                         )
                     {
-                        reported_total = usage
-                            .get("total_tokens")
-                            .and_then(|v| v.as_i64())
-                            .unwrap_or(0)
-                            .max(reported_total);
+                        reported_total = tokens.candidate_total.unwrap_or(0).max(reported_total);
                     }
                 }
             }
         }
     }
 
-    // AutoGen: tokens from output.value.messages[].models_usage on chain spans.
-    // The models_usage field is AutoGen-specific; safe to check without framework guard.
+    // Usage a dialect records per message: where it summed to anything, **both** sides are filled together.
+    // That pairing is why the sums are candidates rather than sources on the counter chains - per side, one
+    // side's silence would not be the same fact as the pair being absent.
     if !input_supplied || !output_supplied {
-        let (pt, ct) = extract_autogen_tokens(attrs);
+        let pt = tokens.summed_input.unwrap_or(0);
+        let ct = tokens.summed_output.unwrap_or(0);
         if pt > 0 || ct > 0 {
             // Per side, for the same reason as the CrewAI fallback above.
             if !input_supplied {

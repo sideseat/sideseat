@@ -8963,6 +8963,43 @@ fn an_unreadable_source_stops_a_chain_and_not_a_merge() {
         "the refusal names the source and why: {:?}",
         status.refused
     );
+
+    // A **reduction over nothing** yields nothing, rather than zero. Unobservable through the two candidates
+    // that use it today - the pairing that reads them asks `> 0` - and load-bearing wherever a summed source
+    // has another behind it: `Integer(0)` answers the chain, `Absent` lets the next source speak.
+    let chained = br#"{"id":"t","doc":"d","span_fields":[
+        {"id":"summed","doc":"d","target":"usage_input_tokens","sources":[
+            {"json":{"attribute":"output.value","path":"$.messages[*].models_usage.prompt_tokens","reduce":"sum"}},
+            {"attribute":"gen_ai.usage.input_tokens"}]}]}"#;
+    let sources = std::collections::BTreeMap::from([("t.json".to_string(), chained.to_vec())]);
+    let plan = compile(&sources).expect("compiles");
+    let no_messages = rule_attrs(&[
+        ("output.value", r#"{"result":"done"}"#),
+        ("gen_ai.usage.input_tokens", "42"),
+    ]);
+    assert_eq!(
+        plan.resolve("chain", &no_messages)
+            .iter()
+            .find(|r| r.target == FieldTarget::UsageInputTokens)
+            .map(|r| r.reading.clone()),
+        Some(Reading::Integer(42)),
+        "a sum over no matches lets the source behind it answer"
+    );
+    let with_messages = rule_attrs(&[
+        (
+            "output.value",
+            r#"{"messages":[{"models_usage":{"prompt_tokens":0}}]}"#,
+        ),
+        ("gen_ai.usage.input_tokens", "42"),
+    ]);
+    assert_eq!(
+        plan.resolve("chain", &with_messages)
+            .iter()
+            .find(|r| r.target == FieldTarget::UsageInputTokens)
+            .map(|r| r.reading.clone()),
+        Some(Reading::Integer(0)),
+        "a sum that really is zero is an answer, and the source behind it is not consulted"
+    );
 }
 
 /// A gate that could never hold is refused where a field source declares one.
@@ -10941,6 +10978,68 @@ fn the_token_rules_reproduce_the_table_they_replaced() {
                 r#"{"usage":{"input_tokens":0,"output_tokens":0}}"#,
             )]),
         ),
+        // The candidates: resolved whatever the chains answered, because the decision reading them needs them.
+        (
+            "one dialect's embedded object, on a span its gate admits",
+            "Crew.kickoff",
+            rule_attrs(&[
+                ("crew_key", "k"),
+                (
+                    "output.value",
+                    r#"{"token_usage":{"prompt_tokens":500,"completion_tokens":600,"total_tokens":2000,"cached_prompt_tokens":100}}"#,
+                ),
+            ]),
+        ),
+        (
+            "the same payload with no gate attribute, which is a different framework's key",
+            "chat",
+            rule_attrs(&[(
+                "output.value",
+                r#"{"token_usage":{"prompt_tokens":500,"completion_tokens":600}}"#,
+            )]),
+        ),
+        (
+            "the embedded object beside flat counters, which must not hide it",
+            "Crew.kickoff",
+            rule_attrs(&[
+                ("crew_key", "k"),
+                ("gen_ai.usage.input_tokens", "500"),
+                ("gen_ai.usage.output_tokens", "600"),
+                (
+                    "output.value",
+                    r#"{"token_usage":{"prompt_tokens":500,"completion_tokens":600,"total_tokens":2000}}"#,
+                ),
+            ]),
+        ),
+        (
+            "usage recorded per message, summed across them",
+            "chain",
+            rule_attrs(&[(
+                "output.value",
+                r#"{"messages":[{"models_usage":{"prompt_tokens":5,"completion_tokens":6}},{"models_usage":{"prompt_tokens":7,"completion_tokens":8}}]}"#,
+            )]),
+        ),
+        (
+            "one message with no usage object among others that have one",
+            "chain",
+            rule_attrs(&[(
+                "output.value",
+                r#"{"messages":[{"models_usage":null},{"content":"x"},{"models_usage":{"prompt_tokens":7,"completion_tokens":8}}]}"#,
+            )]),
+        ),
+        (
+            "per-message usage on one side only",
+            "chain",
+            rule_attrs(&[(
+                "output.value",
+                r#"{"messages":[{"models_usage":{"prompt_tokens":5}}]}"#,
+            )]),
+        ),
+        (
+            "a payload with no messages at all",
+            "chain",
+            rule_attrs(&[("output.value", r#"{"result":"done"}"#)]),
+        ),
         (
             "a flat cache counter beside an embedded one",
             "chat",
@@ -10967,6 +11066,15 @@ fn the_token_rules_reproduce_the_table_they_replaced() {
                 format!("cache_read={:?}", t.cache_read),
                 format!("cache_write={:?}", t.cache_write),
                 format!("reasoning={:?}", t.reasoning),
+                format!("candidate_input={:?}", t.candidate_input),
+                format!("candidate_output={:?}", t.candidate_output),
+                format!("candidate_cache_read={:?}", t.candidate_cache_read),
+                format!("candidate_total={:?}", t.candidate_total),
+                // The two sums are compared by their **effective** value, because the pairing that reads them
+                // cannot distinguish absent from zero: it asks `pt > 0 || ct > 0`. Comparing the `Option`
+                // would hold the declared form to a distinction no consumer makes.
+                format!("summed_input={}", t.summed_input.unwrap_or(0)),
+                format!("summed_output={}", t.summed_output.unwrap_or(0)),
             ]
         };
         assert_eq!(

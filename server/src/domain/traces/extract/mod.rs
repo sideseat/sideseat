@@ -36,6 +36,7 @@ pub(crate) mod attributes;
 pub mod files;
 pub(crate) mod messages;
 
+#[cfg(test)]
 use std::collections::HashMap;
 
 use opentelemetry_proto::tonic::collector::trace::v1::ExportTraceServiceRequest;
@@ -61,6 +62,7 @@ fn truncate_bytes(s: &str, max: usize) -> &str {
 }
 
 /// Parse JSON from an attribute value.
+#[cfg(test)]
 pub(super) fn extract_json<T: serde::de::DeserializeOwned>(
     attrs: &HashMap<String, String>,
     key: &str,
@@ -252,6 +254,7 @@ pub(super) mod keys {
     /// Named by the assets now; kept for the equivalence oracles.
     #[cfg(test)]
     pub const INPUT_VALUE: &str = "input.value";
+    #[cfg(test)]
     pub const OUTPUT_VALUE: &str = "output.value";
     /// Named only by the AutoGen asset now; kept for the equivalence oracle's reference implementation.
     #[cfg(test)]

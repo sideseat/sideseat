@@ -18,7 +18,7 @@ use serde_json::Value as JsonValue;
 
 use super::schema::{
     DetectMatch, FieldCombine, FieldSource, FieldTarget, FieldType, JsonFieldSource,
-    MalformedPolicy, SpanFieldRule,
+    MalformedPolicy, Reduction, SpanFieldRule,
 };
 
 /// What reading one source produced.
@@ -92,6 +92,11 @@ pub enum FieldCompileError {
          naming one"
     )]
     JsonNamesNoMember { file: String, rule: String },
+    #[error(
+        "span field rule `{rule}` in `{file}` reduces a first-present group, which names several paths and \
+         takes one of them - a reduction combines the matches of one path"
+    )]
+    ReductionWithoutAPath { file: String, rule: String },
     #[error("span field rule `{rule}` in `{file}` names an empty attribute")]
     EmptyAttribute { file: String, rule: String },
     #[error(
@@ -391,6 +396,28 @@ fn read_json<'a>(
     let Some(path) = &json.path else {
         return Reading::Absent;
     };
+    // Every match combined into one value. `Absent` for no matches, so "the span has no such shape" stays
+    // distinguishable from a call that genuinely used no tokens.
+    if let Some(Reduction::Sum) = json.reduce {
+        let matched = path.query(value);
+        if matched.is_empty() {
+            return Reading::Absent;
+        }
+        let mut total = 0_i64;
+        for found in matched.iter() {
+            // A non-numeric match contributes nothing, which is what the retired reduction's `unwrap_or(0)`
+            // did - one message without a usage object does not invalidate the others' counts.
+            if let Reading::Integer(value) = from_json(found, FieldType::Integer) {
+                total = total.saturating_add(value);
+            }
+        }
+        return match field_type {
+            FieldType::Integer => Reading::Integer(total),
+            _ => Reading::Malformed {
+                detail: "a sum is a number, and this field does not hold one".to_string(),
+            },
+        };
+    }
     // The first match that **yields**, not the first match. A dialect writes its agents as a list and the model
     // sits on whichever one declared it, so stopping at element 0's empty or absent member reported no model at
     // all - the same reason a flat chain steps over an empty value. Only the first match's outcome is carried
@@ -485,11 +512,13 @@ fn from_text(raw: &str, field_type: FieldType) -> Reading {
     }
 }
 
-/// A JSON value, read as the field's type.
+/// A JSON value, read as the field's type - **strictly**, in both directions.
 ///
-/// A number is accepted for a text field and a numeric string for an integer one, because a producer writing
-/// its state as JSON chooses the encoding and both spellings are the same fact. A structure is not: an object
-/// where a session id belongs is a producer bug, and reporting it as absent hides it.
+/// A number is not a text value and a quoted number is not a number. Both coercions were tried and both were
+/// divergences: rendering a numeric `metadata.thread_id` invented a session identifier no other span will
+/// match, and accepting a quoted count took a value the retired `as_i64` skipped, letting one carrier answer
+/// where the next used to. A structure is refused for the same reason it always was: an object where a scalar
+/// belongs is a producer bug, and reporting it as absent hides it.
 fn from_json(value: &JsonValue, field_type: FieldType) -> Reading {
     match field_type {
         FieldType::Text => match value {
@@ -644,6 +673,14 @@ fn compile_rule(file_id: &str, rule: &SpanFieldRule) -> Result<CompiledRule, Fie
         // Both the read and the **witness**, which had no such check: a witness naming no member always
         // answers false, so its source is permanently dead, and one naming both silently ignores the second.
         for json in [&spec.json, &spec.when_json].into_iter().flatten() {
+            // A reduction combines the matches of *one* path, so there is nothing for it to do over a
+            // first-present group - which names several paths and takes one of them.
+            if json.reduce.is_some() && json.path.is_none() {
+                return Err(FieldCompileError::ReductionWithoutAPath {
+                    file: file_id.to_string(),
+                    rule: rule.id.clone(),
+                });
+            }
             let ways =
                 usize::from(json.path.is_some()) + usize::from(!json.first_present_of.is_empty());
             if ways != 1 {
