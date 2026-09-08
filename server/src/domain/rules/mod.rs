@@ -149,6 +149,8 @@ pub struct Ruleset {
     pub messages: message_rules::MessagePlan,
     /// The event names that carry messages, from every asset.
     pub message_events: std::collections::HashSet<String>,
+    /// Which role each event's message carries, and which instead on a tool execution span.
+    pub event_roles: std::collections::BTreeMap<String, DeclaredEventRole>,
     /// Content-block shapes, declared per dialect.
     pub content_blocks: content_blocks::ContentBlockPlan,
     /// Facts about a span, each established by any dialect that can.
@@ -205,6 +207,8 @@ pub fn ruleset() -> &'static Ruleset {
                 .flat_map(|file| &file.message_events)
                 .map(|event| event.name.clone())
                 .collect(),
+            event_roles: compile_event_roles(&parsed_files(&sources))
+                .unwrap_or_else(|e| panic!("embedded event roles are malformed: {e}")),
             span_facts: SpanFactPlan::compile(&sources),
             span_fields: span_fields::compile(&sources)
                 .unwrap_or_else(|e| panic!("embedded span field rules are malformed: {e}")),
@@ -217,6 +221,80 @@ pub fn ruleset() -> &'static Ruleset {
             digest,
         }
     })
+}
+
+/// The role an event's message carries, by event name.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct DeclaredEventRole {
+    /// On an ordinary span. `None` leaves the role to the content.
+    pub role: Option<String>,
+    /// On a tool execution span, where two events mean the opposite of what they mean elsewhere.
+    pub in_tool_span: Option<String>,
+}
+
+/// The roles each message event declares, gathered across every asset.
+///
+/// One map rather than a per-asset lookup, because the question is asked with an event name and nothing else:
+/// a span carries an event, not the asset that described it. Several assets legitimately list the same event -
+/// the conventions declare `gen_ai.choice` and a dialect re-declares it to add its own doc - so a repeat is
+/// accepted while a **disagreement** is refused: two assets claiming different roles for one event would be
+/// resolved by load order, which is not a statement anybody made.
+pub(super) fn compile_event_roles(
+    files: &[schema::RuleFile],
+) -> Result<std::collections::BTreeMap<String, DeclaredEventRole>, String> {
+    /// The roles an event may declare. Ours, not any producer's - so a misspelling is a build defect rather
+    /// than a silent fall back to deriving the role from the content.
+    const ROLES: &[&str] = &["system", "user", "assistant", "tool"];
+    let mut out: std::collections::BTreeMap<String, DeclaredEventRole> =
+        std::collections::BTreeMap::new();
+    for file in files {
+        for event in &file.event_roles {
+            if event.name.is_empty() {
+                return Err(format!("`{}` declares an event role with no name", file.id));
+            }
+            for role in [&event.role, &event.role_in_tool_span]
+                .into_iter()
+                .flatten()
+            {
+                if !ROLES.contains(&role.as_str()) {
+                    return Err(format!(
+                        "event `{}` in `{}` declares role `{role}`, which is not one of: {}",
+                        event.name,
+                        file.id,
+                        ROLES.join(", ")
+                    ));
+                }
+            }
+            let declared = DeclaredEventRole {
+                role: event.role.clone(),
+                in_tool_span: event.role_in_tool_span.clone(),
+            };
+            // A name that says nothing about the role is not a declaration, and accepting it would let an
+            // empty entry silently replace a real one.
+            if declared == DeclaredEventRole::default() {
+                return Err(format!(
+                    "event role `{}` in `{}` names no role at all, so it states nothing - leave the entry \
+                     out to leave the role to the content",
+                    event.name, file.id
+                ));
+            }
+            match out.get(&event.name) {
+                None => {
+                    out.insert(event.name.clone(), declared);
+                }
+                // A repeat that agrees is a dialect re-stating a convention, which is allowed.
+                Some(existing) if *existing == declared => {}
+                Some(existing) => {
+                    return Err(format!(
+                        "event `{}` is declared with role {existing:?} and also with {declared:?} - which \
+                         applies would depend on load order",
+                        event.name
+                    ));
+                }
+            }
+        }
+    }
+    Ok(out)
 }
 
 /// The declared `gen_ai.system` → provider aliases.

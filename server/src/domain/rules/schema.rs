@@ -46,6 +46,9 @@ pub struct RuleFile {
     /// somebody also edited the list.
     #[serde(default)]
     pub message_events: Vec<MessageEvent>,
+    /// What role a message's source name implies, where the name decides it.
+    #[serde(default)]
+    pub event_roles: Vec<EventRole>,
     /// Content-block shapes this dialect writes.
     #[serde(default)]
     pub content_blocks: Vec<ContentBlockRule>,
@@ -2155,5 +2158,32 @@ pub enum MessageStage {
 #[serde(deny_unknown_fields)]
 pub struct MessageEvent {
     pub name: String,
+    pub doc: Option<String>,
+}
+
+/// What role a message's **source name** implies, where the name itself decides it.
+///
+/// Its own section rather than a member of `message_events`, because the two lists are not the same
+/// vocabulary. `message_events` says which *OTLP events* carry messages; this says what a **source name**
+/// means, and a source name may also be one a rule assigned with `tag_as` - `gen_ai.tool.result` is exactly
+/// that, a tag no producer emits. Putting the role on the event entry would have made declaring the role of
+/// a tag impossible without also claiming a producer emits it.
+#[derive(Debug, Deserialize, Clone)]
+#[serde(deny_unknown_fields)]
+pub struct EventRole {
+    /// The source name: an event a producer emits, or a name a rule assigns with `tag_as`.
+    pub name: String,
+    /// The role on an ordinary span. Absent leaves the role to the content, which is a statement rather
+    /// than an omission - most events say nothing about the role.
+    #[serde(default)]
+    pub role: Option<String>,
+    /// The role instead, on a **tool execution** span.
+    ///
+    /// Two names mean the opposite thing there. On a chat span `gen_ai.tool.message` is a tool's *output*
+    /// and `gen_ai.choice` is the assistant's reply; on a tool span the first is the arguments the
+    /// assistant passed and the second is what the tool returned. So the span's kind is part of the
+    /// question, and one role per name could not express it.
+    #[serde(default)]
+    pub role_in_tool_span: Option<String>,
     pub doc: Option<String>,
 }

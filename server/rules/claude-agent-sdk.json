@@ -199,5 +199,12 @@
       "name": "tool.output",
       "doc": "The CLI's tool result body, emitted only with tool-content logging enabled - which is why no captured fixture exercises it, and why a unit test is what holds it."
     }
+  ],
+  "event_roles": [
+    {
+      "name": "tool.output",
+      "role": "tool",
+      "doc": "This dialect's CLI writes a tool result body on its own span event rather than on a convention event, so the name is the only thing that says the message is a tool's answer. Needs `OTEL_LOG_TOOL_CONTENT=1`."
+    }
   ]
 }

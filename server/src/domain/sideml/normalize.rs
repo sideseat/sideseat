@@ -602,80 +602,45 @@ fn emit_non_tool_message(
 // ROLE DERIVATION FROM OTEL EVENTS
 // ============================================================================
 
-/// Derive role from OTEL event name with span context.
+/// The role a message's **source name** implies, where the name decides it.
 ///
-/// In tool execution spans, events have different semantics:
-/// - `gen_ai.tool.message` = tool INPUT (args passed to tool) → assistant role
-///   (prevents merging with tool OUTPUT in ToolResultRegistry)
-/// - `gen_ai.choice` = tool OUTPUT (result from tool) → tool role
-/// - `gen_ai.assistant.message` = conversation history → assistant role (always)
+/// Declared (`event_roles` in the assets), not a table here: which name means which role is a fact about a
+/// telemetry vocabulary, and one of the entries belongs to a single CLI rather than to the conventions - so
+/// it lives in that dialect's own asset. Two names mean the opposite thing on a tool execution span, which
+/// is why the span's kind is part of the question.
 ///
-/// In chat spans (non-tool):
-/// - `gen_ai.tool.message` = tool OUTPUT (result from tool) → tool role
-/// - `gen_ai.choice` = assistant response → assistant role
-/// - `gen_ai.assistant.message` = assistant response → assistant role (always)
-///
-/// This query-time derivation enables bug fixes to apply to historical data without re-ingestion.
+/// Derived at query time, so a correction applies to stored spans without re-ingestion.
 ///
 /// # Returns
 ///
-/// - `Some(ChatRole)` - The derived role for the event
-/// - `None` - Unknown event, role cannot be derived from event name
+/// - `Some(ChatRole)` - the role the name declares
+/// - `None` - the name declares none, and the role is derived from the content
 pub(crate) fn role_from_event_name_with_context(
     event_name: &str,
     is_tool_span: bool,
 ) -> Option<ChatRole> {
-    match event_name {
-        "gen_ai.system.message" => Some(ChatRole::System),
-        "gen_ai.user.message" | "gen_ai.content.prompt" => Some(ChatRole::User),
-
-        // Tool message: semantics depend on span context
-        "gen_ai.tool.message" => {
-            if is_tool_span {
-                // In tool span: gen_ai.tool.message is tool INPUT (invocation args)
-                // Use Assistant role to prevent merging with tool OUTPUT in ToolResultRegistry
-                // (tool_call role maps to Assistant, so this is semantically consistent)
-                Some(ChatRole::Assistant)
-            } else {
-                // In chat span: this is tool OUTPUT (result from tool call)
-                Some(ChatRole::Tool)
-            }
+    let declared = crate::domain::rules::ruleset().event_roles.get(event_name);
+    let Some(declared) = declared else {
+        // Not a name any asset speaks for. Logged only for the conventions' namespace, where an unrecognised
+        // name is more likely to be a spelling this server should know than a producer's own invention.
+        if event_name.starts_with("gen_ai.") {
+            tracing::trace!(
+                event_name = event_name,
+                is_tool_span = is_tool_span,
+                "no declared role for this event name, role will be derived from content"
+            );
         }
-        // Tool result is always OUTPUT (from tool call)
-        "gen_ai.tool.result" => Some(ChatRole::Tool),
-
-        // Claude Code CLI emits the tool result body as a tool.output span event
-        // on claude_code.tool (requires OTEL_LOG_TOOL_CONTENT=1).
-        "tool.output" => Some(ChatRole::Tool),
-
-        // Assistant message from conversation history - always assistant role
-        // (This is an INPUT event containing prior assistant responses, not tool output)
-        "gen_ai.assistant.message" => Some(ChatRole::Assistant),
-
-        // Choice/completion: semantics depend on span context
-        "gen_ai.choice" | "gen_ai.content.completion" => {
-            if is_tool_span {
-                // In tool span: this is tool OUTPUT (result)
-                Some(ChatRole::Tool)
-            } else {
-                // In chat span: this is assistant/LLM response
-                Some(ChatRole::Assistant)
-            }
-        }
-
-        _ => {
-            // Log unknown event names at trace level for diagnostics
-            // This helps identify new event types that should be supported
-            if event_name.starts_with("gen_ai.") {
-                tracing::trace!(
-                    event_name = event_name,
-                    is_tool_span = is_tool_span,
-                    "Unknown gen_ai event name, role will be derived from content"
-                );
-            }
-            None
-        }
-    }
+        return None;
+    };
+    let named = if is_tool_span {
+        declared
+            .in_tool_span
+            .as_deref()
+            .or(declared.role.as_deref())
+    } else {
+        declared.role.as_deref()
+    };
+    named.and_then(ChatRole::try_from_str)
 }
 
 /// Special roles that MUST NOT be overridden by event-based role derivation.
@@ -894,6 +859,39 @@ fn category_from_role(role: &str) -> MessageCategory {
             ChatRole::Tool => MessageCategory::GenAIToolMessage,
             ChatRole::User => MessageCategory::GenAIUserMessage,
         },
+    }
+}
+
+/// The event-name role table this file used to hold, kept to hold `event_roles` to account.
+///
+/// A golden can be regenerated and bless a regression; an oracle cannot. Compared by
+/// `the_declared_event_roles_reproduce_the_table_they_replaced`.
+#[cfg(test)]
+pub(crate) fn role_from_event_name_with_context_legacy(
+    event_name: &str,
+    is_tool_span: bool,
+) -> Option<ChatRole> {
+    match event_name {
+        "gen_ai.system.message" => Some(ChatRole::System),
+        "gen_ai.user.message" | "gen_ai.content.prompt" => Some(ChatRole::User),
+        "gen_ai.tool.message" => {
+            if is_tool_span {
+                Some(ChatRole::Assistant)
+            } else {
+                Some(ChatRole::Tool)
+            }
+        }
+        "gen_ai.tool.result" => Some(ChatRole::Tool),
+        "tool.output" => Some(ChatRole::Tool),
+        "gen_ai.assistant.message" => Some(ChatRole::Assistant),
+        "gen_ai.choice" | "gen_ai.content.completion" => {
+            if is_tool_span {
+                Some(ChatRole::Tool)
+            } else {
+                Some(ChatRole::Assistant)
+            }
+        }
+        _ => None,
     }
 }
 

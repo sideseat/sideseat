@@ -522,5 +522,51 @@
       "name": "gen_ai.client.inference.operation.details",
       "doc": "A container whose own attributes are the request and the response."
     }
+  ],
+  "event_roles": [
+    {
+      "name": "gen_ai.system.message",
+      "role": "system",
+      "doc": "A system instruction."
+    },
+    {
+      "name": "gen_ai.user.message",
+      "role": "user",
+      "doc": "A user turn."
+    },
+    {
+      "name": "gen_ai.content.prompt",
+      "role": "user",
+      "doc": "The deprecated spelling of the request, which is a user turn."
+    },
+    {
+      "name": "gen_ai.tool.message",
+      "role": "tool",
+      "role_in_tool_span": "assistant",
+      "doc": "A tool message means opposite things by span: on a chat span it is what the tool returned, and on a tool execution span it is the arguments the assistant passed. The tool-span reading is `assistant` rather than a role of its own so it cannot merge with the tool's *output* during correlation - `tool_call` maps to assistant anyway, so it is the same statement."
+    },
+    {
+      "name": "gen_ai.tool.result",
+      "role": "tool",
+      "doc": "A name a rule assigns with `tag_as`, not one a producer emits: a bundled result set, whose members are the tool's answers whatever span carries them."
+    },
+    {
+      "name": "gen_ai.assistant.message",
+      "role": "assistant",
+      "role_in_tool_span": "assistant",
+      "doc": "Always the assistant, on either kind of span - it is a re-sent turn for most dialects and the reply itself for a choiceless generation span, and neither is a tool's output."
+    },
+    {
+      "name": "gen_ai.choice",
+      "role": "assistant",
+      "role_in_tool_span": "tool",
+      "doc": "What the model chose on a chat span, and on a tool execution span what the *tool* returned - the span's own output either way, which is why the role follows the span."
+    },
+    {
+      "name": "gen_ai.content.completion",
+      "role": "assistant",
+      "role_in_tool_span": "tool",
+      "doc": "The deprecated spelling of the response, following `gen_ai.choice` exactly."
+    }
   ]
 }

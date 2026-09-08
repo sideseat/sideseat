@@ -5784,3 +5784,41 @@ fn test_normalize_plain_data_doesnt_affect_messages() {
             .any(|b| matches!(b, ContentBlock::ToolUse { .. }))
     );
 }
+
+/// The declared `event_roles` answer exactly as the Rust table they replaced did.
+///
+/// Every name the retired table knew, on both kinds of span, plus names it did not know - because a table
+/// that answers *more* than the one it replaced is as much a change as one that answers less, and the
+/// unrecognised case is where a new role would silently start overriding one derived from content.
+#[test]
+fn the_declared_event_roles_reproduce_the_table_they_replaced() {
+    let names = [
+        "gen_ai.system.message",
+        "gen_ai.user.message",
+        "gen_ai.content.prompt",
+        "gen_ai.tool.message",
+        "gen_ai.tool.result",
+        "tool.output",
+        "gen_ai.assistant.message",
+        "gen_ai.choice",
+        "gen_ai.content.completion",
+        // Names no asset speaks for, which must stay unanswered.
+        "gen_ai.unknown.message",
+        "tool.input",
+        "",
+    ];
+    for name in names {
+        for is_tool_span in [false, true] {
+            assert_eq!(
+                normalize::role_from_event_name_with_context(name, is_tool_span),
+                normalize::role_from_event_name_with_context_legacy(name, is_tool_span),
+                "`{name}` on {} disagrees with the table the assets replaced",
+                if is_tool_span {
+                    "a tool span"
+                } else {
+                    "a chat span"
+                }
+            );
+        }
+    }
+}
