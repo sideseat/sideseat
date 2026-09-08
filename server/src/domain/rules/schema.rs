@@ -673,18 +673,23 @@ pub struct MatchSpec {
     /// Attribute key prefix, for indexed families (`llm.input_messages.0.message`).
     #[serde(default)]
     pub attribute_prefix: Option<String>,
+    /// A dotted attribute **family**: the root itself and every key below it.
+    ///
+    /// Separate from `attribute_prefix`, which is raw text. Every undelimited prefix in the assets was really
+    /// a family root, and the raw reading selected keys that are not in the family:
+    /// `attribute_prefix: "ai.response"` matched `ai.responses`, and `gen_ai.output.messages` matched
+    /// `gen_ai.output.messages_extra`. A prefix ending in `.` is genuinely raw and stays one.
+    #[serde(default)]
+    pub attribute_family: Option<String>,
     /// Any of these observation types. This is the dimension the span-blind lookup lacked: the same
     /// carrier name means different things on a generation span and on an aggregator.
-    #[serde(default)]
-    pub observation_type: Vec<String>,
-    /// Span name prefix.
     ///
-    /// **Refused at compile time today.** Carrier semantics are resolved when a span is *read*, from a stored
-    /// row whose `span_name` is the *display* name - and for a dialect that writes an unresolved template that
-    /// is not the name the producer sent. A clause qualified by this would hold during ingestion and fail on
-    /// the same span at query time. It becomes usable once the raw name is persisted beside the display name.
+    /// `Option`, not `Vec`, because an explicitly empty `observation_type: []` was silently the same as
+    /// omitting the qualifier - so a clause that reads as narrow held for every span. Omission is `None` and
+    /// means no restriction; `Some([])` states nothing and is refused. A `Vec` cannot tell those apart, which
+    /// is why the first attempt at this refusal was dead code.
     #[serde(default)]
-    pub span_name_prefix: Option<String>,
+    pub observation_type: Option<Vec<String>>,
     /// Instrumentation scope name substring.
     ///
     /// Narrowing evidence only, never an exclusive key: historical rows may carry no scope, several
@@ -709,6 +714,7 @@ impl MatchSpec {
         usize::from(self.event.is_some())
             + usize::from(self.attribute.is_some())
             + usize::from(self.attribute_prefix.is_some())
+            + usize::from(self.attribute_family.is_some())
     }
 
     /// The carrier this clause keys on, for indexing.
@@ -719,9 +725,12 @@ impl MatchSpec {
         if let Some(attribute) = &self.attribute {
             return Some(PrimaryKey::Attribute(attribute));
         }
-        self.attribute_prefix
+        if let Some(prefix) = &self.attribute_prefix {
+            return Some(PrimaryKey::AttributePrefix(prefix));
+        }
+        self.attribute_family
             .as_deref()
-            .map(PrimaryKey::AttributePrefix)
+            .map(PrimaryKey::AttributeFamily)
     }
 
     /// Does this clause's match language *contain* the other's - is the other at least as specific?
@@ -744,22 +753,34 @@ impl MatchSpec {
             (Some(PrimaryKey::AttributePrefix(a)), Some(PrimaryKey::AttributePrefix(b))) => {
                 b.starts_with(a)
             }
+            // A family's members all start with its root, so a raw prefix that is a prefix *of the root*
+            // covers every one of them.
+            (Some(PrimaryKey::AttributePrefix(p)), Some(PrimaryKey::AttributeFamily(root))) => {
+                root.starts_with(p)
+            }
+            (Some(PrimaryKey::AttributeFamily(root)), Some(PrimaryKey::Attribute(a))) => {
+                in_family(a, root)
+            }
+            // A raw prefix is inside a family only when it is *below* the root. `prefix("ai.response")` is
+            // **not**, because it also selects `ai.responses`, which the family excludes - the same distinction
+            // that made this variant necessary.
+            (Some(PrimaryKey::AttributeFamily(root)), Some(PrimaryKey::AttributePrefix(p))) => p
+                .strip_prefix(root)
+                .is_some_and(|rest| rest.starts_with('.')),
+            (Some(PrimaryKey::AttributeFamily(a)), Some(PrimaryKey::AttributeFamily(b))) => {
+                b == a || b.strip_prefix(a).is_some_and(|rest| rest.starts_with('.'))
+            }
             _ => false,
         };
         if !carrier_contains {
             return false;
         }
         // Qualifiers: an unconstrained dimension contains any constraint on it.
-        let types = self.observation_type.is_empty()
-            || (!other.observation_type.is_empty()
-                && other
-                    .observation_type
-                    .iter()
-                    .all(|t| self.observation_type.contains(t)));
-        let span_names = match (&self.span_name_prefix, &other.span_name_prefix) {
+        // An unconstrained dimension contains any constraint on it, so `None` here contains everything.
+        let types = match (&self.observation_type, &other.observation_type) {
             (None, _) => true,
             (Some(_), None) => false,
-            (Some(a), Some(b)) => b.starts_with(a.as_str()),
+            (Some(mine), Some(theirs)) => theirs.iter().all(|t| mine.contains(t)),
         };
         // A longer needle is the more specific claim only when it *contains* the shorter one: a scope
         // holding `foo` is not necessarily one holding `bar`, but one holding `foobar` does hold `oob`.
@@ -773,7 +794,7 @@ impl MatchSpec {
             (Some(_), None) => false,
             (Some(a), Some(b)) => b.starts_with(a.as_str()),
         };
-        types && span_names && scopes && versions
+        types && scopes && versions
     }
 
     /// Could one observation satisfy both clauses?
@@ -800,15 +821,9 @@ impl MatchSpec {
         if !carriers_overlap {
             return false;
         }
-        let types = self.observation_type.is_empty()
-            || other.observation_type.is_empty()
-            || self
-                .observation_type
-                .iter()
-                .any(|t| other.observation_type.contains(t));
-        // One span name cannot start with two prefixes unless one extends the other.
-        let span_names = match (&self.span_name_prefix, &other.span_name_prefix) {
-            (Some(a), Some(b)) => a.starts_with(b.as_str()) || b.starts_with(a.as_str()),
+        // Jointly satisfiable unless both constrain the dimension and share no value.
+        let types = match (&self.observation_type, &other.observation_type) {
+            (Some(mine), Some(theirs)) => mine.iter().any(|t| theirs.contains(t)),
             _ => true,
         };
         // Two substrings are always jointly satisfiable: concatenate them.
@@ -816,7 +831,7 @@ impl MatchSpec {
             (Some(a), Some(b)) => a.starts_with(b.as_str()) || b.starts_with(a.as_str()),
             _ => true,
         };
-        types && span_names && versions
+        types && versions
     }
 }
 
@@ -825,7 +840,39 @@ impl MatchSpec {
 pub enum PrimaryKey<'a> {
     Event(&'a str),
     Attribute(&'a str),
+    /// A **raw textual** prefix: every key beginning with these characters.
     AttributePrefix(&'a str),
+    /// A dotted **family**: the root itself, and every key below it.
+    ///
+    /// Distinct from a raw prefix because a raw one does not respect the separator, and every undelimited
+    /// prefix in the assets was in fact a family root: `attribute_prefix: "ai.response"` matched
+    /// `ai.responses`, which is a different attribute, and `gen_ai.output.messages` matched
+    /// `gen_ai.output.messages_extra`. A prefix ending in `.` is still genuinely raw and stays one - as a
+    /// family root it would ask for `ai..something`.
+    AttributeFamily(&'a str),
+}
+
+impl PrimaryKey<'_> {
+    /// Whether this source selects the given attribute key.
+    pub fn selects_attribute(&self, key: &str) -> bool {
+        match self {
+            Self::Event(_) => false,
+            Self::Attribute(name) => key == *name,
+            Self::AttributePrefix(prefix) => key.starts_with(prefix),
+            Self::AttributeFamily(root) => in_family(key, root),
+        }
+    }
+}
+
+/// Whether a key is the root of a dotted family or sits below it.
+///
+/// `key == root || key.starts_with(root.)` - the separator is the whole point, and its absence is what made
+/// `ai.responses` a member of `ai.response`.
+pub fn in_family(key: &str, root: &str) -> bool {
+    key == root
+        || key
+            .strip_prefix(root)
+            .is_some_and(|rest| rest.starts_with('.'))
 }
 
 /// The six carrier facts, named by preset with optional per-field overrides.

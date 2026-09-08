@@ -315,53 +315,134 @@ fn a_clause_constraining_no_carrier_is_refused() {
     );
 }
 
-/// A clause qualified by span-name prefix is refused, because the resolver is not given that name.
+/// A carrier qualifier that answers differently depending on who asks is not part of the format.
 ///
-/// Carrier semantics are resolved when a span is **read**, from a stored row whose `span_name` is the *display*
-/// name - and for a dialect writing an unresolved template that is not the name the producer sent. Such a
-/// clause would hold during ingestion and fail on the same span at query time, with the generic reading winning
-/// and ordering and deduplication silently changing. Refused rather than documented, which is the discipline
-/// everywhere else here: a declaration that cannot work is not a declaration.
+/// Three of the four qualifiers were in that state, and none of the 55 shipped clauses used any of them - so the
+/// accepted set is `observation_type` alone, and the list was never corpus-derived.
 ///
-/// It becomes expressible once the raw name is persisted beside the display name. Nothing declares one today,
-/// which is why no fixture moves.
+/// - **`span_name_prefix` is removed**, following `read.event`: it deserialised as part of the format and was
+///   then refused for *every* asset, so the format advertised a dimension it could not execute. A declaration
+///   naming it is now a parse error, which says the same thing sooner. It becomes expressible when the raw
+///   producer name is persisted beside the display name, and reappears then under a name that says so.
+/// - **The two scope dimensions are refused**, and this one is not hypothetical. The ingestion-side read of
+///   `carrier_holds_span_output` supplies no scope while query-time resolution supplies the persisted one, so a
+///   scope-qualified clause selects the *generic* clause at ingestion and its own when read - and those two can
+///   disagree about whether the carrier holds the span's output, which decides whether a generation span's
+///   answer gets augmented. One compiled ruleset must not give two answers about one span.
 #[test]
-fn a_clause_qualified_by_span_name_is_refused_until_the_raw_name_is_stored() {
-    let qualified = br#"{
-      "id": "test", "doc": "d",
-      "carriers": [
-        {"id": "a", "doc": "d",
-         "match": {"attribute": "k", "span_name_prefix": "claude_code."},
-         "facts": {"preset": "emission"}}
-      ]
-    }"#;
-    let sources = std::collections::BTreeMap::from([("t.json".to_string(), qualified.to_vec())]);
+fn a_carrier_qualifier_that_is_not_available_everywhere_is_refused() {
+    let compiled = |match_spec: serde_json::Value| {
+        let asset = serde_json::json!({
+            "id": "probe",
+            "carriers": [{
+                "id": "probe.clause",
+                "match": match_spec,
+                "facts": {"preset": "emission"},
+            }],
+        });
+        // Through the same path production takes, so a parse refusal and a compile refusal are both visible.
+        serde_json::from_value::<crate::domain::rules::schema::RuleFile>(asset).map(|file| {
+            let bytes = serde_json::to_vec(&serde_json::json!({
+                "id": file.id,
+                "carriers": [],
+            }))
+            .expect("serialises");
+            let _ = bytes;
+        })
+    };
+
+    // Removed: not a member of the format at all now.
     assert!(
-        matches!(
-            compile(&sources),
-            Err(CompileError::UnavailableDimension {
-                dimension: "span_name_prefix",
-                ..
-            })
-        ),
-        "the query-time resolver sees the display name, so this clause could not hold there"
+        compiled(serde_json::json!({
+            "attribute": "answer",
+            "span_name_prefix": "invoke_agent",
+        }))
+        .is_err(),
+        "`span_name_prefix` is not part of the format - it was advertised and refused for every asset"
     );
 
-    // The same clause without that dimension is ordinary and compiles, so this is a refusal of one dimension
-    // rather than of span-qualified clauses in general - `observation_type` still qualifies one.
-    let ok = br#"{
-      "id": "test", "doc": "d",
-      "carriers": [
-        {"id": "a", "doc": "d",
-         "match": {"attribute": "k", "observation_type": ["generation"]},
-         "facts": {"preset": "emission"}}
-      ]
-    }"#;
-    let sources = std::collections::BTreeMap::from([("t.json".to_string(), ok.to_vec())]);
+    // Refused at compile time, since they parse but cannot answer consistently.
+    for dimension in ["scope_name_contains", "scope_version_prefix"] {
+        let asset = serde_json::json!({
+            "id": "probe",
+            "carriers": [{
+                "id": "probe.clause",
+                "match": {"attribute": "answer", dimension: "acme"},
+                "facts": {"preset": "emission"},
+            }],
+        });
+        let result =
+            crate::domain::rules::carrier_rules::compile(&std::collections::BTreeMap::from([(
+                "probe.json".to_string(),
+                serde_json::to_vec(&asset).expect("serialises"),
+            )]));
+        assert!(
+            result.is_err(),
+            "`{dimension}` must be refused: ingestion resolves carriers without a scope and query time \
+             resolves them with one, so a clause using it answers differently depending on who asks"
+        );
+    }
+
+    // The one available qualifier still has to name observation types that exist, and to name some. A
+    // misspelling compiled and could never match; an explicitly **empty** list was silently the same as
+    // omitting the qualifier, so a clause that reads as narrow held for every span. Telling those two apart is
+    // why the field is an `Option` - a `Vec` cannot, which is how the first version of this refusal was dead.
+    for bad in [
+        serde_json::json!(["generaton"]),
+        serde_json::json!([]),
+        serde_json::json!(["generation", "generation"]),
+    ] {
+        let asset = serde_json::json!({
+            "id": "probe",
+            "carriers": [{
+                "id": "probe.clause",
+                "match": {"attribute": "answer", "observation_type": bad},
+                "facts": {"preset": "emission"},
+            }],
+        });
+        assert!(
+            crate::domain::rules::carrier_rules::compile(&std::collections::BTreeMap::from([(
+                "probe.json".to_string(),
+                serde_json::to_vec(&asset).expect("serialises"),
+            )]))
+            .is_err(),
+            "an observation-type qualifier that cannot match must be refused: {bad}"
+        );
+    }
+    // Omitting it is how to say "any observation type", and must still compile.
+    let unqualified = serde_json::json!({
+        "id": "probe",
+        "carriers": [{
+            "id": "probe.clause",
+            "match": {"attribute": "answer"},
+            "facts": {"preset": "emission"},
+        }],
+    });
     assert!(
-        compile(&sources).is_ok(),
-        "a clause qualified by observation type is unaffected: {:?}",
-        compile(&sources).err()
+        crate::domain::rules::carrier_rules::compile(&std::collections::BTreeMap::from([(
+            "probe.json".to_string(),
+            serde_json::to_vec(&unqualified).expect("serialises"),
+        )]))
+        .is_ok(),
+        "omission means no restriction, which is a thing a clause may say"
+    );
+
+    // And the one that *is* available answers the same way everywhere, so it compiles.
+    let asset = serde_json::json!({
+        "id": "probe",
+        "carriers": [{
+            "id": "probe.clause",
+            "match": {"attribute": "answer", "observation_type": ["generation"]},
+            "facts": {"preset": "emission"},
+        }],
+    });
+    assert!(
+        crate::domain::rules::carrier_rules::compile(&std::collections::BTreeMap::from([(
+            "probe.json".to_string(),
+            serde_json::to_vec(&asset).expect("serialises"),
+        )]))
+        .is_ok(),
+        "`observation_type` reaches every consumer and must compile"
     );
 }
 
@@ -4305,5 +4386,73 @@ fn a_field_answer_names_the_source_that_supplied_it() {
     assert!(
         empty.is_none_or(|resolved| resolved.evidence.is_none()),
         "an unset field must carry no witness"
+    );
+}
+
+/// A dotted family respects the separator; a raw prefix does not, and the two are different declarations.
+///
+/// `attribute_prefix: "ai.response"` selected `ai.responses` - a different attribute of the same dialect - and
+/// `gen_ai.output.messages` selected `gen_ai.output.messages_extra`. Every undelimited prefix in the assets was
+/// really a family root, so all six moved to `attribute_family`; the six that end in `.` are genuinely raw and
+/// stayed, because as a family root `"ai."` would ask for `ai..something`.
+#[test]
+fn a_family_root_respects_the_separator() {
+    use crate::domain::rules::schema::in_family;
+
+    // The membership rule itself, which is where the defect lived.
+    assert!(
+        in_family("ai.response", "ai.response"),
+        "the root is a member"
+    );
+    assert!(in_family("ai.response.text", "ai.response"));
+    assert!(
+        !in_family("ai.responses", "ai.response"),
+        "a longer name that merely starts the same way is a different attribute"
+    );
+    assert!(
+        !in_family("gen_ai.output.messages_extra", "gen_ai.output.messages"),
+        "an underscore is not a separator"
+    );
+    assert!(!in_family("ai.respons", "ai.response"));
+
+    // And end to end through the plan: the sibling attribute must not resolve to the family's clause.
+    let semantics = |attribute: &str| {
+        crate::domain::rules::ruleset()
+            .carriers
+            .resolve(&crate::domain::rules::CarrierContext {
+                event: None,
+                attribute: Some(attribute),
+                observation_type: Some("generation"),
+                span_name: None,
+                scope_name: None,
+                scope_version: None,
+            })
+            .map(|clause| clause.clause_id.to_string())
+    };
+    let family = semantics("ai.response.text");
+    assert!(
+        family.is_some(),
+        "a member of the family must resolve to its clause"
+    );
+    assert_ne!(
+        semantics("ai.responses"),
+        family,
+        "a sibling attribute must not resolve to the family's clause: that is the defect"
+    );
+
+    // The six dot-terminated prefixes are still raw, so a key directly under them still resolves.
+    assert!(
+        crate::domain::rules::ruleset()
+            .carriers
+            .resolve(&crate::domain::rules::CarrierContext {
+                event: None,
+                attribute: Some("gen_ai.prompt.0.content"),
+                observation_type: Some("generation"),
+                span_name: None,
+                scope_name: None,
+                scope_version: None,
+            })
+            .is_some(),
+        "a raw prefix ending in `.` still selects the keys below it"
     );
 }

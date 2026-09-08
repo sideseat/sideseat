@@ -183,7 +183,7 @@ pub fn compile(
 
 /// The answers each classification may give. **Ours**, not any producer's - which is why they are here rather
 /// than in an asset, and why a rule naming something else is a build defect rather than a silent `span`.
-const OBSERVATION_TYPES: &[&str] = &[
+pub(super) const OBSERVATION_TYPES: &[&str] = &[
     "generation",
     "embedding",
     "agent",

@@ -1,11 +1,17 @@
 //! Carrier semantics as data: the compiled plan, and the lookup the pipeline calls.
 //!
-//! This replaces a span-blind table in Rust. The defect it removes: `gen_ai.output.messages` was
-//! classified as one emission wherever it appeared, but on an *aggregator* span - a framework's root
-//! agent span re-listing the whole turn - it is accumulated state, and reading it as an emission put a
-//! turn's final answer ahead of the tool calls that produced it.
+//! This replaces a span-blind table in Rust: a carrier's semantics can now depend on the *span* carrying it,
+//! which the table could not express.
 //!
-//! The fix is not a special case for that carrier. It is that a clause may constrain the observation
+//! **What that did not fix, stated because three places used to say it did.** `gen_ai.output.messages` is
+//! classified as one emission wherever it appears, and on an *aggregator* span - a framework's root agent span
+//! re-listing the whole turn - it is accumulated state, so reading it as an emission puts the turn's final
+//! answer ahead of the tool calls that produced it. That misordering is **still here**. The embedded rules
+//! deliberately keep the generic emission reading, and the reason is measured rather than pending: the
+//! carrier-local facts cannot distinguish "this span is re-listing a turn" from "this span is the sole witness
+//! to it", and a clause that guessed made the second case worse.
+//!
+//! So what this module adds is the *capability* - a clause may constrain the observation
 //! type, so "the same carrier name means different things on different spans" becomes something a rule
 //! file can state.
 
@@ -84,6 +90,11 @@ pub struct CarrierPlan {
 /// Why a ruleset would not compile.
 #[derive(Debug)]
 pub enum CompileError {
+    /// An observation type that is not one, or a list of them that holds for everything.
+    UnknownObservationType {
+        clause: String,
+        declared: String,
+    },
     /// A dimension the *query-time* resolver is not given, so a clause using it could not hold there.
     UnavailableDimension {
         clause: String,
@@ -119,6 +130,11 @@ pub enum CompileError {
 impl std::fmt::Display for CompileError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            Self::UnknownObservationType { clause, declared } => write!(
+                f,
+                "carrier clause `{clause}` is qualified by observation type `{declared}`, which is not one \
+                 this server classifies - so the clause could never match"
+            ),
             Self::UnavailableDimension { clause, dimension } => write!(
                 f,
                 "carrier clause `{clause}` is qualified by `{dimension}`, which the query-time resolver is \
@@ -228,8 +244,11 @@ pub fn compile(sources: &BTreeMap<String, Vec<u8>>) -> Result<CarrierPlan, Compi
                             | PrimaryKey::AttributePrefix("")
                     )
                 })
-                || match_spec.observation_type.iter().any(String::is_empty)
-                || match_spec.span_name_prefix.as_deref() == Some("")
+                || match_spec
+                    .observation_type
+                    .iter()
+                    .flatten()
+                    .any(String::is_empty)
                 || match_spec.scope_name_contains.as_deref() == Some("")
                 || match_spec.scope_version_prefix.as_deref() == Some("")
             {
@@ -241,11 +260,56 @@ pub fn compile(sources: &BTreeMap<String, Vec<u8>>) -> Result<CarrierPlan, Compi
             // the same span when read, and the generic reading would win. Refused rather than documented,
             // because a declaration that cannot work is the class this engine exists to remove; it becomes
             // expressible once the raw name is persisted beside the display name.
-            if match_spec.span_name_prefix.is_some() {
-                return Err(CompileError::UnavailableDimension {
-                    clause: id.clone(),
-                    dimension: "span_name_prefix",
-                });
+            // The observation types must be ones that exist, and there must be some. A misspelling compiled
+            // and could never match; an explicitly empty list was silently the same as omitting the qualifier,
+            // so a clause that reads as narrow held for every span. The vocabulary is the classifier's own, so
+            // this reads it rather than keeping a second copy.
+            if let Some(types) = &match_spec.observation_type {
+                if types.is_empty() {
+                    return Err(CompileError::UnknownObservationType {
+                        clause: id.clone(),
+                        declared: "an empty list, which holds for every span".to_string(),
+                    });
+                }
+                let mut seen: std::collections::BTreeSet<&str> = std::collections::BTreeSet::new();
+                for declared in types {
+                    if !super::classify::OBSERVATION_TYPES.contains(&declared.as_str()) {
+                        return Err(CompileError::UnknownObservationType {
+                            clause: id.clone(),
+                            declared: declared.clone(),
+                        });
+                    }
+                    if !seen.insert(declared.as_str()) {
+                        return Err(CompileError::UnknownObservationType {
+                            clause: id.clone(),
+                            declared: format!("{declared} (named twice)"),
+                        });
+                    }
+                }
+            }
+            // The **scope** dimensions are refused for the same reason, and it is not hypothetical: the
+            // ingestion-side read of `carrier_holds_span_output` supplies no scope, while query-time resolution
+            // supplies the persisted one. So a clause qualified by scope selects the generic clause at ingestion
+            // and its own at read time - and those two clauses can disagree about whether the carrier holds the
+            // span's output, which decides whether a generation span's answer is augmented. Refused until scope
+            // reaches every consumer, rather than left as a dimension that answers differently depending on who
+            // asks.
+            for (dimension, declared) in [
+                (
+                    "scope_name_contains",
+                    match_spec.scope_name_contains.is_some(),
+                ),
+                (
+                    "scope_version_prefix",
+                    match_spec.scope_version_prefix.is_some(),
+                ),
+            ] {
+                if declared {
+                    return Err(CompileError::UnavailableDimension {
+                        clause: id.clone(),
+                        dimension,
+                    });
+                }
             }
             clauses.push(CompiledClause {
                 rule_file: file.id.clone(),
@@ -273,7 +337,11 @@ pub fn compile(sources: &BTreeMap<String, Vec<u8>>) -> Result<CarrierPlan, Compi
                 .entry(attribute.to_string())
                 .or_default()
                 .push(clause),
-            Some(PrimaryKey::AttributePrefix(_)) => plan.by_attribute_prefix.push(clause),
+            // One bucket for both, because both are scanned rather than looked up: a family is a prefix with
+            // the separator respected, so nothing about the *indexing* differs.
+            Some(PrimaryKey::AttributePrefix(_) | PrimaryKey::AttributeFamily(_)) => {
+                plan.by_attribute_prefix.push(clause);
+            }
             None => unreachable!("checked above"),
         }
     }
@@ -370,20 +438,14 @@ impl CarrierPlan {
     /// so such a caller gets the generic reading, which is the conservative one.
     fn qualifiers_hold(clause: &CompiledClause, ctx: &CarrierContext<'_>) -> bool {
         let spec = &clause.match_spec;
-        if !spec.observation_type.is_empty() {
+        if let Some(types) = &spec.observation_type {
             match ctx.observation_type {
                 Some(observed) => {
-                    if !spec.observation_type.iter().any(|t| t == observed) {
+                    if !types.iter().any(|t| t == observed) {
                         return false;
                     }
                 }
                 None => return false,
-            }
-        }
-        if let Some(prefix) = &spec.span_name_prefix {
-            match ctx.span_name {
-                Some(name) if name.starts_with(prefix.as_str()) => {}
-                _ => return false,
             }
         }
         if let Some(needle) = &spec.scope_name_contains {
@@ -441,10 +503,11 @@ impl CarrierPlan {
                 }
             }
             for clause in self.by_attribute_prefix.iter().filter(|c| {
+                // Through the source itself, so the raw-prefix and family readings cannot diverge here from the
+                // ones specificity is computed with.
                 c.match_spec
-                    .attribute_prefix
-                    .as_deref()
-                    .is_some_and(|p| attribute.starts_with(p))
+                    .primary_key()
+                    .is_some_and(|key| key.selects_attribute(attribute))
                     && Self::qualifiers_hold(c, ctx)
             }) {
                 best = better(clause, best);

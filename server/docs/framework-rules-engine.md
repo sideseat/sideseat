@@ -602,8 +602,15 @@ emission makes the final answer sort *before* the tool calls that produced it.
 equivalence oracle; production resolves carrier semantics from the declared clauses with the span's context
 everywhere.
 
-The correct resolution is **`ACCUMULATED_STATE`**, not `SNAPSHOT`: the carrier both re-lists history
-*and* holds the span's output, and those are separate facts in the model already.
+The resolution the design proposed is **`ACCUMULATED_STATE`**, not `SNAPSHOT`: the carrier both re-lists
+history *and* holds the span's output, and those are separate facts in the model already.
+
+**It does not ship, and that is a measurement rather than a pending task.** The embedded rules read
+`gen_ai.output.messages` as an emission on every span, so the misordering above is still here. A clause that
+constrained the observation type could express the aggregator reading — the capability landed — but the
+carrier-local facts cannot distinguish "this span is re-listing a turn" from "this span is the sole witness to
+it", and a clause that guessed made the second case worse. Three places used to say the defect was fixed or
+that an aggregator clause exists; they say this now.
 
 Context propagation was **part of this slice and is now solved**: `BlockEntry` carries `span_name`,
 `scope_name`, `scope_version` and `observation_type`, and `parse_span_rows` forwards all four from

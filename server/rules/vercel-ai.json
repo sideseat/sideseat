@@ -1,12 +1,12 @@
 {
   "id": "vercel-ai",
-  "doc": "The Vercel AI SDK's own `ai.*` shape (its legacy OpenTelemetry integration). Its current integration emits pure `gen_ai.*` and is served by the semconv rules, including the aggregator clause that keeps a root invoke_agent span's re-listing from being read as an emission.",
+  "doc": "The Vercel AI SDK's own `ai.*` shape (its legacy OpenTelemetry integration). Its current integration emits pure `gen_ai.*` and is served by the semconv rules. Note that those rules read `gen_ai.output.messages` as an emission on every span, including a root `invoke_agent` span that is re-listing the whole turn - the misordering that causes is known and unfixed, because carrier-local facts cannot tell a re-listing from a sole witness.",
   "carriers": [
     {
       "id": "vercel-ai.response",
       "doc": "One response, in one payload, spread across sibling keys (`ai.response.text` beside `ai.response.toolCalls`). An emission, which is what keeps a turn's intro text with the tool calls it introduces - reading it as a snapshot let the two be ordered independently and the text sorted after its own calls.",
       "match": {
-        "attribute_prefix": "ai.response"
+        "attribute_family": "ai.response"
       },
       "facts": {
         "preset": "emission"
@@ -16,7 +16,7 @@
       "id": "vercel-ai.prompt",
       "doc": "The conversation handed to the model.",
       "match": {
-        "attribute_prefix": "ai.prompt"
+        "attribute_family": "ai.prompt"
       },
       "facts": {
         "preset": "snapshot"

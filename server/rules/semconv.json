@@ -107,7 +107,7 @@
       "id": "semconv.attr.output_messages",
       "doc": "What this span produced, in one payload. Ordered, its own, and two of anything in it are two - the attribute form of gen_ai.choice. Being an emission is what keeps a response's parts together.",
       "match": {
-        "attribute_prefix": "gen_ai.output.messages"
+        "attribute_family": "gen_ai.output.messages"
       },
       "facts": {
         "preset": "emission"
@@ -128,7 +128,7 @@
       "id": "semconv.attr.input_messages",
       "doc": "What this span received: a conversation as it saw it, which may re-state earlier turns.",
       "match": {
-        "attribute_prefix": "gen_ai.input.messages"
+        "attribute_family": "gen_ai.input.messages"
       },
       "facts": {
         "preset": "snapshot",
