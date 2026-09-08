@@ -883,9 +883,12 @@ pub fn digest_of(sources: &BTreeMap<String, Vec<u8>>) -> String {
 /// hand here - which is what an expression language already standardises, and a hand-built path resolver
 /// is where a real bug lived (a literal dotted key read as a nested path).
 ///
-/// So the shaping half of this type is **frozen** and moves to JMESPath, which is a published spec with a
-/// parser and quoted identifiers. What stays is the structural half - which carrier, who claims it, in what
-/// order, what it emits - because that is ownership and policy rather than a transform.
+/// So the shaping half of this type moved to a published selection language with a parser and quoted
+/// identifiers. **RFC 9535 JSONPath**, not JMESPath: JMESPath was implemented first and reverted, because
+/// every result comes back through its crate's sorted-map value tree, which alphabetises a selected payload's
+/// members - and this repository treats serialised member order as observable. `message_rules.rs` records the
+/// measurement. What stays here is the structural half - which carrier, who claims it, in what order, what it
+/// emits - because that is ownership and policy rather than a transform.
 #[derive(Debug, Deserialize, Clone)]
 #[serde(deny_unknown_fields)]
 pub struct MessageRule {
@@ -971,8 +974,13 @@ pub struct MessageRule {
     ///
     /// A different relation from `alternatives`, and mixing them up loses messages: one dialect writes a
     /// turn's history under one member and *the answer itself* under another, so reading them as
-    /// alternatives dropped the assistant output of every run that carried history. Refused together with
-    /// `alternatives`, because "first wins" and "all contribute" cannot both be true of one list.
+    /// alternatives dropped the assistant output of every run that carried history.
+    ///
+    /// **May be declared beside `alternatives`**, and one dialect does. They were refused together at first,
+    /// on the reading that "first wins" and "all contribute" cannot both be true of one list - but they are
+    /// two lists, and a carrier can hold both a shape to choose among *and* a member to read as well. The
+    /// refusal pushed that carrier into two rules, which the ownership check then rejected for contending over
+    /// one attribute.
     #[serde(default)]
     pub also: Vec<Alternative>,
     /// A reading used only when nothing else in this rule emitted anything.
@@ -1065,19 +1073,25 @@ pub struct MessageRule {
     pub legacy_rank: Option<i32>,
 }
 
-/// The carrier a message rule reads: exactly one of the two, checked at compile time.
+/// The carrier a message rule reads: exactly one form, checked at compile time.
 ///
-/// Two optional fields rather than a tagged enum, for the same reason the carrier match spec uses them:
-/// an externally-tagged enum needs `{"attribute": {"attribute": "k"}}` in JSON, which is the shape
-/// nobody writes and serde rejects silently at the file level. Requiring exactly one is the check that
-/// makes this equivalent while staying readable.
+/// Optional fields rather than a tagged enum, for the same reason the carrier match spec uses them: an
+/// externally-tagged enum needs `{"attribute": {"attribute": "k"}}` in JSON, which is the shape nobody writes
+/// and serde rejects silently at the file level. Requiring exactly one is the check that makes this equivalent
+/// while staying readable.
+///
+/// There is deliberately **no `event` form**. One existed, was accepted by this schema, and was refused
+/// unconditionally by the compiler as unimplemented - so the format advertised four read forms and could
+/// execute three. An author reading the schema as the format's reference was being told something untrue,
+/// which is worse than the missing capability: a span's *events* are routed to `MessagePlan::from_event`,
+/// where `when_event` selects the rule and the event's attributes are read exactly as a span's are. If a rule
+/// ever needs to read one event while running over a span, that is a new construct to design rather than a
+/// field to un-refuse.
 #[derive(Debug, Deserialize, Clone, Default)]
 #[serde(deny_unknown_fields)]
 pub struct ReadSpec {
     #[serde(default)]
     pub attribute: Option<String>,
-    #[serde(default)]
-    pub event: Option<String>,
     /// Ordered carrier alternatives: the first of these the span carries is read, and the observation is
     /// tagged with **that** key.
     ///
@@ -1249,7 +1263,6 @@ impl ReadSpec {
     /// How many carriers this names. Exactly one is required.
     pub fn named_count(&self) -> usize {
         usize::from(self.attribute.is_some())
-            + usize::from(self.event.is_some())
             + usize::from(self.indexed_family.is_some())
             + usize::from(!self.attribute_any_of.is_empty())
     }
@@ -1479,7 +1492,7 @@ pub struct AttachSpec {
 }
 
 /// What an emitted observation is.
-#[derive(Debug, Deserialize, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Deserialize, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord)]
 #[serde(rename_all = "snake_case")]
 pub enum EmitTarget {
     #[default]

@@ -369,13 +369,6 @@ fn compile_rule(
             });
         }
     }
-    if read.event.is_some() {
-        // Accepted by the schema and never executed: events are read from a span's events, and the
-        // runner only ever probes the attribute map. Refused until it is implemented.
-        return Err(inexpressible(
-            "`read.event` is not implemented - events are not routed through the plan",
-        ));
-    }
     if compose.is_some()
         && (wrap.is_some()
             || sections.is_some()
@@ -601,7 +594,6 @@ fn compile_rule(
         // matches every attribute of every span.
         let named = [
             read.attribute.as_deref(),
-            read.event.as_deref(),
             read.indexed_family.as_deref(),
             tag_as.as_deref(),
         ];
@@ -1753,9 +1745,6 @@ fn consumed_patterns(rule: &CompiledMessageRule) -> Vec<Consumed> {
     if let Some(attribute) = rule.read.attribute.as_deref() {
         out.push(always(CarrierPattern::Exact(attribute.to_string())));
     }
-    if let Some(event) = rule.read.event.as_deref() {
-        out.push(always(CarrierPattern::Exact(event.to_string())));
-    }
     // Only the *first* alternative is claimed unconditionally: the rest are read where no earlier spelling
     // was present, so a rule reading a later one yields whenever an earlier one is there.
     for (position, key) in rule.read.attribute_any_of.iter().enumerate() {
@@ -1872,9 +1861,6 @@ fn emitted_patterns(rule: &CompiledMessageRule) -> Vec<Consumed> {
     let mut out = Vec::new();
     if let Some(attribute) = rule.read.attribute.as_deref() {
         out.push(always(CarrierPattern::Exact(attribute.to_string())));
-    }
-    if let Some(event) = rule.read.event.as_deref() {
-        out.push(always(CarrierPattern::Exact(event.to_string())));
     }
     // A tag per spelling, and only the first is emitted whatever the span carries.
     for (position, key) in rule.read.attribute_any_of.iter().enumerate() {
@@ -3163,10 +3149,26 @@ fn emit_rule<'p>(rule: &'p CompiledMessageRule, ctx: &MessageContext<'_>) -> Vec
         for sub in &set.primary {
             out.extend(from(sub));
         }
-        if out.is_empty() {
-            for sub in &set.fallback {
-                out.extend(from(sub));
+        // "Every primary reading came up empty" is asked **per axis**, not over every emission.
+        //
+        // A branch set may hold leaves that answer different questions about the same carrier: one dialect's
+        // primary reads its serialised request as the conversation *and* reads the tools it was offered out of
+        // the same attribute. Judged over all emissions, a request carrying tools and no messages made the
+        // branch non-empty, so the fallback did not run - and the message path then filtered the tool
+        // definition out, so the span reported **no message at all** and the tool call's arguments were lost.
+        //
+        // So a fallback leaf runs when nothing of *its* kind was produced. That is what the declaration says:
+        // read this instead, if the primaries found none of what you are asking for.
+        let produced: std::collections::BTreeSet<EmitTarget> =
+            out.iter().map(|emission| emission.target).collect();
+        for sub in &set.fallback {
+            if possible_targets(sub)
+                .into_iter()
+                .any(|target| produced.contains(&target))
+            {
+                continue;
             }
+            out.extend(from(sub));
         }
         for sub in &set.always {
             out.extend(from(sub));

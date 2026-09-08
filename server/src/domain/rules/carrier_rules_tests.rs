@@ -2765,3 +2765,71 @@ fn producer_key_inventory() -> std::collections::BTreeMap<String, String> {
         .map(|(key, asset)| (key.clone(), asset.clone()))
         .collect()
 }
+
+/// A branch set's `fallback_if_primary_empty` asks whether the primaries produced anything of **its** kind.
+///
+/// Judged over every emission, a branch set whose primaries answer two different questions about one carrier
+/// suppresses its own fallback. One dialect reads its serialised request as the conversation *and* reads the
+/// tools it was offered out of the same attribute: a request carrying tools and no messages made the branch
+/// non-empty, the fallback did not run, and the message path then filtered the tool definition out - so the
+/// span reported **no message at all** and the tool call's arguments were lost.
+///
+/// Both directions are asserted, because the fix must not turn the fallback into an unconditional reading:
+/// where the primaries *do* produce a message, the fallback must still stand down.
+#[test]
+fn a_branch_fallback_asks_about_its_own_kind_of_emission() {
+    use crate::domain::rules::schema::EmitTarget;
+    use std::collections::HashMap;
+
+    let emitted = |attrs: &HashMap<String, String>| -> Vec<(String, EmitTarget)> {
+        let plan = &crate::domain::rules::ruleset().messages;
+        let ctx =
+            crate::domain::rules::message_rules::MessageContext::for_span("call_llm", attrs, false);
+        plan.run(&ctx)
+            .into_iter()
+            .map(|e| (e.rule_id.to_string(), e.target))
+            .collect()
+    };
+
+    // Tools but no messages in the request, and a tool call's arguments beside it.
+    let mut tools_only = HashMap::new();
+    tools_only.insert(
+        "gcp.vertex.agent.llm_request".to_string(),
+        r#"{"tools":[{"functionDeclarations":[{"name":"search"}]}]}"#.to_string(),
+    );
+    tools_only.insert(
+        "gcp.vertex.agent.tool_call_args".to_string(),
+        r#"{"query":"weather"}"#.to_string(),
+    );
+    let answers = emitted(&tools_only);
+    assert!(
+        answers
+            .iter()
+            .any(|(id, target)| id == "google-adk.tool_call_args" && *target == EmitTarget::Message),
+        "the primaries produced no *message*, so the fallback must read the tool call's arguments - \
+         instead this span reported: {answers:?}"
+    );
+
+    // A request that does carry the conversation: the fallback must stand down, or a span would report its
+    // arguments beside the turn that already contains them.
+    let mut with_messages = HashMap::new();
+    with_messages.insert(
+        "gcp.vertex.agent.llm_request".to_string(),
+        r#"{"contents":[{"role":"user","parts":[{"text":"what is the weather"}]}]}"#.to_string(),
+    );
+    with_messages.insert(
+        "gcp.vertex.agent.tool_call_args".to_string(),
+        r#"{"query":"weather"}"#.to_string(),
+    );
+    let answers = emitted(&with_messages);
+    assert!(
+        answers.iter().any(|(id, _)| id == "google-adk.llm_request"),
+        "the request carries the conversation and must be read: {answers:?}"
+    );
+    assert!(
+        !answers
+            .iter()
+            .any(|(id, _)| id == "google-adk.tool_call_args"),
+        "a primary produced a message, so the fallback must stand down: {answers:?}"
+    );
+}
