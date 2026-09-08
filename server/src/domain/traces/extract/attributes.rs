@@ -1114,10 +1114,16 @@ fn extract_autogen_tokens(attrs: &HashMap<String, String>) -> (i64, i64) {
 /// Every chain this replaced was an ordered `&[&str]` of provider spellings - framework knowledge in the
 /// code, where adding a producer meant editing a list. The order is declared in
 /// `rules/span-fields-semantic.json`; the retired chains stay below as the equivalence oracle.
-pub(crate) fn extract_semantic(span: &mut SpanData, attrs: &HashMap<String, String>) {
+pub(crate) fn extract_semantic(
+    span: &mut SpanData,
+    span_name: &str,
+    attrs: &HashMap<String, String>,
+) {
+    // The **real** span name, because a source may read it and a gate may ask about it. Passed as `""` this
+    // was the same defect the message path had: such a declaration compiles and can never hold.
     for resolved in crate::domain::rules::ruleset()
         .span_fields
-        .resolve("", attrs)
+        .resolve(span_name, attrs)
     {
         apply_field(span, &resolved);
     }

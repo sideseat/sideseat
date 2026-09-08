@@ -1681,12 +1681,30 @@ fn narrow_with(patterns: Vec<Consumed>, wholly: &Condition) -> Vec<Consumed> {
         .into_iter()
         .map(|mut consumed| {
             if consumed.condition.narrowed {
-                // Already the narrower answer.
-            } else if consumed.condition.gate.is_none() {
-                consumed.condition = wholly.clone();
-            } else if wholly.narrowed {
-                // The parent may read nothing where it runs, which narrows the leaf too.
-                consumed.condition.narrowed = true;
+                // Already the narrowest answer available: this carrier is read only sometimes, for a reason
+                // nothing here can relate to another rule's. A rule-wide condition cannot widen that.
+                return consumed;
+            }
+            match (&consumed.condition.gate, &wholly.gate) {
+                // Nothing of its own: the rule-wide condition is the whole answer.
+                (None, _) => consumed.condition = wholly.clone(),
+                // A gate of its own and none above it: keep it, and inherit any payload narrowing.
+                (Some(_), None) => consumed.condition.narrowed |= wholly.narrowed,
+                // **Both**, which runtime evaluates as a conjunction - the parent's gate is checked and then
+                // the leaf's. Keeping the leaf's alone claimed the rule runs wherever that gate holds, which
+                // is false where the parent's does not, and it convicted a rule live on exactly those spans.
+                // Where one gate provably covers the other the conjunction *is* the narrower of the two;
+                // otherwise nothing here can express it, so the claim is opaque.
+                (Some(leaf), Some(parent)) => {
+                    if gate_covers(parent, leaf) {
+                        // The parent admits every span the leaf does, so the leaf's gate is the conjunction.
+                        consumed.condition.narrowed |= wholly.narrowed;
+                    } else if gate_covers(leaf, parent) {
+                        consumed.condition = wholly.clone();
+                    } else {
+                        consumed.condition.narrowed = true;
+                    }
+                }
             }
             consumed
         })

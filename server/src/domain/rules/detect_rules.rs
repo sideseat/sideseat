@@ -300,6 +300,53 @@ pub(super) fn unavailable_gate_dimension(spec: &DetectMatch) -> Option<&'static 
     None
 }
 
+/// Why a gate could never hold, where that is decidable from the declaration alone.
+///
+/// A gate is a *disjunction*, so an empty one is not "match anything" - it is `false`, and every rule carrying
+/// it is dead. An empty needle inside a dimension is the opposite mistake: `span_name: [""]` matches every
+/// span by prefix and `attr_exists: [""]` names a key nothing writes, so one is far broader than it reads and
+/// the other narrower. Both compiled silently.
+pub(super) fn gate_defect(spec: &DetectMatch) -> Option<&'static str> {
+    let empty_needle = spec
+        .span_name
+        .iter()
+        .chain(&spec.attr_prefix)
+        .chain(&spec.attr_exists)
+        .chain(&spec.service_name)
+        .any(String::is_empty)
+        || spec
+            .attr_equals
+            .iter()
+            .chain(&spec.span_attr_contains)
+            .chain(&spec.resource_attr_contains)
+            .any(|pair| pair.key.is_empty());
+    if empty_needle {
+        return Some(
+            "names an empty span-name prefix, attribute key or service name, which matches either              everything or nothing rather than what it reads as",
+        );
+    }
+    let text_defect = spec.text_contains.as_ref().is_some_and(|text| {
+        text.needles.is_empty()
+            || text.needles.iter().any(String::is_empty)
+            || text.sources.is_empty()
+    });
+    if text_defect {
+        return Some("declares a phrase search with no needle or no source, so it can never hold");
+    }
+    let any_signal = !spec.span_name.is_empty()
+        || !spec.attr_prefix.is_empty()
+        || !spec.attr_equals.is_empty()
+        || !spec.attr_exists.is_empty()
+        || !spec.service_name.is_empty()
+        || !spec.span_attr_contains.is_empty()
+        || !spec.resource_attr_contains.is_empty()
+        || spec.text_contains.is_some();
+    if !any_signal {
+        return Some("declares no signal at all, and a gate with no signal never holds");
+    }
+    None
+}
+
 fn probe_for(spec: &DetectMatch) -> CompiledDetect {
     CompiledDetect {
         rule_file: String::new(),

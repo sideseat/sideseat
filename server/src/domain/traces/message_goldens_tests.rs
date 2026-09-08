@@ -3790,9 +3790,22 @@ fn rules_that_emit() -> BTreeSet<String> {
                         let ctx = MessageContext::for_span(&span.name, &attrs, is_tool);
                         let mut read: std::collections::HashSet<OwnedCarrier> =
                             std::collections::HashSet::new();
+                        // The sources the dialects produced, in the form the answer-recovery test reads.
+                        let mut dialect_output: Vec<crate::domain::traces::extract::MessageSource> =
+                            Vec::new();
                         for emission in plan.run(&ctx) {
                             fired.insert(emission.rule_id.to_string());
                             read.extend(emission.owns.iter().cloned());
+                            let time = chrono::Utc::now();
+                            let name = emission.carrier.name().to_string();
+                            dialect_output.push(if emission.carrier.is_event() {
+                                crate::domain::traces::extract::MessageSource::Event { name, time }
+                            } else {
+                                crate::domain::traces::extract::MessageSource::Attribute {
+                                    key: name,
+                                    time,
+                                }
+                            });
                         }
                         // The fallback stage, gated as ingestion gates it: never on a tool span; with an
                         // **empty** claimed set when no dialect read anything (there is nothing to inherit);
@@ -3800,11 +3813,9 @@ fn rules_that_emit() -> BTreeSet<String> {
                         // rather than a chain node's state. Asked unconditionally it credited a fallback rule
                         // on spans ingestion never asks, which would hide a genuinely dead one.
                         //
-                        // Residual, stated rather than papered over: ingestion also skips the recovery pass
-                        // when a dialect already produced the span's *output*, and that test lives in a
-                        // private helper. So a fallback rule can still be credited slightly more widely than
-                        // ingestion reaches it - an over-credit, which can hide a dead rule but cannot invent
-                        // a live one.
+                        // Including the last condition: ingestion skips the recovery pass when a dialect
+                        // already produced the span's *output*, so crediting a fallback rule there would hide
+                        // a genuinely dead one.
                         if !is_tool {
                             let observation =
                                 crate::domain::traces::extract::attributes::detect_observation_type(
@@ -3818,7 +3829,13 @@ fn rules_that_emit() -> BTreeSet<String> {
                                 {
                                     fired.insert(emission.rule_id.to_string());
                                 }
-                            } else if generation {
+                            } else if generation && !dialect_output.iter().any(|source| {
+                                crate::domain::traces::extract::messages::carrier_holds_span_output(
+                                    source,
+                                    &span.name,
+                                    observation,
+                                )
+                            }) {
                                 for emission in plan.fallback(&ctx, &read) {
                                     fired.insert(emission.rule_id.to_string());
                                 }

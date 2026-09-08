@@ -176,6 +176,13 @@ pub enum FieldCombine {
 pub struct FieldSource {
     #[serde(default)]
     pub doc: Option<String>,
+    /// Whether an **empty** value from this source is an answer rather than something to step over.
+    ///
+    /// A chain steps over an empty value, which is what a chain is for. A field with one source is not a
+    /// chain: `db.system = ""` is what the producer wrote, and reporting it absent is a different statement
+    /// about the span.
+    #[serde(default)]
+    pub accept_empty: bool,
     /// A flat span attribute holding the value directly.
     #[serde(default)]
     pub attribute: Option<String>,

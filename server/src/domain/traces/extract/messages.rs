@@ -521,7 +521,7 @@ fn extract_per_carrier(
 /// engine exists to remove. Scope is not available on this path, and a clause that asks about it
 /// therefore cannot match here, which is the conservative direction: it falls back to the generic clause
 /// rather than guessing.
-fn carrier_holds_span_output(
+pub(crate) fn carrier_holds_span_output(
     source: &MessageSource,
     span_name: &str,
     observation_type: ObservationType,

@@ -2187,7 +2187,7 @@ fn test_mlflow_session_id_extraction() {
         ("mlflow.spanInputs", "{}"),
     ]);
     let mut span = SpanData::default();
-    extract_semantic(&mut span, &attrs);
+    extract_semantic(&mut span, "", &attrs);
 
     assert_eq!(span.session_id, Some("mlflow-session-123".to_string()));
 }
@@ -2263,7 +2263,7 @@ fn test_mlflow_user_id_extraction() {
         ("mlflow.spanInputs", "{}"),
     ]);
     let mut span = SpanData::default();
-    extract_semantic(&mut span, &attrs);
+    extract_semantic(&mut span, "", &attrs);
 
     assert_eq!(span.user_id, Some("mlflow-user-456".to_string()));
 }
@@ -3277,7 +3277,7 @@ fn test_session_id_from_ai_telemetry_metadata() {
     let attrs = make_attrs(&[("ai.telemetry.metadata.sessionId", "session-12345")]);
 
     let mut span = SpanData::default();
-    extract_semantic(&mut span, &attrs);
+    extract_semantic(&mut span, "", &attrs);
 
     assert_eq!(
         span.session_id,
@@ -3797,7 +3797,7 @@ fn test_user_id_from_ai_telemetry_metadata() {
     let attrs = make_attrs(&[("ai.telemetry.metadata.userId", "user-67890")]);
 
     let mut span = SpanData::default();
-    extract_semantic(&mut span, &attrs);
+    extract_semantic(&mut span, "", &attrs);
 
     assert_eq!(
         span.user_id,
@@ -8841,6 +8841,108 @@ fn a_condition_separates_two_rules_only_when_it_differs() {
     }
 }
 
+/// A branch leaf runs under its parent's gate **and** its own, which is a conjunction neither gate expresses.
+///
+/// Keeping the leaf's alone claims the rule runs wherever that gate holds - false where the parent's does not,
+/// and it convicted a rule live on exactly those spans. Where one gate provably covers the other the
+/// conjunction *is* the narrower of the two, which is what keeps this from refusing every nested rule; where
+/// neither covers the other nothing here can express it, so the claim is opaque and convicts nothing.
+#[test]
+fn a_leaf_runs_under_both_gates() {
+    let parent_p_leaf_l = |rank_b_gate: &str| {
+        format!(
+            r#"{{"id":"t","doc":"d","messages":[
+                {{"id":"a","doc":"d","legacy_rank":1,"when":{{"attr_exists":["p"]}},
+                 "branch_set":{{"primary":[
+                    {{"id":"a.1","doc":"d","read":{{"attribute":"x"}},"parse":"json","emit":"message",
+                     "when":{{"attr_exists":["l"]}},"tag_as":"a.tag"}}]}}}},
+                {{"id":"b","doc":"d","read":{{"attribute":"x"}},"parse":"json","emit":"message",
+                 "when":{{"attr_exists":[{rank_b_gate}]}},"tag_as":"b.tag","legacy_rank":2}}]}}"#
+        )
+    };
+    // `l` without `p` runs only the later rule, so the pair is live and must be accepted.
+    let sources = std::collections::BTreeMap::from([(
+        "t.json".to_string(),
+        parent_p_leaf_l("\"l\"").into_bytes(),
+    )]);
+    assert!(
+        compile(&sources).is_ok(),
+        "neither gate covers the other, so nothing is provably dead: {:?}",
+        compile(&sources).err()
+    );
+
+    // The parent's gate covering the leaf's: the conjunction is the leaf's gate, and a later rule on the same
+    // gate really is dead.
+    let covered = r#"{"id":"t","doc":"d","messages":[
+        {"id":"a","doc":"d","legacy_rank":1,"when":{"attr_exists":["p","l"]},
+         "branch_set":{"primary":[
+            {"id":"a.1","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message",
+             "when":{"attr_exists":["l"]},"tag_as":"a.tag"}]}},
+        {"id":"b","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message",
+         "when":{"attr_exists":["l"]},"tag_as":"b.tag","legacy_rank":2}]}"#;
+    let sources =
+        std::collections::BTreeMap::from([("t.json".to_string(), covered.as_bytes().to_vec())]);
+    assert!(
+        compile(&sources).is_err(),
+        "the parent admits every span the leaf does, so the leaf's gate is the conjunction and the later \
+         rule on that same gate is dead"
+    );
+}
+
+/// A gate that could never hold is refused where a field source declares one.
+///
+/// Signals are ORed, so an **empty** gate is `false` rather than "anything" - every source carrying one is
+/// dead. An empty needle is the opposite mistake: `span_name: [""]` matches every span by prefix. Both
+/// compiled silently, because the signal compiler validates nothing.
+#[test]
+fn a_field_source_may_not_declare_a_gate_that_never_holds() {
+    let refused = [
+        (
+            "a gate with no signal at all",
+            r#"{"id":"t","doc":"d","span_fields":[
+                {"id":"f","doc":"d","target":"user_id",
+                 "sources":[{"attribute":"k","when":{}}]}]}"#,
+        ),
+        (
+            "an empty span-name prefix, which matches every span",
+            r#"{"id":"t","doc":"d","span_fields":[
+                {"id":"f","doc":"d","target":"user_id",
+                 "sources":[{"attribute":"k","when":{"span_name":[""]}}]}]}"#,
+        ),
+        (
+            "an empty attribute key, which nothing writes",
+            r#"{"id":"t","doc":"d","span_fields":[
+                {"id":"f","doc":"d","target":"user_id",
+                 "sources":[{"attribute":"k","unless":{"attr_exists":[""]}}]}]}"#,
+        ),
+        (
+            "a phrase search with no needle",
+            r#"{"id":"t","doc":"d","span_fields":[
+                {"id":"f","doc":"d","target":"user_id",
+                 "sources":[{"attribute":"k","when":{"text_contains":{"sources":["span_name"],"needles":[]}}}]}]}"#,
+        ),
+    ];
+    for (what, asset) in refused {
+        let sources =
+            std::collections::BTreeMap::from([("t.json".to_string(), asset.as_bytes().to_vec())]);
+        assert!(
+            crate::domain::rules::span_fields::compile(&sources).is_err(),
+            "should have been refused: {what}"
+        );
+    }
+    // A real gate compiles.
+    let ok = r#"{"id":"t","doc":"d","span_fields":[
+        {"id":"f","doc":"d","target":"user_id",
+         "sources":[{"attribute":"k","when":{"attr_exists":["marker"]}}]}]}"#;
+    let sources =
+        std::collections::BTreeMap::from([("t.json".to_string(), ok.as_bytes().to_vec())]);
+    assert!(
+        crate::domain::rules::span_fields::compile(&sources).is_ok(),
+        "a gate naming a real signal must compile: {:?}",
+        crate::domain::rules::span_fields::compile(&sources).err()
+    );
+}
+
 /// A branch leaf keeps its own gate, and one runtime signal can imply another across dimensions.
 ///
 /// Two shapes flattening got wrong. A leaf's condition was replaced by its parent's, so an **ungated** parent
@@ -10057,11 +10159,51 @@ fn the_field_rules_reproduce_the_chains_they_replaced() {
             "malformed metadata beside a real session key",
             rule_attrs(&[("session.id", "s-2"), ("metadata", "not json at all")]),
         ),
+        // The combinations the first spelling of this oracle missed, and each of them was a real divergence:
+        // stepping over a *present* value that does not convert reports a later spelling's number as this
+        // field's, and coercing a non-string invents an identifier.
+        (
+            "a status code that is not a number, beside a second key that is",
+            rule_attrs(&[
+                ("http.status_code", "OK"),
+                ("http.response.status_code", "503"),
+            ]),
+        ),
+        (
+            "a thread that is an object, beside one that is a string",
+            rule_attrs(&[(
+                "metadata",
+                r#"{"thread_id":{},"langgraph_thread_id":"t-2"}"#,
+            )]),
+        ),
+        (
+            "a thread that is a number",
+            rule_attrs(&[("metadata", r#"{"thread_id":123}"#)]),
+        ),
+        (
+            "empty values a producer wrote, on fields that are not chains",
+            rule_attrs(&[
+                ("db.system", ""),
+                ("db.name", ""),
+                ("db.operation", ""),
+                ("db.statement", ""),
+                ("cloud.provider", ""),
+                ("messaging.system", ""),
+            ]),
+        ),
+        (
+            "an empty value on a field that *is* a chain, with nothing after it",
+            rule_attrs(&[("session.id", ""), ("http.method", "")]),
+        ),
     ];
 
     for (what, attrs) in cases {
         let mut declared = SpanData::default();
-        crate::domain::traces::extract::attributes::extract_semantic(&mut declared, &attrs);
+        crate::domain::traces::extract::attributes::extract_semantic(
+            &mut declared,
+            "a.span",
+            &attrs,
+        );
         let mut legacy = SpanData::default();
         crate::domain::traces::extract::attributes::extract_semantic_legacy(&mut legacy, &attrs);
 

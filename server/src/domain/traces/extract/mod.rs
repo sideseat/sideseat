@@ -34,7 +34,7 @@
 #[cfg_attr(test, allow(unreachable_pub))]
 pub(crate) mod attributes;
 pub mod files;
-mod messages;
+pub(crate) mod messages;
 
 use std::collections::HashMap;
 
@@ -446,7 +446,7 @@ pub(super) fn extract_attributes_batch(request: &ExportTraceServiceRequest) -> V
                     .cloned();
 
                 // Extract semantic conventions
-                attributes::extract_semantic(&mut span, &span_attrs);
+                attributes::extract_semantic(&mut span, &otlp_span.name, &span_attrs);
 
                 // Extract GenAI attributes
                 attributes::extract_genai(&mut span, &span_attrs, &otlp_span.name);

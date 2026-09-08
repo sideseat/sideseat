@@ -96,6 +96,14 @@ pub enum FieldCompileError {
         second: String,
     },
     #[error(
+        "span field rule `{rule}` in `{file}` gates a source in a way that never holds: {detail}"
+    )]
+    DeadGate {
+        file: String,
+        rule: String,
+        detail: &'static str,
+    },
+    #[error(
         "span field rule `{rule}` in `{file}` gates a source on `{dimension}`, which this stage is never given"
     )]
     UnavailableGate {
@@ -161,6 +169,27 @@ impl SpanFieldPlan {
                 continue;
             }
             let reading = read_source(&source.spec, field_type, attrs, parsed);
+            if let Reading::Malformed { .. } = &reading {
+                // A present value that does not convert **ends** the search. The key exists and holds the
+                // wrong shape, which is evidence the producer meant it to carry this field: stepping over it
+                // reports a *later* spelling's value as this one, and `http.status_code = "OK"` beside another
+                // key's `503` then answered 503 for a call whose own status attribute says otherwise. An empty
+                // value is the opposite case, and stepping over that is what a chain is for.
+                refused.push((source_label(&source.spec), reading));
+                break;
+            }
+            if reading == Reading::Empty && source.spec.accept_empty {
+                // An empty value the producer wrote, kept as one. Text becomes the empty string, which is
+                // what the retired direct read stored.
+                answer = match field_type {
+                    FieldType::Text => Reading::Text(String::new()),
+                    _ => reading,
+                };
+                if rule.combine == FieldCombine::FirstWins {
+                    break;
+                }
+                continue;
+            }
             if !reading.yielded() {
                 if reading != Reading::Absent {
                     refused.push((source_label(&source.spec), reading));
@@ -318,11 +347,12 @@ fn from_json(value: &JsonValue, field_type: FieldType) -> Reading {
         FieldType::Text => match value {
             JsonValue::String(text) if text.is_empty() => Reading::Empty,
             JsonValue::String(text) => Reading::Text(text.clone()),
-            JsonValue::Number(number) => Reading::Text(number.to_string()),
-            JsonValue::Bool(flag) => Reading::Text(flag.to_string()),
             JsonValue::Null => Reading::Absent,
+            // Deliberately *not* coerced. A number or a boolean where a text field belongs is a producer
+            // mistake, and rendering it invents an identifier no other span will match - which for a session
+            // id means a conversation of one.
             other => Reading::Malformed {
-                detail: format!("expected a scalar, found {}", kind_of(other)),
+                detail: format!("expected a string, found {}", kind_of(other)),
             },
         },
         FieldType::Integer => match value {
@@ -469,6 +499,15 @@ fn compile_rule(file_id: &str, rule: &SpanFieldRule) -> Result<CompiledRule, Fie
                     file: file_id.to_string(),
                     rule: rule.id.clone(),
                     dimension,
+                });
+            }
+            // And a gate that could never hold whatever it is given. `compile_signals` validates nothing, so
+            // an empty gate - which is `false`, since signals are ORed - compiled as a dead source.
+            if let Some(detail) = super::detect_rules::gate_defect(gate) {
+                return Err(FieldCompileError::DeadGate {
+                    file: file_id.to_string(),
+                    rule: rule.id.clone(),
+                    detail,
                 });
             }
         }

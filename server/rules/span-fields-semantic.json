@@ -7,19 +7,43 @@
       "target": "session_id",
       "doc": "The conversation a span belongs to. `gen_ai.conversation.id` is the semconv 1.37 spelling and every compliant emitter sets it - without it their spans do not group into sessions at all. An **empty** value is not a value and the chain steps over it: a producer writing `session.id=\"\"` beside a real conversation id would otherwise win, and retrieval reads a stored empty session id as *no session*, which loses the session view, the sibling load and the feed's context widening.",
       "sources": [
-        { "attribute": "session.id" },
-        { "attribute": "gen_ai.conversation.id" },
-        { "attribute": "langsmith.session.id" },
-        { "attribute": "langsmith.trace.session_id" },
-        { "attribute": "gcp.vertex.agent.session_id" },
-        { "attribute": "ai.telemetry.metadata.sessionId" },
-        { "attribute": "langgraph.thread_id" },
-        { "attribute": "mlflow.trace.session" },
+        {
+          "attribute": "session.id"
+        },
+        {
+          "attribute": "gen_ai.conversation.id"
+        },
+        {
+          "attribute": "langsmith.session.id"
+        },
+        {
+          "attribute": "langsmith.trace.session_id"
+        },
+        {
+          "attribute": "gcp.vertex.agent.session_id"
+        },
+        {
+          "attribute": "ai.telemetry.metadata.sessionId"
+        },
+        {
+          "attribute": "langgraph.thread_id"
+        },
+        {
+          "attribute": "mlflow.trace.session"
+        },
         {
           "doc": "Inside a metadata object rather than under a key of its own, which is how a framework that has no attribute for it still says so.",
-          "json": { "attribute": "metadata", "path": "$.thread_id" }
+          "json": {
+            "attribute": "metadata",
+            "path": "$.thread_id"
+          }
         },
-        { "json": { "attribute": "metadata", "path": "$.langgraph_thread_id" } }
+        {
+          "json": {
+            "attribute": "metadata",
+            "path": "$.langgraph_thread_id"
+          }
+        }
       ]
     },
     {
@@ -27,11 +51,24 @@
       "target": "user_id",
       "doc": "Who the call was for.",
       "sources": [
-        { "attribute": "user.id" },
-        { "attribute": "enduser.id" },
-        { "attribute": "ai.telemetry.metadata.userId" },
-        { "attribute": "mlflow.trace.user" },
-        { "json": { "attribute": "metadata", "path": "$.user_id" } }
+        {
+          "attribute": "user.id"
+        },
+        {
+          "attribute": "enduser.id"
+        },
+        {
+          "attribute": "ai.telemetry.metadata.userId"
+        },
+        {
+          "attribute": "mlflow.trace.user"
+        },
+        {
+          "json": {
+            "attribute": "metadata",
+            "path": "$.user_id"
+          }
+        }
       ]
     },
     {
@@ -39,77 +76,139 @@
       "target": "http_method",
       "doc": "The older spelling first, because that is the order the chain it replaced used and a span carrying both means the same thing either way.",
       "sources": [
-        { "attribute": "http.method" },
-        { "attribute": "http.request.method" }
+        {
+          "attribute": "http.method"
+        },
+        {
+          "attribute": "http.request.method"
+        }
       ]
     },
     {
       "id": "span-fields.http_url",
       "target": "http_url",
-      "sources": [{ "attribute": "http.url" }, { "attribute": "url.full" }]
+      "sources": [
+        {
+          "attribute": "http.url"
+        },
+        {
+          "attribute": "url.full"
+        }
+      ]
     },
     {
       "id": "span-fields.http_status_code",
       "target": "http_status_code",
       "doc": "An integer field, so a source carrying anything else is *malformed* rather than absent - a producer writing a status as a phrase is a producer bug, and reporting it as missing hides it.",
       "sources": [
-        { "attribute": "http.status_code" },
-        { "attribute": "http.response.status_code" }
+        {
+          "attribute": "http.status_code"
+        },
+        {
+          "attribute": "http.response.status_code"
+        }
       ]
     },
     {
       "id": "span-fields.db_system",
       "target": "db_system",
-      "sources": [{ "attribute": "db.system" }]
+      "sources": [
+        {
+          "attribute": "db.system",
+          "accept_empty": true
+        }
+      ],
+      "doc": "Read directly rather than through a chain, so an empty value the producer wrote is a value: reporting it absent is a different statement about the span."
     },
     {
       "id": "span-fields.db_name",
       "target": "db_name",
-      "sources": [{ "attribute": "db.name" }]
+      "sources": [
+        {
+          "attribute": "db.name",
+          "accept_empty": true
+        }
+      ],
+      "doc": "Read directly rather than through a chain, so an empty value the producer wrote is a value: reporting it absent is a different statement about the span."
     },
     {
       "id": "span-fields.db_operation",
       "target": "db_operation",
-      "sources": [{ "attribute": "db.operation" }]
+      "sources": [
+        {
+          "attribute": "db.operation",
+          "accept_empty": true
+        }
+      ],
+      "doc": "Read directly rather than through a chain, so an empty value the producer wrote is a value: reporting it absent is a different statement about the span."
     },
     {
       "id": "span-fields.db_statement",
       "target": "db_statement",
-      "sources": [{ "attribute": "db.statement" }]
+      "sources": [
+        {
+          "attribute": "db.statement",
+          "accept_empty": true
+        }
+      ],
+      "doc": "Read directly rather than through a chain, so an empty value the producer wrote is a value: reporting it absent is a different statement about the span."
     },
     {
       "id": "span-fields.storage_system",
       "target": "storage_system",
-      "doc": "Which cloud, for a span that touched object storage.",
-      "sources": [{ "attribute": "cloud.provider" }]
+      "doc": "Which cloud, for a span that touched object storage. Read directly rather than through a chain, so an empty value the producer wrote is a value: reporting it absent is a different statement about the span.",
+      "sources": [
+        {
+          "attribute": "cloud.provider",
+          "accept_empty": true
+        }
+      ]
     },
     {
       "id": "span-fields.storage_bucket",
       "target": "storage_bucket",
       "sources": [
-        { "attribute": "aws.s3.bucket" },
-        { "attribute": "gcp.gcs.bucket" }
+        {
+          "attribute": "aws.s3.bucket"
+        },
+        {
+          "attribute": "gcp.gcs.bucket"
+        }
       ]
     },
     {
       "id": "span-fields.storage_object",
       "target": "storage_object",
       "sources": [
-        { "attribute": "aws.s3.key" },
-        { "attribute": "gcp.gcs.object" }
+        {
+          "attribute": "aws.s3.key"
+        },
+        {
+          "attribute": "gcp.gcs.object"
+        }
       ]
     },
     {
       "id": "span-fields.messaging_system",
       "target": "messaging_system",
-      "sources": [{ "attribute": "messaging.system" }]
+      "sources": [
+        {
+          "attribute": "messaging.system",
+          "accept_empty": true
+        }
+      ],
+      "doc": "Read directly rather than through a chain, so an empty value the producer wrote is a value: reporting it absent is a different statement about the span."
     },
     {
       "id": "span-fields.messaging_destination",
       "target": "messaging_destination",
       "sources": [
-        { "attribute": "messaging.destination" },
-        { "attribute": "messaging.destination.name" }
+        {
+          "attribute": "messaging.destination"
+        },
+        {
+          "attribute": "messaging.destination.name"
+        }
       ]
     },
     {
@@ -118,9 +217,15 @@
       "doc": "Merged rather than first-wins: a span may carry tags under several keys and they are all its tags. Duplicates are dropped, first occurrence keeping its position.",
       "combine": "merge_all",
       "sources": [
-        { "attribute": "tags" },
-        { "attribute": "langsmith.tags" },
-        { "attribute": "tag.tags" }
+        {
+          "attribute": "tags"
+        },
+        {
+          "attribute": "langsmith.tags"
+        },
+        {
+          "attribute": "tag.tags"
+        }
       ]
     }
   ]

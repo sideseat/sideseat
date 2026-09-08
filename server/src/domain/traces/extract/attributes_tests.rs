@@ -397,7 +397,7 @@ fn test_extract_session_from_metadata() {
         r#"{"thread_id": "langgraph-demo-dea531b92e3b4dd0", "user_id": "demo-user"}"#,
     )]);
     let mut span = SpanData::default();
-    extract_semantic(&mut span, &attrs);
+    extract_semantic(&mut span, "", &attrs);
 
     assert_eq!(
         span.session_id,
@@ -414,7 +414,7 @@ fn test_extract_tags_all_sources() {
         ("tag.tags", r#"["openinference"]"#),
     ]);
     let mut span = SpanData::default();
-    extract_semantic(&mut span, &attrs);
+    extract_semantic(&mut span, "", &attrs);
 
     assert!(span.tags.contains(&"base".to_string()));
     assert!(span.tags.contains(&"langsmith".to_string()));
@@ -429,7 +429,7 @@ fn test_extract_tags_merge() {
         ("langsmith.tags", r#"["test", "weather"]"#),
     ]);
     let mut span = SpanData::default();
-    extract_semantic(&mut span, &attrs);
+    extract_semantic(&mut span, "", &attrs);
 
     assert!(span.tags.contains(&"production".to_string()));
     assert!(span.tags.contains(&"weather".to_string()));
@@ -444,7 +444,7 @@ fn test_extract_tags_openinference_tag_tags() {
         ("tag.tags", r#"["openinference", "phoenix"]"#),
     ]);
     let mut span = SpanData::default();
-    extract_semantic(&mut span, &attrs);
+    extract_semantic(&mut span, "", &attrs);
 
     assert!(span.tags.contains(&"existing".to_string()));
     assert!(span.tags.contains(&"openinference".to_string()));
@@ -536,7 +536,7 @@ fn test_langsmith_session_id_extraction() {
         ("langsmith.span.kind", "chain"),
     ]);
     let mut span = SpanData::default();
-    extract_semantic(&mut span, &attrs);
+    extract_semantic(&mut span, "", &attrs);
 
     assert_eq!(span.session_id, Some("session-abc-123".to_string()));
 }
@@ -687,7 +687,7 @@ fn test_session_id_priority_session_id_over_telemetry() {
     ]);
 
     let mut span = SpanData::default();
-    extract_semantic(&mut span, &attrs);
+    extract_semantic(&mut span, "", &attrs);
 
     assert_eq!(
         span.session_id,
@@ -1339,7 +1339,7 @@ fn test_semconv_conversation_id_populates_session() {
     // session_id is populated by extract_semantic, not extract_genai.
     let attrs = make_attrs(&[("gen_ai.conversation.id", "conv-42")]);
     let mut span = SpanData::default();
-    extract_semantic(&mut span, &attrs);
+    extract_semantic(&mut span, "", &attrs);
     assert_eq!(span.session_id.as_deref(), Some("conv-42"));
 }
 
