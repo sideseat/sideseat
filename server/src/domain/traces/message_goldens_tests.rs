@@ -4148,8 +4148,15 @@ fn the_declared_classification_matches_the_sweep_across_the_corpus() {
 ///
 /// The goldens compare the *finished* views, so a divergence inside normalisation that two paths happen to
 /// cancel out would not show. This compares the migrated units directly, over corpus data rather than
-/// hand-written shapes - and reports which declared members no captured message carries, so a member that is
-/// there for a framework nobody has captured is visible rather than assumed exercised.
+/// hand-written shapes.
+///
+/// "Every object" means **every object down to depth eight** of each parsed attribute: the walk is bounded, so a
+/// producer nesting deeper than that is not covered here. Stated because the number below reads as exhaustive
+/// and is not.
+///
+/// The unobserved members are an exact set, not a proportion. A floor would let the vocabulary quietly stop
+/// describing what producers write while still passing; naming them means a member that *starts* being carried,
+/// or one that stops, is a failure with a name.
 #[test]
 fn the_member_vocabulary_answers_as_it_did_across_the_corpus() {
     use crate::domain::sideml::{is_plain_data_value, is_plain_data_value_legacy};
@@ -4266,29 +4273,43 @@ fn the_member_vocabulary_answers_as_it_did_across_the_corpus() {
         disagreements.join("\n")
     );
 
-    // Which declared members the corpus actually carries. Not an assertion that all of them do - several are
-    // there for dialects nobody has captured, exactly as the unreached message rules are - but the numbers are
-    // reported so a vocabulary that has stopped being exercised is visible.
+    // Which declared members no captured message carries, as an exact set. Each is there for a dialect nobody
+    // has captured, exactly as the unreached message rules are - and naming them means a member that starts
+    // being carried, or one that stops, fails with a name instead of moving a proportion.
+    const UNOBSERVED: &[&str] = &[
+        "choices",
+        "file_data",
+        "finishReason",
+        "functionCall",
+        "functionResponse",
+        "inline_data",
+        "toolCalls",
+        "video",
+    ];
+
     let declared: BTreeSet<&str> = crate::domain::rules::ruleset()
         .message_members
         .content_in_order()
         .chain(plan.message_shaped_members())
         .chain(plan.content_block_members())
         .collect();
-    let reached: Vec<&&str> = declared
+    let unobserved: BTreeSet<&str> = declared
         .iter()
-        .filter(|m| members_seen.contains(**m))
+        .copied()
+        .filter(|m| !members_seen.contains(*m))
         .collect();
-    eprintln!(
-        "member vocabulary over {values} corpus objects: {} of {} declared members appear",
-        reached.len(),
-        declared.len()
+    let expected: BTreeSet<&str> = UNOBSERVED.iter().copied().collect();
+    assert_eq!(
+        unobserved, expected,
+        "the set of declared members no corpus message carries has changed, over {values} objects - a member \
+         that started being carried belongs out of UNOBSERVED, and one that stopped is either a capture that \
+         went away or a vocabulary that has drifted from what producers write"
     );
-    assert!(
-        reached.len() * 2 > declared.len(),
-        "only {} of {} declared members appear anywhere in the corpus, which suggests the vocabulary no longer \
-         describes what producers write",
-        reached.len(),
-        declared.len()
-    );
+    // And every listed member is declared, so the list cannot outlive what it exempts.
+    for member in UNOBSERVED {
+        assert!(
+            declared.contains(member),
+            "UNOBSERVED names `{member}`, which no rule declares"
+        );
+    }
 }

@@ -1383,3 +1383,188 @@ fn a_provider_alias_must_be_reachable_and_not_shadow_the_catalogue() {
         "a framework naming a provider the catalogue knows is the whole point"
     );
 }
+
+/// **No production module names a framework**, across the whole server, with the exemptions named.
+///
+/// The two extraction files have their own gate above, with the carrier keys and constant identifiers that are
+/// framework facts even where the identifier is not. This one is the wider claim, and it exists because that
+/// claim was being kept by review and by a sweep I ran by hand: a framework-specific branch in an unguarded
+/// module escaped both. It reads the source tree, so a new module is covered the day it is written.
+///
+/// What it cannot see: a framework named by a *value* rather than a name - a key like `crew_key` is caught by
+/// the marker list, a bare `"kwargs"` is not. That is the residual, and it is why the equivalence oracles matter
+/// more than this test does.
+#[test]
+fn no_production_module_names_a_framework() {
+    /// Names that identify one producer. Only unambiguous ones: `gemini` and `bedrock` are *providers*, which
+    /// the pricing catalogue is entitled to name, and `claude` is a model family.
+    const FRAMEWORKS: &[&str] = &[
+        "logfire",
+        "crewai",
+        "crew_ai",
+        "mlflow",
+        "autogen",
+        "vercel",
+        "langgraph",
+        "langchain",
+        "langsmith",
+        "openinference",
+        "strands",
+        "pydantic_ai",
+        "pydanticai",
+        "livekit",
+        "traceloop",
+        "google_adk",
+        "googleadk",
+        "llamaindex",
+    ];
+
+    /// Files allowed to name one, and why. Each is a *statement*, not an oversight.
+    const EXEMPT: &[(&str, &str)] = &[(
+        "src/api/mcp/tools.rs",
+        "generates integration documentation for an AI assistant, so naming each framework is its job - it \
+         interprets no telemetry",
+    )];
+
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+    let mut offenders: Vec<String> = Vec::new();
+    let mut exempt_used: std::collections::BTreeSet<&str> = std::collections::BTreeSet::new();
+    let mut exempt_names_found: std::collections::BTreeSet<&str> =
+        std::collections::BTreeSet::new();
+    let mut files = 0_usize;
+    // Counted apart from `files`, because an exemption matching everything would leave the offender list empty
+    // and every other assertion satisfied - the sweep has to say how much it actually *checked*.
+    let mut checked = 0_usize;
+    let mut skipped_tests = 0_usize;
+    walk_rust_sources(&root, &mut |path, source| {
+        files += 1;
+        let relative = path
+            .strip_prefix(std::path::Path::new(env!("CARGO_MANIFEST_DIR")))
+            .unwrap_or(path)
+            .to_string_lossy()
+            .replace('\\', "/");
+        // A test module is not production: the oracles name every framework they reproduce, deliberately.
+        if relative.contains("_tests.rs") || relative.ends_with("/tests.rs") {
+            skipped_tests += 1;
+            return;
+        }
+        if let Some((name, _)) = EXEMPT.iter().find(|(file, _)| relative.ends_with(file)) {
+            exempt_used.insert(name);
+            // An exemption for a file that names no framework is unnecessary, and an unnecessary exemption is
+            // how such a list grows until it covers something that matters.
+            if production_lines(source).iter().any(|(_, line)| {
+                let folded = line.to_ascii_lowercase();
+                FRAMEWORKS.iter().any(|name| folded.contains(*name))
+            }) {
+                exempt_names_found.insert(name);
+            }
+            return;
+        }
+        checked += 1;
+        for (number, line) in production_lines(source) {
+            let folded = line.to_ascii_lowercase();
+            if let Some(name) = FRAMEWORKS.iter().find(|name| folded.contains(**name)) {
+                offenders.push(format!(
+                    "  {relative}:{number}: {} <- `{name}`",
+                    line.trim()
+                ));
+            }
+        }
+    });
+
+    assert!(
+        files > 50,
+        "the sweep read only {files} files, which cannot be the whole tree"
+    );
+    assert!(
+        checked + EXEMPT.len() + skipped_tests == files,
+        "the sweep read {files} files and checked {checked} of them - an exemption is matching more than the \
+         file it names, which would make an empty offender list mean nothing"
+    );
+    assert!(
+        offenders.is_empty(),
+        "{} production line(s) name a framework. Every fact a framework writes belongs in \
+         `server/rules/*.json`; if a module genuinely has to name one, add it to EXEMPT with the \
+         reason:\n{}",
+        offenders.len(),
+        offenders.join("\n")
+    );
+    // An exemption for a file that no longer exists is a statement about nothing.
+    for (file, _) in EXEMPT {
+        assert!(
+            exempt_used.contains(file),
+            "EXEMPT names `{file}`, which the sweep did not find"
+        );
+        assert!(
+            exempt_names_found.contains(file),
+            "EXEMPT names `{file}`, which names no framework - the exemption is unnecessary, and an \
+             unnecessary exemption is how such a list grows until it covers something that matters"
+        );
+    }
+}
+
+/// Every `.rs` file under a directory, with its contents.
+#[cfg(test)]
+fn walk_rust_sources(dir: &std::path::Path, visit: &mut impl FnMut(&std::path::Path, &str)) {
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return;
+    };
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.is_dir() {
+            walk_rust_sources(&path, visit);
+        } else if path.extension().is_some_and(|e| e == "rs")
+            && let Ok(source) = std::fs::read_to_string(&path)
+        {
+            visit(&path, &source);
+        }
+    }
+}
+
+/// The lines of a file that are production code: not a comment, and not inside a `#[cfg(test)]` item.
+#[cfg(test)]
+fn production_lines(source: &str) -> Vec<(usize, &str)> {
+    let lines: Vec<&str> = source.lines().collect();
+    let mut out = Vec::new();
+    let mut index = 0;
+    while index < lines.len() {
+        if lines[index].trim() == "#[cfg(test)]" {
+            let mut cursor = index + 1;
+            while cursor < lines.len()
+                && (lines[cursor].trim_start().starts_with("///")
+                    || lines[cursor].trim_start().starts_with("#["))
+            {
+                cursor += 1;
+            }
+            // A `use` or `const` ends at its semicolon; anything braced ends when its braces balance.
+            if cursor < lines.len()
+                && !lines[cursor].contains('{')
+                && lines[cursor].trim_end().ends_with(';')
+            {
+                index = cursor + 1;
+                continue;
+            }
+            let mut depth = 0_i32;
+            let mut opened = false;
+            while cursor < lines.len() {
+                depth += lines[cursor].matches('{').count() as i32
+                    - lines[cursor].matches('}').count() as i32;
+                if lines[cursor].contains('{') {
+                    opened = true;
+                }
+                cursor += 1;
+                if opened && depth <= 0 {
+                    break;
+                }
+            }
+            index = cursor;
+            continue;
+        }
+        let trimmed = lines[index].trim_start();
+        if !trimmed.starts_with("//") {
+            out.push((index + 1, lines[index]));
+        }
+        index += 1;
+    }
+    out
+}

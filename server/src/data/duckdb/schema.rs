@@ -55,7 +55,7 @@ CREATE TABLE IF NOT EXISTS otel_spans (
     -- ═══════════════════════════════════════════════════════════════════
     span_category       VARCHAR,            -- LLM, Tool, Agent, HTTP, DB, etc.
     observation_type    VARCHAR,            -- Generation, Embedding, Agent, Tool, etc.
-    framework           VARCHAR,            -- Strands, LangGraph, OpenInference, etc.
+    framework           VARCHAR,            -- the producer label detection resolved; a display and filter value
 
     -- ═══════════════════════════════════════════════════════════════════
     -- TIMING

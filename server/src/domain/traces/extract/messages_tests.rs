@@ -8529,6 +8529,47 @@ fn inexpressible_rules_are_refused() {
                     {"as":"c","from_any_of":["k"],"sweep_prefix":"p."}]},"emit":"message",
                  "legacy_rank":1}]}"#,
         ),
+        // Every gate a message rule can carry, through the one validator - three call sites had grown the
+        // checks separately, so these were refused for a field source and compiled here.
+        (
+            "a message gate with no signal at all",
+            r#"{"id":"t","doc":"d","messages":[
+                {"id":"a","doc":"d","read":{"attribute":"k"},"parse":"json","emit":"message",
+                 "legacy_rank":1,"when":{}}]}"#,
+        ),
+        (
+            "a message gate whose phrase search names a source the probe does not read",
+            r#"{"id":"t","doc":"d","messages":[
+                {"id":"a","doc":"d","read":{"attribute":"k"},"parse":"json","emit":"message",
+                 "legacy_rank":1,"when":{"text_contains":{"sources":["span"],"needles":["x"]}}}]}"#,
+        ),
+        (
+            "a message gate searching the first of a mixed pair of sources",
+            r#"{"id":"t","doc":"d","messages":[
+                {"id":"a","doc":"d","read":{"attribute":"k"},"parse":"json","emit":"message",
+                 "legacy_rank":1,"when":{"text_contains":{"sources":["attr:model","span_name"],"needles":["embed"],"first_present_source":true}}}]}"#,
+        ),
+        (
+            "an `unless` with an empty attribute key",
+            r#"{"id":"t","doc":"d","messages":[
+                {"id":"a","doc":"d","read":{"attribute":"k"},"parse":"json","emit":"message",
+                 "legacy_rank":1,"unless":{"attr_exists":[""]}}]}"#,
+        ),
+        (
+            "a compose member's fallback gated on a resource dimension",
+            r#"{"id":"t","doc":"d","messages":[
+                {"id":"a","doc":"d","legacy_rank":1,
+                 "compose":{"tag":"q","members":[
+                    {"as":"c","from_any_of":["k"],
+                     "fallback":{"from":"other","when":{"service_name":["svc"]}}}]}}]}"#,
+        ),
+        (
+            "a compose member's fallback gated on nothing",
+            r#"{"id":"t","doc":"d","messages":[
+                {"id":"a","doc":"d","legacy_rank":1,
+                 "compose":{"tag":"q","members":[
+                    {"as":"c","from_any_of":["k"],"fallback":{"from":"other","when":{}}}]}}]}"#,
+        ),
         (
             "a gate on a resource dimension a message rule is never given",
             r#"{"id":"t","doc":"d","messages":[

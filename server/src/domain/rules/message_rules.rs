@@ -346,19 +346,26 @@ fn compile_rule(
         rule: id.clone(),
         detail,
     };
-    for (label, gate) in [("when", when.as_ref()), ("unless", unless.as_ref())] {
-        if let Some(gate) = gate
-            && super::detect_rules::unavailable_gate_dimension(gate).is_some()
-        {
+    // Every gate a message rule can carry, through **one** validator. Three call sites grew the checks
+    // separately - the detection compiler, the field-source compiler, and this one - so the same declaration was
+    // refused in two places and compiled in a third. A compose member's conditional fallback is a gate too, read
+    // only where it holds, so an undeclarable one makes that member's last resort dead while reading as though
+    // it has one.
+    let gates = [when.as_ref(), unless.as_ref()]
+        .into_iter()
+        .flatten()
+        .chain(
+            compose
+                .iter()
+                .flat_map(|compose| &compose.members)
+                .filter_map(|member| member.fallback.as_ref())
+                .map(|fallback| &fallback.when),
+        );
+    for gate in gates {
+        if let Some(detail) = message_gate_defect(gate) {
             return Err(MessageCompileError::Inexpressible {
                 rule: id.clone(),
-                detail: if label == "when" {
-                    "`when` uses a resource dimension, and a message gate is given no resource \
-                         attributes - it could never hold"
-                } else {
-                    "`unless` uses a resource dimension, and a message gate is given no resource \
-                         attributes - it could never hold"
-                },
+                detail,
             });
         }
     }
@@ -1425,6 +1432,20 @@ impl CarrierPattern {
             Self::Prefix(prefix) => format!("{prefix}*"),
         }
     }
+}
+
+/// Why a message-rule gate could never hold.
+///
+/// One definition for `when`, `unless` and a compose member's fallback: the dimensions a message gate is not
+/// given, plus every way a gate is undeclarable whoever asks it.
+fn message_gate_defect(gate: &DetectMatch) -> Option<&'static str> {
+    if super::detect_rules::unavailable_gate_dimension(gate).is_some() {
+        return Some(
+            "uses a resource dimension, and a message gate is given no resource attributes - it could never \
+             hold",
+        );
+    }
+    super::detect_rules::gate_defect(gate)
 }
 
 /// Whether a rule's claim on a carrier is *conditional* - on the span, or on nothing else having
