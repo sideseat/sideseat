@@ -8632,6 +8632,99 @@ fn inexpressible_rules_are_refused() {
     }
 }
 
+/// A conditional claim is conditional about **one carrier**, not about every carrier its rule reads.
+///
+/// Two shapes, each a rule that would be permanently dead while compilation called the pair conditional:
+///
+/// - a witnessed overlay made its whole rule conditional, so a second rule reading one of the *family's* own
+///   keys was accepted - and on a span carrying the family and no side payload, the family rule reads and
+///   owns that key on every span, so the second could never emit;
+/// - "every alternative carries a `require`" ignored `also` and `fallback`, which `all_readings` also emits
+///   through - so a rule with one required alternative and an unconditional fallback claimed its carrier
+///   always and still counted as conditional.
+///
+/// The accepted halves are what keep this from being an over-refusal: the same overlay against a rule reading
+/// the *side payload* is a genuine pair, and so is a rule whose every reading is required.
+#[test]
+fn conditionality_is_a_property_of_the_carrier_not_of_the_rule() {
+    // Rule A reads family `f` always and `side` only where the witness holds; rule B reads `f.0.content`.
+    let family_key_conflict = r#"{"id":"t","doc":"d","messages":[
+        {"id":"a","doc":"d","legacy_rank":1,
+         "read":{"indexed_family":"f","overlay":{
+            "from":"side","parse":"json","select_any_of":["$"],
+            "witness":{"any":[{"path":"$[*].id","kind":"array"}]},
+            "when_member_prefix":"contents.","content_any_of":["$.content"],
+            "as_member":"content"}},
+         "emit":"message"},
+        {"id":"b","doc":"d","read":{"attribute":"f.0.content"},"parse":"json","emit":"message",
+         "tag_as":"b.own.tag","legacy_rank":2}]}"#;
+    // The same overlay, against a rule reading the payload the overlay joins against. Genuinely conditional:
+    // A consumes `side` only where the witness holds, and yields it elsewhere.
+    let side_payload_pair = r#"{"id":"t","doc":"d","messages":[
+        {"id":"a","doc":"d","legacy_rank":1,
+         "read":{"indexed_family":"f","overlay":{
+            "from":"side","parse":"json","select_any_of":["$"],
+            "witness":{"any":[{"path":"$[*].id","kind":"array"}]},
+            "when_member_prefix":"contents.","content_any_of":["$.content"],
+            "as_member":"content"}},
+         "emit":"message"},
+        {"id":"b","doc":"d","read":{"attribute":"side"},"parse":"json","emit":"message",
+         "legacy_rank":2}]}"#;
+    // Rule A reads `x` through one required alternative *and* an unconditional fallback, so it claims `x` on
+    // every span; rule B reads `x` too.
+    let unconditional_fallback = r#"{"id":"t","doc":"d","messages":[
+        {"id":"a","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message","legacy_rank":1,
+         "alternatives":[{"require":{"any":[{"path":"$.marker","exists":true}]},
+                          "wrap":{"role":"user","content_from_any_of":["$.content"]}}],
+         "fallback":[{"wrap":{"role":"user","content_from_any_of":["$.content"]}}]},
+        {"id":"b","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message",
+         "legacy_rank":2}]}"#;
+    // The same rule with no unconditional path: every reading is required, so it yields on a payload none
+    // recognises and the pair is genuine.
+    let all_readings_required = r#"{"id":"t","doc":"d","messages":[
+        {"id":"a","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message","legacy_rank":1,
+         "alternatives":[{"require":{"any":[{"path":"$.marker","exists":true}]},
+                          "wrap":{"role":"user","content_from_any_of":["$.content"]}}]},
+        {"id":"b","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message",
+         "legacy_rank":2}]}"#;
+
+    for (what, asset) in [
+        (
+            "a family key another rule reads, beside a witnessed overlay",
+            family_key_conflict,
+        ),
+        (
+            "an unconditional fallback beside a required alternative",
+            unconditional_fallback,
+        ),
+    ] {
+        let sources =
+            std::collections::BTreeMap::from([("t.json".to_string(), asset.as_bytes().to_vec())]);
+        assert!(
+            compile(&sources).is_err(),
+            "the second rule is permanently dead and should have been refused: {what}"
+        );
+    }
+    for (what, asset) in [
+        (
+            "the overlay's own payload, which it reads only where witnessed",
+            side_payload_pair,
+        ),
+        (
+            "a rule whose every reading is required",
+            all_readings_required,
+        ),
+    ] {
+        let sources =
+            std::collections::BTreeMap::from([("t.json".to_string(), asset.as_bytes().to_vec())]);
+        assert!(
+            compile(&sources).is_ok(),
+            "this claim really is conditional and must be permitted: {what} - {:?}",
+            compile(&sources).err()
+        );
+    }
+}
+
 /// An event rule's gate asks about the **span**, and its `read` draws from the **event**.
 ///
 /// Both dimensions were unavailable at that entry point: the span name was passed as `""`, so a `span_name`

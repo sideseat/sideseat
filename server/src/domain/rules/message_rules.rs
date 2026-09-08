@@ -870,31 +870,50 @@ pub fn compile(sources: &BTreeMap<String, Vec<u8>>) -> Result<MessagePlan, Messa
             if a.stage != b.stage {
                 continue;
             }
+            // A conditional claim is not a dead rule: it yields on spans its condition excludes, and the
+            // ranks decide which is tried first. Only two *unconditional* claims on one carrier are a defect.
+            //
+            // Asked per carrier, not per rule. A rule that reads an indexed family unconditionally and joins
+            // against a side payload only where a witness holds is conditional about the payload and not
+            // about the family - and as a rule-wide flag it waived every conflict the rule was in, so a
+            // second rule reading one of the family's own keys was accepted while being permanently dead.
+            let emitted_by = |rule: &CompiledMessageRule| {
+                let conditional = rule_is_wholly_conditional(rule);
+                emitted_carriers(rule)
+                    .into_iter()
+                    .map(|pattern| Consumed {
+                        pattern,
+                        conditional,
+                    })
+                    .collect::<Vec<_>>()
+            };
             let conflict = [
                 (consumed_carriers(a), consumed_carriers(b), "both read"),
-                (emitted_carriers(a), emitted_carriers(b), "both emit"),
+                (emitted_by(a), emitted_by(b), "both emit"),
                 (
-                    emitted_carriers(a),
+                    emitted_by(a),
                     consumed_carriers(b),
                     "one emits what the other reads",
                 ),
                 (
                     consumed_carriers(a),
-                    emitted_carriers(b),
+                    emitted_by(b),
                     "one reads what the other emits",
                 ),
             ]
             .into_iter()
             .find_map(|(left, right, how)| {
                 left.iter()
-                    .find_map(|l| right.iter().find(|r| l.overlaps(r)).map(|_| l.describe()))
+                    .find_map(|l| {
+                        right
+                            .iter()
+                            .find(|r| {
+                                !l.conditional && !r.conditional && l.pattern.overlaps(&r.pattern)
+                            })
+                            .map(|_| l.pattern.describe())
+                    })
                     .map(|carrier| (carrier, how))
             });
-            // A conditional claim is not a dead rule: it yields on spans its condition excludes, and the
-            // ranks decide which is tried first. Only two unconditional rules on one carrier are a defect.
-            if claim_is_conditional(a) || claim_is_conditional(b) {
-                continue;
-            }
             if let Some((carrier, how)) = conflict {
                 return Err(MessageCompileError::ContestedCarrier {
                     first: a.rule_id.clone(),
@@ -1321,63 +1340,89 @@ impl CarrierPattern {
 ///
 /// Reachable in practice: the generic `output.value` is read by one dialect as a gated last resort and by
 /// another as its own output, and they are told apart by the span they are on.
-fn claim_is_conditional(rule: &CompiledMessageRule) -> bool {
+fn rule_is_wholly_conditional(rule: &CompiledMessageRule) -> bool {
     if rule.when.is_some() || rule.unless.is_some() {
         return true;
     }
-    // A compose member's fallback is read only where its own gate holds.
-    if rule.compose.as_ref().is_some_and(|compose| {
-        compose
-            .members
-            .iter()
-            .any(|member| member.fallback_gate.is_some())
-    }) {
-        return true;
+    // Every reading this rule can produce is gated on the payload itself, so it claims nothing on a span
+    // whose payload no reading recognises. Asked of **all three** lists, because `all_readings` emits
+    // through `also` and through `fallback` as well - checking `alternatives` alone let a rule with one
+    // required alternative and an unconditional fallback claim its carrier on every span while counting as
+    // conditional, which is a permanently dead second rule.
+    let readings = rule
+        .alternatives
+        .iter()
+        .chain(&rule.also)
+        .chain(&rule.fallback);
+    let mut any = false;
+    for reading in readings {
+        any = true;
+        if reading.spec.require.is_empty() {
+            return false;
+        }
     }
-    // An overlay is a *join*, and it happens only where the counterpart list satisfies the witness. So the
-    // dialect that assembles a family from its flattened members consumes the serialised copy on the spans
-    // where that copy is its own, and yields it elsewhere.
-    if rule
-        .read
-        .overlay
-        .as_ref()
-        .is_some_and(|overlay| !overlay.witness.is_empty())
-    {
-        return true;
-    }
-    // Every reading this rule has is gated on the payload itself. A rule with *no* unconditional
-    // alternative cannot claim a carrier whose payload another dialect owns - which is how one dialect's
-    // "this text is framework internals, not a conversation" claim coexists with another's reading of the
-    // same key.
-    !rule.alternatives.is_empty()
-        && rule
-            .alternatives
-            .iter()
-            .all(|alternative| !alternative.spec.require.is_empty())
+    any
 }
 
-/// What a rule reads.
-fn consumed_carriers(rule: &CompiledMessageRule) -> Vec<CarrierPattern> {
-    let mut out = Vec::new();
+/// One carrier a rule reads, and whether *that* claim is conditional.
+///
+/// Per pattern rather than per rule, because a rule can hold both kinds at once: an indexed family it always
+/// reads, beside a side payload it reads only where a witness holds.
+struct Consumed {
+    pattern: CarrierPattern,
+    conditional: bool,
+}
+
+/// What a rule reads, each carrier paired with whether the claim on it is conditional.
+fn consumed_carriers(rule: &CompiledMessageRule) -> Vec<Consumed> {
+    let wholly = rule_is_wholly_conditional(rule);
+    consumed_patterns(rule)
+        .into_iter()
+        .map(|mut consumed| {
+            consumed.conditional |= wholly;
+            consumed
+        })
+        .collect()
+}
+
+fn consumed_patterns(rule: &CompiledMessageRule) -> Vec<Consumed> {
+    let mut out: Vec<Consumed> = Vec::new();
+    let always = |pattern: CarrierPattern| Consumed {
+        pattern,
+        conditional: false,
+    };
+    let only_sometimes = |pattern: CarrierPattern| Consumed {
+        pattern,
+        conditional: true,
+    };
     if let Some(attribute) = rule.read.attribute.as_deref() {
-        out.push(CarrierPattern::Exact(attribute.to_string()));
+        out.push(always(CarrierPattern::Exact(attribute.to_string())));
     }
     if let Some(event) = rule.read.event.as_deref() {
-        out.push(CarrierPattern::Exact(event.to_string()));
+        out.push(always(CarrierPattern::Exact(event.to_string())));
     }
     out.extend(
         rule.read
             .attribute_any_of
             .iter()
-            .map(|k| CarrierPattern::Exact(k.clone())),
+            .map(|k| always(CarrierPattern::Exact(k.clone()))),
     );
     if let Some(family) = rule.read.indexed_family.as_deref() {
         // Every key beneath the family, since each index's members are read.
-        out.push(CarrierPattern::Prefix(format!("{family}.")));
+        out.push(always(CarrierPattern::Prefix(format!("{family}."))));
     }
     if let Some(overlay) = &rule.read.overlay {
         // The payload a positional overlay joins against is read too, and it is not beneath the family.
-        out.push(CarrierPattern::Exact(overlay.from.clone()));
+        //
+        // Conditional where the join is witnessed: the rule consumes this payload only on spans whose
+        // counterpart list is this dialect's own serialisation, and yields it elsewhere. The *family* above
+        // stays unconditional, which is the distinction a rule-wide flag could not express.
+        let pattern = CarrierPattern::Exact(overlay.from.clone());
+        out.push(if overlay.witness.is_empty() {
+            always(pattern)
+        } else {
+            only_sometimes(pattern)
+        });
     }
     // A branch set's subrules read carriers of their own, and they were invisible here - so two dialects
     // could contend for one carrier as long as the collision was inside a branch set.
@@ -1392,13 +1437,15 @@ fn consumed_carriers(rule: &CompiledMessageRule) -> Vec<CarrierPattern> {
                 member
                     .from_any_of
                     .iter()
-                    .map(|k| CarrierPattern::Exact(k.clone())),
+                    .map(|k| always(CarrierPattern::Exact(k.clone()))),
             );
             if let Some(fallback) = &member.fallback {
-                out.push(CarrierPattern::Exact(fallback.from.clone()));
+                // Read only where the member's own gate holds, which is what makes a dialect's stand-in for
+                // the generic pair coexist with the dialect that owns it.
+                out.push(only_sometimes(CarrierPattern::Exact(fallback.from.clone())));
             }
             if let Some(prefix) = &member.sweep_prefix {
-                out.push(CarrierPattern::Prefix(prefix.clone()));
+                out.push(always(CarrierPattern::Prefix(prefix.clone())));
             }
         }
     }
