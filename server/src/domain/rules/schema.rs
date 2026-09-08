@@ -49,6 +49,13 @@ pub struct RuleFile {
     /// Content-block shapes this dialect writes.
     #[serde(default)]
     pub content_blocks: Vec<ContentBlockRule>,
+    /// What kind of observation a span is, as ordered first-match rules.
+    ///
+    /// Ordered because the answer is a *precedence*, not a set of independent facts: a transport attribute
+    /// makes a span a plain span whatever else it carries, and a conventional operation name outranks a
+    /// dialect's own span-kind attribute. The rank is the whole of that knowledge, so it is data.
+    #[serde(default)]
+    pub observation_types: Vec<ClassifyRule>,
     /// Facts about a *span* this dialect can establish, as opposed to about a carrier.
     ///
     /// "Is this a tool execution" is one question with several answers - an operation name, a span-kind
@@ -371,6 +378,26 @@ pub struct JsonFieldSource {
     pub first_present_of: Vec<JsonPath>,
 }
 
+/// One classification rule: the conditions a span must satisfy, and what it is then.
+#[derive(Debug, Deserialize, Clone)]
+#[serde(deny_unknown_fields)]
+pub struct ClassifyRule {
+    pub id: String,
+    #[serde(default)]
+    pub doc: Option<String>,
+    /// Where this sits in the ordered sweep. The first rule that holds answers.
+    pub rank: i32,
+    /// **Every** one of these must hold, while each is internally a disjunction of signals.
+    ///
+    /// Conjunction is what a single signal set cannot express, and three of these rules need it: an operation
+    /// name *and* a model whose name says it is an embedding, an operation name *and* the system that gives it
+    /// a different meaning, a dialect's model attribute *and* an operation id that says which call it was.
+    pub all_of: Vec<DetectMatch>,
+    /// What the span is, in the stored vocabulary. Mapped to the enum by the caller, which is the one thing
+    /// about this that is not a producer's business.
+    pub observation_type: String,
+}
+
 /// One detection rule: signals that identify a producer, and the label they yield.
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -447,6 +474,13 @@ pub struct DetectMatch {
     /// A span attribute equals this value exactly.
     #[serde(default)]
     pub attr_equals: Vec<KeyValue>,
+    /// A span attribute equals this value, whatever its case.
+    ///
+    /// Its own dimension rather than a flag on `attr_equals`, because a flag that changes another field's
+    /// meaning is dead where that field is absent - and this engine refuses dead declarations. One producer
+    /// writes its span kind in capitals and another in mixed case, and both mean the same kind.
+    #[serde(default)]
+    pub attr_equals_ignore_case: Vec<KeyValue>,
     /// Any of these span attribute keys exists.
     #[serde(default)]
     pub attr_exists: Vec<String>,

@@ -109,6 +109,7 @@ pub(super) mod keys {
     pub const ENDUSER_ID: &str = "enduser.id";
 
     // GenAI Core
+    #[cfg(test)]
     pub const GEN_AI_SYSTEM: &str = "gen_ai.system";
     #[cfg(test)]
     pub const GEN_AI_PROVIDER_NAME: &str = "gen_ai.provider.name"; // New OTEL semconv
@@ -137,6 +138,7 @@ pub(super) mod keys {
     pub const GEN_AI_FINISH_REASONS: &str = "gen_ai.response.finish_reasons";
 
     // GenAI Agent/Tool
+    #[cfg(test)]
     pub const GEN_AI_AGENT_ID: &str = "gen_ai.agent.id";
     pub const GEN_AI_AGENT_NAME: &str = "gen_ai.agent.name";
     pub const GEN_AI_TOOL_NAME: &str = "gen_ai.tool.name";
@@ -171,6 +173,7 @@ pub(super) mod keys {
 
     // Span Kind Attributes
     pub const OPENINFERENCE_SPAN_KIND: &str = "openinference.span.kind";
+    #[cfg(test)]
     pub const LANGSMITH_SPAN_KIND: &str = "langsmith.span.kind";
 
     // OpenInference LLM attributes
@@ -375,8 +378,11 @@ pub(super) mod keys {
     pub const AI_TOOLCALL_ID: &str = "ai.toolCall.id";
     #[cfg(test)]
     pub const GCP_VERTEX_TOOL_RESPONSE: &str = "gcp.vertex.agent.tool_response";
+    #[cfg(test)]
     pub const AI_MODEL_ID: &str = "ai.model.id";
+    #[cfg(test)]
     pub const AI_MODEL_PROVIDER: &str = "ai.model.provider";
+    #[cfg(test)]
     pub const AI_OPERATION_ID: &str = "ai.operationId";
     #[cfg(test)]
     pub const AI_RESULT_TEXT: &str = "ai.result.text";

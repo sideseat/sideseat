@@ -1000,6 +1000,7 @@ impl SemanticKind {
         }
     }
 
+    #[cfg(test)]
     fn to_observation_type(self) -> ObservationType {
         match self {
             Self::LLM => ObservationType::Generation,
@@ -1099,7 +1100,42 @@ pub(crate) fn categorize_span(span_name: &str, attrs: &HashMap<String, String>) 
 }
 
 /// Detect observation type from span attributes.
+/// What kind of observation a span is, from the declared ordered rules.
+///
+/// The precedence and every condition are in `rules/observation-types.json`; this is the one thing about it
+/// that is not a producer's business - which stored value each label means. An unrecognised label would be a
+/// build defect (the assets ship inside the binary), and the answer for "no rule held" is a plain span, which
+/// is our vocabulary rather than any dialect's.
 pub(crate) fn detect_observation_type(
+    span_name: &str,
+    attrs: &HashMap<String, String>,
+) -> ObservationType {
+    match crate::domain::rules::ruleset()
+        .observation_types
+        .observation_type(span_name, attrs)
+    {
+        Some("generation") => ObservationType::Generation,
+        Some("embedding") => ObservationType::Embedding,
+        Some("agent") => ObservationType::Agent,
+        Some("tool") => ObservationType::Tool,
+        Some("chain") => ObservationType::Chain,
+        Some("retriever") => ObservationType::Retriever,
+        Some("guardrail") => ObservationType::Guardrail,
+        Some("evaluator") => ObservationType::Evaluator,
+        Some("span") | None => ObservationType::Span,
+        Some(other) => {
+            debug_assert!(
+                false,
+                "classification rule named an unknown observation type `{other}`"
+            );
+            ObservationType::Span
+        }
+    }
+}
+
+/// The ordered sweep the declared rules replaced, kept as the equivalence oracle.
+#[cfg(test)]
+pub(crate) fn detect_observation_type_legacy(
     span_name: &str,
     attrs: &HashMap<String, String>,
 ) -> ObservationType {

@@ -449,6 +449,7 @@ fn the_engine_names_no_framework() {
         ("tool_repr.rs", include_str!("tool_repr.rs")),
         ("content_blocks.rs", include_str!("content_blocks.rs")),
         ("span_fields.rs", include_str!("span_fields.rs")),
+        ("classify.rs", include_str!("classify.rs")),
     ];
 
     // The engine directory holds nothing else. A new module would otherwise be exempt by omission -

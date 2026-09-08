@@ -120,6 +120,7 @@ fn has_signal(spec: &DetectMatch) -> bool {
     !spec.span_name.is_empty()
         || !spec.attr_prefix.is_empty()
         || !spec.attr_equals.is_empty()
+        || !spec.attr_equals_ignore_case.is_empty()
         || !spec.attr_exists.is_empty()
         || !spec.service_name.is_empty()
         || !spec.span_attr_contains.is_empty()
@@ -188,6 +189,7 @@ pub fn compile(sources: &BTreeMap<String, Vec<u8>>) -> Result<DetectPlan, Detect
             }
             for (dimension, pairs) in [
                 ("attr_equals", &spec.attr_equals),
+                ("attr_equals_ignore_case", &spec.attr_equals_ignore_case),
                 ("span_attr_contains", &spec.span_attr_contains),
                 ("resource_attr_contains", &spec.resource_attr_contains),
             ] {
@@ -317,6 +319,7 @@ pub(super) fn gate_defect(spec: &DetectMatch) -> Option<&'static str> {
         || spec
             .attr_equals
             .iter()
+            .chain(&spec.attr_equals_ignore_case)
             .chain(&spec.span_attr_contains)
             .chain(&spec.resource_attr_contains)
             .any(|pair| pair.key.is_empty());
@@ -348,6 +351,7 @@ pub(super) fn gate_defect(spec: &DetectMatch) -> Option<&'static str> {
     let any_signal = !spec.span_name.is_empty()
         || !spec.attr_prefix.is_empty()
         || !spec.attr_equals.is_empty()
+        || !spec.attr_equals_ignore_case.is_empty()
         || !spec.attr_exists.is_empty()
         || !spec.service_name.is_empty()
         || !spec.span_attr_contains.is_empty()
@@ -400,6 +404,17 @@ impl CompiledDetect {
             .attr_equals
             .iter()
             .any(|KeyValue { key, value }| ctx.span_attrs.get(key).is_some_and(|v| v == value))
+        {
+            return true;
+        }
+        if spec
+            .attr_equals_ignore_case
+            .iter()
+            .any(|KeyValue { key, value }| {
+                ctx.span_attrs
+                    .get(key)
+                    .is_some_and(|v| v.eq_ignore_ascii_case(value))
+            })
         {
             return true;
         }

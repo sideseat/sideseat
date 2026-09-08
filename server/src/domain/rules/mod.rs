@@ -19,6 +19,7 @@
 //! be dishonest.
 
 pub mod carrier_rules;
+pub mod classify;
 pub mod content_blocks;
 pub mod detect_rules;
 pub mod message_rules;
@@ -153,6 +154,8 @@ pub struct Ruleset {
     pub span_facts: SpanFactPlan,
     /// Where each stored span field is written, per producer.
     pub span_fields: span_fields::SpanFieldPlan,
+    /// What kind of observation a span is, as ordered first-match rules.
+    pub observation_types: classify::ClassifyPlan,
     /// BLAKE3 of the asset bytes that produced this plan, hex-encoded.
     ///
     /// Joins the reconstruction cache key. That cache is a memo over a pure function of the rows, and
@@ -200,6 +203,8 @@ pub fn ruleset() -> &'static Ruleset {
             span_facts: SpanFactPlan::compile(&sources),
             span_fields: span_fields::compile(&sources)
                 .unwrap_or_else(|e| panic!("embedded span field rules are malformed: {e}")),
+            observation_types: classify::compile(&sources)
+                .unwrap_or_else(|e| panic!("embedded classification rules are malformed: {e}")),
             digest,
         }
     })

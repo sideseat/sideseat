@@ -1587,8 +1587,13 @@ impl Condition {
 /// under-refuses, which leaves a dead rule to the corpus measurement, while a wrong one deletes a working
 /// rule at startup.
 fn gate_covers(wider: &DetectMatch, narrower: &DetectMatch) -> bool {
-    // A dimension this cannot relate at all. Present on the narrower side, nothing is provable.
-    if narrower.text_contains.is_some() || wider.text_contains.is_some() {
+    // Dimensions this cannot relate at all. Present on either side, nothing is provable - and saying so is
+    // what keeps a missed subsumption an under-refusal rather than a deleted rule.
+    if narrower.text_contains.is_some()
+        || wider.text_contains.is_some()
+        || !narrower.attr_equals_ignore_case.is_empty()
+        || !wider.attr_equals_ignore_case.is_empty()
+    {
         return false;
     }
     let all_covered = |them: &[String], us: &[String], subsumes: fn(&str, &str) -> bool| {

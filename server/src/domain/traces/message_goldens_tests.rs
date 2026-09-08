@@ -4068,3 +4068,57 @@ fn no_declared_rule_is_dead_across_the_corpus() {
         "UNREACHED names rules that do not exist: {unknown:?}"
     );
 }
+
+/// The declared classification plan answers as the sweep does for **every span of the corpus**.
+///
+/// The precedence cases live beside the sweep; this is the other half of the shadow comparison, and the half
+/// that covers shapes nobody thought to write down. It also reports how many spans each answer covers, so a
+/// rule that no captured span reaches is visible rather than assumed exercised.
+#[test]
+fn the_declared_classification_matches_the_sweep_across_the_corpus() {
+    use crate::data::types::ObservationType;
+    use crate::domain::traces::extract::attributes::detect_observation_type_legacy;
+    use crate::utils::otlp::extract_attributes;
+
+    let plan = &crate::domain::rules::ruleset().observation_types;
+    let mut seen: BTreeMap<String, usize> = BTreeMap::new();
+    let mut spans = 0_usize;
+    let mut disagreements: Vec<String> = Vec::new();
+
+    for (label, paths) in discover_fixtures() {
+        for path in &paths {
+            let request = decode_request(path);
+            for resource in &request.resource_spans {
+                for scope in &resource.scope_spans {
+                    for span in &scope.spans {
+                        let attrs = extract_attributes(&span.attributes);
+                        spans += 1;
+                        let declared = plan
+                            .observation_type(&span.name, &attrs)
+                            .map(str::to_string)
+                            .unwrap_or_else(|| ObservationType::Span.as_str().to_string());
+                        let swept = detect_observation_type_legacy(&span.name, &attrs)
+                            .as_str()
+                            .to_string();
+                        *seen.entry(declared.clone()).or_default() += 1;
+                        if declared != swept {
+                            disagreements.push(format!(
+                                "{label} / {}: declared {declared}, swept {swept}",
+                                span.name
+                            ));
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    assert!(spans > 0, "the corpus produced no spans to classify");
+    assert!(
+        disagreements.is_empty(),
+        "{} of {spans} spans classify differently:\n{}",
+        disagreements.len(),
+        disagreements.join("\n")
+    );
+    eprintln!("classification over {spans} corpus spans: {seen:?}");
+}

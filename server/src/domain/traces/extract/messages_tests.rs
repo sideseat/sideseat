@@ -11127,3 +11127,235 @@ fn the_token_rules_reproduce_the_table_they_replaced() {
         );
     }
 }
+
+/// The declared classification plan answers exactly as `detect_observation_type` does.
+///
+/// A **shadow** comparison: nothing in production reads the plan yet. Classification is a precedence, so the
+/// interesting cases are spans that satisfy two rules at once - and each of these was written from a specific
+/// arm of the retired sweep, including the three that need a conjunction and the two orderings that are not
+/// obvious (a span carrying two dialects' span-kind attributes is what the earlier *key* says, and a name
+/// containing both `agent` and `tool` is an agent).
+#[test]
+fn the_declared_classification_matches_the_sweep_it_shadows() {
+    use crate::data::types::ObservationType;
+    use crate::domain::traces::extract::attributes::detect_observation_type_legacy;
+
+    let label = |t: ObservationType| t.as_str().to_string();
+    let cases: Vec<(&str, &str, HashMap<String, String>)> = vec![
+        ("nothing at all", "some span", rule_attrs(&[])),
+        (
+            "a transport attribute, which outranks everything",
+            "chat gpt-4o",
+            rule_attrs(&[
+                ("http.method", "POST"),
+                ("gen_ai.operation.name", "chat"),
+                ("gen_ai.request.model", "gpt-4o"),
+            ]),
+        ),
+        (
+            "a database call beside a model",
+            "select",
+            rule_attrs(&[("db.system", "postgresql"), ("gen_ai.request.model", "x")]),
+        ),
+        ("an rpc call", "grpc", rule_attrs(&[("rpc.system", "grpc")])),
+        (
+            "a chat completion",
+            "chat",
+            rule_attrs(&[("gen_ai.operation.name", "chat")]),
+        ),
+        (
+            "a text completion",
+            "complete",
+            rule_attrs(&[("gen_ai.operation.name", "text_completion")]),
+        ),
+        (
+            "a chat completion whose model is an embedding model",
+            "chat",
+            rule_attrs(&[
+                ("gen_ai.operation.name", "chat"),
+                ("gen_ai.request.model", "amazon.titan-embed-text-v2:0"),
+            ]),
+        ),
+        (
+            "the same, with the model only on the response side and capitalised",
+            "chat",
+            rule_attrs(&[
+                ("gen_ai.operation.name", "text_completion"),
+                ("gen_ai.response.model", "Titan-EMBED-v2"),
+            ]),
+        ),
+        (
+            "an embeddings operation",
+            "embed",
+            rule_attrs(&[("gen_ai.operation.name", "embeddings")]),
+        ),
+        (
+            "one dialect's agent construction",
+            "create_agent",
+            rule_attrs(&[
+                ("gen_ai.operation.name", "create_agent"),
+                ("gen_ai.system", "autogen"),
+            ]),
+        ),
+        (
+            "the same operation name from anywhere else, which falls through",
+            "agent build",
+            rule_attrs(&[
+                ("gen_ai.operation.name", "create_agent"),
+                ("gen_ai.system", "openai"),
+            ]),
+        ),
+        (
+            "an unrecognised operation name, which falls through",
+            "some span",
+            rule_attrs(&[("gen_ai.operation.name", "rerank")]),
+        ),
+        (
+            "a dialect's span kind",
+            "RunnableSequence",
+            rule_attrs(&[("openinference.span.kind", "CHAIN")]),
+        ),
+        (
+            "the same in lower case",
+            "RunnableSequence",
+            rule_attrs(&[("openinference.span.kind", "retriever")]),
+        ),
+        (
+            "the other dialect's span kind",
+            "run",
+            rule_attrs(&[("langsmith.span.kind", "TOOL")]),
+        ),
+        (
+            "both dialects' span kinds, disagreeing - the earlier key wins",
+            "run",
+            rule_attrs(&[
+                ("openinference.span.kind", "TOOL"),
+                ("langsmith.span.kind", "AGENT"),
+            ]),
+        ),
+        (
+            "the first key naming a kind nobody recognises, so the second answers",
+            "run",
+            rule_attrs(&[
+                ("openinference.span.kind", "SOMETHING_ELSE"),
+                ("langsmith.span.kind", "AGENT"),
+            ]),
+        ),
+        (
+            "an operation name beside a span kind - the convention outranks it",
+            "run",
+            rule_attrs(&[
+                ("gen_ai.operation.name", "chat"),
+                ("openinference.span.kind", "TOOL"),
+            ]),
+        ),
+        (
+            "a dialect that names its model on every span",
+            "ai.generateText",
+            rule_attrs(&[("ai.model.id", "gpt-4o")]),
+        ),
+        (
+            "the same dialect's embedding call",
+            "ai.embed",
+            rule_attrs(&[
+                ("ai.model.provider", "openai"),
+                ("ai.operationId", "ai.embedMany"),
+            ]),
+        ),
+        (
+            "the same dialect's operation id in the wrong case, which it does not match",
+            "ai.embed",
+            rule_attrs(&[
+                ("ai.model.provider", "openai"),
+                ("ai.operationId", "ai.EmbedMany"),
+            ]),
+        ),
+        (
+            "a named agent",
+            "run",
+            rule_attrs(&[("gen_ai.agent.name", "Researcher")]),
+        ),
+        (
+            "a named tool",
+            "run",
+            rule_attrs(&[("gen_ai.tool.name", "search")]),
+        ),
+        (
+            "an agent name beside a tool name - the agent wins",
+            "run",
+            rule_attrs(&[
+                ("gen_ai.agent.name", "Researcher"),
+                ("gen_ai.tool.name", "search"),
+            ]),
+        ),
+        (
+            "a name mentioning embedding",
+            "Embedding request",
+            rule_attrs(&[]),
+        ),
+        (
+            "a name mentioning an agent",
+            "AgentExecutor",
+            rule_attrs(&[]),
+        ),
+        (
+            "a name mentioning a tool",
+            "execute_tool search",
+            rule_attrs(&[]),
+        ),
+        (
+            "a name mentioning both an agent and a tool - the agent wins",
+            "agent tool call",
+            rule_attrs(&[]),
+        ),
+        (
+            "a name mentioning retrieval",
+            "Retriever.get",
+            rule_attrs(&[]),
+        ),
+        (
+            "a name mentioning a guardrail",
+            "guardrail check",
+            rule_attrs(&[]),
+        ),
+        (
+            "a name mentioning evaluation",
+            "evaluate answer",
+            rule_attrs(&[]),
+        ),
+        (
+            "a tag list mentioning a model call",
+            "some span",
+            rule_attrs(&[("logfire.tags", r#"["LLM","chat"]"#)]),
+        ),
+        (
+            "a name that mentions a tool beside such a tag list - the name wins",
+            "tool run",
+            rule_attrs(&[("logfire.tags", r#"["LLM"]"#)]),
+        ),
+        (
+            "only a model",
+            "some span",
+            rule_attrs(&[("gen_ai.request.model", "gpt-4o")]),
+        ),
+        (
+            "only a response model",
+            "some span",
+            rule_attrs(&[("gen_ai.response.model", "gpt-4o")]),
+        ),
+    ];
+
+    let plan = &crate::domain::rules::ruleset().observation_types;
+    for (what, span_name, attrs) in cases {
+        let declared = plan
+            .observation_type(span_name, &attrs)
+            .map(str::to_string)
+            // No rule holding is what "a plain span" means, which the caller names rather than the assets.
+            .unwrap_or_else(|| label(ObservationType::Span));
+        let swept = label(detect_observation_type_legacy(span_name, &attrs));
+        assert_eq!(
+            declared, swept,
+            "the declared classification disagrees with the sweep it shadows: {what}"
+        );
+    }
+}
