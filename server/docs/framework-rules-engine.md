@@ -285,23 +285,45 @@ knowledge, so they sit with step 10, outside the acceptance.
 - A **structural gate** that is more than a name grep: no producer ids, carrier keys, tags or type
   mappings in the engine; **no behavioural API accepting a framework label** (a generic-looking
   `String` parameter can smuggle it, so this is a dataflow check, not a literal search); no callback or
-  custom-transform registration; one-way module dependency; and every enabled rule has fixtures or an
-  explicitly tested shared-dialect inheritance.
+  custom-transform registration; and one-way module dependency. The last clause of the original design -
+  *every enabled rule has fixtures or a tested shared-dialect inheritance* - is **not** what holds: 39
+  message-rule leaves have neither, and `no_declared_rule_is_dead_across_the_corpus` requires each to be
+  listed with a reason instead. An enumerated gap, which is weaker than the design asked for and stronger
+  than silence.
 - **Explainability** — a **design target**, partly built. Explain *data* is on every compiled clause
   (asset, id, doc) and compile-time diagnostics name the rule and the reason; the **rendered per-message
   trace** - every emitted *and* rejected message reporting rule, clause, selected path, transformation,
   carrier claim and rejection reason - is not built. Step 3 is marked landed on its behavioural conditions;
   condition 13 below is this one, and it is the part outstanding.
-- Dual-run comparison covers canonical attributes, raw messages *including provenance and position*,
-  tool definitions, assigned carrier semantics, and all four views. Goldens are never regenerated to
-  make a migration pass.
+- Dual-run comparison covers canonical attributes, raw message content, tool definitions and tool names,
+  assigned carrier semantics (as a table over the whole carrier vocabulary), and all four views. **Not**
+  provenance or position: a golden records per message its index, role, entry type, content, content digest,
+  tool name, finish reason and observation type - so a `PositionPath` that changed while every one of those
+  stayed equal would pass. Ordering *is* compared, through the index and the role sequence. Goldens are
+  never regenerated to make a migration pass, and `UPDATE_GOLDENS=1` still exits non-zero when an invariant
+  was violated, so known-bad output cannot be committed as reviewed.
 
 ## Performance
 
 Rules compile **once per ruleset** to a typed plan — never parsed, path-resolved, regex-compiled or
-string-dispatched per span. The runtime precompiles paths and decision tables, indexes candidate
-pipelines by event/exact-key/prefix, parses each carrier at most once and shares decoded values,
-imposes depth/iteration/emitted/decoded-byte budgets, and keeps iteration order stable.
+string-dispatched per span. That much is built: every JSONPath is a `JsonPath` compiled at load, decision
+tables are typed, iteration order is stable, and `MessagePlan::metadata_candidates` precomputes which rules
+can contribute a tool definition so the metadata path evaluates thirteen rules rather than sixty on every
+span.
+
+Three things in the original design are **not built**, listed because the rest of this section reads as a
+description of the runtime:
+
+| Target | What happens today |
+| --- | --- |
+| Index candidate pipelines by event / exact key / prefix | `from_event` filters the rule list linearly on `when_event`; `stage` walks the rules of a stage. Linear in the ruleset per span |
+| Parse each carrier at most once, sharing decoded values | Each reading parses the attribute it reads |
+| Depth / iteration / emitted / decoded-byte budgets | No budget exists in `domain/rules`. The bounded walks that *do* exist are per-feature constants elsewhere (`LANGGRAPH_STATE_DEPTH`, the corpus oracle's depth 8), not an engine-wide guard |
+
+None is on the critical path of the acceptance — the read benchmarks hold their ceilings with the ruleset as
+it stands, and `bench_session_scaling` shows the pipeline linear in its input. They matter as the ruleset
+grows, and a budget matters for a different reason: it is the difference between a hostile payload costing
+time and costing the process.
 
 The **ruleset hash joins the reconstruction cache key**. That cache is a memo over a pure function of
 the rows (`feed/cache.rs`); once rules can change, they are part of that function, and a dev hot-load
