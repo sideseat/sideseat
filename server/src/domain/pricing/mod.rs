@@ -631,11 +631,11 @@ fn map_system_to_litellm_provider(system: &str) -> &'static str {
         "databricks" => "databricks",
         "watsonx" | "watson_x" | "ibm_watsonx" => "watsonx",
 
-        // Framework-only values: return empty string to rely on model lookup
-        "strands-agents" | "strands_agents" | "langchain" | "langgraph" | "openinference"
-        | "llamaindex" | "crewai" | "autogen" | "huggingface" | "hugging_face" => "",
-
-        // Unknown - return empty string
+        // Anything else, framework names included: no provider, so the catalogue is searched by *model* name
+        // instead. There used to be a list of framework slugs here answering the same `""`, which made this
+        // function the last place in the server that named one - and it said nothing the catch-all does not.
+        // A framework is not a provider because it is not in the provider table, not because it is listed as
+        // an exception to it.
         _ => "",
     }
 }

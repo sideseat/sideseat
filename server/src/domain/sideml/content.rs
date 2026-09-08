@@ -350,7 +350,7 @@ pub fn normalize_content_block(block: &JsonValue) -> Option<JsonValue> {
                 crate::domain::rules::schema::ChainPosition::AfterProviderFormats,
             )
         })
-        .or_else(|| try_vercel_format(block))
+        // One dialect's blocks are declared at the position above; see `rules/content-blocks-vercel.json`.
         // Universal media patterns (mime_type fields, nested self-named media)
         .or_else(|| try_media_fallback(block))
         // Finally, handle unknown formats
@@ -435,7 +435,6 @@ fn try_normalize_provider_format(block: &JsonValue) -> Option<JsonValue> {
                 crate::domain::rules::schema::ChainPosition::AfterProviderFormats,
             )
         })
-        .or_else(|| try_vercel_format(block))
         .or_else(|| try_media_fallback(block))
     // No unknown fallback - returns None if no provider format matches
 }
@@ -1020,6 +1019,10 @@ fn try_gemini_format(block: &JsonValue) -> Option<JsonValue> {
 /// 2. Aggregated response: `{"content": "...", "finishReason": "stop", "role": "assistant"}`
 ///
 /// Vercel AI uses hyphenated type names and camelCase field names.
+/// Retired: declared in `rules/content-blocks-vercel.json`, at the `after_provider_formats` position. Kept as
+/// the equivalence oracle - `the_declared_dialect_blocks_match_the_reader_they_replace` runs both over every
+/// form it recognised and every shape where it declined.
+#[cfg(test)]
 fn try_vercel_format(block: &JsonValue) -> Option<JsonValue> {
     // Try typed block format first
     if let Some(block_type) = block.get("type").and_then(|t| t.as_str()) {
@@ -1573,6 +1576,141 @@ fn extract_thinking_text(block: &JsonValue) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The declared cases for one dialect answer exactly as `try_vercel_format` does.
+    ///
+    /// Every form it recognises, plus the shapes where it *declines* - because declining is what leaves a block
+    /// to the rest of the chain, and a case that claims one too eagerly turns an unrelated block into a
+    /// message. The one stated difference is the last case.
+    #[test]
+    fn the_declared_dialect_blocks_match_the_reader_they_replace() {
+        use crate::domain::rules::schema::ChainPosition;
+
+        let plan = &crate::domain::rules::ruleset().content_blocks;
+        let cases: Vec<(&str, JsonValue)> = vec![
+            (
+                "a call with both an id and arguments",
+                json!({"type": "tool-call", "toolCallId": "c1", "toolName": "search", "input": {"q": "x"}}),
+            ),
+            (
+                "a call whose arguments are under the older member name",
+                json!({"type": "tool-call", "toolCallId": "c1", "toolName": "search", "args": {"q": "x"}}),
+            ),
+            (
+                "a call whose newer member is an empty object beside a filled older one",
+                json!({"type": "tool-call", "toolName": "search", "input": {}, "args": {"q": "x"}}),
+            ),
+            (
+                "a call with no id, which is still a call",
+                json!({"type": "tool-call", "toolName": "search", "input": {"q": "x"}}),
+            ),
+            (
+                "a call with no name, which names nothing to run",
+                json!({"type": "tool-call", "toolCallId": "c1", "input": {}}),
+            ),
+            (
+                "a result",
+                json!({"type": "tool-result", "toolCallId": "c1", "result": {"ok": true}}),
+            ),
+            (
+                "a result under the other member name, flagged as an error",
+                json!({"type": "tool-result", "toolCallId": "c1", "output": "boom", "isError": true}),
+            ),
+            (
+                "a result with the snake-case error flag",
+                json!({"type": "tool-result", "toolCallId": "c1", "result": "boom", "is_error": true}),
+            ),
+            (
+                "a result with no content at all",
+                json!({"type": "tool-result", "toolCallId": "c1"}),
+            ),
+            (
+                "structured data",
+                json!({"type": "json", "value": {"a": 1}}),
+            ),
+            (
+                "structured data that is a list",
+                json!({"type": "json", "value": [1, 2]}),
+            ),
+            ("prose", json!({"type": "text", "value": "hello"})),
+            ("a text block with no value", json!({"type": "text"})),
+            (
+                "a file with the newer media-type member",
+                json!({"type": "file", "mediaType": "image/png", "data": "iVBOR"}),
+            ),
+            (
+                "a file with the older one",
+                json!({"type": "file", "mimeType": "image/jpeg", "data": "/9j/4"}),
+            ),
+            (
+                "a file with no media type",
+                json!({"type": "file", "data": "iVBOR"}),
+            ),
+            (
+                "a file with no data",
+                json!({"type": "file", "mediaType": "image/png"}),
+            ),
+            (
+                "an aggregated response with a finish reason",
+                json!({"content": "the answer", "finishReason": "stop", "role": "assistant"}),
+            ),
+            (
+                "an aggregated response known only by its provider metadata",
+                json!({"content": "the answer", "providerMetadata": {"x": 1}}),
+            ),
+            (
+                "an aggregated response known only by its role",
+                json!({"content": "the answer", "role": "assistant"}),
+            ),
+            (
+                "a content string with none of those members",
+                json!({"content": "the answer"}),
+            ),
+            (
+                "a content string whose role is not the assistant's",
+                json!({"content": "the question", "role": "user"}),
+            ),
+            (
+                "a block whose content is not a string",
+                json!({"content": {"parts": []}, "finishReason": "stop"}),
+            ),
+            (
+                "an unrecognised type beside a content string - claimed by neither",
+                json!({"type": "reasoning-part", "content": "hmm", "finishReason": "stop"}),
+            ),
+            (
+                "a block with no type and no content",
+                json!({"role": "assistant"}),
+            ),
+            ("a bare string, which is not an object", json!("hello")),
+        ];
+
+        for (what, block) in cases {
+            let declared = plan.normalize(&block, ChainPosition::AfterProviderFormats);
+            let retired = try_vercel_format(&block);
+            assert_eq!(
+                declared, retired,
+                "the declared cases disagree with the reader they replace: {what}"
+            );
+        }
+
+        // The one stated difference: a `type` that is not a *string*. The retired reader fell through to its
+        // aggregated case for such a block; the declared condition asks only whether a type is present, which
+        // this vocabulary can spell where "is not a string" cannot be. The difference is the safe direction -
+        // the block goes to the rest of the chain instead of being claimed as prose - and no producer of this
+        // dialect writes a non-string type.
+        let non_string_type = json!({"type": 7, "content": "the answer", "finishReason": "stop"});
+        assert_eq!(
+            try_vercel_format(&non_string_type),
+            Some(json!({"type": "text", "text": "the answer"})),
+            "the retired reader claimed it"
+        );
+        assert_eq!(
+            plan.normalize(&non_string_type, ChainPosition::AfterProviderFormats),
+            None,
+            "and the declared cases leave it to the rest of the chain"
+        );
+    }
 
     // ========== semconv 1.37 part types ==========
 

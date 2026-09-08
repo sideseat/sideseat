@@ -103,6 +103,22 @@ impl ContentBlockPlan {
                 ChainPosition::AfterProviderFormats => plan.after.push(rule.clone()),
             }
         }
+        // A **shared rank within one chain position** is refused: the chain's order decides which dialect
+        // answers for a shape more than one of them recognises, so two cases at the same rank would be
+        // resolved by whichever asset loaded first. Across positions a rank means nothing - one runs before
+        // the provider formats and the other after - so they are checked apart.
+        for (position, rules) in [("before", &plan.before), ("after", &plan.after)] {
+            for pair in rules.windows(2) {
+                assert!(
+                    pair[0].legacy_rank != pair[1].legacy_rank,
+                    "content-block rules `{}` and `{}` share rank {} at the `{position}` position, so which \
+                     one answers a shape they both recognise depends on load order",
+                    pair[0].id,
+                    pair[1].id,
+                    pair[0].legacy_rank
+                );
+            }
+        }
         plan
     }
 
@@ -198,12 +214,62 @@ mod tests {
     use super::*;
 
     fn plan_from(rule: serde_json::Value) -> ContentBlockPlan {
+        plan_from_all(vec![rule])
+    }
+
+    fn plan_from_all(rules: Vec<serde_json::Value>) -> ContentBlockPlan {
         let file: RuleFile = serde_json::from_value(serde_json::json!({
             "id": "probe",
-            "content_blocks": [rule],
+            "content_blocks": rules,
         }))
         .expect("the probe asset parses");
         ContentBlockPlan::compile(&[file])
+    }
+
+    /// Two cases at one rank and one position: which answers a shape they both recognise would depend on
+    /// load order, which is nobody's statement.
+    #[test]
+    #[should_panic(expected = "share rank 1 at the `after` position")]
+    fn two_cases_sharing_a_rank_at_one_position_are_refused() {
+        plan_from_all(vec![
+            serde_json::json!({
+                "id": "probe.a",
+                "at": "after_provider_formats",
+                "legacy_rank": 1,
+                "require": {"all": [{"path": "$.type", "one_of": ["text"]}]},
+                "text": {"text": ["$.value"]},
+            }),
+            serde_json::json!({
+                "id": "probe.b",
+                "at": "after_provider_formats",
+                "legacy_rank": 1,
+                "require": {"all": [{"path": "$.type", "one_of": ["prose"]}]},
+                "text": {"text": ["$.value"]},
+            }),
+        ]);
+    }
+
+    /// The same rank at *different* positions means nothing: one runs before the provider formats and the
+    /// other after, so there is no contest to resolve.
+    #[test]
+    fn the_same_rank_at_different_positions_is_accepted() {
+        let plan = plan_from_all(vec![
+            serde_json::json!({
+                "id": "probe.before",
+                "at": "before_provider_formats",
+                "legacy_rank": 1,
+                "require": {"all": [{"path": "$.type", "one_of": ["text"]}]},
+                "text": {"text": ["$.value"]},
+            }),
+            serde_json::json!({
+                "id": "probe.after",
+                "at": "after_provider_formats",
+                "legacy_rank": 1,
+                "require": {"all": [{"path": "$.type", "one_of": ["prose"]}]},
+                "text": {"text": ["$.value"]},
+            }),
+        ]);
+        assert_eq!(plan.rule_count(), 2);
     }
 
     /// One target form, and the reason it must be exactly one.
