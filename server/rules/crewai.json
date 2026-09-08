@@ -140,7 +140,7 @@
       "id": "crewai.agent_task_tools",
       "doc": "The tools this dialect names in its agent and task metadata. An entry may be a tool itself or hold a list of them, and the same tool appears under both keys at different richness - so every carrier is read and the best copy per name wins.",
       "read": {
-        "attribute_any_of": [
+        "each": [
           "crew_agents",
           "crew_tasks"
         ]

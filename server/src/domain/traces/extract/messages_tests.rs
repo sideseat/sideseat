@@ -8769,7 +8769,7 @@ fn a_tautological_requirement_is_not_a_condition() {
         (
             "a rule reading a later spelling of a carrier another rule reads first",
             r#"{"id":"t","doc":"d","messages":[
-                {"id":"a","doc":"d","read":{"attribute_any_of":["first","second"]},"parse":"json",
+                {"id":"a","doc":"d","read":{"first_present":["first","second"]},"parse":"json",
                  "emit":"message","tag_as":"a.own.tag","legacy_rank":1},
                 {"id":"b","doc":"d","read":{"attribute":"second"},"parse":"json","emit":"message",
                  "tag_as":"b.own.tag","legacy_rank":2}]}"#,
@@ -8793,7 +8793,7 @@ fn a_tautological_requirement_is_not_a_condition() {
 /// - two rules gated on the **same** thing, both reading one carrier: whenever the gate holds the earlier
 ///   owns the carrier, and otherwise neither runs. A boolean "is conditional" called that pair safe;
 /// - a tag collision excused by *any* static overlap between the rules' reads. A rule reading
-///   `attribute_any_of: ["first", "second"]` owns `first` when both are present, so a rule reading `second`
+///   `first_present: ["first", "second"]` owns `first` when both are present, so a rule reading `second`
 ///   under the same tag is not resolved by ownership at all;
 /// - a `one_of`/`none_of` complement on a *member* path, which is a tautology for the same reason the
 ///   `exists` pair is: a sole `none_of` holds of an absent value, so between them every value and its
@@ -8813,7 +8813,7 @@ fn a_condition_separates_two_rules_only_when_it_differs() {
         (
             "a shared tag where ownership does not resolve the pair",
             r#"{"id":"t","doc":"d","messages":[
-                {"id":"a","doc":"d","read":{"attribute_any_of":["first","second"]},"parse":"json",
+                {"id":"a","doc":"d","read":{"first_present":["first","second"]},"parse":"json",
                  "emit":"message","tag_as":"shared","legacy_rank":1},
                 {"id":"b","doc":"d","read":{"attribute":"second"},"parse":"json","emit":"message",
                  "tag_as":"shared","legacy_rank":2}]}"#,
@@ -9361,9 +9361,9 @@ fn a_wider_gate_suppresses_a_narrower_one() {
                  "tag_as":"b.tag","legacy_rank":2}]}"#,
         ),
         (
-            "a single-spelling `attribute_any_of`, which is not a choice",
+            "a single-spelling `first_present`, which is not a choice",
             r#"{"id":"t","doc":"d","messages":[
-                {"id":"a","doc":"d","read":{"attribute_any_of":["only"]},"parse":"json","emit":"message",
+                {"id":"a","doc":"d","read":{"first_present":["only"]},"parse":"json","emit":"message",
                  "tag_as":"shared","when":{"attr_exists":["m"]},"legacy_rank":1},
                 {"id":"b","doc":"d","read":{"attribute":"only"},"parse":"json","emit":"message",
                  "tag_as":"shared","legacy_rank":2}]}"#,
@@ -9485,7 +9485,7 @@ fn conditionality_is_a_property_of_the_carrier_not_of_the_rule() {
 #[test]
 fn an_event_rules_gate_asks_about_its_span_not_about_the_event() {
     let asset = br#"{"id":"t","doc":"d",
-      "message_events":[{"name":"some.event","doc":"a probe event"}],
+      "message_events":[{"id": "probe.some_event", "name": "some.event","doc":"a probe event"}],
       "messages":[
         {"id":"by_name","doc":"d","when_event":["some.event"],
          "when":{"span_name":["chat "]},

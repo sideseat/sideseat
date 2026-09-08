@@ -5954,7 +5954,8 @@ fn the_declared_source_names_are_exactly_the_ones_that_can_occur() {
     // otherwise, and this states the property the refusal exists for.
     for name in &declared {
         assert!(
-            ruleset.message_events.contains(*name) || ruleset.tagged_source_names.contains(*name),
+            ruleset.message_events.contains_key(*name)
+                || ruleset.tagged_source_names.contains(*name),
             "`{name}` declares a role and nothing produces it"
         );
     }

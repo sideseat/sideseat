@@ -2294,7 +2294,7 @@ fn an_event_role_declaration_must_be_able_to_answer_and_must_not_depend_on_load_
     let compiled = |roles: serde_json::Value| {
         let probe = serde_json::json!({
             "id": "probe",
-            "message_events": [{"name": "probe.event"}],
+            "message_events": [{"id": "probe.probe_event", "name": "probe.event"}],
             "messages": [{
                 "id": "probe.tagging_rule",
                 "read": {"attribute": "probe.attribute"},
@@ -2322,33 +2322,36 @@ fn an_event_role_declaration_must_be_able_to_answer_and_must_not_depend_on_load_
     for (what, roles) in [
         (
             "a role outside the vocabulary, which would silently leave the role to the content",
-            serde_json::json!([{"name": "probe.event", "role": "narrator"}]),
+            serde_json::json!([{"id": "probe.role1", "name": "probe.event", "role": "narrator"}]),
         ),
         (
             "a tool-span role outside it, which the ordinary role would mask on a chat span",
-            serde_json::json!([{"name": "probe.event", "role": "user", "role_in_tool_span": "narrator"}]),
+            serde_json::json!([{"id": "probe.role2", "name": "probe.event", "role": "user", "role_in_tool_span": "narrator"}]),
         ),
         (
             "no role at all, which states nothing and would replace a real declaration",
-            serde_json::json!([{"name": "probe.event"}]),
+            serde_json::json!([{"id": "probe.role3", "name": "probe.event"}]),
         ),
-        ("no name", serde_json::json!([{"name": "", "role": "user"}])),
+        (
+            "no name",
+            serde_json::json!([{"id": "probe.nameless", "name": "", "role": "user"}]),
+        ),
         (
             "a name nothing produces - neither an event nor any rule's tag",
-            serde_json::json!([{"name": "probe.absent", "role": "user"}]),
+            serde_json::json!([{"id": "probe.role4", "name": "probe.absent", "role": "user"}]),
         ),
         (
             "two declarations that disagree, where which applies depends on load order",
             serde_json::json!([
-                {"name": "probe.event", "role": "user"},
-                {"name": "probe.event", "role": "assistant"},
+                {"id": "probe.role5", "name": "probe.event", "role": "user"},
+                {"id": "probe.role6", "name": "probe.event", "role": "assistant"},
             ]),
         ),
         (
             "two that disagree only about the tool span, which is the half easiest to overlook",
             serde_json::json!([
-                {"name": "probe.event", "role": "user", "role_in_tool_span": "tool"},
-                {"name": "probe.event", "role": "user"},
+                {"id": "probe.role7", "name": "probe.event", "role": "user", "role_in_tool_span": "tool"},
+                {"id": "probe.role8", "name": "probe.event", "role": "user"},
             ]),
         ),
     ] {
@@ -2360,13 +2363,13 @@ fn an_event_role_declaration_must_be_able_to_answer_and_must_not_depend_on_load_
         (
             "a repeat that agrees, which is a dialect re-stating a convention",
             serde_json::json!([
-                {"name": "probe.event", "role": "user"},
-                {"name": "probe.event", "role": "user"},
+                {"id": "probe.role9", "name": "probe.event", "role": "user"},
+                {"id": "probe.role10", "name": "probe.event", "role": "user"},
             ]),
         ),
         (
             "a role for a name a rule assigns with `tag_as`, which no producer emits",
-            serde_json::json!([{"name": "probe.tag", "role": "tool"}]),
+            serde_json::json!([{"id": "probe.role11", "name": "probe.tag", "role": "tool"}]),
         ),
     ] {
         assert!(compiled(roles).is_ok(), "{what} was refused");
@@ -2454,7 +2457,7 @@ fn no_production_module_carries_a_framework_telemetry_key() {
 ///
 /// **Everything dotted except a closed list of the engine's own vocabulary**, which is the opposite of the
 /// first version's allowlist of key-bearing members. That allowlist was a hand-maintained projection of the
-/// schema and it was already incomplete - `attribute_any_of`, `from_any_of`, `attrs_present`, `attr:`-encoded
+/// schema and it was already incomplete - `first_present`, `from_any_of`, `attrs_present`, `attr:`-encoded
 /// text sources and a prefix ending in `.` all held keys it never read - so a key declared only through one of
 /// those could be hard-coded in Rust and this sweep would say nothing.
 ///
@@ -3165,7 +3168,8 @@ fn a_composed_reading_cannot_be_starved_by_a_lower_ranked_rule() {
             if let Some(attribute) = &rule.read.attribute {
                 reads.insert(attribute.clone());
             }
-            reads.extend(rule.read.attribute_any_of.iter().cloned());
+            reads.extend(rule.read.first_present.iter().cloned());
+            reads.extend(rule.read.each.iter().cloned());
             if let Some(compose) = &rule.compose {
                 for member in &compose.members {
                     reads.extend(member.from_any_of.iter().cloned());
@@ -3819,10 +3823,10 @@ fn a_shared_message_rank_is_refused_only_where_the_order_shows() {
         let asset = serde_json::json!({
             "id": "probe",
             "message_events": [
-                {"name": "probe.first"},
-                {"name": "probe.second"},
-                {"name": "probe.shared"},
-                {"name": "probe.other"},
+                {"id": "probe.probe_first", "name": "probe.first"},
+                {"id": "probe.probe_second", "name": "probe.second"},
+                {"id": "probe.probe_shared", "name": "probe.shared"},
+                {"id": "probe.probe_other", "name": "probe.other"},
             ],
             "messages": rules,
         });
@@ -4579,6 +4583,192 @@ fn a_fact_vector_the_model_cannot_mean_is_refused() {
         assert!(
             compiled(facts, family).is_ok(),
             "{what} is coherent and must compile"
+        );
+    }
+}
+
+/// The raw-event policy is a fact about the event, stated once.
+///
+/// It used to be `replaces_raw_event` on each *reading*, ORed at runtime across every reading whose gates
+/// held. Both readings of the one container event repeated it, so the policy was stated twice with nothing
+/// keeping the two statements consistent - a `true` beside a `false` compiled and `true` silently won, which
+/// is a disagreement resolved by which reading happened to be written first.
+#[test]
+fn the_raw_event_policy_is_the_events_own_and_cannot_disagree_with_itself() {
+    use super::schema::{RawEventForm, RuleFile};
+
+    let compile = |events: serde_json::Value| {
+        let probe = serde_json::json!({"id": "probe", "message_events": events});
+        let file: RuleFile = serde_json::from_value(probe).expect("the probe asset parses");
+        super::compile_message_events(&[file])
+    };
+
+    // The shipped container, and an ordinary event beside it.
+    let plan = compile(serde_json::json!([
+        {"id": "probe.container", "name": "probe.container", "raw": "replace"},
+        {"id": "probe.plain", "name": "probe.plain"},
+    ]))
+    .expect("two events that state different policies about *different* names are consistent");
+    assert_eq!(plan["probe.container"].raw, RawEventForm::Replace);
+    assert_eq!(
+        plan["probe.plain"].raw,
+        RawEventForm::Message,
+        "an event says nothing about its raw form, so its body is a message - the default a reading-level \
+         flag could not express, since absent meant only that this reading did not claim it"
+    );
+
+    // An agreeing repeat is a dialect re-stating a convention, and **both** witnesses are kept: the previous
+    // form collapsed the entries into a set of names, so the second asset's declaration existed nowhere.
+    let plan = compile(serde_json::json!([
+        {"id": "semconv.container", "name": "probe.container", "raw": "replace"},
+        {"id": "dialect.container", "name": "probe.container", "raw": "replace"},
+    ]))
+    .expect("a repeat that agrees is allowed");
+    let witnesses: Vec<String> = plan["probe.container"]
+        .witnesses
+        .paths()
+        .iter()
+        .map(ToString::to_string)
+        .collect();
+    assert_eq!(
+        witnesses,
+        ["dialect.container", "semconv.container"],
+        "both declarations said it, so both are evidence for it"
+    );
+
+    // A disagreement is refused rather than resolved by load order.
+    let refused = compile(serde_json::json!([
+        {"id": "a.container", "name": "probe.container", "raw": "replace"},
+        {"id": "b.container", "name": "probe.container", "raw": "message"},
+    ]))
+    .expect_err("two assets disagreeing about one event's raw form must be refused");
+    assert!(
+        refused.contains("a.container") && refused.contains("b.container"),
+        "the refusal must name both declarations, or it says where to look and not what disagreed: {refused}"
+    );
+
+    // And the declarations are clauses like any other, so two sharing an id is refused - both registries,
+    // since each is its own id space.
+    for (which, entries) in [
+        (
+            "message_events",
+            serde_json::json!({
+                "id": "probe",
+                "message_events": [
+                    {"id": "probe.same", "name": "probe.one"},
+                    {"id": "probe.same", "name": "probe.two"},
+                ],
+            }),
+        ),
+        (
+            "event_roles",
+            serde_json::json!({
+                "id": "probe",
+                "message_events": [{"id": "probe.event", "name": "probe.one"}],
+                "event_roles": [
+                    {"id": "probe.same", "name": "probe.one", "role": "user"},
+                    {"id": "probe.same", "name": "probe.one", "role": "user"},
+                ],
+            }),
+        ),
+    ] {
+        let file: RuleFile = serde_json::from_value(entries).expect("the probe asset parses");
+        let defect = file
+            .declaration_defect()
+            .unwrap_or_else(|| panic!("two `{which}` entries sharing an id must be refused"));
+        assert!(
+            defect.contains("probe.same") && defect.contains(which),
+            "the refusal must name the id and the registry: {defect}"
+        );
+    }
+}
+
+/// One source syntax must not mean two different multiplicities.
+///
+/// `attribute_any_of` named a list of keys and said nothing about how many of them are read - and the answer
+/// came from a *sibling* member: with `tool_repr` beside it every present key was read, without it only the
+/// first. CrewAI's `["crew_agents", "crew_tasks"]` is exactly that shape, so the same list meant "both" there
+/// and "the first" in the two other shipped rules. The two readings are now two members, and the ownership
+/// analysis - which had modelled every list as first-wins - follows the one that applies.
+#[test]
+fn a_carrier_list_says_how_many_of_its_keys_are_read() {
+    use crate::domain::rules::message_rules::{MessageContext, compile};
+
+    let asset = |body: &str| {
+        std::collections::BTreeMap::from([("t.json".to_string(), body.as_bytes().to_vec())])
+    };
+
+    // `first_present`: the first spelling the span carries, and nothing after it.
+    let plan = compile(&asset(
+        r#"{"id":"t","messages":[{"id":"t.alternatives","read":{"first_present":["new","old"]},
+             "parse":"text","emit":"message","legacy_rank":1}]}"#,
+    ))
+    .expect("ordered alternatives compile");
+    let attrs = std::collections::HashMap::from([
+        ("new".to_string(), "fresh".to_string()),
+        ("old".to_string(), "stale".to_string()),
+    ]);
+    let ctx = MessageContext::for_span("span", &attrs, false);
+    let read: Vec<String> = plan.run(&ctx).iter().map(|e| e.value.to_string()).collect();
+    assert_eq!(
+        read,
+        [r#""fresh""#],
+        "`first_present` reads one carrier per span - the first listed the span has"
+    );
+
+    // `each` with an ordinary body is refused rather than silently read as `first_present`, which is the
+    // whole point of the split: the previous member would have quietly given the first-wins reading here.
+    let refused = compile(&asset(
+        r#"{"id":"t","messages":[{"id":"t.each","read":{"each":["new","old"]},
+             "parse":"text","emit":"message","legacy_rank":1}]}"#,
+    ))
+    .expect_err("`each` on a body that cannot iterate its carriers must be refused");
+    assert!(
+        refused.to_string().contains("first_present"),
+        "the refusal must name the member to use instead: {refused}"
+    );
+
+    // And `each` **is** honoured where a body iterates: every listed key present is its own observation.
+    let plan = compile(&asset(
+        r#"{"id":"t","messages":[{"id":"t.tools","read":{"each":["agents","tasks"]},"parse":"json",
+             "emit":"tool_definitions","legacy_rank":1,
+             "tool_repr":{"entries":"$[*]","candidates":["$"],"name_field":"name",
+               "description_field":"description","name_label":"Tool Name:",
+               "description_label":"Tool Description:","arguments_label":"Tool Arguments:",
+               "repr_markers":["name="],"parameter_members":["parameters"],
+               "field_terminators":[","],"type_map":[["str","string"]],"type_default":"string"}}]}"#,
+    ))
+    .expect("`each` compiles with `tool_repr`");
+    let attrs = std::collections::HashMap::from([
+        (
+            "agents".to_string(),
+            r#"["Tool(name='a', description='one')"]"#.to_string(),
+        ),
+        (
+            "tasks".to_string(),
+            r#"["Tool(name='b', description='two')"]"#.to_string(),
+        ),
+    ]);
+    let ctx = MessageContext::for_span("span", &attrs, false);
+    assert_eq!(
+        plan.tool_definitions(&ctx).len(),
+        2,
+        "`each` reads every listed key the span carries, which is what CrewAI's two tool keys need"
+    );
+
+    // A repeated key can never mean what it says, in either member.
+    for member in ["first_present", "each"] {
+        let body = format!(
+            r#"{{"id":"t","messages":[{{"id":"t.dup","read":{{"{member}":["k","k"]}},"parse":"json",
+                 "emit":"tool_definitions","legacy_rank":1,
+                 "tool_repr":{{"entries":"$[*]","candidates":["$"],"name_field":"name",
+                 "description_field":"d","name_label":"N:","description_label":"D:",
+                 "arguments_label":"A:","repr_markers":["name="],"parameter_members":["parameters"],
+                 "field_terminators":[","],"type_map":[["str","string"]],"type_default":"string"}}}}]}}"#
+        );
+        assert!(
+            compile(&asset(&body)).is_err(),
+            "`{member}` listing one key twice must be refused"
         );
     }
 }

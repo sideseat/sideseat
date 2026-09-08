@@ -178,8 +178,12 @@ pub struct Ruleset {
     pub detect: detect_rules::DetectPlan,
     /// Which carriers an ingestion reads, declaratively.
     pub messages: message_rules::MessagePlan,
-    /// The event names that carry messages, from every asset.
-    pub message_events: std::collections::HashSet<String>,
+    /// Which events carry messages, and what each event's own raw form is.
+    ///
+    /// A map from the event name to its declaration, not a `HashSet<String>` of names: the entries answer two
+    /// runtime questions (is this event a message carrier, and is its body a container its readings replace)
+    /// and a set of names could answer only the first, with the second stated on the readings instead.
+    pub message_events: std::collections::BTreeMap<String, DeclaredMessageEvent>,
     /// Which role each source name carries, and which instead on a tool execution span.
     pub event_roles: std::collections::BTreeMap<String, DeclaredEventRole>,
     /// Source names this engine assigns itself, through a rule's `tag_as`.
@@ -246,11 +250,8 @@ pub fn ruleset() -> &'static Ruleset {
             detect,
             messages,
             content_blocks: content_blocks::ContentBlockPlan::compile(&parsed_files(&sources)),
-            message_events: parsed_files(&sources)
-                .iter()
-                .flat_map(|file| &file.message_events)
-                .map(|event| event.name.clone())
-                .collect(),
+            message_events: compile_message_events(&parsed_files(&sources))
+                .unwrap_or_else(|e| panic!("embedded message events are malformed: {e}")),
             event_roles: compile_event_roles(
                 &parsed_files(&sources),
                 &tag_names(&parsed_files(&sources)),
@@ -315,6 +316,19 @@ pub(super) fn tag_names(files: &[schema::RuleFile]) -> std::collections::BTreeSe
 /// The asset, rule id and doc travel with it for the reason every other compiled clause carries them - a
 /// diagnostic that cannot say *which* declaration answered explains nothing.
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DeclaredMessageEvent {
+    /// Whether the event's own body is a message, or a container its readings replace.
+    pub raw: schema::RawEventForm,
+    /// Every declaration that agrees, outermost first - not merely the first one loaded.
+    ///
+    /// Several assets may legitimately declare one event (the conventions list `gen_ai.choice` and a dialect
+    /// re-lists it to add its own doc), and the previous form kept whichever arrived first. A witness set is
+    /// the honest shape: they all said it, so they are all evidence for it.
+    pub witnesses: expr::EvidenceSet,
+}
+
+/// What role a source name carries, gathered across every asset.
+#[derive(Debug, Clone)]
 pub struct DeclaredEventRole {
     /// On an ordinary span. `None` leaves the role to the content.
     pub role: Option<crate::domain::sideml::ChatRole>,
@@ -322,8 +336,12 @@ pub struct DeclaredEventRole {
     pub in_tool_span: Option<crate::domain::sideml::ChatRole>,
     /// The asset that declared it.
     pub asset: String,
-    /// The rule id, so a diagnostic can name the declaration rather than only the name it answered for.
+    /// The declared clause id, so a diagnostic can name the declaration rather than only the name it
+    /// answered for. **Declared**, not synthesized from the asset and the event name: a synthesized id is
+    /// not an identity a declaration can be held to.
     pub rule_id: String,
+    /// Every declaration that agrees about the roles, so an agreeing repeat keeps its provenance.
+    pub witnesses: expr::EvidenceSet,
     /// Why, for the explain trace.
     pub doc: Option<String>,
 }
@@ -335,6 +353,55 @@ pub struct DeclaredEventRole {
 /// the conventions declare `gen_ai.choice` and a dialect re-declares it to add its own doc - so a repeat is
 /// accepted while a **disagreement** is refused: two assets claiming different roles for one event would be
 /// resolved by load order, which is not a statement anybody made.
+/// Which events carry messages, with every agreeing declaration kept.
+///
+/// A repeat that agrees is a dialect re-stating a convention and is allowed; a repeat that *disagrees* about
+/// the raw form is refused, because which one applied would depend on load order - the same rule the role
+/// registry follows, and the reason both are compiled rather than collected.
+pub(super) fn compile_message_events(
+    files: &[schema::RuleFile],
+) -> Result<std::collections::BTreeMap<String, DeclaredMessageEvent>, String> {
+    let mut out: std::collections::BTreeMap<String, DeclaredMessageEvent> =
+        std::collections::BTreeMap::new();
+    for file in files {
+        for event in &file.message_events {
+            if event.name.is_empty() {
+                return Err(format!(
+                    "`{}` declares a message event with no name",
+                    file.id
+                ));
+            }
+            let raw = event.raw.unwrap_or_default();
+            let path = expr::ClausePath::root(event.id.clone());
+            match out.get_mut(&event.name) {
+                None => {
+                    out.insert(
+                        event.name.clone(),
+                        DeclaredMessageEvent {
+                            raw,
+                            witnesses: expr::EvidenceSet::one(path),
+                        },
+                    );
+                }
+                Some(existing) if existing.raw == raw => {
+                    let mut paths = existing.witnesses.paths().to_vec();
+                    paths.push(path);
+                    existing.witnesses = expr::EvidenceSet::of(paths)
+                        .expect("a non-empty witness list stays non-empty");
+                }
+                Some(existing) => {
+                    return Err(format!(
+                        "message event `{}` is declared with two different raw forms ({:?} by {}, {raw:?} by \
+                         `{}`) - which applies would depend on load order",
+                        event.name, existing.raw, existing.witnesses, event.id
+                    ));
+                }
+            }
+        }
+    }
+    Ok(out)
+}
+
 pub(super) fn compile_event_roles(
     files: &[schema::RuleFile],
     tagged: &std::collections::BTreeSet<String>,
@@ -383,7 +450,8 @@ pub(super) fn compile_event_roles(
                 role: resolve(&event.role),
                 in_tool_span: resolve(&event.role_in_tool_span),
                 asset: file.id.clone(),
-                rule_id: format!("{}.event_role.{}", file.id, event.name),
+                rule_id: event.id.clone(),
+                witnesses: expr::EvidenceSet::one(expr::ClausePath::root(event.id.clone())),
                 doc: event.doc.clone(),
             };
             // A name that says nothing about the role is not a declaration, and accepting it would let an
@@ -403,7 +471,18 @@ pub(super) fn compile_event_roles(
                 // allowed - the provenance differs by definition and says nothing about the answer.
                 Some(existing)
                     if existing.role == declared.role
-                        && existing.in_tool_span == declared.in_tool_span => {}
+                        && existing.in_tool_span == declared.in_tool_span =>
+                {
+                    // Agreement keeps *both* witnesses. The previous form discarded the later one, so an
+                    // asset that re-stated a convention had no provenance for a fact it declared.
+                    let mut paths = existing.witnesses.paths().to_vec();
+                    paths.extend(declared.witnesses.paths().iter().cloned());
+                    let merged = expr::EvidenceSet::of(paths)
+                        .expect("a non-empty witness list stays non-empty");
+                    out.get_mut(&event.name)
+                        .expect("just looked it up")
+                        .witnesses = merged;
+                }
                 Some(existing) => {
                     return Err(format!(
                         "source name `{}` is declared {:?}/{:?} in `{}` and {:?}/{:?} in `{}` - which \

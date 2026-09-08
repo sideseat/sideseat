@@ -188,8 +188,6 @@ pub struct CompiledMessageRule {
     pub stage: super::schema::MessageStage,
     /// The events this rule applies to; non-empty makes it an event rule.
     pub when_event: Vec<String>,
-    /// Whether its readings replace the event's raw form.
-    pub replaces_raw_event: bool,
     pub elements: Option<ElementsSpec>,
     pub walk: Option<super::schema::WalkSpec>,
     pub sections: Option<SectionsSpec>,
@@ -304,7 +302,6 @@ fn compile_rule(
         id,
         doc,
         when_event,
-        replaces_raw_event,
         stage,
         tool_repr,
         read,
@@ -392,6 +389,30 @@ fn compile_rule(
                  `sections`, `alternatives`, `parse`, `tag_as` and the reading requirements would be \
                  ignored",
         ));
+    }
+    // `each` reads *every* listed key the span carries; only `tool_repr` iterates its carriers. Declared
+    // anywhere else it would be silently read as `first_present` - which is precisely the conflation the two
+    // members exist to end, so the wrong pairing is a refusal rather than a quiet reinterpretation.
+    if !read.each.is_empty() && tool_repr.is_none() {
+        return Err(inexpressible(
+            "`each` reads every listed key as its own observation, and only `tool_repr` iterates its \
+                 carriers - elsewhere it would be read as `first_present`, which is the ambiguity the two \
+                 members replace. Use `first_present` for ordered alternatives",
+        ));
+    }
+    // A repeated key can never mean what it says: under `first_present` the second occurrence is
+    // unreachable, and under `each` it would read one attribute as two observations of it. An *empty* list
+    // needs no rule of its own - it names no carrier, so `named_count` already refuses a rule whose only
+    // source it is. A **single**-key list is deliberately allowed: `single_carrier_of` reads it as the exact
+    // carrier it is, which is what lets a renamed key be declared alongside nothing else.
+    for keys in [&read.first_present, &read.each] {
+        let mut seen: std::collections::BTreeSet<&str> = std::collections::BTreeSet::new();
+        if keys.iter().any(|key| !seen.insert(key.as_str())) {
+            return Err(inexpressible(
+                "a carrier list names one key twice - under `first_present` the repeat is unreachable, and \
+                 under `each` it would read one attribute as two observations",
+            ));
+        }
     }
     // A wrap is meaningful on an *aggregated* family: the entries become one array, and one array needs an
     // envelope saying what it is - a result set is one observation, not one message per document.
@@ -620,7 +641,8 @@ fn compile_rule(
             tag_as.as_deref(),
         ];
         if named.iter().flatten().any(|name| name.is_empty())
-            || read.attribute_any_of.iter().any(String::is_empty)
+            || read.first_present.iter().any(String::is_empty)
+            || read.each.iter().any(String::is_empty)
         {
             return Err(MessageCompileError::EmptyCarrier { rule: id.clone() });
         }
@@ -635,20 +657,18 @@ fn compile_rule(
                                     // The mirror of the parent's no-dead-fields rule. A leaf is reached
                                     // through its parent, so the fields the *entry points* consult are read
                                     // from the parent alone: `stage` selects which top-level rules a stage
-                                    // runs, `when_event`/`replaces_raw_event` are asked of a top-level rule
-                                    // by the event path, and a branch's order is positional, so a leaf's
-                                    // rank orders nothing. Each compiled silently and stated something the
-                                    // engine never reads.
+                                    // runs, `when_event` is asked of a top-level rule by the event path, and
+                                    // a branch's order is positional, so a leaf's rank orders nothing. Each
+                                    // compiled silently and stated something the engine never reads.
                                     if sub.stage.is_some()
                                         || sub.when_event.is_some()
-                                        || sub.replaces_raw_event.is_some()
                                         || sub.legacy_rank.is_some()
                                     {
                                         return Err(inexpressible(
                                             "a branch leaf is reached through its parent, so `stage`, \
-                                             `when_event`, `replaces_raw_event` and `legacy_rank` are read \
-                                             from the parent and would be ignored here - declare them on \
-                                             the rule that owns the branch set",
+                                             `when_event` and `legacy_rank` are read from the parent and \
+                                             would be ignored here - declare them on the rule that owns \
+                                             the branch set",
                                         ));
                                     }
                                     compile_rule(file_id, sub, fragments)
@@ -730,7 +750,6 @@ fn compile_rule(
         branch_set: compiled_branch_set,
         stage: stage.unwrap_or_default(),
         when_event: when_event.clone().unwrap_or_default(),
-        replaces_raw_event: replaces_raw_event.unwrap_or(false),
         elements: elements.clone(),
         walk: walk.clone(),
         sections: sections.clone(),
@@ -971,7 +990,7 @@ pub fn compile(sources: &BTreeMap<String, Vec<u8>>) -> Result<MessagePlan, Messa
             let b_reads = consumed_carriers(b);
             // The exemption for a tag collision has to be about the carriers the colliding *emissions*
             // necessarily own, not any carrier either rule might read. A rule reading
-            // `attribute_any_of: ["first", "second"]` beside one reading `second` overlaps statically and
+            // `first_present: ["first", "second"]` beside one reading `second` overlaps statically and
             // owns `first` at runtime when both are present - so both emissions survive under one tag, which
             // is the defect the exemption was meant to exclude. Same for an unused compose fallback or an
             // unrelated branch leaf.
@@ -1594,7 +1613,12 @@ fn necessarily_owned(rule: &CompiledMessageRule) -> Option<&str> {
     if rule.read.indexed_family.is_some() {
         return None;
     }
-    match rule.read.attribute_any_of.as_slice() {
+    // `each` names several carriers that are all read, so there is no single one to answer with - unlike
+    // `first_present`, where exactly one spelling is read per span.
+    if !rule.read.each.is_empty() {
+        return None;
+    }
+    match rule.read.first_present.as_slice() {
         // One spelling is not a choice.
         [only] if rule.read.attribute.is_none() => Some(only.as_str()),
         [] => rule.read.attribute.as_deref(),
@@ -1796,13 +1820,19 @@ fn consumed_patterns(rule: &CompiledMessageRule) -> Vec<Consumed> {
     }
     // Only the *first* alternative is claimed unconditionally: the rest are read where no earlier spelling
     // was present, so a rule reading a later one yields whenever an earlier one is there.
-    for (position, key) in rule.read.attribute_any_of.iter().enumerate() {
+    for (position, key) in rule.read.first_present.iter().enumerate() {
         let pattern = CarrierPattern::Exact(key.clone());
         out.push(if position == 0 {
             always(pattern)
         } else {
             only_sometimes(pattern)
         });
+    }
+    // `each` is the opposite: every listed key the span carries is read, so every one is claimed
+    // unconditionally. Under the conflated member this analysis said `only_sometimes` for all but the first,
+    // which understated what the one shipped `each` rule owns.
+    for key in &rule.read.each {
+        out.push(always(CarrierPattern::Exact(key.clone())));
     }
     if let Some(family) = rule.read.indexed_family.as_deref() {
         // Every key beneath the family, since each index's members are read.
@@ -1912,7 +1942,10 @@ fn emitted_patterns(rule: &CompiledMessageRule) -> Vec<Consumed> {
         out.push(always(CarrierPattern::Exact(attribute.to_string())));
     }
     // A tag per spelling, and only the first is emitted whatever the span carries.
-    for (position, key) in rule.read.attribute_any_of.iter().enumerate() {
+    for key in &rule.read.each {
+        out.push(always(CarrierPattern::Exact(key.clone())));
+    }
+    for (position, key) in rule.read.first_present.iter().enumerate() {
         let pattern = CarrierPattern::Exact(key.clone());
         out.push(if position == 0 {
             always(pattern)
@@ -1997,7 +2030,13 @@ impl MessagePlan {
         let ctx = MessageContext::for_event(span_name, span_attrs, event_attrs, is_tool_span);
         let mut out = Vec::new();
         let mut claimed: std::collections::HashSet<OwnedCarrier> = std::collections::HashSet::new();
-        let mut replaces = false;
+        // The event's own declaration, asked once. It used to be ORed together from every reading that
+        // matched and whose gates held, which meant the policy was stated twice with nothing keeping the
+        // two statements consistent - a `true` beside a `false` compiled, and `true` silently won.
+        let replaces = crate::domain::rules::ruleset()
+            .message_events
+            .get(event_name)
+            .is_some_and(|declared| declared.raw == super::schema::RawEventForm::Replace);
         for rule in self
             .rules
             .iter()
@@ -2010,12 +2049,6 @@ impl MessagePlan {
             // form either. Asked before `replaces` is set, where it used to be set first.
             if !gates_allow(rule, &ctx) {
                 continue;
-            }
-            // Whether the event's raw form is a message is a fact about the *event*, not about whether
-            // this reading found anything: a container is a container even when empty, and emitting the
-            // empty container would report a message the retired path never did.
-            if rule.replaces_raw_event {
-                replaces = true;
             }
             // The same routing and ownership as a span: only message emissions, one rule per carrier. An
             // event's attributes are a flat map a producer wrote, so nothing about them earns an exemption
@@ -2721,7 +2754,7 @@ fn carrier_texts<'p, 's>(
         .attribute
         .as_deref()
         .into_iter()
-        .chain(rule.read.attribute_any_of.iter().map(String::as_str))
+        .chain(rule.read.each.iter().map(String::as_str))
         .filter_map(|key| ctx.span_attrs.get(key).map(|raw| (key, raw.as_str())))
         .collect()
 }
@@ -2733,7 +2766,7 @@ fn resolve_attribute<'p, 's>(
     if let Some(attribute) = read.attribute.as_deref() {
         return attrs.get(attribute).map(|raw| (attribute, raw.as_str()));
     }
-    read.attribute_any_of
+    read.first_present
         .iter()
         .find_map(|key| attrs.get(key).map(|raw| (key.as_str(), raw.as_str())))
 }

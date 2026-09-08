@@ -419,10 +419,12 @@ fn rank_scope<'a>(
     // detection groups by these very ordinals, so a flag it sets cannot gate the rank that decides
     // whether it fires - the two executions this rank exists to keep (`agent-framework/tool_use` and
     // the five suites beside it) all report their calls through *emission* carriers, and a re-send by
-    // definition arrives through one that `carrier_may_contain_history_or_state`.
+    // definition arrives through one that `may_restate_prior_observations`. That fact and not
+    // `may_contain_framework_state`: the question here is whether the id could have been *regenerated*,
+    // which is a property of replaying an earlier observation, not of holding a scratchpad.
     let id_is_execution_evidence =
         !crate::domain::sideml::carrier::semantics_for_context(&block.carrier_context())
-            .carrier_may_contain_history_or_state;
+            .may_restate_prior_observations;
     let response = response_scope(block, shape);
     let lists_shape_once = shape_count.get(&response).copied().unwrap_or(1) <= 1;
     if id_is_execution_evidence && id.is_some_and(|s| !s.is_empty()) && lists_shape_once {

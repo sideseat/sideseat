@@ -210,8 +210,11 @@ fn resolve_facts(
     if let Some(v) = facts.carrier_is_atomic_emission {
         semantics.carrier_is_atomic_emission = v;
     }
-    if let Some(v) = facts.carrier_may_contain_history_or_state {
-        semantics.carrier_may_contain_history_or_state = v;
+    if let Some(v) = facts.may_restate_prior_observations {
+        semantics.may_restate_prior_observations = v;
+    }
+    if let Some(v) = facts.may_contain_framework_state {
+        semantics.may_contain_framework_state = v;
     }
     if let Some(v) = facts.carrier_holds_span_output {
         semantics.carrier_holds_span_output = v;
@@ -258,12 +261,10 @@ fn incoherent(
              point of an emission is that each position in it is a separate thing that happened",
         );
     }
-    if semantics.carrier_is_atomic_emission && semantics.carrier_may_contain_history_or_state {
-        return Some(
-            "is one atomic emission and may contain history - an emission is what this span produced now, so \
-             it cannot also be a re-listing of earlier turns",
-        );
-    }
+    // **There is deliberately no "an atomic emission cannot replay" implication.** It was here, and it
+    // was wrong: `gen_ai.tool.message` is one atomic emission whose entire purpose is handing a *past*
+    // tool result back to a model, so under that rule such a carrier could never be recognised as
+    // replayable input. Atomicity describes occurrence and grouping; replay describes freshness.
     if semantics.carrier_is_detached_request_frame && semantics.carrier_holds_span_output {
         return Some(
             "is a detached request frame and holds the span's output - a frame precedes what the request saw, \

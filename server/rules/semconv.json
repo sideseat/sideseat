@@ -399,7 +399,6 @@
       "when_event": [
         "gen_ai.client.inference.operation.details"
       ],
-      "replaces_raw_event": true,
       "read": {
         "attribute": "gen_ai.input.messages"
       },
@@ -414,7 +413,6 @@
       "when_event": [
         "gen_ai.client.inference.operation.details"
       ],
-      "replaces_raw_event": true,
       "read": {
         "attribute": "gen_ai.output.messages"
       },
@@ -493,78 +491,95 @@
   ],
   "message_events": [
     {
+      "id": "semconv.message_event.system_message",
       "name": "gen_ai.system.message",
       "doc": "A system instruction, as an event."
     },
     {
+      "id": "semconv.message_event.user_message",
       "name": "gen_ai.user.message",
       "doc": "A user turn."
     },
     {
+      "id": "semconv.message_event.assistant_message",
       "name": "gen_ai.assistant.message",
       "doc": "An assistant turn - a replay for most dialects, and the reply itself for a choiceless generation span."
     },
     {
+      "id": "semconv.message_event.choice",
       "name": "gen_ai.choice",
       "doc": "What the model chose: this span's own output."
     },
     {
+      "id": "semconv.message_event.content_prompt",
       "name": "gen_ai.content.prompt",
       "doc": "The deprecated spelling of the request."
     },
     {
+      "id": "semconv.message_event.content_completion",
       "name": "gen_ai.content.completion",
       "doc": "The deprecated spelling of the response."
     },
     {
+      "id": "semconv.message_event.tool_message",
       "name": "gen_ai.tool.message",
       "doc": "A tool result handed back to a model."
     },
     {
+      "id": "semconv.message_event.client_inference_operation_details",
       "name": "gen_ai.client.inference.operation.details",
+      "raw": "replace",
       "doc": "A container whose own attributes are the request and the response."
     }
   ],
   "event_roles": [
     {
+      "id": "semconv.event_role.system_message",
       "name": "gen_ai.system.message",
       "role": "system",
       "doc": "A system instruction."
     },
     {
+      "id": "semconv.event_role.user_message",
       "name": "gen_ai.user.message",
       "role": "user",
       "doc": "A user turn."
     },
     {
+      "id": "semconv.event_role.content_prompt",
       "name": "gen_ai.content.prompt",
       "role": "user",
       "doc": "The deprecated spelling of the request, which is a user turn."
     },
     {
+      "id": "semconv.event_role.tool_message",
       "name": "gen_ai.tool.message",
       "role": "tool",
       "role_in_tool_span": "assistant",
       "doc": "A tool message means opposite things by span: on a chat span it is what the tool returned, and on a tool execution span it is the arguments the assistant passed. The tool-span reading is `assistant` rather than a role of its own so it cannot merge with the tool's *output* during correlation - `tool_call` maps to assistant anyway, so it is the same statement."
     },
     {
+      "id": "semconv.event_role.tool_result",
       "name": "gen_ai.tool.result",
       "role": "tool",
       "doc": "A name a rule assigns with `tag_as`, not one a producer emits: a bundled result set, whose members are the tool's answers whatever span carries them."
     },
     {
+      "id": "semconv.event_role.assistant_message",
       "name": "gen_ai.assistant.message",
       "role": "assistant",
       "role_in_tool_span": "assistant",
       "doc": "Always the assistant, on either kind of span - it is a re-sent turn for most dialects and the reply itself for a choiceless generation span, and neither is a tool's output."
     },
     {
+      "id": "semconv.event_role.choice",
       "name": "gen_ai.choice",
       "role": "assistant",
       "role_in_tool_span": "tool",
       "doc": "What the model chose on a chat span, and on a tool execution span what the *tool* returned - the span's own output either way, which is why the role follows the span."
     },
     {
+      "id": "semconv.event_role.content_completion",
       "name": "gen_ai.content.completion",
       "role": "assistant",
       "role_in_tool_span": "tool",

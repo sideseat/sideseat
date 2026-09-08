@@ -166,7 +166,7 @@ impl RawToolNames {
 fn is_message_event(event_name: &str) -> bool {
     crate::domain::rules::ruleset()
         .message_events
-        .contains(event_name)
+        .contains_key(event_name)
 }
 
 // ============================================================================

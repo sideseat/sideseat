@@ -37,8 +37,26 @@ pub struct CarrierSemantics {
     pub position_provides_sequence_order: bool,
     /// The carrier is one emission, so its observations belong together and stay contiguous.
     pub carrier_is_atomic_emission: bool,
-    /// The carrier may re-state earlier turns, so its observations can be history rather than news.
-    pub carrier_may_contain_history_or_state: bool,
+    /// The carrier may re-state observations that already happened, so what it holds can be a replay
+    /// rather than news.
+    ///
+    /// **Not the same question as `may_contain_framework_state`, and the two were one bit until cycle 9.**
+    /// The conflated form named both and answered neither: dedup reads *this* one (a re-send regenerates
+    /// the provider's call id, so an id from a carrier that may replay is not evidence of a second
+    /// execution), while framework state is a claim about the carrier holding a scratchpad rather than a
+    /// conversation. And `carrier_is_atomic_emission` does **not** exclude it: `gen_ai.tool.message` is one
+    /// atomic emission whose whole purpose is handing a *past* tool result back to a model. Atomicity is
+    /// about occurrence and grouping, not about freshness.
+    pub may_restate_prior_observations: bool,
+    /// The carrier holds accumulated framework state - a scratchpad, a graph's state dict, a chain's
+    /// aggregate - rather than (only) a conversation.
+    ///
+    /// Separate from `may_restate_prior_observations` because state and replay have different consumers:
+    /// a replay is prior *observations*, which is why their ids cannot be trusted, while state is the
+    /// framework's own bookkeeping, which is why its *positions* prove nothing about multiplicity. A
+    /// carrier can be either without being the other - `gen_ai.tool.message` replays without being state,
+    /// and a freshly-built state dict is state without replaying anything.
+    pub may_contain_framework_state: bool,
     /// The span *produced* what this carrier holds, rather than receiving it.
     ///
     /// Declared per carrier because it cannot be inferred from the others, and because inferring it
@@ -87,7 +105,8 @@ impl CarrierSemantics {
         position_proves_distinct_occurrence: true,
         position_provides_sequence_order: true,
         carrier_is_atomic_emission: true,
-        carrier_may_contain_history_or_state: false,
+        may_restate_prior_observations: false,
+        may_contain_framework_state: false,
         carrier_holds_span_output: true,
         carrier_is_detached_request_frame: false,
     };
@@ -100,7 +119,8 @@ impl CarrierSemantics {
         position_proves_distinct_occurrence: false,
         position_provides_sequence_order: true,
         carrier_is_atomic_emission: false,
-        carrier_may_contain_history_or_state: true,
+        may_restate_prior_observations: true,
+        may_contain_framework_state: false,
         carrier_holds_span_output: false,
         carrier_is_detached_request_frame: false,
     };
@@ -116,7 +136,8 @@ impl CarrierSemantics {
         position_proves_distinct_occurrence: false,
         position_provides_sequence_order: true,
         carrier_is_atomic_emission: false,
-        carrier_may_contain_history_or_state: true,
+        may_restate_prior_observations: true,
+        may_contain_framework_state: true,
         carrier_holds_span_output: true,
         carrier_is_detached_request_frame: false,
     };
@@ -405,7 +426,7 @@ mod tests {
                 "both state a sequence, which is what the carrier-subsequence invariant reads"
             );
             assert!(
-                carrier.carrier_may_contain_history_or_state,
+                carrier.may_restate_prior_observations,
                 "both can re-state earlier turns"
             );
         }

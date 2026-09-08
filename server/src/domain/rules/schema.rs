@@ -897,7 +897,8 @@ pub struct Facts {
     #[serde(default)]
     pub carrier_is_atomic_emission: Option<bool>,
     #[serde(default)]
-    pub carrier_may_contain_history_or_state: Option<bool>,
+    pub may_restate_prior_observations: Option<bool>,
+    pub may_contain_framework_state: Option<bool>,
     #[serde(default)]
     pub carrier_holds_span_output: Option<bool>,
     #[serde(default)]
@@ -966,13 +967,6 @@ pub struct MessageRule {
     /// all, and a check comparing against the default accepted the explicit spelling as a no-op.
     #[serde(default)]
     pub when_event: Option<Vec<String>>,
-    /// Whether this rule's readings *replace* the event's raw form rather than adding to it.
-    ///
-    /// One convention event is a container: its own attributes are the two message carriers inside it, and
-    /// emitting the container as well would report the conversation twice. Another carries a message *and* a
-    /// bundled tool result, where both are wanted. Which it is, is a fact about the event.
-    #[serde(default)]
-    pub replaces_raw_event: Option<bool>,
     /// When this rule is read: with the dialects, or only if none of them produced a message.
     ///
     /// A *stage*, owned by the engine rather than a rule asking about other rules. Some carriers really are
@@ -1153,13 +1147,30 @@ pub struct MessageRule {
 pub struct ReadSpec {
     #[serde(default)]
     pub attribute: Option<String>,
-    /// Ordered carrier alternatives: the first of these the span carries is read, and the observation is
-    /// tagged with **that** key.
+    /// Ordered carrier alternatives: **the first** of these the span carries is read, and the observation
+    /// is tagged with that key.
     ///
     /// A dialect that renamed a key keeps accepting the old one, and the tag has to be the key actually
     /// found or two spans carrying different spellings would be indistinguishable downstream.
+    ///
+    /// Spelled `first_present` rather than `attribute_any_of` because that name did not say **how many** of
+    /// the listed keys are read, and the answer depended on a *sibling* member: with `tool_repr` beside it,
+    /// every present key was read; without, only the first. So one syntax meant two things - for CrewAI's
+    /// `["crew_agents", "crew_tasks"]`, both or just the first - and which was decided somewhere else in the
+    /// rule.
     #[serde(default)]
-    pub attribute_any_of: Vec<String>,
+    pub first_present: Vec<String>,
+    /// **Every** one of these keys the span carries is read, each as its own observation.
+    ///
+    /// The other half of the split above. A framework may write the same tools under several keys at
+    /// different richness, and each is its own observation - so all are read and the best copy per name wins
+    /// downstream, rather than the richest hiding behind whichever key was declared first.
+    ///
+    /// Honoured by `tool_repr` alone today, and a rule declaring it with any other body is **refused**
+    /// rather than silently read as `first_present`. Generalising it - every body iterating its carriers -
+    /// is the natural extension and is not what the corpus needs yet.
+    #[serde(default)]
+    pub each: Vec<String>,
     /// An *indexed attribute family*: `<prefix>.0.role`, `<prefix>.0.content`, `<prefix>.1.role`, ...
     ///
     /// One entry per index, each assembled from every key under it with the prefix stripped. This is an
@@ -1335,7 +1346,8 @@ impl ReadSpec {
     pub fn named_count(&self) -> usize {
         usize::from(self.attribute.is_some())
             + usize::from(self.indexed_family.is_some())
-            + usize::from(!self.attribute_any_of.is_empty())
+            + usize::from(!self.first_present.is_empty())
+            + usize::from(!self.each.is_empty())
     }
 }
 
@@ -2296,8 +2308,35 @@ pub enum MessageStage {
 #[derive(Debug, Deserialize, Clone)]
 #[serde(deny_unknown_fields)]
 pub struct MessageEvent {
+    /// This declaration's identity, required like every other clause's.
+    ///
+    /// It had none, and the entries were collapsed into a `HashSet<String>` of names - so "which asset says
+    /// this event carries messages" had no answer, and two assets declaring the same event left one witness
+    /// silently discarded. Both agreeing witnesses are kept now, because the point of provenance is that an
+    /// answer names the declarations that produced it.
+    pub id: String,
     pub name: String,
+    /// What the event's **raw form** is: an ordinary message, or a container its readings replace.
+    ///
+    /// A fact about the *event*, which is why it lives here rather than on each reading. It was
+    /// `replaces_raw_event` on a `MessageRule`, repeated on both readings of the one container event, ORed at
+    /// runtime - so a `true` beside a `false` compiled and `true` silently won, and the policy was stated
+    /// twice with nothing keeping the two statements consistent.
+    #[serde(default)]
+    pub raw: Option<RawEventForm>,
     pub doc: Option<String>,
+}
+
+/// What an event's own attributes are, once its readings have run.
+#[derive(Debug, Deserialize, Clone, Copy, PartialEq, Eq, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum RawEventForm {
+    /// The event body is itself a message. The default, and the case for all but one declared event.
+    #[default]
+    Message,
+    /// The event is a *container*: its own attributes are the messages, so emitting the container as well
+    /// would report the conversation twice.
+    Replace,
 }
 
 /// What role a message's **source name** implies, where the name itself decides it.
@@ -2310,6 +2349,10 @@ pub struct MessageEvent {
 #[derive(Debug, Deserialize, Clone)]
 #[serde(deny_unknown_fields)]
 pub struct EventRole {
+    /// This declaration's identity, required like every other clause's. The compiled form used to
+    /// *synthesize* one from the asset and the event name, which is not an identity a declaration can be
+    /// held to: two assets agreeing about a role produced one witness and the other's provenance was lost.
+    pub id: String,
     /// The source name: an event a producer emits, or a name a rule assigns with `tag_as`.
     pub name: String,
     /// The role on an ordinary span. Absent leaves the role to the content, which is a statement rather
@@ -2435,6 +2478,25 @@ impl RuleFile {
                     .collect(),
             ));
         }
+        // Both event registries, whose entries are clauses like any other: each answers a runtime
+        // question, so each needs an identity a diagnostic can name. They are their own id spaces because
+        // the two lists are different vocabularies - `message_events` says which OTLP events carry
+        // messages, `event_roles` says what a *source name* implies, and a name may be in one and not the
+        // other.
+        out.push((
+            "message_events".to_string(),
+            self.message_events
+                .iter()
+                .map(|event| event.id.clone())
+                .collect(),
+        ));
+        out.push((
+            "event_roles".to_string(),
+            self.event_roles
+                .iter()
+                .map(|role| role.id.clone())
+                .collect(),
+        ));
         for rule in &self.span_facts {
             out.push((
                 rule.id.clone(),

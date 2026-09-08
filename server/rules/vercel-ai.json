@@ -112,7 +112,7 @@
       "id": "vercel-ai.prompt",
       "doc": "The request, as an array of messages under either spelling of the key. Tagged with the canonical one whichever was read - this dialect reports the same carrier for both, so every span's prompt is comparable. Non-object elements are skipped: the array legitimately holds them, and emitting one produces a turn with no role and no content.",
       "read": {
-        "attribute_any_of": [
+        "first_present": [
           "ai.prompt.messages",
           "ai.prompt"
         ]
