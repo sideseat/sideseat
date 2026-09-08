@@ -1,7 +1,15 @@
 # The framework rules engine
 
-Design accepted with Codex (thread `01a0764b`), after one revision round; the amendments it required
-are folded in below rather than appended, so this file is the agreed design and not a transcript.
+Design accepted with Codex in thread `01a0764b`, after one revision round; the amendments it required are
+folded in below rather than appended, so this file is the agreed design and not a transcript. The review
+continued across later threads, and the **acceptance of the finished work** was given in thread `01a07fef`
+at cycle 40 — quoted verbatim under **Acceptance**.
+
+> **How to read this file.** Everything up to **Migration** is the *design as accepted*, written before it
+> was built. Everything from **Migration** down is what landed. Where the two differ the Migration section
+> and **Acceptance** are authoritative, and the difference is marked at each design section rather than left
+> for a reader to discover — a design document in the present tense reads as a description of the code, which
+> is the one thing it must not be mistaken for.
 
 ## The mandate
 
@@ -12,10 +20,13 @@ parses correctly.**
 
 Mechanised, so it is a gate rather than an aspiration:
 
-> Adding a currently-expressible framework consists only of adding data files and fixtures. The engine
-> binary contains no producer ids, carrier keys, tags, type mappings, or producer-specific branches,
-> and no behavioural API even *accepts* a framework label. Legacy and rules output are identical
-> before *and* after reconstruction, across the documented support matrix.
+> Adding a currently-expressible framework consists only of adding data files and fixtures. The generic
+> Rust **source** contains no producer ids, carrier keys, tags, type mappings, or producer-specific
+> branches outside the embedded rule data, and no behavioural API even *accepts* a framework label. Legacy
+> and rules output are identical before *and* after reconstruction, across the documented support matrix.
+
+The *binary* necessarily contains every producer id, because the assets are embedded in it — that is what
+makes a release self-contained. The claim is about the Rust that interprets them.
 
 ### Scope, stated narrowly on purpose
 
@@ -74,6 +85,11 @@ Rules compile into **global indexes** by carrier, event, key, scope, span shape 
 Rule files are organisational units; their clauses are indexed globally. Detection never selects a
 parser.
 
+*What landed:* the last sentence holds — detection never selects a parser. The indexing is partial:
+**carrier** rules are indexed by exact name and by prefix, and everything else is a compiled vector scanned
+per span (`from_event` filters on `when_event`, `stage` walks a stage's rules). See **Performance** for the
+three parts of that design that are not built.
+
 `scope_name` / `scope_version` (instrumentation-library identity, already extracted, persisted, and
 part of the feed cache digest) is **high-confidence matching evidence, not an exclusive dispatch key**:
 historical rows may lack it, several frameworks share instrumentation packages, and versions are not
@@ -95,10 +111,20 @@ reliably semantic. Scope constraints *narrow* candidates; carrier and shape rema
    source-direction, event→role and expandable-array tables live in `normalize.rs` and
    `feed/types.rs`. A migration that touches only `try_*` fails the criterion.
 
+   *What landed, all four:* there are **eight** carrier facts now plus a named `ordering_family`, read at
+   `feed/order_graph.rs:206` — so the seventh fact is declared rather than hardcoded. Source direction is
+   `carrier_holds_span_input` / `carrier_holds_span_output` and the expandable array is
+   `carrier_holds_expandable_message_array`. Event→role was the last one and was still a `match` in
+   `normalize.rs` until `8e3ab002`; it is `event_roles` in the assets now, which is where the one arm that
+   existed for a single CLI's `tool.output` event belongs. This correction was right, and finding the fourth
+   item took auditing the document against the code rather than the reverse.
+
 ## Is a generic primitive honest? The six tests
 
-The hard question is whether a `parse_python_literal` primitive — reachable today only from
-`try_crewai` — is a generic capability or CrewAI policy under an assumed name. A primitive is generic
+The hard question is whether a `parse_python_literal` primitive — reachable, when this was written, only
+from `try_crewai` — is a generic capability or CrewAI policy under an assumed name. (`try_crewai` is an
+equivalence oracle now; production reaches that grammar through a declared `ToolReprSpec`, and the module
+holding it names no framework.) A primitive is generic
 only if it passes **all six**:
 
 1. **Name erasure** — its implementation and tests read sensibly with every framework name and carrier
@@ -151,9 +177,14 @@ Qualifications that matter:
   needs a general bounded `walk`.
 - AutoGen is a **decision table** plus `flat_map`/emit-many, despite the procedural size it has today.
 - Claude Code is parameterised section splitting with tag capture; its constants belong in its file.
-- OpenInference needs a **cross-carrier indexed join**, not path mapping.
+- OpenInference needs a **cross-carrier indexed join**, not path mapping. *This turned out to be wrong,
+  and it was the design's own blocker:* both carriers are attributes of **one span** and the join is
+  positional, so it landed as an `overlay` declared beside the family that needs it, with no query-time
+  stage. Step 8 records why.
 
-"Minimal" cannot be proved from goldens. A **branch ledger** maps every legacy branch and helper to a
+"Minimal" cannot be proved from goldens. A **branch ledger** — proposed here, **never built**; what was
+built instead is the sixteen equivalence oracles, which hold each migration to the code it replaced rather
+than to an inventory of its branches — maps every legacy branch and helper to a
 rule clause, a primitive and a focused test, and dual-run comparison happens **before** downstream
 dedup, because final goldens can hide extractor differences.
 
@@ -226,6 +257,20 @@ The compiler topologically sorts and **rejects at compile time**: cycles, unknow
 handler ids, and ambiguous overlapping handlers with no ordering relation between them. The runtime
 explain output shows every matching handler and why one won.
 
+> **Not built. This whole section is a target.** An asset declaring `before` or `after` is refused by
+> `deny_unknown_fields` as an unknown member, not topologically sorted. What landed is a **rank and named
+> position** model:
+>
+> | Chain | How order is decided |
+> | --- | --- |
+> | Content blocks | three named `ChainPosition`s (`message_envelope`, `before_provider_formats`, `after_provider_formats`) and a `legacy_rank` within each |
+> | Messages, and both classifications | an explicit integer `rank`, sorted at compile time; a **shared** rank within one classification fails compilation, because which applied would otherwise depend on load order |
+> | Detection | first match in rank order, with `legacy_rank` reproducing the retired answer |
+>
+> So collisions are caught (a shared rank is refused) and renumbering is the cost the design wanted to
+> avoid. `overlapping_candidates` exists and is **test-only**, not a production metric, and there is no
+> runtime explain output — see the **Explainability** bullet, which is the same gap from the other side.
+
 Detection uses the same machinery, plus sufficiency:
 
 ```
@@ -240,31 +285,53 @@ evidence. During migration only, `legacy_rank` reproduces today's answer while c
 collected, and it is removed as predicates become genuinely sufficient. No opaque weighted scoring —
 that replaces visible ordering with ordering nobody can debug.
 
+> **Also a target.** `legacy_rank` is what ships: detection is first-match in rank order, `supersedes` and
+> the ambiguity metric do not exist, and `not` / `any_of` / `all_of` landed as `all_of: Vec<DetectMatch>`
+> with each conjunct internally a disjunction. The last sentence did hold — nothing is weighted — and the
+> rank *is* explicit and refused when shared, which is the property the design wanted from sufficiency.
+
 ## Assets
 
 Two kinds, deliberately not one mechanism:
 
 **Transformation rules** (the DSL, compiled to a typed plan) — one entry file per framework, JSON
 (zero new dependencies, the house format, and every clause carries a `doc` string the explain trace
-can surface, which is strictly better than a comment). Declarative `imports` of shared dialect
-fragments (semconv, OpenInference, a provider family) keep one-file-per-framework from duplicating a
-dialect across ten files. Sections:
+can surface, which is strictly better than a comment).
 
-- `detect` — label-only signals
-- `carriers` — carrier + qualifiers → the six facts **and** the ordering family
-- `messages` — ordered per-carrier extraction pipelines
-- `attributes` — canonical field → ordered fallback chain, including session id and finish reason
-- `content` / `tools` — content-block and tool-shape handlers, placed in named chains
-- `feed` — input/output source declarations, event classes, replay quirks
-- `tokens` / `cost` — provider → convention flags
-- `media`
+The section names below were the design's; **`RuleFile` is what an asset may actually contain**, and
+`deny_unknown_fields` refuses anything else — so the design's `imports`, `attributes`, `content`, `tools`,
+`feed`, `tokens`, `cost` and `media` are not members an asset can write:
+
+| Section | What it declares |
+| --- | --- |
+| `detect` | label-only signals, in explicit rank order |
+| `sdk_slugs` | the names an SDK declares itself by |
+| `carriers` | carrier + qualifiers → the **eight** facts and the named `ordering_family` |
+| `messages` | per-carrier readings, in rank order, with a stage |
+| `fragments` | named alternative sets a reading may reuse, which is what replaced `imports` |
+| `message_events` | which OTLP events carry messages |
+| `event_roles` | what a source name — an event, or a name a rule assigned — says about the role |
+| `message_members` | one member vocabulary answering three questions: holds content (ordered), means message-shaped, means a content block |
+| `content_blocks` | content-block forms, at a named `ChainPosition` |
+| `span_fields` | one ordered resolver per typed target, covering the design's `attributes`, `tokens` and `cost` |
+| `observation_types`, `span_categories` | the two classifications, ordered first-match |
+| `span_facts` | facts about a span any dialect can establish |
+| `provider_aliases` | a `gen_ai.system` value that is a framework's own name and means a provider the catalogue prices |
+
+Two of the design's sections have no counterpart because the question turned out to belong elsewhere:
+`feed`'s input/output declarations are carrier *facts* rather than a section of their own, and `media` is a
+content-block form (`media`) rather than a section.
 
 **Plain typed manifests** (no DSL, generic rendering) — the MCP setup guide entries, the provider
-catalogue, provider aliases, credential labels, environment variables, ambient-detection metadata. No
-tree transformation is involved and pulling them into the DSL buys nothing.
+catalogue, credential labels, environment variables, ambient-detection metadata. No tree transformation is
+involved and pulling them into the DSL buys nothing. **None of these has moved**; they are step 10 and
+outside the acceptance. Provider *aliases* are not among them: a framework naming itself in
+`gen_ai.system` is framework knowledge, so it is a rule section (`provider_aliases`) rather than a manifest.
 
-The generic `gen_ai.*` semconv is itself just a rule file, and the one every framework file may
-import.
+The generic `gen_ai.*` semconv is itself just a rule file. It is **not imported**: every asset's clauses go
+into one global plan, so the conventions' rules apply to every span without a framework file asking for
+them — which is why `imports` was never needed and why an asset naming no framework can carry the
+conventions for all of them.
 
 **Provider vocabulary reconciliation is still open**, and the prerequisite turned out to be narrower than
 this paragraph assumed. Three namespaces coexist (litellm provider names, `gen_ai.system` aliases, UI
@@ -346,7 +413,8 @@ bless a regression; an oracle cannot.
 1. ✅ Tighten scope and freeze the inventory.
 2. ✅ Rule schema, validator, compiler, immutable typed plan, ruleset hash. Explain data is on every
    compiled clause (asset, id, doc); the *rendered* trace is still to come.
-3. ✅ **Carrier semantics** — 32 clauses over 7 dialects, proven equivalent by
+3. ✅ **Carrier semantics** — 32 clauses over 7 dialects *at the time this step landed*, 55 now, proven
+   equivalent by
    `the_rules_reproduce_the_legacy_carrier_table`. The aggregator defect is diagnosed, measured and
    deliberately not shipped; see below.
 4. ✅ **Label-only detection** — 28 rules and 26 SDK slugs in the assets, proven equivalent by
@@ -364,8 +432,8 @@ bless a regression; an oracle cannot.
    rank fails compilation because their relative order would otherwise depend on load order. That order
    is load-bearing — the SideSeat SDK defaults `service.name` to one framework's name, so that rule's
    service-name signal must be last or it claims every span of every framework using the SDK.
-5. ✅ **Feed source / event / replay / ordering-family tables** — 9 `message_events` hold the event
-   vocabulary, and the replay and ordering knowledge is **eight** independent facts per carrier plus a named
+5. ✅ **Feed source / event / replay / ordering-family tables** — 9 `message_events` say which events
+   carry messages and 9 `event_roles` say what a source name implies about the role, and the replay and ordering knowledge is **eight** independent facts per carrier plus a named
    `ordering_family`, declared by each of the 55 `carriers` (`CarrierSemantics`, `sideml/carrier.rs`). Four
    are about what *position* within the carrier proves: `position_proves_distinct_occurrence`,
    `position_provides_sequence_order`, `carrier_is_atomic_emission`,
@@ -387,10 +455,11 @@ bless a regression; an oracle cannot.
    and the UI credential catalogue are still separate Rust tables. That reconciliation belongs with step 10
    and is outside the acceptance - it is provider vocabulary, not framework knowledge, and the token and
    cost conventions that depend on a *framework's* spelling are the part that moved.
-8. ✅ **Message extraction** — done. **Every** framework extractor entry is retired; the
-   two that remain name no framework: the generic `declared_rules` entry and the `raw_io`
-   fallback. Sixteen became two, with 52 message rules declared and each retirement proved
-   by `the_rules_reproduce_the_extractors_they_replaced` against the code it replaced.
+8. ✅ **Message extraction** — done. **Every** framework extractor entry is retired. At the time this
+   paragraph was first written two entries remained, both naming no framework — the generic
+   `declared_rules` entry and the `raw_io` fallback — with 52 message rules declared. Neither remains:
+   `EXTRACTORS` no longer exists at all (see below) and there are **71** message rules. Each retirement is
+   proved by `the_rules_reproduce_the_extractors_they_replaced` against the code it replaced.
 
    OpenInference was expected to be the hard one and was almost entirely already
    expressible: `indexed_family` + `entry_member` + `require_members` with `nested` presence
@@ -497,9 +566,9 @@ the tool calls that produced it. `_synthetic/agent_snapshot_reorders_answer` is 
 The correct resolution is **`ACCUMULATED_STATE`**, not `SNAPSHOT`: the carrier both re-lists history
 *and* holds the span's output, and those are separate facts in the model already.
 
-Context propagation is **part of this slice and not already solved**. `MessageSpanRow` carries
-`span_name`, `scope_name`, `scope_version` and `observation_type`, and both backends select them — but
-`BlockEntry` carries only `observation_type`, and `parse_span_rows` forwards a subset.
+Context propagation was **part of this slice and is now solved**: `BlockEntry` carries `span_name`,
+`scope_name`, `scope_version` and `observation_type`, and `parse_span_rows` forwards all four from
+`MessageSpanRow`. (When this was written it carried `observation_type` alone.)
 
 The slice is landed only when all of these are true:
 
@@ -605,20 +674,21 @@ Codex's acceptance, verbatim:
 
 ### What is declared, measured
 
-41 assets holding 338 rules:
+41 assets holding 347 rules:
 
 | Kind | Count | Kind | Count |
 | --- | --- | --- | --- |
-| `messages` | 71 | `sdk_slugs` | 26 |
-| `carriers` | 55 | `span_categories` | 22 |
-| `span_fields` | 47 | `message_events` | 9 |
+| `messages` | 71 | `span_categories` | 22 |
+| `carriers` | 55 | `message_events` | 9 |
+| `span_fields` | 47 | `event_roles` | 9 |
 | `observation_types` | 33 | `content_blocks` | 9 |
 | `message_members` | 32 | `span_facts` | 4 |
 | `detect` | 28 | `provider_aliases` | 2 |
+| `sdk_slugs` | 26 | | |
 
 Each retirement is held to the code it replaced by an **equivalence oracle** rather than by the goldens,
-because a golden can be regenerated and bless a regression. **Fifteen**, in two shapes, and one thing that
-is not an oracle at all:
+because a golden can be regenerated and bless a regression. **Sixteen**, in two shapes, and one thing that
+is not an oracle at all. Codex's classification, at cycle 42 when there were fifteen:
 
 > Thirteen focused equivalence tests compare individual migrations with the retired implementation. Two
 > further corpus-wide equivalence tests compare classifications across every captured span and
@@ -630,9 +700,12 @@ The focused thirteen are `the_rules_reproduce_the_legacy_carrier_table`,
 field-chain and token-table oracles, the two content-block readers, the member lists, the single-tool
 triple, the span facts, and the two classification sweeps in their focused form. The corpus-wide two are
 `the_declared_classification_matches_the_sweep_across_the_corpus` and
-`the_member_vocabulary_answers_as_it_did_across_the_corpus`. Keeping the coverage inventory out of that
-count is the point: it says which rules were *exercised*, which is a different question from whether the
-ones that ran agree with the code they replaced.
+`the_member_vocabulary_answers_as_it_did_across_the_corpus`. The fourteenth focused one is
+`the_declared_event_roles_reproduce_the_table_they_replaced`, added with the event-role move (`8e3ab002`) —
+which is why the total is sixteen and the quotation says fifteen.
+
+Keeping the coverage inventory out of that count is the point: it says which rules were *exercised*, which
+is a different question from whether the ones that ran agree with the code they replaced.
 
 ### The limits, in one place
 
@@ -661,8 +734,8 @@ fixed later — each is a boundary of what the evidence can carry.
   instrument.
 - **Names that are computed.** A name assembled from non-adjacent parts, or built from a variable rather
   than written, is not matched. Adjacent literals are, wherever they are laid out.
-- **Data-only extension holds for shapes the vocabulary already expresses.** Adding a framework whose
-  telemetry fits the existing primitives is an asset edit and needs no release. One that does not is a
-  *producer-neutral primitive* plus a server release - which is the design working as intended, not a
-  loophole, but it means "add a framework without shipping code" is a claim about expressible shapes rather
-  than about all future producers.
+- **Data-only extension is about the *change*, not about the deployment.** Adding a framework whose
+  telemetry fits the existing primitives requires only asset and fixture changes, but production assets are
+  embedded and immutable, so it still ships in a server release. A new shape additionally requires a
+  producer-neutral primitive. So "add a framework without shipping code" is a claim about which files a
+  change touches, and there is no reload mechanism that would make it a claim about a running installation.
