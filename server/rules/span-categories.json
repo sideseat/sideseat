@@ -8,7 +8,11 @@
       "doc": "One provider's API calls arrive as `rpc.system`, and would otherwise be categorised from their `gen_ai.*` attributes as the generation they duplicate.",
       "all_of": [
         {
-          "attr_exists": ["http.method", "http.request.method", "rpc.system"]
+          "attr_exists": [
+            "http.method",
+            "http.request.method",
+            "rpc.system"
+          ]
         }
       ],
       "result": "http"
@@ -16,31 +20,55 @@
     {
       "id": "category.database",
       "rank": 20,
-      "all_of": [{ "attr_exists": ["db.system"] }],
+      "all_of": [
+        {
+          "attr_exists": [
+            "db.system"
+          ]
+        }
+      ],
       "result": "db"
     },
     {
       "id": "category.messaging",
       "rank": 30,
-      "all_of": [{ "attr_exists": ["messaging.system"] }],
+      "all_of": [
+        {
+          "attr_exists": [
+            "messaging.system"
+          ]
+        }
+      ],
       "result": "messaging"
     },
     {
       "id": "category.object_storage",
       "rank": 40,
       "doc": "Any attribute under one provider's object-storage prefix, which is what a bucket or key operation carries.",
-      "all_of": [{ "attr_prefix": ["aws.s3."] }],
+      "all_of": [
+        {
+          "attr_prefix": [
+            "aws.s3."
+          ]
+        }
+      ],
       "result": "storage"
     },
     {
       "id": "category.chat_of_an_embedding_model",
       "rank": 50,
-      "doc": "The same correction the observation type makes: telemetry that reports an embedding call as a chat completion, settled by the model's own name, case-insensitively.",
+      "doc": "The same correction the observation type makes: telemetry that reports an embedding call as a chat completion, settled by the model's own name, case-insensitively. The two model attributes are two answers to one question, so only the **first present** one is searched: a request for a chat model answered by a mislabelled response model is still a chat completion.",
       "all_of": [
         {
           "attr_equals": [
-            { "key": "gen_ai.operation.name", "value": "chat" },
-            { "key": "gen_ai.operation.name", "value": "text_completion" }
+            {
+              "key": "gen_ai.operation.name",
+              "value": "chat"
+            },
+            {
+              "key": "gen_ai.operation.name",
+              "value": "text_completion"
+            }
           ]
         },
         {
@@ -49,7 +77,10 @@
               "attr:gen_ai.request.model",
               "attr:gen_ai.response.model"
             ],
-            "needles": ["embed"]
+            "needles": [
+              "embed"
+            ],
+            "first_present_source": true
           }
         }
       ],
@@ -61,8 +92,14 @@
       "all_of": [
         {
           "attr_equals": [
-            { "key": "gen_ai.operation.name", "value": "chat" },
-            { "key": "gen_ai.operation.name", "value": "text_completion" }
+            {
+              "key": "gen_ai.operation.name",
+              "value": "chat"
+            },
+            {
+              "key": "gen_ai.operation.name",
+              "value": "text_completion"
+            }
           ]
         }
       ],
@@ -74,7 +111,10 @@
       "all_of": [
         {
           "attr_equals": [
-            { "key": "gen_ai.operation.name", "value": "embeddings" }
+            {
+              "key": "gen_ai.operation.name",
+              "value": "embeddings"
+            }
           ]
         }
       ],
@@ -86,7 +126,10 @@
       "all_of": [
         {
           "attr_equals": [
-            { "key": "gen_ai.operation.name", "value": "execute_tool" }
+            {
+              "key": "gen_ai.operation.name",
+              "value": "execute_tool"
+            }
           ]
         }
       ],
@@ -99,8 +142,14 @@
       "all_of": [
         {
           "attr_equals": [
-            { "key": "gen_ai.operation.name", "value": "invoke_agent" },
-            { "key": "gen_ai.operation.name", "value": "invoke_swarm" },
+            {
+              "key": "gen_ai.operation.name",
+              "value": "invoke_agent"
+            },
+            {
+              "key": "gen_ai.operation.name",
+              "value": "invoke_swarm"
+            },
             {
               "key": "gen_ai.operation.name",
               "value": "execute_event_loop_cycle"
@@ -114,13 +163,25 @@
       "id": "category.named_tool",
       "rank": 100,
       "doc": "A tool name outranks an agent name here, which is the reverse of neither: the observation type asks the same pair in the other order, and both were transcribed as they stood.",
-      "all_of": [{ "attr_exists": ["gen_ai.tool.name"] }],
+      "all_of": [
+        {
+          "attr_exists": [
+            "gen_ai.tool.name"
+          ]
+        }
+      ],
       "result": "tool"
     },
     {
       "id": "category.named_agent",
       "rank": 110,
-      "all_of": [{ "attr_exists": ["gen_ai.agent.name"] }],
+      "all_of": [
+        {
+          "attr_exists": [
+            "gen_ai.agent.name"
+          ]
+        }
+      ],
       "result": "agent"
     },
     {
@@ -130,7 +191,10 @@
       "all_of": [
         {
           "attr_equals_ignore_case": [
-            { "key": "openinference.span.kind", "value": "LLM" }
+            {
+              "key": "openinference.span.kind",
+              "value": "LLM"
+            }
           ]
         }
       ],
@@ -142,7 +206,10 @@
       "all_of": [
         {
           "attr_equals_ignore_case": [
-            { "key": "openinference.span.kind", "value": "EMBEDDING" }
+            {
+              "key": "openinference.span.kind",
+              "value": "EMBEDDING"
+            }
           ]
         }
       ],
@@ -154,7 +221,10 @@
       "all_of": [
         {
           "attr_equals_ignore_case": [
-            { "key": "openinference.span.kind", "value": "AGENT" }
+            {
+              "key": "openinference.span.kind",
+              "value": "AGENT"
+            }
           ]
         }
       ],
@@ -166,7 +236,10 @@
       "all_of": [
         {
           "attr_equals_ignore_case": [
-            { "key": "openinference.span.kind", "value": "TOOL" }
+            {
+              "key": "openinference.span.kind",
+              "value": "TOOL"
+            }
           ]
         }
       ],
@@ -178,7 +251,10 @@
       "all_of": [
         {
           "attr_equals_ignore_case": [
-            { "key": "openinference.span.kind", "value": "CHAIN" }
+            {
+              "key": "openinference.span.kind",
+              "value": "CHAIN"
+            }
           ]
         }
       ],
@@ -190,7 +266,10 @@
       "all_of": [
         {
           "attr_equals_ignore_case": [
-            { "key": "openinference.span.kind", "value": "RETRIEVER" }
+            {
+              "key": "openinference.span.kind",
+              "value": "RETRIEVER"
+            }
           ]
         }
       ],
@@ -203,7 +282,10 @@
       "all_of": [
         {
           "attr_equals_ignore_case": [
-            { "key": "openinference.span.kind", "value": "GUARDRAIL" }
+            {
+              "key": "openinference.span.kind",
+              "value": "GUARDRAIL"
+            }
           ]
         }
       ],
@@ -215,7 +297,10 @@
       "all_of": [
         {
           "attr_equals_ignore_case": [
-            { "key": "openinference.span.kind", "value": "EVALUATOR" }
+            {
+              "key": "openinference.span.kind",
+              "value": "EVALUATOR"
+            }
           ]
         }
       ],
@@ -228,8 +313,13 @@
       "all_of": [
         {
           "text_contains": {
-            "sources": ["span_name"],
-            "needles": ["llm", "chat"]
+            "sources": [
+              "span_name"
+            ],
+            "needles": [
+              "llm",
+              "chat"
+            ]
           }
         }
       ],
@@ -239,7 +329,16 @@
       "id": "category.name_says_embedding",
       "rank": 131,
       "all_of": [
-        { "text_contains": { "sources": ["span_name"], "needles": ["embed"] } }
+        {
+          "text_contains": {
+            "sources": [
+              "span_name"
+            ],
+            "needles": [
+              "embed"
+            ]
+          }
+        }
       ],
       "result": "embedding"
     },
@@ -248,7 +347,14 @@
       "rank": 132,
       "all_of": [
         {
-          "text_contains": { "sources": ["span_name"], "needles": ["retriev"] }
+          "text_contains": {
+            "sources": [
+              "span_name"
+            ],
+            "needles": [
+              "retriev"
+            ]
+          }
         }
       ],
       "result": "retriever"

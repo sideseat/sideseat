@@ -11185,6 +11185,24 @@ fn the_declared_classification_matches_the_sweep_it_shadows() {
             ]),
         ),
         (
+            "a chat model answered by a mislabelled response model - the request model applies",
+            "chat",
+            rule_attrs(&[
+                ("gen_ai.operation.name", "chat"),
+                ("gen_ai.request.model", "gpt-4o"),
+                ("gen_ai.response.model", "text-embedding-3-small"),
+            ]),
+        ),
+        (
+            "an empty request model beside an embedding response model",
+            "chat",
+            rule_attrs(&[
+                ("gen_ai.operation.name", "chat"),
+                ("gen_ai.request.model", ""),
+                ("gen_ai.response.model", "text-embedding-3-small"),
+            ]),
+        ),
+        (
             "an embeddings operation",
             "embed",
             rule_attrs(&[("gen_ai.operation.name", "embeddings")]),
@@ -11425,6 +11443,24 @@ fn the_declared_category_matches_the_sweep_it_shadows() {
             ]),
         ),
         (
+            "a chat model answered by a mislabelled response model - the request model applies",
+            "chat",
+            rule_attrs(&[
+                ("gen_ai.operation.name", "chat"),
+                ("gen_ai.request.model", "gpt-4o"),
+                ("gen_ai.response.model", "text-embedding-3-small"),
+            ]),
+        ),
+        (
+            "an empty request model beside an embedding response model",
+            "chat",
+            rule_attrs(&[
+                ("gen_ai.operation.name", "chat"),
+                ("gen_ai.request.model", ""),
+                ("gen_ai.response.model", "text-embedding-3-small"),
+            ]),
+        ),
+        (
             "an embeddings operation",
             "embed",
             rule_attrs(&[("gen_ai.operation.name", "embeddings")]),
@@ -11539,4 +11575,43 @@ fn the_declared_category_matches_the_sweep_it_shadows() {
             "the declared category disagrees with the sweep it shadows: {what}"
         );
     }
+}
+
+/// The usage-details object holds every `gen_ai.usage.*` member **no declared counter reads**, derived.
+///
+/// It was a list beside the assets, which is the hole this engine exists to close: adding a spelling to a
+/// counter would leave the list unchanged, and the same number would then be counted twice - once as the
+/// counter it now is, and once as a detail. Derived from the plan, the two cannot drift.
+#[test]
+fn the_usage_details_are_what_no_declared_counter_reads() {
+    let attrs = rule_attrs(&[
+        // Read by a counter, so not a detail.
+        ("gen_ai.usage.input_tokens", "100"),
+        ("gen_ai.usage.cache_read_input_tokens", "20"),
+        ("gen_ai.usage.thoughts_token_count", "5"),
+        // Read by nothing, so a detail - one integer, one float, one that is neither.
+        ("gen_ai.usage.audio_tokens", "7"),
+        ("gen_ai.usage.cost_estimate", "0.25"),
+        ("gen_ai.usage.tier", "flex"),
+    ]);
+    let mut span = SpanData::default();
+    crate::domain::traces::extract::attributes::tests::extract_genai_as_production_does(
+        &mut span, &attrs, "chat",
+    );
+
+    let details = span
+        .gen_ai_usage_details
+        .as_object()
+        .cloned()
+        .unwrap_or_default();
+    let mut names: Vec<&String> = details.keys().collect();
+    names.sort();
+    assert_eq!(
+        names,
+        vec!["audio_tokens", "cost_estimate", "tier"],
+        "a member a counter reads is not a detail, and one nothing reads is"
+    );
+    assert_eq!(details["audio_tokens"], serde_json::json!(7));
+    assert_eq!(details["cost_estimate"], serde_json::json!(0.25));
+    assert_eq!(details["tier"], serde_json::json!("flex"));
 }

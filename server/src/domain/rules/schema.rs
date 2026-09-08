@@ -462,6 +462,14 @@ pub struct TextContains {
     pub sources: Vec<String>,
     /// Any of these, matched case-insensitively.
     pub needles: Vec<String>,
+    /// Search only the **first source that has a value**, rather than all of them.
+    ///
+    /// The difference is a decision, not a nicety. Two attributes may hold two answers to one question - a
+    /// request model and a response model - and searching both asks "does *either* say so" where the question
+    /// was "does the one that applies say so". A request for `gpt-4o` answered by `text-embedding-3-small` is
+    /// a chat completion whose response model is mislabelled, not an embedding call.
+    #[serde(default)]
+    pub first_present_source: bool,
 }
 
 /// The signals a detection rule may use. **Any** satisfied signal matches the rule.

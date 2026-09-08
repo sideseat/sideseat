@@ -562,19 +562,27 @@ const REASONING_TOKENS: TokenConfig = TokenConfig::new(
     ],
 );
 
-const KNOWN_USAGE_FIELDS: &[&str] = &[
-    "input_tokens",
-    "output_tokens",
-    "total_tokens",
-    "prompt_tokens",
-    "completion_tokens",
-    "cache_read_input_tokens",
-    "cache_read_tokens",
-    "cache_creation_input_tokens",
-    "cache_write_tokens",
-    "output_reasoning_tokens",
-    "thoughts_token_count",
-];
+/// The `gen_ai.usage.*` members a declared counter already reads, so the leftovers are what is left.
+///
+/// **Derived** from the assets rather than listed beside them: a hand-maintained mirror of a declaration is
+/// the hole this engine exists to close, and adding a spelling to a counter would otherwise silently change
+/// what the details object contains - the same value counted twice, once as a counter and once as a detail.
+fn counters_already_read() -> std::collections::BTreeSet<&'static str> {
+    use crate::domain::rules::schema::FieldTarget::*;
+    crate::domain::rules::ruleset()
+        .span_fields
+        .attributes_read(&[
+            UsageInputTokens,
+            UsageOutputTokens,
+            UsageTotalTokensReported,
+            UsageCacheReadTokens,
+            UsageCacheWriteTokens,
+            UsageReasoningTokens,
+        ])
+        .into_iter()
+        .filter_map(|key| key.strip_prefix("gen_ai.usage."))
+        .collect()
+}
 
 // ============================================================================
 // FRAMEWORK DETECTION
@@ -1727,11 +1735,12 @@ pub(crate) fn extract_genai(
             + counted_beside_output,
     );
 
-    // Usage details (remaining gen_ai.usage.* fields)
+    // Usage details: every `gen_ai.usage.*` member no declared counter reads.
+    let already_read = counters_already_read();
     let mut details = serde_json::Map::new();
     for (key, value) in attrs {
         if let Some(field) = key.strip_prefix("gen_ai.usage.")
-            && !KNOWN_USAGE_FIELDS.contains(&field)
+            && !already_read.contains(field)
         {
             let json_val = value
                 .parse::<i64>()

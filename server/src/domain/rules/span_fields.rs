@@ -167,6 +167,28 @@ impl SpanFieldPlan {
         self.rules.iter().map(|rule| rule.target)
     }
 
+    /// Every flat attribute any source of these targets reads.
+    ///
+    /// So a caller asking "which keys are already accounted for" reads the answer off the assets instead of
+    /// keeping a list beside them. A hand-maintained mirror of a declaration is the hole this engine exists to
+    /// close: adding a spelling to an asset would otherwise silently change what a *leftovers* set contains.
+    pub fn attributes_read(&self, targets: &[FieldTarget]) -> std::collections::BTreeSet<&str> {
+        self.rules
+            .iter()
+            .filter(|rule| targets.contains(&rule.target))
+            .flat_map(|rule| &rule.sources)
+            .flat_map(|source| {
+                source.spec.attribute.as_deref().into_iter().chain(
+                    source
+                        .spec
+                        .attribute_first_present_of
+                        .iter()
+                        .map(String::as_str),
+                )
+            })
+            .collect()
+    }
+
     /// Resolve every declared field for one span.
     ///
     /// The JSON cache is shared across rules and across targets, because one attribute (`metadata`) carries

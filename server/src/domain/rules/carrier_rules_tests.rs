@@ -682,7 +682,15 @@ fn the_selection_language_behaves_as_the_engine_assumes() {
 /// implementations the equivalence oracles compare against and legitimately name every dialect.
 #[test]
 fn message_extraction_names_no_framework() {
-    const SOURCE: &str = include_str!("../traces/extract/messages.rs");
+    // Both extraction files. `attributes.rs` reached zero the same way `messages.rs` did - every chain, table
+    // and sweep moved to an asset - and a *measured* zero decays, so it is gated by the same instrument.
+    const SOURCES: &[(&str, &str)] = &[
+        ("messages.rs", include_str!("../traces/extract/messages.rs")),
+        (
+            "attributes.rs",
+            include_str!("../traces/extract/attributes.rs"),
+        ),
+    ];
 
     // Producer names, the *carrier keys* that are producer knowledge even when the identifier is not, and
     // the **constant identifiers** that stand for those keys. Matching lowercase text alone was itself a
@@ -731,6 +739,37 @@ fn message_extraction_names_no_framework() {
         "GCP_VERTEX",
         "vercelaisdk",
         "langchain",
+        // The keys and identifiers the *field* and *classification* migrations retired. A span kind, a tag
+        // list, a serialised request or response, an embedded usage object, and the bare counter names one
+        // CLI writes - each is a producer's spelling and belongs in an asset.
+        "openinference.span",
+        "langsmith.span",
+        "logfire.tags",
+        "logfire.msg",
+        "response_data",
+        "request_data",
+        "mlflow.chat",
+        "crew_agents",
+        "models_usage",
+        "token_usage",
+        "cached_prompt_tokens",
+        "input_tokens",
+        "output_tokens",
+        "cache_read_tokens",
+        "cache_creation_tokens",
+        "OPENINFERENCE_SPAN_KIND",
+        "LANGSMITH_SPAN_KIND",
+        "LOGFIRE_MSG",
+        "MLFLOW_CHAT",
+        "RESPONSE_DATA",
+        "GCP_VERTEX_LLM",
+        "AI_MODEL_ID",
+        "AI_MODEL_PROVIDER",
+        "AI_OPERATION_ID",
+        "AI_TELEMETRY",
+        "LANGGRAPH_THREAD_ID",
+        "MLFLOW_TRACE",
+        "SemanticKind",
     ];
 
     // A marker counts only as a whole key: `gen_ai.prompt` is the *convention's* request family, not one
@@ -750,52 +789,58 @@ fn message_extraction_names_no_framework() {
     const STATED_EXCEPTIONS: &[&str] = &[];
 
     let mut offenders = Vec::new();
-    let mut in_test_item = false;
-    let mut seen_open = false;
-    let mut test_depth: i32 = 0;
-    let mut pending_test = false;
-    for (number, line) in SOURCE.lines().enumerate() {
-        let trimmed = line.trim();
-        if trimmed.contains("#[cfg(test)]") {
-            pending_test = true;
-            continue;
-        }
-        if pending_test {
-            // The item the attribute applies to: skipped until its braces balance, or - for a `const` or a
-            // `use` - until its statement ends.
-            in_test_item = true;
-            seen_open = false;
-            test_depth = 0;
-            pending_test = false;
-        }
-        if in_test_item {
-            test_depth += line.matches('{').count() as i32 - line.matches('}').count() as i32;
-            if line.contains('{') {
-                seen_open = true;
+    for (file, source) in SOURCES {
+        let mut in_test_item = false;
+        let mut seen_open = false;
+        let mut test_depth: i32 = 0;
+        let mut pending_test = false;
+        for (number, line) in source.lines().enumerate() {
+            let trimmed = line.trim();
+            if trimmed.contains("#[cfg(test)]") {
+                pending_test = true;
+                continue;
             }
-            if (seen_open && test_depth <= 0) || (!seen_open && trimmed.ends_with(';')) {
-                in_test_item = false;
+            if pending_test {
+                // The item the attribute applies to: skipped until its braces balance, or - for a `const` or a
+                // `use` - until its statement ends.
+                in_test_item = true;
+                seen_open = false;
+                test_depth = 0;
+                pending_test = false;
             }
-            continue;
-        }
-        if trimmed.starts_with("//") || STATED_EXCEPTIONS.contains(&trimmed) {
-            continue;
-        }
-        // Case-insensitively, because a constant is upper case and a key is lower, and the same fact must
-        // not evade the gate by how it happens to be spelled.
-        let folded = line.to_ascii_lowercase();
-        if let Some(marker) = FRAMEWORK_MARKERS
-            .iter()
-            .find(|m| names_marker(&folded, &m.to_ascii_lowercase()))
-        {
-            offenders.push(format!("  {}: {} <- `{marker}`", number + 1, trimmed));
+            if in_test_item {
+                test_depth += line.matches('{').count() as i32 - line.matches('}').count() as i32;
+                if line.contains('{') {
+                    seen_open = true;
+                }
+                if (seen_open && test_depth <= 0) || (!seen_open && trimmed.ends_with(';')) {
+                    in_test_item = false;
+                }
+                continue;
+            }
+            if trimmed.starts_with("//") || STATED_EXCEPTIONS.contains(&trimmed) {
+                continue;
+            }
+            // Case-insensitively, because a constant is upper case and a key is lower, and the same fact must
+            // not evade the gate by how it happens to be spelled.
+            let folded = line.to_ascii_lowercase();
+            if let Some(marker) = FRAMEWORK_MARKERS
+                .iter()
+                .find(|m| names_marker(&folded, &m.to_ascii_lowercase()))
+            {
+                offenders.push(format!(
+                    "  {file}:{}: {} <- `{marker}`",
+                    number + 1,
+                    trimmed
+                ));
+            }
         }
     }
 
     assert!(
         offenders.is_empty(),
-        "message extraction names {} framework fact(s) in production code. Every carrier a framework \
-         writes belongs in `server/rules/*.json`:\n{}",
+        "extraction names {} framework fact(s) in production code. Every carrier, counter, spelling and \
+         precedence a framework writes belongs in `server/rules/*.json`:\n{}",
         offenders.len(),
         offenders.join("\n")
     );
@@ -1184,5 +1229,105 @@ fn an_indexed_family_claims_the_overlay_payload_it_joined_against() {
         readers.len(),
         1,
         "two rules emitted the same input.value payload: {readers:?} - the overlay's source must be owned"
+    );
+}
+
+/// A classification rule must answer in the vocabulary its classification owns.
+///
+/// A misspelling was silently the *fallback* answer - a plain span, or `other` - which is exactly what "no rule
+/// held" means, so a typo was indistinguishable from a rule that did not apply. And the two classifications
+/// have different vocabularies, so a valid answer for one is not automatically valid for the other.
+#[test]
+fn a_classification_rule_answers_in_its_own_vocabulary() {
+    use super::classify::{ClassifyCompileError, compile};
+
+    let refused = [
+        (
+            "a misspelled observation type",
+            br#"{"id":"t","doc":"d","observation_types":[
+                {"id":"x","rank":1,"all_of":[{"attr_exists":["k"]}],"result":"genration"}]}"#
+                .to_vec(),
+        ),
+        (
+            "a category answer given as an observation type",
+            br#"{"id":"t","doc":"d","observation_types":[
+                {"id":"x","rank":1,"all_of":[{"attr_exists":["k"]}],"result":"llm"}]}"#
+                .to_vec(),
+        ),
+        (
+            "an observation type given as a category",
+            br#"{"id":"t","doc":"d","span_categories":[
+                {"id":"x","rank":1,"all_of":[{"attr_exists":["k"]}],"result":"generation"}]}"#
+                .to_vec(),
+        ),
+        (
+            "no answer at all",
+            br#"{"id":"t","doc":"d","observation_types":[
+                {"id":"x","rank":1,"all_of":[{"attr_exists":["k"]}],"result":""}]}"#
+                .to_vec(),
+        ),
+        (
+            "no condition, which would answer every span",
+            br#"{"id":"t","doc":"d","observation_types":[
+                {"id":"x","rank":1,"all_of":[],"result":"span"}]}"#
+                .to_vec(),
+        ),
+        (
+            "a condition that can never hold",
+            br#"{"id":"t","doc":"d","observation_types":[
+                {"id":"x","rank":1,"all_of":[{}],"result":"span"}]}"#
+                .to_vec(),
+        ),
+        (
+            "a resource dimension, which classification is never given",
+            br#"{"id":"t","doc":"d","observation_types":[
+                {"id":"x","rank":1,"all_of":[{"service_name":["svc"]}],"result":"span"}]}"#
+                .to_vec(),
+        ),
+        (
+            "two rules of one classification sharing a rank",
+            br#"{"id":"t","doc":"d","observation_types":[
+                {"id":"x","rank":1,"all_of":[{"attr_exists":["a"]}],"result":"span"},
+                {"id":"y","rank":1,"all_of":[{"attr_exists":["b"]}],"result":"agent"}]}"#
+                .to_vec(),
+        ),
+        (
+            "one id naming a rule in each classification",
+            br#"{"id":"t","doc":"d",
+                "observation_types":[{"id":"x","rank":1,"all_of":[{"attr_exists":["a"]}],"result":"span"}],
+                "span_categories":[{"id":"x","rank":1,"all_of":[{"attr_exists":["b"]}],"result":"other"}]}"#
+                .to_vec(),
+        ),
+    ];
+    for (what, asset) in refused {
+        let sources = std::collections::BTreeMap::from([("t.json".to_string(), asset)]);
+        assert!(
+            compile(&sources).is_err(),
+            "should have been refused: {what}"
+        );
+    }
+
+    // The same rank in *different* classifications means nothing and is accepted, which is what keeps the
+    // refusal above a statement about precedence rather than about numbers.
+    let across = br#"{"id":"t","doc":"d",
+        "observation_types":[{"id":"o","rank":1,"all_of":[{"attr_exists":["a"]}],"result":"span"}],
+        "span_categories":[{"id":"c","rank":1,"all_of":[{"attr_exists":["b"]}],"result":"other"}]}"#;
+    let sources = std::collections::BTreeMap::from([("t.json".to_string(), across.to_vec())]);
+    assert!(
+        compile(&sources).is_ok(),
+        "a rank means nothing across classifications: {:?}",
+        compile(&sources).err()
+    );
+
+    // And the error names what was expected, so a typo is fixable from the message alone.
+    let typo = br#"{"id":"t","doc":"d","observation_types":[
+        {"id":"x","rank":1,"all_of":[{"attr_exists":["k"]}],"result":"genration"}]}"#;
+    let sources = std::collections::BTreeMap::from([("t.json".to_string(), typo.to_vec())]);
+    assert!(
+        matches!(
+            compile(&sources),
+            Err(ClassifyCompileError::UnknownResult { .. })
+        ),
+        "the refusal says the answer is unknown, and lists the ones that are not"
     );
 }

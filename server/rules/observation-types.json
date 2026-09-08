@@ -21,7 +21,7 @@
     {
       "id": "observation.chat_of_an_embedding_model",
       "rank": 20,
-      "doc": "Some telemetry reports an embedding call as a chat completion. The model's own name settles it, and the test is case-insensitive because a model id is a provider's string, not a keyword.",
+      "doc": "Some telemetry reports an embedding call as a chat completion. The model's own name settles it, and the test is case-insensitive because a model id is a provider's string, not a keyword. The two model attributes are two answers to one question, so only the **first present** one is searched: a request for a chat model answered by a mislabelled response model is still a chat completion.",
       "all_of": [
         {
           "attr_equals": [
@@ -43,7 +43,8 @@
             ],
             "needles": [
               "embed"
-            ]
+            ],
+            "first_present_source": true
           }
         }
       ],

@@ -30,6 +30,15 @@ pub enum ClassifyCompileError {
     #[error("classification rule `{rule}` in `{file}` names no result")]
     NoResult { file: String, rule: String },
     #[error(
+        "classification rule `{rule}` in `{file}` answers `{result}`, which is not one of: {allowed}"
+    )]
+    UnknownResult {
+        file: String,
+        rule: String,
+        result: String,
+        allowed: String,
+    },
+    #[error(
         "classification rules `{first}` and `{second}` share rank {rank}, so which answers depends on load order"
     )]
     SharedRank {
@@ -115,9 +124,13 @@ pub fn compile(
                 path: file_id.clone(),
                 message: error.to_string(),
             })?;
-        for (rules, into) in [
-            (&file.observation_types, &mut observation_types),
-            (&file.span_categories, &mut span_categories),
+        for (rules, into, allowed) in [
+            (
+                &file.observation_types,
+                &mut observation_types,
+                OBSERVATION_TYPES,
+            ),
+            (&file.span_categories, &mut span_categories, SPAN_CATEGORIES),
         ] {
             for rule in rules {
                 if let Some(first) = by_id.get(&rule.id) {
@@ -128,7 +141,7 @@ pub fn compile(
                     });
                 }
                 by_id.insert(rule.id.clone(), file_id.clone());
-                into.push((rule.rank, compile_rule(file_id, rule)?));
+                into.push((rule.rank, compile_rule(file_id, rule, allowed)?));
             }
         }
     }
@@ -156,7 +169,39 @@ pub fn compile(
     })
 }
 
-fn compile_rule(file_id: &str, rule: &ClassifyRule) -> Result<CompiledRule, ClassifyCompileError> {
+/// The answers each classification may give. **Ours**, not any producer's - which is why they are here rather
+/// than in an asset, and why a rule naming something else is a build defect rather than a silent `span`.
+const OBSERVATION_TYPES: &[&str] = &[
+    "generation",
+    "embedding",
+    "agent",
+    "tool",
+    "chain",
+    "retriever",
+    "guardrail",
+    "evaluator",
+    "span",
+];
+
+const SPAN_CATEGORIES: &[&str] = &[
+    "llm",
+    "tool",
+    "agent",
+    "chain",
+    "retriever",
+    "embedding",
+    "db",
+    "storage",
+    "http",
+    "messaging",
+    "other",
+];
+
+fn compile_rule(
+    file_id: &str,
+    rule: &ClassifyRule,
+    allowed: &[&str],
+) -> Result<CompiledRule, ClassifyCompileError> {
     if rule.all_of.is_empty() {
         return Err(ClassifyCompileError::NoCondition {
             file: file_id.to_string(),
@@ -167,6 +212,16 @@ fn compile_rule(file_id: &str, rule: &ClassifyRule) -> Result<CompiledRule, Clas
         return Err(ClassifyCompileError::NoResult {
             file: file_id.to_string(),
             rule: rule.id.clone(),
+        });
+    }
+    // A misspelling was silently a plain span, or a plain `other` - the answer the caller gives when *no rule
+    // holds*, so a typo was indistinguishable from a rule that did not apply.
+    if !allowed.contains(&rule.result.as_str()) {
+        return Err(ClassifyCompileError::UnknownResult {
+            file: file_id.to_string(),
+            rule: rule.id.clone(),
+            result: rule.result.clone(),
+            allowed: allowed.join(", "),
         });
     }
     for spec in &rule.all_of {

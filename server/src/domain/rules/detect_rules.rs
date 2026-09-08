@@ -30,6 +30,8 @@ pub struct CompiledDetect {
     text_attribute_keys: Vec<String>,
     /// Needles pre-lowercased, so a match does not lower-case a constant per span.
     text_needles_lowered: Vec<String>,
+    /// Search only the first source that has a value. See `TextContains::first_present_source`.
+    text_first_present_source: bool,
 }
 
 /// The compiled detection plan: rules in rank order, plus the declaration fallback.
@@ -214,6 +216,7 @@ pub fn compile(sources: &BTreeMap<String, Vec<u8>>) -> Result<DetectPlan, Detect
             if let Some(TextContains {
                 sources,
                 needles: n,
+                first_present_source: _,
             }) = &rule.match_spec.text_contains
             {
                 for source in sources {
@@ -241,6 +244,11 @@ pub fn compile(sources: &BTreeMap<String, Vec<u8>>) -> Result<DetectPlan, Detect
                 span_name_is_a_text_source: span_source,
                 text_attribute_keys: attr_keys,
                 text_needles_lowered: needles,
+                text_first_present_source: rule
+                    .match_spec
+                    .text_contains
+                    .as_ref()
+                    .is_some_and(|t| t.first_present_source),
             });
         }
     }
@@ -391,6 +399,10 @@ fn probe_for(spec: &DetectMatch) -> CompiledDetect {
             .as_ref()
             .map(|t| t.needles.iter().map(|n| n.to_lowercase()).collect())
             .unwrap_or_default(),
+        text_first_present_source: spec
+            .text_contains
+            .as_ref()
+            .is_some_and(|t| t.first_present_source),
     }
 }
 
@@ -478,6 +490,20 @@ impl CompiledDetect {
                     .iter()
                     .any(|n| lowered.contains(n.as_str()))
             };
+            // The **first source with a value** answers, where the declaration says so: two attributes may
+            // hold two answers to one question, and searching both asks "does either say so" where the
+            // question was "does the one that applies say so". The span name counts as present always, since a
+            // span has one - which is why it is only ever declared first where this flag is set.
+            if self.text_first_present_source {
+                if self.span_name_is_a_text_source {
+                    return hit(ctx.span_name);
+                }
+                return self
+                    .text_attribute_keys
+                    .iter()
+                    .find_map(|k| ctx.span_attrs.get(k))
+                    .is_some_and(|v| hit(v));
+            }
             if self.span_name_is_a_text_source && hit(ctx.span_name) {
                 return true;
             }
