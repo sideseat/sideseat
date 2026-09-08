@@ -345,6 +345,7 @@ pub(super) mod keys {
     pub const MLFLOW_SPAN_OUTPUTS: &str = "mlflow.spanOutputs";
     #[cfg(test)]
     pub const MLFLOW_CHAT_TOOLS: &str = "mlflow.chat.tools";
+    #[cfg(test)]
     pub const MLFLOW_CHAT_TOKEN_USAGE: &str = "mlflow.chat.tokenUsage";
     #[cfg(test)]
     pub const MLFLOW_TRACE_SESSION: &str = "mlflow.trace.session";

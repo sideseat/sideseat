@@ -1,6 +1,6 @@
 {
   "id": "span-fields-usage",
-  "doc": "Where each token counter is written. **Only** where: the arithmetic, the synthesised total, whether each counter was *supplied*, and every pricing decision stay in Rust, because those are statements about our own accounting rather than about a producer's spelling.\n\nEach counter is one group of aliases followed by a scoped last resort. The group is `attribute_first_present_of` rather than separate sources, and that is load-bearing: the retired chain selected the primary by presence and then converted, so an empty or unreadable primary ended the *flat* chain and an embedded carrier answered - a different producer's statement, not a later spelling of the same one.\n\nThe scoped sources are bare names (`input_tokens`) that any framework might use for anything, so they are read only on spans whose name says which producer wrote them. That gate is the whole reason they are safe to consult at all.",
+  "doc": "Where each token counter is written. **Only** where: the arithmetic, the synthesised total, whether each counter was *supplied*, and every pricing decision stay in Rust, because those are statements about our own accounting rather than about a producer's spelling.\n\nEach counter is one group of aliases followed by a scoped last resort. The group is `attribute_first_present_of` rather than separate sources, and that is load-bearing: the retired chain selected the primary by presence and then converted, so an empty or unreadable primary ended the *flat* chain and an embedded carrier answered - a different producer's statement, not a later spelling of the same one.\n\nThe scoped sources are bare names (`input_tokens`) that any framework might use for anything, so they are read only on spans whose name says which producer wrote them. That gate is the whole reason they are safe to consult at all.\n\nAfter the flat groups come the **embedded** usage objects, in the order the retired fallbacks ran: one dialect's own usage blob, then the usage nested in a serialised response, then a third dialect's response object. Each is consulted only for a counter nothing before it supplied, which is what an ordered chain already means - and the flat groups carry `on_malformed: continue` so an unreadable flat value does not hide the embedded object behind it, which is exactly when the retired chain reached for one.",
   "span_fields": [
     {
       "id": "span-fields.usage_input_tokens",
@@ -20,7 +20,8 @@
             "span_name": [
               "claude_code."
             ]
-          }
+          },
+          "on_malformed": "continue"
         },
         {
           "doc": "Every other span: the conventional spellings only. The bare name is too generic to consult without evidence of who wrote it, and that evidence is the span's name.",
@@ -30,7 +31,38 @@
             "llm.usage.prompt_tokens",
             "llm.token_count.prompt",
             "ai.usage.promptTokens"
-          ]
+          ],
+          "on_malformed": "continue"
+        },
+        {
+          "json": {
+            "attribute": "mlflow.chat.tokenUsage",
+            "first_present_of": [
+              "$.prompt_tokens",
+              "$.input_tokens"
+            ]
+          },
+          "on_malformed": "continue",
+          "doc": "The usage object one dialect serialises, whose two spellings are one statement."
+        },
+        {
+          "json": {
+            "attribute": "gcp.vertex.agent.llm_response",
+            "path": "$.usage_metadata.prompt_token_count"
+          },
+          "on_malformed": "continue",
+          "doc": "The usage a dialect nests inside its serialised response."
+        },
+        {
+          "json": {
+            "attribute": "response_data",
+            "first_present_of": [
+              "$.usage.input_tokens",
+              "$.usage.prompt_tokens"
+            ]
+          },
+          "on_malformed": "continue",
+          "doc": "Another dialect's response object, whose member names follow whichever provider answered."
         }
       ]
     },
@@ -52,7 +84,8 @@
             "span_name": [
               "claude_code."
             ]
-          }
+          },
+          "on_malformed": "continue"
         },
         {
           "doc": "Every other span: the conventional spellings only. The bare name is too generic to consult without evidence of who wrote it, and that evidence is the span's name.",
@@ -62,7 +95,35 @@
             "llm.usage.completion_tokens",
             "llm.token_count.completion",
             "ai.usage.completionTokens"
-          ]
+          ],
+          "on_malformed": "continue"
+        },
+        {
+          "json": {
+            "attribute": "mlflow.chat.tokenUsage",
+            "first_present_of": [
+              "$.completion_tokens",
+              "$.output_tokens"
+            ]
+          },
+          "on_malformed": "continue"
+        },
+        {
+          "json": {
+            "attribute": "gcp.vertex.agent.llm_response",
+            "path": "$.usage_metadata.candidates_token_count"
+          },
+          "on_malformed": "continue"
+        },
+        {
+          "json": {
+            "attribute": "response_data",
+            "first_present_of": [
+              "$.usage.output_tokens",
+              "$.usage.completion_tokens"
+            ]
+          },
+          "on_malformed": "continue"
         }
       ]
     },
@@ -97,7 +158,8 @@
             "span_name": [
               "claude_code."
             ]
-          }
+          },
+          "on_malformed": "continue"
         },
         {
           "doc": "Every other span: the conventional spellings only. The bare name is too generic to consult without evidence of who wrote it, and that evidence is the span's name.",
@@ -107,7 +169,15 @@
             "gen_ai.usage.cache_read.input_tokens",
             "llm.usage.cache_read_input_tokens",
             "ai.usage.cachedInputTokens"
-          ]
+          ],
+          "on_malformed": "continue"
+        },
+        {
+          "json": {
+            "attribute": "response_data",
+            "path": "$.usage.cache_read_input_tokens"
+          },
+          "on_malformed": "continue"
         }
       ]
     },
@@ -129,7 +199,8 @@
             "span_name": [
               "claude_code."
             ]
-          }
+          },
+          "on_malformed": "continue"
         },
         {
           "doc": "Every other span: the conventional spellings only. The bare name is too generic to consult without evidence of who wrote it, and that evidence is the span's name.",
@@ -139,7 +210,15 @@
             "gen_ai.usage.cache_write_tokens",
             "gen_ai.usage.cache_creation.input_tokens",
             "llm.usage.cache_creation_input_tokens"
-          ]
+          ],
+          "on_malformed": "continue"
+        },
+        {
+          "json": {
+            "attribute": "response_data",
+            "path": "$.usage.cache_creation_input_tokens"
+          },
+          "on_malformed": "continue"
         }
       ]
     },

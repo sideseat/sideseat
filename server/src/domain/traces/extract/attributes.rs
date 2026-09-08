@@ -325,18 +325,83 @@ struct TokenConfig {
     scoped_fallbacks: &'static [&'static str],
 }
 
-/// Every counter as the retired table read it, for the equivalence oracle.
+/// Every counter as the retired code found it: the flat table, then the three embedded usage objects in the
+/// order their fallbacks ran. The equivalence oracle for `rules/span-fields-usage.json`.
+///
+/// Each embedded block is entered only for a counter nothing before it supplied - which is what an ordered
+/// chain means, and is why the declared form needs no flags threaded through it.
 #[cfg(test)]
 pub(super) fn token_readings_legacy(
     attrs: &HashMap<String, String>,
     span_name: &str,
 ) -> TokenReadings {
+    let mut input = INPUT_TOKENS.extract_opt_for_span(attrs, span_name);
+    let mut output = OUTPUT_TOKENS.extract_opt_for_span(attrs, span_name);
+    let mut cache_read = CACHE_READ_TOKENS.extract_opt_for_span(attrs, span_name);
+    let mut cache_write = CACHE_WRITE_TOKENS.extract_opt_for_span(attrs, span_name);
+
+    if input.is_none() || output.is_none() {
+        if let Some(usage) = extract_json::<JsonValue>(attrs, keys::MLFLOW_CHAT_TOKEN_USAGE) {
+            if input.is_none() {
+                input = usage
+                    .get("prompt_tokens")
+                    .or_else(|| usage.get("input_tokens"))
+                    .and_then(|v| v.as_i64());
+            }
+            if output.is_none() {
+                output = usage
+                    .get("completion_tokens")
+                    .or_else(|| usage.get("output_tokens"))
+                    .and_then(|v| v.as_i64());
+            }
+        }
+    }
+    if input.is_none() || output.is_none() {
+        if let Some(resp) = extract_json::<JsonValue>(attrs, keys::GCP_VERTEX_LLM_RESPONSE) {
+            if let Some(usage) = resp.get("usage_metadata") {
+                if input.is_none() {
+                    input = usage.get("prompt_token_count").and_then(|v| v.as_i64());
+                }
+                if output.is_none() {
+                    output = usage.get("candidates_token_count").and_then(|v| v.as_i64());
+                }
+            }
+        }
+    }
+    if input.is_none() || output.is_none() || cache_read.is_none() || cache_write.is_none() {
+        if let Some(resp) = extract_json::<JsonValue>(attrs, keys::RESPONSE_DATA) {
+            if let Some(usage) = resp.get("usage") {
+                if input.is_none() {
+                    input = usage
+                        .get("input_tokens")
+                        .or_else(|| usage.get("prompt_tokens"))
+                        .and_then(|v| v.as_i64());
+                }
+                if output.is_none() {
+                    output = usage
+                        .get("output_tokens")
+                        .or_else(|| usage.get("completion_tokens"))
+                        .and_then(|v| v.as_i64());
+                }
+                if cache_read.is_none() {
+                    cache_read = usage
+                        .get("cache_read_input_tokens")
+                        .and_then(|v| v.as_i64());
+                }
+                if cache_write.is_none() {
+                    cache_write = usage
+                        .get("cache_creation_input_tokens")
+                        .and_then(|v| v.as_i64());
+                }
+            }
+        }
+    }
     TokenReadings {
-        input: INPUT_TOKENS.extract_opt_for_span(attrs, span_name),
-        output: OUTPUT_TOKENS.extract_opt_for_span(attrs, span_name),
+        input,
+        output,
         total_reported: TOTAL_TOKENS.extract_opt_for_span(attrs, span_name),
-        cache_read: CACHE_READ_TOKENS.extract_opt_for_span(attrs, span_name),
-        cache_write: CACHE_WRITE_TOKENS.extract_opt_for_span(attrs, span_name),
+        cache_read,
+        cache_write,
         reasoning: REASONING_TOKENS.extract_opt_for_span(attrs, span_name),
     }
 }
@@ -1384,87 +1449,10 @@ pub(crate) fn extract_genai(
     let mut input_supplied = flat_input.is_some();
     let mut output_supplied = flat_output.is_some();
 
-    // MLflow token usage from JSON blob (only for a counter nothing has supplied yet)
-    if !input_supplied || !output_supplied {
-        if let Some(usage) = extract_json::<JsonValue>(attrs, keys::MLFLOW_CHAT_TOKEN_USAGE) {
-            if !input_supplied {
-                if let Some(v) = usage
-                    .get("prompt_tokens")
-                    .or_else(|| usage.get("input_tokens"))
-                    .and_then(|v| v.as_i64())
-                {
-                    span.gen_ai_usage_input_tokens = v;
-                    input_supplied = true;
-                }
-            }
-            if !output_supplied {
-                if let Some(v) = usage
-                    .get("completion_tokens")
-                    .or_else(|| usage.get("output_tokens"))
-                    .and_then(|v| v.as_i64())
-                {
-                    span.gen_ai_usage_output_tokens = v;
-                    output_supplied = true;
-                }
-            }
-        }
-    }
-
-    // Google ADK: tokens from llm_response JSON.
-    //
-    // Entered when *either* counter is missing, and each field is then filled independently. Requiring both
-    // to be zero meant a span that reported only one flat counter - input 100, output absent - kept the other
-    // at 0 even though `usage_metadata.candidates_token_count` had it, understating the total and the cost.
-    if !input_supplied || !output_supplied {
-        if let Some(resp) = extract_json::<JsonValue>(attrs, keys::GCP_VERTEX_LLM_RESPONSE) {
-            if let Some(usage) = resp.get("usage_metadata") {
-                if !input_supplied {
-                    if let Some(v) = usage.get("prompt_token_count").and_then(|v| v.as_i64()) {
-                        span.gen_ai_usage_input_tokens = v;
-                        input_supplied = true;
-                    }
-                }
-                if !output_supplied {
-                    if let Some(v) = usage.get("candidates_token_count").and_then(|v| v.as_i64()) {
-                        span.gen_ai_usage_output_tokens = v;
-                        output_supplied = true;
-                    }
-                }
-            }
-        }
-    }
-
-    // Logfire: tokens from response_data.usage JSON
-    // Anthropic: {input_tokens, output_tokens, cache_read_input_tokens, cache_creation_input_tokens}
-    // OpenAI: {prompt_tokens, completion_tokens}
-    // Same rule as the ADK block: either counter missing enters, and each is filled on its own, so a span
-    // reporting only one flat counter still gets the other from the JSON.
-    if !input_supplied || !output_supplied {
-        if let Some(resp) = extract_json::<JsonValue>(attrs, keys::RESPONSE_DATA) {
-            if let Some(usage) = resp.get("usage") {
-                if !input_supplied {
-                    if let Some(v) = usage
-                        .get("input_tokens")
-                        .or_else(|| usage.get("prompt_tokens"))
-                        .and_then(|v| v.as_i64())
-                    {
-                        span.gen_ai_usage_input_tokens = v;
-                        input_supplied = true;
-                    }
-                }
-                if !output_supplied {
-                    if let Some(v) = usage
-                        .get("output_tokens")
-                        .or_else(|| usage.get("completion_tokens"))
-                        .and_then(|v| v.as_i64())
-                    {
-                        span.gen_ai_usage_output_tokens = v;
-                        output_supplied = true;
-                    }
-                }
-            }
-        }
-    }
+    // The three embedded usage objects those flags used to be threaded through - one dialect's own usage blob,
+    // the usage nested in a serialised response, and a third dialect's response object - are declared sources
+    // on the same targets now, in the same order. An ordered chain already means "only for a counter nothing
+    // before supplied", so the sequential flag updates had nothing left to say.
 
     // Read after the last source, which is also what keeps every source maintaining the tracker: a chain
     // whose final link need not update it is a chain the next link will not either. A generation span with no
@@ -1481,11 +1469,11 @@ pub(crate) fn extract_genai(
     // Presence, not the value: a reported `0` is a fact the framework fallbacks must not overwrite, exactly
     // as for the input and output sides.
     //
-    // `mut`, because a *later source* supplying the counter makes it supplied too. As a record of "a flat
-    // attribute existed", the Logfire path below could fill in a cache read of 17 and the CrewAI path then
-    // overwrite it with 100 - the flag has to describe the span, not one of the sources that write to it.
+    // Read from the *resolved* counter, which is every declared source's answer and not just a flat
+    // attribute's - the distinction that used to need a `mut` flag threaded through each fallback in turn. One
+    // still is mutable, because CrewAI's block below can supply a cache read and stays in Rust.
     let mut cache_read_supplied = tokens.cache_read.is_some();
-    let mut cache_write_supplied = tokens.cache_write.is_some();
+    let cache_write_supplied = tokens.cache_write.is_some();
     span.gen_ai_usage_cache_read_tokens = tokens.cache_read.unwrap_or(0);
     span.gen_ai_usage_cache_write_tokens = tokens.cache_write.unwrap_or(0);
     span.gen_ai_usage_reasoning_tokens = tokens.reasoning.unwrap_or(0);
@@ -1495,28 +1483,6 @@ pub(crate) fn extract_genai(
     // Gated on presence, not on the value being zero - a reported `0` is a fact about the call, and testing
     // the value replaced it with whatever this payload said, inflating both the total and the cache charge.
     // The same conflation the input and output sides had.
-    if !cache_read_supplied || !cache_write_supplied {
-        if let Some(resp) = extract_json::<JsonValue>(attrs, keys::RESPONSE_DATA) {
-            if let Some(usage) = resp.get("usage") {
-                if !cache_read_supplied
-                    && let Some(v) = usage
-                        .get("cache_read_input_tokens")
-                        .and_then(|v| v.as_i64())
-                {
-                    span.gen_ai_usage_cache_read_tokens = v;
-                    cache_read_supplied = true;
-                }
-                if !cache_write_supplied
-                    && let Some(v) = usage
-                        .get("cache_creation_input_tokens")
-                        .and_then(|v| v.as_i64())
-                {
-                    span.gen_ai_usage_cache_write_tokens = v;
-                    cache_write_supplied = true;
-                }
-            }
-        }
-    }
 
     // CrewAI: tokens from output.value JSON (CrewOutput.token_usage)
     // CrewAI embeds token usage in the serialized CrewOutput object, not as flat attributes.

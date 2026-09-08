@@ -510,14 +510,9 @@ fn from_json(value: &JsonValue, field_type: FieldType) -> Reading {
                     detail: format!("{number} is not a whole number"),
                 },
             },
-            JsonValue::String(text) if text.is_empty() => Reading::Empty,
-            JsonValue::String(text) => match text.parse::<i64>() {
-                Ok(found) => Reading::Integer(found),
-                Err(error) => Reading::Malformed {
-                    detail: error.to_string(),
-                },
-            },
             JsonValue::Null => Reading::Absent,
+            // A quoted count is not a count. Every retired read of a JSON numeric member went through
+            // `as_i64`, so coercing text here would accept a value that chain skipped.
             other => Reading::Malformed {
                 detail: format!("expected a number, found {}", kind_of(other)),
             },
@@ -529,7 +524,6 @@ fn from_json(value: &JsonValue, field_type: FieldType) -> Reading {
                     detail: format!("{number} is not a finite number"),
                 },
             },
-            JsonValue::String(text) if text.is_empty() => Reading::Empty,
             JsonValue::Null => Reading::Absent,
             other => Reading::Malformed {
                 detail: format!("expected a number, found {}", kind_of(other)),

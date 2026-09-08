@@ -10837,6 +10837,121 @@ fn the_token_rules_reproduce_the_table_they_replaced() {
             "claude_code.api_request",
             rule_attrs(&[("gen_ai.usage.input_tokens", ""), ("input_tokens", "17")]),
         ),
+        // The embedded usage objects, which are further sources on the same targets.
+        (
+            "one dialect's own usage blob, with no flat counters",
+            "chat",
+            rule_attrs(&[(
+                "mlflow.chat.tokenUsage",
+                r#"{"prompt_tokens":11,"completion_tokens":22}"#,
+            )]),
+        ),
+        (
+            "the same blob's other member names",
+            "chat",
+            rule_attrs(&[(
+                "mlflow.chat.tokenUsage",
+                r#"{"input_tokens":11,"output_tokens":22}"#,
+            )]),
+        ),
+        (
+            "usage nested in a serialised response",
+            "call_llm",
+            rule_attrs(&[(
+                "gcp.vertex.agent.llm_response",
+                r#"{"usage_metadata":{"prompt_token_count":31,"candidates_token_count":32}}"#,
+            )]),
+        ),
+        (
+            "only one side flat, the other nested",
+            "call_llm",
+            rule_attrs(&[
+                ("gen_ai.usage.input_tokens", "100"),
+                (
+                    "gcp.vertex.agent.llm_response",
+                    r#"{"usage_metadata":{"prompt_token_count":31,"candidates_token_count":32}}"#,
+                ),
+            ]),
+        ),
+        (
+            "a third dialect's response object, in each provider's spelling",
+            "chat",
+            rule_attrs(&[(
+                "response_data",
+                r#"{"usage":{"input_tokens":41,"output_tokens":42,"cache_read_input_tokens":43,"cache_creation_input_tokens":44}}"#,
+            )]),
+        ),
+        (
+            "the same object in the other provider's spelling",
+            "chat",
+            rule_attrs(&[(
+                "response_data",
+                r#"{"usage":{"prompt_tokens":41,"completion_tokens":42}}"#,
+            )]),
+        ),
+        (
+            "two embedded objects, where the first supplies both",
+            "chat",
+            rule_attrs(&[
+                (
+                    "mlflow.chat.tokenUsage",
+                    r#"{"prompt_tokens":11,"completion_tokens":22}"#,
+                ),
+                (
+                    "response_data",
+                    r#"{"usage":{"input_tokens":99,"output_tokens":88}}"#,
+                ),
+            ]),
+        ),
+        (
+            "two embedded objects, where the first supplies one side only",
+            "chat",
+            rule_attrs(&[
+                ("mlflow.chat.tokenUsage", r#"{"prompt_tokens":11}"#),
+                (
+                    "response_data",
+                    r#"{"usage":{"input_tokens":99,"output_tokens":88}}"#,
+                ),
+            ]),
+        ),
+        (
+            "an embedded count written as a quoted number, which is not a number",
+            "chat",
+            rule_attrs(&[(
+                "mlflow.chat.tokenUsage",
+                r#"{"prompt_tokens":"11","completion_tokens":22}"#,
+            )]),
+        ),
+        (
+            "an unreadable flat counter with an embedded object behind it",
+            "chat",
+            rule_attrs(&[
+                ("gen_ai.usage.input_tokens", "many"),
+                (
+                    "response_data",
+                    r#"{"usage":{"input_tokens":41,"output_tokens":42}}"#,
+                ),
+            ]),
+        ),
+        (
+            "an embedded zero, which is a count",
+            "chat",
+            rule_attrs(&[(
+                "response_data",
+                r#"{"usage":{"input_tokens":0,"output_tokens":0}}"#,
+            )]),
+        ),
+        (
+            "a flat cache counter beside an embedded one",
+            "chat",
+            rule_attrs(&[
+                ("gen_ai.usage.cache_read_input_tokens", "17"),
+                (
+                    "response_data",
+                    r#"{"usage":{"cache_read_input_tokens":100,"cache_creation_input_tokens":5}}"#,
+                ),
+            ]),
+        ),
     ];
 
     for (what, span_name, attrs) in cases {
