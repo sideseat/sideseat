@@ -638,17 +638,20 @@ Redesign or halt if any of these appears:
 - executable provider connectors are described as data;
 - the structural gate is just a framework-name grep.
 
-The last one was reached and answered rather than avoided; see **Acceptance** below for what the gate does
-and does not establish.
+The last one was reached and answered rather than avoided — twice, since the first two answers were gates
+that passed while seeing less than they claimed. See **Acceptance** below for what they do and do not
+establish.
 
 ## Acceptance
 
 The mandate was that the engine be *designed and accepted together with Codex*, so the acceptance is its
-statement rather than a summary of it. Cycle 40 found nothing, on `d57afd7c`.
+statement rather than a summary of it. **Accepted at cycle 51, on `cd9ce363`** — quoted in full below.
 
-> **The cycle-40 acceptance was invalidated twice over, and is kept here for the record rather than as the
-> current verdict.** Criterion (a) was **false** at `d57afd7c`, and the two things that made it false are the
-> same defect at different scales:
+An earlier acceptance was given at cycle 40 and is kept as history, because how it was lost is part of what
+the current one rests on.
+
+> **The cycle-40 acceptance was invalidated twice over.** Criterion (a) was **false** at `d57afd7c`, and the
+> two things that made it false are the same defect at different scales:
 >
 > | Found at | What was still Rust's knowledge |
 > | --- | --- |
@@ -661,8 +664,8 @@ statement rather than a summary of it. Cycle 40 found nothing, on `d57afd7c`.
 > can and cannot see.
 >
 > So this section records **two** things that must not be conflated: what Codex accepted at cycle 40, and
-> that the acceptance rested on a claim untrue there. A final acceptance attaches to a review taken *after*
-> those fixes, not to cycle 40 alone.
+> that the acceptance rested on a claim untrue there. The final acceptance attaches to cycle 51, eleven
+> reviews after those fixes.
 
 ### What the whole-server sweep establishes
 
@@ -688,9 +691,70 @@ framework and also the middle of `diagnostic` and `backend-agnostic`, so `contai
 formatter. A matcher that is too strict is the quieter failure, which is why
 `a_marker_matches_a_word_and_not_a_fragment` pins thirteen cases in both directions.
 
-### The statement
+### The acceptance
 
-Codex's acceptance, verbatim:
+Codex's final acceptance, verbatim, at cycle 51 on `cd9ce363`:
+
+> **Final acceptance — cycle 51, `cd9ce363`**
+>
+> The declarative framework-rules migration satisfies both success criteria within the documented scope and
+> limits.
+>
+> **(a) Framework independence.** Production Rust that interprets agent-framework telemetry — parsing,
+> extraction, normalisation, span-field resolution, classification and content handling — contains no
+> concrete framework knowledge. Framework-specific keys, values, shapes, precedence and aliases reside in
+> embedded rule assets interpreted by generic engines.
+>
+> The remaining named-framework production surfaces are scoped non-parser concerns: the MCP
+> integration-guide catalogue and Azure AI Foundry provider-connector code.
+>
+> This boundary is enforced syntactically by compiler refusals, exact vocabulary tests, and two whole-server
+> sweeps: one for framework names and one for asset-declared dotted telemetry keys. These are genuine
+> enforcement of their stated invariants, not unrestricted semantic proof.
+>
+> **(b) Parsing correctness.** Every framework represented in the captured corpus parses correctly. The
+> migrations are supported by unchanged committed goldens, focused equivalence oracles, corpus-wide shadow
+> comparisons, precedence tests and refusal tests.
+>
+> The sole deliberate behavioural change is explicit and pinned: the `gen_ai.choice` event is now the last
+> finish-reason fallback rather than the second. Attribute-based finish reasons therefore win when both are
+> present.
+>
+> This acceptance is intentionally corpus-bounded. The corpus represents 9 of 30 declared producers; 21 have
+> no captured fixture. Thirty-nine message-rule leaves are explicitly unexercised, eight declared message
+> members remain in `UNOBSERVED`, and the captured-object walk is bounded to depth eight.
+>
+> The source sweeps do not detect undeclared telemetry keys, non-dotted magic values, computed or
+> non-adjacent names, names hidden inside an all-capitals run, prose, or source outside `server/src`.
+> Convention namespaces are an explicit policy set mirrored by an exact test expectation; no property
+> independently proves their ownership.
+>
+> Data-only extension means a supported framework shape can be added by changing assets and fixtures rather
+> than production Rust. Because assets are embedded and there is no reload mechanism, deploying that change
+> still requires a server release.
+>
+> Within those stated boundaries, the work is complete and accepted.
+
+### Eleven cycles between the two acceptances, and what they were about
+
+> The recurring failure mode was evidence or enforcement claiming more than it established; the review also
+> found off-corpus parsing divergences, notably array-valued and empty finish reasons.
+
+Codex's summary, and the distinction in it is the one worth keeping. Cycles 41 to 51 found something real
+every time, and only three of those were parsing defects — a role table still in Rust, a tagged source name
+that lost its declared role, and the finish-reason shapes. The rest were a *gate or a record that claimed
+more than it delivered*: a marker list that missed six frameworks, a whole-file exemption, a line-based
+reader, an inventory keyed on the selector rather than the key, a namespace ownership inferred from absence,
+a test claiming four refusals and exercising three, and a design document describing two architectures that
+were never built as though they were.
+
+That is not a comment on the reviewer's priorities. A gate that passes while seeing less than it claims is
+the failure mode enforcement *has*, in place of a wrong answer — and the two acceptances lost to it were
+lost exactly that way, so the cycles spent on it were the cycles that made the claim worth making.
+
+### The superseded acceptance
+
+Kept as history. Codex's acceptance at cycle 40, given on `d57afd7c`:
 
 > **Acceptance — cycle 40, `d57afd7c`**
 >
