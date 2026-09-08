@@ -8985,6 +8985,31 @@ fn an_unreadable_source_stops_a_chain_and_not_a_merge() {
         Some(Reading::Integer(42)),
         "a sum over no matches lets the source behind it answer"
     );
+    // Counts that sum past what a count can hold are invalid telemetry, not a believable maximum: saturating
+    // would report `i64::MAX` as this call's usage and bill it.
+    let overflowing = rule_attrs(&[(
+        "output.value",
+        r#"{"messages":[{"models_usage":{"prompt_tokens":9223372036854775807}},{"models_usage":{"prompt_tokens":1}}]}"#,
+    )]);
+    let resolved = plan.resolve("chain", &overflowing);
+    let summed = resolved
+        .iter()
+        .find(|r| r.target == FieldTarget::UsageInputTokens)
+        .expect("the target resolves");
+    assert_eq!(
+        summed.reading,
+        Reading::Absent,
+        "an overflowing sum fills nothing rather than reporting a believable maximum"
+    );
+    assert!(
+        summed
+            .refused
+            .iter()
+            .any(|(_, reading)| matches!(reading, Reading::Malformed { .. })),
+        "and the refusal says why: {:?}",
+        summed.refused
+    );
+
     let with_messages = rule_attrs(&[
         (
             "output.value",
@@ -9027,6 +9052,24 @@ fn a_field_source_may_not_declare_a_gate_that_never_holds() {
             r#"{"id":"t","doc":"d","span_fields":[
                 {"id":"f","doc":"d","target":"user_id",
                  "sources":[{"attribute":"k","unless":{"attr_exists":[""]}}]}]}"#,
+        ),
+        (
+            "a reduction on a witness, which asks only whether a member is there",
+            r#"{"id":"t","doc":"d","span_fields":[
+                {"id":"f","doc":"d","target":"usage_input_tokens",
+                 "sources":[{"value":"1","when_json":{"attribute":"output.value","path":"$.messages[*].n","reduce":"sum"}}]}]}"#,
+        ),
+        (
+            "a reduction on a field that does not hold a number",
+            r#"{"id":"t","doc":"d","span_fields":[
+                {"id":"f","doc":"d","target":"user_id",
+                 "sources":[{"json":{"attribute":"output.value","path":"$.messages[*].n","reduce":"sum"}}]}]}"#,
+        ),
+        (
+            "a reduction over a first-present group, which takes one path of several",
+            r#"{"id":"t","doc":"d","span_fields":[
+                {"id":"f","doc":"d","target":"usage_input_tokens",
+                 "sources":[{"json":{"attribute":"output.value","first_present_of":["$.a","$.b"],"reduce":"sum"}}]}]}"#,
         ),
         (
             "a JSON witness naming no member, which always answers false",

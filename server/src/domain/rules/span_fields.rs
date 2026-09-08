@@ -93,6 +93,11 @@ pub enum FieldCompileError {
     )]
     JsonNamesNoMember { file: String, rule: String },
     #[error(
+        "span field rule `{rule}` in `{file}` reduces a witness or a field that does not hold a number - a \
+         witness asks only whether a member is there, and a sum is a number"
+    )]
+    ReductionThatCannotYield { file: String, rule: String },
+    #[error(
         "span field rule `{rule}` in `{file}` reduces a first-present group, which names several paths and \
          takes one of them - a reduction combines the matches of one path"
     )]
@@ -408,7 +413,17 @@ fn read_json<'a>(
             // A non-numeric match contributes nothing, which is what the retired reduction's `unwrap_or(0)`
             // did - one message without a usage object does not invalidate the others' counts.
             if let Reading::Integer(value) = from_json(found, FieldType::Integer) {
-                total = total.saturating_add(value);
+                // `checked_add`: an overflow is invalid telemetry, and saturating would report `i64::MAX` as a
+                // believable count - an enormous bill from a number nobody sent. The retired reduction wrapped
+                // in release and panicked in debug, so neither answer is the one to reproduce.
+                match total.checked_add(value) {
+                    Some(sum) => total = sum,
+                    None => {
+                        return Reading::Malformed {
+                            detail: "the counts sum past what a count can hold".to_string(),
+                        };
+                    }
+                }
             }
         }
         return match field_type {
@@ -677,6 +692,21 @@ fn compile_rule(file_id: &str, rule: &SpanFieldRule) -> Result<CompiledRule, Fie
             // first-present group - which names several paths and takes one of them.
             if json.reduce.is_some() && json.path.is_none() {
                 return Err(FieldCompileError::ReductionWithoutAPath {
+                    file: file_id.to_string(),
+                    rule: rule.id.clone(),
+                });
+            }
+            // And nothing for it to do on a **witness**, which asks only whether a member is there, nor on a
+            // target that holds anything but a number - a sum is a number, so such a source compiles and can
+            // only ever be malformed.
+            let is_witness = spec
+                .when_json
+                .as_ref()
+                .is_some_and(|w| std::ptr::eq(w, json));
+            if json.reduce.is_some()
+                && (is_witness || rule.target.field_type() != FieldType::Integer)
+            {
+                return Err(FieldCompileError::ReductionThatCannotYield {
                     file: file_id.to_string(),
                     rule: rule.id.clone(),
                 });
