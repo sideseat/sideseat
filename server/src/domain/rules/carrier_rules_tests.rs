@@ -6301,3 +6301,110 @@ fn a_walk_stops_on_the_clauses_it_names() {
         "a misspelled clause id must be refused"
     );
 }
+
+/// A grouped element run is consecutive in the **array a producer wrote**, not in the pass's filtered view.
+///
+/// The pass filtered the array before finding runs, so an element it does not match simply vanished - and two
+/// content blocks with a *message* between them became one "consecutive" run of the two. Codex's input is
+/// Logfire's own shape: an input block, a named assistant event, another input block. The run then claims two
+/// blocks are adjacent while asserting nothing about the message lying between them.
+#[test]
+fn a_grouped_run_is_consecutive_in_the_array_the_producer_wrote() {
+    use crate::domain::rules::message_rules::{MessageContext, MessagePlan, compile};
+
+    fn plan_runs(plan: &MessagePlan, ctx: &MessageContext<'_>) -> Vec<usize> {
+        plan.run(ctx)
+            .iter()
+            .filter(|e| e.carrier.name() == "gen_ai.user.message")
+            .map(|e| e.value["content"].as_array().map_or(0, Vec::len))
+            .collect()
+    }
+
+    let plan = compile(&std::collections::BTreeMap::from([(
+        "t.json".to_string(),
+        br#"{"id":"t","messages":[{"id":"t.e","read":{"attribute":"x"},"parse":"json",
+             "emit":"message","legacy_rank":1,"elements":{"passes":[
+               {"id":"named","when":{"all":[{"path":"$['event.name']","one_of":["assistant"]}]},
+                "tag_from":"$['event.name']"},
+               {"id":"blocks",
+                "when":{"all":[{"path":"$['event.name']","none_of":["assistant"]},
+                               {"path":"$.data","kind":"object"}]},
+                "group":{"collect":"$.data","key_as":"role","by":[
+                   {"id":"is_input","when":{"all":[{"path":"$.data.type","starts_with":"input_"}]},
+                    "value":"user"}],
+                 "tag_by_key":{"user":"gen_ai.user.message"}}}]}}]}"#
+            .to_vec(),
+    )]))
+    .expect("the probe compiles");
+    let runs = |payload: &str| -> Vec<usize> {
+        let attrs = std::collections::HashMap::from([("x".to_string(), payload.to_string())]);
+        let ctx = MessageContext::for_span("span", &attrs, false);
+        plan.run(&ctx)
+            .iter()
+            .filter(|e| e.carrier.name() == "gen_ai.user.message")
+            .map(|e| e.value["content"].as_array().map_or(0, Vec::len))
+            .collect()
+    };
+
+    // Codex's input: two input blocks with an assistant message between them.
+    assert_eq!(
+        runs(
+            r#"[{"data":{"type":"input_text","text":"before"}},
+                {"event.name":"assistant","content":"middle"},
+                {"data":{"type":"input_image","url":"after"}}]"#
+        ),
+        vec![1, 1],
+        "the intervening message ends the run - as one run of two, the answer asserts the blocks are adjacent \
+         while a message lies between them"
+    );
+
+    // Genuinely consecutive blocks are still one run, or the fix would be a ban on grouping.
+    assert_eq!(
+        runs(
+            r#"[{"data":{"type":"input_text","text":"a"}},
+                {"data":{"type":"input_image","url":"b"}}]"#
+        ),
+        vec![2],
+        "adjacent blocks are one turn's content, which is what grouping is for"
+    );
+
+    // An element that matched the pass and derived a case but has **nothing to collect** ends a run as well:
+    // it is an element of the array, so it lies between its neighbours whatever it holds. A separate probe,
+    // because with `collect: "$.data"` an element that derives a case necessarily has something there.
+    let collecting = compile(&std::collections::BTreeMap::from([(
+        "t.json".to_string(),
+        br#"{"id":"t","messages":[{"id":"t.e","read":{"attribute":"x"},"parse":"json",
+             "emit":"message","legacy_rank":1,"elements":{"passes":[
+               {"id":"blocks","when":{"all":[{"path":"$.data","kind":"object"}]},
+                "group":{"collect":"$.data.text","key_as":"role","by":[
+                   {"id":"is_input","when":{"all":[{"path":"$.data.type","starts_with":"input_"}]},
+                    "value":"user"}],
+                 "tag_by_key":{"user":"gen_ai.user.message"}}}]}}]}"#
+            .to_vec(),
+    )]))
+    .expect("the probe compiles");
+    let attrs = std::collections::HashMap::from([(
+        "x".to_string(),
+        r#"[{"data":{"type":"input_text","text":"a"}},
+            {"data":{"type":"input_image","url":"no text here"}},
+            {"data":{"type":"input_text","text":"b"}}]"#
+            .to_string(),
+    )]);
+    let ctx = MessageContext::for_span("span", &attrs, false);
+    assert_eq!(
+        plan_runs(&collecting, &ctx),
+        vec![1, 1],
+        "the element with nothing at `collect` is still an element between the other two"
+    );
+
+    // And an element the *group* has no case for ends a run too, not only one the pass rejects.
+    assert_eq!(
+        runs(
+            r#"[{"data":{"type":"input_text","text":"a"}},
+                {"data":{"type":"other_thing"}},
+                {"data":{"type":"input_image","url":"b"}}]"#
+        ),
+        vec![1, 1],
+        "an element deriving no case is between them just as much as one the pass excluded"
+    );
+}

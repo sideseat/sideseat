@@ -4471,17 +4471,37 @@ fn element_passes(
                 // aliases, so a run built from both has two witnesses and naming one of them claims it
                 // produced blocks it did not match.
                 let mut run_cases: Vec<String> = Vec::new();
-                for element in matching {
-                    // The first matching case wins; an element matching none is not part of any run.
-                    let Some(matched) = group
-                        .by
-                        .iter()
-                        .find(|case| predicates_hold(element, &case.when))
+                // **The whole array**, not the pass's matches: "consecutive" is a fact about the array a
+                // producer wrote, and filtering first made it a fact about the filtered view. Logfire's shape -
+                // two content blocks with a named assistant event between them - collapsed into one "run" of the
+                // two, with a message lying between them that the run claims is not there. So an element that
+                // fails the pass, derives no case, or has nothing to collect **ends** the current run.
+                for element in items {
+                    let Some(matched) = Some(element)
+                        .filter(|element| predicates_hold(element, &pass.when))
+                        .and_then(|element| {
+                            group
+                                .by
+                                .iter()
+                                .find(|case| predicates_hold(element, &case.when))
+                        })
                     else {
+                        flush(
+                            run_key.take(),
+                            std::mem::take(&mut run_cases),
+                            std::mem::take(&mut collected),
+                            &mut out,
+                        );
                         continue;
                     };
                     let key = matched.value.clone();
                     let Some(part) = query(element, &group.collect).into_iter().next() else {
+                        flush(
+                            run_key.take(),
+                            std::mem::take(&mut run_cases),
+                            std::mem::take(&mut collected),
+                            &mut out,
+                        );
                         continue;
                     };
                     if run_key.as_ref() != Some(&key) {
