@@ -210,18 +210,31 @@ pub(crate) fn extract_message_from_event(
     // event's raw form is a message as well: a container event's attributes *are* the messages inside it, so
     // emitting the container too would report the conversation twice, while an event carrying a reply and a
     // bundled tool result wants both.
-    let (declared, replaces) = crate::domain::rules::ruleset().messages.from_event(
+    let reading = crate::domain::rules::ruleset().messages.from_event(
         &event.name,
         &attrs,
         span_name,
         span_attrs,
         is_tool_span,
     );
-    let declared: Vec<RawMessage> = declared
+    // A declared container that **nothing read** keeps its raw form, and says so. Suppressing it produced no
+    // messages and no record: the event was indistinguishable from one never emitted, which for a container
+    // whose payload failed to parse is the difference between "this span said nothing" and "this span said
+    // something we could not read".
+    if reading.unhandled_container {
+        tracing::warn!(
+            event = %event.name,
+            span = %span_name,
+            "event declares its raw form is a container, and no declared reading produced anything from it - \
+             keeping the raw form rather than dropping the event"
+        );
+    }
+    let declared: Vec<RawMessage> = reading
+        .emissions
         .into_iter()
         .map(|emission| RawMessage::from_event(emission.carrier.name(), event_time, emission.value))
         .collect();
-    if replaces {
+    if reading.replaces_raw {
         return declared;
     }
 

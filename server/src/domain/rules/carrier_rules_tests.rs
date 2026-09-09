@@ -5271,3 +5271,61 @@ fn an_emission_names_the_clause_inside_its_rule() {
         "each emission names the pass, and a grouped one also the derived case that produced its run"
     );
 }
+
+/// A **claim** on a container event's payload counts as handling it.
+///
+/// A claim means "this payload is framework internals, taken off the table deliberately" - so it must suppress
+/// the container's raw form exactly as an emission does, which is the rule the span path already follows. The
+/// case is unreachable from the shipped corpus (no container event has a claim-only reading), and it was
+/// unreachable from a *probe* too until the raw form moved onto the plan: `from_event` read
+/// `ruleset().message_events`, a global, so a test could not declare its own container.
+#[test]
+fn a_claim_on_a_container_event_suppresses_its_raw_form() {
+    use crate::domain::rules::message_rules::compile;
+
+    let plan = |emit: &str| {
+        let body = format!(
+            r#"{{"id":"t","message_events":[{{"id":"t.e","name":"acme.container","raw":"replace"}}],
+                 "messages":[{{"id":"t.read","source":{{"event":{{"names":["acme.container"]}}}},
+                   "read":{{"attribute":"payload"}},"parse":"json","emit":"{emit}","legacy_rank":1}}]}}"#
+        );
+        compile(&std::collections::BTreeMap::from([(
+            "t.json".to_string(),
+            body.into_bytes(),
+        )]))
+        .expect("the probe compiles")
+    };
+    let readable = std::collections::HashMap::from([(
+        "payload".to_string(),
+        r#"{"role":"user","content":"q"}"#.to_string(),
+    )]);
+    let unreadable = std::collections::HashMap::from([("payload".to_string(), "{".to_string())]);
+    let span_attrs = std::collections::HashMap::new();
+
+    // A claim produces no message, and still replaces the raw form.
+    let claim_plan = plan("claim");
+    let claimed = claim_plan.from_event("acme.container", &readable, "span", &span_attrs, false);
+    assert!(
+        claimed.emissions.is_empty(),
+        "a claim is not a message, so nothing is emitted"
+    );
+    assert!(
+        claimed.replaces_raw,
+        "and the container is still replaced - taking a payload off the table is what a claim is for"
+    );
+    assert!(!claimed.unhandled_container);
+
+    // The same rule against an unreadable payload: nothing claimed it, the carrier was there, so the raw form
+    // is kept and the caller is told.
+    let failed = claim_plan.from_event("acme.container", &unreadable, "span", &span_attrs, false);
+    assert!(
+        !failed.replaces_raw && failed.unhandled_container,
+        "a claim that could not read its payload has not taken anything off the table"
+    );
+
+    // And a message reading behaves the same way, which is what makes this a fact about handling rather than
+    // about the emission kind.
+    let message_plan = plan("message");
+    let emitted = message_plan.from_event("acme.container", &readable, "span", &span_attrs, false);
+    assert!(emitted.replaces_raw && !emitted.unhandled_container);
+}

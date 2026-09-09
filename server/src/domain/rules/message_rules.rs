@@ -119,6 +119,22 @@ impl EmittedCarrier<'_> {
     }
 }
 
+/// What the declared rules made of one event.
+///
+/// A struct rather than `(Vec<Emission>, bool)`, because the boolean answered two different questions with one
+/// value: "is this event a container" and "was it read". Conflated, a container whose reads all failed
+/// suppressed its own raw form and produced nothing, so the event disappeared with no record anywhere.
+#[derive(Debug)]
+pub struct EventReading<'a> {
+    pub emissions: Vec<Emission<'a>>,
+    /// Suppress the event's raw form: it is a declared container **and** something read it.
+    pub replaces_raw: bool,
+    /// It is a declared container and **nothing** read it. The raw form is kept - the alternative is silent
+    /// loss - and the caller reports it, since an unreadable container and an ordinary one are different
+    /// diagnoses.
+    pub unhandled_container: bool,
+}
+
 /// One observation a rule produced.
 #[derive(Debug, Clone)]
 pub struct Emission<'a> {
@@ -255,6 +271,12 @@ pub struct MessagePlan {
     /// rather than correctness, and it is cost paid twice per span on the same payloads.
     metadata_candidates: Vec<usize>,
     rules: Vec<CompiledMessageRule>,
+    /// Each declared message event's raw form, from the assets this plan was compiled from.
+    ///
+    /// Carried rather than read from `ruleset()`: `from_event` acts on this policy, and reaching for a global
+    /// meant a plan compiled in a test could not state it - so the one decision that entry point makes was
+    /// untestable outside the embedded corpus.
+    raw_forms: std::collections::BTreeMap<String, super::schema::RawEventForm>,
 }
 
 /// Why a message ruleset would not compile.
@@ -862,6 +884,8 @@ pub fn compile(sources: &BTreeMap<String, Vec<u8>>) -> Result<MessagePlan, Messa
     // reason - a rule may name an event another file recognises.
     let mut fragments: HashMap<String, Vec<Alternative>> = HashMap::new();
     let mut recognised_events: std::collections::HashSet<String> = std::collections::HashSet::new();
+    let mut raw_forms: std::collections::BTreeMap<String, super::schema::RawEventForm> =
+        std::collections::BTreeMap::new();
     for (path, bytes) in sources {
         let file: RuleFile =
             serde_json::from_slice(bytes).map_err(|e| MessageCompileError::Parse {
@@ -876,6 +900,14 @@ pub fn compile(sources: &BTreeMap<String, Vec<u8>>) -> Result<MessagePlan, Messa
             });
         }
         recognised_events.extend(file.message_events.iter().map(|e| e.name.clone()));
+        // The raw form travels **with the plan**, from the same declarations the recognition set comes from.
+        // `from_event` used to read `ruleset().message_events`, a global, which made the one policy this entry
+        // point acts on unreachable from a probe plan - so a claim-only reading of a container event could not
+        // be tested at all. A disagreement between the two is refused by `compile_message_events`; here the
+        // last write wins for a *repeat*, which that refusal has already excluded.
+        for event in &file.message_events {
+            raw_forms.insert(event.name.clone(), event.raw.unwrap_or_default());
+        }
         for (name, fragment) in &file.fragments {
             if fragment.cases.is_empty() {
                 return Err(MessageCompileError::Inexpressible {
@@ -1185,6 +1217,7 @@ pub fn compile(sources: &BTreeMap<String, Vec<u8>>) -> Result<MessagePlan, Messa
     Ok(MessagePlan {
         rules,
         metadata_candidates,
+        raw_forms,
     })
 }
 
@@ -2200,7 +2233,7 @@ impl MessagePlan {
         self.stage(ctx, super::schema::MessageStage::Dialect)
     }
 
-    /// What this *event* declares, and whether it replaces the event's raw form.
+    /// What this *event* declares, and what to do with the event's own raw form.
     ///
     /// An event's attributes are read exactly as a span's are - the same envelopes, the same predicates -
     /// because they are the same kind of thing: a flat map a producer wrote. Only where they are found
@@ -2212,17 +2245,17 @@ impl MessagePlan {
         span_name: &str,
         span_attrs: &HashMap<String, String>,
         is_tool_span: bool,
-    ) -> (Vec<Emission<'p>>, bool) {
+    ) -> EventReading<'p> {
         let ctx = MessageContext::for_event(span_name, span_attrs, event_attrs, is_tool_span);
         let mut out = Vec::new();
+        let mut handled = false;
+        let mut carrier_present = false;
         let mut claimed: std::collections::HashSet<OwnedCarrier> = std::collections::HashSet::new();
         // The event's own declaration, asked once. It used to be ORed together from every reading that
         // matched and whose gates held, which meant the policy was stated twice with nothing keeping the
         // two statements consistent - a `true` beside a `false` compiled, and `true` silently won.
-        let replaces = crate::domain::rules::ruleset()
-            .message_events
-            .get(event_name)
-            .is_some_and(|declared| declared.raw == super::schema::RawEventForm::Replace);
+        let replaces =
+            self.raw_forms.get(event_name) == Some(&super::schema::RawEventForm::Replace);
         for rule in self.rules.iter().filter(|rule| {
             rule.source
                 .event_names()
@@ -2250,9 +2283,39 @@ impl MessagePlan {
                 .collect();
             let mut kept = Vec::new();
             keep_unclaimed(readings, &mut claimed, &mut kept);
+            // A **claim** counts as handling the event even though it is not a message: that is what a claim
+            // means - this payload is framework internals, taken off the table deliberately. Recorded before
+            // the message filter below, which drops claims from the observations.
+            handled |= !kept.is_empty();
+            // Whether the rule's carrier was **there**, asked whatever the reading produced. This is what
+            // separates "the container was unreadable" from "the container held nothing this rule wanted",
+            // which the two cases below need to answer differently.
+            carrier_present |= resolve_attribute(&rule.read, ctx.span_attrs).is_some();
             out.extend(kept.into_iter().filter(|e| e.target == EmitTarget::Message));
         }
-        (out, replaces)
+        // **Replacement depends on something having read the event**, not on the declaration alone. A
+        // container whose declared reads all fail - `gen_ai.input.messages = "{"` on the inference-details
+        // event - produced no messages *and* suppressed the raw form, so the event vanished: indistinguishable
+        // from it never having been emitted, on the ingest path, with nothing recorded anywhere.
+        //
+        // Not a declarable policy. Suppressing a container whose payload was *there and unreadable* is a loss
+        // with no upside, so there is no second behaviour for an asset to choose between - and a policy member
+        // with one sensible value is how a format acquires a setting nobody can reason about.
+        //
+        // **"Present" is the question, not "read".** A container carrying nothing a rule names is an ordinary
+        // empty container, and keeping its raw form would put a message in the feed whose content is whatever
+        // unrelated attributes the producer attached - noise a user sees, to protect against a loss that did
+        // not happen. A container whose declared carrier *is* present and produced nothing is the malformed
+        // case, and there the raw form is the only remaining evidence the payload existed. Distinguishing them
+        // properly needs the `Absent | Empty | Malformed | Value` algebra the message path still lacks;
+        // carrier presence is the approximation available today, and it is right for both shapes the corpus
+        // and the review name.
+        let unreadable = replaces && !handled && carrier_present;
+        EventReading {
+            replaces_raw: replaces && !unreadable,
+            unhandled_container: unreadable,
+            emissions: out,
+        }
     }
 
     /// The last-resort carriers: the generic input/output pair and the dialect stand-ins for it.

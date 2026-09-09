@@ -9488,7 +9488,7 @@ fn an_event_rules_gate_asks_about_its_span_not_about_the_event() {
     let bare = rule_attrs(&[]);
     let fired = |span_name: &str, span_attrs: &HashMap<String, String>| -> Vec<String> {
         plan.from_event("some.event", &event_attrs, span_name, span_attrs, false)
-            .0
+            .emissions
             .iter()
             .map(|e| e.rule_id.to_string())
             .collect()
@@ -9516,7 +9516,7 @@ fn an_event_rules_gate_asks_about_its_span_not_about_the_event() {
     ]);
     assert!(
         plan.from_event("some.event", &self_marked, "tool execution", &bare, false)
-            .0
+            .emissions
             .is_empty(),
         "an event carrying the marker is not a span carrying it"
     );
@@ -11797,4 +11797,68 @@ fn the_declared_members_reproduce_the_lists_they_replaced() {
             "{what}: {out}"
         );
     }
+}
+
+/// A container event whose payload is **unreadable** keeps its raw form; one that is merely empty does not.
+///
+/// `raw: "replace"` says the event's own body is not a message, because its attributes are. Applied on the
+/// declaration alone, a container whose declared reads all *fail* produced no messages **and** suppressed the
+/// raw form - so the event vanished, indistinguishable on the ingest path from one never emitted, with nothing
+/// recorded anywhere. Codex's input: `gen_ai.input.messages = "{"` on the inference-details event.
+///
+/// Replacement now depends on something having read the event, and the raw form is kept when a declared carrier
+/// was **present** and yielded nothing. Present, not merely unread: a container carrying nothing a rule names
+/// is an ordinary empty container, and keeping its raw form would put a message in the feed whose content is
+/// whatever unrelated attributes the producer attached - noise a user sees, guarding against a loss that did
+/// not happen.
+#[test]
+fn an_unreadable_container_event_keeps_its_raw_form() {
+    let container = |attrs: Vec<opentelemetry_proto::tonic::common::v1::KeyValue>| {
+        extract_message_from_event(
+            &Event {
+                name: "gen_ai.client.inference.operation.details".to_string(),
+                time_unix_nano: 1_702_400_000_000_000_000,
+                attributes: attrs,
+                dropped_attributes_count: 0,
+            },
+            "",
+            &HashMap::new(),
+            false,
+        )
+    };
+
+    // Codex's case: the declared carrier is there and does not parse.
+    let unreadable = container(vec![make_kv("gen_ai.input.messages", "{")]);
+    assert_eq!(
+        unreadable.len(),
+        1,
+        "the payload was there and unreadable, so the raw form is the only remaining evidence it existed - \
+         dropping it makes the event indistinguishable from one never emitted"
+    );
+    assert_eq!(
+        unreadable[0].content["gen_ai.input.messages"].as_str(),
+        Some("{"),
+        "and what is kept is what the producer wrote"
+    );
+
+    // Readable: the container is replaced by what its attributes hold, which is the whole point of the
+    // declaration - the conversation must not be reported twice.
+    let readable = container(vec![make_kv(
+        "gen_ai.input.messages",
+        r#"[{"role":"user","content":"q"}]"#,
+    )]);
+    assert_eq!(readable.len(), 1);
+    assert!(
+        matches!(&readable[0].source, MessageSource::Event { name, .. }
+            if name == "gen_ai.input.messages"),
+        "the reading answered, so the message is the *attribute's*, not the container's: {:?}",
+        readable[0].source
+    );
+
+    // Empty: nothing a rule names, so there is nothing that failed and nothing to preserve.
+    assert!(
+        container(vec![make_kv("some_other_attr", "value")]).is_empty(),
+        "an ordinary empty container stays suppressed - keeping it would emit a message whose content is \
+         unrelated attributes"
+    );
 }

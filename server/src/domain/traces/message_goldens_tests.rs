@@ -3868,14 +3868,14 @@ fn rules_that_emit() -> BTreeSet<String> {
                         }
                         for event in &span.events {
                             let event_attrs = extract_attributes(&event.attributes);
-                            let (emissions, _) = plan.from_event(
+                            let reading = plan.from_event(
                                 &event.name,
                                 &event_attrs,
                                 &span.name,
                                 &attrs,
                                 is_tool,
                             );
-                            for emission in emissions {
+                            for emission in reading.emissions {
                                 fired.insert(emission.rule_id.to_string());
                                 fired.insert(clause_path(&emission));
                             }
