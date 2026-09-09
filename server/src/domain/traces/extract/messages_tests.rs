@@ -8983,8 +8983,8 @@ fn an_unreadable_source_stops_a_chain_and_not_a_merge() {
         status
             .refused
             .iter()
-            .any(|(label, reading)| label == "http.status_code"
-                && matches!(reading, Reading::Malformed { .. })),
+            .any(|r| r.carrier == "http.status_code"
+                && matches!(r.reading, Reading::Malformed { .. })),
         "the refusal names the source and why: {:?}",
         status.refused
     );
@@ -9030,7 +9030,7 @@ fn an_unreadable_source_stops_a_chain_and_not_a_merge() {
         summed
             .refused
             .iter()
-            .any(|(_, reading)| matches!(reading, Reading::Malformed { .. })),
+            .any(|r| matches!(r.reading, Reading::Malformed { .. })),
         "and the refusal says why: {:?}",
         summed.refused
     );

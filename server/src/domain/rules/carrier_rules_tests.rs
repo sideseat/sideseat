@@ -4892,7 +4892,8 @@ fn a_field_source_can_read_an_event_and_says_which_occurrence_answers() {
         attributes: std::collections::HashMap::from([("count".to_string(), "many".to_string())]),
     };
     let resolved = plan.resolve("span", &attrs, &[malformed]);
-    let refused: Vec<&(String, Reading)> = resolved.iter().flat_map(|r| &r.refused).collect();
+    let refused: Vec<&crate::domain::rules::span_fields::Refusal> =
+        resolved.iter().flat_map(|r| &r.refused).collect();
     assert_eq!(
         refused.len(),
         1,
@@ -4900,9 +4901,16 @@ fn a_field_source_can_read_an_event_and_says_which_occurrence_answers() {
          shorter list with nothing recorded"
     );
     assert!(
-        matches!(refused[0].1, Reading::Malformed { .. }),
+        matches!(refused[0].reading, Reading::Malformed { .. }),
         "recorded as malformed: {:?}",
         refused[0]
+    );
+    // And it names the **declaration**, not only the key: a chain of five spellings needs to say which of them
+    // was refused, or a reader cannot tell whether the producer they care about was believed.
+    assert_eq!(
+        refused[0].clause.to_string(),
+        "t.rule → t.s",
+        "the refusal names its clause path"
     );
 
     // An event nothing carries is absent, not empty - the distinction the chain steps on.
@@ -5368,7 +5376,7 @@ fn a_wrong_typed_member_of_a_reduction_is_malformed() {
             .expect("one rule");
         (
             resolved.reading,
-            resolved.refused.into_iter().map(|(_, r)| r).collect(),
+            resolved.refused.into_iter().map(|r| r.reading).collect(),
         )
     };
     let read = |plan: &crate::domain::rules::span_fields::SpanFieldPlan,
@@ -5451,5 +5459,40 @@ fn a_wrong_typed_member_of_a_reduction_is_malformed() {
             r#"{"choices":[{"finish_reason":"stop"},{"finish_reason":"length"}]}"#
         ),
         Reading::StringList(vec!["stop".to_string(), "length".to_string()])
+    );
+}
+
+/// Every source form a refusal can come from **names itself**.
+///
+/// `source_label` ends in `String::new()`, so a source form added without a label there logs an empty carrier -
+/// a diagnostic that says a field could not be read and not what could not be read. The event-attribute form
+/// added in cycle 9 would have been exactly that. This walks the shipped sources and requires each to describe
+/// itself, which is the part of "structured diagnostics" a test can hold: the clause path comes from the
+/// declaration's own id and cannot be empty (compilation refuses that), while the carrier is hand-built per
+/// form.
+#[test]
+fn every_span_field_source_can_name_what_it_read() {
+    use crate::domain::rules::schema::RuleFile;
+
+    let mut checked = 0;
+    for (path, bytes) in crate::domain::rules::schema::embedded_sources() {
+        let file: RuleFile = serde_json::from_slice(&bytes).expect("the asset parses");
+        for rule in &file.span_fields {
+            for source in &rule.sources {
+                let label = crate::domain::rules::span_fields::source_label_for(source);
+                assert!(
+                    !label.is_empty(),
+                    "`{}` in `{path}` has a source (`{}`) that cannot describe what it reads, so a refusal \
+                     naming it would say a field was unreadable without saying what was unreadable",
+                    rule.id,
+                    source.id
+                );
+                checked += 1;
+            }
+        }
+    }
+    assert!(
+        checked > 100,
+        "no sources were walked, so this gate is checking nothing: {checked}"
     );
 }

@@ -1372,6 +1372,27 @@ pub(crate) fn apply_span_fields(
         .span_fields
         .resolve(span_name, attrs, events)
     {
+        // **The refusals are reported.** Resolution records every source that was present and unreadable, and
+        // this loop applied only the answer and dropped them - so `gen_ai.usage.input_tokens = "many"` produced
+        // exactly the same stored span as the attribute being absent, and a column that is empty because three
+        // producers wrote it wrongly was indistinguishable from one nobody wrote. That is the same class of
+        // defect as a 200 that precedes a drop: the system knew and said nothing.
+        //
+        // A log rather than a rejected span, deliberately: one unreadable field is not a reason to refuse
+        // telemetry, and the answer is already the honest one (absent, not a guess). What was missing is that
+        // anyone could find out. Named by the source's `ClausePath`, so the message says which producer's
+        // spelling was believed and which was refused rather than only which column is empty.
+        for refusal in &resolved.refused {
+            tracing::debug!(
+                target: "sideseat::rules",
+                clause = %refusal.clause,
+                carrier = %refusal.carrier,
+                span = %span_name,
+                field = ?resolved.target,
+                detail = ?refusal.reading,
+                "a span field source was present and could not be read"
+            );
+        }
         apply_field(span, &resolved, &mut tokens);
     }
     tokens

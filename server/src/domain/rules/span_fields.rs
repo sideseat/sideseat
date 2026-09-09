@@ -56,6 +56,17 @@ impl Reading {
     }
 }
 
+/// One source that was present and could not be read.
+#[derive(Debug, Clone)]
+pub struct Refusal {
+    /// The declaration: `rule/source`, as `expr::ClausePath` renders it.
+    pub clause: super::expr::ClausePath,
+    /// What it read, in the vocabulary a reader recognises - an attribute name, a path, the span's own name.
+    pub carrier: String,
+    /// Why it did not answer.
+    pub reading: Reading,
+}
+
 /// One field's resolution, and the source that answered it.
 #[derive(Debug, Clone)]
 pub struct Resolved {
@@ -75,7 +86,11 @@ pub struct Resolved {
     pub evidence: Option<super::expr::EvidenceSet>,
     /// Every source consulted that did not answer, and why. Kept because "no producer wrote this" and
     /// "three producers wrote it malformed" are different diagnoses of an empty column.
-    pub refused: Vec<(String, Reading)>,
+    ///
+    /// Each carries the **declaration that refused** as well as the carrier it read: a label alone says which
+    /// key was unreadable, and the path says which of a chain's five spellings that key belongs to, which is
+    /// what a reader needs to know whether the producer they care about was believed.
+    pub refused: Vec<Refusal>,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -291,7 +306,11 @@ impl SpanFieldPlan {
                 // reports a *later* spelling's value as this one, and `http.status_code = "OK"` beside another
                 // key's `503` then answered 503 for a call whose own status attribute says otherwise. An empty
                 // value is the opposite case, and stepping over that is what a chain is for.
-                refused.push((source_label(&source.spec), reading));
+                refused.push(Refusal {
+                    clause: witness_of(source),
+                    carrier: source_label(&source.spec),
+                    reading,
+                });
                 // A **merge** is a union, so one unreadable source does not invalidate the others - which is
                 // also what the retired `merge_tags` did, since an unparseable value contributed nothing and
                 // the loop went on. Only a first-wins chain stops, where continuing would substitute a later
@@ -317,7 +336,11 @@ impl SpanFieldPlan {
             }
             if !reading.yielded() {
                 if reading != Reading::Absent {
-                    refused.push((source_label(&source.spec), reading));
+                    refused.push(Refusal {
+                        clause: witness_of(source),
+                        carrier: source_label(&source.spec),
+                        reading,
+                    });
                 }
                 continue;
             }
@@ -381,6 +404,12 @@ fn source_applies(
         return false;
     }
     true
+}
+
+/// The label, for the gate that requires every source form to have one.
+#[cfg(test)]
+pub fn source_label_for(spec: &FieldSource) -> String {
+    source_label(spec)
 }
 
 fn source_label(spec: &FieldSource) -> String {
