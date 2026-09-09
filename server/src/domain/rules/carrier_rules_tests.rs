@@ -7058,3 +7058,90 @@ fn a_tool_name_is_a_non_blank_string_and_a_bad_one_costs_only_itself() {
          to be declarable first"
     );
 }
+
+/// Metadata contends on the axis it emits on, and one carrier yields one reading per axis.
+///
+/// The conflict check was written for the message axis - correctly, because a dialect stating its tools on the
+/// carrier another rule reads as a conversation is two true statements. But it was written for that axis
+/// *alone*, so Codex's pair below compiled: two rules reading one carrier and both emitting tool definitions.
+/// The metadata path then did no claiming, so both survived and their rank became precedence somewhere
+/// downstream - which is a rule id deciding an answer.
+#[test]
+fn metadata_contends_on_the_axis_it_emits_on() {
+    use crate::domain::rules::message_rules::{MessageContext, compile};
+
+    let asset = |rules: &str| {
+        let body = format!(r#"{{"id":"t","messages":{rules}}}"#);
+        compile(&std::collections::BTreeMap::from([(
+            "t.json".to_string(),
+            body.into_bytes(),
+        )]))
+    };
+
+    // Codex's case: same carrier, same axis, unconditional both.
+    assert!(
+        asset(
+            r#"[{"id":"t.raw","read":{"attribute":"tools"},"parse":"json","emit":"tool_definitions",
+                 "legacy_rank":1},
+                {"id":"t.projected","read":{"attribute":"tools"},"parse":"json","emit":"tool_definitions",
+                 "legacy_rank":2,"alternatives":[{"id":"inner","select":"$.definitions"}]}]"#
+        )
+        .is_err(),
+        "two definition readings of one carrier contend, as two message readings of it do"
+    );
+
+    // **Different** axes on one carrier still stand: that is the case the message-axis check was written for.
+    let plan = asset(
+        r#"[{"id":"t.defs","read":{"attribute":"tools"},"parse":"json","emit":"tool_definitions",
+             "legacy_rank":1},
+            {"id":"t.names","read":{"attribute":"tools"},"parse":"json","emit":"tool_names",
+             "legacy_rank":2,"alternatives":[{"id":"each","select":"$[*].name"}]}]"#,
+    )
+    .expect("a definition list and a name list from one carrier are two statements, both true");
+    let attrs = std::collections::HashMap::from([(
+        "tools".to_string(),
+        r#"[{"name":"search"}]"#.to_string(),
+    )]);
+    let ctx = MessageContext::for_span("span", &attrs, false);
+    let axes: Vec<String> = plan
+        .tool_definitions(&ctx)
+        .iter()
+        .map(|e| format!("{:?}", e.target))
+        .collect();
+    assert_eq!(axes.len(), 2, "both axes read the carrier: {axes:?}");
+
+    // The **runtime** claim, which needs the shape the compile check excuses: a *conditional* earlier rule
+    // beside an unconditional later one. The compiler accepts that pair - they take turns and the ranks decide -
+    // and on a span where both gates hold, only the first reading of the carrier survives on that axis.
+    let plan = asset(
+        r#"[{"id":"t.first","when":{"attr_exists":["marker"]},"read":{"attribute":"tools"},
+             "parse":"json","emit":"tool_definitions","legacy_rank":1},
+            {"id":"t.second","read":{"attribute":"tools"},"parse":"json","emit":"tool_definitions",
+             "legacy_rank":2,"alternatives":[{"id":"inner","select":"$[*]"}]}]"#,
+    )
+    .expect("a conditional earlier rule beside an unconditional later one is accepted");
+    let both = std::collections::HashMap::from([
+        ("tools".to_string(), r#"[{"name":"search"}]"#.to_string()),
+        ("marker".to_string(), "yes".to_string()),
+    ]);
+    let rules: Vec<&str> = plan
+        .tool_definitions(&MessageContext::for_span("span", &both, false))
+        .iter()
+        .map(|e| e.rule_id)
+        .collect();
+    assert_eq!(
+        rules,
+        ["t.first"],
+        "one carrier yields one definition reading; without the claim both survived and their rank became \
+         precedence somewhere downstream"
+    );
+
+    // And a conversation beside a definition list, which is the documented co-located shape.
+    asset(
+        r#"[{"id":"t.conversation","read":{"attribute":"payload"},"parse":"json","emit":"message",
+             "legacy_rank":1},
+            {"id":"t.tools","read":{"attribute":"payload"},"parse":"json","emit":"tool_definitions",
+             "legacy_rank":2}]"#,
+    )
+    .expect("one carrier holding a conversation and the tools it was offered is two statements");
+}

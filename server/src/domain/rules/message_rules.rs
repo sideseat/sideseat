@@ -1461,15 +1461,33 @@ pub fn compile(sources: &BTreeMap<String, Vec<u8>>) -> Result<MessagePlan, Messa
     // `possible_targets` already looks everywhere a target can be declared - a branch set's leaves, a
     // fragment's cases, a selection point's extra cases - so this is one question with one answer, and the
     // metadata side asks it of the same function.
-    let reads_message_axis = |rule: &CompiledMessageRule| {
-        rule.tool_repr.is_none()
-            && possible_targets(rule)
-                .into_iter()
-                .any(|target| matches!(target, EmitTarget::Message | EmitTarget::Claim))
-    };
+    // **Per output axis.** Two rules reading one carrier contend on the axis they both emit on, and only that
+    // one: a dialect stating its tools on the carrier another rule reads as a conversation is two true
+    // statements, which is why the check was written for the message axis. But it was written for the message
+    // axis *alone*, so two rules reading one carrier and both emitting tool definitions compiled - and the
+    // metadata path does no claiming, so both survived and their rank silently became precedence somewhere
+    // downstream.
+    //
+    // `tool_repr` is excluded from the message axis because a `repr` grammar reads tool schemas, never a
+    // conversation - it is a metadata reader whatever else the rule declares.
+    /// Whether a rule can emit on one output axis.
+    type EmitsOnAxis = fn(&CompiledMessageRule) -> bool;
+    let axes: [EmitsOnAxis; 3] = [
+        |rule: &CompiledMessageRule| {
+            rule.tool_repr.is_none()
+                && possible_targets(rule)
+                    .into_iter()
+                    .any(|target| matches!(target, EmitTarget::Message | EmitTarget::Claim))
+        },
+        |rule: &CompiledMessageRule| {
+            rule.tool_repr.is_some()
+                || possible_targets(rule).contains(&EmitTarget::ToolDefinitions)
+        },
+        |rule: &CompiledMessageRule| possible_targets(rule).contains(&EmitTarget::ToolNames),
+    ];
     for (i, a) in rules.iter().enumerate() {
         for b in &rules[i + 1..] {
-            if !(reads_message_axis(a) && reads_message_axis(b)) {
+            if !axes.iter().any(|emits| emits(a) && emits(b)) {
                 continue;
             }
             // An event rule reads an *event's* attributes; a span rule reads the span's. Two different maps,
@@ -2613,16 +2631,22 @@ impl MessagePlan {
     /// Every observation the declared rules find on this span.
     /// Tool definitions this span declares, from every rule that reads a `repr` grammar.
     ///
-    /// Separate from `run`, and deliberately not subject to carrier claiming: a tool *definition* is not a
-    /// message, and the tool-definition path has always run on every span. A framework may state its tools
-    /// on the same carrier another rule reads as a conversation, and both statements are true.
+    /// Separate from `run`, and claimed **per axis**. A tool *definition* is not a message, so a framework
+    /// stating its tools on the carrier another rule reads as a conversation is two true statements - which is
+    /// why this path is not subject to the message axis's claims. But two rules reading one carrier and both
+    /// emitting *definitions* do contend, and nothing resolved that: both survived and their rank became
+    /// precedence somewhere downstream, which is a rule id deciding an answer.
+    ///
+    /// Three arenas, so a definition and a name list read from one carrier both stand while two definition
+    /// readings of it do not.
     pub fn tool_definitions<'p>(&'p self, ctx: &MessageContext<'_>) -> Vec<Emission<'p>> {
         // Every rule, filtered to the *metadata* emissions - a definition or a name list. Not gated on the
         // tool-span check: a tool definition is metadata about a span, and the path reading it has always
         // run on every span. Routing by the emission's own target rather than the rule's is what lets one
         // carrier hold both a conversation and the tools it was offered - the conversation goes to `run`,
         // the tools come here, from the same rule.
-        self.metadata_candidates
+        let produced = self
+            .metadata_candidates
             .iter()
             .flat_map(|&index| emit_rule(&self.rules[index], ctx))
             .filter(|emission| {
@@ -2631,8 +2655,37 @@ impl MessagePlan {
                     EmitTarget::ToolDefinitions | EmitTarget::ToolNames
                 )
             })
-            .filter_map(Self::validated_metadata)
-            .collect()
+            .filter_map(Self::validated_metadata);
+
+        // Claimed by `(carrier, axis)`. The same carrier may yield one definition list and one name list, and
+        // one rule legitimately emits several observations from one carrier - so a claim refuses a *different
+        // rule* on the *same axis*, exactly as the message path's does.
+        let mut claimed: std::collections::HashSet<(OwnedCarrier, EmitTarget)> =
+            std::collections::HashSet::new();
+        let mut owner: std::collections::HashMap<(OwnedCarrier, EmitTarget), &str> =
+            std::collections::HashMap::new();
+        let mut kept: Vec<Emission<'p>> = Vec::new();
+        for emission in produced {
+            let keys: Vec<(OwnedCarrier, EmitTarget)> = emission
+                .owns
+                .iter()
+                .map(|owned| (owned.clone(), emission.target))
+                .collect();
+            if keys.iter().any(|key| {
+                claimed.contains(key)
+                    && owner
+                        .get(key)
+                        .is_some_and(|first| *first != emission.rule_id)
+            }) {
+                continue;
+            }
+            for key in keys {
+                owner.entry(key.clone()).or_insert(emission.rule_id);
+                claimed.insert(key);
+            }
+            kept.push(emission);
+        }
+        kept
     }
 
     /// A metadata emission with its unusable items removed, or `None` where nothing usable is left.

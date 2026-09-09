@@ -1671,7 +1671,7 @@ pub struct AttachSpec {
 }
 
 /// What an emitted observation is.
-#[derive(Debug, Deserialize, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Deserialize, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[serde(rename_all = "snake_case")]
 pub enum EmitTarget {
     #[default]
