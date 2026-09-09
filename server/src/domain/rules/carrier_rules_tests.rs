@@ -3123,110 +3123,6 @@ fn a_scalar_is_neither_empty_nor_non_empty() {
     }
 }
 
-/// A **composed** reading cannot be starved by a lower-ranked rule.
-///
-/// Found by writing `specs/CarrierClaiming.tla`, not by reading the code. The spec's first form asserted
-/// "the lowest-ranked rule that reads a carrier gets it", and TLC refuted it in seconds: a rule takes a
-/// carrier only if it can take **every** carrier it reads, so a rank-1 rule reading one attribute leaves a
-/// rank-4 rule that composes that attribute with another unable to take either - and the second attribute
-/// then ends up owned by nobody even though a rule reads it.
-///
-/// Not reachable in today's ruleset: both composed readings have no lower-ranked competitor for any of their
-/// attributes. That is exactly why this is worth pinning - the failure is silent (a whole dialect's response
-/// reading disappears), it depends on a *rank relation between two rules in different assets*, and nothing
-/// about either rule looks wrong on its own.
-///
-/// **Every spelling a member might select**, not only a member with one. My first version of this test scoped
-/// it to single-spelling members on the reasoning that a member listing two survives losing one - which is
-/// false, and Codex caught it: `composed()` takes the **first present** spelling with `find_map` and never
-/// retries. So a span carrying `x`, `x_backup` and `y` where a lower-ranked rule reads `x` selects `x`, builds
-/// an emission owning `x` and `y`, and loses the whole emission - the backup spelling is never tried. The
-/// remediation the old message suggested ("give that member a second spelling") would not have worked either.
-#[test]
-fn a_composed_reading_cannot_be_starved_by_a_lower_ranked_rule() {
-    use crate::domain::rules::schema::RuleFile;
-
-    #[derive(Debug)]
-    struct Reading {
-        id: String,
-        rank: i32,
-        /// Attributes it takes when it wins, in any of its forms.
-        reads: std::collections::BTreeSet<String>,
-        /// Attributes it *must* have, one entry per compose member with a single spelling.
-        requires: std::collections::BTreeSet<String>,
-    }
-
-    let mut readings: Vec<Reading> = Vec::new();
-    for (path, bytes) in crate::domain::rules::schema::embedded_sources() {
-        let file: RuleFile = serde_json::from_slice(&bytes).expect("the asset parses");
-        for rule in &file.messages {
-            let Some(rank) = rule.legacy_rank else {
-                continue;
-            };
-            let mut reads = std::collections::BTreeSet::new();
-            let mut requires = std::collections::BTreeSet::new();
-            if let Some(attribute) = &rule.read.attribute {
-                reads.insert(attribute.clone());
-            }
-            reads.extend(rule.read.first_present.iter().cloned());
-            reads.extend(rule.read.each.iter().cloned());
-            if let Some(compose) = &rule.compose {
-                for member in &compose.members {
-                    reads.extend(member.from_any_of.iter().cloned());
-                    // Every spelling: whichever one the span happens to carry first is the one selected, and
-                    // if that one is claimed the emission is lost whole.
-                    requires.extend(member.from_any_of.iter().cloned());
-                }
-            }
-            if reads.is_empty() {
-                continue;
-            }
-            let _ = &path;
-            readings.push(Reading {
-                id: rule.id.clone(),
-                rank,
-                reads,
-                requires,
-            });
-        }
-    }
-    assert!(
-        readings.iter().any(|r| r.requires.len() > 1),
-        "no composed reading was found, so this test is checking nothing"
-    );
-
-    let mut starvable: Vec<String> = Vec::new();
-    for composed in readings.iter().filter(|r| r.requires.len() > 1) {
-        for taker in &readings {
-            if taker.id == composed.id || taker.rank >= composed.rank {
-                continue;
-            }
-            let stolen: Vec<&String> = composed
-                .requires
-                .iter()
-                .filter(|attribute| taker.reads.contains(*attribute))
-                .collect();
-            if !stolen.is_empty() {
-                starvable.push(format!(
-                    "  `{}` (rank {}) needs {:?}, and `{}` (rank {}) reads it first",
-                    composed.id, composed.rank, stolen, taker.id, taker.rank
-                ));
-            }
-        }
-    }
-    starvable.sort();
-    assert!(
-        starvable.is_empty(),
-        "{} composed reading(s) can be starved. A compose selects the **first present** spelling of each \
-         member and never retries, and an emission is accepted only if its whole ownership set is free - so \
-         the composed rule loses its emission entirely and its other attributes end up owned by nobody. \
-         Silently, and neither rule looks wrong on its own. Rank the composed reading **above** the rule that \
-         takes its parts; a second spelling does not help, because the taken one is the one selected:\n{}",
-        starvable.len(),
-        starvable.join("\n")
-    );
-}
-
 /// The boolean grammar answers exactly as the shell it replaces, over generated spans.
 ///
 /// The migration's whole risk is that a translated condition means something slightly different, and the
@@ -4965,4 +4861,134 @@ fn a_field_source_can_read_an_event_and_says_which_occurrence_answers() {
             .all(|r| !matches!(r.reading, Reading::StringList(_))),
         "no such event is no answer"
     );
+}
+
+/// Starvation is refused for **every** multi-owner reading, not only for a compose.
+///
+/// This replaces `a_composed_reading_cannot_be_starved_by_a_lower_ranked_rule`, a repository test that scanned
+/// the shipped assets for the compose case. Two reasons it had to become a production refusal rather than gain
+/// three more cases: a test over *this* corpus says nothing about an asset added later, and the shape it was
+/// checking is one the compiler actively **excuses** - so the corpus could drift into it through an edit to
+/// either rule. The property came from `specs/CarrierClaiming.tla`, whose first form asserted "the lowest-ranked
+/// rule that reads a carrier gets it"; TLC refuted it in seconds, and `ComposedReadingsCanBeStarved` records
+/// that the situation is reachable.
+///
+/// The guard was a repository test over composed readings alone, and the conflict check in production
+/// deliberately excuses the shape: a conditional claim "yields on spans its condition excludes, and the ranks
+/// decide which is tried first". That reasoning is sound when the loser's emission owns the one carrier it
+/// lost, and false for an all-or-nothing reading - the loser is dropped **whole**, so carriers the taker never
+/// wanted reach nobody.
+///
+/// The first case is Codex's demonstration, which compiled before cycle 9: a conditional rank-1 rule taking
+/// `family.0.role` leaves the indexed entry unable to take `family.0.content`, and that content then appears in
+/// no view at all. Neither rule looks wrong on its own, and nothing failed.
+#[test]
+fn an_all_or_nothing_reading_cannot_be_starved_by_an_earlier_rank() {
+    use crate::domain::rules::message_rules::compile;
+
+    let asset = |rules: &str| {
+        let body = format!(r#"{{"id":"t","messages":{rules}}}"#);
+        compile(&std::collections::BTreeMap::from([(
+            "t.json".to_string(),
+            body.into_bytes(),
+        )]))
+    };
+
+    // Codex's case: an indexed family, starved by a conditional earlier rule reading one of its keys.
+    let refused = asset(
+        r#"[{"id":"t.take_role","when":{"attr_exists":["marker"]},"read":{"attribute":"family.0.role"},
+             "parse":"text","tag_as":"taken","emit":"message","legacy_rank":1},
+            {"id":"t.read_family","read":{"indexed_family":"family"},"emit":"message","legacy_rank":2}]"#,
+    )
+    .expect_err("an indexed family starved by an earlier conditional rule must be refused");
+    let message = refused.to_string();
+    assert!(
+        message.contains("t.read_family") && message.contains("t.take_role"),
+        "the refusal must name both rules, since neither is wrong on its own: {message}"
+    );
+    assert!(
+        message.contains("reach nobody"),
+        "the refusal must say what is lost - not that two rules contend, which they do not: {message}"
+    );
+
+    // A **compose** with several members, which is the shape the retired test covered.
+    assert!(
+        asset(
+            r#"[{"id":"t.take_x","when":{"attr_exists":["marker"]},"read":{"attribute":"x"},
+                 "parse":"text","tag_as":"taken","emit":"message","legacy_rank":1},
+                {"id":"t.compose","compose":{"tag":"joined","members":[
+                    {"as":"a","from_any_of":["x","x_backup"]},{"as":"b","from_any_of":["y"]}]},
+                 "emit":"message","legacy_rank":2}]"#,
+        )
+        .is_err(),
+        "a composed reading starved of one member must be refused - and a backup spelling does not save it, \
+         because `composed()` selects the first present with `find_map` and never retries"
+    );
+
+    // And an **overlay**, whose `from` carrier the entry owns at runtime (`consumed.push(overlay.from)`) - so
+    // it is a second, *unrelated* key the reading cannot do without. The family's own keys are covered by the
+    // case above; this is the one the family prefix does not reach.
+    //
+    // Every required member spelled out, because my first version of this probe omitted three and was refused
+    // at **parse** - so `is_err()` held for a reason that had nothing to do with starvation, and the assertion
+    // passed while checking nothing. Which is this review's own recurring finding, in the test for it.
+    let overlaid = |taker_rank: i32, overlaid_rank: i32| {
+        format!(
+            r#"[{{"id":"t.take_rich","when":{{"attr_exists":["marker"]}},"read":{{"attribute":"rich"}},
+                 "parse":"text","tag_as":"taken","emit":"message","legacy_rank":{taker_rank}}},
+                {{"id":"t.overlaid","read":{{"indexed_family":"fam","entry_member":"message",
+                   "overlay":{{"from":"rich","parse":"json","select_any_of":["$.messages"],
+                     "witness":{{"any":[{{"path":"$[*].id","exists":true}}]}},
+                     "when_member_prefix":"contents.","content_any_of":["$.content"],
+                     "require":{{"all":[{{"kind":"array"}}]}},"as_member":"content"}}}},
+                 "emit":"message","legacy_rank":{overlaid_rank}}}]"#
+        )
+    };
+    let refused = asset(&overlaid(1, 2)).expect_err(
+        "an overlay's own carrier is part of the reading, so losing it loses the reading",
+    );
+    assert!(
+        refused.to_string().contains("rich"),
+        "the refusal must name the overlay's carrier: {refused}"
+    );
+    asset(&overlaid(2, 1)).expect(
+        "with the overlaid reading first, it takes what it needs and the other finds nothing",
+    );
+
+    // The refusal is **directional**, or it would ban every ordinary precedence: a multi-owner reading at the
+    // *earlier* rank takes what it needs and the later rule simply finds nothing, which is what ranks are for.
+    // Both rules gated, on conditions neither of which covers the other, so the pre-existing contested-carrier
+    // check does not fire either - which is what leaves the starvation question the only one being asked.
+    asset(
+        r#"[{"id":"t.read_family","when":{"attr_exists":["family_marker"]},
+             "read":{"indexed_family":"family"},"emit":"message","legacy_rank":1},
+            {"id":"t.take_role","when":{"attr_exists":["marker"]},"read":{"attribute":"family.0.role"},
+             "parse":"text","tag_as":"taken","emit":"message","legacy_rank":2}]"#,
+    )
+    .expect("a multi-owner reading at the earlier rank is not starved - it goes first");
+
+    // **Across stages**, which the contested-carrier check exempts and this must not. That exemption is sound
+    // for its own question - two stages sharing a carrier are safe because the fallback inherits what the
+    // dialect stage claimed - and the inheritance is precisely what makes starvation reach across them.
+    assert!(
+        asset(
+            r#"[{"id":"t.take_x","read":{"attribute":"x"},"parse":"text","emit":"message","legacy_rank":1},
+                {"id":"t.compose","source":{"span":{"stage":"fallback"}},
+                 "compose":{"tag":"joined","members":[
+                    {"as":"a","from_any_of":["x"]},{"as":"b","from_any_of":["y"]}]},
+                 "emit":"message","legacy_rank":2}]"#,
+        )
+        .is_err(),
+        "a fallback-stage reading inherits the dialect stage's claims, so a dialect rule can starve it"
+    );
+
+    // A single-member compose is not multi-owner: it takes one spelling, so there is no half to lose.
+    asset(
+        r#"[{"id":"t.take_x","when":{"attr_exists":["marker"]},"read":{"attribute":"x"},
+             "parse":"text","tag_as":"taken","emit":"message","legacy_rank":1},
+            {"id":"t.compose","compose":{"tag":"joined","members":[
+                {"as":"a","from_any_of":["x","x_backup"]}]},
+             "emit":"message","legacy_rank":2}]"#,
+    )
+    .expect("one member reading two spellings takes exactly one of them, so nothing is starved");
 }

@@ -278,6 +278,14 @@ pub enum MessageCompileError {
         rule: String,
         detail: &'static str,
     },
+    /// A lower-ranked rule takes part of an all-or-nothing reading, so the reading is lost **whole** and the
+    /// carriers the taker never wanted reach nobody. Distinct from `ContestedCarrier`, which is two rules
+    /// wanting one carrier: here the loss is of carriers nothing contested.
+    StarvedReading {
+        starved: String,
+        taker: String,
+        carrier: String,
+    },
     /// Two rules read the same carrier. One of them would never be reached, because the first claim of a
     /// carrier wins - so this is a rule that silently does nothing, not a precedence to resolve.
     ContestedCarrier {
@@ -304,6 +312,17 @@ impl std::fmt::Display for MessageCompileError {
             Self::DuplicateRuleId { rule } => {
                 write!(f, "message rule id `{rule}` is declared more than once")
             }
+            Self::StarvedReading {
+                starved,
+                taker,
+                carrier,
+            } => write!(
+                f,
+                "message rule `{starved}` reads several carriers as one observation, and `{taker}` reads \
+                 `{carrier}` at an earlier rank - so the whole reading is dropped and its other carriers \
+                 reach nobody. Rank `{starved}` above `{taker}`; a second spelling does not help, because the \
+                 taken one is the one selected"
+            ),
             Self::EmptyCarrier { rule } => {
                 write!(f, "message rule `{rule}` names an empty carrier")
             }
@@ -1009,6 +1028,38 @@ pub fn compile(sources: &BTreeMap<String, Vec<u8>>) -> Result<MessagePlan, Messa
             {
                 continue;
             }
+            // **Starvation**, which the conflict check above deliberately excuses and must not.
+            //
+            // Every excuse it makes rests on "the two take turns and the ranks decide": a conditional claim
+            // yields on spans its condition excludes, so the lower rank simply goes first. That is sound when
+            // the loser's emission owns the one carrier it lost. It is false for an **all-or-nothing** reading,
+            // where an emission is accepted only if its whole ownership set is free - the loser is dropped
+            // *whole*, and the carriers the taker never wanted end up owned by nobody.
+            //
+            // Directional: `a` holds the earlier rank, so it is `a` that can starve `b`. Asked of every
+            // multi-owner reading, not only `compose`: an indexed family's entry owns its own members, an
+            // aggregate owns every entry, and an overlay owns both sides of the join. Codex's demonstration is
+            // the family case - a conditional rank-1 rule reading `family.0.role` leaves the entry unable to
+            // take `family.0.content`, which then reaches nobody.
+            //
+            // Asked **before** the stage exemption below, deliberately. That exemption is sound for the
+            // question it guards - two stages sharing a carrier are safe because the fallback *inherits* what
+            // the dialect stage claimed - and inheritance is exactly what makes cross-stage starvation real: a
+            // multi-owner reading at the fallback stage arrives with the dialect's claims already in its claim
+            // set, so a dialect rule that took one of its keys drops the whole reading.
+            for owned in owned_all_or_nothing(b) {
+                if let Some(taken) = consumed_carriers(a)
+                    .iter()
+                    .chain(emitted_carriers(a).iter())
+                    .find(|consumed| consumed.pattern.overlaps(&owned))
+                {
+                    return Err(MessageCompileError::StarvedReading {
+                        starved: b.rule_id.clone(),
+                        taker: a.rule_id.clone(),
+                        carrier: taken.pattern.describe(),
+                    });
+                }
+            }
             // Two stages may share a carrier, and the reason is *not* that they never run together - a
             // generation span whose answer is unaccounted for reads the fallback after a dialect produced
             // something, which is exactly when they do. What makes the pair safe is that the fallback
@@ -1674,6 +1725,62 @@ fn necessarily_owned(rule: &CompiledMessageRule) -> Option<&str> {
         [] => rule.read.attribute.as_deref(),
         _ => None,
     }
+}
+
+/// The carriers a rule's emission owns **together**, where losing one loses the whole emission.
+///
+/// Empty for an ordinary reading, whose emission owns the one carrier it read - there, a lower-ranked rule
+/// taking that carrier means the two take turns, which is what ranks are for. Non-empty for a reading that is
+/// *all or nothing*, where an emission is accepted only if its whole ownership set is free:
+///
+/// | Reading | Owned together |
+/// | --- | --- |
+/// | `compose` with several members | every spelling of every member - `composed()` selects the **first present** with `find_map` and never retries a backup |
+/// | `indexed_family` | the family's keys: each entry owns its own members, and an aggregate owns every entry |
+/// | `overlay` | the base carrier and the overlay's, which are joined into one observation |
+///
+/// The distinction matters because the *conditional* excuse - "a gated rule and an ungated one take turns, and
+/// the ranks decide" - is sound for a single-carrier reading and false here. A rule that takes one member of a
+/// composed reading does not merely go first: the composed emission is dropped whole, so the carriers the
+/// taker never wanted end up owned by **nobody** and their content disappears from the feed. Silently, and
+/// neither rule looks wrong on its own.
+fn owned_all_or_nothing(rule: &CompiledMessageRule) -> Vec<CarrierPattern> {
+    if let Some(set) = &rule.branch_set {
+        // A branch leaf is a rule of its own, and each leaf's reading is all-or-nothing on its own terms.
+        return set
+            .primary
+            .iter()
+            .chain(&set.fallback)
+            .chain(&set.always)
+            .flat_map(owned_all_or_nothing)
+            .collect();
+    }
+    let mut out: Vec<CarrierPattern> = Vec::new();
+    if let Some(compose) = &rule.compose {
+        // Only a *several*-member compose: one member reading several spellings takes exactly one of them, so
+        // there is nothing another rule can take half of.
+        if compose.members.len() > 1 {
+            for member in &compose.members {
+                out.extend(
+                    member
+                        .spec
+                        .from_any_of
+                        .iter()
+                        .map(|key| CarrierPattern::Exact(key.clone())),
+                );
+            }
+        }
+    }
+    if let Some(family) = &rule.read.indexed_family {
+        out.push(CarrierPattern::Prefix(format!("{family}.")));
+    }
+    if let Some(overlay) = &rule.read.overlay {
+        out.push(CarrierPattern::Exact(overlay.from.clone()));
+        if let Some(attribute) = &rule.read.attribute {
+            out.push(CarrierPattern::Exact(attribute.clone()));
+        }
+    }
+    out
 }
 
 /// What narrows a claim on a carrier: the span it runs on, and whether the payload narrows it further.
