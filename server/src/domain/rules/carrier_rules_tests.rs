@@ -4981,7 +4981,7 @@ fn an_all_or_nothing_reading_cannot_be_starved_by_an_earlier_rank() {
             r#"[{"id":"t.take_x","when":{"attr_exists":["marker"]},"read":{"attribute":"x"},
                  "parse":"text","tag_as":"taken","emit":"message","legacy_rank":1},
                 {"id":"t.compose","compose":{"tag":"joined","members":[
-                    {"as":"a","from_any_of":["x","x_backup"]},{"as":"b","from_any_of":["y"]}]},
+                    {"as":"a","from_any_of":["x","x_backup"],"parse":"text"},{"as":"b","from_any_of":["y"],"parse":"text"}]},
                  "emit":"message","legacy_rank":2}]"#,
         )
         .is_err(),
@@ -5039,7 +5039,7 @@ fn an_all_or_nothing_reading_cannot_be_starved_by_an_earlier_rank() {
             r#"[{"id":"t.take_x","read":{"attribute":"x"},"parse":"text","emit":"message","legacy_rank":1},
                 {"id":"t.compose","source":{"span":{"stage":"fallback"}},
                  "compose":{"tag":"joined","members":[
-                    {"as":"a","from_any_of":["x"]},{"as":"b","from_any_of":["y"]}]},
+                    {"as":"a","from_any_of":["x"],"parse":"text"},{"as":"b","from_any_of":["y"],"parse":"text"}]},
                  "emit":"message","legacy_rank":2}]"#,
         )
         .is_err(),
@@ -5051,7 +5051,7 @@ fn an_all_or_nothing_reading_cannot_be_starved_by_an_earlier_rank() {
         r#"[{"id":"t.take_x","when":{"attr_exists":["marker"]},"read":{"attribute":"x"},
              "parse":"text","tag_as":"taken","emit":"message","legacy_rank":1},
             {"id":"t.compose","compose":{"tag":"joined","members":[
-                {"as":"a","from_any_of":["x","x_backup"]}]},
+                {"as":"a","from_any_of":["x","x_backup"],"parse":"text"}]},
              "emit":"message","legacy_rank":2}]"#,
     )
     .expect("one member reading two spellings takes exactly one of them, so nothing is starved");
@@ -5579,4 +5579,76 @@ fn an_unreadable_witness_is_unanswerable_rather_than_false() {
         Reading::Text("openai".to_string()),
         "and the other producer's convention is not silently applied to a payload nobody could read"
     );
+}
+
+/// `parse` is required wherever a reading parses a raw scalar, because omitted it meant three things.
+///
+/// Without it: text for a compose, JSON for an ordinary read or a `tool_repr`, JSON-or-string for a named
+/// family. So one absent declaration was three different decisions, and which one applied was a property of a
+/// **sibling** member - the same defect `attribute_any_of` had, where the multiplicity of a carrier list
+/// depended on whether `tool_repr` sat beside it.
+#[test]
+fn a_reading_that_parses_a_scalar_declares_how() {
+    use crate::domain::rules::message_rules::compile;
+
+    let asset = |rule: &str| {
+        let body = format!(r#"{{"id":"t","messages":[{rule}]}}"#);
+        compile(&std::collections::BTreeMap::from([(
+            "t.json".to_string(),
+            body.into_bytes(),
+        )]))
+    };
+
+    // Each form that parses a scalar of its own, refused without a mode.
+    for (what, read) in [
+        ("an exact attribute", r#"{"attribute":"x"}"#),
+        ("ordered alternatives", r#"{"first_present":["x","y"]}"#),
+        (
+            "a named family",
+            r#"{"attribute_family":{"root":"x","order":"member_name"}}"#,
+        ),
+    ] {
+        let rule = format!(r#"{{"id":"t.r","read":{read},"emit":"message","legacy_rank":1}}"#);
+        assert!(
+            asset(&rule).is_err(),
+            "{what} parses a raw string and must say how"
+        );
+        let with_mode = format!(
+            r#"{{"id":"t.r","read":{read},"parse":"json","emit":"message","legacy_rank":1}}"#
+        );
+        assert!(
+            asset(&with_mode).is_ok(),
+            "{what} compiles once the mode is stated"
+        );
+    }
+
+    // A compose member naming carriers reads one of their strings, so the mode is the member's.
+    assert!(
+        asset(
+            r#"{"id":"t.c","compose":{"tag":"joined","members":[
+                 {"as":"a","from_any_of":["x"]}]},"emit":"message","legacy_rank":1}"#
+        )
+        .is_err(),
+        "a compose member naming carriers must declare its own mode"
+    );
+
+    // The exemptions, each a reading that parses no scalar itself - stated rather than implicit.
+    for (what, rule) in [
+        (
+            "a sweep member, where sniffing whatever a prefix holds is the point",
+            r#"{"id":"t.c","compose":{"tag":"joined","members":[
+                 {"as":"a","from_any_of":["x"],"parse":"text"},
+                 {"sweep_prefix":"p.","except":["x"]}]},"emit":"message","legacy_rank":1}"#,
+        ),
+        (
+            "an indexed family, which assembles entries from keys rather than parsing one string",
+            r#"{"id":"t.f","read":{"indexed_family":"fam"},"emit":"message","legacy_rank":1}"#,
+        ),
+    ] {
+        assert!(
+            asset(rule).is_ok(),
+            "{what} needs no mode: {:?}",
+            asset(rule).err()
+        );
+    }
 }

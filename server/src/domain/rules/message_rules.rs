@@ -494,6 +494,41 @@ fn compile_rule(
             ));
         }
     }
+    // **`parse` is required wherever the reading parses a raw scalar of its own.** Omitted, it meant three
+    // incompatible things depending on what sat beside it: text for a compose, JSON for an ordinary read or a
+    // `tool_repr`, JSON-or-string for a named family. So one absent declaration was three different decisions,
+    // and which one applied was a property of a *sibling* member - the same defect `attribute_any_of` had.
+    //
+    // The exemptions are stated rather than implicit, and each is a reading that parses no scalar itself:
+    //
+    // - a **compose** reads through its members, each of which declares its own mode;
+    // - a **sweep** member takes whatever a prefix holds, so sniffing is what it is for;
+    // - an **indexed family** assembles entries from keys rather than parsing one string.
+    //
+    // Corpus-neutral: every shipped reading that parses a scalar already declares it, which is what makes this
+    // a gate rather than a migration.
+    let parses_a_scalar = read.attribute.is_some()
+        || !read.first_present.is_empty()
+        || !read.each.is_empty()
+        || read.attribute_family.is_some();
+    if parse.is_none() && compose.is_none() && parses_a_scalar {
+        return Err(inexpressible(
+            "reads a raw attribute and does not declare `parse`, which means text, JSON or JSON-or-string \
+                 depending on what sits beside it - state the mode",
+        ));
+    }
+    if let Some(compose) = compose {
+        for member in &compose.members {
+            // A member naming carriers reads one of their strings; a sweep member takes whatever a prefix
+            // holds, which is the one place sniffing is the point.
+            if member.parse.is_none() && !member.from_any_of.is_empty() {
+                return Err(inexpressible(
+                    "a compose member names carriers and does not declare `parse` - each member reads its \
+                         own string, so the mode is the member's",
+                ));
+            }
+        }
+    }
     // `require_non_empty` / `require_non_blank` ask about a **raw carrier string**, and an indexed family has
     // none: its entries are assembled from many keys, so there is nothing for the check to be about. The branch
     // reading a family returns before these checks run, so such a declaration was read from nowhere - refused

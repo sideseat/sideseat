@@ -8460,7 +8460,7 @@ fn carrier_ownership_conflicts_are_refused() {
                 {"id":"a","doc":"d","read":{"attribute":"r.text"},"parse":"json","emit":"message",
                  "legacy_rank":1},
                 {"id":"b","doc":"d","compose":{"tag":"r","members":[
-                    {"as":"content","from_any_of":["r.text"]}]},"emit":"message","legacy_rank":2}]}"#,
+                    {"as":"content","from_any_of":["r.text"],"parse":"text"}]},"emit":"message","legacy_rank":2}]}"#,
         ),
         (
             "a sweep overlaps an exact source of another rule",
@@ -8499,7 +8499,7 @@ fn inexpressible_rules_are_refused() {
         (
             "`compose` with `wrap`, which would be ignored",
             r#"{"id":"t","doc":"d","messages":[
-                {"id":"a","doc":"d","compose":{"tag":"q","members":[{"as":"c","from_any_of":["k"]}]},
+                {"id":"a","doc":"d","compose":{"tag":"q","members":[{"as":"c","from_any_of":["k"],"parse":"text"}]},
                  "wrap":{"role":"user"},"emit":"message","legacy_rank":1}]}"#,
         ),
         (
@@ -8709,7 +8709,7 @@ fn a_tautological_requirement_is_not_a_condition() {
             "a compose declaring a tag it does not emit",
             r#"{"id":"t","doc":"d","messages":[
                 {"id":"a","doc":"d","tag_as":"declared","legacy_rank":1,
-                 "compose":{"tag":"actual","members":[{"as":"content","from_any_of":["k"]}]}}]}"#,
+                 "compose":{"tag":"actual","members":[{"as":"content","from_any_of":["k"],"parse":"text"}]}}]}"#,
         ),
     ];
     for (what, asset) in refused {
@@ -9330,9 +9330,9 @@ fn a_wider_gate_suppresses_a_narrower_one() {
             "two composes sharing a tag, which every emission owns",
             r#"{"id":"t","doc":"d","messages":[
                 {"id":"a","doc":"d","legacy_rank":1,"when":{"attr_exists":["m.a"]},
-                 "compose":{"tag":"shared","members":[{"as":"content","from_any_of":["k1"]}]}},
+                 "compose":{"tag":"shared","members":[{"as":"content","from_any_of":["k1"],"parse":"text"}]}},
                 {"id":"b","doc":"d","legacy_rank":2,"when":{"attr_exists":["m.b"]},
-                 "compose":{"tag":"shared","members":[{"as":"content","from_any_of":["k2"]}]}}]}"#,
+                 "compose":{"tag":"shared","members":[{"as":"content","from_any_of":["k2"],"parse":"text"}]}}]}"#,
         ),
         (
             "a reading narrowed only by `require_parent`, which narrows as `require` does",
