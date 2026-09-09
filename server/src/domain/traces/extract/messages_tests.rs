@@ -9265,6 +9265,21 @@ fn a_branch_leaf_keeps_its_own_gate() {
 fn a_wider_gate_suppresses_a_narrower_one() {
     let refused = [
         (
+            // This was an **accepted** case, on the claim that "every emission owns [its compose tag]". It does
+            // not: a synthetic tag is the name the engine gives an assembled result, not something the span
+            // carried. Owning it let one compose suppress another that read entirely different carriers, using
+            // a name no producer wrote - so the tag left `owns`, and the emitted-carrier ambiguity check then
+            // says what is actually wrong here: two emissions under one tag that **nothing resolves**, so both
+            // survive and nothing downstream tells them apart. Which is the same reasoning that check already
+            // applies to a gated `tag_as` beside an ungated one.
+            "two composes sharing a tag while reading different carriers",
+            r#"{"id":"t","doc":"d","messages":[
+                {"id":"a","doc":"d","legacy_rank":1,"when":{"attr_exists":["m.a"]},
+                 "compose":{"tag":"shared","members":[{"as":"content","from_any_of":["k1"],"parse":"text"}]}},
+                {"id":"b","doc":"d","legacy_rank":2,"when":{"attr_exists":["m.b"]},
+                 "compose":{"tag":"shared","members":[{"as":"content","from_any_of":["k2"],"parse":"text"}]}}]}"#,
+        ),
+        (
             "a superset gate at the earlier rank",
             r#"{"id":"t","doc":"d","messages":[
                 {"id":"a","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message",
@@ -9325,14 +9340,6 @@ fn a_wider_gate_suppresses_a_narrower_one() {
                   "wrap":{"role":"user","content_from_any_of":["$.content"]}}]},
                 {"id":"b","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message",
                  "when":{"attr_exists":["marker"]},"tag_as":"b.tag","legacy_rank":2}]}"#,
-        ),
-        (
-            "two composes sharing a tag, which every emission owns",
-            r#"{"id":"t","doc":"d","messages":[
-                {"id":"a","doc":"d","legacy_rank":1,"when":{"attr_exists":["m.a"]},
-                 "compose":{"tag":"shared","members":[{"as":"content","from_any_of":["k1"],"parse":"text"}]}},
-                {"id":"b","doc":"d","legacy_rank":2,"when":{"attr_exists":["m.b"]},
-                 "compose":{"tag":"shared","members":[{"as":"content","from_any_of":["k2"],"parse":"text"}]}}]}"#,
         ),
         (
             "a reading narrowed only by `require_parent`, which narrows as `require` does",

@@ -1794,10 +1794,14 @@ fn necessarily_owned(rule: &CompiledMessageRule) -> Option<&str> {
     if rule.branch_set.is_some() || rule.read.overlay.is_some() {
         return None;
     }
-    // A compose owns its own tag on every emission - it is pushed beside the attributes the members read - so
-    // two composes sharing a tag really are resolved by ownership, whatever their sources are.
-    if let Some(compose) = &rule.compose {
-        return Some(compose.tag.as_str());
+    // **A compose owns its members' carriers and not its own tag.** The exemption here said the opposite -
+    // that two composes sharing a tag are resolved by ownership whatever their sources are - and the runtime
+    // agreed by pushing the synthetic tag into `owns`. So two composes assembling the same canonical shape from
+    // *different* physical carriers suppressed each other: the earlier one claimed a name no producer wrote,
+    // and the later one's members went unread. Ownership is over what a span carried; a synthetic tag is what
+    // the engine calls the result.
+    if rule.compose.is_some() {
+        return None;
     }
     if rule.read.indexed_family.is_some() || rule.read.attribute_family.is_some() {
         return None;
@@ -3629,7 +3633,9 @@ fn emit_rule<'p>(rule: &'p CompiledMessageRule, ctx: &MessageContext<'_>) -> Vec
             } else {
                 value
             };
-            read_carriers.push(OwnedCarrier::attribute(compose.tag.as_str()));
+            // The synthetic tag is **not** owned: `owns` is what the span carried and this is the name the
+            // engine gives the assembled result. Claiming it let one compose suppress another that read
+            // entirely different carriers.
             out.push(Emission {
                 rule_id: &rule.rule_id,
                 clause: Vec::new(),

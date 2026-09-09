@@ -5652,3 +5652,42 @@ fn a_reading_that_parses_a_scalar_declares_how() {
         );
     }
 }
+
+/// A compose owns its members' carriers and **not** its own tag.
+///
+/// The tag is the name the engine gives an assembled result; `owns` is what the span carried. Claiming it let
+/// two composes that read entirely different physical carriers suppress each other - the earlier one owned a
+/// name no producer wrote, so the later one's members went unread and its content reached nothing.
+#[test]
+fn a_compose_owns_its_members_and_not_its_own_tag() {
+    use crate::domain::rules::message_rules::{MessageContext, compile};
+
+    let plan = compile(&std::collections::BTreeMap::from([(
+        "t.json".to_string(),
+        br#"{"id":"t","messages":[{"id":"t.compose","legacy_rank":1,
+             "compose":{"tag":"canonical.response","members":[
+               {"as":"content","from_any_of":["x"],"parse":"text"}]},
+             "emit":"message"}]}"#
+            .to_vec(),
+    )]))
+    .expect("the probe compiles");
+    let attrs = std::collections::HashMap::from([("x".to_string(), "the answer".to_string())]);
+    let ctx = MessageContext::for_span("span", &attrs, false);
+    let emissions = plan.run(&ctx);
+    assert_eq!(emissions.len(), 1);
+    let owned: Vec<String> = emissions[0]
+        .owns
+        .iter()
+        .map(|carrier| carrier.name.clone())
+        .collect();
+    assert_eq!(
+        owned,
+        ["x".to_string()],
+        "the member's carrier is owned; the synthetic tag is not something the span carried"
+    );
+    assert_eq!(
+        emissions[0].carrier.name(),
+        "canonical.response",
+        "and the tag is still what the emission is *reported* under - the two are different questions"
+    );
+}
