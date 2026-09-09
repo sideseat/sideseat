@@ -2631,7 +2631,52 @@ impl MessagePlan {
                     EmitTarget::ToolDefinitions | EmitTarget::ToolNames
                 )
             })
+            .filter_map(Self::validated_metadata)
             .collect()
+    }
+
+    /// A metadata emission with its unusable items removed, or `None` where nothing usable is left.
+    ///
+    /// **Per item**, which is the point. A tool-name list holding `["search", 7]` was persisted as written, and
+    /// the read side deserialises the whole column as `Vec<String>` - so the number failed that and took the
+    /// valid `"search"` with it. A malformed item must not poison its siblings, and the place to stop it is
+    /// where the item is produced.
+    ///
+    /// **Tool names only**, and that limit is the point rather than an omission. A tool name is a non-blank
+    /// string by contract, whatever produced it, so the check is shape-independent and belongs here.
+    ///
+    /// A tool **definition** cannot be checked here yet: at emission it is still the *producer's* shape -
+    /// Bedrock writes `{"toolSpec": {"name": …}}` - and the canonical `{"function": {"name": …}}` appears only
+    /// at query-time normalisation, which recognises a closed list of provider shapes in Rust. Asking "does
+    /// this have a usable name" here would mean knowing every one of those shapes, which is exactly what cycle
+    /// 13's finding 3 says must move into the assets. Written as a check over `function.name`, it dropped
+    /// `bedrock/converse`'s perfectly good `get_weather`.
+    fn validated_metadata(emission: Emission<'_>) -> Option<Emission<'_>> {
+        if emission.target != EmitTarget::ToolNames {
+            return Some(emission);
+        }
+        let usable = |item: &JsonValue| item.as_str().is_some_and(|name| !name.trim().is_empty());
+        let Some(items) = emission.value.as_array() else {
+            // A single value rather than a list: the same question, one item.
+            return usable(&emission.value).then_some(emission);
+        };
+        let kept: Vec<JsonValue> = items.iter().filter(|item| usable(item)).cloned().collect();
+        let dropped = items.len() - kept.len();
+        if dropped > 0 {
+            tracing::debug!(
+                target: "sideseat::rules",
+                rule = %emission.rule_id,
+                dropped,
+                "tool names were not non-blank strings, so they name nothing"
+            );
+        }
+        if kept.is_empty() {
+            return None;
+        }
+        Some(Emission {
+            value: JsonValue::Array(kept),
+            ..emission
+        })
     }
 
     /// Every carrier this span carries that a rule reads, read by **one** rule each.

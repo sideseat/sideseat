@@ -10701,3 +10701,33 @@ fn a_resent_single_call_with_a_regenerated_id_is_still_one_call() {
             .collect::<Vec<_>>()
     );
 }
+
+/// A **stored** tool name that is not a string does not cost its siblings.
+///
+/// The column was read as `Vec<String>`, so one stored non-string - `["search", 7]`, from a producer that wrote
+/// a number - failed the whole deserialisation and took the valid `"search"` with it. A malformed item poisoning
+/// its siblings at the last possible moment, after storage had already accepted it.
+///
+/// The emission path keeps a non-string out now, so this shape can only arrive from a row written before that.
+/// Which is exactly why it needs its own test: no fixture stores one, so nothing else exercises the read.
+#[test]
+fn a_stored_tool_name_that_is_not_a_string_costs_only_itself() {
+    let row = make_span_row(
+        "trace-1",
+        "span-1",
+        None,
+        "[]",
+        "[]",
+        r#"["search", 7, "  ", "calculate"]"#,
+    );
+    let result = process_spans(vec![row], &FeedOptions::default());
+    // Sorted: the feed deduplicates and orders tool names, which is its own concern - what this asserts is
+    // that both survived.
+    let mut names = result.tool_names.clone();
+    names.sort();
+    assert_eq!(
+        names,
+        vec!["calculate".to_string(), "search".to_string()],
+        "the number and the blank name nothing; the two real names are kept"
+    );
+}

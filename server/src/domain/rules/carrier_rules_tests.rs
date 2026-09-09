@@ -6980,3 +6980,81 @@ fn a_tool_repr_declares_literals_that_can_match_and_types_that_exist() {
         Some("string")
     );
 }
+
+/// A tool name that is not a non-blank string names nothing, and it must not cost its siblings.
+///
+/// Codex's input: `{"gen_ai.agent.tools": "[\"search\", 7]"}`. The rule emitted and persisted the list as
+/// written, and the read side deserialised the whole column as `Vec<String>` - so the number failed that and
+/// took the valid `"search"` with it. A malformed item poisoning its siblings at the last possible moment,
+/// after storage had already accepted it.
+///
+/// Both ends are fixed and both are needed: emission keeps a non-string out of storage, and the read keeps the
+/// ones **already stored** from costing their neighbours.
+#[test]
+fn a_tool_name_is_a_non_blank_string_and_a_bad_one_costs_only_itself() {
+    use crate::domain::rules::message_rules::{MessageContext, compile};
+
+    let plan = compile(&std::collections::BTreeMap::from([(
+        "t.json".to_string(),
+        br#"{"id":"t","messages":[{"id":"t.names","read":{"attribute":"tools"},"parse":"json",
+             "emit":"tool_names","legacy_rank":1}]}"#
+            .to_vec(),
+    )]))
+    .expect("the probe compiles");
+    let names = |payload: &str| -> Vec<serde_json::Value> {
+        let attrs = std::collections::HashMap::from([("tools".to_string(), payload.to_string())]);
+        let ctx = MessageContext::for_span("span", &attrs, false);
+        plan.tool_definitions(&ctx)
+            .iter()
+            .flat_map(|e| e.value.as_array().cloned().unwrap_or_default())
+            .collect()
+    };
+
+    assert_eq!(
+        names(r#"["search", 7]"#),
+        vec![serde_json::json!("search")],
+        "the number names nothing, and the name beside it is kept"
+    );
+    assert_eq!(
+        names(r#"["search", "  "]"#),
+        vec![serde_json::json!("search")],
+        "a blank string names nothing either"
+    );
+    // Asserted on the **emission count**, not the flattened items: an emission whose value is an empty array
+    // flattens to nothing either way, so the item assertion could not tell one from the other.
+    let attrs = std::collections::HashMap::from([("tools".to_string(), r#"[7, {}]"#.to_string())]);
+    assert!(
+        plan.tool_definitions(&MessageContext::for_span("span", &attrs, false))
+            .is_empty(),
+        "an emission with nothing usable left is no emission, not an empty one"
+    );
+    assert_eq!(
+        names(r#"["search", "calculate"]"#),
+        vec![serde_json::json!("search"), serde_json::json!("calculate")],
+        "and ordinary names are untouched, or the check is a ban on tool names"
+    );
+
+    // A **definition** is deliberately not checked here: at emission it is still the producer's shape - Bedrock
+    // writes `{"toolSpec": {"name": …}}` - and the canonical `{"function": {"name": …}}` appears only at
+    // query-time normalisation. Written as a check over `function.name` this dropped `bedrock/converse`'s
+    // perfectly good `get_weather`, which is cycle 13's finding 3: the provider shapes live in Rust and must
+    // move into the assets before a definition can be validated where it is produced.
+    let definitions = compile(&std::collections::BTreeMap::from([(
+        "t.json".to_string(),
+        br#"{"id":"t","messages":[{"id":"t.defs","read":{"attribute":"tools"},"parse":"json",
+             "emit":"tool_definitions","legacy_rank":1}]}"#
+            .to_vec(),
+    )]))
+    .expect("compiles");
+    let attrs = std::collections::HashMap::from([(
+        "tools".to_string(),
+        r#"[{"toolSpec":{"name":"get_weather"}}]"#.to_string(),
+    )]);
+    let ctx = MessageContext::for_span("span", &attrs, false);
+    assert_eq!(
+        definitions.tool_definitions(&ctx).len(),
+        1,
+        "a producer-shaped definition survives emission - naming it unusable here needs the provider shapes \
+         to be declarable first"
+    );
+}

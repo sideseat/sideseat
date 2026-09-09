@@ -1573,8 +1573,29 @@ pub fn extract_tools_from_rows<'a>(
             }
         }
 
-        match serde_json::from_str::<Vec<String>>(&row.tool_names_json) {
-            Ok(names) => tool_names_raw.extend(names),
+        // **Item by item.** Read as `Vec<String>` this failed whole: one stored non-string - `["search", 7]`
+        // from a producer that wrote a number - took the valid `"search"` with it, so a malformed item poisoned
+        // its siblings at the last possible moment, after storage had already accepted it. The emission path
+        // now keeps a non-string out, and this keeps the ones already stored from costing their neighbours.
+        match serde_json::from_str::<Vec<JsonValue>>(&row.tool_names_json) {
+            Ok(items) => {
+                let stored = items.len();
+                let usable: Vec<String> = items
+                    .iter()
+                    .filter_map(|item| item.as_str())
+                    .filter(|name| !name.trim().is_empty())
+                    .map(ToString::to_string)
+                    .collect();
+                if usable.len() < stored {
+                    tracing::debug!(
+                        span_id = %row.span_id,
+                        stored,
+                        kept = usable.len(),
+                        "stored tool names include items that are not non-blank strings; the rest are kept"
+                    );
+                }
+                tool_names_raw.extend(usable);
+            }
             Err(e) => {
                 tracing::debug!(
                     span_id = %row.span_id,
