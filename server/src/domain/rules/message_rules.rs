@@ -3908,10 +3908,15 @@ fn composed(
             .iter()
             .find_map(|key| attrs.get(key).map(|raw| (key, raw)))
             .and_then(|(key, raw)| {
-                // The carrier this member actually read. Recorded so the emission owns it: a compose that
-                // owned only its synthetic tag left every attribute it consumed free for another rule.
+                // The carrier this member actually read - recorded **after** the parse, so a member whose
+                // payload does not parse neither contributes nor takes the carrier off the table. Recorded
+                // before, a malformed compose member was owned while the *same* malformed carrier read by an
+                // ordinary rule was not: one asymmetry, and the compose silently suppressed another dialect's
+                // reading of junk it could not read either. A rule that means to take a payload away without
+                // emitting has `claim` for it.
+                let value = parse_value(raw, member.parse.unwrap_or(ParseMode::Text))?;
                 read.push(OwnedCarrier::attribute(key));
-                parse_value(raw, member.parse.unwrap_or(ParseMode::Text))
+                Some(value)
             });
         let value = direct.or_else(|| {
             // The conditional last resort: a key that is not this dialect's own, read only on evidence
@@ -3922,8 +3927,9 @@ fn composed(
                 return None;
             }
             let raw = attrs.get(&fallback.from)?;
+            let value = parse_value(raw, fallback.parse.unwrap_or(ParseMode::Text))?;
             read.push(OwnedCarrier::attribute(&fallback.from));
-            parse_value(raw, fallback.parse.unwrap_or(ParseMode::Text))
+            Some(value)
         });
         if let Some(value) = value {
             object.insert(name.clone(), value);

@@ -6718,3 +6718,64 @@ fn an_indexed_family_is_read_in_one_pass() {
         "reading 400 entries out of 1,200 attributes took {elapsed:?}, which is the quadratic shape"
     );
 }
+
+/// A compose owns the carriers it **read**, not the ones it looked at.
+///
+/// Ownership was recorded before the parse, so a member whose payload does not parse was owned anyway - while
+/// the *same* malformed carrier read by an ordinary rule was not, because that rule's reading returns early and
+/// produces no emission to own anything. One asymmetry, and the consequence is that a compose silently
+/// suppressed another dialect's reading of a payload it could not read either.
+///
+/// Asserted on the emission's `owns` rather than through a second rule: two rules reading one carrier is
+/// refused at compile unless the *earlier* one is conditional, and arranging that would make the probe about
+/// the contested-carrier excuse rather than about what a compose owns. A rule that means to take a payload away
+/// without emitting has `claim` for it, which is the declaration this was making by accident.
+#[test]
+fn a_compose_owns_the_carriers_it_read() {
+    use crate::domain::rules::message_rules::{MessageContext, compile};
+
+    let plan = compile(&std::collections::BTreeMap::from([(
+        "t.json".to_string(),
+        br#"{"id":"t","messages":[
+             {"id":"t.compose","legacy_rank":1,"emit":"message",
+              "compose":{"tag":"joined","members":[
+                {"as":"content","from_any_of":["text"],"parse":"text"},
+                {"as":"extra","from_any_of":["structured"],"parse":"json"}]}}]}"#
+            .to_vec(),
+    )]))
+    .expect("the probe compiles");
+    let owned = |payload: &str| -> Vec<String> {
+        let attrs = std::collections::HashMap::from([
+            ("text".to_string(), "the answer".to_string()),
+            ("structured".to_string(), payload.to_string()),
+        ]);
+        let ctx = MessageContext::for_span("span", &attrs, false);
+        let emissions = plan.run(&ctx);
+        assert_eq!(
+            emissions.len(),
+            1,
+            "the compose emits, whatever the member did"
+        );
+        let mut names: Vec<String> = emissions[0]
+            .owns
+            .iter()
+            .map(|carrier| carrier.name.clone())
+            .collect();
+        names.sort();
+        names
+    };
+
+    // Readable: both carriers were read, so both are owned.
+    assert_eq!(
+        owned(r#"{"a":1}"#),
+        ["structured".to_string(), "text".to_string()]
+    );
+
+    // **Unreadable**: the member contributed nothing, so the carrier is not taken off the table and a rule that
+    // can read it keeps its turn.
+    assert_eq!(
+        owned("{"),
+        ["text".to_string()],
+        "a member whose payload does not parse neither contributes nor owns"
+    );
+}
