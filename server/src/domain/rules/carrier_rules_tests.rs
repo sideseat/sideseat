@@ -5496,3 +5496,87 @@ fn every_span_field_source_can_name_what_it_read() {
         "no sources were walked, so this gate is checking nothing: {checked}"
     );
 }
+
+/// An unreadable **witness** is unanswerable, not false.
+///
+/// A `when_json` witness gates a source on a member being present, and it answered `false` for a carrier that
+/// was there and did not parse. So the Anthropic/OpenAI discriminator (`request_data` holding `"{"`) behaved
+/// exactly as though nobody had written `request_data` at all, silently taking the branch it exists to rule
+/// out - a gate deciding which producer's convention applies, deciding it from a payload nobody could read, with
+/// `on_malformed` never seeing the failure.
+///
+/// The same three-valued shape `Truth` gives the boolean grammar, for the same reason: "no" and "could not ask"
+/// are different answers.
+#[test]
+fn an_unreadable_witness_is_unanswerable_rather_than_false() {
+    use crate::domain::rules::span_fields::{Reading, compile};
+
+    // Two sources with opposite witnesses on one carrier - the shape of a producer discriminator.
+    let plan = compile(&std::collections::BTreeMap::from([(
+        "t.json".to_string(),
+        br#"{"id":"t","span_fields":[{"id":"t.rule","target":"gen_ai_system","sources":[
+             {"id":"t.anthropic","when_json":{"attribute":"request_data","path":"$.system"},
+              "value":"anthropic"},
+             {"id":"t.openai","when_json":{"attribute":"request_data","path":"$.messages"},
+              "value":"openai"}]}]}"#
+            .to_vec(),
+    )]))
+    .expect("the probe compiles");
+    let read = |raw: &str| {
+        let attrs =
+            std::collections::HashMap::from([("request_data".to_string(), raw.to_string())]);
+        let resolved = plan
+            .resolve("span", &attrs, &[])
+            .into_iter()
+            .next()
+            .expect("one rule");
+        (resolved.reading, resolved.refused)
+    };
+
+    // The member is there: the gated source answers.
+    assert_eq!(
+        read(r#"{"system":"be brief"}"#).0,
+        Reading::Text("anthropic".to_string())
+    );
+    // The member is absent: a real `false`, so the next source answers. This is what a witness is *for*, and
+    // it must keep working - otherwise the fix is a ban on unreadable payloads rather than a distinction.
+    assert_eq!(
+        read(r#"{"messages":[]}"#).0,
+        Reading::Text("openai".to_string())
+    );
+
+    // **No carrier at all**: both witnesses are a real `false`, nothing answers, and nothing is refused. This
+    // is the case that separates "absent" from "unanswerable" - without it, a fix that made *every* missing
+    // witness unanswerable would pass, and a witness that can never say no is not a gate.
+    let attrs = std::collections::HashMap::new();
+    let resolved = plan
+        .resolve("span", &attrs, &[])
+        .into_iter()
+        .next()
+        .expect("one rule");
+    assert_eq!(resolved.reading, Reading::Absent);
+    assert!(
+        resolved.refused.is_empty(),
+        "an absent carrier is not a refusal - nobody wrote it, which the witness can answer: {:?}",
+        resolved.refused
+    );
+
+    // Present and unparseable: the question could not be asked. The chain records a malformed witness and does
+    // **not** fall through to the other producer's answer, which is the silent misattribution.
+    let (answer, refused) = read("{");
+    assert_eq!(
+        refused.len(),
+        1,
+        "the unreadable witness is recorded, where it used to be indistinguishable from an absent member"
+    );
+    assert!(
+        matches!(refused[0].reading, Reading::Malformed { .. }),
+        "as malformed: {:?}",
+        refused[0]
+    );
+    assert_ne!(
+        answer,
+        Reading::Text("openai".to_string()),
+        "and the other producer's convention is not silently applied to a payload nobody could read"
+    );
+}

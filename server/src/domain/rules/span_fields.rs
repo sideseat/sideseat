@@ -289,10 +289,30 @@ impl SpanFieldPlan {
             }
             // A JSON witness admits the source or not, and asking it here rather than in `source_applies` is
             // what lets it share the parse cache with the reads.
-            if let Some(witness) = &source.spec.when_json
-                && !json_member_present(witness, attrs, parsed)
-            {
-                continue;
+            if let Some(witness) = &source.spec.when_json {
+                match json_member_present(witness, attrs, parsed) {
+                    // The member is there: the source applies.
+                    Some(true) => {}
+                    // It is not: the source does not apply, which is what a witness is for.
+                    Some(false) => continue,
+                    // Present and unparseable, so the question could not be asked. That is a **malformed**
+                    // reading of the witness and goes through the chain like any other - answering `false` made
+                    // an unreadable discriminator behave as an absent one and silently took the branch it was
+                    // written to rule out.
+                    None => {
+                        refused.push(Refusal {
+                            clause: witness_of(source),
+                            carrier: format!("the witness on `{}`", witness.attribute),
+                            reading: Reading::Malformed {
+                                detail: format!("`{}` is not JSON", witness.attribute),
+                            },
+                        });
+                        match rule.combine {
+                            FieldCombine::FirstWins => break,
+                            FieldCombine::MergeAll => continue,
+                        }
+                    }
+                }
             }
             let reading = folded_if_declared(
                 read_source(&source.spec, field_type, span_name, attrs, events, parsed),
@@ -735,31 +755,41 @@ fn read_json<'a>(
     first
 }
 
-/// Whether a JSON member exists at all, whatever it holds.
+/// Whether a JSON member exists at all, whatever it holds - **three-valued**.
 ///
 /// Presence, not a value: the retired test was `req.get("system").is_some()`, which a `null` member satisfies.
+///
+/// `None` means the question could not be asked: the carrier is present and does not parse. Answering `false`
+/// there made an unreadable carrier behave exactly like an absent one, so the Anthropic/OpenAI discriminator
+/// (`request_data` holding `"{"`) silently took the branch it was written to rule out, and `on_malformed` never
+/// saw the failure - a gate deciding which producer's convention applies, deciding it from a payload nobody
+/// could read.
+///
+/// The same three-valued shape `Truth` gives the boolean grammar, for the same reason: "no" and "could not ask"
+/// are different answers, and treating them alike is how a predicate over missing data comes out confidently
+/// wrong.
 fn json_member_present<'a>(
     witness: &'a JsonFieldSource,
     attrs: &HashMap<String, String>,
     parsed: &mut HashMap<&'a str, Option<JsonValue>>,
-) -> bool {
+) -> Option<bool> {
     let key = witness.attribute.as_str();
     if !attrs.contains_key(key) {
-        return false;
+        // Absent is a real `false`: nobody wrote the carrier, so the member is not in it.
+        return Some(false);
     }
     let value = parsed.entry(key).or_insert_with(|| {
         attrs
             .get(key)
             .and_then(|raw| serde_json::from_str(raw).ok())
     });
-    let Some(value) = value.as_ref() else {
-        return false;
-    };
+    // Present and unparseable: `?` on the cached parse, which is `None` for exactly that case.
+    let value = value.as_ref()?;
     // A witness names one path, or several of which any is enough.
-    match (&witness.path, witness.first_present_of.as_slice()) {
+    Some(match (&witness.path, witness.first_present_of.as_slice()) {
         (Some(path), _) => !path.query(value).is_empty(),
         (_, paths) => paths.iter().any(|path| !path.query(value).is_empty()),
-    }
+    })
 }
 
 /// A flat attribute's text, read as the field's type.
