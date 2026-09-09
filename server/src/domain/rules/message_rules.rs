@@ -472,6 +472,17 @@ fn compile_rule(
             ));
         }
     }
+    // `require_non_empty` / `require_non_blank` ask about a **raw carrier string**, and an indexed family has
+    // none: its entries are assembled from many keys, so there is nothing for the check to be about. The branch
+    // reading a family returns before these checks run, so such a declaration was read from nowhere - refused
+    // rather than silently ignored, because the asset would otherwise state a filter it does not have.
+    // (`require_members` is the entry-level filter that family reads *do* honour.)
+    if read.indexed_family.is_some() && (non_empty || non_blank) {
+        return Err(inexpressible(
+            "an indexed family assembles each entry from several keys, so there is no raw string for \
+                 `require_non_empty` or `require_non_blank` to ask about - use `require_members`",
+        ));
+    }
     // A wrap is meaningful on an *aggregated* family: the entries become one array, and one array needs an
     // envelope saying what it is - a result set is one observation, not one message per document.
     if read.indexed_family.is_some()
@@ -3549,6 +3560,16 @@ fn emit_rule<'p>(rule: &'p CompiledMessageRule, ctx: &MessageContext<'_>) -> Vec
             super::schema::AttributeFamilyOrder::MemberName => members.sort_by(|a, b| a.0.cmp(b.0)),
         }
         for (key, raw) in members {
+            // **Per member**, because a member is the observation here - the family as a whole is not one
+            // payload. This branch returns before the rule-wide checks further down, so without this a
+            // `require_non_blank` on a named family was a declaration read from nowhere: a blank member was
+            // emitted and the asset said it would not be.
+            if rule.require_non_empty && raw.is_empty() {
+                continue;
+            }
+            if rule.require_non_blank && raw.trim().is_empty() {
+                continue;
+            }
             let Some(value) = parse_value(raw, rule.parse.unwrap_or(ParseMode::JsonOrString))
             else {
                 continue;

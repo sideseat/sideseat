@@ -514,14 +514,38 @@ fn read_event_attribute(
             // One entry per occurrence. Only meaningful for a list-valued field - two events carrying one
             // scalar are two answers and a scalar field has room for one - so compilation refuses the
             // combination rather than letting this branch pick silently.
-            let collected: Vec<String> = matches
-                .filter(|raw| !raw.is_empty())
-                .map(ToString::to_string)
-                .collect();
-            if collected.is_empty() {
+            //
+            // Each occurrence becomes a `Reading` **before** anything is collected, because the collection
+            // must not decide the empty/malformed question for the chain. Dropping empties here and answering
+            // `Absent` said "no event carried this attribute" about two events that carried it empty, which
+            // is a different statement - and it took the decision away from `accept_empty`, whose whole
+            // purpose is to say an empty value a producer wrote is an answer. `FirstYielding` answers `Empty`
+            // in that case, so the two occurrences policies disagreed about one span.
+            let readings: Vec<Reading> = matches.map(|raw| from_text(raw, field_type)).collect();
+            if readings.is_empty() {
                 return Reading::Absent;
             }
-            Reading::StringList(collected)
+            // **No malformed case here, and that is a statement about `from_text` rather than a decision.**
+            // `every` is refused on anything but a list-valued target, and `from_text` for a `StringList`
+            // cannot answer `Malformed`: `parse_string_array` falls back to splitting on commas, so every
+            // string is *some* list. So a branch handling it would be unreachable, and dead code that looks
+            // like a policy is worse than the policy's absence. When that reader gains a strict mode - the
+            // declared list encoding cycle 10 asks for - a malformed occurrence becomes expressible and
+            // belongs here, deciding through `on_malformed` rather than shortening the list.
+            let values: Vec<String> = readings
+                .iter()
+                .filter_map(|reading| match reading {
+                    Reading::Text(text) => Some(text.clone()),
+                    Reading::StringList(items) => items.first().cloned(),
+                    _ => None,
+                })
+                .collect();
+            // Every occurrence empty is `Empty`, not `Absent`: the attribute is there and holds nothing,
+            // which is what `accept_empty` exists to decide about.
+            if values.is_empty() {
+                return Reading::Empty;
+            }
+            Reading::StringList(values)
         }
     }
 }

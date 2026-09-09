@@ -4849,6 +4849,62 @@ fn a_field_source_can_read_an_event_and_says_which_occurrence_answers() {
         "the refusal must say why: {refused}"
     );
 
+    // Two occurrences that carry the attribute **empty** are `Empty`, not `Absent`. Dropping them and
+    // answering `Absent` said "no event carried this" about two events that carried it, and took the decision
+    // away from `accept_empty`, whose whole purpose is to say that an empty value a producer wrote is an
+    // answer. `first_yielding` answers `Empty` there, so the two policies disagreed about one span.
+    let plan = asset(
+        r#"[{"id":"t.s","accept_empty":true,"event_attribute":{"event":"acme.choice",
+             "attribute":"finish_reason","occurrence":"every"}}]"#,
+        "gen_ai_finish_reasons",
+    )
+    .expect("compiles");
+    let answered: Vec<Reading> = plan
+        .resolve("span", &attrs, &[event(""), event("")])
+        .into_iter()
+        .filter(|r| r.evidence.is_some())
+        .map(|r| r.reading)
+        .collect();
+    assert_eq!(
+        answered.len(),
+        1,
+        "the source answered, because `accept_empty` says an empty value a producer wrote is an answer - \
+         with the occurrences dropped it answered nothing at all"
+    );
+    assert!(
+        matches!(answered[0], Reading::Empty),
+        "and the answer is *empty*, not a shorter list: {:?}",
+        answered[0]
+    );
+
+    // A malformed value on a scalar field is recorded as malformed rather than read as absent - the
+    // distinction `on_malformed` acts on. (For `every` the case is unreachable: it is refused on anything but a
+    // list-valued target, and a `StringList` reading cannot be malformed while `parse_string_array` splits on
+    // commas, which is its own cycle-10 finding.)
+    let plan = asset(
+        r#"[{"id":"t.s","event_attribute":{"event":"acme.tokens","attribute":"count",
+             "occurrence":"first_yielding"}}]"#,
+        "usage_input_tokens",
+    )
+    .expect("compiles");
+    let malformed = SpanEvent {
+        name: "acme.tokens".to_string(),
+        attributes: std::collections::HashMap::from([("count".to_string(), "many".to_string())]),
+    };
+    let resolved = plan.resolve("span", &attrs, &[malformed]);
+    let refused: Vec<&(String, Reading)> = resolved.iter().flat_map(|r| &r.refused).collect();
+    assert_eq!(
+        refused.len(),
+        1,
+        "a present value that does not convert is malformed, and the chain has to *see* it - not receive a \
+         shorter list with nothing recorded"
+    );
+    assert!(
+        matches!(refused[0].1, Reading::Malformed { .. }),
+        "recorded as malformed: {:?}",
+        refused[0]
+    );
+
     // An event nothing carries is absent, not empty - the distinction the chain steps on.
     let plan = asset(
         r#"[{"id":"t.s","event_attribute":{"event":"acme.choice","attribute":"finish_reason"}}]"#,
@@ -5076,6 +5132,46 @@ fn a_named_attribute_family_is_readable_in_a_declared_order() {
             "the order must not depend on hash iteration"
         );
     }
+
+    // A blank member is filtered when the rule says so. The family branch returns **before** the rule-wide
+    // emptiness checks, so without applying them per member a `require_non_blank` on a named family was a
+    // declaration read from nowhere: the asset stated a filter the engine did not have.
+    let plan = compile(&std::collections::BTreeMap::from([(
+        "t.json".to_string(),
+        br#"{"id":"t","messages":[{"id":"t.family","require_non_blank":true,
+             "read":{"attribute_family":{"root":"acme.messages","order":"member_name"}},
+             "parse":"json_or_string","emit":"message","legacy_rank":1}]}"#
+            .to_vec(),
+    )]))
+    .expect("a named family with an emptiness requirement compiles");
+    let blank = std::collections::HashMap::from([
+        ("acme.messages.a".to_string(), "   ".to_string()),
+        ("acme.messages.b".to_string(), "real".to_string()),
+    ]);
+    let ctx = MessageContext::for_span("span", &blank, false);
+    assert_eq!(
+        plan.run(&ctx)
+            .iter()
+            .map(|e| e.carrier.name().to_string())
+            .collect::<Vec<_>>(),
+        ["acme.messages.b".to_string()],
+        "the requirement applies per member, because a member is the observation - the family as a whole is \
+         not one payload"
+    );
+
+    // And it is **refused** on an indexed family, where it is equally unreachable and has no meaning to give:
+    // entries are assembled from many keys, so there is no raw string for the check to ask about.
+    let refused = compile(&std::collections::BTreeMap::from([(
+        "t.json".to_string(),
+        br#"{"id":"t","messages":[{"id":"t.indexed","require_non_blank":true,
+             "read":{"indexed_family":"fam"},"emit":"message","legacy_rank":1}]}"#
+            .to_vec(),
+    )]))
+    .expect_err("an emptiness requirement on an indexed family must be refused, not ignored");
+    assert!(
+        refused.to_string().contains("require_members"),
+        "the refusal must name the entry-level filter that family reads do honour: {refused}"
+    );
 
     // The order is not optional: without it the format would say nothing about a sequence it produces.
     assert!(
