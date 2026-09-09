@@ -1469,13 +1469,15 @@ pub struct WrapSpec {
     /// assistant, not a role called `planner` - so which of the two a member is has to be declared.
     #[serde(default)]
     pub role_map_is_closed: bool,
-    /// A JSONPath whose value becomes the content, relative to the reading being wrapped.
-    #[serde(default)]
-    pub content_from: Option<JsonPath>,
     /// Ordered paths for the content; the first that resolves wins.
     ///
     /// One dialect serialises a message three ways depending on how it was constructed, and the content sits
     /// in a different member each time - so a single path reads two of the three as empty.
+    ///
+    /// **One list, not a singular member beside it.** `content_from` was a second spelling of exactly this
+    /// question - the runtime simply prepended it to this list - so a rule could state its content source
+    /// twice, in two members, with the ordering between them implicit in the code rather than in the
+    /// declaration. The 16 singular uses are now one-element lists.
     #[serde(default)]
     pub content_from_any_of: Vec<JsonPath>,
     /// The content when none of the paths above resolve. Absent means the reading is not this shape.

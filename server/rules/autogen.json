@@ -285,7 +285,6 @@
           },
           "wrap": {
             "role": "tool",
-            "content_from": "$.result",
             "content_default": null,
             "attach": [
               {
@@ -301,7 +300,10 @@
               "arguments": "$.arguments",
               "arguments_default": {},
               "name_default": "unknown"
-            }
+            },
+            "content_from_any_of": [
+              "$.result"
+            ]
           }
         }
       ],
@@ -427,7 +429,6 @@
           },
           "wrap": {
             "role": "tool",
-            "content_from": "$.result",
             "content_default": null,
             "attach": [
               {
@@ -443,7 +444,10 @@
               "arguments": "$.arguments",
               "arguments_default": {},
               "name_default": "unknown"
-            }
+            },
+            "content_from_any_of": [
+              "$.result"
+            ]
           }
         }
       ],
@@ -569,7 +573,6 @@
           },
           "wrap": {
             "role": "tool",
-            "content_from": "$.result",
             "content_default": null,
             "attach": [
               {
@@ -585,7 +588,10 @@
               "arguments": "$.arguments",
               "arguments_default": {},
               "name_default": "unknown"
-            }
+            },
+            "content_from_any_of": [
+              "$.result"
+            ]
           }
         }
       ],
@@ -615,7 +621,9 @@
           },
           "wrap": {
             "role": "system",
-            "content_from": "$.content"
+            "content_from_any_of": [
+              "$.content"
+            ]
           }
         },
         {
@@ -637,7 +645,6 @@
           },
           "wrap": {
             "role": "user",
-            "content_from": "$.content",
             "attach": [
               {
                 "from_value_any_of": [
@@ -646,6 +653,9 @@
                 "after_content": true,
                 "as": "name"
               }
+            ],
+            "content_from_any_of": [
+              "$.content"
             ]
           }
         },
@@ -668,7 +678,6 @@
           },
           "wrap": {
             "role": "assistant",
-            "content_from": "$.content",
             "attach": [
               {
                 "from_value_any_of": [
@@ -698,7 +707,10 @@
                   }
                 ]
               }
-            }
+            },
+            "content_from_any_of": [
+              "$.content"
+            ]
           }
         },
         {
@@ -724,7 +736,6 @@
             },
             "role_map_is_closed": true,
             "role": "assistant",
-            "content_from": "$.content",
             "attach": [
               {
                 "from_value_any_of": [
@@ -742,6 +753,9 @@
                 "after_content": true,
                 "as": "name"
               }
+            ],
+            "content_from_any_of": [
+              "$.content"
             ]
           },
           "doc": "An agent's utterance; `source` names the speaker."
@@ -769,7 +783,6 @@
             },
             "role_map_is_closed": true,
             "role": "assistant",
-            "content_from": "$.content",
             "attach": [
               {
                 "from_value_any_of": [
@@ -787,6 +800,9 @@
                 "after_content": true,
                 "as": "name"
               }
+            ],
+            "content_from_any_of": [
+              "$.content"
             ]
           },
           "doc": "An utterance carrying images beside its text."
@@ -814,7 +830,6 @@
             },
             "role_map_is_closed": true,
             "role": "assistant",
-            "content_from": "$.content",
             "attach": [
               {
                 "from_value_any_of": [
@@ -832,6 +847,9 @@
                 "after_content": true,
                 "as": "name"
               }
+            ],
+            "content_from_any_of": [
+              "$.content"
             ]
           },
           "doc": "The utterance that ended a conversation."
@@ -855,7 +873,6 @@
           },
           "wrap": {
             "role": "assistant",
-            "content_from": "$.content",
             "attach": [
               {
                 "from_value_any_of": [
@@ -871,6 +888,9 @@
                 },
                 "as": "name"
               }
+            ],
+            "content_from_any_of": [
+              "$.content"
             ]
           }
         },
@@ -897,7 +917,6 @@
           },
           "wrap": {
             "role": "assistant",
-            "content_from": "$.content",
             "block": {
               "type": "thinking",
               "content_as": "text",
@@ -908,7 +927,10 @@
                   "as": "signature"
                 }
               ]
-            }
+            },
+            "content_from_any_of": [
+              "$.content"
+            ]
           }
         },
         {
@@ -977,7 +999,6 @@
           },
           "wrap": {
             "role": "tool",
-            "content_from": "$.content",
             "content_default": "",
             "attach": [
               {
@@ -994,6 +1015,9 @@
                 "after_content": true,
                 "as": "tool_call_id"
               }
+            ],
+            "content_from_any_of": [
+              "$.content"
             ]
           },
           "require_parent": {
@@ -1137,7 +1161,6 @@
           },
           "wrap": {
             "role": "tool",
-            "content_from": "$.content",
             "content_default": "",
             "attach": [
               {
@@ -1154,6 +1177,9 @@
                 "after_content": true,
                 "as": "tool_call_id"
               }
+            ],
+            "content_from_any_of": [
+              "$.content"
             ]
           },
           "require_parent": {
@@ -1205,7 +1231,6 @@
             },
             "role_map_is_closed": true,
             "role": "assistant",
-            "content_from": "$.content",
             "attach": [
               {
                 "from_value_any_of": [
@@ -1223,6 +1248,9 @@
                 "after_content": true,
                 "as": "name"
               }
+            ],
+            "content_from_any_of": [
+              "$.content"
             ]
           }
         }

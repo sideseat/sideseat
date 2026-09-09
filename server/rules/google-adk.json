@@ -134,7 +134,9 @@
                 },
                 "wrap": {
                   "role_from": "$.role",
-                  "content_from": "$.parts"
+                  "content_from_any_of": [
+                    "$.parts"
+                  ]
                 }
               }
             ]
@@ -214,7 +216,6 @@
                   "role_map": {
                     "model": "assistant"
                   },
-                  "content_from": "$.parts",
                   "attach": [
                     {
                       "from_path": "$.finish_reason",
@@ -222,6 +223,9 @@
                       "lowercase": true,
                       "after_content": true
                     }
+                  ],
+                  "content_from_any_of": [
+                    "$.parts"
                   ]
                 }
               }

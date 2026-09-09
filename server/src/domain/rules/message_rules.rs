@@ -3286,12 +3286,7 @@ fn wrapped(
             None => Some(found.to_string()),
         })
         .or_else(|| wrap.role.clone());
-    let content_paths: Vec<&serde_json_path::JsonPath> = wrap
-        .content_from
-        .as_ref()
-        .into_iter()
-        .chain(wrap.content_from_any_of.iter())
-        .collect();
+    let content_paths: Vec<&serde_json_path::JsonPath> = wrap.content_from_any_of.iter().collect();
     let value = if content_paths.is_empty() {
         value
     } else {
