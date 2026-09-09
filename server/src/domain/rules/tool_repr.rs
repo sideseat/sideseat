@@ -99,11 +99,36 @@ fn labelled_details(
     (name, description, parameters)
 }
 
+/// Whether a match of `field=` at `at` is the field itself rather than the tail of a longer identifier.
+///
+/// `name=` matches inside `username=`, and a plain substring search therefore read `username='admin'` as the
+/// tool's `name` - inventing a tool called `admin` out of a constructor that never named one. An identifier
+/// character immediately before the match means the match is a suffix of something else.
+fn at_identifier_boundary(input: &str, at: usize) -> bool {
+    input[..at]
+        .chars()
+        .next_back()
+        .is_none_or(|ch| !(ch.is_alphanumeric() || ch == '_'))
+}
+
+/// The first index at which `needle` occurs on an identifier boundary.
+fn find_field(input: &str, needle: &str) -> Option<usize> {
+    let mut from = 0;
+    while let Some(offset) = input[from..].find(needle) {
+        let at = from + offset;
+        if at_identifier_boundary(input, at) {
+            return Some(at);
+        }
+        from = at + 1;
+    }
+    None
+}
+
 /// Extract `field='...'` or `field="..."` from repr-like strings.
 fn repr_field(input: &str, field: &str) -> Option<String> {
     for quote in ['\'', '"'] {
         let prefix = format!("{field}={quote}");
-        if let Some(start) = input.find(&prefix) {
+        if let Some(start) = find_field(input, &prefix) {
             let rest = &input[start + prefix.len()..];
             let mut escaped = false;
             for (idx, ch) in rest.char_indices() {
@@ -130,24 +155,32 @@ fn repr_field(input: &str, field: &str) -> Option<String> {
 /// by scanning - the value runs to the `')` that closes the constructor.
 fn loosely_quoted_repr_field(input: &str, field: &str, terminators: &[String]) -> Option<String> {
     let opening = format!("{field}='");
-    if let Some(start) = input.find(opening.as_str()) {
+    if let Some(start) = find_field(input, opening.as_str()) {
         let rest = &input[start + opening.len()..];
-        // A constructor repr closes with `')`, whatever the language put inside it.
-        if let Some(end) = rest.rfind("')") {
-            return Some(rest[..end].to_string());
-        }
-        // Otherwise the value ends where the next declared field begins. Which fields those are is the
-        // framework's own vocabulary, so they are declared - the two that used to be written here were one
-        // framework's, sitting in a module that claims to name none.
+        // **The earliest boundary wins**, over every candidate at once. Two defects came from taking them in
+        // turn: `rfind("')")` looked for the *last* constructor close, so a quoted field after this one
+        // (`env_vars='SECRET')`) put its own closing quote at the end and the description swallowed
+        // `env_vars='SECRET`; and the declared terminators were tried in *declaration* order, so which one
+        // applied depended on how the asset listed them rather than on where the value actually ends.
+        let mut boundary: Option<usize> = None;
+        let mut consider = |end: Option<usize>| {
+            if let Some(end) = end {
+                boundary = Some(boundary.map_or(end, |best: usize| best.min(end)));
+            }
+        };
+        // A constructor repr closes with `')`, whatever the language put inside it - the **first** such close
+        // past this field, since a later field's quote makes another.
+        consider(rest.find("')"));
+        // And the value ends where the next declared field begins. Which fields those are is the framework's own
+        // vocabulary, so they are declared - the two that used to be written here were one framework's, sitting
+        // in a module that claims to name none.
         for terminator in terminators {
             for needle in [format!("' {terminator}="), format!("', {terminator}=")] {
-                if let Some(end) = rest.find(needle.as_str()) {
-                    return Some(rest[..end].to_string());
-                }
+                consider(rest.find(needle.as_str()));
             }
         }
         // Nothing closes it: the value is the remainder.
-        return Some(rest.to_string());
+        return Some(rest[..boundary.unwrap_or(rest.len())].to_string());
     }
     // The strictly-quoted spelling of the same field, not a fixed member name.
     repr_field(input, field)
@@ -388,10 +421,15 @@ fn json_schema_type(type_name: &str, spec: &ToolReprSpec) -> String {
 
 fn tool_from_value(value: &JsonValue, spec: &ToolReprSpec) -> Option<JsonValue> {
     if let Some(s) = value.as_str() {
+        // A marker on an **identifier boundary**. A marker like `name=` matched inside `username=`, so a
+        // constructor repr that names no tool was decoded as one anyway - and `repr_field` then found
+        // `name='admin'` inside that same token, inventing a tool called `admin`. A marker that is not an
+        // identifier prefix (`CrewStructuredTool(`) is unaffected: the boundary test only rejects a match whose
+        // preceding character continues an identifier.
         if spec
             .repr_markers
             .iter()
-            .any(|marker| s.contains(marker.as_str()))
+            .any(|marker| find_field(s, marker.as_str()).is_some())
         {
             return tool_from_repr(s, spec);
         }

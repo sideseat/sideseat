@@ -6779,3 +6779,83 @@ fn a_compose_owns_the_carriers_it_read() {
         "a member whose payload does not parse neither contributes nor owns"
     );
 }
+
+/// A `repr` field is the field, not the tail of a longer identifier - and a value ends at the **earliest**
+/// boundary.
+///
+/// Two defects in the sealed repr grammar, both of which invent or corrupt a tool:
+///
+/// - `name=` matches inside `username=`, so `CrewStructuredTool(username='admin', …)` decoded as a tool and
+///   `repr_field` then found `name='admin'` inside that same token. The server invented a tool called `admin`
+///   out of a constructor that names none.
+/// - a loosely-quoted value took the **last** `')` in the remainder and tried declared terminators in
+///   *declaration* order, so a quoted field after the description (`env_vars='SECRET')`) put its own closing
+///   quote at the end and the description swallowed `env_vars='SECRET`.
+#[test]
+fn a_repr_field_respects_identifier_boundaries_and_the_earliest_close() {
+    use crate::domain::rules::message_rules::{MessageContext, compile};
+
+    let plan = compile(&std::collections::BTreeMap::from([(
+        "t.json".to_string(),
+        br#"{"id":"t","messages":[{"id":"t.tools","read":{"attribute":"tools"},"parse":"json",
+             "emit":"tool_definitions","legacy_rank":1,
+             "tool_repr":{"entries":"$[*]","candidates":["$"],
+               "name_field":"name","description_field":"description",
+               "name_label":"Tool Name:","description_label":"Tool Description:",
+               "arguments_label":"Tool Arguments:","repr_markers":["name=","CrewStructuredTool("],
+               "parameter_members":["args"],"field_terminators":["env_vars"],
+               "type_map":[["str","string"]],"type_default":"string"}}]}"#
+            .to_vec(),
+    )]))
+    .expect("the probe compiles");
+    let tools = |payload: serde_json::Value| -> Vec<serde_json::Value> {
+        let attrs = std::collections::HashMap::from([("tools".to_string(), payload.to_string())]);
+        let ctx = MessageContext::for_span("span", &attrs, false);
+        plan.tool_definitions(&ctx)
+            .iter()
+            .flat_map(|e| e.value.as_array().cloned().unwrap_or_default())
+            .collect()
+    };
+
+    // A constructor whose only `name=`-looking token is `username=`: the marker must not match there, so the
+    // string is not decoded as a repr and **no tool called `admin` is invented**.
+    //
+    // What it *does* produce is the bare-name reading - the whole string as a tool name - which is the other
+    // half of Codex's finding 6: a non-marker string is accepted as a name whatever it says, and fixing that
+    // needs the tagged decoders (`bare_name` versus `python_constructor_repr` declared per candidate) rather
+    // than a boundary test. So this asserts the invention is gone, not that the reading is right.
+    let mistaken = tools(serde_json::json!([
+        "CrewStructuredTool2(username='admin', description='not a tool name')"
+    ]));
+    assert!(
+        mistaken
+            .iter()
+            .all(|tool| tool["function"]["name"].as_str() != Some("admin")),
+        "`name=` inside `username=` is not the `name` field: {mistaken:?}"
+    );
+
+    // The real thing still decodes, so the boundary test is not a ban on markers.
+    let real = tools(serde_json::json!([
+        "CrewStructuredTool(name='search', description='Find records')"
+    ]));
+    assert_eq!(real.len(), 1);
+    assert_eq!(real[0]["function"]["name"].as_str(), Some("search"));
+
+    // The earliest boundary: a quoted field *after* the description must not be swallowed by it. Codex's own
+    // input, and it needs the **label** inside the quoted value - that value is a container the grammar reads
+    // labels out of, so an unlabelled `description='Find records'` reports no description at all, which is
+    // this dialect's shape rather than a defect.
+    let bounded = tools(serde_json::json!([
+        "CrewStructuredTool(name='search', description='Tool Description: Find records', \
+         env_vars='SECRET')"
+    ]));
+    assert_eq!(bounded.len(), 1);
+    let description = bounded[0]["function"]["description"]
+        .as_str()
+        .unwrap_or_default();
+    assert!(
+        !description.contains("SECRET"),
+        "the description ran to a later field's closing quote: {description:?}"
+    );
+    assert_eq!(description, "Find records");
+}
