@@ -5802,3 +5802,122 @@ fn two_declarations_must_not_write_one_output_member() {
         assert!(asset(&rule).is_ok(), "{what}: {:?}", asset(&rule).err());
     }
 }
+
+/// A construction branch refuses every sibling it would return before reaching.
+///
+/// The refusals existed and were **incomplete**, which is the harder kind to notice: `sections` refused `wrap`
+/// and `alternatives` and accepted a walk, an aggregate, a `fallback` and a `tag_as` - each of which it returns
+/// before. An indexed family accepted a `fallback`, a walk and `sections`; the named family added in cycle 9
+/// accepted all of them.
+///
+/// And an element pass could state something other than what it did five different ways, the worst being a
+/// decision table that answers for an element and has no tag for the answer - discarding a run the rule matched
+/// on purpose.
+#[test]
+fn a_construction_branch_refuses_the_siblings_it_would_skip() {
+    use crate::domain::rules::message_rules::compile;
+
+    let asset = |rule: &str| {
+        let body = format!(r#"{{"id":"t","messages":[{rule}]}}"#);
+        compile(&std::collections::BTreeMap::from([(
+            "t.json".to_string(),
+            body.into_bytes(),
+        )]))
+    };
+    let sections = r#""sections":{"split_on":"|","routes":[{"id":"all","role":"user"}]}"#;
+
+    for (what, extra) in [
+        ("a walk", r#""walk":{"max_depth":2}"#),
+        ("an aggregate", r#""aggregate_into_array":true"#),
+        ("a fallback", r#""fallback":[{"id":"raw"}]"#),
+        ("a `tag_as`", r#""tag_as":"renamed""#),
+    ] {
+        let rule = format!(
+            r#"{{"id":"t.s","read":{{"attribute":"x"}},"parse":"text",{sections},{extra},
+                 "emit":"message","legacy_rank":1}}"#
+        );
+        assert!(
+            asset(&rule).is_err(),
+            "`sections` returns before {what}, so declaring it is dead"
+        );
+    }
+    // The branch itself still compiles, or the refusals are a ban on sections.
+    let plain = format!(
+        r#"{{"id":"t.s","read":{{"attribute":"x"}},"parse":"text",{sections},
+             "emit":"message","legacy_rank":1}}"#
+    );
+    assert!(
+        asset(&plain).is_ok(),
+        "sections alone: {:?}",
+        asset(&plain).err()
+    );
+
+    // A named family, which returns at the same point.
+    for (what, extra) in [
+        ("a fallback", r#""fallback":[{"id":"raw"}]"#),
+        (
+            "elements",
+            r#""elements":{"passes":[{"id":"p","tag_from":"$.n"}]}"#,
+        ),
+        ("an aggregate", r#""aggregate_into_array":true"#),
+    ] {
+        let rule = format!(
+            r#"{{"id":"t.f","read":{{"attribute_family":{{"root":"fam","order":"member_name"}}}},
+                 "parse":"json",{extra},"emit":"message","legacy_rank":1}}"#
+        );
+        assert!(
+            asset(&rule).is_err(),
+            "a named family emits one observation per member, so {what} is dead"
+        );
+    }
+
+    // The five element-pass shapes.
+    let elements = |passes: &str| {
+        format!(
+            r#"{{"id":"t.e","read":{{"attribute":"x"}},"parse":"json",
+                 "elements":{{"passes":{passes}}},"emit":"message","legacy_rank":1}}"#
+        )
+    };
+    for (what, passes) in [
+        ("no passes at all", "[]"),
+        (
+            "a pass with neither `tag_from` nor `group`",
+            r#"[{"id":"p"}]"#,
+        ),
+        (
+            "a pass with both, where `group` silently wins",
+            r#"[{"id":"p","tag_from":"$.n","group":{"by":[{"id":"c","when":{},"value":"user"}],
+               "collect":"$.d","key_as":"role","tag_by_key":{"user":"gen_ai.user.message"}}}]"#,
+        ),
+        (
+            "an empty decision table, so every run is empty",
+            r#"[{"id":"p","group":{"by":[],"collect":"$.d","key_as":"role","tag_by_key":{}}}]"#,
+        ),
+        (
+            "a derived value with no tag, so the run it matched is discarded",
+            r#"[{"id":"p","group":{"by":[{"id":"c","when":{},"value":"user"}],
+               "collect":"$.d","key_as":"role","tag_by_key":{"assistant":"gen_ai.assistant.message"}}}]"#,
+        ),
+    ] {
+        assert!(
+            asset(&elements(passes)).is_err(),
+            "an element pass with {what} must be refused"
+        );
+    }
+    // And the shape Logfire's asset actually carries.
+    assert!(
+        asset(&elements(
+            r#"[{"id":"named","tag_from":"$.n"},
+                {"id":"grouped","group":{"by":[{"id":"c","when":{},"value":"user"}],
+                 "collect":"$.d","key_as":"role","tag_by_key":{"user":"gen_ai.user.message"}}}]"#
+        ))
+        .is_ok(),
+        "a tagging pass beside a grouping pass is the shipped shape: {:?}",
+        asset(&elements(
+            r#"[{"id":"named","tag_from":"$.n"},
+                {"id":"grouped","group":{"by":[{"id":"c","when":{},"value":"user"}],
+                 "collect":"$.d","key_as":"role","tag_by_key":{"user":"gen_ai.user.message"}}}]"#
+        ))
+        .err()
+    );
+}

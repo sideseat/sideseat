@@ -663,10 +663,97 @@ fn compile_rule(
                  a walk, an aggregate or a reading would be ignored",
         ));
     }
-    if sections.is_some() && (wrap.is_some() || !alternatives.is_empty() || !also.is_empty()) {
+    // `sections` returns before the walk, the aggregate, the readings and the fallback, so each of those was
+    // accepted and dead - the list was incomplete rather than absent, which is the harder kind to notice.
+    if sections.is_some()
+        && (wrap.is_some()
+            || !alternatives.is_empty()
+            || !also.is_empty()
+            || !fallback.is_empty()
+            || walk.is_some()
+            || aggregate_into_array.is_some()
+            || tag_as.is_some())
+    {
         return Err(inexpressible(
-            "`sections` builds each section's message, so `wrap` and `alternatives` would be \
+            "`sections` builds each section's message and emits it directly, so `wrap`, `alternatives`, a \
+                 `fallback`, a walk, an aggregate or a `tag_as` would be ignored",
+        ));
+    }
+    // **An element pass states exactly one action, and its decision table is total.** Five shapes were
+    // accepted and each did something other than what it said:
+    //
+    // | Shape | What happened |
+    // | --- | --- |
+    // | no passes at all | the rule reads its array and emits nothing |
+    // | a pass with neither `tag_from` nor `group` | the pass matches elements and drops them |
+    // | a pass with **both** | `group` silently wins and `tag_from` is dead |
+    // | an empty `group.by` | no element derives a key, so every run is empty |
+    // | a derived value missing from `tag_by_key` | the whole run is dropped, silently |
+    //
+    // The last is the one to notice: a decision table that answers for an element and then has no tag for the
+    // answer discards content the rule matched *on purpose*. Logfire's data already satisfies all five.
+    if let Some(elements) = elements {
+        if elements.passes.is_empty() {
+            return Err(inexpressible(
+                "`elements` declares no passes, so the rule reads its array and emits nothing",
+            ));
+        }
+        for pass in &elements.passes {
+            match (&pass.tag_from, &pass.group) {
+                (None, None) => {
+                    return Err(inexpressible(
+                        "an element pass declares neither `tag_from` nor `group`, so it matches elements and \
+                             drops them",
+                    ));
+                }
+                (Some(_), Some(_)) => {
+                    return Err(inexpressible(
+                        "an element pass declares both `tag_from` and `group`; `group` wins and `tag_from` \
+                             would be ignored",
+                    ));
+                }
+                _ => {}
+            }
+            let Some(group) = &pass.group else { continue };
+            if group.by.is_empty() {
+                return Err(inexpressible(
+                    "a grouped element pass declares no cases, so no element derives a key and every run is \
+                         empty",
+                ));
+            }
+            for case in &group.by {
+                if !group.tag_by_key.contains_key(&case.value) {
+                    return Err(inexpressible(
+                        "a grouped element pass derives a value its `tag_by_key` has no tag for, so a run \
+                             the rule matched on purpose is silently discarded",
+                    ));
+                }
+            }
+        }
+    }
+    // The same for an indexed family, whose branch also returns before the walk, the readings and the
+    // fallback. Its existing refusal covered `wrap`, `alternatives` and `also` only.
+    if read.indexed_family.is_some()
+        && (!fallback.is_empty() || walk.is_some() || sections.is_some())
+    {
+        return Err(inexpressible(
+            "an indexed family assembles each entry itself, so a `fallback`, a walk or `sections` would be \
                  ignored",
+        ));
+    }
+    // And a named family, which is the newest of the three and returns at the same point.
+    if read.attribute_family.is_some()
+        && (!alternatives.is_empty()
+            || !also.is_empty()
+            || !fallback.is_empty()
+            || walk.is_some()
+            || sections.is_some()
+            || elements.is_some()
+            || aggregate_into_array.is_some())
+    {
+        return Err(inexpressible(
+            "a named family emits one observation per member, so `alternatives`, a `fallback`, a walk, \
+                 `sections`, `elements` or an aggregate would be ignored",
         ));
     }
     if read.entry_member.is_some() && read.indexed_family.is_none() {
