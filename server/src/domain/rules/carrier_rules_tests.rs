@@ -5104,3 +5104,74 @@ fn a_named_attribute_family_is_readable_in_a_declared_order() {
         "exactly one source form, as every other combination is"
     );
 }
+
+/// An emission names the clause **inside** its rule that produced it, not only the rule.
+///
+/// `SectionRoute.id`, `ElementPass.id` and `DerivedCase.id` are required declarations and were discarded before
+/// the emission was built: `sectioned()` and `element_passes()` returned values and tags. So two routes of one
+/// rule produced emissions with identical evidence, and a diagnostic could name the rule and not the route -
+/// exactly the thing a reader needs when two routes disagree.
+///
+/// The section-route half is corpus-covered (`claude-agent-sdk.new_context`, and
+/// `no_declared_subdivision_is_dead_across_the_corpus` fails if the id stops being carried). The element-pass
+/// and derived-case halves are **not**: the only asset declaring them is Logfire's, whose suite has no captured
+/// fixture. So they are pinned here, on the shape that asset carries, or the corpus gate would exempt them and
+/// nothing would hold them at all.
+#[test]
+fn an_emission_names_the_clause_inside_its_rule() {
+    use crate::domain::rules::message_rules::{MessageContext, compile};
+
+    let plan = compile(&std::collections::BTreeMap::from([(
+        "t.json".to_string(),
+        br#"{"id":"t","messages":[{"id":"t.events","read":{"attribute":"events"},"parse":"json",
+             "emit":"message","legacy_rank":1,"elements":{"passes":[
+               {"id":"named","when":{"all":[{"path":"$['event.name']","one_of":["gen_ai.choice"]}]},
+                "tag_from":"$['event.name']"},
+               {"id":"blocks",
+                "when":{"all":[{"path":"$['event.name']","none_of":["gen_ai.choice"]},
+                               {"path":"$.data","kind":"object"}]},
+                "group":{"collect":"$.data","key_as":"role","by":[
+                   {"id":"is_input","when":{"all":[{"path":"$.data.type","starts_with":"input_"}]},
+                    "value":"user"},
+                   {"id":"is_output","when":{"all":[{"path":"$.data.type","starts_with":"output_"}]},
+                    "value":"assistant"}],
+                 "tag_by_key":{"user":"gen_ai.user.message","assistant":"gen_ai.assistant.message"}}}]}}]}"#
+            .to_vec(),
+    )]))
+    .expect("the element-pass shape compiles");
+
+    let attrs = std::collections::HashMap::from([(
+        "events".to_string(),
+        serde_json::json!([
+            {"event.name": "gen_ai.choice", "content": "the reply"},
+            {"data": {"type": "input_image", "url": "a"}},
+            {"data": {"type": "input_image", "url": "b"}},
+            {"data": {"type": "output_text", "text": "c"}},
+        ])
+        .to_string(),
+    )]);
+    let ctx = MessageContext::for_span("span", &attrs, false);
+    let paths: Vec<String> = plan
+        .run(&ctx)
+        .iter()
+        .map(|e| {
+            std::iter::once(e.rule_id)
+                .chain(e.clause.iter().copied())
+                .collect::<Vec<_>>()
+                .join("/")
+        })
+        .collect();
+    assert_eq!(
+        paths,
+        [
+            // The ungrouped pass: the pass alone, since no case chose anything.
+            "t.events/named",
+            // A **run** of consecutive input blocks: one emission, naming the pass and the case whose
+            // predicate derived its key. Two cases can derive the same key, so the key does not name the
+            // clause - which is why the run carries the case rather than being looked up from it.
+            "t.events/blocks/is_input",
+            "t.events/blocks/is_output",
+        ],
+        "each emission names the pass, and a grouped one also the derived case that produced its run"
+    );
+}

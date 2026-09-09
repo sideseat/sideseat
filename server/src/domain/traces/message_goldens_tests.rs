@@ -3767,6 +3767,18 @@ fn declared_rule_ids() -> BTreeSet<String> {
 }
 
 /// Which rules actually emit something, over every captured request of the whole corpus.
+/// One emission's provenance as a single string: the rule, then the clauses inside it that produced it.
+///
+/// The same shape `expr::ClausePath` renders, so a diagnostic and this gate name a clause the same way. For a
+/// rule that answered directly this is just the rule id, which the caller records anyway - the value is in the
+/// subdivisions, whose required ids used to be discarded before an emission was built.
+fn clause_path(emission: &crate::domain::rules::message_rules::Emission<'_>) -> String {
+    std::iter::once(emission.rule_id)
+        .chain(emission.clause.iter().copied())
+        .collect::<Vec<_>>()
+        .join("/")
+}
+
 fn rules_that_emit() -> BTreeSet<String> {
     use crate::domain::rules::MessageContext;
     use crate::domain::rules::message_rules::OwnedCarrier;
@@ -3795,6 +3807,7 @@ fn rules_that_emit() -> BTreeSet<String> {
                             Vec::new();
                         for emission in plan.run(&ctx) {
                             fired.insert(emission.rule_id.to_string());
+                            fired.insert(clause_path(&emission));
                             read.extend(emission.owns.iter().cloned());
                             // Only a *message* is output. A `Claim` enters ownership and produces nothing, so
                             // counting one as the span's answer made the measurement skip the recovery pass
@@ -3845,11 +3858,13 @@ fn rules_that_emit() -> BTreeSet<String> {
                             }) {
                                 for emission in plan.fallback(&ctx, &read) {
                                     fired.insert(emission.rule_id.to_string());
+                                    fired.insert(clause_path(&emission));
                                 }
                             }
                         }
                         for emission in plan.tool_definitions(&ctx) {
                             fired.insert(emission.rule_id.to_string());
+                            fired.insert(clause_path(&emission));
                         }
                         for event in &span.events {
                             let event_attrs = extract_attributes(&event.attributes);
@@ -3862,6 +3877,7 @@ fn rules_that_emit() -> BTreeSet<String> {
                             );
                             for emission in emissions {
                                 fired.insert(emission.rule_id.to_string());
+                                fired.insert(clause_path(&emission));
                             }
                         }
                     }
@@ -4312,4 +4328,123 @@ fn the_member_vocabulary_answers_as_it_did_across_the_corpus() {
             "UNOBSERVED names `{member}`, which no rule declares"
         );
     }
+}
+
+/// Every declared **subdivision** either produces an answer over the corpus, or is exempted with a reason.
+///
+/// The rule-level gate beside this one could not see inside a rule: `SectionRoute.id`, `ElementPass.id` and
+/// `DerivedCase.id` are required declarations, and `sectioned()` / `element_passes()` discarded them before an
+/// emission was built - so two routes of one rule produced emissions with *identical* evidence, and a
+/// diagnostic could name the rule and not the route. Now the emission carries the path, which is what lets this
+/// ask the question at all.
+///
+/// It is also what makes the field load-bearing rather than a struct member nobody reads: before this, an
+/// emission's `rule_id` was consumed by nothing outside the rules module, so adding a clause path would only
+/// have moved the discard one level.
+#[test]
+fn no_declared_subdivision_is_dead_across_the_corpus() {
+    use crate::domain::rules::schema::{MessageRule, RuleFile};
+
+    /// Subdivisions no captured request exercises, and why.
+    ///
+    /// All four are Logfire's, for the reason the rule-level gate already records against every
+    /// `logfire.*` rule: no fixture has been captured for that suite. So this list carries no reason the
+    /// other does not, which is the state to want - a subdivision exempted for a reason of its own would
+    /// mean a clause inside a *reached* rule that nothing reaches.
+    const UNREACHED: &[(&str, &str)] = &[
+        (
+            "logfire.conversation/everything_else_that_carries",
+            "no captured fixture for the suite",
+        ),
+        (
+            "logfire.conversation/everything_else_that_carries/assistant",
+            "no captured fixture for the suite",
+        ),
+        (
+            "logfire.conversation/everything_else_that_carries/user",
+            "no captured fixture for the suite",
+        ),
+        (
+            "logfire.conversation/name",
+            "no captured fixture for the suite",
+        ),
+    ];
+
+    fn paths_of(rule: &MessageRule, prefix: &str, out: &mut Vec<String>) {
+        if let Some(sections) = &rule.sections {
+            for route in &sections.routes {
+                out.push(format!("{prefix}/{}", route.id));
+            }
+        }
+        if let Some(elements) = &rule.elements {
+            for pass in &elements.passes {
+                out.push(format!("{prefix}/{}", pass.id));
+                if let Some(group) = &pass.group {
+                    for case in &group.by {
+                        out.push(format!("{prefix}/{}/{}", pass.id, case.id));
+                    }
+                }
+            }
+        }
+        if let Some(set) = &rule.branch_set {
+            // A branch leaf is a rule in its own right and keeps the *parent's* id in an emission, so its
+            // subdivisions live in the parent's path space.
+            for leaf in set
+                .primary
+                .iter()
+                .chain(&set.fallback_if_primary_empty)
+                .chain(&set.always)
+            {
+                paths_of(leaf, prefix, out);
+            }
+        }
+    }
+
+    let mut declared: Vec<String> = Vec::new();
+    for (_, bytes) in crate::domain::rules::schema::embedded_sources() {
+        let file: RuleFile = serde_json::from_slice(&bytes).expect("the asset parses");
+        for rule in &file.messages {
+            paths_of(rule, &rule.id, &mut declared);
+        }
+    }
+    declared.sort();
+    declared.dedup();
+    // Six today: two section routes, two element passes, two derived cases. Asserted so the gate cannot pass
+    // by finding nothing - which is how a walk that stopped covering a nesting would look.
+    assert_eq!(
+        declared.len(),
+        6,
+        "the declared subdivisions changed; the walk may have stopped covering a nesting: {declared:?}"
+    );
+
+    let fired = rules_that_emit();
+    let exempt: BTreeSet<&str> = UNREACHED.iter().map(|(id, _)| *id).collect();
+
+    let silent: Vec<&String> = declared
+        .iter()
+        .filter(|path| !fired.contains(*path) && !exempt.contains(path.as_str()))
+        .collect();
+    assert!(
+        silent.is_empty(),
+        "{} declared subdivision(s) never produced an answer over the corpus. Either the clause is dead - a \
+         route no tag reaches, a pass whose predicate never holds - or the path is not being carried through \
+         to the emission, which is the defect this gate exists to catch:\n  {}",
+        silent.len(),
+        silent
+            .iter()
+            .map(|p| p.as_str())
+            .collect::<Vec<_>>()
+            .join("\n  ")
+    );
+
+    // Both directions, as the rule-level gate is: an exemption that starts firing is a stale excuse.
+    let revived: Vec<&str> = exempt
+        .iter()
+        .copied()
+        .filter(|path| fired.contains(*path))
+        .collect();
+    assert!(
+        revived.is_empty(),
+        "exempted subdivision(s) now fire, so the exemption is stale: {revived:?}"
+    );
 }

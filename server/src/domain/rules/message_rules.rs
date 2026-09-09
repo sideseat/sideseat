@@ -122,8 +122,17 @@ impl EmittedCarrier<'_> {
 /// One observation a rule produced.
 #[derive(Debug, Clone)]
 pub struct Emission<'a> {
-    /// The clause that produced it, for the explain trace.
+    /// The rule that produced it, for the explain trace.
     pub rule_id: &'a str,
+    /// The clauses **inside** that rule which produced it, outermost first. Empty when the rule answered
+    /// directly.
+    ///
+    /// `SectionRoute.id`, `ElementPass.id` and `DerivedCase.id` are required declarations and were discarded:
+    /// `sectioned()` and `element_passes()` returned only values and tags, so `claude-agent-sdk.new_context`'s
+    /// `tool_result` and `as_user` routes produced emissions with *identical* evidence - the enclosing rule id
+    /// and nothing else. A diagnostic could say which rule answered and not which of its routes, which is the
+    /// thing a reader needs when two routes disagree.
+    pub clause: Vec<&'a str>,
     pub carrier: EmittedCarrier<'a>,
     /// The carriers this emission *read*, which is what it owns - separate from the tag above.
     ///
@@ -3349,7 +3358,13 @@ fn split_bracket_tag(value: &str) -> (Option<&str>, &str) {
 }
 
 /// The messages a tagged text carrier yields, one per section.
-fn sectioned(raw: &str, spec: &SectionsSpec) -> Vec<JsonValue> {
+/// Each section's message, with **which route** built it.
+///
+/// `SectionRoute.id` is a required declaration and was discarded here: two routes of one rule produced
+/// emissions carrying identical evidence, so a diagnostic could name the rule and not the route - which is
+/// exactly what a reader needs when `claude-agent-sdk.new_context`'s `tool_result` and `as_user` routes
+/// disagree.
+fn sectioned<'s>(raw: &str, spec: &'s SectionsSpec) -> Vec<(&'s str, JsonValue)> {
     let mut out = Vec::new();
     for section in raw.split(spec.split_on.as_str()) {
         let (tag, body) = split_bracket_tag(section);
@@ -3403,7 +3418,7 @@ fn sectioned(raw: &str, spec: &SectionsSpec) -> Vec<JsonValue> {
                 message.insert("content".to_string(), json!(body));
             }
         }
-        out.push(JsonValue::Object(message));
+        out.push((route.id.as_str(), JsonValue::Object(message)));
     }
     out
 }
@@ -3493,6 +3508,7 @@ fn emit_rule<'p>(rule: &'p CompiledMessageRule, ctx: &MessageContext<'_>) -> Vec
             read_carriers.push(OwnedCarrier::attribute(compose.tag.as_str()));
             out.push(Emission {
                 rule_id: &rule.rule_id,
+                clause: Vec::new(),
                 carrier: EmittedCarrier::Attribute(compose.tag.as_str()),
                 owns: read_carriers,
                 target: rule.target,
@@ -3509,6 +3525,7 @@ fn emit_rule<'p>(rule: &'p CompiledMessageRule, ctx: &MessageContext<'_>) -> Vec
             {
                 out.push(Emission {
                     rule_id: &rule.rule_id,
+                    clause: Vec::new(),
                     carrier: EmittedCarrier::Attribute(rule.tag_as.as_deref().unwrap_or(attribute)),
                     owns: OwnedCarrier::just(attribute),
                     target: rule.target,
@@ -3547,6 +3564,7 @@ fn emit_rule<'p>(rule: &'p CompiledMessageRule, ctx: &MessageContext<'_>) -> Vec
             };
             out.push(Emission {
                 rule_id: &rule.rule_id,
+                clause: Vec::new(),
                 // Tagged with the **member's own key**, not the root: two members are two carriers, and one
                 // tag for the family would make them indistinguishable to carrier semantics and identity.
                 // `Owned`, because the key comes from the span rather than from the rule.
@@ -3597,6 +3615,7 @@ fn emit_rule<'p>(rule: &'p CompiledMessageRule, ctx: &MessageContext<'_>) -> Vec
             };
             out.push(Emission {
                 rule_id: &rule.rule_id,
+                clause: Vec::new(),
                 carrier: EmittedCarrier::Attribute(rule.tag_as.as_deref().unwrap_or(family)),
                 owns,
                 target: rule.target,
@@ -3618,6 +3637,7 @@ fn emit_rule<'p>(rule: &'p CompiledMessageRule, ctx: &MessageContext<'_>) -> Vec
             owns.dedup();
             out.push(Emission {
                 rule_id: &rule.rule_id,
+                clause: Vec::new(),
                 owns,
                 carrier: EmittedCarrier::Owned(entry.carrier),
                 target: rule.target,
@@ -3642,7 +3662,7 @@ fn emit_rule<'p>(rule: &'p CompiledMessageRule, ctx: &MessageContext<'_>) -> Vec
         let Some(parsed) = parse_value(raw, rule.parse.unwrap_or(ParseMode::Json)) else {
             return out;
         };
-        for (carrier, value) in element_passes(&parsed, elements) {
+        for (carrier, value, clause) in element_passes(&parsed, elements) {
             // An event carrier is kept as one: carrier semantics are looked up by kind, so reporting an
             // event as an attribute changes what the pipeline reads it as evidence of.
             let tagged = if elements.tags_are_events {
@@ -3652,6 +3672,7 @@ fn emit_rule<'p>(rule: &'p CompiledMessageRule, ctx: &MessageContext<'_>) -> Vec
             };
             out.push(Emission {
                 rule_id: &rule.rule_id,
+                clause,
                 // The array attribute is what was read; each element's tag is a name for one of its parts.
                 owns: OwnedCarrier::just(attribute),
                 carrier: tagged,
@@ -3663,9 +3684,10 @@ fn emit_rule<'p>(rule: &'p CompiledMessageRule, ctx: &MessageContext<'_>) -> Vec
     }
     // A text carrier read as tagged sections, each emitted on its own.
     if let Some(sections) = &rule.sections {
-        for value in sectioned(raw, sections) {
+        for (route, value) in sectioned(raw, sections) {
             out.push(Emission {
                 rule_id: &rule.rule_id,
+                clause: vec![route],
                 carrier: EmittedCarrier::Attribute(rule.tag_as.as_deref().unwrap_or(attribute)),
                 owns: OwnedCarrier::just(attribute),
                 target: rule.target,
@@ -3692,6 +3714,7 @@ fn emit_rule<'p>(rule: &'p CompiledMessageRule, ctx: &MessageContext<'_>) -> Vec
         }
         out.push(Emission {
             rule_id: &rule.rule_id,
+            clause: Vec::new(),
             carrier: EmittedCarrier::Attribute(rule.tag_as.as_deref().unwrap_or(attribute)),
             owns: OwnedCarrier::just(attribute),
             target: rule.target,
@@ -3710,6 +3733,7 @@ fn emit_rule<'p>(rule: &'p CompiledMessageRule, ctx: &MessageContext<'_>) -> Vec
         };
         out.push(Emission {
             rule_id: &rule.rule_id,
+            clause: Vec::new(),
             carrier: EmittedCarrier::Attribute(rule.tag_as.as_deref().unwrap_or(attribute)),
             owns: OwnedCarrier::just(attribute),
             target: per_reading_target.unwrap_or(rule.target),
@@ -3851,7 +3875,15 @@ pub(super) fn predicates_hold(value: &JsonValue, set: &PredicateSet) -> bool {
 /// Each pass scans every element. That is the shape of the code being replaced and the order is
 /// observable - one dialect emits every recognised event before any grouped block - so it is declared
 /// rather than left to how a loop happens to be written.
-fn element_passes(parsed: &JsonValue, spec: &ElementsSpec) -> Vec<(String, JsonValue)> {
+/// Each element pass's observations, with **which clauses produced them**.
+///
+/// The path is the pass, and for a grouped pass the derived case whose predicate matched - both are required
+/// declarations that this function used to discard, leaving two routes of one rule indistinguishable in a
+/// diagnostic.
+fn element_passes<'s>(
+    parsed: &JsonValue,
+    spec: &'s ElementsSpec,
+) -> Vec<(String, JsonValue, Vec<&'s str>)> {
     let array = match &spec.select {
         Some(path) => query(parsed, path).into_iter().next(),
         None => Some(parsed),
@@ -3871,7 +3903,12 @@ fn element_passes(parsed: &JsonValue, spec: &ElementsSpec) -> Vec<(String, JsonV
             Some(group) => {
                 let mut run_key: Option<String> = None;
                 let mut collected: Vec<JsonValue> = Vec::new();
-                let flush = |key: Option<String>, blocks: Vec<JsonValue>, out: &mut Vec<_>| {
+                // The case that produced the run travels with it: a run is keyed by a *derived value*, and
+                // several cases may derive the same one, so the key alone does not name the clause.
+                let flush = |key: Option<String>,
+                             case: Option<&'s str>,
+                             blocks: Vec<JsonValue>,
+                             out: &mut Vec<_>| {
                     let Some(key) = key else { return };
                     if blocks.is_empty() {
                         return;
@@ -3879,34 +3916,44 @@ fn element_passes(parsed: &JsonValue, spec: &ElementsSpec) -> Vec<(String, JsonV
                     let Some(tag) = group.tag_by_key.get(&key) else {
                         return;
                     };
+                    let mut path = vec![pass.id.as_str()];
+                    path.extend(case);
                     out.push((
                         tag.clone(),
                         json!({
                             group.key_as.clone(): key,
                             "content": JsonValue::Array(blocks),
                         }),
+                        path,
                     ));
                 };
+                let mut run_case: Option<&'s str> = None;
                 for element in matching {
                     // The first matching case wins; an element matching none is not part of any run.
-                    let Some(key) = group
+                    let Some(matched) = group
                         .by
                         .iter()
                         .find(|case| predicates_hold(element, &case.when))
-                        .map(|case| case.value.clone())
                     else {
                         continue;
                     };
+                    let key = matched.value.clone();
                     let Some(part) = query(element, &group.collect).into_iter().next() else {
                         continue;
                     };
                     if run_key.as_ref() != Some(&key) {
-                        flush(run_key.take(), std::mem::take(&mut collected), &mut out);
+                        flush(
+                            run_key.take(),
+                            run_case.take(),
+                            std::mem::take(&mut collected),
+                            &mut out,
+                        );
                         run_key = Some(key);
+                        run_case = Some(matched.id.as_str());
                     }
                     collected.push(part.clone());
                 }
-                flush(run_key, collected, &mut out);
+                flush(run_key, run_case, collected, &mut out);
             }
             // Each element emitted as it stands, tagged by what it carries.
             None => {
@@ -3921,7 +3968,7 @@ fn element_passes(parsed: &JsonValue, spec: &ElementsSpec) -> Vec<(String, JsonV
                     else {
                         continue;
                     };
-                    out.push((tag.to_string(), element.clone()));
+                    out.push((tag.to_string(), element.clone(), vec![pass.id.as_str()]));
                 }
             }
         }
