@@ -62,7 +62,11 @@
     {
       "id": "generic-io.fallback_input",
       "doc": "The generic input carrier, read only if no dialect recognised the span. `json_or_string` because these are documented as *any* JSON and a producer whose input is bare text writes exactly that - requiring JSON dropped every such answer silently.",
-      "stage": "fallback",
+      "source": {
+        "span": {
+          "stage": "fallback"
+        }
+      },
       "read": {
         "attribute": "input.value"
       },
@@ -77,7 +81,11 @@
     {
       "id": "generic-io.fallback_raw_input",
       "doc": "One dialect's stand-in for that carrier, read in the same stage and only where the carrier it stands in for is absent - it is the same datum under another name, not a second one.",
-      "stage": "fallback",
+      "source": {
+        "span": {
+          "stage": "fallback"
+        }
+      },
       "read": {
         "attribute": "raw_input"
       },
@@ -97,7 +105,11 @@
     {
       "id": "generic-io.fallback_response",
       "doc": "The same dialect's stand-in on the producing side.",
-      "stage": "fallback",
+      "source": {
+        "span": {
+          "stage": "fallback"
+        }
+      },
       "read": {
         "attribute": "response"
       },
@@ -117,7 +129,11 @@
     {
       "id": "generic-io.fallback_output",
       "doc": "The generic output carrier. Last, because the retired stage read it last and the order is observable.",
-      "stage": "fallback",
+      "source": {
+        "span": {
+          "stage": "fallback"
+        }
+      },
       "read": {
         "attribute": "output.value"
       },

@@ -164,6 +164,34 @@ impl OwnedCarrier {
     }
 }
 
+/// Which entry point runs a rule, resolved at compile time.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CompiledSource {
+    /// The span path, at this stage.
+    Span(super::schema::MessageStage),
+    /// The event path, for these event names. Non-empty by construction.
+    Event(Vec<String>),
+}
+
+impl CompiledSource {
+    /// The events this rule reads, empty for a span rule.
+    pub fn event_names(&self) -> &[String] {
+        match self {
+            Self::Span(_) => &[],
+            Self::Event(names) => names,
+        }
+    }
+
+    /// The stage a span rule runs at, `None` for an event rule - which the event path runs whenever the
+    /// event appears, with no stage of its own.
+    pub fn stage(&self) -> Option<super::schema::MessageStage> {
+        match self {
+            Self::Span(stage) => Some(*stage),
+            Self::Event(_) => None,
+        }
+    }
+}
+
 /// A compiled message rule.
 #[derive(Debug, Clone)]
 pub struct CompiledMessageRule {
@@ -184,10 +212,13 @@ pub struct CompiledMessageRule {
     pub require_non_empty: bool,
     pub require_non_blank: bool,
     pub branch_set: Option<CompiledBranchSet>,
-    /// When this rule is read: with the dialects, or only if none of them produced anything.
-    pub stage: super::schema::MessageStage,
-    /// The events this rule applies to; non-empty makes it an event rule.
-    pub when_event: Vec<String>,
+    /// Where this rule reads: a span's attributes at a stage, or a named event's.
+    ///
+    /// One value, not a stage beside a possibly-empty event list. As two, the entry points disagreed about
+    /// which they honour - the event path ignored the stage entirely, so two event rules at different stages
+    /// counted as different ordering arenas (where a shared rank is legal) and were then both run with
+    /// ownership decided by comparing their ids.
+    pub source: CompiledSource,
     pub elements: Option<ElementsSpec>,
     pub walk: Option<super::schema::WalkSpec>,
     pub sections: Option<SectionsSpec>,
@@ -301,8 +332,7 @@ fn compile_rule(
     let MessageRule {
         id,
         doc,
-        when_event,
-        stage,
+        source,
         tool_repr,
         read,
         compose,
@@ -647,6 +677,32 @@ fn compile_rule(
             return Err(MessageCompileError::EmptyCarrier { rule: id.clone() });
         }
     }
+    // The source, resolved once. An event rule naming nothing is refused: it reads no event, and under the
+    // previous spelling `when_event: []` silently made the rule an ordinary span rule instead - a different
+    // entry point from the one it was written for.
+    let compiled_source = match source {
+        None => CompiledSource::Span(super::schema::MessageStage::default()),
+        Some(super::schema::MessageSource::Span(span)) => CompiledSource::Span(span.stage),
+        Some(super::schema::MessageSource::Event(event)) => {
+            if event.names.is_empty() {
+                return Err(inexpressible(
+                    "an event source naming no event reads nothing - remove the `source` to read a span's \
+                     attributes, or name the events",
+                ));
+            }
+            let mut seen: std::collections::BTreeSet<&str> = std::collections::BTreeSet::new();
+            if event.names.iter().any(|name| name.is_empty()) {
+                return Err(inexpressible("an event source names an empty event"));
+            }
+            if event.names.iter().any(|name| !seen.insert(name.as_str())) {
+                return Err(inexpressible(
+                    "an event source names one event twice, which would read it twice",
+                ));
+            }
+            CompiledSource::Event(event.names.clone())
+        }
+    };
+
     let compiled_branch_set = match branch_set {
         Some(set) => {
             let compile_group =
@@ -656,19 +712,15 @@ fn compile_rule(
                                 .map(|sub| {
                                     // The mirror of the parent's no-dead-fields rule. A leaf is reached
                                     // through its parent, so the fields the *entry points* consult are read
-                                    // from the parent alone: `stage` selects which top-level rules a stage
-                                    // runs, `when_event` is asked of a top-level rule by the event path, and
-                                    // a branch's order is positional, so a leaf's rank orders nothing. Each
-                                    // compiled silently and stated something the engine never reads.
-                                    if sub.stage.is_some()
-                                        || sub.when_event.is_some()
-                                        || sub.legacy_rank.is_some()
-                                    {
+                                    // from the parent alone: `source` selects which entry point runs the
+                                    // rule at all, and a branch's order is positional, so a leaf's rank
+                                    // orders nothing. Each compiled silently and stated something the
+                                    // engine never reads.
+                                    if sub.source.is_some() || sub.legacy_rank.is_some() {
                                         return Err(inexpressible(
-                                            "a branch leaf is reached through its parent, so `stage`, \
-                                             `when_event` and `legacy_rank` are read from the parent and \
-                                             would be ignored here - declare them on the rule that owns \
-                                             the branch set",
+                                            "a branch leaf is reached through its parent, so `source` and \
+                                             `legacy_rank` are read from the parent and would be ignored \
+                                             here - declare them on the rule that owns the branch set",
                                         ));
                                     }
                                     compile_rule(file_id, sub, fragments)
@@ -748,8 +800,7 @@ fn compile_rule(
         require_non_empty: non_empty,
         require_non_blank: non_blank,
         branch_set: compiled_branch_set,
-        stage: stage.unwrap_or_default(),
-        when_event: when_event.clone().unwrap_or_default(),
+        source: compiled_source,
         elements: elements.clone(),
         walk: walk.clone(),
         sections: sections.clone(),
@@ -874,14 +925,9 @@ pub fn compile(sources: &BTreeMap<String, Vec<u8>>) -> Result<MessagePlan, Messa
     // is asked, so the rule compiles and never runs. That is the failure declaring recognition was meant to
     // remove, so it is refused rather than left to be discovered.
     for rule in &rules {
-        if rule.when_event.iter().any(String::is_empty) {
-            return Err(MessageCompileError::Inexpressible {
-                rule: rule.rule_id.clone(),
-                detail: "names an empty event",
-            });
-        }
         if rule
-            .when_event
+            .source
+            .event_names()
             .iter()
             .any(|name| !recognised_events.contains(name))
         {
@@ -950,12 +996,16 @@ pub fn compile(sources: &BTreeMap<String, Vec<u8>>) -> Result<MessagePlan, Messa
             // An event rule reads an *event's* attributes; a span rule reads the span's. Two different maps,
             // so a key appearing in both is two different carriers - `gen_ai.input.messages` is a span
             // attribute for one convention and an attribute *of* the inference-details event for another.
-            if a.when_event.is_empty() != b.when_event.is_empty() {
+            if a.source.event_names().is_empty() != b.source.event_names().is_empty() {
                 continue;
             }
             // Two event rules contend only if they can apply to the same event.
-            if !a.when_event.is_empty()
-                && !a.when_event.iter().any(|name| b.when_event.contains(name))
+            if !a.source.event_names().is_empty()
+                && !a
+                    .source
+                    .event_names()
+                    .iter()
+                    .any(|name| b.source.event_names().contains(name))
             {
                 continue;
             }
@@ -965,7 +1015,7 @@ pub fn compile(sources: &BTreeMap<String, Vec<u8>>) -> Result<MessagePlan, Messa
             // **inherits** what the dialect stage read, including a carrier it only *claimed*: `fallback`
             // takes those carriers and starts its claim set from them. So the guarantee is enforced at
             // evaluation, not assumed here.
-            if a.stage != b.stage {
+            if a.source.stage() != b.source.stage() {
                 continue;
             }
             // A conditional claim is not a dead rule: it yields on spans its condition excludes, and the
@@ -2037,11 +2087,12 @@ impl MessagePlan {
             .message_events
             .get(event_name)
             .is_some_and(|declared| declared.raw == super::schema::RawEventForm::Replace);
-        for rule in self
-            .rules
-            .iter()
-            .filter(|rule| rule.when_event.iter().any(|name| name == event_name))
-        {
+        for rule in self.rules.iter().filter(|rule| {
+            rule.source
+                .event_names()
+                .iter()
+                .any(|name| name == event_name)
+        }) {
             if is_tool_span && !rule.reads_tool_spans {
                 continue;
             }
@@ -2111,7 +2162,7 @@ impl MessagePlan {
         for rule in self
             .rules
             .iter()
-            .filter(|rule| rule.stage == stage && rule.when_event.is_empty())
+            .filter(|rule| rule.source == CompiledSource::Span(stage))
         {
             // The tool-span gate is a message-axis question - "may this rule read such a span *as a
             // conversation*" - so it lives here, not in `emit_rule`, which the metadata path also calls.
@@ -2184,12 +2235,14 @@ fn possible_targets(rule: &CompiledMessageRule) -> Vec<EmitTarget> {
 /// - **An overlapping output axis.** A message and a tool definition are not read by the same path: the
 ///   metadata path filters messages out and the message path filters metadata out. All five shared ranks in the
 ///   shipped assets are of this kind.
-/// - **The same input domain.** A rule with `when_event` is selected by event name, so two such rules contend
-///   only where their name sets intersect; a rule without one reads a span's attributes.
+/// - **The same input domain.** An event rule is selected by event name, so two such rules contend only
+///   where their name sets intersect; a span rule reads a span's attributes at one stage.
+///
+/// The stage comparison is now *inside* the domain question rather than beside it, and that is the defect
+/// this function had: two **event** rules declaring different stages compared unequal here - so they were
+/// held to be different arenas, where a shared rank is legal - while the event path ignores the stage
+/// entirely and ran both, leaving ownership to be decided by comparing their ids.
 fn share_an_arena(a: &CompiledMessageRule, b: &CompiledMessageRule) -> bool {
-    if a.stage != b.stage {
-        return false;
-    }
     let axis = |rule: &CompiledMessageRule| {
         let targets = possible_targets(rule);
         let message = targets
@@ -2205,13 +2258,17 @@ fn share_an_arena(a: &CompiledMessageRule, b: &CompiledMessageRule) -> bool {
     if !((a_message && b_message) || (a_metadata && b_metadata)) {
         return false;
     }
-    match (a.when_event.is_empty(), b.when_event.is_empty()) {
-        // Both read a span's attributes.
-        (true, true) => true,
+    match (&a.source, &b.source) {
+        // Both read a span's attributes - at the same stage, or they never run together.
+        (CompiledSource::Span(one), CompiledSource::Span(other)) => one == other,
         // One is selected by event name and the other is not, so they are never candidates together.
-        (true, false) | (false, true) => false,
-        // Both are, and they contend only where an event name is in both sets.
-        (false, false) => a.when_event.iter().any(|name| b.when_event.contains(name)),
+        (CompiledSource::Span(_), CompiledSource::Event(_))
+        | (CompiledSource::Event(_), CompiledSource::Span(_)) => false,
+        // Both are, and they contend wherever an event name is in both sets - **whatever stage they
+        // declare**, because an event rule has no stage to declare.
+        (CompiledSource::Event(one), CompiledSource::Event(other)) => {
+            one.iter().any(|name| other.contains(name))
+        }
     }
 }
 

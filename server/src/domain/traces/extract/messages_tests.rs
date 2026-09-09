@@ -8584,7 +8584,7 @@ fn inexpressible_rules_are_refused() {
                 {"id":"a","doc":"d","emit":"message","legacy_rank":1,
                  "branch_set":{"primary":[
                     {"id":"a.1","doc":"d","read":{"attribute":"k"},"parse":"json","emit":"message",
-                     "stage":"fallback"}]}}]}"#,
+                     "source":{"span":{"stage":"fallback"}}}]}}]}"#,
         ),
         (
             "a branch leaf declaring an event",
@@ -8592,15 +8592,7 @@ fn inexpressible_rules_are_refused() {
                 {"id":"a","doc":"d","emit":"message","legacy_rank":1,
                  "branch_set":{"primary":[
                     {"id":"a.1","doc":"d","read":{"attribute":"k"},"parse":"json","emit":"message",
-                     "when_event":["some.event"]}]}}]}"#,
-        ),
-        (
-            "a branch leaf claiming to replace an event's raw form",
-            r#"{"id":"t","doc":"d","messages":[
-                {"id":"a","doc":"d","emit":"message","legacy_rank":1,
-                 "branch_set":{"primary":[
-                    {"id":"a.1","doc":"d","read":{"attribute":"k"},"parse":"json","emit":"message",
-                     "replaces_raw_event":true}]}}]}"#,
+                     "source":{"event":{"names":["some.event"]}}}]}}]}"#,
         ),
         (
             "a branch leaf declaring a rank, which orders nothing - the branch order is positional",
@@ -8618,7 +8610,7 @@ fn inexpressible_rules_are_refused() {
                 {"id":"a","doc":"d","legacy_rank":1,
                  "branch_set":{"primary":[
                     {"id":"a.1","doc":"d","read":{"attribute":"k"},"parse":"json","emit":"message",
-                     "stage":"dialect"}]}}]}"#,
+                     "source":{"span":{"stage":"dialect"}}}]}}]}"#,
         ),
         (
             "a branch leaf declaring an empty event list",
@@ -8626,15 +8618,7 @@ fn inexpressible_rules_are_refused() {
                 {"id":"a","doc":"d","legacy_rank":1,
                  "branch_set":{"primary":[
                     {"id":"a.1","doc":"d","read":{"attribute":"k"},"parse":"json","emit":"message",
-                     "when_event":[]}]}}]}"#,
-        ),
-        (
-            "a branch leaf declaring that it does not replace an event's raw form",
-            r#"{"id":"t","doc":"d","messages":[
-                {"id":"a","doc":"d","legacy_rank":1,
-                 "branch_set":{"primary":[
-                    {"id":"a.1","doc":"d","read":{"attribute":"k"},"parse":"json","emit":"message",
-                     "replaces_raw_event":false}]}}]}"#,
+                     "source":{"event":{"names":[]}}}]}}]}"#,
         ),
         // The parent's own dead fields. `reads_tool_spans` is the observable one: the permission is read
         // from the leaves, so a parent granting it made the whole branch skipped on a tool span.
@@ -9487,10 +9471,10 @@ fn an_event_rules_gate_asks_about_its_span_not_about_the_event() {
     let asset = br#"{"id":"t","doc":"d",
       "message_events":[{"id": "probe.some_event", "name": "some.event","doc":"a probe event"}],
       "messages":[
-        {"id":"by_name","doc":"d","when_event":["some.event"],
+        {"id":"by_name","doc":"d","source":{"event":{"names":["some.event"]}},
          "when":{"span_name":["chat "]},
          "read":{"attribute":"payload"},"parse":"json","emit":"message","legacy_rank":1},
-        {"id":"by_attr","doc":"d","when_event":["some.event"],
+        {"id":"by_attr","doc":"d","source":{"event":{"names":["some.event"]}},
          "when":{"attr_exists":["framework.marker"]},
          "read":{"attribute":"other"},"parse":"json","emit":"message","legacy_rank":2}]}"#;
     let sources = std::collections::BTreeMap::from([("t.json".to_string(), asset.to_vec())]);

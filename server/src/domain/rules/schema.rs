@@ -960,22 +960,19 @@ pub struct MessageRule {
     /// The *events* this rule applies to. Non-empty makes it an event rule: its reads resolve against the
     /// event's own attributes rather than the span's, and its observations are tagged as events.
     ///
-    /// A separate dimension from `when`, because an event name is not a span attribute and a rule gated on
-    /// one would otherwise never hold.
+    /// **Where** this rule reads: a span's attributes at some stage, or a named event's.
     ///
-    /// `Option` so an explicit `[]` is distinguishable from silence: a branch leaf may not declare this at
-    /// all, and a check comparing against the default accepted the explicit spelling as a no-op.
-    #[serde(default)]
-    pub when_event: Option<Vec<String>>,
-    /// When this rule is read: with the dialects, or only if none of them produced a message.
+    /// One discriminated member, because `when_event` and `stage` were an *implicit sum* and an unsound one.
+    /// The two entry points disagreed about which fields they honour: `from_event` selects on the event name
+    /// and ignores `stage` entirely, while the span path selects on `stage` and requires no event. So two
+    /// event rules declaring different stages were treated by the compiler as separate ordering arenas -
+    /// where a shared rank is legal - and then both run by the event path, with ownership decided by
+    /// comparing their *ids*. And `when_event: []` silently became an ordinary span rule.
     ///
-    /// A *stage*, owned by the engine rather than a rule asking about other rules. Some carriers really are
-    /// a last resort - the generic input/output pair, and two dialects' stand-ins for it - and "only if
-    /// nothing recognised this span" is what the retired fallback extractor's position in the list meant.
-    /// Gating on a sibling carrier's absence instead is measurably broader: a span with a recognised
-    /// conversation and an unrelated `response` gains a message it should not have.
+    /// Absent means `{"span": {}}`, the ordinary case: read with the dialects on a span's attributes.
     #[serde(default)]
-    pub stage: Option<MessageStage>,
+    pub source: Option<MessageSource>,
+
     /// The carrier to read. Absent for a `compose` rule, which has many sources rather than one.
     #[serde(default)]
     pub read: ReadSpec,
@@ -2293,8 +2290,36 @@ pub struct MediaBlock {
     pub data: Vec<JsonPath>,
 }
 
-/// When a rule is read.
-#[derive(Debug, Deserialize, Clone, Copy, Default, PartialEq, Eq)]
+/// Where a message rule reads from.
+///
+/// Exactly one variant, so a rule cannot half-declare both: an event rule has no stage (the event path runs
+/// every rule that names the event, in rank order) and a span rule has no event names.
+#[derive(Debug, Deserialize, Clone, PartialEq, Eq)]
+#[serde(deny_unknown_fields, rename_all = "snake_case")]
+pub enum MessageSource {
+    /// A span's attributes, at the named stage.
+    Span(SpanSource),
+    /// The attributes of any of the named events.
+    Event(EventSource),
+}
+
+#[derive(Debug, Deserialize, Clone, PartialEq, Eq, Default)]
+#[serde(deny_unknown_fields)]
+pub struct SpanSource {
+    /// With the dialects, or only if none of them produced anything.
+    #[serde(default)]
+    pub stage: MessageStage,
+}
+
+#[derive(Debug, Deserialize, Clone, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct EventSource {
+    /// The events this rule reads. An empty list is refused: it names nothing, and under the previous
+    /// spelling it silently made the rule an ordinary span rule instead.
+    pub names: Vec<String>,
+}
+
+#[derive(Debug, Deserialize, Clone, Copy, PartialEq, Eq, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum MessageStage {
     /// With the dialects, in rank order. The ordinary case.

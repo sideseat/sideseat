@@ -3888,7 +3888,7 @@ fn a_shared_message_rank_is_refused_only_where_the_order_shows() {
         {
             "id": "probe.one",
             "legacy_rank": 20,
-            "when_event": ["probe.first"],
+            "source": {"event": {"names": ["probe.first"]}},
             "read": {"attribute": "one"},
             "parse": "text",
             "emit": "message",
@@ -3896,7 +3896,7 @@ fn a_shared_message_rank_is_refused_only_where_the_order_shows() {
         {
             "id": "probe.two",
             "legacy_rank": 20,
-            "when_event": ["probe.second"],
+            "source": {"event": {"names": ["probe.second"]}},
             "read": {"attribute": "two"},
             "parse": "text",
             "emit": "message",
@@ -3913,7 +3913,7 @@ fn a_shared_message_rank_is_refused_only_where_the_order_shows() {
         {
             "id": "probe.event",
             "legacy_rank": 25,
-            "when_event": ["probe.first"],
+            "source": {"event": {"names": ["probe.first"]}},
             "read": {"attribute": "one"},
             "parse": "text",
             "emit": "message",
@@ -3936,7 +3936,7 @@ fn a_shared_message_rank_is_refused_only_where_the_order_shows() {
         {
             "id": "probe.one",
             "legacy_rank": 20,
-            "when_event": ["probe.shared"],
+            "source": {"event": {"names": ["probe.shared"]}},
             "read": {"attribute": "one"},
             "parse": "text",
             "emit": "message",
@@ -3944,7 +3944,7 @@ fn a_shared_message_rank_is_refused_only_where_the_order_shows() {
         {
             "id": "probe.two",
             "legacy_rank": 20,
-            "when_event": ["probe.shared", "probe.other"],
+            "source": {"event": {"names": ["probe.shared", "probe.other"]}},
             "read": {"attribute": "two"},
             "parse": "text",
             "emit": "message",
@@ -3967,7 +3967,7 @@ fn a_shared_message_rank_is_refused_only_where_the_order_shows() {
         {
             "id": "probe.fallback",
             "legacy_rank": 30,
-            "stage": "fallback",
+            "source": {"span": {"stage": "fallback"}},
             "read": {"attribute": "two"},
             "parse": "text",
             "emit": "message",
@@ -4771,4 +4771,100 @@ fn a_carrier_list_says_how_many_of_its_keys_are_read() {
             "`{member}` listing one key twice must be refused"
         );
     }
+}
+
+/// A rule says **where** it reads with one member, so no entry point can honour half of it.
+///
+/// `stage` and `when_event` were an implicit sum, and the two entry points disagreed about which fields they
+/// consult: the event path selects on the event name and ignores `stage` entirely, while the span path selects
+/// on `stage` and requires no event. Codex's demonstration is the first case below - two event rules at one
+/// rank declaring *different* stages. The compiler held them to be different ordering arenas (where a shared
+/// rank is legal, because rules in different arenas never contend), and then the event path ran both, leaving
+/// ownership of the contested carrier to be decided by comparing their **ids**.
+#[test]
+fn a_rule_declares_where_it_reads_with_one_member() {
+    use crate::domain::rules::message_rules::compile;
+
+    let asset = |rules: &str| {
+        let body = format!(
+            r#"{{"id":"t","message_events":[{{"id":"t.e","name":"acme.event"}}],"messages":{rules}}}"#
+        );
+        std::collections::BTreeMap::from([("t.json".to_string(), body.into_bytes())])
+    };
+
+    // Codex's case, verbatim in substance: two event rules over one event and one carrier, at one rank,
+    // differing only in a stage the event path does not read.
+    let refused = compile(&asset(
+        r#"[{"id":"a","source":{"event":{"names":["acme.event"]}},"read":{"attribute":"payload"},
+             "parse":"text","emit":"message","legacy_rank":1},
+            {"id":"b","source":{"event":{"names":["acme.event"]}},"read":{"attribute":"payload"},
+             "parse":"text","emit":"message","legacy_rank":1}]"#,
+    ))
+    .expect_err("two event rules over one event at one rank must be refused");
+    let message = refused.to_string();
+    assert!(
+        message.contains("rank") || message.contains("carrier"),
+        "the refusal must be about the rank or the contested carrier, not something incidental: {message}"
+    );
+
+    // The case the *arena* rule owns on its own: two event rules over one event at one rank reading
+    // **different** carriers. Nothing contests a carrier here, so the only defect is the shared rank - and
+    // before cycle 9 a stage neither rule's entry point reads was enough to make the compiler call them
+    // different arenas and accept it.
+    let refused = compile(&asset(
+        r#"[{"id":"a","source":{"event":{"names":["acme.event"]}},"read":{"attribute":"one"},
+             "parse":"text","emit":"message","legacy_rank":1},
+            {"id":"b","source":{"event":{"names":["acme.event"]}},"read":{"attribute":"two"},
+             "parse":"text","emit":"message","legacy_rank":1}]"#,
+    ))
+    .expect_err(
+        "two event rules over one event at one rank share an arena, so the rank must be refused",
+    );
+    assert!(
+        refused.to_string().contains("rank"),
+        "the refusal must be about the shared rank: {refused}"
+    );
+
+    // And distinct ranks over one event are fine - the ranks are what order them.
+    compile(&asset(
+        r#"[{"id":"a","source":{"event":{"names":["acme.event"]}},"read":{"attribute":"one"},
+             "parse":"text","emit":"message","legacy_rank":1},
+            {"id":"b","source":{"event":{"names":["acme.event"]}},"read":{"attribute":"two"},
+             "parse":"text","emit":"message","legacy_rank":2}]"#,
+    ))
+    .expect("distinct ranks in one arena are ordered");
+
+    // An event source naming nothing is refused rather than silently becoming a span rule - which is what
+    // `when_event: []` did, sending the rule to a different entry point from the one it was written for.
+    let refused = compile(&asset(
+        r#"[{"id":"a","source":{"event":{"names":[]}},"read":{"attribute":"payload"},
+             "parse":"text","emit":"message","legacy_rank":1}]"#,
+    ))
+    .expect_err("an event source naming no event must be refused");
+    assert!(
+        refused.to_string().contains("reads nothing"),
+        "the refusal must say the rule would read nothing: {refused}"
+    );
+
+    // And a source cannot be both: the grammar has one variant, so `deny_unknown_fields` refuses a stage
+    // inside an event source and an event list inside a span source.
+    for half in [
+        r#"{"event":{"names":["acme.event"],"stage":"fallback"}}"#,
+        r#"{"span":{"names":["acme.event"]}}"#,
+    ] {
+        let body = format!(
+            r#"[{{"id":"a","source":{half},"read":{{"attribute":"payload"}},"parse":"text",
+                 "emit":"message","legacy_rank":1}}]"#
+        );
+        assert!(
+            compile(&asset(&body)).is_err(),
+            "a source declaring half of each variant must be refused: {half}"
+        );
+    }
+
+    // The ordinary case still needs no `source` at all, or the migration would be a tax on 340 rules.
+    compile(&asset(
+        r#"[{"id":"a","read":{"attribute":"payload"},"parse":"text","emit":"message","legacy_rank":1}]"#,
+    ))
+    .expect("a span rule at the dialect stage is the default and declares nothing");
 }

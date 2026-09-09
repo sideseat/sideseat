@@ -7,9 +7,13 @@
 (* of `MessagePlan`, and claiming otherwise was this spec's first mistake. *)
 (* Three differences, each real:                                           *)
 (*                                                                         *)
-(*   1. It assumes distinct ranks.  Message compilation does *not* require *)
-(*      them; equal ranks are broken by rule id, which is a defect recorded *)
-(*      elsewhere, not a property this spec may assume away.               *)
+(*   1. It models **one ordering arena**, where ranks are distinct.       *)
+(*      Message compilation refuses a shared rank within an arena, so the   *)
+(*      assumption is now a fact about the modelled scope rather than a     *)
+(*      convenience - but the whole ruleset is *several* arenas (a message  *)
+(*      rule and a tool-definition rule may share a rank, because their     *)
+(*      orders are independent), and this spec says nothing about how they  *)
+(*      interleave.                                                        *)
 (*                                                                         *)
 (*   2. Ownership here is fixed per rule.  In the engine it is *value      *)
 (*      dependent*: `from_any_of` selects whichever spelling the span      *)
@@ -94,11 +98,12 @@ ASSUME Rules \subseteq Nat
 ASSUME Rank \in [Rules -> Nat]
 ASSUME Reads \in [Rules -> SUBSET Carriers]
 ASSUME ClaimOnly \subseteq Rules
-\* Distinct ranks. **An assumption of the kernel, not a fact about the engine**:
-\* classification refuses a shared rank and detection does too, but *message*
-\* compilation does not - it breaks a tie by rule id, so renaming a rule can
-\* change behaviour. That is a defect recorded in the Rust tree rather than a
-\* property this spec may assume; here it is stated as the assumption it is.
+\* Distinct ranks - now a **fact about one arena** rather than an assumption the
+\* engine does not honour. Classification and detection refuse a shared rank
+\* outright, and message compilation refuses one *within an ordering arena*
+\* (`message_rules.rs`), which is what makes the order there total. Across arenas
+\* a rank may repeat, and nothing in this spec claims otherwise: it models the
+\* rules whose relative order matters to each other.
 ASSUME \A r1, r2 \in Rules : r1 # r2 => Rank[r1] # Rank[r2]
 
 VARIABLES

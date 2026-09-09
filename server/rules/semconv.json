@@ -396,9 +396,13 @@
     {
       "id": "semconv.event_inference_details_input",
       "doc": "The convention's inference-details event is a *container*: its own attributes are the request and the response, so the container itself is not a message - reporting it as well would give the conversation twice. Read on a tool span too: the retired extractor answered this event before any tool-span check.",
-      "when_event": [
-        "gen_ai.client.inference.operation.details"
-      ],
+      "source": {
+        "event": {
+          "names": [
+            "gen_ai.client.inference.operation.details"
+          ]
+        }
+      },
       "read": {
         "attribute": "gen_ai.input.messages"
       },
@@ -410,9 +414,13 @@
     {
       "id": "semconv.event_inference_details_output",
       "doc": "The response side of the same container. Read on a tool span too: the retired extractor answered this event before any tool-span check.",
-      "when_event": [
-        "gen_ai.client.inference.operation.details"
-      ],
+      "source": {
+        "event": {
+          "names": [
+            "gen_ai.client.inference.operation.details"
+          ]
+        }
+      },
       "read": {
         "attribute": "gen_ai.output.messages"
       },
