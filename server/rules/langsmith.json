@@ -82,7 +82,14 @@
           "each": true,
           "descend": "message",
           "lift": [
-            "finish_reason"
+            {
+              "doc": "Members beside the descended value: the element states them for the message inside it.",
+              "from": "element",
+              "members": [
+                "finish_reason"
+              ],
+              "on_conflict": "replace_target"
+            }
           ],
           "require": {
             "any": [

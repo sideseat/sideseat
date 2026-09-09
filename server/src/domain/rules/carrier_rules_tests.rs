@@ -6408,3 +6408,95 @@ fn a_grouped_run_is_consecutive_in_the_array_the_producer_wrote() {
         "an element deriving no case is between them just as much as one the pass excluded"
     );
 }
+
+/// A lift states where it reads from **and** what happens on a collision, and dead slots are refused.
+///
+/// There were two members with opposite, unstated policies: `lift` overwrote the target's member and
+/// `lift_from_parent` preserved it, and neither the names nor `lift`'s own documentation said so. A payload
+/// carrying `finish_reason` outside a message *and* inside it therefore got the outer value under one member
+/// name and the inner under the other, decided by which member an asset happened to use.
+#[test]
+fn a_lift_states_its_source_and_its_conflict_policy() {
+    use crate::domain::rules::message_rules::{MessageContext, compile};
+
+    let asset = |reading: &str| {
+        let body = format!(
+            r#"{{"id":"t","messages":[{{"id":"t.r","read":{{"attribute":"x"}},"parse":"json",
+                 "emit":"message","legacy_rank":1,"alternatives":[{reading}]}}]}}"#
+        );
+        compile(&std::collections::BTreeMap::from([(
+            "t.json".to_string(),
+            body.into_bytes(),
+        )]))
+    };
+    let payload = r#"{"finish_reason":"outer",
+                      "choices":[{"finish_reason":"beside","message":{"role":"assistant","content":"x",
+                        "finish_reason":"inner"}}]}"#;
+    let reason = |plan: &crate::domain::rules::message_rules::MessagePlan| -> String {
+        let attrs = std::collections::HashMap::from([("x".to_string(), payload.to_string())]);
+        let ctx = MessageContext::for_span("span", &attrs, false);
+        plan.run(&ctx)[0].value["finish_reason"]
+            .as_str()
+            .unwrap_or_default()
+            .to_string()
+    };
+
+    // Both policies expressible from one source, which is what makes the difference a declaration.
+    assert_eq!(
+        reason(
+            &asset(
+                r#"{"id":"c","select":"$.choices[*]","descend":"message",
+                     "lift":[{"from":"element","members":["finish_reason"],
+                       "on_conflict":"replace_target"}]}"#
+            )
+            .expect("compiles")
+        ),
+        "beside",
+        "`replace_target` lets the lifted value win"
+    );
+    assert_eq!(
+        reason(
+            &asset(
+                r#"{"id":"c","select":"$.choices[*]","descend":"message",
+                     "lift":[{"from":"element","members":["finish_reason"],
+                       "on_conflict":"keep_target"}]}"#
+            )
+            .expect("compiles")
+        ),
+        "inner",
+        "`keep_target` makes the lifted value a fallback - the same source, the opposite answer, and it used \
+         to depend on which of two member names an asset chose"
+    );
+    // And the parent as a source, which is a different value again.
+    assert_eq!(
+        reason(
+            &asset(
+                r#"{"id":"c","select":"$.choices[*].message",
+                     "lift":[{"from":"parent","members":["finish_reason"],
+                       "on_conflict":"replace_target"}]}"#
+            )
+            .expect("compiles")
+        ),
+        "outer",
+        "`parent` is the value the selection came out of"
+    );
+
+    // Dead slots, each of which compiled and did nothing.
+    for (what, reading) in [
+        (
+            "a lift from the element with no `descend`, where the element is already the candidate",
+            r#"{"id":"c","select":"$.choices[*]",
+                 "lift":[{"from":"element","members":["finish_reason"],"on_conflict":"keep_target"}]}"#,
+        ),
+        (
+            "both coalesce forms, where presence wins and the yielding one is dead",
+            r#"{"id":"c","then_any_of":["$.a"],"then_present_any_of":["$.b"]}"#,
+        ),
+        (
+            "`else_element` naming the fallback for a coalesce that is not there",
+            r#"{"id":"c","else_element":true}"#,
+        ),
+    ] {
+        assert!(asset(reading).is_err(), "{what} must be refused");
+    }
+}

@@ -3032,41 +3032,39 @@ fn readings(
                 }
             };
             for element in element {
-                // Descend, carrying down the members the rule says belong with the message.
-                let candidate = match &alternative.descend {
+                // Descend where declared, then lift - **one** copy step whose conflict policy is declared,
+                // where there were two members with opposite unstated ones.
+                let mut candidate = match &alternative.descend {
                     Some(member) => {
                         let Some(inner) = element.get(member.as_str()) else {
                             continue;
                         };
-                        let mut carried = inner.clone();
-                        if let Some(object) = carried.as_object_mut() {
-                            for lifted in &alternative.lift {
-                                if let Some(value) = element.get(lifted.as_str()) {
-                                    object.insert(lifted.clone(), value.clone());
-                                }
-                            }
-                        }
-                        carried
+                        inner.clone()
                     }
-                    None => {
-                        let mut candidate = element.clone();
-                        // The enclosing value as a fallback: inserted only where the element is silent, so
-                        // a result that carries its own call id keeps it.
-                        if !alternative.lift_from_parent.is_empty()
-                            && let Some(object) = candidate.as_object_mut()
-                        {
-                            for lifted in &alternative.lift_from_parent {
-                                if object.contains_key(lifted.as_str()) {
-                                    continue;
-                                }
-                                if let Some(value) = parsed.get(lifted.as_str()) {
-                                    object.insert(lifted.clone(), value.clone());
-                                }
-                            }
-                        }
-                        candidate
-                    }
+                    None => element.clone(),
                 };
+                if !alternative.lift.is_empty()
+                    && let Some(object) = candidate.as_object_mut()
+                {
+                    for lift in &alternative.lift {
+                        // `element` is the value the selection landed on, `parent` the value it came out of.
+                        let source = match lift.from {
+                            super::schema::LiftSource::Element => element,
+                            super::schema::LiftSource::Parent => parsed,
+                        };
+                        for member in &lift.members {
+                            if object.contains_key(member.as_str())
+                                && lift.on_conflict == super::schema::LiftConflict::KeepTarget
+                            {
+                                continue;
+                            }
+                            if let Some(value) = source.get(member.as_str()) {
+                                object.insert(member.clone(), value.clone());
+                            }
+                        }
+                    }
+                }
+                let candidate = candidate;
                 // Trim declared per reading, because trimming a payload meant to be verbatim would change it.
                 let candidate = match (alternative.trim, candidate.as_str()) {
                     (true, Some(text)) => json!(text.trim()),
@@ -4585,6 +4583,50 @@ fn inline_fragments(
                         .unwrap_or_else(|| "an undocumented case".to_string()),
                     detail: "a fragment case or extra case is a leaf, so a `then_fragment` or \
                              `extra_cases` on it would be ignored",
+                });
+            }
+            // **Traversal slots that the pipeline order makes dead.** Each of these compiled and did nothing,
+            // which is the same defect as a construction branch accepting a sibling it returns before:
+            //
+            // | Declared | What happens |
+            // | --- | --- |
+            // | a lift `from: element` with no `descend` | the element *is* the candidate, so every member is already there |
+            // | `then_any_of` beside `then_present_any_of` | presence wins and the yielding form is dead |
+            // | `else_element` with neither | it names the fallback for a coalesce that is not there |
+            //
+            // The third is where the two forms differ: one coalesces by *yielding*, the other by *presence*.
+            // That they are one member with two silently-ordered halves is Codex's finding 8 and stays open;
+            // this refuses the combination that cannot mean anything.
+            // A lift **from the element** copies members that sit beside the value being emitted, which is
+            // only a different value when something was descended into: without `descend` the element *is* the
+            // candidate, so every member is already there and the lift is a no-op.
+            if spec.descend.is_none()
+                && spec
+                    .lift
+                    .iter()
+                    .any(|lift| lift.from == super::schema::LiftSource::Element)
+            {
+                return Err(MessageCompileError::Inexpressible {
+                    rule: spec.id.clone(),
+                    detail: "lifts from the element with no `descend`, where the element is already the value \
+                             being emitted - so every member is there and the lift copies nothing",
+                });
+            }
+            if !spec.then_any_of.is_empty() && !spec.then_present_any_of.is_empty() {
+                return Err(MessageCompileError::Inexpressible {
+                    rule: spec.id.clone(),
+                    detail: "declares both `then_any_of` and `then_present_any_of`; presence wins, so the \
+                             yielding form would be ignored - they coalesce by different questions",
+                });
+            }
+            if spec.else_element
+                && spec.then_any_of.is_empty()
+                && spec.then_present_any_of.is_empty()
+            {
+                return Err(MessageCompileError::Inexpressible {
+                    rule: spec.id.clone(),
+                    detail: "declares `else_element` with no `then_any_of` or `then_present_any_of` - it \
+                             names the fallback for a coalesce that is not there",
                 });
             }
             Ok(CompiledReading {

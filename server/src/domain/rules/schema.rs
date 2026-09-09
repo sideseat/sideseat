@@ -1696,18 +1696,18 @@ pub struct Alternative {
     /// After selecting an element, descend to this member - `choices[].message`.
     #[serde(default)]
     pub descend: Option<String>,
-    /// Copy these members from the element into the descended value before emitting.
+    /// Members copied into the value being emitted, from the element or from the value it was selected out of.
     ///
-    /// A provider puts the reason a turn stopped beside the message rather than inside it, and dropping
-    /// it loses the only record that a response was truncated.
-    #[serde(default)]
-    pub lift: Vec<String>,
-    /// Members taken from the value this selection came from, inserted only where the element lacks them.
+    /// **One primitive with a declared conflict policy**, where there were two members with opposite and
+    /// unstated ones: `lift` overwrote the target's member and `lift_from_parent` preserved it, and neither the
+    /// names nor `lift`'s own documentation said so. A payload carrying `finish_reason` outside a message *and*
+    /// inside it therefore got the outer value under one member name and the inner under the other, decided by
+    /// which member an asset happened to use.
     ///
-    /// A dialect writes a tool result's call id on the result, and on the message enclosing a batch of
-    /// them when the batch shares one - so the enclosing value is a *fallback*, never an override.
+    /// The source is a real distinction and stays: `element` is the value the selection landed on, `parent` the
+    /// value it came out of. The policy is now a statement rather than a consequence of that choice.
     #[serde(default)]
-    pub lift_from_parent: Vec<String>,
+    pub lift: Vec<LiftSpec>,
     /// A condition on the value this selection came from, rather than on the selected element.
     ///
     /// What a batch of tool results *is* is stated on the message enclosing them - its type - while the
@@ -2188,6 +2188,39 @@ pub struct WalkSpec {
     /// "anything", which is what made the wider reading invisible.
     #[serde(default)]
     pub stop_on: Vec<String>,
+}
+
+/// Members copied into an emitted value, and what happens where the target already has one.
+#[derive(Debug, Deserialize, Clone)]
+#[serde(deny_unknown_fields)]
+pub struct LiftSpec {
+    pub doc: Option<String>,
+    /// Where the members are read from.
+    pub from: LiftSource,
+    pub members: Vec<String>,
+    /// What to do where the target already carries the member. Required: this was the difference between the
+    /// two members that preceded it, and it was stated nowhere.
+    pub on_conflict: LiftConflict,
+}
+
+/// Which value a lift reads from.
+#[derive(Debug, Deserialize, Clone, Copy, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum LiftSource {
+    /// The value the selection landed on - used with `descend`, where the members sit beside the message.
+    Element,
+    /// The value the selection came out of, for a fact stated once for a batch.
+    Parent,
+}
+
+/// What a lift does where the target already carries the member.
+#[derive(Debug, Deserialize, Clone, Copy, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum LiftConflict {
+    /// The target's own value wins: the lifted one is a fallback.
+    KeepTarget,
+    /// The lifted value wins.
+    ReplaceTarget,
 }
 
 /// One tool call at a named member, as the normaliser's `{name, arguments}` convention.

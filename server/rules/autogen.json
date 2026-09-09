@@ -978,8 +978,15 @@
           "doc": "A batch of tool results, one message each.",
           "select": "$.content",
           "each": true,
-          "lift_from_parent": [
-            "call_id"
+          "lift": [
+            {
+              "doc": "A fact the enclosing value states once for a batch, so the element's own wins where it has one.",
+              "from": "parent",
+              "members": [
+                "call_id"
+              ],
+              "on_conflict": "keep_target"
+            }
           ],
           "require": {
             "any": [
@@ -1140,8 +1147,15 @@
           "doc": "Untyped tool results: an array whose members name a call, or name a tool and carry content without asking for one.",
           "select": "$.content",
           "each": true,
-          "lift_from_parent": [
-            "call_id"
+          "lift": [
+            {
+              "doc": "A fact the enclosing value states once for a batch, so the element's own wins where it has one.",
+              "from": "parent",
+              "members": [
+                "call_id"
+              ],
+              "on_conflict": "keep_target"
+            }
           ],
           "require": {
             "any": [
