@@ -4992,3 +4992,115 @@ fn an_all_or_nothing_reading_cannot_be_starved_by_an_earlier_rank() {
     )
     .expect("one member reading two spellings takes exactly one of them, so nothing is starved");
 }
+
+/// A family whose members are **names** is readable, and its order is declared rather than discovered.
+///
+/// `indexed_family` requires a numeric component and skips anything else, so `acme.messages.a` /
+/// `acme.messages.b` - one message per named member - could not be read at all, while `carriers` has had
+/// `attribute_family` all along. The two halves of the format disagreed about whether such a family exists.
+///
+/// The order is a **required** declaration because there is nothing to discover: extraction puts a span's
+/// attributes in a `HashMap`, so producer order is gone before a rule sees them. Undeclared, the answer would
+/// be a hash map's iteration order - which is exactly what a message sequence must not be, and would differ
+/// per process.
+#[test]
+fn a_named_attribute_family_is_readable_in_a_declared_order() {
+    use crate::domain::rules::message_rules::{MessageContext, compile};
+
+    let plan = compile(&std::collections::BTreeMap::from([(
+        "t.json".to_string(),
+        br#"{"id":"t","messages":[{"id":"t.family",
+             "read":{"attribute_family":{"root":"acme.messages","order":"member_name"}},
+             "parse":"json","emit":"message","legacy_rank":1}]}"#
+            .to_vec(),
+    )]))
+    .expect("a named family compiles");
+
+    let attrs = std::collections::HashMap::from([
+        (
+            "acme.messages.c".to_string(),
+            r#"{"role":"assistant","content":"third"}"#.to_string(),
+        ),
+        (
+            "acme.messages.a".to_string(),
+            r#"{"role":"user","content":"first"}"#.to_string(),
+        ),
+        (
+            "acme.messages.b".to_string(),
+            r#"{"role":"user","content":"second"}"#.to_string(),
+        ),
+        // Not a member: the family root is followed by a separator, so a key that merely starts with the
+        // root's text is a different attribute - the same rule carrier matching follows.
+        (
+            "acme.messages_extra".to_string(),
+            r#"{"role":"user","content":"not mine"}"#.to_string(),
+        ),
+    ]);
+    let ctx = MessageContext::for_span("span", &attrs, false);
+    let read: Vec<(String, String)> = plan
+        .run(&ctx)
+        .iter()
+        .map(|e| {
+            (
+                e.carrier.name().to_string(),
+                e.value["content"].as_str().unwrap_or_default().to_string(),
+            )
+        })
+        .collect();
+    assert_eq!(
+        read,
+        [
+            ("acme.messages.a".to_string(), "first".to_string()),
+            ("acme.messages.b".to_string(), "second".to_string()),
+            ("acme.messages.c".to_string(), "third".to_string()),
+        ],
+        "the members are read in the declared order, each tagged with its own key - one tag for the family \
+         would make two members indistinguishable to carrier semantics and to identity"
+    );
+
+    // Deterministic across runs, which is the whole reason the order is declared. A hash map's iteration
+    // order varies per process, so this asserts over repeated resolutions of the same span.
+    for _ in 0..8 {
+        let again: Vec<String> = plan
+            .run(&ctx)
+            .iter()
+            .map(|e| e.carrier.name().to_string())
+            .collect();
+        assert_eq!(
+            again,
+            [
+                "acme.messages.a".to_string(),
+                "acme.messages.b".to_string(),
+                "acme.messages.c".to_string()
+            ],
+            "the order must not depend on hash iteration"
+        );
+    }
+
+    // The order is not optional: without it the format would say nothing about a sequence it produces.
+    assert!(
+        compile(&std::collections::BTreeMap::from([(
+            "t.json".to_string(),
+            br#"{"id":"t","messages":[{"id":"t.family",
+                 "read":{"attribute_family":{"root":"acme.messages"}},
+                 "parse":"json","emit":"message","legacy_rank":1}]}"#
+                .to_vec(),
+        )]))
+        .is_err(),
+        "a named family with no declared order must be refused"
+    );
+
+    // And it is one source form among several, so naming it beside another is refused like any other pair.
+    assert!(
+        compile(&std::collections::BTreeMap::from([(
+            "t.json".to_string(),
+            br#"{"id":"t","messages":[{"id":"t.family",
+                 "read":{"attribute":"acme.other",
+                   "attribute_family":{"root":"acme.messages","order":"member_name"}},
+                 "parse":"json","emit":"message","legacy_rank":1}]}"#
+                .to_vec(),
+        )]))
+        .is_err(),
+        "exactly one source form, as every other combination is"
+    );
+}

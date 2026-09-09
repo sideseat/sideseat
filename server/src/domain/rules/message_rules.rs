@@ -1711,7 +1711,7 @@ fn necessarily_owned(rule: &CompiledMessageRule) -> Option<&str> {
     if let Some(compose) = &rule.compose {
         return Some(compose.tag.as_str());
     }
-    if rule.read.indexed_family.is_some() {
+    if rule.read.indexed_family.is_some() || rule.read.attribute_family.is_some() {
         return None;
     }
     // `each` names several carriers that are all read, so there is no single one to answer with - unlike
@@ -1991,6 +1991,11 @@ fn consumed_patterns(rule: &CompiledMessageRule) -> Vec<Consumed> {
     for key in &rule.read.each {
         out.push(always(CarrierPattern::Exact(key.clone())));
     }
+    // A named family reads every key under its root, unconditionally - a member's value *is* the payload, so
+    // there is nothing per-member that could make the read conditional.
+    if let Some(family) = &rule.read.attribute_family {
+        out.push(always(CarrierPattern::Prefix(format!("{}.", family.root))));
+    }
     if let Some(family) = rule.read.indexed_family.as_deref() {
         // Every key beneath the family, since each index's members are read.
         //
@@ -2115,6 +2120,10 @@ fn emitted_patterns(rule: &CompiledMessageRule) -> Vec<Consumed> {
                 },
             }
         });
+    }
+    // A named family tags each member with the member's own key, so the emitted set is the same prefix.
+    if let Some(family) = &rule.read.attribute_family {
+        out.push(always(CarrierPattern::Prefix(format!("{}.", family.root))));
     }
     if let Some(family) = rule.read.indexed_family.as_deref() {
         // One tag per index, and per sub-level where there is one - a prefix covers them all. Emitted only
@@ -3506,6 +3515,46 @@ fn emit_rule<'p>(rule: &'p CompiledMessageRule, ctx: &MessageContext<'_>) -> Vec
                     value: JsonValue::Array(tools),
                 });
             }
+        }
+        return out;
+    }
+    // A **named** family: every member under the root is its own observation, in the declared order. Unlike an
+    // indexed family there are no sub-members to assemble - a member's value *is* the payload - so this is one
+    // read per key rather than an entry built from several.
+    if let Some(family) = &rule.read.attribute_family {
+        let root_dot = format!("{}.", family.root);
+        let mut members: Vec<(&String, &String)> = ctx
+            .span_attrs
+            .iter()
+            .filter(|(key, _)| key.starts_with(&root_dot))
+            .collect();
+        match family.order {
+            super::schema::AttributeFamilyOrder::MemberName => members.sort_by(|a, b| a.0.cmp(b.0)),
+        }
+        for (key, raw) in members {
+            let Some(value) = parse_value(raw, rule.parse.unwrap_or(ParseMode::JsonOrString))
+            else {
+                continue;
+            };
+            let value = match &rule.wrap {
+                Some(wrap) => match wrapped(value, wrap, ctx, None) {
+                    Some(built) => built,
+                    // An envelope that cannot be built is not an observation: the same rule the other
+                    // readings follow, rather than emitting a bare payload under a message tag.
+                    None => continue,
+                },
+                None => value,
+            };
+            out.push(Emission {
+                rule_id: &rule.rule_id,
+                // Tagged with the **member's own key**, not the root: two members are two carriers, and one
+                // tag for the family would make them indistinguishable to carrier semantics and identity.
+                // `Owned`, because the key comes from the span rather than from the rule.
+                carrier: EmittedCarrier::Owned(key.clone()),
+                owns: OwnedCarrier::just(key),
+                target: rule.target,
+                value,
+            });
         }
         return out;
     }

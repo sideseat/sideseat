@@ -1185,6 +1185,19 @@ pub struct ReadSpec {
     /// downstream.
     #[serde(default)]
     pub indexed_family: Option<String>,
+    /// A **named** attribute family: every key under a root, each key's value one observation.
+    ///
+    /// `indexed_family`'s counterpart for a family whose members are *names* rather than indices -
+    /// `acme.messages.a`, `acme.messages.b`. That was inexpressible: `indexed_family` requires a numeric
+    /// component and skips anything else, while `carriers` has had `attribute_family` all along, so the two
+    /// halves of the format disagreed about whether such a family exists.
+    ///
+    /// The **order is declared**, and required, because there is no order to discover: extraction puts a
+    /// span's attributes in a `HashMap`, so producer order is gone by the time a rule reads them. An
+    /// undeclared order would be the iteration order of a hash map - different per run, and the one thing a
+    /// message sequence must not be.
+    #[serde(default)]
+    pub attribute_family: Option<AttributeFamilySource>,
     /// A sub-level of each indexed entry whose members are read at the top of the object.
     ///
     /// One dialect nests the message inside the entry - `<prefix>.0.message.role` - while also putting
@@ -1353,6 +1366,7 @@ impl ReadSpec {
             + usize::from(self.indexed_family.is_some())
             + usize::from(!self.first_present.is_empty())
             + usize::from(!self.each.is_empty())
+            + usize::from(self.attribute_family.is_some())
     }
 }
 
@@ -1382,6 +1396,30 @@ pub enum EventOccurrence {
     /// Every occurrence that holds it, in the order the span carries them. For a list-valued target, where
     /// two events genuinely mean two values.
     Every,
+}
+
+/// A family of attributes under one root, read as one observation per member.
+#[derive(Debug, Deserialize, Clone)]
+#[serde(deny_unknown_fields)]
+pub struct AttributeFamilySource {
+    /// The root. A key belongs to the family when it is `root` followed by `.` and a member name - the same
+    /// rule `carriers`' `attribute_family` uses, so `acme.messages` does not claim `acme.messages_extra`.
+    pub root: String,
+    /// The order the members are read in.
+    pub order: AttributeFamilyOrder,
+}
+
+/// The order a named family's members are read in.
+///
+/// One variant, and required rather than defaulted: the point of the member is that the order is a *statement*.
+/// A default would be the thing a reader assumes and the format would say nothing about it, which is how the
+/// answer becomes a hash map's iteration order.
+#[derive(Debug, Deserialize, Clone, Copy, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum AttributeFamilyOrder {
+    /// Lexicographic by the member name. Deterministic, and the only order available - producer order is lost
+    /// when the attributes become a map.
+    MemberName,
 }
 
 /// How a raw attribute string becomes a value.
