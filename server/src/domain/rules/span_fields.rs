@@ -603,6 +603,15 @@ fn read_json<'a>(
             match from_json(found, FieldType::Text) {
                 Reading::Text(text) => items.push(text),
                 Reading::Empty => items.push(String::new()),
+                // Present and not a string is `Malformed`, and the collection is. Swallowed here, a member
+                // holding an object silently shortened the list - so the answer was a *partial* reading of the
+                // producer's statement, indistinguishable from a producer who listed fewer values.
+                Reading::Malformed { detail } => {
+                    return Reading::Malformed {
+                        detail: format!("a collected member does not hold text: {detail}"),
+                    };
+                }
+                Reading::Absent => {}
                 _ => {}
             }
         }
@@ -621,20 +630,35 @@ fn read_json<'a>(
         }
         let mut total = 0_i64;
         for found in matched.iter() {
-            // A non-numeric match contributes nothing, which is what the retired reduction's `unwrap_or(0)`
-            // did - one message without a usage object does not invalidate the others' counts.
-            if let Reading::Integer(value) = from_json(found, FieldType::Integer) {
-                // `checked_add`: an overflow is invalid telemetry, and saturating would report `i64::MAX` as a
-                // believable count - an enormous bill from a number nobody sent. The retired reduction wrapped
-                // in release and panicked in debug, so neither answer is the one to reproduce.
-                match total.checked_add(value) {
-                    Some(sum) => total = sum,
-                    None => {
-                        return Reading::Malformed {
-                            detail: "the counts sum past what a count can hold".to_string(),
-                        };
+            // A match that is **absent or empty** contributes nothing - one message without a usage object
+            // does not invalidate the others' counts, which is what the retired reduction's `unwrap_or(0)`
+            // preserved.
+            //
+            // A match that is **present and not a number** is `Malformed`, and the whole reduction is. The
+            // previous code swallowed it into the same "contributes nothing" branch, so `{"prompt_tokens":
+            // "bad"}` summed to `Integer(0)`: a producer who wrote an invalid count had written a valid zero,
+            // reported as a real measurement with no diagnostic and no way for `on_malformed` to see it. Zero
+            // tokens and an unreadable count are different statements about a call, and one of them is a bill.
+            match from_json(found, FieldType::Integer) {
+                Reading::Malformed { detail } => {
+                    return Reading::Malformed {
+                        detail: format!("a summed member does not hold a number: {detail}"),
+                    };
+                }
+                Reading::Integer(value) => {
+                    // `checked_add`: an overflow is invalid telemetry, and saturating would report `i64::MAX` as a
+                    // believable count - an enormous bill from a number nobody sent. The retired reduction wrapped
+                    // in release and panicked in debug, so neither answer is the one to reproduce.
+                    match total.checked_add(value) {
+                        Some(sum) => total = sum,
+                        None => {
+                            return Reading::Malformed {
+                                detail: "the counts sum past what a count can hold".to_string(),
+                            };
+                        }
                     }
                 }
+                _ => {}
             }
         }
         return match field_type {

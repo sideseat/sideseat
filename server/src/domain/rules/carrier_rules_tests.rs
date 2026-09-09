@@ -5329,3 +5329,127 @@ fn a_claim_on_a_container_event_suppresses_its_raw_form() {
     let emitted = message_plan.from_event("acme.container", &readable, "span", &span_attrs, false);
     assert!(emitted.replaces_raw && !emitted.unhandled_container);
 }
+
+/// A wrong-typed member of a reduction is **malformed**, not a shorter list and not a zero.
+///
+/// `sum` saw a match, swallowed the non-numeric member into the same "contributes nothing" branch a *missing*
+/// usage object takes, and answered `Integer(0)`. So a producer who wrote an invalid count had written a valid
+/// zero - reported as a real measurement, with no diagnostic and nothing for `on_malformed` to act on. Zero
+/// tokens and an unreadable count are different statements about a call, and one of them is a bill.
+///
+/// `collect_all` had the same shape at a smaller stake: a member holding an object shortened the list silently,
+/// so the answer was a partial reading indistinguishable from a producer who listed fewer values.
+#[test]
+fn a_wrong_typed_member_of_a_reduction_is_malformed() {
+    use crate::domain::rules::span_fields::{Reading, compile};
+
+    let plan = |target: &str, path: &str, reduce: &str| {
+        let body = format!(
+            r#"{{"id":"t","span_fields":[{{"id":"t.rule","target":"{target}","sources":[
+                 {{"id":"t.s","json":{{"attribute":"payload","path":"{path}","reduce":"{reduce}"}}}}]}}]}}"#
+        );
+        compile(&std::collections::BTreeMap::from([(
+            "t.json".to_string(),
+            body.into_bytes(),
+        )]))
+        .expect("the probe compiles")
+    };
+    // The **answer** and what the chain **refused**, because a malformed reading ends a first-wins chain and
+    // is recorded there rather than becoming the answer - so asserting only on the answer cannot tell a
+    // malformed member from an absent one, which is the distinction under test.
+    let resolve = |plan: &crate::domain::rules::span_fields::SpanFieldPlan,
+                   payload: &str|
+     -> (Reading, Vec<Reading>) {
+        let attrs = std::collections::HashMap::from([("payload".to_string(), payload.to_string())]);
+        let resolved = plan
+            .resolve("span", &attrs, &[])
+            .into_iter()
+            .next()
+            .expect("one rule");
+        (
+            resolved.reading,
+            resolved.refused.into_iter().map(|(_, r)| r).collect(),
+        )
+    };
+    let read = |plan: &crate::domain::rules::span_fields::SpanFieldPlan,
+                payload: &str|
+     -> Reading { resolve(plan, payload).0 };
+
+    // Codex's input.
+    let summed = plan(
+        "usage_input_tokens",
+        "$.messages[*].models_usage.prompt_tokens",
+        "sum",
+    );
+    let (answer, refused) = resolve(
+        &summed,
+        r#"{"messages":[{"models_usage":{"prompt_tokens":"bad"}}]}"#,
+    );
+    assert_eq!(
+        refused.len(),
+        1,
+        "a member that is present and not a number makes the sum malformed, and the chain records it"
+    );
+    assert!(
+        matches!(refused[0], Reading::Malformed { .. }),
+        "recorded as malformed: {:?}",
+        refused[0]
+    );
+    assert_ne!(
+        answer,
+        Reading::Integer(0),
+        "and the answer is not a believable zero - which is what the swallowed member produced"
+    );
+
+    // And the case the previous behaviour existed to protect: a message with **no** usage object contributes
+    // nothing, and the others still sum. That is a different fact from a wrong-typed member, which is the
+    // whole point of separating them.
+    assert_eq!(
+        read(
+            &summed,
+            r#"{"messages":[{"models_usage":{"prompt_tokens":7}},{"other":1},
+                 {"models_usage":{"prompt_tokens":5}}]}"#
+        ),
+        Reading::Integer(12),
+        "an absent member contributes nothing and the rest still sum"
+    );
+    // No matches at all stays `Absent` - "the span has no such shape" is not "a call that used no tokens".
+    assert_eq!(read(&summed, r#"{"messages":[]}"#), Reading::Absent);
+    // A genuine zero is still a genuine zero.
+    assert_eq!(
+        read(
+            &summed,
+            r#"{"messages":[{"models_usage":{"prompt_tokens":0}}]}"#
+        ),
+        Reading::Integer(0)
+    );
+
+    // `collect_all`: a wrong-typed match is malformed rather than a shorter list.
+    let collected = plan(
+        "gen_ai_finish_reasons",
+        "$.choices[*].finish_reason",
+        "collect_all",
+    );
+    let (answer, refused) = resolve(
+        &collected,
+        r#"{"choices":[{"finish_reason":"stop"},{"finish_reason":{"x":1}}]}"#,
+    );
+    assert!(
+        refused
+            .iter()
+            .any(|r| matches!(r, Reading::Malformed { .. })),
+        "a member holding an object is malformed, not one fewer reason: {refused:?}"
+    );
+    assert_ne!(
+        answer,
+        Reading::StringList(vec!["stop".to_string()]),
+        "and the answer is not the partial list, which is indistinguishable from a shorter statement"
+    );
+    assert_eq!(
+        read(
+            &collected,
+            r#"{"choices":[{"finish_reason":"stop"},{"finish_reason":"length"}]}"#
+        ),
+        Reading::StringList(vec!["stop".to_string(), "length".to_string()])
+    );
+}
