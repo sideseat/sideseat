@@ -3772,11 +3772,18 @@ fn declared_rule_ids() -> BTreeSet<String> {
 /// The same shape `expr::ClausePath` renders, so a diagnostic and this gate name a clause the same way. For a
 /// rule that answered directly this is just the rule id, which the caller records anyway - the value is in the
 /// subdivisions, whose required ids used to be discarded before an emission was built.
-fn clause_path(emission: &crate::domain::rules::message_rules::Emission<'_>) -> String {
-    std::iter::once(emission.rule_id)
-        .chain(emission.clause.iter().copied())
-        .collect::<Vec<_>>()
-        .join("/")
+fn clause_paths(emission: &crate::domain::rules::message_rules::Emission<'_>) -> Vec<String> {
+    emission
+        .evidence
+        .paths()
+        .iter()
+        .map(|path| {
+            std::iter::once(path.root.as_str())
+                .chain(path.steps.iter().map(String::as_str))
+                .collect::<Vec<_>>()
+                .join("/")
+        })
+        .collect()
 }
 
 fn rules_that_emit() -> BTreeSet<String> {
@@ -3807,7 +3814,7 @@ fn rules_that_emit() -> BTreeSet<String> {
                             Vec::new();
                         for emission in plan.run(&ctx) {
                             fired.insert(emission.rule_id.to_string());
-                            fired.insert(clause_path(&emission));
+                            fired.extend(clause_paths(&emission));
                             read.extend(emission.owns.iter().cloned());
                             // Only a *message* is output. A `Claim` enters ownership and produces nothing, so
                             // counting one as the span's answer made the measurement skip the recovery pass
@@ -3858,13 +3865,13 @@ fn rules_that_emit() -> BTreeSet<String> {
                             }) {
                                 for emission in plan.fallback(&ctx, &read) {
                                     fired.insert(emission.rule_id.to_string());
-                                    fired.insert(clause_path(&emission));
+                                    fired.extend(clause_paths(&emission));
                                 }
                             }
                         }
                         for emission in plan.tool_definitions(&ctx) {
                             fired.insert(emission.rule_id.to_string());
-                            fired.insert(clause_path(&emission));
+                            fired.extend(clause_paths(&emission));
                         }
                         for event in &span.events {
                             let event_attrs = extract_attributes(&event.attributes);
@@ -3877,7 +3884,7 @@ fn rules_that_emit() -> BTreeSet<String> {
                             );
                             for emission in reading.emissions {
                                 fired.insert(emission.rule_id.to_string());
-                                fired.insert(clause_path(&emission));
+                                fired.extend(clause_paths(&emission));
                             }
                         }
                     }

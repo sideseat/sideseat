@@ -5259,10 +5259,17 @@ fn an_emission_names_the_clause_inside_its_rule() {
         .run(&ctx)
         .iter()
         .map(|e| {
-            std::iter::once(e.rule_id)
-                .chain(e.clause.iter().copied())
+            e.evidence
+                .paths()
+                .iter()
+                .map(|path| {
+                    std::iter::once(path.root.as_str())
+                        .chain(path.steps.iter().map(String::as_str))
+                        .collect::<Vec<_>>()
+                        .join("/")
+                })
                 .collect::<Vec<_>>()
-                .join("/")
+                .join(" + ")
         })
         .collect();
     assert_eq!(
@@ -6041,6 +6048,18 @@ fn an_aggregate_wraps_the_assembled_array_once() {
         Some(2),
         "the content is the assembled array"
     );
+    // And its evidence names the reading that contributed. An aggregate is built from *every* reading, which is
+    // why an emission carries a set: with one path it would have to pick one of them, or name none.
+    assert_eq!(
+        emissions[0]
+            .evidence
+            .paths()
+            .iter()
+            .map(ToString::to_string)
+            .collect::<Vec<_>>(),
+        ["t.a → each".to_string()],
+        "the aggregate names what built it"
+    );
 
     // A per-reading envelope beside an aggregate is refused rather than discarded.
     assert!(
@@ -6051,5 +6070,110 @@ fn an_aggregate_wraps_the_assembled_array_once() {
         )
         .is_err(),
         "construct-each-then-aggregate is a different operation and nothing declares it"
+    );
+}
+
+/// An **alternative** names itself too, and a grouped run names every case that built it.
+///
+/// `Reading` was `(value, wrap, target)`: an emission produced by `{"id":"as_assistant","select":"$.response"}`
+/// carried an empty clause path, and a nested fragment case lost both the selection-point id and the winning
+/// case id. So the required ids of cycle 5 were still discarded before an emission existed - one level down from
+/// where cycle 9 fixed it.
+///
+/// And an emission carries an `EvidenceSet` rather than one path, because some emissions genuinely have several
+/// contributing clauses: two cases deriving one key are legitimate aliases, so a run built from both has two
+/// witnesses and naming one of them claims it produced blocks it did not match.
+#[test]
+fn an_alternative_and_a_grouped_run_name_every_clause_that_built_them() {
+    use crate::domain::rules::message_rules::{MessageContext, compile};
+
+    let paths = |plan: &crate::domain::rules::message_rules::MessagePlan,
+                 attrs: &std::collections::HashMap<String, String>|
+     -> Vec<String> {
+        let ctx = MessageContext::for_span("span", attrs, false);
+        plan.run(&ctx)
+            .iter()
+            .map(|e| {
+                e.evidence
+                    .paths()
+                    .iter()
+                    .map(|path| {
+                        std::iter::once(path.root.as_str())
+                            .chain(path.steps.iter().map(String::as_str))
+                            .collect::<Vec<_>>()
+                            .join("/")
+                    })
+                    .collect::<Vec<_>>()
+                    .join(" + ")
+            })
+            .collect()
+    };
+
+    // An alternative, and a fragment case reached *through* one: the selection point and then the case.
+    let plan = compile(&std::collections::BTreeMap::from([(
+        "t.json".to_string(),
+        br#"{"id":"t","fragments":{"shape":{"cases":[
+             {"id":"as_user","require":{"all":[{"path":"$.role","one_of":["user"]}]},
+              "wrap":{"role":"user","content_from_any_of":["$.content"]}},
+             {"id":"as_other","wrap":{"role":"assistant","content_from_any_of":["$.content"]}}]}},
+             "messages":[{"id":"t.r","read":{"attribute":"x"},"parse":"json","emit":"message",
+               "legacy_rank":1,"alternatives":[
+                 {"id":"plain","select":"$.direct"},
+                 {"id":"via_fragment","select":"$.wrapped[*]","then_fragment":"t.shape"}]}]}"#
+            .to_vec(),
+    )]))
+    .expect("the probe compiles");
+    assert_eq!(
+        paths(
+            &plan,
+            &std::collections::HashMap::from([(
+                "x".to_string(),
+                r#"{"direct":{"role":"user","content":"q"}}"#.to_string()
+            )])
+        ),
+        ["t.r/plain".to_string()],
+        "an alternative that answered directly names itself, where it used to name nothing"
+    );
+    assert_eq!(
+        paths(
+            &plan,
+            &std::collections::HashMap::from([(
+                "x".to_string(),
+                r#"{"wrapped":[{"role":"user","content":"q"},{"role":"bot","content":"a"}]}"#
+                    .to_string()
+            )])
+        ),
+        [
+            "t.r/via_fragment/as_user".to_string(),
+            "t.r/via_fragment/as_other".to_string()
+        ],
+        "a fragment case names the selection point *and* the case - both were lost"
+    );
+
+    // A grouped element run built from two cases that derive one key: two witnesses under one pass.
+    let plan = compile(&std::collections::BTreeMap::from([(
+        "t.json".to_string(),
+        br#"{"id":"t","messages":[{"id":"t.e","read":{"attribute":"x"},"parse":"json",
+             "emit":"message","legacy_rank":1,"elements":{"passes":[{"id":"blocks","group":{
+               "collect":"$.data","key_as":"role","by":[
+                 {"id":"input_block","when":{"all":[{"path":"$.data.type","starts_with":"input_"}]},
+                  "value":"user"},
+                 {"id":"legacy_input","when":{"all":[{"path":"$.data.type","starts_with":"legacy_"}]},
+                  "value":"user"}],
+               "tag_by_key":{"user":"gen_ai.user.message"}}}]}}]}"#
+            .to_vec(),
+    )]))
+    .expect("the probe compiles");
+    assert_eq!(
+        paths(
+            &plan,
+            &std::collections::HashMap::from([(
+                "x".to_string(),
+                r#"[{"data":{"type":"input_image"}},{"data":{"type":"legacy_image"}}]"#.to_string()
+            )])
+        ),
+        ["t.e/blocks/input_block + t.e/blocks/legacy_input".to_string()],
+        "two consecutive elements matching two different cases are one `user` run, and both cases built it - \
+         naming only the first claims it produced a block it did not match"
     );
 }

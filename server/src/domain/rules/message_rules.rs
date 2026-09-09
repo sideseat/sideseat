@@ -50,7 +50,7 @@ use super::schema::{
 ///
 /// Building inside the coalesce makes "could not be built" mean "this alternative produced nothing", which is
 /// the same answer as "this shape does not match" and the only one the coalesce can act on.
-type Reading = (JsonValue, Option<EmitTarget>);
+type Reading = (JsonValue, Option<EmitTarget>, Vec<String>);
 
 /// What building a message needs, threaded into the coalesce so construction happens before it commits.
 ///
@@ -160,15 +160,16 @@ pub struct EventReading<'a> {
 pub struct Emission<'a> {
     /// The rule that produced it, for the explain trace.
     pub rule_id: &'a str,
-    /// The clauses **inside** that rule which produced it, outermost first. Empty when the rule answered
-    /// directly.
+    /// Every declaration that produced it: the rule, and the clauses inside it, outermost first.
     ///
-    /// `SectionRoute.id`, `ElementPass.id` and `DerivedCase.id` are required declarations and were discarded:
-    /// `sectioned()` and `element_passes()` returned only values and tags, so `claude-agent-sdk.new_context`'s
-    /// `tool_result` and `as_user` routes produced emissions with *identical* evidence - the enclosing rule id
-    /// and nothing else. A diagnostic could say which rule answered and not which of its routes, which is the
-    /// thing a reader needs when two routes disagree.
-    pub clause: Vec<&'a str>,
+    /// An **`EvidenceSet`**, not one path, because an emission can have several contributing clauses and a
+    /// single path cannot say so honestly: an aggregate is built from many readings, and a grouped element run
+    /// is built from every element whose case matched - two cases deriving one key are legitimate aliases, so
+    /// the run has two witnesses rather than a choice between them.
+    ///
+    /// Owned rather than borrowed, because a fragment's cases are compiled per call: `readings()` clones each
+    /// case spec, so a `&'a str` into one would not outlive the recursion that produced it.
+    pub evidence: super::expr::EvidenceSet,
     pub carrier: EmittedCarrier<'a>,
     /// The carriers this emission *read*, which is what it owns - separate from the tag above.
     ///
@@ -2867,7 +2868,7 @@ fn all_readings(
             // No readings declared at all: the payload is the observation - still built, since the rule's own
             // envelope applies to it.
             return match built(parsed.clone(), None, build) {
-                Some(value) => vec![(value, None)],
+                Some(value) => vec![(value, None, Vec::new())],
                 None => Vec::new(),
             };
         }
@@ -2907,7 +2908,7 @@ fn readings(
 ) -> Vec<Reading> {
     if alternatives.is_empty() {
         return match built(parsed.clone(), None, build) {
-            Some(value) => vec![(value, None)],
+            Some(value) => vec![(value, None, Vec::new())],
             None => Vec::new(),
         };
     }
@@ -3034,7 +3035,16 @@ fn readings(
                             fragment_cases: Vec::new(),
                         })
                         .collect();
-                    produced.extend(readings(&candidate, &cases, build));
+                    // The selection point and then the case that answered: the fragment decides what the
+                    // element *is*, this reading decided where to look, and a diagnostic needs both. Nested
+                    // fragment cases lost the selection-point id entirely before this.
+                    produced.extend(readings(&candidate, &cases, build).into_iter().map(
+                        |(value, target, mut steps)| {
+                            let mut path = vec![alternative.id.clone()];
+                            path.append(&mut steps);
+                            (value, target, path)
+                        },
+                    ));
                     continue;
                 }
                 // **Built here**, so a candidate whose envelope cannot be made counts as this alternative
@@ -3042,7 +3052,7 @@ fn readings(
                 let Some(value) = built(candidate, alternative.wrap.as_ref(), build) else {
                     continue;
                 };
-                produced.push((value, alternative.emit));
+                produced.push((value, alternative.emit, vec![alternative.id.clone()]));
             }
         }
         if !produced.is_empty() {
@@ -3050,6 +3060,27 @@ fn readings(
         }
     }
     Vec::new()
+}
+
+/// One emission's evidence: the rule, plus the clauses inside it that produced this observation.
+///
+/// A single witness for the ordinary case. Where several clauses contributed - an aggregate's readings, a
+/// grouped run's cases - the caller passes them all and each becomes its own path, because "these three
+/// declarations produced this" is the true statement and picking one of them is not.
+fn rule_evidence(rule: &CompiledMessageRule, paths: &[Vec<String>]) -> super::expr::EvidenceSet {
+    let root = || super::expr::ClausePath::root(rule.rule_id.clone());
+    // Each element is a **path**, not a step: a grouped element run's witnesses share the pass and differ in
+    // the case, so `rule -> pass -> case` twice is the true statement while `rule -> pass` beside `rule -> case`
+    // is two paths neither of which exists.
+    let witnesses: Vec<super::expr::ClausePath> = paths
+        .iter()
+        .map(|steps| {
+            steps
+                .iter()
+                .fold(root(), |path, step| path.then(step.clone()))
+        })
+        .collect();
+    super::expr::EvidenceSet::of(witnesses).unwrap_or_else(|| super::expr::EvidenceSet::one(root()))
 }
 
 /// A reading's value once its envelope is applied, or `None` when the envelope cannot be built.
@@ -3744,7 +3775,7 @@ fn split_bracket_tag(value: &str) -> (Option<&str>, &str) {
 /// emissions carrying identical evidence, so a diagnostic could name the rule and not the route - which is
 /// exactly what a reader needs when `claude-agent-sdk.new_context`'s `tool_result` and `as_user` routes
 /// disagree.
-fn sectioned<'s>(raw: &str, spec: &'s SectionsSpec) -> Vec<(&'s str, JsonValue)> {
+fn sectioned(raw: &str, spec: &SectionsSpec) -> Vec<(String, JsonValue)> {
     let mut out = Vec::new();
     for section in raw.split(spec.split_on.as_str()) {
         let (tag, body) = split_bracket_tag(section);
@@ -3798,7 +3829,7 @@ fn sectioned<'s>(raw: &str, spec: &'s SectionsSpec) -> Vec<(&'s str, JsonValue)>
                 message.insert("content".to_string(), json!(body));
             }
         }
-        out.push((route.id.as_str(), JsonValue::Object(message)));
+        out.push((route.id.clone(), JsonValue::Object(message)));
     }
     out
 }
@@ -3890,7 +3921,7 @@ fn emit_rule<'p>(rule: &'p CompiledMessageRule, ctx: &MessageContext<'_>) -> Vec
             // entirely different carriers.
             out.push(Emission {
                 rule_id: &rule.rule_id,
-                clause: Vec::new(),
+                evidence: rule_evidence(rule, &[]),
                 carrier: EmittedCarrier::Attribute(compose.tag.as_str()),
                 owns: read_carriers,
                 target: rule.target,
@@ -3907,7 +3938,7 @@ fn emit_rule<'p>(rule: &'p CompiledMessageRule, ctx: &MessageContext<'_>) -> Vec
             {
                 out.push(Emission {
                     rule_id: &rule.rule_id,
-                    clause: Vec::new(),
+                    evidence: rule_evidence(rule, &[]),
                     carrier: EmittedCarrier::Attribute(rule.tag_as.as_deref().unwrap_or(attribute)),
                     owns: OwnedCarrier::just(attribute),
                     target: rule.target,
@@ -3956,7 +3987,7 @@ fn emit_rule<'p>(rule: &'p CompiledMessageRule, ctx: &MessageContext<'_>) -> Vec
             };
             out.push(Emission {
                 rule_id: &rule.rule_id,
-                clause: Vec::new(),
+                evidence: rule_evidence(rule, &[]),
                 // Tagged with the **member's own key**, not the root: two members are two carriers, and one
                 // tag for the family would make them indistinguishable to carrier semantics and identity.
                 // `Owned`, because the key comes from the span rather than from the rule.
@@ -4007,7 +4038,7 @@ fn emit_rule<'p>(rule: &'p CompiledMessageRule, ctx: &MessageContext<'_>) -> Vec
             };
             out.push(Emission {
                 rule_id: &rule.rule_id,
-                clause: Vec::new(),
+                evidence: rule_evidence(rule, &[]),
                 carrier: EmittedCarrier::Attribute(rule.tag_as.as_deref().unwrap_or(family)),
                 owns,
                 target: rule.target,
@@ -4029,7 +4060,7 @@ fn emit_rule<'p>(rule: &'p CompiledMessageRule, ctx: &MessageContext<'_>) -> Vec
             owns.dedup();
             out.push(Emission {
                 rule_id: &rule.rule_id,
-                clause: Vec::new(),
+                evidence: rule_evidence(rule, &[]),
                 owns,
                 carrier: EmittedCarrier::Owned(entry.carrier),
                 target: rule.target,
@@ -4064,7 +4095,7 @@ fn emit_rule<'p>(rule: &'p CompiledMessageRule, ctx: &MessageContext<'_>) -> Vec
             };
             out.push(Emission {
                 rule_id: &rule.rule_id,
-                clause,
+                evidence: rule_evidence(rule, &clause),
                 // The array attribute is what was read; each element's tag is a name for one of its parts.
                 owns: OwnedCarrier::just(attribute),
                 carrier: tagged,
@@ -4079,7 +4110,7 @@ fn emit_rule<'p>(rule: &'p CompiledMessageRule, ctx: &MessageContext<'_>) -> Vec
         for (route, value) in sectioned(raw, sections) {
             out.push(Emission {
                 rule_id: &rule.rule_id,
-                clause: vec![route],
+                evidence: rule_evidence(rule, &[vec![route]]),
                 carrier: EmittedCarrier::Attribute(rule.tag_as.as_deref().unwrap_or(attribute)),
                 owns: OwnedCarrier::just(attribute),
                 target: rule.target,
@@ -4112,7 +4143,17 @@ fn emit_rule<'p>(rule: &'p CompiledMessageRule, ctx: &MessageContext<'_>) -> Vec
         if readings.is_empty() {
             return out;
         }
-        let assembled = JsonValue::Array(readings.into_iter().map(|(value, _)| value).collect());
+        // The aggregate is built from **every** reading, so its evidence is every clause that contributed -
+        // which is why an emission carries a set rather than one path.
+        let mut contributing: Vec<Vec<String>> = Vec::new();
+        let mut values = Vec::new();
+        for (value, _, path) in readings {
+            if !contributing.contains(&path) {
+                contributing.push(path);
+            }
+            values.push(value);
+        }
+        let assembled = JsonValue::Array(values);
         // **The rule's envelope wraps the assembled array, once.** It used to be discarded here while the
         // indexed-family aggregate applied it - so the same two declarations meant different things depending on
         // the read form. Per-reading envelopes are refused beside an aggregate, so this is the only one there
@@ -4127,7 +4168,7 @@ fn emit_rule<'p>(rule: &'p CompiledMessageRule, ctx: &MessageContext<'_>) -> Vec
         };
         out.push(Emission {
             rule_id: &rule.rule_id,
-            clause: Vec::new(),
+            evidence: rule_evidence(rule, &contributing),
             carrier: EmittedCarrier::Attribute(rule.tag_as.as_deref().unwrap_or(attribute)),
             owns: OwnedCarrier::just(attribute),
             target: rule.target,
@@ -4137,10 +4178,10 @@ fn emit_rule<'p>(rule: &'p CompiledMessageRule, ctx: &MessageContext<'_>) -> Vec
     }
     // Already built: an envelope that could not be made was a reading that produced nothing, decided inside
     // the coalesce so the alternatives after it and the rule's `fallback` still got their turn.
-    for (value, per_reading_target) in readings {
+    for (value, per_reading_target, clause) in readings {
         out.push(Emission {
             rule_id: &rule.rule_id,
-            clause: Vec::new(),
+            evidence: rule_evidence(rule, std::slice::from_ref(&clause)),
             carrier: EmittedCarrier::Attribute(rule.tag_as.as_deref().unwrap_or(attribute)),
             owns: OwnedCarrier::just(attribute),
             target: per_reading_target.unwrap_or(rule.target),
@@ -4287,10 +4328,10 @@ pub(super) fn predicates_hold(value: &JsonValue, set: &PredicateSet) -> bool {
 /// The path is the pass, and for a grouped pass the derived case whose predicate matched - both are required
 /// declarations that this function used to discard, leaving two routes of one rule indistinguishable in a
 /// diagnostic.
-fn element_passes<'s>(
+fn element_passes(
     parsed: &JsonValue,
-    spec: &'s ElementsSpec,
-) -> Vec<(String, JsonValue, Vec<&'s str>)> {
+    spec: &ElementsSpec,
+) -> Vec<(String, JsonValue, Vec<Vec<String>>)> {
     let array = match &spec.select {
         Some(path) => query(parsed, path).into_iter().next(),
         None => Some(parsed),
@@ -4313,7 +4354,7 @@ fn element_passes<'s>(
                 // The case that produced the run travels with it: a run is keyed by a *derived value*, and
                 // several cases may derive the same one, so the key alone does not name the clause.
                 let flush = |key: Option<String>,
-                             case: Option<&'s str>,
+                             cases: Vec<String>,
                              blocks: Vec<JsonValue>,
                              out: &mut Vec<_>| {
                     let Some(key) = key else { return };
@@ -4323,18 +4364,28 @@ fn element_passes<'s>(
                     let Some(tag) = group.tag_by_key.get(&key) else {
                         return;
                     };
-                    let mut path = vec![pass.id.as_str()];
-                    path.extend(case);
+                    // One path per contributing case, each under this pass.
+                    let paths: Vec<Vec<String>> = if cases.is_empty() {
+                        vec![vec![pass.id.clone()]]
+                    } else {
+                        cases
+                            .into_iter()
+                            .map(|case| vec![pass.id.clone(), case])
+                            .collect()
+                    };
                     out.push((
                         tag.clone(),
                         json!({
                             group.key_as.clone(): key,
                             "content": JsonValue::Array(blocks),
                         }),
-                        path,
+                        paths,
                     ));
                 };
-                let mut run_case: Option<&'s str> = None;
+                // **Every** contributing case, not the first: two cases deriving one key are legitimate
+                // aliases, so a run built from both has two witnesses and naming one of them claims it
+                // produced blocks it did not match.
+                let mut run_cases: Vec<String> = Vec::new();
                 for element in matching {
                     // The first matching case wins; an element matching none is not part of any run.
                     let Some(matched) = group
@@ -4351,16 +4402,18 @@ fn element_passes<'s>(
                     if run_key.as_ref() != Some(&key) {
                         flush(
                             run_key.take(),
-                            run_case.take(),
+                            std::mem::take(&mut run_cases),
                             std::mem::take(&mut collected),
                             &mut out,
                         );
                         run_key = Some(key);
-                        run_case = Some(matched.id.as_str());
+                    }
+                    if !run_cases.iter().any(|seen| seen == &matched.id) {
+                        run_cases.push(matched.id.clone());
                     }
                     collected.push(part.clone());
                 }
-                flush(run_key, run_case, collected, &mut out);
+                flush(run_key, run_cases, collected, &mut out);
             }
             // Each element emitted as it stands, tagged by what it carries.
             None => {
@@ -4375,7 +4428,11 @@ fn element_passes<'s>(
                     else {
                         continue;
                     };
-                    out.push((tag.to_string(), element.clone(), vec![pass.id.as_str()]));
+                    out.push((
+                        tag.to_string(),
+                        element.clone(),
+                        vec![vec![pass.id.clone()]],
+                    ));
                 }
             }
         }
