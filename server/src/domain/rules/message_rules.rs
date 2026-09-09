@@ -494,6 +494,99 @@ fn compile_rule(
             ));
         }
     }
+    // **Two declarations must not write the same output member.** A wrap builds its object by inserting in a
+    // fixed order - role, literal members, pre-content attachments, the content, post-content attachments -
+    // and every insert *overwrites*. So `{"role": "user", "members": {"role": "assistant"},
+    // "content_as": "role"}` compiled and produced a message whose role is its content, with the two
+    // declarations before it silently discarded. Attachments could overwrite literals, the content and each
+    // other, and `compose.trailing` could overwrite a named or swept member.
+    //
+    // Refused rather than ordered, because the order is not the point: two declarations writing one name is
+    // a rule that states two things about one member, and only one of them is true. If replacement is ever
+    // wanted it needs a name of its own, not an insertion order a reader has to know.
+    if let Some(wrap) = wrap {
+        let mut names: Vec<String> = Vec::new();
+        if wrap.role.is_some() || wrap.role_from.is_some() {
+            names.push("role".to_string());
+        }
+        names.extend(wrap.members.keys().cloned());
+        // The content member is written unless a tool-call list replaces it, which is stated at that branch.
+        if wrap.tool_calls_from.is_none() {
+            names.push(
+                wrap.content_as
+                    .clone()
+                    .unwrap_or_else(|| "content".to_string()),
+            );
+        }
+        names.extend(wrap.attach.iter().map(|a| a.as_member.clone()));
+        if let Some(spec) = &wrap.tool_calls_from {
+            names.push(
+                spec.as_member
+                    .clone()
+                    .unwrap_or_else(|| "tool_calls".to_string()),
+            );
+        }
+        if let Some(spec) = &wrap.tool_call_from {
+            names.push(
+                spec.as_member
+                    .clone()
+                    .unwrap_or_else(|| "tool_call".to_string()),
+            );
+        }
+        let mut seen: std::collections::BTreeSet<&str> = std::collections::BTreeSet::new();
+        if names.iter().any(|name| !seen.insert(name.as_str())) {
+            return Err(inexpressible(
+                "two declarations of one envelope write the same output member, so one of them is silently \
+                     discarded - a rule stating two things about one member states one thing that is false",
+            ));
+        }
+    }
+    // The same question for a compose: its `trailing` literals are inserted after the members, so a trailing
+    // name that a member also writes overwrites it. A **sweep** member's names are only known at read time, so
+    // the sweep has to exclude every fixed output name - which is a declaration it can make (`except`) and
+    // which `vercel-ai.response` did not, leaving `ai.response.role` swept and then overwritten by
+    // `trailing.role`.
+    if let Some(compose) = compose {
+        let named: Vec<&str> = compose
+            .members
+            .iter()
+            .filter_map(|member| member.as_member.as_deref())
+            .collect();
+        let mut seen: std::collections::BTreeSet<&str> = std::collections::BTreeSet::new();
+        if named.iter().any(|name| !seen.insert(*name)) {
+            return Err(inexpressible(
+                "two compose members write the same output member, so one is silently discarded",
+            ));
+        }
+        for trailing in compose.trailing.keys() {
+            if seen.contains(trailing.as_str()) {
+                return Err(inexpressible(
+                    "a `trailing` literal writes an output member a compose member also writes, and \
+                         trailing is inserted last - so the member's value is silently discarded",
+                ));
+            }
+        }
+        for member in &compose.members {
+            let Some(prefix) = &member.sweep_prefix else {
+                continue;
+            };
+            // A swept name is `<prefix><rest>`, so the fixed names it could collide with are the ones whose
+            // spelling a producer could write under that prefix.
+            for fixed in seen
+                .iter()
+                .copied()
+                .chain(compose.trailing.keys().map(String::as_str))
+            {
+                if !member.except.iter().any(|except| except == fixed) {
+                    return Err(inexpressible(
+                        "a sweep member does not exclude an output member the rule also writes, so whichever \
+                             is inserted last silently discards the other - add it to `except`",
+                    ));
+                }
+                let _ = prefix;
+            }
+        }
+    }
     // **`parse` is required wherever the reading parses a raw scalar of its own.** Omitted, it meant three
     // incompatible things depending on what sat beside it: text for a compose, JSON for an ordinary read or a
     // `tool_repr`, JSON-or-string for a named family. So one absent declaration was three different decisions,

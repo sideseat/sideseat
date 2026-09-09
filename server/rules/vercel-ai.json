@@ -214,9 +214,12 @@
           {
             "sweep_prefix": "ai.response.",
             "except": [
+              "content",
+              "object",
+              "role",
               "text",
               "toolCalls",
-              "object"
+              "tool_calls"
             ]
           }
         ]

@@ -5636,9 +5636,12 @@ fn a_reading_that_parses_a_scalar_declares_how() {
     for (what, rule) in [
         (
             "a sweep member, where sniffing whatever a prefix holds is the point",
+            // `except` names every fixed output member the rule writes, which the collision refusal requires -
+            // a swept name is only known at read time, so excluding them is the only way a sweep can say it
+            // will not overwrite one.
             r#"{"id":"t.c","compose":{"tag":"joined","members":[
                  {"as":"a","from_any_of":["x"],"parse":"text"},
-                 {"sweep_prefix":"p.","except":["x"]}]},"emit":"message","legacy_rank":1}"#,
+                 {"sweep_prefix":"p.","except":["a"]}]},"emit":"message","legacy_rank":1}"#,
         ),
         (
             "an indexed family, which assembles entries from keys rather than parsing one string",
@@ -5690,4 +5693,112 @@ fn a_compose_owns_its_members_and_not_its_own_tag() {
         "canonical.response",
         "and the tag is still what the emission is *reported* under - the two are different questions"
     );
+}
+
+/// Two declarations must not write the same output member.
+///
+/// A wrap builds its object by inserting in a fixed order - role, literal members, pre-content attachments, the
+/// content, post-content attachments - and every insert **overwrites**. So Codex's case compiled and produced a
+/// message whose role is its content, with the two declarations before it silently discarded. Attachments could
+/// overwrite literals, the content and each other; `compose.trailing` could overwrite a named or swept member.
+///
+/// The corpus-reachable one was `vercel-ai.response`: its sweep took `ai.response.role` into the `role` member
+/// and `trailing.role` then overwrote it. Output-neutral to fix, because the overwrite always happened - but the
+/// declaration was stating something untrue about what the rule reads.
+#[test]
+fn two_declarations_must_not_write_one_output_member() {
+    use crate::domain::rules::message_rules::compile;
+
+    let asset = |rule: &str| {
+        let body = format!(r#"{{"id":"t","messages":[{rule}]}}"#);
+        compile(&std::collections::BTreeMap::from([(
+            "t.json".to_string(),
+            body.into_bytes(),
+        )]))
+    };
+    let read = r#""read":{"attribute":"x"},"parse":"json","emit":"message","legacy_rank":1"#;
+
+    // Codex's case: a literal over the declared role, then the content over both.
+    assert!(
+        asset(&format!(
+            r#"{{"id":"t.r",{read},"wrap":{{"role":"user","members":{{"role":"assistant"}},
+                 "content_as":"role"}}}}"#
+        ))
+        .is_err(),
+        "a role, a literal role and content-as-role are three declarations of one member"
+    );
+
+    // An attachment over the content.
+    assert!(
+        asset(&format!(
+            r#"{{"id":"t.r",{read},"wrap":{{"role":"user",
+                 "attach":[{{"as":"content","from_path":"$.other"}}]}}}}"#
+        ))
+        .is_err(),
+        "an attachment writing the content member overwrites the content"
+    );
+
+    // Two attachments under one name.
+    assert!(
+        asset(&format!(
+            r#"{{"id":"t.r",{read},"wrap":{{"role":"user","attach":[
+                 {{"as":"finish_reason","from_path":"$.a"}},
+                 {{"as":"finish_reason","from_path":"$.b"}}]}}}}"#
+        ))
+        .is_err(),
+        "two attachments under one name: whichever is later wins, and the rule says both"
+    );
+
+    // `trailing` over a named compose member.
+    assert!(
+        asset(
+            r#"{"id":"t.c","emit":"message","legacy_rank":1,
+                 "compose":{"tag":"joined","trailing":{"role":"assistant"},"members":[
+                   {"as":"role","from_any_of":["x"],"parse":"text"}]}}"#
+        )
+        .is_err(),
+        "trailing is inserted last, so it discards the member's value"
+    );
+
+    // A sweep that does not exclude a fixed output name. A swept name is only known at read time, so excluding
+    // them is the only way a sweep can state that it will not overwrite one.
+    assert!(
+        asset(
+            r#"{"id":"t.c","emit":"message","legacy_rank":1,
+                 "compose":{"tag":"joined","trailing":{"role":"assistant"},"members":[
+                   {"as":"content","from_any_of":["x"],"parse":"text"},
+                   {"sweep_prefix":"p."}]}}"#
+        )
+        .is_err(),
+        "a sweep must exclude every fixed output member the rule writes"
+    );
+
+    // And the coherent shapes compile, or the refusal is a ban on envelopes.
+    for (what, rule) in [
+        (
+            "distinct names throughout",
+            format!(
+                r#"{{"id":"t.r",{read},"wrap":{{"role":"user","members":{{"kind":"text"}},
+                     "attach":[{{"as":"finish_reason","from_path":"$.a"}}]}}}}"#
+            ),
+        ),
+        (
+            "a tool-call list *replacing* the content, which is stated rather than an overwrite",
+            format!(
+                r#"{{"id":"t.r",{read},"wrap":{{"role":"assistant",
+                     "tool_calls_from":{{"select":"$.calls","id":"$.id","name":"$.name",
+                       "arguments":"$.args"}}}}}}"#
+            ),
+        ),
+        (
+            "a sweep excluding every fixed name",
+            r#"{"id":"t.c","emit":"message","legacy_rank":1,
+                 "compose":{"tag":"joined","trailing":{"role":"assistant"},"members":[
+                   {"as":"content","from_any_of":["x"],"parse":"text"},
+                   {"sweep_prefix":"p.","except":["content","role"]}]}}"#
+                .to_string(),
+        ),
+    ] {
+        assert!(asset(&rule).is_ok(), "{what}: {:?}", asset(&rule).err());
+    }
 }
