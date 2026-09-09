@@ -67,7 +67,12 @@
           "messages",
           "raw"
         ],
-        "stop_at_match": true
+        "stop_on": [
+          "message",
+          "messages",
+          "also_3",
+          "raw"
+        ]
       },
       "also": [
         {
@@ -134,7 +139,12 @@
           "messages",
           "raw"
         ],
-        "stop_at_match": true
+        "stop_on": [
+          "message",
+          "messages",
+          "also_3",
+          "raw"
+        ]
       },
       "also": [
         {

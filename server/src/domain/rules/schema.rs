@@ -2167,12 +2167,27 @@ pub struct WalkSpec {
     /// Members not descended into, because the readings already took them at each node.
     #[serde(default)]
     pub prune: Vec<String>,
-    /// Stop descending below a node that was itself read as a message.
+    /// Stop descending below a node **one of these clauses recognised**, naming them by id.
     ///
-    /// A message's own members are its content, not more state, so descending into one would read its parts
-    /// as though they were turns.
+    /// A message's own members are its content, not more state, so descending into one would read its parts as
+    /// though they were turns. But "was this node a message" is a question about *which* clause answered, and
+    /// the boolean this replaces asked a wider one: "did anything get selected here". LangGraph's `also_3`
+    /// selects every state member, so at a node holding `{"direct": <a message>, "nested": {"messages": […]}}`
+    /// the root counted as matched and the walk stopped - losing `nested`'s messages. The root was not a
+    /// message; one of its children was.
+    ///
+    /// Ids rather than a predicate, deliberately: a predicate here would restate the clause's own recognition
+    /// logic, and then two declarations would decide one question.
+    ///
+    /// **The shipped LangGraph walks name every clause**, which is what the boolean meant, and narrowing them to
+    /// the one clause that reads a node as a single message is the semantic fix - deferred, and this is why: it
+    /// makes the walk descend where it used to stop, and the blocks it then finds trip the carrier-subsequence
+    /// invariant on `langgraph/image_gen`. Traversal positions are assigned *after* extraction, in emission
+    /// order, so a walk's discovery order and the payload's member order are reconciled nowhere. Naming the
+    /// clauses is worth landing on its own: the format now states what the walk stops on rather than implying
+    /// "anything", which is what made the wider reading invisible.
     #[serde(default)]
-    pub stop_at_match: bool,
+    pub stop_on: Vec<String>,
 }
 
 /// One tool call at a named member, as the normaliser's `{name, arguments}` convention.

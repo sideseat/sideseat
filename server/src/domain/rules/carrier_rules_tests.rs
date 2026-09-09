@@ -6230,3 +6230,74 @@ fn an_attachment_falls_through_to_its_other_sources() {
         "and the default is the last word, as it is for the value form"
     );
 }
+
+/// A walk stops on the clauses it **names**, and a clause it names must exist.
+///
+/// The boolean it replaces asked "did anything get selected at this node", which is wider than "was this node a
+/// message": LangGraph's `also_3` selects every state member, so a node holding a message *beside* more state
+/// counted as matched and its siblings were never visited.
+///
+/// Recognition is also decided **before** construction and in the **same pass** as the readings. Before: a clause
+/// whose envelope failed made the node look unrecognised and widened the traversal, and the fix for that took two
+/// evaluations of every node - quadratic on a deep payload.
+#[test]
+fn a_walk_stops_on_the_clauses_it_names() {
+    use crate::domain::rules::message_rules::{MessageContext, compile};
+
+    let asset = |stop: &str| {
+        let body = format!(
+            r#"{{"id":"t","messages":[{{"id":"t.w","read":{{"attribute":"x"}},"parse":"json",
+                 "emit":"message","legacy_rank":1,"walk":{{"max_depth":3,"stop_on":{stop}}},
+                 "also":[
+                   {{"id":"whole_node","require":{{"all":[{{"path":"$.role"}},{{"path":"$.content"}}]}},
+                    "wrap":{{"role_from":"$.role","content_from_any_of":["$.content"]}}}},
+                   {{"id":"any_member","select":"$.*",
+                    "require":{{"all":[{{"path":"$.role"}},{{"path":"$.content"}}]}},
+                    "wrap":{{"role_from":"$.role","content_from_any_of":["$.content"]}}}}]}}]}}"#
+        );
+        compile(&std::collections::BTreeMap::from([(
+            "t.json".to_string(),
+            body.into_bytes(),
+        )]))
+    };
+    // A node holding a message beside more state: `any_member` recognises the *root*, `whole_node` does not.
+    let attrs = std::collections::HashMap::from([(
+        "x".to_string(),
+        r#"{"direct":{"role":"user","content":"q"},"nested":{"inner":{"role":"assistant","content":"a"}}}"#
+            .to_string(),
+    )]);
+
+    let narrow = asset(r#"["whole_node"]"#).expect("naming one clause compiles");
+    let ctx = MessageContext::for_span("span", &attrs, false);
+    let contents = |plan: &crate::domain::rules::message_rules::MessagePlan| {
+        let mut seen: Vec<String> = plan
+            .run(&ctx)
+            .iter()
+            .map(|e| e.value["content"].as_str().unwrap_or_default().to_string())
+            .collect();
+        seen.sort();
+        seen.dedup();
+        seen
+    };
+    assert_eq!(
+        contents(&narrow),
+        ["a".to_string(), "q".to_string()],
+        "the root is not a message, so the walk descends and the nested one is found"
+    );
+
+    // Naming the wide clause is the boolean's behaviour, and it loses the nested message - which is the point:
+    // the two readings are different, and the format now says which one a rule means.
+    let wide = asset(r#"["whole_node","any_member"]"#).expect("naming both compiles");
+    assert_eq!(
+        contents(&wide),
+        ["q".to_string()],
+        "`any_member` recognised the root, so the descent stopped and `nested` was never visited"
+    );
+
+    // A name that matches nothing could never stop the descent, which is indistinguishable from meaning never
+    // to stop - so it is refused rather than silently running to `max_depth`.
+    assert!(
+        asset(r#"["whole_nde"]"#).is_err(),
+        "a misspelled clause id must be refused"
+    );
+}

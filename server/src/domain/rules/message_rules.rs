@@ -52,6 +52,29 @@ use super::schema::{
 /// the same answer as "this shape does not match" and the only one the coalesce can act on.
 type Reading = (JsonValue, Option<EmitTarget>, Vec<String>);
 
+/// One node's readings, and which clauses **recognised** it.
+///
+/// Two outputs from one pass. They answer different questions and are needed together: the built readings are
+/// the observations, while `recognised` says which declarations matched the payload's shape - whether or not
+/// their envelope could then be made. The walk's stop reads the second, so a clause whose construction failed
+/// still means "this node is that shape", and one evaluation serves both (it used to take two, which on a
+/// deep payload is the difference between linear and quadratic work).
+struct Selection {
+    built: Vec<Reading>,
+    recognised: Vec<String>,
+}
+
+impl Selection {
+    fn absorb(&mut self, other: Selection) {
+        self.built.extend(other.built);
+        for id in other.recognised {
+            if !self.recognised.contains(&id) {
+                self.recognised.push(id);
+            }
+        }
+    }
+}
+
 /// What building a message needs, threaded into the coalesce so construction happens before it commits.
 ///
 /// `None` at the aggregate path: there the entries become one array and the rule's envelope wraps *that*, once,
@@ -715,6 +738,23 @@ fn compile_rule(
             return Err(inexpressible(
                 "an aggregate builds one observation from every reading, so a per-reading envelope would be \
                      discarded - declare the envelope on the rule, which wraps the assembled array",
+            ));
+        }
+    }
+    // **A walk's `stop_on` names clauses of its own rule.** A name that matches nothing can never stop the
+    // descent, so the walk silently runs to `max_depth` - and an id that is merely misspelled looks exactly like
+    // a deliberate "never stop".
+    if let Some(walk) = walk {
+        let local: std::collections::BTreeSet<&str> = alternatives
+            .iter()
+            .chain(also.iter())
+            .chain(fallback.iter())
+            .map(|reading| reading.id.as_str())
+            .collect();
+        if walk.stop_on.iter().any(|id| !local.contains(id.as_str())) {
+            return Err(inexpressible(
+                "a walk's `stop_on` names a clause this rule does not declare, so it could never stop the \
+                     descent - which is indistinguishable from meaning never to stop",
             ));
         }
     }
@@ -2855,25 +2895,31 @@ fn all_readings(
     parsed: &JsonValue,
     rule: &CompiledMessageRule,
     build: Option<Construction<'_>>,
-) -> Vec<Reading> {
-    let mut out = Vec::new();
+) -> Selection {
+    let mut out = Selection {
+        built: Vec::new(),
+        recognised: Vec::new(),
+    };
     if !rule.alternatives.is_empty() {
-        out.extend(readings(parsed, &rule.alternatives, build));
+        out.absorb(readings(parsed, &rule.alternatives, build));
     }
     for alternative in &rule.also {
-        out.extend(readings(parsed, std::slice::from_ref(alternative), build));
+        out.absorb(readings(parsed, std::slice::from_ref(alternative), build));
     }
-    if out.is_empty() {
+    if out.built.is_empty() {
         if rule.alternatives.is_empty() && rule.also.is_empty() && rule.fallback.is_empty() {
             // No readings declared at all: the payload is the observation - still built, since the rule's own
             // envelope applies to it.
-            return match built(parsed.clone(), None, build) {
-                Some(value) => vec![(value, None, Vec::new())],
-                None => Vec::new(),
+            return Selection {
+                built: match built(parsed.clone(), None, build) {
+                    Some(value) => vec![(value, None, Vec::new())],
+                    None => Vec::new(),
+                },
+                recognised: Vec::new(),
             };
         }
         for alternative in &rule.fallback {
-            out.extend(readings(parsed, std::slice::from_ref(alternative), build));
+            out.absorb(readings(parsed, std::slice::from_ref(alternative), build));
         }
     }
     out
@@ -2905,13 +2951,19 @@ fn readings(
     parsed: &JsonValue,
     alternatives: &[CompiledReading],
     build: Option<Construction<'_>>,
-) -> Vec<Reading> {
+) -> Selection {
     if alternatives.is_empty() {
-        return match built(parsed.clone(), None, build) {
-            Some(value) => vec![(value, None, Vec::new())],
-            None => Vec::new(),
+        return Selection {
+            built: match built(parsed.clone(), None, build) {
+                Some(value) => vec![(value, None, Vec::new())],
+                None => Vec::new(),
+            },
+            recognised: Vec::new(),
         };
     }
+    // Accumulated across **every** alternative, not per alternative: a clause that recognised the node and
+    // could not build says so whether or not a later clause then answered.
+    let mut recognised: Vec<String> = Vec::new();
     for reading in alternatives {
         let alternative = &reading.spec;
         // Asked of the enclosing value, before anything is selected out of it: the discriminator for a
@@ -3038,14 +3090,24 @@ fn readings(
                     // The selection point and then the case that answered: the fragment decides what the
                     // element *is*, this reading decided where to look, and a diagnostic needs both. Nested
                     // fragment cases lost the selection-point id entirely before this.
-                    produced.extend(readings(&candidate, &cases, build).into_iter().map(
-                        |(value, target, mut steps)| {
-                            let mut path = vec![alternative.id.clone()];
-                            path.append(&mut steps);
-                            (value, target, path)
-                        },
-                    ));
+                    let inner = readings(&candidate, &cases, build);
+                    // A fragment case matching means the *selection point* recognised this node, which is what
+                    // a walk stop is about - the case says what the value is, the selection point says the
+                    // rule's clause found it here.
+                    if !inner.recognised.is_empty() && !recognised.contains(&alternative.id) {
+                        recognised.push(alternative.id.clone());
+                    }
+                    produced.extend(inner.built.into_iter().map(|(value, target, mut steps)| {
+                        let mut path = vec![alternative.id.clone()];
+                        path.append(&mut steps);
+                        (value, target, path)
+                    }));
                     continue;
+                }
+                // Recognition is recorded **before** construction: the candidate passed every predicate this
+                // clause states, so the payload is this shape whatever happens to the envelope.
+                if !recognised.contains(&alternative.id) {
+                    recognised.push(alternative.id.clone());
                 }
                 // **Built here**, so a candidate whose envelope cannot be made counts as this alternative
                 // producing nothing - and the coalesce moves on to the next shape and then to the fallback.
@@ -3056,10 +3118,18 @@ fn readings(
             }
         }
         if !produced.is_empty() {
-            return produced;
+            return Selection {
+                built: produced,
+                recognised,
+            };
         }
     }
-    Vec::new()
+    // Recognised but unbuildable: nothing was produced, and the recognition still travels out - a walk must not
+    // descend into a node a clause identified as a message merely because its envelope failed.
+    Selection {
+        built: Vec::new(),
+        recognised,
+    }
 }
 
 /// One emission's evidence: the rule, plus the clauses inside it that produced this observation.
@@ -4150,7 +4220,7 @@ fn emit_rule<'p>(rule: &'p CompiledMessageRule, ctx: &MessageContext<'_>) -> Vec
     });
     let readings = match &rule.walk {
         Some(walk) => walked_readings(&parsed, rule, walk, build),
-        None => all_readings(&parsed, rule, build),
+        None => all_readings(&parsed, rule, build).built,
     };
     // A tool list is a set, not a sequence of messages: the whole list is one observation, and emitting one
     // per tool would make each look like a separate declaration.
@@ -4519,19 +4589,25 @@ fn walked_readings(
     let mut out = Vec::new();
     let mut stack = vec![(root, walk.max_depth)];
     while let Some((node, depth)) = stack.pop() {
-        // **Two questions, asked separately.** `stop_at_match` is about the *payload's shape* - "this node is
-        // the message, do not descend into it" - while whether an envelope can be built is about the
-        // declaration. Deciding the walk from the built result made construction failure widen the traversal:
-        // a node that previously matched and stopped the descent now yielded nothing, so the walk went into its
-        // children and returned blocks whose payload positions interleave with the shallower ones, which the
-        // carrier-subsequence invariant catches on `langgraph/image_gen`.
+        // **One pass, two answers.** Whether to descend is a question about the *payload's shape* - "this node
+        // is the message, do not read its parts as turns" - while whether an envelope can be built is about the
+        // declaration, so a clause whose construction failed still means the node is that shape. Deciding the
+        // walk from the built result made construction failure widen the traversal, which the
+        // carrier-subsequence invariant caught on `langgraph/image_gen`.
         //
-        // So the stop is decided from candidates alone (no construction), and the output is built. Two passes
-        // over one node, which a bounded walk can afford, and the alternative chain still advances *within* the
-        // node - which is the defect this whole change is for.
-        let matched = !all_readings(node, rule, None).is_empty();
-        out.extend(all_readings(node, rule, build));
-        if depth == 0 || (matched && walk.stop_at_match) {
+        // It was two evaluations of the node for a while, which is quadratic work on a deep payload; `Selection`
+        // returns both from one.
+        //
+        // And **which** clauses stop it is declared (`stop_on`), because "did anything get selected here" is a
+        // wider question than "was this node a message": LangGraph's `also_3` selects every state member, so a
+        // node holding a message *beside* more state counted as matched and its siblings were never visited.
+        let here = all_readings(node, rule, build);
+        let matched = here
+            .recognised
+            .iter()
+            .any(|id| walk.stop_on.iter().any(|stop| stop == id));
+        out.extend(here.built);
+        if depth == 0 || matched {
             continue;
         }
         match node {
