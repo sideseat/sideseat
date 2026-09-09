@@ -384,8 +384,10 @@ fn python_args_to_json_schema(value: &JsonValue, spec: &ToolReprSpec) -> Option<
         let mut prop = serde_json::Map::new();
         match meta {
             JsonValue::Object(m) => {
-                if let Some(type_name) = m.get("type").and_then(|v| v.as_str()) {
-                    prop.insert("type".to_string(), json!(json_schema_type(type_name, spec)));
+                if let Some(type_name) = m.get("type").and_then(|v| v.as_str())
+                    && let Some(mapped) = json_schema_type(type_name, spec)
+                {
+                    prop.insert("type".to_string(), json!(mapped));
                 }
                 if let Some(desc) = m.get("description").and_then(|v| v.as_str())
                     && !desc.trim().is_empty()
@@ -394,13 +396,16 @@ fn python_args_to_json_schema(value: &JsonValue, spec: &ToolReprSpec) -> Option<
                 }
             }
             JsonValue::String(type_name) => {
-                prop.insert("type".to_string(), json!(json_schema_type(type_name, spec)));
+                if let Some(mapped) = json_schema_type(type_name, spec) {
+                    prop.insert("type".to_string(), json!(mapped));
+                }
             }
             _ => {}
         }
-        if prop.is_empty() {
-            prop.insert("type".to_string(), json!("string"));
-        }
+        // A property with nothing to say stays `{}`, which is JSON Schema for "unconstrained" and accepts
+        // anything. It used to become `type: string` here - a literal in Rust overriding the asset's declared
+        // `type_default`, so `unconstrained` produced a schema that **rejects a number**. Same defect as the
+        // default itself, one layer further down, and the layer nobody looks at.
         properties.insert(name.clone(), JsonValue::Object(prop));
     }
 
@@ -410,13 +415,24 @@ fn python_args_to_json_schema(value: &JsonValue, spec: &ToolReprSpec) -> Option<
     }))
 }
 
-fn json_schema_type(type_name: &str, spec: &ToolReprSpec) -> String {
+/// The JSON Schema type for a producer's type name, or `None` where the declaration says to constrain nothing.
+///
+/// `None` writes **no** `type` member, which is what "the widest type" means in JSON Schema. The previous
+/// default was `"string"`, which is the opposite of widest: a schema saying `type: string` rejects the number a
+/// producer may well pass.
+fn json_schema_type(type_name: &str, spec: &ToolReprSpec) -> Option<String> {
     let name = type_name.trim();
-    spec.type_map
+    if let Some((_, target)) = spec
+        .type_map
         .iter()
         .find(|(source, _)| source.eq_ignore_ascii_case(name))
-        .map(|(_, target)| target.clone())
-        .unwrap_or_else(|| spec.type_default.clone())
+    {
+        return Some(target.clone());
+    }
+    match &spec.type_default {
+        super::schema::UnknownType::Unconstrained => None,
+        super::schema::UnknownType::MapTo(target) => Some(target.clone()),
+    }
 }
 
 fn tool_from_value(value: &JsonValue, spec: &ToolReprSpec) -> Option<JsonValue> {

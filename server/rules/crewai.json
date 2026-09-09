@@ -229,7 +229,9 @@
             "object"
           ]
         ],
-        "type_default": "string",
+        "type_default": {
+          "map_to": "string"
+        },
         "doc": "An array of agent or task entries.",
         "entries": "$[*]",
         "candidates": [
@@ -334,7 +336,9 @@
             "object"
           ]
         ],
-        "type_default": "string",
+        "type_default": {
+          "map_to": "string"
+        },
         "doc": "One object holding a list of tools, a single tool, or both.",
         "entries": "$",
         "candidates": [

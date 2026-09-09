@@ -741,6 +741,72 @@ fn compile_rule(
             ));
         }
     }
+    // **A `tool_repr` states literals that must be able to match something.** The typed structure accepted
+    // every one of these and each is a declaration that cannot mean what it says:
+    //
+    // | Declared | What it does |
+    // | --- | --- |
+    // | no candidates | the entries are found and nothing is tried as a tool |
+    // | an empty field, label or marker | matches at position zero of every string, so every entry is a repr |
+    // | a case-folded duplicate source type | the map is compared case-insensitively, so the second is unreachable |
+    // | a target or default outside JSON Schema's primitives | a `type` member no validator acts on |
+    if let Some(repr) = tool_repr {
+        if repr.candidates.is_empty() {
+            return Err(inexpressible(
+                "declares a `tool_repr` with no candidates, so the entries are found and nothing is tried as \
+                     a tool",
+            ));
+        }
+        let literals = [
+            ("name_field", &repr.name_field),
+            ("description_field", &repr.description_field),
+            ("name_label", &repr.name_label),
+            ("description_label", &repr.description_label),
+            ("arguments_label", &repr.arguments_label),
+        ];
+        if literals.iter().any(|(_, value)| value.trim().is_empty())
+            || repr.repr_markers.iter().any(|m| m.trim().is_empty())
+            || repr.parameter_members.iter().any(|m| m.trim().is_empty())
+            || repr.field_terminators.iter().any(|t| t.trim().is_empty())
+            || repr
+                .type_map
+                .iter()
+                .any(|(source, target)| source.trim().is_empty() || target.trim().is_empty())
+        {
+            return Err(inexpressible(
+                "declares an empty field, label, marker or type name in its `tool_repr` - an empty token \
+                     matches at position zero of every string, so it matches everything",
+            ));
+        }
+        let mut folded: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
+        if repr
+            .type_map
+            .iter()
+            .any(|(source, _)| !folded.insert(source.to_lowercase()))
+        {
+            return Err(inexpressible(
+                "maps one source type twice in its `tool_repr`; the map is compared case-insensitively, so \
+                     the second mapping is unreachable",
+            ));
+        }
+        let primitive = |name: &String| {
+            super::schema::UnknownType::PRIMITIVES
+                .iter()
+                .any(|allowed| allowed == name)
+        };
+        let default_target = match &repr.type_default {
+            super::schema::UnknownType::Unconstrained => None,
+            super::schema::UnknownType::MapTo(target) => Some(target),
+        };
+        if repr.type_map.iter().any(|(_, target)| !primitive(target))
+            || default_target.is_some_and(|target| !primitive(target))
+        {
+            return Err(inexpressible(
+                "maps a type to something that is not a JSON Schema primitive, which is a `type` member no \
+                     reader acts on",
+            ));
+        }
+    }
     // **A constructor and its target have to be about the same thing.** `EmitTarget` is a filing destination
     // and nothing checked that the reading filed there was the shape that destination holds, so
     // `{"wrap": {"role": "user"}, "emit": "tool_names"}` compiled and filed `{"role":"user","content":"hello"}`

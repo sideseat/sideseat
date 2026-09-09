@@ -4632,7 +4632,7 @@ fn a_carrier_list_says_how_many_of_its_keys_are_read() {
                "description_field":"description","name_label":"Tool Name:",
                "description_label":"Tool Description:","arguments_label":"Tool Arguments:",
                "repr_markers":["name="],"parameter_members":["parameters"],
-               "field_terminators":[","],"type_map":[["str","string"]],"type_default":"string"}}]}"#,
+               "field_terminators":[","],"type_map":[["str","string"]],"type_default":{"map_to":"string"}}}]}"#,
     ))
     .expect("`each` compiles with `tool_repr`");
     let attrs = std::collections::HashMap::from([
@@ -4660,7 +4660,7 @@ fn a_carrier_list_says_how_many_of_its_keys_are_read() {
                  "tool_repr":{{"entries":"$[*]","candidates":["$"],"name_field":"name",
                  "description_field":"d","name_label":"N:","description_label":"D:",
                  "arguments_label":"A:","repr_markers":["name="],"parameter_members":["parameters"],
-                 "field_terminators":[","],"type_map":[["str","string"]],"type_default":"string"}}}}]}}"#
+                 "field_terminators":[","],"type_map":[["str","string"]],"type_default":{{"map_to":"string"}}}}}}}}]}}"#
         );
         assert!(
             compile(&asset(&body)).is_err(),
@@ -6804,7 +6804,7 @@ fn a_repr_field_respects_identifier_boundaries_and_the_earliest_close() {
                "name_label":"Tool Name:","description_label":"Tool Description:",
                "arguments_label":"Tool Arguments:","repr_markers":["name=","CrewStructuredTool("],
                "parameter_members":["args"],"field_terminators":["env_vars"],
-               "type_map":[["str","string"]],"type_default":"string"}}]}"#
+               "type_map":[["str","string"]],"type_default":{"map_to":"string"}}}]}"#
             .to_vec(),
     )]))
     .expect("the probe compiles");
@@ -6858,4 +6858,125 @@ fn a_repr_field_respects_identifier_boundaries_and_the_earliest_close() {
         "the description ran to a later field's closing quote: {description:?}"
     );
     assert_eq!(description, "Find records");
+}
+
+/// A `tool_repr`'s literals must be able to match something, and its type targets must be JSON Schema's.
+///
+/// The typed structure accepted every one of these, and each is a declaration that cannot mean what it says.
+/// The worst is an empty token: it matches at position zero of every string, so an empty `repr_markers` entry
+/// makes every entry a repr and an empty `name_field` finds the name at the start of anything.
+///
+/// And `type_default` was a bare string documented as "the widest type" while being `"string"`, which is the
+/// opposite - a schema saying `type: string` rejects the number a producer may pass. `unconstrained` is the
+/// widest, and it writes no `type` at all.
+#[test]
+fn a_tool_repr_declares_literals_that_can_match_and_types_that_exist() {
+    use crate::domain::rules::message_rules::{MessageContext, compile};
+
+    // The overrides come **last**, and every default they may replace is expressed as an override rather than
+    // written twice - `deny_unknown_fields` refuses a duplicate member, so a base carrying `type_default` and
+    // an override supplying another would fail at parse and say nothing about the check under test.
+    let base = |overrides: &str| {
+        let with_default = if overrides.contains("type_default") {
+            String::new()
+        } else {
+            r#","type_default":{"map_to":"string"}"#.to_string()
+        };
+        let with_map = if overrides.contains("type_map") {
+            String::new()
+        } else {
+            r#","type_map":[["str","string"]]"#.to_string()
+        };
+        let with_description = if overrides.contains("description_field") {
+            String::new()
+        } else {
+            r#","description_field":"description""#.to_string()
+        };
+        let with_candidates = if overrides.contains("candidates") {
+            String::new()
+        } else {
+            r#","candidates":["$"]"#.to_string()
+        };
+        format!(
+            r#"{{"id":"t","messages":[{{"id":"t.tools","read":{{"attribute":"tools"}},"parse":"json",
+                 "emit":"tool_definitions","legacy_rank":1,
+                 "tool_repr":{{"entries":"$[*]"{with_candidates},
+                   "name_field":"name"{with_description},
+                   "name_label":"N:","description_label":"D:","arguments_label":"A:",
+                   "repr_markers":["name="],"parameter_members":["args"]{with_map}{with_default}
+                   {overrides}}}}}]}}"#
+        )
+    };
+    let asset = |body: String| {
+        compile(&std::collections::BTreeMap::from([(
+            "t.json".to_string(),
+            body.into_bytes(),
+        )]))
+    };
+    assert!(asset(base("")).is_ok(), "the shipped shape compiles");
+
+    for (what, overrides) in [
+        ("no candidates", r#","candidates":[]"#),
+        ("an empty description field", r#","description_field":"""#),
+        ("an empty label", r#","arguments_label":"  ""#),
+        ("an empty marker", r#","repr_markers":[""]"#),
+        ("an empty parameter member", r#","parameter_members":[""]"#),
+        ("an empty terminator", r#","field_terminators":[""]"#),
+        (
+            "a case-folded duplicate source type",
+            r#","type_map":[["str","string"],["STR","integer"]]"#,
+        ),
+        (
+            "a target outside JSON Schema's primitives",
+            r#","type_map":[["str","banana"]]"#,
+        ),
+        (
+            "a default outside them",
+            r#","type_default":{"map_to":"banana"}"#,
+        ),
+    ] {
+        assert!(
+            asset(base(overrides)).is_err(),
+            "{what} must be refused: it is a declaration that cannot mean what it says"
+        );
+    }
+
+    // `unconstrained` writes **no** `type`, which is what the widest type is.
+    let plan = asset(base(r#","type_default":"unconstrained""#)).expect("compiles");
+    let attrs = std::collections::HashMap::from([(
+        "tools".to_string(),
+        // A JSON entry, which is what reads `parameter_members`. A *repr* string takes its arguments from the
+        // `arguments_label` instead, so a repr probe supplies no parameters at all - and then "no `type` was
+        // written" holds because the property does not exist, which is a test passing for the wrong reason.
+        serde_json::json!([{"name": "when", "args": {"at": "datetime"}}]).to_string(),
+    )]);
+    let ctx = MessageContext::for_span("span", &attrs, false);
+    let tools: Vec<serde_json::Value> = plan
+        .tool_definitions(&ctx)
+        .iter()
+        .flat_map(|e| e.value.as_array().cloned().unwrap_or_default())
+        .collect();
+    assert_eq!(tools.len(), 1);
+    let at = &tools[0]["function"]["parameters"]["properties"]["at"];
+    assert!(
+        at.is_object(),
+        "the property must exist, or the next assertion holds for the wrong reason: {}",
+        tools[0]
+    );
+    assert!(
+        at.get("type").is_none(),
+        "an unrecognised type constrains nothing, so no `type` is written: {at}"
+    );
+
+    // And a producer whose unrecognised names really are one kind of thing can still say so.
+    let plan = asset(base(r#","type_default":{"map_to":"string"}"#)).expect("compiles");
+    let tools: Vec<serde_json::Value> = plan
+        .tool_definitions(&MessageContext::for_span("span", &attrs, false))
+        .iter()
+        .flat_map(|e| e.value.as_array().cloned().unwrap_or_default())
+        .collect();
+    assert_eq!(
+        tools[0]["function"]["parameters"]["properties"]["at"]["type"].as_str(),
+        Some("string")
+    );
 }

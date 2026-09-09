@@ -1315,9 +1315,32 @@ pub struct ToolReprSpec {
     /// The language's type names, mapped to JSON Schema's. Compared case-insensitively, and ordered
     /// because the first match wins.
     pub type_map: Vec<(String, String)>,
-    /// The type for a name the map does not hold. A tool whose argument type is unrecognised is still a
-    /// tool, so the definition is reported with the widest type rather than dropped.
-    pub type_default: String,
+    /// What an argument whose type name the map does not hold becomes.
+    ///
+    /// A tool whose argument type is unrecognised is still a tool, so the definition is reported rather than
+    /// dropped - but *how* it is reported was described as "the widest type" and was `"string"`, which is the
+    /// opposite: a schema saying `type: string` **rejects** a number. An unconstrained schema has no `type` at
+    /// all, and `Unconstrained` is that.
+    pub type_default: UnknownType,
+}
+
+/// What an argument type the map does not name becomes.
+#[derive(Debug, Deserialize, Clone, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum UnknownType {
+    /// No `type` member at all, which is what "the widest type" means in JSON Schema - it constrains nothing.
+    Unconstrained,
+    /// A named JSON Schema primitive, for a producer whose unrecognised names really are one kind of thing.
+    /// Validated against the primitives, so a typo is not a schema every reader ignores.
+    MapTo(String),
+}
+
+impl UnknownType {
+    /// The JSON Schema primitives. A target outside these is a member no validator acts on, so a mapping to
+    /// one is a declaration that does nothing.
+    pub const PRIMITIVES: &'static [&'static str] = &[
+        "array", "boolean", "integer", "null", "number", "object", "string",
+    ];
 }
 
 /// Another carrier of the same span describing the same messages at higher fidelity.
