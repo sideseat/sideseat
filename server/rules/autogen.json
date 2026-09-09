@@ -960,7 +960,8 @@
               "select": "$.content[*]",
               "id": "$.id",
               "name": "$.name",
-              "arguments": "$.arguments"
+              "arguments": "$.arguments",
+              "on_invalid_item": "skip"
             },
             "attach": [
               {
@@ -1129,7 +1130,8 @@
               "select": "$.content[*]",
               "id": "$.id",
               "name": "$.name",
-              "arguments": "$.arguments"
+              "arguments": "$.arguments",
+              "on_invalid_item": "skip"
             },
             "attach": [
               {

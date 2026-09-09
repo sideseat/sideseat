@@ -2262,14 +2262,33 @@ pub struct PrependSpec {
 pub struct ToolCallsSpec {
     /// The array of calls, relative to the value being wrapped.
     pub select: JsonPath,
-    /// Where each call's id, name and arguments are. A call missing an id or a name is skipped: the id is
-    /// what pairs a result with its call, and a nameless call is unusable downstream.
+    /// Where each call's id, name and arguments are.
     pub id: JsonPath,
     pub name: JsonPath,
     pub arguments: JsonPath,
+    /// What to do with a call that has no id or no name.
+    ///
+    /// **Required**, because it was hardcoded twice over - "an id is mandatory" and "skip the invalid item" -
+    /// and neither is right for every producer. AutoGen's rule admits a list where *at least one* member has an
+    /// id and a name; the constructor then dropped the others silently, so a response that called two tools
+    /// showed one. Skipping may be right for a producer that logs partial calls; failing the message is right
+    /// for one where a dropped call means the answer is not what the model did.
+    pub on_invalid_item: InvalidItem,
     /// The member the list becomes. Defaults to `tool_calls`.
     #[serde(default)]
     pub as_member: Option<String>,
+}
+
+/// What a tool-call list does with a member it cannot build.
+#[derive(Debug, Deserialize, Clone, Copy, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum InvalidItem {
+    /// Leave it out and keep the rest. Reported either way - a dropped call is a producer defect, not a
+    /// detail of the loop that read it.
+    Skip,
+    /// The whole construction is malformed, so the coalesce moves on to the next shape and the rule's
+    /// `fallback` gets its turn. Right where a missing call means the message misdescribes what happened.
+    FailMessage,
 }
 
 /// A default whose declared value may itself be `null`.

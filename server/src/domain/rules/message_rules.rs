@@ -741,6 +741,54 @@ fn compile_rule(
             ));
         }
     }
+    // **A constructor and its target have to be about the same thing.** `EmitTarget` is a filing destination
+    // and nothing checked that the reading filed there was the shape that destination holds, so
+    // `{"wrap": {"role": "user"}, "emit": "tool_names"}` compiled and filed `{"role":"user","content":"hello"}`
+    // as a tool *name*.
+    //
+    // Not a full typing of the constructor/target pairs - that belongs to the discriminated grammar, and
+    // pretending this matrix is it would be worse than the gap. These are the pairs that are provably
+    // incoherent today:
+    //
+    // | Constructor | Requires | Why |
+    // | --- | --- | --- |
+    // | `wrap`, `sections`, `elements` | a message target | each builds a message: a role, a content member, blocks |
+    // | `tool_repr` | `tool_definitions` | it reads a language's `repr` of tool schemas |
+    // | any constructor | not `claim` | a claim is recognition - it takes a payload off the table and emits nothing, so a constructed value is discarded |
+    let targets = {
+        let mut targets = vec![emit.unwrap_or(EmitTarget::Message)];
+        for reading in alternatives
+            .iter()
+            .chain(also.iter())
+            .chain(fallback.iter())
+        {
+            targets.extend(reading.emit);
+        }
+        targets
+    };
+    let builds_a_message = wrap.is_some() || sections.is_some() || elements.is_some();
+    if builds_a_message && !targets.contains(&EmitTarget::Message) {
+        return Err(inexpressible(
+            "builds a message - an envelope, sections or element passes - and files it under a target that \
+                 does not hold messages",
+        ));
+    }
+    if tool_repr.is_some() && !targets.contains(&EmitTarget::ToolDefinitions) {
+        return Err(inexpressible(
+            "reads a language's `repr` of tool schemas and does not file them as tool definitions",
+        ));
+    }
+    if targets == vec![EmitTarget::Claim]
+        && (builds_a_message
+            || compose.is_some()
+            || tool_repr.is_some()
+            || *aggregate_into_array == Some(true))
+    {
+        return Err(inexpressible(
+            "constructs a value and emits a `claim`, which takes a payload off the table and emits nothing - \
+                 so whatever was built is discarded",
+        ));
+    }
     // **A walk's `stop_on` names clauses of its own rule.** A name that matches nothing can never stop the
     // descent, so the walk silently runs to `max_depth` - and an id that is merely misspelled looks exactly like
     // a deliberate "never stop".
@@ -3533,7 +3581,7 @@ fn wrapped(
             let member = spec.as_member.as_deref().unwrap_or("tool_calls");
             object.insert(
                 member.to_string(),
-                JsonValue::Array(canonical_tool_calls(subject, spec)),
+                JsonValue::Array(canonical_tool_calls(subject, spec)?),
             );
         }
         None => {
@@ -3587,13 +3635,17 @@ fn single_tool_call(subject: Option<&JsonValue>, spec: &SingleToolCallSpec) -> O
 /// A call with no id or no name is dropped - the id is what pairs a result with its call, and a nameless
 /// call names nothing to run. Arguments arrive as a serialised JSON string as often as an object, and are
 /// parsed here so nothing downstream has to know that one member is encoded twice.
-fn canonical_tool_calls(subject: Option<&JsonValue>, spec: &ToolCallsSpec) -> Vec<JsonValue> {
+fn canonical_tool_calls(
+    subject: Option<&JsonValue>,
+    spec: &ToolCallsSpec,
+) -> Option<Vec<JsonValue>> {
     let Some(subject) = subject else {
-        return Vec::new();
+        return Some(Vec::new());
     };
-    query(subject, &spec.select)
-        .into_iter()
-        .filter_map(|call| {
+    let mut calls = Vec::new();
+    let mut invalid = 0;
+    for call in query(subject, &spec.select) {
+        let built = (|| {
             let id = query(call, &spec.id).into_iter().next()?.as_str()?;
             let name = query(call, &spec.name).into_iter().next()?.as_str()?;
             let arguments = match query(call, &spec.arguments).into_iter().next() {
@@ -3608,8 +3660,28 @@ fn canonical_tool_calls(subject: Option<&JsonValue>, spec: &ToolCallsSpec) -> Ve
                 "type": "function",
                 "function": {"name": name, "arguments": arguments},
             }))
-        })
-        .collect()
+        })();
+        match built {
+            Some(call) => calls.push(call),
+            None => invalid += 1,
+        }
+    }
+    // **Reported under either policy.** A call with no id or no name is a producer defect, and the loop that
+    // read it silently absorbing that is how a response that called two tools came to show one.
+    if invalid > 0 {
+        tracing::debug!(
+            target: "sideseat::rules",
+            invalid,
+            policy = ?spec.on_invalid_item,
+            "tool calls in a list could not be built - they carry no id or no name"
+        );
+        if spec.on_invalid_item == super::schema::InvalidItem::FailMessage {
+            // The construction is malformed, so the coalesce moves on and the rule's `fallback` gets its turn -
+            // which is the difference between "the message is incomplete" and "this shape did not apply".
+            return None;
+        }
+    }
+    Some(calls)
 }
 
 /// The block a rule builds around its read value.

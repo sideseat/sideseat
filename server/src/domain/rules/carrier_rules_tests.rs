@@ -5793,7 +5793,7 @@ fn two_declarations_must_not_write_one_output_member() {
             "a tool-call list *replacing* the content, which is stated rather than an overwrite",
             format!(
                 r#"{{"id":"t.r",{read},"wrap":{{"role":"assistant",
-                     "tool_calls_from":{{"select":"$.calls","id":"$.id","name":"$.name",
+                     "tool_calls_from":{{"select":"$.calls","id":"$.id","name":"$.name","on_invalid_item":"skip",
                        "arguments":"$.args"}}}}}}"#
             ),
         ),
@@ -6499,4 +6499,139 @@ fn a_lift_states_its_source_and_its_conflict_policy() {
     ] {
         assert!(asset(reading).is_err(), "{what} must be refused");
     }
+}
+
+/// A constructor and its target are about the same thing, and a claim constructs nothing.
+///
+/// `EmitTarget` was a filing destination with nothing checking that the reading filed there was the shape that
+/// destination holds, so `{"wrap": {"role": "user"}, "emit": "tool_names"}` compiled and filed
+/// `{"role":"user","content":"hello"}` as a tool *name*.
+///
+/// Deliberately **not** a full typing of the constructor/target pairs - that belongs to the discriminated
+/// grammar, and treating this matrix as if it were would be worse than the gap. These are the pairs that are
+/// provably incoherent today.
+#[test]
+fn a_constructor_and_its_target_describe_the_same_thing() {
+    use crate::domain::rules::message_rules::compile;
+
+    let asset = |rule: &str| {
+        let body = format!(r#"{{"id":"t","messages":[{rule}]}}"#);
+        compile(&std::collections::BTreeMap::from([(
+            "t.json".to_string(),
+            body.into_bytes(),
+        )]))
+    };
+    let read = r#""read":{"attribute":"x"},"parse":"text","legacy_rank":1"#;
+
+    // Codex's case.
+    assert!(
+        asset(&format!(
+            r#"{{"id":"t.r",{read},"wrap":{{"role":"user"}},"emit":"tool_names"}}"#
+        ))
+        .is_err(),
+        "an envelope builds a message, and a tool name is a string"
+    );
+    // The same for the other two message constructors.
+    assert!(
+        asset(&format!(
+            r#"{{"id":"t.r",{read},"emit":"tool_definitions",
+                 "sections":{{"split_on":"|","routes":[{{"id":"all","role":"user"}}]}}}}"#
+        ))
+        .is_err(),
+        "sections build a message per section"
+    );
+    assert!(
+        asset(
+            r#"{"id":"t.r","read":{"attribute":"x"},"parse":"json","legacy_rank":1,
+                 "emit":"tool_names","elements":{"passes":[{"id":"p","tag_from":"$.n"}]}}"#
+        )
+        .is_err(),
+        "element passes tag each element as a message carrier"
+    );
+
+    // A **claim** takes a payload off the table and emits nothing, so a constructed value is discarded. Probed
+    // with a `compose` rather than a `wrap`: a wrap beside a claim is already refused by the check above, so a
+    // wrap probe would pass for the wrong reason and say nothing about the claim rule.
+    assert!(
+        asset(
+            r#"{"id":"t.r","emit":"claim","legacy_rank":1,
+                 "compose":{"tag":"joined","members":[
+                   {"as":"content","from_any_of":["k"],"parse":"text"}]}}"#
+        )
+        .is_err(),
+        "a claim constructs nothing - whatever the compose assembled would be thrown away"
+    );
+    // And a bare claim is exactly what the three shipped ones are.
+    assert!(
+        asset(&format!(r#"{{"id":"t.r",{read},"emit":"claim"}}"#)).is_ok(),
+        "recognition with no construction is the whole point of a claim"
+    );
+}
+
+/// A tool-call list declares what happens to a member it cannot build, and reports it either way.
+///
+/// The constructor hardcoded two policies at once - "an id is mandatory" and "skip the invalid item" - and
+/// reported neither. AutoGen's rule admits a list where *at least one* member has an id and a name, so a
+/// response that called two tools showed one, with nothing saying why.
+#[test]
+fn a_tool_call_list_declares_what_an_unbuildable_call_means() {
+    use crate::domain::rules::message_rules::{MessageContext, compile};
+
+    let asset = |policy: &str| {
+        let body = format!(
+            r#"{{"id":"t","messages":[{{"id":"t.r","read":{{"attribute":"x"}},"parse":"json",
+                 "emit":"message","legacy_rank":1,
+                 "wrap":{{"role":"assistant","tool_calls_from":{{"select":"$.content[*]","id":"$.id",
+                   "name":"$.name","arguments":"$.arguments","on_invalid_item":"{policy}"}}}},
+                 "alternatives":[{{"id":"as_calls"}}],
+                 "fallback":[{{"id":"as_text","wrap":{{"role":"assistant",
+                   "content_from_any_of":["$.summary"]}}}}]}}]}}"#
+        );
+        compile(&std::collections::BTreeMap::from([(
+            "t.json".to_string(),
+            body.into_bytes(),
+        )]))
+    };
+    // Codex's input: one call with an id, one without.
+    let attrs = std::collections::HashMap::from([(
+        "x".to_string(),
+        r#"{"summary":"it called two tools",
+            "content":[{"id":"c1","name":"search","arguments":{}},{"name":"calculate","arguments":{}}]}"#
+            .to_string(),
+    )]);
+    let ctx = MessageContext::for_span("span", &attrs, false);
+
+    let skipping = asset("skip").expect("compiles");
+    let emissions = skipping.run(&ctx);
+    assert_eq!(emissions.len(), 1);
+    assert_eq!(
+        emissions[0].value["tool_calls"].as_array().map(Vec::len),
+        Some(1),
+        "`skip` keeps the rest, which may be right for a producer that logs partial calls"
+    );
+
+    // `fail_message` makes the construction malformed, so the coalesce moves on and the `fallback` answers -
+    // which is the difference between "the message is incomplete" and "this shape did not apply".
+    let failing = asset("fail_message").expect("compiles");
+    let emissions = failing.run(&ctx);
+    assert_eq!(emissions.len(), 1);
+    assert_eq!(
+        emissions[0].value["content"].as_str(),
+        Some("it called two tools"),
+        "the fallback answered, because the tool-call construction reported itself unbuildable"
+    );
+
+    // The policy is required: it was hardcoded twice over, and neither answer is right for every producer.
+    let body = r#"{"id":"t","messages":[{"id":"t.r","read":{"attribute":"x"},"parse":"json",
+         "emit":"message","legacy_rank":1,
+         "wrap":{"role":"assistant","tool_calls_from":{"select":"$.content[*]","id":"$.id",
+           "name":"$.name","arguments":"$.arguments"}}}]}"#;
+    assert!(
+        compile(&std::collections::BTreeMap::from([(
+            "t.json".to_string(),
+            body.as_bytes().to_vec(),
+        )]))
+        .is_err(),
+        "a tool-call list with no declared policy must be refused"
+    );
 }
