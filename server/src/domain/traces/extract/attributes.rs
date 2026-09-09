@@ -1358,6 +1358,7 @@ pub(crate) fn apply_span_fields(
     span: &mut SpanData,
     span_name: &str,
     attrs: &HashMap<String, String>,
+    events: &[crate::domain::rules::span_fields::SpanEvent],
 ) -> TokenReadings {
     // Its own step, not a subroutine of either legacy function. Resolution is over *every* declared rule, so
     // calling it from two entry points wrote the same answers twice and made "which entry point owns a target"
@@ -1369,7 +1370,7 @@ pub(crate) fn apply_span_fields(
     let mut tokens = TokenReadings::default();
     for resolved in crate::domain::rules::ruleset()
         .span_fields
-        .resolve(span_name, attrs)
+        .resolve(span_name, attrs, events)
     {
         apply_field(span, &resolved, &mut tokens);
     }

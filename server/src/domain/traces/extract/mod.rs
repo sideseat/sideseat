@@ -487,25 +487,25 @@ pub(super) fn extract_attributes_batch(request: &ExportTraceServiceRequest) -> V
                     .or_else(|| resource_attrs.get(keys::DEPLOYMENT_ENV_NAME))
                     .cloned();
 
-                // Every declared span field, resolved once.
-                let tokens = attributes::apply_span_fields(&mut span, &otlp_span.name, &span_attrs);
+                // Every declared span field, resolved once - the span's events beside its attributes,
+                // because a field may be declared on an event and one was, hand-read below until cycle 9.
+                let field_events: Vec<crate::domain::rules::span_fields::SpanEvent> = otlp_span
+                    .events
+                    .iter()
+                    .map(|event| crate::domain::rules::span_fields::SpanEvent {
+                        name: event.name.clone(),
+                        attributes: extract_attributes(&event.attributes),
+                    })
+                    .collect();
+                let tokens = attributes::apply_span_fields(
+                    &mut span,
+                    &otlp_span.name,
+                    &span_attrs,
+                    &field_events,
+                );
 
                 // Extract GenAI attributes
                 attributes::extract_genai(&mut span, &span_attrs, &otlp_span.name, &tokens);
-
-                // Extract finish_reason from various sources if not already set
-                if span.gen_ai_finish_reasons.is_empty() {
-                    // 1. Try gen_ai.choice event (Strands, OpenTelemetry GenAI)
-                    for event in &otlp_span.events {
-                        if event.name == "gen_ai.choice" {
-                            let event_attrs = extract_attributes(&event.attributes);
-                            if let Some(reason) = event_attrs.get("finish_reason") {
-                                span.gen_ai_finish_reasons = vec![reason.clone()];
-                                break;
-                            }
-                        }
-                    }
-                }
 
                 // Classify span
                 span.framework = Some(attributes::detect_framework(

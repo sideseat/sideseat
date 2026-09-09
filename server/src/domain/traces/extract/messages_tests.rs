@@ -2187,7 +2187,7 @@ fn test_mlflow_session_id_extraction() {
         ("mlflow.spanInputs", "{}"),
     ]);
     let mut span = SpanData::default();
-    apply_span_fields(&mut span, "", &attrs);
+    apply_span_fields(&mut span, "", &attrs, &[]);
 
     assert_eq!(span.session_id, Some("mlflow-session-123".to_string()));
 }
@@ -2263,7 +2263,7 @@ fn test_mlflow_user_id_extraction() {
         ("mlflow.spanInputs", "{}"),
     ]);
     let mut span = SpanData::default();
-    apply_span_fields(&mut span, "", &attrs);
+    apply_span_fields(&mut span, "", &attrs, &[]);
 
     assert_eq!(span.user_id, Some("mlflow-user-456".to_string()));
 }
@@ -3289,7 +3289,7 @@ fn test_session_id_from_ai_telemetry_metadata() {
     let attrs = make_attrs(&[("ai.telemetry.metadata.sessionId", "session-12345")]);
 
     let mut span = SpanData::default();
-    apply_span_fields(&mut span, "", &attrs);
+    apply_span_fields(&mut span, "", &attrs, &[]);
 
     assert_eq!(
         span.session_id,
@@ -3809,7 +3809,7 @@ fn test_user_id_from_ai_telemetry_metadata() {
     let attrs = make_attrs(&[("ai.telemetry.metadata.userId", "user-67890")]);
 
     let mut span = SpanData::default();
-    apply_span_fields(&mut span, "", &attrs);
+    apply_span_fields(&mut span, "", &attrs, &[]);
 
     assert_eq!(
         span.user_id,
@@ -8958,7 +8958,7 @@ fn an_unreadable_source_stops_a_chain_and_not_a_merge() {
         ("http.status_code", "OK"),
         ("http.response.status_code", "503"),
     ]);
-    let resolved = plan.resolve("a.span", &attrs);
+    let resolved = plan.resolve("a.span", &attrs, &[]);
     let of = |target: FieldTarget| {
         resolved
             .iter()
@@ -9003,7 +9003,7 @@ fn an_unreadable_source_stops_a_chain_and_not_a_merge() {
         ("gen_ai.usage.input_tokens", "42"),
     ]);
     assert_eq!(
-        plan.resolve("chain", &no_messages)
+        plan.resolve("chain", &no_messages, &[])
             .iter()
             .find(|r| r.target == FieldTarget::UsageInputTokens)
             .map(|r| r.reading.clone()),
@@ -9016,7 +9016,7 @@ fn an_unreadable_source_stops_a_chain_and_not_a_merge() {
         "output.value",
         r#"{"messages":[{"models_usage":{"prompt_tokens":9223372036854775807}},{"models_usage":{"prompt_tokens":1}}]}"#,
     )]);
-    let resolved = plan.resolve("chain", &overflowing);
+    let resolved = plan.resolve("chain", &overflowing, &[]);
     let summed = resolved
         .iter()
         .find(|r| r.target == FieldTarget::UsageInputTokens)
@@ -9043,7 +9043,7 @@ fn an_unreadable_source_stops_a_chain_and_not_a_merge() {
         ("gen_ai.usage.input_tokens", "42"),
     ]);
     assert_eq!(
-        plan.resolve("chain", &with_messages)
+        plan.resolve("chain", &with_messages, &[])
             .iter()
             .find(|r| r.target == FieldTarget::UsageInputTokens)
             .map(|r| r.reading.clone()),
@@ -10434,6 +10434,7 @@ fn the_field_rules_reproduce_the_chains_they_replaced() {
             &mut declared,
             "a.span",
             &attrs,
+            &[],
         );
         let mut legacy = SpanData::default();
         crate::domain::traces::extract::attributes::extract_semantic_legacy(&mut legacy, &attrs);
@@ -10716,6 +10717,7 @@ fn the_genai_field_rules_reproduce_the_chains_they_replaced() {
             &mut declared,
             span_name,
             &attrs,
+            &[],
         );
         let mut legacy = SpanData::default();
         crate::domain::traces::extract::attributes::extract_genai_fields_legacy(
@@ -10807,7 +10809,7 @@ fn the_display_name_is_declared_and_the_raw_name_is_untouched() {
             span_name: raw_name.to_string(),
             ..SpanData::default()
         };
-        apply_span_fields(&mut declared, raw_name, &attrs);
+        apply_span_fields(&mut declared, raw_name, &attrs, &[]);
 
         let mut legacy = SpanData {
             span_name: raw_name.to_string(),
@@ -10830,7 +10832,7 @@ fn the_display_name_is_declared_and_the_raw_name_is_untouched() {
         span_name: "claude_code.api_request".to_string(),
         ..SpanData::default()
     };
-    apply_span_fields(&mut span, "claude_code.api_request", &attrs);
+    apply_span_fields(&mut span, "claude_code.api_request", &attrs, &[]);
     assert_eq!(
         span.span_name, "chat gpt-4o",
         "the display name is resolved"
@@ -11133,7 +11135,7 @@ fn the_token_rules_reproduce_the_table_they_replaced() {
 
     for (what, span_name, attrs) in cases {
         let mut span = SpanData::default();
-        let declared = apply_span_fields(&mut span, span_name, &attrs);
+        let declared = apply_span_fields(&mut span, span_name, &attrs, &[]);
         let legacy =
             crate::domain::traces::extract::attributes::token_readings_legacy(&attrs, span_name);
         let facet = |t: &crate::domain::traces::extract::attributes::TokenReadings| {

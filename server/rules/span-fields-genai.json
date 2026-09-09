@@ -292,8 +292,17 @@
     {
       "id": "span-fields.gen_ai_finish_reasons",
       "target": "gen_ai_finish_reasons",
-      "doc": "Every source a *span attribute* can carry, in the order the retired chain tried them. Only the conventions' `gen_ai.choice` **event** stays in Rust, because field resolution is given a span's attributes and not its events - so that one fallback now runs *after* these rather than before them. Reachable for a span carrying both a choice event with a reason and one of these attributes; the reason is the same in every such shape the corpus has, and the alternative is leaving four producers' spellings in Rust to preserve a precedence between an event and an attribute that no producer states.",
+      "doc": "Every source a finish reason can come from, in the order the retired chain tried them - including the conventions' `gen_ai.choice` **event**, which stayed in Rust until cycle 9 because `FieldSource` could not name an event. It is declared **first**, which is where the retired chain had it: reading it after the attributes was a precedence no producer states, introduced only because the hand-written scan had to run after resolution.",
       "sources": [
+        {
+          "id": "choice_event_finish_reason",
+          "event_attribute": {
+            "event": "gen_ai.choice",
+            "attribute": "finish_reason",
+            "occurrence": "first_yielding"
+          },
+          "doc": "The conventions' own spelling, on the event that carries the model's choice. `first_yielding` because that is what the retired loop's `break` did, and a span carrying two choice events states two reasons - which this field, holding a list, could report, but no producer in the corpus writes."
+        },
         {
           "id": "response_finish_reasons",
           "attribute": "gen_ai.response.finish_reasons"

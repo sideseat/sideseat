@@ -127,6 +127,12 @@ pub enum FieldCompileError {
     #[error("span field rule `{rule}` in `{file}` names an empty attribute")]
     EmptyAttribute { file: String, rule: String },
     #[error(
+        "span field rule `{rule}` in `{file}` reads every occurrence of an event attribute into a field that \
+         holds one value - two events carrying that attribute are two answers, so use `first_yielding` or a \
+         list-valued target"
+    )]
+    EveryOccurrenceIntoOneValue { file: String, rule: String },
+    #[error(
         "span field rule `{rule}` in `{file}` merges into a field that holds one value - only a list field may merge"
     )]
     MergeIntoScalar { file: String, rule: String },
@@ -230,11 +236,16 @@ impl SpanFieldPlan {
     ///
     /// The JSON cache is shared across rules and across targets, because one attribute (`metadata`) carries
     /// several fields and parsing it per source made the cost quadratic in how many producers spell them.
-    pub fn resolve(&self, span_name: &str, attrs: &HashMap<String, String>) -> Vec<Resolved> {
+    pub fn resolve(
+        &self,
+        span_name: &str,
+        attrs: &HashMap<String, String>,
+        events: &[SpanEvent],
+    ) -> Vec<Resolved> {
         let mut parsed: HashMap<&str, Option<JsonValue>> = HashMap::new();
         self.rules
             .iter()
-            .map(|rule| self.resolve_rule(rule, span_name, attrs, &mut parsed))
+            .map(|rule| self.resolve_rule(rule, span_name, attrs, events, &mut parsed))
             .collect()
     }
 
@@ -243,6 +254,7 @@ impl SpanFieldPlan {
         rule: &'a CompiledRule,
         span_name: &str,
         attrs: &HashMap<String, String>,
+        events: &[SpanEvent],
         parsed: &mut HashMap<&'a str, Option<JsonValue>>,
     ) -> Resolved {
         let field_type = rule.target.field_type();
@@ -268,7 +280,7 @@ impl SpanFieldPlan {
                 continue;
             }
             let reading = folded_if_declared(
-                read_source(&source.spec, field_type, span_name, attrs, parsed),
+                read_source(&source.spec, field_type, span_name, attrs, events, parsed),
                 source.spec.lowercase,
             );
             if let Reading::Malformed { .. } = &reading
@@ -394,6 +406,9 @@ fn source_label(spec: &FieldSource) -> String {
     if let Some(value) = &spec.value {
         return format!("the literal `{value}`");
     }
+    if let Some(event) = &spec.event_attribute {
+        return format!("`{}` on the `{}` event", event.attribute, event.event);
+    }
     String::new()
 }
 
@@ -421,6 +436,7 @@ fn read_source<'a>(
     field_type: FieldType,
     span_name: &str,
     attrs: &HashMap<String, String>,
+    events: &[SpanEvent],
     parsed: &mut HashMap<&'a str, Option<JsonValue>>,
 ) -> Reading {
     if let Some(attribute) = &spec.attribute {
@@ -456,10 +472,58 @@ fn read_source<'a>(
     if let Some(value) = &spec.value {
         return from_text(value, field_type);
     }
+    if let Some(event) = &spec.event_attribute {
+        return read_event_attribute(event, field_type, events);
+    }
     let Some(json) = &spec.json else {
         return Reading::Absent;
     };
     read_json(json, field_type, attrs, parsed)
+}
+
+/// One attribute of one of the span's events.
+///
+/// The occurrence is declared rather than assumed: a span may carry `gen_ai.choice` twice, and which of the
+/// two answers is a statement about the field, not a detail of the loop that reads it.
+/// One of a span's events, as field resolution needs it: a name and its attributes.
+///
+/// Its own type rather than the OTLP struct, because resolution must not depend on the protobuf - the same
+/// reason `resolve` takes an attribute map rather than a `Span`.
+#[derive(Debug, Clone)]
+pub struct SpanEvent {
+    pub name: String,
+    pub attributes: HashMap<String, String>,
+}
+
+fn read_event_attribute(
+    spec: &super::schema::EventAttributeSource,
+    field_type: FieldType,
+    events: &[SpanEvent],
+) -> Reading {
+    use super::schema::EventOccurrence;
+    let mut matches = events
+        .iter()
+        .filter(|event| event.name == spec.event)
+        .filter_map(|event| event.attributes.get(&spec.attribute));
+    match spec.occurrence {
+        EventOccurrence::FirstYielding => match matches.next() {
+            Some(raw) => from_text(raw, field_type),
+            None => Reading::Absent,
+        },
+        EventOccurrence::Every => {
+            // One entry per occurrence. Only meaningful for a list-valued field - two events carrying one
+            // scalar are two answers and a scalar field has room for one - so compilation refuses the
+            // combination rather than letting this branch pick silently.
+            let collected: Vec<String> = matches
+                .filter(|raw| !raw.is_empty())
+                .map(ToString::to_string)
+                .collect();
+            if collected.is_empty() {
+                return Reading::Absent;
+            }
+            Reading::StringList(collected)
+        }
+    }
 }
 
 fn read_json<'a>(
@@ -827,7 +891,8 @@ fn compile_rule(file_id: &str, rule: &SpanFieldRule) -> Result<CompiledRule, Fie
             + usize::from(spec.json.is_some())
             + usize::from(spec.span_name_strip_prefix.is_some())
             + usize::from(spec.value.is_some())
-            + usize::from(spec.raw_span_name);
+            + usize::from(spec.raw_span_name)
+            + usize::from(spec.event_attribute.is_some());
         if forms == 0 {
             return Err(FieldCompileError::SourceReadsNothing {
                 file: file_id.to_string(),
@@ -836,6 +901,17 @@ fn compile_rule(file_id: &str, rule: &SpanFieldRule) -> Result<CompiledRule, Fie
         }
         if forms > 1 {
             return Err(FieldCompileError::SourceReadsTwoThings {
+                file: file_id.to_string(),
+                rule: rule.id.clone(),
+            });
+        }
+        // `occurrence: every` collects one value per event, which a scalar field has no room for: it would
+        // silently keep one of them and the choice would be the iterator's. Refused rather than resolved.
+        if let Some(event) = &spec.event_attribute
+            && event.occurrence == super::schema::EventOccurrence::Every
+            && rule.target.field_type() != FieldType::StringList
+        {
+            return Err(FieldCompileError::EveryOccurrenceIntoOneValue {
                 file: file_id.to_string(),
                 rule: rule.id.clone(),
             });

@@ -24,7 +24,7 @@ pub(crate) fn extract_genai_as_production_does(
     attrs: &HashMap<String, String>,
     span_name: &str,
 ) {
-    let tokens = apply_span_fields(span, span_name, attrs);
+    let tokens = apply_span_fields(span, span_name, attrs, &[]);
     extract_genai(span, attrs, span_name, &tokens);
 }
 
@@ -408,7 +408,7 @@ fn test_extract_session_from_metadata() {
         r#"{"thread_id": "langgraph-demo-dea531b92e3b4dd0", "user_id": "demo-user"}"#,
     )]);
     let mut span = SpanData::default();
-    apply_span_fields(&mut span, "", &attrs);
+    apply_span_fields(&mut span, "", &attrs, &[]);
 
     assert_eq!(
         span.session_id,
@@ -425,7 +425,7 @@ fn test_extract_tags_all_sources() {
         ("tag.tags", r#"["openinference"]"#),
     ]);
     let mut span = SpanData::default();
-    apply_span_fields(&mut span, "", &attrs);
+    apply_span_fields(&mut span, "", &attrs, &[]);
 
     assert!(span.tags.contains(&"base".to_string()));
     assert!(span.tags.contains(&"langsmith".to_string()));
@@ -440,7 +440,7 @@ fn test_extract_tags_merge() {
         ("langsmith.tags", r#"["test", "weather"]"#),
     ]);
     let mut span = SpanData::default();
-    apply_span_fields(&mut span, "", &attrs);
+    apply_span_fields(&mut span, "", &attrs, &[]);
 
     assert!(span.tags.contains(&"production".to_string()));
     assert!(span.tags.contains(&"weather".to_string()));
@@ -455,7 +455,7 @@ fn test_extract_tags_openinference_tag_tags() {
         ("tag.tags", r#"["openinference", "phoenix"]"#),
     ]);
     let mut span = SpanData::default();
-    apply_span_fields(&mut span, "", &attrs);
+    apply_span_fields(&mut span, "", &attrs, &[]);
 
     assert!(span.tags.contains(&"existing".to_string()));
     assert!(span.tags.contains(&"openinference".to_string()));
@@ -547,7 +547,7 @@ fn test_langsmith_session_id_extraction() {
         ("langsmith.span.kind", "chain"),
     ]);
     let mut span = SpanData::default();
-    apply_span_fields(&mut span, "", &attrs);
+    apply_span_fields(&mut span, "", &attrs, &[]);
 
     assert_eq!(span.session_id, Some("session-abc-123".to_string()));
 }
@@ -698,7 +698,7 @@ fn test_session_id_priority_session_id_over_telemetry() {
     ]);
 
     let mut span = SpanData::default();
-    apply_span_fields(&mut span, "", &attrs);
+    apply_span_fields(&mut span, "", &attrs, &[]);
 
     assert_eq!(
         span.session_id,
@@ -1350,7 +1350,7 @@ fn test_semconv_conversation_id_populates_session() {
     // session_id is populated by apply_span_fields, not extract_genai.
     let attrs = make_attrs(&[("gen_ai.conversation.id", "conv-42")]);
     let mut span = SpanData::default();
-    apply_span_fields(&mut span, "", &attrs);
+    apply_span_fields(&mut span, "", &attrs, &[]);
     assert_eq!(span.session_id.as_deref(), Some("conv-42"));
 }
 
@@ -2431,7 +2431,7 @@ fn the_declared_finish_reason_chain_reproduces_the_retired_blocks() {
     let resolve = |attrs: &HashMap<String, String>| -> Vec<String> {
         ruleset()
             .span_fields
-            .resolve("some.span", attrs)
+            .resolve("some.span", attrs, &[])
             .into_iter()
             .find(|r| {
                 matches!(
@@ -2645,18 +2645,20 @@ fn the_declared_finish_reason_chain_reproduces_the_retired_blocks() {
     }
 }
 
-/// The `gen_ai.choice` **event** is the last finish-reason source, not the first, and that is now the order.
+/// The `gen_ai.choice` **event** is the *first* finish-reason source, which is where the retired chain had it.
 ///
-/// The four attribute sources moved into the declared chain (`ff0d3cdf`), and the declared chain runs before
-/// the Rust fallback - so the event, which was second in the retired order, is now last. That is a real change
-/// and it belongs in a test rather than only in the asset's prose: a reader who believes the old order would
-/// expect `stop` here.
+/// This test asserted the opposite for one commit's worth of reasons, and both states were honest at the time.
+/// When the four attribute sources moved into the declared chain (`ff0d3cdf`) the event could not follow -
+/// `FieldSource` had no way to name an event - so it stayed as a hand-written scan in `extract/mod.rs` that
+/// necessarily ran *after* resolution. That made the event last, which is a precedence **no producer states**:
+/// it came from where the code could put it, not from what the telemetry means.
 ///
-/// End to end through `extract_attributes_batch`, because that is the only way the event side is reachable -
-/// field resolution is given a span's attributes and never its events, which is exactly why this one fallback
-/// could not move.
+/// Cycle 9 added `event_attribute` to `FieldSource`, so the source is declared like every other and sits where
+/// the retired order had it - first. A reader who believes the intermediate order would expect `length` here.
+///
+/// Still end to end through `extract_attributes_batch`, because that is what supplies the events.
 #[test]
-fn the_choice_event_is_the_last_finish_reason_source() {
+fn the_choice_event_is_the_first_finish_reason_source() {
     use opentelemetry_proto::tonic::collector::trace::v1::ExportTraceServiceRequest;
     use opentelemetry_proto::tonic::common::v1::{AnyValue, KeyValue, any_value};
     use opentelemetry_proto::tonic::trace::v1::{ResourceSpans, ScopeSpans, Span, span::Event};
@@ -2707,20 +2709,29 @@ fn the_choice_event_is_the_last_finish_reason_source() {
             .gen_ai_finish_reasons
     };
 
-    // An attribute source and the event disagreeing: the attribute wins, because the declared chain runs first.
+    // An attribute source and the event disagreeing: the **event** wins, because it is the first declared
+    // source - the conventions' own spelling, ahead of four dialects' serialised payloads.
     assert_eq!(
         span_with(
             vec![kv("response_data", r#"{"finish_reason":"length"}"#)],
             true
         ),
-        vec!["length".to_string()],
-        "the declared chain runs before the event fallback, so `response_data` answers"
+        vec!["stop".to_string()],
+        "the event is declared first, so the conventions' own spelling answers"
     );
-    // The event alone still answers, which is what keeps it a fallback rather than dead code.
+    // The event alone answers, and an attribute alone answers - so neither is dead.
     assert_eq!(
         span_with(Vec::new(), true),
         vec!["stop".to_string()],
-        "with no attribute source the event must still answer"
+        "with no attribute source the event must answer"
+    );
+    assert_eq!(
+        span_with(
+            vec![kv("response_data", r#"{"finish_reason":"length"}"#)],
+            false
+        ),
+        vec!["length".to_string()],
+        "with no event the attribute chain must answer"
     );
     // And neither: no reason at all, rather than an empty string.
     assert!(span_with(Vec::new(), false).is_empty());

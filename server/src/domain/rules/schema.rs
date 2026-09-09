@@ -341,6 +341,14 @@ pub struct FieldSource {
     /// A member of a JSON-valued attribute, reached by RFC 9535 JSONPath.
     #[serde(default)]
     pub json: Option<JsonFieldSource>,
+    /// An attribute of one of the span's **events**.
+    ///
+    /// The primitive `FieldSource` was missing, and its absence is why one reader stayed in Rust: field
+    /// resolution was handed a span's attributes and not its events, so `gen_ai.choice`'s `finish_reason` -
+    /// the conventions' own spelling, not any dialect's - was scanned for by hand in `extract/mod.rs` *after*
+    /// every declared source, a precedence no producer states.
+    #[serde(default)]
+    pub event_attribute: Option<EventAttributeSource>,
     /// The span's own name, exactly as the producer wrote it.
     ///
     /// A source rather than an implicit default, so a display name states where it comes from - and the
@@ -1346,6 +1354,34 @@ impl ReadSpec {
             + usize::from(!self.first_present.is_empty())
             + usize::from(!self.each.is_empty())
     }
+}
+
+/// An attribute of one of a span's events.
+#[derive(Debug, Deserialize, Clone)]
+#[serde(deny_unknown_fields)]
+pub struct EventAttributeSource {
+    /// The event whose attributes are read.
+    pub event: String,
+    /// The attribute on that event.
+    pub attribute: String,
+    /// Which occurrence answers, when a span carries the event more than once.
+    ///
+    /// Explicit because there is no defensible default: a span with two `gen_ai.choice` events has two
+    /// answers, and taking the first silently is what the retired hand-written loop did with a `break`.
+    #[serde(default)]
+    pub occurrence: EventOccurrence,
+}
+
+/// Which occurrence of a repeated event supplies the value.
+#[derive(Debug, Deserialize, Clone, Copy, PartialEq, Eq, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum EventOccurrence {
+    /// The first occurrence that holds the attribute at all. What the retired reader did.
+    #[default]
+    FirstYielding,
+    /// Every occurrence that holds it, in the order the span carries them. For a list-valued target, where
+    /// two events genuinely mean two values.
+    Every,
 }
 
 /// How a raw attribute string becomes a value.

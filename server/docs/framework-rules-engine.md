@@ -676,7 +676,7 @@ the current one rests on.
 > | Found at | What was still Rust's knowledge |
 > | --- | --- |
 > | Cycle 43 | `role_from_event_name_with_context` in `normalize.rs`, one arm of it existing only because the Claude Code CLI writes its tool result on a `tool.output` event. Moved to `event_roles` by `8e3ab002`; `d76ad8b4` then fixed a reachable defect the move exposed, where a tagged source name took no declared role and a tool's answer was presented as a user message |
-> | Cycle 45 | `response_data` and its `$.finish_reason` shape, one of four attribute-based finish-reason fallbacks. All four are declared by `ff0d3cdf`; only the `gen_ai.choice` **event** remains, which field resolution cannot see |
+> | Cycle 45 | `response_data` and its `$.finish_reason` shape, one of four attribute-based finish-reason fallbacks. All four are declared by `ff0d3cdf`; only the `gen_ai.choice` **event** remained, which field resolution could not see - added as `event_attribute` in cycle 9, which also restored the retired precedence it had lost |
 >
 > Neither was visible to the name sweep, because a key is a *value* and names nobody — and both were found
 > only by auditing all of a survey correction rather than the part a review had named. That is what the

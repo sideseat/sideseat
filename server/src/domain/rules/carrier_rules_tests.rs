@@ -4343,7 +4343,7 @@ fn a_field_answer_names_the_source_that_supplied_it() {
     let resolve = |attrs: &HashMap<String, String>, target: FieldTarget| {
         crate::domain::rules::ruleset()
             .span_fields
-            .resolve("some.span", attrs)
+            .resolve("some.span", attrs, &[])
             .into_iter()
             .find(|resolved| resolved.target == target)
     };
@@ -4867,4 +4867,102 @@ fn a_rule_declares_where_it_reads_with_one_member() {
         r#"[{"id":"a","read":{"attribute":"payload"},"parse":"text","emit":"message","legacy_rank":1}]"#,
     ))
     .expect("a span rule at the dialect stage is the default and declares nothing");
+}
+
+/// `FieldSource` can name an event, and says which occurrence answers.
+///
+/// The primitive was missing, and its absence is why one reader stayed in Rust: field resolution was handed a
+/// span's attributes and not its events, so the conventions' own `gen_ai.choice`/`finish_reason` was scanned
+/// for by hand *after* every declared source - a precedence that came from where the code could put it rather
+/// than from what the telemetry means.
+///
+/// The occurrence is declared because there is no defensible default when a span carries the event twice: the
+/// retired loop took the first with a `break`, silently.
+#[test]
+fn a_field_source_can_read_an_event_and_says_which_occurrence_answers() {
+    use crate::domain::rules::span_fields::{Reading, SpanEvent, compile};
+
+    let asset = |sources: &str, target: &str| {
+        let body = format!(
+            r#"{{"id":"t","span_fields":[{{"id":"t.rule","target":"{target}","sources":{sources}}}]}}"#
+        );
+        compile(&std::collections::BTreeMap::from([(
+            "t.json".to_string(),
+            body.into_bytes(),
+        )]))
+    };
+    let event = |reason: &str| SpanEvent {
+        name: "acme.choice".to_string(),
+        attributes: std::collections::HashMap::from([(
+            "finish_reason".to_string(),
+            reason.to_string(),
+        )]),
+    };
+    let attrs = std::collections::HashMap::new();
+
+    // `first_yielding` over two occurrences: the first, which is what the retired `break` did.
+    let plan = asset(
+        r#"[{"id":"t.s","event_attribute":{"event":"acme.choice","attribute":"finish_reason",
+             "occurrence":"first_yielding"}}]"#,
+        "gen_ai_finish_reasons",
+    )
+    .expect("an event source compiles");
+    let resolved = plan.resolve("span", &attrs, &[event("stop"), event("length")]);
+    assert_eq!(
+        resolved
+            .iter()
+            .filter_map(|r| match &r.reading {
+                Reading::StringList(items) => Some(items.clone()),
+                _ => None,
+            })
+            .collect::<Vec<_>>(),
+        vec![vec!["stop".to_string()]],
+        "`first_yielding` takes the first occurrence that holds the attribute"
+    );
+
+    // `every` over the same two: both, because two events carrying it state two reasons.
+    let plan = asset(
+        r#"[{"id":"t.s","event_attribute":{"event":"acme.choice","attribute":"finish_reason",
+             "occurrence":"every"}}]"#,
+        "gen_ai_finish_reasons",
+    )
+    .expect("an every-occurrence source compiles for a list-valued field");
+    let resolved = plan.resolve("span", &attrs, &[event("stop"), event("length")]);
+    assert_eq!(
+        resolved
+            .iter()
+            .filter_map(|r| match &r.reading {
+                Reading::StringList(items) => Some(items.clone()),
+                _ => None,
+            })
+            .collect::<Vec<_>>(),
+        vec![vec!["stop".to_string(), "length".to_string()]],
+        "`every` reports one value per occurrence, in the order the span carries them"
+    );
+
+    // And `every` into a field that holds one value is refused rather than silently keeping one of them.
+    let refused = asset(
+        r#"[{"id":"t.s","event_attribute":{"event":"acme.choice","attribute":"finish_reason",
+             "occurrence":"every"}}]"#,
+        "gen_ai_response_model",
+    )
+    .err()
+    .expect("`every` into a scalar field must be refused");
+    assert!(
+        refused.to_string().contains("two answers"),
+        "the refusal must say why: {refused}"
+    );
+
+    // An event nothing carries is absent, not empty - the distinction the chain steps on.
+    let plan = asset(
+        r#"[{"id":"t.s","event_attribute":{"event":"acme.choice","attribute":"finish_reason"}}]"#,
+        "gen_ai_finish_reasons",
+    )
+    .expect("the occurrence defaults");
+    assert!(
+        plan.resolve("span", &attrs, &[])
+            .iter()
+            .all(|r| !matches!(r.reading, Reading::StringList(_))),
+        "no such event is no answer"
+    );
 }
