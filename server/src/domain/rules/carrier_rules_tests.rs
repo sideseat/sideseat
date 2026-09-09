@@ -6635,3 +6635,86 @@ fn a_tool_call_list_declares_what_an_unbuildable_call_means() {
         "a tool-call list with no declared policy must be refused"
     );
 }
+
+/// An indexed family is read in **one pass** over the span's attributes, not one per entry.
+///
+/// Discovery walked the attribute map and then every entry walked it again - twice, plus once per `require`d
+/// member - so reading a family of `N` entries out of a span carrying `M` attributes cost `O(N·M)`. A
+/// hundred-turn conversation flattened into a family means a hundred walks over every attribute the span has.
+///
+/// Asymptotic, so the corpus does not show it: its largest family is small enough that the ingestion benchmark
+/// moved 75.6 → 73.0 ms, which is noise on this host. This measures the shape directly, and asserts the
+/// **answer** is unchanged - the point of the change is that it is.
+#[test]
+fn an_indexed_family_is_read_in_one_pass() {
+    use crate::domain::rules::message_rules::{MessageContext, compile};
+
+    let plan = compile(&std::collections::BTreeMap::from([(
+        "t.json".to_string(),
+        br#"{"id":"t","messages":[{"id":"t.f","read":{"indexed_family":"fam"},
+             "require_members":{"all_of":[{"name":"role"},{"name":"content"}]},
+             "emit":"message","legacy_rank":1}]}"#
+            .to_vec(),
+    )]))
+    .expect("the probe compiles");
+
+    // 400 entries, plus 400 unrelated attributes the old scans walked once per entry.
+    let mut attrs = std::collections::HashMap::new();
+    for index in 0..400 {
+        attrs.insert(format!("fam.{index}.role"), "user".to_string());
+        attrs.insert(format!("fam.{index}.content"), format!("turn {index}"));
+        attrs.insert(format!("unrelated.{index}"), "noise".to_string());
+    }
+    let ctx = MessageContext::for_span("span", &attrs, false);
+    let started = std::time::Instant::now();
+    let emissions = plan.run(&ctx);
+    let elapsed = started.elapsed();
+
+    assert_eq!(emissions.len(), 400, "every entry is an observation");
+    assert_eq!(
+        emissions[0].value["content"].as_str(),
+        Some("turn 0"),
+        "and the entries are in index order, not hash order"
+    );
+    assert_eq!(emissions[399].value["content"].as_str(), Some("turn 399"));
+    // Entries whose required members are missing are still excluded, asked of the entry's own bucket.
+    attrs.insert("fam.400.role".to_string(), "user".to_string());
+    let ctx = MessageContext::for_span("span", &attrs, false);
+    assert_eq!(
+        plan.run(&ctx).len(),
+        400,
+        "an entry with no `content` is not a message, and the requirement is answered from its bucket"
+    );
+
+    // **The members of one entry keep a stable order**, which nothing else observes: reversing the sort changes
+    // no golden, because no shipped family has members whose order is distinguishable. It still matters - the
+    // object is persisted with its insertion order and content identity is hashed from it - so a hash map's
+    // iteration order deciding it would make a message's identity vary per process. Asserted here, since the
+    // corpus cannot.
+    let one = std::collections::HashMap::from([
+        ("fam.0.role".to_string(), "user".to_string()),
+        ("fam.0.content".to_string(), "q".to_string()),
+        ("fam.0.name".to_string(), "alice".to_string()),
+        ("fam.0.id".to_string(), "x1".to_string()),
+    ]);
+    let ctx = MessageContext::for_span("span", &one, false);
+    let emissions = plan.run(&ctx);
+    assert_eq!(
+        emissions[0]
+            .value
+            .as_object()
+            .expect("an object")
+            .keys()
+            .cloned()
+            .collect::<Vec<_>>(),
+        ["content", "id", "name", "role"],
+        "the members are in a stable order, whatever order the attribute map iterates in"
+    );
+
+    // A ceiling rather than a measurement, so the test is not a benchmark on a shared host: at `O(N·M)` this
+    // shape is ~480,000 key comparisons per scan pass and took over a second in release-less builds.
+    assert!(
+        elapsed < std::time::Duration::from_secs(5),
+        "reading 400 entries out of 1,200 attributes took {elapsed:?}, which is the quadratic shape"
+    );
+}

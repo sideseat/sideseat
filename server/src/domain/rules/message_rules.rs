@@ -3242,19 +3242,34 @@ fn indexed_entries(
     // Parsed once for the whole family: the counterpart list describes every entry, so parsing it per
     // entry would re-parse one payload as many times as there are messages.
     let counterparts = overlay.and_then(|overlay| counterpart_list(attrs, overlay));
-    let mut indices: std::collections::BTreeSet<usize> = std::collections::BTreeSet::new();
+    // **Bucketed in one pass**, keyed by index and holding the member name after `family.<index>.`. The
+    // discovery pass and then a full scan of the attribute map *per index* is quadratic in the family's size:
+    // a hundred-turn conversation flattened into a family means a hundred walks over every attribute the span
+    // carries, twice, plus one per `require`d member. A `BTreeMap` because the entries are read in index order,
+    // which is what keeps a turn sequence from being a hash order.
     let family_dot = format!("{family}.");
-    for key in attrs.keys() {
+    let mut buckets: std::collections::BTreeMap<usize, Vec<(&str, &String)>> =
+        std::collections::BTreeMap::new();
+    for (key, value) in attrs {
         if let Some(rest) = key.strip_prefix(&family_dot)
             && let Some(index) = rest.split('.').next()
             && let Ok(parsed) = index.parse::<usize>()
         {
-            indices.insert(parsed);
+            // The remainder past `family.<index>` - empty where the key *is* the index, which a producer can
+            // write and which belongs to no member.
+            let member = rest[index.len()..].strip_prefix('.').unwrap_or("");
+            buckets.entry(parsed).or_default().push((member, value));
         }
+    }
+    // Sorted once per bucket rather than once per read of it: the attribute map's order is randomised per
+    // process and these objects are persisted with their insertion order.
+    for members in buckets.values_mut() {
+        members.sort_unstable_by_key(|(member, _)| *member);
     }
 
     let mut out: Vec<IndexedEntry> = Vec::new();
-    for index in indices {
+    for (index, members) in &buckets {
+        let index = *index;
         // The physical keys this entry read. An entry's *tag* is `family.N`, which is a name for the entry
         // and not a key any producer wrote - so owning the tag left `family.N.content` free for another
         // rule, and the overlay's own attribute free for the dialect that reads it as a whole payload.
@@ -3267,40 +3282,39 @@ fn indexed_entries(
         };
 
         // An index exists as soon as any key mentions it, and a family holds keys that are not messages.
+        // Asked of this index's bucket, so a requirement costs the bucket rather than the whole span.
         if let Some(require) = require
-            && !members_present(attrs, &subject_prefix, require)
+            && !bucket_members_present(members, entry_member, require)
         {
             continue;
         }
 
         let mut object = serde_json::Map::new();
-        // The subject's own members, unprefixed - sorted, because the attribute map's order is randomised
-        // per process and this object is persisted with its insertion order.
+        // The subject's own members, unprefixed. From this index's bucket, already sorted.
         let subject_dot = format!("{subject_prefix}.");
-        let mut own: Vec<(&str, &String)> = attrs
+        let within = match entry_member {
+            Some(nested) => format!("{nested}."),
+            None => String::new(),
+        };
+        for (member, value) in members
             .iter()
-            .filter_map(|(key, value)| key.strip_prefix(subject_dot.as_str()).map(|m| (m, value)))
-            .collect();
-        own.sort_unstable_by_key(|(member, _)| *member);
-        for (member, value) in own {
+            .filter_map(|(member, value)| match entry_member {
+                Some(_) => member.strip_prefix(within.as_str()).map(|m| (m, *value)),
+                None => Some((*member, *value)),
+            })
+            .filter(|(member, _)| !member.is_empty())
+        {
             consumed.push(format!("{subject_dot}{member}"));
             object.insert(member.to_string(), member_value(member, value, numeric));
         }
         // Where the message is nested, the entry's *other* members come too: they belong to the same
         // observation, and the sub-level's own keys are already in, so they are skipped here.
-        if let Some(nested_member) = entry_member {
+        if entry_member.is_some() {
             let entry_dot = format!("{entry_prefix}.");
-            let skip = format!("{nested_member}.");
-            let mut siblings: Vec<(&str, &String)> = attrs
+            for (member, value) in members
                 .iter()
-                .filter_map(|(key, value)| {
-                    key.strip_prefix(entry_dot.as_str())
-                        .filter(|member| !member.starts_with(skip.as_str()))
-                        .map(|member| (member, value))
-                })
-                .collect();
-            siblings.sort_unstable_by_key(|(member, _)| *member);
-            for (member, value) in siblings {
+                .filter(|(member, _)| !member.is_empty() && !member.starts_with(within.as_str()))
+            {
                 consumed.push(format!("{entry_dot}{member}"));
                 object.insert(member.to_string(), member_value(member, value, numeric));
             }
@@ -3815,21 +3829,37 @@ fn attached_value(
     attach.default.clone()
 }
 
-/// Whether the members a rule requires are present under a prefix.
-fn members_present(
-    attrs: &HashMap<String, String>,
-    prefix: &str,
+/// Whether an indexed entry's bucket holds the members a rule requires.
+///
+/// The bucket rather than the span's whole attribute map: asked per index, a full scan is quadratic in the
+/// family's size, and every answer is a property of this index's keys alone.
+fn bucket_members_present<'a>(
+    members: &[(&'a str, &String)],
+    entry_member: Option<&str>,
     require: &MemberRequirements,
 ) -> bool {
+    // Names are relative to the *subject*, which is the entry or a sub-level of it.
+    let within = entry_member.map(|nested| format!("{nested}."));
+    let relative = |member: &'a str| -> Option<&'a str> {
+        match &within {
+            Some(prefix) => member.strip_prefix(prefix.as_str()),
+            None => Some(member),
+        }
+    };
     let present = |requirement: &super::schema::MemberRequirement| {
-        let exact = format!("{prefix}.{}", requirement.name);
-        let nested = format!("{exact}.");
+        let nested = format!("{}.", requirement.name);
+        let exact = members
+            .iter()
+            .any(|(member, _)| relative(member) == Some(requirement.name.as_str()));
+        let under = || {
+            members
+                .iter()
+                .any(|(member, _)| relative(member).is_some_and(|m| m.starts_with(nested.as_str())))
+        };
         match requirement.presence {
-            MemberPresence::Exact => attrs.contains_key(&exact),
-            MemberPresence::Nested => attrs.keys().any(|k| k.starts_with(nested.as_str())),
-            MemberPresence::Either => {
-                attrs.contains_key(&exact) || attrs.keys().any(|k| k.starts_with(nested.as_str()))
-            }
+            MemberPresence::Exact => exact,
+            MemberPresence::Nested => under(),
+            MemberPresence::Either => exact || under(),
         }
     };
     (require.all_of.is_empty() || require.all_of.iter().all(present))
