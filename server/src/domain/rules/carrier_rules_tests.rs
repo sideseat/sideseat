@@ -5921,3 +5921,135 @@ fn a_construction_branch_refuses_the_siblings_it_would_skip() {
         .err()
     );
 }
+
+/// A reading that **cannot be built** produced nothing, so the chain keeps going.
+///
+/// Codex's case: the first alternative selects something and its envelope names a member the payload has not, so
+/// `wrapped()` returns `None`. The candidate used to be returned as *the* answer and dropped afterwards by the
+/// caller, so the second alternative and the rule's `fallback` were never tried and the rule emitted nothing -
+/// where a later shape would have worked. Construction happens inside the coalesce now, which makes "could not
+/// be built" the same answer as "this shape does not match": the only one a coalesce can act on.
+#[test]
+fn a_reading_whose_envelope_cannot_be_built_lets_the_chain_continue() {
+    use crate::domain::rules::message_rules::{MessageContext, compile};
+
+    let plan = compile(&std::collections::BTreeMap::from([(
+        "t.json".to_string(),
+        br#"{"id":"t","messages":[{"id":"t.r","read":{"attribute":"x"},"parse":"json",
+             "emit":"message","legacy_rank":1,
+             "alternatives":[
+               {"id":"first","select":"$.a","wrap":{"role":"user","content_from_any_of":["$.missing"]}},
+               {"id":"second","select":"$.b","wrap":{"role":"user","content_from_any_of":["$.text"]}}]}]}"#
+            .to_vec(),
+    )]))
+    .expect("the probe compiles");
+    let attrs = std::collections::HashMap::from([(
+        "x".to_string(),
+        r#"{"a":{"other":"unbuildable"},"b":{"text":"usable"}}"#.to_string(),
+    )]);
+    let ctx = MessageContext::for_span("span", &attrs, false);
+    let emitted: Vec<String> = plan
+        .run(&ctx)
+        .iter()
+        .map(|e| e.value["content"].as_str().unwrap_or_default().to_string())
+        .collect();
+    assert_eq!(
+        emitted,
+        ["usable".to_string()],
+        "the first alternative selected and could not be built, so the second got its turn"
+    );
+
+    // And the rule's own `fallback`, which was equally unreachable.
+    let plan = compile(&std::collections::BTreeMap::from([(
+        "t.json".to_string(),
+        br#"{"id":"t","messages":[{"id":"t.r","read":{"attribute":"x"},"parse":"json",
+             "emit":"message","legacy_rank":1,
+             "alternatives":[
+               {"id":"first","select":"$.a","wrap":{"role":"user","content_from_any_of":["$.missing"]}}],
+             "fallback":[
+               {"id":"last","select":"$.b","wrap":{"role":"user","content_from_any_of":["$.text"]}}]}]}"#
+            .to_vec(),
+    )]))
+    .expect("the probe compiles");
+    let emitted: Vec<String> = plan
+        .run(&ctx)
+        .iter()
+        .map(|e| e.value["content"].as_str().unwrap_or_default().to_string())
+        .collect();
+    assert_eq!(
+        emitted,
+        ["usable".to_string()],
+        "a fallback exists for exactly this - nothing else produced anything"
+    );
+
+    // Still no **bare payload**: an unbuildable envelope emits nothing rather than the value it wrapped, which
+    // is the half of this that was already right.
+    let plan = compile(&std::collections::BTreeMap::from([(
+        "t.json".to_string(),
+        br#"{"id":"t","messages":[{"id":"t.r","read":{"attribute":"x"},"parse":"json",
+             "emit":"message","legacy_rank":1,
+             "alternatives":[
+               {"id":"only","select":"$.a","wrap":{"role":"user","content_from_any_of":["$.missing"]}}]}]}"#
+            .to_vec(),
+    )]))
+    .expect("the probe compiles");
+    assert!(
+        plan.run(&ctx).is_empty(),
+        "nothing could be built, so nothing is emitted - not the payload under a message tag"
+    );
+}
+
+/// An aggregate wraps the assembled array **once**, and a per-reading envelope beside it is refused.
+///
+/// The ordinary aggregate discarded every reading's envelope *and* the rule's, while the indexed-family
+/// aggregate applied the rule's - so the same two declarations meant different things depending on the read
+/// form, which is a property of the code rather than of the telemetry.
+#[test]
+fn an_aggregate_wraps_the_assembled_array_once() {
+    use crate::domain::rules::message_rules::{MessageContext, compile};
+
+    let asset = |rule: &str| {
+        let body = format!(r#"{{"id":"t","messages":[{rule}]}}"#);
+        compile(&std::collections::BTreeMap::from([(
+            "t.json".to_string(),
+            body.into_bytes(),
+        )]))
+    };
+
+    // The rule's envelope applies to the array.
+    let plan = asset(
+        r#"{"id":"t.a","read":{"attribute":"docs"},"parse":"json","aggregate_into_array":true,
+             "wrap":{"role":"data"},"emit":"message","legacy_rank":1,
+             "alternatives":[{"id":"each","select":"$[*]"}]}"#,
+    )
+    .expect("an aggregate with a rule envelope compiles");
+    let attrs = std::collections::HashMap::from([(
+        "docs".to_string(),
+        r#"[{"t":"one"},{"t":"two"}]"#.to_string(),
+    )]);
+    let ctx = MessageContext::for_span("span", &attrs, false);
+    let emissions = plan.run(&ctx);
+    assert_eq!(emissions.len(), 1, "an aggregate is one observation");
+    assert_eq!(
+        emissions[0].value["role"].as_str(),
+        Some("data"),
+        "and the rule's envelope wrapped it - it used to be discarded here and applied by the indexed-family \
+         aggregate, so one syntax meant two things"
+    );
+    assert_eq!(
+        emissions[0].value["content"].as_array().map(Vec::len),
+        Some(2),
+        "the content is the assembled array"
+    );
+
+    // A per-reading envelope beside an aggregate is refused rather than discarded.
+    assert!(
+        asset(
+            r#"{"id":"t.a","read":{"attribute":"docs"},"parse":"json","aggregate_into_array":true,
+                 "emit":"message","legacy_rank":1,
+                 "alternatives":[{"id":"each","select":"$[*]","wrap":{"role":"document"}}]}"#,
+        )
+        .is_err(),
+        "construct-each-then-aggregate is a different operation and nothing declares it"
+    );
+}

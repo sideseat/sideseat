@@ -41,9 +41,29 @@ use super::schema::{
     ToolReprSpec, ValueKind, ValuePredicate, WrapSpec,
 };
 
-/// One reading of a payload: the value, an envelope for this reading alone, and its target where it
-/// differs from the rule's.
-type Reading = (JsonValue, Option<WrapSpec>, Option<EmitTarget>);
+/// One reading of a payload: the value **as constructed** and its target where it differs from the rule's.
+///
+/// The envelope used to travel here and be applied by the caller, which made construction failure invisible to
+/// the coalesce: an alternative that selected something produced a candidate, `readings()` returned it as *the*
+/// answer, and the caller then found the envelope unbuildable and dropped it - so the alternatives after it and
+/// the rule's `fallback` were never tried, and the rule emitted nothing where a later shape would have worked.
+///
+/// Building inside the coalesce makes "could not be built" mean "this alternative produced nothing", which is
+/// the same answer as "this shape does not match" and the only one the coalesce can act on.
+type Reading = (JsonValue, Option<EmitTarget>);
+
+/// What building a message needs, threaded into the coalesce so construction happens before it commits.
+///
+/// `None` at the aggregate path: there the entries become one array and the rule's envelope wraps *that*, once,
+/// rather than each entry.
+#[derive(Clone, Copy)]
+struct Construction<'a> {
+    /// The rule's envelope, used where a reading declares none of its own.
+    rule_wrap: Option<&'a WrapSpec>,
+    ctx: &'a MessageContext<'a>,
+    /// The whole payload, which an envelope may read members from.
+    root: &'a JsonValue,
+}
 
 /// What an ingestion knows when it asks which carriers to read.
 #[derive(Debug, Clone, Copy)]
@@ -678,6 +698,24 @@ fn compile_rule(
             "`sections` builds each section's message and emits it directly, so `wrap`, `alternatives`, a \
                  `fallback`, a walk, an aggregate or a `tag_as` would be ignored",
         ));
+    }
+    // **An aggregate wraps the array once, so a per-reading envelope beside it is dead.** The runtime built
+    // one observation from the entries and discarded every reading's envelope *and* the rule's - while the
+    // indexed-family aggregate applies the rule's envelope once, so identical syntax meant different things by
+    // read form. The rule's envelope now applies to the assembled array in both, and a per-reading envelope is
+    // refused: "construct each, then aggregate" is a different operation and nothing declares it.
+    if *aggregate_into_array == Some(true) {
+        let declares_wrap = |readings: &[Alternative]| {
+            readings.iter().any(|reading| {
+                reading.wrap.is_some() || reading.extra_cases.iter().any(|c| c.wrap.is_some())
+            })
+        };
+        if declares_wrap(alternatives) || declares_wrap(also) || declares_wrap(fallback) {
+            return Err(inexpressible(
+                "an aggregate builds one observation from every reading, so a per-reading envelope would be \
+                     discarded - declare the envelope on the rule, which wraps the assembled array",
+            ));
+        }
     }
     // **An element pass states exactly one action, and its decision table is total.** Five shapes were
     // accepted and each did something other than what it said:
@@ -2812,21 +2850,29 @@ fn parse_value(raw: &str, mode: ParseMode) -> Option<JsonValue> {
 /// The distinction between "first wins" and "all contribute" is not stylistic. One dialect writes a turn's
 /// history under one member and the answer itself under another, so reading them as alternatives dropped
 /// the assistant output of every run that carried history.
-fn all_readings(parsed: &JsonValue, rule: &CompiledMessageRule) -> Vec<Reading> {
+fn all_readings(
+    parsed: &JsonValue,
+    rule: &CompiledMessageRule,
+    build: Option<Construction<'_>>,
+) -> Vec<Reading> {
     let mut out = Vec::new();
     if !rule.alternatives.is_empty() {
-        out.extend(readings(parsed, &rule.alternatives));
+        out.extend(readings(parsed, &rule.alternatives, build));
     }
     for alternative in &rule.also {
-        out.extend(readings(parsed, std::slice::from_ref(alternative)));
+        out.extend(readings(parsed, std::slice::from_ref(alternative), build));
     }
     if out.is_empty() {
         if rule.alternatives.is_empty() && rule.also.is_empty() && rule.fallback.is_empty() {
-            // No readings declared at all: the payload is the observation.
-            return vec![(parsed.clone(), None, None)];
+            // No readings declared at all: the payload is the observation - still built, since the rule's own
+            // envelope applies to it.
+            return match built(parsed.clone(), None, build) {
+                Some(value) => vec![(value, None)],
+                None => Vec::new(),
+            };
         }
         for alternative in &rule.fallback {
-            out.extend(readings(parsed, std::slice::from_ref(alternative)));
+            out.extend(readings(parsed, std::slice::from_ref(alternative), build));
         }
     }
     out
@@ -2854,9 +2900,16 @@ pub(super) fn query<'v>(
 /// which is what a carrier holding exactly one message needs. "The first that produces any" is the whole
 /// control flow, and it is deliberately all there is: a shape that yields nothing is not an error, it is
 /// evidence the payload is in a different one of its documented forms.
-fn readings(parsed: &JsonValue, alternatives: &[CompiledReading]) -> Vec<Reading> {
+fn readings(
+    parsed: &JsonValue,
+    alternatives: &[CompiledReading],
+    build: Option<Construction<'_>>,
+) -> Vec<Reading> {
     if alternatives.is_empty() {
-        return vec![(parsed.clone(), None, None)];
+        return match built(parsed.clone(), None, build) {
+            Some(value) => vec![(value, None)],
+            None => Vec::new(),
+        };
     }
     for reading in alternatives {
         let alternative = &reading.spec;
@@ -2981,10 +3034,15 @@ fn readings(parsed: &JsonValue, alternatives: &[CompiledReading]) -> Vec<Reading
                             fragment_cases: Vec::new(),
                         })
                         .collect();
-                    produced.extend(readings(&candidate, &cases));
+                    produced.extend(readings(&candidate, &cases, build));
                     continue;
                 }
-                produced.push((candidate, alternative.wrap.clone(), alternative.emit));
+                // **Built here**, so a candidate whose envelope cannot be made counts as this alternative
+                // producing nothing - and the coalesce moves on to the next shape and then to the fallback.
+                let Some(value) = built(candidate, alternative.wrap.as_ref(), build) else {
+                    continue;
+                };
+                produced.push((value, alternative.emit));
             }
         }
         if !produced.is_empty() {
@@ -2992,6 +3050,25 @@ fn readings(parsed: &JsonValue, alternatives: &[CompiledReading]) -> Vec<Reading
         }
     }
     Vec::new()
+}
+
+/// A reading's value once its envelope is applied, or `None` when the envelope cannot be built.
+///
+/// A reading's own envelope wins over the rule's, which is what `or` says. With no construction context - the
+/// aggregate path - the value is returned as it stands, and compilation refuses a per-reading envelope there so
+/// nothing can be silently dropped.
+fn built(
+    value: JsonValue,
+    reading_wrap: Option<&WrapSpec>,
+    build: Option<Construction<'_>>,
+) -> Option<JsonValue> {
+    let Some(build) = build else {
+        return Some(value);
+    };
+    match reading_wrap.or(build.rule_wrap) {
+        Some(wrap) => wrapped(value, wrap, build.ctx, Some(build.root)),
+        None => Some(value),
+    }
 }
 
 /// One entry per index of a dotted attribute family, assembled from the keys under it.
@@ -4017,9 +4094,17 @@ fn emit_rule<'p>(rule: &'p CompiledMessageRule, ctx: &MessageContext<'_>) -> Vec
     // A state object its nodes write into: the readings are applied at every node of a bounded walk, so a
     // conversation nested a level or two down is found without trawling the payload for anything
     // message-shaped.
+    // The aggregate path passes **no** construction: its entries become one array and the rule's envelope
+    // wraps that array, once. Compilation refuses a per-reading envelope beside an aggregate, so nothing can be
+    // lost by not building here.
+    let build = (!rule.aggregate_into_array).then_some(Construction {
+        rule_wrap: rule.wrap.as_ref(),
+        ctx,
+        root: &parsed,
+    });
     let readings = match &rule.walk {
-        Some(walk) => walked_readings(&parsed, rule, walk),
-        None => all_readings(&parsed, rule),
+        Some(walk) => walked_readings(&parsed, rule, walk, build),
+        None => all_readings(&parsed, rule, build),
     };
     // A tool list is a set, not a sequence of messages: the whole list is one observation, and emitting one
     // per tool would make each look like a separate declaration.
@@ -4027,25 +4112,32 @@ fn emit_rule<'p>(rule: &'p CompiledMessageRule, ctx: &MessageContext<'_>) -> Vec
         if readings.is_empty() {
             return out;
         }
+        let assembled = JsonValue::Array(readings.into_iter().map(|(value, _)| value).collect());
+        // **The rule's envelope wraps the assembled array, once.** It used to be discarded here while the
+        // indexed-family aggregate applied it - so the same two declarations meant different things depending on
+        // the read form. Per-reading envelopes are refused beside an aggregate, so this is the only one there
+        // can be, and an envelope that cannot be built is no observation rather than a bare array under a
+        // message tag.
+        let value = match &rule.wrap {
+            Some(wrap) => match wrapped(assembled, wrap, ctx, Some(&parsed)) {
+                Some(built) => built,
+                None => return out,
+            },
+            None => assembled,
+        };
         out.push(Emission {
             rule_id: &rule.rule_id,
             clause: Vec::new(),
             carrier: EmittedCarrier::Attribute(rule.tag_as.as_deref().unwrap_or(attribute)),
             owns: OwnedCarrier::just(attribute),
             target: rule.target,
-            value: JsonValue::Array(readings.into_iter().map(|(value, _, _)| value).collect()),
+            value,
         });
         return out;
     }
-    for (value, per_reading_wrap, per_reading_target) in readings {
-        let wrap = per_reading_wrap.or(rule.wrap.clone());
-        let value = match &wrap {
-            Some(wrap) => match wrapped(value, wrap, ctx, Some(&parsed)) {
-                Some(wrapped) => wrapped,
-                None => continue,
-            },
-            None => value,
-        };
+    // Already built: an envelope that could not be made was a reading that produced nothing, decided inside
+    // the coalesce so the alternatives after it and the rule's `fallback` still got their turn.
+    for (value, per_reading_target) in readings {
         out.push(Emission {
             rule_id: &rule.rule_id,
             clause: Vec::new(),
@@ -4350,13 +4442,23 @@ fn walked_readings(
     root: &JsonValue,
     rule: &CompiledMessageRule,
     walk: &super::schema::WalkSpec,
+    build: Option<Construction<'_>>,
 ) -> Vec<Reading> {
     let mut out = Vec::new();
     let mut stack = vec![(root, walk.max_depth)];
     while let Some((node, depth)) = stack.pop() {
-        let here = all_readings(node, rule);
-        let matched = !here.is_empty();
-        out.extend(here);
+        // **Two questions, asked separately.** `stop_at_match` is about the *payload's shape* - "this node is
+        // the message, do not descend into it" - while whether an envelope can be built is about the
+        // declaration. Deciding the walk from the built result made construction failure widen the traversal:
+        // a node that previously matched and stopped the descent now yielded nothing, so the walk went into its
+        // children and returned blocks whose payload positions interleave with the shallower ones, which the
+        // carrier-subsequence invariant catches on `langgraph/image_gen`.
+        //
+        // So the stop is decided from candidates alone (no construction), and the output is built. Two passes
+        // over one node, which a bounded walk can afford, and the alternative chain still advances *within* the
+        // node - which is the defect this whole change is for.
+        let matched = !all_readings(node, rule, None).is_empty();
+        out.extend(all_readings(node, rule, build));
         if depth == 0 || (matched && walk.stop_at_match) {
             continue;
         }
