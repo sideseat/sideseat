@@ -6177,3 +6177,56 @@ fn an_alternative_and_a_grouped_run_name_every_clause_that_built_them() {
          naming only the first claims it produced a block it did not match"
     );
 }
+
+/// An attachment's sources fall through to each other, whichever form is declared.
+///
+/// Codex's case: `{"from_path": "$.finish_reason", "from": "finish_reason", "default": "unknown"}`. When the
+/// payload path resolved to nothing, `?` returned from the whole function - so the sibling attribute, the
+/// span-name fallback **and** the default were never consulted, while an absent `from_value_any_of` fell
+/// through to exactly those. One member, two source forms, two different answers to "nothing here", and the
+/// asymmetry was in the code rather than in anything declared.
+#[test]
+fn an_attachment_falls_through_to_its_other_sources() {
+    use crate::domain::rules::message_rules::{MessageContext, compile};
+
+    let plan = compile(&std::collections::BTreeMap::from([(
+        "t.json".to_string(),
+        br#"{"id":"t","messages":[{"id":"t.r","read":{"attribute":"x"},"parse":"json",
+             "emit":"message","legacy_rank":1,
+             "wrap":{"role":"assistant","content_from_any_of":["$.content"],
+               "attach":[{"as":"finish_reason","from_path":"$.finish_reason","from":"finish_reason",
+                 "default":"unknown"}]}}]}"#
+            .to_vec(),
+    )]))
+    .expect("the probe compiles");
+    let reason = |payload: &str, span: Vec<(&str, &str)>| -> String {
+        let mut attrs = std::collections::HashMap::from([("x".to_string(), payload.to_string())]);
+        for (key, value) in span {
+            attrs.insert(key.to_string(), value.to_string());
+        }
+        let ctx = MessageContext::for_span("span", &attrs, false);
+        plan.run(&ctx)[0].value["finish_reason"]
+            .as_str()
+            .unwrap_or_default()
+            .to_string()
+    };
+
+    // The payload path, which wins where it resolves.
+    assert_eq!(
+        reason(r#"{"content":"a","finish_reason":"stop"}"#, vec![]),
+        "stop"
+    );
+    // Absent in the payload, present as a **span attribute**: the sibling source answers. This returned
+    // `unknown`... no: it returned *nothing at all*, so the member was absent from the message entirely.
+    assert_eq!(
+        reason(r#"{"content":"a"}"#, vec![("finish_reason", "length")]),
+        "length",
+        "the sibling attribute is consulted, where `?` used to end the function before reaching it"
+    );
+    // Absent everywhere: the default, which was equally unreachable.
+    assert_eq!(
+        reason(r#"{"content":"a"}"#, vec![]),
+        "unknown",
+        "and the default is the last word, as it is for the value form"
+    );
+}

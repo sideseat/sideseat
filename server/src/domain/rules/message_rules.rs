@@ -3613,12 +3613,21 @@ fn attached_value(
     // A member of the rule's own payload, where the dialect reports it beside the content rather than
     // inside it.
     if let Some(path) = &attach.from_path {
-        let found = payload.and_then(|payload| query(payload, path).into_iter().next())?;
-        let value = match (attach.lowercase, found.as_str()) {
-            (true, Some(text)) => json!(text.to_lowercase()),
-            _ => found.clone(),
-        };
-        return Some(value);
+        // **Falls through**, like `from_value_any_of` above. This was `?`, which returned from the whole
+        // function - so a payload path that resolved to nothing skipped the sibling `from` attribute, the
+        // span-name fallback *and* the `default`, while an absent `from_value_any_of` fell through to exactly
+        // those. One member, two source forms, two different answers to "nothing here": the asymmetry was in
+        // the code rather than in anything declared.
+        if let Some(found) = payload.and_then(|payload| query(payload, path).into_iter().next()) {
+            if !predicates_hold(found, &attach.require) {
+                return None;
+            }
+            let value = match (attach.lowercase, found.as_str()) {
+                (true, Some(text)) => json!(text.to_lowercase()),
+                _ => found.clone(),
+            };
+            return Some(value);
+        }
     }
     if let Some(raw) = attach
         .from
@@ -3641,6 +3650,12 @@ fn attached_value(
         // A value that will not parse falls through to the default below, which is what an unparseable
         // structured member should do: the member exists in the shape, so it carries its empty form.
         if let Some(parsed) = parse_value(raw, attach.parse.unwrap_or(ParseMode::Text)) {
+            // `require` asked here too, where it used to apply to `from_value_any_of` alone - a modifier that
+            // silently means nothing beside one source form is the same defect as a source form that means two
+            // things.
+            if !predicates_hold(&parsed, &attach.require) {
+                return None;
+            }
             let parsed = match (attach.lowercase, parsed.as_str()) {
                 (true, Some(text)) => json!(text.to_lowercase()),
                 _ => parsed,
