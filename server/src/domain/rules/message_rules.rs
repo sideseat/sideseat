@@ -2596,10 +2596,25 @@ fn keep_unclaimed<'p>(
 fn parse_value(raw: &str, mode: ParseMode) -> Option<JsonValue> {
     match mode {
         ParseMode::Json => serde_json::from_str(raw).ok(),
-        // The elements are each serialised, because an OTLP array attribute cannot nest.
-        ParseMode::StringifiedArray => serde_json::from_str(raw)
-            .ok()
-            .map(crate::utils::json::parse_stringified_array_elements),
+        // The elements are each serialised, because an OTLP array attribute cannot nest. **An array**, which
+        // the mode names: a top-level object used to be returned unchanged, so a rule declaring this mode
+        // silently accepted a shape its own declaration rules out.
+        ParseMode::StringifiedArray => {
+            let (value, unparsed) = crate::utils::json::parse_stringified_array_elements(
+                serde_json::from_str(raw).ok()?,
+            )?;
+            if unparsed > 0 {
+                // Kept, not dropped - dropping shortens the list silently and refusing the carrier loses the
+                // elements that did parse - and reported, because a retained element is a producer defect that
+                // used to be recorded nowhere at all.
+                tracing::debug!(
+                    target: "sideseat::rules",
+                    unparsed,
+                    "elements of a stringified array did not parse and are kept as strings"
+                );
+            }
+            Some(value)
+        }
         ParseMode::JsonOrString => Some(serde_json::from_str(raw).unwrap_or_else(|_| json!(raw))),
         // Prose. Parsing it would turn a bare word into a non-string and an accidental digit string
         // into a number.

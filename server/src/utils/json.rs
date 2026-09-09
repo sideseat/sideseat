@@ -50,22 +50,39 @@ pub fn hash_json_value<H: Hasher>(hasher: &mut H, value: &JsonValue) {
 
 /// Parse any *string* element of an array as JSON, leaving everything else alone.
 ///
-/// An OTLP array attribute whose elements are each a serialised object arrives as an array of strings,
-/// because an attribute value cannot nest. The encoding is OTLP's, so undoing it is a generic capability
-/// rather than a producer's quirk - and an element that does not parse is kept as the string it is.
-pub fn parse_stringified_array_elements(value: serde_json::Value) -> serde_json::Value {
-    match value {
-        serde_json::Value::Array(items) => serde_json::Value::Array(
-            items
-                .into_iter()
-                .map(|item| match &item {
-                    serde_json::Value::String(text) => serde_json::from_str(text).unwrap_or(item),
-                    _ => item,
-                })
-                .collect(),
-        ),
-        other => other,
-    }
+/// An OTLP array attribute whose elements are each a serialised object arrives as an array of strings, because
+/// an attribute value cannot nest. The encoding is OTLP's, so undoing it is a generic capability rather than a
+/// producer's quirk.
+///
+/// **`None` when the payload is not an array.** The mode names an array, and a top-level object used to be
+/// returned unchanged - so a rule declaring this mode silently accepted a shape it does not describe, and what
+/// it then emitted depended on a payload the declaration had ruled out.
+///
+/// The `usize` counts elements that were strings and **did not parse**. They are *kept* as the strings they
+/// are, which is deliberate and now stated rather than implicit: dropping them silently shortens a tool list,
+/// and refusing the whole carrier loses the elements that did parse. The count exists so the caller can say
+/// so, because a retained element is a producer defect and the previous behaviour reported it nowhere.
+pub fn parse_stringified_array_elements(
+    value: serde_json::Value,
+) -> Option<(serde_json::Value, usize)> {
+    let serde_json::Value::Array(items) = value else {
+        return None;
+    };
+    let mut unparsed = 0;
+    let elements = items
+        .into_iter()
+        .map(|item| match &item {
+            serde_json::Value::String(text) => match serde_json::from_str(text) {
+                Ok(parsed) => parsed,
+                Err(_) => {
+                    unparsed += 1;
+                    item
+                }
+            },
+            _ => item,
+        })
+        .collect();
+    Some((serde_json::Value::Array(elements), unparsed))
 }
 
 #[cfg(test)]
@@ -176,5 +193,49 @@ mod tests {
         let hash = hasher.finish();
 
         assert_ne!(hash, 0);
+    }
+
+    /// The mode names an **array**, and it now refuses anything else.
+    ///
+    /// A top-level object was returned unchanged, so a rule declaring `stringified_array` silently accepted a
+    /// shape its own declaration rules out - and what it then emitted depended on a payload the mode had
+    /// excluded. A retained element is kept and counted rather than dropped or fatal: dropping shortens a tool
+    /// list silently, refusing the carrier loses the elements that did parse.
+    #[test]
+    fn a_stringified_array_is_an_array_and_says_what_it_could_not_parse() {
+        // Each element serialised: the ordinary case.
+        let (value, unparsed) =
+            parse_stringified_array_elements(json!([r#"{"name":"a"}"#, r#"{"name":"b"}"#]))
+                .expect("an array is an array");
+        assert_eq!(unparsed, 0);
+        assert_eq!(value, json!([{"name": "a"}, {"name": "b"}]));
+
+        // A mixture, which is what the mode is for - an element that is already an object stays one.
+        let (value, unparsed) =
+            parse_stringified_array_elements(json!([r#"{"name":"a"}"#, {"name": "b"}]))
+                .expect("an array is an array");
+        assert_eq!(unparsed, 0);
+        assert_eq!(value, json!([{"name": "a"}, {"name": "b"}]));
+
+        // An element that does not parse is **kept** as the string it is, and counted so the caller can say so.
+        let (value, unparsed) =
+            parse_stringified_array_elements(json!([r#"{"name":"ok"}"#, "{bad"]))
+                .expect("an array is an array");
+        assert_eq!(
+            unparsed, 1,
+            "the retained element is reported, not silently absorbed"
+        );
+        assert_eq!(value, json!([{"name": "ok"}, "{bad"]));
+
+        // Not an array: refused, whatever it holds.
+        assert!(parse_stringified_array_elements(json!({"name": "a"})).is_none());
+        assert!(parse_stringified_array_elements(json!("a string")).is_none());
+        assert!(parse_stringified_array_elements(json!(7)).is_none());
+
+        // An empty array is an array - zero tools is a statement a producer can make.
+        let (value, unparsed) =
+            parse_stringified_array_elements(json!([])).expect("empty is an array");
+        assert_eq!(unparsed, 0);
+        assert_eq!(value, json!([]));
     }
 }
