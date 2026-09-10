@@ -1520,37 +1520,55 @@ fn create_tool_result(tool_use_id: &Option<String>, content: JsonValue) -> JsonV
 /// - For data URLs: ("base64", base64_data, Some("image/png"))
 /// - For regular URLs: ("url", url, None)
 fn parse_data_url(url: &str) -> (&'static str, String, Option<String>) {
-    // Handle #!B64!# file references (content-addressed storage)
-    if let Some(parsed) = files::parse_file_uri(url) {
-        return ("file", url.to_string(), parsed.media_type.map(String::from));
-    }
-    if url.starts_with("data:") {
-        // Format: data:<media_type>;base64,<data>
-        // Example: data:image/png;base64,ABC123...
-        if let Some(comma_idx) = url.find(',') {
-            let prefix = &url[5..comma_idx]; // Skip "data:"
-            let media_type = prefix
-                .split(';')
-                .next()
-                .filter(|s| !s.is_empty())
-                .map(String::from);
-            return ("base64", url[comma_idx + 1..].to_string(), media_type);
-        }
-    }
-    ("url", url.to_string(), None)
+    // The one decoder, so this and `data_source_kind` cannot disagree about what a value is - they used to,
+    // in opposite directions.
+    let (kind, media_type) = decode_media_source(url);
+    let media_type = media_type.map(String::from);
+    // A data URL's *payload* is what follows the comma; every other kind carries the value as it stands.
+    let value = match kind {
+        "base64" if url.starts_with("data:") => url
+            .find(',')
+            .map_or_else(|| url.to_string(), |comma| url[comma + 1..].to_string()),
+        _ => url.to_string(),
+    };
+    (kind, value, media_type)
 }
 
 /// Map MIME type to content block type.
-/// Whether a media member holds the bytes or a reference to a stored file.
+/// What a media member's value **is**, and the media type it carries where it carries one.
 ///
 /// Derived from the value, not declared: a producer writes the same member either way, and which it is is a
-/// fact about the value.
-pub(crate) fn data_source_kind(data: &str) -> &'static str {
-    if files::is_file_uri(data) {
-        "file"
-    } else {
-        "base64"
+/// fact about the value. One decoder, because there were two with opposite mistakes - `data_source_kind`
+/// answered `base64` for anything that was not a file reference, so an ordinary `https://` URL was labelled as
+/// inline bytes; `parse_data_url` answered `url` for anything that was not a file reference or a data URL, so
+/// raw base64 was labelled a URL. Every caller now gets the same four-way answer.
+///
+/// Total by construction, with the residue stated: a value that names no scheme is the bytes themselves, which
+/// is what a producer writing a media member without a URL means.
+pub(crate) fn decode_media_source(data: &str) -> (&'static str, Option<&str>) {
+    if let Some(parsed) = files::parse_file_uri(data) {
+        return ("file", parsed.media_type);
     }
+    if data.starts_with("data:")
+        && let Some(comma) = data.find(',')
+    {
+        let media_type = data[5..comma]
+            .split(';')
+            .next()
+            .filter(|part| !part.is_empty());
+        return ("base64", media_type);
+    }
+    // A scheme means a fetch, not bytes. Checked as `scheme://` rather than by a list of schemes, because which
+    // ones a producer uses is not this function's business.
+    if data.split_once("://").is_some_and(|(scheme, _)| {
+        !scheme.is_empty()
+            && scheme
+                .chars()
+                .all(|c| c.is_ascii_alphanumeric() || c == '+' || c == '-' || c == '.')
+    }) {
+        return ("url", None);
+    }
+    ("base64", None)
 }
 
 pub(crate) fn mime_to_content_type(mime: &str) -> &'static str {
@@ -3613,5 +3631,50 @@ mod renderable_block_tests {
     #[test]
     fn empty_text_block_is_kept() {
         assert!(is_renderable_block(&json!({"type": "text", "text": ""})));
+    }
+
+    /// One decoder for what a media value **is**, where there were two with opposite mistakes.
+    ///
+    /// `data_source_kind` answered `base64` for anything that was not a file reference, so an ordinary
+    /// `https://` URL was labelled as inline bytes. `parse_data_url` answered `url` for anything that was not a
+    /// file reference or a data URL, so raw base64 was labelled a URL. Each was wrong about exactly what the
+    /// other got right.
+    #[test]
+    fn a_media_value_is_decoded_the_same_way_by_every_caller() {
+        // A stored reference, which also carries the media type the bytes were stored under.
+        assert_eq!(
+            decode_media_source("#!B64!#application/pdf::abc123"),
+            ("file", Some("application/pdf"))
+        );
+        // A data URL: the payload is base64 and the prefix states its type.
+        assert_eq!(
+            decode_media_source("data:image/png;base64,AAAA"),
+            ("base64", Some("image/png"))
+        );
+        // A URL is a fetch, not bytes - this is what was called `base64`.
+        assert_eq!(
+            decode_media_source("https://example.com/a.png"),
+            ("url", None)
+        );
+        assert_eq!(decode_media_source("s3://bucket/key"), ("url", None));
+        // And a bare value is the bytes themselves - this is what was called `url`.
+        assert_eq!(decode_media_source("iVBORw0KGgoAAAANSU"), ("base64", None));
+        // A scheme-looking prefix that is not one: `://` is the test, so a base64 payload containing a colon is
+        // still bytes.
+        assert_eq!(decode_media_source("abc:def"), ("base64", None));
+
+        // `parse_data_url` agrees, and returns the data URL's *payload* rather than the whole URL.
+        assert_eq!(
+            parse_data_url("data:image/png;base64,AAAA"),
+            ("base64", "AAAA".to_string(), Some("image/png".to_string()))
+        );
+        assert_eq!(
+            parse_data_url("https://example.com/a.png"),
+            ("url", "https://example.com/a.png".to_string(), None)
+        );
+        assert_eq!(
+            parse_data_url("iVBORw0KGgoAAAANSU"),
+            ("base64", "iVBORw0KGgoAAAANSU".to_string(), None)
+        );
     }
 }

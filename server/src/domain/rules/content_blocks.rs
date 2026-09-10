@@ -263,14 +263,34 @@ fn built(block: &JsonValue, rule: &ContentBlockRule) -> Option<JsonValue> {
         return crate::domain::sideml::content::normalize_content_block(inner);
     }
     if let Some(spec) = &rule.media {
-        let media_type = member(block, &spec.media_type, false)?.as_str()?;
+        let declared = member(block, &spec.media_type, false)?.as_str()?;
         let data = member(block, &spec.data, false)?.as_str()?;
         // Both derived, because both are facts about the bytes rather than about the producer: the kind
         // comes from the media type, and whether this is a reference or the content itself from the value.
+        let (source, referenced) = crate::domain::sideml::content::decode_media_source(data);
+        // **One authority.** A stored reference carries the media type the bytes were stored under, and a
+        // declared one beside it could disagree - `media_type: image/png` against
+        // `#!B64!#application/pdf::HASH` produced an image block whose bytes a reader fetches as a PDF. The
+        // reference wins, because it is the *stored* fact and what a fetch will return; the disagreement is
+        // reported rather than refused, since refusing drops content over metadata.
+        let media_type = match referenced {
+            Some(stored) if stored != declared => {
+                tracing::debug!(
+                    target: "sideseat::rules",
+                    declared,
+                    stored,
+                    "a media block's declared media type disagrees with its stored reference; the stored one \
+                     is what a reader will fetch"
+                );
+                stored
+            }
+            Some(stored) => stored,
+            None => declared,
+        };
         return Some(json!({
             "type": crate::domain::sideml::content::mime_to_content_type(media_type),
             "media_type": media_type,
-            "source": crate::domain::sideml::content::data_source_kind(data),
+            "source": source,
             "data": data,
         }));
     }
@@ -483,5 +503,59 @@ mod tests {
             "require": {"all": [{"path": "$.type", "kind": "number", "identifier_like": true}]},
             "text": {"text": ["$.value"]},
         }));
+    }
+
+    /// A stored reference is the authority on its own media type.
+    ///
+    /// `media_type: image/png` beside `#!B64!#application/pdf::HASH` produced an *image* block whose bytes a
+    /// reader fetches as a PDF - two statements about one datum, and the wrong one won because it was the
+    /// declared one. The reference wins now: it is the stored fact and what a fetch returns.
+    ///
+    /// Reported rather than refused, deliberately. Refusing drops content over metadata, and the block is
+    /// perfectly usable once the two agree about what it is.
+    #[test]
+    fn a_stored_reference_is_the_authority_on_its_media_type() {
+        let plan = plan_from(serde_json::json!({
+            "id": "probe.media",
+            "at": "after_provider_formats",
+            "legacy_rank": 1,
+            "require": {"all": [{"path": "$.media_type"}, {"path": "$.data"}]},
+            "media": {"media_type": ["$.media_type"], "data": ["$.data"]},
+        }));
+        let normalize = |media_type: &str, data: &str| {
+            plan.normalize(
+                &serde_json::json!({"media_type": media_type, "data": data}),
+                ChainPosition::AfterProviderFormats,
+            )
+            .expect("the rule recognises the block")
+        };
+
+        // Codex's case: the declaration says image, the reference says PDF.
+        let block = normalize("image/png", "#!B64!#application/pdf::abc123");
+        assert_eq!(
+            block["media_type"].as_str(),
+            Some("application/pdf"),
+            "the stored reference is what a reader will fetch"
+        );
+        assert_eq!(
+            block["type"].as_str(),
+            Some("document"),
+            "and the block's kind follows the media type that won, or the two disagree again one level up"
+        );
+        assert_eq!(block["source"].as_str(), Some("file"));
+
+        // Agreement is unremarkable, and inline bytes have only the declaration to go on.
+        assert_eq!(
+            normalize("image/png", "#!B64!#image/png::abc123")["media_type"].as_str(),
+            Some("image/png")
+        );
+        let inline = normalize("image/png", "iVBORw0KGgo");
+        assert_eq!(inline["media_type"].as_str(), Some("image/png"));
+        assert_eq!(inline["source"].as_str(), Some("base64"));
+        // And a URL is a fetch, which is the half of this that used to be called `base64`.
+        assert_eq!(
+            normalize("image/png", "https://example.com/a.png")["source"].as_str(),
+            Some("url")
+        );
     }
 }
