@@ -518,33 +518,55 @@ pub(crate) fn normalize_tool_result_content(content: Option<JsonValue>) -> JsonV
 /// - Raw structured data: `{status: "success", content: [...]}`
 /// - Wrapped format: `{type: "json", value: {status: "success", content: [...]}}`
 ///
-/// Normalisation makes those identical, which is what this collapses. What it must *not* collapse is a tool
-/// that genuinely returned the same part twice - `[{"text": "retry"}, {"text": "retry"}]` is two ordered
-/// occurrences, and a carrier's position is the evidence of that. The two cases are told apart by the
-/// **source**: one datum in two encodings arrives as two *different* JSON values that normalise to one, while
-/// a genuine repeat arrives as two identical ones. So a normalised duplicate is dropped only when the source
-/// it came from differs from the source already kept.
+/// Normalisation makes those identical, which is what this collapses. What it must *not* collapse is a tool that
+/// genuinely returned the same part twice: `[{"text": "retry"}, {"text": "retry"}]` is two ordered occurrences,
+/// and a carrier's position is the evidence of that.
+///
+/// **The test is containment, not difference.** It used to be "the sources differ", and that does not hold: two
+/// *genuine* occurrences can be written differently - `{"text":"retry"}` beside `{"type":"text","text":"retry"}`
+/// is two positions a producer wrote, and the second was discarded because its JSON did not match the first's.
+/// Different encodings are not evidence of one datum.
+///
+/// What *is* evidence is that one source **envelopes** the other: `{type:"json", value: X}` contains `X`, which
+/// is the relation between a wrapping and the thing wrapped. Two independently written encodings of one value do
+/// not contain each other, so the two cases separate without any declaration - and a producer that invents a new
+/// wrapper is covered by the same relation rather than needing a new one.
 fn deduplicate_content_blocks(blocks: Vec<(JsonValue, JsonValue)>) -> Vec<JsonValue> {
     use std::collections::HashMap;
 
     // normalised form -> the sources already kept for it.
-    let mut seen: HashMap<String, Vec<String>> = HashMap::new();
+    let mut seen: HashMap<String, Vec<JsonValue>> = HashMap::new();
     let mut result = Vec::with_capacity(blocks.len());
 
     for (block, source) in blocks {
         // JSON serialisation as identity (deterministic ordering from serde_json).
         let key = serde_json::to_string(&block).unwrap_or_default();
-        let source_key = serde_json::to_string(&source).unwrap_or_default();
         let sources = seen.entry(key).or_default();
-        // Kept when nothing with this normalised form is present yet, or when everything present came from
-        // an identically-written source - which means this one is another occurrence, not another encoding.
-        if sources.is_empty() || sources.iter().all(|s| *s == source_key) {
-            sources.push(source_key);
+        // Dropped only where one source is an envelope of a source already kept, in either direction: the
+        // wrapping may come first or second, and both orders are the same datum written twice.
+        let one_datum = sources
+            .iter()
+            .any(|kept| envelopes(kept, &source) || envelopes(&source, kept));
+        if !one_datum {
+            sources.push(source);
             result.push(block);
         }
     }
 
     result
+}
+
+/// Whether `outer` is a wrapping **around** `inner`: one of its member values *is* `inner`.
+///
+/// Direct members only, which is what a wrapper is - `{type:"json", value: X}` states `X` at one level. A deep
+/// search would call a tool result that happens to quote an earlier one an envelope of it, which is a different
+/// claim entirely.
+fn envelopes(outer: &JsonValue, inner: &JsonValue) -> bool {
+    match outer {
+        JsonValue::Object(members) => members.values().any(|value| value == inner),
+        JsonValue::Array(items) => items.iter().any(|item| item == inner),
+        _ => false,
+    }
 }
 
 // ========== Provider-specific content format handlers ==========
@@ -3675,6 +3697,61 @@ mod renderable_block_tests {
         assert_eq!(
             parse_data_url("iVBORw0KGgoAAAANSU"),
             ("base64", "iVBORw0KGgoAAAANSU".to_string(), None)
+        );
+    }
+
+    /// Two positions collapse only when one source **envelopes** the other.
+    ///
+    /// The test used to be "the sources differ", and that does not hold: two *genuine* occurrences can be written
+    /// differently. Codex's case is `[{"text":"retry"}, {"type":"text","text":"retry"}]` - two positions a
+    /// producer wrote, where the second was discarded because its JSON did not match the first's. Different
+    /// encodings are not evidence of one datum.
+    ///
+    /// What is evidence is containment: `{type:"json", value: X}` holds `X`, which is the relation between a
+    /// wrapping and the thing wrapped. Two independently written encodings of one value do not contain each
+    /// other, so the cases separate with no declaration - and a producer inventing a new wrapper is covered by
+    /// the same relation.
+    #[test]
+    fn two_positions_collapse_only_when_one_envelopes_the_other() {
+        let parts = |content: serde_json::Value| {
+            normalize_tool_result_content(Some(content))
+                .as_array()
+                .map_or(0, Vec::len)
+        };
+
+        // Codex's case: two encodings, two positions, both kept.
+        assert_eq!(
+            parts(json!([{"text": "retry"}, {"type": "text", "text": "retry"}])),
+            2,
+            "two differently-written positions are two occurrences - a producer wrote both"
+        );
+        // A genuine repeat, identically written: also two, which was already right.
+        assert_eq!(
+            parts(json!([{"text": "retry"}, {"text": "retry"}])),
+            2,
+            "and an identical repeat is still two"
+        );
+
+        // The envelope relation, in both orders - the wrapping may come first or second.
+        let datum = json!({"status": "success", "rows": [1, 2]});
+        assert_eq!(
+            parts(json!([datum, {"type": "json", "value": datum}])),
+            1,
+            "a value beside its own wrapping is one datum written twice, which is what this exists for"
+        );
+        assert_eq!(
+            parts(json!([{"type": "json", "value": datum}, datum])),
+            1,
+            "and the order does not matter"
+        );
+
+        // Two *different* data, each wrapped, stay two: containment is about one pair, not about the shape.
+        assert_eq!(
+            parts(json!([
+                {"type": "json", "value": {"a": 1}},
+                {"type": "json", "value": {"b": 2}}
+            ])),
+            2
         );
     }
 }
