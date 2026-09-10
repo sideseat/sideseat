@@ -8216,6 +8216,20 @@ fn the_rules_reproduce_the_extractors_they_replaced() {
         // message that moved is still compared and a tool on another carrier is untouched.
         let legacy = render(&legacy_msgs, &legacy_tools);
         let rules = render(&rule_msgs, &rule_tools);
+        // **One reviewed role delta.** The retired extractor wrote `role: "documents"` for retrieved material,
+        // which is not a role in `ChatRole`'s vocabulary - it folded to `User` through the *unknown-role
+        // default* rather than through any declaration, so the rule said one thing and meant another. The
+        // assets say `context`, which is the declared vocabulary for exactly this and folds to `User` by
+        // declaration.
+        //
+        // No reader sees a difference: both normalise to `User`, and the goldens did not move. What changes is
+        // the stored raw string, and stored spans keep whichever they were written with - both still display
+        // as `User`. Rewritten here rather than exempted, so every other difference in these cases is still
+        // compared.
+        let legacy: Vec<String> = legacy
+            .into_iter()
+            .map(|rendered| rendered.replace(r#""role":"documents""#, r#""role":"context""#))
+            .collect();
         // The `found` flags can differ only by a reviewed delta: on a tool span the rules recognise
         // Vercel's tool-call carriers and the harness-excluded legacy side does not. Compared only when the
         // rendered observations agree, so `found` is not a second channel that can hide a real change.

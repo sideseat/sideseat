@@ -7501,3 +7501,91 @@ fn a_presence_coalesce_tells_absent_from_the_wrong_shape() {
         "a yielding coalesce has one not-found state, so `on_absent` states a distinction it cannot make"
     );
 }
+
+/// A role a rule **states** must be a role.
+///
+/// `role_map: {"model": "assisstant"}` compiled, and the typo became **User** - because an unrecognised role
+/// folds to User rather than being refused. So a rule could say "assistant" and mean "user", with nothing
+/// anywhere saying otherwise. Compared against `ChatRole::try_from_str`, which is the same question every reader
+/// asks, rather than a second list that would drift from it.
+///
+/// The corpus had three: `openinference`'s retrieval and reranker rules said `role: "documents"`, which is not a
+/// role - it folded to User through the unknown-role *default* rather than through any declaration. They say
+/// `context` now, which is the declared vocabulary for retrieved material and folds to User by declaration. No
+/// reader sees a difference; the retired extractor's oracle records the divergence.
+#[test]
+fn a_role_a_rule_states_must_be_a_role() {
+    use crate::domain::rules::message_rules::compile;
+
+    let asset = |wrap: &str| {
+        let body = format!(
+            r#"{{"id":"t","messages":[{{"id":"t.r","read":{{"attribute":"x"}},"parse":"json",
+                 "emit":"message","legacy_rank":1,"wrap":{wrap}}}]}}"#
+        );
+        compile(&std::collections::BTreeMap::from([(
+            "t.json".to_string(),
+            body.into_bytes(),
+        )]))
+    };
+
+    // Codex's typo, and the shape the corpus had.
+    for (what, wrap) in [
+        (
+            "a misspelled mapped role",
+            r#"{"role_from":"$.speaker","role_map":{"model":"assisstant"}}"#,
+        ),
+        ("a literal that is not a role", r#"{"role":"documents"}"#),
+        (
+            "a literal that is a content description",
+            r#"{"role":"narrator"}"#,
+        ),
+    ] {
+        assert!(
+            asset(wrap).is_err(),
+            "{what} must be refused: it folds to `user`, so the declaration means something other than it says"
+        );
+    }
+
+    // Every alias the vocabulary folds is still a role a rule may state - the check is not a narrowing of it.
+    for role in [
+        "system",
+        "developer",
+        "user",
+        "human",
+        "data",
+        "context",
+        "assistant",
+        "ai",
+        "bot",
+        "model",
+        "choice",
+        "tool_call",
+        "tool",
+        "function",
+        "ipython",
+    ] {
+        let wrap = format!(r#"{{"role":"{role}"}}"#);
+        assert!(
+            asset(&wrap).is_ok(),
+            "`{role}` is in the vocabulary and must be statable: {:?}",
+            asset(&wrap).err()
+        );
+    }
+
+    // A mapped output is checked as a literal is, and a compose's trailing role too.
+    assert!(
+        asset(r#"{"role_from":"$.speaker","role_map":{"planner":"assistant"}}"#).is_ok(),
+        "a mapping to a real role is fine - the map's *keys* are the producer's vocabulary, not ours"
+    );
+    assert!(
+        compile(&std::collections::BTreeMap::from([(
+            "t.json".to_string(),
+            br#"{"id":"t","messages":[{"id":"t.c","emit":"message","legacy_rank":1,
+                 "compose":{"tag":"joined","trailing":{"role":"assisstant"},"members":[
+                   {"as":"content","from_any_of":["x"],"parse":"text"}]}}]}"#
+                .to_vec(),
+        )]))
+        .is_err(),
+        "a compose's trailing role folds the same way"
+    );
+}

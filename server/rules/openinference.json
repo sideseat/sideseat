@@ -181,7 +181,7 @@
       "aggregate_into_array": true,
       "tag_as": "retrieval.documents",
       "wrap": {
-        "role": "documents",
+        "role": "context",
         "members": {
           "_source": "retrieval.documents"
         }
@@ -217,7 +217,7 @@
       "aggregate_into_array": true,
       "tag_as": "reranker.input_documents",
       "wrap": {
-        "role": "documents",
+        "role": "context",
         "members": {
           "_source": "reranker.input_documents"
         }
@@ -253,7 +253,7 @@
       "aggregate_into_array": true,
       "tag_as": "reranker.output_documents",
       "wrap": {
-        "role": "documents",
+        "role": "context",
         "members": {
           "_source": "reranker.output_documents"
         }

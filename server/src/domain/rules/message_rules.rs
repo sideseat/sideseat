@@ -538,6 +538,38 @@ fn compile_rule(
             ));
         }
     }
+    // **A role a rule states must be a role.** `role`, every `role_map` output, and `trailing`'s role literal
+    // are compared against the vocabulary - `role_map: {"model": "assisstant"}` compiled, and the typo became
+    // *User*, because an unrecognised role folds to User rather than being refused. So a rule could say
+    // "assistant" and mean "user", and nothing anywhere said otherwise.
+    //
+    // Compared against `ChatRole::try_from_str`, which is the same question every reader asks - not a second
+    // list, which would drift from it.
+    {
+        let known = |role: &str| crate::domain::sideml::ChatRole::try_from_str(role).is_some();
+        let mut stated: Vec<&String> = Vec::new();
+        if let Some(wrap) = wrap {
+            stated.extend(wrap.role.as_ref());
+            stated.extend(wrap.role_map.values());
+        }
+        if stated.iter().any(|role| !known(role)) {
+            return Err(inexpressible(
+                "states a role that is not one - an unrecognised role folds to `user`, so the declaration \
+                     would silently mean something other than it says",
+            ));
+        }
+        // A compose's trailing literals are JSON values, so the role is read where it is a string. A
+        // non-string `role` literal is a different defect and is not this check's business.
+        if let Some(compose) = compose
+            && compose.trailing.iter().any(|(member, value)| {
+                member == "role" && value.as_str().is_some_and(|role| !known(role))
+            })
+        {
+            return Err(inexpressible(
+                "states a trailing role that is not one - it would fold to `user`",
+            ));
+        }
+    }
     // **Two declarations must not write the same output member.** A wrap builds its object by inserting in a
     // fixed order - role, literal members, pre-content attachments, the content, post-content attachments -
     // and every insert *overwrites*. So `{"role": "user", "members": {"role": "assistant"},
