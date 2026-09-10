@@ -3146,6 +3146,34 @@ fn all_readings(
 /// The nodes are **borrowed from the value queried**, which is the property the whole choice rests on:
 /// cloning one out keeps the provider's member order. See
 /// `the_selection_language_behaves_as_the_engine_assumes`.
+/// One match of a path used in a **singular** role, reporting when the payload offered more than one.
+///
+/// Fifteen sites take `query(...).into_iter().next()`, and a JSONPath is plural by nature: `$.*` matches every
+/// member, so `elements.select: "$.*"` reads the *first* array of several and the others are gone with nothing
+/// said. The same silent-first rule reaches a grouped `collect`, a `tag_from`, the indexed projections and
+/// several constructors.
+///
+/// Behaviour is unchanged deliberately: which of those sites a real payload makes ambiguous is not something to
+/// guess at, and a strict "at most one" refusal applied blind would reject shapes the corpus may depend on. What
+/// this changes is that the ambiguity is **reported**, which turns the question into a measurement. An author who
+/// means the first can say `[0]`; the strict roles come after there is evidence about which sites need them.
+fn singular<'v>(
+    value: &'v JsonValue,
+    path: &serde_json_path::JsonPath,
+    role: &str,
+) -> Option<&'v JsonValue> {
+    let matched = query(value, path);
+    if matched.len() > 1 {
+        tracing::debug!(
+            target: "sideseat::rules",
+            role,
+            matches = matched.len(),
+            "a path used in a singular role matched more than once; the first is taken"
+        );
+    }
+    matched.into_iter().next()
+}
+
 pub(super) fn query<'v>(
     value: &'v JsonValue,
     path: &serde_json_path::JsonPath,
@@ -3219,7 +3247,7 @@ fn readings(
                 match alternative
                     .then_present_any_of
                     .iter()
-                    .find_map(|path| query(element, path).into_iter().next())
+                    .find_map(|path| singular(element, path, "then_present_any_of"))
                     // A wrapper *is* a list. A present member that is not one has not declared its
                     // contents, so the element is not this shape - the same answer as the member being
                     // absent, which is what the retired code did by requiring the member to be an array.
@@ -3509,7 +3537,7 @@ fn indexed_entries(
         match entry_value {
             Some(path) => {
                 let assembled = JsonValue::Object(object);
-                if let Some(found) = query(&assembled, path).into_iter().next() {
+                if let Some(found) = singular(&assembled, path, "compose require_after") {
                     // A declared parse mode decides what a malformed payload means. Without it the member
                     // has already been sniffed to a string, and emitting that string as a tool definition
                     // reports junk where the retired code reported nothing.
@@ -3558,7 +3586,7 @@ fn counterpart_list(
     let list = overlay
         .select_any_of
         .iter()
-        .find_map(|path| query(&parsed, path).into_iter().next()?.as_array())?;
+        .find_map(|path| singular(&parsed, path, "overlay select_any_of")?.as_array())?;
     // A batch of exactly one conversation: its single member is the list of messages. Not a mixed or
     // longer list - two batches are two conversations, and the witness below decides whether whatever is
     // left is this dialect's own serialisation.
@@ -3585,7 +3613,7 @@ fn counterpart_content(
     let found = overlay
         .content_any_of
         .iter()
-        .find_map(|path| query(counterparts?.get(index)?, path).into_iter().next())?;
+        .find_map(|path| singular(counterparts?.get(index)?, path, "overlay content_any_of"))?;
     predicates_hold(found, &overlay.require).then(|| found.clone())
 }
 
@@ -3679,7 +3707,7 @@ fn wrapped(
     let role = wrap
         .role_from
         .as_ref()
-        .and_then(|path| query(&value, path).into_iter().next())
+        .and_then(|path| singular(&value, path, "wrap role_from"))
         .and_then(JsonValue::as_str)
         .and_then(|found| match wrap.role_map.get(found) {
             Some(mapped) => Some(mapped.clone()),
@@ -3696,7 +3724,7 @@ fn wrapped(
         // different member each time.
         match content_paths
             .iter()
-            .find_map(|path| query(&value, path).into_iter().next())
+            .find_map(|path| singular(&value, path, "wrap content_from_any_of"))
         {
             Some(found) => found.clone(),
             None => match &wrap.content_default {
@@ -3718,7 +3746,7 @@ fn wrapped(
     let value = match &wrap.prepend_block {
         Some(spec) => {
             match subject
-                .and_then(|s| query(s, &spec.from).into_iter().next())
+                .and_then(|s| singular(s, &spec.from, "block from"))
                 .filter(|found| predicates_hold(found, &spec.require))
             {
                 Some(found) => {
@@ -3824,9 +3852,9 @@ fn canonical_tool_calls(
     let mut invalid = 0;
     for call in query(subject, &spec.select) {
         let built = (|| {
-            let id = query(call, &spec.id).into_iter().next()?.as_str()?;
-            let name = query(call, &spec.name).into_iter().next()?.as_str()?;
-            let arguments = match query(call, &spec.arguments).into_iter().next() {
+            let id = singular(call, &spec.id, "tool call id")?.as_str()?;
+            let name = singular(call, &spec.name, "tool call name")?.as_str()?;
+            let arguments = match singular(call, &spec.arguments, "tool call arguments") {
                 Some(found) => match found.as_str() {
                     Some(text) => serde_json::from_str(text).unwrap_or(json!(text)),
                     None => found.clone(),
@@ -3908,7 +3936,7 @@ fn attached_value(
             attach
                 .from_value_any_of
                 .iter()
-                .find_map(|path| query(subject, path).into_iter().next())
+                .find_map(|path| singular(subject, path, "attach from_value_any_of"))
         });
         if let Some(found) = found {
             if !predicates_hold(found, &attach.require) {
@@ -3936,7 +3964,8 @@ fn attached_value(
         // span-name fallback *and* the `default`, while an absent `from_value_any_of` fell through to exactly
         // those. One member, two source forms, two different answers to "nothing here": the asymmetry was in
         // the code rather than in anything declared.
-        if let Some(found) = payload.and_then(|payload| query(payload, path).into_iter().next()) {
+        if let Some(found) = payload.and_then(|payload| singular(payload, path, "attach from_path"))
+        {
             if !predicates_hold(found, &attach.require) {
                 return None;
             }
@@ -4585,7 +4614,7 @@ fn predicate_holds(value: &JsonValue, predicate: &ValuePredicate) -> bool {
         }
     }
     let Some(subject) = (match &predicate.path {
-        Some(path) => query(value, path).into_iter().next(),
+        Some(path) => singular(value, path, "reading select"),
         None => Some(value),
     }) else {
         // Absent. Only a predicate asserting absence is satisfied - or one asserting the value is not in a
@@ -4706,7 +4735,7 @@ fn element_passes(
     spec: &ElementsSpec,
 ) -> Vec<(String, JsonValue, Vec<Vec<String>>)> {
     let array = match &spec.select {
-        Some(path) => query(parsed, path).into_iter().next(),
+        Some(path) => singular(parsed, path, "elements select"),
         None => Some(parsed),
     };
     let Some(items) = array.and_then(JsonValue::as_array) else {
@@ -4783,7 +4812,7 @@ fn element_passes(
                         continue;
                     };
                     let key = matched.value.clone();
-                    let Some(part) = query(element, &group.collect).into_iter().next() else {
+                    let Some(part) = singular(element, &group.collect, "group collect") else {
                         flush(
                             run_key.take(),
                             std::mem::take(&mut run_cases),

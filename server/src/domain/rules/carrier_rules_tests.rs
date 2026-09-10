@@ -7238,3 +7238,63 @@ fn a_rules_work_is_bounded_by_the_server() {
     let ctx = MessageContext::for_span("span", &attrs, false);
     assert_eq!(plan.run(&ctx).len(), 2);
 }
+
+/// A path used in a **singular** role reports when the payload offered more than one match.
+///
+/// A JSONPath is plural by nature: `$.*` matches every member, so `elements.select: "$.*"` reads the *first*
+/// array of several and the others are gone with nothing said. Fifteen sites took
+/// `query(...).into_iter().next()`, and the same silent-first rule reaches a grouped `collect`, a `tag_from`,
+/// the indexed projections and several constructors.
+///
+/// Behaviour is unchanged deliberately. Which of those sites a real payload makes ambiguous is not something to
+/// guess at, and a strict "at most one" refusal applied blind would reject shapes the corpus may depend on - so
+/// this makes the ambiguity **reported**, which turns the question into a measurement, and the strict roles come
+/// after there is evidence about which sites need them. An author who means the first can write `[0]`.
+///
+/// What the test pins is that the first match is still the answer, since that is the property a strict role
+/// would later change and it must be a deliberate change rather than a drift.
+#[test]
+fn a_singular_path_takes_the_first_match_and_says_when_there_were_more() {
+    use crate::domain::rules::message_rules::{MessageContext, compile};
+
+    let plan = compile(&std::collections::BTreeMap::from([(
+        "t.json".to_string(),
+        br#"{"id":"t","messages":[{"id":"t.e","read":{"attribute":"x"},"parse":"json",
+             "emit":"message","legacy_rank":1,
+             "elements":{"select":"$.*","passes":[{"id":"named","tag_from":"$['event.name']"}]}}]}"#
+            .to_vec(),
+    )]))
+    .expect("the probe compiles");
+
+    // Codex's shape: two arrays under one object, and `$.*` matches both.
+    let attrs = std::collections::HashMap::from([(
+        "x".to_string(),
+        r#"{"a":[{"event.name":"first"}],"b":[{"event.name":"second"}]}"#.to_string(),
+    )]);
+    let ctx = MessageContext::for_span("span", &attrs, false);
+    let tags: Vec<String> = plan
+        .run(&ctx)
+        .iter()
+        .map(|e| e.carrier.name().to_string())
+        .collect();
+    assert_eq!(
+        tags,
+        ["first".to_string()],
+        "the first array is read and the second is not - which is the behaviour, reported now rather than \
+         silent"
+    );
+
+    // One array is unambiguous, and answers the same way.
+    let attrs = std::collections::HashMap::from([(
+        "x".to_string(),
+        r#"{"a":[{"event.name":"only"}]}"#.to_string(),
+    )]);
+    let ctx = MessageContext::for_span("span", &attrs, false);
+    assert_eq!(
+        plan.run(&ctx)
+            .iter()
+            .map(|e| e.carrier.name().to_string())
+            .collect::<Vec<_>>(),
+        ["only".to_string()]
+    );
+}
