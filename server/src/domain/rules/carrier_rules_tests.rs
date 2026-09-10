@@ -7145,3 +7145,96 @@ fn metadata_contends_on_the_axis_it_emits_on() {
     )
     .expect("one carrier holding a conversation and the tools it was offered is two statements");
 }
+
+/// A rule's work is bounded by this server, not only by what an asset declares.
+///
+/// A rule states how *deep* to descend, which is semantics - the shape of the state object a framework writes.
+/// Within that depth a payload nests as widely as it likes and every node is evaluated, so the declared depth
+/// bounds nothing; the 64 MiB body limit does not either, because the cost is in the evaluation rather than the
+/// bytes. And a rule reading an array emits one observation per element, so a payload of a hundred thousand
+/// elements is a hundred thousand messages from one span.
+///
+/// Server policy rather than a declaration, deliberately: a ceiling an asset could raise would not be a ceiling.
+#[test]
+fn a_rules_work_is_bounded_by_the_server() {
+    use crate::core::constants::{RULE_MAX_EMISSIONS_PER_CARRIER, RULE_WALK_MAX_NODES};
+    use crate::domain::rules::message_rules::{MessageContext, compile};
+
+    // A wide payload inside a shallow declared depth: 20,000 sibling objects at depth 1, well past the node
+    // ceiling, with a walk that would otherwise visit every one.
+    let plan = compile(&std::collections::BTreeMap::from([(
+        "t.json".to_string(),
+        br#"{"id":"t","messages":[{"id":"t.w","read":{"attribute":"state"},"parse":"json",
+             "emit":"message","legacy_rank":1,"walk":{"max_depth":3,"stop_on":["as_message"]},
+             "also":[{"id":"as_message","require":{"all":[{"path":"$.role"},{"path":"$.content"}]},
+               "wrap":{"role_from":"$.role","content_from_any_of":["$.content"]}}]}]}"#
+            .to_vec(),
+    )]))
+    .expect("the probe compiles");
+    // **Message-shaped members**, so the number of nodes visited is observable in the answer. With members
+    // that match nothing, "no more emissions than the ceiling" holds at zero and the assertion cannot tell a
+    // bounded walk from an unbounded one - which is how my first version of this test passed with the ceiling
+    // disabled.
+    let wide: serde_json::Map<String, serde_json::Value> = (0..20_000)
+        .map(|i| {
+            (
+                format!("m{i}"),
+                serde_json::json!({"role": "user", "content": format!("turn {i}")}),
+            )
+        })
+        .collect();
+    let attrs = std::collections::HashMap::from([(
+        "state".to_string(),
+        serde_json::Value::Object(wide).to_string(),
+    )]);
+    let started = std::time::Instant::now();
+    let ctx = MessageContext::for_span("span", &attrs, false);
+    let emitted = plan.run(&ctx).len();
+    let elapsed = started.elapsed();
+    assert!(
+        emitted <= RULE_WALK_MAX_NODES,
+        "the walk visited more nodes than the ceiling allows: {emitted} emissions"
+    );
+    assert!(
+        emitted > 100,
+        "and it visited a useful number of them before stopping - a ceiling that stops at once is a ban: \
+         {emitted}"
+    );
+    assert!(
+        elapsed < std::time::Duration::from_secs(10),
+        "a wide payload inside a shallow depth took {elapsed:?} - the ceiling is what bounds this, since the \
+         declared depth does not"
+    );
+
+    // An array of one carrier: one observation per element, capped and reported.
+    let plan = compile(&std::collections::BTreeMap::from([(
+        "t.json".to_string(),
+        br#"{"id":"t","messages":[{"id":"t.each","read":{"attribute":"turns"},"parse":"json",
+             "emit":"message","legacy_rank":1,
+             "alternatives":[{"id":"every","select":"$[*]",
+               "wrap":{"role":"user","content_from_any_of":["$.text"]}}]}]}"#
+            .to_vec(),
+    )]))
+    .expect("the probe compiles");
+    let many: Vec<serde_json::Value> = (0..RULE_MAX_EMISSIONS_PER_CARRIER + 500)
+        .map(|i| serde_json::json!({"text": format!("turn {i}")}))
+        .collect();
+    let attrs = std::collections::HashMap::from([(
+        "turns".to_string(),
+        serde_json::Value::Array(many).to_string(),
+    )]);
+    let ctx = MessageContext::for_span("span", &attrs, false);
+    assert_eq!(
+        plan.run(&ctx).len(),
+        RULE_MAX_EMISSIONS_PER_CARRIER,
+        "one carrier reports at most this many observations"
+    );
+
+    // And an ordinary payload is untouched, or the ceilings are a ban on reading arrays.
+    let attrs = std::collections::HashMap::from([(
+        "turns".to_string(),
+        serde_json::json!([{"text": "one"}, {"text": "two"}]).to_string(),
+    )]);
+    let ctx = MessageContext::for_span("span", &attrs, false);
+    assert_eq!(plan.run(&ctx).len(), 2);
+}

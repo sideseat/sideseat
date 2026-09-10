@@ -4533,7 +4533,25 @@ fn emit_rule<'p>(rule: &'p CompiledMessageRule, ctx: &MessageContext<'_>) -> Vec
     }
     // Already built: an envelope that could not be made was a reading that produced nothing, decided inside
     // the coalesce so the alternatives after it and the rule's `fallback` still got their turn.
-    for (value, per_reading_target, clause) in readings {
+    //
+    // **Capped**, for the reason the walk is: a rule reading an array emits one observation per element, so a
+    // payload holding a hundred thousand elements is a hundred thousand messages from one span - which no
+    // producer means and no reader can use. Server policy rather than a declaration, and reported so a truncated
+    // answer is not mistaken for a complete one.
+    if readings.len() > crate::core::constants::RULE_MAX_EMISSIONS_PER_CARRIER {
+        tracing::warn!(
+            target: "sideseat::rules",
+            rule = %rule.rule_id,
+            carrier = %attribute,
+            found = readings.len(),
+            limit = crate::core::constants::RULE_MAX_EMISSIONS_PER_CARRIER,
+            "a carrier yielded more observations than this server reports from one; the rest are dropped"
+        );
+    }
+    for (value, per_reading_target, clause) in readings
+        .into_iter()
+        .take(crate::core::constants::RULE_MAX_EMISSIONS_PER_CARRIER)
+    {
         out.push(Emission {
             rule_id: &rule.rule_id,
             evidence: rule_evidence(rule, std::slice::from_ref(&clause)),
@@ -4922,7 +4940,27 @@ fn walked_readings(
 ) -> Vec<Reading> {
     let mut out = Vec::new();
     let mut stack = vec![(root, walk.max_depth)];
+    // **Work is bounded, not just depth.** A rule declares how deep to descend, which is semantics - the shape
+    // of the state object a framework writes. How much work that may cost against an adversarial payload is
+    // this server's business, and a ceiling an asset could raise would not be a ceiling. Within a declared depth
+    // a payload nests as widely as it likes and every node is evaluated, so the depth alone bounds nothing; the
+    // 64 MiB body limit does not either, because the cost is in the evaluation rather than the bytes.
+    let mut visited = 0usize;
     while let Some((node, depth)) = stack.pop() {
+        visited += 1;
+        if visited > crate::core::constants::RULE_WALK_MAX_NODES {
+            // Reported and **stopped**, rather than returning whatever was gathered: a truncated walk is a
+            // partial answer that looks like a complete one, which is the class of defect this review keeps
+            // finding. What has been read is still returned, because discarding it would lose messages a
+            // producer really sent - so the loss is stated here rather than hidden either way.
+            tracing::warn!(
+                target: "sideseat::rules",
+                rule = %rule.rule_id,
+                limit = crate::core::constants::RULE_WALK_MAX_NODES,
+                "a rule's walk reached this server's node ceiling; the rest of the payload was not visited"
+            );
+            break;
+        }
         // **One pass, two answers.** Whether to descend is a question about the *payload's shape* - "this node
         // is the message, do not read its parts as turns" - while whether an envelope can be built is about the
         // declaration, so a clause whose construction failed still means the node is that shape. Deciding the

@@ -196,6 +196,27 @@ pub const OTLP_BODY_LIMIT: usize = 64 * 1024 * 1024;
 pub const AUTH_BODY_LIMIT: usize = 64 * 1024;
 
 // =============================================================================
+// Rule engine work ceilings
+// =============================================================================
+
+/// How many nodes one rule's bounded walk may visit on one span.
+///
+/// **Server policy, not a declaration.** A rule states how *deep* to descend, which is semantics - the shape
+/// of the state object a framework writes. How much work that may cost against an adversarial payload is a
+/// property of this server, and a limit an asset could raise would not be a limit.
+///
+/// The declared depth alone does not bound the work: a payload nests as widely as it likes within it, and every
+/// node is evaluated. The 64 MiB OTLP body limit is not a useful bound either, since the cost is in the
+/// evaluation rather than the bytes.
+pub const RULE_WALK_MAX_NODES: usize = 4_096;
+
+/// How many observations one rule may produce from one span's carrier.
+///
+/// A rule reading an array emits one observation per element, so a payload holding a hundred thousand elements
+/// is a hundred thousand messages from one span - which no producer means and no reader can use.
+pub const RULE_MAX_EMISSIONS_PER_CARRIER: usize = 8_192;
+
+// =============================================================================
 // Topic Names
 // =============================================================================
 
