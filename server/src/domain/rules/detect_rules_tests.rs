@@ -16,11 +16,22 @@ fn attrs(pairs: &[(&str, &str)]) -> HashMap<String, String> {
 #[test]
 fn the_detection_plan_holds_every_rule() {
     let plan = &ruleset().detect;
+    // 28 producers, 29 compiled rules: one producer declares its **self-identification** as a separately ranked
+    // alternative, because the predicates in one `match` are independently sufficient and its three signals
+    // differ in strength - a defaulted `service.name` has to be ranked last, which put `gen_ai.system` there too.
     assert_eq!(
         plan.rule_count(),
-        28,
-        "the assets declare {} detection rules; the table they replaced had 28",
+        29,
+        "the assets declare {} detection rules; the table they replaced had 28, plus one ranked alternative",
         plan.rule_count()
+    );
+    assert_eq!(
+        plan.rules()
+            .map(|rule| rule.label.as_str())
+            .collect::<std::collections::BTreeSet<_>>()
+            .len(),
+        28,
+        "an alternative is further evidence for a label, not a label of its own"
     );
     assert_eq!(
         plan.slug_count(),
@@ -298,4 +309,87 @@ fn an_exact_span_name_does_not_claim_names_that_merely_start_with_it() {
         Some("LangGraph"),
         "a span whose name merely starts with those letters is not this producer's"
     );
+}
+
+/// A producer naming **itself** outranks a convention namespace, because they are separately ranked.
+///
+/// The predicates in one `match` are independently sufficient, so one rank has to be placed for the *weakest* of
+/// them. Strands' weakest is a `service.name` the SideSeat SDK defaults, which must be ranked last or it claims
+/// every framework using the SDK - and that put `gen_ai.system: "strands-agents"`, the strongest evidence there
+/// is, behind `openinference.`. A Strands span carrying any OpenInference attribute was labelled OpenInference.
+///
+/// Not reachable from the captured corpus: only one `_synthetic` span carries an `openinference.*` attribute and
+/// none carries both, so this is a shape the format could not express rather than a measured mislabelling.
+#[test]
+fn a_producer_naming_itself_outranks_a_convention_namespace() {
+    let plan = &ruleset().detect;
+    let label = |span: &str, pairs: &[(&str, &str)], resource: &[(&str, &str)]| {
+        plan.resolve(&DetectContext {
+            span_name: span,
+            span_attrs: &attrs(pairs),
+            resource_attrs: &attrs(resource),
+        })
+        .map(|found| found.label.to_string())
+    };
+
+    assert_eq!(
+        label("chat", &[("gen_ai.system", "strands-agents")], &[]).as_deref(),
+        Some("StrandsAgents")
+    );
+    assert_eq!(
+        label(
+            "chat",
+            &[
+                ("gen_ai.system", "strands-agents"),
+                ("openinference.span.kind", "LLM"),
+            ],
+            &[],
+        )
+        .as_deref(),
+        Some("StrandsAgents"),
+        "the producer named itself; a convention namespace says which conventions it used, not who it is"
+    );
+    // The convention alone still answers, or the alternative would have taken its rule's place rather than
+    // sitting beside it.
+    assert_eq!(
+        label("chat", &[("openinference.span.kind", "LLM")], &[]).as_deref(),
+        Some("OpenInference")
+    );
+    // And the weak signal stays where it has to be: it is still ranked behind every framework that uses the SDK,
+    // which is the whole reason the two could not share a rank.
+    assert_eq!(
+        label(
+            "chat",
+            &[("openinference.span.kind", "LLM")],
+            &[("service.name", "strands-agents")],
+        )
+        .as_deref(),
+        Some("OpenInference"),
+        "a defaulted service name must not outrank a convention the span actually carries"
+    );
+}
+
+/// A `service.name` is matched by substring, deliberately, and the equality arm beside it was dead.
+///
+/// The breadth is intended: a user names their own service and the SDK's name sits inside it. Narrowing this to
+/// equality was tried - the captured corpus cannot see the difference, since every `service.name` in it that
+/// matches a declared literal matches exactly - and two unit tests are the evidence that it is wrong.
+#[test]
+fn a_service_name_identifies_a_producer_by_substring() {
+    let plan = &ruleset().detect;
+    let label = |service: &str| {
+        plan.resolve(&DetectContext {
+            span_name: "chat",
+            span_attrs: &attrs(&[]),
+            resource_attrs: &attrs(&[("service.name", service)]),
+        })
+        .map(|found| found.label.to_string())
+    };
+    assert_eq!(label("openai-agents").as_deref(), Some("OpenAIAgents"));
+    assert_eq!(
+        label("my-app-openai-agents-v1").as_deref(),
+        Some("OpenAIAgents"),
+        "a user's own service name holding the SDK's identifies it"
+    );
+    assert_eq!(label("my-app").as_deref(), None);
 }

@@ -587,6 +587,35 @@ pub struct DetectRule {
     pub supersedes: Vec<String>,
     #[serde(rename = "match")]
     pub match_spec: DetectMatch,
+    /// Further evidence for the same label, each at its **own** rank.
+    ///
+    /// The predicates inside one `match` are independently sufficient, so a rule whose signals differ in
+    /// *strength* cannot be ordered by one number. Strands states `gen_ai.system: "strands-agents"` - a producer
+    /// naming itself, the strongest evidence there is - beside a `service.name` the SDK defaults and a phrase in
+    /// a span name. One rank for all three has to be placed for the weakest, which put the self-identification
+    /// behind `openinference.`: a Strands span carrying any OpenInference attribute was labelled OpenInference,
+    /// and moving the whole rule earlier would instead let its defaulted service name claim every framework using
+    /// the SDK.
+    ///
+    /// Each alternative is compiled into its own ordered rule with the same label, so resolution is unchanged -
+    /// what changes is that a rule can place its strong evidence and its weak evidence separately. An explicit
+    /// `id` per alternative rather than one synthesized from the rule's, for the reason every other clause here
+    /// has one: a synthesized id is not an identity a declaration can be held to.
+    #[serde(default)]
+    pub alternatives: Vec<DetectAlternative>,
+}
+
+/// One further body of evidence for a rule's label, at its own rank.
+#[derive(Debug, Deserialize, Clone)]
+#[serde(deny_unknown_fields)]
+pub struct DetectAlternative {
+    pub id: String,
+    #[serde(default)]
+    pub doc: Option<String>,
+    #[serde(rename = "legacy_rank")]
+    pub legacy_rank: i32,
+    #[serde(rename = "match")]
+    pub match_spec: DetectMatch,
 }
 
 /// One SDK-declared slug and the label it resolves to.
@@ -672,10 +701,20 @@ pub struct DetectMatch {
     /// Any of these span attribute keys exists.
     #[serde(default)]
     pub attr_exists: Vec<String>,
-    /// The resource's `service.name` equals or *contains* any of these.
+    /// The resource's `service.name` **contains** any of these.
     ///
-    /// A substring test, which is why no rule may identify a framework by a short common word: `agno`
-    /// would also match a service called `diagnostics`.
+    /// A substring test, which is why no rule may identify a framework by a short common word: `agno` would also
+    /// match a service called `diagnostics`.
+    ///
+    /// It read `equals || contains`, and the equality arm was dead - a substring match subsumes its own equality.
+    /// Narrowing the whole dimension to equality was tried and is **wrong**: the breadth is deliberate. A user
+    /// names their own service, and `my-app-openai-agents-v1` identifies the SDK inside it
+    /// (`test_openai_agents_framework_detection_from_service_name_contains`). Every `service.name` in the captured
+    /// corpus that matches a declared literal happens to match it exactly, so the corpus cannot see this - which
+    /// is what makes those two unit tests the evidence.
+    ///
+    /// The cost is real and accepted: a service called `my-strands-agents-proxy` is attributed to Strands. Telling
+    /// that from `my-app-openai-agents-v1` needs evidence a resource attribute does not carry.
     #[serde(default)]
     pub service_name: Vec<String>,
     /// A *span* attribute contains this substring.

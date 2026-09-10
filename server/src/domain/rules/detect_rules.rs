@@ -192,32 +192,36 @@ pub fn compile(sources: &BTreeMap<String, Vec<u8>>) -> Result<DetectPlan, Detect
                 });
             }
         }
-        for rule in &file.detect {
-            if seen_ids.insert(rule.id.clone(), ()).is_some() {
-                return Err(DetectCompileError::DuplicateRuleId {
-                    rule: rule.id.clone(),
-                });
-            }
-            if rule.id.is_empty() || rule.label.is_empty() {
+        // One body of evidence - a rule's own `match`, or one of its `alternatives` - validated and compiled the
+        // same way. Extracted so an alternative cannot get a weaker check than the primary: every refusal below
+        // used to sit inline in a loop over rules, and an alternative added beside it would have skipped all of
+        // them.
+        let compile_one = |id: &str,
+                           doc: Option<String>,
+                           legacy_rank: i32,
+                           label: &str,
+                           supersedes: Vec<String>,
+                           spec: &DetectMatch|
+         -> Result<CompiledDetect, DetectCompileError> {
+            if id.is_empty() || label.is_empty() {
                 return Err(DetectCompileError::EmptyLiteral {
-                    rule: rule.id.clone(),
+                    rule: id.to_string(),
                     dimension: "id/label",
                 });
             }
-            if !has_signal(&rule.match_spec) {
+            if !has_signal(spec) {
                 return Err(DetectCompileError::NoSignal {
-                    rule: rule.id.clone(),
+                    rule: id.to_string(),
                 });
             }
             // Through the shared atom validator, not a copy of it: the two had drifted in both directions.
-            let spec = &rule.match_spec;
             if let Some(defect) = atom_literal_defect(spec) {
                 // The variant a caller's own diagnostic wants: detection has a dedicated error for an
                 // unreadable phrase source, and collapsing every defect into one variant made that
                 // diagnostic worse than it was.
                 return Err(match defect {
                     AtomDefect::BadTextSource(source) => DetectCompileError::BadTextSource {
-                        rule: rule.id.clone(),
+                        rule: id.to_string(),
                         source,
                     },
                     // Names the two literals, because "a literal is subsumed" without saying which two sends
@@ -227,13 +231,13 @@ pub fn compile(sources: &BTreeMap<String, Vec<u8>>) -> Result<DetectPlan, Detect
                         dead,
                         covering,
                     } => DetectCompileError::SubsumedLiteral {
-                        rule: rule.id.clone(),
+                        rule: id.to_string(),
                         dimension,
                         dead,
                         covering,
                     },
                     other => DetectCompileError::EmptyLiteral {
-                        rule: rule.id.clone(),
+                        rule: id.to_string(),
                         dimension: other.dimension(),
                     },
                 });
@@ -243,7 +247,7 @@ pub fn compile(sources: &BTreeMap<String, Vec<u8>>) -> Result<DetectPlan, Detect
                 sources,
                 needles: n,
                 first_present_source: _,
-            }) = &rule.match_spec.text_contains
+            }) = &spec.text_contains
             {
                 for source in sources {
                     if source == "span_name" {
@@ -252,30 +256,60 @@ pub fn compile(sources: &BTreeMap<String, Vec<u8>>) -> Result<DetectPlan, Detect
                         attr_keys.push(key.to_string());
                     } else {
                         return Err(DetectCompileError::BadTextSource {
-                            rule: rule.id.clone(),
+                            rule: id.to_string(),
                             source: source.clone(),
                         });
                     }
                 }
                 needles = n.iter().map(|s| s.to_lowercase()).collect();
             }
-            rules.push(CompiledDetect {
+            Ok(CompiledDetect {
                 rule_file: file.id.clone(),
-                rule_id: rule.id.clone(),
-                doc: rule.doc.clone(),
-                label: rule.label.clone(),
-                legacy_rank: rule.legacy_rank,
-                supersedes: rule.supersedes.clone(),
-                match_spec: rule.match_spec.clone(),
+                rule_id: id.to_string(),
+                doc,
+                label: label.to_string(),
+                legacy_rank,
+                supersedes,
+                match_spec: spec.clone(),
                 span_name_is_a_text_source: span_source,
                 text_attribute_keys: attr_keys,
                 text_needles_lowered: needles,
-                text_first_present_source: rule
-                    .match_spec
+                text_first_present_source: spec
                     .text_contains
                     .as_ref()
                     .is_some_and(|t| t.first_present_source),
-            });
+            })
+        };
+
+        for rule in &file.detect {
+            // Every id, the rule's and its alternatives', in one namespace: they are all rules once compiled, and
+            // a diagnostic naming one has to identify it.
+            for id in std::iter::once(&rule.id).chain(rule.alternatives.iter().map(|alt| &alt.id)) {
+                if seen_ids.insert(id.clone(), ()).is_some() {
+                    return Err(DetectCompileError::DuplicateRuleId { rule: id.clone() });
+                }
+            }
+            rules.push(compile_one(
+                &rule.id,
+                rule.doc.clone(),
+                rule.legacy_rank,
+                &rule.label,
+                rule.supersedes.clone(),
+                &rule.match_spec,
+            )?);
+            for alternative in &rule.alternatives {
+                // The label and the overlap edges are the *rule's*, not the alternative's: an alternative is
+                // further evidence for one producer, so declaring its own label would make it a separate rule
+                // wearing a rule's id.
+                rules.push(compile_one(
+                    &alternative.id,
+                    alternative.doc.clone(),
+                    alternative.legacy_rank,
+                    &rule.label,
+                    rule.supersedes.clone(),
+                    &alternative.match_spec,
+                )?);
+            }
         }
     }
 
@@ -711,10 +745,13 @@ impl CompiledDetect {
         }
         if !spec.service_name.is_empty()
             && let Some(service) = ctx.resource_attrs.get(super::SERVICE_NAME_KEY)
+            // Substring, and the equality arm this used to have beside it was dead: `contains` subsumes its own
+            // equality. The breadth is deliberate - `my-app-openai-agents-v1` is a service a user names themselves
+            // and it identifies the SDK.
             && spec
                 .service_name
                 .iter()
-                .any(|s| service == s || service.contains(s.as_str()))
+                .any(|declared| service.contains(declared.as_str()))
         {
             return true;
         }

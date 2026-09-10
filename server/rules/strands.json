@@ -17,19 +17,9 @@
   "detect": [
     {
       "id": "strands.detect",
-      "doc": "LAST, and the rank is the whole point: the SideSeat SDK defaults service.name to `strands-agents`, so this rule's service-name signal would otherwise claim every span of every framework using the SDK. The phrase search covers the three spellings a name may use and was a Rust matcher.",
+      "doc": "The **weak** evidence, and its rank is the whole point: the SideSeat SDK defaults service.name to `strands-agents`, so this rule's service-name signal would otherwise claim every span of every framework using the SDK. The phrase search covers the three spellings a name may use and was a Rust matcher. The producer's own self-identification is a separate alternative at its own rank, because one rank for signals of different strength has to be placed for the weakest of them.",
       "label": "StrandsAgents",
       "match": {
-        "attr_equals": [
-          {
-            "key": "gen_ai.system",
-            "value": "strands-agents"
-          },
-          {
-            "key": "gen_ai.provider.name",
-            "value": "strands-agents"
-          }
-        ],
         "service_name": [
           "strands-agents"
         ],
@@ -45,7 +35,26 @@
           ]
         }
       },
-      "legacy_rank": 280
+      "legacy_rank": 280,
+      "alternatives": [
+        {
+          "id": "strands.detect.self_identified",
+          "doc": "The producer naming **itself**, which is the strongest evidence there is - and at rank 280 it sat behind `openinference.`, so a Strands span carrying any OpenInference attribute was labelled OpenInference. Placed immediately before that rule and nowhere earlier: moving the whole rule up would have taken the defaulted service name with it, and every other relative order is deliberately unchanged.",
+          "legacy_rank": 135,
+          "match": {
+            "attr_equals": [
+              {
+                "key": "gen_ai.system",
+                "value": "strands-agents"
+              },
+              {
+                "key": "gen_ai.provider.name",
+                "value": "strands-agents"
+              }
+            ]
+          }
+        }
+      ]
     }
   ],
   "sdk_slugs": [
