@@ -538,6 +538,24 @@ fn compile_rule(
             ));
         }
     }
+    // **A closed role map must say what an unmapped value means.** Closedness is enforced - an unlisted value
+    // is discarded, which is the point - but with no literal fallback the message is emitted with **no role**,
+    // and normalisation then infers one from unrelated payload members: Assistant if the message happens to
+    // carry tool calls, User otherwise. So an unknown speaker's meaning came from whether the turn used a tool.
+    //
+    // The fallback is `wrap.role`, which every shipped closed map already declares - so this is a gate rather
+    // than a migration. Reporting the unmapped *value* is the other half and waits for the outcome algebra: it
+    // wants a recovered role carrying an unknown-role defect, which is exactly the shape a sum type cannot hold.
+    if let Some(wrap) = wrap
+        && wrap.role_map_is_closed
+        && wrap.role.is_none()
+    {
+        return Err(inexpressible(
+            "closes its `role_map` and states no `role` to fall back on - an unmapped value then leaves the \
+                 message with no role at all, and normalisation infers one from unrelated members of the \
+                 payload",
+        ));
+    }
     // **A role a rule states must be a role.** `role`, every `role_map` output, and `trailing`'s role literal
     // are compared against the vocabulary - `role_map: {"model": "assisstant"}` compiled, and the typo became
     // *User*, because an unrecognised role folds to User rather than being refused. So a rule could say

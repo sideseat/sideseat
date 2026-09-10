@@ -7589,3 +7589,65 @@ fn a_role_a_rule_states_must_be_a_role() {
         "a compose's trailing role folds the same way"
     );
 }
+
+/// A **closed** role map must say what an unmapped value means.
+///
+/// Closedness is enforced - an unlisted value is discarded, which is the point - but with no literal fallback the
+/// message is emitted with **no role**, and normalisation then infers one from unrelated payload members:
+/// Assistant if the message happens to carry tool calls, User otherwise. Codex's case: a speaker called
+/// `"planner"` against `role_map: {"user": "user"}` means whatever the rest of the turn happens to contain.
+///
+/// Every shipped closed map declares the fallback, so this is a gate rather than a migration.
+#[test]
+fn a_closed_role_map_says_what_an_unmapped_value_means() {
+    use crate::domain::rules::message_rules::{MessageContext, compile};
+
+    let asset = |wrap: &str| {
+        let body = format!(
+            r#"{{"id":"t","messages":[{{"id":"t.r","read":{{"attribute":"x"}},"parse":"json",
+                 "emit":"message","legacy_rank":1,"wrap":{wrap}}}]}}"#
+        );
+        compile(&std::collections::BTreeMap::from([(
+            "t.json".to_string(),
+            body.into_bytes(),
+        )]))
+    };
+
+    assert!(
+        asset(r#"{"role_from":"$.speaker","role_map":{"user":"user"},"role_map_is_closed":true}"#)
+            .is_err(),
+        "a closed map with no fallback leaves an unmapped value with no role, and the payload's other members \
+         then decide what it was"
+    );
+
+    // With the fallback - the shape every shipped closed map has - an unmapped value takes it.
+    let plan = asset(
+        r#"{"role_from":"$.speaker","role_map":{"user":"user"},"role_map_is_closed":true,
+             "role":"assistant","content_from_any_of":["$.content"]}"#,
+    )
+    .expect("a closed map with a fallback compiles");
+    let role = |speaker: &str| {
+        let attrs = std::collections::HashMap::from([(
+            "x".to_string(),
+            serde_json::json!({"speaker": speaker, "content": "answer"}).to_string(),
+        )]);
+        let ctx = MessageContext::for_span("span", &attrs, false);
+        plan.run(&ctx)[0].value["role"]
+            .as_str()
+            .unwrap_or_default()
+            .to_string()
+    };
+    assert_eq!(role("user"), "user", "a mapped value is mapped");
+    assert_eq!(
+        role("planner"),
+        "assistant",
+        "and an unmapped one takes the declared fallback rather than being left for the payload to decide"
+    );
+
+    // An **open** map needs no fallback: an unmapped value passes through as the producer wrote it, which is a
+    // different statement and a different defect (cycle 15's finding 3).
+    assert!(
+        asset(r#"{"role_from":"$.speaker","role_map":{"user":"user"}}"#).is_ok(),
+        "closedness is what creates the obligation"
+    );
+}
