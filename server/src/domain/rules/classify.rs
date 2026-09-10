@@ -38,6 +38,11 @@ pub enum ClassifyCompileError {
         result: String,
         allowed: String,
     },
+    /// A rule an earlier rule always satisfies first, so its result is unreachable.
+    #[error(
+        "classification rule `{later}` can never be reached: `{earlier}` is ranked ahead of it and every span `{later}` matches satisfies `{earlier}` too, so `{later}`'s result is unreachable and reads as protection it does not give"
+    )]
+    ShadowedRule { earlier: String, later: String },
     #[error(
         "classification rules `{first}` and `{second}` share rank {rank}, so which answers depends on load order"
     )]
@@ -171,6 +176,29 @@ pub fn compile(
                     second: pair[1].1.rule_id.clone(),
                     rank: pair[0].0,
                 });
+            }
+        }
+    }
+
+    // A rule an earlier one always satisfies first can never answer, and its result is unreachable - the same
+    // defect as a subsumed literal, one level up. Checked *within* a classification, in rank order, since that is
+    // where the precedence lives. Sound rather than complete (see `detect_rules::shadows`): a false refusal breaks
+    // a build for a reason nobody can act on.
+    for rules in [&observation_types, &span_categories] {
+        for (index, (_, earlier)) in rules.iter().enumerate() {
+            for (_, later) in &rules[index + 1..] {
+                let specs = |rule: &CompiledRule| -> Vec<super::schema::DetectMatch> {
+                    rule.all_of
+                        .iter()
+                        .map(|probe| probe.match_spec.clone())
+                        .collect()
+                };
+                if super::detect_rules::shadows(&specs(earlier), &specs(later)) {
+                    return Err(ClassifyCompileError::ShadowedRule {
+                        earlier: earlier.rule_id.clone(),
+                        later: later.rule_id.clone(),
+                    });
+                }
             }
         }
     }

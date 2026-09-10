@@ -73,6 +73,11 @@ pub enum DetectCompileError {
         dead: String,
         covering: String,
     },
+    /// A rule an earlier rule always satisfies first, so it can never be reached.
+    ShadowedRule {
+        earlier: String,
+        later: String,
+    },
     DuplicateRuleId {
         rule: String,
     },
@@ -102,6 +107,12 @@ impl std::fmt::Display for DetectCompileError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Parse { path, message } => write!(f, "{path}: {message}"),
+            Self::ShadowedRule { earlier, later } => write!(
+                f,
+                "rule `{later}` can never be reached: `{earlier}` is ranked ahead of it and every span `{later}` \
+                 matches satisfies `{earlier}` too, so `{later}`'s answer is unreachable and reads as protection \
+                 it does not give"
+            ),
             Self::SubsumedLiteral {
                 rule,
                 dimension,
@@ -367,6 +378,41 @@ pub fn compile(sources: &BTreeMap<String, Vec<u8>>) -> Result<DetectPlan, Detect
         }
     }
 
+    // A rule an earlier one always satisfies first can never answer. The same defect as a subsumed literal, one
+    // level up - and a *detection* rule shadowed this way silently never attributes its producer at all.
+    // Transitive domination, computed here because a rule that **supersedes** its shadower is reachable after all:
+    // `supersedes` orders ahead of rank, so the broader rule loses to it. Without this the refusal rejected exactly
+    // the shape `supersedes` exists for - a narrow rule ranked after the broad one it beats.
+    let beats = |from: &str| -> std::collections::BTreeSet<&str> {
+        let mut out: std::collections::BTreeSet<&str> = std::collections::BTreeSet::new();
+        let mut queue: Vec<&str> = vec![from];
+        while let Some(current) = queue.pop() {
+            let Some(rule) = rules.iter().find(|r| r.rule_id == current) else {
+                continue;
+            };
+            for target in &rule.supersedes {
+                if out.insert(target.as_str()) {
+                    queue.push(target.as_str());
+                }
+            }
+        }
+        out
+    };
+    for (index, earlier) in rules.iter().enumerate() {
+        for later in &rules[index + 1..] {
+            if shadows(
+                std::slice::from_ref(&earlier.match_spec),
+                std::slice::from_ref(&later.match_spec),
+            ) && !beats(later.rule_id.as_str()).contains(earlier.rule_id.as_str())
+            {
+                return Err(DetectCompileError::ShadowedRule {
+                    earlier: earlier.rule_id.clone(),
+                    later: later.rule_id.clone(),
+                });
+            }
+        }
+    }
+
     // Every id some rule claims to beat, so `resolve` keeps its early exit for the rules nothing contests.
     plan.superseded = rules
         .iter()
@@ -481,6 +527,153 @@ enum Subsumption {
     Contains,
     /// Only an identical literal covers - a list of exact matches.
     Equal,
+}
+
+/// One condition a `DetectMatch` states, as the pair a comparison needs.
+///
+/// Flattened so implication between two rules can be asked atom by atom. `text_contains` is deliberately
+/// **omitted**: its `first_present_source` mode searches only the first source that has a value, so whether one
+/// phrase search implies another depends on which attributes a span happens to carry - and a wrong answer here
+/// refuses a legitimate ruleset at build time, which is worse than missing a shadow.
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum Atom<'a> {
+    SpanNamePrefix(&'a str),
+    SpanNameExact(&'a str),
+    AttrPrefix(&'a str),
+    AttrExists(&'a str),
+    ServiceNameContains(&'a str),
+    AttrEquals(&'a str, &'a str),
+    AttrEqualsIgnoreCase(&'a str, &'a str),
+    SpanAttrContains(&'a str, &'a str),
+    ResourceAttrContains(&'a str, &'a str),
+}
+
+impl<'a> Atom<'a> {
+    /// The attribute key this condition is about, where it is about one.
+    fn key(&self) -> Option<&'a str> {
+        match self {
+            Self::AttrExists(key)
+            | Self::AttrEquals(key, _)
+            | Self::AttrEqualsIgnoreCase(key, _)
+            | Self::SpanAttrContains(key, _) => Some(key),
+            _ => None,
+        }
+    }
+
+    /// Whether satisfying `self` necessarily satisfies `other`.
+    ///
+    /// Conservative by construction: every arm is a containment or equality that holds for *every* span, never a
+    /// judgement about which attributes a span carries. Anything not listed answers `false`, so an unrecognised
+    /// pair means "no shadow proven" rather than a refusal nobody can explain.
+    fn implies(&self, other: &Atom<'_>) -> bool {
+        if self == other {
+            return true;
+        }
+        match other {
+            // Anything that reads a key proves the key is there.
+            Atom::AttrExists(key) => self.key() == Some(*key),
+            // A key under a longer prefix is under the shorter one.
+            Atom::AttrPrefix(prefix) => self
+                .key()
+                .or(match self {
+                    Atom::AttrPrefix(mine) => Some(mine),
+                    _ => None,
+                })
+                .is_some_and(|key| key.starts_with(prefix)),
+            Atom::SpanNamePrefix(prefix) => match self {
+                Atom::SpanNameExact(name) | Atom::SpanNamePrefix(name) => name.starts_with(prefix),
+                _ => false,
+            },
+            Atom::AttrEqualsIgnoreCase(key, value) => match self {
+                Atom::AttrEquals(mine, mine_value) => {
+                    mine == key && mine_value.eq_ignore_ascii_case(value)
+                }
+                _ => false,
+            },
+            Atom::ServiceNameContains(needle) => match self {
+                Atom::ServiceNameContains(mine) => mine.contains(needle),
+                _ => false,
+            },
+            Atom::SpanAttrContains(key, needle) => match self {
+                Atom::SpanAttrContains(mine, mine_needle) => {
+                    mine == key && mine_needle.contains(needle)
+                }
+                Atom::AttrEquals(mine, value) => mine == key && value.contains(needle),
+                _ => false,
+            },
+            Atom::ResourceAttrContains(key, needle) => match self {
+                Atom::ResourceAttrContains(mine, mine_needle) => {
+                    mine == key && mine_needle.contains(needle)
+                }
+                _ => false,
+            },
+            _ => false,
+        }
+    }
+}
+
+/// Every condition a match spec states, flattened. `None` where it states one this cannot compare.
+fn atoms_of(spec: &DetectMatch) -> Option<Vec<Atom<'_>>> {
+    if spec.text_contains.is_some() {
+        return None;
+    }
+    let mut out: Vec<Atom<'_>> = Vec::new();
+    out.extend(spec.span_name.iter().map(|s| Atom::SpanNamePrefix(s)));
+    out.extend(spec.span_name_exact.iter().map(|s| Atom::SpanNameExact(s)));
+    out.extend(spec.attr_prefix.iter().map(|s| Atom::AttrPrefix(s)));
+    out.extend(spec.attr_exists.iter().map(|s| Atom::AttrExists(s)));
+    out.extend(
+        spec.service_name
+            .iter()
+            .map(|s| Atom::ServiceNameContains(s)),
+    );
+    out.extend(
+        spec.attr_equals
+            .iter()
+            .map(|kv| Atom::AttrEquals(&kv.key, &kv.value)),
+    );
+    out.extend(
+        spec.attr_equals_ignore_case
+            .iter()
+            .map(|kv| Atom::AttrEqualsIgnoreCase(&kv.key, &kv.value)),
+    );
+    out.extend(
+        spec.span_attr_contains
+            .iter()
+            .map(|kv| Atom::SpanAttrContains(&kv.key, &kv.value)),
+    );
+    out.extend(
+        spec.resource_attr_contains
+            .iter()
+            .map(|kv| Atom::ResourceAttrContains(&kv.key, &kv.value)),
+    );
+    (!out.is_empty()).then_some(out)
+}
+
+/// Whether `later` can never be reached because `earlier` always holds first.
+///
+/// A rule that cannot fire reads as protection it does not give - the same defect as a subsumed literal, one level
+/// up. `earlier` is a single disjunctive set, so it holds if **any** of its conditions does; `later` needs every
+/// one of its conjuncts. So it suffices that *one* conjunct of `later` has all its conditions implying something
+/// in `earlier`: whichever of them a span satisfies, `earlier` was already satisfied by it.
+///
+/// Sound rather than complete, deliberately, in both directions: a multi-conjunct `earlier` is not analysed, a
+/// phrase search on either side is not analysed, and an unrecognised implication answers no. A false refusal
+/// breaks a build for a reason nobody can act on; a missed shadow leaves things as they were.
+pub(super) fn shadows(earlier: &[DetectMatch], later: &[DetectMatch]) -> bool {
+    let [earlier] = earlier else {
+        return false;
+    };
+    let Some(covering) = atoms_of(earlier) else {
+        return false;
+    };
+    later.iter().any(|conjunct| {
+        atoms_of(conjunct).is_some_and(|conditions| {
+            conditions
+                .iter()
+                .all(|condition| covering.iter().any(|target| condition.implies(target)))
+        })
+    })
 }
 
 /// The first literal another in the same list already covers, as `(dead, covering)`.

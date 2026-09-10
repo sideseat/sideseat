@@ -393,3 +393,124 @@ fn a_service_name_identifies_a_producer_by_substring() {
     );
     assert_eq!(label("my-app").as_deref(), None);
 }
+
+/// A rule an earlier rule always satisfies first is refused: its answer can never be reached.
+///
+/// The same defect as a subsumed literal, one level up - and for a *detection* rule it means silently never
+/// attributing its producer at all. Sound rather than complete, deliberately: a false refusal breaks a build for a
+/// reason nobody can act on, so anything the implication relation does not recognise answers "no shadow proven".
+#[test]
+fn a_rule_an_earlier_one_always_satisfies_is_refused() {
+    let compiled = |detect: serde_json::Value| {
+        let asset = serde_json::json!({"id": "t", "doc": "d", "detect": detect});
+        compile(&std::collections::BTreeMap::from([(
+            "t.json".to_string(),
+            serde_json::to_vec(&asset).expect("serialises"),
+        )]))
+    };
+    let shadowed = |detect: serde_json::Value| {
+        matches!(
+            compiled(detect),
+            Err(DetectCompileError::ShadowedRule { .. })
+        )
+    };
+    let rule = |id: &str, rank: i32, spec: serde_json::Value| serde_json::json!({"id": id, "doc": "d", "label": id, "legacy_rank": rank, "match": spec});
+
+    // A key's existence covers any statement about that key's value.
+    assert!(shadowed(serde_json::json!([
+        rule("a", 10, serde_json::json!({"attr_exists": ["k"]})),
+        rule(
+            "b",
+            20,
+            serde_json::json!({"attr_equals": [{"key": "k", "value": "v"}]})
+        ),
+    ])));
+    // A shorter attribute prefix covers a longer one.
+    assert!(shadowed(serde_json::json!([
+        rule("a", 10, serde_json::json!({"attr_prefix": ["ai."]})),
+        rule(
+            "b",
+            20,
+            serde_json::json!({"attr_prefix": ["ai.telemetry."]})
+        ),
+    ])));
+    // A span-name prefix covers an exact name under it.
+    assert!(shadowed(serde_json::json!([
+        rule("a", 10, serde_json::json!({"span_name": ["Graph."]})),
+        rule(
+            "b",
+            20,
+            serde_json::json!({"span_name_exact": ["Graph.step"]})
+        ),
+    ])));
+    // A case-insensitive equality covers the case-sensitive one.
+    assert!(shadowed(serde_json::json!([
+        rule(
+            "a",
+            10,
+            serde_json::json!({"attr_equals_ignore_case": [{"key": "k", "value": "LLM"}]})
+        ),
+        rule(
+            "b",
+            20,
+            serde_json::json!({"attr_equals": [{"key": "k", "value": "llm"}]})
+        ),
+    ])));
+
+    // **Not** shadowed, and each of these is a shape the refusal must not reject.
+    for (what, detect) in [
+        (
+            "the other direction: a broad rule ranked *after* a narrow one is reachable",
+            serde_json::json!([
+                rule(
+                    "a",
+                    10,
+                    serde_json::json!({"attr_prefix": ["ai.telemetry."]})
+                ),
+                rule("b", 20, serde_json::json!({"attr_prefix": ["ai."]})),
+            ]),
+        ),
+        (
+            "different keys say nothing about each other",
+            serde_json::json!([
+                rule("a", 10, serde_json::json!({"attr_exists": ["one"]})),
+                rule(
+                    "b",
+                    20,
+                    serde_json::json!({"attr_equals": [{"key": "two", "value": "v"}]})
+                ),
+            ]),
+        ),
+        (
+            "a later rule needing *more* than the earlier one is reachable only if some conjunct is covered - \
+             here none is",
+            serde_json::json!([
+                rule("a", 10, serde_json::json!({"attr_exists": ["one"]})),
+                serde_json::json!({"id": "b", "doc": "d", "label": "b", "legacy_rank": 20,
+                    "match": {"attr_exists": ["two"]}}),
+            ]),
+        ),
+        (
+            "a phrase search is not analysed on either side, so nothing is proven about it",
+            serde_json::json!([
+                rule(
+                    "a",
+                    10,
+                    serde_json::json!({"text_contains": {"sources": ["span_name"], "needles": ["x"]}})
+                ),
+                rule("b", 20, serde_json::json!({"attr_exists": ["k"]})),
+            ]),
+        ),
+        (
+            "a rule that **supersedes** its shadower is reachable: `supersedes` orders ahead of rank, so the \
+             broader rule loses to it - which is the shape `supersedes` exists for",
+            serde_json::json!([
+                rule("a", 10, serde_json::json!({"attr_prefix": ["ai."]})),
+                serde_json::json!({"id": "b", "doc": "d", "label": "b", "legacy_rank": 20,
+                    "match": {"attr_prefix": ["ai.telemetry."]}, "supersedes": ["a"]}),
+            ]),
+        ),
+    ] {
+        assert!(compiled(detect).is_ok(), "wrongly refused: {what}");
+    }
+}

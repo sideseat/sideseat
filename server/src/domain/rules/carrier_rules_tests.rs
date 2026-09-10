@@ -4101,21 +4101,21 @@ fn a_superseded_rule_is_dominated_transitively() {
                 "id": "probe.most_specific",
                 "label": "strands",
                 "legacy_rank": 10,
-                "match": {"attr_exists": ["probe.marker"]},
+                "match": {"attr_prefix": ["probe.mid.deep."]},
                 "supersedes": ["probe.middle"],
             },
             {
                 "id": "probe.middle",
                 "label": "langchain",
                 "legacy_rank": 20,
-                "match": {"attr_exists": ["probe.marker"]},
+                "match": {"attr_prefix": ["probe.mid."]},
                 "supersedes": ["probe.generic"],
             },
             {
                 "id": "probe.generic",
                 "label": "crewai",
                 "legacy_rank": 30,
-                "match": {"attr_exists": ["probe.marker"]},
+                "match": {"attr_prefix": ["probe."]},
             },
         ],
     });
@@ -4125,8 +4125,12 @@ fn a_superseded_rule_is_dominated_transitively() {
     )]))
     .expect("the probe compiles");
 
+    // Nested prefixes rather than one identical condition in all three: identical conditions make the two later
+    // rules genuinely unreachable, which the shadowing refusal now rejects at compile time - correctly, since
+    // nothing could ever answer with their labels. Nested prefixes keep all three matching one span while leaving
+    // each of them reachable on its own.
     let mut attrs = std::collections::HashMap::new();
-    attrs.insert("probe.marker".to_string(), "1".to_string());
+    attrs.insert("probe.mid.deep.marker".to_string(), "1".to_string());
     let ctx = crate::domain::rules::detect_rules::DetectContext {
         span_name: "probe.span",
         span_attrs: &attrs,
