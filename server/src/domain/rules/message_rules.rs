@@ -2748,12 +2748,17 @@ impl MessagePlan {
     /// **Tool names only**, and that limit is the point rather than an omission. A tool name is a non-blank
     /// string by contract, whatever produced it, so the check is shape-independent and belongs here.
     ///
-    /// A tool **definition** cannot be checked here yet: at emission it is still the *producer's* shape -
-    /// Bedrock writes `{"toolSpec": {"name": …}}` - and the canonical `{"function": {"name": …}}` appears only
-    /// at query-time normalisation, which recognises a closed list of provider shapes in Rust. Asking "does
-    /// this have a usable name" here would mean knowing every one of those shapes, which is exactly what cycle
-    /// 13's finding 3 says must move into the assets. Written as a check over `function.name`, it dropped
-    /// `bedrock/converse`'s perfectly good `get_weather`.
+    /// A tool **definition** is deliberately *not* filtered here, and the reason is measured rather than a
+    /// limitation. Asking the question is now possible - the producer shapes are declared
+    /// (`rules/tool-shapes.json`), so `extract_tool_name` answers it for any of them, where a hand-written check
+    /// over `function.name` once dropped `bedrock/converse`'s perfectly good `get_weather` because at emission
+    /// the value is still `{"toolSpec": {…}}`. What is absent is the *harm* this exists to prevent: a tool name
+    /// list is read back as `Vec<String>`, so one number failed the whole column, while `tool_definitions` is a
+    /// JSON column carried as `Vec<JsonValue>` from persistence to `deduplicate_tools` with no typed
+    /// deserialisation anywhere - a malformed item cannot take a sibling with it.
+    ///
+    /// So the honest place for the definition question is the one place it decides anything:
+    /// `deduplicate_tools` keys by name and silently drops what it cannot name, and reports it now.
     fn validated_metadata(emission: Emission<'_>) -> Option<Emission<'_>> {
         if emission.target != EmitTarget::ToolNames {
             return Some(emission);

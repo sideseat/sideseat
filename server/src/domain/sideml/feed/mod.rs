@@ -2247,15 +2247,25 @@ pub fn deduplicate_tools(raw: Vec<JsonValue>) -> Vec<JsonValue> {
             // Already canonical: `normalize_tools` applies the declared shapes, whose last clause is the
             // named-object shape this used to re-derive here. Retired to an oracle rather than deleted -
             // `the_declared_shapes_leave_nothing_for_the_retired_canonicaliser` is what holds them equal.
-            if let Some(name) = extract_tool_name(&canonical) {
-                by_name
-                    .entry(name)
-                    .and_modify(|existing| {
-                        let merged = merge_tool_definitions(existing.clone(), canonical.clone());
-                        *existing = merged;
-                    })
-                    .or_insert(canonical);
-            }
+            let Some(name) = extract_tool_name(&canonical) else {
+                // Keyed by name, so a definition stating none cannot be kept - and that used to be a silent
+                // drop. It is reported rather than filtered upstream because this is the only place it decides
+                // anything: `tool_definitions` is carried as `Vec<JsonValue>` the whole way, so an item no shape
+                // recognises costs its siblings nothing until a name is needed.
+                tracing::debug!(
+                    target: "sideseat::sideml",
+                    definition = %canonical,
+                    "a tool definition states no name under any declared shape, so it cannot be listed"
+                );
+                continue;
+            };
+            by_name
+                .entry(name)
+                .and_modify(|existing| {
+                    let merged = merge_tool_definitions(existing.clone(), canonical.clone());
+                    *existing = merged;
+                })
+                .or_insert(canonical);
         }
     }
 
