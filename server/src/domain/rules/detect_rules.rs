@@ -64,6 +64,13 @@ pub enum DetectCompileError {
         rule: String,
         dimension: &'static str,
     },
+    /// A literal another in the same list already covers, so it can never be why a rule matched.
+    SubsumedLiteral {
+        rule: String,
+        dimension: &'static str,
+        dead: String,
+        covering: String,
+    },
     DuplicateRuleId {
         rule: String,
     },
@@ -93,6 +100,17 @@ impl std::fmt::Display for DetectCompileError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Parse { path, message } => write!(f, "{path}: {message}"),
+            Self::SubsumedLiteral {
+                rule,
+                dimension,
+                dead,
+                covering,
+            } => write!(
+                f,
+                "detection rule `{rule}` declares `{dead}` in `{dimension}`, which `{covering}` in the same \
+                 list already covers - the broader literal always fires first, so this one can never be why \
+                 the rule matched, and it reads as precision the rule does not have"
+            ),
             Self::UselessSupersedes {
                 rule,
                 target,
@@ -137,6 +155,7 @@ impl std::fmt::Display for DetectCompileError {
 /// Does this match spec declare any signal at all?
 fn has_signal(spec: &DetectMatch) -> bool {
     !spec.span_name.is_empty()
+        || !spec.span_name_exact.is_empty()
         || !spec.attr_prefix.is_empty()
         || !spec.attr_equals.is_empty()
         || !spec.attr_equals_ignore_case.is_empty()
@@ -200,6 +219,18 @@ pub fn compile(sources: &BTreeMap<String, Vec<u8>>) -> Result<DetectPlan, Detect
                     AtomDefect::BadTextSource(source) => DetectCompileError::BadTextSource {
                         rule: rule.id.clone(),
                         source,
+                    },
+                    // Names the two literals, because "a literal is subsumed" without saying which two sends
+                    // the reader to re-derive the covering relation by hand.
+                    AtomDefect::SubsumedLiteral {
+                        dimension,
+                        dead,
+                        covering,
+                    } => DetectCompileError::SubsumedLiteral {
+                        rule: rule.id.clone(),
+                        dimension,
+                        dead,
+                        covering,
                     },
                     other => DetectCompileError::EmptyLiteral {
                         rule: rule.id.clone(),
@@ -393,13 +424,54 @@ pub(super) enum AtomDefect {
     MixedFirstPresentSources,
     /// A substring search for `""`, which every present value contains.
     EmptySubstring(&'static str),
+    /// A literal another literal in the same list already covers, so it can never be why a rule matched.
+    SubsumedLiteral {
+        dimension: &'static str,
+        dead: String,
+        covering: String,
+    },
+}
+
+/// How one literal can cover another within a dimension.
+#[derive(Debug, Clone, Copy)]
+enum Subsumption {
+    /// The covering literal is a prefix of the dead one.
+    Prefix,
+    /// The covering literal appears inside the dead one.
+    Contains,
+    /// Only an identical literal covers - a list of exact matches.
+    Equal,
+}
+
+/// The first literal another in the same list already covers, as `(dead, covering)`.
+fn subsumed_literal(values: &[String], kind: Subsumption) -> Option<(String, String)> {
+    for (index, dead) in values.iter().enumerate() {
+        for (other, covering) in values.iter().enumerate() {
+            if index == other {
+                continue;
+            }
+            let covered = match kind {
+                Subsumption::Prefix => dead.starts_with(covering.as_str()),
+                Subsumption::Contains => dead.contains(covering.as_str()),
+                // Duplicates only. A later identical entry adds nothing, and the earlier one covers it - so the
+                // *second* is the dead one, which is why the index comparison decides the tie.
+                Subsumption::Equal => dead == covering && other < index,
+            };
+            if covered && !(matches!(kind, Subsumption::Equal) && dead != covering) {
+                return Some((dead.clone(), covering.clone()));
+            }
+        }
+    }
+    None
 }
 
 impl AtomDefect {
     /// The dimension a diagnostic should name.
     pub(super) fn dimension(&self) -> &'static str {
         match self {
-            Self::EmptyLiteral(dimension) | Self::EmptySubstring(dimension) => dimension,
+            Self::EmptyLiteral(dimension)
+            | Self::EmptySubstring(dimension)
+            | Self::SubsumedLiteral { dimension, .. } => dimension,
             Self::BadTextSource(_) | Self::NoNeedle => "text_contains",
             Self::MixedFirstPresentSources => "text_contains.first_present_source",
         }
@@ -427,6 +499,10 @@ impl AtomDefect {
                  the declared order between those two is not preserved - name them separately, or use one \
                  kind"
             }
+            Self::SubsumedLiteral { .. } => {
+                "names a literal another literal in the same list already covers, so it can never be why the \
+                 rule matched - remove it, or move it to the dimension that makes it mean something"
+            }
         }
     }
 }
@@ -434,6 +510,7 @@ impl AtomDefect {
 pub(super) fn atom_literal_defect(spec: &DetectMatch) -> Option<AtomDefect> {
     for (dimension, values) in [
         ("span_name", &spec.span_name),
+        ("span_name_exact", &spec.span_name_exact),
         ("attr_prefix", &spec.attr_prefix),
         ("attr_exists", &spec.attr_exists),
         ("service_name", &spec.service_name),
@@ -462,6 +539,48 @@ pub(super) fn atom_literal_defect(spec: &DetectMatch) -> Option<AtomDefect> {
     ] {
         if pairs.iter().any(|kv| kv.value.is_empty()) {
             return Some(AtomDefect::EmptySubstring(dimension));
+        }
+    }
+    // A literal another literal in the same list already covers can never be the reason a rule matched: the
+    // broader one always fires first. Two shipped declarations were exactly that - `"LangGraph."` beside
+    // `"LangGraph"` in a prefix list, and `"\"langgraph_"` beside `"langgraph_"` in a substring one - and both
+    // read as precision the rule did not have.
+    for (dimension, values, kind) in [
+        ("span_name", &spec.span_name, Subsumption::Prefix),
+        ("span_name_exact", &spec.span_name_exact, Subsumption::Equal),
+        ("attr_prefix", &spec.attr_prefix, Subsumption::Prefix),
+        ("attr_exists", &spec.attr_exists, Subsumption::Equal),
+        ("service_name", &spec.service_name, Subsumption::Contains),
+    ] {
+        if let Some((dead, covering)) = subsumed_literal(values, kind) {
+            return Some(AtomDefect::SubsumedLiteral {
+                dimension,
+                dead,
+                covering,
+            });
+        }
+    }
+    for (dimension, pairs) in [
+        ("span_attr_contains", &spec.span_attr_contains),
+        ("resource_attr_contains", &spec.resource_attr_contains),
+    ] {
+        // Per key: two substrings of *different* attributes say nothing about each other.
+        let mut by_key: std::collections::BTreeMap<&str, Vec<String>> =
+            std::collections::BTreeMap::new();
+        for pair in pairs.iter() {
+            by_key
+                .entry(&pair.key)
+                .or_default()
+                .push(pair.value.clone());
+        }
+        for values in by_key.values() {
+            if let Some((dead, covering)) = subsumed_literal(values, Subsumption::Contains) {
+                return Some(AtomDefect::SubsumedLiteral {
+                    dimension,
+                    dead,
+                    covering,
+                });
+            }
         }
     }
     if mixed_first_present_sources(spec) {
@@ -493,6 +612,7 @@ pub(super) fn gate_defect(spec: &DetectMatch) -> Option<&'static str> {
         return Some(defect.reason());
     }
     let any_signal = !spec.span_name.is_empty()
+        || !spec.span_name_exact.is_empty()
         || !spec.attr_prefix.is_empty()
         || !spec.attr_equals.is_empty()
         || !spec.attr_equals_ignore_case.is_empty()
@@ -574,9 +694,18 @@ impl CompiledDetect {
             return true;
         }
         if spec
+            .span_name_exact
+            .iter()
+            .any(|name| ctx.span_name == name)
+        {
+            return true;
+        }
+        // Prefix only: `starts_with` subsumes its own equality, so the equality arm here could never be the
+        // reason a rule matched, and it made a separator-suffixed literal dead beside the bare one.
+        if spec
             .span_name
             .iter()
-            .any(|p| ctx.span_name == p || ctx.span_name.starts_with(p))
+            .any(|prefix| ctx.span_name.starts_with(prefix))
         {
             return true;
         }

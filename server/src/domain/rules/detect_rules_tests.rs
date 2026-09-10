@@ -207,3 +207,95 @@ fn a_mixed_first_present_search_is_refused_here_too() {
         );
     }
 }
+
+/// A literal another in the same list already covers is refused: it can never be why a rule matched.
+///
+/// Two shipped declarations were exactly that. `span_name: ["LangGraph", "LangGraph."]` - a prefix subsumes its
+/// own extension, so the separator form was dead and the bare name additionally claimed every unrelated span
+/// merely starting with those letters. And `span_attr_contains` holding `"langgraph_` beside `langgraph_`, where
+/// the broader substring always fires first. Both read as precision the rule did not have.
+///
+/// Also refused per dimension kind, because "covers" differs: a prefix list, a substring list, and an exact list
+/// where only a duplicate covers.
+#[test]
+fn a_literal_another_already_covers_is_refused() {
+    let compiled = |detect: &str| {
+        let asset = format!(r#"{{"id":"t","doc":"d","detect":[{detect}]}}"#);
+        compile(&std::collections::BTreeMap::from([(
+            "t.json".to_string(),
+            asset.into_bytes(),
+        )]))
+    };
+    let subsumed = |detect: &str| {
+        matches!(
+            compiled(detect),
+            Err(DetectCompileError::SubsumedLiteral { .. })
+        )
+    };
+
+    // Prefix: the extension is dead beside the bare form. The shape the shipped asset had.
+    assert!(subsumed(
+        r#"{"id":"a","doc":"d","label":"A","legacy_rank":1,"match":{"span_name":["LangGraph","LangGraph."]}}"#
+    ));
+    assert!(subsumed(
+        r#"{"id":"a","doc":"d","label":"A","legacy_rank":1,"match":{"attr_prefix":["ai.","ai.telemetry."]}}"#
+    ));
+    // Substring, per key: the quoted form is dead beside the bare one. The other shipped shape.
+    assert!(subsumed(
+        r#"{"id":"a","doc":"d","label":"A","legacy_rank":1,"match":{"span_attr_contains":[
+             {"key":"metadata","value":"langgraph_"},{"key":"metadata","value":"\"langgraph_"}]}}"#
+    ));
+    // Substring under two *different* keys says nothing: they are not in one another's list.
+    assert!(
+        compiled(
+            r#"{"id":"a","doc":"d","label":"A","legacy_rank":1,"match":{"span_attr_contains":[
+                 {"key":"one","value":"langgraph_"},{"key":"two","value":"\"langgraph_"}]}}"#
+        )
+        .is_ok(),
+        "two substrings of different attributes do not cover each other"
+    );
+    // Exact: only a duplicate covers, and `LangGraph.` is a perfectly good separate exact name.
+    assert!(subsumed(
+        r#"{"id":"a","doc":"d","label":"A","legacy_rank":1,"match":{"span_name_exact":["LangGraph","LangGraph"]}}"#
+    ));
+    assert!(
+        compiled(
+            r#"{"id":"a","doc":"d","label":"A","legacy_rank":1,"match":{"span_name_exact":["LangGraph","LangGraph."]}}"#
+        )
+        .is_ok(),
+        "an exact list is covered only by a duplicate - a prefix relation between two exact names is not one"
+    );
+    // And an exact name beside a prefix in the *other* dimension is the whole point of splitting them.
+    assert!(
+        compiled(
+            r#"{"id":"a","doc":"d","label":"A","legacy_rank":1,"match":{"span_name_exact":["LangGraph"],"span_name":["LangGraph."]}}"#
+        )
+        .is_ok(),
+        "exactly `LangGraph` beside the `LangGraph.` prefix is two statements, which is what the split is for"
+    );
+}
+
+/// A span name is matched by prefix or exactly, and the two say different things.
+///
+/// As one "equals or starts with" dimension the bare name claimed every span merely starting with those letters,
+/// which is what a producer with a similarly-named span would have been attributed to.
+#[test]
+fn an_exact_span_name_does_not_claim_names_that_merely_start_with_it() {
+    let plan = &ruleset().detect;
+    let detected = |name: &str| {
+        plan.resolve(&DetectContext {
+            span_name: name,
+            span_attrs: &attrs(&[]),
+            resource_attrs: &attrs(&[]),
+        })
+        .map(|found| found.label.to_string())
+    };
+
+    assert_eq!(detected("LangGraph").as_deref(), Some("LangGraph"));
+    assert_eq!(detected("LangGraph.step").as_deref(), Some("LangGraph"));
+    assert_ne!(
+        detected("LangGraphicalTask").as_deref(),
+        Some("LangGraph"),
+        "a span whose name merely starts with those letters is not this producer's"
+    );
+}

@@ -5,11 +5,13 @@
   "detect": [
     {
       "id": "langgraph.detect",
-      "doc": "Before LangChain, which is the broader dialect: a LangGraph span carries langchain.* too. Supersedes langchain.detect: this is the more specific dialect, and both match the same span, so the relationship is declared rather than left to the legacy rank.",
+      "doc": "Before LangChain, which is the broader dialect: a LangGraph span carries langchain.* too. Supersedes langchain.detect: this is the more specific dialect, and both match the same span, so the relationship is declared rather than left to the legacy rank. The name signals are two statements, not one list: exactly `LangGraph` for the graph's own span and the `LangGraph.` prefix for its steps. As one prefix list the bare name subsumed the separator form - so the second literal was dead - and claimed every unrelated span merely starting with those letters. The `\"langgraph_` substring was dead beside `langgraph_` for the same reason: the broader one always fires first, so the quoted form read as precision the rule did not have.",
       "label": "LangGraph",
       "match": {
+        "span_name_exact": [
+          "LangGraph"
+        ],
         "span_name": [
-          "LangGraph",
           "LangGraph."
         ],
         "attr_prefix": [
@@ -19,10 +21,6 @@
           {
             "key": "metadata",
             "value": "langgraph_"
-          },
-          {
-            "key": "metadata",
-            "value": "\"langgraph_"
           }
         ]
       },

@@ -639,9 +639,23 @@ pub struct TextContains {
 #[derive(Debug, Default, Deserialize, Clone)]
 #[serde(deny_unknown_fields)]
 pub struct DetectMatch {
-    /// Span name equals, or starts with, any of these.
+    /// Span name **starts with** any of these.
+    ///
+    /// Prefix only. It used to mean "equals *or* starts with", which is not two operators - a prefix subsumes its
+    /// own equality, so the equality arm could never be the reason a rule matched, and a literal that only differs
+    /// by a separator was dead beside the bare one. Every asset already spells the separator it means
+    /// (`autogen.`, `claude_code.`, `vertexai.`), which is what says this dimension is a prefix; the one that did
+    /// not is the one whose second literal was dead.
     #[serde(default)]
     pub span_name: Vec<String>,
+    /// Span name **is** any of these, exactly.
+    ///
+    /// Its own dimension, because a prefix cannot express it: a producer that names one span for its whole graph
+    /// and its steps `Graph.step` needs "exactly `Graph`" and "under `Graph.`" as two statements. Folded into the
+    /// prefix list, the bare name subsumed the separator form *and* claimed every unrelated span that merely
+    /// starts with those letters.
+    #[serde(default)]
+    pub span_name_exact: Vec<String>,
     /// Any span attribute key starts with any of these.
     #[serde(default)]
     pub attr_prefix: Vec<String>,
