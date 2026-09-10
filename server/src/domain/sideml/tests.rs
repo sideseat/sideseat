@@ -5733,7 +5733,12 @@ fn test_is_plain_data_value() {
     assert!(!is_plain_data_value(&json!({"tool_calls": []})));
     assert!(!is_plain_data_value(&json!({"finish_reason": "stop"})));
     assert!(!is_plain_data_value(&json!({"toolUse": {}})));
-    assert!(!is_plain_data_value(&json!({"functionCall": {}})));
+    // Both spellings of one provider's part answer alike, which they did not: `function_call` was bare data and
+    // `functionCall` was message-shaped, so the same part was wrapped under one spelling and read as a message
+    // with no content member under the other. Bare data is the answer that wraps it into a message whose single
+    // block is the part, which is what content normalisation then reads.
+    assert!(is_plain_data_value(&json!({"function_call": {}})));
+    assert!(is_plain_data_value(&json!({"functionCall": {}})));
     assert!(!is_plain_data_value(&json!({"parts": []})));
     assert!(!is_plain_data_value(&json!({"choices": []})));
 

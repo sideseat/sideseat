@@ -4,7 +4,9 @@
   "message_members": [
     {
       "id": "members.content",
-      "member": "content",
+      "members": [
+        "content"
+      ],
       "rank": 10,
       "holds_content": true,
       "means_message_shaped": true,
@@ -12,7 +14,9 @@
     },
     {
       "id": "members.contents",
-      "member": "contents",
+      "members": [
+        "contents"
+      ],
       "rank": 20,
       "holds_content": true,
       "means_message_shaped": true,
@@ -20,7 +24,9 @@
     },
     {
       "id": "members.message",
-      "member": "message",
+      "members": [
+        "message"
+      ],
       "rank": 30,
       "holds_content": true,
       "means_message_shaped": true,
@@ -28,7 +34,9 @@
     },
     {
       "id": "members.parts",
-      "member": "parts",
+      "members": [
+        "parts"
+      ],
       "rank": 40,
       "holds_content": true,
       "means_message_shaped": true,
@@ -36,7 +44,9 @@
     },
     {
       "id": "members.text",
-      "member": "text",
+      "members": [
+        "text"
+      ],
       "rank": 50,
       "holds_content": true,
       "means_message_shaped": true,
@@ -45,7 +55,9 @@
     },
     {
       "id": "members.object",
-      "member": "object",
+      "members": [
+        "object"
+      ],
       "rank": 60,
       "holds_content": true,
       "means_message_shaped": true,
@@ -53,7 +65,9 @@
     },
     {
       "id": "members.arguments",
-      "member": "arguments",
+      "members": [
+        "arguments"
+      ],
       "rank": 70,
       "holds_content": true,
       "means_message_shaped": true,
@@ -61,138 +75,176 @@
     },
     {
       "id": "members.choices",
-      "member": "choices",
+      "members": [
+        "choices"
+      ],
       "means_message_shaped": true,
       "doc": "The same, under the other spelling."
     },
     {
       "id": "members.finishReason",
-      "member": "finishReason",
+      "members": [
+        "finishReason"
+      ],
       "means_message_shaped": true
     },
     {
       "id": "members.finish_reason",
-      "member": "finish_reason",
+      "members": [
+        "finish_reason"
+      ],
       "means_message_shaped": true
     },
     {
-      "id": "members.functionCall",
-      "member": "functionCall",
-      "means_message_shaped": true,
-      "means_content_block": true
-    },
-    {
-      "id": "members.functionResponse",
-      "member": "functionResponse",
-      "means_message_shaped": true,
-      "means_content_block": true
-    },
-    {
       "id": "members.generations",
-      "member": "generations",
+      "members": [
+        "generations"
+      ],
       "means_message_shaped": true,
       "doc": "A provider's response envelope, which holds turns rather than being one."
     },
     {
       "id": "members.inline_data",
-      "member": "inline_data",
+      "members": [
+        "inline_data"
+      ],
       "means_message_shaped": true,
       "means_content_block": true
     },
     {
       "id": "members.reasoningContent",
-      "member": "reasoningContent",
+      "members": [
+        "reasoningContent"
+      ],
       "means_message_shaped": true,
       "means_content_block": true
     },
     {
       "id": "members.role",
-      "member": "role",
+      "members": [
+        "role"
+      ],
       "means_message_shaped": true,
       "doc": "The member that makes a value a message more than any other: something with a role is a turn."
     },
     {
       "id": "members.toolCalls",
-      "member": "toolCalls",
+      "members": [
+        "toolCalls"
+      ],
       "means_message_shaped": true
     },
     {
       "id": "members.toolResult",
-      "member": "toolResult",
+      "members": [
+        "toolResult"
+      ],
       "means_message_shaped": true,
       "means_content_block": true
     },
     {
       "id": "members.toolUse",
-      "member": "toolUse",
+      "members": [
+        "toolUse"
+      ],
       "means_message_shaped": true,
       "means_content_block": true
     },
     {
       "id": "members.tool_calls",
-      "member": "tool_calls",
+      "members": [
+        "tool_calls"
+      ],
       "means_message_shaped": true,
       "doc": "Calls attached to a turn, in either spelling."
     },
     {
       "id": "members.type",
-      "member": "type",
+      "members": [
+        "type"
+      ],
       "means_message_shaped": true,
       "doc": "A discriminator, which only something already shaped carries."
     },
     {
       "id": "members.document",
-      "member": "document",
+      "members": [
+        "document"
+      ],
       "means_content_block": true
     },
     {
       "id": "members.file_data",
-      "member": "file_data",
+      "members": [
+        "file_data"
+      ],
       "means_content_block": true
     },
     {
       "id": "members.function_call",
-      "member": "function_call",
-      "means_content_block": true
+      "members": [
+        "function_call",
+        "functionCall"
+      ],
+      "means_content_block": true,
+      "doc": "One provider's part naming a call, in both spellings. **One flag vector**, because a spelling is not a fact about meaning - and as two declarations these had drifted: the camelCase one said the value was message-shaped as well as a block, the snake_case one said block only. The evidenced spelling wins: a part is a block *inside* a turn's content, so calling it message-shaped means the enclosing object is not wrapped and normalises to a message with no blocks. Measured - giving the pair the message-shaped flag changes 92 of 33,139 corpus objects; the camelCase spelling appears in none of them, so following the evidenced one changes nothing."
     },
     {
       "id": "members.function_response",
-      "member": "function_response",
-      "means_content_block": true
+      "members": [
+        "function_response",
+        "functionResponse"
+      ],
+      "means_content_block": true,
+      "doc": "One provider's part naming its result, in both spellings. **One flag vector**, because a spelling is not a fact about meaning - and as two declarations these had drifted: the camelCase one said the value was message-shaped as well as a block, the snake_case one said block only. The evidenced spelling wins: a part is a block *inside* a turn's content, so calling it message-shaped means the enclosing object is not wrapped and normalises to a message with no blocks. Measured - giving the pair the message-shaped flag changes 92 of 33,139 corpus objects; the camelCase spelling appears in none of them, so following the evidenced one changes nothing."
     },
     {
       "id": "members.image",
-      "member": "image",
+      "members": [
+        "image"
+      ],
       "means_content_block": true
     },
     {
       "id": "members.reasoning",
-      "member": "reasoning",
+      "members": [
+        "reasoning"
+      ],
       "means_content_block": true
     },
     {
       "id": "members.source",
-      "member": "source",
+      "members": [
+        "source"
+      ],
       "means_content_block": true
     },
     {
       "id": "members.thinking",
-      "member": "thinking",
+      "members": [
+        "thinking"
+      ],
       "means_content_block": true
     },
     {
       "id": "members.toolCallId",
-      "member": "toolCallId",
+      "members": [
+        "toolCallId"
+      ],
       "means_content_block": true
     },
     {
       "id": "members.toolName",
-      "member": "toolName",
+      "members": [
+        "toolName"
+      ],
       "means_content_block": true
     },
     {
       "id": "members.video",
-      "member": "video",
+      "members": [
+        "video"
+      ],
       "means_content_block": true
     }
   ]

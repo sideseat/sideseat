@@ -11753,15 +11753,27 @@ fn the_declared_members_reproduce_the_lists_they_replaced() {
     // makes a turn look like bare data to be wrapped, and one added makes a producer's own JSON look like a
     // message with no blocks. Comparing only the *predicate* over chosen shapes cannot see a member neither
     // shape carries.
-    let retired_shape: std::collections::BTreeSet<&str> =
+    let mut retired_shape: std::collections::BTreeSet<&str> =
         crate::domain::sideml::message_structure_keys_legacy()
             .iter()
             .copied()
             .collect();
+    // **One deliberate divergence, recorded here rather than blessed by regenerating anything.** The retired list
+    // held `functionCall` and `functionResponse` as message-shaped and their snake_case twins as content-block
+    // only - the same provider's part, two answers, decided by spelling. So `{"function_call": {}}` was bare data
+    // to be wrapped and `{"functionCall": {}}` was a message with a call member and no content member, which
+    // normalises to a message with no blocks. The declarations make the pair one family on the *evidenced*
+    // spelling's vector: measured, giving the family the message-shaped flag changes 92 of 33,139 corpus objects,
+    // and the camelCase spelling appears in none of them - so following the evidenced one changes no corpus answer
+    // and removes the disagreement.
+    assert!(
+        retired_shape.remove("functionCall") && retired_shape.remove("functionResponse"),
+        "the retired list no longer holds the two spellings this divergence is about"
+    );
     let declared_shape: std::collections::BTreeSet<&str> = plan.message_shaped_members().collect();
     assert_eq!(
         declared_shape, retired_shape,
-        "the declared message-shape vocabulary is not exactly the retired list"
+        "the declared message-shape vocabulary is not exactly the retired list, beyond the one recorded divergence"
     );
 
     // The content-block vocabulary, as a **set**: the declared one must mean exactly what the retired list

@@ -483,8 +483,14 @@ pub struct MessageMemberRule {
     pub id: String,
     #[serde(default)]
     pub doc: Option<String>,
-    /// The member, as the producer writes it.
-    pub member: String,
+    /// The member, in every spelling producers write it - **one declaration, one flag vector**.
+    ///
+    /// A list rather than one name because a spelling is not a fact about meaning, and as separate declarations
+    /// the aliases drifted despite being colocated: `functionCall` was message-shaped *and* a content block while
+    /// `function_call` was a content block only, which is a difference nothing recorded and nothing could
+    /// enforce. Two spellings that genuinely mean different things stay separate declarations, where the
+    /// difference is at least visible.
+    pub members: Vec<String>,
     /// Where this sits among the members that hold content. Required when `holds_content` is set, and refused
     /// otherwise: a rank that orders nothing is a statement the engine does not read.
     #[serde(default)]
