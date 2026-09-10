@@ -2042,19 +2042,59 @@ pub enum ValueKind {
 ///
 /// `all` and `any` both, because the dialects need both and the difference is real: a request's message
 /// needs a role *and* content, while a response may carry either a structured message *or* streamed text.
-#[derive(Debug, Deserialize, Clone, Default)]
+#[derive(Debug, Deserialize, Default)]
 #[serde(deny_unknown_fields)]
 pub struct PredicateSet {
     #[serde(default)]
     pub all: Vec<ValuePredicate>,
     #[serde(default)]
     pub any: Vec<ValuePredicate>,
+    /// The boolean-grammar form of this set, built once.
+    ///
+    /// Evaluation goes through the grammar, so there is one evaluator rather than two and the retired shell is
+    /// a `#[cfg(test)]` oracle. Note what that does **not** yet buy: two compatibility translations keep the
+    /// pre-grammar answers, so `Truth::Unknown` still never reaches a decision the shipped rules make - see
+    /// `the_predicate_semantics_have_not_migrated_and_here_is_what_still_answers_the_old_way`.
+    ///
+    /// Built **once per set** rather than per evaluation because translating an expression per element per
+    /// reading is work with no purpose. It is *not* a measured speedup: interleaved against the pre-migration
+    /// build on `bench_ingestion` (`langgraph/swarm`), 76.95 ms became 77.02 ms - within noise either way. A
+    /// separate-run comparison suggested 9%, which was this host's load rather than the change, which is why
+    /// the convention here is to interleave.
+    ///
+    /// A `OnceLock` rather than a compile-time field, because a `PredicateSet` is reached through ten different
+    /// spec structures and threading a compiled twin through each would put the same fact in two places. `Sync`,
+    /// because the compiled plan is shared across request threads.
+    #[serde(skip)]
+    compiled: std::sync::OnceLock<Option<super::expr::JsonExpr>>,
+}
+
+/// Cloned **without** the cached expression: a clone recomputes it, which is correct because the cache is a
+/// memo over the set's own contents and a `OnceLock` cannot be copied.
+impl Clone for PredicateSet {
+    fn clone(&self) -> Self {
+        Self {
+            all: self.all.clone(),
+            any: self.any.clone(),
+            compiled: std::sync::OnceLock::new(),
+        }
+    }
 }
 
 impl PredicateSet {
     /// Nothing to check.
     pub fn is_empty(&self) -> bool {
         self.all.is_empty() && self.any.is_empty()
+    }
+
+    /// The grammar form, built on first use.
+    ///
+    /// `None` where the set declares nothing, which is a different answer from an expression that is false: a
+    /// set with no predicates places no condition, so it holds.
+    pub fn expression(&self) -> Option<&super::expr::JsonExpr> {
+        self.compiled
+            .get_or_init(|| super::expr::json_expr_of(self))
+            .as_ref()
     }
 }
 

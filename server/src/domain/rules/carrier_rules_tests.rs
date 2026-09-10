@@ -1025,10 +1025,9 @@ fn exists_false_beside_a_value_condition_is_refused() {
             serde_json::from_value(serde_json::json!({"path": "$.x", "exists": false}))
                 .expect("a predicate parses");
         mutate(&mut predicate);
-        PredicateSet {
-            all: vec![predicate],
-            any: Vec::new(),
-        }
+        let mut set = PredicateSet::default();
+        set.all = vec![predicate];
+        set
     };
 
     let cases: Vec<(&str, PredicateSet)> = vec![
@@ -7296,5 +7295,88 @@ fn a_singular_path_takes_the_first_match_and_says_when_there_were_more() {
             .map(|e| e.carrier.name().to_string())
             .collect::<Vec<_>>(),
         ["only".to_string()]
+    );
+}
+
+/// The predicate **mechanism** has migrated to the boolean grammar; the **semantics** have not, and this pins
+/// exactly which two things still answer the old way.
+///
+/// `predicates_hold` goes through `Expr`/`Truth` now, so there is one evaluator rather than two and the retired
+/// shell is a `#[cfg(test)]` oracle. But two compatibility translations preserve the pre-grammar answers, both
+/// deliberately and both **reachable in the shipped assets**:
+///
+/// | Case | Where the translation is | Which asset relies on it |
+/// | --- | --- | --- |
+/// | a bare `none_of` holds for a *missing* value | `json_expr_of_predicate`'s `bare_negative_set` branch, which emits `any(not exists, some(not one_of))` | `logfire.json`'s element pass, whose `none_of` on `$['event.name']` must accept an event with no name |
+/// | an explicitly empty group places no condition | `json_expr_of` returns `None` for a set with no predicates, and `predicates_hold` answers `true` for `None` | `langchain.json` ships an explicit `"all": []` beside a non-empty `any` |
+///
+/// So `Truth::Unknown` occurs *internally* - `JsonAtom::Some` answers it for an empty selection - and never
+/// reaches a decision the shipped rules make. Codex's ruling: do not close this. Completing it needs direct
+/// `Expr` syntax at these fields, Logfire stating the absence it means explicitly, the bare-`none_of` branch
+/// removed, and an explicitly empty group refused - which needs the schema to distinguish "declared empty" from
+/// "not declared", and today it cannot.
+///
+/// Both assertions below are the **current** answers. Each is the opposite of what the completed migration
+/// gives, so when that lands these flip, deliberately, rather than a claim quietly becoming true.
+#[test]
+fn the_predicate_semantics_have_not_migrated_and_here_is_what_still_answers_the_old_way() {
+    use crate::domain::rules::message_rules::predicates_hold;
+    use crate::domain::rules::schema::PredicateSet;
+
+    // A bare `none_of` against a payload with no such member. Under the grammar's own rules the selection is
+    // empty, so the question is `Unknown` and a negation over it does not hold - but the compatibility branch
+    // makes absence an explicit `true`.
+    let bare_none_of: PredicateSet = serde_json::from_value(serde_json::json!({
+        "all": [{"path": "$.name", "none_of": ["bob"]}]
+    }))
+    .expect("a predicate set parses");
+    assert!(
+        predicates_hold(&serde_json::json!({}), &bare_none_of),
+        "today a missing value satisfies a bare `none_of`, because `logfire`'s element pass needs an event \
+         with no name to pass a `none_of` on its name - stated as `any(not exists, some(not one_of))` rather \
+         than left to a negation that quietly accepts absence"
+    );
+    // And it still answers `false` where the member *is* there and matches, or the branch would be a blanket
+    // yes rather than a statement about absence.
+    assert!(
+        !predicates_hold(&serde_json::json!({"name": "bob"}), &bare_none_of),
+        "a present, matching value is still refused"
+    );
+
+    // An explicitly empty group. The schema cannot tell it from an undeclared one, so it places no condition.
+    let explicit_empty: PredicateSet =
+        serde_json::from_value(serde_json::json!({"all": []})).expect("parses");
+    assert!(
+        explicit_empty.expression().is_none(),
+        "an empty group translates to no expression, which is indistinguishable from declaring nothing"
+    );
+    assert!(
+        predicates_hold(&serde_json::json!({}), &explicit_empty),
+        "and no expression holds - `langchain.json` ships an explicit `\"all\": []`, so refusing it is a \
+         migration rather than a fix"
+    );
+
+    // The mechanism *is* migrated: a set that declares something is evaluated by the grammar, and the
+    // three-valued atom is what answers.
+    let declared: PredicateSet = serde_json::from_value(serde_json::json!({
+        "all": [{"path": "$.role", "one_of": ["user"]}]
+    }))
+    .expect("parses");
+    assert!(
+        declared.expression().is_some(),
+        "a declared set has an expression"
+    );
+    assert!(predicates_hold(
+        &serde_json::json!({"role": "user"}),
+        &declared
+    ));
+    assert!(!predicates_hold(
+        &serde_json::json!({"role": "bot"}),
+        &declared
+    ));
+    assert!(
+        !predicates_hold(&serde_json::json!({}), &declared),
+        "an absent value does not satisfy a positive condition - which is the `Unknown` the grammar gives, \
+         reaching a decision here"
     );
 }

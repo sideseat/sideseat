@@ -4601,6 +4601,7 @@ pub(crate) fn predicate_holds_for_test(predicate: &ValuePredicate, value: &JsonV
     predicate_holds(value, predicate)
 }
 
+#[cfg(test)]
 fn predicate_holds(value: &JsonValue, predicate: &ValuePredicate) -> bool {
     // A path that can match more than once is asked **existentially**: some match satisfies the condition.
     // Answering only about the first is a silent narrowing, and it would disagree with `exists`, which on a
@@ -4634,6 +4635,7 @@ fn predicate_holds(value: &JsonValue, predicate: &ValuePredicate) -> bool {
     condition_holds(subject, predicate)
 }
 
+#[cfg(test)]
 /// The conditions a *present* value must satisfy.
 fn condition_holds(subject: &JsonValue, predicate: &ValuePredicate) -> bool {
     if predicate.exists == Some(false) {
@@ -4703,6 +4705,7 @@ fn condition_holds(subject: &JsonValue, predicate: &ValuePredicate) -> bool {
     true
 }
 
+#[cfg(test)]
 fn matches_kind(value: &JsonValue, kind: ValueKind) -> bool {
     match kind {
         ValueKind::Object => value.is_object(),
@@ -4716,8 +4719,12 @@ fn matches_kind(value: &JsonValue, kind: ValueKind) -> bool {
 
 /// Whether a predicate set holds of a value. An empty set holds.
 pub(super) fn predicates_hold(value: &JsonValue, set: &PredicateSet) -> bool {
-    (set.all.is_empty() || set.all.iter().all(|p| predicate_holds(value, p)))
-        && (set.any.is_empty() || set.any.iter().any(|p| predicate_holds(value, p)))
+    match set.expression() {
+        // Nothing declared places no condition, so it holds - a different answer from an expression that is
+        // false, which is the distinction `Truth` exists to keep.
+        None => true,
+        Some(expr) => expr.eval(&mut |atom| atom.eval(value)).holds(),
+    }
 }
 
 /// The observations an array-valued carrier yields, pass by pass.
