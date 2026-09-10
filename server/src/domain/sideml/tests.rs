@@ -5996,3 +5996,105 @@ fn a_source_name_states_one_of_three_authorities_on_a_tool_span() {
     assert_eq!(role_of("acme.unknown.event", false), None);
     assert_eq!(role_of("acme.unknown.event", true), None);
 }
+
+/// Authority is its own declared fact, and the two questions are separate.
+///
+/// They were fused, differently on each path. Whether a stated role survives event-name derivation was a
+/// hardcoded Rust list; whether it outranks a *tagged attribute name* was that list **or whatever the role alias
+/// table happened to fold**. The folding table's job is mapping spellings onto four canonical roles, which is not
+/// a statement about authority - so adding a spelling there silently granted it authority over a declared tag,
+/// and removing one silently took it away, with neither change naming the authority it moved.
+///
+/// `tool` is the case that proves the two are not one set: authoritative over a tag, and deliberately **not**
+/// surviving event derivation, because an event name really is evidence of it (`gen_ai.tool.message` on a chat
+/// span, `gen_ai.choice` on a tool span).
+#[test]
+fn role_authority_is_two_declared_facts_and_not_a_by_product_of_folding() {
+    let authority = &crate::domain::rules::ruleset().role_authority;
+
+    // Roles nothing derives from a name: deriving would overwrite the specific fact with a guess.
+    for role in ["tool_call", "tools", "data", "context", "documents"] {
+        assert!(
+            authority.survives_event_derivation(role),
+            "`{role}` must survive event-name derivation"
+        );
+        assert!(
+            authority.outranks_a_tag(role),
+            "`{role}` must outrank a tag"
+        );
+    }
+
+    // The separating case. Both directions, or this passes for a set that happens to hold everything.
+    assert!(authority.outranks_a_tag("tool"));
+    assert!(
+        !authority.survives_event_derivation("tool"),
+        "`tool` is derivable from an event name, so a stated one must not block derivation"
+    );
+    for role in ["user", "assistant", "system", "human", "ai", "choice"] {
+        assert!(authority.outranks_a_tag(role));
+        assert!(
+            !authority.survives_event_derivation(role),
+            "`{role}` is an ordinary conversation role and event names speak for it"
+        );
+    }
+
+    // Case-insensitive, since a payload states whatever it likes.
+    assert!(authority.survives_event_derivation("Tool_Call"));
+    assert!(authority.outranks_a_tag("USER"));
+
+    // And a spelling nothing declares carries no authority - which is what makes the declaration load-bearing
+    // rather than decorative.
+    assert!(!authority.outranks_a_tag("narrator"));
+    assert!(!authority.survives_event_derivation("narrator"));
+
+    // Every spelling the folding table folds is declared. Without this, adding an alias silently makes it
+    // authoritative here or silently leaves it out - the fusion this separation exists to remove.
+    for spelling in ChatRole::declared_alias_spellings() {
+        assert!(
+            authority.declared_spellings().any(|d| d == *spelling),
+            "`{spelling}` is folded by the alias table and declares no authority"
+        );
+    }
+}
+
+/// The authority decision does not consult the folding table - checked on the **source**, because no behavioural
+/// test can see it.
+///
+/// The declared authority set and the set the alias table folds coincide today, deliberately: declaring anything
+/// else would have been a behaviour change no evidence asked for. So reintroducing `try_from_str(stated).is_some()
+/// ||` beside the declaration changes no answer and passes every assertion about authority - which is exactly the
+/// shape of the defect, a gate that agrees with what it replaced until someone edits the other thing.
+///
+/// What must hold is structural: the authority plan answers from its declarations alone.
+#[test]
+fn the_authority_decision_never_consults_the_folding_table() {
+    let source = include_str!("../rules/mod.rs");
+    let start = source
+        .find("impl RoleAuthorityPlan {")
+        .expect("the authority plan's impl block");
+    let body = &source[start..];
+    let end = body.find("\n}\n").expect("the impl block ends");
+    let body = &body[..end];
+    assert!(
+        !body.contains("try_from_str") && !body.contains("ChatRole"),
+        "the authority plan consults the role folding table, which decides spelling rather than authority - the \
+         fusion this separation removed"
+    );
+
+    // And the two call sites read the plan rather than deciding for themselves.
+    let normalize = include_str!("normalize.rs");
+    let start = normalize
+        .find("fn derive_role_from_source_with_context")
+        .expect("the deriving function");
+    let body = &normalize[start..];
+    let end = body.find("\n}\n").expect("the function ends");
+    let body = &body[..end];
+    assert!(
+        !body.contains("try_from_str"),
+        "role derivation decides authority from the folding table again"
+    );
+    assert!(
+        body.contains("survives_event_derivation") && body.contains("outranks_a_tag"),
+        "role derivation should ask the declared authority for both of its questions"
+    );
+}

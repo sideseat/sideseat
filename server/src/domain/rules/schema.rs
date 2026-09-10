@@ -64,6 +64,9 @@ pub struct RuleFile {
     /// What role a message's source name implies, where the name decides it.
     #[serde(default)]
     pub event_roles: Vec<EventRole>,
+    /// Which role spellings outrank the name a reading was found under. This engine's own vocabulary.
+    #[serde(default)]
+    pub role_authority: Vec<RoleAuthority>,
     /// Content-block shapes this dialect writes.
     #[serde(default)]
     pub content_blocks: Vec<ContentBlockRule>,
@@ -505,6 +508,34 @@ pub struct MessageMemberRule {
     /// a *malformed* block rather than plain data, and is reported as unknown instead of as JSON.
     #[serde(default)]
     pub means_content_block: bool,
+}
+
+/// What authority a **stated role** carries, as two independent facts.
+///
+/// They were fused, differently on each path: whether a stated role survives event-name derivation was a
+/// hardcoded Rust list, and whether it outranks a *tagged attribute name* was that list **or** whatever the role
+/// alias table happened to fold. The alias table's job is folding spellings onto four canonical roles, which is
+/// not a statement about authority - so adding an alias silently granted it authority over a declared tag.
+#[derive(Debug, Deserialize, Clone)]
+#[serde(deny_unknown_fields)]
+pub struct RoleAuthority {
+    pub id: String,
+    #[serde(default)]
+    pub doc: Option<String>,
+    /// The spelling, as a payload states it. Matched case-insensitively, so it is declared in lower case.
+    pub role: String,
+    /// A stated role of this spelling is **not** replaced by the role an event name declares.
+    ///
+    /// For roles nothing derives from a name: a tool invocation, a tool-definitions message, framework state.
+    /// Deriving would overwrite the more specific fact with a guess.
+    #[serde(default)]
+    pub survives_event_derivation: bool,
+    /// A stated role of this spelling outranks the name a *tagged attribute* reading was found under.
+    ///
+    /// Separate from the above because the questions differ: `tool` is authoritative over a tag and must **not**
+    /// survive event derivation, since an event name is real evidence of it.
+    #[serde(default)]
+    pub outranks_a_tag: bool,
 }
 
 /// One classification rule: the conditions a span must satisfy, and what it is then.
@@ -2878,6 +2909,13 @@ impl RuleFile {
             self.event_roles
                 .iter()
                 .map(|role| role.id.clone())
+                .collect(),
+        ));
+        out.push((
+            "role_authority".to_string(),
+            self.role_authority
+                .iter()
+                .map(|entry| entry.id.clone())
                 .collect(),
         ));
         for rule in &self.span_facts {

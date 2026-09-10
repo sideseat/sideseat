@@ -188,6 +188,8 @@ pub struct Ruleset {
     pub message_events: std::collections::BTreeMap<String, DeclaredMessageEvent>,
     /// Which role each source name carries, and which instead on a tool execution span.
     pub event_roles: std::collections::BTreeMap<String, DeclaredEventRole>,
+    /// What authority a stated role carries, by spelling.
+    pub role_authority: RoleAuthorityPlan,
     /// Source names this engine assigns itself, through a rule's `tag_as`.
     ///
     /// A tagged emission is an *attribute* whose key this engine chose, so consulting its declared role is
@@ -256,6 +258,9 @@ pub fn ruleset() -> &'static Ruleset {
             content_blocks: content_blocks::ContentBlockPlan::compile(&parsed_files(&sources)),
             message_events: compile_message_events(&parsed_files(&sources))
                 .unwrap_or_else(|e| panic!("embedded message events are malformed: {e}")),
+            role_authority: compile_role_authority(&parsed_files(&sources)).unwrap_or_else(
+                |error| panic!("the embedded role-authority declarations are malformed: {error}"),
+            ),
             event_roles: compile_event_roles(
                 &parsed_files(&sources),
                 &tag_names(&parsed_files(&sources)),
@@ -550,6 +555,100 @@ pub(super) fn compile_event_roles(
         }
     }
     Ok(out)
+}
+
+/// What authority a **stated role** carries, by spelling.
+///
+/// Two sets rather than one list, because the questions differ and were fused: `tool` outranks a tagged
+/// attribute name and must **not** survive event-name derivation, since an event name is real evidence of it.
+#[derive(Debug, Default)]
+pub struct RoleAuthorityPlan {
+    survives_event_derivation: std::collections::BTreeSet<String>,
+    outranks_a_tag: std::collections::BTreeSet<String>,
+}
+
+impl RoleAuthorityPlan {
+    /// Whether a stated role of this spelling survives the role an event name would derive.
+    pub fn survives_event_derivation(&self, stated: &str) -> bool {
+        self.survives_event_derivation
+            .contains(&stated.to_lowercase())
+    }
+
+    /// Whether a stated role of this spelling outranks the name a tagged attribute reading was found under.
+    pub fn outranks_a_tag(&self, stated: &str) -> bool {
+        self.outranks_a_tag.contains(&stated.to_lowercase())
+    }
+
+    /// Every declared spelling, for a test that checks the vocabulary as a set.
+    pub fn declared_spellings(&self) -> impl Iterator<Item = &str> {
+        self.survives_event_derivation
+            .iter()
+            .chain(self.outranks_a_tag.iter())
+            .map(String::as_str)
+    }
+
+    pub fn rule_count(&self) -> usize {
+        self.declared_spellings()
+            .collect::<std::collections::BTreeSet<_>>()
+            .len()
+    }
+}
+
+/// The declared role authorities, gathered across every asset.
+///
+/// Every spelling the role alias table folds must be declared here, so adding an alias forces an authority
+/// decision instead of inheriting one silently - which is what it did: the alias table decided authority on the
+/// tagged-attribute path, and its job is folding spellings, not granting authority.
+pub(super) fn compile_role_authority(
+    files: &[schema::RuleFile],
+) -> Result<RoleAuthorityPlan, String> {
+    let mut plan = RoleAuthorityPlan::default();
+    let mut by_role: std::collections::BTreeMap<String, String> = std::collections::BTreeMap::new();
+    for file in files {
+        for entry in &file.role_authority {
+            if entry.role.is_empty() {
+                return Err(format!(
+                    "`{}` declares a role authority with no role",
+                    file.id
+                ));
+            }
+            if entry.role != entry.role.to_lowercase() {
+                return Err(format!(
+                    "role authority `{}` in `{}` declares `{}`, which is matched case-insensitively - declare it                      in lower case, or two spellings of one entry read as two",
+                    entry.id, file.id, entry.role
+                ));
+            }
+            if !entry.survives_event_derivation && !entry.outranks_a_tag {
+                return Err(format!(
+                    "role authority `{}` in `{}` grants no authority at all, so it states nothing - leave the                      entry out",
+                    entry.id, file.id
+                ));
+            }
+            if let Some(first) = by_role.get(&entry.role) {
+                return Err(format!(
+                    "role `{}` is declared twice, by `{first}` and `{}` - which applies would depend on load                      order",
+                    entry.role, entry.id
+                ));
+            }
+            by_role.insert(entry.role.clone(), entry.id.clone());
+            if entry.survives_event_derivation {
+                plan.survives_event_derivation.insert(entry.role.clone());
+            }
+            if entry.outranks_a_tag {
+                plan.outranks_a_tag.insert(entry.role.clone());
+            }
+        }
+    }
+    // A spelling the alias table folds and nothing declares would silently lose the authority it used to inherit
+    // from being foldable. Forcing the decision is the whole point of separating the two facts.
+    for spelling in crate::domain::sideml::ChatRole::declared_alias_spellings() {
+        if !by_role.contains_key(*spelling) {
+            return Err(format!(
+                "`{spelling}` is a role spelling the alias table folds and no `role_authority` entry declares -                  so whether a payload stating it outranks a tagged name would depend on the folding table, which                  is a statement about spelling rather than about authority"
+            ));
+        }
+    }
+    Ok(plan)
 }
 
 /// The declared `gen_ai.system` → provider aliases.

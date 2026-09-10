@@ -1,0 +1,102 @@
+{
+  "id": "role-authority",
+  "doc": "Which role spellings, when a payload states one, outrank the name the reading was found under. This engine's own vocabulary rather than any producer's, which is why it declares no `detect` rule.\n\nTwo questions, and they were fused. **Does a stated role survive event-name derivation** was a hardcoded Rust list; **does a stated role outrank a tagged attribute name** was that list *or whatever the role alias table happened to recognise*. The alias table exists to fold spellings onto four canonical roles, which is a different job from deciding authority - so adding an alias for folding silently granted it authority over a declared tag, and removing one silently took it away. Neither change would have named the authority it moved.\n\nDeclared here, both are their own fact. Every spelling the alias table folds must appear in this section, so adding an alias forces an authority decision rather than inheriting one; what that decision *is* stays free.\n\nThe reason authority exists at all: on a tagged attribute reading, a role the pipeline can read is more specific than the name the reading was tagged with, while an unrecognised string is not - it normalises to `user` further down, so treating it as authoritative turned a tool's answer into the user's question on the strength of a value nothing understands.",
+  "role_authority": [
+    {
+      "id": "role-authority.tool_call",
+      "role": "tool_call",
+      "survives_event_derivation": true,
+      "outranks_a_tag": true,
+      "doc": "A tool invocation: the arguments passed to a tool. Extraction knows this from the span's context and no event name states it, so deriving a role from the name would overwrite the more specific fact."
+    },
+    {
+      "id": "role-authority.tools",
+      "role": "tools",
+      "survives_event_derivation": true,
+      "outranks_a_tag": true,
+      "doc": "A tool *definitions* message, which is not a conversation role at all. The one spelling the alias table does not fold, which is why the two questions could not be one list."
+    },
+    {
+      "id": "role-authority.data",
+      "role": "data",
+      "survives_event_derivation": true,
+      "outranks_a_tag": true,
+      "doc": "Conversation history a framework hands back as data."
+    },
+    {
+      "id": "role-authority.context",
+      "role": "context",
+      "survives_event_derivation": true,
+      "outranks_a_tag": true,
+      "doc": "Chat context, and retrieved material."
+    },
+    {
+      "id": "role-authority.documents",
+      "role": "documents",
+      "survives_event_derivation": true,
+      "outranks_a_tag": true,
+      "doc": "Retrieved material, under the spelling the retired extractor synthesised. **Nothing produces it now** - the assets write `context` - and it stays declared because the question is what a *payload* states, not what this engine writes: a producer stating it would otherwise lose the authority it has today, which is a behaviour change no evidence asks for. The alias table does not fold it, so it normalises to `user`; that is why it needed declaring separately in the first place."
+    },
+    {
+      "id": "role-authority.system",
+      "role": "system",
+      "outranks_a_tag": true
+    },
+    {
+      "id": "role-authority.developer",
+      "role": "developer",
+      "outranks_a_tag": true
+    },
+    {
+      "id": "role-authority.user",
+      "role": "user",
+      "outranks_a_tag": true
+    },
+    {
+      "id": "role-authority.human",
+      "role": "human",
+      "outranks_a_tag": true
+    },
+    {
+      "id": "role-authority.assistant",
+      "role": "assistant",
+      "outranks_a_tag": true
+    },
+    {
+      "id": "role-authority.ai",
+      "role": "ai",
+      "outranks_a_tag": true
+    },
+    {
+      "id": "role-authority.bot",
+      "role": "bot",
+      "outranks_a_tag": true
+    },
+    {
+      "id": "role-authority.model",
+      "role": "model",
+      "outranks_a_tag": true
+    },
+    {
+      "id": "role-authority.choice",
+      "role": "choice",
+      "outranks_a_tag": true
+    },
+    {
+      "id": "role-authority.tool",
+      "role": "tool",
+      "outranks_a_tag": true,
+      "doc": "Authoritative over a tag, and deliberately *not* surviving event derivation: `tool` is a role an event name states - `gen_ai.tool.message` on a chat span, `gen_ai.choice` on a tool span - so the name is evidence rather than a guess there."
+    },
+    {
+      "id": "role-authority.function",
+      "role": "function",
+      "outranks_a_tag": true
+    },
+    {
+      "id": "role-authority.ipython",
+      "role": "ipython",
+      "outranks_a_tag": true
+    }
+  ]
+}

@@ -657,20 +657,6 @@ fn role_from_tagged_source(key: &str, is_tool_span: bool) -> Option<ChatRole> {
         .flatten()
 }
 
-/// Special roles that MUST NOT be overridden by event-based role derivation.
-///
-/// These roles are explicitly set during extraction and carry specific semantic meaning
-/// that cannot be inferred from event names alone:
-/// - `tool_call`: Tool invocation (args passed to tool) - extraction knows this from span context
-/// - `tools`: Tool definitions message - set during extraction
-/// - `data`: Conversation history data (e.g., Google ADK) - set during extraction
-/// - `context`: Chat context (e.g., LiveKit) - set during extraction
-/// - `documents`: Retrieved documents (e.g., OpenInference RAG) - set during extraction
-///
-/// Note: `tool` is NOT in this list because it CAN be derived from event names
-/// (`gen_ai.tool.message` in chat spans, `gen_ai.choice` in tool spans).
-const SPECIAL_ROLES: &[&str] = &["tool_call", "tools", "data", "context", "documents"];
-
 /// Derive role from message source with span context.
 ///
 /// For events, derives role from event name with span context, overriding any
@@ -680,11 +666,15 @@ fn derive_role_from_source_with_context(raw: &RawMessage, is_tool_span: bool) ->
         MessageSource::Event { name, .. } => {
             // Preserve special roles that can't be derived from event names
             // Note: Normalize to lowercase for case-insensitive comparison
-            if let Some(existing) = raw.content.get("role").and_then(|r| r.as_str()) {
-                let existing_lower = existing.to_lowercase();
-                if SPECIAL_ROLES.contains(&existing_lower.as_str()) {
-                    return raw.content.clone();
-                }
+            // **Declared**: which stated roles are not replaced by the role an event name derives. Roles
+            // nothing derives from a name - a tool invocation, a tool-definitions message, framework state -
+            // where deriving overwrites the more specific fact with a guess.
+            if let Some(existing) = raw.content.get("role").and_then(|r| r.as_str())
+                && crate::domain::rules::ruleset()
+                    .role_authority
+                    .survives_event_derivation(existing)
+            {
+                return raw.content.clone();
             }
 
             // Derive role from event name with span context (overrides any existing role)
@@ -706,8 +696,12 @@ fn derive_role_from_source_with_context(raw: &RawMessage, is_tool_span: bool) ->
                 .get("role")
                 .and_then(|r| r.as_str())
                 .unwrap_or("");
-            if ChatRole::try_from_str(stated).is_some()
-                || SPECIAL_ROLES.contains(&stated.to_lowercase().as_str())
+            // **Declared**, and no longer "whatever the folding table recognises". The two are the same set
+            // today, and that was the hazard: adding an alias for folding granted it authority here, and neither
+            // change named the authority it moved.
+            if crate::domain::rules::ruleset()
+                .role_authority
+                .outranks_a_tag(stated)
             {
                 return raw.content.clone();
             }

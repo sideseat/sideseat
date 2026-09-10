@@ -1487,6 +1487,7 @@ const SHARED_VOCABULARY: &[&str] = &[
     "content-blocks-vercel",
     "content-blocks-wrappers",
     "tool-shapes",
+    "role-authority",
 ];
 
 /// Assets naming a **provider** rather than a framework. The pricing catalogue is entitled to those names,

@@ -54,6 +54,32 @@ impl ChatRole {
         })
     }
 
+    /// Every spelling `try_from_str` folds, so a declaration can be required to exist for each.
+    ///
+    /// The folding table decides which of four canonical roles a spelling means. It used to decide **authority**
+    /// as well - whether a stated role outranks the name its reading was tagged with - so adding a spelling here
+    /// silently granted it that. `compile_role_authority` requires an explicit declaration per spelling, and this
+    /// is the list it checks against, kept beside the match so a new arm is one line from being declared too.
+    pub const fn declared_alias_spellings() -> &'static [&'static str] {
+        &[
+            "system",
+            "developer",
+            "user",
+            "human",
+            "data",
+            "context",
+            "assistant",
+            "ai",
+            "bot",
+            "model",
+            "choice",
+            "tool_call",
+            "tool",
+            "function",
+            "ipython",
+        ]
+    }
+
     /// Check if role string represents tool definitions (not a conversation role).
     pub fn is_tools_definition_role(s: &str) -> bool {
         s.to_lowercase() == "tools"
