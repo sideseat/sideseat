@@ -1790,8 +1790,40 @@ pub struct Alternative {
     #[serde(default)]
     pub then_present_any_of: Vec<JsonPath>,
     /// Fall back to the element itself when none of `then_any_of` resolved.
+    ///
+    /// One answer for two different situations, which is what `on_absent` / `on_malformed` replace for the
+    /// *presence* coalesce: a member that is absent and a member that is present and wrong-typed both fell here.
+    /// Kept for `then_any_of`, whose coalesce is by yielding and has no third state to tell apart.
     #[serde(default)]
     pub else_element: bool,
+    /// What a **presence** coalesce does when none of its paths named anything.
+    ///
+    /// Only meaningful beside `then_present_any_of`, and refused elsewhere: a yielding coalesce has one
+    /// not-found state, so `else_element` says everything there is to say about it.
+    #[serde(default)]
+    pub on_absent: Option<PresenceFallback>,
+    /// What it does when a path named something **present and of the wrong shape**.
+    ///
+    /// The case `else_element` could not express. A wrapper member is a list of declarations, so
+    /// `{"function_declarations": {"name": "weather"}}` has not declared its contents - and treating that as the
+    /// member being *absent* sent it to the element fallback, which emits the whole wrapper as a tool
+    /// definition. Codex's ruling: keep the recovery, because the enclosing object independently describes a
+    /// valid bare tool, and **report** the malformed member rather than pretending nobody wrote it.
+    ///
+    /// Also: once presence has selected a representation, a *later* spelling is not tried. Presence chose;
+    /// falling through to the next path would answer from a representation the producer did not use.
+    #[serde(default)]
+    pub on_malformed: Option<PresenceFallback>,
+}
+
+/// What a presence coalesce falls back to.
+#[derive(Debug, Deserialize, Clone, Copy, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum PresenceFallback {
+    /// The element itself is the contents.
+    Element,
+    /// Nothing: this element is not the shape, and the reading moves on.
+    Nothing,
 }
 
 /// Which members an indexed entry must carry.

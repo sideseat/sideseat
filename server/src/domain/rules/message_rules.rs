@@ -3244,18 +3244,70 @@ fn readings(
             let element: Vec<&JsonValue> = if !alternative.then_present_any_of.is_empty() {
                 // The first path that resolves *at all*. A present-but-empty member has declared nothing,
                 // and yields nothing - it does not fall through to the element itself.
-                match alternative
+                // **Three answers, not two.** A wrapper *is* a list of declarations, so a member that is
+                // present and not one has not declared its contents - and treating that as the member being
+                // *absent* sent it to the element fallback, which emits the whole wrapper as a tool
+                // definition. `{"function_declarations": {"name": "weather"}}` became a tool that way.
+                //
+                // Presence also **chooses the representation**: once a path names something, a later spelling
+                // is not tried, because falling through would answer from a representation the producer did
+                // not use.
+                let found = alternative
                     .then_present_any_of
                     .iter()
-                    .find_map(|path| singular(element, path, "then_present_any_of"))
-                    // A wrapper *is* a list. A present member that is not one has not declared its
-                    // contents, so the element is not this shape - the same answer as the member being
-                    // absent, which is what the retired code did by requiring the member to be an array.
-                    .and_then(JsonValue::as_array)
-                {
-                    Some(items) => items.iter().collect(),
-                    None if alternative.else_element => vec![element],
-                    None => continue,
+                    .find_map(|path| singular(element, path, "then_present_any_of"));
+                let fallback = |which: Option<super::schema::PresenceFallback>| match which
+                    .unwrap_or(if alternative.else_element {
+                        super::schema::PresenceFallback::Element
+                    } else {
+                        super::schema::PresenceFallback::Nothing
+                    }) {
+                    super::schema::PresenceFallback::Element => Some(vec![element]),
+                    super::schema::PresenceFallback::Nothing => None,
+                };
+                match found {
+                    // Present and a list: its members are the contents, an empty one included - a producer
+                    // writing `[]` has declared no tools, which is a statement.
+                    Some(value) if value.is_array() => value
+                        .as_array()
+                        .map_or_else(Vec::new, |items| items.iter().collect()),
+                    // Present and something else. Recovered rather than refused, because the enclosing object
+                    // independently describes a valid reading - and **reported**, because the member the
+                    // producer wrote is unusable and that used to be recorded nowhere.
+                    Some(value) => {
+                        let defect = super::outcome::Defect::new(
+                            super::expr::ClausePath::root(alternative.id.clone()),
+                            "then_present_any_of",
+                            super::outcome::DefectKind::WrongMember,
+                            format!(
+                                "a wrapper member is a list of declarations; found {}",
+                                match value {
+                                    JsonValue::Object(_) => "an object",
+                                    JsonValue::String(_) => "a string",
+                                    JsonValue::Number(_) => "a number",
+                                    JsonValue::Bool(_) => "a boolean",
+                                    JsonValue::Null => "null",
+                                    JsonValue::Array(_) => "an array",
+                                }
+                            ),
+                        );
+                        tracing::debug!(
+                            target: "sideseat::rules",
+                            clause = %defect.clause,
+                            kind = ?defect.kind,
+                            detail = %defect.detail,
+                            "a presence coalesce named a member of the wrong shape"
+                        );
+                        match fallback(alternative.on_malformed) {
+                            Some(recovered) => recovered,
+                            None => continue,
+                        }
+                    }
+                    // Absent: nothing named anything, which is what a fallback is for.
+                    None => match fallback(alternative.on_absent) {
+                        Some(recovered) => recovered,
+                        None => continue,
+                    },
                 }
             } else if alternative.then_any_of.is_empty() {
                 vec![element]
@@ -4943,6 +4995,18 @@ fn inline_fragments(
                     rule: spec.id.clone(),
                     detail: "declares both `then_any_of` and `then_present_any_of`; presence wins, so the \
                              yielding form would be ignored - they coalesce by different questions",
+                });
+            }
+            // `on_absent` / `on_malformed` are the *presence* coalesce's answers. A yielding coalesce has one
+            // not-found state, so `else_element` says everything there is to say about it - and a rule declaring
+            // these beside `then_any_of` would be stating a distinction that coalesce cannot make.
+            if (spec.on_absent.is_some() || spec.on_malformed.is_some())
+                && spec.then_present_any_of.is_empty()
+            {
+                return Err(MessageCompileError::Inexpressible {
+                    rule: spec.id.clone(),
+                    detail: "declares `on_absent` or `on_malformed` with no `then_present_any_of` - they are \
+                             the presence coalesce's answers, and a yielding coalesce has one not-found state",
                 });
             }
             if spec.else_element

@@ -533,6 +533,7 @@ fn the_engine_names_no_framework() {
         ("classify.rs", include_str!("classify.rs")),
         ("members.rs", include_str!("members.rs")),
         ("expr.rs", include_str!("expr.rs")),
+        ("outcome.rs", include_str!("outcome.rs")),
     ];
 
     // The engine directory holds nothing else. A new module would otherwise be exempt by omission -
@@ -7378,5 +7379,119 @@ fn the_predicate_semantics_have_not_migrated_and_here_is_what_still_answers_the_
         !predicates_hold(&serde_json::json!({}), &declared),
         "an absent value does not satisfy a positive condition - which is the `Unknown` the grammar gives, \
          reaching a decision here"
+    );
+}
+
+/// A presence coalesce tells **absent** from **present and the wrong shape**, which `else_element` could not.
+///
+/// A wrapper member is a list of declarations, so `{"function_declarations": {"name": "weather"}}` has not
+/// declared its contents - and treating that as the member being *absent* sent it to the element fallback, which
+/// emits the whole wrapper as a tool definition. Codex's ruling: keep the recovery, because the enclosing object
+/// independently describes a valid bare tool, and **report** the malformed member rather than pretending nobody
+/// wrote it. So the two situations get separate answers.
+///
+/// Also pinned: once presence has selected a representation, a later spelling is not tried. Presence chose;
+/// falling through would answer from a representation the producer did not use.
+#[test]
+fn a_presence_coalesce_tells_absent_from_the_wrong_shape() {
+    use crate::domain::rules::message_rules::{MessageContext, compile};
+
+    let asset = |fallbacks: &str| {
+        let body = format!(
+            r#"{{"id":"t","messages":[{{"id":"t.tools","read":{{"attribute":"tools"}},"parse":"json",
+                 "emit":"tool_definitions","legacy_rank":1,
+                 "alternatives":[{{"id":"decls","select":"$[*]",
+                   "then_present_any_of":["$.function_declarations","$.functionDeclarations"]{fallbacks}}}]}}]}}"#
+        );
+        compile(&std::collections::BTreeMap::from([(
+            "t.json".to_string(),
+            body.into_bytes(),
+        )]))
+    };
+    let read = |plan: &crate::domain::rules::message_rules::MessagePlan,
+                payload: serde_json::Value| {
+        let attrs = std::collections::HashMap::from([("tools".to_string(), payload.to_string())]);
+        let ctx = MessageContext::for_span("span", &attrs, false);
+        // An emission's value is the observation itself here - one per selected element - so a list is
+        // flattened and anything else is one item. Flattening unconditionally reported nothing for the
+        // single-object case, which is how my first version of this test failed.
+        plan.tool_definitions(&ctx)
+            .iter()
+            .flat_map(|e| match e.value.as_array() {
+                Some(items) => items.clone(),
+                None => vec![e.value.clone()],
+            })
+            .collect::<Vec<_>>()
+    };
+
+    // The two answers, declared separately: recover from a wrong-shaped member, and refuse an absent one.
+    let plan = asset(r#","on_malformed":"element","on_absent":"nothing""#).expect("compiles");
+    let recovered = read(
+        &plan,
+        serde_json::json!([{"name": "bare", "function_declarations": {"name": "weather"}}]),
+    );
+    assert_eq!(
+        recovered.len(),
+        1,
+        "the enclosing object independently describes a valid bare tool, so the reading recovers"
+    );
+    assert_eq!(recovered[0]["name"].as_str(), Some("bare"));
+    assert!(
+        read(&plan, serde_json::json!([{"name": "bare"}])).is_empty(),
+        "and an *absent* member is a different situation, answered separately - which `else_element` could not \
+         express, since both fell to it"
+    );
+
+    // Reversed, to show the two are independent rather than one dial.
+    let plan = asset(r#","on_malformed":"nothing","on_absent":"element""#).expect("compiles");
+    assert!(
+        read(
+            &plan,
+            serde_json::json!([{"name": "bare", "function_declarations": {"name": "weather"}}])
+        )
+        .is_empty()
+    );
+    assert_eq!(read(&plan, serde_json::json!([{"name": "bare"}])).len(), 1);
+
+    // A present list is still the contents, empty included: a producer writing `[]` has declared no tools.
+    let plan = asset(r#","on_malformed":"element","on_absent":"element""#).expect("compiles");
+    assert_eq!(
+        read(
+            &plan,
+            serde_json::json!([{"function_declarations": [{"name": "a"}, {"name": "b"}]}])
+        )
+        .len(),
+        2
+    );
+    assert!(
+        read(&plan, serde_json::json!([{"function_declarations": []}])).is_empty(),
+        "an empty wrapper has declared no tools, and that is a statement rather than a fall-through"
+    );
+
+    // **Presence chooses the representation**: the second spelling is not tried once the first named something.
+    assert!(
+        read(
+            &plan,
+            serde_json::json!([{
+                "function_declarations": {"wrong": "shape"},
+                "functionDeclarations": [{"name": "would_have_worked"}]
+            }])
+        )
+        .iter()
+        .all(|tool| tool["name"].as_str() != Some("would_have_worked")),
+        "falling through to a later spelling would answer from a representation the producer did not use"
+    );
+
+    // And the members are refused where the coalesce cannot make the distinction they express.
+    assert!(
+        compile(&std::collections::BTreeMap::from([(
+            "t.json".to_string(),
+            br#"{"id":"t","messages":[{"id":"t.r","read":{"attribute":"x"},"parse":"json",
+                 "emit":"message","legacy_rank":1,
+                 "alternatives":[{"id":"a","then_any_of":["$.a"],"on_absent":"element"}]}]}"#
+                .to_vec(),
+        )]))
+        .is_err(),
+        "a yielding coalesce has one not-found state, so `on_absent` states a distinction it cannot make"
     );
 }
