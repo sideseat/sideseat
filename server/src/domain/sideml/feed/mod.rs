@@ -2234,7 +2234,12 @@ fn compute_metadata(
 /// 2. Merge definitions with the same name to preserve complementary fields.
 /// 3. Use quality score only to choose merge base / break ties.
 pub fn deduplicate_tools(raw: Vec<JsonValue>) -> Vec<JsonValue> {
-    let mut by_name: HashMap<String, JsonValue> = HashMap::with_capacity(raw.len());
+    // One name may have **several** definitions, because two producers can state the same tool differently and
+    // mean different things by it. A swarm's agents each declare `Delegate work to coworker` with a description
+    // enumerating *their own* coworkers; merged onto one name, whichever won quality replaced the other, and the
+    // list then told the user the wrong coworkers for one of the agents - a statement about that agent nobody
+    // made. Two forms where one merely states *less* are still one tool, which is what the merge is for.
+    let mut by_name: HashMap<String, Vec<JsonValue>> = HashMap::with_capacity(raw.len());
 
     for def in raw {
         let normalized = normalize_tools(&def);
@@ -2259,19 +2264,68 @@ pub fn deduplicate_tools(raw: Vec<JsonValue>) -> Vec<JsonValue> {
                 );
                 continue;
             };
-            by_name
-                .entry(name)
-                .and_modify(|existing| {
-                    let merged = merge_tool_definitions(existing.clone(), canonical.clone());
-                    *existing = merged;
-                })
-                .or_insert(canonical);
+            let group = by_name.entry(name).or_default();
+            // Merged into the first form it does not contradict; a contradiction starts a new one.
+            match group
+                .iter_mut()
+                .find(|existing| contradiction_between(existing, &canonical).is_none())
+            {
+                Some(existing) => {
+                    *existing = merge_tool_definitions(existing.clone(), canonical);
+                }
+                None => group.push(canonical),
+            }
         }
     }
 
-    let mut tools: Vec<(String, JsonValue)> = by_name.into_iter().collect();
+    let mut tools: Vec<(String, Vec<JsonValue>)> = by_name.into_iter().collect();
     tools.sort_by(|a, b| a.0.cmp(&b.0));
-    tools.into_iter().map(|(_, def)| def).collect()
+    // Within a name, the order they were stated in - deterministic, and the order a reader met them.
+    tools.into_iter().flat_map(|(_, defs)| defs).collect()
+}
+
+/// A member two tool definitions both state and **disagree** about, if any.
+///
+/// The question that separates one tool stated twice from two tools sharing a name. A carrier that names a tool
+/// and nothing else, beside one carrying its whole schema, is one tool described at two levels of detail - and
+/// merging those is exactly what `merge_tool_definitions` is for. Two producers that both said something and said
+/// different things are not that: the merge keeps whichever scores higher and drops the other, so the survivor is
+/// presented as *the* definition and the other producer's statement is gone with nothing saying so.
+///
+/// Compared **leaf by leaf through objects**, so a schema is compared where it differs rather than as one opaque
+/// value: two parameter objects differing only in a member one of them omits are not a disagreement.
+///
+/// **Arrays are not descended into**, and that is not a shortcut - comparing them by index says two carriers
+/// disagree about element 0 when one wrote `required: ["city"]` and the other `required: ["days"]`, which are
+/// complementary halves of one schema and exactly what `merge_json_schema` unions. A set has no element 0. The
+/// cost is that two genuinely different `enum` lists read as one union rather than as a disagreement, which is
+/// the same answer the merge would give anyway.
+fn contradiction_between(a: &JsonValue, b: &JsonValue) -> Option<String> {
+    fn leaves(prefix: &str, value: &JsonValue, out: &mut Vec<(String, String)>) {
+        match value {
+            JsonValue::Object(members) => {
+                for (key, member) in members {
+                    leaves(&format!("{prefix}/{key}"), member, out);
+                }
+            }
+            JsonValue::Array(_) => {}
+            scalar => out.push((prefix.to_string(), scalar.to_string())),
+        }
+    }
+
+    let mut theirs = Vec::new();
+    leaves("", b, &mut theirs);
+    if theirs.is_empty() {
+        return None;
+    }
+    let mut mine = Vec::new();
+    leaves("", a, &mut mine);
+    let mine: HashMap<String, String> = mine.into_iter().collect();
+    theirs.into_iter().find_map(|(path, value)| {
+        mine.get(&path)
+            .filter(|stated| **stated != value)
+            .map(|stated| format!("{path}: {stated} vs {value}"))
+    })
 }
 
 /// The hand-written canonicaliser this file used to apply after `normalize_tools`, kept as an **oracle**.

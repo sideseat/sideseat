@@ -604,7 +604,7 @@
         "assistant"
       ],
       "tool_names": [],
-      "tool_definition_count": 5,
+      "tool_definition_count": 8,
       "messages": [
         {
           "index": 0,
@@ -772,7 +772,7 @@
         "assistant"
       ],
       "tool_names": [],
-      "tool_definition_count": 5,
+      "tool_definition_count": 8,
       "messages": [
         {
           "index": 0,
@@ -939,7 +939,7 @@
       "assistant"
     ],
     "tool_names": [],
-    "tool_definition_count": 5,
+    "tool_definition_count": 8,
     "messages": [
       {
         "index": 0,

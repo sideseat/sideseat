@@ -4455,3 +4455,241 @@ fn no_declared_subdivision_is_dead_across_the_corpus() {
         "exempted subdivision(s) now fire, so the exemption is stale: {revived:?}"
     );
 }
+
+/// What a span's persisted tool set loses: **which carrier said it**.
+///
+/// A `RawToolDefinition` carries its source; `flatten_tool_definitions` concatenates the contents and drops it,
+/// unlike a message, which keeps `_source` through persistence. This measures what that costs across the corpus,
+/// so the finding is a number rather than an argument - and pins it, so a later repair has a baseline.
+#[test]
+fn a_persisted_tool_set_reports_what_its_provenance_would_have_said() {
+    use crate::domain::rules::MessageContext;
+    use crate::utils::otlp::extract_attributes;
+    use std::collections::{BTreeMap, BTreeSet};
+
+    let plan = &crate::domain::rules::ruleset().messages;
+    // Spans where two carriers name one tool with *different* content: a merge combines two producers'
+    // statements into one neither made, and nothing can report that it happened.
+    let mut conflicting = 0_usize;
+    // Spans where two carriers state one tool identically: the array stores it twice, and read-time
+    // deduplication hides it.
+    let mut duplicated = 0_usize;
+    let mut spans_declaring_tools = 0_usize;
+    // The same question at the scope `deduplicate_tools` actually merges over - a whole sample, not one span.
+    // A per-span count cannot see two spans of one trace declaring different forms of a tool, which is the shape
+    // the read-time merge would silently combine.
+    let mut samples_with_conflicts: Vec<String> = Vec::new();
+    // Two forms of one name where **neither contradicts** the other: one states less than the other, which is
+    // what "merge preserves complementary fields" is for. Counted, because "the forms differ" is the wrong
+    // question - every sample that declares tools twice differs, and almost all of it is refinement.
+    let mut refined = 0_usize;
+
+    for (sample, paths) in discover_fixtures() {
+        let mut sample_forms: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
+        for path in &paths {
+            let request = decode_request(path);
+            for resource in &request.resource_spans {
+                for scope in &resource.scope_spans {
+                    for span in &scope.spans {
+                        let attrs = extract_attributes(&span.attributes);
+                        let is_tool = crate::domain::rules::ruleset().span_facts.holds(
+                            crate::domain::rules::schema::SpanFact::ToolExecution,
+                            &attrs,
+                        );
+                        let ctx = MessageContext::for_span(&span.name, &attrs, is_tool);
+
+                        // name -> the distinct canonical forms declared for it, and by how many carriers
+                        let mut by_name: BTreeMap<String, (BTreeSet<String>, usize)> =
+                            BTreeMap::new();
+                        for emission in plan.tool_definitions(&ctx) {
+                            let items = match &emission.value {
+                                serde_json::Value::Array(items) => items.clone(),
+                                single => vec![single.clone()],
+                            };
+                            for item in items {
+                                let canonical =
+                                    crate::domain::sideml::tools::normalize_tools(&item);
+                                for definition in canonical.as_array().cloned().unwrap_or_default()
+                                {
+                                    let Some(name) =
+                                        crate::domain::sideml::extract_tool_name(&definition)
+                                    else {
+                                        continue;
+                                    };
+                                    let entry = by_name.entry(name).or_default();
+                                    entry.0.insert(definition.to_string());
+                                    entry.1 += 1;
+                                }
+                            }
+                        }
+                        if by_name.is_empty() {
+                            continue;
+                        }
+                        spans_declaring_tools += 1;
+                        if by_name.values().any(|(forms, _)| forms.len() > 1) {
+                            conflicting += 1;
+                        }
+                        for (name, (forms, _)) in &by_name {
+                            sample_forms
+                                .entry(name.clone())
+                                .or_default()
+                                .extend(forms.iter().cloned());
+                        }
+                        if by_name
+                            .values()
+                            .any(|(forms, count)| forms.len() == 1 && *count > 1)
+                        {
+                            duplicated += 1;
+                        }
+                    }
+                }
+            }
+        }
+        for (name, forms) in &sample_forms {
+            if forms.len() > 1 {
+                refined += 1;
+            }
+            if let Some(detail) = contradiction_among(forms) {
+                samples_with_conflicts.push(format!("{sample} :: {name} :: {detail}"));
+            }
+        }
+    }
+
+    println!(
+        "tool sets: {spans_declaring_tools} spans declare tools; {duplicated} store a definition twice; \
+         {conflicting} spans hold two forms of one tool name; {refined} tools are stated at two levels of \
+         detail across a sample's spans; {} of those contradict",
+        samples_with_conflicts.len()
+    );
+    assert!(
+        spans_declaring_tools > 0,
+        "the corpus must declare tools somewhere, or this measures nothing"
+    );
+    // Pinned, not aspirational: a repair that preserves provenance should be able to *report* these rather than
+    // silently merge them, and a change that makes them worse should have to say so here.
+    // Contradictions **do** occur - one, in `crewai/swarm` - so the invariant is not that they are absent but
+    // that the merge no longer answers one by discarding the other. Each contradicting statement must survive as
+    // its own definition, which is what a reader needs when two agents describe one tool differently.
+    assert!(
+        !samples_with_conflicts.is_empty(),
+        "no contradiction was found, so the invariant below is vacuous - the corpus used to hold one in \
+         `crewai/swarm`, whose agents each enumerate their own coworkers"
+    );
+    for conflict in &samples_with_conflicts {
+        let (sample, rest) = conflict
+            .split_once(" :: ")
+            .expect("the report names its sample");
+        let name = rest.split(" :: ").next().expect("and its tool");
+        let survived = surviving_definitions(sample, name);
+        assert!(
+            survived >= 2,
+            "`{name}` is stated in contradicting forms by `{sample}` and only {survived} survived - the merge \
+             answered a disagreement by dropping a producer's statement"
+        );
+    }
+    assert!(
+        refined > 0,
+        "the corpus must state some tool at two levels of detail, or the distinction between refinement and \
+         contradiction is untested here"
+    );
+    // Reported, **not** gated: a definition stored twice is corrected by read-time deduplication, so it costs
+    // storage rather than an answer, and pinning the exact number would make every new fixture edit this test.
+    // The provenance loss is what makes it invisible; it is not what makes it wrong.
+    assert!(
+        duplicated <= spans_declaring_tools,
+        "counted more duplicating spans than spans declaring tools"
+    );
+}
+
+/// A member two forms of one tool definition both state and **disagree** about, if any.
+///
+/// The question that separates a sound merge from an invented statement. Two forms of one tool name are ordinary:
+/// a carrier that names a tool and nothing else, beside one that carries its whole schema - and merging those is
+/// exactly "preserve complementary fields". What a merge must not do is choose between two producers who both
+/// said something and said different things, because the result is a definition neither of them made and, with
+/// the provenance dropped at persistence, nothing can report that it happened.
+///
+/// Compared **leaf by leaf**, so a schema nested three deep is compared at its leaves rather than as one opaque
+/// string - two objects differing only in a member one of them omits are not a disagreement.
+#[cfg(test)]
+fn contradiction_among(forms: &std::collections::BTreeSet<String>) -> Option<String> {
+    fn leaves(prefix: &str, value: &serde_json::Value, out: &mut Vec<(String, String)>) {
+        match value {
+            serde_json::Value::Object(members) => {
+                for (key, member) in members {
+                    leaves(&format!("{prefix}/{key}"), member, out);
+                }
+            }
+            // Not descended into, for the reason `contradiction_between` gives: a set has no element 0, and
+            // comparing by index calls two complementary `required` lists a disagreement.
+            serde_json::Value::Array(_) => {}
+            scalar => out.push((prefix.to_string(), scalar.to_string())),
+        }
+    }
+
+    let mut stated: std::collections::BTreeMap<String, String> = std::collections::BTreeMap::new();
+    for form in forms {
+        let parsed: serde_json::Value =
+            serde_json::from_str(form).expect("a rendered definition parses");
+        let mut found = Vec::new();
+        leaves("", &parsed, &mut found);
+        for (path, value) in found {
+            match stated.get(&path) {
+                Some(first) if *first != value => {
+                    return Some(format!("{path}: {first} vs {value}"));
+                }
+                _ => {
+                    stated.insert(path, value);
+                }
+            }
+        }
+    }
+    None
+}
+
+/// How many definitions of one tool name a sample's whole set reduces to.
+///
+/// The read path's own `deduplicate_tools`, over every definition the sample's spans declare - so this measures
+/// what a reader is shown rather than a re-implementation of it.
+#[cfg(test)]
+fn surviving_definitions(sample: &str, tool: &str) -> usize {
+    use crate::domain::rules::MessageContext;
+    use crate::utils::otlp::extract_attributes;
+
+    let mut declared: Vec<serde_json::Value> = Vec::new();
+    for (found, paths) in discover_fixtures() {
+        if found != sample {
+            continue;
+        }
+        for path in &paths {
+            let request = decode_request(path);
+            for resource in &request.resource_spans {
+                for scope in &resource.scope_spans {
+                    for span in &scope.spans {
+                        let attrs = extract_attributes(&span.attributes);
+                        let is_tool = crate::domain::rules::ruleset().span_facts.holds(
+                            crate::domain::rules::schema::SpanFact::ToolExecution,
+                            &attrs,
+                        );
+                        let ctx = MessageContext::for_span(&span.name, &attrs, is_tool);
+                        for emission in crate::domain::rules::ruleset()
+                            .messages
+                            .tool_definitions(&ctx)
+                        {
+                            match emission.value {
+                                serde_json::Value::Array(items) => declared.extend(items),
+                                single => declared.push(single),
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    crate::domain::sideml::feed::deduplicate_tools(declared)
+        .iter()
+        .filter(|definition| {
+            crate::domain::sideml::extract_tool_name(definition).as_deref() == Some(tool)
+        })
+        .count()
+}

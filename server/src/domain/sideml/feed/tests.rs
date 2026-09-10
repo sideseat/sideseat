@@ -212,22 +212,58 @@ fn test_process_spans_flattening() {
     assert!(matches!(&result.messages[1].content, ContentBlock::Text { text } if text == "Second"));
 }
 
+/// A name repeated with the **same** statement is one tool; a name repeated with a *different* one is two.
+///
+/// Two descriptions that differ are two statements, and merging them kept whichever scored higher and dropped the
+/// other with nothing saying so. Corpus evidence for why that matters: `crewai/swarm`'s agents each declare
+/// `Delegate work to coworker` with a description enumerating **their own** coworkers ("Code Reviewer" against
+/// "Coding Specialist"), so the merged list told the user the wrong coworkers for one of the two agents - a
+/// statement about that agent nobody had made. Two forms where one merely states *less* are still one tool, which
+/// is what the merge is for and what the tests below pin.
 #[test]
 fn test_deduplicate_tools() {
-    let tools = vec![
+    // Identical statements collapse.
+    let deduped = deduplicate_tools(vec![
         json!({"type": "function", "function": {"name": "tool_a", "description": "A"}}),
         json!({"type": "function", "function": {"name": "tool_b", "description": "B"}}),
-        json!({"type": "function", "function": {"name": "tool_a", "description": "A again"}}),
-    ];
-
-    let deduped = deduplicate_tools(tools);
-    assert_eq!(deduped.len(), 2);
-
+        json!({"type": "function", "function": {"name": "tool_a", "description": "A"}}),
+    ]);
     let names: Vec<_> = deduped
         .iter()
         .filter_map(|t| t.get("function")?.get("name")?.as_str())
         .collect();
     assert_eq!(names, vec!["tool_a", "tool_b"]);
+
+    // Contradicting statements both survive, in the order they were stated.
+    let deduped = deduplicate_tools(vec![
+        json!({"type": "function", "function": {"name": "tool_a", "description": "A"}}),
+        json!({"type": "function", "function": {"name": "tool_b", "description": "B"}}),
+        json!({"type": "function", "function": {"name": "tool_a", "description": "A again"}}),
+    ]);
+    let described: Vec<_> = deduped
+        .iter()
+        .filter_map(|t| {
+            let f = t.get("function")?;
+            Some((f.get("name")?.as_str()?, f.get("description")?.as_str()?))
+        })
+        .collect();
+    assert_eq!(
+        described,
+        vec![("tool_a", "A"), ("tool_a", "A again"), ("tool_b", "B")],
+        "a contradicting definition is a distinct definition, not a version of the same one"
+    );
+
+    // And a name stated with nothing else is still the same tool: this is refinement, not contradiction.
+    let deduped = deduplicate_tools(vec![
+        json!({"type": "function", "function": {"name": "tool_a", "description": "A"}}),
+        json!({"type": "function", "function": {"name": "tool_a"}}),
+    ]);
+    assert_eq!(deduped.len(), 1);
+    assert_eq!(
+        deduped[0]["function"]["description"].as_str(),
+        Some("A"),
+        "the fuller statement survives a refinement merge"
+    );
 }
 
 #[test]
