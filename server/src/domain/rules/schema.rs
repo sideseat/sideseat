@@ -2187,9 +2187,18 @@ pub struct Fragment {
 pub struct WalkSpec {
     /// How many levels below the carrier to descend. Zero means the carrier itself only.
     pub max_depth: usize,
-    /// Members not descended into, because the readings already took them at each node.
+    /// Members not descended into, **because a named clause took them here**.
+    ///
+    /// This was a list of member *names*, pruned globally and unconditionally - and the justification for that
+    /// (the readings already took the member) is a statement about a node where a reading actually fired. Where
+    /// none did, the name alone stopped the traversal: `{"messages": {"nested": {"deeper": <a message>}}}` lost
+    /// the nested message because the key is called `messages`, not because anything read it.
+    ///
+    /// So each entry names the clause whose recognition justifies the prune. Conditional rather than an honest
+    /// unconditional `skip_members`, because for the shipped walks the condition is the true statement: descend
+    /// unless the member was consumed.
     #[serde(default)]
-    pub prune: Vec<String>,
+    pub prune: Vec<PruneSpec>,
     /// Stop descending below a node **one of these clauses recognised**, naming them by id.
     ///
     /// A message's own members are its content, not more state, so descending into one would read its parts as
@@ -2244,6 +2253,18 @@ pub enum LiftConflict {
     KeepTarget,
     /// The lifted value wins.
     ReplaceTarget,
+}
+
+/// A member the walk does not descend into, and the clause whose reading justifies that.
+#[derive(Debug, Deserialize, Clone)]
+#[serde(deny_unknown_fields)]
+pub struct PruneSpec {
+    pub doc: Option<String>,
+    /// The member name.
+    pub member: String,
+    /// The clause that consumes it. The member is skipped only at a node where that clause recognised
+    /// something - elsewhere its contents have been read by nothing and are still worth visiting.
+    pub taken_by: String,
 }
 
 /// One tool call at a named member, as the normaliser's `{name, arguments}` convention.

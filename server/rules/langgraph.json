@@ -64,8 +64,16 @@
       "walk": {
         "max_depth": 4,
         "prune": [
-          "messages",
-          "raw"
+          {
+            "doc": "The `messages` clause reads this member, so where it fired the contents are already an observation.",
+            "member": "messages",
+            "taken_by": "messages"
+          },
+          {
+            "doc": "The `raw` clause reads this member, so where it fired the contents are already an observation.",
+            "member": "raw",
+            "taken_by": "raw"
+          }
         ],
         "stop_on": [
           "message",
@@ -136,8 +144,16 @@
       "walk": {
         "max_depth": 4,
         "prune": [
-          "messages",
-          "raw"
+          {
+            "doc": "The `messages` clause reads this member, so where it fired the contents are already an observation.",
+            "member": "messages",
+            "taken_by": "messages"
+          },
+          {
+            "doc": "The `raw` clause reads this member, so where it fired the contents are already an observation.",
+            "member": "raw",
+            "taken_by": "raw"
+          }
         ],
         "stop_on": [
           "message",

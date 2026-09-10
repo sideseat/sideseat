@@ -4989,8 +4989,13 @@ fn walked_readings(
                 let members: Vec<&JsonValue> = map
                     .iter()
                     .filter(|(key, value)| {
-                        !walk.prune.iter().any(|pruned| pruned == *key)
-                            && (value.is_object() || value.is_array())
+                        // Pruned only where the clause that consumes this member actually recognised
+                        // something here. As an unconditional name list, a member nothing read was skipped
+                        // because of what it is called.
+                        let taken = walk.prune.iter().any(|pruned| {
+                            &pruned.member == *key && here.recognised.contains(&pruned.taken_by)
+                        });
+                        !taken && (value.is_object() || value.is_array())
                     })
                     .map(|(_, value)| value)
                     .collect();
