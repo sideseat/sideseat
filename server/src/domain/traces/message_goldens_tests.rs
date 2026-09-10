@@ -4126,7 +4126,21 @@ fn the_declared_classification_matches_the_sweep_across_the_corpus() {
                             .as_str()
                             .to_string();
                         *seen.entry(declared.clone()).or_default() += 1;
-                        if declared != swept {
+                        // **One recorded divergence, and it is a repair the retired sweep shared.** A tool
+                        // execution whose producer also stamps the *owning agent's* name on the span: the
+                        // retired sweep asked "does an agent name exist" (and the declared rules reproduced it
+                        // at rank 100) before "does a tool name exist" (110), so a span named
+                        // `execute_tool <tool>` carrying `gen_ai.tool.name`, `gen_ai.tool.call.id`,
+                        // `gen_ai.tool.description` and `gen_ai.tool.type` was classified `agent` - while 86
+                        // otherwise identical spans were classified `tool`, because their producer stamps no
+                        // agent name. Same operation, two answers, decided by an attribute about something
+                        // else. `observation.execute_tool` reads the operation the producer *names*, which is
+                        // the conventions' own explicit statement and was read by nothing.
+                        let repaired_tool_execution = declared == "tool"
+                            && swept == "agent"
+                            && attrs.get("gen_ai.operation.name").map(String::as_str)
+                                == Some("execute_tool");
+                        if declared != swept && !repaired_tool_execution {
                             disagreements.push(format!(
                                 "{label} / {}: observation declared {declared}, swept {swept}",
                                 span.name
@@ -4692,4 +4706,69 @@ fn surviving_definitions(sample: &str, tool: &str) -> usize {
             crate::domain::sideml::extract_tool_name(definition).as_deref() == Some(tool)
         })
         .count()
+}
+
+/// No span's **observation type** and **span category** contradict each other.
+///
+/// The two are separate classifications with separate precedences, and that is deliberate - a transport call is a
+/// plain observation with an HTTP category, and transport-level instrumentation records `gen_ai.*` on a plain
+/// span. But they are only *partially* independent: six observation types name the same operation a category
+/// names, and for those the pair has one right answer. Nothing said so, and nothing noticed when they disagreed.
+///
+/// It found 14 spans: a tool execution whose producer also stamps the owning agent's name, classified `agent` with
+/// a category of `tool`. Fixed by reading the operation the producer *names* (`observation.execute_tool`), which
+/// is the conventions' own statement and was read by nothing.
+///
+/// A **runtime** invariant over the corpus rather than a compile refusal, because the two rule sets are
+/// predicates over spans: proving no span can satisfy an incompatible pair would mean deciding predicate
+/// intersection, and the pairs that matter are the ones a real producer writes.
+#[test]
+fn no_span_is_classified_as_two_incompatible_things() {
+    use crate::utils::otlp::extract_attributes;
+    use std::collections::BTreeMap;
+    // The six observation types that name the same operation a category names. `span`, `guardrail` and
+    // `evaluator` leave the category free - a transport call is a plain observation with an HTTP category, and
+    // transport-level instrumentation records `gen_ai.*` on a plain span.
+    let implied: BTreeMap<&str, &str> = BTreeMap::from([
+        ("generation", "llm"),
+        ("embedding", "embedding"),
+        ("agent", "agent"),
+        ("tool", "tool"),
+        ("chain", "chain"),
+        ("retriever", "retriever"),
+    ]);
+    let plan = &crate::domain::rules::ruleset().observation_types;
+    let mut bad: BTreeMap<(String, String), usize> = BTreeMap::new();
+    let mut total = 0_usize;
+    for (_, paths) in discover_fixtures() {
+        for path in &paths {
+            let request = decode_request(path);
+            for resource in &request.resource_spans {
+                for scope in &resource.scope_spans {
+                    for span in &scope.spans {
+                        let a = extract_attributes(&span.attributes);
+                        let obs = plan.observation_type(&span.name, &a).map(|v| v.value);
+                        let cat = plan.span_category(&span.name, &a).map(|v| v.value);
+                        total += 1;
+                        if let (Some(obs), Some(cat)) = (obs, cat)
+                            && let Some(want) = implied.get(obs)
+                            && *want != cat
+                        {
+                            *bad.entry((obs.to_string(), cat.to_string())).or_default() += 1;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    assert!(total > 0, "the corpus produced no spans to classify");
+    assert!(
+        bad.is_empty(),
+        "{} of {total} spans are classified as two incompatible things: {}",
+        bad.values().sum::<usize>(),
+        bad.iter()
+            .map(|((obs, cat), count)| format!("({obs}, {cat}) x{count}"))
+            .collect::<Vec<_>>()
+            .join(", ")
+    );
 }

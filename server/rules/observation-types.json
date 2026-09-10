@@ -85,6 +85,38 @@
       "result": "embedding"
     },
     {
+      "id": "observation.execute_tool",
+      "doc": "The conventions' own name for a tool execution, which nothing read - so a tool span was classified by whichever weaker signal happened to be present. One framework stamps the *owning agent's* name on its tool spans, and `observation.named_agent` (\"an agent name exists\", rank 100) outranks `observation.named_tool` (110), so 14 corpus spans named `execute_tool <tool>`, carrying `gen_ai.tool.name`, `gen_ai.tool.call.id`, `gen_ai.tool.description` and `gen_ai.tool.type`, were classified `agent` while 86 otherwise identical ones were classified `tool`. Same operation, two answers, decided by an attribute about something else. Ranked with the other operation-name rules, because the operation the producer *names* is the strongest evidence of what it did.",
+      "rank": 45,
+      "all_of": [
+        {
+          "attr_equals": [
+            {
+              "key": "gen_ai.operation.name",
+              "value": "execute_tool"
+            }
+          ]
+        }
+      ],
+      "result": "tool"
+    },
+    {
+      "id": "observation.invoke_agent",
+      "doc": "The conventions' name for invoking an agent, the mirror of the rule above. Corpus-neutral - all 85 such spans already resolved to `agent` through `observation.named_agent` - and declared anyway, so the answer rests on the producer's statement of the operation rather than on an agent-name attribute that a tool span may also carry.",
+      "rank": 46,
+      "all_of": [
+        {
+          "attr_equals": [
+            {
+              "key": "gen_ai.operation.name",
+              "value": "invoke_agent"
+            }
+          ]
+        }
+      ],
+      "result": "agent"
+    },
+    {
       "id": "observation.agent_construction",
       "rank": 50,
       "doc": "One dialect emits `create_agent` for the *construction* of an agent, which ran no model and is not an agent invocation. Only that dialect's: the same operation name from anywhere else falls through, which is why this rule names the system as well.",
