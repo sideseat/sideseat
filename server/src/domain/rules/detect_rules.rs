@@ -38,6 +38,8 @@ pub struct CompiledDetect {
 #[derive(Debug, Default)]
 pub struct DetectPlan {
     rules: Vec<CompiledDetect>,
+    /// Rule ids some rule claims to beat, so `resolve` can keep its early exit for everything else.
+    superseded: std::collections::BTreeSet<String>,
     /// SDK-declared slug → label.
     sdk_slugs: BTreeMap<String, String>,
 }
@@ -117,10 +119,9 @@ impl std::fmt::Display for DetectCompileError {
                 detail,
             } => write!(
                 f,
-                "detection rule `{rule}` supersedes `{target}`, which {detail}. `supersedes` waives the \
-                 *overlap report* that names which predicates are not yet sufficient - it does not order \
-                 anything, and `legacy_rank` still decides the winner. An edge that cannot take effect reads \
-                 as one that does"
+                "detection rule `{rule}` supersedes `{target}`, which {detail}. `supersedes` decides which \
+                 of two matching rules wins, ahead of `legacy_rank`, and waives the overlap report that names \
+                 which predicates are not yet sufficient. An edge that cannot take effect reads as one that does"
             ),
             Self::EmptyLiteral { rule, dimension } => write!(
                 f,
@@ -349,10 +350,10 @@ pub fn compile(sources: &BTreeMap<String, Vec<u8>>) -> Result<DetectPlan, Detect
             } else {
                 match rank_of.get(target.as_str()) {
                     None => Some("no asset declares"),
-                    // The waiver is read from the *winner*, so it must point at a rule this one outranks.
-                    Some(other) if *other < rule.legacy_rank => Some(
-                        "outranks it, so this rule never becomes the winner whose waiver is read",
-                    ),
+                    // An edge pointing at a rule that **outranks** this one used to be refused, because the
+                    // waiver was only read from whichever rule rank had already made the winner. Now that
+                    // `supersedes` orders, that edge is the useful case: it is how a rule beats one ranked ahead
+                    // of it without moving its own weaker signals up with it.
                     Some(_) => None,
                 }
             };
@@ -366,6 +367,11 @@ pub fn compile(sources: &BTreeMap<String, Vec<u8>>) -> Result<DetectPlan, Detect
         }
     }
 
+    // Every id some rule claims to beat, so `resolve` keeps its early exit for the rules nothing contests.
+    plan.superseded = rules
+        .iter()
+        .flat_map(|rule| rule.supersedes.iter().cloned())
+        .collect();
     plan.rules = rules;
     Ok(plan)
 }
@@ -830,7 +836,34 @@ impl DetectPlan {
     /// through [`Self::overlapping_candidates`] - the design's target is that no span has two, and the
     /// only way to get there is to be able to see which spans do.
     pub fn resolve(&self, ctx: &DetectContext<'_>) -> Option<&CompiledDetect> {
-        self.rules.iter().find(|rule| rule.matches(ctx))
+        let first = self.rules.iter().find(|rule| rule.matches(ctx))?;
+        // `supersedes` **orders**, which is what `legacy_rank`'s own doc says the accepted design is: "a declared
+        // `supersedes` resolves a known overlap". It used to waive only the overlap *report* while rank decided
+        // the winner regardless - so the field documented an ordering it took no part in, and could be deleted
+        // from an asset without changing a single attribution.
+        //
+        // The fast path is the common one: nothing supersedes this rule, so no later rule can displace it and the
+        // scan stops where it always did. Only a rule some other rule claims to beat pays for the second look.
+        if !self.superseded.contains(first.rule_id.as_str()) {
+            return Some(first);
+        }
+        // The winner is the matching rule that **no** other matching rule beats, lowest rank among those. Not
+        // "the first matching rule that beats the rank-winner": in rank order that test is satisfied by the
+        // rank-winner itself, so the edge ordered nothing. Domination is transitive, since `supersedes` is a DAG
+        // and a rule that beats a rule which beats this one beats it too; compilation refuses a cycle.
+        let matching: Vec<&CompiledDetect> =
+            self.rules.iter().filter(|rule| rule.matches(ctx)).collect();
+        let beaten: std::collections::BTreeSet<&str> = matching
+            .iter()
+            .flat_map(|rule| self.dominated_by(rule.rule_id.as_str()))
+            .collect();
+        matching
+            .iter()
+            .find(|rule| !beaten.contains(rule.rule_id.as_str()))
+            .copied()
+            // Every candidate beaten by another is only possible in a cycle, which compilation refuses - so this
+            // is unreachable, and falling back to the rank-winner is what it would have answered anyway.
+            .or(Some(first))
     }
 
     /// Every rule that matches, in rank order.

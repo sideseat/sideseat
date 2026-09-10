@@ -583,6 +583,14 @@ pub struct DetectRule {
     pub legacy_rank: i32,
     /// Rule ids this rule beats where both match. Declared, so a genuine overlap is owned rather than
     /// resolved by a number.
+    ///
+    /// It **orders**, ahead of `legacy_rank`, which is what that field's own doc says the accepted design is. It
+    /// used to waive only the overlap *report* while rank decided the winner regardless - so the field documented
+    /// an ordering it took no part in, and every shipped edge could have been deleted without changing a single
+    /// attribution. Transitive, since it is a DAG; a cycle is refused.
+    ///
+    /// This is what lets a rule beat one ranked ahead of it **without** moving its own weaker signals up too -
+    /// the same problem `alternatives` solves within a rule, here between two.
     #[serde(default)]
     pub supersedes: Vec<String>,
     #[serde(rename = "match")]

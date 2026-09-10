@@ -3937,16 +3937,17 @@ fn a_shared_message_rank_is_refused_only_where_the_order_shows() {
 
 /// A `supersedes` edge that cannot take effect is refused.
 ///
-/// The field waives the **overlap report** - the instrument that names which predicates are not yet
-/// sufficient - and it does *not* order anything: `legacy_rank` still decides the winner, and the waiver is
-/// read only from the rule that already won. So three shapes compiled silently and were inspected by nobody:
-/// an edge naming a rule that does not exist, an edge to itself, and Codex's case - an edge from a
-/// **higher**-ranked rule to a lower-ranked one, where the superseding rule never becomes the winner whose
-/// waiver is consulted.
+/// The field **orders**, ahead of `legacy_rank`, and it waives the overlap report - the instrument that names
+/// which predicates are not yet sufficient.
 ///
-/// All eight edges in the shipped assets point from the rank-winner to the rank-loser, so today the field
-/// documents why a rank is what it is. That is a fine thing for it to be; what it must not be is a statement
-/// an author believes orders their rules.
+/// It did not always. It used to waive the report *only*, with rank deciding the winner regardless and the waiver
+/// read only from whichever rule rank had already made the winner. So it documented an ordering it took no part
+/// in: every one of the eight shipped edges could have been deleted without changing a single attribution, and an
+/// edge pointing against the ranks was refused as useless - which it was, under those semantics.
+///
+/// That edge is now the useful case: it is how a rule beats one ranked ahead of it **without** moving its own
+/// weaker signals up too. So the refusals that remain are the ones that are still unable to take effect: a target
+/// nothing declares, an edge to a rule itself, and the same target twice.
 #[test]
 fn a_supersedes_edge_that_cannot_take_effect_is_refused() {
     let compiled = |first_rank: i32, second_rank: i32, supersedes: &str| {
@@ -3974,16 +3975,73 @@ fn a_supersedes_edge_that_cannot_take_effect_is_refused() {
         )]))
     };
 
-    // The shape that works: the superseding rule outranks its target, so its waiver is the one read.
+    // The shape the shipped assets use: the superseding rule already outranks its target.
     assert!(
         compiled(10, 20, "probe.generic").is_ok(),
         "an edge from the rank-winner to the rank-loser is the shape the assets use"
     );
-    // Codex's case: the edge points the wrong way down the ranks and is inspected by nobody.
-    assert!(
-        compiled(20, 10, "probe.generic").is_err(),
-        "an edge from a rule its target outranks can never take effect"
+    // The shape that used to be refused, and is now the point of the field: the edge points *against* the ranks,
+    // and the ordering it declares is what decides.
+    let plan = compiled(20, 10, "probe.generic")
+        .expect("an edge against the ranks is how a rule beats one ranked ahead of it");
+    let attrs: std::collections::HashMap<String, String> =
+        [("probe.specific.marker".to_string(), "1".to_string())]
+            .into_iter()
+            .collect();
+    let empty = std::collections::HashMap::new();
+    let found = plan
+        .resolve(&crate::domain::rules::detect_rules::DetectContext {
+            span_name: "chat",
+            span_attrs: &attrs,
+            resource_attrs: &empty,
+        })
+        .expect("both rules match this span");
+    assert_eq!(
+        found.label, "strands",
+        "the superseding rule wins although its target ranks ahead of it - otherwise `supersedes` orders nothing"
     );
+    // **Transitively**, and the middle rule deliberately does *not* match this span - which is the only shape
+    // where transitivity decides anything. With all three matching, the direct edges alone mark both losers and
+    // the answer is the same; with the middle absent, direct edges mark only it, leaving the rank-winner unbeaten
+    // and winning. Resolution is a different reader from the overlap report, whose own transitivity test cannot
+    // see this.
+    {
+        let chain = serde_json::json!({
+            "id": "probe",
+            "detect": [
+                {"id": "probe.c", "label": "c", "legacy_rank": 10,
+                 "match": {"attr_prefix": ["probe."]}},
+                {"id": "probe.b", "label": "b", "legacy_rank": 20,
+                 "match": {"attr_prefix": ["probe.absent."]}, "supersedes": ["probe.c"]},
+                {"id": "probe.a", "label": "a", "legacy_rank": 30,
+                 "match": {"attr_prefix": ["probe.mid.deep."]}, "supersedes": ["probe.b"]},
+            ],
+        });
+        let plan =
+            crate::domain::rules::detect_rules::compile(&std::collections::BTreeMap::from([(
+                "probe.json".to_string(),
+                serde_json::to_vec(&chain).expect("the probe serialises"),
+            )]))
+            .expect("a chain of edges compiles");
+        let attrs: std::collections::HashMap<String, String> =
+            [("probe.mid.deep.marker".to_string(), "1".to_string())]
+                .into_iter()
+                .collect();
+        let empty = std::collections::HashMap::new();
+        let found = plan
+            .resolve(&crate::domain::rules::detect_rules::DetectContext {
+                span_name: "chat",
+                span_attrs: &attrs,
+                resource_attrs: &empty,
+            })
+            .expect("two of the three rules match this span");
+        assert_eq!(
+            found.label, "a",
+            "`a` beats `b` which beats the rank-winner `c`, so `a` wins even though `b` itself does not match - \
+             domination is transitive"
+        );
+    }
+
     // A target nothing declares.
     assert!(
         compiled(10, 20, "probe.absent").is_err(),
