@@ -2300,7 +2300,11 @@ fn an_event_role_declaration_must_be_able_to_answer_and_must_not_depend_on_load_
     let compiled = |roles: serde_json::Value| {
         let probe = serde_json::json!({
             "id": "probe",
-            "message_events": [{"id": "probe.probe_event", "name": "probe.event"}],
+            "message_events": [
+                {"id": "probe.probe_event", "name": "probe.event"},
+                // A second produced name, so the three tool-span authorities can be declared side by side.
+                {"id": "probe.probe_event2", "name": "probe.event2"},
+            ],
             "messages": [{
                 "id": "probe.tagging_rule",
                 "read": {"attribute": "probe.attribute"},
@@ -2360,8 +2364,57 @@ fn an_event_role_declaration_must_be_able_to_answer_and_must_not_depend_on_load_
                 {"id": "probe.role8", "name": "probe.event", "role": "user"},
             ]),
         ),
+        (
+            // Absence already means "the same role on both kinds of span", so this is a second spelling of one
+            // fact - and it was legal, which is why one shipped declaration spelled it out while seven omitted it.
+            "a tool-span role equal to the ordinary one, which absence already says",
+            serde_json::json!([{"id": "probe.role11", "name": "probe.event", "role": "user", "role_in_tool_span": "user"}]),
+        ),
+        (
+            "silence on tool spans beside a role for them, which is two answers about one span kind",
+            serde_json::json!([{"id": "probe.role12", "name": "probe.event", "role": "user", "role_in_tool_span": "tool", "silent_in_tool_span": true}]),
+        ),
+        (
+            "silence on tool spans and no other role, which states nothing at all",
+            serde_json::json!([{"id": "probe.role13", "name": "probe.event", "silent_in_tool_span": true}]),
+        ),
+        (
+            "two that disagree only about silence, the same load-order question one step further in",
+            serde_json::json!([
+                {"id": "probe.role14", "name": "probe.event", "role": "user", "silent_in_tool_span": true},
+                {"id": "probe.role15", "name": "probe.event", "role": "user"},
+            ]),
+        ),
     ] {
         assert!(compiled(roles).is_err(), "{what} was accepted");
+    }
+
+    // The three authorities, each resolved from its own spelling. Without this the silent state is declarable
+    // and untested: every other assertion about "no role here" is satisfied by a name no asset speaks for, which
+    // is a different fact.
+    {
+        let compiled = compiled(serde_json::json!([
+            {"id": "probe.same", "name": "probe.event", "role": "user"},
+            {"id": "probe.other", "name": "probe.tag", "role": "assistant", "role_in_tool_span": "tool"},
+            {"id": "probe.silent", "name": "probe.event2", "role": "system", "silent_in_tool_span": true},
+        ]))
+        .expect("three well-formed authorities compile");
+        let role_on = |name: &str, tool| compiled.get(name).expect("declared").role_on(tool);
+        use crate::domain::sideml::ChatRole;
+        // Absence: the same role on both kinds.
+        assert_eq!(role_on("probe.event", false), Some(ChatRole::User));
+        assert_eq!(role_on("probe.event", true), Some(ChatRole::User));
+        // A role of its own on a tool span.
+        assert_eq!(role_on("probe.tag", false), Some(ChatRole::Assistant));
+        assert_eq!(role_on("probe.tag", true), Some(ChatRole::Tool));
+        // Silence: it speaks for ordinary spans and says nothing on a tool span, which absence cannot express
+        // because absence falls back to `role`.
+        assert_eq!(role_on("probe.event2", false), Some(ChatRole::System));
+        assert_eq!(
+            role_on("probe.event2", true),
+            None,
+            "a silent declaration must not fall back to its ordinary role"
+        );
     }
 
     // And the two shapes that must be accepted, or the refusals are simply a ban.

@@ -5965,3 +5965,34 @@ fn the_declared_source_names_are_exactly_the_ones_that_can_occur() {
         );
     }
 }
+
+/// A source name has **three** possible authorities on a tool span, and each has one spelling.
+///
+/// Absence means "the same role as elsewhere", which is what makes the third state unspellable without a flag of
+/// its own: a name that speaks for ordinary spans and says *nothing* on a tool span had no way to say so, because
+/// absence falls back to `role`. And "the same role" had two spellings - absence, and a `role_in_tool_span`
+/// equal to `role` - which one shipped declaration used and seven did not, for the identical fact.
+#[test]
+fn a_source_name_states_one_of_three_authorities_on_a_tool_span() {
+    use crate::domain::sideml::normalize::role_from_event_name_with_context as role_of;
+
+    // A role of its own: the same name means the opposite thing on a tool span.
+    assert_eq!(role_of("gen_ai.choice", false), Some(ChatRole::Assistant));
+    assert_eq!(role_of("gen_ai.choice", true), Some(ChatRole::Tool));
+
+    // The same role on both, said by absence - and this is the declaration that used to spell it twice.
+    assert_eq!(
+        role_of("gen_ai.assistant.message", false),
+        Some(ChatRole::Assistant)
+    );
+    assert_eq!(
+        role_of("gen_ai.assistant.message", true),
+        Some(ChatRole::Assistant),
+        "absence means the same role, so removing the redundant spelling must not change the answer"
+    );
+
+    // A name no asset speaks for states nothing on either kind, which is the state the flag makes declarable for
+    // a name that *does* speak elsewhere.
+    assert_eq!(role_of("acme.unknown.event", false), None);
+    assert_eq!(role_of("acme.unknown.event", true), None);
+}

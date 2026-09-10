@@ -576,7 +576,6 @@
       "id": "semconv.event_role.assistant_message",
       "name": "gen_ai.assistant.message",
       "role": "assistant",
-      "role_in_tool_span": "assistant",
       "doc": "Always the assistant, on either kind of span - it is a re-sent turn for most dialects and the reply itself for a choiceless generation span, and neither is a tool's output."
     },
     {

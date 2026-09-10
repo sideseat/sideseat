@@ -2733,8 +2733,23 @@ pub struct EventRole {
     /// and `gen_ai.choice` is the assistant's reply; on a tool span the first is the arguments the
     /// assistant passed and the second is what the tool returned. So the span's kind is part of the
     /// question, and one role per name could not express it.
+    ///
+    /// **Absent means "the same as `role`"**, and that is now the only way to say it: a value *equal* to `role`
+    /// is refused. It used to be legal, so one shipped declaration spelled it out while seven omitted it for the
+    /// identical fact - two spellings of one statement, in a section whose whole purpose is that a name's role is
+    /// declared rather than inferred.
     #[serde(default)]
     pub role_in_tool_span: Option<String>,
+    /// This name says **nothing** about the role on a tool execution span, so it is derived from the content
+    /// there - even though it does declare one elsewhere.
+    ///
+    /// The third state, which absence could not express: absence is read as "the same as `role`", so a name that
+    /// speaks only for ordinary spans had no spelling at all. A separate flag rather than a sentinel string,
+    /// because `role_in_tool_span` holds a role from a closed vocabulary and a magic value in it would be exactly
+    /// the guessing this section exists to remove. Refused beside a `role_in_tool_span`, which would be two
+    /// answers.
+    #[serde(default)]
+    pub silent_in_tool_span: bool,
     pub doc: Option<String>,
 }
 

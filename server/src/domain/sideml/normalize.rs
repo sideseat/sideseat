@@ -633,11 +633,9 @@ pub(crate) fn role_from_event_name_with_context(
         }
         return None;
     };
-    if is_tool_span {
-        declared.in_tool_span.or(declared.role)
-    } else {
-        declared.role
-    }
+    // Three states, one spelling each: a role of its own, silence, or - by absence - the same role as elsewhere.
+    // Resolved on the declaration, so this and a test asking the same question cannot answer differently.
+    declared.role_on(is_tool_span)
 }
 
 /// The role a **tagged** source name implies - a name this engine assigned with `tag_as`.
