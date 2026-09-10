@@ -118,9 +118,15 @@ impl ToolShapePlan {
             if !super::message_rules::predicates_hold(tool, &rule.require) {
                 continue;
             }
-            let subjects: Vec<&JsonValue> = match &rule.each {
-                Some(path) => super::message_rules::query(tool, path),
-                None => vec![tool],
+            // The first spelling that resolves, or the payload itself where the rule declares none.
+            let subjects: Vec<&JsonValue> = if rule.each.is_empty() {
+                vec![tool]
+            } else {
+                rule.each
+                    .iter()
+                    .map(|path| super::message_rules::query(tool, path))
+                    .find(|found| !found.is_empty())
+                    .unwrap_or_default()
             };
             if subjects.is_empty() {
                 continue;

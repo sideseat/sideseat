@@ -10731,3 +10731,82 @@ fn a_stored_tool_name_that_is_not_a_string_costs_only_itself() {
         "the number and the blank name nothing; the two real names are kept"
     );
 }
+
+/// The declared shapes leave the retired canonicaliser nothing to do.
+///
+/// It ran *after* `normalize_tools` and wrapped whatever the assets had not recognised - a second vocabulary of
+/// provider spellings downstream of the declared one. So the same tool was shown wrapped on the path that ran it
+/// and raw on the path that did not (`normalize_tools_message` files its result straight into a
+/// `ToolDefinitions` block). The claim now is that applying it to the declared output is the identity, which is
+/// what makes removing it a statement rather than a hope: if a shape stops being declared, this fails.
+#[test]
+fn the_declared_shapes_leave_nothing_for_the_retired_canonicaliser() {
+    let payloads = vec![
+        serde_json::json!({"type": "function", "function": {"name": "a", "parameters": {"type": "object"}}}),
+        serde_json::json!({"type": "function", "function": {"name": "a"}, "strict": true}),
+        serde_json::json!({"name": "b", "description": "d", "input_schema": {"type": "object"}}),
+        serde_json::json!({"type": "function", "name": "b", "inputSchema": {"type": "object"}}),
+        serde_json::json!({"name": "b", "parameters": {"type": "object"}, "strict": false}),
+        serde_json::json!({"toolSpec": {"name": "c", "inputSchema": {"json": {"type": "object"}}}}),
+        serde_json::json!({"functionDeclarations": [{"name": "d1"}, {"name": "d2", "parameters": {}}]}),
+        serde_json::json!({"function_declarations": [{"name": "e1"}]}),
+        serde_json::json!({"name": "f", "parameter_definitions": {"q": {"type": "str", "required": true}}}),
+        serde_json::json!({"name": "g"}),
+        serde_json::json!({"description": "no name"}),
+        serde_json::json!("a string"),
+    ];
+    for payload in payloads {
+        let normalized = crate::domain::sideml::tools::normalize_tools(&payload);
+        let definitions = normalized.as_array().cloned().unwrap_or_default();
+        assert!(
+            !definitions.is_empty() || !payload.is_object(),
+            "an object payload should yield at least a passthrough: {payload}"
+        );
+        for definition in definitions {
+            assert_eq!(
+                super::canonicalize_tool_definition(definition.clone()),
+                definition,
+                "the retired canonicaliser still changes declared output, for {payload}"
+            );
+        }
+    }
+}
+
+/// The declared shapes state the schema wherever the retired canonicaliser could find one.
+///
+/// The identity check above cannot see this, and that is the whole reason this test exists: undeclaring a
+/// spelling makes the plan emit a definition with **no** `parameters`, and the retired canonicaliser returns any
+/// value carrying `function` untouched - so the identity still holds while the schema has silently gone. An
+/// assertion that holds when the answer got worse is not a gate.
+///
+/// The three spellings are the retired chain's own vocabulary, which is what makes this an oracle rather than a
+/// restatement of the asset.
+#[test]
+fn the_declared_shapes_state_every_schema_the_retired_canonicaliser_found() {
+    let payloads = vec![
+        serde_json::json!({"name": "a", "input_schema": {"type": "object", "properties": {"q": {"type": "string"}}}}),
+        serde_json::json!({"type": "function", "name": "b", "inputSchema": {"type": "object", "properties": {"q": {"type": "string"}}}}),
+        serde_json::json!({"name": "c", "parameters": {"type": "object", "properties": {"q": {"type": "string"}}}}),
+        serde_json::json!({"name": "d", "input_schema": {"type": "object"}, "strict": true}),
+    ];
+    for payload in payloads {
+        let schema = ["parameters", "input_schema", "inputSchema"]
+            .iter()
+            .find_map(|member| payload.get(*member))
+            .expect("every payload here carries a schema under one of the spellings");
+        let normalized = crate::domain::sideml::tools::normalize_tools(&payload);
+        let definitions = normalized.as_array().cloned().unwrap_or_default();
+        assert_eq!(definitions.len(), 1, "one definition, for {payload}");
+        assert_eq!(
+            definitions[0]
+                .get("function")
+                .and_then(|f| f.get("parameters")),
+            Some(schema),
+            "the declared shapes dropped the schema the retired canonicaliser found, for {payload}"
+        );
+        // And `strict` survives, since it says what the model may send.
+        if let Some(strict) = payload.get("strict") {
+            assert_eq!(definitions[0].get("strict"), Some(strict));
+        }
+    }
+}

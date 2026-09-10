@@ -308,7 +308,38 @@ fn cohere_params_to_json_schema(param_defs: &JsonValue) -> JsonValue {
 
 // ========== Tool name extraction ==========
 
-/// Extract tool name from a tool definition in any supported format.
+/// The name a tool definition states, whatever shape states it.
+///
+/// **Declared**, from `rules/tool-shapes.json`: our own canonical form first, then whatever the assets say a
+/// producer writes - whose last clause is the named-object shape, so this needs no fallback of its own. It used
+/// to be a seven-arm provider chain, a *second* vocabulary beside `normalize_tool_definition`'s, and the two
+/// disagreed about two spellings; the retired chain is a `#[cfg(test)]` oracle.
+///
+/// `None` where the payload is not an object or states no name - and that is what the read side acts on, since
+/// `deduplicate_tools` keeps only what can be named.
+pub fn extract_tool_name(tool: &JsonValue) -> Option<String> {
+    if let Some(name) = canonical_tool_name(tool) {
+        return Some(name.to_string());
+    }
+    let declared = crate::domain::rules::ruleset()
+        .tool_shapes
+        .canonical(tool)?;
+    declared
+        .iter()
+        .find_map(|definition| canonical_tool_name(definition).map(str::to_string))
+}
+
+/// The name in our own canonical wrapper.
+fn canonical_tool_name(definition: &JsonValue) -> Option<&str> {
+    definition.get("function")?.get("name")?.as_str()
+}
+
+#[cfg(test)]
+/// The provider chain this file used to name a tool with, kept as an **oracle**.
+///
+/// A *second* vocabulary of provider shapes beside the declared one, and it knew two spellings the declared one
+/// did not (`inputSchema`, and `function_declarations` in snake_case) while the declared one knew a conversion
+/// it did not. So which shapes SideSeat understood depended on which question was being asked about them.
 ///
 /// Handles multiple provider formats:
 /// - OpenAI: `function.name`
@@ -320,7 +351,7 @@ fn cohere_params_to_json_schema(param_defs: &JsonValue) -> JsonValue {
 /// - Fallback: any object with top-level `name` field
 ///
 /// Returns `None` only if the input is not an object or has no extractable name.
-pub fn extract_tool_name(tool: &JsonValue) -> Option<String> {
+fn extract_tool_name_retired(tool: &JsonValue) -> Option<String> {
     // OpenAI: function.name
     if let Some(name) = tool
         .get("function")
@@ -425,6 +456,70 @@ pub fn tool_definition_quality(def: &JsonValue) -> i32 {
 mod tests {
     use super::*;
     use serde_json::json;
+
+    /// Every shape either chain knew, plus the two neither wholly did.
+    fn tool_definition_payloads() -> Vec<JsonValue> {
+        vec![
+            // Our own canonical wrapper, with and without `strict`.
+            json!({"type": "function", "function": {"name": "a", "description": "d", "parameters": {"type": "object"}}}),
+            json!({"type": "function", "function": {"name": "a"}, "strict": true}),
+            // A name beside a schema, in all three spellings a producer uses.
+            json!({"name": "b", "description": "d", "input_schema": {"type": "object", "properties": {"q": {"type": "string"}}}}),
+            json!({"type": "function", "name": "b", "inputSchema": {"type": "object", "properties": {"q": {"type": "string"}}}}),
+            json!({"name": "b", "parameters": {"type": "object"}, "strict": false}),
+            // Nested under a spec, schema wrapped and direct.
+            json!({"toolSpec": {"name": "c", "description": "d", "inputSchema": {"json": {"type": "object"}}}}),
+            json!({"toolSpec": {"name": "c", "inputSchema": {"type": "object"}}}),
+            // Several declarations in one payload, both spellings.
+            json!({"functionDeclarations": [{"name": "d1", "parameters": {"type": "object"}}, {"name": "d2"}]}),
+            json!({"function_declarations": [{"name": "e1", "description": "d"}]}),
+            // Arguments as a map from name to facts.
+            json!({"name": "f", "parameter_definitions": {"q": {"type": "str", "required": true, "description": "d"}}}),
+            // A named object stating nothing else about itself.
+            json!({"name": "g"}),
+            json!({"name": "g", "unknown_member": 1}),
+            // Nothing nameable.
+            json!({"description": "no name"}),
+            json!({"name": 7}),
+            json!({"functionDeclarations": []}),
+            json!("a string"),
+            json!(123),
+            json!(null),
+            json!([1, 2, 3]),
+        ]
+    }
+
+    /// The declared shapes name every payload the retired provider chain named.
+    ///
+    /// One direction only, deliberately: the chain is the floor, not the ceiling. The declarations *also* name
+    /// two shapes it could not - `parameter_definitions` reaches a name through a conversion the chain had no
+    /// arm for - and requiring equality would forbid exactly the extension the assets exist to allow. What must
+    /// never happen is losing a name that used to be found, which is what this asserts.
+    #[test]
+    fn the_declared_shapes_name_every_tool_the_retired_chain_named() {
+        for payload in tool_definition_payloads() {
+            let retired = extract_tool_name_retired(&payload);
+            let declared = extract_tool_name(&payload);
+            if let Some(name) = retired {
+                assert_eq!(
+                    declared.as_deref(),
+                    Some(name.as_str()),
+                    "the declarations lost a name the retired chain found, for {payload}"
+                );
+            }
+        }
+        // And the two spellings that were only ever in the retired chain are declared now, which is the
+        // disagreement this migration existed to remove.
+        for payload in [
+            json!({"type": "function", "name": "vercel", "inputSchema": {"type": "object"}}),
+            json!({"function_declarations": [{"name": "snake"}]}),
+        ] {
+            assert!(
+                extract_tool_name(&payload).is_some(),
+                "a spelling only the retired chain knew is still unnamed: {payload}"
+            );
+        }
+    }
 
     #[test]
     fn test_extract_tool_name_openai() {

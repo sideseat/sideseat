@@ -146,7 +146,9 @@ mod types;
 use std::collections::{BTreeMap, HashMap, HashSet};
 
 use chrono::{DateTime, Utc};
-use serde_json::{Value as JsonValue, json};
+use serde_json::Value as JsonValue;
+#[cfg(test)]
+use serde_json::json;
 
 use super::normalize::to_sideml_with_context;
 use super::provenance::PositionPath;
@@ -2241,8 +2243,10 @@ pub fn deduplicate_tools(raw: Vec<JsonValue>) -> Vec<JsonValue> {
             single => vec![single],
         };
 
-        for tool in defs {
-            let canonical = canonicalize_tool_definition(tool);
+        for canonical in defs {
+            // Already canonical: `normalize_tools` applies the declared shapes, whose last clause is the
+            // named-object shape this used to re-derive here. Retired to an oracle rather than deleted -
+            // `the_declared_shapes_leave_nothing_for_the_retired_canonicaliser` is what holds them equal.
             if let Some(name) = extract_tool_name(&canonical) {
                 by_name
                     .entry(name)
@@ -2260,7 +2264,15 @@ pub fn deduplicate_tools(raw: Vec<JsonValue>) -> Vec<JsonValue> {
     tools.into_iter().map(|(_, def)| def).collect()
 }
 
-fn canonicalize_tool_definition(tool: JsonValue) -> JsonValue {
+/// The hand-written canonicaliser this file used to apply after `normalize_tools`, kept as an **oracle**.
+///
+/// It was a second vocabulary of provider shapes - `parameters` / `input_schema` / `inputSchema`, plus `strict` -
+/// sitting downstream of the declared one, and the two disagreed: a payload the assets did not recognise passed
+/// through `normalize_tools` unchanged and was wrapped *here*, so the same tool was shown wrapped on the path
+/// that ran this and raw on the path that did not (`normalize_tools_message`, which files its result straight
+/// into a `ToolDefinitions` block). The spellings are declared now, in `tool-shapes.bare_name`.
+#[cfg(test)]
+pub(super) fn canonicalize_tool_definition(tool: JsonValue) -> JsonValue {
     if tool.get("function").is_some() {
         return tool;
     }

@@ -908,9 +908,15 @@ pub struct ToolShapeRule {
     /// What makes a payload this shape. Read on the tool value itself.
     #[serde(default)]
     pub require: PredicateSet,
-    /// Where the definitions are, when one payload holds several. Absent means the payload is one definition.
+    /// Where the definitions are, when one payload holds several. Empty means the payload is one definition.
+    ///
+    /// Ordered, and the first path that **resolves** supplies them - the same rule as `ParametersSpec::from`,
+    /// for the same reason: one producer writes `functionDeclarations` and another writes
+    /// `function_declarations`, and those are two spellings of one shape rather than two shapes. Spelling them
+    /// as two clauses would duplicate every other member of the rule and give the pair a rank order that means
+    /// nothing.
     #[serde(default)]
-    pub each: Option<JsonPath>,
+    pub each: Vec<JsonPath>,
     /// The whole canonical `function` object, for a producer that already writes it.
     ///
     /// Exclusive with the three members below: a shape either hands over a canonical object or states where each
