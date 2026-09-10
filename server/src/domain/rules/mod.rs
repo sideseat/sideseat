@@ -29,6 +29,7 @@ pub mod outcome;
 pub mod schema;
 pub mod span_fields;
 mod tool_repr;
+pub mod tool_shapes;
 
 #[cfg(test)]
 mod carrier_rules_tests;
@@ -199,6 +200,8 @@ pub struct Ruleset {
     pub span_facts: SpanFactPlan,
     /// Where each stored span field is written, per producer.
     pub span_fields: span_fields::SpanFieldPlan,
+    /// The shapes a provider writes a tool definition in.
+    pub tool_shapes: tool_shapes::ToolShapePlan,
     /// What kind of observation a span is, as ordered first-match rules.
     pub observation_types: classify::ClassifyPlan,
     /// Member names a producer uses, and what each one's presence means.
@@ -262,6 +265,8 @@ pub fn ruleset() -> &'static Ruleset {
             span_facts: SpanFactPlan::compile(&sources),
             span_fields: span_fields::compile(&sources)
                 .unwrap_or_else(|e| panic!("embedded span field rules are malformed: {e}")),
+            tool_shapes: tool_shapes::ToolShapePlan::compile(&parsed_files(&sources))
+                .unwrap_or_else(|e| panic!("embedded tool shapes are malformed: {e}")),
             observation_types: classify::compile(&sources)
                 .unwrap_or_else(|e| panic!("embedded classification rules are malformed: {e}")),
             message_members: members::compile(&sources)

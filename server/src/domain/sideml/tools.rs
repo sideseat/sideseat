@@ -145,17 +145,23 @@ pub fn normalize_tools(tools: &JsonValue) -> JsonValue {
     }
 }
 
-/// Normalize a single tool definition to OpenAI format
+/// One tool definition in the canonical shape.
+///
+/// **Declared**, from `rules/tool-shapes.json`. Five readers used to name providers here and an unrecognised
+/// shape was passed through unchanged - then discarded downstream, because no name could be extracted from it.
+/// So a producer's shape was a code change to support, and an unknown one silently produced nothing usable.
+///
+/// The passthrough stays for a shape nothing recognises: it is what the retired chain did, and dropping the
+/// payload would lose a definition a reader might still make sense of. The retired readers are `#[cfg(test)]`
+/// oracles, compared against the declarations over the whole corpus.
 fn normalize_tool_definition(tool: &JsonValue) -> Vec<JsonValue> {
-    // Try each provider format
-    try_openai_tool(tool)
-        .or_else(|| try_anthropic_tool(tool))
-        .or_else(|| try_bedrock_tool(tool))
-        .or_else(|| try_gemini_tool(tool))
-        .or_else(|| try_cohere_tool(tool))
-        .unwrap_or_else(|| vec![tool.clone()]) // passthrough if unknown
+    crate::domain::rules::ruleset()
+        .tool_shapes
+        .canonical(tool)
+        .unwrap_or_else(|| vec![tool.clone()])
 }
 
+#[cfg(test)]
 /// OpenAI format: {"type": "function", "function": {"name": ..., "parameters": ...}, "strict": ...}
 fn try_openai_tool(tool: &JsonValue) -> Option<Vec<JsonValue>> {
     let tool_type = tool.get("type")?.as_str()?;
@@ -175,6 +181,7 @@ fn try_openai_tool(tool: &JsonValue) -> Option<Vec<JsonValue>> {
     Some(vec![normalized])
 }
 
+#[cfg(test)]
 /// Anthropic format: {"name": ..., "description": ..., "input_schema": ...}
 fn try_anthropic_tool(tool: &JsonValue) -> Option<Vec<JsonValue>> {
     let name = tool.get("name")?.as_str()?;
@@ -194,6 +201,7 @@ fn try_anthropic_tool(tool: &JsonValue) -> Option<Vec<JsonValue>> {
     })])
 }
 
+#[cfg(test)]
 /// Bedrock/Strands format: {"toolSpec": {"name": ..., "inputSchema": {"json": ...}}}
 fn try_bedrock_tool(tool: &JsonValue) -> Option<Vec<JsonValue>> {
     let tool_spec = tool.get("toolSpec")?;
@@ -216,6 +224,7 @@ fn try_bedrock_tool(tool: &JsonValue) -> Option<Vec<JsonValue>> {
     })])
 }
 
+#[cfg(test)]
 /// Gemini format: {"functionDeclarations": [{"name": ..., "parameters": ...}]}
 fn try_gemini_tool(tool: &JsonValue) -> Option<Vec<JsonValue>> {
     let declarations = tool.get("functionDeclarations")?.as_array()?;
@@ -238,6 +247,7 @@ fn try_gemini_tool(tool: &JsonValue) -> Option<Vec<JsonValue>> {
     if tools.is_empty() { None } else { Some(tools) }
 }
 
+#[cfg(test)]
 /// Cohere format: {"name": ..., "description": ..., "parameter_definitions": {...}}
 fn try_cohere_tool(tool: &JsonValue) -> Option<Vec<JsonValue>> {
     let name = tool.get("name")?.as_str()?;
@@ -260,6 +270,7 @@ fn try_cohere_tool(tool: &JsonValue) -> Option<Vec<JsonValue>> {
     })])
 }
 
+#[cfg(test)]
 /// Convert Cohere parameter_definitions to JSON Schema format
 fn cohere_params_to_json_schema(param_defs: &JsonValue) -> JsonValue {
     let Some(obj) = param_defs.as_object() else {
@@ -541,5 +552,147 @@ mod tests {
         assert_eq!(calls.len(), 1);
         assert_eq!(calls[0]["name"], "get_weather");
         assert_eq!(calls[0]["arguments"], "{\"city\":\"NYC\"}");
+    }
+
+    /// The declared shapes answer as the five retired readers did.
+    ///
+    /// The readers are kept as oracles rather than deleted, because a golden can be regenerated and bless a
+    /// regression while an oracle cannot: it states the answer independently of the code that replaced it.
+    ///
+    /// One shape per provider, plus the cases each reader's guards exist for - a canonical wrapper beside a
+    /// `name`, an `inputSchema` written both ways, a payload holding several declarations, and an argument map
+    /// beside an `input_schema` that must not claim it.
+    #[test]
+    fn the_declared_tool_shapes_answer_as_the_retired_readers() {
+        let retired = |tool: &JsonValue| -> Vec<JsonValue> {
+            try_openai_tool(tool)
+                .or_else(|| try_anthropic_tool(tool))
+                .or_else(|| try_bedrock_tool(tool))
+                .or_else(|| try_gemini_tool(tool))
+                .or_else(|| try_cohere_tool(tool))
+                .unwrap_or_else(|| vec![tool.clone()])
+        };
+
+        let cases = vec![
+            // The canonical wrapper, with and without the member carried beside it.
+            json!({"type": "function", "function": {"name": "search", "parameters": {"type": "object"}}}),
+            json!({"type": "function", "function": {"name": "search"}, "strict": true}),
+            // A name beside a JSON Schema.
+            json!({"name": "search", "description": "find things", "input_schema": {"type": "object"}}),
+            json!({"name": "search", "input_schema": {"type": "object"}}),
+            // Nested under `toolSpec`, schema written both ways.
+            json!({"toolSpec": {"name": "search", "inputSchema": {"json": {"type": "object"}}}}),
+            json!({"toolSpec": {"name": "search", "description": "d", "inputSchema": {"type": "object"}}}),
+            // Several declarations in one payload.
+            json!({"functionDeclarations": [
+                {"name": "a", "parameters": {"type": "object"}},
+                {"name": "b", "description": "second"}
+            ]}),
+            // An argument map, including the constraints the retired converter kept.
+            json!({"name": "search", "parameter_definitions": {
+                "city": {"type": "string", "description": "where", "required": true},
+                "days": {"type": "integer"}
+            }}),
+            // The guards: each of these is a payload one reader must *not* claim.
+            json!({"type": "not_a_function", "function": {"name": "x"}}),
+            json!({"name": "x", "parameter_definitions": {}, "input_schema": {"type": "object"}}),
+            json!({"name": "x", "parameter_definitions": {}, "function": {"name": "y"}}),
+            json!({"functionDeclarations": []}),
+            // And a shape nothing recognises, which both must pass through.
+            json!({"spec": {"id": "lookup", "doc": "search records"}}),
+            json!("a bare string"),
+        ];
+
+        // **One deliberate divergence, named rather than absorbed.** The retired readers inserted
+        // `tool.get("description")` directly, and a `None` there serialises as `null` - so a tool with no
+        // description got `"description": null`, which is a statement that the description *is* null. The
+        // declarations omit the member instead. Compared with explicit nulls stripped from both sides, so the
+        // oracle still covers every other difference, and the divergence is asserted on its own below.
+        fn without_nulls(value: &JsonValue) -> JsonValue {
+            match value {
+                JsonValue::Object(members) => JsonValue::Object(
+                    members
+                        .iter()
+                        .filter(|(_, v)| !v.is_null())
+                        .map(|(k, v)| (k.clone(), without_nulls(v)))
+                        .collect(),
+                ),
+                JsonValue::Array(items) => {
+                    JsonValue::Array(items.iter().map(without_nulls).collect())
+                }
+                other => other.clone(),
+            }
+        }
+        for tool in &cases {
+            let declared: Vec<JsonValue> = normalize_tool_definition(tool)
+                .iter()
+                .map(without_nulls)
+                .collect();
+            let oracle: Vec<JsonValue> = retired(tool).iter().map(without_nulls).collect();
+            assert_eq!(
+                declared, oracle,
+                "the declarations disagree with the retired readers on {tool}"
+            );
+        }
+
+        // The divergence itself: absent is absent, not null.
+        let no_description = json!({"name": "search", "input_schema": {"type": "object"}});
+        assert!(
+            normalize_tool_definition(&no_description)[0]["function"]
+                .get("description")
+                .is_none(),
+            "a tool with no description has no description member"
+        );
+        assert_eq!(
+            retired(&no_description)[0]["function"]["description"],
+            JsonValue::Null,
+            "where the retired reader wrote `null` - which says the description is null, and it is not"
+        );
+        // Corpus-neutral: no captured fixture has a definition whose description is absent in a shape that
+        // reaches this path, which is why the goldens do not move.
+    }
+
+    /// The argument-map converter keeps every constraint it is given, which the retired one did not.
+    ///
+    /// Cycle 13's finding 8: only `type` and `description` survived, so the output said an argument was optional
+    /// where the producer said it was required, and discarded its default and its allowed values. `required`
+    /// belongs at the schema level, which is where JSON Schema puts it.
+    ///
+    /// Constraints are copied **by name**, so one this code has never heard of survives - the alternative is a
+    /// schema that silently permits what the producer forbade.
+    #[test]
+    fn an_argument_map_keeps_every_constraint_it_was_given() {
+        let schema = crate::domain::rules::tool_shapes::argument_map_to_json_schema(&json!({
+            "query": {
+                "type": "string",
+                "description": "what to search for",
+                "required": true,
+                "default": "all",
+                "enum": ["all", "recent"]
+            },
+            "limit": {"type": "integer"}
+        }));
+        let query = &schema["properties"]["query"];
+        assert_eq!(query["type"].as_str(), Some("string"));
+        assert_eq!(query["description"].as_str(), Some("what to search for"));
+        assert_eq!(
+            query["default"].as_str(),
+            Some("all"),
+            "a default the producer stated is what the model sends when it says nothing"
+        );
+        assert_eq!(
+            query["enum"].as_array().map(Vec::len),
+            Some(2),
+            "and the allowed values are what it may send at all"
+        );
+        assert_eq!(
+            schema["required"].as_array(),
+            Some(&vec![json!("query")]),
+            "requiredness is a schema-level fact, and dropping it said an argument was optional"
+        );
+        // `required` is not copied into the property: it is not a JSON Schema keyword there.
+        assert!(query.get("required").is_none());
+        // An argument with only a type is unremarkable and stays that way.
+        assert_eq!(schema["properties"]["limit"], json!({"type": "integer"}));
     }
 }

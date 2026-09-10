@@ -1,0 +1,85 @@
+{
+  "id": "tool-shapes",
+  "doc": "The shapes a provider writes a tool definition in. The canonical form is the server's; every path into a producer's own shape is here. Named for what the file holds rather than for who wrote it, because the five shapes belong to providers rather than to frameworks - which is also why the framework sweep never saw them in Rust: its markers derive from asset ids, and provider names are excluded by design.",
+  "tool_shapes": [
+    {
+      "id": "tool-shapes.canonical_function",
+      "doc": "A producer that already writes the canonical wrapper. The function object is taken as it stands rather than re-derived member by member, because re-deriving drops whatever else it carries. `strict` is carried from beside it: it says what the model may send, so losing it changes what the tool permits.",
+      "legacy_rank": 10,
+      "require": {
+        "all": [
+          { "path": "$.type", "one_of": ["function"] },
+          { "path": "$.function", "exists": true }
+        ]
+      },
+      "function": "$.function",
+      "carry": ["strict"]
+    },
+    {
+      "id": "tool-shapes.input_schema",
+      "doc": "A name beside a JSON Schema under `input_schema`. Refused where a canonical `function` is also present, or this would claim a payload the canonical shape describes better - the ranks alone would not, since a producer may write both members.",
+      "legacy_rank": 20,
+      "require": {
+        "all": [
+          { "path": "$.name", "exists": true },
+          { "path": "$.input_schema", "exists": true },
+          { "path": "$.function", "exists": false }
+        ]
+      },
+      "name": "$.name",
+      "description": "$.description",
+      "parameters": {
+        "from": ["$.input_schema"],
+        "encoding": "json_schema"
+      }
+    },
+    {
+      "id": "tool-shapes.tool_spec",
+      "doc": "The definition nested under `toolSpec`, whose schema is written either wrapped in `json` or directly. Both spellings, in that order, because the same producer writes both.",
+      "legacy_rank": 30,
+      "require": {
+        "all": [{ "path": "$.toolSpec.name", "exists": true }]
+      },
+      "name": "$.toolSpec.name",
+      "description": "$.toolSpec.description",
+      "parameters": {
+        "from": ["$.toolSpec.inputSchema.json", "$.toolSpec.inputSchema"],
+        "encoding": "json_schema"
+      }
+    },
+    {
+      "id": "tool-shapes.function_declarations",
+      "doc": "One payload holding several declarations. `each` is what makes that expressible: the retired reader looped inside itself, so a payload with several definitions was one reader's private business rather than a declared multiplicity.",
+      "legacy_rank": 40,
+      "each": "$.functionDeclarations[*]",
+      "require": {
+        "all": [{ "path": "$.functionDeclarations", "kind": "array" }]
+      },
+      "name": "$.name",
+      "description": "$.description",
+      "parameters": {
+        "from": ["$.parameters"],
+        "encoding": "json_schema"
+      }
+    },
+    {
+      "id": "tool-shapes.parameter_definitions",
+      "doc": "Arguments as a map from name to facts rather than as a schema. Declared as `argument_map` rather than guessed from the content, which is how a member named `type` inside such a map came to be read as a finished schema. Refused beside `input_schema` or a canonical `function`, both of which describe the same payload more precisely.",
+      "legacy_rank": 50,
+      "require": {
+        "all": [
+          { "path": "$.name", "exists": true },
+          { "path": "$.parameter_definitions", "exists": true },
+          { "path": "$.input_schema", "exists": false },
+          { "path": "$.function", "exists": false }
+        ]
+      },
+      "name": "$.name",
+      "description": "$.description",
+      "parameters": {
+        "from": ["$.parameter_definitions"],
+        "encoding": "argument_map"
+      }
+    }
+  ]
+}

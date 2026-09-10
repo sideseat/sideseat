@@ -534,6 +534,7 @@ fn the_engine_names_no_framework() {
         ("members.rs", include_str!("members.rs")),
         ("expr.rs", include_str!("expr.rs")),
         ("outcome.rs", include_str!("outcome.rs")),
+        ("tool_shapes.rs", include_str!("tool_shapes.rs")),
     ];
 
     // The engine directory holds nothing else. A new module would otherwise be exempt by omission -
@@ -966,6 +967,10 @@ fn every_predicate_set_in_the_schema_is_validated() {
         (
             "ContentBlockRule::require",
             "content_blocks::compile, its own plan",
+        ),
+        (
+            "ToolShapeRule::require",
+            "tool_shapes::compile, its own plan",
         ),
     ];
 
@@ -1481,6 +1486,7 @@ const SHARED_VOCABULARY: &[&str] = &[
     "span-fields-usage",
     "content-blocks-vercel",
     "content-blocks-wrappers",
+    "tool-shapes",
 ];
 
 /// Assets naming a **provider** rather than a framework. The pricing catalogue is entitled to those names,

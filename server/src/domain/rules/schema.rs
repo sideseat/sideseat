@@ -46,6 +46,9 @@ pub struct RuleFile {
     /// somebody also edited the list.
     #[serde(default)]
     pub message_events: Vec<MessageEvent>,
+    /// How a provider writes a tool *definition*, so the canonical shape is reached by declaration.
+    #[serde(default)]
+    pub tool_shapes: Vec<ToolShapeRule>,
     /// Attribute namespaces the **conventions** own, as opposed to a producer's own.
     ///
     /// Declared by the conventions' asset and nowhere else, which is **refused** rather than assumed: a
@@ -881,6 +884,75 @@ pub fn in_family(key: &str, root: &str) -> bool {
         || key
             .strip_prefix(root)
             .is_some_and(|rest| rest.starts_with('.'))
+}
+
+/// One shape a provider writes a tool definition in, and how to read it as the canonical one.
+///
+/// The canonical form - `{"type":"function","function":{"name","description","parameters"}}` - is **ours**, and
+/// stays in Rust. Every path into a producer's own shape is the asset's, which is the split `as_tool_definition`
+/// already follows. Before this, five readers named `openai`, `anthropic`, `bedrock`, `gemini` and `cohere` in
+/// production Rust and an unrecognised shape was passed through unchanged, then discarded because no name could
+/// be extracted from it - so a producer's shape was not addable as data.
+///
+/// Worth stating why the framework sweep never caught them: markers are derived from *asset ids*, and those five
+/// are **providers**, which the sweep excludes by design because the pricing catalogue is entitled to their
+/// names. A fourth blind spot beside the three its own doc records.
+#[derive(Debug, Deserialize, Clone)]
+#[serde(deny_unknown_fields)]
+pub struct ToolShapeRule {
+    pub id: String,
+    pub doc: Option<String>,
+    /// Ordered, first match wins, and a shared rank is refused - two shapes that both recognise a payload must
+    /// not be separated by which asset loaded first.
+    pub legacy_rank: i32,
+    /// What makes a payload this shape. Read on the tool value itself.
+    #[serde(default)]
+    pub require: PredicateSet,
+    /// Where the definitions are, when one payload holds several. Absent means the payload is one definition.
+    #[serde(default)]
+    pub each: Option<JsonPath>,
+    /// The whole canonical `function` object, for a producer that already writes it.
+    ///
+    /// Exclusive with the three members below: a shape either hands over a canonical object or states where each
+    /// part is, and declaring both would be two answers about one output.
+    #[serde(default)]
+    pub function: Option<JsonPath>,
+    /// Members of the payload copied onto the canonical wrapper beside `function` - one producer carries
+    /// `strict` there, and dropping it changes what the tool permits.
+    #[serde(default)]
+    pub carry: Vec<String>,
+    #[serde(default)]
+    pub name: Option<JsonPath>,
+    #[serde(default)]
+    pub description: Option<JsonPath>,
+    #[serde(default)]
+    pub parameters: Option<ParametersSpec>,
+}
+
+/// Where a tool's parameters are and how they are encoded.
+#[derive(Debug, Deserialize, Clone)]
+#[serde(deny_unknown_fields)]
+pub struct ParametersSpec {
+    pub doc: Option<String>,
+    /// Ordered: the first path that resolves is the parameters. One producer writes
+    /// `inputSchema.json` and the same producer sometimes writes `inputSchema` directly.
+    pub from: Vec<JsonPath>,
+    /// **Declared**, not guessed from the content. It was guessed: a member named `type` inside an argument map
+    /// made the map look like a finished JSON Schema, so `{"type":"str","query":"str"}` was emitted as a schema
+    /// whose type is `str`. The argument named `type` decided how the whole representation was read.
+    pub encoding: ParametersEncoding,
+}
+
+/// How a producer encodes a tool's parameters.
+#[derive(Debug, Deserialize, Clone, Copy, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum ParametersEncoding {
+    /// Already a JSON Schema object: taken as it stands.
+    JsonSchema,
+    /// A map from argument name to its facts - `{"city": {"type": "string", "required": true}}` - which becomes
+    /// a JSON Schema object. Every supported constraint is kept: a converter that dropped `required` said an
+    /// argument was optional when the producer said it was not.
+    ArgumentMap,
 }
 
 /// The **eight** carrier facts, named by preset with optional per-field overrides.
