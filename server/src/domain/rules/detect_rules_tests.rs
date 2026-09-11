@@ -514,3 +514,116 @@ fn a_rule_an_earlier_one_always_satisfies_is_refused() {
         assert!(compiled(detect).is_ok(), "wrongly refused: {what}");
     }
 }
+
+/// A value outside what its quantity can hold is **malformed**, not a measurement.
+///
+/// Nothing checked, so `-5` parsed as an `i64` and became a real token count: it summed into the trace total,
+/// priced at a negative cost, and could cancel a genuine counter. A negative count, duration, limit or status is
+/// not a small measurement - it is not a measurement. `DefectKind::OutOfRange` had existed in the outcome algebra
+/// since cycle 10 and nothing produced it.
+///
+/// Present-and-unusable is what `Malformed` already means, so the chain's own `on_malformed` policy decides what
+/// follows: a chain that steps over unreadable values reaches the next spelling, which is the behaviour asserted
+/// below.
+#[test]
+fn a_value_outside_what_a_quantity_can_hold_is_malformed() {
+    use crate::domain::rules::schema::FieldTarget;
+    use crate::domain::rules::span_fields::Reading;
+
+    let resolve = |asset: &str, pairs: &[(&str, &str)]| {
+        let plan =
+            crate::domain::rules::span_fields::compile(&std::collections::BTreeMap::from([(
+                "t.json".to_string(),
+                asset.as_bytes().to_vec(),
+            )]))
+            .expect("the probe compiles");
+        plan.resolve("chat", &attrs(pairs), &[])
+    };
+
+    // A negative counter: present, and not a count.
+    let one = r#"{"id":"t","doc":"d","span_fields":[
+        {"id":"f","doc":"d","target":"usage_input_tokens",
+         "sources":[{"id":"probe.only","attribute":"tokens"}]}]}"#;
+    let resolved = resolve(one, &[("tokens", "-5")]);
+    let found = resolved
+        .iter()
+        .find(|r| r.target == FieldTarget::UsageInputTokens)
+        .expect("the rule resolved");
+    assert_eq!(
+        found.reading,
+        Reading::Absent,
+        "the only source was refused, so the field has no answer - not a negative one"
+    );
+    // And the refusal names it, so the value is reported rather than silently dropped: an out-of-range reading is
+    // present-and-unusable, which is a different fact from nobody having written it.
+    assert!(
+        found.refused.iter().any(|refusal| matches!(
+            &refusal.reading,
+            Reading::Malformed { detail } if detail.contains("outside what this field can hold")
+        )),
+        "the out-of-range value is not reported: {:?}",
+        found.refused
+    );
+    // A positive one is untouched, or this is a ban on counters rather than a bound.
+    let resolved = resolve(one, &[("tokens", "7")]);
+    assert_eq!(
+        resolved
+            .iter()
+            .find(|r| r.target == FieldTarget::UsageInputTokens)
+            .map(|r| r.reading.clone()),
+        Some(Reading::Integer(7))
+    );
+
+    // **The source's own `on_malformed` policy governs**, exactly as it does for a value of the wrong type - no
+    // new mechanism, because the argument is the same one that policy already carries: a wrong value in a
+    // producer's own usage attribute means answering from a *second* key reports another framework's counter as
+    // this call's. So the default stops, and a source that says the next spelling is the same producer's
+    // continues.
+    let stopping = r#"{"id":"t","doc":"d","span_fields":[
+        {"id":"f","doc":"d","target":"usage_input_tokens",
+         "sources":[{"id":"probe.bad","attribute":"first"},{"id":"probe.good","attribute":"second"}]}]}"#;
+    let continuing = r#"{"id":"t","doc":"d","span_fields":[
+        {"id":"f","doc":"d","target":"usage_input_tokens",
+         "sources":[{"id":"probe.bad","attribute":"first","on_malformed":"continue"},
+                    {"id":"probe.good","attribute":"second"}]}]}"#;
+    let answer = |asset: &str| {
+        resolve(asset, &[("first", "-1"), ("second", "12")])
+            .iter()
+            .find(|r| r.target == FieldTarget::UsageInputTokens)
+            .map(|r| (r.reading.clone(), r.refused.len()))
+            .expect("resolved")
+    };
+    assert_eq!(
+        answer(stopping),
+        (Reading::Absent, 1),
+        "the default ends the chain and reports the source that ended it"
+    );
+    assert_eq!(
+        answer(continuing),
+        (Reading::Integer(12), 1),
+        "a source declared `continue` steps over it, and the refusal is still reported"
+    );
+
+    // A probability is bounded on both sides; a penalty is legitimately negative and is not bounded at all.
+    let bounded = r#"{"id":"t","doc":"d","span_fields":[
+        {"id":"p","doc":"d","target":"gen_ai_top_p","sources":[{"id":"probe.p","attribute":"p"}]},
+        {"id":"q","doc":"d","target":"gen_ai_frequency_penalty","sources":[{"id":"probe.q","attribute":"q"}]}]}"#;
+    let resolved = resolve(bounded, &[("p", "1.5"), ("q", "-1.5")]);
+    let found = |target: FieldTarget| {
+        resolved
+            .iter()
+            .find(|r| r.target == target)
+            .map(|r| (r.reading.clone(), r.refused.len()))
+            .expect("resolved")
+    };
+    assert_eq!(
+        found(FieldTarget::GenAiTopP),
+        (Reading::Absent, 1),
+        "a probability above 1 is not a probability, so the field has no answer and the value is reported"
+    );
+    assert_eq!(
+        found(FieldTarget::GenAiFrequencyPenalty),
+        (Reading::Float(-1.5), 0),
+        "a penalty is legitimately negative, so bounding it would refuse a producer's honest value"
+    );
+}

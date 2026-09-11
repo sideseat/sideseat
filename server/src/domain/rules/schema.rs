@@ -284,6 +284,46 @@ impl FieldTarget {
             | Self::DisplaySpanName => FieldType::Text,
         }
     }
+
+    /// The values this field can hold, where the *quantity* bounds them.
+    ///
+    /// **Ours, not any producer's** - the same reason `field_type` lives here. A count, a duration, a limit and a
+    /// probability have ranges that follow from what they measure, and a value outside one is not a small
+    /// measurement, it is not a measurement. Nothing checked, so `-5` parsed as an `i64` and became a real token
+    /// count: it summed into the trace total, priced at a negative cost, and could cancel a genuine counter.
+    /// Producer values are unavailable at compile time, so this is a *reading* refusal - the value is present and
+    /// unusable, which is what `Malformed` already means, and the chain's own `on_malformed` policy then decides
+    /// whether to step over it or stop.
+    ///
+    /// Deliberately narrow. `frequency_penalty` and `presence_penalty` are legitimately negative and get no
+    /// bound; temperature gets a floor and no ceiling, because providers disagree about the ceiling; `top_p` gets
+    /// both, because it is a probability mass. A bound this is not certain of would refuse a producer's honest
+    /// value, which is worse than storing an implausible one.
+    pub fn admissible(self) -> Option<(f64, f64)> {
+        match self {
+            // Counts, durations, limits and a status code. None of them can be negative.
+            Self::HttpStatusCode
+            | Self::GenAiTopK
+            | Self::GenAiMaxTokens
+            | Self::GenAiServerTtftMs
+            | Self::GenAiServerRequestDurationMs
+            | Self::UsageInputTokens
+            | Self::UsageOutputTokens
+            | Self::UsageTotalTokensReported
+            | Self::UsageCacheReadTokens
+            | Self::UsageCacheWriteTokens
+            | Self::UsageReasoningTokens
+            | Self::UsageCandidateInput
+            | Self::UsageCandidateOutput
+            | Self::UsageCandidateCacheRead
+            | Self::UsageCandidateTotal
+            | Self::UsageSummedInput
+            | Self::UsageSummedOutput => Some((0.0, f64::INFINITY)),
+            Self::GenAiTemperature => Some((0.0, f64::INFINITY)),
+            Self::GenAiTopP => Some((0.0, 1.0)),
+            _ => None,
+        }
+    }
 }
 
 /// The shape a field holds, which decides what counts as a source yielding.

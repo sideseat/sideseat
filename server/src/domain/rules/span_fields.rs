@@ -314,9 +314,14 @@ impl SpanFieldPlan {
                     }
                 }
             }
-            let reading = folded_if_declared(
-                read_source(&source.spec, field_type, span_name, attrs, events, parsed),
-                source.spec.lowercase,
+            // One chokepoint for every source of every target, so a bound cannot apply to some readings and not
+            // others - the two conversion functions are called from a dozen places and neither knows the target.
+            let reading = within_range(
+                folded_if_declared(
+                    read_source(&source.spec, field_type, span_name, attrs, events, parsed),
+                    source.spec.lowercase,
+                ),
+                rule.target,
             );
             if let Reading::Malformed { .. } = &reading
                 && source.spec.on_malformed == MalformedPolicy::Stop
@@ -793,6 +798,32 @@ fn json_member_present<'a>(
 }
 
 /// A flat attribute's text, read as the field's type.
+/// A reading outside what its quantity can hold, reported as **malformed** rather than stored.
+///
+/// Present and unusable is what `Malformed` already means, so the chain's own `on_malformed` policy decides what
+/// follows - step over it, or stop because the key that carried it was meant to carry this field. Nothing checked
+/// before, so `-5` became a real token count: it summed into the trace total, priced at a negative cost, and could
+/// cancel a genuine counter. The bound is a property of the quantity and lives with the target
+/// (`FieldTarget::admissible`).
+fn within_range(reading: Reading, target: super::schema::FieldTarget) -> Reading {
+    let Some((low, high)) = target.admissible() else {
+        return reading;
+    };
+    let value = match &reading {
+        Reading::Integer(value) => *value as f64,
+        Reading::Float(value) => *value,
+        // Not a number, so no range applies - and a non-finite float is refused, since no comparison against it
+        // holds and it would pass a range test by failing every one of them.
+        _ => return reading,
+    };
+    if value.is_finite() && (low..=high).contains(&value) {
+        return reading;
+    }
+    Reading::Malformed {
+        detail: format!("{value} is outside what this field can hold ({low} to {high})"),
+    }
+}
+
 fn from_text(raw: &str, field_type: FieldType) -> Reading {
     match field_type {
         FieldType::Text => {
