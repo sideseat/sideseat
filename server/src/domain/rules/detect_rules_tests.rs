@@ -684,3 +684,106 @@ fn nothing_recognised_this_producer_says_which_rules_were_close() {
         "a span something recognised has nothing to explain"
     );
 }
+
+/// **What the format can express for a producer nobody has captured, measured rather than asserted.**
+///
+/// The series' central claim is that adding a framework is an *asset edit* and adding a primitive is a code
+/// change. Cycle 25 put four hypothetical producers to it; two were said to be expressible. Running them proved
+/// one of those two wrong, which is the whole reason for running them.
+///
+/// **Expressible, proven below:** a conversation written as a flat, numerically indexed attribute family -
+/// `chat.0.content`, `chat.1.content`, … - with no JSON anywhere and an unbounded index. `chat.97` is read exactly
+/// like `chat.0`, because the format declares no bound.
+///
+/// **Not expressible, also proven below:** a message whose **role comes from a sibling member** under the
+/// producer's own name - `kind: "in"` means a user turn. `wrap` beside `indexed_family` is *refused* ("an indexed
+/// family assembles each entry itself"), so `role_from` and `role_map` cannot be reached there: the family emits
+/// `{content, kind}`, nothing states that `kind` holds the role, and normalisation defaults the turn to `user` -
+/// so this producer's assistant replies would be reported as the user's. The missing primitive is exactly that: an
+/// indexed family that can name which assembled member is the role, and map that member's vocabulary.
+///
+/// Two further shapes are **not** expressible and are recorded rather than built, per the standing ruling that a
+/// primitive waits for a real producer: a base64 protobuf blob holding request and response (needs a
+/// descriptor-driven decode, which brings schema distribution and a parser dependency), and token usage reported
+/// only as a per-event *delta* (needs `reduce: sum` over event occurrences, where cumulative-versus-delta
+/// semantics have to be evidenced before they can be assumed).
+#[test]
+fn what_an_unseen_producer_can_and_cannot_declare() {
+    use crate::domain::rules::MessageContext;
+    use crate::domain::rules::message_rules::{MessageCompileError, compile};
+
+    let compiled = |messages: &str| {
+        let asset = format!(
+            r#"{{"id":"acme-probe","doc":"A producer nobody has captured.","messages":{messages}}}"#
+        );
+        compile(&std::collections::BTreeMap::from([(
+            "acme-probe.json".to_string(),
+            asset.into_bytes(),
+        )]))
+    };
+
+    // Expressible: the flat indexed family, declared entirely in an asset.
+    let plan = compiled(
+        r#"[{"id":"acme.flat_family","doc":"d","read":{"indexed_family":"chat"},
+             "parse":"text","emit":"message","legacy_rank":1}]"#,
+    )
+    .expect("a flat indexed family is an asset edit");
+
+    let span_attrs = attrs(&[
+        ("chat.0.kind", "in"),
+        ("chat.0.content", "what is the weather"),
+        ("chat.1.kind", "out"),
+        ("chat.1.content", "it is raining"),
+        // An index far past any bound, because the format declares none.
+        ("chat.97.kind", "in"),
+        ("chat.97.content", "and tomorrow"),
+    ]);
+    let ctx = MessageContext::for_span("acme.turn", &span_attrs, false);
+    let mut carried: Vec<(String, String)> = plan
+        .run(&ctx)
+        .iter()
+        .filter_map(|emission| {
+            Some((
+                emission.carrier.name().to_string(),
+                emission.value.get("content")?.as_str()?.to_string(),
+            ))
+        })
+        .collect();
+    carried.sort();
+    assert_eq!(
+        carried,
+        vec![
+            ("chat.0".to_string(), "what is the weather".to_string()),
+            ("chat.1".to_string(), "it is raining".to_string()),
+            ("chat.97".to_string(), "and tomorrow".to_string()),
+        ],
+        "three turns, each tagged with its own index - and `chat.97` is read like `chat.0`, since no bound is \
+         declared"
+    );
+
+    // **Not** expressible: the role in a sibling member. Refused rather than silently ignored, which is the
+    // format behaving correctly - and the limit is that there is nothing else to declare instead.
+    let refused = compiled(
+        r#"[{"id":"acme.role_from_sibling","doc":"d","read":{"indexed_family":"chat"},
+             "parse":"text","emit":"message","legacy_rank":1,
+             "wrap":{"content_from_any_of":["$.content"],"role_from":"$.kind",
+                     "role_map":{"in":"user","out":"assistant"}}}]"#,
+    )
+    .expect_err("an indexed family cannot state which member holds the role");
+    assert!(
+        matches!(refused, MessageCompileError::Inexpressible { .. }),
+        "the refusal should say the declaration cannot be executed: {refused}"
+    );
+
+    // And what that costs: the family emits the producer's own member names, so nothing downstream can tell an
+    // assistant turn from a user one.
+    let emitted: Vec<String> = plan
+        .run(&ctx)
+        .iter()
+        .map(|emission| emission.value.to_string())
+        .collect();
+    assert!(
+        emitted.iter().all(|value| !value.contains("\"role\"")),
+        "no emission carries a role, which is the limit this case measures: {emitted:?}"
+    );
+}
