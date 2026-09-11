@@ -1211,6 +1211,22 @@ clean-docker:
 	@#  `-v`, which is the leak the test targets used to have: 246 of them, 5.2GB, from pinned postgres,
 	@#  clickhouse and minio images. Only volumes no container is using are eligible either way.
 	@docker volume prune -f >/dev/null 2>&1 || true
+	@#  **Return the freed blocks to the host.** Pruning happens inside the runtime's VM, whose disk is a
+	@#  sparse file: the space becomes free in there and the host file stays exactly as large, so a prune
+	@#  that reports tens of GB reclaimed can move the host's free space by nothing. That is the whole
+	@#  accumulation mechanism on this machine - measured, a prune of 73 GB inside the VM returned 2 GB to
+	@#  the host, and a TRIM afterwards returned 34 more. `fstrim` only discards blocks the guest filesystem
+	@#  already considers free, so it cannot lose data; it is the step that was missing, not a risk.
+	@if command -v colima >/dev/null 2>&1 && colima status >/dev/null 2>&1; then \
+		echo "[clean-docker] Returning freed blocks to the host (fstrim inside the VM)..."; \
+		before=$$(du -sm "$$HOME/.colima/_lima/_disks"/*/datadisk 2>/dev/null | cut -f1 | head -1); \
+		colima ssh -- sudo fstrim -a >/dev/null 2>&1 || echo "[clean-docker] fstrim unavailable in this VM"; \
+		after=$$(du -sm "$$HOME/.colima/_lima/_disks"/*/datadisk 2>/dev/null | cut -f1 | head -1); \
+		[ -n "$$before" ] && [ -n "$$after" ] && \
+			echo "[clean-docker] VM data disk: $$before MB -> $$after MB on the host"; \
+	else \
+		echo "[clean-docker] No Colima VM running; a Docker Desktop image is shrunk from its own settings."; \
+	fi
 	@echo "[clean-docker] Pinned test images are kept (re-pulling them is slower than the space they use)."
 	@echo "[clean-docker] Named volumes are never touched: 'docker volume prune -a' if you want those too."
 	@docker system df 2>/dev/null || true
@@ -1223,6 +1239,26 @@ disk:
 	@echo "[disk] Largest local directories:"
 	@du -sh target $(WEB_DIR)/node_modules docs/node_modules .sideseat 2>/dev/null | sort -rh || true
 	@command -v docker >/dev/null 2>&1 && { echo "[disk] Docker:"; docker system df; } || true
+	@#  The container runtime's **VM disk images**, which is where this machine's space actually went and why
+	@#  it went unnoticed: 100 GB in a Colima data disk, 20 GB in its boot disk and 24 GB in a Docker Desktop
+	@#  image, against 4 GB of `target/`. They are *sparse*, so `du` reports the blocks in use and `ls`
+	@#  the provisioned size - and neither shrinks when images inside the VM are pruned. `docker system df`
+	@#  above reports what is reclaimable *inside* the VM, which is a different number from what the host
+	@#  gets back, and reading the first as the second is the mistake that let 144 GB hide.
+	@echo "[disk] Container VM disk images (sparse; pruning inside the VM does not shrink these):"
+	@for image in "$$HOME/.colima/_lima/_disks"/*/datadisk "$$HOME/.colima/_lima"/*/diffdisk \
+	              "$$HOME/.colima/_lima"/*/disk \
+	              "$$HOME/Library/Containers/com.docker.docker/Data/vms"/*/data/Docker.raw; do \
+		[ -f "$$image" ] || continue; \
+		printf '  %-6s in use   %-6s provisioned   %s\n' \
+			"$$(du -h "$$image" 2>/dev/null | cut -f1)" \
+			"$$(ls -lh "$$image" 2>/dev/null | awk '{print $$5}')" \
+			"$$image"; \
+	done
+	@command -v docker >/dev/null 2>&1 && { \
+		echo "[disk] Active runtime: $$(docker context show 2>/dev/null)"; \
+		echo "[disk] An inactive runtime's disk is dead weight - reclaiming it means deleting that VM."; \
+	} || true
 	@used=$$(du -sm target 2>/dev/null | cut -f1 || echo 0); \
 	if [ "$$used" -gt "$(DISK_BUDGET_MB)" ]; then \
 		echo "[disk] OVER BUDGET: target/ is $$used MB against a ceiling of $(DISK_BUDGET_MB) MB"; \
