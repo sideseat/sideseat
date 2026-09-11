@@ -2,6 +2,22 @@
 # SideSeat Makefile
 # =============================================================================
 #
+# DISK BUDGET
+#   `target/` is what fills this machine's disk - it reached 64 GB across one long session and 30 GB in
+#   another, against a current build of about 6 GB. Debug info is already minimised (`profile.dev` uses
+#   `line-tables-only` and dependencies carry none), so what accumulates is *stale* artifacts and the
+#   incremental cache, not the build itself.
+#
+#   So there is a declared ceiling and something enforces it. `make disk` reports and **fails** when over,
+#   the way `make bench-http` fails a missed latency ceiling - a measurement nobody compares against a
+#   target is a report. `disk-guard` is the cheap version (a `du`, 0.3s) wired into the targets that cause
+#   the growth: it reclaims what a rebuild regenerates cheaply, says what it took, and never touches the
+#   current build.
+#
+#   Raise DISK_BUDGET_MB if the real build outgrows it. Lowering it below the current build's size makes
+#   the guard reclaim on every invocation and buy nothing, which is why the number is stated rather than
+#   guessed at.
+#
 # Build, test, version, and publish orchestration for all SideSeat packages.
 #
 # PREREQUISITES
@@ -242,7 +258,7 @@ cli-bin = $(CLI_DIR)/platforms/platform-$(1)/$(BIN_NAME_$(1))
 .PHONY: build-docker publish-docker
 .PHONY: sign-release sign-verify sign-notarize
 .PHONY: build-release publish-release publish-brew
-.PHONY: clean clean-stale clean-docker disk download-prices deps-check run start
+.PHONY: clean clean-stale clean-docker disk disk-guard download-prices deps-check run start
 
 .SILENT: help version
 
@@ -469,7 +485,7 @@ secret-scan-range:
 		echo "  SKIPPED: gitleaks not installed (brew install gitleaks)"; \
 	fi
 
-check: fmt-check lint test
+check: disk-guard fmt-check lint test
 	@echo "[check] All checks passed"
 
 # =============================================================================
@@ -541,7 +557,7 @@ test: test-rust test-web test-sdk-js test-sdk-python
 
 # Whole workspace: `cd server && cargo test` left sdk/rust's tests unrun, so nothing executed
 # them - not make, not CI, not the hooks.
-test-rust:
+test-rust: disk-guard
 	@echo "[test-rust] Running Rust tests (workspace)..."
 	@cargo test --workspace
 
@@ -554,6 +570,9 @@ test-server:
 # and a laptop without Docker would fail the gate for a reason unrelated to the change. The test
 # itself skips with a message when SIDESEAT_TEST_CLICKHOUSE_URL is unset, so `make test` stays
 # meaningful; this target is how the ClickHouse SQL actually gets executed.
+# The ceiling `make disk` enforces and `disk-guard` reclaims toward, in MB. See DISK BUDGET at the top.
+DISK_BUDGET_MB ?= 12000
+
 CH_TEST_CONTAINER := sideseat-clickhouse-test
 CH_TEST_PORT ?= 8124
 # Pinned: `latest` moving under CI turns an upstream release into a failure on an
@@ -651,10 +670,10 @@ test-redis:
 
 # End-to-end HTTP latency, which is what a client actually experiences. The in-process benches measure the
 # stages inside a request; these measure the request. The numbers in CLAUDE.md come from here.
-bench-http:
+bench-http: disk-guard
 	@misc/bench/http-latency.sh embedded
 
-bench-http-distributed:
+bench-http-distributed: disk-guard
 	@misc/bench/http-latency.sh distributed
 
 test-web:
@@ -1196,13 +1215,46 @@ clean-docker:
 	@echo "[clean-docker] Named volumes are never touched: 'docker volume prune -a' if you want those too."
 	@docker system df 2>/dev/null || true
 
-# What is using space, so it is visible before it is urgent.
+# What is using space, and **whether it is within budget** - which is the difference between a report and a
+# gate. Exits non-zero over the ceiling, the way a missed latency ceiling fails `make bench-http`.
 disk:
 	@echo "[disk] Free space:"
 	@df -h . | tail -1
 	@echo "[disk] Largest local directories:"
 	@du -sh target $(WEB_DIR)/node_modules docs/node_modules .sideseat 2>/dev/null | sort -rh || true
 	@command -v docker >/dev/null 2>&1 && { echo "[disk] Docker:"; docker system df; } || true
+	@used=$$(du -sm target 2>/dev/null | cut -f1 || echo 0); \
+	if [ "$$used" -gt "$(DISK_BUDGET_MB)" ]; then \
+		echo "[disk] OVER BUDGET: target/ is $$used MB against a ceiling of $(DISK_BUDGET_MB) MB"; \
+		echo "[disk] Reclaim: make clean-stale (keeps the current build) or make clean (cold rebuild)"; \
+		exit 1; \
+	else \
+		echo "[disk] target/ is $$used MB, within the $(DISK_BUDGET_MB) MB budget"; \
+	fi
+
+# The cheap enforcement, wired into the targets that cause the growth.
+#
+# A `du` on target/ costs 0.3s, so this can run habitually - which is the point: the manual targets existed
+# and the disk still filled twice, because nothing ran them. Over budget it reclaims exactly what a rebuild
+# regenerates cheaply and says what it took; the current build is never touched.
+#
+# It does **not** fail the build. Disk usage is not a correctness property, and aborting someone's test run
+# over it would be the wrong trade - `make disk` is the gate that fails, this is the thing that keeps the
+# number from getting there. If a reclaim cannot bring it under, it says so and carries on, because the
+# alternative is a cold rebuild nobody asked for mid-session.
+disk-guard:
+	@used=$$(du -sm target 2>/dev/null | cut -f1 || echo 0); \
+	if [ "$$used" -gt "$(DISK_BUDGET_MB)" ]; then \
+		echo "[disk-guard] target/ is $$used MB, over the $(DISK_BUDGET_MB) MB budget - reclaiming"; \
+		$(MAKE) --no-print-directory clean-stale; \
+		after=$$(du -sm target 2>/dev/null | cut -f1 || echo 0); \
+		if [ "$$after" -gt "$(DISK_BUDGET_MB)" ]; then \
+			echo "[disk-guard] still $$after MB: the current build itself exceeds the budget."; \
+			echo "[disk-guard] Either raise DISK_BUDGET_MB or run make clean for a cold rebuild."; \
+			command -v cargo-sweep >/dev/null 2>&1 || \
+				echo "[disk-guard] cargo-sweep is not installed, so stale artifacts of older builds were kept: cargo install cargo-sweep"; \
+		fi; \
+	fi
 
 clean:
 	@echo "[clean] Removing build artifacts..."
