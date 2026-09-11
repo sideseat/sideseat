@@ -100,11 +100,16 @@ pub enum FieldCompileError {
     #[error("span field rule `{rule}` in `{file}` declares no source")]
     NoSources { file: String, rule: String },
     #[error(
-        "span field rule `{rule}` in `{file}` has a source that is neither an attribute nor a JSON member"
+        "span field rule `{rule}` in `{file}` has a source that names nowhere to read from - one of \
+         `attribute`, `attribute_first_present_of`, `json`, `event_attribute`, `raw_span_name`, \
+         `span_name_strip_prefix` or `value`"
     )]
     SourceReadsNothing { file: String, rule: String },
     #[error(
-        "span field rule `{rule}` in `{file}` has a source that is both an attribute and a JSON member"
+        "span field rule `{rule}` in `{file}` has a source naming more than one place to read from - \
+         `attribute`, `attribute_first_present_of`, `json`, `event_attribute`, `raw_span_name`, \
+         `span_name_strip_prefix` and `value` are alternatives, and which one won would be the order of the \
+         reader's branches rather than anything declared"
     )]
     SourceReadsTwoThings { file: String, rule: String },
     #[error(
@@ -971,6 +976,17 @@ pub fn compile(
                 path: file_id.clone(),
                 message: error.to_string(),
             })?;
+        // The clause-uniqueness rule, asked **here** and not only where the whole ruleset is built. This function
+        // parses the file itself, so anything calling it got a compile that accepted two sources sharing an id -
+        // which is precisely the hole `declaration_defect`'s own doc names: fine while a test guards this tree, a
+        // hole the moment anything else loads a file. An id is what a diagnostic uses to say which of a chain's
+        // spellings answered, so two of them make the answer unattributable exactly where it is read.
+        if let Some(defect) = file.declaration_defect() {
+            return Err(FieldCompileError::Parse {
+                path: file_id.clone(),
+                message: defect,
+            });
+        }
         for rule in &file.span_fields {
             if let Some(first) = by_id.get(&rule.id) {
                 return Err(FieldCompileError::DuplicateId {
@@ -1160,6 +1176,21 @@ fn compile_rule(file_id: &str, rule: &SpanFieldRule) -> Result<CompiledRule, Fie
                     detail,
                 });
             }
+        }
+        // A source admitted by a condition and skipped by the *same* condition can never run: false fails
+        // `when`, true triggers `unless`. Each was validated on its own, and neither validator asks about the
+        // other - so the pair compiled as a source that is simply never consulted, which reads as a narrowing
+        // somebody chose. Compared by structural equality, which is exact for "the same condition" and proves
+        // nothing about a pair that merely overlaps; that would need deciding predicate implication, and refusing
+        // on a guess breaks a build for a reason nobody can act on.
+        if let (Some(when), Some(unless)) = (&spec.when, &spec.unless)
+            && when == unless
+        {
+            return Err(FieldCompileError::DeadGate {
+                file: file_id.to_string(),
+                rule: rule.id.clone(),
+                detail: "is admitted and skipped by the same condition, so it can never be consulted",
+            });
         }
         sources.push(CompiledSource {
             spec: spec.clone(),

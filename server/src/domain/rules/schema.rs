@@ -770,7 +770,7 @@ pub struct SdkSlug {
 /// `{"key": …, "value": …, "ignore_case": true}` parsed and the flag was **discarded** - a comparison an
 /// author had asked to be case-insensitive stayed case-sensitive, silently. Case folding is a *separate
 /// dimension* (`attr_equals_ignore_case`), which is exactly the mistake this made easy to write.
-#[derive(Debug, Deserialize, Clone)]
+#[derive(PartialEq, Eq, Debug, Deserialize, Clone)]
 #[serde(deny_unknown_fields)]
 pub struct KeyValue {
     pub key: String,
@@ -781,7 +781,7 @@ pub struct KeyValue {
 ///
 /// The one signal that is neither a prefix nor an equality: a framework whose spans are identified by a
 /// phrase appearing somewhere in a name, in any of several spellings.
-#[derive(Debug, Deserialize, Clone)]
+#[derive(PartialEq, Eq, Debug, Deserialize, Clone)]
 #[serde(deny_unknown_fields)]
 pub struct TextContains {
     /// `span_name`, or `attr:<key>`.
@@ -803,7 +803,7 @@ pub struct TextContains {
 /// Disjunctive, which is the existing behaviour and worth naming: each dimension is independently
 /// sufficient. That is why a rule listing a broad `service_name` beside a narrow `attr_prefix` is not
 /// "narrow" at all, and why rank matters.
-#[derive(Debug, Default, Deserialize, Clone)]
+#[derive(PartialEq, Eq, Debug, Default, Deserialize, Clone)]
 #[serde(deny_unknown_fields)]
 pub struct DetectMatch {
     /// Span name **starts with** any of these.

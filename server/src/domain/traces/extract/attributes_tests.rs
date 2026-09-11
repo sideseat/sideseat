@@ -2824,3 +2824,169 @@ fn every_target_writes_what_its_declared_type_produces() {
         );
     }
 }
+
+/// **Every** span-field refusal fires, because none of them did.
+///
+/// Seventeen refusals, each a statement about a declaration that cannot mean what it says, and not one was
+/// exercised anywhere - so each was a claim rather than a guard, and any of them could have been deleted or
+/// narrowed with the suite still green. Several are one edit from being unreachable: the exclusivity check *counts*
+/// the seven reader forms (it used to pattern-match a pair, which stopped covering the forms as they were added),
+/// and a count that drifted to six would silently admit the form it forgot.
+///
+/// One probe per refusal, matched on the variant rather than on the message, so rewording a diagnostic does not
+/// quietly stop testing it.
+#[test]
+fn every_span_field_refusal_fires() {
+    use crate::domain::rules::span_fields::{FieldCompileError as E, compile};
+
+    let compiled = |asset: &str| {
+        compile(&std::collections::BTreeMap::from([(
+            "t.json".to_string(),
+            asset.as_bytes().to_vec(),
+        )]))
+    };
+    /// A probe asset, and the refusal it must produce.
+    type Case = (&'static str, &'static str, fn(&E) -> bool);
+    let cases: Vec<Case> = vec![
+        ("not JSON at all", "{", |e| matches!(e, E::Parse { .. })),
+        (
+            "a rule with no source",
+            r#"{"id":"t","span_fields":[{"id":"f","target":"user_id","sources":[]}]}"#,
+            |e| matches!(e, E::NoSources { .. }),
+        ),
+        (
+            "a source naming nowhere to read from",
+            r#"{"id":"t","span_fields":[{"id":"f","target":"user_id","sources":[{"id":"s"}]}]}"#,
+            |e| matches!(e, E::SourceReadsNothing { .. }),
+        ),
+        (
+            "a source naming two places, where the reader's branch order would decide",
+            r#"{"id":"t","span_fields":[{"id":"f","target":"user_id",
+               "sources":[{"id":"s","attribute":"k","raw_span_name":true}]}]}"#,
+            |e| matches!(e, E::SourceReadsTwoThings { .. }),
+        ),
+        (
+            "a literal with no gate, which answers on every span",
+            r#"{"id":"t","span_fields":[{"id":"f","target":"user_id",
+               "sources":[{"id":"s","value":"x"}]}]}"#,
+            |e| matches!(e, E::UngatedLiteral { .. }),
+        ),
+        (
+            "a JSON source naming neither a path nor a first-present group",
+            r#"{"id":"t","span_fields":[{"id":"f","target":"user_id",
+               "sources":[{"id":"s","json":{"attribute":"a"}}]}]}"#,
+            |e| matches!(e, E::JsonNamesNoMember { .. }),
+        ),
+        (
+            "a sum into a field that holds text",
+            r#"{"id":"t","span_fields":[{"id":"f","target":"user_id",
+               "sources":[{"id":"s","json":{"attribute":"a","path":"$.n","reduce":"sum"}}]}]}"#,
+            |e| matches!(e, E::ReductionThatCannotYield { .. }),
+        ),
+        (
+            "a reduction over a first-present group, which selects one path rather than combining matches",
+            r#"{"id":"t","span_fields":[{"id":"f","target":"usage_input_tokens",
+               "sources":[{"id":"s","json":{"attribute":"a","first_present_of":["$.a","$.b"],"reduce":"sum"}}]}]}"#,
+            |e| matches!(e, E::ReductionWithoutAPath { .. }),
+        ),
+        (
+            "folding a field that holds no text",
+            r#"{"id":"t","span_fields":[{"id":"f","target":"usage_input_tokens",
+               "sources":[{"id":"s","attribute":"k","lowercase":true}]}]}"#,
+            |e| matches!(e, E::FoldWithoutText { .. }),
+        ),
+        (
+            "`scalar_only` where it cannot apply",
+            r#"{"id":"t","span_fields":[{"id":"f","target":"user_id",
+               "sources":[{"id":"s","json":{"attribute":"a","first_present_of":["$.a"],"scalar_only":true}}]}]}"#,
+            |e| matches!(e, E::ScalarOnlyWithoutAPath { .. }),
+        ),
+        (
+            "an empty attribute name",
+            r#"{"id":"t","span_fields":[{"id":"f","target":"user_id",
+               "sources":[{"id":"s","attribute":""}]}]}"#,
+            |e| matches!(e, E::EmptyAttribute { .. }),
+        ),
+        (
+            "every occurrence of an event attribute into a field holding one value",
+            r#"{"id":"t","span_fields":[{"id":"f","target":"user_id",
+               "sources":[{"id":"s","event_attribute":{"event":"e","attribute":"a","occurrence":"every"}}]}]}"#,
+            |e| matches!(e, E::EveryOccurrenceIntoOneValue { .. }),
+        ),
+        (
+            "a merge into a field that holds one value",
+            r#"{"id":"t","span_fields":[{"id":"f","target":"user_id","combine":"merge_all",
+               "sources":[{"id":"s","attribute":"k"}]}]}"#,
+            |e| matches!(e, E::MergeIntoScalar { .. }),
+        ),
+        (
+            "two rules resolving one target",
+            r#"{"id":"t","span_fields":[
+               {"id":"f","target":"user_id","sources":[{"id":"s","attribute":"k"}]},
+               {"id":"g","target":"user_id","sources":[{"id":"s","attribute":"j"}]}]}"#,
+            |e| matches!(e, E::DuplicateTarget { .. }),
+        ),
+        (
+            "two rules sharing an id",
+            r#"{"id":"t","span_fields":[
+               {"id":"f","target":"user_id","sources":[{"id":"s","attribute":"k"}]},
+               {"id":"f","target":"http_method","sources":[{"id":"s","attribute":"j"}]}]}"#,
+            |e| matches!(e, E::DuplicateId { .. }),
+        ),
+        (
+            // Two *sources* sharing an id is a different rule, and it was enforced only where the whole ruleset
+            // is built: `span_fields::compile` parsed the file itself and never asked `declaration_defect`, which
+            // is the hole that function's own doc names - "a hole the moment anything else loads a file".
+            "two sources of one rule sharing an id",
+            r#"{"id":"t","span_fields":[{"id":"f","target":"user_id",
+               "sources":[{"id":"s","attribute":"k"},{"id":"s","attribute":"j"}]}]}"#,
+            |e| matches!(e, E::Parse { .. }),
+        ),
+        (
+            "a gate that can never hold",
+            r#"{"id":"t","span_fields":[{"id":"f","target":"user_id",
+               "sources":[{"id":"s","attribute":"k","when":{"attr_prefix":[""]}}]}]}"#,
+            |e| matches!(e, E::DeadGate { .. }),
+        ),
+        (
+            // Each gate was validated on its own and neither validator asked about the other, so the pair
+            // compiled as a source that is simply never consulted - which reads as a narrowing somebody chose.
+            "a source admitted and skipped by the same condition",
+            r#"{"id":"t","span_fields":[{"id":"f","target":"user_id",
+               "sources":[{"id":"s","attribute":"k","when":{"attr_exists":["m"]},"unless":{"attr_exists":["m"]}}]}]}"#,
+            |e| matches!(e, E::DeadGate { .. }),
+        ),
+        (
+            "a gate naming a resource dimension field resolution is never given",
+            r#"{"id":"t","span_fields":[{"id":"f","target":"user_id",
+               "sources":[{"id":"s","attribute":"k","when":{"service_name":["x"]}}]}]}"#,
+            |e| matches!(e, E::UnavailableGate { .. }),
+        ),
+    ];
+
+    for (what, asset, expected) in cases {
+        let error = compiled(asset)
+            .err()
+            .unwrap_or_else(|| panic!("should have been refused: {what}"));
+        assert!(expected(&error), "wrong refusal for {what}: {error}");
+    }
+
+    // Two *different* gates on one source are fine - that is an admitted-unless pair, which several assets use.
+    assert!(
+        compiled(
+            r#"{"id":"t","span_fields":[{"id":"f","target":"user_id",
+               "sources":[{"id":"s","attribute":"k","when":{"attr_exists":["m"]},"unless":{"attr_exists":["n"]}}]}]}"#
+        )
+        .is_ok(),
+        "two different conditions are an ordinary admitted-unless pair"
+    );
+
+    // And a rule stating one reader with nothing dead about it compiles, or the refusals are simply a ban.
+    assert!(
+        compiled(
+            r#"{"id":"t","span_fields":[{"id":"f","target":"user_id",
+               "sources":[{"id":"s","attribute":"k"},{"id":"t","json":{"attribute":"a","path":"$.u"}}]}]}"#
+        )
+        .is_ok()
+    );
+}
