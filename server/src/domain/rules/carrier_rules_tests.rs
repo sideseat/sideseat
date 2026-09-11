@@ -376,10 +376,14 @@ fn a_carrier_qualifier_that_is_not_available_everywhere_is_refused() {
                 "probe.json".to_string(),
                 serde_json::to_vec(&asset).expect("serialises"),
             )]));
+        // The **variant**, not merely an error: a parse failure would satisfy `is_err()` for a reason that has
+        // nothing to do with the dimension being unavailable, so the refusal this test is named for could be
+        // deleted and the assertion would still hold.
         assert!(
-            result.is_err(),
-            "`{dimension}` must be refused: ingestion resolves carriers without a scope and query time \
-             resolves them with one, so a clause using it answers differently depending on who asks"
+            matches!(result, Err(CompileError::UnavailableDimension { .. })),
+            "`{dimension}` must be refused as unavailable: ingestion resolves carriers without a scope and \
+             query time resolves them with one, so a clause using it answers differently depending on who \
+             asks - got {result:?}"
         );
     }
 
@@ -5106,9 +5110,15 @@ fn an_all_or_nothing_reading_cannot_be_starved_by_an_earlier_rank() {
                     {"as":"a","from_any_of":["x","x_backup"],"parse":"text"},{"as":"b","from_any_of":["y"],"parse":"text"}]},
                  "emit":"message","legacy_rank":2}]"#,
         )
-        .is_err(),
-        "a composed reading starved of one member must be refused - and a backup spelling does not save it, \
-         because `composed()` selects the first present with `find_map` and never retries"
+        .err()
+        .is_some_and(|error| matches!(
+            error,
+            crate::domain::rules::message_rules::MessageCompileError::StarvedReading { .. }
+        )),
+        "a composed reading starved of one member must be refused **as starved** - and a backup spelling does \
+         not save it, because `composed()` selects the first present with `find_map` and never retries. The \
+         variant matters: a parse failure satisfies `is_err()` for an unrelated reason, so the refusal this \
+         test is named for could be deleted with the assertion still holding"
     );
 
     // And an **overlay**, whose `from` carrier the entry owns at runtime (`consumed.push(overlay.from)`) - so
@@ -7839,4 +7849,497 @@ fn a_shared_answer_is_declared_only_by_the_asset_that_owns_it() {
             file.declaration_defect().unwrap_or_default()
         );
     }
+}
+
+/// Every classification refusal fires.
+///
+/// Three of the eight were exercised by nothing, so each was a claim rather than a guard. Matched on the variant
+/// rather than the message, so rewording a diagnostic does not quietly stop testing it.
+#[test]
+fn every_classification_refusal_fires() {
+    use crate::domain::rules::classify::{ClassifyCompileError as E, compile};
+    let compiled = |asset: &str| {
+        compile(&std::collections::BTreeMap::from([(
+            "t.json".to_string(),
+            asset.as_bytes().to_vec(),
+        )]))
+    };
+    type Case = (&'static str, &'static str, fn(&E) -> bool);
+    let cases: Vec<Case> = vec![
+        ("not JSON at all", "{", |e| matches!(e, E::Parse { .. })),
+        (
+            "a rule with no condition, which would answer for every span",
+            r#"{"id":"t","observation_types":[{"id":"r","rank":1,"all_of":[],"result":"tool"}]}"#,
+            |e| matches!(e, E::NoCondition { .. }),
+        ),
+        (
+            "a rule whose result is not one of the answers this classification may give",
+            r#"{"id":"t","observation_types":[{"id":"r","rank":1,
+               "all_of":[{"attr_exists":["k"]}],"result":"narrator"}]}"#,
+            |e| matches!(e, E::UnknownResult { .. }),
+        ),
+        (
+            "a rule with no result at all",
+            r#"{"id":"t","observation_types":[{"id":"r","rank":1,
+               "all_of":[{"attr_exists":["k"]}],"result":""}]}"#,
+            |e| matches!(e, E::NoResult { .. }),
+        ),
+        (
+            "a condition that can never hold",
+            r#"{"id":"t","observation_types":[{"id":"r","rank":1,
+               "all_of":[{"attr_prefix":[""]}],"result":"tool"}]}"#,
+            |e| matches!(e, E::DeadCondition { .. }),
+        ),
+        (
+            "a condition naming a resource dimension classification is never given",
+            r#"{"id":"t","observation_types":[{"id":"r","rank":1,
+               "all_of":[{"service_name":["x"]}],"result":"tool"}]}"#,
+            |e| matches!(e, E::DeadCondition { .. }),
+        ),
+        (
+            "two rules of one classification sharing a rank",
+            r#"{"id":"t","observation_types":[
+               {"id":"a","rank":1,"all_of":[{"attr_exists":["k"]}],"result":"tool"},
+               {"id":"b","rank":1,"all_of":[{"attr_exists":["j"]}],"result":"agent"}]}"#,
+            |e| matches!(e, E::SharedRank { .. }),
+        ),
+        (
+            "two rules sharing an id",
+            r#"{"id":"t","observation_types":[
+               {"id":"a","rank":1,"all_of":[{"attr_exists":["k"]}],"result":"tool"},
+               {"id":"a","rank":2,"all_of":[{"attr_exists":["j"]}],"result":"agent"}]}"#,
+            |e| matches!(e, E::DuplicateId { .. }),
+        ),
+        (
+            "a rule an earlier rule always satisfies, whose result can never be reached",
+            r#"{"id":"t","observation_types":[
+               {"id":"a","rank":1,"all_of":[{"attr_exists":["k"]}],"result":"tool"},
+               {"id":"b","rank":2,"all_of":[{"attr_equals":[{"key":"k","value":"v"}]}],"result":"agent"}]}"#,
+            |e| matches!(e, E::ShadowedRule { .. }),
+        ),
+    ];
+    for (what, asset, expected) in cases {
+        let error = compiled(asset)
+            .err()
+            .unwrap_or_else(|| panic!("should have been refused: {what}"));
+        assert!(expected(&error), "wrong refusal for {what}: {error}");
+    }
+    // A pair of ordinary rules compiles, or the refusals are simply a ban.
+    assert!(
+        compiled(
+            r#"{"id":"t","observation_types":[
+               {"id":"a","rank":1,"all_of":[{"attr_exists":["one"]}],"result":"tool"},
+               {"id":"b","rank":2,"all_of":[{"attr_exists":["two"]}],"result":"agent"}]}"#
+        )
+        .is_ok()
+    );
+}
+
+/// Every tool-shape refusal fires.
+///
+/// Five of the six were exercised by nothing. `Inexpressible` is the shared predicate validator, which
+/// `every_predicate_set_in_the_schema_is_validated` requires every section to run - so a section that stopped
+/// running it would pass that test and lose the refusal, which is why it is asked here directly.
+#[test]
+fn every_tool_shape_refusal_fires() {
+    use crate::domain::rules::tool_shapes::{ToolShapeError as E, ToolShapePlan};
+    let compiled = |shapes: &str| {
+        let asset = format!(r#"{{"id":"t","tool_shapes":{shapes}}}"#);
+        let file: schema::RuleFile = serde_json::from_str(&asset).expect("the probe parses");
+        ToolShapePlan::compile(std::slice::from_ref(&file))
+    };
+    type Case = (&'static str, &'static str, fn(&E) -> bool);
+    let cases: Vec<Case> = vec![
+        (
+            "a shape handing over a canonical object *and* saying where each part is",
+            r#"[{"id":"s","legacy_rank":1,"function":"$.function","name":"$.name"}]"#,
+            |e| matches!(e, E::TwoAnswers { .. }),
+        ),
+        (
+            "a shape with no name, which is not a definition",
+            r#"[{"id":"s","legacy_rank":1,"description":"$.d"}]"#,
+            |e| matches!(e, E::NoName { .. }),
+        ),
+        (
+            "two shapes sharing a rank, where load order would decide",
+            r#"[{"id":"a","legacy_rank":1,"name":"$.name"},{"id":"b","legacy_rank":1,"name":"$.n"}]"#,
+            |e| matches!(e, E::SharedRank { .. }),
+        ),
+        (
+            "an empty carried member name, which names nothing",
+            r#"[{"id":"s","legacy_rank":1,"name":"$.name","carry":[""]}]"#,
+            |e| matches!(e, E::EmptyCarry { .. }),
+        ),
+        (
+            "parameters with no path to read them from",
+            r#"[{"id":"s","legacy_rank":1,"name":"$.name","parameters":{"from":[],"encoding":"json_schema"}}]"#,
+            |e| matches!(e, E::NoParameterPath { .. }),
+        ),
+        (
+            "a requirement that could never mean what it says",
+            r#"[{"id":"s","legacy_rank":1,"name":"$.name","require":{"all":[{"not_null":true},{"not_null":false}]}}]"#,
+            |e| matches!(e, E::Inexpressible { .. }),
+        ),
+    ];
+    for (what, shapes, expected) in cases {
+        let error = compiled(shapes)
+            .err()
+            .unwrap_or_else(|| panic!("should have been refused: {what}"));
+        assert!(expected(&error), "wrong refusal for {what}: {error}");
+    }
+    assert!(compiled(r#"[{"id":"s","legacy_rank":1,"name":"$.name","carry":["strict"]}]"#).is_ok());
+}
+
+/// Every carrier refusal fires.
+///
+/// Four of the nine were exercised by nothing. `IncoherentFacts` is the one that matters most: it is what refuses
+/// an impossible fact vector, and the presets are constructors over those facts rather than a vocabulary - so a
+/// preset override producing a combination the model cannot mean is the shape it exists for.
+#[test]
+fn every_carrier_refusal_fires() {
+    let compiled = |carriers: serde_json::Value| {
+        let asset = serde_json::json!({"id": "probe", "doc": "d", "carriers": carriers});
+        compile(&std::collections::BTreeMap::from([(
+            "t.json".to_string(),
+            serde_json::to_vec(&asset).expect("serialises"),
+        )]))
+    };
+    let clause = |id: &str, extra: serde_json::Value, facts: serde_json::Value| {
+        let mut entry = serde_json::json!({
+            "id": id, "doc": "d", "match": {"attribute": format!("probe.{id}")}, "facts": facts,
+        });
+        if let (Some(object), Some(more)) = (entry.as_object_mut(), extra.as_object()) {
+            for (key, value) in more {
+                object.insert(key.clone(), value.clone());
+            }
+        }
+        entry
+    };
+    type Case = (&'static str, serde_json::Value, fn(&CompileError) -> bool);
+    let cases: Vec<Case> = vec![
+        (
+            "an impossible fact vector",
+            serde_json::json!([clause(
+                "a",
+                serde_json::json!({}),
+                serde_json::json!({"preset": "emission", "carrier_is_atomic_emission": false,
+                                   "position_proves_distinct_occurrence": true,
+                                   "position_provides_sequence_order": false,
+                                   "carrier_holds_expandable_message_array": true})
+            )]),
+            |e| matches!(e, CompileError::IncoherentFacts { .. }),
+        ),
+        (
+            "an observation type that is not one",
+            serde_json::json!([{
+                "id": "a", "doc": "d",
+                "match": {"attribute": "probe.a", "observation_type": ["narrator"]},
+                "facts": {"preset": "emission"},
+            }]),
+            |e| matches!(e, CompileError::UnknownObservationType { .. }),
+        ),
+        (
+            "an empty attribute, which would claim every observation of a span",
+            serde_json::json!([{
+                "id": "a", "doc": "d", "match": {"attribute": ""}, "facts": {"preset": "emission"},
+            }]),
+            |e| matches!(e, CompileError::EmptyLiteral { .. }),
+        ),
+        (
+            "a preset nothing declares",
+            serde_json::json!([clause(
+                "a",
+                serde_json::json!({}),
+                serde_json::json!({"preset": "not_a_preset"})
+            )]),
+            |e| matches!(e, CompileError::UnknownPreset { .. }),
+        ),
+        (
+            "two clauses sharing an id",
+            serde_json::json!([
+                clause("a", serde_json::json!({}), serde_json::json!({"preset": "emission"})),
+                {"id": "a", "doc": "d", "match": {"attribute": "probe.b"},
+                 "facts": {"preset": "emission"}},
+            ]),
+            |e| matches!(e, CompileError::DuplicateClauseId { .. }),
+        ),
+        (
+            "two clauses that could claim one observation with equal specificity",
+            serde_json::json!([
+                clause("a", serde_json::json!({}), serde_json::json!({"preset": "emission"})),
+                {"id": "b", "doc": "d", "match": {"attribute": "probe.a"},
+                 "facts": {"preset": "snapshot"}},
+            ]),
+            |e| matches!(e, CompileError::Ambiguous { .. }),
+        ),
+    ];
+    for (what, carriers, expected) in cases {
+        let error = compiled(carriers)
+            .err()
+            .unwrap_or_else(|| panic!("should have been refused: {what}"));
+        assert!(expected(&error), "wrong refusal for {what}: {error}");
+    }
+    // Malformed input, and an ordinary pair that must compile.
+    assert!(matches!(
+        compile(&std::collections::BTreeMap::from([(
+            "t.json".to_string(),
+            b"{".to_vec()
+        )])),
+        Err(CompileError::Parse { .. })
+    ));
+    assert!(
+        compiled(serde_json::json!([
+            clause(
+                "a",
+                serde_json::json!({}),
+                serde_json::json!({"preset": "emission"})
+            ),
+            clause(
+                "b",
+                serde_json::json!({}),
+                serde_json::json!({"preset": "snapshot"})
+            ),
+        ]))
+        .is_ok()
+    );
+}
+
+/// Every message-rule refusal fires.
+///
+/// Six of the eight were exercised by nothing, `StarvedReading` among them - the one that refuses a lower-ranked
+/// rule taking part of an all-or-nothing reading, so the reading is lost *whole* and the carriers the taker never
+/// wanted reach nobody.
+#[test]
+fn every_message_rule_refusal_fires() {
+    use crate::domain::rules::message_rules::{MessageCompileError as E, compile};
+    let compiled = |asset: &str| {
+        compile(&std::collections::BTreeMap::from([(
+            "t.json".to_string(),
+            asset.as_bytes().to_vec(),
+        )]))
+    };
+    type Case = (&'static str, &'static str, fn(&E) -> bool);
+    let cases: Vec<Case> = vec![
+        ("not JSON at all", "{", |e| matches!(e, E::Parse { .. })),
+        (
+            "a rule naming no carrier",
+            r#"{"id":"t","messages":[{"id":"r","read":{},"parse":"json","emit":"message","legacy_rank":1}]}"#,
+            |e| matches!(e, E::NotExactlyOneCarrier { .. }),
+        ),
+        (
+            "a rule naming an empty carrier, which names nothing",
+            r#"{"id":"t","messages":[{"id":"r","read":{"attribute":""},"parse":"json","emit":"message","legacy_rank":2}]}"#,
+            |e| matches!(e, E::EmptyCarrier { .. }),
+        ),
+        (
+            "two rules sharing an id",
+            r#"{"id":"t","messages":[
+               {"id":"r","read":{"attribute":"a"},"parse":"json","emit":"message","legacy_rank":3},
+               {"id":"r","read":{"attribute":"b"},"parse":"json","emit":"message","legacy_rank":4}]}"#,
+            |e| matches!(e, E::DuplicateRuleId { .. }),
+        ),
+        (
+            "a reading referencing a fragment nobody declares",
+            r#"{"id":"t","messages":[{"id":"r","read":{"attribute":"a"},"parse":"json","emit":"message","legacy_rank":5,
+               "alternatives":[{"id":"r.alt","then_fragment":"absent.fragment"}]}]}"#,
+            |e| matches!(e, E::UnknownFragment { .. }),
+        ),
+        (
+            // The engine accepts the construct and cannot execute it, which from a reader's point of view is the
+            // same defect as a field silently ignored: the asset says something and nothing happens.
+            "a fragment declaring no cases",
+            r#"{"id":"t","messages":[],"fragments":{"probe.frag":{"cases":[]}}}"#,
+            |e| matches!(e, E::Inexpressible { .. }),
+        ),
+        (
+            "two rules reading one carrier, where the later can never be reached",
+            r#"{"id":"t","messages":[
+               {"id":"a","read":{"attribute":"same"},"parse":"json","emit":"message","legacy_rank":1},
+               {"id":"b","read":{"attribute":"same"},"parse":"json","emit":"message","legacy_rank":2}]}"#,
+            |e| matches!(e, E::ContestedCarrier { .. }),
+        ),
+    ];
+    for (what, asset, expected) in cases {
+        let error = compiled(asset)
+            .err()
+            .unwrap_or_else(|| panic!("should have been refused: {what}"));
+        assert!(expected(&error), "wrong refusal for {what}: {error}");
+    }
+    assert!(
+        compiled(
+            r#"{"id":"t","messages":[
+               {"id":"a","read":{"attribute":"one"},"parse":"json","emit":"message","legacy_rank":7},
+               {"id":"b","read":{"attribute":"two"},"parse":"json","emit":"message","legacy_rank":8}]}"#
+        )
+        .is_ok()
+    );
+}
+
+/// Every detection refusal fires.
+///
+/// Three of the ten were exercised by nothing, `UselessSupersedes` among them - and that one changed meaning when
+/// `supersedes` began to order, so what it still refuses is worth pinning: a target nothing declares, a self-edge,
+/// and the same target twice.
+#[test]
+fn every_detection_refusal_fires() {
+    use crate::domain::rules::detect_rules::{DetectCompileError as E, compile};
+    let compiled = |asset: &str| {
+        compile(&std::collections::BTreeMap::from([(
+            "t.json".to_string(),
+            asset.as_bytes().to_vec(),
+        )]))
+    };
+    type Case = (&'static str, &'static str, fn(&E) -> bool);
+    let cases: Vec<Case> = vec![
+        ("not JSON at all", "{", |e| matches!(e, E::Parse { .. })),
+        (
+            "an empty attribute prefix, which matches everything",
+            r#"{"id":"t","doc":"d","detect":[{"id":"a","doc":"d","label":"A","legacy_rank":1,
+               "match":{"attr_prefix":[""]}}]}"#,
+            |e| matches!(e, E::EmptyLiteral { .. }),
+        ),
+        (
+            "two rules sharing an id",
+            r#"{"id":"t","doc":"d","detect":[
+               {"id":"a","doc":"d","label":"A","legacy_rank":1,"match":{"attr_prefix":["one."]}},
+               {"id":"a","doc":"d","label":"B","legacy_rank":2,"match":{"attr_prefix":["two."]}}]}"#,
+            |e| matches!(e, E::DuplicateRuleId { .. }),
+        ),
+        (
+            "a supersedes edge naming a rule nothing declares",
+            r#"{"id":"t","doc":"d","detect":[{"id":"a","doc":"d","label":"A","legacy_rank":1,
+               "match":{"attr_prefix":["one."]},"supersedes":["absent"]}]}"#,
+            |e| matches!(e, E::UselessSupersedes { .. }),
+        ),
+        (
+            "a supersedes edge to the rule itself",
+            r#"{"id":"t","doc":"d","detect":[{"id":"a","doc":"d","label":"A","legacy_rank":1,
+               "match":{"attr_prefix":["one."]},"supersedes":["a"]}]}"#,
+            |e| matches!(e, E::UselessSupersedes { .. }),
+        ),
+    ];
+    for (what, asset, expected) in cases {
+        let error = compiled(asset)
+            .err()
+            .unwrap_or_else(|| panic!("should have been refused: {what}"));
+        assert!(expected(&error), "wrong refusal for {what}: {error}");
+    }
+}
+
+/// **Every refusal the rules engine declares is exercised by some test.** Read off the source, so a new one
+/// cannot arrive unexercised.
+///
+/// This is the meta-rule the series kept citing and nothing enforced: 67 refusals across seven compile modules,
+/// and **21 of them were exercised nowhere** when this was written - each a claim rather than a guard, any of them
+/// deletable or narrowable with the suite green. Several were one edit from unreachable, which is the shape that
+/// matters: the span-field exclusivity check *counts* seven reader forms, and a count that drifted to six would
+/// silently admit the form it forgot.
+///
+/// The check is on the **source text**, because the refusals are seven unrelated enums with no common trait, and a
+/// runtime inventory would need every module to opt in - which is the thing that gets forgotten. It looks for the
+/// variant named in a test context: a `*_tests.rs` file, or a module's own `#[cfg(test)] mod tests`.
+///
+/// What it cannot see, stated because it is a real limit: whether the probe that names a variant actually *causes*
+/// that refusal, or merely mentions it. That is what mutation-verifying each one is for, and each of the
+/// `every_*_refusal_fires` tests matches on the variant rather than the message so a reworded diagnostic does not
+/// quietly stop testing it.
+#[test]
+fn every_declared_refusal_is_exercised_by_a_test() {
+    /// The seven compile modules and the error enum each declares.
+    const MODULES: &[(&str, &str)] = &[
+        ("carrier_rules.rs", "CompileError"),
+        ("detect_rules.rs", "DetectCompileError"),
+        ("classify.rs", "ClassifyCompileError"),
+        ("members.rs", "MemberCompileError"),
+        ("message_rules.rs", "MessageCompileError"),
+        ("tool_shapes.rs", "ToolShapeError"),
+        ("span_fields.rs", "FieldCompileError"),
+    ];
+    /// Every module's source, so both the enum bodies and the test contexts come from one place.
+    const SOURCES: &[(&str, &str)] = &[
+        ("carrier_rules.rs", include_str!("carrier_rules.rs")),
+        ("detect_rules.rs", include_str!("detect_rules.rs")),
+        ("classify.rs", include_str!("classify.rs")),
+        ("members.rs", include_str!("members.rs")),
+        ("message_rules.rs", include_str!("message_rules.rs")),
+        ("tool_shapes.rs", include_str!("tool_shapes.rs")),
+        ("span_fields.rs", include_str!("span_fields.rs")),
+        (
+            "carrier_rules_tests.rs",
+            include_str!("carrier_rules_tests.rs"),
+        ),
+        (
+            "detect_rules_tests.rs",
+            include_str!("detect_rules_tests.rs"),
+        ),
+        (
+            "attributes_tests.rs",
+            include_str!("../traces/extract/attributes_tests.rs"),
+        ),
+        (
+            "messages_tests.rs",
+            include_str!("../traces/extract/messages_tests.rs"),
+        ),
+    ];
+
+    let source_of = |name: &str| {
+        SOURCES
+            .iter()
+            .find(|(found, _)| *found == name)
+            .map(|(_, text)| *text)
+            .unwrap_or_else(|| panic!("`{name}` is not in SOURCES"))
+    };
+    // Every test context: the dedicated test files, plus each module's own `mod tests` body.
+    let mut contexts = String::new();
+    for (name, text) in SOURCES {
+        if name.ends_with("_tests.rs") {
+            contexts.push_str(text);
+        } else if let Some(at) = text.find("#[cfg(test)]\nmod tests {") {
+            contexts.push_str(&text[at..]);
+        }
+    }
+
+    let mut unexercised: Vec<String> = Vec::new();
+    let mut counted = 0_usize;
+    for (module, enum_name) in MODULES {
+        let text = source_of(module);
+        let start = text
+            .find(&format!("pub enum {enum_name} {{"))
+            .unwrap_or_else(|| panic!("`{enum_name}` is not declared in `{module}`"));
+        let body = &text[start..];
+        let end = body.find("\n}\n").expect("the enum body ends");
+        for line in body[..end].lines() {
+            // A variant: four-space indented, capitalised, and opening its payload or ending the entry.
+            let trimmed = line.trim_start();
+            let indent = line.len() - trimmed.len();
+            let name: String = trimmed
+                .chars()
+                .take_while(|c| c.is_alphanumeric())
+                .collect();
+            let after = trimmed[name.len()..].trim_start();
+            if indent != 4
+                || name.is_empty()
+                || !name.starts_with(char::is_uppercase)
+                || !(after.starts_with('{') || after.starts_with('(') || after == ",")
+            {
+                continue;
+            }
+            counted += 1;
+            if !contexts.contains(&format!("::{name}")) {
+                unexercised.push(format!("{module}: {enum_name}::{name}"));
+            }
+        }
+    }
+
+    assert!(
+        counted > 60,
+        "only {counted} refusals were found, so the parse is not reading the enums"
+    );
+    assert!(
+        unexercised.is_empty(),
+        "{} of {counted} declared refusals are exercised by no test, so each is a claim rather than a \
+         guard:\n{}",
+        unexercised.len(),
+        unexercised.join("\n")
+    );
 }
