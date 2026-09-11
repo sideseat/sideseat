@@ -8212,6 +8212,16 @@ fn every_detection_refusal_fires() {
             |e| matches!(e, E::UselessSupersedes { .. }),
         ),
         (
+            // The two sections fill the label independently, so a typo is a second framework name for one
+            // producer - and which one a span gets depends on whether its signals were detected or its SDK
+            // declared itself, which a reader filtering on the label sees as one producer split in two.
+            "an SDK slug resolving to a label no rule produces",
+            r#"{"id":"t","doc":"d","detect":[{"id":"a","doc":"d","label":"Acme","legacy_rank":1,
+               "match":{"attr_prefix":["one."]}}],
+               "sdk_slugs":[{"slug":"acme","label":"Acmee"}]}"#,
+            |e| matches!(e, E::SlugLabelNoRuleProduces { .. }),
+        ),
+        (
             "a supersedes edge to the rule itself",
             r#"{"id":"t","doc":"d","detect":[{"id":"a","doc":"d","label":"A","legacy_rank":1,
                "match":{"attr_prefix":["one."]},"supersedes":["a"]}]}"#,
@@ -8224,6 +8234,15 @@ fn every_detection_refusal_fires() {
             .unwrap_or_else(|| panic!("should have been refused: {what}"));
         assert!(expected(&error), "wrong refusal for {what}: {error}");
     }
+    // A slug naming a label its own asset's rule produces compiles, which is the shape every asset uses.
+    assert!(
+        compiled(
+            r#"{"id":"t","doc":"d","detect":[{"id":"a","doc":"d","label":"Acme","legacy_rank":1,
+               "match":{"attr_prefix":["one."]}}],
+               "sdk_slugs":[{"slug":"acme","label":"Acme"}]}"#
+        )
+        .is_ok()
+    );
 }
 
 /// **Every refusal the rules engine declares is exercised by some test.** Read off the source, so a new one

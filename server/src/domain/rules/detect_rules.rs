@@ -78,6 +78,11 @@ pub enum DetectCompileError {
         earlier: String,
         later: String,
     },
+    /// An SDK slug resolving to a label no detection rule produces.
+    SlugLabelNoRuleProduces {
+        slug: String,
+        label: String,
+    },
     DuplicateRuleId {
         rule: String,
     },
@@ -107,6 +112,12 @@ impl std::fmt::Display for DetectCompileError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Parse { path, message } => write!(f, "{path}: {message}"),
+            Self::SlugLabelNoRuleProduces { slug, label } => write!(
+                f,
+                "SDK slug `{slug}` resolves to `{label}`, which no detection rule produces - the two sections \
+                 fill the label independently, so this is a second framework name for one producer, and which \
+                 one a span gets depends on whether its signals were detected or its SDK declared itself"
+            ),
             Self::ShadowedRule { earlier, later } => write!(
                 f,
                 "rule `{later}` can never be reached: `{earlier}` is ranked ahead of it and every span `{later}` \
@@ -411,6 +422,23 @@ pub fn compile(sources: &BTreeMap<String, Vec<u8>>) -> Result<DetectPlan, Detect
                 });
             }
         }
+    }
+
+    // A slug's label has to be one some rule produces. The two sections fill the label independently and only
+    // duplicate *slugs* were refused - so a typo declared a second framework name for one producer, and which one
+    // a span got depended on whether its signals were detected or its SDK declared itself. A reader filtering on
+    // the label then sees one producer as two.
+    let produced: std::collections::BTreeSet<&str> =
+        rules.iter().map(|rule| rule.label.as_str()).collect();
+    if let Some((slug, label)) = plan
+        .sdk_slugs
+        .iter()
+        .find(|(_, label)| !produced.contains(label.as_str()))
+    {
+        return Err(DetectCompileError::SlugLabelNoRuleProduces {
+            slug: slug.clone(),
+            label: label.clone(),
+        });
     }
 
     // Every id some rule claims to beat, so `resolve` keeps its early exit for the rules nothing contests.
