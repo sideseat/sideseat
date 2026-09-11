@@ -367,7 +367,7 @@
     {
       "id": "span-fields.gen_ai_agent_name",
       "target": "gen_ai_agent_name",
-      "doc": "Who was running. Four dialect spellings past the conventional one, including the two a hand-off writes for each side of it.",
+      "doc": "Who was running. Four dialect spellings past the conventional one, including the two a hand-off writes for each side of it.\n\n**A limit, stated because it is one:** those two - `recipient_agent_class` and `sender_agent_class` - are independently varying facts sharing one first-wins field, so a hand-off span carrying both stores the recipient and loses the sender. Splitting them means a second stored field, a column and a migration; no captured span carries both, so it is recorded here rather than built on judgement about which side a hand-off span belongs to. The order is *not* reasoned about for the same reason: with one of them present, which comes first decides nothing.",
       "sources": [
         {
           "id": "agent_name",
