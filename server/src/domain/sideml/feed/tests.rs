@@ -10846,3 +10846,84 @@ fn the_declared_shapes_state_every_schema_the_retired_canonicaliser_found() {
         }
     }
 }
+
+/// A generation span that both **received and produced** the same message: two barriers, not a product.
+///
+/// The dataflow class says everything a generation received precedes everything it produced. Where the two
+/// sets overlap - the span re-sent a message it also emitted - that relation cannot be expressed by one
+/// barrier without asserting `u -> barrier -> u`, so the code kept the *product* for those spans. The
+/// product has two problems this case exhibits.
+///
+/// It is unbounded: a span re-sending a long history has hundreds of inputs, so the edge count is quadratic
+/// in a span's message count - the exact growth the barrier exists to remove, still reachable through that
+/// branch.
+///
+/// And for two or more shared units it **contradicts itself**: the product contains `u -> v` and `v -> u`
+/// for every shared pair, so the resolver breaks a cycle the code manufactured and the order after it is a
+/// deterministic guess rather than a derived one. The two-barrier construction omits exactly those pairs -
+/// which is the honest reading, since a unit a span both received and produced is a replay, and one span's
+/// dataflow says nothing about where two such units sit relative to each other.
+///
+/// No corpus fixture has an overlapping span, which is why `a_barrier_orders_exactly_as_pairwise_edges_do`
+/// cannot see any of this and why the case is constructed here.
+#[test]
+fn an_overlapping_generation_span_is_ordered_without_a_manufactured_cycle() {
+    use super::order_graph::{CYCLES_BROKEN_IN_TESTS, Constraints};
+
+    // One generation span whose input side re-lists two assistant messages it also produced, so both
+    // become units on both sides.
+    // The two produced messages come from **different** emission carriers, so contraction leaves them as
+    // two units: two blocks of one `gen_ai.choice` are one emission and would contract into a single unit,
+    // where the product's self-pair is skipped and there is no cycle to make.
+    let replayed = json!([
+        {"source": {"attribute": {"key": "gen_ai.prompt", "time": fixed_time()}},
+         "content": {"role": "assistant", "content": "first answer"}},
+        {"source": {"attribute": {"key": "gen_ai.prompt", "time": fixed_time()}},
+         "content": {"role": "assistant", "content": "second answer"}},
+        {"source": {"event": {"name": "gen_ai.choice", "time": fixed_time()}},
+         "content": {"role": "assistant", "content": "first answer"}},
+        {"source": {"attribute": {"key": "output.value", "time": fixed_time()}},
+         "content": {"role": "assistant", "content": "second answer"}}
+    ]);
+    let mut row = make_span_row(
+        "trace-overlap",
+        "span-1",
+        None,
+        &replayed.to_string(),
+        "[]",
+        "[]",
+    );
+    // The dataflow class reads only generation spans, since a model call is where a received message and a
+    // produced one meet.
+    row.observation_type = Some("generation".to_string());
+
+    let count_cycles = |constraints: Constraints| -> (usize, usize) {
+        CYCLES_BROKEN_IN_TESTS.with(|c| *c.borrow_mut() = 0);
+        let result = super::process_spans_unfiltered_with(vec![row.clone()], constraints);
+        (
+            CYCLES_BROKEN_IN_TESTS.with(|c| *c.borrow()),
+            result.messages.len(),
+        )
+    };
+
+    let (barrier_cycles, barrier_blocks) = count_cycles(Constraints::PRODUCTION);
+    let (pairwise_cycles, pairwise_blocks) = count_cycles(Constraints {
+        pairwise_dataflow_edges: true,
+        ..Constraints::PRODUCTION
+    });
+
+    assert!(
+        barrier_blocks > 0 && barrier_blocks == pairwise_blocks,
+        "both constructions must return the same blocks - this is about their order, not their membership: \
+         {barrier_blocks} against {pairwise_blocks}"
+    );
+    assert_eq!(
+        barrier_cycles, 0,
+        "the two-barrier construction states only the pairs that can all hold, so nothing contradicts"
+    );
+    assert!(
+        pairwise_cycles > 0,
+        "the product asserts `u -> v` and `v -> u` for the shared pair, so it must break a cycle it made \
+         itself - if this stops firing the case no longer exercises the overlap branch"
+    );
+}

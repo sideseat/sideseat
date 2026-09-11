@@ -68,8 +68,12 @@ thread_local! {
 ///
 /// Numbered past the real units so it cannot collide with one, and it emits no blocks - it exists only
 /// to keep the edge count linear in a span's messages rather than quadratic.
-fn barrier_unit(span: usize, survivor_count: usize) -> usize {
-    survivor_count + span
+/// A synthetic ordering node for one span's dataflow, in a range disjoint from the survivor indices.
+///
+/// `generation` distinguishes the two a span may need: an overlapping input/output set is expressed as two
+/// barriers rather than as a product (see the dataflow class), and they must be distinct nodes.
+fn barrier_unit(span: usize, survivor_count: usize, span_upper: usize, generation: usize) -> usize {
+    survivor_count + generation * span_upper + span
 }
 
 /// What the resolver needs to know about one pre-dedup observation.
@@ -706,10 +710,27 @@ impl Constraints {
     ///
     /// Every class is now promoted. What remains is not a dial:
     ///
-    /// - **The dataflow class still emits the product** of a span's inputs and outputs where the two
-    ///   sets overlap. Elsewhere a barrier node bounds it to `in + out`; the pairwise form is kept only
-    ///   for the overlap case, which no corpus fixture reaches. In practice outputs number one to three,
-    ///   so the product is near-linear; adversarially it is not bounded.
+    /// - **The dataflow class no longer emits a product anywhere.** It used to, where a span's input and
+    ///   output sets overlap - a span re-sending a message it also produced - because one barrier cannot
+    ///   express `u -> b` for a shared `u` without also asserting `u -> barrier -> u`. That branch was
+    ///   documented as unreachable and is not: **six corpus spans** take it, the largest with 6 inputs
+    ///   and 2 outputs, so the quadratic growth the barrier exists to remove was live. And for two or
+    ///   more shared units the product is *self-contradictory* - it contains `u -> v` and `v -> u` - so
+    ///   the resolver broke a cycle the code had manufactured.
+    ///
+    ///   Two barriers express the consistent part linearly: `(only_in ∪ shared) -> only_out` and
+    ///   `only_in -> shared`, which is everything except the shared-to-shared pairs. Omitting those is
+    ///   the honest reading rather than a concession - a unit a span both received and produced is a
+    ///   replay, and one span's dataflow says nothing about where two such units sit relative to each
+    ///   other. On that largest span it is 6 edges against 12.
+    ///
+    ///   Measured: the corpus equivalence with the product holds
+    ///   (`a_barrier_orders_exactly_as_pairwise_edges_do`), and the cycle counts of the two pinned
+    ///   contradicting fixtures are unchanged, so nothing on the corpus depended on the manufactured
+    ///   cycle. The contradiction itself is proven on a constructed span
+    ///   (`an_overlapping_generation_span_is_ordered_without_a_manufactured_cycle`), which is also what
+    ///   keeps the overlap branch exercised - no fixture reaches two shared units through the golden
+    ///   path.
     ///
     /// Replay matching used to be on this list. It is now injective matching against
     /// [`causal_precedence`], which is a *different* relation from this graph on purpose - see that
@@ -1125,24 +1146,52 @@ pub(super) fn resolve(
         let mut spans: Vec<&usize> = inputs_by_span.keys().collect();
         spans.sort_unstable();
         let spans: Vec<usize> = spans.into_iter().copied().collect();
+        // A bound on the span indices that may get a barrier, so the two generations occupy disjoint ranges
+        // above the survivor indices.
+        let span_upper = inputs_by_span
+            .keys()
+            .chain(outputs_by_span.keys())
+            .max()
+            .map_or(0, |m| m + 1);
         for span in spans {
             let Some(outputs) = outputs_by_span.get(&span) else {
                 continue;
             };
             let inputs = &inputs_by_span[&span];
 
-            // Overlapping sets keep the pairwise form. For inputs `{u, a}` and outputs `{u, b}` the
-            // product contains `u -> b`, and a barrier cannot express that without also asserting
-            // `u -> barrier -> u`. Dropping `u` from the input side loses the real edge; keeping it
-            // invents a cycle.
+            // **Overlapping sets get two barriers, not a product.** For inputs `{u, a}` and outputs
+            // `{u, b}` the product contains `u -> b`, and one barrier cannot express that without also
+            // asserting `u -> barrier -> u`. That is what kept the pairwise form here, and the pairwise
+            // form has two problems the barrier construction does not.
             //
-            // Defensive rather than measured, and worth saying: no fixture in the corpus has a span
-            // that both received and produced the same message, so removing this guard does not fail
-            // `a_barrier_orders_exactly_as_pairwise_edges_do`. The equivalence that test *does* check is
-            // the one that matters for the bound - and overlap being absent is why the bound holds
-            // everywhere it is measured.
-            let overlaps = inputs.iter().any(|u| outputs.contains(u));
-            if overlaps || constraints.pairwise_dataflow_edges {
+            // It is unbounded: a span re-sending a long history has hundreds of inputs, so the product is
+            // quadratic in a span's message count - the exact growth the barrier was introduced to remove,
+            // still reachable through this branch.
+            //
+            // And for two or more shared units it is **self-contradictory**. The relation it builds
+            // contains `u -> v` *and* `v -> u` for every pair of shared units, so the resolver breaks a
+            // cycle this code manufactured, and the order after that is a deterministic guess rather than
+            // a derived one.
+            //
+            // Split the sets instead: `shared` is what the span both received and produced, `only_in` and
+            // `only_out` the rest. The consistent part of the desired relation is
+            // `only_in x only_out`, `only_in x shared` and `shared x only_out` - everything except the
+            // shared-to-shared pairs, which are the contradictory ones. Two barriers express exactly that:
+            //
+            //   - `inbound`: every input (shared included) precedes it, and it precedes every pure output,
+            //     giving `(only_in ∪ shared) x only_out`;
+            //   - `outbound`: every *pure* input precedes it, and it precedes every shared unit, giving
+            //     `only_in x shared`.
+            //
+            // That is `inputs + only_out + only_in + shared` edges - linear - and it omits only the pairs
+            // that cannot all hold. Omitting them is the honest reading rather than a concession: a unit
+            // this span both received and produced is a replay, and one span's dataflow says nothing about
+            // where two such units sit relative to each other.
+            //
+            // With exactly one shared unit the omitted set is empty, so the two constructions agree
+            // *exactly* - which is what `a_barrier_orders_exactly_as_pairwise_edges_do` can compare. Beyond
+            // one they differ only where pairwise was already contradicting itself.
+            if constraints.pairwise_dataflow_edges {
                 for &input in inputs {
                     for &output in outputs {
                         add_edge(
@@ -1159,56 +1208,105 @@ pub(super) fn resolve(
                 continue;
             }
 
-            // A barrier, rather than an edge from every input to every output.
-            //
-            // "Everything received precedes everything produced" is the *product* of the two sets as
-            // pairwise edges, and a span re-sending a long history has hundreds of inputs - so the graph
-            // grew quadratically in a span's message count. One barrier node expresses the same relation
-            // in `inputs + outputs` edges: every input precedes the barrier, the barrier precedes every
-            // output, and precedence is transitive.
-            //
-            // Its key is the smallest key among its outputs, so it is popped exactly when the earliest
-            // output would have been - it emits nothing, and the resulting order is unchanged.
-            let barrier = barrier_unit(span, survivors.len());
-            let barrier_key = outputs
+            // The consistent part of "everything received precedes everything produced", split so the
+            // shared units are ordered against the rest without being ordered against each other.
+            let shared: Vec<usize> = inputs
                 .iter()
-                .filter_map(|u| keys_of_units.get(u).copied())
-                .min();
-            let barrier_legacy = outputs
+                .copied()
+                .filter(|u| outputs.contains(u))
+                .collect();
+            let only_out: Vec<usize> = outputs
                 .iter()
-                .filter_map(|u| unit_min_legacy.get(u).copied())
-                .min();
-            let (Some(barrier_key), Some(barrier_legacy)) = (barrier_key, barrier_legacy) else {
-                continue;
-            };
-            keys_of_units.insert(barrier, barrier_key);
-            unit_min_legacy.insert(barrier, barrier_legacy);
-            successors.entry(barrier).or_default();
-            indegree.entry(barrier).or_insert(0);
-            barriers.push(barrier);
+                .copied()
+                .filter(|u| !inputs.contains(u))
+                .collect();
+            let only_in: Vec<usize> = inputs
+                .iter()
+                .copied()
+                .filter(|u| !outputs.contains(u))
+                .collect();
 
-            for &input in inputs {
-                add_edge(
-                    input,
-                    barrier,
-                    constraints,
-                    &unit_min_legacy,
-                    &mut successors,
-                    &mut indegree,
-                    &mut edges,
-                );
-            }
-            for &output in outputs {
-                add_edge(
-                    barrier,
-                    output,
-                    constraints,
-                    &unit_min_legacy,
-                    &mut successors,
-                    &mut indegree,
-                    &mut edges,
-                );
-            }
+            // A barrier's key is the smallest key among the units it precedes, so it is popped exactly when
+            // the earliest of them would have been: it emits nothing and the resulting order is unchanged.
+            let install = |generation: usize,
+                           before: &[usize],
+                           after: &[usize],
+                           keys_of_units: &mut HashMap<usize, PopKey>,
+                           unit_min_legacy: &mut HashMap<usize, usize>,
+                           successors: &mut HashMap<usize, Vec<usize>>,
+                           indegree: &mut HashMap<usize, usize>,
+                           edges: &mut std::collections::HashSet<(usize, usize)>,
+                           barriers: &mut Vec<usize>| {
+                if before.is_empty() || after.is_empty() {
+                    return;
+                }
+                let barrier = barrier_unit(span, survivors.len(), span_upper, generation);
+                let key = after
+                    .iter()
+                    .filter_map(|u| keys_of_units.get(u).copied())
+                    .min();
+                let legacy = after
+                    .iter()
+                    .filter_map(|u| unit_min_legacy.get(u).copied())
+                    .min();
+                let (Some(key), Some(legacy)) = (key, legacy) else {
+                    return;
+                };
+                keys_of_units.insert(barrier, key);
+                unit_min_legacy.insert(barrier, legacy);
+                successors.entry(barrier).or_default();
+                indegree.entry(barrier).or_insert(0);
+                barriers.push(barrier);
+                let snapshot = unit_min_legacy.clone();
+                for &from in before {
+                    add_edge(
+                        from,
+                        barrier,
+                        constraints,
+                        &snapshot,
+                        successors,
+                        indegree,
+                        edges,
+                    );
+                }
+                for &to in after {
+                    add_edge(
+                        barrier,
+                        to,
+                        constraints,
+                        &snapshot,
+                        successors,
+                        indegree,
+                        edges,
+                    );
+                }
+            };
+
+            let all_inputs: Vec<usize> = inputs.iter().copied().collect();
+            // `(only_in ∪ shared) -> only_out`.
+            install(
+                0,
+                &all_inputs,
+                &only_out,
+                &mut keys_of_units,
+                &mut unit_min_legacy,
+                &mut successors,
+                &mut indegree,
+                &mut edges,
+                &mut barriers,
+            );
+            // `only_in -> shared`. Absent where nothing is shared, which is every corpus span.
+            install(
+                1,
+                &only_in,
+                &shared,
+                &mut keys_of_units,
+                &mut unit_min_legacy,
+                &mut successors,
+                &mut indegree,
+                &mut edges,
+                &mut barriers,
+            );
         }
     }
 
