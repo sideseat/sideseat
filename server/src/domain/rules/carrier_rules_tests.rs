@@ -2995,6 +2995,52 @@ fn a_branch_fallback_asks_about_its_own_kind_of_emission() {
 /// label contain none of those. That direction is deliberate - a code name the discriminator fails to
 /// recognise is missed silently, while a prose word it wrongly recognises **fails the test**, which is the
 /// mistake that gets noticed.
+/// The **numbers** in the diagrams are checked too, for the same reason the names are.
+///
+/// A count is a claim a reader trusts without verifying, and this one had already drifted: the asset diagram
+/// said 41 assets and 347 rules while the tree held 43 and 382. Names were checked and numbers were not, so
+/// the one that silently rots was the one nobody guarded. The diagram count is asserted here as well, because
+/// a section added without a heading number reads as five diagrams when there are seven.
+#[test]
+fn the_diagrams_count_what_the_tree_holds() {
+    let text = std::fs::read_to_string(
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("docs/architecture-diagrams.md"),
+    )
+    .expect("the diagrams are committed beside the code they describe");
+
+    let sources = crate::domain::rules::schema::embedded_sources();
+    let clauses: usize = sources
+        .values()
+        .map(|bytes| {
+            let file: serde_json::Value =
+                serde_json::from_slice(bytes).expect("every asset parses");
+            file.as_object().map_or(0, |members| {
+                members
+                    .values()
+                    .map(|value| match value {
+                        serde_json::Value::Array(items) => items.len(),
+                        // `fragments` is a map of named clauses rather than a list.
+                        serde_json::Value::Object(map) => map.len(),
+                        _ => 0,
+                    })
+                    .sum()
+            })
+        })
+        .sum();
+    let expected = format!("{} assets · {clauses} clauses", sources.len());
+    assert!(
+        text.contains(&expected),
+        "the asset diagram should say `{expected}`; a count nobody checks is the claim that rots first"
+    );
+
+    let sections = text.matches("\n## ").count();
+    let stated = format!("{} diagrams, each answering a question", sections);
+    assert!(
+        text.contains(&stated),
+        "the file has {sections} numbered sections and does not say so - it should open with `{stated}`"
+    );
+}
+
 #[test]
 fn the_diagrams_name_things_that_exist() {
     let diagrams =

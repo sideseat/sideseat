@@ -1,6 +1,6 @@
 # Architecture diagrams
 
-Five diagrams, each answering a question that is otherwise answered by reading several thousand lines. They
+7 diagrams, each answering a question that is otherwise answered by reading several thousand lines. They
 are checked against the code they describe by `the_diagrams_name_things_that_exist` — every node label that
 names a Rust item or an asset section must resolve, so a rename breaks the build rather than the diagram.
 
@@ -17,7 +17,7 @@ every read, so correcting them corrects history.
 
 ```mermaid
 flowchart TB
-    assets["server/rules/*.json<br/>41 assets · 347 rules"]
+    assets["server/rules/*.json<br/>43 assets · 382 clauses"]
     compile["domain::rules::compile<br/>one OnceLock ruleset · digest"]
     assets --> compile
 
@@ -194,7 +194,112 @@ The span view loads one span and does **no** cross-trace stripping, because that
 what this span carried, including the history it re-sent. So it can hold more messages than its trace view,
 where dedup collapses the same turn re-sent by every generation span.
 
-## 5. What keeps framework knowledge out of Rust
+## 5. How one ordered sweep answers, and what it refuses
+
+The question: *three sweeps are ordered first-match — what decides between two rules that both match, and
+what is refused rather than resolved?*
+
+Framework detection, observation type and span category share this shape. Rank is the declared order; what
+sits above it is `supersedes`, which **orders** rather than annotating. Everything on the right is refused at
+compile time, because a declaration that cannot take effect reads as one that does.
+
+```mermaid
+flowchart TB
+    span["span name · attributes · resource"] --> matching["rules whose conditions hold"]
+
+    matching --> beaten["drop what a matching rule<br/>transitively supersedes"]
+    beaten --> unbeaten["lowest rank among the rest"]
+    unbeaten --> answer["the label, with its EvidenceSet"]
+
+    matching -->|"nothing matched"| near["near_misses<br/>rules reading a key this span has,<br/>disagreeing about its value"]
+
+    subgraph refused["Refused at compile time"]
+        direction TB
+        r1["DuplicateRank<br/>load order would decide"]
+        r2["SubsumedLiteral<br/>a literal another already covers"]
+        r3["ShadowedRule<br/>an earlier rule always satisfies it"]
+        r4["UselessSupersedes<br/>an edge that cannot take effect"]
+        r5["SlugLabelNoRuleProduces<br/>a second name for one producer"]
+    end
+
+    subgraph express["Expressible instead"]
+        direction TB
+        e1["alternatives<br/>one label, several ranks"]
+        e2["span_name vs span_name_exact<br/>prefix and equality are two operators"]
+        e3["supersedes<br/>beat a rule ranked ahead of you"]
+    end
+
+    refused -.->|"the shape to use"| express
+```
+
+Three things the diagram records because each was a defect.
+
+`supersedes` used to waive only an overlap *report* while rank decided the winner, so every shipped edge
+could have been deleted without changing an answer. The winner is now the matching rule **no** other matching
+rule beats — not "the first matching rule that beats the rank-winner", which in rank order is satisfied by
+the rank-winner itself and orders nothing.
+
+`ShadowedRule` and `supersedes` are the same fact from two directions, which is why the refusal exempts a
+rule that beats its shadower: without that exemption it rejected exactly the shape `supersedes` exists for.
+`RefusalIsSound` in `server/specs/OrderedResolution.tla` is that argument as a checked theorem.
+
+And `alternatives` exists because the conditions inside one rule are independently sufficient, so a single
+rank has to be placed for the *weakest* of them — which put one producer's own self-identification behind a
+convention namespace it merely also emits.
+
+## 6. The ordering constraint graph
+
+The question: *the sort key was replaced by a partial order — what are the constraints, and what happens when
+they contradict?*
+
+Blocks are grouped into ordering **units** (an atomic emission is contracted into one), constraints become
+edges between units, and a deterministic Kahn resolves them. Credible time is a *priority*, never an edge:
+an anchor cannot make extraction monotonic, only edges can.
+
+```mermaid
+flowchart TB
+    survivors["survivors (post-dedup)<br/>+ pre-dedup OrderEvidence"] --> units["contract each emission<br/>into one ordering unit"]
+
+    subgraph classes["Constraint classes, in descending confidence"]
+        direction TB
+        c1["emission sequence<br/>a payload's own order, contracted"]
+        c2["call → result<br/>only where the id is unambiguous"]
+        c3["generation dataflow<br/>received precedes produced"]
+        c4["carrier sequence<br/>between adjacent survivors"]
+        c5["request framing<br/>a detached frame precedes its request's inputs"]
+    end
+
+    units --> classes
+    classes --> graph["successors · indegree · edge set"]
+
+    subgraph dataflow["Dataflow, without a product"]
+        direction TB
+        d1["only_in ∪ shared → barrier → only_out"]
+        d2["only_in → barrier → shared"]
+        d3["shared × shared: omitted<br/>a replay orders nothing against itself"]
+    end
+    c3 --> dataflow
+    dataflow --> graph
+
+    graph --> kahn["Kahn over a BTreeSet<br/>pop key = credible time, then first observation"]
+    kahn --> order["the resolved order"]
+    kahn -->|"no ready unit"| cycle["release the smallest key<br/>warn: the order is a guess"]
+    cycle --> order
+```
+
+The dataflow box is the part that changed most recently and the reason is worth stating: "everything received
+precedes everything produced" is a *product*, and a span re-sending a long history has hundreds of inputs. A
+barrier expresses it in `inputs + outputs` edges — except where the two sets overlap, where a single barrier
+would assert `u → barrier → u`. That case kept the product, was documented as unreachable, and is taken by six
+corpus spans; worse, for two or more shared units the product contains `u → v` **and** `v → u`, so the
+resolver broke a cycle the code had manufactured. Two barriers express the consistent part linearly and omit
+only the shared-to-shared pairs, which is the honest reading: a unit a span both received and produced is a
+replay.
+
+A cycle is never silent. It means two constraint classes disagree, which is a fact about the telemetry or
+about a class — so it is warned about in production and pinned per fixture in the suite, in both directions.
+
+## 7. What keeps framework knowledge out of Rust
 
 The question: *the claim is enforced — by what, exactly, and what does each gate not see?*
 
