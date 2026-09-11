@@ -2992,6 +2992,18 @@ impl RuleFile {
     ///   telemetry namespaces are not any producer's. Elsewhere it parsed and was ignored, so a dialect could
     ///   state that its own namespace is a convention and read as having done so.
     pub fn declaration_defect(&self) -> Option<String> {
+        // The same rule as `convention_namespaces`, one section over: role authority is *this engine's* vocabulary
+        // - which spellings outrank the name a reading was found under - and it compiles into one global plan. So
+        // a producer's asset could add an authoritative spelling and change role resolution for every unrelated
+        // producer, which is not a statement that asset is entitled to make.
+        if !self.role_authority.is_empty() && self.id != ROLE_AUTHORITY_ASSET {
+            return Some(format!(
+                "`{}` declares `role_authority`, which only `{ROLE_AUTHORITY_ASSET}` may do - it decides which \
+                 stated roles outrank the name a reading was found under, for every producer, and a producer's \
+                 asset is not entitled to change that for the others",
+                self.id
+            ));
+        }
         if !self.convention_namespaces.is_empty() && self.id != CONVENTIONS_ASSET {
             return Some(format!(
                 "`{}` declares `convention_namespaces`, which only `{CONVENTIONS_ASSET}` may do - it decides \
@@ -3025,6 +3037,34 @@ impl RuleFile {
     /// Walked over the typed tree, so a clause type that gains a nesting is covered by construction rather
     /// than by remembering to extend a list of member names.
     pub fn clause_ids(&self) -> Vec<(String, Vec<String>)> {
+        // **Exhaustiveness, and nothing else.** The walk below names the sections whose clauses carry ids this
+        // rule covers; a section added to `RuleFile` was under no obligation to appear in it, so a new
+        // clause-bearing section would deserialize and compile with no empty-or-duplicate id check at all. This
+        // destructure has no `..`, so adding a field fails to compile here until its author decides. Every binding
+        // is discarded - the walk reads `self`.
+        {
+            let Self {
+                id: _,
+                doc: _,
+                carriers: _,
+                detect: _,
+                messages: _,
+                message_events: _,
+                tool_shapes: _,
+                convention_namespaces: _,
+                event_roles: _,
+                role_authority: _,
+                content_blocks: _,
+                provider_aliases: _,
+                message_members: _,
+                span_categories: _,
+                observation_types: _,
+                span_facts: _,
+                fragments: _,
+                sdk_slugs: _,
+                span_fields: _,
+            } = self;
+        }
         fn from_alternatives(alternatives: &[Alternative], out: &mut Vec<String>) {
             for alternative in alternatives {
                 out.push(alternative.id.clone());
@@ -3124,3 +3164,6 @@ impl RuleFile {
 
 /// The asset that owns the conventions' own vocabulary.
 pub const CONVENTIONS_ASSET: &str = "semconv";
+
+/// The one asset entitled to declare role authority: it is the engine's own vocabulary, not any producer's.
+pub const ROLE_AUTHORITY_ASSET: &str = "role-authority";

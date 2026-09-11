@@ -7767,3 +7767,76 @@ fn a_closed_role_map_says_what_an_unmapped_value_means() {
         "closedness is what creates the obligation"
     );
 }
+
+/// Global authority is owned by the asset entitled to it, and asset ids are unique.
+///
+/// Three rules about a declaration that would change a *shared* answer from a place with no standing to change it.
+///
+/// `role_authority` is this engine's own vocabulary - which stated roles outrank the name a reading was found
+/// under - and it compiles into one global plan, so a producer's asset could add an authoritative spelling and
+/// change role resolution for every unrelated producer. Exactly the shape `convention_namespaces` already had, one
+/// section over, and it went unnoticed when that section was added.
+///
+/// And an asset id is the provenance every diagnostic reports, while `declaration_defect` is per file - so two
+/// files could declare the same one and their clauses would be indistinguishable precisely where a reader looks to
+/// tell them apart.
+#[test]
+fn a_shared_answer_is_declared_only_by_the_asset_that_owns_it() {
+    use schema::RuleFile;
+    let parse =
+        |asset: &str| -> RuleFile { serde_json::from_str(asset).expect("the probe parses") };
+
+    // A producer's asset may not grant role authority.
+    let intruder = parse(
+        r#"{"id":"acme","role_authority":[{"id":"acme.r","role":"narrator","outranks_a_tag":true}]}"#,
+    );
+    let defect = intruder
+        .declaration_defect()
+        .expect("a producer's asset may not declare role authority");
+    assert!(
+        defect.contains("role_authority") && defect.contains("role-authority"),
+        "the refusal should name the section and the asset entitled to it: {defect}"
+    );
+
+    // The owning asset may.
+    assert!(
+        parse(
+            r#"{"id":"role-authority","role_authority":[{"id":"r.r","role":"user","outranks_a_tag":true}]}"#
+        )
+        .declaration_defect()
+        .is_none()
+    );
+
+    // The same rule the conventions' asset already had, asserted beside it so the pair cannot drift.
+    assert!(
+        parse(r#"{"id":"acme","convention_namespaces":["acme."]}"#)
+            .declaration_defect()
+            .is_some()
+    );
+    assert!(
+        parse(r#"{"id":"semconv","convention_namespaces":["gen_ai."]}"#)
+            .declaration_defect()
+            .is_none()
+    );
+
+    // Two assets declaring one id, which `declaration_defect` cannot see because it is per file.
+    let two = vec![parse(r#"{"id":"acme"}"#), parse(r#"{"id":"acme"}"#)];
+    assert_eq!(
+        crate::domain::rules::repeated_asset_id(&two),
+        Some("acme"),
+        "two assets sharing an id share a provenance path"
+    );
+    let distinct = vec![parse(r#"{"id":"acme"}"#), parse(r#"{"id":"other"}"#)];
+    assert_eq!(crate::domain::rules::repeated_asset_id(&distinct), None);
+
+    // And the shipped assets satisfy all of it, which is what makes these rules statements about them rather than
+    // only about future edits.
+    for (path, bytes) in crate::domain::rules::schema::embedded_sources() {
+        let file: RuleFile = serde_json::from_slice(&bytes).expect("the asset parses");
+        assert!(
+            file.declaration_defect().is_none(),
+            "{path}: {}",
+            file.declaration_defect().unwrap_or_default()
+        );
+    }
+}

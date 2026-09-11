@@ -225,7 +225,7 @@ static RULESET: OnceLock<Ruleset> = OnceLock::new();
 /// Every asset, parsed. Named in the panic and never skipped: a file quietly dropped for a typo is how a
 /// whole dialect's rules once vanished with every test still green.
 fn parsed_files(sources: &std::collections::BTreeMap<String, Vec<u8>>) -> Vec<schema::RuleFile> {
-    sources
+    let files: Vec<schema::RuleFile> = sources
         .iter()
         .map(|(path, bytes)| {
             let file: schema::RuleFile = serde_json::from_slice(bytes)
@@ -238,7 +238,29 @@ fn parsed_files(sources: &std::collections::BTreeMap<String, Vec<u8>>) -> Vec<sc
             }
             file
         })
-        .collect()
+        .collect();
+    if let Some(repeated) = repeated_asset_id(&files) {
+        panic!(
+            "embedded rules are malformed: two assets declare the id `{repeated}`, so their clauses share a \
+             provenance path and nothing can tell them apart"
+        );
+    }
+    files
+}
+
+/// An id two assets declare, if any.
+///
+/// An asset id is the provenance every diagnostic reports, and `declaration_defect` is per *file* - so two files
+/// could declare the same one and nothing would notice: their clauses would be indistinguishable precisely where a
+/// reader looks to tell them apart, and the clause-owner uniqueness rule stops at the file boundary. A function
+/// rather than an inline assertion so a test can put two files to it; the embedded set has no duplicate to trigger
+/// it with.
+pub(super) fn repeated_asset_id(files: &[schema::RuleFile]) -> Option<&str> {
+    let mut seen: std::collections::BTreeSet<&str> = std::collections::BTreeSet::new();
+    files
+        .iter()
+        .find(|file| !seen.insert(file.id.as_str()))
+        .map(|file| file.id.as_str())
 }
 
 pub fn ruleset() -> &'static Ruleset {
