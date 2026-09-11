@@ -232,6 +232,61 @@ pub enum FieldTarget {
 }
 
 impl FieldTarget {
+    /// Every target, so a test can put each one to the sink that writes it.
+    ///
+    /// A hand-written list, and `every_field_target_is_listed` compares its length against the variants in this
+    /// file's own enum body - so a variant added without a line here fails the build's test run rather than
+    /// quietly escaping the correspondence check below it.
+    pub const ALL: &'static [Self] = &[
+        Self::UsageCandidateInput,
+        Self::UsageCandidateOutput,
+        Self::UsageCandidateCacheRead,
+        Self::UsageCandidateTotal,
+        Self::UsageSummedInput,
+        Self::UsageSummedOutput,
+        Self::UsageInputTokens,
+        Self::UsageOutputTokens,
+        Self::UsageTotalTokensReported,
+        Self::UsageCacheReadTokens,
+        Self::UsageCacheWriteTokens,
+        Self::UsageReasoningTokens,
+        Self::DisplaySpanName,
+        Self::SessionId,
+        Self::GenAiSystem,
+        Self::GenAiOperationName,
+        Self::GenAiRequestModel,
+        Self::GenAiResponseModel,
+        Self::GenAiResponseId,
+        Self::GenAiTemperature,
+        Self::GenAiTopP,
+        Self::GenAiTopK,
+        Self::GenAiMaxTokens,
+        Self::GenAiFrequencyPenalty,
+        Self::GenAiPresencePenalty,
+        Self::GenAiStopSequences,
+        Self::GenAiFinishReasons,
+        Self::GenAiAgentId,
+        Self::GenAiAgentName,
+        Self::GenAiToolName,
+        Self::GenAiToolCallId,
+        Self::GenAiServerTtftMs,
+        Self::GenAiServerRequestDurationMs,
+        Self::UserId,
+        Self::HttpMethod,
+        Self::HttpUrl,
+        Self::HttpStatusCode,
+        Self::DbSystem,
+        Self::DbName,
+        Self::DbOperation,
+        Self::DbStatement,
+        Self::StorageSystem,
+        Self::StorageBucket,
+        Self::StorageObject,
+        Self::MessagingSystem,
+        Self::MessagingDestination,
+        Self::Tags,
+    ];
+
     /// What a source must produce to fill this field.
     pub fn field_type(self) -> FieldType {
         match self {
@@ -321,7 +376,42 @@ impl FieldTarget {
             | Self::UsageSummedOutput => Some((0.0, f64::INFINITY)),
             Self::GenAiTemperature => Some((0.0, f64::INFINITY)),
             Self::GenAiTopP => Some((0.0, 1.0)),
-            _ => None,
+            // **Exhaustive, with no catch-all**, and that is the point rather than verbosity. Written as
+            // `_ => None` this compiled for every future target and left each one silently unbounded - the same
+            // shape as the defect it was added to fix, one level up: a check that passes while seeing less than it
+            // claims. `field_type` has always been exhaustive for the same reason, and a new variant must now
+            // state its range policy in both places or the build fails.
+            //
+            // Legitimately unbounded: two penalties a producer may write negative, every text field, and every
+            // list.
+            Self::GenAiFrequencyPenalty
+            | Self::GenAiPresencePenalty
+            | Self::Tags
+            | Self::GenAiStopSequences
+            | Self::GenAiFinishReasons
+            | Self::SessionId
+            | Self::UserId
+            | Self::HttpMethod
+            | Self::HttpUrl
+            | Self::DbSystem
+            | Self::DbName
+            | Self::DbOperation
+            | Self::DbStatement
+            | Self::StorageSystem
+            | Self::StorageBucket
+            | Self::StorageObject
+            | Self::MessagingSystem
+            | Self::MessagingDestination
+            | Self::GenAiSystem
+            | Self::GenAiOperationName
+            | Self::GenAiRequestModel
+            | Self::GenAiResponseModel
+            | Self::GenAiResponseId
+            | Self::GenAiAgentId
+            | Self::GenAiAgentName
+            | Self::GenAiToolName
+            | Self::GenAiToolCallId
+            | Self::DisplaySpanName => None,
         }
     }
 }

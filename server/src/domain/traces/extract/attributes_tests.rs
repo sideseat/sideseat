@@ -2736,3 +2736,91 @@ fn the_choice_event_is_the_first_finish_reason_source() {
     // And neither: no reason at all, rather than an empty string.
     assert!(span_with(Vec::new(), false).is_empty());
 }
+
+/// Every field target is listed in `FieldTarget::ALL`.
+///
+/// The list is hand-written, so it is the one thing a new variant can escape - and the two tests below need it to
+/// be complete or they check a subset while claiming to check the ontology.
+#[test]
+fn every_field_target_is_listed() {
+    let source = include_str!("../../rules/schema.rs");
+    let start = source
+        .find("pub enum FieldTarget {")
+        .expect("the enum is declared here");
+    let body = &source[start..];
+    let end = body.find("\n}\n").expect("the enum body ends");
+    let declared = body[..end]
+        .lines()
+        .filter(|line| {
+            let trimmed = line.trim_end();
+            trimmed.starts_with("    ")
+                && trimmed.ends_with(',')
+                && !trimmed.trim_start().starts_with("//")
+                && trimmed
+                    .trim_start()
+                    .trim_end_matches(',')
+                    .chars()
+                    .next()
+                    .is_some_and(char::is_uppercase)
+                && trimmed
+                    .trim_start()
+                    .trim_end_matches(',')
+                    .chars()
+                    .all(char::is_alphanumeric)
+        })
+        .count();
+    assert_eq!(
+        crate::domain::rules::schema::FieldTarget::ALL.len(),
+        declared,
+        "`FieldTarget::ALL` lists {} of the {declared} declared variants",
+        crate::domain::rules::schema::FieldTarget::ALL.len()
+    );
+}
+
+/// Every target's declared **type** reaches the sink that writes it.
+///
+/// `apply_field` chooses a setter per target - `text()`, `integer()`, `float()`, `list()` - and each returns
+/// `None`/empty when the reading is a different variant. So a target whose `field_type()` says `Float` while its
+/// arm calls `integer()` resolves perfectly, converts perfectly, and writes **nothing**: the column stays unset
+/// and no diagnostic says why. Nothing checked the correspondence, and it is exactly the kind of pair that drifts
+/// when a column's type changes.
+///
+/// Asked by feeding each target a reading of its own declared type and requiring the write to be observable, in
+/// either sink - the counters go to `TokenReadings` rather than to a column.
+#[test]
+fn every_target_writes_what_its_declared_type_produces() {
+    use crate::domain::rules::schema::{FieldTarget, FieldType};
+    use crate::domain::rules::span_fields::{Reading, Resolved};
+
+    for target in FieldTarget::ALL {
+        // A value of the target's own type that is inside whatever range it admits, so this measures the sink and
+        // not the bound cycle 19 added.
+        let reading = match target.field_type() {
+            FieldType::Text => Reading::Text("probe".to_string()),
+            FieldType::Integer => Reading::Integer(1),
+            FieldType::Float => Reading::Float(0.5),
+            FieldType::StringList => Reading::StringList(vec!["probe".to_string()]),
+        };
+        let resolved = Resolved {
+            target: *target,
+            reading,
+            rule_id: "probe.rule".to_string(),
+            evidence: None,
+            refused: Vec::new(),
+        };
+        let mut span = SpanData::default();
+        let mut tokens = crate::domain::traces::extract::attributes::TokenReadings::default();
+        let before = format!("{span:?}{tokens:?}");
+        crate::domain::traces::extract::attributes::apply_field_for_test(
+            &mut span,
+            &resolved,
+            &mut tokens,
+        );
+        assert_ne!(
+            format!("{span:?}{tokens:?}"),
+            before,
+            "`{target:?}` declares {:?} and its sink wrote nothing, so a value of its own type is silently lost",
+            target.field_type()
+        );
+    }
+}

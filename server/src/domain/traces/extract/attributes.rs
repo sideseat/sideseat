@@ -1402,6 +1402,15 @@ pub(crate) fn apply_span_fields(
 ///
 /// The one place that knows the shape of **our own** DTO, which is not framework knowledge: a target names a
 /// column, and the resolver has already decided what a source had to produce to fill it.
+#[cfg(test)]
+pub(super) fn apply_field_for_test(
+    span: &mut SpanData,
+    resolved: &crate::domain::rules::span_fields::Resolved,
+    tokens: &mut TokenReadings,
+) {
+    apply_field(span, resolved, tokens);
+}
+
 fn apply_field(
     span: &mut SpanData,
     resolved: &crate::domain::rules::span_fields::Resolved,
