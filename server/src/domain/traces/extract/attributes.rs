@@ -919,9 +919,25 @@ pub(crate) fn detect_framework(
     if let Some(rule) = plan.resolve(&ctx) {
         return rule.label.clone();
     }
-    resource_attrs
+    let declared = resource_attrs
         .get(keys::SIDESEAT_FRAMEWORK)
-        .and_then(|declared| plan.label_from_declaration(declared))
+        .and_then(|declared| plan.label_from_declaration(declared));
+    if declared.is_none() {
+        // The evidence behind "nothing recognised this producer", which was a bare `None` everywhere. Reported
+        // only where the span carries a key some rule reads and the values disagree - which is exactly an
+        // unrecognised producer conforming to a convention, and the remedy is to declare the value.
+        let near = plan.near_misses(&ctx);
+        if !near.is_empty() {
+            tracing::debug!(
+                target: "sideseat::rules",
+                span_name = span_name,
+                near_misses = ?near,
+                "no rule attributed this span, and these rules read a key it carries with a value they do not \
+                 declare"
+            );
+        }
+    }
+    declared
         .unwrap_or(crate::domain::rules::UNCLAIMED_LABEL)
         .to_string()
 }

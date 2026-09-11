@@ -627,3 +627,60 @@ fn a_value_outside_what_a_quantity_can_hold_is_malformed() {
         "a penalty is legitimately negative, so bounding it would refuse a producer's honest value"
     );
 }
+
+/// "Nothing recognised this producer" carries evidence: the rules that read a key the span has.
+///
+/// It was a bare `None` everywhere, at exactly the moment an operator needs to know why - and no explain trace
+/// exists, though several `doc` fields are collected "for" one. A full trace over every rule would bury the answer;
+/// what identifies the common failure is narrow: a producer writes the attribute a rule reads, with a value the
+/// rule does not declare. The remedy is then to declare the value, which the report names.
+#[test]
+fn nothing_recognised_this_producer_says_which_rules_were_close() {
+    let plan = &ruleset().detect;
+    let near = |span: &str, pairs: &[(&str, &str)], resource: &[(&str, &str)]| {
+        plan.near_misses(&DetectContext {
+            span_name: span,
+            span_attrs: &attrs(pairs),
+            resource_attrs: &attrs(resource),
+        })
+    };
+
+    // An unrecognised producer conforming to the conventions: it writes `gen_ai.system`, with a value no rule
+    // declares.
+    let found = near("chat", &[("gen_ai.system", "acme-agents")], &[]);
+    assert!(
+        found
+            .iter()
+            .any(|miss| miss.carrier == "gen_ai.system" && miss.found == "acme-agents"),
+        "an unknown value in a key rules read must be reported: {found:?}"
+    );
+    assert!(
+        found
+            .iter()
+            .all(|miss| !miss.expected.is_empty() && !miss.rule_id.is_empty()),
+        "each near miss names the declaration and what it required, or it is not actionable"
+    );
+
+    // A service name that merely resembles one, which is the other common shape.
+    let found = near("chat", &[], &[("service.name", "my-own-app")]);
+    assert!(
+        found
+            .iter()
+            .any(|miss| miss.carrier == "service.name" && miss.found == "my-own-app")
+    );
+
+    // **Silence where there is nothing to say.** A span carrying no key any rule reads produces no report:
+    // listing every rule is what makes an explanation useless.
+    assert!(
+        near("chat", &[("acme.private", "1")], &[]).is_empty(),
+        "a span with no key any rule reads is not a near miss"
+    );
+
+    // And a span that **is** attributed reports nothing at all. Asked inside the function rather than left to
+    // its caller: without it, a correctly attributed Strands span reported six other rules disagreeing about
+    // `gen_ai.system`, so the report's usefulness depended on where it was called from.
+    assert!(
+        near("chat", &[("gen_ai.system", "strands-agents")], &[]).is_empty(),
+        "a span something recognised has nothing to explain"
+    );
+}

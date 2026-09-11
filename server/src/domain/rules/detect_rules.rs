@@ -34,6 +34,20 @@ pub struct CompiledDetect {
     text_first_present_source: bool,
 }
 
+/// A rule that reads a key this span has, and disagreed about its value.
+///
+/// The evidence behind "nothing recognised this producer": it names the declaration, the label it would have
+/// answered with, the key both sides are talking about, what the rule required and what the span carried - which
+/// together are the operator's next step, since the remedy is to declare the value.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NearMiss {
+    pub rule_id: String,
+    pub label: String,
+    pub carrier: String,
+    pub expected: String,
+    pub found: String,
+}
+
 /// The compiled detection plan: rules in rank order, plus the declaration fallback.
 #[derive(Debug, Default)]
 pub struct DetectPlan {
@@ -1085,6 +1099,73 @@ impl DetectPlan {
             // Every candidate beaten by another is only possible in a cycle, which compilation refuses - so this
             // is unreachable, and falling back to the rank-winner is what it would have answered anyway.
             .or(Some(first))
+    }
+
+    /// Why nothing was attributed: the rules that read a key this span **has**, and disagreed about its value.
+    ///
+    /// "No rule answered" is a bare `None`, which is the answer an operator most often needs evidence for - and
+    /// there was none anywhere. A full explain trace over every rule would bury it; what identifies the common
+    /// failure is much narrower: a producer writes the attribute a rule reads, with a value the rule does not know.
+    /// That is exactly an unrecognised producer conforming to a convention, and the operator's next step is to
+    /// declare the value.
+    ///
+    /// Sound and cheap by construction: only conditions naming a *key* participate, and only where the span
+    /// carries that key. A rule asking about a namespace this span has nothing in is not a near miss and is not
+    /// reported - reporting every rule is what makes an explanation useless.
+    pub fn near_misses(&self, ctx: &DetectContext<'_>) -> Vec<NearMiss> {
+        // Nothing to explain where something answered - and asked here rather than left to the caller, because a
+        // function that reports six disagreements about a span it attributed correctly is a function whose
+        // usefulness depends on where it is called from.
+        if self.resolve(ctx).is_some() {
+            return Vec::new();
+        }
+        let mut out: Vec<NearMiss> = Vec::new();
+        for rule in &self.rules {
+            let spec = &rule.match_spec;
+            let mut disagreements = |carrier: &str, wanted: &str, found: Option<&String>| {
+                if let Some(found) = found
+                    && !found.eq_ignore_ascii_case(wanted)
+                {
+                    out.push(NearMiss {
+                        rule_id: rule.rule_id.clone(),
+                        label: rule.label.clone(),
+                        carrier: carrier.to_string(),
+                        expected: wanted.to_string(),
+                        found: found.clone(),
+                    });
+                }
+            };
+            for pair in spec.attr_equals.iter().chain(&spec.attr_equals_ignore_case) {
+                disagreements(&pair.key, &pair.value, ctx.span_attrs.get(&pair.key));
+            }
+            for pair in &spec.span_attr_contains {
+                if let Some(found) = ctx.span_attrs.get(&pair.key)
+                    && !found.contains(pair.value.as_str())
+                {
+                    out.push(NearMiss {
+                        rule_id: rule.rule_id.clone(),
+                        label: rule.label.clone(),
+                        carrier: pair.key.clone(),
+                        expected: format!("containing `{}`", pair.value),
+                        found: found.clone(),
+                    });
+                }
+            }
+            if let Some(service) = ctx.resource_attrs.get(super::SERVICE_NAME_KEY) {
+                for declared in &spec.service_name {
+                    if !service.contains(declared.as_str()) {
+                        out.push(NearMiss {
+                            rule_id: rule.rule_id.clone(),
+                            label: rule.label.clone(),
+                            carrier: super::SERVICE_NAME_KEY.to_string(),
+                            expected: format!("containing `{declared}`"),
+                            found: service.clone(),
+                        });
+                    }
+                }
+            }
+        }
+        out
     }
 
     /// Every rule that matches, in rank order.
