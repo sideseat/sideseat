@@ -55,7 +55,7 @@ SideSeat ingests telemetry from AI applications and serves it back, so the inter
 - `gitleaks` runs on staged changes and on the whole tree (`make secret-scan`, `make secret-scan-tree`), and in
   the pre-commit and pre-push hooks.
 - `cargo deny` checks advisories, licences and bans (`make harden-supply`).
-- Dependencies are updated through Dependabot, for GitHub Actions, Cargo, npm and uv. The sample suites
+- Dependencies are updated through Dependabot, for GitHub Actions, Cargo, npm, uv and the container images in `deploy/`. The sample suites
   under `examples/` are deliberately excluded: each pins a framework version on purpose.
 - No secret belongs in the repository. `examples/.env` is deliberately untracked, and the fixture-capture
   script discards any payload that looks like a credential.
