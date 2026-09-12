@@ -18,7 +18,8 @@ import json
 import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent / "server/tests/fixtures/messages"
+# Three levels up: message-fixtures/ -> scripts/ -> the repository root.
+ROOT = Path(__file__).resolve().parents[2] / "server/tests/fixtures/messages"
 
 
 def load() -> list[tuple[str, dict]]:

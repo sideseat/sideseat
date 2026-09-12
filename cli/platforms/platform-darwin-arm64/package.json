@@ -13,7 +13,8 @@
   },
   "files": [
     "bin.js",
-    "sideseat"
+    "sideseat",
+    "LICENSE"
   ],
   "license": "Apache-2.0",
   "homepage": "https://sideseat.ai",

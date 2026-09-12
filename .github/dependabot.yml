@@ -51,6 +51,10 @@ updates:
     directories:
       - "/"
       - "/sdk/python"
+      # The standalone tools have their own lockfiles, so they need their own entries - "one entry per
+      # manifest" was the stated rule and these two were missed.
+      - "/tools/otel-replay"
+      - "/tools/mcp-calculator"
     schedule:
       interval: "weekly"
     commit-message:

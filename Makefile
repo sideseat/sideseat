@@ -1171,7 +1171,7 @@ deps-check:
 
 download-prices:
 	@echo "[download-prices] Downloading LLM pricing data..."
-	@mkdir -p $(SERVER_DIR)/data
+	@mkdir -p $(dir $(PRICES_FILE))
 	@if command -v curl >/dev/null 2>&1; then \
 		curl -fsSL "$(PRICES_URL)" -o "$(PRICES_FILE)" || \
 			{ echo "Error: Download failed"; exit 1; }; \

@@ -33,7 +33,9 @@ import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parent.parent
+# Three levels up: message-fixtures/ -> scripts/ -> the repository root. This script moved a level
+# deeper when `misc/` was dissolved, and a root that is off by one silently targets `scripts/server/…`.
+REPO_ROOT = Path(__file__).resolve().parents[2]
 PLACEHOLDER_USER = b"sideseat"
 FIXTURE_ROOT = REPO_ROOT / "server" / "tests" / "fixtures" / "messages"
 

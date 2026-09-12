@@ -9,7 +9,8 @@
   "files": [
     "index.js",
     "postinstall.js",
-    "README.md"
+    "README.md",
+    "LICENSE"
   ],
   "scripts": {
     "postinstall": "node postinstall.js"
