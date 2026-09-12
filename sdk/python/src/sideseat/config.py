@@ -180,7 +180,7 @@ class Config:
         )
 
         resolved_api_key = api_key or os.getenv("SIDESEAT_API_KEY")
-        # SIDESEAT_PROJECT_ID is the name the TypeScript SDK, the samples, misc/README.md
+        # SIDESEAT_PROJECT_ID is the name the TypeScript SDK, the samples, examples/README.md
         # and the docs all use; SIDESEAT_PROJECT is kept as a legacy alias so existing
         # setups keep working. Reading only the latter meant anyone following the shared
         # documentation silently stayed on the "default" project.

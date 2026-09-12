@@ -532,8 +532,8 @@ obj/
 traces.jsonl
 traces-openai.jsonl.gz
 # Generated sample artifacts. Needs ** because the Python suites are one level deeper
-# (misc/samples/python/<suite>/output) than the JS one (misc/samples/js/output).
-misc/samples/**/output/
+# (examples/python/<suite>/output) than the JS one (examples/javascript/output).
+examples/**/output/
 web/coverage
 web/dist/
 !web/dist/.gitkeep
@@ -570,6 +570,9 @@ server/tests/fixtures/messages/crewai/agent_core/
 
 # TLC scratch output. The specs and their configs are the artefact; a model-checking run leaves trace
 # fingerprints and a states directory beside them, and 7 MB of those had been committed once.
-server/specs/states/
-server/specs/*_TTrace_*.bin
-server/specs/*.out
+specs/states/
+specs/*_TTrace_*.bin
+specs/*.out
+
+# Machine-local Claude Code permissions, not shared configuration
+.claude/settings.local.json

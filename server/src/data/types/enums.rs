@@ -79,7 +79,7 @@ impl SpanCategory {
 
 /// AI/ML framework identifiers - the *oracle's* vocabulary, not production's.
 ///
-/// Detection produces a label from the assets under `server/rules/`, so nothing in the running server
+/// Detection produces a label from the assets under `server/assets/rules/`, so nothing in the running server
 /// consults this list. It survives only because the equivalence oracle that proves the assets reproduce
 /// the table needs the names the table used, and it is `#[cfg(test)]` for the reason the mandate exists:
 /// an enum *is* the list of frameworks, so a variant in production code would mean adding a framework is

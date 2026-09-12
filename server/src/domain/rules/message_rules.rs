@@ -23,7 +23,7 @@
 //! sorted map and alphabetised every provider payload it touched. That was measured, not assumed - it
 //! reordered goldens. What stays in this module is the structural algebra a query language cannot express:
 //! claiming, stages and precedence, bounded traversal, positional joins, grouping, and the canonical
-//! constructors. See `server/docs/framework-rules-engine.md`.
+//! constructors. See `docs/engineering/framework-rules-engine.md`.
 //!
 //! The engine emits *values*, not `RawMessage`s: the ingestion types live in `domain::traces`, and the
 //! engine having to know them would point the dependency the wrong way for no benefit.

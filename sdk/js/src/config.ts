@@ -161,7 +161,7 @@ export class Config {
       opts.endpoint ??
         process.env.SIDESEAT_ENDPOINT ??
         // The standard OpenTelemetry variable, honoured after the SideSeat-specific one.
-        // The Python SDK has always fallen back to it, and it is what misc/.env.example
+        // The Python SDK has always fallen back to it, and it is what examples/.env.example
         // and every "without SDK" example set, so a JS caller relying on it used to end
         // up silently on the default endpoint.
         process.env.OTEL_EXPORTER_OTLP_ENDPOINT ??

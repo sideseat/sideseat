@@ -195,7 +195,7 @@ PRICES_FILE := $(SERVER_DIR)/data/model_prices_and_context_window.json
 
 # Docker
 DOCKER_IMAGE := sideseat/core
-DOCKER_FILE  := misc/docker/Dockerfile.core
+DOCKER_FILE  := deploy/Dockerfile
 
 # Homebrew tap
 BREW_TAP_REPO ?= sideseat/homebrew-tap
@@ -228,7 +228,7 @@ BUILD_CMD_linux-arm64    := cargo zigbuild
 BIN_NAME_linux-arm64     := sideseat
 
 RUST_TARGET_win32-x64    := x86_64-pc-windows-gnu
-BUILD_CMD_win32-x64      := CARGO_TARGET_X86_64_PC_WINDOWS_GNU_LINKER=$(CURDIR)/misc/scripts/mingw-static-link.sh cargo build
+BUILD_CMD_win32-x64      := CARGO_TARGET_X86_64_PC_WINDOWS_GNU_LINKER=$(CURDIR)/scripts/mingw-static-link.sh cargo build
 BIN_NAME_win32-x64       := sideseat.exe
 
 # Derived lists
@@ -351,10 +351,10 @@ setup:
 	@echo "[setup] Installing JS dependencies..."
 	@cd $(WEB_DIR) && npm install
 	@cd sdk/js && npm install
-	@cd misc/samples/js && npm install
+	@cd examples/javascript && npm install
 	@echo "[setup] Installing Python dependencies..."
 	@cd sdk/python && uv sync --extra dev
-	@cd misc/samples/python && uv sync --group dev
+	@cd examples/python && uv sync --group dev
 	@echo "[setup] Installing cargo-tarpaulin..."
 	@cargo install cargo-tarpaulin --quiet
 	@mkdir -p .sideseat
@@ -414,24 +414,24 @@ dev-web:
 fmt:
 	@echo "[fmt] Formatting code..."
 	@cargo fmt
-	@npx prettier --write "web/src/**/*.{ts,tsx,css,json}" "sdk/js/src/**/*.ts" "misc/samples/js/src/**/*.ts"
-	@uv run ruff format sdk/python misc/samples/python
+	@npx prettier --write "web/src/**/*.{ts,tsx,css,json}" "sdk/js/src/**/*.ts" "examples/javascript/src/**/*.ts"
+	@uv run ruff format sdk/python examples/python
 	@echo "[fmt] Done"
 
 fmt-check:
 	@echo "[fmt-check] Checking formatting..."
 	@cargo fmt --check
-	@npx prettier --check "web/src/**/*.{ts,tsx,css,json}" "sdk/js/src/**/*.ts" "misc/samples/js/src/**/*.ts"
-	@uv run ruff format --check sdk/python misc/samples/python
+	@npx prettier --check "web/src/**/*.{ts,tsx,css,json}" "sdk/js/src/**/*.ts" "examples/javascript/src/**/*.ts"
+	@uv run ruff format --check sdk/python examples/python
 
 lint:
 	@echo "[lint] Running linters..."
 	@cargo clippy --all-targets -- -D warnings
 	@cd $(WEB_DIR) && npm run lint
 	@cd sdk/js && npm run lint
-	@cd misc/samples/js && npm run lint
-	@cd misc/samples/js && npm run typecheck
-	@uv run ruff check sdk/python misc/samples/python
+	@cd examples/javascript && npm run lint
+	@cd examples/javascript && npm run typecheck
+	@uv run ruff check sdk/python examples/python
 	@cd sdk/python && uv run mypy src
 
 # Advisory clippy lints, kept out of `lint` because that gate runs -D warnings and these
@@ -516,7 +516,7 @@ harden-supply:
 		echo "  SKIPPED: cargo-machete not installed (cargo install cargo-machete)"; \
 	fi
 
-# Model-checks **every** spec in server/specs. Each one's invariants correspond to properties stated in prose
+# Model-checks **every** spec in specs. Each one's invariants correspond to properties stated in prose
 # elsewhere in the tree, named at the top of the spec.
 #
 # Every spec, not a named one: `OrderGraph.tla` existed for months and no target ever checked it, which makes a
@@ -533,10 +533,10 @@ harden-spec:
 			https://github.com/tlaplus/tlaplus/releases/download/v1.8.0/tla2tools.jar; \
 	fi
 	@failed=0; \
-	for cfg in server/specs/*.cfg; do \
+	for cfg in specs/*.cfg; do \
 		spec=$$(basename $$cfg .cfg); \
 		printf "[harden-spec] %-16s " "$$spec"; \
-		out=$$(cd server/specs && java -XX:+UseParallelGC -cp ../../.tools/tla2tools.jar tlc2.TLC \
+		out=$$(cd specs && java -XX:+UseParallelGC -cp ../.tools/tla2tools.jar tlc2.TLC \
 			-workers auto -config $$spec.cfg $$spec.tla 2>&1); \
 		if echo "$$out" | grep -q "Model checking completed. No error has been found"; then \
 			echo "$$out" | grep -oE "[0-9]+ distinct states found" | head -1; \
@@ -546,7 +546,7 @@ harden-spec:
 			failed=1; \
 		fi; \
 	done; \
-	rm -rf server/specs/states server/specs/*_TTrace_*.bin server/specs/*_TTrace_*.tla; \
+	rm -rf specs/states specs/*_TTrace_*.bin specs/*_TTrace_*.tla; \
 	exit $$failed
 
 # =============================================================================
@@ -677,10 +677,10 @@ test-redis:
 # End-to-end HTTP latency, which is what a client actually experiences. The in-process benches measure the
 # stages inside a request; these measure the request. The numbers in CLAUDE.md come from here.
 bench-http: disk-guard
-	@misc/bench/http-latency.sh embedded
+	@benchmarks/http-latency.sh embedded
 
 bench-http-distributed: disk-guard
-	@misc/bench/http-latency.sh distributed
+	@benchmarks/http-latency.sh distributed
 
 test-web:
 	@echo "[test-web] Running web tests..."
@@ -744,7 +744,7 @@ SIGN_IDENTITY ?= Developer ID Application: Sergey Pugachev (KJ994CNGPG)
 # Sign a single binary if it's a darwin platform
 define sign-if-darwin
 $(if $(filter $(DARWIN_PLATFORMS),$(1)),\
-	codesign --force --options runtime --sign "$(SIGN_IDENTITY)" --entitlements server/entitlements.plist $$(call cli-bin,$(1)) || \
+	codesign --force --options runtime --sign "$(SIGN_IDENTITY)" --entitlements packaging/macos/entitlements.plist $$(call cli-bin,$(1)) || \
 		{ echo "Error: failed to sign $$(call cli-bin,$(1))"; exit 1; }; \
 	echo "[build-cli] Signed $$(call cli-bin,$(1))";)
 endef
@@ -994,7 +994,7 @@ sign-release:  ## Sign macOS platform binaries with Developer ID
 	@SIGNED=0; \
 	for bin in cli/platforms/platform-darwin-arm64/sideseat cli/platforms/platform-darwin-x64/sideseat; do \
 		if [ -f "$$bin" ]; then \
-			codesign --force --options runtime --sign "$(SIGN_IDENTITY)" --entitlements server/entitlements.plist "$$bin" || \
+			codesign --force --options runtime --sign "$(SIGN_IDENTITY)" --entitlements packaging/macos/entitlements.plist "$$bin" || \
 				{ echo "Error: failed to sign $$bin"; exit 1; }; \
 			echo "[sign-release] Signed $$bin"; \
 			SIGNED=$$((SIGNED + 1)); \
@@ -1126,7 +1126,7 @@ publish-brew:
 		-e "s/__SHA256_DARWIN_X64__/$$SHA_DARWIN_X64/g" \
 		-e "s/__SHA256_LINUX_X64__/$$SHA_LINUX_X64/g" \
 		-e "s/__SHA256_LINUX_ARM64__/$$SHA_LINUX_ARM64/g" \
-		misc/brew/sideseat.rb.tmpl > "$$FORMULA" && \
+		packaging/homebrew/sideseat.rb.tmpl > "$$FORMULA" && \
 	grep -q '__' "$$FORMULA" && \
 		{ echo "Error: Unreplaced placeholders in generated formula"; rm -f "$$FORMULA"; exit 1; } || true && \
 	ENCODED=$$(base64 < "$$FORMULA" | tr -d '\n') && \

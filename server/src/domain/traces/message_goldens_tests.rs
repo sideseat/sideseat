@@ -6,7 +6,7 @@
 //! test still passes because they each cover one stage in isolation.
 //!
 //! This harness closes that gap end to end. Each fixture is the exact OTLP payload a real
-//! sample sent (captured by `misc/record-otlp.py`, see `misc/capture-message-fixtures.sh`).
+//! sample sent (captured by `scripts/message-fixtures/record-otlp.py`, see `scripts/message-fixtures/capture.sh`).
 //! It is replayed through the real ingestion path — `extract_attributes_batch`,
 //! `extract_messages_batch`, SideML conversion, enrichment — and then through each of the
 //! four views the API exposes:
@@ -1263,7 +1263,7 @@ fn message_goldens() {
         // Not a silent pass: capturing fixtures needs credentials and a live model, so a
         // clean checkout legitimately has none. Say so loudly instead of reporting success.
         eprintln!(
-            "message_goldens: no fixtures under {} - run misc/capture-message-fixtures.sh",
+            "message_goldens: no fixtures under {} - run scripts/message-fixtures/capture.sh",
             fixture_root().display()
         );
         return;
@@ -2023,7 +2023,7 @@ const REORDERS_UNDER_PER_CARRIER: &[(&str, &str)] = &[];
 /// wrong. Listing it bidirectionally is what keeps that honest - a new fixture cannot join the list
 /// silently, and a fixture that starts passing must be removed. Fixing it needs an ordering *edge*
 /// (`system` → the request's other inputs) rather than a key term; two scalar attempts are recorded in
-/// `server/docs/ingestion-architecture.md`, one of which repaired no trace view at all.
+/// `docs/engineering/ingestion-architecture.md`, one of which repaired no trace view at all.
 ///
 /// Scoped to the *first* system and the *first* user message of a trace, which is deliberately weaker
 /// than the real relation. The real one is per **request**, one generation invocation's input envelope,
@@ -3381,7 +3381,7 @@ fn bench_session_scaling() {
 fn a_session_known_only_to_the_store_reconstructs_identically() {
     let fixtures = discover_fixtures();
     if fixtures.is_empty() {
-        eprintln!("session grouping: no fixtures - run misc/capture-message-fixtures.sh");
+        eprintln!("session grouping: no fixtures - run scripts/message-fixtures/capture.sh");
         return;
     }
 

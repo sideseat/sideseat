@@ -15,10 +15,10 @@ cli/platforms/platform-win-*/
 sdk/python/
 sdk/js/
 sdk/dotnet/
-misc/samples/
-misc/screenshots/
-misc/fixtures/
-misc/replay/
-misc/content/
+examples/
+docs/public/images/screenshots/
+tools/otel-replay/fixtures/
+tools/otel-replay/
+examples/assets/
 CLAUDE*.md
 GEMINI*.md

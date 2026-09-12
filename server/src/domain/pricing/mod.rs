@@ -27,7 +27,7 @@ use crate::core::storage::AppStorage;
 
 /// Embedded pricing data (compile-time)
 const EMBEDDED_PRICING_JSON: &str =
-    include_str!("../../../data/model_prices_and_context_window.json");
+    include_str!("../../../assets/pricing/model_prices_and_context_window.json");
 
 /// Pricing file name in data directory
 const PRICING_FILE_NAME: &str = "model_prices.json";

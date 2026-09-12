@@ -1,6 +1,6 @@
 //! The rule asset format, and how assets are found, ordered and digested.
 //!
-//! Assets are embedded from `server/rules/` as a *directory*, deliberately: adding a framework must be
+//! Assets are embedded from `server/assets/rules/` as a *directory*, deliberately: adding a framework must be
 //! adding a file, with no Rust change. A hand-maintained `include_str!` list would mean the binary
 //! still knows which frameworks exist, which is the thing the mandate forbids.
 
@@ -13,7 +13,7 @@ pub use serde_json_path::JsonPath;
 
 /// The embedded rule assets.
 #[derive(RustEmbed)]
-#[folder = "rules/"]
+#[folder = "assets/rules/"]
 struct RuleAssets;
 
 /// One rule file's parsed contents.

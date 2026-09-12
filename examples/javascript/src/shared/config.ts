@@ -1,0 +1,40 @@
+// Load .env from examples/ (the parent of examples/javascript/)
+import { fileURLToPath } from 'url';
+import * as path from 'path';
+import { config as dotenvConfig } from 'dotenv';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const examplesDir = path.resolve(__dirname, '../../..'); // src/shared -> javascript -> examples
+dotenvConfig({ path: path.join(examplesDir, '.env'), override: true, quiet: true });
+
+export const DEFAULT_MODEL = 'bedrock-haiku';
+
+export const MODEL_ALIASES = {
+  // Use cross-region inference profiles (global.) for on-demand access
+  'bedrock-haiku': 'global.anthropic.claude-haiku-4-5-20251001-v1:0',
+  'bedrock-sonnet': 'global.anthropic.claude-sonnet-4-20250514-v1:0',
+} as const;
+
+// Models that support extended thinking (reasoning)
+export const REASONING_MODELS = new Set(['bedrock-sonnet', 'bedrock-haiku']);
+
+// Default budget_tokens for extended thinking (minimum is 1024)
+export const DEFAULT_THINKING_BUDGET = 4096;
+
+export const config = {
+  awsRegion: process.env.AWS_REGION ?? 'us-east-1',
+  sideseatEndpoint: process.env.SIDESEAT_ENDPOINT ?? 'http://127.0.0.1:5388',
+  sideseatProjectId: process.env.SIDESEAT_PROJECT_ID ?? 'default',
+  models: {
+    embedding: process.env.EMBEDDING_MODEL ?? 'amazon.titan-embed-text-v2:0',
+    // amazon.titan-image-generator-v2 has been retired and now returns
+    // ResourceNotFoundException in every region. Stability SD3.5 Large is the
+    // current on-demand image model; override with IMAGE_GEN_MODEL if your account
+    // has a different one enabled.
+    imageGen: process.env.IMAGE_GEN_MODEL ?? 'stability.sd3-5-large-v1:0',
+  },
+} as const;
+
+export type ModelAlias = keyof typeof MODEL_ALIASES;
+
+export const resolveModel = (alias: string): string => MODEL_ALIASES[alias as ModelAlias] ?? alias;

@@ -1,6 +1,6 @@
 """Wire-level frames for the SideSeat SDK WebSocket channel (v1).
 
-Mirror of `server/protocol/ws-v1/schema.json` and `codes.md`. The schema is
+Mirror of `protocol/ws-v1/schema.json` and `codes.md`. The schema is
 bundled as `_schema.json` next to this module for round-trip tests.
 """
 

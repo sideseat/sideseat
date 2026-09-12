@@ -274,7 +274,7 @@ pub(crate) fn extract_message_from_event(
 ///
 /// One entry in `EXTRACTORS` for all of them, and it names no framework - which is the point. It
 /// replaced three functions that were each a list of "read this key, parse it as JSON, tag it with the
-/// key it came from", differing only in the keys. Those keys are now in `server/rules/*.json`, so a
+/// key it came from", differing only in the keys. Those keys are now in `server/assets/rules/*.json`, so a
 /// dialect whose extraction is nothing but claims needs no code at all.
 ///
 /// The extractors that genuinely *transform* are still Rust and still in this list. That boundary is
@@ -3442,7 +3442,7 @@ pub(super) fn extract_messages_for_span(
         }
     }
 
-    // Vercel's tool-call attributes are declared in `server/rules/vercel-ai.json`, with tool-span
+    // Vercel's tool-call attributes are declared in `server/assets/rules/vercel-ai.json`, with tool-span
     // permission, because that is the only kind of span they appear on - those spans carry no events, only
     // attributes.
     //

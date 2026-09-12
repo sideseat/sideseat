@@ -3,7 +3,7 @@
 # Delegates to the Makefile rather than restating its commands.
 #
 # It used to inline every check, and the copy had drifted into a weaker version of the real
-# gate: it never checked misc/samples/js or misc/samples/python at all, and its clippy ran
+# gate: it never checked examples/javascript or examples/python at all, and its clippy ran
 # from server/ so it scoped to that package and skipped sdk/rust. Sample and SDK code could
 # therefore be pushed unformatted and unlinted by a hook that looked thorough.
 #
@@ -18,7 +18,7 @@ echo "[pre-push] make check + secret scan..."
 
 # Prerequisites the make targets assume. Checked here because the failure is far clearer than
 # whatever npx or uv would print.
-for dir in web sdk/js misc/samples/js; do
+for dir in web sdk/js examples/javascript; do
     if [ ! -d "$REPO_ROOT/$dir/node_modules" ]; then
         echo "Error: $dir/node_modules missing. Run 'make setup' first."
         exit 1

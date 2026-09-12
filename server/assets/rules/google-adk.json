@@ -1,0 +1,304 @@
+{
+  "id": "google-adk",
+  "doc": "The GoogleADK dialect.",
+  "carriers": [
+    {
+      "id": "google-adk.llm_request",
+      "doc": "The request handed to the model.",
+      "match": {
+        "attribute": "gcp.vertex.agent.llm_request"
+      },
+      "facts": {
+        "preset": "snapshot",
+        "carrier_holds_span_input": true
+      }
+    },
+    {
+      "id": "google-adk.agent_data",
+      "doc": "State handed to an agent invocation.",
+      "match": {
+        "attribute": "gcp.vertex.agent.data"
+      },
+      "facts": {
+        "preset": "snapshot",
+        "carrier_holds_span_input": true
+      }
+    },
+    {
+      "id": "google-adk.llm_response",
+      "doc": "What the model returned.",
+      "match": {
+        "attribute": "gcp.vertex.agent.llm_response"
+      },
+      "facts": {
+        "preset": "snapshot",
+        "carrier_holds_span_output": true
+      }
+    }
+  ],
+  "detect": [
+    {
+      "id": "google-adk.detect",
+      "doc": "Ranked ahead of every service-name fallback: ADK's own attributes are conclusive.",
+      "label": "GoogleADK",
+      "match": {
+        "attr_prefix": [
+          "google.adk.",
+          "gcp.vertex.agent."
+        ],
+        "attr_equals": [
+          {
+            "key": "gen_ai.system",
+            "value": "gcp.vertex.agent"
+          }
+        ]
+      },
+      "legacy_rank": 20
+    }
+  ],
+  "sdk_slugs": [
+    {
+      "slug": "google-adk",
+      "label": "GoogleADK"
+    }
+  ],
+  "messages": [
+    {
+      "id": "google-adk.conversation",
+      "legacy_rank": 500,
+      "doc": "Every carrier this dialect writes a conversation to, with the local order between them: the tool-call arguments are read only when the request payload supplied nothing, which is what the code being replaced expressed as a `!found` check.",
+      "branch_set": {
+        "primary": [
+          {
+            "id": "google-adk.llm_request",
+            "doc": "The request. Its members arrive under two spellings - the native Vertex form in camelCase and this framework's own in snake_case under `config` - so each reading lists both. An empty object is not a request.",
+            "read": {
+              "attribute": "gcp.vertex.agent.llm_request"
+            },
+            "parse": "json",
+            "emit": "message",
+            "also": [
+              {
+                "id": "parts",
+                "doc": "The system instruction: structured parts, a bare string, or the framework's own snake_case member.",
+                "select": "$.systemInstruction.parts",
+                "wrap": {
+                  "role": "system"
+                }
+              },
+              {
+                "id": "systeminstruction",
+                "doc": "The same instruction written as a string.",
+                "select": "$.systemInstruction",
+                "require": {
+                  "all": [
+                    {
+                      "kind": "string",
+                      "non_empty": true
+                    }
+                  ]
+                },
+                "wrap": {
+                  "role": "system"
+                }
+              },
+              {
+                "id": "system_instruction",
+                "doc": "And the framework's own spelling.",
+                "select": "$.config.system_instruction",
+                "require": {
+                  "all": [
+                    {
+                      "kind": "string",
+                      "non_empty": true
+                    }
+                  ]
+                },
+                "wrap": {
+                  "role": "system"
+                }
+              },
+              {
+                "id": "contents",
+                "doc": "The conversation. Gemini writes `{parts, role}`, so the role comes from the payload rather than a literal - one rule per role would be the alternative. Read structurally so the provider's payload is cloned unchanged; see the projection-language section of `docs/engineering/framework-rules-engine.md` for why.",
+                "select": "$.contents[*]",
+                "require": {
+                  "all": [
+                    {
+                      "path": "$.role"
+                    },
+                    {
+                      "path": "$.parts"
+                    }
+                  ]
+                },
+                "wrap": {
+                  "role_from": "$.role",
+                  "content_from_any_of": [
+                    "$.parts"
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "id": "google-adk.llm_request_tools",
+            "doc": "The tools the request was given, as one observation - a set, not a sequence of turns. Prefer the top-level list, else the nested one; each group either wraps its declarations under one of two spellings or is a declaration itself.",
+            "read": {
+              "attribute": "gcp.vertex.agent.llm_request"
+            },
+            "parse": "json",
+            "emit": "tool_definitions",
+            "aggregate_into_array": true,
+            "alternatives": [
+              {
+                "id": "tools",
+                "select": "$.tools",
+                "each": true,
+                "else_element": true,
+                "then_present_any_of": [
+                  "$.function_declarations",
+                  "$.functionDeclarations"
+                ]
+              },
+              {
+                "id": "tools_2",
+                "select": "$.config.tools",
+                "each": true,
+                "else_element": true,
+                "then_present_any_of": [
+                  "$.function_declarations",
+                  "$.functionDeclarations"
+                ]
+              }
+            ]
+          }
+        ],
+        "fallback_if_primary_empty": [
+          {
+            "id": "google-adk.tool_call_args",
+            "doc": "A tool call's arguments, read only when the request payload supplied nothing.",
+            "read": {
+              "attribute": "gcp.vertex.agent.tool_call_args"
+            },
+            "parse": "json",
+            "emit": "message",
+            "wrap": {
+              "role": "tool_call"
+            }
+          }
+        ],
+        "always": [
+          {
+            "id": "google-adk.llm_response",
+            "doc": "The response. `model` is this provider's name for the assistant, normalised here so the alias sits beside the dialect that uses it; the reason a turn stopped is reported beside the content rather than inside it, and lower-cased to the canonical form.",
+            "read": {
+              "attribute": "gcp.vertex.agent.llm_response"
+            },
+            "parse": "json",
+            "emit": "message",
+            "alternatives": [
+              {
+                "id": "content",
+                "select": "$.content",
+                "require": {
+                  "all": [
+                    {
+                      "path": "$.role"
+                    },
+                    {
+                      "path": "$.parts"
+                    }
+                  ]
+                },
+                "wrap": {
+                  "role_from": "$.role",
+                  "role_map": {
+                    "model": "assistant"
+                  },
+                  "attach": [
+                    {
+                      "from_path": "$.finish_reason",
+                      "as": "finish_reason",
+                      "lowercase": true,
+                      "after_content": true
+                    }
+                  ],
+                  "content_from_any_of": [
+                    "$.parts"
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "id": "google-adk.tool_response",
+            "doc": "What a tool returned.",
+            "read": {
+              "attribute": "gcp.vertex.agent.tool_response"
+            },
+            "parse": "json",
+            "emit": "message",
+            "wrap": {
+              "role": "tool"
+            }
+          },
+          {
+            "id": "google-adk.data",
+            "doc": "The conversation handed to an agent. Neither an empty object nor an empty list is a conversation.",
+            "read": {
+              "attribute": "gcp.vertex.agent.data"
+            },
+            "parse": "json",
+            "emit": "message",
+            "alternatives": [
+              {
+                "id": "alternative_1",
+                "require": {
+                  "all": [
+                    {
+                      "non_empty": true
+                    }
+                  ]
+                }
+              }
+            ],
+            "wrap": {
+              "role": "data",
+              "members": {
+                "type": "conversation_history"
+              }
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "span_facts": [
+    {
+      "id": "google-adk.tool_execution",
+      "doc": "A tool's response is recorded only on the span that ran it.",
+      "fact": "tool_execution",
+      "signals": [
+        {
+          "id": "agent_tool_response",
+          "attrs_present": [
+            "gcp.vertex.agent.tool_response"
+          ]
+        }
+      ]
+    }
+  ],
+  "provider_aliases": [
+    {
+      "doc": "This framework names itself in `gen_ai.system`, and its models are served by a provider the catalogue prices - so the value has to resolve to that provider or every one of its calls is priced from the model name alone. Declared here, in the asset that owns the framework, rather than beside the catalogue's own provider spellings.",
+      "system": "google_adk",
+      "provider": "gemini"
+    },
+    {
+      "doc": "The same value with no separator, which is how one exporter writes it. Both spellings, because normalisation replaces `-` and a space with `_` rather than removing them - so this is a different value, not a variant of the one above.",
+      "system": "googleadk",
+      "provider": "gemini"
+    }
+  ]
+}

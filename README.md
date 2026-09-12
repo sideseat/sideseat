@@ -13,7 +13,7 @@
 
 <p align="center">
   <a href="https://www.youtube.com/watch?v=JqTcJ2OCLQI">
-    <img src="misc/screenshots/screenshot_1.png" alt="SideSeat showing an AI agent conversation with tool calls" width="800" /><br/>
+    <img src="docs/public/images/screenshots/screenshot_1.png" alt="SideSeat showing an AI agent conversation with tool calls" width="800" /><br/>
     https://www.youtube.com/watch?v=JqTcJ2OCLQI
   </a>
 </p>
@@ -121,11 +121,11 @@ SDKs: [Python (PyPI)](https://pypi.org/project/sideseat/) | [TypeScript (npm)](h
 - **Cost tracking** — Automatic token counting and cost calculation
 
 <p align="center">
-  <img src="misc/screenshots/screenshot_2.png" alt="Detailed view showing message threading" width="800" />
+  <img src="docs/public/images/screenshots/screenshot_2.png" alt="Detailed view showing message threading" width="800" />
 </p>
 
 <p align="center">
-  <img src="misc/screenshots/screenshot_3.png" alt="Cost analytics and token usage breakdown" width="800" />
+  <img src="docs/public/images/screenshots/screenshot_3.png" alt="Cost analytics and token usage breakdown" width="800" />
 </p>
 
 ## AI Agent Development with MCP
@@ -203,12 +203,31 @@ This mounts a local `./data` directory into the container at `/data` to persist 
 
 **Telemetry** — Vercel AI SDK, OpenInference, MLflow, Logfire
 
+## Repository map
+
+```
+server/       Rust backend (Axum) — src/ tests/ assets/
+web/          React frontend (Vite)
+cli/          npm distribution wrapper
+sdk/          Client SDKs: python/ js/ rust/ dotnet/
+examples/     Runnable samples per framework, with their inputs
+config/       Configuration schema and examples
+protocol/     Wire protocol shared by the server and the SDKs
+docs/         Documentation site, plus docs/engineering/ for internals
+tools/        Developer utilities  ·  scripts/  Repository automation
+benchmarks/   Performance scripts  ·  specs/  TLA+ specifications
+deploy/       Container image and local compose stack
+packaging/    Release metadata (Homebrew, macOS entitlements)
+```
+
 ## Resources
 
 - **[Documentation](https://sideseat.ai/docs)** — Setup, configuration, API reference
+- **[Examples](examples/)** — A runnable sample per supported framework
 - **[Discussions](https://github.com/sideseat/sideseat/discussions)** — Questions and ideas
 - **[Issues](https://github.com/sideseat/sideseat/issues)** — Bug reports
 - **[Contributing](CONTRIBUTING.md)** — Development guide
+- **[Security](SECURITY.md)** — Reporting a vulnerability privately
 
 ## License
 

@@ -21,13 +21,25 @@ Dev server runs at http://localhost:5389 (UI) and http://localhost:5388 (API).
 ## Project Structure
 
 ```
-server/     Rust backend (Axum)
-web/        React frontend (Vite)
-cli/        NPM distribution
-sdk/        Python and TypeScript SDKs
-docs/       Documentation site
-misc/       Samples, test fixtures, scripts, and resources
+server/       Rust backend (Axum). Cargo.toml, src/, tests/, assets/ — nothing else
+web/          React frontend (Vite)
+cli/          npm distribution wrapper
+sdk/          Client SDKs: python/ js/ rust/ dotnet/
+config/       Product configuration: JSON schema and example files
+protocol/     Wire protocol shared by the server and the SDKs (ws-v1)
+examples/     Runnable samples per framework, with their inputs
+tools/        Standalone developer utilities (otel-replay, mcp-calculator)
+scripts/      Repository automation
+benchmarks/   Performance measurement scripts
+packaging/    Release metadata: homebrew formula, macOS entitlements
+deploy/       Container image and a local compose stack
+specs/        TLA+ specifications, checked by `make harden-spec`
+docs/         Public documentation site (Astro), plus docs/engineering/
 ```
+
+`server/assets/` holds everything compiled into the binary — the framework rule assets and the
+pricing catalogue. `docs/engineering/` holds the internal architecture documents; the Astro site
+builds from `docs/src/` only, so they are not published.
 
 ## Development Commands
 
@@ -43,7 +55,7 @@ make check                                # fmt-check + lint + test
 make build                                # Production build
 ```
 
-To generate test traces, run `uv run --directory misc/samples/python/strands strands tool_use --sideseat`.
+To generate test traces, run `uv run --directory examples/python/strands strands tool_use --sideseat`.
 
 ### Release Workflow
 
@@ -60,7 +72,7 @@ make publish-docker      # multi-arch build + push to registry
 make publish-brew        # update Homebrew tap formula
 ```
 
-Homebrew formula template: `misc/brew/sideseat.rb.tmpl`. Users install via `brew tap sideseat/tap && brew install sideseat`.
+Homebrew formula template: `packaging/homebrew/sideseat.rb.tmpl`. Users install via `brew tap sideseat/tap && brew install sideseat`.
 
 ## Code Style
 

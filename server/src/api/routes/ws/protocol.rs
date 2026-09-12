@@ -1,6 +1,6 @@
 //! Wire-level frame types for the SDK WebSocket channel (v1).
 //!
-//! See `server/protocol/ws-v1/schema.json` and `codes.md` for the source of
+//! See `protocol/ws-v1/schema.json` and `codes.md` for the source of
 //! truth.
 
 use serde::{Deserialize, Serialize};
@@ -71,7 +71,7 @@ pub struct AgentEventPayload {
 }
 
 /// SDK→server: one slice of an AG-UI event that was too big to fit in a
-/// single WS frame. See `server/protocol/ws-v1/chunking.md`.
+/// single WS frame. See `protocol/ws-v1/chunking.md`.
 #[derive(Debug, Clone, Deserialize)]
 pub struct AgentEventChunkPayload {
     pub request_id: String,

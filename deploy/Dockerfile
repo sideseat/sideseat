@@ -1,0 +1,54 @@
+# Multi-arch Docker image for SideSeat
+# Builds for linux/amd64 and linux/arm64
+#
+# Build:
+#   VERSION=$(node -p "require('./cli/package.json').version") && \
+#   docker buildx build --platform linux/amd64,linux/arm64 \
+#     -t sideseat/core:latest -t sideseat/core:$VERSION \
+#     -f deploy/Dockerfile .
+#
+# Publish:
+#   docker push sideseat/core:latest && \
+#   docker push sideseat/core:$VERSION
+#
+# Build (single arch, local):
+#   docker build -t sideseat/core -f deploy/Dockerfile .
+#
+# Run:
+#   docker run -p 5388:5388 -v sideseat-data:/data sideseat/core
+
+FROM debian:bookworm-slim AS bin-selector
+ARG TARGETARCH
+COPY cli/platforms/platform-linux-x64/sideseat /tmp/bin/amd64
+COPY cli/platforms/platform-linux-arm64/sideseat /tmp/bin/arm64
+RUN cp /tmp/bin/${TARGETARCH} /tmp/sideseat && chmod +x /tmp/sideseat
+
+FROM debian:bookworm-slim
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates curl \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN groupadd -r sideseat && useradd -r -g sideseat -m sideseat
+
+COPY --from=bin-selector /tmp/sideseat /usr/local/bin/sideseat
+
+RUN mkdir -p /data && chown sideseat:sideseat /data
+
+USER sideseat
+
+ENV SIDESEAT_HOST=0.0.0.0
+ENV SIDESEAT_PORT=5388
+ENV SIDESEAT_DATA_DIR=/data
+ENV SIDESEAT_SECRETS_BACKEND=file
+
+EXPOSE 5388
+EXPOSE 4317
+
+VOLUME /data
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
+    CMD curl -f http://localhost:5388/api/v1/health || exit 1
+
+ENTRYPOINT ["sideseat"]
+CMD ["--no-auth"]

@@ -196,7 +196,7 @@ jobs:
         with:
           node-version: '24'
           cache: 'npm'
-          cache-dependency-path: misc/samples/js/package-lock.json
+          cache-dependency-path: examples/javascript/package-lock.json
 
       - uses: astral-sh/setup-uv@f94ec6bedd8674c4426838e6b50417d36b6ab231 # v5.4.1
 
@@ -204,17 +204,17 @@ jobs:
       # CI, so unformatted or type-broken sample code could merge. Runs the same commands the
       # Makefile does, scoped to the sample trees.
       - name: Install JS sample dependencies
-        run: cd misc/samples/js && npm ci
+        run: cd examples/javascript && npm ci
 
       - name: Format check
         run: |
-          cd misc/samples/js && npx prettier --check "src/**/*.ts"
-          cd "$GITHUB_WORKSPACE" && uv run ruff format --check misc/samples/python
+          cd examples/javascript && npx prettier --check "src/**/*.ts"
+          cd "$GITHUB_WORKSPACE" && uv run ruff format --check examples/python
 
       - name: Lint
         run: |
-          cd misc/samples/js && npm run lint && npm run typecheck
-          cd "$GITHUB_WORKSPACE" && uv run ruff check misc/samples/python
+          cd examples/javascript && npm run lint && npm run typecheck
+          cd "$GITHUB_WORKSPACE" && uv run ruff check examples/python
 
   audit:
     name: Security Audit

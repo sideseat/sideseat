@@ -83,18 +83,18 @@ forgot to commit.
 Needs working model credentials, since the samples call a real model.
 
 ```bash
-misc/capture-message-fixtures.sh                    # every suite
-misc/capture-message-fixtures.sh strands            # one suite
-misc/capture-message-fixtures.sh strands tool_use   # one sample
+scripts/message-fixtures/capture.sh                    # every suite
+scripts/message-fixtures/capture.sh strands            # one suite
+scripts/message-fixtures/capture.sh strands tool_use   # one sample
 ```
 
 Then record the expectations, **read them**, and only then let them gate:
 
 ```bash
 UPDATE_GOLDENS=1 cargo test -p sideseat-server message_goldens   # write expectations
-misc/review-message-goldens.py                                   # read them: counts, roles, content
-misc/review-message-goldens.py --suspicious                      # only fixtures with warnings
-misc/review-message-goldens.py strands/tool_use                  # one sample, full detail
+scripts/message-fixtures/review-goldens.py                                   # read them: counts, roles, content
+scripts/message-fixtures/review-goldens.py --suspicious                      # only fixtures with warnings
+scripts/message-fixtures/review-goldens.py strands/tool_use                  # one sample, full detail
 git diff server/tests/fixtures/messages
 cargo test -p sideseat-server message_goldens                    # from now on it gates
 ```

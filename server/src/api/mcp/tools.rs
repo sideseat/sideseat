@@ -1298,9 +1298,9 @@ mod tests {
             "docs/src/content/docs/docs/integrations/frameworks/claude-agent-sdk.mdx",
             "docs/src/content/docs/docs/index.mdx",
             "web/src/pages/configuration/telemetry-frameworks.ts",
-            "misc/samples/python/claude-agent-sdk/telemetry_setup.py",
-            "misc/samples/js/src/shared/telemetry.ts",
-            "misc/scripts/run-claude.sh",
+            "examples/python/claude-agent-sdk/telemetry_setup.py",
+            "examples/javascript/src/shared/telemetry.ts",
+            "scripts/run-claude.sh",
         ];
 
         for relative in copies {

@@ -90,11 +90,19 @@ rg --files          # List files (.gitignore aware)
 │   │       ├── mod.rs      # Main pipeline: parse → flatten → dedup → sort
 │   │       ├── dedup.rs    # Birth time algorithm, identity-based deduplication
 │   │       └── types.rs    # BlockEntry, FeedOptions, FeedResult
+│   ├── rules/          # THE RULES ENGINE - generic interpreters, no framework names
+│   │   ├── schema.rs       # Asset shapes, embedded_sources()
+│   │   ├── message_rules.rs # Carriers, claiming, message extraction
+│   │   ├── span_fields.rs  # One ordered resolver per typed target
+│   │   ├── classify.rs     # Observation type + span category, ordered first-match
+│   │   ├── content_blocks.rs # Provider/dialect content forms, named chain positions
+│   │   ├── members.rs      # The member vocabulary (holds content / message / block)
+│   │   └── detect_rules.rs # Framework labelling, explicit rank
 │   └── traces/
 │       ├── extract/
 │       │   ├── mod.rs        # keys::* constants (GEN_AI_*, LLM_*, etc.)
-│       │   ├── attributes.rs # Framework detection, field extraction
-│       │   └── messages.rs   # Multi-framework message extraction
+│       │   ├── attributes.rs # Applies span-field + classify plans (names no framework)
+│       │   └── messages.rs   # Applies message plans (names no framework)
 │       └── enrich.rs   # Cost calculation, preview generation
 └── api/routes/         # Axum HTTP handlers (direct to repositories)
 ```
@@ -236,7 +244,7 @@ independent of the presentation constraints is also what keeps promoting an orde
 which messages a session returns.
 Event-based frameworks (Strands) stay trace-independent; no cross-trace stripping.
 
-**A carrier's structure says what it is evidence of** (`sideml/carrier.rs`). Four independent facts per carrier, because a conversation snapshot and accumulated framework state are both ordered and both may hold history, and differ only in whether *position* proves multiplicity:
+**A carrier's structure says what it is evidence of** (`sideml/carrier.rs`). Eight independent facts per carrier plus a named `ordering_family` - four about what *position* proves (below) and four about what the carrier *is* (`carrier_holds_span_input`, `carrier_holds_span_output`, `carrier_is_detached_request_frame`, `carrier_holds_expandable_message_array`). Separate booleans rather than one enum, because a conversation snapshot and accumulated framework state are both ordered and both may hold history, and differ only in whether *position* proves multiplicity:
 
 | Fact | Read by |
 | --- | --- |
@@ -405,6 +413,36 @@ because recording success for telemetry that will never be produced also blocked
 JS SDK's `forceFlush()` and `shutdown()` both return whether every span was exported, because `diag` is a
 no-op until the host installs a logger, so a `void` return reported the loss nowhere at all.
 
+### Framework knowledge is data, not code (`server/assets/rules/*.json`)
+
+**Rust knows nothing about concrete frameworks.** Every fact a framework writes - which carrier holds a
+conversation, which member is the answer, how a content block is shaped, what makes a span a generation, which
+attribute holds the token count, what a source name says about the role, how to label the producer - is
+declared in an embedded asset and interpreted by a generic engine in `server/src/domain/rules/`. 41 assets,
+347 rules. Adding a framework is an **asset edit**;
+adding a *primitive* is a code change, and needs a shape no existing primitive expresses.
+
+Enforced by **two** sweeps, because names alone were not enough - the defect that invalidated the first
+acceptance was a framework fact spelled as a *value*.
+`no_production_module_names_a_framework` tokenises every `.rs` file under `server/src` and reports any
+production token naming a declared framework; `no_production_module_carries_a_framework_telemetry_key` does
+the same for the telemetry keys the assets declare. Which namespaces are the conventions' is *stated* in
+`semconv.json` and pinned exactly - deriving it accepted producer evidence twice, because a shared fallback
+chain enumerates producers' spellings by design. The marker list is **derived** from the asset ids
+(plus aliases each tied to an asset), and the four exemptions are **marker-scoped** - the MCP integration-guide
+generator and its argument schema, and the three Azure AI Foundry provider-connector files, which may name that
+one product and nothing else. Read the sweep's own doc comment for what it cannot see; the short version is
+names rather than values, and not prose.
+
+Each retired table is kept under `#[cfg(test)]` as an **equivalence oracle** rather than deleted, because a
+golden can be regenerated and bless a regression. **17**: fifteen focused tests comparing one migration
+against the retired implementation, and two corpus-wide ones comparing classifications across every captured
+span and member answers across captured JSON. `no_declared_rule_is_dead_across_the_corpus` is *not* one of
+them - it is a coverage inventory, which is a different question from whether what ran agrees.
+
+Accepted with Codex at review cycle 51 (`cd9ce363`) against both criteria, within stated limits. Design,
+rationale and those limits: **`docs/engineering/framework-rules-engine.md`**.
+
 ### OTel GenAI Conventions
 
 **Status**: Development (unstable). Use fallback chains:
@@ -419,7 +457,7 @@ get_first(attrs, &[keys::GEN_AI_PROVIDER_NAME, keys::GEN_AI_SYSTEM, ...])
 
 **Claude Agent SDK** is the odd one out: it emits no in-process telemetry. It spawns the Claude Code CLI, which self-instruments and is configured via `CLAUDE_CODE_*`/`OTEL_*` subprocess env vars. Spans are named `claude_code.*` and require `CLAUDE_CODE_ENHANCED_TELEMETRY_BETA=1` (tracing is beta). Never set an `OTEL_*_EXPORTER` to `console` — the CLI writes telemetry to stdout, which is the SDK's message channel.
 
-Message content needs a **second** beta tier: `ENABLE_BETA_TRACING_DETAILED=1` + `BETA_TRACING_ENDPOINT` (base URL, not `/v1/traces`). Only then are `response.model_output` (assistant text), `new_context` (user turns / tool results, tagged `[USER PROMPT]` / `[TOOL RESULT: <id>]`), `user_system_prompt` and `tool_input` emitted. The `try_claude_code` extractor in `messages.rs` maps them; tokens use the CLI's bare `input_tokens`/`output_tokens` names, handled by fallbacks in `attributes.rs`.
+Message content needs a **second** beta tier: `ENABLE_BETA_TRACING_DETAILED=1` + `BETA_TRACING_ENDPOINT` (base URL, not `/v1/traces`). Only then are `response.model_output` (assistant text), `new_context` (user turns / tool results, tagged `[USER PROMPT]` / `[TOOL RESULT: <id>]`), `user_system_prompt` and `tool_input` emitted. `rules/claude-agent-sdk.json` declares how they map; tokens use the CLI's bare `input_tokens`/`output_tokens` names, handled by fallbacks in `attributes.rs`.
 
 ### React Query (`api/otel/keys.ts`)
 
@@ -447,7 +485,7 @@ omitPagination(params); // Remove page/limit for filter comparison
 
 **SDK runtime channel** (presence + introspection + AG-UI invoke):
 
-- `GET /api/v1/project/{project_id}/ws` (persistent WebSocket; protocol in `server/protocol/ws-v1/`)
+- `GET /api/v1/project/{project_id}/ws` (persistent WebSocket; protocol in `protocol/ws-v1/`)
 - `GET /api/v1/project/{project_id}/registrations` (read-only snapshot)
 - `POST /api/v1/project/{project_id}/agents/{name}/runs` (AG-UI run-agent SSE; routes through WS to the SDK that owns the registration)
 
@@ -460,7 +498,7 @@ omitPagination(params); // Remove page/limit for filter comparison
 - **Constants**: Define in `core/constants.rs`
 - **Logging**: `tracing` macros, prefer `debug!` over `info!`. Set `SIDESEAT_LOG=debug`
 - **Config priority**: Defaults → `~/.sideseat/` → `./sideseat.json` → CLI args → env vars
-- **Config files**: See `server/sideseat.schema.json` for structure, `server/sideseat.example*.json` for examples
+- **Config files**: See `config/sideseat.schema.json` for structure, `server/sideseat.example*.json` for examples
 - **shadcn/ui**: Never modify `components/ui/`, wrap or use `className`
 - **Imports**: Use `@/` path alias in web (e.g., `@/components/ui/button`)
 - **No "use client"**: This is Vite/React, not Next.js
@@ -485,13 +523,13 @@ The telemetry config UI is served at `/organizations/default/configuration/telem
 
 **Database**: `./.sideseat/duckdb/sideseat.duckdb` — DuckDB is locked while the server runs. Always check raw data via API, not direct DB access.
 
-**Test data**: `uv run --directory misc/samples/python/strands strands <sample> --sideseat`. Samples: tool_use, mcp_tools, structured_output, files, image_gen, agent_core, swarm, rag_local, reasoning, error, strands_ws (WS runtime channel: registers a Strands graph for presence + AG-UI invoke; blocks until Ctrl-C). Provider samples: `uv run --directory misc/samples/python/openai openai-provider <sample> --sideseat` and `uv run --directory misc/samples/python/bedrock bedrock <sample> --sideseat`. Claude Agent SDK: `uv run --directory misc/samples/python/claude-agent-sdk claude-agent-sdk <sample> --sideseat` (samples: tool_use, mcp_tools, structured_output, reasoning, custom_tools, subagents, multi_turn, permissions, error) and `cd misc/samples/js && npm run claude-agent-sdk -- <sample> --sideseat`.
+**Test data**: `uv run --directory examples/python/strands strands <sample> --sideseat`. Samples: tool_use, mcp_tools, structured_output, files, image_gen, agent_core, swarm, rag_local, reasoning, error, strands_ws (WS runtime channel: registers a Strands graph for presence + AG-UI invoke; blocks until Ctrl-C). Provider samples: `uv run --directory examples/python/openai openai-provider <sample> --sideseat` and `uv run --directory examples/python/bedrock bedrock <sample> --sideseat`. Claude Agent SDK: `uv run --directory examples/python/claude-agent-sdk claude-agent-sdk <sample> --sideseat` (samples: tool_use, mcp_tools, structured_output, reasoning, custom_tools, subagents, multi_turn, permissions, error) and `cd examples/javascript && npm run claude-agent-sdk -- <sample> --sideseat`.
 
-**Note**: samples read `misc/.env` (not committed — `cp misc/.env.example misc/.env`). Without it `OTEL_EXPORTER_OTLP_ENDPOINT` is unset and non-`--sideseat` runs fail with connection refused against the OTel default `localhost:4318` instead of SideSeat's 5388.
+**Note**: samples read `examples/.env` (not committed — `cp examples/.env.example examples/.env`). Without it `OTEL_EXPORTER_OTLP_ENDPOINT` is unset and non-`--sideseat` runs fail with connection refused against the OTel default `localhost:4318` instead of SideSeat's 5388.
 
 **Credentials per suite**: Bedrock-only credentials cover every suite except `autogen` — strands, langgraph, crewai, adk, bedrock and claude-agent-sdk (Python and JS) natively, plus the vercel-ai and strands JS suites. `openai`, `openai-agents` and `agent-framework` reach Bedrock through its OpenAI-compatible endpoint and `anthropic` through the Anthropic-compatible one, via `common/bedrock_openai.py` (SigV4-signing httpx client); their `bedrock-*` model aliases are the defaults, so no `OPENAI_API_KEY`/`ANTHROPIC_API_KEY` is needed. Only `autogen` still requires a first-party key (`DEFAULT_MODEL = "anthropic-haiku"`, no Bedrock path in its runner). `strands/agent_core` additionally needs a provisioned AgentCore memory store in `AGENT_CORE_MEMORY_ID`.
 
-**Region**: botocore reads `AWS_DEFAULT_REGION` and ignores `AWS_REGION`, while the JavaScript AWS SDK reads `AWS_REGION` — set both in `misc/.env` or the Python suites silently use the region from `~/.aws/config`. Image generation needs `stability.sd3-5-large-v1:0` in a region that offers it (`us-west-2`); `amazon.titan-image-generator-v2:0` has been retired.
+**Region**: botocore reads `AWS_DEFAULT_REGION` and ignores `AWS_REGION`, while the JavaScript AWS SDK reads `AWS_REGION` — set both in `examples/.env` or the Python suites silently use the region from `~/.aws/config`. Image generation needs `stability.sd3-5-large-v1:0` in a region that offers it (`us-west-2`); `amazon.titan-image-generator-v2:0` has been retired.
 
 **Ingestion latency, measured end to end**: `cargo test --release -p sideseat-server bench_ingestion --
 --ignored --nocapture` runs the real `run_batch` - extraction, enrichment, file storage, both writes and
@@ -1126,12 +1164,12 @@ CLUSTER`, where the parts are) were already right; only the insert was wrong.
 
 **Message-parsing goldens**: `cargo test -p sideseat-server message_goldens` verifies message count, content,
 ordering and absence of duplicates per framework across all **four** views (span / trace / session / feed).
-Every one of the 111 samples has an `expected.json` beside its captured requests - checked structurally, none
-missing - and each records, per view, the message count, the role sequence, and for every message its index,
+Every one of the **120 committed** samples has an `expected.json` beside its captured requests - 104 captured
+and 16 `_synthetic`, checked structurally, none missing - and each records, per view, the message count, the role sequence, and for every message its index,
 role, entry type, content, content digest, tool name, finish reason and observation type. So the four
 dimensions the goldens exist to protect are each pinned by a distinct field rather than inferred from a
 summary. Mutation-verified: dropping one message, swapping two, or duplicating one each fail four of the
-suite's tests. Fixtures are captured OTLP payloads under `server/tests/fixtures/messages/<suite>/<sample>/`; capture with `misc/capture-message-fixtures.sh [suite] [sample]` (needs model credentials), then record with `UPDATE_GOLDENS=1 cargo test -p sideseat-server message_goldens` and review the diff. Invariants (scope containment, per-trace dedup, tool-id correspondence, no empty thinking, determinism) hold independently of the goldens, so a blindly regenerated snapshot still fails on real defects. `UPDATE_GOLDENS=1` writes the files but still exits non-zero when an invariant was violated, so known-bad output cannot be committed as reviewed. See `server/tests/fixtures/messages/README.md`.
+suite's tests. Fixtures are captured OTLP payloads under `server/tests/fixtures/messages/<suite>/<sample>/`; capture with `scripts/message-fixtures/capture.sh [suite] [sample]` (needs model credentials), then record with `UPDATE_GOLDENS=1 cargo test -p sideseat-server message_goldens` and review the diff. Invariants (scope containment, per-trace dedup, tool-id correspondence, no empty thinking, determinism) hold independently of the goldens, so a blindly regenerated snapshot still fails on real defects. `UPDATE_GOLDENS=1` writes the files but still exits non-zero when an invariant was violated, so known-bad output cannot be committed as reviewed. See `server/tests/fixtures/messages/README.md`.
 
 **ClickHouse parity**: `make test-clickhouse` starts a pinned container and runs
 `server/src/data/clickhouse/parity_tests.rs`, which inserts one span set into both analytics
@@ -1381,7 +1419,7 @@ finish_reason: Option<FinishReason> (Stop, Length, ToolUse, ContentFilter)
 5. **Role normalization is lossy** - Unknown roles default to User, check `try_from_str` first
 6. **gen_ai.system is deprecated** - Use fallback chain: `gen_ai.provider.name` → `gen_ai.system`
 7. **Messages come from two sources** - Events (OTEL events) and Attributes (framework-specific)
-8. **Framework detection is ordered** - First match wins, see `attributes.rs` detection order
+8. **Framework detection is ordered** - by **explicit rank in the asset**, not by file position or code order; a shared rank fails compilation. See `rules/*.json` `detect`
 9. **Birth time ≠ event time** - Messages use birth_time for sorting (earliest occurrence)
 10. **No service layer** - Routes call repositories directly, keep business logic in domain/
 11. **Config validation** - Ports must be >0, S3 requires bucket, port collision checked at startup

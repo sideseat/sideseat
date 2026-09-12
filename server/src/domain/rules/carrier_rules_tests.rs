@@ -629,7 +629,7 @@ fn the_engine_names_no_framework() {
             assert!(
                 !lowered.contains(producer),
                 "engine source `{name}` names the producer `{producer}` in code. Framework identity \
-                 belongs in an asset under `server/rules/`, never in the engine"
+                 belongs in an asset under `server/assets/rules/`, never in the engine"
             );
         }
         for literal in CARRIER_LITERALS {
@@ -929,7 +929,7 @@ fn message_extraction_names_no_framework() {
     assert!(
         offenders.is_empty(),
         "extraction names {} framework fact(s) in production code. Every carrier, counter, spelling and \
-         precedence a framework writes belongs in `server/rules/*.json`:\n{}",
+         precedence a framework writes belongs in `server/assets/rules/*.json`:\n{}",
         offenders.len(),
         offenders.join("\n")
     );
@@ -1743,7 +1743,7 @@ fn no_production_module_names_a_framework() {
     assert!(
         offenders.is_empty(),
         "{} production line(s) name a framework. Every fact a framework writes belongs in \
-         `server/rules/*.json`; if a module genuinely has to name one, add it to EXEMPT with the \
+         `server/assets/rules/*.json`; if a module genuinely has to name one, add it to EXEMPT with the \
          reason:\n{}",
         offenders.len(),
         offenders.join("\n")
@@ -3004,7 +3004,8 @@ fn a_branch_fallback_asks_about_its_own_kind_of_emission() {
 #[test]
 fn the_diagrams_count_what_the_tree_holds() {
     let text = std::fs::read_to_string(
-        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("docs/architecture-diagrams.md"),
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../docs/engineering/architecture-diagrams.md"),
     )
     .expect("the diagrams are committed beside the code they describe");
 
@@ -3043,8 +3044,8 @@ fn the_diagrams_count_what_the_tree_holds() {
 
 #[test]
 fn the_diagrams_name_things_that_exist() {
-    let diagrams =
-        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("docs/architecture-diagrams.md");
+    let diagrams = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../docs/engineering/architecture-diagrams.md");
     let text = std::fs::read_to_string(&diagrams)
         .unwrap_or_else(|e| panic!("the diagrams must be readable: {e}"));
 
