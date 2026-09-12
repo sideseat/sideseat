@@ -54,6 +54,18 @@ updates:
   - package-ecosystem: "docker"
     directories:
       - "/deploy"
+    schedule:
+      interval: "weekly"
+    commit-message:
+      prefix: "deps"
+    labels:
+      - "dependencies"
+      - "docker"
+
+  # A Compose file is a **separate ecosystem** from a Dockerfile - `docker` does not cover it - so declaring
+  # one entry for both left the four pinned services unwatched while the config looked complete.
+  - package-ecosystem: "docker-compose"
+    directories:
       - "/deploy/local"
     schedule:
       interval: "weekly"

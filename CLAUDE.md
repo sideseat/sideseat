@@ -498,7 +498,7 @@ omitPagination(params); // Remove page/limit for filter comparison
 - **Constants**: Define in `core/constants.rs`
 - **Logging**: `tracing` macros, prefer `debug!` over `info!`. Set `SIDESEAT_LOG=debug`
 - **Config priority**: Defaults → `~/.sideseat/` → `./sideseat.json` → CLI args → env vars
-- **Config files**: See `config/sideseat.schema.json` for structure, `server/sideseat.example*.json` for examples
+- **Config files**: See `config/sideseat.schema.json` for structure, `config/sideseat.example*.json` for examples
 - **shadcn/ui**: Never modify `components/ui/`, wrap or use `className`
 - **Imports**: Use `@/` path alias in web (e.g., `@/components/ui/button`)
 - **No "use client"**: This is Vite/React, not Next.js
