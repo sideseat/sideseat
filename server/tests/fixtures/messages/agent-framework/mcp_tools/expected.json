@@ -18,7 +18,7 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "agent_framework.exceptions.ToolException: (\"Failed to start MCP server '/opt/homebrew/bin/uv': `mcp` is required to use `MCPStdioTool`. Please install `mcp`.\", ModuleNotFoundError('`mcp` is required to use `MCPStdioTool`. Please install `mc…[4452 chars]",
-          "content_digest": "01ec1768ceaff94c",
+          "content_digest": "3350bac3f0d1ac34",
           "finish_reason": "Error",
           "observation_type": "agent"
         }
@@ -55,7 +55,7 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "agent_framework.exceptions.ToolException: (\"Failed to start MCP server '/opt/homebrew/bin/uv': `mcp` is required to use `MCPStdioTool`. Please install `mcp`.\", ModuleNotFoundError('`mcp` is required to use `MCPStdioTool`. Please install `mc…[3911 chars]",
-          "content_digest": "abcfe49a928d757b",
+          "content_digest": "3da5a59bb545b3b7",
           "finish_reason": "Error",
           "observation_type": "agent"
         }
@@ -94,7 +94,7 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "agent_framework.exceptions.ToolException: (\"Failed to start MCP server '/opt/homebrew/bin/uv': `mcp` is required to use `MCPStdioTool`. Please install `mcp`.\", ModuleNotFoundError('`mcp` is required to use `MCPStdioTool`. Please install `mc…[3911 chars]",
-          "content_digest": "abcfe49a928d757b",
+          "content_digest": "3da5a59bb545b3b7",
           "finish_reason": "Error",
           "observation_type": "agent"
         }
@@ -133,7 +133,7 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "agent_framework.exceptions.ToolException: (\"Failed to start MCP server '/opt/homebrew/bin/uv': `mcp` is required to use `MCPStdioTool`. Please install `mcp`.\", ModuleNotFoundError('`mcp` is required to use `MCPStdioTool`. Please install `mc…[3911 chars]",
-          "content_digest": "abcfe49a928d757b",
+          "content_digest": "3da5a59bb545b3b7",
           "finish_reason": "Error",
           "observation_type": "agent"
         }
@@ -155,7 +155,7 @@
         "role": "assistant",
         "entry_type": "text",
         "content": "agent_framework.exceptions.ToolException: (\"Failed to start MCP server '/opt/homebrew/bin/uv': `mcp` is required to use `MCPStdioTool`. Please install `mcp`.\", ModuleNotFoundError('`mcp` is required to use `MCPStdioTool`. Please install `mc…[3911 chars]",
-        "content_digest": "abcfe49a928d757b",
+        "content_digest": "3da5a59bb545b3b7",
         "finish_reason": "Error",
         "observation_type": "agent"
       },

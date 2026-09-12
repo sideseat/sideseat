@@ -26,8 +26,8 @@
           "index": 1,
           "role": "assistant",
           "entry_type": "text",
-          "content": "anthropic.BadRequestError: Error code: 400 - {'type': 'error', 'error': {'type': 'invalid_request_error', 'message': 'The provided model identifier is invalid.'}} ``` Traceback (most recent call last): File \"/Users/pugachev/Desktop/dev/side…[919 chars]",
-          "content_digest": "1114ca6ae5970516",
+          "content": "anthropic.BadRequestError: Error code: 400 - {'type': 'error', 'error': {'type': 'invalid_request_error', 'message': 'The provided model identifier is invalid.'}} ``` Traceback (most recent call last): File \"/Users/sideseat/Desktop/dev/side…[919 chars]",
+          "content_digest": "d5885a34684ba20c",
           "finish_reason": "Error",
           "observation_type": "generation"
         }
@@ -45,8 +45,8 @@
           "index": 0,
           "role": "assistant",
           "entry_type": "text",
-          "content": "anthropic.BadRequestError: Error code: 400 - {'type': 'error', 'error': {'type': 'invalid_request_error', 'message': 'The provided model identifier is invalid.'}} ``` Traceback (most recent call last): File \"/Users/pugachev/Desktop/dev/side…[2004 chars]",
-          "content_digest": "4c44ad8816c9805e",
+          "content": "anthropic.BadRequestError: Error code: 400 - {'type': 'error', 'error': {'type': 'invalid_request_error', 'message': 'The provided model identifier is invalid.'}} ``` Traceback (most recent call last): File \"/Users/sideseat/Desktop/dev/side…[2004 chars]",
+          "content_digest": "2c6023bcbda5a77b",
           "finish_reason": "Error",
           "observation_type": "span"
         }
@@ -75,8 +75,8 @@
           "index": 1,
           "role": "assistant",
           "entry_type": "text",
-          "content": "anthropic.BadRequestError: Error code: 400 - {'type': 'error', 'error': {'type': 'invalid_request_error', 'message': 'The provided model identifier is invalid.'}} ``` Traceback (most recent call last): File \"/Users/pugachev/Desktop/dev/side…[919 chars]",
-          "content_digest": "1114ca6ae5970516",
+          "content": "anthropic.BadRequestError: Error code: 400 - {'type': 'error', 'error': {'type': 'invalid_request_error', 'message': 'The provided model identifier is invalid.'}} ``` Traceback (most recent call last): File \"/Users/sideseat/Desktop/dev/side…[919 chars]",
+          "content_digest": "d5885a34684ba20c",
           "finish_reason": "Error",
           "observation_type": "generation"
         }
@@ -97,8 +97,8 @@
         "index": 0,
         "role": "assistant",
         "entry_type": "text",
-        "content": "anthropic.BadRequestError: Error code: 400 - {'type': 'error', 'error': {'type': 'invalid_request_error', 'message': 'The provided model identifier is invalid.'}} ``` Traceback (most recent call last): File \"/Users/pugachev/Desktop/dev/side…[919 chars]",
-        "content_digest": "1114ca6ae5970516",
+        "content": "anthropic.BadRequestError: Error code: 400 - {'type': 'error', 'error': {'type': 'invalid_request_error', 'message': 'The provided model identifier is invalid.'}} ``` Traceback (most recent call last): File \"/Users/sideseat/Desktop/dev/side…[919 chars]",
+        "content_digest": "d5885a34684ba20c",
         "finish_reason": "Error",
         "observation_type": "generation"
       },

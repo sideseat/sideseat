@@ -428,7 +428,7 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "botocore.errorfactory.ResourceNotFoundException: An error occurred (ResourceNotFoundException) when calling the InvokeModel operation: This model version has reached the end of its life. Please refer to the AWS documentation for more detail…[1570 chars]",
-          "content_digest": "2bd22aafee46cae0",
+          "content_digest": "7f80ec97d18ee9ba",
           "finish_reason": "Error",
           "observation_type": "span"
         }
@@ -447,7 +447,7 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "botocore.errorfactory.ResourceNotFoundException: An error occurred (ResourceNotFoundException) when calling the InvokeModel operation: This model version has reached the end of its life. Please refer to the AWS documentation for more detail…[1570 chars]",
-          "content_digest": "2bd22aafee46cae0",
+          "content_digest": "7f80ec97d18ee9ba",
           "finish_reason": "Error",
           "observation_type": "span"
         }
@@ -466,7 +466,7 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "botocore.errorfactory.ResourceNotFoundException: An error occurred (ResourceNotFoundException) when calling the InvokeModel operation: This model version has reached the end of its life. Please refer to the AWS documentation for more detail…[1570 chars]",
-          "content_digest": "2bd22aafee46cae0",
+          "content_digest": "7f80ec97d18ee9ba",
           "finish_reason": "Error",
           "observation_type": "span"
         }
@@ -758,7 +758,7 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "botocore.errorfactory.ResourceNotFoundException: An error occurred (ResourceNotFoundException) when calling the InvokeModel operation: This model version has reached the end of its life. Please refer to the AWS documentation for more detail…[1570 chars]",
-          "content_digest": "2bd22aafee46cae0",
+          "content_digest": "7f80ec97d18ee9ba",
           "finish_reason": "Error",
           "observation_type": "span"
         }
@@ -777,7 +777,7 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "botocore.errorfactory.ResourceNotFoundException: An error occurred (ResourceNotFoundException) when calling the InvokeModel operation: This model version has reached the end of its life. Please refer to the AWS documentation for more detail…[1570 chars]",
-          "content_digest": "2bd22aafee46cae0",
+          "content_digest": "7f80ec97d18ee9ba",
           "finish_reason": "Error",
           "observation_type": "span"
         }
@@ -796,7 +796,7 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "botocore.errorfactory.ResourceNotFoundException: An error occurred (ResourceNotFoundException) when calling the InvokeModel operation: This model version has reached the end of its life. Please refer to the AWS documentation for more detail…[1570 chars]",
-          "content_digest": "2bd22aafee46cae0",
+          "content_digest": "7f80ec97d18ee9ba",
           "finish_reason": "Error",
           "observation_type": "span"
         }
@@ -1066,7 +1066,7 @@
         "role": "assistant",
         "entry_type": "text",
         "content": "botocore.errorfactory.ResourceNotFoundException: An error occurred (ResourceNotFoundException) when calling the InvokeModel operation: This model version has reached the end of its life. Please refer to the AWS documentation for more detail…[1570 chars]",
-        "content_digest": "2bd22aafee46cae0",
+        "content_digest": "7f80ec97d18ee9ba",
         "finish_reason": "Error",
         "observation_type": "span"
       },
@@ -1075,7 +1075,7 @@
         "role": "assistant",
         "entry_type": "text",
         "content": "botocore.errorfactory.ResourceNotFoundException: An error occurred (ResourceNotFoundException) when calling the InvokeModel operation: This model version has reached the end of its life. Please refer to the AWS documentation for more detail…[1570 chars]",
-        "content_digest": "2bd22aafee46cae0",
+        "content_digest": "7f80ec97d18ee9ba",
         "finish_reason": "Error",
         "observation_type": "span"
       },
@@ -1084,7 +1084,7 @@
         "role": "assistant",
         "entry_type": "text",
         "content": "botocore.errorfactory.ResourceNotFoundException: An error occurred (ResourceNotFoundException) when calling the InvokeModel operation: This model version has reached the end of its life. Please refer to the AWS documentation for more detail…[1570 chars]",
-        "content_digest": "2bd22aafee46cae0",
+        "content_digest": "7f80ec97d18ee9ba",
         "finish_reason": "Error",
         "observation_type": "span"
       },

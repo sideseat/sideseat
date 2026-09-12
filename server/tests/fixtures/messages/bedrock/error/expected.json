@@ -17,8 +17,8 @@
           "index": 0,
           "role": "assistant",
           "entry_type": "text",
-          "content": "botocore.errorfactory.ValidationException: An error occurred (ValidationException) when calling the Converse operation: The provided model identifier is invalid. ``` Traceback (most recent call last): File \"/Users/pugachev/Desktop/dev/sides…[1556 chars]",
-          "content_digest": "9e02ed5f93f7df72",
+          "content": "botocore.errorfactory.ValidationException: An error occurred (ValidationException) when calling the Converse operation: The provided model identifier is invalid. ``` Traceback (most recent call last): File \"/Users/sideseat/Desktop/dev/sides…[1556 chars]",
+          "content_digest": "83a37440a445cead",
           "finish_reason": "Error",
           "observation_type": "span"
         }
@@ -36,8 +36,8 @@
           "index": 0,
           "role": "assistant",
           "entry_type": "text",
-          "content": "botocore.errorfactory.ValidationException: An error occurred (ValidationException) when calling the Converse operation: The provided model identifier is invalid. ``` Traceback (most recent call last): File \"/Users/pugachev/Desktop/dev/sides…[1200 chars]",
-          "content_digest": "6a1da5e2af45d70b",
+          "content": "botocore.errorfactory.ValidationException: An error occurred (ValidationException) when calling the Converse operation: The provided model identifier is invalid. ``` Traceback (most recent call last): File \"/Users/sideseat/Desktop/dev/sides…[1200 chars]",
+          "content_digest": "0b96d39ff90ceef6",
           "finish_reason": "Error",
           "observation_type": "generation"
         }
@@ -57,8 +57,8 @@
           "index": 0,
           "role": "assistant",
           "entry_type": "text",
-          "content": "botocore.errorfactory.ValidationException: An error occurred (ValidationException) when calling the Converse operation: The provided model identifier is invalid. ``` Traceback (most recent call last): File \"/Users/pugachev/Desktop/dev/sides…[1200 chars]",
-          "content_digest": "6a1da5e2af45d70b",
+          "content": "botocore.errorfactory.ValidationException: An error occurred (ValidationException) when calling the Converse operation: The provided model identifier is invalid. ``` Traceback (most recent call last): File \"/Users/sideseat/Desktop/dev/sides…[1200 chars]",
+          "content_digest": "0b96d39ff90ceef6",
           "finish_reason": "Error",
           "observation_type": "generation"
         }
@@ -78,8 +78,8 @@
         "index": 0,
         "role": "assistant",
         "entry_type": "text",
-        "content": "botocore.errorfactory.ValidationException: An error occurred (ValidationException) when calling the Converse operation: The provided model identifier is invalid. ``` Traceback (most recent call last): File \"/Users/pugachev/Desktop/dev/sides…[1200 chars]",
-        "content_digest": "6a1da5e2af45d70b",
+        "content": "botocore.errorfactory.ValidationException: An error occurred (ValidationException) when calling the Converse operation: The provided model identifier is invalid. ``` Traceback (most recent call last): File \"/Users/sideseat/Desktop/dev/sides…[1200 chars]",
+        "content_digest": "0b96d39ff90ceef6",
         "finish_reason": "Error",
         "observation_type": "generation"
       }

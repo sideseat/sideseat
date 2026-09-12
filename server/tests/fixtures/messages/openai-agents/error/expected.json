@@ -31,8 +31,8 @@
           "index": 0,
           "role": "assistant",
           "entry_type": "text",
-          "content": "openai.BadRequestError: Error code: 400 - {'error': {'message': 'The provided model identifier is invalid.', 'type': 'invalid_request_error', 'param': None, 'code': 'validation_error'}} ``` Traceback (most recent call last): File \"/Users/pu…[1689 chars]",
-          "content_digest": "7f21759df728ab0b",
+          "content": "openai.BadRequestError: Error code: 400 - {'error': {'message': 'The provided model identifier is invalid.', 'type': 'invalid_request_error', 'param': None, 'code': 'validation_error'}} ``` Traceback (most recent call last): File \"/Users/si…[1689 chars]",
+          "content_digest": "3d9275e63c8f233f",
           "finish_reason": "Error",
           "observation_type": "generation"
         }
@@ -64,8 +64,8 @@
           "index": 0,
           "role": "assistant",
           "entry_type": "text",
-          "content": "openai.BadRequestError: Error code: 400 - {'error': {'message': 'The provided model identifier is invalid.', 'type': 'invalid_request_error', 'param': None, 'code': 'validation_error'}} ``` Traceback (most recent call last): File \"/Users/pu…[4579 chars]",
-          "content_digest": "1c98e4541a8b8f8f",
+          "content": "openai.BadRequestError: Error code: 400 - {'error': {'message': 'The provided model identifier is invalid.', 'type': 'invalid_request_error', 'param': None, 'code': 'validation_error'}} ``` Traceback (most recent call last): File \"/Users/si…[4579 chars]",
+          "content_digest": "2091ffa93fc9e8c4",
           "finish_reason": "Error",
           "observation_type": "agent"
         }
@@ -86,8 +86,8 @@
           "index": 0,
           "role": "assistant",
           "entry_type": "text",
-          "content": "openai.BadRequestError: Error code: 400 - {'error': {'message': 'The provided model identifier is invalid.', 'type': 'invalid_request_error', 'param': None, 'code': 'validation_error'}} ``` Traceback (most recent call last): File \"/Users/pu…[1689 chars]",
-          "content_digest": "7f21759df728ab0b",
+          "content": "openai.BadRequestError: Error code: 400 - {'error': {'message': 'The provided model identifier is invalid.', 'type': 'invalid_request_error', 'param': None, 'code': 'validation_error'}} ``` Traceback (most recent call last): File \"/Users/si…[1689 chars]",
+          "content_digest": "3d9275e63c8f233f",
           "finish_reason": "Error",
           "observation_type": "generation"
         },
@@ -95,8 +95,8 @@
           "index": 1,
           "role": "assistant",
           "entry_type": "text",
-          "content": "openai.BadRequestError: Error code: 400 - {'error': {'message': 'The provided model identifier is invalid.', 'type': 'invalid_request_error', 'param': None, 'code': 'validation_error'}} ``` Traceback (most recent call last): File \"/Users/pu…[4579 chars]",
-          "content_digest": "1c98e4541a8b8f8f",
+          "content": "openai.BadRequestError: Error code: 400 - {'error': {'message': 'The provided model identifier is invalid.', 'type': 'invalid_request_error', 'param': None, 'code': 'validation_error'}} ``` Traceback (most recent call last): File \"/Users/si…[4579 chars]",
+          "content_digest": "2091ffa93fc9e8c4",
           "finish_reason": "Error",
           "observation_type": "agent"
         }
@@ -117,8 +117,8 @@
           "index": 0,
           "role": "assistant",
           "entry_type": "text",
-          "content": "openai.BadRequestError: Error code: 400 - {'error': {'message': 'The provided model identifier is invalid.', 'type': 'invalid_request_error', 'param': None, 'code': 'validation_error'}} ``` Traceback (most recent call last): File \"/Users/pu…[1689 chars]",
-          "content_digest": "7f21759df728ab0b",
+          "content": "openai.BadRequestError: Error code: 400 - {'error': {'message': 'The provided model identifier is invalid.', 'type': 'invalid_request_error', 'param': None, 'code': 'validation_error'}} ``` Traceback (most recent call last): File \"/Users/si…[1689 chars]",
+          "content_digest": "3d9275e63c8f233f",
           "finish_reason": "Error",
           "observation_type": "generation"
         },
@@ -126,8 +126,8 @@
           "index": 1,
           "role": "assistant",
           "entry_type": "text",
-          "content": "openai.BadRequestError: Error code: 400 - {'error': {'message': 'The provided model identifier is invalid.', 'type': 'invalid_request_error', 'param': None, 'code': 'validation_error'}} ``` Traceback (most recent call last): File \"/Users/pu…[4579 chars]",
-          "content_digest": "1c98e4541a8b8f8f",
+          "content": "openai.BadRequestError: Error code: 400 - {'error': {'message': 'The provided model identifier is invalid.', 'type': 'invalid_request_error', 'param': None, 'code': 'validation_error'}} ``` Traceback (most recent call last): File \"/Users/si…[4579 chars]",
+          "content_digest": "2091ffa93fc9e8c4",
           "finish_reason": "Error",
           "observation_type": "agent"
         }
@@ -147,8 +147,8 @@
         "index": 0,
         "role": "assistant",
         "entry_type": "text",
-        "content": "openai.BadRequestError: Error code: 400 - {'error': {'message': 'The provided model identifier is invalid.', 'type': 'invalid_request_error', 'param': None, 'code': 'validation_error'}} ``` Traceback (most recent call last): File \"/Users/pu…[4579 chars]",
-        "content_digest": "1c98e4541a8b8f8f",
+        "content": "openai.BadRequestError: Error code: 400 - {'error': {'message': 'The provided model identifier is invalid.', 'type': 'invalid_request_error', 'param': None, 'code': 'validation_error'}} ``` Traceback (most recent call last): File \"/Users/si…[4579 chars]",
+        "content_digest": "2091ffa93fc9e8c4",
         "finish_reason": "Error",
         "observation_type": "agent"
       },
@@ -156,8 +156,8 @@
         "index": 1,
         "role": "assistant",
         "entry_type": "text",
-        "content": "openai.BadRequestError: Error code: 400 - {'error': {'message': 'The provided model identifier is invalid.', 'type': 'invalid_request_error', 'param': None, 'code': 'validation_error'}} ``` Traceback (most recent call last): File \"/Users/pu…[1689 chars]",
-        "content_digest": "7f21759df728ab0b",
+        "content": "openai.BadRequestError: Error code: 400 - {'error': {'message': 'The provided model identifier is invalid.', 'type': 'invalid_request_error', 'param': None, 'code': 'validation_error'}} ``` Traceback (most recent call last): File \"/Users/si…[1689 chars]",
+        "content_digest": "3d9275e63c8f233f",
         "finish_reason": "Error",
         "observation_type": "generation"
       }

@@ -18,7 +18,7 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "litellm.exceptions.NotFoundError: litellm.NotFoundError: BedrockException - Bedrock Invoke HTTPX: Unknown provider=None, model=nonexistent-model-id-12345. Try calling via converse route - `bedrock/converse/<model>`. ``` Traceback (most rece…[5527 chars]",
-          "content_digest": "961a03dd48211e4c",
+          "content_digest": "400d4f6a86164c1f",
           "finish_reason": "Error",
           "observation_type": "span"
         }
@@ -37,7 +37,7 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "litellm.exceptions.NotFoundError: litellm.NotFoundError: BedrockException - Bedrock Invoke HTTPX: Unknown provider=None, model=nonexistent-model-id-12345. Try calling via converse route - `bedrock/converse/<model>`. ``` Traceback (most rece…[5687 chars]",
-          "content_digest": "4b1bc2aa80e5f0de",
+          "content_digest": "1f319f3162186490",
           "finish_reason": "Error",
           "observation_type": "agent"
         }
@@ -56,7 +56,7 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "litellm.exceptions.NotFoundError: litellm.NotFoundError: BedrockException - Bedrock Invoke HTTPX: Unknown provider=None, model=nonexistent-model-id-12345. Try calling via converse route - `bedrock/converse/<model>`. ``` Traceback (most rece…[7735 chars]",
-          "content_digest": "0871f1fe2450f6c1",
+          "content_digest": "8ca9f3f615077dd6",
           "finish_reason": "Error",
           "observation_type": "span"
         }
@@ -75,7 +75,7 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "litellm.exceptions.NotFoundError: litellm.NotFoundError: BedrockException - Bedrock Invoke HTTPX: Unknown provider=None, model=nonexistent-model-id-12345. Try calling via converse route - `bedrock/converse/<model>`. ``` Traceback (most rece…[6710 chars]",
-          "content_digest": "b98cc4e77ea9bcf9",
+          "content_digest": "e3cee8284db16456",
           "finish_reason": "Error",
           "observation_type": "agent"
         }
@@ -96,7 +96,7 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "litellm.exceptions.NotFoundError: litellm.NotFoundError: BedrockException - Bedrock Invoke HTTPX: Unknown provider=None, model=nonexistent-model-id-12345. Try calling via converse route - `bedrock/converse/<model>`. ``` Traceback (most rece…[5687 chars]",
-          "content_digest": "4b1bc2aa80e5f0de",
+          "content_digest": "1f319f3162186490",
           "finish_reason": "Error",
           "observation_type": "agent"
         }
@@ -117,7 +117,7 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "litellm.exceptions.NotFoundError: litellm.NotFoundError: BedrockException - Bedrock Invoke HTTPX: Unknown provider=None, model=nonexistent-model-id-12345. Try calling via converse route - `bedrock/converse/<model>`. ``` Traceback (most rece…[5687 chars]",
-          "content_digest": "4b1bc2aa80e5f0de",
+          "content_digest": "1f319f3162186490",
           "finish_reason": "Error",
           "observation_type": "agent"
         }
@@ -137,7 +137,7 @@
         "role": "assistant",
         "entry_type": "text",
         "content": "litellm.exceptions.NotFoundError: litellm.NotFoundError: BedrockException - Bedrock Invoke HTTPX: Unknown provider=None, model=nonexistent-model-id-12345. Try calling via converse route - `bedrock/converse/<model>`. ``` Traceback (most rece…[5687 chars]",
-        "content_digest": "4b1bc2aa80e5f0de",
+        "content_digest": "1f319f3162186490",
         "finish_reason": "Error",
         "observation_type": "agent"
       }

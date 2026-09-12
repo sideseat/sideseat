@@ -42,8 +42,8 @@
           "index": 2,
           "role": "assistant",
           "entry_type": "text",
-          "content": "botocore.errorfactory.ValidationException: An error occurred (ValidationException) when calling the ConverseStream operation: The provided model identifier is invalid. ``` Traceback (most recent call last): File \"/Users/pugachev/Desktop/dev…[3407 chars]",
-          "content_digest": "5a17f3de8f08c932",
+          "content": "botocore.errorfactory.ValidationException: An error occurred (ValidationException) when calling the ConverseStream operation: The provided model identifier is invalid. ``` Traceback (most recent call last): File \"/Users/sideseat/Desktop/dev…[3407 chars]",
+          "content_digest": "5c82280653d55a5f",
           "finish_reason": "Error",
           "observation_type": "generation"
         }
@@ -61,8 +61,8 @@
           "index": 0,
           "role": "assistant",
           "entry_type": "text",
-          "content": "botocore.errorfactory.ValidationException: An error occurred (ValidationException) when calling the ConverseStream operation: The provided model identifier is invalid. ``` Traceback (most recent call last): File \"/Users/pugachev/Desktop/dev…[4219 chars]",
-          "content_digest": "0794367479b633b7",
+          "content": "botocore.errorfactory.ValidationException: An error occurred (ValidationException) when calling the ConverseStream operation: The provided model identifier is invalid. ``` Traceback (most recent call last): File \"/Users/sideseat/Desktop/dev…[4219 chars]",
+          "content_digest": "4241c13784e82ff0",
           "finish_reason": "Error",
           "observation_type": "span"
         }
@@ -98,8 +98,8 @@
           "index": 2,
           "role": "assistant",
           "entry_type": "text",
-          "content": "botocore.errorfactory.ValidationException: An error occurred (ValidationException) when calling the ConverseStream operation: The provided model identifier is invalid. ``` Traceback (most recent call last): File \"/Users/pugachev/Desktop/dev…[5574 chars]",
-          "content_digest": "e300440fb82094bc",
+          "content": "botocore.errorfactory.ValidationException: An error occurred (ValidationException) when calling the ConverseStream operation: The provided model identifier is invalid. ``` Traceback (most recent call last): File \"/Users/sideseat/Desktop/dev…[5574 chars]",
+          "content_digest": "5f9797e399f7b488",
           "finish_reason": "Error",
           "observation_type": "agent"
         }
@@ -137,8 +137,8 @@
           "index": 2,
           "role": "assistant",
           "entry_type": "text",
-          "content": "botocore.errorfactory.ValidationException: An error occurred (ValidationException) when calling the ConverseStream operation: The provided model identifier is invalid. ``` Traceback (most recent call last): File \"/Users/pugachev/Desktop/dev…[3407 chars]",
-          "content_digest": "5a17f3de8f08c932",
+          "content": "botocore.errorfactory.ValidationException: An error occurred (ValidationException) when calling the ConverseStream operation: The provided model identifier is invalid. ``` Traceback (most recent call last): File \"/Users/sideseat/Desktop/dev…[3407 chars]",
+          "content_digest": "5c82280653d55a5f",
           "finish_reason": "Error",
           "observation_type": "generation"
         }
@@ -176,8 +176,8 @@
           "index": 2,
           "role": "assistant",
           "entry_type": "text",
-          "content": "botocore.errorfactory.ValidationException: An error occurred (ValidationException) when calling the ConverseStream operation: The provided model identifier is invalid. ``` Traceback (most recent call last): File \"/Users/pugachev/Desktop/dev…[3407 chars]",
-          "content_digest": "5a17f3de8f08c932",
+          "content": "botocore.errorfactory.ValidationException: An error occurred (ValidationException) when calling the ConverseStream operation: The provided model identifier is invalid. ``` Traceback (most recent call last): File \"/Users/sideseat/Desktop/dev…[3407 chars]",
+          "content_digest": "5c82280653d55a5f",
           "finish_reason": "Error",
           "observation_type": "generation"
         }
@@ -198,8 +198,8 @@
         "index": 0,
         "role": "assistant",
         "entry_type": "text",
-        "content": "botocore.errorfactory.ValidationException: An error occurred (ValidationException) when calling the ConverseStream operation: The provided model identifier is invalid. ``` Traceback (most recent call last): File \"/Users/pugachev/Desktop/dev…[3407 chars]",
-        "content_digest": "5a17f3de8f08c932",
+        "content": "botocore.errorfactory.ValidationException: An error occurred (ValidationException) when calling the ConverseStream operation: The provided model identifier is invalid. ``` Traceback (most recent call last): File \"/Users/sideseat/Desktop/dev…[3407 chars]",
+        "content_digest": "5c82280653d55a5f",
         "finish_reason": "Error",
         "observation_type": "generation"
       },

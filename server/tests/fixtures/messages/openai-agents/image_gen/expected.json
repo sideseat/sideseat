@@ -31,8 +31,8 @@
           "index": 0,
           "role": "assistant",
           "entry_type": "text",
-          "content": "openai.OpenAIError: Missing credentials. Please pass an `api_key`, `workload_identity`, `admin_api_key`, or set the `OPENAI_API_KEY` or `OPENAI_ADMIN_KEY` environment variable. ``` Traceback (most recent call last): File \"/Users/pugachev/De…[1909 chars]",
-          "content_digest": "c730e1f995a309c3",
+          "content": "openai.OpenAIError: Missing credentials. Please pass an `api_key`, `workload_identity`, `admin_api_key`, or set the `OPENAI_API_KEY` or `OPENAI_ADMIN_KEY` environment variable. ``` Traceback (most recent call last): File \"/Users/sideseat/De…[1909 chars]",
+          "content_digest": "f5698c0f324517b3",
           "finish_reason": "Error",
           "observation_type": "span"
         }
@@ -50,8 +50,8 @@
           "index": 0,
           "role": "assistant",
           "entry_type": "text",
-          "content": "openai.OpenAIError: Missing credentials. Please pass an `api_key`, `workload_identity`, `admin_api_key`, or set the `OPENAI_API_KEY` or `OPENAI_ADMIN_KEY` environment variable. ``` Traceback (most recent call last): File \"/Users/pugachev/De…[1909 chars]",
-          "content_digest": "c730e1f995a309c3",
+          "content": "openai.OpenAIError: Missing credentials. Please pass an `api_key`, `workload_identity`, `admin_api_key`, or set the `OPENAI_API_KEY` or `OPENAI_ADMIN_KEY` environment variable. ``` Traceback (most recent call last): File \"/Users/sideseat/De…[1909 chars]",
+          "content_digest": "f5698c0f324517b3",
           "finish_reason": "Error",
           "observation_type": "span"
         }
@@ -69,8 +69,8 @@
           "index": 0,
           "role": "assistant",
           "entry_type": "text",
-          "content": "openai.OpenAIError: Missing credentials. Please pass an `api_key`, `workload_identity`, `admin_api_key`, or set the `OPENAI_API_KEY` or `OPENAI_ADMIN_KEY` environment variable. ``` Traceback (most recent call last): File \"/Users/pugachev/De…[1909 chars]",
-          "content_digest": "c730e1f995a309c3",
+          "content": "openai.OpenAIError: Missing credentials. Please pass an `api_key`, `workload_identity`, `admin_api_key`, or set the `OPENAI_API_KEY` or `OPENAI_ADMIN_KEY` environment variable. ``` Traceback (most recent call last): File \"/Users/sideseat/De…[1909 chars]",
+          "content_digest": "f5698c0f324517b3",
           "finish_reason": "Error",
           "observation_type": "span"
         }
@@ -418,8 +418,8 @@
           "index": 5,
           "role": "assistant",
           "entry_type": "text",
-          "content": "openai.OpenAIError: Missing credentials. Please pass an `api_key`, `workload_identity`, `admin_api_key`, or set the `OPENAI_API_KEY` or `OPENAI_ADMIN_KEY` environment variable. ``` Traceback (most recent call last): File \"/Users/pugachev/De…[1909 chars]",
-          "content_digest": "c730e1f995a309c3",
+          "content": "openai.OpenAIError: Missing credentials. Please pass an `api_key`, `workload_identity`, `admin_api_key`, or set the `OPENAI_API_KEY` or `OPENAI_ADMIN_KEY` environment variable. ``` Traceback (most recent call last): File \"/Users/sideseat/De…[1909 chars]",
+          "content_digest": "f5698c0f324517b3",
           "finish_reason": "Error",
           "observation_type": "span"
         },
@@ -427,8 +427,8 @@
           "index": 6,
           "role": "assistant",
           "entry_type": "text",
-          "content": "openai.OpenAIError: Missing credentials. Please pass an `api_key`, `workload_identity`, `admin_api_key`, or set the `OPENAI_API_KEY` or `OPENAI_ADMIN_KEY` environment variable. ``` Traceback (most recent call last): File \"/Users/pugachev/De…[1909 chars]",
-          "content_digest": "c730e1f995a309c3",
+          "content": "openai.OpenAIError: Missing credentials. Please pass an `api_key`, `workload_identity`, `admin_api_key`, or set the `OPENAI_API_KEY` or `OPENAI_ADMIN_KEY` environment variable. ``` Traceback (most recent call last): File \"/Users/sideseat/De…[1909 chars]",
+          "content_digest": "f5698c0f324517b3",
           "finish_reason": "Error",
           "observation_type": "span"
         },
@@ -436,8 +436,8 @@
           "index": 7,
           "role": "assistant",
           "entry_type": "text",
-          "content": "openai.OpenAIError: Missing credentials. Please pass an `api_key`, `workload_identity`, `admin_api_key`, or set the `OPENAI_API_KEY` or `OPENAI_ADMIN_KEY` environment variable. ``` Traceback (most recent call last): File \"/Users/pugachev/De…[1909 chars]",
-          "content_digest": "c730e1f995a309c3",
+          "content": "openai.OpenAIError: Missing credentials. Please pass an `api_key`, `workload_identity`, `admin_api_key`, or set the `OPENAI_API_KEY` or `OPENAI_ADMIN_KEY` environment variable. ``` Traceback (most recent call last): File \"/Users/sideseat/De…[1909 chars]",
+          "content_digest": "f5698c0f324517b3",
           "finish_reason": "Error",
           "observation_type": "span"
         },
@@ -588,8 +588,8 @@
           "index": 5,
           "role": "assistant",
           "entry_type": "text",
-          "content": "openai.OpenAIError: Missing credentials. Please pass an `api_key`, `workload_identity`, `admin_api_key`, or set the `OPENAI_API_KEY` or `OPENAI_ADMIN_KEY` environment variable. ``` Traceback (most recent call last): File \"/Users/pugachev/De…[1909 chars]",
-          "content_digest": "c730e1f995a309c3",
+          "content": "openai.OpenAIError: Missing credentials. Please pass an `api_key`, `workload_identity`, `admin_api_key`, or set the `OPENAI_API_KEY` or `OPENAI_ADMIN_KEY` environment variable. ``` Traceback (most recent call last): File \"/Users/sideseat/De…[1909 chars]",
+          "content_digest": "f5698c0f324517b3",
           "finish_reason": "Error",
           "observation_type": "span"
         },
@@ -597,8 +597,8 @@
           "index": 6,
           "role": "assistant",
           "entry_type": "text",
-          "content": "openai.OpenAIError: Missing credentials. Please pass an `api_key`, `workload_identity`, `admin_api_key`, or set the `OPENAI_API_KEY` or `OPENAI_ADMIN_KEY` environment variable. ``` Traceback (most recent call last): File \"/Users/pugachev/De…[1909 chars]",
-          "content_digest": "c730e1f995a309c3",
+          "content": "openai.OpenAIError: Missing credentials. Please pass an `api_key`, `workload_identity`, `admin_api_key`, or set the `OPENAI_API_KEY` or `OPENAI_ADMIN_KEY` environment variable. ``` Traceback (most recent call last): File \"/Users/sideseat/De…[1909 chars]",
+          "content_digest": "f5698c0f324517b3",
           "finish_reason": "Error",
           "observation_type": "span"
         },
@@ -606,8 +606,8 @@
           "index": 7,
           "role": "assistant",
           "entry_type": "text",
-          "content": "openai.OpenAIError: Missing credentials. Please pass an `api_key`, `workload_identity`, `admin_api_key`, or set the `OPENAI_API_KEY` or `OPENAI_ADMIN_KEY` environment variable. ``` Traceback (most recent call last): File \"/Users/pugachev/De…[1909 chars]",
-          "content_digest": "c730e1f995a309c3",
+          "content": "openai.OpenAIError: Missing credentials. Please pass an `api_key`, `workload_identity`, `admin_api_key`, or set the `OPENAI_API_KEY` or `OPENAI_ADMIN_KEY` environment variable. ``` Traceback (most recent call last): File \"/Users/sideseat/De…[1909 chars]",
+          "content_digest": "f5698c0f324517b3",
           "finish_reason": "Error",
           "observation_type": "span"
         },
@@ -786,8 +786,8 @@
         "index": 9,
         "role": "assistant",
         "entry_type": "text",
-        "content": "openai.OpenAIError: Missing credentials. Please pass an `api_key`, `workload_identity`, `admin_api_key`, or set the `OPENAI_API_KEY` or `OPENAI_ADMIN_KEY` environment variable. ``` Traceback (most recent call last): File \"/Users/pugachev/De…[1909 chars]",
-        "content_digest": "c730e1f995a309c3",
+        "content": "openai.OpenAIError: Missing credentials. Please pass an `api_key`, `workload_identity`, `admin_api_key`, or set the `OPENAI_API_KEY` or `OPENAI_ADMIN_KEY` environment variable. ``` Traceback (most recent call last): File \"/Users/sideseat/De…[1909 chars]",
+        "content_digest": "f5698c0f324517b3",
         "finish_reason": "Error",
         "observation_type": "span"
       },
@@ -795,8 +795,8 @@
         "index": 10,
         "role": "assistant",
         "entry_type": "text",
-        "content": "openai.OpenAIError: Missing credentials. Please pass an `api_key`, `workload_identity`, `admin_api_key`, or set the `OPENAI_API_KEY` or `OPENAI_ADMIN_KEY` environment variable. ``` Traceback (most recent call last): File \"/Users/pugachev/De…[1909 chars]",
-        "content_digest": "c730e1f995a309c3",
+        "content": "openai.OpenAIError: Missing credentials. Please pass an `api_key`, `workload_identity`, `admin_api_key`, or set the `OPENAI_API_KEY` or `OPENAI_ADMIN_KEY` environment variable. ``` Traceback (most recent call last): File \"/Users/sideseat/De…[1909 chars]",
+        "content_digest": "f5698c0f324517b3",
         "finish_reason": "Error",
         "observation_type": "span"
       },
@@ -804,8 +804,8 @@
         "index": 11,
         "role": "assistant",
         "entry_type": "text",
-        "content": "openai.OpenAIError: Missing credentials. Please pass an `api_key`, `workload_identity`, `admin_api_key`, or set the `OPENAI_API_KEY` or `OPENAI_ADMIN_KEY` environment variable. ``` Traceback (most recent call last): File \"/Users/pugachev/De…[1909 chars]",
-        "content_digest": "c730e1f995a309c3",
+        "content": "openai.OpenAIError: Missing credentials. Please pass an `api_key`, `workload_identity`, `admin_api_key`, or set the `OPENAI_API_KEY` or `OPENAI_ADMIN_KEY` environment variable. ``` Traceback (most recent call last): File \"/Users/sideseat/De…[1909 chars]",
+        "content_digest": "f5698c0f324517b3",
         "finish_reason": "Error",
         "observation_type": "span"
       },

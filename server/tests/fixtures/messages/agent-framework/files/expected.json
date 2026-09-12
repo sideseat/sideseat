@@ -18,7 +18,7 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "agent_framework.exceptions.ChatClientException: ('<class \\'agent_framework_openai._chat_client.OpenAIChatClient\\'> service failed to complete the prompt: Error code: 400 - {\\'error\\': {\\'message\\': \"Unsupported file type: \\'unknown\\'. Suppo…[5096 chars]",
-          "content_digest": "938fbb7236928663",
+          "content_digest": "21549e2000e7c704",
           "finish_reason": "Error",
           "observation_type": "agent"
         }
@@ -73,7 +73,7 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "agent_framework.exceptions.ChatClientException: ('<class \\'agent_framework_openai._chat_client.OpenAIChatClient\\'> service failed to complete the prompt: Error code: 400 - {\\'error\\': {\\'message\\': \"Unsupported file type: \\'unknown\\'. Suppo…[3808 chars]",
-          "content_digest": "845ced3823a4a10d",
+          "content_digest": "0b902ff86d18b3e6",
           "finish_reason": "Error",
           "observation_type": "generation"
         }
@@ -128,7 +128,7 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "agent_framework.exceptions.ChatClientException: ('<class \\'agent_framework_openai._chat_client.OpenAIChatClient\\'> service failed to complete the prompt: Error code: 400 - {\\'error\\': {\\'message\\': \"Unsupported file type: \\'unknown\\'. Suppo…[4543 chars]",
-          "content_digest": "509c301e91be064f",
+          "content_digest": "5fc9a36a6396df97",
           "finish_reason": "Error",
           "observation_type": "agent"
         }
@@ -185,7 +185,7 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "agent_framework.exceptions.ChatClientException: ('<class \\'agent_framework_openai._chat_client.OpenAIChatClient\\'> service failed to complete the prompt: Error code: 400 - {\\'error\\': {\\'message\\': \"Unsupported file type: \\'unknown\\'. Suppo…[3808 chars]",
-          "content_digest": "845ced3823a4a10d",
+          "content_digest": "0b902ff86d18b3e6",
           "finish_reason": "Error",
           "observation_type": "generation"
         }
@@ -242,7 +242,7 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "agent_framework.exceptions.ChatClientException: ('<class \\'agent_framework_openai._chat_client.OpenAIChatClient\\'> service failed to complete the prompt: Error code: 400 - {\\'error\\': {\\'message\\': \"Unsupported file type: \\'unknown\\'. Suppo…[3808 chars]",
-          "content_digest": "845ced3823a4a10d",
+          "content_digest": "0b902ff86d18b3e6",
           "finish_reason": "Error",
           "observation_type": "generation"
         }
@@ -266,7 +266,7 @@
         "role": "assistant",
         "entry_type": "text",
         "content": "agent_framework.exceptions.ChatClientException: ('<class \\'agent_framework_openai._chat_client.OpenAIChatClient\\'> service failed to complete the prompt: Error code: 400 - {\\'error\\': {\\'message\\': \"Unsupported file type: \\'unknown\\'. Suppo…[3808 chars]",
-        "content_digest": "845ced3823a4a10d",
+        "content_digest": "0b902ff86d18b3e6",
         "finish_reason": "Error",
         "observation_type": "generation"
       },

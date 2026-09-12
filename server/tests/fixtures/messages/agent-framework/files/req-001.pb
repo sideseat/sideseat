@@ -41,30 +41,30 @@ error.type
 ‰('<class \'agent_framework_openai._chat_client.OpenAIChatClient\'> service failed to complete the prompt: Error code: 400 - {\'error\': {\'message\': "Unsupported file type: \'unknown\'. Supported: PDF, DOCX, XLSX, CSV, TXT, MD, HTML, and video (.mp4, .webm, .mov, .avi, .mkv).", \'type\': \'invalid_request_error\', \'param\': None, \'code\': \'validation_error\'}}', BadRequestError('Error code: 400 - {\'error\': {\'message\': "Unsupported file type: \'unknown\'. Supported: PDF, DOCX, XLSX, CSV, TXT, MD, HTML, and video (.mp4, .webm, .mov, .avi, .mkv).", \'type\': \'invalid_request_error\', \'param\': None, \'code\': \'validation_error\'}}'))¼
 exception.stacktrace£
  Traceback (most recent call last):
-  File "/Users/pugachev/Desktop/dev/sideseat/misc/samples/python/agent-framework/.venv/lib/python3.12/site-packages/agent_framework_openai/_chat_client.py", line 794, in _get_response
+  File "/Users/sideseat/Desktop/dev/sideseat/misc/samples/python/agent-framework/.venv/lib/python3.12/site-packages/agent_framework_openai/_chat_client.py", line 794, in _get_response
     raw_response = await client.responses.with_raw_response.create(stream=False, **run_options)
                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/Users/pugachev/Desktop/dev/sideseat/misc/samples/python/agent-framework/.venv/lib/python3.12/site-packages/openai/_legacy_response.py", line 386, in wrapped
+  File "/Users/sideseat/Desktop/dev/sideseat/misc/samples/python/agent-framework/.venv/lib/python3.12/site-packages/openai/_legacy_response.py", line 386, in wrapped
     return cast(LegacyAPIResponse[R], await func(*args, **kwargs))
                                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/Users/pugachev/Desktop/dev/sideseat/misc/samples/python/agent-framework/.venv/lib/python3.12/site-packages/openai/resources/responses/responses.py", line 2869, in create
+  File "/Users/sideseat/Desktop/dev/sideseat/misc/samples/python/agent-framework/.venv/lib/python3.12/site-packages/openai/resources/responses/responses.py", line 2869, in create
     return await self._post(
            ^^^^^^^^^^^^^^^^^
-  File "/Users/pugachev/Desktop/dev/sideseat/misc/samples/python/agent-framework/.venv/lib/python3.12/site-packages/openai/_base_client.py", line 1992, in post
+  File "/Users/sideseat/Desktop/dev/sideseat/misc/samples/python/agent-framework/.venv/lib/python3.12/site-packages/openai/_base_client.py", line 1992, in post
     return await self.request(cast_to, opts, stream=stream, stream_cls=stream_cls)
            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/Users/pugachev/Desktop/dev/sideseat/misc/samples/python/agent-framework/.venv/lib/python3.12/site-packages/openai/_base_client.py", line 1777, in request
+  File "/Users/sideseat/Desktop/dev/sideseat/misc/samples/python/agent-framework/.venv/lib/python3.12/site-packages/openai/_base_client.py", line 1777, in request
     raise self._make_status_error_from_response(err.response) from None
 openai.BadRequestError: Error code: 400 - {'error': {'message': "Unsupported file type: 'unknown'. Supported: PDF, DOCX, XLSX, CSV, TXT, MD, HTML, and video (.mp4, .webm, .mov, .avi, .mkv).", 'type': 'invalid_request_error', 'param': None, 'code': 'validation_error'}}
 
 The above exception was the direct cause of the following exception:
 
 Traceback (most recent call last):
-  File "/Users/pugachev/Desktop/dev/sideseat/misc/samples/python/agent-framework/.venv/lib/python3.12/site-packages/agent_framework/observability.py", line 1807, in _get_response
+  File "/Users/sideseat/Desktop/dev/sideseat/misc/samples/python/agent-framework/.venv/lib/python3.12/site-packages/agent_framework/observability.py", line 1807, in _get_response
     await super_get_response(
-  File "/Users/pugachev/Desktop/dev/sideseat/misc/samples/python/agent-framework/.venv/lib/python3.12/site-packages/agent_framework_openai/_chat_client.py", line 797, in _get_response
+  File "/Users/sideseat/Desktop/dev/sideseat/misc/samples/python/agent-framework/.venv/lib/python3.12/site-packages/agent_framework_openai/_chat_client.py", line 797, in _get_response
     self._handle_request_error(ex)
-  File "/Users/pugachev/Desktop/dev/sideseat/misc/samples/python/agent-framework/.venv/lib/python3.12/site-packages/agent_framework_openai/_chat_client.py", line 643, in _handle_request_error
+  File "/Users/sideseat/Desktop/dev/sideseat/misc/samples/python/agent-framework/.venv/lib/python3.12/site-packages/agent_framework_openai/_chat_client.py", line 643, in _handle_request_error
     raise ChatClientException(
 agent_framework.exceptions.ChatClientException: ('<class \'agent_framework_openai._chat_client.OpenAIChatClient\'> service failed to complete the prompt: Error code: 400 - {\'error\': {\'message\': "Unsupported file type: \'unknown\'. Supported: PDF, DOCX, XLSX, CSV, TXT, MD, HTML, and video (.mp4, .webm, .mov, .avi, .mkv).", \'type\': \'invalid_request_error\', \'param\': None, \'code\': \'validation_error\'}}', BadRequestError('Error code: 400 - {\'error\': {\'message\': "Unsupported file type: \'unknown\'. Supported: PDF, DOCX, XLSX, CSV, TXT, MD, HTML, and video (.mp4, .webm, .mov, .avi, .mkv).", \'type\': \'invalid_request_error\', \'param\': None, \'code\': \'validation_error\'}}'))
 
@@ -95,38 +95,38 @@ error.type
 ‰('<class \'agent_framework_openai._chat_client.OpenAIChatClient\'> service failed to complete the prompt: Error code: 400 - {\'error\': {\'message\': "Unsupported file type: \'unknown\'. Supported: PDF, DOCX, XLSX, CSV, TXT, MD, HTML, and video (.mp4, .webm, .mov, .avi, .mkv).", \'type\': \'invalid_request_error\', \'param\': None, \'code\': \'validation_error\'}}', BadRequestError('Error code: 400 - {\'error\': {\'message\': "Unsupported file type: \'unknown\'. Supported: PDF, DOCX, XLSX, CSV, TXT, MD, HTML, and video (.mp4, .webm, .mov, .avi, .mkv).", \'type\': \'invalid_request_error\', \'param\': None, \'code\': \'validation_error\'}}'))ß
 exception.stacktraceÆ
 ÃTraceback (most recent call last):
-  File "/Users/pugachev/Desktop/dev/sideseat/misc/samples/python/agent-framework/.venv/lib/python3.12/site-packages/agent_framework_openai/_chat_client.py", line 794, in _get_response
+  File "/Users/sideseat/Desktop/dev/sideseat/misc/samples/python/agent-framework/.venv/lib/python3.12/site-packages/agent_framework_openai/_chat_client.py", line 794, in _get_response
     raw_response = await client.responses.with_raw_response.create(stream=False, **run_options)
                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/Users/pugachev/Desktop/dev/sideseat/misc/samples/python/agent-framework/.venv/lib/python3.12/site-packages/openai/_legacy_response.py", line 386, in wrapped
+  File "/Users/sideseat/Desktop/dev/sideseat/misc/samples/python/agent-framework/.venv/lib/python3.12/site-packages/openai/_legacy_response.py", line 386, in wrapped
     return cast(LegacyAPIResponse[R], await func(*args, **kwargs))
                                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/Users/pugachev/Desktop/dev/sideseat/misc/samples/python/agent-framework/.venv/lib/python3.12/site-packages/openai/resources/responses/responses.py", line 2869, in create
+  File "/Users/sideseat/Desktop/dev/sideseat/misc/samples/python/agent-framework/.venv/lib/python3.12/site-packages/openai/resources/responses/responses.py", line 2869, in create
     return await self._post(
            ^^^^^^^^^^^^^^^^^
-  File "/Users/pugachev/Desktop/dev/sideseat/misc/samples/python/agent-framework/.venv/lib/python3.12/site-packages/openai/_base_client.py", line 1992, in post
+  File "/Users/sideseat/Desktop/dev/sideseat/misc/samples/python/agent-framework/.venv/lib/python3.12/site-packages/openai/_base_client.py", line 1992, in post
     return await self.request(cast_to, opts, stream=stream, stream_cls=stream_cls)
            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/Users/pugachev/Desktop/dev/sideseat/misc/samples/python/agent-framework/.venv/lib/python3.12/site-packages/openai/_base_client.py", line 1777, in request
+  File "/Users/sideseat/Desktop/dev/sideseat/misc/samples/python/agent-framework/.venv/lib/python3.12/site-packages/openai/_base_client.py", line 1777, in request
     raise self._make_status_error_from_response(err.response) from None
 openai.BadRequestError: Error code: 400 - {'error': {'message': "Unsupported file type: 'unknown'. Supported: PDF, DOCX, XLSX, CSV, TXT, MD, HTML, and video (.mp4, .webm, .mov, .avi, .mkv).", 'type': 'invalid_request_error', 'param': None, 'code': 'validation_error'}}
 
 The above exception was the direct cause of the following exception:
 
 Traceback (most recent call last):
-  File "/Users/pugachev/Desktop/dev/sideseat/misc/samples/python/agent-framework/.venv/lib/python3.12/site-packages/agent_framework/observability.py", line 2142, in _run
+  File "/Users/sideseat/Desktop/dev/sideseat/misc/samples/python/agent-framework/.venv/lib/python3.12/site-packages/agent_framework/observability.py", line 2142, in _run
     response: AgentResponse[Any] = await execute()
                                    ^^^^^^^^^^^^^^^
-  File "/Users/pugachev/Desktop/dev/sideseat/misc/samples/python/agent-framework/.venv/lib/python3.12/site-packages/agent_framework/_agents.py", line 1126, in _run_non_streaming
+  File "/Users/sideseat/Desktop/dev/sideseat/misc/samples/python/agent-framework/.venv/lib/python3.12/site-packages/agent_framework/_agents.py", line 1126, in _run_non_streaming
     response = await self._call_chat_client(ctx, stream=False)
                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/Users/pugachev/Desktop/dev/sideseat/misc/samples/python/agent-framework/.venv/lib/python3.12/site-packages/agent_framework/_tools.py", line 3244, in _get_response_with_function_invocation
+  File "/Users/sideseat/Desktop/dev/sideseat/misc/samples/python/agent-framework/.venv/lib/python3.12/site-packages/agent_framework/_tools.py", line 3244, in _get_response_with_function_invocation
     await super_get_response(
-  File "/Users/pugachev/Desktop/dev/sideseat/misc/samples/python/agent-framework/.venv/lib/python3.12/site-packages/agent_framework/observability.py", line 1807, in _get_response
+  File "/Users/sideseat/Desktop/dev/sideseat/misc/samples/python/agent-framework/.venv/lib/python3.12/site-packages/agent_framework/observability.py", line 1807, in _get_response
     await super_get_response(
-  File "/Users/pugachev/Desktop/dev/sideseat/misc/samples/python/agent-framework/.venv/lib/python3.12/site-packages/agent_framework_openai/_chat_client.py", line 797, in _get_response
+  File "/Users/sideseat/Desktop/dev/sideseat/misc/samples/python/agent-framework/.venv/lib/python3.12/site-packages/agent_framework_openai/_chat_client.py", line 797, in _get_response
     self._handle_request_error(ex)
-  File "/Users/pugachev/Desktop/dev/sideseat/misc/samples/python/agent-framework/.venv/lib/python3.12/site-packages/agent_framework_openai/_chat_client.py", line 643, in _handle_request_error
+  File "/Users/sideseat/Desktop/dev/sideseat/misc/samples/python/agent-framework/.venv/lib/python3.12/site-packages/agent_framework_openai/_chat_client.py", line 643, in _handle_request_error
     raise ChatClientException(
 agent_framework.exceptions.ChatClientException: ('<class \'agent_framework_openai._chat_client.OpenAIChatClient\'> service failed to complete the prompt: Error code: 400 - {\'error\': {\'message\': "Unsupported file type: \'unknown\'. Supported: PDF, DOCX, XLSX, CSV, TXT, MD, HTML, and video (.mp4, .webm, .mov, .avi, .mkv).", \'type\': \'invalid_request_error\', \'param\': None, \'code\': \'validation_error\'}}', BadRequestError('Error code: 400 - {\'error\': {\'message\': "Unsupported file type: \'unknown\'. Supported: PDF, DOCX, XLSX, CSV, TXT, MD, HTML, and video (.mp4, .webm, .mov, .avi, .mkv).", \'type\': \'invalid_request_error\', \'param\': None, \'code\': \'validation_error\'}}'))
 
@@ -146,45 +146,45 @@ session.id
 ‰('<class \'agent_framework_openai._chat_client.OpenAIChatClient\'> service failed to complete the prompt: Error code: 400 - {\'error\': {\'message\': "Unsupported file type: \'unknown\'. Supported: PDF, DOCX, XLSX, CSV, TXT, MD, HTML, and video (.mp4, .webm, .mov, .avi, .mkv).", \'type\': \'invalid_request_error\', \'param\': None, \'code\': \'validation_error\'}}', BadRequestError('Error code: 400 - {\'error\': {\'message\': "Unsupported file type: \'unknown\'. Supported: PDF, DOCX, XLSX, CSV, TXT, MD, HTML, and video (.mp4, .webm, .mov, .avi, .mkv).", \'type\': \'invalid_request_error\', \'param\': None, \'code\': \'validation_error\'}}'))§$
 exception.stacktraceŽ$
 ‹$Traceback (most recent call last):
-  File "/Users/pugachev/Desktop/dev/sideseat/misc/samples/python/agent-framework/.venv/lib/python3.12/site-packages/agent_framework_openai/_chat_client.py", line 794, in _get_response
+  File "/Users/sideseat/Desktop/dev/sideseat/misc/samples/python/agent-framework/.venv/lib/python3.12/site-packages/agent_framework_openai/_chat_client.py", line 794, in _get_response
     raw_response = await client.responses.with_raw_response.create(stream=False, **run_options)
                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/Users/pugachev/Desktop/dev/sideseat/misc/samples/python/agent-framework/.venv/lib/python3.12/site-packages/openai/_legacy_response.py", line 386, in wrapped
+  File "/Users/sideseat/Desktop/dev/sideseat/misc/samples/python/agent-framework/.venv/lib/python3.12/site-packages/openai/_legacy_response.py", line 386, in wrapped
     return cast(LegacyAPIResponse[R], await func(*args, **kwargs))
                                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/Users/pugachev/Desktop/dev/sideseat/misc/samples/python/agent-framework/.venv/lib/python3.12/site-packages/openai/resources/responses/responses.py", line 2869, in create
+  File "/Users/sideseat/Desktop/dev/sideseat/misc/samples/python/agent-framework/.venv/lib/python3.12/site-packages/openai/resources/responses/responses.py", line 2869, in create
     return await self._post(
            ^^^^^^^^^^^^^^^^^
-  File "/Users/pugachev/Desktop/dev/sideseat/misc/samples/python/agent-framework/.venv/lib/python3.12/site-packages/openai/_base_client.py", line 1992, in post
+  File "/Users/sideseat/Desktop/dev/sideseat/misc/samples/python/agent-framework/.venv/lib/python3.12/site-packages/openai/_base_client.py", line 1992, in post
     return await self.request(cast_to, opts, stream=stream, stream_cls=stream_cls)
            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/Users/pugachev/Desktop/dev/sideseat/misc/samples/python/agent-framework/.venv/lib/python3.12/site-packages/openai/_base_client.py", line 1777, in request
+  File "/Users/sideseat/Desktop/dev/sideseat/misc/samples/python/agent-framework/.venv/lib/python3.12/site-packages/openai/_base_client.py", line 1777, in request
     raise self._make_status_error_from_response(err.response) from None
 openai.BadRequestError: Error code: 400 - {'error': {'message': "Unsupported file type: 'unknown'. Supported: PDF, DOCX, XLSX, CSV, TXT, MD, HTML, and video (.mp4, .webm, .mov, .avi, .mkv).", 'type': 'invalid_request_error', 'param': None, 'code': 'validation_error'}}
 
 The above exception was the direct cause of the following exception:
 
 Traceback (most recent call last):
-  File "/Users/pugachev/Desktop/dev/sideseat/misc/samples/python/agent-framework/.venv/lib/python3.12/site-packages/opentelemetry/trace/__init__.py", line 608, in use_span
+  File "/Users/sideseat/Desktop/dev/sideseat/misc/samples/python/agent-framework/.venv/lib/python3.12/site-packages/opentelemetry/trace/__init__.py", line 608, in use_span
     yield span
-  File "/Users/pugachev/Desktop/dev/sideseat/misc/samples/python/agent-framework/.venv/lib/python3.12/site-packages/opentelemetry/sdk/trace/__init__.py", line 1177, in start_as_current_span
+  File "/Users/sideseat/Desktop/dev/sideseat/misc/samples/python/agent-framework/.venv/lib/python3.12/site-packages/opentelemetry/sdk/trace/__init__.py", line 1177, in start_as_current_span
     yield span
-  File "/Users/pugachev/Desktop/dev/sideseat/misc/samples/python/agent-framework/samples/files.py", line 50, in run
+  File "/Users/sideseat/Desktop/dev/sideseat/misc/samples/python/agent-framework/samples/files.py", line 50, in run
     result = await agent.run(message)
              ^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/Users/pugachev/Desktop/dev/sideseat/misc/samples/python/agent-framework/.venv/lib/python3.12/site-packages/agent_framework/observability.py", line 2142, in _run
+  File "/Users/sideseat/Desktop/dev/sideseat/misc/samples/python/agent-framework/.venv/lib/python3.12/site-packages/agent_framework/observability.py", line 2142, in _run
     response: AgentResponse[Any] = await execute()
                                    ^^^^^^^^^^^^^^^
-  File "/Users/pugachev/Desktop/dev/sideseat/misc/samples/python/agent-framework/.venv/lib/python3.12/site-packages/agent_framework/_agents.py", line 1126, in _run_non_streaming
+  File "/Users/sideseat/Desktop/dev/sideseat/misc/samples/python/agent-framework/.venv/lib/python3.12/site-packages/agent_framework/_agents.py", line 1126, in _run_non_streaming
     response = await self._call_chat_client(ctx, stream=False)
                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/Users/pugachev/Desktop/dev/sideseat/misc/samples/python/agent-framework/.venv/lib/python3.12/site-packages/agent_framework/_tools.py", line 3244, in _get_response_with_function_invocation
+  File "/Users/sideseat/Desktop/dev/sideseat/misc/samples/python/agent-framework/.venv/lib/python3.12/site-packages/agent_framework/_tools.py", line 3244, in _get_response_with_function_invocation
     await super_get_response(
-  File "/Users/pugachev/Desktop/dev/sideseat/misc/samples/python/agent-framework/.venv/lib/python3.12/site-packages/agent_framework/observability.py", line 1807, in _get_response
+  File "/Users/sideseat/Desktop/dev/sideseat/misc/samples/python/agent-framework/.venv/lib/python3.12/site-packages/agent_framework/observability.py", line 1807, in _get_response
     await super_get_response(
-  File "/Users/pugachev/Desktop/dev/sideseat/misc/samples/python/agent-framework/.venv/lib/python3.12/site-packages/agent_framework_openai/_chat_client.py", line 797, in _get_response
+  File "/Users/sideseat/Desktop/dev/sideseat/misc/samples/python/agent-framework/.venv/lib/python3.12/site-packages/agent_framework_openai/_chat_client.py", line 797, in _get_response
     self._handle_request_error(ex)
-  File "/Users/pugachev/Desktop/dev/sideseat/misc/samples/python/agent-framework/.venv/lib/python3.12/site-packages/agent_framework_openai/_chat_client.py", line 643, in _handle_request_error
+  File "/Users/sideseat/Desktop/dev/sideseat/misc/samples/python/agent-framework/.venv/lib/python3.12/site-packages/agent_framework_openai/_chat_client.py", line 643, in _handle_request_error
     raise ChatClientException(
 agent_framework.exceptions.ChatClientException: ('<class \'agent_framework_openai._chat_client.OpenAIChatClient\'> service failed to complete the prompt: Error code: 400 - {\'error\': {\'message\': "Unsupported file type: \'unknown\'. Supported: PDF, DOCX, XLSX, CSV, TXT, MD, HTML, and video (.mp4, .webm, .mov, .avi, .mkv).", \'type\': \'invalid_request_error\', \'param\': None, \'code\': \'validation_error\'}}', BadRequestError('Error code: 400 - {\'error\': {\'message\': "Unsupported file type: \'unknown\'. Supported: PDF, DOCX, XLSX, CSV, TXT, MD, HTML, and video (.mp4, .webm, .mov, .avi, .mkv).", \'type\': \'invalid_request_error\', \'param\': None, \'code\': \'validation_error\'}}'))
 

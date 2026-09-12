@@ -25,6 +25,7 @@ and forwarded unchanged to --upstream (set --no-forward to only record).
 from __future__ import annotations
 
 import argparse
+import getpass
 import gzip
 import sys
 import urllib.error
@@ -33,7 +34,28 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
+PLACEHOLDER_USER = b"sideseat"
 FIXTURE_ROOT = REPO_ROOT / "server" / "tests" / "fixtures" / "messages"
+
+
+def _anonymise_home(raw: bytes) -> bytes:
+    """Replace the capturing user's account name with a fixed placeholder.
+
+    A sample that reads a file records the absolute path it read, so a capture carries the
+    maintainer's home directory into a public repository - 918 occurrences across 48 fixtures before
+    this existed. The substitution is **equal length** on purpose: a protobuf payload is
+    length-prefixed, so a shorter or longer replacement would need the whole message re-encoded, and
+    re-encoding a capture is no longer a faithful record of what the SDK sent. Same length means the
+    bytes stay decodable and only the name changes.
+
+    Padded or truncated to fit rather than skipped, so this holds for any account name: the fixture is
+    a test derivative, and the exact spelling of a developer's login is not what it is evidence of.
+    """
+    user = getpass.getuser().encode()
+    if not user or user == PLACEHOLDER_USER:
+        return raw
+    replacement = PLACEHOLDER_USER[: len(user)].ljust(len(user), b"_")
+    return raw.replace(user, replacement)
 
 
 class Recorder(BaseHTTPRequestHandler):
@@ -99,7 +121,7 @@ class Recorder(BaseHTTPRequestHandler):
                     pass
             suffix = "json" if self.headers.get("Content-Type", "").startswith("application/json") else "pb"
             path = out_dir / f"req-{Recorder.counter:03d}.{suffix}"
-            path.write_bytes(raw)
+            path.write_bytes(_anonymise_home(raw))
             print(f"[record] {path.relative_to(REPO_ROOT)} ({len(raw)} bytes)", flush=True)
 
         status, resp_body = 200, b"{}"

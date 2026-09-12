@@ -119,25 +119,25 @@ $bb617d97-204c-4b3f-a51e-160a09ba0aef
 œMissing credentials. Please pass an `api_key`, `workload_identity`, `admin_api_key`, or set the `OPENAI_API_KEY` or `OPENAI_ADMIN_KEY` environment variable.Ë
 exception.stacktrace²
 ¯Traceback (most recent call last):
-  File "/Users/pugachev/Desktop/dev/sideseat/misc/samples/python/openai-agents/.venv/lib/python3.12/site-packages/agents/tool.py", line 655, in __call__
+  File "/Users/sideseat/Desktop/dev/sideseat/misc/samples/python/openai-agents/.venv/lib/python3.12/site-packages/agents/tool.py", line 655, in __call__
     return await self._invoke_tool_impl(ctx, input)
            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/Users/pugachev/Desktop/dev/sideseat/misc/samples/python/openai-agents/.venv/lib/python3.12/site-packages/agents/tool.py", line 2647, in _on_invoke_tool_impl
+  File "/Users/sideseat/Desktop/dev/sideseat/misc/samples/python/openai-agents/.venv/lib/python3.12/site-packages/agents/tool.py", line 2647, in _on_invoke_tool_impl
     result = await asyncio.to_thread(the_func, *args, **kwargs_dict)
              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/Users/pugachev/.local/share/uv/python/cpython-3.12.8-macos-aarch64-none/lib/python3.12/asyncio/threads.py", line 25, in to_thread
+  File "/Users/sideseat/.local/share/uv/python/cpython-3.12.8-macos-aarch64-none/lib/python3.12/asyncio/threads.py", line 25, in to_thread
     return await loop.run_in_executor(None, func_call)
            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/Users/pugachev/.local/share/uv/python/cpython-3.12.8-macos-aarch64-none/lib/python3.12/concurrent/futures/thread.py", line 59, in run
+  File "/Users/sideseat/.local/share/uv/python/cpython-3.12.8-macos-aarch64-none/lib/python3.12/concurrent/futures/thread.py", line 59, in run
     result = self.fn(*self.args, **self.kwargs)
              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/Users/pugachev/Desktop/dev/sideseat/misc/samples/python/openai-agents/.venv/lib/python3.12/site-packages/logfire/_internal/integrations/executors.py", line 56, in _run_with_context
+  File "/Users/sideseat/Desktop/dev/sideseat/misc/samples/python/openai-agents/.venv/lib/python3.12/site-packages/logfire/_internal/integrations/executors.py", line 56, in _run_with_context
     return func()
            ^^^^^^
-  File "/Users/pugachev/Desktop/dev/sideseat/misc/samples/python/openai-agents/samples/image_gen.py", line 29, in generate_image
+  File "/Users/sideseat/Desktop/dev/sideseat/misc/samples/python/openai-agents/samples/image_gen.py", line 29, in generate_image
     client = OpenAI()
              ^^^^^^^^
-  File "/Users/pugachev/Desktop/dev/sideseat/misc/samples/python/openai-agents/.venv/lib/python3.12/site-packages/openai/_client.py", line 263, in __init__
+  File "/Users/sideseat/Desktop/dev/sideseat/misc/samples/python/openai-agents/.venv/lib/python3.12/site-packages/openai/_client.py", line 263, in __init__
     raise OpenAIError(
 openai.OpenAIError: Missing credentials. Please pass an `api_key`, `workload_identity`, `admin_api_key`, or set the `OPENAI_API_KEY` or `OPENAI_ADMIN_KEY` environment variable.
 
@@ -178,25 +178,25 @@ openai.OpenAIError: Missing credentials. Please pass an `api_key`, `workload_ide
 œMissing credentials. Please pass an `api_key`, `workload_identity`, `admin_api_key`, or set the `OPENAI_API_KEY` or `OPENAI_ADMIN_KEY` environment variable.Ë
 exception.stacktrace²
 ¯Traceback (most recent call last):
-  File "/Users/pugachev/Desktop/dev/sideseat/misc/samples/python/openai-agents/.venv/lib/python3.12/site-packages/agents/tool.py", line 655, in __call__
+  File "/Users/sideseat/Desktop/dev/sideseat/misc/samples/python/openai-agents/.venv/lib/python3.12/site-packages/agents/tool.py", line 655, in __call__
     return await self._invoke_tool_impl(ctx, input)
            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/Users/pugachev/Desktop/dev/sideseat/misc/samples/python/openai-agents/.venv/lib/python3.12/site-packages/agents/tool.py", line 2647, in _on_invoke_tool_impl
+  File "/Users/sideseat/Desktop/dev/sideseat/misc/samples/python/openai-agents/.venv/lib/python3.12/site-packages/agents/tool.py", line 2647, in _on_invoke_tool_impl
     result = await asyncio.to_thread(the_func, *args, **kwargs_dict)
              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/Users/pugachev/.local/share/uv/python/cpython-3.12.8-macos-aarch64-none/lib/python3.12/asyncio/threads.py", line 25, in to_thread
+  File "/Users/sideseat/.local/share/uv/python/cpython-3.12.8-macos-aarch64-none/lib/python3.12/asyncio/threads.py", line 25, in to_thread
     return await loop.run_in_executor(None, func_call)
            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/Users/pugachev/.local/share/uv/python/cpython-3.12.8-macos-aarch64-none/lib/python3.12/concurrent/futures/thread.py", line 59, in run
+  File "/Users/sideseat/.local/share/uv/python/cpython-3.12.8-macos-aarch64-none/lib/python3.12/concurrent/futures/thread.py", line 59, in run
     result = self.fn(*self.args, **self.kwargs)
              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/Users/pugachev/Desktop/dev/sideseat/misc/samples/python/openai-agents/.venv/lib/python3.12/site-packages/logfire/_internal/integrations/executors.py", line 56, in _run_with_context
+  File "/Users/sideseat/Desktop/dev/sideseat/misc/samples/python/openai-agents/.venv/lib/python3.12/site-packages/logfire/_internal/integrations/executors.py", line 56, in _run_with_context
     return func()
            ^^^^^^
-  File "/Users/pugachev/Desktop/dev/sideseat/misc/samples/python/openai-agents/samples/image_gen.py", line 29, in generate_image
+  File "/Users/sideseat/Desktop/dev/sideseat/misc/samples/python/openai-agents/samples/image_gen.py", line 29, in generate_image
     client = OpenAI()
              ^^^^^^^^
-  File "/Users/pugachev/Desktop/dev/sideseat/misc/samples/python/openai-agents/.venv/lib/python3.12/site-packages/openai/_client.py", line 263, in __init__
+  File "/Users/sideseat/Desktop/dev/sideseat/misc/samples/python/openai-agents/.venv/lib/python3.12/site-packages/openai/_client.py", line 263, in __init__
     raise OpenAIError(
 openai.OpenAIError: Missing credentials. Please pass an `api_key`, `workload_identity`, `admin_api_key`, or set the `OPENAI_API_KEY` or `OPENAI_ADMIN_KEY` environment variable.
 
@@ -237,25 +237,25 @@ openai.OpenAIError: Missing credentials. Please pass an `api_key`, `workload_ide
 œMissing credentials. Please pass an `api_key`, `workload_identity`, `admin_api_key`, or set the `OPENAI_API_KEY` or `OPENAI_ADMIN_KEY` environment variable.Ë
 exception.stacktrace²
 ¯Traceback (most recent call last):
-  File "/Users/pugachev/Desktop/dev/sideseat/misc/samples/python/openai-agents/.venv/lib/python3.12/site-packages/agents/tool.py", line 655, in __call__
+  File "/Users/sideseat/Desktop/dev/sideseat/misc/samples/python/openai-agents/.venv/lib/python3.12/site-packages/agents/tool.py", line 655, in __call__
     return await self._invoke_tool_impl(ctx, input)
            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/Users/pugachev/Desktop/dev/sideseat/misc/samples/python/openai-agents/.venv/lib/python3.12/site-packages/agents/tool.py", line 2647, in _on_invoke_tool_impl
+  File "/Users/sideseat/Desktop/dev/sideseat/misc/samples/python/openai-agents/.venv/lib/python3.12/site-packages/agents/tool.py", line 2647, in _on_invoke_tool_impl
     result = await asyncio.to_thread(the_func, *args, **kwargs_dict)
              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/Users/pugachev/.local/share/uv/python/cpython-3.12.8-macos-aarch64-none/lib/python3.12/asyncio/threads.py", line 25, in to_thread
+  File "/Users/sideseat/.local/share/uv/python/cpython-3.12.8-macos-aarch64-none/lib/python3.12/asyncio/threads.py", line 25, in to_thread
     return await loop.run_in_executor(None, func_call)
            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/Users/pugachev/.local/share/uv/python/cpython-3.12.8-macos-aarch64-none/lib/python3.12/concurrent/futures/thread.py", line 59, in run
+  File "/Users/sideseat/.local/share/uv/python/cpython-3.12.8-macos-aarch64-none/lib/python3.12/concurrent/futures/thread.py", line 59, in run
     result = self.fn(*self.args, **self.kwargs)
              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/Users/pugachev/Desktop/dev/sideseat/misc/samples/python/openai-agents/.venv/lib/python3.12/site-packages/logfire/_internal/integrations/executors.py", line 56, in _run_with_context
+  File "/Users/sideseat/Desktop/dev/sideseat/misc/samples/python/openai-agents/.venv/lib/python3.12/site-packages/logfire/_internal/integrations/executors.py", line 56, in _run_with_context
     return func()
            ^^^^^^
-  File "/Users/pugachev/Desktop/dev/sideseat/misc/samples/python/openai-agents/samples/image_gen.py", line 29, in generate_image
+  File "/Users/sideseat/Desktop/dev/sideseat/misc/samples/python/openai-agents/samples/image_gen.py", line 29, in generate_image
     client = OpenAI()
              ^^^^^^^^
-  File "/Users/pugachev/Desktop/dev/sideseat/misc/samples/python/openai-agents/.venv/lib/python3.12/site-packages/openai/_client.py", line 263, in __init__
+  File "/Users/sideseat/Desktop/dev/sideseat/misc/samples/python/openai-agents/.venv/lib/python3.12/site-packages/openai/_client.py", line 263, in __init__
     raise OpenAIError(
 openai.OpenAIError: Missing credentials. Please pass an `api_key`, `workload_identity`, `admin_api_key`, or set the `OPENAI_API_KEY` or `OPENAI_ADMIN_KEY` environment variable.
 

@@ -43,8 +43,8 @@
           "index": 1,
           "role": "user",
           "entry_type": "text",
-          "content": "Read the image '/Users/pugachev/Desktop/dev/sideseat/misc/content/img.jpg'. Describe its contents in detail using instructions from PDF.",
-          "content_digest": "a2c27a281844e9fa",
+          "content": "Read the image '/Users/sideseat/Desktop/dev/sideseat/misc/content/img.jpg'. Describe its contents in detail using instructions from PDF.",
+          "content_digest": "46131d545b8deb1a",
           "observation_type": "generation"
         },
         {
@@ -69,8 +69,8 @@
           "index": 4,
           "role": "assistant",
           "entry_type": "tool_use",
-          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_LH6avDO4iLEdOalroo8taA\",\"name\":\"image_reader\",\"input\":{\"image_path\":\"/Users/pugachev/Desktop/dev/sideseat/misc/content/img.jpg\"}}",
-          "content_digest": "1f993625629089f6",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_LH6avDO4iLEdOalroo8taA\",\"name\":\"image_reader\",\"input\":{\"image_path\":\"/Users/sideseat/Desktop/dev/sideseat/misc/content/img.jpg\"}}",
+          "content_digest": "d79b8a5a9c392ccf",
           "tool_name": "image_reader",
           "finish_reason": "ToolUse",
           "observation_type": "generation"
@@ -103,8 +103,8 @@
           "index": 1,
           "role": "user",
           "entry_type": "text",
-          "content": "Read the image '/Users/pugachev/Desktop/dev/sideseat/misc/content/img.jpg'. Describe its contents in detail using instructions from PDF.",
-          "content_digest": "a2c27a281844e9fa",
+          "content": "Read the image '/Users/sideseat/Desktop/dev/sideseat/misc/content/img.jpg'. Describe its contents in detail using instructions from PDF.",
+          "content_digest": "46131d545b8deb1a",
           "observation_type": "generation"
         },
         {
@@ -128,8 +128,8 @@
           "index": 4,
           "role": "assistant",
           "entry_type": "tool_use",
-          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_LH6avDO4iLEdOalroo8taA\",\"name\":\"image_reader\",\"input\":{\"image_path\":\"/Users/pugachev/Desktop/dev/sideseat/misc/content/img.jpg\"}}",
-          "content_digest": "1f993625629089f6",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_LH6avDO4iLEdOalroo8taA\",\"name\":\"image_reader\",\"input\":{\"image_path\":\"/Users/sideseat/Desktop/dev/sideseat/misc/content/img.jpg\"}}",
+          "content_digest": "d79b8a5a9c392ccf",
           "tool_name": "image_reader",
           "observation_type": "generation"
         },
@@ -174,8 +174,8 @@
           "index": 1,
           "role": "assistant",
           "entry_type": "tool_use",
-          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_LH6avDO4iLEdOalroo8taA\",\"name\":\"image_reader\",\"input\":{\"image_path\":\"/Users/pugachev/Desktop/dev/sideseat/misc/content/img.jpg\"}}",
-          "content_digest": "1f993625629089f6",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_LH6avDO4iLEdOalroo8taA\",\"name\":\"image_reader\",\"input\":{\"image_path\":\"/Users/sideseat/Desktop/dev/sideseat/misc/content/img.jpg\"}}",
+          "content_digest": "d79b8a5a9c392ccf",
           "tool_name": "image_reader",
           "observation_type": "span"
         },
@@ -250,8 +250,8 @@
           "index": 1,
           "role": "user",
           "entry_type": "text",
-          "content": "Read the image '/Users/pugachev/Desktop/dev/sideseat/misc/content/img.jpg'. Describe its contents in detail using instructions from PDF.",
-          "content_digest": "a2c27a281844e9fa",
+          "content": "Read the image '/Users/sideseat/Desktop/dev/sideseat/misc/content/img.jpg'. Describe its contents in detail using instructions from PDF.",
+          "content_digest": "46131d545b8deb1a",
           "observation_type": "agent"
         },
         {
@@ -304,8 +304,8 @@
           "index": 1,
           "role": "user",
           "entry_type": "text",
-          "content": "Read the image '/Users/pugachev/Desktop/dev/sideseat/misc/content/img.jpg'. Describe its contents in detail using instructions from PDF.",
-          "content_digest": "a2c27a281844e9fa",
+          "content": "Read the image '/Users/sideseat/Desktop/dev/sideseat/misc/content/img.jpg'. Describe its contents in detail using instructions from PDF.",
+          "content_digest": "46131d545b8deb1a",
           "observation_type": "agent"
         },
         {
@@ -330,8 +330,8 @@
           "index": 4,
           "role": "assistant",
           "entry_type": "tool_use",
-          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_LH6avDO4iLEdOalroo8taA\",\"name\":\"image_reader\",\"input\":{\"image_path\":\"/Users/pugachev/Desktop/dev/sideseat/misc/content/img.jpg\"}}",
-          "content_digest": "1f993625629089f6",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_LH6avDO4iLEdOalroo8taA\",\"name\":\"image_reader\",\"input\":{\"image_path\":\"/Users/sideseat/Desktop/dev/sideseat/misc/content/img.jpg\"}}",
+          "content_digest": "d79b8a5a9c392ccf",
           "tool_name": "image_reader",
           "finish_reason": "ToolUse",
           "observation_type": "generation"
@@ -385,8 +385,8 @@
           "index": 1,
           "role": "user",
           "entry_type": "text",
-          "content": "Read the image '/Users/pugachev/Desktop/dev/sideseat/misc/content/img.jpg'. Describe its contents in detail using instructions from PDF.",
-          "content_digest": "a2c27a281844e9fa",
+          "content": "Read the image '/Users/sideseat/Desktop/dev/sideseat/misc/content/img.jpg'. Describe its contents in detail using instructions from PDF.",
+          "content_digest": "46131d545b8deb1a",
           "observation_type": "agent"
         },
         {
@@ -411,8 +411,8 @@
           "index": 4,
           "role": "assistant",
           "entry_type": "tool_use",
-          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_LH6avDO4iLEdOalroo8taA\",\"name\":\"image_reader\",\"input\":{\"image_path\":\"/Users/pugachev/Desktop/dev/sideseat/misc/content/img.jpg\"}}",
-          "content_digest": "1f993625629089f6",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_LH6avDO4iLEdOalroo8taA\",\"name\":\"image_reader\",\"input\":{\"image_path\":\"/Users/sideseat/Desktop/dev/sideseat/misc/content/img.jpg\"}}",
+          "content_digest": "d79b8a5a9c392ccf",
           "tool_name": "image_reader",
           "finish_reason": "ToolUse",
           "observation_type": "generation"
@@ -483,8 +483,8 @@
         "index": 3,
         "role": "assistant",
         "entry_type": "tool_use",
-        "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_LH6avDO4iLEdOalroo8taA\",\"name\":\"image_reader\",\"input\":{\"image_path\":\"/Users/pugachev/Desktop/dev/sideseat/misc/content/img.jpg\"}}",
-        "content_digest": "1f993625629089f6",
+        "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_LH6avDO4iLEdOalroo8taA\",\"name\":\"image_reader\",\"input\":{\"image_path\":\"/Users/sideseat/Desktop/dev/sideseat/misc/content/img.jpg\"}}",
+        "content_digest": "d79b8a5a9c392ccf",
         "tool_name": "image_reader",
         "finish_reason": "ToolUse",
         "observation_type": "generation"
@@ -493,8 +493,8 @@
         "index": 4,
         "role": "user",
         "entry_type": "text",
-        "content": "Read the image '/Users/pugachev/Desktop/dev/sideseat/misc/content/img.jpg'. Describe its contents in detail using instructions from PDF.",
-        "content_digest": "a2c27a281844e9fa",
+        "content": "Read the image '/Users/sideseat/Desktop/dev/sideseat/misc/content/img.jpg'. Describe its contents in detail using instructions from PDF.",
+        "content_digest": "46131d545b8deb1a",
         "observation_type": "agent"
       },
       {

@@ -5,14 +5,14 @@
   "trace_count": 1,
   "session_count": 1,
   "span_views": {
-    "trace-1//Users/pugachev/Desktop/dev/sideseat/misc/samples/python/crewai/.venv/bin/uv_run_--directory_/Users/pugachev/Desktop/dev/sideseat/misc/mcp_mcp-calculator_calculate.run/span-4": {
+    "trace-1//Users/sideseat/Desktop/dev/sideseat/misc/samples/python/crewai/.venv/bin/uv_run_--directory_/Users/sideseat/Desktop/dev/sideseat/misc/mcp_mcp-calculator_calculate.run/span-4": {
       "message_count": 0,
       "role_sequence": [],
       "tool_names": [],
       "tool_definition_count": 1,
       "messages": []
     },
-    "trace-1//Users/pugachev/Desktop/dev/sideseat/misc/samples/python/crewai/.venv/bin/uv_run_--directory_/Users/pugachev/Desktop/dev/sideseat/misc/mcp_mcp-calculator_calculate.run/span-5": {
+    "trace-1//Users/sideseat/Desktop/dev/sideseat/misc/samples/python/crewai/.venv/bin/uv_run_--directory_/Users/sideseat/Desktop/dev/sideseat/misc/mcp_mcp-calculator_calculate.run/span-5": {
       "message_count": 0,
       "role_sequence": [],
       "tool_names": [],
@@ -53,9 +53,9 @@
           "index": 2,
           "role": "assistant",
           "entry_type": "tool_use",
-          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_BIASkGZceUgFex644F7DYZ\",\"name\":\"users_pugachev_desktop_dev_sideseat_misc_samples_python_5ea7d92b\",\"input\":{}}",
-          "content_digest": "d60df5982709bca2",
-          "tool_name": "users_pugachev_desktop_dev_sideseat_misc_samples_python_5ea7d92b",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_BIASkGZceUgFex644F7DYZ\",\"name\":\"users_sideseat_desktop_dev_sideseat_misc_samples_python_5ea7d92b\",\"input\":{}}",
+          "content_digest": "eba6452e8a6b98cc",
+          "tool_name": "users_sideseat_desktop_dev_sideseat_misc_samples_python_5ea7d92b",
           "observation_type": "agent"
         },
         {
@@ -70,9 +70,9 @@
           "index": 4,
           "role": "assistant",
           "entry_type": "tool_use",
-          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_DbyBdc1bqwX1aT5goV2Gp4\",\"name\":\"users_pugachev_desktop_dev_sideseat_misc_samples_python_5ea7d92b\",\"input\":{}}",
-          "content_digest": "a0e44bac5a811adf",
-          "tool_name": "users_pugachev_desktop_dev_sideseat_misc_samples_python_5ea7d92b",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_DbyBdc1bqwX1aT5goV2Gp4\",\"name\":\"users_sideseat_desktop_dev_sideseat_misc_samples_python_5ea7d92b\",\"input\":{}}",
+          "content_digest": "954ba5c0ccd37180",
+          "tool_name": "users_sideseat_desktop_dev_sideseat_misc_samples_python_5ea7d92b",
           "observation_type": "agent"
         },
         {
@@ -127,9 +127,9 @@
           "index": 2,
           "role": "assistant",
           "entry_type": "tool_use",
-          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_BIASkGZceUgFex644F7DYZ\",\"name\":\"users_pugachev_desktop_dev_sideseat_misc_samples_python_5ea7d92b\",\"input\":{}}",
-          "content_digest": "d60df5982709bca2",
-          "tool_name": "users_pugachev_desktop_dev_sideseat_misc_samples_python_5ea7d92b",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_BIASkGZceUgFex644F7DYZ\",\"name\":\"users_sideseat_desktop_dev_sideseat_misc_samples_python_5ea7d92b\",\"input\":{}}",
+          "content_digest": "eba6452e8a6b98cc",
+          "tool_name": "users_sideseat_desktop_dev_sideseat_misc_samples_python_5ea7d92b",
           "observation_type": "chain"
         },
         {
@@ -144,9 +144,9 @@
           "index": 4,
           "role": "assistant",
           "entry_type": "tool_use",
-          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_DbyBdc1bqwX1aT5goV2Gp4\",\"name\":\"users_pugachev_desktop_dev_sideseat_misc_samples_python_5ea7d92b\",\"input\":{}}",
-          "content_digest": "a0e44bac5a811adf",
-          "tool_name": "users_pugachev_desktop_dev_sideseat_misc_samples_python_5ea7d92b",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_DbyBdc1bqwX1aT5goV2Gp4\",\"name\":\"users_sideseat_desktop_dev_sideseat_misc_samples_python_5ea7d92b\",\"input\":{}}",
+          "content_digest": "954ba5c0ccd37180",
+          "tool_name": "users_sideseat_desktop_dev_sideseat_misc_samples_python_5ea7d92b",
           "observation_type": "chain"
         },
         {
@@ -210,9 +210,9 @@
           "index": 2,
           "role": "assistant",
           "entry_type": "tool_use",
-          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_BIASkGZceUgFex644F7DYZ\",\"name\":\"users_pugachev_desktop_dev_sideseat_misc_samples_python_5ea7d92b\",\"input\":{}}",
-          "content_digest": "d60df5982709bca2",
-          "tool_name": "users_pugachev_desktop_dev_sideseat_misc_samples_python_5ea7d92b",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_BIASkGZceUgFex644F7DYZ\",\"name\":\"users_sideseat_desktop_dev_sideseat_misc_samples_python_5ea7d92b\",\"input\":{}}",
+          "content_digest": "eba6452e8a6b98cc",
+          "tool_name": "users_sideseat_desktop_dev_sideseat_misc_samples_python_5ea7d92b",
           "observation_type": "chain"
         },
         {
@@ -227,9 +227,9 @@
           "index": 4,
           "role": "assistant",
           "entry_type": "tool_use",
-          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_DbyBdc1bqwX1aT5goV2Gp4\",\"name\":\"users_pugachev_desktop_dev_sideseat_misc_samples_python_5ea7d92b\",\"input\":{}}",
-          "content_digest": "a0e44bac5a811adf",
-          "tool_name": "users_pugachev_desktop_dev_sideseat_misc_samples_python_5ea7d92b",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_DbyBdc1bqwX1aT5goV2Gp4\",\"name\":\"users_sideseat_desktop_dev_sideseat_misc_samples_python_5ea7d92b\",\"input\":{}}",
+          "content_digest": "954ba5c0ccd37180",
+          "tool_name": "users_sideseat_desktop_dev_sideseat_misc_samples_python_5ea7d92b",
           "observation_type": "chain"
         },
         {
@@ -286,9 +286,9 @@
           "index": 2,
           "role": "assistant",
           "entry_type": "tool_use",
-          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_BIASkGZceUgFex644F7DYZ\",\"name\":\"users_pugachev_desktop_dev_sideseat_misc_samples_python_5ea7d92b\",\"input\":{}}",
-          "content_digest": "d60df5982709bca2",
-          "tool_name": "users_pugachev_desktop_dev_sideseat_misc_samples_python_5ea7d92b",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_BIASkGZceUgFex644F7DYZ\",\"name\":\"users_sideseat_desktop_dev_sideseat_misc_samples_python_5ea7d92b\",\"input\":{}}",
+          "content_digest": "eba6452e8a6b98cc",
+          "tool_name": "users_sideseat_desktop_dev_sideseat_misc_samples_python_5ea7d92b",
           "observation_type": "chain"
         },
         {
@@ -303,9 +303,9 @@
           "index": 4,
           "role": "assistant",
           "entry_type": "tool_use",
-          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_DbyBdc1bqwX1aT5goV2Gp4\",\"name\":\"users_pugachev_desktop_dev_sideseat_misc_samples_python_5ea7d92b\",\"input\":{}}",
-          "content_digest": "a0e44bac5a811adf",
-          "tool_name": "users_pugachev_desktop_dev_sideseat_misc_samples_python_5ea7d92b",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_DbyBdc1bqwX1aT5goV2Gp4\",\"name\":\"users_sideseat_desktop_dev_sideseat_misc_samples_python_5ea7d92b\",\"input\":{}}",
+          "content_digest": "954ba5c0ccd37180",
+          "tool_name": "users_sideseat_desktop_dev_sideseat_misc_samples_python_5ea7d92b",
           "observation_type": "chain"
         },
         {
@@ -361,9 +361,9 @@
         "index": 2,
         "role": "assistant",
         "entry_type": "tool_use",
-        "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_BIASkGZceUgFex644F7DYZ\",\"name\":\"users_pugachev_desktop_dev_sideseat_misc_samples_python_5ea7d92b\",\"input\":{}}",
-        "content_digest": "d60df5982709bca2",
-        "tool_name": "users_pugachev_desktop_dev_sideseat_misc_samples_python_5ea7d92b",
+        "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_BIASkGZceUgFex644F7DYZ\",\"name\":\"users_sideseat_desktop_dev_sideseat_misc_samples_python_5ea7d92b\",\"input\":{}}",
+        "content_digest": "eba6452e8a6b98cc",
+        "tool_name": "users_sideseat_desktop_dev_sideseat_misc_samples_python_5ea7d92b",
         "observation_type": "chain"
       },
       {
@@ -378,9 +378,9 @@
         "index": 4,
         "role": "assistant",
         "entry_type": "tool_use",
-        "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_DbyBdc1bqwX1aT5goV2Gp4\",\"name\":\"users_pugachev_desktop_dev_sideseat_misc_samples_python_5ea7d92b\",\"input\":{}}",
-        "content_digest": "a0e44bac5a811adf",
-        "tool_name": "users_pugachev_desktop_dev_sideseat_misc_samples_python_5ea7d92b",
+        "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_DbyBdc1bqwX1aT5goV2Gp4\",\"name\":\"users_sideseat_desktop_dev_sideseat_misc_samples_python_5ea7d92b\",\"input\":{}}",
+        "content_digest": "954ba5c0ccd37180",
+        "tool_name": "users_sideseat_desktop_dev_sideseat_misc_samples_python_5ea7d92b",
         "observation_type": "chain"
       },
       {

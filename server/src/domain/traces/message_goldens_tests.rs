@@ -4772,3 +4772,62 @@ fn no_span_is_classified_as_two_incompatible_things() {
             .join(", ")
     );
 }
+
+/// No committed fixture carries the capturing developer's account name.
+///
+/// A sample that reads a file records the absolute path it read, so a capture carries whoever ran it into a
+/// public repository: 918 occurrences across 48 fixtures before this existed, naming one maintainer's home
+/// directory. `record-otlp.py` substitutes a placeholder at capture time now, and this is what keeps the next
+/// capture from quietly reintroducing it — the script is the fix, and a fix nothing checks is a convention.
+///
+/// The check is "does a fixture contain the *current* user's name", which is the question that can be asked
+/// without a list of forbidden names to maintain. It therefore says nothing about a name nobody has run under,
+/// and that limit is why the substitution lives in the capture script rather than only here.
+#[test]
+fn no_fixture_carries_the_capturing_users_name() {
+    let user = std::env::var("USER")
+        .or_else(|_| std::env::var("USERNAME"))
+        .unwrap_or_default();
+    if user.is_empty() || user == "sideseat" || user.len() < 3 {
+        eprintln!("fixtures: no distinctive account name to look for - skipping");
+        return;
+    }
+    let needle = user.as_bytes();
+    // **Tracked files only**, which is the property: the concern is what a public repository carries, and a
+    // local-only fixture directory is gitignored precisely because it is nobody else's. Scanning the working
+    // tree instead reported eight files in `vercel-ai-js/image-gen/`, which `.gitignore` excludes - a failure
+    // for something that is not published.
+    let repo = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .expect("the crate sits in the repository");
+    let listing = std::process::Command::new("git")
+        .args(["ls-files", "-z", "server/tests/fixtures"])
+        .current_dir(repo)
+        .output()
+        .expect("git is available in a git checkout");
+    assert!(listing.status.success(), "git ls-files failed");
+    let mut offenders: Vec<String> = Vec::new();
+    let mut scanned = 0usize;
+    for rel in listing
+        .stdout
+        .split(|b| *b == 0)
+        .filter(|entry| !entry.is_empty())
+    {
+        let rel = String::from_utf8_lossy(rel).to_string();
+        let Ok(bytes) = std::fs::read(repo.join(&rel)) else {
+            continue;
+        };
+        scanned += 1;
+        if bytes.windows(needle.len()).any(|w| w == needle) {
+            offenders.push(rel);
+        }
+    }
+    assert!(scanned > 100, "only scanned {scanned} fixture files");
+    assert!(
+        offenders.is_empty(),
+        "{} fixture(s) contain the account name `{user}`, which a public repository should not carry - \
+         re-capture with scripts/message-fixtures/capture.sh, which substitutes a placeholder:\n  {}",
+        offenders.len(),
+        offenders.join("\n  ")
+    );
+}
