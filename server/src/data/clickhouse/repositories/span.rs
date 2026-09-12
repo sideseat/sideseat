@@ -101,6 +101,15 @@ impl From<&NormalizedSpan> for SpanRow {
         let timestamp_end = span.timestamp_end.map(chrono_to_time);
         let ingested_at = chrono_to_time(span.ingested_at.unwrap_or_else(Utc::now));
 
+        // The three list columns are serialised **unconditionally**, empty included, because DuckDB is the
+        // parity reference and `SqlVec` there writes `[]` for an empty vector. Collapsing empty to NULL here
+        // made the two backends disagree about a span that reported no finish reasons: DuckDB read back
+        // `Some("[]")` and ClickHouse `None`, which is a different statement - "the producer reported an empty
+        // list" against "nothing was stored". `clickhouse_matches_duckdb_on_every_read` catches it, and had
+        // never run on an arm64 machine because the pinned image's entrypoint was empty.
+        //
+        // All three, not only the one the test named: `stop_sequences` and `tags` carried the identical
+        // special case, and fixing the caught one alone leaves two of the same defect behind a green suite.
         let project_id = span.project_id.clone().unwrap_or_default();
         if project_id.is_empty() {
             tracing::warn!(
@@ -144,16 +153,8 @@ impl From<&NormalizedSpan> for SpanRow {
             gen_ai_max_tokens: span.gen_ai_max_tokens,
             gen_ai_frequency_penalty: span.gen_ai_frequency_penalty,
             gen_ai_presence_penalty: span.gen_ai_presence_penalty,
-            gen_ai_stop_sequences: if span.gen_ai_stop_sequences.is_empty() {
-                None
-            } else {
-                serde_json::to_string(&span.gen_ai_stop_sequences).ok()
-            },
-            gen_ai_finish_reasons: if span.gen_ai_finish_reasons.is_empty() {
-                None
-            } else {
-                serde_json::to_string(&span.gen_ai_finish_reasons).ok()
-            },
+            gen_ai_stop_sequences: serde_json::to_string(&span.gen_ai_stop_sequences).ok(),
+            gen_ai_finish_reasons: serde_json::to_string(&span.gen_ai_finish_reasons).ok(),
             gen_ai_agent_id: span.gen_ai_agent_id.clone(),
             gen_ai_agent_name: span.gen_ai_agent_name.clone(),
             gen_ai_tool_name: span.gen_ai_tool_name.clone(),
@@ -185,11 +186,7 @@ impl From<&NormalizedSpan> for SpanRow {
             storage_object: span.storage_object.clone(),
             messaging_system: span.messaging_system.clone(),
             messaging_destination: span.messaging_destination.clone(),
-            tags: if span.tags.is_empty() {
-                None
-            } else {
-                serde_json::to_string(&span.tags).ok()
-            },
+            tags: serde_json::to_string(&span.tags).ok(),
             metadata: span.metadata.clone(),
             input_preview: span.input_preview.clone(),
             output_preview: span.output_preview.clone(),
