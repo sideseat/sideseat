@@ -3,7 +3,10 @@ name = "sideseat"
 version = "0.2.0"
 edition = "2024"
 description = "AI Development Workbench — Debug, trace, and understand your AI agents"
-license = "Apache-2.0"
+# MIT, matching this crate's own README and the other client SDKs. The server and CLI are Apache-2.0;
+# the client libraries are deliberately more permissive. The manifest said Apache-2.0 while the README
+# badged MIT - one package, two answers.
+license = "MIT"
 repository = "https://github.com/sideseat/sideseat"
 homepage = "https://sideseat.ai"
 documentation = "https://sideseat.ai/docs"

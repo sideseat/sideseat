@@ -20,11 +20,12 @@ import requests
 from dotenv import load_dotenv
 from tqdm import tqdm
 
-# Load .env from samples directory
-_samples_dir = Path(__file__).parent.parent
-load_dotenv(_samples_dir / ".env")
+# Resolved from this file, not from the working directory: the fixtures ship beside the tool, and the
+# shared sample credentials live in examples/.
+_tool_dir = Path(__file__).resolve().parent
+load_dotenv(_tool_dir.parent.parent / "examples" / ".env")
 
-FIXTURES_DIR = _samples_dir / "fixtures"
+FIXTURES_DIR = _tool_dir / "fixtures"
 HEADERS = {"Content-Type": "application/json"}
 
 

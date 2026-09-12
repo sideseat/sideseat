@@ -198,7 +198,6 @@ uv run --directory tools/otel-replay replay traces-vercel.jsonl.gz
 uv run --directory tools/otel-replay replay traces-langgraph.jsonl.gz
 uv run --directory tools/otel-replay replay traces-autogen.jsonl.gz
 uv run --directory tools/otel-replay replay traces-crewai.jsonl.gz
-uv run --directory tools/otel-replay replay traces-openai.jsonl.gz
 
 # Absolute path or custom server URL
 uv run --directory tools/otel-replay replay /path/to/file.jsonl

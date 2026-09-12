@@ -191,7 +191,7 @@ CLI_DIR := cli
 
 # Pricing data
 PRICES_URL := https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json
-PRICES_FILE := $(SERVER_DIR)/data/model_prices_and_context_window.json
+PRICES_FILE := $(SERVER_DIR)/assets/pricing/model_prices_and_context_window.json
 
 # Docker
 DOCKER_IMAGE := sideseat/core

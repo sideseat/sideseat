@@ -32,10 +32,10 @@ from threading import Lock
 import requests
 from dotenv import load_dotenv
 
-_misc_dir = Path(__file__).parent.parent
-load_dotenv(_misc_dir / ".env")
+_tool_dir = Path(__file__).resolve().parent
+load_dotenv(_tool_dir.parent.parent / "examples" / ".env")
 
-FIXTURES_DIR = _misc_dir / "fixtures"
+FIXTURES_DIR = _tool_dir / "fixtures"
 HEADERS = {"Content-Type": "application/json"}
 
 MAX_RETRIES = 8

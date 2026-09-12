@@ -1,3 +1,9 @@
+# Kept in step with the claim in SECURITY.md that dependencies are updated through Dependabot: it covered
+# GitHub Actions only, so that claim was true of the workflows and of nothing a user installs.
+#
+# One entry per manifest Dependabot can actually see. The sample suites under `examples/` are deliberately
+# absent: each pins a framework version on purpose, so an automated bump there would change what the samples
+# demonstrate rather than fix anything.
 version: 2
 updates:
   - package-ecosystem: "github-actions"
@@ -9,3 +15,46 @@ updates:
     labels:
       - "dependencies"
       - "github-actions"
+
+  # The Rust workspace: the server and the Rust SDK share one lockfile.
+  - package-ecosystem: "cargo"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    commit-message:
+      prefix: "deps"
+    labels:
+      - "dependencies"
+      - "rust"
+    groups:
+      rust-minor-and-patch:
+        update-types: ["minor", "patch"]
+
+  - package-ecosystem: "npm"
+    directories:
+      - "/web"
+      - "/sdk/js"
+      - "/cli"
+      - "/docs"
+    schedule:
+      interval: "weekly"
+    commit-message:
+      prefix: "deps"
+    labels:
+      - "dependencies"
+      - "javascript"
+    groups:
+      npm-minor-and-patch:
+        update-types: ["minor", "patch"]
+
+  - package-ecosystem: "uv"
+    directories:
+      - "/"
+      - "/sdk/python"
+    schedule:
+      interval: "weekly"
+    commit-message:
+      prefix: "deps"
+    labels:
+      - "dependencies"
+      - "python"
