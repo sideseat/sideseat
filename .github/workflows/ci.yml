@@ -226,7 +226,7 @@ jobs:
         run: make lint-python
 
       - name: Type check
-        run: cd sdk/python && uv run mypy src
+        run: cd sdk/python && uv run --locked --extra dev mypy src
 
       - name: Test
         run: cd sdk/python && uv run --locked --extra dev pytest
@@ -275,12 +275,12 @@ jobs:
       - name: Format check
         run: |
           cd examples/javascript && npx prettier --check "src/**/*.ts"
-          cd "$GITHUB_WORKSPACE" && uv run ruff format --check examples/python
+          cd "$GITHUB_WORKSPACE" && uv run --locked ruff format --check examples/python
 
       - name: Lint
         run: |
           cd examples/javascript && npm run lint && npm run typecheck
-          cd "$GITHUB_WORKSPACE" && uv run ruff check examples/python
+          cd "$GITHUB_WORKSPACE" && uv run --locked ruff check examples/python
 
   specs:
     name: TLA+ Specifications

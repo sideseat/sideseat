@@ -832,10 +832,22 @@ fn every_uv_project_requires_the_same_resolver() {
         }
     }
 
+    // The floor is derived: every manifest that configures uv must declare it, and so must the root `uv.toml`.
+    // `>= 10` was a number I chose, which cannot notice a project appearing or disappearing.
+    let configuring = String::from_utf8_lossy(&listing.stdout)
+        .lines()
+        .filter(|f| f.ends_with("pyproject.toml"))
+        .filter(|f| {
+            std::fs::read_to_string(repo.join(f))
+                .unwrap_or_default()
+                .contains("[tool.uv")
+        })
+        .count();
     assert!(
-        declared.values().map(Vec::len).sum::<usize>() >= 10,
-        "found only {} `required-version` declarations - a project with its own `[tool.uv]` and no \
-         `required-version` is one a differently-versioned uv can write lockfiles for: {declared:?}",
+        declared.values().map(Vec::len).sum::<usize>() > configuring,
+        "{} `required-version` declarations for {configuring} uv-configuring project(s) plus the root file - \
+         a project with its own `[tool.uv]` and no declaration is one a differently-versioned uv can write \
+         lockfiles for: {declared:?}",
         declared.values().map(Vec::len).sum::<usize>()
     );
     assert!(
@@ -856,7 +868,14 @@ fn every_uv_project_requires_the_same_resolver() {
         .filter(|f| f.ends_with("pyproject.toml"))
     {
         let text = std::fs::read_to_string(repo.join(file)).unwrap_or_default();
-        if text.contains("[tool.uv") && !text.contains("required-version") {
+        // The declaration, not the *word*: `contains` over the whole file counts a mention in a comment, so
+        // deleting the real line from a manifest whose comment explains it still passed - the exact defect this
+        // half is for. Asked of non-comment lines, like the value scan above.
+        let declares = text.lines().any(|line| {
+            let trimmed = line.trim();
+            !trimmed.starts_with('#') && trimmed.starts_with("required-version")
+        });
+        if text.contains("[tool.uv") && !declares {
             silent.push(file.to_string());
         }
     }

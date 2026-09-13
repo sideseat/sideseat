@@ -1,37 +1,35 @@
-# Misc
+# Telemetry samples
 
-Shared resources, sample applications, and utilities for SideSeat development.
+Runnable sample applications per framework, and the inputs they read. Every suite exports OpenTelemetry traces,
+which is what makes them the fixtures the message goldens are captured from.
 
 ## Setup
 
 ```bash
-cp examples/.env.example examples/.env                               # Configure environment
-npm --prefix examples/javascript install                         # Install JS deps
-uv sync --directory tools/otel-replay                              # Install replay deps
+cp examples/.env.example examples/.env      # credentials, region, endpoint - not committed
+npm --prefix examples/javascript ci         # the TypeScript suites share one project
+uv sync --locked --directory examples/python/common
+```
 
-# Install each Python sample package individually (isolated envs)
-uv sync --directory examples/python/strands
-uv sync --directory examples/python/adk
-uv sync --directory examples/python/langgraph
-uv sync --directory examples/python/crewai
-uv sync --directory examples/python/autogen
-uv sync --directory examples/python/openai-agents
-uv sync --directory examples/python/agent-framework
-uv sync --directory examples/python/claude-agent-sdk
-uv sync --directory examples/python/bedrock
-uv sync --directory examples/python/anthropic
-uv sync --directory examples/python/openai
-uv sync --directory examples/python/loadtest
+`common` holds the helpers every Python suite imports. **The suites themselves install on first use**: each is
+its own uv project, and `uv run` creates its environment - so there is no list of thirteen `uv sync` lines to
+keep in step with the tree, and a framework you never run costs nothing. (The list that used to be here had
+gone stale.)
 
-# OpenTelemetry versions differ between suites on purpose. Some frameworks cap them:
-# google-adk 2.7 requires opentelemetry-sdk >=1.39,<=1.42.1, and crewai and
-# agent-framework hold their own ceilings. Each suite is an isolated venv, so the split is
-# harmless - do not try to force them onto one version, the resolver will refuse.
+`--locked` throughout, here and in `run-all.sh`: a bare `uv run` rewrites a suite's lockfile to match a drifted
+manifest, and `make update-python-deps` is the one command meant to do that. Every sample lockfile pointed at
+`../../../../sdk/python` for a while - the path from before these directories were renamed - precisely because
+nothing refused a stale lock.
 
-# After SDK structural changes (new deps, new extras, pyproject.toml edits)
-for d in strands adk langgraph crewai autogen openai-agents agent-framework claude-agent-sdk bedrock anthropic openai loadtest; do
-  uv sync --directory examples/python/$d --reinstall-package sideseat
-done
+OpenTelemetry versions differ between suites **on purpose**: google-adk 2.7 requires
+`opentelemetry-sdk >=1.39,<=1.42.1`, and crewai and agent-framework hold their own ceilings. Each suite is an
+isolated environment, so the split is harmless - forcing them onto one version makes the resolver refuse.
+
+After a structural change to the SDK (new dependency, new extra, an edit to its `pyproject.toml`), reinstall it
+into the suites you are using:
+
+```bash
+uv sync --locked --directory examples/python/<suite> --reinstall-package sideseat
 ```
 
 ## Python Samples
@@ -187,29 +185,6 @@ npm --prefix examples/javascript run strands -- all                 # Run all
 --help                    # Show help
 ```
 
-## Replay
-
-Replay captured OTLP debug files (`.jsonl`, `.jsonl.gz`, `.zip`) to a running SideSeat server.
-
-```bash
-uv run --directory tools/otel-replay replay traces-strands.jsonl.gz
-uv run --directory tools/otel-replay replay traces-adk.jsonl.gz
-uv run --directory tools/otel-replay replay traces-vercel.jsonl.gz
-uv run --directory tools/otel-replay replay traces-langgraph.jsonl.gz
-uv run --directory tools/otel-replay replay traces-autogen.jsonl.gz
-uv run --directory tools/otel-replay replay traces-crewai.jsonl.gz
-
-# Absolute path or custom server URL
-uv run --directory tools/otel-replay replay /path/to/file.jsonl
-uv run --directory tools/otel-replay replay traces-autogen.jsonl.gz --base-url http://localhost:5388
-```
-
-Load generation:
-
-```bash
-uv run --directory tools/otel-replay generate_load --spans 100000 --workers 5
-```
-
 ## Environment Variables
 
 Copy `examples/.env.example` to `examples/.env`:
@@ -251,5 +226,5 @@ Related directories elsewhere in the repository:
 
 ```
 tools/mcp-calculator/     # MCP server the mcp_tools samples connect to
-tools/otel-replay/        # Replay captured OTLP traces into a running server
+tools/otel-replay/        # Replays captured OTLP into a running server - see its own README
 ```

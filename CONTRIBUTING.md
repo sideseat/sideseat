@@ -53,7 +53,9 @@ make check                                # fmt-check + lint + test
 make build                                # Production build
 ```
 
-To generate test traces, run `uv run --directory examples/python/strands strands tool_use --sideseat`.
+To generate test traces, run `uv run --locked --directory examples/python/strands strands tool_use
+--sideseat`. `--locked` everywhere: a bare `uv run` rewrites that suite's lockfile to match a drifted
+manifest, and `make update-python-deps` is the one command meant to do that.
 
 ### Release Workflow
 
