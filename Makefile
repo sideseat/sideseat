@@ -431,10 +431,10 @@ dev-server:
 	fi; \
 	if command -v watchexec >/dev/null 2>&1; then \
 		cd $(SERVER_DIR) && watchexec -r -e rs,toml -- \
-			"SIDESEAT_LOG=debug SIDESEAT_DATA_DIR=../.sideseat $$_secrets_env cargo run -- $$_args"; \
+			"SIDESEAT_LOG=debug SIDESEAT_DATA_DIR=../.sideseat $$_secrets_env cargo run --locked -- $$_args"; \
 	elif command -v cargo-watch >/dev/null 2>&1; then \
 		cd $(SERVER_DIR) && SIDESEAT_LOG=debug SIDESEAT_DATA_DIR=../.sideseat $$_secrets_env \
-			cargo watch -x "run -- $$_args"; \
+			cargo watch -x "run --locked -- $$_args"; \
 	else \
 		echo "No watch tool found. Install: brew install watchexec"; \
 		cd $(SERVER_DIR) && SIDESEAT_LOG=debug SIDESEAT_DATA_DIR=../.sideseat $$_secrets_env \

@@ -5,10 +5,10 @@ Sends a configurable number of traces to test retention and performance.
 Each trace simulates a Strands agent invocation with nested spans.
 
 Usage:
-    uv run loadtest                    # 1M spans (default)
-    uv run loadtest --spans 100000     # 100K spans
-    uv run loadtest --batch 5000       # 5K batch size
-    uv run loadtest --workers 8        # 8 parallel workers
+    uv run --locked loadtest                    # 1M spans (default)
+    uv run --locked loadtest --spans 100000     # 100K spans
+    uv run --locked loadtest --batch 5000       # 5K batch size
+    uv run --locked loadtest --workers 8        # 8 parallel workers
 """
 
 from dotenv import load_dotenv

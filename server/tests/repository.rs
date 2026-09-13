@@ -20,6 +20,14 @@ fn repo_root() -> &'static Path {
         .expect("the crate sits in the repository")
 }
 
+/// Whether a tracked file is text, so a scan over "every file" can mean it.
+///
+/// A NUL byte is the test git itself uses. Cheaper than an extension list and, unlike one, it cannot omit the
+/// extensionless hooks or the next kind of script somebody adds.
+fn is_text(path: &Path) -> bool {
+    std::fs::read(path).is_ok_and(|bytes| !bytes.contains(&0))
+}
+
 /// `base` (a directory, with or without a trailing slash) joined with a `relative` path, `..` segments applied.
 fn join_relative(base: &str, relative: &str) -> Option<String> {
     let mut parts: Vec<&str> = base
@@ -837,13 +845,16 @@ fn every_resolving_command_is_locked() {
     let mut checked = 0usize;
     for file in String::from_utf8_lossy(&listing.stdout)
         .lines()
-        .filter(|f| {
-            f.ends_with("Makefile")
-                || [".sh", ".yml", ".md", ".mdx"]
-                    .iter()
-                    .any(|e| f.ends_with(e))
-        })
+        // **Every tracked text file**, not an extension allowlist: the allowlist omitted the extensionless git
+        // hooks, `.py`, `.mjs`, `.js` and `package.json` scripts - the hand-maintained inventory these
+        // invariants exist to remove, reintroduced inside one of them.
         .filter(|f| !f.starts_with("server/tests/fixtures/"))
+        // Rust is excluded, and this is a scope rather than an exemption: a `"cargo build"` in a string
+        // literal - these scanners' own tables, for instance - is not a line anybody pastes into a shell. The
+        // residual, stated: a command *constructed* in code (`Command::new("cargo").args([…])`) is a different
+        // shape that this would not have matched in any case.
+        .filter(|f| !f.ends_with(".rs"))
+        .filter(|f| is_text(&repo.join(f)))
     {
         let text = std::fs::read_to_string(repo.join(file)).unwrap_or_default();
         let mut fenced = false;
@@ -877,27 +888,39 @@ fn every_resolving_command_is_locked() {
                     let _ = rest;
                 }
             }
-            // Each segment a shell would run: `(cd "$ROOT" && cargo build …)` puts the command after a `&&`,
-            // which the prefix stripping alone never reached - a mutation of exactly that line passed.
+            // Each segment a shell would run, judged **on its own**: taking the first resolving segment and
+            // then testing the whole *line* let `cargo test --locked && cargo build` pass and
+            // `cargo fetch && cargo build` be exempt entirely.
             let candidate = if fenced { line.trim() } else { runnable };
-            let Some(command) = candidate
+            for segment in candidate
                 .split("&&")
                 .flat_map(|part| part.split(';'))
                 .flat_map(|part| part.split("||"))
                 .map(str::trim)
-                .find_map(|segment| RESOLVING.iter().find(|c| segment.starts_with(**c)))
-            else {
-                continue;
-            };
-            if DELIBERATE.iter().any(|d| line.contains(d)) {
-                continue;
-            }
-            checked += 1;
-            if !line.contains("--locked") {
-                unlocked.push(format!(
-                    "{file}:{}: `{command}` without `--locked`",
-                    number + 1
-                ));
+            {
+                // `cargo watch -x "run -- …"` and `watchexec -- "… cargo run …"` carry the command inside an
+                // argument, so for those the segment is searched from any position - both `dev-server`
+                // branches were unlocked and invisible for exactly that reason.
+                let delegated =
+                    segment.starts_with("cargo watch") || segment.starts_with("watchexec");
+                let Some(command) = RESOLVING.iter().find(|c| {
+                    segment.starts_with(**c)
+                        || (delegated
+                            && c.starts_with("cargo ")
+                            && segment.contains(c.strip_prefix("cargo ").unwrap_or(c)))
+                }) else {
+                    continue;
+                };
+                if DELIBERATE.iter().any(|d| segment.contains(d)) {
+                    continue;
+                }
+                checked += 1;
+                if !segment.contains("--locked") {
+                    unlocked.push(format!(
+                        "{file}:{}: `{command}` without `--locked`",
+                        number + 1
+                    ));
+                }
             }
         }
     }
@@ -973,13 +996,16 @@ fn every_aliased_sample_suite_is_invoked_by_its_alias() {
     let mut colliding: Vec<String> = Vec::new();
     for caller in String::from_utf8_lossy(&all.stdout)
         .lines()
-        .filter(|f| {
-            f.ends_with("Makefile")
-                || [".sh", ".yml", ".md", ".mdx", ".py", ".ts", ".mjs"]
-                    .iter()
-                    .any(|e| f.ends_with(e))
-        })
+        // **Every tracked text file**, not an extension allowlist: the allowlist omitted the extensionless git
+        // hooks, `.py`, `.mjs`, `.js` and `package.json` scripts - the hand-maintained inventory these
+        // invariants exist to remove, reintroduced inside one of them.
         .filter(|f| !f.starts_with("server/tests/fixtures/"))
+        // Rust is excluded, and this is a scope rather than an exemption: a `"cargo build"` in a string
+        // literal - these scanners' own tables, for instance - is not a line anybody pastes into a shell. The
+        // residual, stated: a command *constructed* in code (`Command::new("cargo").args([…])`) is a different
+        // shape that this would not have matched in any case.
+        .filter(|f| !f.ends_with(".rs"))
+        .filter(|f| is_text(&repo.join(f)))
     {
         let text = std::fs::read_to_string(repo.join(caller)).unwrap_or_default();
         for (number, line) in text.lines().enumerate() {
