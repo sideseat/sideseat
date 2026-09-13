@@ -17,9 +17,12 @@ site CI builds would come from different versions with nothing saying so. The un
 `npm run dev`, `npm run build` and `npm run preview`.
 
 Mermaid diagrams (```` ```mermaid ````) are rendered to **static SVG at build time** by `rehype-mermaid`,
-which drives a headless Chromium — `make build-docs` installs it on first use. So a diagram works with
-JavaScript disabled and ships no Mermaid runtime to the reader, and a diagram that fails to parse fails the
-build rather than rendering as an error box in the page.
+which drives a headless Chromium. So a diagram works with JavaScript disabled and ships no Mermaid runtime
+to the reader, and one that fails to parse fails the build rather than rendering as an error box in the
+page.
+
+`make build-docs` downloads that browser on first use. On Linux it also needs system libraries, which
+`make docs-system-deps` installs — separate because it needs sudo.
 
 Content lives in `src/content/docs/docs/`. Pages are `.md` or `.mdx`; `.mdx` is needed for the
 Starlight components (`<Tabs>`, `<Steps>`, `<Aside>`) and for the custom

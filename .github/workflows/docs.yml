@@ -59,7 +59,7 @@ jobs:
         run: make docs-deps
 
       - name: Install the system libraries the browser needs
-        run: cd docs && npx --no-install playwright install-deps chromium
+        run: make docs-system-deps
 
       - name: Build documentation
         run: make build-docs

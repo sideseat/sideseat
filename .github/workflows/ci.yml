@@ -6,6 +6,14 @@ on:
   # module paths, the project structure. The one class of change most likely to break them was the one class
   # that never ran them.
   pull_request:
+  # `main` too. Every gate here ran on pull requests only, so a direct push - a merge that bypasses review, a
+  # hotfix, an administrator's commit - was checked by nothing at all.
+  push:
+    branches: [main]
+  # And on a schedule, because the audits are the one class of check whose *answer changes without the code
+  # changing*: a vulnerability disclosed today was invisible until somebody happened to open a pull request.
+  schedule:
+    - cron: '17 6 * * 1'
   workflow_dispatch:
 
 concurrency:

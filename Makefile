@@ -133,6 +133,7 @@
 #     build-docs         Build documentation site (Astro/Starlight)
 #     dev-docs           Start docs dev server
 #     preview-docs       Preview built docs
+#     docs-system-deps   Linux only: system libraries the diagram browser needs (sudo)
 #
 #   Utilities:
 #     disk               Show free space and what is using it (target, node_modules, Docker)
@@ -261,7 +262,7 @@ cli-bin = $(CLI_DIR)/platforms/platform-$(1)/$(BIN_NAME_$(1))
 .PHONY: version version-check bump sync-version
 .PHONY: publish publish-cli publish-sdk-js publish-sdk-python
 .PHONY: release
-.PHONY: docs-deps build-docs dev-docs preview-docs
+.PHONY: docs-deps docs-system-deps build-docs dev-docs preview-docs
 .PHONY: build-docker publish-docker
 .PHONY: sign-release sign-verify sign-notarize
 .PHONY: build-release publish-release publish-brew
@@ -1056,6 +1057,18 @@ docs-deps:
 	@#  per-build download. My first version piped its output away and retried in a `{ cd docs; ... }` block,
 	@#  which is a second `cd` inside a shell already in `docs/` - it would have looked for `docs/docs`.
 	@cd docs && npx --no-install playwright install chromium
+	@#  On Linux the browser also needs system libraries, and installing them needs root - so it is a separate,
+	@#  named target rather than something done to someone's machine silently. Previously only CI installed
+	@#  them, which left `make build-docs` on a fresh Linux host depending on whatever happened to be present
+	@#  while `docs/README.md` presented the target as self-contained. Playwright's own launch failure names
+	@#  the missing libraries precisely, so it is not probed for here - only pointed at.
+	@[ "$$(uname -s)" != "Linux" ] || echo "[docs-deps] On Linux, if the build cannot launch the browser: make docs-system-deps (needs sudo)"
+
+docs-system-deps:
+	@#  Separate and explicit, because it installs distribution packages and needs root. `install-deps` is
+	@#  playwright's own list for the browser it just downloaded, so it stays correct across browser versions.
+	@echo "[docs-system-deps] Installing the system libraries the diagram browser needs (sudo)..."
+	@cd docs && npx --no-install playwright install-deps chromium
 
 build-docs: docs-deps
 	@echo "[build-docs] Building documentation..."
