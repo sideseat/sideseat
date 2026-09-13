@@ -180,7 +180,7 @@ fn status_code_to_string(code: i32) -> &'static str {
 ///   When `logfire.msg_template` exists, the resolved `logfire.msg` is used.
 ///
 /// Retired: the display name is the `display_span_name` field target now, declared in
-/// `rules/span-fields-display.json`. Kept as the equivalence oracle.
+/// `rules/vocabulary/span-fields-display.json`. Kept as the equivalence oracle.
 #[cfg(test)]
 pub(super) fn resolve_span_name(span: &mut SpanData, attrs: &HashMap<String, String>) {
     // Logfire: span name is the unresolved msg_template; logfire.msg is the resolved version
@@ -319,7 +319,7 @@ pub struct SpanData {
 
 /// Token count extraction configuration with fallback keys.
 ///
-/// Retired: where each counter is written is declared in `rules/span-fields-usage.json`. Kept as the
+/// Retired: where each counter is written is declared in `rules/vocabulary/span-fields-usage.json`. Kept as the
 /// equivalence oracle - the arithmetic that reads the counters was never here.
 #[cfg(test)]
 struct TokenConfig {
@@ -332,7 +332,7 @@ struct TokenConfig {
 }
 
 /// Every counter as the retired code found it: the flat table, then the three embedded usage objects in the
-/// order their fallbacks ran. The equivalence oracle for `rules/span-fields-usage.json`.
+/// order their fallbacks ran. The equivalence oracle for `rules/vocabulary/span-fields-usage.json`.
 ///
 /// Each embedded block is entered only for a counter nothing before it supplied - which is what an ordered
 /// chain means, and is why the declared form needs no flags threaded through it.
@@ -1167,7 +1167,7 @@ pub(crate) fn categorize_span_legacy(
 /// Detect observation type from span attributes.
 /// What kind of observation a span is, from the declared ordered rules.
 ///
-/// The precedence and every condition are in `rules/observation-types.json`; this is the one thing about it
+/// The precedence and every condition are in `rules/vocabulary/observation-types.json`; this is the one thing about it
 /// that is not a producer's business - which stored value each label means. An unrecognised label would be a
 /// build defect (the assets ship inside the binary), and the answer for "no rule held" is a plain span, which
 /// is our vocabulary rather than any dialect's.
@@ -1342,7 +1342,7 @@ fn extract_autogen_tokens(attrs: &HashMap<String, String>) -> (i64, i64) {
 ///
 /// Every chain this replaced was an ordered `&[&str]` of provider spellings - framework knowledge in the
 /// code, where adding a producer meant editing a list. The order is declared in
-/// `rules/span-fields-semantic.json`; the retired chains stay below as the equivalence oracle.
+/// `rules/vocabulary/span-fields-semantic.json`; the retired chains stay below as the equivalence oracle.
 /// What the declared resolvers found for each token counter.
 ///
 /// `Option`, not the stored `i64`, because presence is the fact the fallbacks downstream need and the column
@@ -1598,7 +1598,7 @@ pub(super) fn extract_semantic_legacy(span: &mut SpanData, attrs: &HashMap<Strin
 
 /// The GenAI fields of a span: everything but the token accounting.
 ///
-/// The field half is declared in `rules/span-fields-genai.json`; the retired chains are kept below as the
+/// The field half is declared in `rules/vocabulary/span-fields-genai.json`; the retired chains are kept below as the
 /// equivalence oracle. Token arithmetic stays here, because a synthesised total and every pricing decision are
 /// statements about our own accounting rather than about a producer's spelling.
 /// The token accounting of a span: what the declared field resolvers deliberately do not do.
@@ -1611,7 +1611,7 @@ pub(crate) fn extract_genai(
     span_name: &str,
     tokens: &TokenReadings,
 ) {
-    // Where each counter was written is declared (`rules/span-fields-usage.json`); the resolver hands them over
+    // Where each counter was written is declared (`rules/vocabulary/span-fields-usage.json`); the resolver hands them over
     // as `Option`, so presence - which is what every framework fallback below tests, since a genuine `0` is a
     // reported count and must not be replaced - survives the boundary.
     let flat_input = tokens.input;

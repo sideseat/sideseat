@@ -3442,7 +3442,7 @@ pub(super) fn extract_messages_for_span(
         }
     }
 
-    // Vercel's tool-call attributes are declared in `server/assets/rules/vercel-ai.json`, with tool-span
+    // Vercel's tool-call attributes are declared in `server/assets/rules/producers/vercel-ai.json`, with tool-span
     // permission, because that is the only kind of span they appear on - those spans carry no events, only
     // attributes.
     //

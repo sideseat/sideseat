@@ -229,7 +229,7 @@ pub fn normalize(raw: &JsonValue) -> ChatMessage {
     let role = ChatRole::from_str_normalized(role_str);
     let tool_use_id = tools::extract_tool_use_id(&raw, role_str);
 
-    // Which member holds the content is declared (`rules/message-members.json`), in order - the first the
+    // Which member holds the content is declared (`rules/vocabulary/message-members.json`), in order - the first the
     // value *has*, not the first that holds something: a `content` of `null` beside a populated `parts` is a
     // message whose content is null, which is what the retired chain said.
     // Sparse array placeholder filtering happens universally in `normalize_content`.

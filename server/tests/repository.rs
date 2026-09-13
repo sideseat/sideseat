@@ -1127,7 +1127,9 @@ fn the_documented_project_structure_matches_the_tree() {
 ///
 /// A cited path is position-bearing, so it can be checked without parsing any layout: root-anchored whole,
 /// doc-relative against the citing file's directory, otherwise as a **suffix** of a tracked path — where
-/// `sideml/normalize.rs` matches and the stale spelling matches nothing.
+/// `sideml/normalize.rs` matches and the stale spelling matches nothing. **Assets as well as modules**: the
+/// rules regrouping moved 43 JSON files, and a check that watched only `.rs` had nothing to say about the
+/// nineteen citations left naming the flat path.
 ///
 /// The documents are **derived from the tree**, not listed here, and that is the point rather than tidiness.
 /// The first version of this test named two files; the same stale path was live in the *public* architecture
@@ -1197,7 +1199,30 @@ fn every_module_path_cited_anywhere_resolves() {
                 // citation of a position in that file, so it is stripped before resolving.
                 let cited = token.trim_end_matches(['.', ':']);
                 let cited = cited.split(':').next().unwrap_or(cited);
-                if !cited.ends_with(".rs") || !cited.contains('/') {
+                // `.json` as well as `.rs`. Restricted to Rust modules, this check watched the code and not
+                // the **data**: regrouping `server/assets/rules/` into three subdirectories left nineteen
+                // citations naming the old flat path, and nothing here could see one of them. Extensions the
+                // repository declares things in - a module and an asset - rather than every file type, because
+                // a `.png` in prose is a link and not a claim about layout.
+                if !(cited.ends_with(".rs") || cited.ends_with(".json")) || !cited.contains('/') {
+                    continue;
+                }
+                // Only what can be a path *in this repository*. A glob names a set rather than a file, and
+                // `~/.sideseat/sideseat.json`, `./sideseat.json` and `/path/to/service-account.json` are
+                // runtime and example paths - each of which the first version of this extension reported,
+                // because "ends in .json" is not the same question as "claims a place in this tree".
+                let first = cited.split('/').next().unwrap_or_default();
+                let names_a_directory_here = tracked
+                    .iter()
+                    .any(|f| f.split('/').any(|segment| segment == first));
+                if cited.contains('*')
+                    || cited.starts_with('~')
+                    || cited.starts_with('/')
+                    || cited.starts_with("./")
+                    || cited.contains("node_modules/")
+                    || cited.starts_with("http")
+                    || !names_a_directory_here
+                {
                     continue;
                 }
                 checked += 1;

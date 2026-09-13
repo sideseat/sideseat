@@ -131,6 +131,12 @@ jobs:
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
+      # `uv`, because one of the web tests parses the published Python snippets with `python3` and checks them
+      # with `uvx pyflakes==3.4.0`. The job installed Node alone, so that check depended on the runner image
+      # happening to carry uv - and its `the pyflakes probe is actually running` assertion is what would have
+      # failed, which is a confusing way to be told a tool is missing.
+      - uses: astral-sh/setup-uv@6b9c6063abd6010835644d4c2e1bef4cf5cd0fca # v6.0.1
+
       - uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
         with:
           node-version: '24'
@@ -386,7 +392,7 @@ jobs:
       - name: Run pip-audit (tools)
         run: |
           for tool in tools/otel-replay tools/mcp-calculator; do
-            (cd "$tool" && uv sync && uv run --with pip-audit pip-audit)
+            (cd "$tool" && uv sync && uv run --with pip-audit==2.10.1 pip-audit)
           done
 
       # Unconditional, like the other three. It was briefly gated by an allowlist of eight known advisories

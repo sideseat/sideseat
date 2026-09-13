@@ -9,19 +9,48 @@ import { FRAMEWORKS } from "../telemetry-frameworks";
  * snippet only breaks once Python parses it. So parse it with Python.
  */
 
-/** Undefined names, via pyflakes when available. Syntax alone misses `llm=llm`. */
+/** The version, pinned: an unpinned `uvx pyflakes` makes the verdict depend on what PyPI serves today. */
+const PYFLAKES = "pyflakes==3.4.0";
+
+/**
+ * Whether pyflakes can run here.
+ *
+ * Asked **explicitly**, because the previous form could not tell "no findings" from "no tool": any exit status
+ * other than 1 produced no output and was read as a clean result. CI installed only Node, so this check had
+ * been passing there without ever running - the shape of gate this repository keeps finding. Absent locally it
+ * is a stated skip; absent in CI it is a failure, since CI installs `uv` on purpose.
+ */
+function pyflakesAvailable(): boolean {
+  try {
+    execFileSync("uvx", [PYFLAKES, "--version"], { stdio: ["pipe", "pipe", "pipe"] });
+    return true;
+  } catch {
+    if (process.env.CI) {
+      throw new Error(
+        `uvx ${PYFLAKES} cannot run, and CI installs uv precisely so that it can. ` +
+          "Without it this test reports every snippet clean.",
+      );
+    }
+    return false;
+  }
+}
+
+/** Undefined names, via pyflakes. Syntax alone misses `llm=llm`. */
 function undefinedNames(source: string): string[] {
   try {
-    execFileSync("uvx", ["pyflakes", "/dev/stdin"], {
+    execFileSync("uvx", [PYFLAKES, "/dev/stdin"], {
       input: source,
       stdio: ["pipe", "pipe", "pipe"],
     });
     return [];
   } catch (e: unknown) {
     const err = e as { stdout?: Buffer; status?: number };
-    const out = err.stdout?.toString() ?? "";
-    // status 1 = findings; anything else (tool missing) yields no output and is skipped.
-    return out
+    // Status 1 is "findings", and availability is established before any of this runs, so any other status is
+    // a genuine failure rather than something to read as clean.
+    if (err.status !== 1) {
+      throw e;
+    }
+    return (err.stdout?.toString() ?? "")
       .split("\n")
       .filter((l) => l.includes("undefined name"))
       .map((l) => l.split("undefined name")[1].trim());
@@ -69,18 +98,26 @@ describe("telemetry page Python snippets", () => {
 });
 
 describe("telemetry page Python snippets - undefined names", () => {
-  // pyflakes runs via uvx; if it is unavailable the probe returns nothing and these pass
-  // vacuously, so assert the probe itself works first.
-  const probeWorks = undefinedNames("x = TotallyUndefined()").length > 0;
+  // Two separate questions, because they have different answers: can the tool run at all, and does it report
+  // what it is being trusted to report. Asking only the second (the probe returning nothing) conflated a
+  // missing tool with a clean result, and the message a reader got was "the probe is not running" for both.
+  const available = pyflakesAvailable();
 
-  it("the pyflakes probe is actually running", () => {
-    expect(probeWorks).toBe(true);
+  it("pyflakes can run here", () => {
+    expect(available, "uvx pyflakes cannot run - install uv, or see the CI job that does").toBe(
+      true,
+    );
+  });
+
+  it("the pyflakes probe reports a name it should", () => {
+    if (!available) return;
+    expect(undefinedNames("x = TotallyUndefined()")).not.toEqual([]);
   });
 
   it.each(pythonFrameworks.map((f) => [f.id, f] as const))(
     "%s: SDK snippet has no undefined names",
     (_id, f) => {
-      if (!probeWorks) return;
+      if (!available) return;
       expect(undefinedNames(f.code()), `${f.id}:\n${f.code()}`).toEqual([]);
     },
   );

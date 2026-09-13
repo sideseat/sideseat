@@ -147,7 +147,7 @@ pub fn normalize_tools(tools: &JsonValue) -> JsonValue {
 
 /// One tool definition in the canonical shape.
 ///
-/// **Declared**, from `rules/tool-shapes.json`. Five readers used to name providers here and an unrecognised
+/// **Declared**, from `rules/vocabulary/tool-shapes.json`. Five readers used to name providers here and an unrecognised
 /// shape was passed through unchanged - then discarded downstream, because no name could be extracted from it.
 /// So a producer's shape was a code change to support, and an unknown one silently produced nothing usable.
 ///
@@ -310,7 +310,7 @@ fn cohere_params_to_json_schema(param_defs: &JsonValue) -> JsonValue {
 
 /// The name a tool definition states, whatever shape states it.
 ///
-/// **Declared**, from `rules/tool-shapes.json`: our own canonical form first, then whatever the assets say a
+/// **Declared**, from `rules/vocabulary/tool-shapes.json`: our own canonical form first, then whatever the assets say a
 /// producer writes - whose last clause is the named-object shape, so this needs no fallback of its own. It used
 /// to be a seven-arm provider chain, a *second* vocabulary beside `normalize_tool_definition`'s, and the two
 /// disagreed about two spellings; the retired chain is a `#[cfg(test)]` oracle.

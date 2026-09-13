@@ -354,7 +354,7 @@ fn normalize_block(block: &JsonValue, consult_envelopes: bool) -> Option<JsonVal
             )
         })
         // Envelopes around a *message's* content block, which the tool-result chains must not consult;
-        // see `rules/content-blocks-wrappers.json`.
+        // see `rules/vocabulary/content-blocks-wrappers.json`.
         .or_else(|| {
             consult_envelopes.then(|| {
                 crate::domain::rules::ruleset().content_blocks.normalize(
@@ -374,7 +374,7 @@ fn normalize_block(block: &JsonValue, consult_envelopes: bool) -> Option<JsonVal
                 crate::domain::rules::schema::ChainPosition::AfterProviderFormats,
             )
         })
-        // One dialect's blocks are declared at the position above; see `rules/content-blocks-vercel.json`.
+        // One dialect's blocks are declared at the position above; see `rules/vocabulary/content-blocks-vercel.json`.
         // Universal media patterns (mime_type fields, nested self-named media)
         .or_else(|| try_media_fallback(block))
         // Finally, handle unknown formats
@@ -1067,7 +1067,7 @@ fn try_gemini_format(block: &JsonValue) -> Option<JsonValue> {
 /// 2. Aggregated response: `{"content": "...", "finishReason": "stop", "role": "assistant"}`
 ///
 /// Vercel AI uses hyphenated type names and camelCase field names.
-/// Retired: declared in `rules/content-blocks-vercel.json`, at the `after_provider_formats` position. Kept as
+/// Retired: declared in `rules/vocabulary/content-blocks-vercel.json`, at the `after_provider_formats` position. Kept as
 /// the equivalence oracle - `the_declared_dialect_blocks_match_the_reader_they_replace` runs both over every
 /// form it recognised and every shape where it declined.
 #[cfg(test)]
@@ -1308,7 +1308,7 @@ const PROVIDER_CONTENT_FIELDS: &[&str] = &[
 /// - Some SDKs: `{ "value": { "type": "text", "text": "..." } }`
 ///
 /// This function handles all known wrapper patterns universally.
-/// Retired: declared in `rules/content-blocks-wrappers.json`, at the `before_provider_formats` position. Kept
+/// Retired: declared in `rules/vocabulary/content-blocks-wrappers.json`, at the `before_provider_formats` position. Kept
 /// as the equivalence oracle - `the_declared_wrappers_match_the_reader_they_replace` runs both over every
 /// wrapper it unwrapped and every shape where it declined.
 #[cfg(test)]
@@ -1376,7 +1376,7 @@ fn try_unknown_fallback(block: &JsonValue) -> Option<JsonValue> {
         return Some(json!({"type": "unknown", "raw": block.clone()}));
     }
 
-    // A member that means "content block", declared in `rules/message-members.json`, on a block no case
+    // A member that means "content block", declared in `rules/vocabulary/message-members.json`, on a block no case
     // recognised: malformed rather than plain data, and worth seeing as such. The policy is the only part left
     // here - which members say so is the producers' business.
     if crate::domain::rules::ruleset()

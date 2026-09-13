@@ -4350,7 +4350,7 @@ mod declared_provider_alias_tests {
 
     /// A framework that names itself in `gen_ai.system` resolves to the provider that serves its models.
     ///
-    /// Declared by the asset that owns the framework (`rules/google-adk.json`), not beside the catalogue's own
+    /// Declared by the asset that owns the framework (`rules/producers/google-adk.json`), not beside the catalogue's own
     /// provider spellings - and consulted before them, so the claim never has to be written as if a provider
     /// had made it. Both spellings, because normalisation replaces a separator rather than removing it.
     #[test]

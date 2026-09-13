@@ -2750,7 +2750,7 @@ impl MessagePlan {
     ///
     /// A tool **definition** is deliberately *not* filtered here, and the reason is measured rather than a
     /// limitation. Asking the question is now possible - the producer shapes are declared
-    /// (`rules/tool-shapes.json`), so `extract_tool_name` answers it for any of them, where a hand-written check
+    /// (`rules/vocabulary/tool-shapes.json`), so `extract_tool_name` answers it for any of them, where a hand-written check
     /// over `function.name` once dropped `bedrock/converse`'s perfectly good `get_weather` because at emission
     /// the value is still `{"toolSpec": {…}}`. What is absent is the *harm* this exists to prevent: a tool name
     /// list is read back as `Vec<String>`, so one number failed the whole column, while `tool_definitions` is a
