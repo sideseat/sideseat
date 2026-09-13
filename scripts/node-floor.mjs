@@ -46,9 +46,12 @@ if (!semver) {
   process.exit(1);
 }
 
-// Candidates: every release line that could plausibly be someone's Node, plus the boundaries the current
-// ranges turn on, plus anything named on the command line.
-const candidates = [
+// Candidates. A fixed list is not enough for `--check`: it ended at 25, so a claim of "24+" went unverified
+// for every later major, and an upper bound like `<26` appearing in some dependency would leave every
+// candidate's verdict unchanged while the claim quietly became false. So the probes are **derived from the
+// ranges themselves** below - every version any constraint mentions, its neighbours, and a far-future one -
+// with this list kept as a floor of familiar release lines.
+const seeded = [
   "20.18.0",
   "20.19.0",
   "21.7.3",
@@ -68,8 +71,8 @@ const candidates = [
   ...process.argv.slice(2).filter((arg) => !arg.startsWith("-")),
 ];
 
-const blame = new Map(candidates.map((v) => [v, []]));
-let ranges = 0;
+// Collect the constraints first, so the probes can be derived from what they actually say.
+const constraints = [];
 for (const pkg of packages) {
   const lock = join(root, pkg, "package-lock.json");
   if (!existsSync(lock)) continue;
@@ -77,16 +80,43 @@ for (const pkg of packages) {
   for (const [name, meta] of entries) {
     const range = meta?.engines?.node;
     if (!range || meta.optional || meta.os || meta.cpu) continue;
-    ranges += 1;
-    for (const version of candidates) {
-      let ok;
-      try {
-        ok = semver.satisfies(version, range);
-      } catch {
-        continue; // A range semver cannot parse says nothing.
-      }
-      if (!ok) blame.get(version).push(`${pkg}:${name.replace("node_modules/", "")} needs ${range}`);
+    constraints.push({ who: `${pkg}:${name.replace("node_modules/", "")}`, range });
+  }
+}
+const ranges = constraints.length;
+
+// Every boundary a constraint mentions becomes a probe, together with its immediate neighbours, so a bound
+// nobody thought to sample cannot hide. Plus a far-future version: without it, an upper bound in some
+// dependency would leave an open-ended claim like "24+" untested above the largest listed release.
+const probes = new Set([...seeded, "999.0.0"]);
+for (const { range } of constraints) {
+  for (const [, major, minor = "0", patch = "0"] of range.matchAll(/(\d+)(?:\.(\d+))?(?:\.(\d+))?/g)) {
+    const [M, m, p] = [Number(major), Number(minor), Number(patch)];
+    for (const probe of [
+      `${M}.${m}.${p}`,
+      `${M}.${m}.${p + 1}`,
+      p > 0 ? `${M}.${m}.${p - 1}` : `${M}.${m}.0`,
+      `${M}.${m + 1}.0`,
+      m > 0 ? `${M}.${m - 1}.0` : `${M}.0.0`,
+      `${M + 1}.0.0`,
+      M > 0 ? `${M - 1}.0.0` : "0.0.0",
+    ]) {
+      probes.add(probe);
     }
+  }
+}
+const candidates = [...probes].sort(semver.compare);
+
+const blame = new Map(candidates.map((v) => [v, []]));
+for (const { who, range } of constraints) {
+  for (const version of candidates) {
+    let ok;
+    try {
+      ok = semver.satisfies(version, range);
+    } catch {
+      continue; // A range semver cannot parse says nothing.
+    }
+    if (!ok) blame.get(version).push(`${who} needs ${range}`);
   }
 }
 

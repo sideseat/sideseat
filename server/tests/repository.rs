@@ -20,6 +20,25 @@ fn repo_root() -> &'static Path {
         .expect("the crate sits in the repository")
 }
 
+/// `base` (a directory, with or without a trailing slash) joined with a `relative` path, `..` segments applied.
+fn join_relative(base: &str, relative: &str) -> Option<String> {
+    let mut parts: Vec<&str> = base
+        .trim_end_matches('/')
+        .split('/')
+        .filter(|p| !p.is_empty())
+        .collect();
+    for segment in relative.split('/') {
+        match segment {
+            "" | "." => {}
+            ".." => {
+                parts.pop()?;
+            }
+            other => parts.push(other),
+        }
+    }
+    (!parts.is_empty()).then(|| parts.join("/"))
+}
+
 /// The comment text of a Rust file, one entry per line that carries any, numbered from 1.
 ///
 /// **One lexical pass**, because two phases cannot agree about which construct encloses which. Blanking string
@@ -598,26 +617,12 @@ fn every_lockfile_carries_its_manifests_engines() {
         .output()
         .expect("git is available in a git checkout");
 
-    // `None` key means the manifest itself; `Some(key)` an entry inside a lock's `packages` map.
-    let engines_of = |text: &str, key: Option<&str>| -> Option<String> {
-        // Deliberately a small scan rather than a JSON dependency: the lockfiles are megabytes, and the value
-        // wanted is one string in a known place.
-        let region = if let Some(key) = key {
-            let at = text.find("\"packages\"")?;
-            let start = text[at..].find(&format!("\"{key}\": {{"))? + at;
-            let end = text[start..]
-                .find("\n    },")
-                .map_or(text.len(), |e| start + e);
-            &text[start..end]
-        } else {
-            text
-        };
-        let at = region.find("\"engines\"")?;
-        let node = region[at..].find("\"node\"")? + at;
-        let open = region[node..].find(':')? + node + 1;
-        let value = region[open..].trim_start();
-        let value = value.strip_prefix('"')?;
-        Some(value[..value.find('"')?].to_string())
+    let engines_of = |value: &serde_json::Value| -> Option<String> {
+        value
+            .get("engines")?
+            .get("node")?
+            .as_str()
+            .map(str::to_string)
     };
 
     let mut checked = 0usize;
@@ -629,95 +634,68 @@ fn every_lockfile_carries_its_manifests_engines() {
     {
         let dir = manifest.trim_end_matches("package.json");
         let lock_path = format!("{dir}package-lock.json");
-        let Ok(lock) = std::fs::read_to_string(repo.join(&lock_path)) else {
+        let Ok(lock_text) = std::fs::read_to_string(repo.join(&lock_path)) else {
             continue;
         };
-        // A lock also embeds a copy of every **local** dependency's manifest, engines included, and npm
-        // refreshes that copy only when *this* package is installed. So editing `sdk/js` and regenerating its
-        // own lock leaves the examples' lock stating the old requirement - and `make node-floor` reads every
-        // lock, so it would keep deriving from the stale copy. Checking only `packages[""]` missed this.
-        // A local entry is recognised by what the lock *says about it*, not by how its key is spelled: a
-        // `file:./thing` dependency produces a key with no `../` at all, so a prefix test is a hole waiting
-        // for the next local dependency. Every `packages` key whose own `resolved` is not an `https:` URL, or
-        // which is itself a relative path, names a directory in this repository.
-        let mut pairs: Vec<(String, String)> = vec![(manifest.to_string(), String::new())];
-        let mut current: Option<String> = None;
-        let mut local_keys: BTreeSet<String> = BTreeSet::new();
-        for line in lock.lines() {
-            if let Some(key) = line
-                .strip_prefix("    \"")
-                .and_then(|rest| rest.split("\": {").next())
-                .filter(|k| !k.contains('"'))
-            {
-                current = Some(key.to_string());
-                if key.starts_with("../") || key.starts_with("./") {
-                    local_keys.insert(key.to_string());
-                }
-            }
-            if let Some(key) = current.as_ref() {
-                let trimmed = line.trim();
-                let resolved_locally = trimmed
-                    .strip_prefix("\"resolved\": \"")
-                    .is_some_and(|v| !v.starts_with("https:") && !v.starts_with("http:"));
-                if resolved_locally && !key.is_empty() {
-                    local_keys.insert(key.clone());
-                }
-            }
-        }
-        for key in local_keys {
-            // `resolved` on a linked entry points at the directory; the entry that *carries the engines* is
-            // keyed by that same relative path, so both spellings resolve to one manifest.
-            let target = key
-                .rsplit_once("node_modules/")
-                .map_or(key.as_str(), |(_, name)| name);
-            let raw = if key.starts_with('.') {
-                key.as_str()
-            } else {
-                target
-            };
-            let mut parts: Vec<String> = dir
-                .trim_end_matches('/')
-                .split('/')
-                .map(str::to_string)
-                .collect();
-            let mut relative = raw.to_string();
-            while let Some(tail) = relative
-                .strip_prefix("../")
-                .or_else(|| relative.strip_prefix("./"))
-            {
-                if relative.starts_with("../") && parts.pop().is_none() {
-                    break;
-                }
-                relative = tail.to_string();
-            }
-            if relative.is_empty() {
+        let lock: serde_json::Value = serde_json::from_str(&lock_text).expect("a lockfile is JSON");
+        let packages = lock
+            .get("packages")
+            .and_then(serde_json::Value::as_object)
+            .expect("a lockfile has a packages map");
+
+        // Which entries describe a package **in this repository**, and where its manifest is. Two spellings
+        // reach one package and only one of them carries the metadata: npm files a `file:` dependency's
+        // manifest under its *path* (`packages["thing"]` or `packages["../../sdk/js"]`) and leaves
+        // `node_modules/<name>` holding only `resolved` and `link`. Deriving the path from the
+        // `node_modules/<name>` key is therefore wrong whenever the directory is not named after the package -
+        // which is the ordinary case for `file:./thing`. So the link entry is *followed* through its `resolved`
+        // value, which is the only thing that states the path.
+        let mut local: BTreeMap<String, String> = BTreeMap::new();
+        for (key, entry) in packages {
+            if key.is_empty() {
+                local.insert(String::new(), manifest.to_string());
                 continue;
             }
-            parts.push(relative);
-            let local = format!("{}/package.json", parts.join("/"));
-            // A referenced manifest that is not there is itself worth saying: the lock names a package this
-            // repository does not contain, so nothing can check what it copied.
-            if repo.join(&local).exists() {
-                pairs.push((local, key.clone()));
-            } else if key.starts_with('.') {
+            let resolved = entry.get("resolved").and_then(serde_json::Value::as_str);
+            let path = match resolved {
+                // A link: the path is the value, and the metadata lives under that same path.
+                Some(value) if !value.starts_with("http") => {
+                    Some(value.trim_start_matches("file:"))
+                }
+                // A metadata entry for a local package: the key *is* the path.
+                _ if key.starts_with("../") || key.starts_with("./") || !key.contains('/') => {
+                    (!key.starts_with("node_modules")).then_some(key.as_str())
+                }
+                _ => None,
+            };
+            let Some(path) = path else { continue };
+            let Some(joined) = join_relative(dir, path) else {
+                continue;
+            };
+            let candidate = format!("{joined}/package.json");
+            if repo.join(&candidate).exists() {
+                // Keyed by the path, so the link and its metadata entry collapse to one comparison.
+                local.insert(path.to_string(), candidate);
+            } else if resolved.is_some_and(|v| !v.starts_with("http")) {
                 disagree.push(format!(
-                    "{lock_path} has a local entry `{key}` but {local} does not exist"
+                    "{lock_path} resolves `{key}` to `{path}`, but {candidate} does not exist"
                 ));
             }
         }
 
-        for (source, lock_key) in pairs {
-            let declared = engines_of(
-                &std::fs::read_to_string(repo.join(&source)).unwrap_or_default(),
-                None,
-            );
-            let recorded = engines_of(&lock, Some(&lock_key));
+        for (path, source) in local {
+            let declared: Option<String> = std::fs::read_to_string(repo.join(&source))
+                .ok()
+                .and_then(|text| serde_json::from_str::<serde_json::Value>(&text).ok())
+                .and_then(|value| engines_of(&value));
+            // The entry that carries the metadata is keyed by the path, empty for the root.
+            let recorded = packages.get(&path).and_then(engines_of);
             checked += 1;
             if declared != recorded {
-                let entry = if lock_key.is_empty() {
+                let entry = if path.is_empty() {
                     String::new()
                 } else {
-                    format!(" (entry `{lock_key}`)")
+                    format!(" (entry `{path}`)")
                 };
                 disagree.push(format!(
                     "{source} says {declared:?} while {lock_path}{entry} says {recorded:?} - run \
