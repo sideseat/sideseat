@@ -8,7 +8,7 @@ using concurrent HTTP requests with batched OTLP payloads.
 Handles server backpressure (503) with exponential backoff and retry.
 
 Usage:
-    uv run --directory tools/otel-replay generate_load \
+    uv run --locked --directory tools/otel-replay generate_load \
         --spans 1000000 \
         --workers 32 \
         --spans-per-request 50

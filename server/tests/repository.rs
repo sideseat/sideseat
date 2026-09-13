@@ -809,17 +809,38 @@ fn every_uv_project_requires_the_same_resolver() {
         .expect("git is available in a git checkout");
 
     let mut declared: BTreeMap<String, Vec<String>> = BTreeMap::new();
+    let mut misplaced: Vec<String> = Vec::new();
     for file in String::from_utf8_lossy(&listing.stdout)
         .lines()
         .filter(|f| f.ends_with("pyproject.toml") || f.ends_with("uv.toml"))
     {
         let text = std::fs::read_to_string(repo.join(file)).unwrap_or_default();
+        // The **section** matters, not only the line: uv reads `required-version` from `[tool.uv]` in a manifest
+        // and from the top level of a `uv.toml`, and ignores it silently anywhere else. The mutation test covered
+        // deletion and not misplacement, so a declaration moved into an unrelated table satisfied every
+        // assertion here while doing nothing at all.
+        let wanted = if file.ends_with("uv.toml") {
+            ""
+        } else {
+            "tool.uv"
+        };
+        let mut section = String::new();
         for line in text.lines() {
             let trimmed = line.trim();
             if trimmed.starts_with('#') {
                 continue;
             }
+            if let Some(name) = trimmed.strip_prefix('[').and_then(|r| r.strip_suffix(']')) {
+                section = name.trim_matches('"').to_string();
+                continue;
+            }
             if let Some(value) = trimmed.strip_prefix("required-version") {
+                if section != wanted {
+                    misplaced.push(format!(
+                        "{file}: under `[{section}]`, where uv does not read it"
+                    ));
+                    continue;
+                }
                 let value = value
                     .trim_start_matches([' ', '='])
                     .trim()
@@ -831,6 +852,14 @@ fn every_uv_project_requires_the_same_resolver() {
             }
         }
     }
+
+    assert!(
+        misplaced.is_empty(),
+        "{} `required-version` declaration(s) in a section uv does not read - it takes them from `[tool.uv]` in \
+         a manifest and from the top level of a `uv.toml`:\n  {}",
+        misplaced.len(),
+        misplaced.join("\n  ")
+    );
 
     // The floor is derived: every manifest that configures uv must declare it, and so must the root `uv.toml`.
     // `>= 10` was a number I chose, which cannot notice a project appearing or disappearing.

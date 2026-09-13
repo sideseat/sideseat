@@ -41,17 +41,17 @@ View traces: http://localhost:5389/ui/projects/default/observability/traces
 ### All Frameworks
 
 ```bash
-uv run --directory examples/python/strands strands tool_use
-uv run --directory examples/python/adk telemetry-adk tool_use
-uv run --directory examples/python/langgraph langgraph tool_use
-uv run --directory examples/python/openai-agents openai-agents tool_use
-uv run --directory examples/python/agent-framework agent-framework tool_use
-uv run --directory examples/python/autogen autogen tool_use
-uv run --directory examples/python/crewai crewai tool_use
-uv run --directory examples/python/openai openai-provider chat_completions
-uv run --directory examples/python/openai openai-provider responses
-uv run --directory examples/python/anthropic anthropic-provider messages
-uv run --directory examples/python/bedrock bedrock converse
+uv run --locked --directory examples/python/strands strands tool_use
+uv run --locked --directory examples/python/adk telemetry-adk tool_use
+uv run --locked --directory examples/python/langgraph langgraph tool_use
+uv run --locked --directory examples/python/openai-agents openai-agents tool_use
+uv run --locked --directory examples/python/agent-framework agent-framework tool_use
+uv run --locked --directory examples/python/autogen autogen tool_use
+uv run --locked --directory examples/python/crewai crewai tool_use
+uv run --locked --directory examples/python/openai openai-provider chat_completions
+uv run --locked --directory examples/python/openai openai-provider responses
+uv run --locked --directory examples/python/anthropic anthropic-provider messages
+uv run --locked --directory examples/python/bedrock bedrock converse
 npm --prefix examples/javascript run vercel-ai -- tool-use
 npm --prefix examples/javascript run strands -- tool-use
 ```
@@ -59,58 +59,58 @@ npm --prefix examples/javascript run strands -- tool-use
 ### Strands Agents
 
 ```bash
-uv run --directory examples/python/strands strands                        # List samples and models
-uv run --directory examples/python/strands strands tool_use               # Tool usage
-uv run --directory examples/python/strands strands mcp_tools              # MCP server integration
-uv run --directory examples/python/strands strands structured_output      # Structured data extraction
-uv run --directory examples/python/strands strands reasoning              # Extended thinking
-uv run --directory examples/python/strands strands files                  # Image/PDF analysis
-uv run --directory examples/python/strands strands image_gen              # Image generation
-uv run --directory examples/python/strands strands rag_local              # RAG with embeddings
-uv run --directory examples/python/strands strands swarm                  # Multi-agent swarm
-uv run --directory examples/python/strands strands agent_core             # AgentCore integration
-uv run --directory examples/python/strands strands error                  # Error handling
-uv run --directory examples/python/strands strands all                    # Run all
+uv run --locked --directory examples/python/strands strands                        # List samples and models
+uv run --locked --directory examples/python/strands strands tool_use               # Tool usage
+uv run --locked --directory examples/python/strands strands mcp_tools              # MCP server integration
+uv run --locked --directory examples/python/strands strands structured_output      # Structured data extraction
+uv run --locked --directory examples/python/strands strands reasoning              # Extended thinking
+uv run --locked --directory examples/python/strands strands files                  # Image/PDF analysis
+uv run --locked --directory examples/python/strands strands image_gen              # Image generation
+uv run --locked --directory examples/python/strands strands rag_local              # RAG with embeddings
+uv run --locked --directory examples/python/strands strands swarm                  # Multi-agent swarm
+uv run --locked --directory examples/python/strands strands agent_core             # AgentCore integration
+uv run --locked --directory examples/python/strands strands error                  # Error handling
+uv run --locked --directory examples/python/strands strands all                    # Run all
 ```
 
 ### OpenAI Provider
 
 ```bash
-uv run --directory examples/python/openai openai-provider                # List samples and models
-uv run --directory examples/python/openai openai-provider chat_completions  # Sync, streaming, tool use
-uv run --directory examples/python/openai openai-provider responses      # Responses API
-uv run --directory examples/python/openai openai-provider multi_turn     # Multi-turn (trace grouping)
-uv run --directory examples/python/openai openai-provider vision         # Image analysis
-uv run --directory examples/python/openai openai-provider session        # Session with multiple traces
-uv run --directory examples/python/openai openai-provider error          # Error handling
-uv run --directory examples/python/openai openai-provider all            # Run all
+uv run --locked --directory examples/python/openai openai-provider                # List samples and models
+uv run --locked --directory examples/python/openai openai-provider chat_completions  # Sync, streaming, tool use
+uv run --locked --directory examples/python/openai openai-provider responses      # Responses API
+uv run --locked --directory examples/python/openai openai-provider multi_turn     # Multi-turn (trace grouping)
+uv run --locked --directory examples/python/openai openai-provider vision         # Image analysis
+uv run --locked --directory examples/python/openai openai-provider session        # Session with multiple traces
+uv run --locked --directory examples/python/openai openai-provider error          # Error handling
+uv run --locked --directory examples/python/openai openai-provider all            # Run all
 ```
 
 ### Anthropic Provider
 
 ```bash
-uv run --directory examples/python/anthropic anthropic-provider             # List samples and models
-uv run --directory examples/python/anthropic anthropic-provider messages    # Sync, streaming, tool use
-uv run --directory examples/python/anthropic anthropic-provider multi_turn  # Multi-turn (trace grouping)
-uv run --directory examples/python/anthropic anthropic-provider thinking    # Extended thinking
-uv run --directory examples/python/anthropic anthropic-provider vision      # Image analysis
-uv run --directory examples/python/anthropic anthropic-provider document    # PDF analysis
-uv run --directory examples/python/anthropic anthropic-provider session     # Session with multiple traces
-uv run --directory examples/python/anthropic anthropic-provider error       # Error handling
-uv run --directory examples/python/anthropic anthropic-provider all         # Run all
+uv run --locked --directory examples/python/anthropic anthropic-provider             # List samples and models
+uv run --locked --directory examples/python/anthropic anthropic-provider messages    # Sync, streaming, tool use
+uv run --locked --directory examples/python/anthropic anthropic-provider multi_turn  # Multi-turn (trace grouping)
+uv run --locked --directory examples/python/anthropic anthropic-provider thinking    # Extended thinking
+uv run --locked --directory examples/python/anthropic anthropic-provider vision      # Image analysis
+uv run --locked --directory examples/python/anthropic anthropic-provider document    # PDF analysis
+uv run --locked --directory examples/python/anthropic anthropic-provider session     # Session with multiple traces
+uv run --locked --directory examples/python/anthropic anthropic-provider error       # Error handling
+uv run --locked --directory examples/python/anthropic anthropic-provider all         # Run all
 ```
 
 ### Bedrock Provider
 
 ```bash
-uv run --directory examples/python/bedrock bedrock                        # List samples and models
-uv run --directory examples/python/bedrock bedrock converse               # Sync, streaming, thinking, tool use
-uv run --directory examples/python/bedrock bedrock multi_turn             # Multi-turn (trace grouping)
-uv run --directory examples/python/bedrock bedrock invoke_model           # InvokeModel API
-uv run --directory examples/python/bedrock bedrock document               # PDF + image multimodal
-uv run --directory examples/python/bedrock bedrock session                # Session with multiple traces
-uv run --directory examples/python/bedrock bedrock error                  # Error handling
-uv run --directory examples/python/bedrock bedrock all                    # Run all
+uv run --locked --directory examples/python/bedrock bedrock                        # List samples and models
+uv run --locked --directory examples/python/bedrock bedrock converse               # Sync, streaming, thinking, tool use
+uv run --locked --directory examples/python/bedrock bedrock multi_turn             # Multi-turn (trace grouping)
+uv run --locked --directory examples/python/bedrock bedrock invoke_model           # InvokeModel API
+uv run --locked --directory examples/python/bedrock bedrock document               # PDF + image multimodal
+uv run --locked --directory examples/python/bedrock bedrock session                # Session with multiple traces
+uv run --locked --directory examples/python/bedrock bedrock error                  # Error handling
+uv run --locked --directory examples/python/bedrock bedrock all                    # Run all
 ```
 
 ### Options
@@ -142,8 +142,8 @@ Default model varies by sample: Strands/LangGraph/CrewAI/ADK/Bedrock use `bedroc
 ### Load Testing
 
 ```bash
-uv run --directory examples/python/loadtest loadtest              # Default: 1M spans
-uv run --directory examples/python/loadtest loadtest --spans 100000  # Custom span count
+uv run --locked --directory examples/python/loadtest loadtest              # Default: 1M spans
+uv run --locked --directory examples/python/loadtest loadtest --spans 100000  # Custom span count
 ```
 
 ## JavaScript Samples

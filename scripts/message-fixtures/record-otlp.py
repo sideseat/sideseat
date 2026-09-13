@@ -15,7 +15,7 @@ Usage:
 
     # terminal 2 - point the sample at the recorder instead of SideSeat
     OTEL_EXPORTER_OTLP_ENDPOINT=http://127.0.0.1:5399/otel/default \\
-      uv run --directory examples/python/strands strands tool_use
+      uv run --locked --directory examples/python/strands strands tool_use
 
 Each POST body is written to
     server/tests/fixtures/messages/<label>/req-NNN.pb
