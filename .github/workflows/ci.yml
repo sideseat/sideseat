@@ -42,6 +42,29 @@ jobs:
   # The ClickHouse SQL is hand-written in a second dialect and only a real server can tell whether
   # it means what the DuckDB original means - some of it does not even parse. `make test-clickhouse`
   # runs the same test locally against its own container.
+  check-msrv:
+    name: Rust MSRV (1.94)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - uses: dtolnay/rust-toolchain@f7ccc83f9ed1e5b9c81d8a67d7ad1a747e22a561 # stable
+        with:
+          # The version `Cargo.toml` and CONTRIBUTING.md promise. Declaring `rust-version` refuses an older
+          # toolchain and clippy's `incompatible_msrv` catches an item that is too new, but neither *compiles*
+          # the workspace on that version - so the promise was unproven while every job used `stable`.
+          toolchain: '1.94'
+
+      - uses: Swatinem/rust-cache@779680da715d629ac1d338a641029a2f4372abb5 # v2.8.2
+        with:
+          workspaces: server
+          key: msrv
+
+      # No web-dist step: `cargo check` runs build scripts, and `server/build.rs` creates the placeholder the
+      # asset embedding needs.
+      - name: Check the whole workspace
+        run: cargo check --workspace --all-targets
+
   check-clickhouse:
     name: ClickHouse (parity with DuckDB)
     runs-on: ubuntu-latest
@@ -281,12 +304,21 @@ jobs:
         with:
           toolchain: stable
 
-      - name: Install cargo-audit
-        run: cargo install cargo-audit --locked
+      - name: Install cargo-audit and cargo-deny
+        run: cargo install cargo-audit cargo-deny --locked
 
+      # **Blocking**, and this is the change: `cargo-deny` was never installed here and `make harden-supply`
+      # skips when it is absent, so advisories, licences, bans and sources were gated by nothing - fourteen
+      # advisories had accumulated unnoticed, all of them cleared by a dependency update. `deny.toml` is where
+      # an accepted advisory is recorded, with the reason, rather than as an `--ignore` on a command line.
+      - name: Run cargo deny
+        run: cargo deny check
+
+      # Advisory-only, deliberately: `cargo audit` has no per-advisory rationale file, so a finding it reports
+      # and `cargo deny` does not is information rather than a verdict. The gate above is the verdict.
       - name: Run cargo audit
         continue-on-error: true
-        run: cargo audit --ignore RUSTSEC-2023-0071 --ignore RUSTSEC-2024-0436 --ignore RUSTSEC-2024-0370 --ignore RUSTSEC-2026-0002
+        run: cargo audit
 
       - name: Run npm audit (web)
         run: cd web && npm audit --audit-level=high

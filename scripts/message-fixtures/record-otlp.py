@@ -105,7 +105,10 @@ class Recorder(BaseHTTPRequestHandler):
         # Log every POST path: a client whose endpoint differs even slightly (a query string,
         # a different suffix) would otherwise be silently forwarded and never recorded, which
         # looks identical to "the sample produced no telemetry".
-        print(f"[record] POST {self.path} ({len(body)} bytes, {self.headers.get('Content-Type')})", flush=True)
+        print(
+            f"[record] POST {self.path} ({len(body)} bytes, {self.headers.get('Content-Type')})",
+            flush=True,
+        )
 
         # Only trace payloads are fixture material; metrics/logs are forwarded untouched.
         # Match on a path *containing* /v1/traces rather than ending with it: a query string
@@ -121,10 +124,16 @@ class Recorder(BaseHTTPRequestHandler):
                     raw = gzip.decompress(body)
                 except OSError:
                     pass
-            suffix = "json" if self.headers.get("Content-Type", "").startswith("application/json") else "pb"
+            suffix = (
+                "json"
+                if self.headers.get("Content-Type", "").startswith("application/json")
+                else "pb"
+            )
             path = out_dir / f"req-{Recorder.counter:03d}.{suffix}"
             path.write_bytes(_anonymise_home(raw))
-            print(f"[record] {path.relative_to(REPO_ROOT)} ({len(raw)} bytes)", flush=True)
+            print(
+                f"[record] {path.relative_to(REPO_ROOT)} ({len(raw)} bytes)", flush=True
+            )
 
         status, resp_body = 200, b"{}"
         if self.forward:
@@ -143,7 +152,8 @@ class Recorder(BaseHTTPRequestHandler):
             for k, v in self.headers.items()
             # transfer-encoding is dropped too: the body has been fully read, so urllib sets
             # a Content-Length and a stale `chunked` header would make the upstream misparse.
-            if k.lower() not in ("host", "content-length", "connection", "transfer-encoding")
+            if k.lower()
+            not in ("host", "content-length", "connection", "transfer-encoding")
         }
         req = urllib.request.Request(url, data=body, headers=headers, method="POST")
         try:
@@ -158,10 +168,14 @@ class Recorder(BaseHTTPRequestHandler):
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--label", required=True, help="fixture path, e.g. strands/tool_use")
+    ap.add_argument(
+        "--label", required=True, help="fixture path, e.g. strands/tool_use"
+    )
     ap.add_argument("--port", type=int, default=5399)
     ap.add_argument("--upstream", default="http://127.0.0.1:5388")
-    ap.add_argument("--no-forward", action="store_true", help="record only, do not forward")
+    ap.add_argument(
+        "--no-forward", action="store_true", help="record only, do not forward"
+    )
     args = ap.parse_args()
 
     Recorder.label = args.label
@@ -179,10 +193,16 @@ def main() -> int:
         for p_ in stale:
             p_.unlink()
         if stale:
-            print(f"[record] cleared {len(stale)} stale payload(s) in {dest.relative_to(REPO_ROOT)}", flush=True)
+            print(
+                f"[record] cleared {len(stale)} stale payload(s) in {dest.relative_to(REPO_ROOT)}",
+                flush=True,
+            )
     print(f"[record] listening on http://127.0.0.1:{args.port}", flush=True)
     print(f"[record] writing to {dest.relative_to(REPO_ROOT)}", flush=True)
-    print(f"[record] forwarding to {args.upstream if Recorder.forward else '(disabled)'}", flush=True)
+    print(
+        f"[record] forwarding to {args.upstream if Recorder.forward else '(disabled)'}",
+        flush=True,
+    )
     try:
         server.serve_forever()
     except KeyboardInterrupt:

@@ -36,7 +36,9 @@ def warnings_for(label: str, g: dict) -> list[str]:
     warns = []
     # Only meaningful when the fixture HAS sessions: many samples never set a session id, and
     # "no sessions" is not "empty sessions".
-    if g["session_views"] and not any(v["message_count"] for v in g["session_views"].values()):
+    if g["session_views"] and not any(
+        v["message_count"] for v in g["session_views"].values()
+    ):
         warns.append("the fixture has sessions but every session view is empty")
 
     views = [(f"session {k}", v) for k, v in g["session_views"].items()]
@@ -54,7 +56,9 @@ def warnings_for(label: str, g: dict) -> list[str]:
 
         # A conversation with no assistant output usually means the response was not parsed.
         if "assistant" not in roles:
-            warns.append(f"{name}: no assistant message ({len(roles)} msgs) - output not parsed?")
+            warns.append(
+                f"{name}: no assistant message ({len(roles)} msgs) - output not parsed?"
+            )
 
         # A tool call with no result, or vice versa.
         n_use, n_res = kinds.count("tool_use"), kinds.count("tool_result")
@@ -72,7 +76,9 @@ def warnings_for(label: str, g: dict) -> list[str]:
 
         # An entry_type of "json" in a conversation view is usually an unparsed message blob.
         if "json" in kinds:
-            warns.append(f"{name}: {kinds.count('json')} raw 'json' block(s) - message not parsed?")
+            warns.append(
+                f"{name}: {kinds.count('json')} raw 'json' block(s) - message not parsed?"
+            )
 
     return warns
 
@@ -90,7 +96,9 @@ def render(label: str, g: dict, detail: bool) -> None:
 
     if not detail:
         for key, view in g["trace_views"].items():
-            print(f"  trace {key}: {view['message_count']:3d} msgs  {' -> '.join(view['role_sequence'])}")
+            print(
+                f"  trace {key}: {view['message_count']:3d} msgs  {' -> '.join(view['role_sequence'])}"
+            )
         return
 
     for key, view in g["trace_views"].items():

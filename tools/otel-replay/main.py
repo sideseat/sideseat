@@ -153,7 +153,10 @@ def main() -> int:
 
     is_archive = path.suffix in ARCHIVE_SUFFIXES
     if not is_archive and path.suffix != ".jsonl":
-        print(f"Warning: Expected .jsonl/.gz/.zip file, got: {path.suffix}", file=sys.stderr)
+        print(
+            f"Warning: Expected .jsonl/.gz/.zip file, got: {path.suffix}",
+            file=sys.stderr,
+        )
 
     base_url = args.base_url or get_base_url()
     tmp_dir = None

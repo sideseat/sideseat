@@ -3,16 +3,18 @@ members = ["server", "sdk/rust"]
 resolver = "2"
 
 # The minimum Rust, **declared** so cargo refuses an older toolchain with a message naming the version,
-# instead of failing somewhere inside a dependency. It is measured, not chosen, and from two sources: 1.89 is
-# the highest `rust-version` in the resolved graph (the `clickhouse` crates), while the *code* needs 1.91 -
-# `sdk/rust` calls `ceil_char_boundary`, stable since then. Declaring it is what found that: clippy's
-# `incompatible_msrv` fires on every item newer than the stated floor, so this number is now enforced against
-# the source and not only against the lockfile. `CONTRIBUTING.md` had said 1.85, six releases low, with nothing
-# able to notice because CI tests stable only. Re-measure the dependency half after a bump with:
+# instead of failing somewhere inside a dependency. It is measured, not chosen, and from two sources: the
+# highest `rust-version` in the resolved graph (**1.94.1**, the AWS SDK crates) and the code's own needs
+# (`sdk/rust` calls `ceil_char_boundary`, stable since 1.91). Declaring it is what found the second: clippy's
+# `incompatible_msrv` fires on any item newer than the stated floor, so the number is enforced against the
+# source and not only against the lockfile, and a CI job compiles the workspace on exactly this version -
+# `rust-version` refuses an older toolchain but proves nothing about building on this one. `CONTRIBUTING.md`
+# had said 1.85 with nothing able to notice, because every job used `stable`. Verified locally on 1.94.1.
+# Re-measure the dependency half after a bump with:
 #   cargo metadata --format-version 1 --manifest-path server/Cargo.toml |
 #     python3 -c 'import json,sys; print(max((p["rust_version"] for p in json.load(sys.stdin)["packages"] if p.get("rust_version")), key=lambda v: tuple(int(x) for x in v.split("."))))'
 [workspace.package]
-rust-version = "1.91"
+rust-version = "1.94"
 
 # ---------------------------------------------------------------------------
 # Lint gates

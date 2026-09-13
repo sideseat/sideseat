@@ -146,7 +146,9 @@ def remap_resource_span(
 
 
 def send_request(
-    session: requests.Session, url: str, resource_spans: list[dict],
+    session: requests.Session,
+    url: str,
+    resource_spans: list[dict],
     stats: "Stats",
 ) -> tuple[int, int]:
     """Send a batched OTLP request with retry on 503.
@@ -179,10 +181,16 @@ def send_request(
                 time.sleep(backoff + jitter)
                 backoff = min(backoff * 2, MAX_BACKOFF_S)
                 continue
-            print(f"\n  [ERR] Connection failed after {MAX_RETRIES} retries: {e}", flush=True)
+            print(
+                f"\n  [ERR] Connection failed after {MAX_RETRIES} retries: {e}",
+                flush=True,
+            )
             return 0, len(resource_spans)
         except requests.RequestException as e:
-            print(f"\n  [ERR] HTTP {resp.status_code if 'resp' in dir() else '?'}: {e}", flush=True)
+            print(
+                f"\n  [ERR] HTTP {resp.status_code if 'resp' in dir() else '?'}: {e}",
+                flush=True,
+            )
             return 0, len(resource_spans)
 
     return 0, len(resource_spans)
@@ -359,7 +367,11 @@ def main() -> int:
             if spans_enqueued >= args.spans:
                 break
             remapped = remap_resource_span(
-                rs, template_id, new_trace_id, span_id_map, time_offset_ns,
+                rs,
+                template_id,
+                new_trace_id,
+                span_id_map,
+                time_offset_ns,
                 args.project_id,
             )
             work_queue.put(remapped)
