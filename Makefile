@@ -1046,6 +1046,12 @@ docs-deps:
 		echo "[docs-deps] Installing documentation dependencies..."; \
 		cd docs && npm ci; \
 	fi
+	@#  And the browser the Mermaid diagrams render in. `playwright install` is idempotent and answers from
+	@#  its cache in well under a second once present, so this is not a per-build download - but without it
+	@#  `make build-docs` fails in a fresh clone with an error about a missing executable, which is the same
+	@#  shape as the `web/dist` failure `server/build.rs` exists to prevent.
+	@cd docs && npx --no-install playwright install chromium >/dev/null 2>&1 || \
+		{ echo "[docs-deps] Installing the browser the diagrams render in..."; cd docs && npx playwright install chromium; }
 
 build-docs: docs-deps
 	@echo "[build-docs] Building documentation..."

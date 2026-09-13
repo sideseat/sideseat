@@ -50,6 +50,11 @@ jobs:
       # No separate install step: `make build-docs` installs through `docs-deps`, and running `npm ci` first
       # guaranteed that condition was already satisfied - so CI proved the site builds and never once
       # exercised the target it builds with. A broken `docs-deps` passed.
+      # Mermaid renders to static SVG at build time, which needs the browser `rehype-mermaid` drives. Chromium
+      # only, and `--with-deps` for the system libraries a runner image does not carry.
+      - name: Install the browser the diagrams render in
+        run: cd docs && npx playwright install --with-deps chromium
+
       - name: Build documentation
         run: make build-docs
 

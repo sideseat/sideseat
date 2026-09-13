@@ -1,10 +1,20 @@
 // @ts-check
 import { defineConfig } from 'astro/config';
 import starlight from '@astrojs/starlight';
-import starlightClientMermaid from '@pasqal-io/starlight-client-mermaid';
+import rehypeMermaid from 'rehype-mermaid';
 
 // https://astro.build/config
 export default defineConfig({
+  // Mermaid renders to **static SVG at build time** (`rehype-mermaid`, via a headless browser), rather than by
+  // shipping the Mermaid runtime to the reader. It replaced `@pasqal-io/starlight-client-mermaid`, which had
+  // only two published versions and peered on `@astrojs/markdown-remark@^6` - blocking the Astro 7 upgrade
+  // that clears four critical advisories (XSS via spread attributes and transition directives, reflected XSS
+  // via View Transition properties, RCE through AVIF optimisation). Being a plain rehype plugin, it has no
+  // Astro peer dependency at all, so it cannot block the next upgrade either. The cost is a Playwright
+  // browser at build time; the gain is diagrams that render with JavaScript disabled.
+  markdown: {
+    rehypePlugins: [[rehypeMermaid, { strategy: 'inline-svg' }]],
+  },
   site: 'https://sideseat.ai',
   integrations: [
     starlight({
@@ -25,7 +35,6 @@ export default defineConfig({
         src: './src/assets/favicon.png',
       },
       favicon: '/favicon.ico',
-      plugins: [starlightClientMermaid()],
       customCss: ['./src/styles/custom.css'],
       social: [{ icon: 'github', label: 'GitHub', href: 'https://github.com/sideseat/sideseat' }],
       sidebar: [

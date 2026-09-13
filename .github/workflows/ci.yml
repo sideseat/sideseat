@@ -356,10 +356,8 @@ jobs:
             (cd "$tool" && uv sync && uv run --with pip-audit pip-audit)
           done
 
-      # Gated by **identifier**, not exempted wholesale. `continue-on-error` tolerated the next advisory as
-      # much as the current ones, so an exemption for one blocked upgrade quietly became an exemption for
-      # everything. `scripts/audit-docs.mjs` fails on any high or critical advisory outside the known set - and
-      # on a known one that has gone away, since a stale exemption is how such a list stops meaning anything.
-      # The set, and why it cannot be fixed here, are documented at the top of that script.
+      # Unconditional, like the other three. It was briefly gated by an allowlist of eight known advisories
+      # while the Astro 7 upgrade was blocked by a Mermaid plugin; the upgrade landed, so there is nothing to
+      # exempt and the allowlist script is gone. An exemption that outlives its reason is worse than none.
       - name: Run npm audit (docs)
-        run: node scripts/audit-docs.mjs
+        run: cd docs && npm audit --audit-level=high
