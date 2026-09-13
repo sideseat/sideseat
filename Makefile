@@ -540,18 +540,45 @@ harden-supply:
 #
 # Runtime is minutes, not seconds: OrderGraph explores ~83k states in about seven on an M-series laptop. That
 # is why this is its own target and not part of `check`.
+#  Pinned by version **and digest**, in a versioned filename. Previously any `.tools/tla2tools.jar` was
+#  trusted because it existed - so a stale jar from an older version, or a tampered one, was executed without
+#  question - and CI downloaded remote bytes and ran them with nothing checked at all. The digest is verified on
+#  every run, not only after a fetch, which is the difference between pinning and hoping.
+TLA_VERSION := 1.8.0
+TLA_SHA256  := db131ddb48e7004d823bef4493df7b35694babe37505b9d9fa5685e7a331f1f1
+TLA_JAR     := .tools/tla2tools-$(TLA_VERSION).jar
+
 harden-spec:
-	@if [ ! -f .tools/tla2tools.jar ]; then \
-		echo "[harden-spec] fetching tla2tools..."; \
+	@if [ ! -f $(TLA_JAR) ]; then \
+		echo "[harden-spec] fetching tla2tools $(TLA_VERSION)..."; \
 		mkdir -p .tools; \
-		curl -sSL -o .tools/tla2tools.jar \
-			https://github.com/tlaplus/tlaplus/releases/download/v1.8.0/tla2tools.jar; \
+		curl -sSL -o $(TLA_JAR).tmp \
+			https://github.com/tlaplus/tlaplus/releases/download/v$(TLA_VERSION)/tla2tools.jar && \
+			mv $(TLA_JAR).tmp $(TLA_JAR); \
+	fi
+	@#  Verified every run. `shasum` on macOS, `sha256sum` on Linux.
+	@actual=$$( { shasum -a 256 $(TLA_JAR) 2>/dev/null || sha256sum $(TLA_JAR); } | cut -d' ' -f1 ); \
+	if [ "$$actual" != "$(TLA_SHA256)" ]; then \
+		echo "[harden-spec] $(TLA_JAR) has digest $$actual, expected $(TLA_SHA256)."; \
+		echo "[harden-spec] Delete it and re-run to fetch a fresh copy."; \
+		exit 1; \
+	fi
+	@#  Driven by the **specifications**, not by the configurations: enumerating `specs/*.cfg` meant a new
+	@#  `.tla` with no `.cfg` was silently unchecked while this target claimed to check every specification.
+	@missing=$$(for tla in specs/*.tla; do \
+		[ -f "$${tla%.tla}.cfg" ] || echo "$$tla"; \
+	done); \
+	if [ -n "$$missing" ]; then \
+		echo "[harden-spec] specification(s) with no .cfg, so nothing model-checks them:"; \
+		echo "$$missing" | sed 's/^/  /'; \
+		echo "[harden-spec] Add a configuration, or if it is a helper module only others extend, say so here."; \
+		exit 1; \
 	fi
 	@failed=0; \
-	for cfg in specs/*.cfg; do \
-		spec=$$(basename $$cfg .cfg); \
+	for tla in specs/*.tla; do \
+		spec=$$(basename $$tla .tla); \
 		printf "[harden-spec] %-16s " "$$spec"; \
-		out=$$(cd specs && java -XX:+UseParallelGC -cp ../.tools/tla2tools.jar tlc2.TLC \
+		out=$$(cd specs && java -XX:+UseParallelGC -cp ../$(TLA_JAR) tlc2.TLC \
 			-workers auto -config $$spec.cfg $$spec.tla 2>&1); \
 		if echo "$$out" | grep -q "Model checking completed. No error has been found"; then \
 			echo "$$out" | grep -oE "[0-9]+ distinct states found" | head -1; \

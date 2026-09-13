@@ -17,13 +17,15 @@ Until there is one, .NET applications can be traced with any OpenTelemetry expor
 workbench, which needs no SDK at all:
 
 ```bash
-npx sideseat                                   # the workbench, on http://localhost:5389
-export OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:5388/otel/default/v1/traces
+npx sideseat   # the workbench, UI and API together on http://localhost:5388
+
+# `http/protobuf` because .NET's OTLP exporter defaults to gRPC, and the *base* endpoint because the SDK
+# appends `/v1/traces` itself. Use OTEL_EXPORTER_OTLP_TRACES_ENDPOINT if you would rather give the full path.
+export OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf
+export OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:5388/otel/default
 ```
 
-See [the integration docs](https://sideseat.ai/docs) for the exporter configuration.
-
-See [sideseat.ai/docs](https://sideseat.ai/docs) for full documentation.
+See [sideseat.ai/docs](https://sideseat.ai/docs) for the exporter configuration and full documentation.
 
 ## Resources
 
