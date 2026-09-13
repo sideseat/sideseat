@@ -1,6 +1,6 @@
 //! Registration store for SDK-driven agent / MCP presence.
 //!
-//! See `protocol/ws-v1/` for the wire protocol.
+//! See `docs/engineering/protocol-ws-v1/` for the wire protocol.
 //!
 //! Cluster-wide identity is `(project_id, kind, name)`.
 //! Ownership is tracked by `client_id` (stable per SDK process across reconnects).

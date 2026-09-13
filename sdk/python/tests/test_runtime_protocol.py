@@ -80,7 +80,7 @@ def test_schema_file_is_loadable() -> None:
 
 
 def test_bundled_schema_is_the_protocol_schema() -> None:
-    """The bundled copy is byte-identical to `protocol/ws-v1/schema.json`.
+    """The bundled copy is byte-identical to `docs/engineering/protocol-ws-v1/schema.json`.
 
     The copy exists because the SDK ships without the repository
     around it, and until now the only check on it was that it parsed

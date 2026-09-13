@@ -149,6 +149,12 @@ jobs:
       - name: Test
         run: cd web && npm test -- --run
 
+      # The **production build**, which nothing ran: `tsc -b` had been failing on two real type errors in
+      # shipped components and on a test file using `node:child_process` inside the app project, with every gate
+      # green. Testing an artefact is not the same as building it.
+      - name: Build
+        run: cd web && npm run build
+
       # Here rather than in `make check`: the derivation needs an installed `semver`, which this job has and a
       # bare Rust checkout does not. Without a gate somewhere, a dependency bump can raise the Node floor while
       # everything stays green and the four places that state the requirement quietly become wrong.
@@ -178,6 +184,11 @@ jobs:
 
       - name: Test
         run: cd sdk/js && npm test
+
+      # tsup emits the declarations consumers type against, so a break here ships a package that cannot be
+      # imported - and it was equally unbuilt by CI.
+      - name: Build
+        run: cd sdk/js && npm run build
 
   check-sdk-python:
     name: Python SDK (fmt, lint, test)
@@ -366,7 +377,7 @@ jobs:
           for python in 3.10 3.12 3.13; do
             echo "--- python $python"
             uv sync --all-extras --python "$python"
-            uv run --python "$python" --with pip-audit pip-audit
+            uv run --python "$python" --with pip-audit==2.10.1 pip-audit
           done
 
       # The two standalone tools have their own lockfiles and were covered by nothing. Extending the scan here

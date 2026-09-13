@@ -21,20 +21,18 @@ Dev server runs at http://localhost:5389 (UI) and http://localhost:5388 (API).
 ## Project Structure
 
 ```
-server/       Rust backend (Axum): Cargo.toml, build.rs, src/, tests/, assets/, proptest-regressions/
+server/       Rust backend (Axum): Cargo.toml, build.rs, src/, tests/, assets/
 web/          React frontend (Vite)
 cli/          npm distribution wrapper
 sdk/          Client SDKs: python/ js/ rust/ (dotnet/ reserves the NuGet name; no implementation)
 config/       Product configuration: JSON schema and example files
-protocol/     Wire protocol shared by the server and the SDKs (ws-v1)
 examples/     Runnable samples per framework, with their inputs
 tools/        Standalone developer utilities (otel-replay, mcp-calculator)
-scripts/      Repository automation
-benchmarks/   Performance measurement scripts
+scripts/      Repository automation and performance measurement
 packaging/    Release metadata: homebrew formula, macOS entitlements
 deploy/       Container image and a local compose stack
 specs/        TLA+ specifications, checked by `make harden-spec`
-docs/         Public documentation site (Astro), plus docs/engineering/
+docs/         Public documentation site (Astro), plus docs/engineering/ (internal architecture and the ws-v1 wire protocol)
 ```
 
 `server/assets/` holds everything compiled into the binary — the framework rule assets and the

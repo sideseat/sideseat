@@ -1,5 +1,5 @@
 //! Reassembler for large `agent.event` payloads chunked over the WS frame
-//! cap. See `protocol/ws-v1/chunking.md` for the design.
+//! cap. See `docs/engineering/protocol-ws-v1/chunking.md` for the design.
 //!
 //! Chunks arrive as `agent.event.chunk` frames keyed by `(request_id,
 //! group_id)`. We collect them under a per-process `DashMap`, time-out

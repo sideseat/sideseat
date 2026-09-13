@@ -749,10 +749,10 @@ test-redis:
 # End-to-end HTTP latency, which is what a client actually experiences. The in-process benches measure the
 # stages inside a request; these measure the request. The numbers in CLAUDE.md come from here.
 bench-http: disk-guard
-	@benchmarks/http-latency.sh embedded
+	@scripts/bench-http-latency.sh embedded
 
 bench-http-distributed: disk-guard
-	@benchmarks/http-latency.sh distributed
+	@scripts/bench-http-latency.sh distributed
 
 test-web:
 	@echo "[test-web] Running web tests..."
@@ -1039,13 +1039,13 @@ publish-docker:
 # Documentation
 # =============================================================================
 
-#  The wire protocol is stated in `protocol/ws-v1/schema.json`, and the Python SDK bundles a copy because it
+#  The wire protocol is stated in `docs/engineering/protocol-ws-v1/schema.json`, and the Python SDK bundles a copy because it
 #  ships without the repository around it. One command keeps them identical, and
 #  `test_bundled_schema_is_the_protocol_schema` fails when they are not - previously the only check was that
 #  the copy parsed, so the canonical schema could gain a frame while the copy described the old protocol.
 sync-protocol-schema:
-	@cp protocol/ws-v1/schema.json sdk/python/src/sideseat/runtime/_schema.json
-	@echo "[sync-protocol-schema] sdk/python now bundles protocol/ws-v1/schema.json"
+	@cp docs/engineering/protocol-ws-v1/schema.json sdk/python/src/sideseat/runtime/_schema.json
+	@echo "[sync-protocol-schema] sdk/python now bundles docs/engineering/protocol-ws-v1/schema.json"
 
 docs-deps:
 	@#  `npm ci`, and keyed on the **lockfile being newer** than the install rather than on the directory

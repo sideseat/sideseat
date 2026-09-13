@@ -806,17 +806,25 @@ Kept as history. Codex's acceptance at cycle 40, given on `d57afd7c`:
 
 ### What is declared, measured
 
-41 assets holding 347 rules:
+43 assets holding 382 clauses, grouped by what each file declares - `producers/` (30, one per framework or
+provider), `conventions/` (2: the OTel conventions and the generic fallbacks) and `vocabulary/` (11, the shared
+vocabularies nothing framework-specific belongs in):
 
 | Kind | Count | Kind | Count |
 | --- | --- | --- | --- |
 | `messages` | 71 | `span_categories` | 22 |
-| `carriers` | 55 | `message_events` | 9 |
-| `span_fields` | 47 | `event_roles` | 9 |
-| `observation_types` | 33 | `content_blocks` | 9 |
-| `message_members` | 32 | `span_facts` | 4 |
-| `detect` | 28 | `provider_aliases` | 2 |
-| `sdk_slugs` | 26 | | |
+| `carriers` | 55 | `role_authority` | 17 |
+| `span_fields` | 47 | `convention_namespaces` | 11 |
+| `observation_types` | 35 | `message_events` | 9 |
+| `message_members` | 30 | `event_roles` | 9 |
+| `detect` | 28 | `content_blocks` | 9 |
+| `sdk_slugs` | 26 | `tool_shapes` | 5 |
+| `span_facts` | 4 | `fragments` | 2 |
+| `provider_aliases` | 2 | | |
+
+The previous version of this table said 41 assets and 347 rules, and four kinds were missing from it
+altogether. Both numbers are now asserted by `the_diagrams_count_what_the_tree_holds`, which is why they can
+be trusted here.
 
 Each retirement is held to the code it replaced by an **equivalence oracle** rather than by the goldens,
 because a golden can be regenerated and bless a regression. **Seventeen**, in two shapes, and one thing that

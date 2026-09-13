@@ -212,10 +212,9 @@ cli/          npm distribution wrapper
 sdk/          Client SDKs: python/ js/ rust/ (dotnet/ reserves the NuGet name; no implementation)
 examples/     Runnable samples per framework, with their inputs
 config/       Configuration schema and examples
-protocol/     Wire protocol shared by the server and the SDKs
-docs/         Documentation site, plus docs/engineering/ for internals
-tools/        Developer utilities  ·  scripts/  Repository automation
-benchmarks/   Performance scripts  ·  specs/  TLA+ specifications
+docs/         Documentation site, plus docs/engineering/ for internals and the ws-v1 wire protocol
+tools/        Developer utilities  ·  scripts/  Automation and benchmarks
+specs/        TLA+ specifications
 deploy/       Container image and local compose stack
 packaging/    Release metadata (Homebrew, macOS entitlements)
 ```

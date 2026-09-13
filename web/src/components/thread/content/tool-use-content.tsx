@@ -4,7 +4,11 @@ import { JsonContent } from "./json-content";
 interface ToolUseContentProps {
   id?: string;
   name?: string;
-  input: Record<string, unknown>;
+  /** Whatever the provider sent. A tool's arguments are arbitrary JSON - an object usually, but a string
+   *  or a list for some providers - and it is rendered as JSON either way. Declaring
+   *  `Record<string, unknown>` was a claim about provider data that is not true, and it broke `tsc -b`
+   *  at both call sites, where the value arrives as `unknown`. */
+  input: unknown;
   /** Show inline header with tool name (for ContentRenderer use) */
   showInlineHeader?: boolean;
 }

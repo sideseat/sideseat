@@ -916,7 +916,7 @@ fn every_relative_schema_reference_resolves() {
 /// This is the **fifth** instance of one class: a file moved to a purpose-named directory keeps counting the
 /// levels its old location had, and nothing fails at the moment of the move. The first four were caught by
 /// running the thing — an embedded asset folder, two `include_str!` paths, thirteen package manifests, the
-/// fixture scripts. The fifth was not: `benchmarks/http-latency.sh` came from `misc/bench/`, kept `../..`, and
+/// fixture scripts. The fifth was not: `scripts/bench-http-latency.sh` came from `misc/bench/`, kept `../..`, and
 /// resolved the root to the *parent of the repository* — so `make bench-http`, which is the latency gate,
 /// failed before building anything, and it stayed that way because a benchmark is not part of `make check`.
 ///
@@ -950,7 +950,7 @@ fn every_script_that_locates_the_repository_root_finds_it() {
         // they simply do not match.
         .filter(|f| !f.contains("/.venv/") && !f.contains("/node_modules/"))
     {
-        // The file's own depth: `benchmarks/http-latency.sh` sits one directory below the root.
+        // The file's own depth: `scripts/bench-http-latency.sh` sits one directory below the root.
         let depth = file.matches('/').count();
         let text = std::fs::read_to_string(repo.join(file)).unwrap_or_default();
         for (number, line) in text.lines().enumerate() {

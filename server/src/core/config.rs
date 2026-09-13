@@ -542,6 +542,14 @@ impl FileConfig {
                     current_retention.max_spans = retention.max_spans;
                 }
             }
+
+            if let Some(auth) = otel.auth {
+                let current_auth = current.auth.get_or_insert_with(OtelAuthFileConfig::default);
+                if auth.required.is_some() {
+                    tracing::trace!(required = ?auth.required, "Merging otel.auth.required");
+                    current_auth.required = auth.required;
+                }
+            }
         }
 
         // Pricing
@@ -786,6 +794,7 @@ impl FileConfig {
                     .env
                     .get_or_insert_with(SecretsEnvFileConfig::default);
                 if env_cfg.prefix.is_some() {
+                    tracing::trace!(prefix = ?env_cfg.prefix, "Merging secrets.env.prefix");
                     ce.prefix = env_cfg.prefix;
                 }
             }
@@ -794,12 +803,15 @@ impl FileConfig {
                     .aws
                     .get_or_insert_with(SecretsAwsFileConfig::default);
                 if aws_cfg.region.is_some() {
+                    tracing::trace!(region = ?aws_cfg.region, "Merging secrets.aws.region");
                     ca.region = aws_cfg.region;
                 }
                 if aws_cfg.prefix.is_some() {
+                    tracing::trace!(prefix = ?aws_cfg.prefix, "Merging secrets.aws.prefix");
                     ca.prefix = aws_cfg.prefix;
                 }
                 if aws_cfg.recovery_window_days.is_some() {
+                    tracing::trace!(days = ?aws_cfg.recovery_window_days, "Merging secrets.aws.recovery_window_days");
                     ca.recovery_window_days = aws_cfg.recovery_window_days;
                 }
             }
@@ -812,9 +824,11 @@ impl FileConfig {
                     cv.address = vault_cfg.address;
                 }
                 if vault_cfg.mount.is_some() {
+                    tracing::trace!(mount = ?vault_cfg.mount, "Merging secrets.vault.mount");
                     cv.mount = vault_cfg.mount;
                 }
                 if vault_cfg.prefix.is_some() {
+                    tracing::trace!(prefix = ?vault_cfg.prefix, "Merging secrets.vault.prefix");
                     cv.prefix = vault_cfg.prefix;
                 }
                 if vault_cfg.token.is_some() {
@@ -2103,6 +2117,7 @@ mod config_surface_tests {
         }
 
         let mut missing: Vec<String> = Vec::new();
+        let mut unmerged: Vec<String> = Vec::new();
         let mut walk: Vec<(String, Vec<String>)> = vec![("FileConfig".to_string(), Vec::new())];
         let mut checked = 0usize;
         let structs = declared.len();
@@ -2140,9 +2155,29 @@ mod config_surface_tests {
                 }
                 if let Some(nested) = nested {
                     walk.push((nested.clone(), here));
+                    continue;
+                }
+                // A leaf has to be **carried by `merge`** as well as described by the schema, or an operator
+                // sets it in `./sideseat.json` and it is silently discarded when the files are combined. The
+                // merge half of this test was hand-listed to three database structs while the schema half
+                // walked everything, and `otel.auth.required` was exactly that gap: schema-valid, read
+                // downstream, dropped by `merge`. The marker is `merge`'s own trace line, which makes the
+                // carrying observable to an operator rather than only to a test.
+                let marker = format!("\"Merging {}\"", here.join("."));
+                if !SOURCE.contains(&marker) {
+                    unmerged.push(format!("{name}.{field} -> {}", here.join(".")));
                 }
             }
         }
+        assert!(
+            unmerged.is_empty(),
+            "{} config field(s) `merge` does not announce with a `Merging <path>` trace. From outside, a field \
+             that is carried silently and one that is not carried at all look identical - which is how \
+             `otel.auth.required` went unnoticed while being read downstream. Add the trace, or the branch \
+             and the trace:\n  {}",
+            unmerged.len(),
+            unmerged.join("\n  ")
+        );
         assert!(
             missing.is_empty(),
             "{} config field(s) that sideseat.schema.json does not describe at the path they are read from, \

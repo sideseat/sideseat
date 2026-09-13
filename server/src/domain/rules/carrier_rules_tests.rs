@@ -1556,7 +1556,16 @@ fn no_production_module_names_a_framework() {
     let sources = crate::domain::rules::schema::embedded_sources();
     let ids: Vec<String> = sources
         .keys()
-        .map(|path| path.trim_end_matches(".json").to_string())
+        // The asset id is the file's **basename**: the assets sit in `producers/`, `conventions/` and
+        // `vocabulary/` subdirectories, and a marker derived from the whole path would be
+        // `conventions/semconv` rather than `semconv`.
+        .map(|path| {
+            path.rsplit('/')
+                .next()
+                .unwrap_or(path)
+                .trim_end_matches(".json")
+                .to_string()
+        })
         .collect();
     assert!(ids.len() > 20, "only {} assets were found", ids.len());
     for named in SHARED_VOCABULARY
@@ -1571,8 +1580,15 @@ fn no_production_module_names_a_framework() {
     }
     // Each exclusion carries a property, or the list is a way to make the sweep quiet about a framework.
     for shared in SHARED_VOCABULARY {
+        // Located by **basename**, not by a path this test spells out: the assets are grouped into
+        // `producers/`, `conventions/` and `vocabulary/`, and a regrouping must not require editing a sweep.
+        let bytes = sources
+            .iter()
+            .find(|(path, _)| path.rsplit('/').next().unwrap_or(path) == format!("{shared}.json"))
+            .map(|(_, bytes)| bytes)
+            .unwrap_or_else(|| panic!("`{shared}` is excluded but no asset of that name exists"));
         let file: crate::domain::rules::schema::RuleFile =
-            serde_json::from_slice(&sources[&format!("{shared}.json")]).expect("the asset parses");
+            serde_json::from_slice(bytes).expect("the asset parses");
         assert!(
             file.detect.is_empty(),
             "`{shared}` is excluded as shared vocabulary and declares detection, so it identifies a producer"
@@ -2783,7 +2799,13 @@ fn producer_key_inventory() -> std::collections::BTreeMap<String, String> {
     let mut per_asset: std::collections::BTreeMap<String, std::collections::BTreeSet<String>> =
         std::collections::BTreeMap::new();
     for (path, bytes) in &sources {
-        let id = path.trim_end_matches(".json").to_string();
+        // Basename, for the same reason as above: the assets are grouped in subdirectories.
+        let id = path
+            .rsplit('/')
+            .next()
+            .unwrap_or(path)
+            .trim_end_matches(".json")
+            .to_string();
         let value: serde_json::Value = serde_json::from_slice(bytes).expect("the asset parses");
         let mut keys = std::collections::BTreeSet::new();
         collect_telemetry_keys(&value, None, &mut keys);
@@ -2842,7 +2864,8 @@ fn producer_key_inventory() -> std::collections::BTreeMap<String, String> {
             );
         }
         let conventions: crate::domain::rules::schema::RuleFile =
-            serde_json::from_slice(&sources["semconv.json"]).expect("the conventions asset parses");
+            serde_json::from_slice(&sources["conventions/semconv.json"])
+                .expect("the conventions asset parses");
         conventions.convention_namespaces.iter().cloned().collect()
     };
     let from_conventions: std::collections::BTreeSet<String> = per_asset
@@ -3032,6 +3055,18 @@ fn the_diagrams_count_what_the_tree_holds() {
     assert!(
         text.contains(&expected),
         "the asset diagram should say `{expected}`; a count nobody checks is the claim that rots first"
+    );
+    // The engine's own document states the same two numbers in prose, and *that* copy had rotted - the
+    // diagram was guarded and the prose was not, which is the same asymmetry one level along.
+    let prose = std::fs::read_to_string(
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../docs/engineering/framework-rules-engine.md"),
+    )
+    .expect("the engine's document is committed");
+    let stated = format!("{} assets holding {clauses} clauses", sources.len());
+    assert!(
+        prose.contains(&stated),
+        "docs/engineering/framework-rules-engine.md should say `{stated}`"
     );
 
     let sections = text.matches("\n## ").count();

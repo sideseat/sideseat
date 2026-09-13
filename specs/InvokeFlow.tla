@@ -3,7 +3,7 @@
 (* Model of one AG-UI invocation crossing three components: the HTTP SSE   *)
 (* handler, the server's WS bridge topic, and the SDK worker.              *)
 (*                                                                         *)
-(* protocol/ws-v1/invoke-flow.md states two safety properties in    *)
+(* docs/engineering/protocol-ws-v1/invoke-flow.md states two safety properties in    *)
 (* prose. This spec states them as invariants so TLC can try to break them *)
 (* across every interleaving, including the ones that are hard to force in *)
 (* an integration test: an SDK event that arrives before the subscriber is *)

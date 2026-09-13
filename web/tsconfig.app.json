@@ -28,5 +28,10 @@
     "noFallthroughCasesInSwitch": true,
     "noUncheckedSideEffectImports": true
   },
-  "include": ["src"]
+  "include": ["src"],
+  // The tests live under `src/` but are not part of the bundle, and one of them uses `node:child_process`
+  // to run `python3` and `ruff` against the snippets this page shows. Compiling them here failed `tsc -b`
+  // - which nothing noticed, because CI never ran the production build. `tsconfig.test.json` checks them
+  // with node types instead, so they are moved rather than exempted.
+  "exclude": ["src/**/__tests__/**", "src/**/*.test.ts", "src/**/*.test.tsx"]
 }

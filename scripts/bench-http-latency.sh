@@ -7,8 +7,8 @@
 # experiences; the in-process benches (`bench_ingestion_end_to_end`, `bench_session_scaling`) measure the
 # stages inside it.
 #
-#   benchmarks/http-latency.sh embedded      # SQLite + DuckDB, the default deployment
-#   benchmarks/http-latency.sh distributed   # PostgreSQL + ClickHouse, in throwaway containers
+#   scripts/bench-http-latency.sh embedded      # SQLite + DuckDB, the default deployment
+#   scripts/bench-http-latency.sh distributed   # PostgreSQL + ClickHouse, in throwaway containers
 #
 # Three things this script is careful about, each because getting it wrong produces a number that looks
 # like evidence and is not:
