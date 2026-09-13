@@ -27,9 +27,6 @@ jobs:
         with:
           workspaces: server
 
-      - name: Create web dist stub
-        run: mkdir -p web/dist && echo '<!DOCTYPE html><html></html>' > web/dist/index.html
-
       # Delegates to the Makefile so CI and `make` cannot drift. These ran from server/, which
       # meant sdk/rust was never formatted, linted or tested by anything.
       - name: Format check
@@ -72,9 +69,6 @@ jobs:
       - uses: Swatinem/rust-cache@779680da715d629ac1d338a641029a2f4372abb5 # v2.8.2
         with:
           workspaces: server
-
-      - name: Create web dist stub
-        run: mkdir -p web/dist && echo '<!DOCTYPE html><html></html>' > web/dist/index.html
 
       # Not `make test-clickhouse`: that target starts its own container, which a service
       # container already provides here.

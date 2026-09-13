@@ -21,7 +21,7 @@ Dev server runs at http://localhost:5389 (UI) and http://localhost:5388 (API).
 ## Project Structure
 
 ```
-server/       Rust backend (Axum). Cargo.toml, src/, tests/, assets/ — nothing else
+server/       Rust backend (Axum): Cargo.toml, build.rs, src/, tests/, assets/, proptest-regressions/
 web/          React frontend (Vite)
 cli/          npm distribution wrapper
 sdk/          Client SDKs: python/ js/ rust/ dotnet/

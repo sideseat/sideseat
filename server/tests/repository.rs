@@ -575,6 +575,69 @@ fn every_tree_diagram_names_things_that_exist() {
     );
 }
 
+/// `CONTRIBUTING.md`'s project structure names every top-level directory, and only real ones.
+///
+/// It is the first thing a contributor reads, and it is a plain list rather than a tree, so the diagram check
+/// does not see it — which is how it came to claim `server/` held "Cargo.toml, src/, tests/, assets/ — nothing
+/// else" while `proptest-regressions/` sat there tracked, and then a `build.rs` joined it.
+///
+/// **Both directions**, because they fail differently and only one of them is visible to a reader. A named
+/// directory that does not exist sends someone looking for it; an existing directory nobody named is a part of
+/// the repository the introduction denies, which is how a grab-bag starts. Hidden directories are excluded:
+/// `.github/` and `.githooks/` are conventions a contributor already knows, and listing them would say nothing.
+#[test]
+fn the_documented_project_structure_matches_the_tree() {
+    let repo = repo_root();
+    let listing = Command::new("git")
+        .args(["ls-files"])
+        .current_dir(repo)
+        .output()
+        .expect("git is available in a git checkout");
+    let actual: BTreeSet<&str> = String::from_utf8_lossy(&listing.stdout)
+        .lines()
+        .filter_map(|f| f.split_once('/').map(|(top, _)| top))
+        .filter(|top| !top.starts_with('.'))
+        .collect::<BTreeSet<_>>()
+        .iter()
+        .map(|s| Box::leak(s.to_string().into_boxed_str()) as &str)
+        .collect();
+
+    let contributing = std::fs::read_to_string(repo.join("CONTRIBUTING.md"))
+        .expect("CONTRIBUTING.md is committed");
+    let block = contributing
+        .split("## Project Structure")
+        .nth(1)
+        .and_then(|rest| rest.split("```").nth(1))
+        .expect("the project structure is a fenced block under its own heading");
+    let documented: BTreeSet<&str> = block
+        .lines()
+        .filter_map(|l| l.split_whitespace().next())
+        .filter_map(|first| first.strip_suffix('/'))
+        .filter(|name| !name.contains('/'))
+        .collect();
+
+    let undocumented: Vec<&&str> = actual
+        .iter()
+        .filter(|d| !documented.contains(**d))
+        .collect();
+    let imaginary: Vec<&&str> = documented
+        .iter()
+        .filter(|d| !actual.contains(**d))
+        .collect();
+    assert!(
+        documented.len() >= 10,
+        "parsed only {} directories from the structure block - the parse is wrong, not the document",
+        documented.len()
+    );
+    assert!(
+        undocumented.is_empty() && imaginary.is_empty(),
+        "CONTRIBUTING.md's project structure disagrees with the tree.\n  in the tree, undocumented: {:?}\n  \
+         documented, not in the tree: {:?}",
+        undocumented,
+        imaginary
+    );
+}
+
 /// Every citation of a Rust module by directory and filename, anywhere in the repository, resolves to a real
 /// file — in prose and in source comments alike.
 ///
