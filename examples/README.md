@@ -43,11 +43,11 @@ View traces: http://localhost:5389/ui/projects/default/observability/traces
 ```bash
 uv run --locked --directory examples/python/strands strands tool_use
 uv run --locked --directory examples/python/adk telemetry-adk tool_use
-uv run --locked --directory examples/python/langgraph langgraph tool_use
-uv run --locked --directory examples/python/openai-agents openai-agents tool_use
-uv run --locked --directory examples/python/agent-framework agent-framework tool_use
-uv run --locked --directory examples/python/autogen autogen tool_use
-uv run --locked --directory examples/python/crewai crewai tool_use
+uv run --locked --directory examples/python/langgraph telemetry-langgraph tool_use
+uv run --locked --directory examples/python/openai-agents telemetry-openai-agents tool_use
+uv run --locked --directory examples/python/agent-framework telemetry-agent-framework tool_use
+uv run --locked --directory examples/python/autogen telemetry-autogen tool_use
+uv run --locked --directory examples/python/crewai telemetry-crewai tool_use
 uv run --locked --directory examples/python/openai openai-provider chat_completions
 uv run --locked --directory examples/python/openai openai-provider responses
 uv run --locked --directory examples/python/anthropic anthropic-provider messages

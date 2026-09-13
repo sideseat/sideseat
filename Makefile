@@ -465,7 +465,7 @@ fmt-check:
 
 lint:
 	@echo "[lint] Running linters..."
-	@cargo clippy --all-targets -- -D warnings
+	@cargo clippy --locked --all-targets -- -D warnings
 	@cd $(WEB_DIR) && npm run lint
 	@cd sdk/js && npm run lint
 	@cd examples/javascript && npm run lint
@@ -480,7 +480,7 @@ lint:
 # gate CI on it. Keep this list identical to the advisory block in Cargo.toml.
 lint-advisory:
 	@echo "[lint-advisory] Advisory clippy lints (informational, does not fail)..."
-	@cargo clippy --all-targets -- \
+	@cargo clippy --locked --all-targets -- \
 		-W clippy::redundant_clone \
 		-W clippy::needless_collect \
 		-W clippy::or_fun_call \
@@ -656,12 +656,12 @@ test: test-rust test-web test-sdk-js test-sdk-python
 # them - not make, not CI, not the hooks.
 test-rust: disk-guard
 	@echo "[test-rust] Running Rust tests (workspace)..."
-	@cargo test --workspace
+	@cargo test --locked --workspace
 
 # Server package only, for the inner loop.
 test-server:
 	@echo "[test-server] Running server tests..."
-	@cargo test -p sideseat-server
+	@cargo test --locked -p sideseat-server
 
 # ClickHouse read-path parity against DuckDB. Not part of `test`/`check`: it needs a container,
 # and a laptop without Docker would fail the gate for a reason unrelated to the change. The test
@@ -703,7 +703,7 @@ test-clickhouse:
 	SIDESEAT_TEST_CLICKHOUSE_URL=http://127.0.0.1:$(CH_TEST_PORT) \
 	SIDESEAT_TEST_CLICKHOUSE_USER=sideseat \
 	SIDESEAT_TEST_CLICKHOUSE_PASSWORD=sideseat \
-	cargo test -p sideseat-server clickhouse -- --test-threads=1; \
+	cargo test --locked -p sideseat-server clickhouse -- --test-threads=1; \
 	status=$$?; \
 	docker rm -fv $(CH_TEST_CONTAINER) >/dev/null 2>&1; \
 	exit $$status
@@ -734,7 +734,7 @@ test-postgres:
 	}
 	@set +e; \
 	SIDESEAT_TEST_POSTGRES_URL=postgres://sideseat:sideseat@127.0.0.1:$(PG_TEST_PORT)/sideseat \
-	cargo test -p sideseat-server parity_tests -- --test-threads=1; \
+	cargo test --locked -p sideseat-server parity_tests -- --test-threads=1; \
 	status=$$?; \
 	docker rm -fv $(PG_TEST_CONTAINER) >/dev/null 2>&1; \
 	exit $$status
@@ -766,7 +766,7 @@ test-redis:
 	}
 	@set +e; \
 	SIDESEAT_TEST_REDIS_URL=redis://127.0.0.1:$(REDIS_TEST_PORT) \
-	cargo test -p sideseat-server redis_stream_tests -- --test-threads=1; \
+	cargo test --locked -p sideseat-server redis_stream_tests -- --test-threads=1; \
 	status=$$?; \
 	docker rm -fv $(REDIS_TEST_CONTAINER) >/dev/null 2>&1; \
 	exit $$status
@@ -813,7 +813,7 @@ build-web:
 
 build-server: build-web
 	@echo "[build-server] Building backend..."
-	@cd $(SERVER_DIR) && cargo build --release
+	@cd $(SERVER_DIR) && cargo build --locked --release
 	@echo "[build-server] Binary: target/release/sideseat"
 
 # =============================================================================
@@ -850,7 +850,7 @@ endef
 define MAKE_CLI_TARGET
 build-cli-$(1): build-web
 	@echo "[build-cli] $(1) ($(BUILD_CMD_$(1)))..."
-	@cd $$(SERVER_DIR) && $(BUILD_CMD_$(1)) --release --target $(RUST_TARGET_$(1))
+	@cd $$(SERVER_DIR) && $(BUILD_CMD_$(1)) --locked --release --target $(RUST_TARGET_$(1))
 	@cp target/$(RUST_TARGET_$(1))/release/$(BIN_NAME_$(1)) $$(call cli-bin,$(1))
 	@chmod +x $$(call cli-bin,$(1)) 2>/dev/null || true
 	@$(call sign-if-darwin,$(1))

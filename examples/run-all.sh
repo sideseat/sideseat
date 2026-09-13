@@ -84,7 +84,7 @@ for s in agent_core error files image_gen mcp_tools rag_local reasoning structur
   run_py crewai telemetry-crewai "$s"
 done
 for s in error files image_gen mcp_tools rag_local reasoning structured_output swarm tool_use; do
-  run_py langgraph langgraph "$s"
+  run_py langgraph telemetry-langgraph "$s"
 done
 
 # --- Bedrock-backed JS suites ---

@@ -42,7 +42,7 @@ jobs:
         run: cargo fmt --check
 
       - name: Lint
-        run: cargo clippy --all-targets -- -D warnings
+        run: cargo clippy --locked --all-targets -- -D warnings
 
       - name: Test
         run: make test-rust
@@ -71,7 +71,7 @@ jobs:
       # No web-dist step: `cargo check` runs build scripts, and `server/build.rs` creates the placeholder the
       # asset embedding needs.
       - name: Check the whole workspace
-        run: cargo check --workspace --all-targets
+        run: cargo check --locked --workspace --all-targets
 
   check-clickhouse:
     name: ClickHouse (parity with DuckDB)
@@ -109,7 +109,7 @@ jobs:
           SIDESEAT_TEST_CLICKHOUSE_URL: http://127.0.0.1:8123
           SIDESEAT_TEST_CLICKHOUSE_USER: sideseat
           SIDESEAT_TEST_CLICKHOUSE_PASSWORD: sideseat
-        run: cargo test -p sideseat-server clickhouse -- --test-threads=1
+        run: cargo test --locked -p sideseat-server clickhouse -- --test-threads=1
 
       # A silent skip would make this job pass while testing nothing.
       - name: Fail if the parity test skipped
@@ -118,7 +118,7 @@ jobs:
           SIDESEAT_TEST_CLICKHOUSE_USER: sideseat
           SIDESEAT_TEST_CLICKHOUSE_PASSWORD: sideseat
         run: |
-          cargo test -p sideseat-server clickhouse_matches_duckdb -- --nocapture 2>&1 \
+          cargo test --locked -p sideseat-server clickhouse_matches_duckdb -- --nocapture 2>&1 \
             | tee /tmp/parity.log
           if grep -q "clickhouse parity: skipped" /tmp/parity.log; then
             echo "parity test skipped - the service container was not reachable"

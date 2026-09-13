@@ -789,6 +789,86 @@ fn every_lockfile_carries_its_manifests_engines() {
     );
 }
 
+/// A sample suite that declares a collision-free alias is invoked by it everywhere.
+///
+/// Five suites declare both `<name>` and `telemetry-<name>`, and the alias exists for a reason `run-all.sh`
+/// states: the framework's own package installs a CLI of that name and **wins**, so `uv run --directory
+/// examples/python/crewai crewai` runs CrewAI's CLI rather than the sample. Only `run-all.sh` used the alias;
+/// `capture.sh` and the README named the colliding form, which means the fixture-capture path for that suite was
+/// invoking the wrong program.
+///
+/// The rule is uniform rather than per-suite, deliberately: `langgraph` did not collide *today* only because
+/// `langgraph-cli` is not in that tree, and the alias costs nothing.
+#[test]
+fn every_aliased_sample_suite_is_invoked_by_its_alias() {
+    let repo = repo_root();
+    let listing = Command::new("git")
+        .args(["ls-files", "examples/python"])
+        .current_dir(repo)
+        .output()
+        .expect("git is available in a git checkout");
+
+    let mut aliased: Vec<String> = Vec::new();
+    for manifest in String::from_utf8_lossy(&listing.stdout)
+        .lines()
+        .filter(|f| f.ends_with("pyproject.toml"))
+    {
+        let Some(suite) = manifest.split('/').nth(2) else {
+            continue;
+        };
+        let text = std::fs::read_to_string(repo.join(manifest)).unwrap_or_default();
+        let Some(scripts) = text.split("[project.scripts]").nth(1) else {
+            continue;
+        };
+        let scripts = scripts.split("\n[").next().unwrap_or(scripts);
+        let declares = |name: &str| {
+            scripts
+                .lines()
+                .any(|l| l.trim().starts_with(&format!("{name} = ")))
+        };
+        if declares(suite) && declares(&format!("telemetry-{suite}")) {
+            aliased.push(suite.to_string());
+        }
+    }
+    assert!(
+        aliased.len() >= 3,
+        "found only {} aliased suite(s) - the scan is wrong, not the tree",
+        aliased.len()
+    );
+
+    let mut colliding: Vec<String> = Vec::new();
+    for caller in [
+        "scripts/message-fixtures/capture.sh",
+        "examples/README.md",
+        "examples/run-all.sh",
+    ] {
+        let text = std::fs::read_to_string(repo.join(caller)).unwrap_or_default();
+        for (number, line) in text.lines().enumerate() {
+            for suite in &aliased {
+                // The two shapes these callers use, both naming the suite and then the entry point.
+                for pattern in [
+                    format!("examples/python/{suite} {suite}"),
+                    format!("run_py {suite} {suite}"),
+                ] {
+                    if line.contains(&pattern) {
+                        colliding.push(format!(
+                            "{caller}:{}: invokes `{suite}` where the framework's own CLI wins - use \
+                             `telemetry-{suite}`",
+                            number + 1
+                        ));
+                    }
+                }
+            }
+        }
+    }
+    assert!(
+        colliding.is_empty(),
+        "{} invocation(s) name a colliding entry point:\n  {}",
+        colliding.len(),
+        colliding.join("\n  ")
+    );
+}
+
 /// Every uv project requires the same resolver, and CI installs exactly that one.
 ///
 /// `required-version` is what makes the pin real: uv refuses to run when it does not match, which no Makefile
@@ -812,7 +892,10 @@ fn every_uv_project_requires_the_same_resolver() {
     let mut misplaced: Vec<String> = Vec::new();
     for file in String::from_utf8_lossy(&listing.stdout)
         .lines()
-        .filter(|f| f.ends_with("pyproject.toml") || f.ends_with("uv.toml"))
+        // The **root** `uv.toml`, by path: any tracked file of that name satisfied the count and section
+        // checks, so moving it under `config/` unchanged would have removed the pin from every project that
+        // inherits it while every assertion still passed.
+        .filter(|f| f.ends_with("pyproject.toml") || *f == "uv.toml")
     {
         let text = std::fs::read_to_string(repo.join(file)).unwrap_or_default();
         // The **section** matters, not only the line: uv reads `required-version` from `[tool.uv]` in a manifest
@@ -853,6 +936,11 @@ fn every_uv_project_requires_the_same_resolver() {
         }
     }
 
+    assert!(
+        repo.join("uv.toml").exists(),
+        "there is no root `uv.toml`: the projects that do not restate `required-version` inherit the pin from \
+         it, so without it they accept any resolver"
+    );
     assert!(
         misplaced.is_empty(),
         "{} `required-version` declaration(s) in a section uv does not read - it takes them from `[tool.uv]` in \
