@@ -3,13 +3,18 @@
 The published docs at [sideseat.ai/docs](https://sideseat.ai/docs), built with
 [Astro Starlight](https://starlight.astro.build).
 
-Run every command from this directory:
+From the repository root, which keeps the dependency tree in step with `package-lock.json`:
 
 ```bash
-npm install
-npm run dev      # http://localhost:4321
-npm run build    # writes dist/
+make dev-docs      # http://localhost:4321
+make build-docs    # writes docs/dist/
+make preview-docs  # serve what was built
 ```
+
+Each of those installs through `npm ci` when the lockfile is newer than the install. Running `npm install`
+here instead can *change* the lockfile to resolve an inconsistency, so the site you build locally and the
+site CI builds would come from different versions with nothing saying so. The underlying scripts are
+`npm run dev`, `npm run build` and `npm run preview`.
 
 Content lives in `src/content/docs/docs/`. Pages are `.md` or `.mdx`; `.mdx` is needed for the
 Starlight components (`<Tabs>`, `<Steps>`, `<Aside>`) and for the custom

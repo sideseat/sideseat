@@ -5,14 +5,19 @@ on:
   # Built on pull requests too, and only *deployed* from main. Building after merge means a broken site is
   # discovered on the branch that publishes it.
   pull_request:
+    # `Makefile` is in both lists because this workflow builds through `make build-docs`: a change there
+    # changes what it does, and both filters omitted it, so a Makefile-only regression to the docs build was
+    # built neither before nor after merge. Spelled twice because GitHub's parser has no YAML anchors.
     paths:
       - 'docs/**'
       - '.github/workflows/docs.yml'
+      - 'Makefile'
   push:
     branches: [main]
     paths:
       - 'docs/**'
       - '.github/workflows/docs.yml'
+      - 'Makefile'
 
 permissions:
   contents: read
@@ -37,12 +42,10 @@ jobs:
         uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
         with:
           node-version: '24'
-
-      - name: Cache Node modules
-        uses: actions/cache@8b402f58fbc84540c8b491a91e594a4576fec3d7 # v5.0.2
-        with:
-          path: docs/node_modules
-          key: ${{ runner.os }}-node-docs-${{ hashFiles('docs/package-lock.json') }}
+          # npm's download cache, not `docs/node_modules`: `npm ci` deletes that directory before installing,
+          # so restoring it was work with no effect. Same shape as the three other Node jobs.
+          cache: 'npm'
+          cache-dependency-path: docs/package-lock.json
 
       - name: Install dependencies
         run: cd docs && npm ci

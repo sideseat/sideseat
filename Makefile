@@ -994,7 +994,7 @@ dev-docs: docs-deps
 	@echo "[dev-docs] Starting docs dev server..."
 	@cd docs && npm run dev
 
-preview-docs:
+preview-docs: docs-deps
 	@echo "[preview-docs] Previewing built docs..."
 	@[ -d "docs/dist" ] || { $(MAKE) build-docs; }
 	@cd docs && npm run preview
