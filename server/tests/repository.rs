@@ -328,8 +328,16 @@ const HOME_PLACEHOLDERS: [&str; 3] = [
 /// [`HOME_PLACEHOLDERS`] — which needs no list of forbidden names and does not depend on who runs it. Windows
 /// profile paths are matched in both slash spellings, since a capture can come from there.
 ///
-/// The current account is still checked as well, because a name can reach a file by something other than a
-/// path: an author field, a hostname, a bucket name.
+/// **The account name itself is deliberately not searched for**, and that was measured rather than reasoned
+/// about. It used to be, as a supplement — "a name can reach a file by something other than a path: an author
+/// field, a hostname, a bucket name" — and once the scope became the whole repository it made the invariant
+/// unusable: with `USER=runner`, the account every GitHub Ubuntu job runs as, it reports **79 tracked files**,
+/// so `check-server` could never pass. Narrowing it does not rescue it either. `/runner/` occurs as a path
+/// segment in three lockfiles, and inside the captured payloads alone `user` occurs 7,094 times, `build` 1,479
+/// and `test` 826. A check that depends on the maintainer's account name being an unusual word is a check that
+/// fires for the wrong people, and its own note above already said the form was vacuous in CI. The residual is
+/// stated: an account name reaching a file somewhere other than a path — an author field, a hostname — is not
+/// caught here. What is caught is the shape that a capture actually records, which is an absolute path.
 ///
 /// **Scope was the defect, twice over.** Restricted to `server/tests/fixtures`, this passed while
 /// `tools/otel-replay/fixtures/traces-crewai.jsonl.gz` carried 940 occurrences of a maintainer's home directory
@@ -346,11 +354,6 @@ const HOME_PLACEHOLDERS: [&str; 3] = [
 fn no_tracked_file_carries_the_capturing_users_name() {
     use std::io::Read;
 
-    let current = std::env::var("USER")
-        .or_else(|_| std::env::var("USERNAME"))
-        .unwrap_or_default();
-    let current =
-        (current.len() >= 3 && !HOME_PLACEHOLDERS.contains(&current.as_str())).then_some(current);
     // The prefixes a home directory is spelled with, on every platform a capture can come from - and in both
     // encodings, because a fixture is JSON: a Windows path arrives with its separators doubled, so the literal
     // single-backslash form never matches the bytes on disk. The first version had only that form, and the
@@ -383,9 +386,7 @@ fn no_tracked_file_carries_the_capturing_users_name() {
     // it. The overlap is what keeps a match that straddles a chunk boundary visible; without it the sweep's
     // blind spot would depend on the buffer size, which is the worst kind.
     const CHUNK: usize = 1 << 20;
-    let overlap = prefixes.iter().map(|p| p.len()).max().unwrap_or(0)
-        + 64
-        + current.as_ref().map_or(0, String::len);
+    let overlap = prefixes.iter().map(|p| p.len()).max().unwrap_or(0) + 64;
 
     for rel in listing
         .stdout
@@ -402,7 +403,12 @@ fn no_tracked_file_carries_the_capturing_users_name() {
             continue;
         };
         let mut reader: Box<dyn Read> = if compressed {
-            Box::new(flate2::read::GzDecoder::new(file))
+            // `MultiGzDecoder`, not `GzDecoder`: a gzip file may hold **several concatenated members** (which
+            // is how `cat a.gz b.gz` works, and what any appending producer writes), and the single-member
+            // decoder stops at the first one - so a second member carrying a home directory was invisible
+            // while the archive counter still recorded the file as read. Silent truncation of the input is
+            // the same defect as skipping the file, one layer down.
+            Box::new(flate2::read::MultiGzDecoder::new(file))
         } else {
             Box::new(file)
         };
@@ -435,14 +441,6 @@ fn no_tracked_file_carries_the_capturing_users_name() {
                 }
             }
             buffer.truncate(filled + read);
-
-            if let Some(user) = current
-                .as_ref()
-                .filter(|user| memchr::memmem::find(&buffer, user.as_bytes()).is_some())
-            {
-                offenders.push(format!("{rel}: the current account name `{user}`"));
-                found_here = true;
-            }
 
             for prefix in prefixes {
                 for found in memchr::memmem::find_iter(&buffer, prefix) {
@@ -564,6 +562,14 @@ fn every_tree_diagram_names_things_that_exist() {
     let mut unresolved_paths: Vec<(String, usize, String, bool)> = Vec::new();
     let mut checked = 0usize;
     let mut diagrams = 0usize;
+    // Markdown, and unlike the extension allowlists this file has had to remove, this one was **measured**:
+    // six Rust files draw box-drawing diagrams in doc comments and not one of them is a directory tree of this
+    // repository - a call-dispatch sketch, three boxed tables, a data-flow arrow, and the *runtime* storage
+    // layout, which the qualification below excludes from Markdown too for exactly the same reason. A detector
+    // for "a tree diagram somewhere this cannot read" was written and reverted: matching box drawing alone, it
+    // accused all six, which is the false accusation the qualification exists to prevent. Widening the reader
+    // instead would need a `///` prefix and a docstring's own indent to survive the four-column
+    // reconstruction, and there is nothing yet to read.
     for doc in tracked
         .iter()
         .filter(|f| f.ends_with(".md") || f.ends_with(".mdx"))
@@ -941,7 +947,7 @@ fn every_resolving_command_is_locked() {
         .output()
         .expect("git is available in a git checkout");
 
-    const RESOLVING: [&str; 11] = [
+    const RESOLVING: [&str; 12] = [
         "cargo build",
         "cargo test",
         "cargo clippy",
@@ -950,6 +956,9 @@ fn every_resolving_command_is_locked() {
         "cargo zigbuild",
         "cargo tarpaulin",
         "cargo fetch",
+        // Resolves and writes the lockfile like any other read of the graph - the MSRV note in the root
+        // manifest documents one, and it was invisible while `#` comments were skipped wholesale.
+        "cargo metadata",
         "uv sync",
         "uv run",
         "uv export",
@@ -964,10 +973,11 @@ fn every_resolving_command_is_locked() {
     let mut checked = 0usize;
     for file in String::from_utf8_lossy(&listing.stdout)
         .lines()
-        // **Every tracked text file**, not an extension allowlist: the allowlist omitted the extensionless git
-        // hooks, `.py`, `.mjs`, `.js` and `package.json` scripts - the hand-maintained inventory these
-        // invariants exist to remove, reintroduced inside one of them.
-        .filter(|f| !f.starts_with("server/tests/fixtures/"))
+        // **Every tracked text file**, with no directory excluded either: the allowlist omitted the
+        // extensionless git hooks, `.py`, `.mjs`, `.js` and `package.json` scripts, and the exclusion of
+        // `server/tests/fixtures/` - written for captured payloads, which are data - also hid the fixtures
+        // README, whose two golden-regeneration commands were unlocked. A payload is excluded by being
+        // binary, which `is_text` already decides.
         .filter(|f| is_text(&repo.join(f)))
     {
         let text = std::fs::read_to_string(repo.join(file)).unwrap_or_default();
@@ -998,12 +1008,22 @@ fn every_resolving_command_is_locked() {
                 fenced = !fenced;
                 continue;
             }
-            // A comment is not a command, and two of them quote a former one in prose ("the line read `cd
-            // examples/python && uv sync`") - which the segment splitting below reaches into otherwise.
+            // A `#` comment that is *nothing but* a command is a command - the root manifest documents how to
+            // re-measure the MSRV with one, and skipping every commented line hid it. A comment that quotes a
+            // command inside a sentence is still a reference, which is what the `starts_with` distinguishes:
+            // the same rule the fenced and backticked forms use, applied to the third kind of commentary.
             let bare = line.trim().trim_start_matches(['@', '\t']).trim_start();
-            if bare.starts_with('#') && !fenced {
-                continue;
-            }
+            let line = match bare.strip_prefix('#') {
+                Some(comment) if !fenced => {
+                    let comment = comment.trim_start_matches('#').trim();
+                    if RESOLVING.iter().any(|c| comment.starts_with(c)) {
+                        comment
+                    } else {
+                        continue;
+                    }
+                }
+                _ => line,
+            };
             // What a shell would see: the recipe marker, a subshell, and an `echo` of instructions all leave a
             // command at the front of what remains.
             let mut runnable = line.trim();
@@ -1171,10 +1191,11 @@ fn every_aliased_sample_suite_is_invoked_by_its_alias() {
         // hooks, `.py`, `.mjs`, `.js` and `package.json` scripts - the hand-maintained inventory these
         // invariants exist to remove, reintroduced inside one of them.
         .filter(|f| !f.starts_with("server/tests/fixtures/"))
-        // Rust is excluded, and this is a scope rather than an exemption: a `"cargo build"` in a string
-        // literal - these scanners' own tables, for instance - is not a line anybody pastes into a shell. The
-        // residual, stated: a command *constructed* in code (`Command::new("cargo").args([…])`) is a different
-        // shape that this would not have matched in any case.
+        // Rust is excluded for a reason of its own, not the one the sibling scanner has (that comment was
+        // copied here and did not fit): **this file documents the pattern it looks for**, so reading Rust
+        // commentary would report its own explanation. The residual, stated: a Rust file that genuinely
+        // invoked a sample suite would be missed - and nothing in Rust runs them, since the capture path is
+        // `scripts/message-fixtures/capture.sh`.
         .filter(|f| !f.ends_with(".rs"))
         .filter(|f| is_text(&repo.join(f)))
     {
@@ -1847,6 +1868,13 @@ fn every_module_path_cited_anywhere_resolves() {
                 // that needs history, not the working tree. What is left covering it: a script path in a make
                 // recipe fails when the recipe runs, and `every_script_that_locates_the_repository_root_finds_it`
                 // checks the scripts themselves. A basename the tree holds at another path is always a defect.
+                //
+                // A **bare filename** with no directory is also skipped, and that too was measured rather than
+                // assumed: two stale ones had reached the fixtures README (a renamed capture script and a
+                // renamed review script), so resolving them looked worthwhile - but sweeping every
+                // `<name>.sh`/`<name>.py` token in the tree reports `astral.sh` (a domain), the halves of a
+                // wheel filename split at `py2.py3`, and every generic `app.py` in prose. The rule would
+                // accuse more than it caught, and a check a reader learns to disbelieve protects nothing.
                 let basename = cited.rsplit('/').next().unwrap_or(cited);
                 let held_somewhere = tracked
                     .iter()

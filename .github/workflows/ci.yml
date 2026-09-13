@@ -104,26 +104,40 @@ jobs:
 
       # Not `make test-clickhouse`: that target starts its own container, which a service
       # container already provides here.
-      - name: ClickHouse parity
+      - name: ClickHouse (unit and parity)
         env:
           SIDESEAT_TEST_CLICKHOUSE_URL: http://127.0.0.1:8123
           SIDESEAT_TEST_CLICKHOUSE_USER: sideseat
           SIDESEAT_TEST_CLICKHOUSE_PASSWORD: sideseat
         run: cargo test --locked -p sideseat-server clickhouse -- --test-threads=1
 
-      # A silent skip would make this job pass while testing nothing.
-      - name: Fail if the parity test skipped
+      # Two ways this job could pass while proving nothing, and each needs its own check.
+      #
+      #   - the suite **skips** when it cannot reach the server, by design, so `make check` stays green
+      #     without Docker;
+      #   - `cargo test` exits **0 for a filter that matches no test at all**, so renaming or moving the
+      #     module leaves a green job with `0 passed`. Verified: a bogus filter exits 0.
+      #
+      # So the filter is the module path (not the bare word `clickhouse`, which also matches seventy unit
+      # tests that would satisfy any "something ran" check), and the count is read back.
+      - name: Prove the parity suite ran
         env:
           SIDESEAT_TEST_CLICKHOUSE_URL: http://127.0.0.1:8123
           SIDESEAT_TEST_CLICKHOUSE_USER: sideseat
           SIDESEAT_TEST_CLICKHOUSE_PASSWORD: sideseat
         run: |
-          cargo test --locked -p sideseat-server clickhouse_matches_duckdb -- --nocapture 2>&1 \
-            | tee /tmp/parity.log
+          cargo test --locked -p sideseat-server --lib data::clickhouse::parity_tests \
+            -- --test-threads=1 --nocapture 2>&1 | tee /tmp/parity.log
           if grep -q "clickhouse parity: skipped" /tmp/parity.log; then
-            echo "parity test skipped - the service container was not reachable"
+            echo "parity suite skipped - the service container was not reachable"
             exit 1
           fi
+          passed=$(sed -n 's/^test result: ok\. \([0-9]*\) passed.*/\1/p' /tmp/parity.log | head -1)
+          if [ "${passed:-0}" -lt 1 ]; then
+            echo "the parity filter matched no test - it has been renamed or moved, and this job was vacuous"
+            exit 1
+          fi
+          echo "$passed ClickHouse parity test(s) ran"
 
   check-postgres:
     name: PostgreSQL (parity with SQLite)
@@ -156,17 +170,26 @@ jobs:
 
       # The PostgreSQL SQL is hand-written in a second dialect and, until this job existed, had never
       # run against a server in CI: `make test-postgres` was the only path and nothing invoked it.
+      #
+      # `data::postgres::parity_tests`, not the bare `parity_tests` the Makefile target uses: that also
+      # matches `data::clickhouse::parity_tests`, whose thirteen tests *skip* without a ClickHouse URL and
+      # pass. A run of "25 passed" was therefore twelve PostgreSQL tests and thirteen that proved nothing.
       - name: PostgreSQL parity
         env:
           SIDESEAT_TEST_POSTGRES_URL: postgres://sideseat:sideseat@127.0.0.1:5432/sideseat
         run: |
-          cargo test --locked -p sideseat-server parity_tests -- --test-threads=1 --nocapture 2>&1 \
-            | tee /tmp/pg-parity.log
-          # A silent skip would make this job pass while testing nothing.
+          cargo test --locked -p sideseat-server --lib data::postgres::parity_tests \
+            -- --test-threads=1 --nocapture 2>&1 | tee /tmp/pg-parity.log
           if grep -q "skipping PostgreSQL parity" /tmp/pg-parity.log; then
-            echo "parity test skipped - the service container was not reachable"
+            echo "parity suite skipped - the service container was not reachable"
             exit 1
           fi
+          passed=$(sed -n 's/^test result: ok\. \([0-9]*\) passed.*/\1/p' /tmp/pg-parity.log | head -1)
+          if [ "${passed:-0}" -lt 1 ]; then
+            echo "the parity filter matched no test - it has been renamed or moved, and this job was vacuous"
+            exit 1
+          fi
+          echo "$passed PostgreSQL parity test(s) ran"
 
   check-redis:
     name: Redis (durable ingestion queue)
@@ -211,13 +234,18 @@ jobs:
         env:
           SIDESEAT_TEST_REDIS_URL: redis://127.0.0.1:6379
         run: |
-          cargo test --locked -p sideseat-server redis_stream_tests -- --test-threads=1 --nocapture 2>&1 \
-            | tee /tmp/redis.log
-          # A silent skip would make this job pass while testing nothing.
+          cargo test --locked -p sideseat-server --lib data::topics::redis_stream_tests \
+            -- --test-threads=1 --nocapture 2>&1 | tee /tmp/redis.log
           if grep -q "redis stream tests: skipped" /tmp/redis.log; then
             echo "redis stream tests skipped - the service container was not reachable"
             exit 1
           fi
+          passed=$(sed -n 's/^test result: ok\. \([0-9]*\) passed.*/\1/p' /tmp/redis.log | head -1)
+          if [ "${passed:-0}" -lt 1 ]; then
+            echo "the filter matched no test - it has been renamed or moved, and this job was vacuous"
+            exit 1
+          fi
+          echo "$passed Redis stream test(s) ran"
 
   check-web:
     name: Web (fmt, lint, test)

@@ -497,8 +497,10 @@ fn flatten_tool_blocks(messages: Vec<SideMLMessage>) -> Vec<SideMLMessage> {
                     _ => (uses, results),
                 });
 
-        // If 0 or 1 tool blocks, pass through unchanged
-        if tool_use_count <= 1 && tool_result_count <= 1 {
+        // One tool block at most, or there is nothing to split. Counted **together**: as two separate
+        // comparisons, `[ToolUse, ToolResult]` passed through with two tool ids on one message, which is
+        // precisely what this function promises never to emit.
+        if tool_use_count + tool_result_count <= 1 {
             result.push(msg);
             continue;
         }
@@ -512,7 +514,6 @@ fn flatten_tool_blocks(messages: Vec<SideMLMessage>) -> Vec<SideMLMessage> {
         // `parent.0`. Identical text in one atomic emission is then one identity at one ordinal, and dedup
         // drops the second: content loss, in the one place position exists to prevent it.
         let mut non_tool_start: Option<usize> = None;
-        let mut non_tool_emitted = false;
 
         // Enumerated: a split tool message takes the position of the block it was made from, which is
         // what tells two identical calls of one response apart once each is its own message.
@@ -520,14 +521,13 @@ fn flatten_tool_blocks(messages: Vec<SideMLMessage>) -> Vec<SideMLMessage> {
             match block {
                 ContentBlock::ToolUse { .. } => {
                     // Emit accumulated non-tool blocks before this tool block
-                    if !non_tool_emitted && !non_tool_blocks.is_empty() {
+                    if !non_tool_blocks.is_empty() {
                         emit_non_tool_message(
                             &mut result,
                             &msg,
                             &mut non_tool_blocks,
                             non_tool_start.take(),
                         );
-                        non_tool_emitted = true;
                     }
                     // Create individual message for this tool use
                     let new_sideml = ChatMessage {
@@ -547,14 +547,13 @@ fn flatten_tool_blocks(messages: Vec<SideMLMessage>) -> Vec<SideMLMessage> {
                 }
                 ContentBlock::ToolResult { tool_use_id, .. } => {
                     // Emit accumulated non-tool blocks before this tool block
-                    if !non_tool_emitted && !non_tool_blocks.is_empty() {
+                    if !non_tool_blocks.is_empty() {
                         emit_non_tool_message(
                             &mut result,
                             &msg,
                             &mut non_tool_blocks,
                             non_tool_start.take(),
                         );
-                        non_tool_emitted = true;
                     }
                     // Create individual message for this tool result
                     // Use block's tool_use_id if available, else message-level
@@ -1370,6 +1369,120 @@ mod tests {
             positions,
             vec!["0.0", "0.1", "0.2", "0.3"],
             "each takes the position of the block it was made from - a group, the first of its own"
+        );
+    }
+
+    /// A call and a result in one message are two messages, not one carrying two tool ids.
+    ///
+    /// The counts were compared *separately* (`use <= 1 && result <= 1`), so this shape - one of each -
+    /// passed through whole, and the function's own promise that each message carries at most one tool id
+    /// was false for it. Downstream, `tool_use_id` is a single field: whichever id the message kept, the
+    /// other block's correspondence was unrepresentable.
+    #[test]
+    fn a_call_and_a_result_in_one_message_are_split() {
+        let msg = SideMLMessage {
+            position: PositionPath::root(0),
+            source: event_source("gen_ai.choice"),
+            category: MessageCategory::GenAIChoice,
+            source_type: MessageSourceType::Event,
+            timestamp: Utc::now(),
+            sideml: ChatMessage {
+                role: ChatRole::Assistant,
+                content: vec![
+                    ContentBlock::ToolUse {
+                        id: Some("call_1".to_string()),
+                        name: "search".to_string(),
+                        input: json!({"q": "a"}),
+                    },
+                    ContentBlock::ToolResult {
+                        tool_use_id: Some("call_0".to_string()),
+                        name: Some("search".to_string()),
+                        content: json!("earlier"),
+                        is_error: false,
+                    },
+                ],
+                ..Default::default()
+            },
+        };
+
+        let result = flatten_tool_blocks(vec![msg]);
+        assert_eq!(result.len(), 2, "one call and one result are two messages");
+        for message in &result {
+            let tools = message
+                .sideml
+                .content
+                .iter()
+                .filter(|b| {
+                    matches!(
+                        b,
+                        ContentBlock::ToolUse { .. } | ContentBlock::ToolResult { .. }
+                    )
+                })
+                .count();
+            assert_eq!(
+                tools, 1,
+                "at most one tool block per message is the contract"
+            );
+        }
+    }
+
+    /// Text between two tool blocks stays between them.
+    ///
+    /// A one-shot flag emitted the accumulated non-tool blocks only *before the first* tool block, so
+    /// anything written between the first and second was held to the end: `[text A, call 1, text B, call 2]`
+    /// came out as `[text A, call 1, call 2, text B]`, moving a model's own commentary past the call it
+    /// introduced. The group is emitted at every tool block now, and each takes its own first block's
+    /// position, so two groups of one message are still two.
+    #[test]
+    fn text_between_two_tool_blocks_keeps_its_place() {
+        let msg = SideMLMessage {
+            position: PositionPath::root(0),
+            source: event_source("gen_ai.choice"),
+            category: MessageCategory::GenAIChoice,
+            source_type: MessageSourceType::Event,
+            timestamp: Utc::now(),
+            sideml: ChatMessage {
+                role: ChatRole::Assistant,
+                content: vec![
+                    ContentBlock::Text {
+                        text: "first, the weather".to_string(),
+                    },
+                    ContentBlock::ToolUse {
+                        id: Some("call_1".to_string()),
+                        name: "weather".to_string(),
+                        input: json!({}),
+                    },
+                    ContentBlock::Text {
+                        text: "then the news".to_string(),
+                    },
+                    ContentBlock::ToolUse {
+                        id: Some("call_2".to_string()),
+                        name: "news".to_string(),
+                        input: json!({}),
+                    },
+                ],
+                ..Default::default()
+            },
+        };
+
+        let result = flatten_tool_blocks(vec![msg]);
+        let order: Vec<String> = result
+            .iter()
+            .map(|m| match m.sideml.content.first() {
+                Some(ContentBlock::Text { text }) => text.clone(),
+                Some(ContentBlock::ToolUse { name, .. }) => name.clone(),
+                other => format!("{other:?}"),
+            })
+            .collect();
+        assert_eq!(
+            order,
+            vec![
+                "first, the weather".to_string(),
+                "weather".to_string(),
+                "then the news".to_string(),
+                "news".to_string(),
+            ],
+            "the source order of one message survives the split"
         );
     }
 

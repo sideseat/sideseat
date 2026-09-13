@@ -91,15 +91,15 @@ scripts/message-fixtures/capture.sh strands tool_use   # one sample
 Then record the expectations, **read them**, and only then let them gate:
 
 ```bash
-UPDATE_GOLDENS=1 cargo test -p sideseat-server message_goldens   # write expectations
+UPDATE_GOLDENS=1 cargo test --locked -p sideseat-server message_goldens   # write expectations
 scripts/message-fixtures/review-goldens.py                                   # read them: counts, roles, content
 scripts/message-fixtures/review-goldens.py --suspicious                      # only fixtures with warnings
 scripts/message-fixtures/review-goldens.py strands/tool_use                  # one sample, full detail
 git diff server/tests/fixtures/messages
-cargo test -p sideseat-server message_goldens                    # from now on it gates
+cargo test --locked -p sideseat-server message_goldens           # from now on it gates
 ```
 
-`review-message-goldens.py` exists because `git diff` on this much JSON is unreadable. It
+`review-goldens.py` exists because `git diff` on this much JSON is unreadable. It
 renders each view's message count, role sequence and content, and flags patterns that usually
 mean a parsing defect (a conversation with no assistant message, unbalanced tool calls, raw
 JSON in a text position). Those are heuristics for a human to judge — the hard guarantees are
@@ -196,13 +196,6 @@ breaks that rule is named.
 | `resent_history` | a later span re-sending the earlier turn | the re-send collapses onto the original rather than duplicating it |
 | `cross_span_tie` | a generation span and its tool span reporting the **identical** instant, with the tool span's id sorting *first* | `adopt_call_positions`. Disable it and this fixture reports the answer at index 1 before its question at index 3; every captured fixture stays green, because none of them ties |
 | `agent_snapshot_reorders_answer` | a root agent span re-listing a whole turn **answer-first** while its child generation spans emit the calls and the answer separately — the shape the Vercel AI SDK's current integration produces | The **redundant re-listing** rule (`redundant_relistings`, `order_graph.rs`). Its golden records the correct conversation — question, calls, results, answer — and did not until that rule landed: `gen_ai.output.messages` reads as one atomic emission wherever it appears, so the re-listing's stated order was trusted and the answer sorted ahead of the calls that produced it. Two earlier attempts are recorded in `a_relisting_is_discounted_only_on_evidence_from_below_it`: declaring the carrier `accumulated_state` **lost a message** in `agent-framework/tool_use`, and discounting any instance whose messages appear below it fired 4,044 times across the corpus and broke `agent-framework/swarm` and `strands/image_gen`. The rule that works asks two questions instead — is every message witnessed by a *descendant*, and does the instance hold **both** a message the span produced and a result answering it, which no single model response can |
-
-The carrier-overlap defect is documented by `reading_more_carriers_only_adds_messages` instead of by a
-fixture: it runs every fixture through both extraction modes and reports what each one gains and what
-reorders. A hand-written payload for that shape was tried and dropped - it reproduced the *attributes*
-but not the behaviour, because the LangGraph reader claims only on a `langgraph.*` marker and parses a
-narrower message shape than the one written by hand, so its exemption would have claimed a cause the
-fixture did not exhibit.
 
 The carrier-overlap defect is documented by `reading_more_carriers_only_adds_messages` rather than by a
 fixture: it runs every fixture through both extraction modes and reports what each gains and what
