@@ -5,8 +5,9 @@
 //! `server/src/domain/`. The dependabot check lived inside an 8,500-line carrier-rules test file, which is
 //! where it was written rather than where it belongs.
 //!
-//! What deliberately stays in `src/`: the two diagram checks. They read `embedded_sources()` and the rule
-//! plans, which are crate-private, so an integration test cannot see them at all.
+//! What deliberately stays in `src/`: the two checks over the *architecture* diagrams in
+//! `docs/engineering/`. They read `embedded_sources()` and the rule plans, which are crate-private, so an
+//! integration test cannot see them at all. The tree-diagram check below needs nothing but the tree.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
@@ -202,7 +203,8 @@ fn no_fixture_carries_the_capturing_users_name() {
 /// A diagram is a map handed to whoever arrives, and both maps had drifted: each still named a `topic.rs`
 /// under `core/` after pub/sub moved to `data/topics/`, and `CLAUDE.md` named a `pipeline.rs` under `sideml/`
 /// after that file became `normalize.rs`. A map that names a file nobody can open costs more than no map,
-/// because it is trusted.
+/// because it is trusted. Both names *and* their parentage are checked, so a directory drawn under the wrong
+/// branch is a failure — that is what "the map is right" means, and the first version accepted it.
 ///
 /// The diagrams are **found**, not listed: checking a named pair was the first version, and the day it passed,
 /// the public documentation's copy of the same map was stale in the same way. A block qualifies when its stated
@@ -212,15 +214,18 @@ fn no_fixture_carries_the_capturing_users_name() {
 /// directory that is not in the repository at all. A root that is spelled as a path and resolves to nothing is
 /// a failure rather than a skip, which is what catches a renamed root taking the whole check quiet with it.
 ///
-/// Directory names are resolved on **disk**, not against `git ls-files`: the JavaScript examples' map documents
-/// its `output/` as gitignored, and a check that refused it would be demanding the map lie. Filenames stay
-/// tracked-only — an untracked source file has no business in a map.
+/// Names are resolved as **whole paths**, reconstructed from the diagram's own indentation. A name-only version
+/// came first and was too weak in a way its wording concealed: it accepted `topics/` drawn under the wrong
+/// branch, and the citation check it deferred to cannot recover a hierarchy from a bare directory name, so
+/// between them the parentage went unchecked. Every map here indents in exact four-column steps, so the tree is
+/// recoverable — and a prefix that is not a multiple of four is reported rather than guessed at, since that is
+/// the only thing that would make the reconstruction unsound.
 ///
-/// Checked by **name**, not by position in the diagram: the box-drawing characters make indentation an
-/// unreliable guide to nesting, and a resolver built on it produced confident nonsense (`duckdb/pricing/feed/…`)
-/// when I tried. Asking "does this filename exist anywhere under this root" is the strongest claim that can be
-/// made robustly — it catches a renamed or deleted module, and misses one merely moved between directories,
-/// which is what [`every_module_path_cited_anywhere_resolves`] is for.
+/// A name that resolves to nothing tracked is accepted when **git ignores it**, which is committed information.
+/// The JavaScript examples' map documents its `output/` as gitignored, so refusing it would demand the map lie —
+/// but the first fix asked the *filesystem*, and that directory does not exist in a clean checkout: the test
+/// passed only because this machine had built the samples once, and would have failed in CI on a green tree.
+/// A guard whose answer depends on local state is worse than none, because it teaches everyone to disbelieve it.
 #[test]
 fn every_tree_diagram_names_things_that_exist() {
     let repo = repo_root();
@@ -235,6 +240,7 @@ fn every_tree_diagram_names_things_that_exist() {
         .collect();
 
     let mut missing: Vec<String> = Vec::new();
+    let mut unresolved_paths: Vec<(String, usize, String, bool)> = Vec::new();
     let mut checked = 0usize;
     let mut diagrams = 0usize;
     for doc in tracked
@@ -292,78 +298,124 @@ fn every_tree_diagram_names_things_that_exist() {
                 continue;
             }
             diagrams += 1;
-            let depth = root.split('/').count();
-            let files: BTreeSet<&str> = under
-                .iter()
-                .map(|f| f.rsplit('/').next().unwrap_or(f))
-                .collect();
-            let mut dirs: BTreeSet<String> = under
-                .iter()
-                .flat_map(|f| f.split('/').skip(depth))
-                .filter(|part| !part.contains('.'))
-                .map(str::to_string)
-                .collect();
-            // Plus directories that exist but are not tracked, which a map may legitimately document.
-            let mut frontier = vec![repo.join(&root)];
-            while let Some(dir) = frontier.pop() {
-                let Ok(entries) = std::fs::read_dir(&dir) else {
-                    continue;
-                };
-                for entry in entries.flatten() {
-                    let name = entry.file_name().to_string_lossy().to_string();
-                    if !entry.file_type().is_ok_and(|t| t.is_dir())
-                        || name.starts_with('.')
-                        || matches!(name.as_str(), "node_modules" | "target" | "dist" | "build")
-                    {
-                        continue;
-                    }
-                    frontier.push(entry.path());
-                    dirs.insert(name);
-                }
-            }
             // Extensions the root actually holds, so a `.rs` map and a `.ts` one are each checked on their own
             // vocabulary and a version number in a comment is not mistaken for a filename.
-            let extensions: BTreeSet<&str> = files
+            let extensions: BTreeSet<&str> = under
                 .iter()
                 .filter_map(|f| f.rsplit_once('.').map(|(_, ext)| ext))
                 .collect();
 
-            for line in block
-                .iter()
-                .skip(usize::from(stated_on_first_line.is_some()))
-            {
-                // Everything after `#` is the diagram's own commentary.
-                let content = line.split('#').next().unwrap_or(line);
-                for token in content.split_whitespace() {
-                    let token = token.trim_matches(|c: char| {
-                        !c.is_ascii_alphanumeric() && c != '.' && c != '_' && c != '/' && c != '-'
-                    });
-                    if token.is_empty() {
-                        continue;
+            // One entry per line, at the depth its indentation states.
+            let mut branch: Vec<String> = Vec::new();
+            for (offset, line) in block.iter().enumerate() {
+                let Some(connector) = line.find("├── ").or_else(|| line.find("└── "))
+                else {
+                    continue;
+                };
+                let indent = line[..connector].chars().count();
+                if !indent.is_multiple_of(4) {
+                    missing.push(format!(
+                        "{doc}:{}: indented {indent} columns, which is not a whole number of levels - the \
+                         parentage cannot be read from it",
+                        start + offset + 1
+                    ));
+                    continue;
+                }
+                let depth = indent / 4;
+                let entry = line[connector + "├── ".len()..]
+                    .split('#')
+                    .next()
+                    .unwrap_or_default()
+                    .trim();
+                if entry.is_empty() {
+                    continue;
+                }
+                branch.truncate(depth);
+
+                let is_dir = entry.ends_with('/');
+                let name = entry.trim_end_matches('/');
+                let named = format!("{root}/{}{name}", {
+                    let prefix = branch.join("/");
+                    if prefix.is_empty() {
+                        String::new()
+                    } else {
+                        format!("{prefix}/")
                     }
-                    if let Some(dir) = token.strip_suffix('/') {
-                        // Segment by segment: a map writes `api/routes/` as one token, and comparing that
-                        // against a set of single segments reports a directory that plainly exists.
-                        for segment in dir.split('/') {
-                            if segment.is_empty() {
-                                continue;
-                            }
-                            checked += 1;
-                            if !dirs.contains(segment) {
-                                missing.push(format!("{doc}: {root}/…/{segment}/"));
-                            }
-                        }
-                    } else if token
+                });
+                if is_dir {
+                    branch.push(name.to_string());
+                }
+
+                // A file is only checkable when the root's own vocabulary says it is one; anything else in a
+                // map is prose.
+                if !is_dir
+                    && !name
                         .rsplit_once('.')
-                        .is_some_and(|(_, ext)| extensions.contains(ext))
-                    {
-                        checked += 1;
-                        if !files.contains(token) {
-                            missing.push(format!("{doc}: {root}/…/{token}"));
-                        }
-                    }
+                        .is_some_and(|(_, e)| extensions.contains(e))
+                {
+                    continue;
+                }
+                checked += 1;
+                let exists = if is_dir {
+                    tracked.iter().any(|f| f.starts_with(&format!("{named}/")))
+                } else {
+                    tracked.iter().any(|f| **f == named)
+                };
+                if !exists {
+                    unresolved_paths.push((doc.clone(), start + offset + 1, named, is_dir));
                 }
             }
+        }
+    }
+
+    // A name nothing tracks may still be one git is told to ignore, which the map may legitimately document.
+    // Asked of git rather than of the filesystem: `examples/javascript/output/` exists only on a machine that
+    // has run the samples, so a filesystem answer made this test pass here and fail on a clean checkout.
+    if !unresolved_paths.is_empty() {
+        // A directory is asked about **with its trailing slash**. A directory-only pattern (`output/`) matches a
+        // bare path only when git can see that the path *is* a directory - which it cannot for one that does not
+        // exist, which is precisely the clean-checkout case this has to answer.
+        let candidates = unresolved_paths
+            .iter()
+            .map(|(_, _, path, is_dir)| {
+                if *is_dir {
+                    format!("{path}/")
+                } else {
+                    path.clone()
+                }
+            })
+            .collect::<Vec<_>>()
+            .join("\n");
+        let ignored = Command::new("git")
+            .args(["check-ignore", "--stdin"])
+            .current_dir(repo)
+            .stdin(std::process::Stdio::piped())
+            .stdout(std::process::Stdio::piped())
+            .spawn()
+            .and_then(|mut child| {
+                use std::io::Write;
+                child
+                    .stdin
+                    .take()
+                    .expect("stdin was piped")
+                    .write_all(candidates.as_bytes())?;
+                child.wait_with_output()
+            })
+            .map(|out| {
+                String::from_utf8_lossy(&out.stdout)
+                    .lines()
+                    .map(str::to_string)
+                    .collect::<BTreeSet<String>>()
+            })
+            .unwrap_or_default();
+
+        for (doc, line, path, is_dir) in unresolved_paths {
+            let slash = if is_dir { "/" } else { "" };
+            let asked = format!("{path}{slash}");
+            if ignored.contains(&asked) {
+                continue;
+            }
+            missing.push(format!("{doc}:{line}: {asked}"));
         }
     }
 
@@ -374,7 +426,7 @@ fn every_tree_diagram_names_things_that_exist() {
     );
     assert!(
         missing.is_empty(),
-        "{} name(s) in a documentation tree diagram do not exist:\n  {}",
+        "{} name(s) in a documentation tree diagram do not exist at the place it draws them:\n  {}",
         missing.len(),
         missing.join("\n  ")
     );
@@ -383,11 +435,11 @@ fn every_tree_diagram_names_things_that_exist() {
 /// Every citation of a Rust module by directory and filename, anywhere in the repository, resolves to a real
 /// file — in prose and in source comments alike.
 ///
-/// The tree-diagram check above is by **name**, because box-drawing characters make indentation an unreliable
-/// guide to nesting — so it passes for a module that merely moved. That is not a hypothetical: the module this
-/// pins is `normalize.rs`, whose former name still exists as a *different* file under `domain/traces/`, so the
-/// name check saw a match where the citation was wrong. It took a mutation to show the guard was weaker than
-/// its wording.
+/// The diagram check above covers a map's own drawing; this one covers every path named in **prose**, which no
+/// diagram contains. The two overlap nowhere: a citation is a claim made in a sentence, and there were three
+/// live stale ones — the module this pins is `normalize.rs`, whose former name still exists as a *different*
+/// file under `domain/traces/`, so any check asking only "does this filename exist" saw a match where the
+/// citation was wrong.
 ///
 /// A cited path is position-bearing, so it can be checked without parsing any layout: root-anchored whole,
 /// doc-relative against the citing file's directory, otherwise as a **suffix** of a tracked path — where
@@ -447,14 +499,99 @@ fn every_module_path_cited_anywhere_resolves() {
     for file in citing {
         let text = std::fs::read_to_string(repo.join(file)).unwrap_or_default();
         let is_rust = file.ends_with(".rs");
+        let mut inside_block_comment = false;
         for (number, line) in text.lines().enumerate() {
             // In Rust, only comments describe the layout; a string literal or a module path is not a citation.
-            if is_rust {
-                let code = line.trim_start();
-                if !(code.starts_with("//") || code.starts_with('*')) {
+            // Every comment form counts, not only a line that starts with one: "starts with `//`" left every
+            // trailing comment and every `/* … */` invisible, which is the same "sees less than it says"
+            // shape this test exists to catch.
+            let line = if is_rust {
+                // A `/*` or `//` inside a string literal is not a comment opener, and mistaking one for it
+                // leaves the scanner reading code as commentary for the rest of the file - which it did:
+                // `relative.ends_with("/tests.rs")` was reported as a citation. Literals are blanked out
+                // **in place**, so every offset below still indexes the original line.
+                let scrubbed: String = {
+                    let mut out = String::with_capacity(line.len());
+                    let mut quote: Option<char> = None;
+                    let mut escaped = false;
+                    for c in line.chars() {
+                        match quote {
+                            Some(open) => {
+                                out.push(if c == '\n' { c } else { ' ' });
+                                if escaped {
+                                    escaped = false;
+                                } else if c == '\\' {
+                                    escaped = true;
+                                } else if c == open {
+                                    quote = None;
+                                }
+                            }
+                            None => {
+                                if c == '"' || c == '\'' {
+                                    quote = Some(c);
+                                    out.push(' ');
+                                } else {
+                                    out.push(c);
+                                }
+                            }
+                        }
+                    }
+                    out
+                };
+                let scrubbed = scrubbed.as_str();
+                let mut commentary = String::new();
+                let mut rest = scrubbed;
+                if inside_block_comment {
+                    match rest.find("*/") {
+                        Some(at) => {
+                            commentary.push_str(&rest[..at]);
+                            inside_block_comment = false;
+                            rest = &rest[at + 2..];
+                        }
+                        None => {
+                            commentary.push_str(rest);
+                            rest = "";
+                        }
+                    }
+                }
+                while !rest.is_empty() {
+                    // `://` inside a URL is not a comment opener.
+                    let slashes = rest
+                        .match_indices("//")
+                        .find(|(at, _)| *at == 0 || !rest[..*at].ends_with(':'))
+                        .map(|(at, _)| at);
+                    let block = rest.find("/*");
+                    match (slashes, block) {
+                        (Some(at), b) if b.is_none_or(|b| at < b) => {
+                            commentary.push(' ');
+                            commentary.push_str(&rest[at..]);
+                            break;
+                        }
+                        (_, Some(at)) => {
+                            commentary.push(' ');
+                            let after = &rest[at + 2..];
+                            match after.find("*/") {
+                                Some(end) => {
+                                    commentary.push_str(&after[..end]);
+                                    rest = &after[end + 2..];
+                                }
+                                None => {
+                                    commentary.push_str(after);
+                                    inside_block_comment = true;
+                                    break;
+                                }
+                            }
+                        }
+                        _ => break,
+                    }
+                }
+                if commentary.trim().is_empty() {
                     continue;
                 }
-            }
+                commentary
+            } else {
+                line.to_string()
+            };
             for token in line.split(|c: char| c.is_whitespace() || "`(),;\"'[]<>".contains(c)) {
                 // A path with at least one directory and a Rust file at the end. A trailing `:line` is a
                 // citation of a position in that file, so it is stripped before resolving.
