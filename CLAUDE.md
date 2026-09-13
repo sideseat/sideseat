@@ -64,8 +64,7 @@ rg --files          # List files (.gitignore aware)
 ├── core/
 │   ├── constants.rs    # All constants (env vars, defaults) - ADD NEW CONSTANTS HERE
 │   ├── config.rs       # AppConfig loading, validation, StorageBackend enum
-│   ├── cli.rs          # Clap argument parsing
-│   └── topic.rs        # Pub/sub for inter-component messaging
+│   └── cli.rs          # Clap argument parsing
 ├── utils/              # PREFER THESE OVER WRITING NEW UTILITIES
 │   ├── json.rs         # compute_message_hash() for deduplication
 │   ├── string.rs       # truncate_preview(), PREVIEW_MAX_LENGTH
@@ -77,6 +76,7 @@ rg --files          # List files (.gitignore aware)
 │   ├── clickhouse/     # ClickHouse analytics backend (distributed)
 │   ├── sqlite/         # SQLite transactional backend (default)
 │   ├── postgres/       # PostgreSQL transactional backend
+│   ├── topics/         # Pub/sub for inter-component messaging (in-memory or Redis)
 │   ├── types/          # Shared DTOs across backends
 │   ├── traits.rs       # AnalyticsRepository, TransactionalRepository
 │   └── mod.rs          # AnalyticsService, TransactionalService enums
@@ -84,7 +84,7 @@ rg --files          # List files (.gitignore aware)
 │   ├── pricing/        # LLM cost calculation (model lookup, GitHub sync)
 │   ├── sideml/         # Universal AI message format
 │   │   ├── types.rs    # ChatMessage, ChatRole, ContentBlock, ToolChoice
-│   │   ├── pipeline.rs # determine_category(), is_llm_output_event()
+│   │   ├── normalize.rs # determine_category(), is_llm_output_event()
 │   │   ├── content.rs  # Content block normalization
 │   │   └── feed/       # Feed pipeline (dedup, ordering, history detection)
 │   │       ├── mod.rs      # Main pipeline: parse → flatten → dedup → sort
@@ -144,12 +144,12 @@ This ensures bug fixes apply to historical data without re-ingestion.
 | Phase     | Location             | What to do                                                             |
 | --------- | -------------------- | ---------------------------------------------------------------------- |
 | Ingestion | `traces/extract/`    | Preserve raw data, add metadata (tool_call_id, exception fields, etc.) |
-| Query     | `sideml/pipeline.rs` | Role derivation, normalization, deduplication                          |
+| Query     | `sideml/normalize.rs` | Role derivation, normalization, deduplication                          |
 | Query     | `sideml/feed/mod.rs` | Error display composed from exception_type/message/stacktrace          |
 
 **Never** transform roles or content during ingestion. All semantic processing in SideML.
 
-### Message Categorization (`sideml/pipeline.rs`)
+### Message Categorization (`sideml/normalize.rs`)
 
 ```
 Event: LLM output (gen_ai.choice) → event name
