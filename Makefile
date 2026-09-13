@@ -1050,8 +1050,12 @@ docs-deps:
 	@#  its cache in well under a second once present, so this is not a per-build download - but without it
 	@#  `make build-docs` fails in a fresh clone with an error about a missing executable, which is the same
 	@#  shape as the `web/dist` failure `server/build.rs` exists to prevent.
-	@cd docs && npx --no-install playwright install chromium >/dev/null 2>&1 || \
-		{ echo "[docs-deps] Installing the browser the diagrams render in..."; cd docs && npx playwright install chromium; }
+	@#  `--no-install`, so the *locked* playwright drives the download rather than whatever the registry
+	@#  currently publishes - and it runs after the `npm ci` above for the same reason. The command is
+	@#  idempotent: with the browser present it answers from its cache in well under a second, so this is not a
+	@#  per-build download. My first version piped its output away and retried in a `{ cd docs; ... }` block,
+	@#  which is a second `cd` inside a shell already in `docs/` - it would have looked for `docs/docs`.
+	@cd docs && npx --no-install playwright install chromium
 
 build-docs: docs-deps
 	@echo "[build-docs] Building documentation..."

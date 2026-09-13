@@ -50,10 +50,16 @@ jobs:
       # No separate install step: `make build-docs` installs through `docs-deps`, and running `npm ci` first
       # guaranteed that condition was already satisfied - so CI proved the site builds and never once
       # exercised the target it builds with. A broken `docs-deps` passed.
-      # Mermaid renders to static SVG at build time, which needs the browser `rehype-mermaid` drives. Chromium
-      # only, and `--with-deps` for the system libraries a runner image does not carry.
-      - name: Install the browser the diagrams render in
-        run: cd docs && npx playwright install --with-deps chromium
+      # `make build-docs` installs the npm dependencies (through `docs-deps`) and then the browser from the
+      # *locked* playwright. This step is only for the system libraries a runner image lacks, which is why it
+      # is `--with-deps` and why it must come **after** the install: run before `npm ci`, `npx playwright`
+      # fetches whatever the registry currently publishes instead of the locked version, and the build then
+      # downloads a second browser.
+      - name: Install documentation dependencies
+        run: make docs-deps
+
+      - name: Install the system libraries the browser needs
+        run: cd docs && npx --no-install playwright install-deps chromium
 
       - name: Build documentation
         run: make build-docs
