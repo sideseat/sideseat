@@ -598,12 +598,13 @@ fn every_lockfile_carries_its_manifests_engines() {
         .output()
         .expect("git is available in a git checkout");
 
-    let engines_of = |text: &str, root_entry: bool| -> Option<String> {
+    // `None` key means the manifest itself; `Some(key)` an entry inside a lock's `packages` map.
+    let engines_of = |text: &str, key: Option<&str>| -> Option<String> {
         // Deliberately a small scan rather than a JSON dependency: the lockfiles are megabytes, and the value
-        // wanted is one string in a known place - the manifest's top level, or the lock's `""` package.
-        let region = if root_entry {
+        // wanted is one string in a known place.
+        let region = if let Some(key) = key {
             let at = text.find("\"packages\"")?;
-            let start = text[at..].find("\"\": {")? + at;
+            let start = text[at..].find(&format!("\"{key}\": {{"))? + at;
             let end = text[start..]
                 .find("\n    },")
                 .map_or(text.len(), |e| start + e);
@@ -631,17 +632,56 @@ fn every_lockfile_carries_its_manifests_engines() {
         let Ok(lock) = std::fs::read_to_string(repo.join(&lock_path)) else {
             continue;
         };
-        let declared = engines_of(
-            &std::fs::read_to_string(repo.join(manifest)).unwrap_or_default(),
-            false,
-        );
-        let recorded = engines_of(&lock, true);
-        checked += 1;
-        if declared != recorded {
-            disagree.push(format!(
-                "{manifest} says {declared:?} while {lock_path} says {recorded:?} - run \
-                 `npm install --package-lock-only` in {dir}"
-            ));
+        // A lock also embeds a copy of every **local** dependency's manifest, engines included, and npm
+        // refreshes that copy only when *this* package is installed. So editing `sdk/js` and regenerating its
+        // own lock leaves the examples' lock stating the old requirement - and `make node-floor` reads every
+        // lock, so it would keep deriving from the stale copy. Checking only `packages[""]` missed this.
+        let mut pairs: Vec<(String, String)> = vec![(manifest.to_string(), String::new())];
+        for line in lock.lines() {
+            let Some(rest) = line.trim().strip_prefix('"') else {
+                continue;
+            };
+            let Some(key) = rest.split("\": {").next().filter(|k| k.starts_with("../")) else {
+                continue;
+            };
+            // The key is relative to the lock's own directory.
+            let mut parts: Vec<String> = dir
+                .trim_end_matches('/')
+                .split('/')
+                .map(str::to_string)
+                .collect();
+            let mut relative = key.to_string();
+            while let Some(tail) = relative.strip_prefix("../") {
+                if parts.pop().is_none() {
+                    break;
+                }
+                relative = tail.to_string();
+            }
+            parts.push(relative);
+            let local = format!("{}/package.json", parts.join("/"));
+            if repo.join(&local).exists() {
+                pairs.push((local, key.to_string()));
+            }
+        }
+
+        for (source, lock_key) in pairs {
+            let declared = engines_of(
+                &std::fs::read_to_string(repo.join(&source)).unwrap_or_default(),
+                None,
+            );
+            let recorded = engines_of(&lock, Some(&lock_key));
+            checked += 1;
+            if declared != recorded {
+                let entry = if lock_key.is_empty() {
+                    String::new()
+                } else {
+                    format!(" (entry `{lock_key}`)")
+                };
+                disagree.push(format!(
+                    "{source} says {declared:?} while {lock_path}{entry} says {recorded:?} - run \
+                     `npm install --package-lock-only` in {dir}"
+                ));
+            }
         }
     }
 
@@ -754,7 +794,11 @@ fn every_script_that_locates_the_repository_root_finds_it() {
                 .iter()
                 .any(|ext| f.ends_with(ext))
         })
-        .filter(|f| !f.contains("/.venv/") && !f.starts_with("examples/"))
+        // Only the vendored trees, not `examples/` wholesale: that blanket exclusion hid `examples/run-all.sh`,
+        // which resolves the root exactly as the benchmark did. The sample suites themselves resolve their own
+        // content and `.env` directories, not the root, and are named accordingly - so they are not skipped,
+        // they simply do not match.
+        .filter(|f| !f.contains("/.venv/") && !f.contains("/node_modules/"))
     {
         // The file's own depth: `benchmarks/http-latency.sh` sits one directory below the root.
         let depth = file.matches('/').count();
