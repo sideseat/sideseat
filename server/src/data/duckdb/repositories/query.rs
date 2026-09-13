@@ -6403,7 +6403,7 @@ mod tests {
     /// window function over the project's spans and cannot use an index, so the read may be paying a second
     /// full pass.
     ///
-    /// `cargo test --release -p sideseat-server bench_session_membership -- --ignored --nocapture`
+    /// `cargo test --locked --release -p sideseat-server bench_session_membership -- --ignored --nocapture`
     #[tokio::test]
     #[ignore]
     async fn bench_session_membership() {

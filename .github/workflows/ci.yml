@@ -125,6 +125,100 @@ jobs:
             exit 1
           fi
 
+  check-postgres:
+    name: PostgreSQL (parity with SQLite)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        # Pinned, matching `make test-postgres`: `latest` moving would fail an unrelated PR.
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: sideseat
+          POSTGRES_PASSWORD: sideseat
+          POSTGRES_DB: sideseat
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U sideseat -d sideseat"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - uses: dtolnay/rust-toolchain@f7ccc83f9ed1e5b9c81d8a67d7ad1a747e22a561 # stable
+        with:
+          toolchain: stable
+
+      - uses: Swatinem/rust-cache@779680da715d629ac1d338a641029a2f4372abb5 # v2.8.2
+        with:
+          workspaces: server
+
+      # The PostgreSQL SQL is hand-written in a second dialect and, until this job existed, had never
+      # run against a server in CI: `make test-postgres` was the only path and nothing invoked it.
+      - name: PostgreSQL parity
+        env:
+          SIDESEAT_TEST_POSTGRES_URL: postgres://sideseat:sideseat@127.0.0.1:5432/sideseat
+        run: |
+          cargo test --locked -p sideseat-server parity_tests -- --test-threads=1 --nocapture 2>&1 \
+            | tee /tmp/pg-parity.log
+          # A silent skip would make this job pass while testing nothing.
+          if grep -q "skipping PostgreSQL parity" /tmp/pg-parity.log; then
+            echo "parity test skipped - the service container was not reachable"
+            exit 1
+          fi
+
+  check-redis:
+    name: Redis (durable ingestion queue)
+    runs-on: ubuntu-latest
+    services:
+      redis:
+        # Pinned, matching `make test-redis`. The durability probe refuses AOF-off, `appendfsync no` and
+        # any eviction policy that could drop an unread stream entry, so the options are not decoration:
+        # with the image defaults the backend refuses to start and every test here skips.
+        image: redis:7.4-alpine
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+        ports:
+          - 6379:6379
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - uses: dtolnay/rust-toolchain@f7ccc83f9ed1e5b9c81d8a67d7ad1a747e22a561 # stable
+        with:
+          toolchain: stable
+
+      - uses: Swatinem/rust-cache@779680da715d629ac1d338a641029a2f4372abb5 # v2.8.2
+        with:
+          workspaces: server
+
+      # A service container cannot take server arguments, so durability is configured over the wire -
+      # which is also a check that `CONFIG SET` works, since the startup probe reads these back.
+      - name: Configure durability
+        run: |
+          sudo apt-get update && sudo apt-get install -y --no-install-recommends redis-tools
+          redis-cli -h 127.0.0.1 config set appendonly yes
+          redis-cli -h 127.0.0.1 config set appendfsync always
+          redis-cli -h 127.0.0.1 config set maxmemory-policy noeviction
+
+      # The consumer-group semantics that make an asynchronous 200 honest had never run against a Redis
+      # in CI, and what that missed once was `XADD ... MAXLEN`, which trims by length and so deleted
+      # payloads nobody had read.
+      - name: Redis stream behaviour
+        env:
+          SIDESEAT_TEST_REDIS_URL: redis://127.0.0.1:6379
+        run: |
+          cargo test --locked -p sideseat-server redis_stream_tests -- --test-threads=1 --nocapture 2>&1 \
+            | tee /tmp/redis.log
+          # A silent skip would make this job pass while testing nothing.
+          if grep -q "redis stream tests: skipped" /tmp/redis.log; then
+            echo "redis stream tests skipped - the service container was not reachable"
+            exit 1
+          fi
+
   check-web:
     name: Web (fmt, lint, test)
     runs-on: ubuntu-latest

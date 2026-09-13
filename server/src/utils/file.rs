@@ -78,8 +78,10 @@ mod tests {
     #[test]
     fn test_expand_path_absolute_windows() {
         // Absolute Windows paths should remain unchanged
-        let result = expand_path("C:\\Users\\test");
-        assert_eq!(result, PathBuf::from("C:\\Users\\test"));
+        // The placeholder account name, not `test`: the privacy sweep reads every tracked file for the shape
+        // of a home directory, and it cannot tell an example apart from a capture.
+        let result = expand_path("C:\\Users\\sideseat");
+        assert_eq!(result, PathBuf::from("C:\\Users\\sideseat"));
 
         let result = expand_path("D:\\data");
         assert_eq!(result, PathBuf::from("D:\\data"));

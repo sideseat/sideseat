@@ -13,7 +13,7 @@ TypeScript samples for **Strands Agents**, **Vercel AI SDK** and the **Claude Ag
 
 ```bash
 cd examples/javascript
-npm install
+npm ci
 
 # Run a sample
 npm run strands -- tool-use

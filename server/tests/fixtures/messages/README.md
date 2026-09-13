@@ -55,7 +55,7 @@ the corpus matches it.
 
 | Suite | Version captured against | Samples | Captured requests |
 | --- | --- | --- | --- |
-| `_synthetic` | hand-written shapes, no SDK | 16 | 16 |
+| `_synthetic` | hand-written shapes, no SDK | 17 | 17 |
 | `adk` | google-adk >=1.27.0 | 8 | 18 |
 | `agent-framework` | agent-framework-core >=1.0.0b0 | 10 | 17 |
 | `anthropic` | anthropic >=0.84.0 | 7 | 18 |
@@ -160,7 +160,7 @@ not hide the rest.
 
 ## What is and is not covered
 
-**120 expectation files: 104 captured in 13 suites, plus 16 synthetic.** A suite is not a framework:
+**121 expectation files: 104 captured in 13 suites, plus 17 synthetic.** A suite is not a framework:
 `strands`/`strands-js` and `claude-agent-sdk`/`claude-agent-sdk-js` are one framework each in two
 languages, so the 13 captured suites cover **11 of the 32** frameworks SideSeat recognises. (32 is
 the union of the server's `Framework` classifier and the SDK's framework list, excluding `Unknown`:
@@ -221,20 +221,22 @@ weakening the check for everyone.
 
 ## `_synthetic/`
 
-Hand-written, not captured: a Strands-shaped tool-use conversation used to exercise the
-harness itself where no captured fixture is available. Its event shapes were taken from the
-assertions in `server/src/domain/traces/extract/messages_tests.rs` rather than invented — an
-unrealistic fixture would produce confident but meaningless results.
+Hand-written, not captured: shapes no captured sample produces, plus a Strands-shaped tool-use
+conversation that exercises the harness itself. Event shapes are taken from the assertions in
+`server/src/domain/traces/extract/messages_tests.rs` rather than invented — an unrealistic fixture
+would produce confident but meaningless results.
 
-Real captures are preferred for every framework. Keep this one: it is the only fixture that
-survives a checkout with no credentials, so it keeps the harness itself under test.
+Real captures are preferred for every framework, and these are not a substitute for one: each exists
+because a defect was found in a shape the corpus did not hold, and the fixture is what makes the
+answer to that shape reviewable. They are also the only fixtures that survive a checkout with no
+credentials, so they keep the harness itself under test.
 
 ## Not committed
 
 `crewai/agent_core` is gitignored: CrewAI serialises its entire model config into a span
 attribute, so the captured payload contained a live `aws_secret_access_key` and
 `aws_session_token`. A secret in a fixture goes straight into git history, where it cannot be
-taken back — `capture-message-fixtures.sh` now discards any fixture whose payload matches that
+taken back — `scripts/message-fixtures/capture.sh` now discards any fixture whose payload matches that
 shape rather than leaving the decision to a later reader.
 
 `strands-js/image-gen` and `vercel-ai-js/image-gen` are gitignored. Those suites inline
@@ -242,5 +244,5 @@ generated images as base64 in the OTLP JSON — 7MB and 15MB for a single reques
 sit in git history permanently for no extra parsing coverage. The Python `image_gen` fixtures
 exercise the same path in under 100KB each, because media is rewritten to file URIs before
 storage. Capture the JS ones locally when working on image handling; the harness discovers
-whatever is present and skips the rest. `capture-message-fixtures.sh` prints a warning for any
+whatever is present and skips the rest. `scripts/message-fixtures/capture.sh` prints a warning for any
 payload over 1MB so the next such case is a decision rather than a surprise.

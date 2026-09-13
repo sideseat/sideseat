@@ -28,7 +28,7 @@
 //! The result is compared against a committed expectation file. Regenerate with:
 //!
 //! ```bash
-//! UPDATE_GOLDENS=1 cargo test -p sideseat-server message_goldens
+//! UPDATE_GOLDENS=1 cargo test --locked -p sideseat-server message_goldens
 //! ```
 //!
 //! Regenerating is deliberately a separate, explicit step: a golden written straight from
@@ -3073,7 +3073,7 @@ fn a_barrier_orders_exactly_as_pairwise_edges_do() {
 /// filesystem file storage, and the fence lookups included.
 ///
 /// ```bash
-/// cargo test --release -p sideseat-server bench_ingestion -- --ignored --nocapture
+/// cargo test --locked --release -p sideseat-server bench_ingestion -- --ignored --nocapture
 /// ```
 // The multi-threaded runtime, because `run_batch` uses `block_in_place` for its parallel extraction -
 // so the current-thread runtime a plain `#[tokio::test]` gives would panic rather than measure.
@@ -3244,7 +3244,7 @@ async fn bench_ingestion_end_to_end() {
 ///   input.
 ///
 /// ```bash
-/// cargo test --release -p sideseat-server bench_session_scaling -- --ignored --nocapture
+/// cargo test --locked --release -p sideseat-server bench_session_scaling -- --ignored --nocapture
 /// ```
 #[test]
 #[ignore]

@@ -1,0 +1,79 @@
+{
+ "resourceSpans": [
+  {
+   "resource": {
+    "attributes": [
+     {
+      "key": "service.name",
+      "value": {
+       "stringValue": "synthetic"
+      }
+     }
+    ]
+   },
+   "scopeSpans": [
+    {
+     "scope": {
+      "name": "synthetic.telemetry"
+     },
+     "spans": [
+      {
+       "traceId": "aa000000000000000000000000000017",
+       "spanId": "17ffffffffffffff",
+       "name": "chat",
+       "kind": 1,
+       "startTimeUnixNano": "1735689600000000000",
+       "endTimeUnixNano": "1735689601000000000",
+       "attributes": [
+        {
+         "key": "gen_ai.operation.name",
+         "value": {
+          "stringValue": "chat"
+         }
+        },
+        {
+         "key": "gen_ai.provider.name",
+         "value": {
+          "stringValue": "synthetic"
+         }
+        },
+        {
+         "key": "gen_ai.request.model",
+         "value": {
+          "stringValue": "model-x"
+         }
+        }
+       ],
+       "events": [
+        {
+         "name": "gen_ai.user.message",
+         "timeUnixNano": "1735689600000000000",
+         "attributes": [
+          {
+           "key": "content",
+           "value": {
+            "stringValue": "look up a and b"
+           }
+          }
+         ]
+        },
+        {
+         "name": "gen_ai.choice",
+         "timeUnixNano": "1735689600000000000",
+         "attributes": [
+          {
+           "key": "message",
+           "value": {
+            "stringValue": "[{\"text\": \"checking\"}, {\"toolUse\": {\"toolUseId\": \"call-1\", \"name\": \"lookup\", \"input\": {\"q\": \"a\"}}}, {\"toolUse\": {\"toolUseId\": \"call-2\", \"name\": \"lookup\", \"input\": {\"q\": \"b\"}}}, {\"text\": \"both dispatched\"}]"
+           }
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

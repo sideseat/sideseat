@@ -381,7 +381,7 @@ setup:
 	@echo "[setup] Installing workspace dev tools..."
 	@uv sync --locked --group dev
 	@echo "[setup] Fetching Rust dependencies..."
-	@cargo fetch
+	@cargo fetch --locked
 	@echo "[setup] Installing JS dependencies..."
 	@#  `npm ci`, not `npm install`: setup exists to *reproduce* the locked tree, and `npm install` may
 	@#  rewrite the lockfile to resolve an inconsistency - so the environment a contributor gets could differ
@@ -795,7 +795,7 @@ coverage:
 	@echo "[coverage] Running tests with coverage..."
 	@command -v cargo-tarpaulin >/dev/null 2>&1 || { echo "Error: cargo-tarpaulin not installed. Install with: cargo install cargo-tarpaulin"; exit 1; }
 	@echo "[coverage] Rust coverage..."
-	@cd $(SERVER_DIR) && cargo tarpaulin --out Html --output-dir ../coverage
+	@cd $(SERVER_DIR) && cargo tarpaulin --locked --out Html --output-dir ../coverage
 	@echo "[coverage] Rust report: coverage/tarpaulin-report.html"
 	@echo "[coverage] Web coverage..."
 	@cd $(WEB_DIR) && npm run test:coverage -- --run

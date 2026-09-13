@@ -506,6 +506,12 @@ fn flatten_tool_blocks(messages: Vec<SideMLMessage>) -> Vec<SideMLMessage> {
         // Split into individual tool messages, preserving relative order.
         // Non-tool blocks are grouped and emitted at their first occurrence position.
         let mut non_tool_blocks = Vec::new();
+        // Where the accumulated group starts, which is the position it is emitted at. A group used to take
+        // the *parent's* position, so a response shaped `[Text, ToolUse, ToolUse, Text]` produced two groups
+        // with the same path - and flatten restarts its block index per message, so both texts landed on
+        // `parent.0`. Identical text in one atomic emission is then one identity at one ordinal, and dedup
+        // drops the second: content loss, in the one place position exists to prevent it.
+        let mut non_tool_start: Option<usize> = None;
         let mut non_tool_emitted = false;
 
         // Enumerated: a split tool message takes the position of the block it was made from, which is
@@ -515,7 +521,12 @@ fn flatten_tool_blocks(messages: Vec<SideMLMessage>) -> Vec<SideMLMessage> {
                 ContentBlock::ToolUse { .. } => {
                     // Emit accumulated non-tool blocks before this tool block
                     if !non_tool_emitted && !non_tool_blocks.is_empty() {
-                        emit_non_tool_message(&mut result, &msg, &mut non_tool_blocks);
+                        emit_non_tool_message(
+                            &mut result,
+                            &msg,
+                            &mut non_tool_blocks,
+                            non_tool_start.take(),
+                        );
                         non_tool_emitted = true;
                     }
                     // Create individual message for this tool use
@@ -537,7 +548,12 @@ fn flatten_tool_blocks(messages: Vec<SideMLMessage>) -> Vec<SideMLMessage> {
                 ContentBlock::ToolResult { tool_use_id, .. } => {
                     // Emit accumulated non-tool blocks before this tool block
                     if !non_tool_emitted && !non_tool_blocks.is_empty() {
-                        emit_non_tool_message(&mut result, &msg, &mut non_tool_blocks);
+                        emit_non_tool_message(
+                            &mut result,
+                            &msg,
+                            &mut non_tool_blocks,
+                            non_tool_start.take(),
+                        );
                         non_tool_emitted = true;
                     }
                     // Create individual message for this tool result
@@ -561,7 +577,8 @@ fn flatten_tool_blocks(messages: Vec<SideMLMessage>) -> Vec<SideMLMessage> {
                     });
                 }
                 _ => {
-                    // Collect non-tool blocks
+                    // Collect non-tool blocks, remembering where this group began.
+                    non_tool_start.get_or_insert(block_position);
                     non_tool_blocks.push(block.clone());
                 }
             }
@@ -569,7 +586,12 @@ fn flatten_tool_blocks(messages: Vec<SideMLMessage>) -> Vec<SideMLMessage> {
 
         // Emit any remaining non-tool blocks at the end
         if !non_tool_blocks.is_empty() {
-            emit_non_tool_message(&mut result, &msg, &mut non_tool_blocks);
+            emit_non_tool_message(
+                &mut result,
+                &msg,
+                &mut non_tool_blocks,
+                non_tool_start.take(),
+            );
         }
     }
 
@@ -582,6 +604,7 @@ fn emit_non_tool_message(
     result: &mut Vec<SideMLMessage>,
     msg: &SideMLMessage,
     non_tool_blocks: &mut Vec<ContentBlock>,
+    first_block: Option<usize>,
 ) {
     let new_sideml = ChatMessage {
         role: msg.sideml.role,
@@ -592,9 +615,14 @@ fn emit_non_tool_message(
         ..Default::default()
     };
     result.push(SideMLMessage {
-        // The parent's position: this message stands for several blocks of it, so there is no single
-        // block index to name.
-        position: msg.position.clone(),
+        // The position of the group's **first** block. It stands for several blocks, so no single index
+        // names all of them - but the first one distinguishes this group from the next, which the parent's
+        // position does not: two groups of one message then share a path, and with the block index
+        // restarting per message their blocks collide outright.
+        position: match first_block {
+            Some(first) => msg.position.child_index(first),
+            None => msg.position.clone(),
+        },
         source: msg.source.clone(),
         category: msg.category,
         source_type: msg.source_type,
@@ -1280,6 +1308,69 @@ mod tests {
             result[2].sideml.content.first(),
             Some(ContentBlock::Text { text }) if text == "After tools"
         ));
+    }
+
+    /// Two non-tool groups of one message occupy two positions.
+    ///
+    /// The contract [`PositionPath`] states is that two observations of one payload differ *by
+    /// construction*, so that identical content is still two occurrences. A group used to take the
+    /// **parent's** position, and a message shaped `[text, call, call, text]` produces two of them — so
+    /// both stood at the parent, and since flatten restarts its block index per message, both texts
+    /// landed on `parent.0`. Identity for plain text is `(trace, role, content)`, separated within one
+    /// atomic emission only by the position-derived ordinal; equal positions collapse that separation.
+    ///
+    /// Kept at this level deliberately. No payload in the corpus reaches it — an OTLP content-block list
+    /// arrives as separate observations, which already carry distinct roots — so an end-to-end fixture
+    /// cannot state the property, and `_synthetic/text_split_by_parallel_calls` pins that shape's answer
+    /// rather than this mechanism. What is checked here is the invariant the type promises.
+    #[test]
+    fn two_non_tool_groups_of_one_message_occupy_two_positions() {
+        let msg = SideMLMessage {
+            position: PositionPath::root(0),
+            source: event_source("gen_ai.choice"),
+            category: MessageCategory::GenAIChoice,
+            source_type: MessageSourceType::Event,
+            timestamp: Utc::now(),
+            sideml: ChatMessage {
+                role: ChatRole::Assistant,
+                content: vec![
+                    ContentBlock::Text {
+                        text: "checking".to_string(),
+                    },
+                    ContentBlock::ToolUse {
+                        id: Some("call_1".to_string()),
+                        name: "lookup".to_string(),
+                        input: json!({"q": "a"}),
+                    },
+                    ContentBlock::ToolUse {
+                        id: Some("call_2".to_string()),
+                        name: "lookup".to_string(),
+                        input: json!({"q": "b"}),
+                    },
+                    ContentBlock::Text {
+                        text: "checking".to_string(),
+                    },
+                ],
+                ..Default::default()
+            },
+        };
+
+        let result = flatten_tool_blocks(vec![msg]);
+        assert_eq!(result.len(), 4, "two groups and two calls");
+
+        let positions: Vec<String> = result.iter().map(|m| m.position.to_string()).collect();
+        let distinct: std::collections::BTreeSet<&String> = positions.iter().collect();
+        assert_eq!(
+            distinct.len(),
+            positions.len(),
+            "every message of one split occupies its own position, or identical content in two of them \
+             is one identity at one ordinal and dedup keeps only the first: {positions:?}"
+        );
+        assert_eq!(
+            positions,
+            vec!["0.0", "0.1", "0.2", "0.3"],
+            "each takes the position of the block it was made from - a group, the first of its own"
+        );
     }
 
     #[test]

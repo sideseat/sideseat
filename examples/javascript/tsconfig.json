@@ -10,7 +10,7 @@
     "erasableSyntaxOnly": true,
     "baseUrl": ".",
     "paths": {
-      "@sideseat/sdk": ["../../../sdk/js/src/index.ts"]
+      "@sideseat/sdk": ["../../sdk/js/src/index.ts"]
     }
   },
   "include": ["src/**/*"],

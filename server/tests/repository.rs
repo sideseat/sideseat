@@ -145,6 +145,14 @@ fn rust_commentary(text: &str) -> Vec<(usize, String)> {
             }
             Mode::Str | Mode::Char => {
                 if c == '\\' {
+                    // A string continuation is a backslash *followed by the newline*, so skipping the escaped
+                    // character in one step skipped the line count with it: every `"…\` in the file shifted
+                    // every later reported line up by one, and this file's own scanners cited lines seven
+                    // above the ones they had read. The finding was right and its address was not, which is
+                    // the failure mode a line number exists to prevent.
+                    if chars.get(i + 1) == Some(&'\n') {
+                        line += 1;
+                    }
                     i += 2;
                 } else if (matches!(mode, Mode::Str) && c == '"')
                     || (matches!(mode, Mode::Char) && c == '\'')
@@ -292,7 +300,21 @@ fn dependabot_covers_every_manifest_in_the_tree() {
         gaps.join("\n  ")
     );
 }
-/// No committed fixture carries the capturing developer's account name.
+/// The placeholders that stand for a home directory in tracked content, each named with what writes it.
+///
+/// A list, and a short one, because the alternative is worse in both directions: no list means the sweep cannot
+/// distinguish a scrubbed archive from an unscrubbed one, and a *derived* answer would have to decide whether an
+/// arbitrary name is a real account, which nothing in a repository can know.
+const HOME_PLACEHOLDERS: [&str; 3] = [
+    // What `scripts/message-fixtures/capture.sh` substitutes.
+    "sideseat",
+    // What the replay archives under `tools/otel-replay/fixtures/` were scrubbed to.
+    "test-user",
+    // The generic in documentation and doc comments (`expand_path("~") -> /home/user`).
+    "user",
+];
+
+/// No **tracked file** carries the capturing developer's account name — compressed archives included.
 ///
 /// A sample that reads a file records the absolute path it read, so a capture carries whoever ran it into a
 /// public repository: 918 occurrences across 48 fixtures before this existed, naming one maintainer's home
@@ -301,22 +323,36 @@ fn dependabot_covers_every_manifest_in_the_tree() {
 ///
 /// The question is asked of the **shape of a home directory**, not of one account name. Matching `$USER` was
 /// the first form, and it is vacuous exactly where it matters most: in CI the account is `runner`, so the guard
-/// ran and could not have seen `/Users/alice/…` in a fixture a contributor captured. Every `/Users/<name>/` and
-/// `/home/<name>/` in a tracked fixture is now reported unless the name is the placeholder the capture script
-/// writes — which needs no list of forbidden names and does not depend on who runs it. Windows profile paths are
-/// matched in both slash spellings, since a capture can come from there.
+/// ran and could not have seen a contributor's own home directory in a fixture they captured. Every
+/// `…/Users/<name>/` and `…/home/<name>/` in a tracked file is reported unless the name is one of
+/// [`HOME_PLACEHOLDERS`] — which needs no list of forbidden names and does not depend on who runs it. Windows
+/// profile paths are matched in both slash spellings, since a capture can come from there.
 ///
-/// The current account is still checked as well, because a name can reach a fixture by something other than a
+/// The current account is still checked as well, because a name can reach a file by something other than a
 /// path: an author field, a hostname, a bucket name.
+///
+/// **Scope was the defect, twice over.** Restricted to `server/tests/fixtures`, this passed while
+/// `tools/otel-replay/fixtures/traces-crewai.jsonl.gz` carried 940 occurrences of a maintainer's home directory
+/// and a doc comment in `api/routes/agui/` cited a plan file in the same home directory. Five of the six replay
+/// archives *had* been scrubbed by hand, which is exactly what a guard that cannot see them produces: the work
+/// was done and one file was missed, with nothing to say so. So the sweep reads every tracked file, and a
+/// compressed one is **decompressed** rather than skipped — a `.gz` is where a capture's paths are most likely
+/// to be and least likely to be noticed. Compressed archives are counted against the number tracked, so a
+/// decoder that silently fails cannot leave the sweep quietly reading five files instead of six.
+///
+/// A prefix must sit at an **absolute-path boundary**: `@/pages/home/create-project-dialog` is a module import,
+/// not a home directory, and reporting it would teach a reader to disbelieve the finding.
 #[test]
-fn no_fixture_carries_the_capturing_users_name() {
-    const PLACEHOLDER: &str = "sideseat";
+fn no_tracked_file_carries_the_capturing_users_name() {
+    use std::io::Read;
+
     let current = std::env::var("USER")
         .or_else(|_| std::env::var("USERNAME"))
         .unwrap_or_default();
-    let current = (current.len() >= 3 && current != PLACEHOLDER).then_some(current);
+    let current =
+        (current.len() >= 3 && !HOME_PLACEHOLDERS.contains(&current.as_str())).then_some(current);
     // The prefixes a home directory is spelled with, on every platform a capture can come from - and in both
-    // encodings, because a fixture is JSON: a Windows path arrives as `C:\\Users\\alice`, so the literal
+    // encodings, because a fixture is JSON: a Windows path arrives with its separators doubled, so the literal
     // single-backslash form never matches the bytes on disk. The first version had only that form, and the
     // mutation that "verified" it used forward slashes, so the case it was written for was untested.
     let prefixes: [&[u8]; 5] = [
@@ -332,75 +368,153 @@ fn no_fixture_carries_the_capturing_users_name() {
     // for something that is not published.
     let repo = repo_root();
     let listing = std::process::Command::new("git")
-        .args(["ls-files", "-z", "server/tests/fixtures"])
+        .args(["ls-files", "-z"])
         .current_dir(repo)
         .output()
         .expect("git is available in a git checkout");
     assert!(listing.status.success(), "git ls-files failed");
+
     let mut offenders: Vec<String> = Vec::new();
     let mut scanned = 0usize;
+    let mut archives = 0usize;
+    let mut tracked_archives = 0usize;
+
+    // Chunked, with an overlap, because the archives decompress to 346 MB and holding one whole is 129 MB of
+    // it. The overlap is what keeps a match that straddles a chunk boundary visible; without it the sweep's
+    // blind spot would depend on the buffer size, which is the worst kind.
+    const CHUNK: usize = 1 << 20;
+    let overlap = prefixes.iter().map(|p| p.len()).max().unwrap_or(0)
+        + 64
+        + current.as_ref().map_or(0, String::len);
+
     for rel in listing
         .stdout
         .split(|b| *b == 0)
         .filter(|entry| !entry.is_empty())
     {
         let rel = String::from_utf8_lossy(rel).to_string();
-        let Ok(bytes) = std::fs::read(repo.join(&rel)) else {
+        let path = repo.join(&rel);
+        let compressed = rel.ends_with(".gz");
+        if compressed {
+            tracked_archives += 1;
+        }
+        let Ok(file) = std::fs::File::open(&path) else {
             continue;
         };
+        let mut reader: Box<dyn Read> = if compressed {
+            Box::new(flate2::read::GzDecoder::new(file))
+        } else {
+            Box::new(file)
+        };
         scanned += 1;
-
-        if let Some(user) = current
-            .as_ref()
-            .filter(|user| bytes.windows(user.len()).any(|w| w == user.as_bytes()))
-        {
-            offenders.push(format!("{rel}: the current account name `{user}`"));
+        if compressed {
+            archives += 1;
         }
 
-        for prefix in prefixes {
-            let mut at = 0usize;
-            while let Some(found) = bytes
-                .get(at..)
-                .and_then(|tail| tail.windows(prefix.len()).position(|w| w == prefix))
-                .map(|p| at + p)
+        let mut buffer: Vec<u8> = Vec::with_capacity(CHUNK + overlap);
+        let mut done = false;
+        let mut found_here = false;
+        while !done && !found_here {
+            let filled = buffer.len();
+            buffer.resize(filled + CHUNK, 0);
+            let mut read = 0usize;
+            while read < CHUNK {
+                match reader.read(&mut buffer[filled + read..]) {
+                    Ok(0) => {
+                        done = true;
+                        break;
+                    }
+                    Ok(n) => read += n,
+                    // A truncated or corrupt archive is a finding of its own: the sweep must not report a
+                    // clean answer for content it could not read.
+                    Err(error) => {
+                        offenders.push(format!("{rel}: could not be read ({error})"));
+                        done = true;
+                        break;
+                    }
+                }
+            }
+            buffer.truncate(filled + read);
+
+            if let Some(user) = current
+                .as_ref()
+                .filter(|user| memchr::memmem::find(&buffer, user.as_bytes()).is_some())
             {
-                let after = found + prefix.len();
-                at = after;
-                // The name runs to the next separator; a JSON-escaped Windows path spells it `\\`.
-                let name: Vec<u8> = bytes[after..]
-                    .iter()
-                    .copied()
-                    .take_while(|b| {
-                        !matches!(b, b'/' | b'\\' | b'"' | b'\'' | b' ' | b'\n' | b'\r' | 0)
-                    })
-                    .collect();
-                if name.is_empty() || name.len() > 64 {
-                    continue;
+                offenders.push(format!("{rel}: the current account name `{user}`"));
+                found_here = true;
+            }
+
+            for prefix in prefixes {
+                for found in memchr::memmem::find_iter(&buffer, prefix) {
+                    // A home directory is named by an *absolute* path. `pages/home/…` is a module path, and
+                    // the byte before the match is what tells them apart.
+                    if found > 0
+                        && matches!(buffer[found - 1],
+                            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.')
+                    {
+                        continue;
+                    }
+                    let after = found + prefix.len();
+                    // What an account name is *made of*, rather than a list of the separators that end one:
+                    // as an exclusion list this captured the trailing punctuation of prose (`/home/user`).`
+                    // stopped at neither the backtick nor the paren), so the placeholder comparison failed on
+                    // a name that was the placeholder. Non-ASCII is included because the truncation marker
+                    // below is `…` and because an account name may itself be non-ASCII.
+                    let name: Vec<u8> = buffer[after..]
+                        .iter()
+                        .copied()
+                        .take_while(|b| {
+                            b.is_ascii_alphanumeric()
+                                || matches!(b, b'-' | b'_' | b'.')
+                                || *b >= 0x80
+                        })
+                        .collect();
+                    if name.is_empty() || name.len() > 64 {
+                        continue;
+                    }
+                    let name = String::from_utf8_lossy(&name).to_string();
+                    // A preview truncates, so a golden holds the placeholder cut mid-name (`…/si…[960
+                    // chars]`). Anything up to the ellipsis that is still a prefix of a placeholder is
+                    // consistent with it, and nothing distinguishes it from one - the residual is a real
+                    // account whose name is itself a prefix of a placeholder *and* truncated at that point.
+                    let (name, truncated) = match name.split_once('…') {
+                        Some((head, _)) => (head.to_string(), true),
+                        None => (name, false),
+                    };
+                    let stands_for_a_home = HOME_PLACEHOLDERS.contains(&name.as_str())
+                        || (truncated
+                            && HOME_PLACEHOLDERS
+                                .iter()
+                                .any(|placeholder| placeholder.starts_with(&name)));
+                    if !stands_for_a_home {
+                        offenders.push(format!("{rel}: {}{name}", String::from_utf8_lossy(prefix)));
+                        found_here = true;
+                        break;
+                    }
                 }
-                let name = String::from_utf8_lossy(&name).to_string();
-                // A preview truncates, so a golden holds `/Users/si…[960 chars]` where the placeholder was
-                // cut mid-name. Anything up to the ellipsis that is still a prefix of the placeholder is
-                // consistent with it, and nothing distinguishes it from the placeholder - the residual is a
-                // real account whose name is itself a prefix of `sideseat` *and* truncated at that point.
-                let (name, truncated) = match name.split_once('…') {
-                    Some((head, _)) => (head.to_string(), true),
-                    None => (name, false),
-                };
-                if name != PLACEHOLDER && !(truncated && PLACEHOLDER.starts_with(&name)) {
-                    offenders.push(format!("{rel}: {}{name}", String::from_utf8_lossy(prefix)));
-                    break;
-                }
+            }
+
+            // Keep the tail, so a name split across two reads is still whole in the next pass.
+            if !done {
+                let keep = buffer.len().saturating_sub(overlap);
+                buffer.drain(..keep);
             }
         }
     }
     offenders.sort();
     offenders.dedup();
-    assert!(scanned > 100, "only scanned {scanned} fixture files");
+    assert!(scanned > 1_000, "only scanned {scanned} tracked files");
+    assert_eq!(
+        archives, tracked_archives,
+        "{tracked_archives} compressed archive(s) are tracked and {archives} were read - a decoder that \
+         fails silently leaves the sweep blind to exactly the files a capture's paths hide in"
+    );
     assert!(
         offenders.is_empty(),
-        "{} fixture(s) name a home directory a public repository should not carry - re-capture with \
-         scripts/message-fixtures/capture.sh, which substitutes `{PLACEHOLDER}`:\n  {}",
+        "{} tracked file(s) name a home directory a public repository should not carry - re-capture with \
+         scripts/message-fixtures/capture.sh, which substitutes `{}`:\n  {}",
         offenders.len(),
+        HOME_PLACEHOLDERS[0],
         offenders.join("\n  ")
     );
 }
@@ -810,8 +924,14 @@ fn every_lockfile_carries_its_manifests_engines() {
 /// `cargo clippy`" - is a reference, and locking prose would be noise rather than rigour.
 ///
 /// The exceptions are commands whose **purpose** is to write the lockfile, and they are named rather than
-/// pattern-matched: `uv lock`, `cargo update`, and the installers (`cargo install`, `cargo fetch`, `npm`), which
-/// resolve something other than this workspace.
+/// pattern-matched: `uv lock`, `uv add`, `cargo update`, and the installers (`cargo install`, `npm install`),
+/// which resolve something other than this workspace.
+///
+/// `cargo fetch` was on that list and does not belong there: it resolves **this** workspace and writes
+/// `Cargo.lock` when the manifest has moved, so `make setup` — whose whole purpose is to reproduce the locked
+/// tree, and which argues exactly that three lines below about `npm ci` — could repair a stale lockfile before
+/// any later `--locked` gate looked at it. `cargo tarpaulin` was missing outright, which is the hand-maintained
+/// inventory this file exists to remove, in the invariant that removes it.
 #[test]
 fn every_resolving_command_is_locked() {
     let repo = repo_root();
@@ -821,25 +941,24 @@ fn every_resolving_command_is_locked() {
         .output()
         .expect("git is available in a git checkout");
 
-    const RESOLVING: [&str; 9] = [
+    const RESOLVING: [&str; 11] = [
         "cargo build",
         "cargo test",
         "cargo clippy",
         "cargo check",
         "cargo run",
         "cargo zigbuild",
+        "cargo tarpaulin",
+        "cargo fetch",
         "uv sync",
         "uv run",
         "uv export",
     ];
-    const DELIBERATE: [&str; 6] = [
-        "uv lock",
-        "cargo update",
-        "cargo install",
-        "cargo fetch",
-        "npm install",
-        "uv add",
-    ];
+    // No exception list. There was one - `uv lock`, `uv add`, `cargo update`, `cargo install`, `npm install` -
+    // and emptying it changed no answer, because a segment is only examined when it *starts with* a resolving
+    // command and none of those is one. So it excused nothing while telling the next reader that exceptions
+    // were handled here. The deliberate writers are excluded by construction instead: they are absent from
+    // `RESOLVING`, which is the list that decides what is examined.
 
     let mut unlocked: Vec<String> = Vec::new();
     let mut checked = 0usize;
@@ -849,16 +968,32 @@ fn every_resolving_command_is_locked() {
         // hooks, `.py`, `.mjs`, `.js` and `package.json` scripts - the hand-maintained inventory these
         // invariants exist to remove, reintroduced inside one of them.
         .filter(|f| !f.starts_with("server/tests/fixtures/"))
-        // Rust is excluded, and this is a scope rather than an exemption: a `"cargo build"` in a string
-        // literal - these scanners' own tables, for instance - is not a line anybody pastes into a shell. The
-        // residual, stated: a command *constructed* in code (`Command::new("cargo").args([…])`) is a different
-        // shape that this would not have matched in any case.
-        .filter(|f| !f.ends_with(".rs"))
         .filter(|f| is_text(&repo.join(f)))
     {
         let text = std::fs::read_to_string(repo.join(file)).unwrap_or_default();
+        // Rust is read through its **commentary**, not skipped and not read whole. Skipped, it hid two
+        // pasteable commands in doc comments - the golden-regeneration line and a benchmark invocation, both
+        // inside ```bash fences that a reader copies. Read whole, every entry of this scanner's own tables
+        // would be a finding. A command *constructed* in code (`Command::new("cargo").args([…])`) is a third
+        // shape, and one this would not have matched in any case.
+        let rust = file.ends_with(".rs");
+        let commentary: Vec<(usize, String)>;
+        let numbered: Vec<(usize, &str)> = if rust {
+            commentary = rust_commentary(&text);
+            commentary
+                .iter()
+                // The doc marker is part of the comment body once `//` is consumed, so `///` arrives as `/`
+                // and `//!` as `!`. Left on, the fence line `/// ```bash` does not start with a fence and
+                // every command inside one was invisible.
+                .map(|(number, line)| {
+                    (number - 1, line.trim_start_matches(['/', '!']).trim_start())
+                })
+                .collect()
+        } else {
+            text.lines().enumerate().collect()
+        };
         let mut fenced = false;
-        for (number, line) in text.lines().enumerate() {
+        for (number, line) in numbered {
             if line.trim_start().starts_with("```") {
                 fenced = !fenced;
                 continue;
@@ -874,6 +1009,41 @@ fn every_resolving_command_is_locked() {
             let mut runnable = line.trim();
             for prefix in ['@', '-', '(', '\t'] {
                 runnable = runnable.trim_start_matches(prefix).trim_start();
+            }
+            // A whole line that is one backticked command is a command. Mid-sentence, a backticked name is a
+            // reference and locking it would be noise - but a comment line consisting of nothing else is how
+            // every "run this to regenerate" line in this crate is written, and two of them were unlocked.
+            let mut whole_line_command = false;
+            if let Some(inner) = runnable
+                .strip_prefix('`')
+                .and_then(|rest| rest.strip_suffix('`'))
+                .filter(|inner| !inner.contains('`'))
+            {
+                runnable = inner.trim();
+                whole_line_command = true;
+            }
+            // In Rust commentary, prose **wraps**, so a continuation line can begin with anything - including
+            // the tail of a quoted command, which is how this file's own explanation of the `&&` splitting
+            // reported itself three times. A comment line is a command only where it says so: inside a fenced
+            // block, or as a line that is nothing but one backticked command. Markdown keeps the looser rule,
+            // where a command at the start of a line is what a reader copies.
+            if rust && !fenced && !whole_line_command {
+                continue;
+            }
+            // Leading environment assignments: `UPDATE_GOLDENS=1 cargo test …` is the documented way to
+            // regenerate the goldens, and testing what the segment *starts with* saw the assignment instead of
+            // the command - the same blindness as the `cargo watch` argument form.
+            while let Some((head, rest)) = runnable.split_once(' ') {
+                let assignment = head.split_once('=').is_some_and(|(name, _)| {
+                    !name.is_empty()
+                        && name
+                            .chars()
+                            .all(|c| c.is_ascii_uppercase() || c.is_ascii_digit() || c == '_')
+                });
+                if !assignment {
+                    break;
+                }
+                runnable = rest.trim_start();
             }
             for lead in [
                 "cd ",
@@ -891,7 +1061,11 @@ fn every_resolving_command_is_locked() {
             // Each segment a shell would run, judged **on its own**: taking the first resolving segment and
             // then testing the whole *line* let `cargo test --locked && cargo build` pass and
             // `cargo fetch && cargo build` be exempt entirely.
-            let candidate = if fenced { line.trim() } else { runnable };
+            // One normalisation for both, because the fenced branch used the *raw* line and so discarded every
+            // prefix strip above it: the documented `UPDATE_GOLDENS=1 cargo test …` sits inside a ```bash
+            // fence, and inside a fence the environment assignment was never removed, so the command behind it
+            // was never seen. A fence makes a line more pasteable, not less.
+            let candidate = runnable;
             for segment in candidate
                 .split("&&")
                 .flat_map(|part| part.split(';'))
@@ -911,9 +1085,6 @@ fn every_resolving_command_is_locked() {
                 }) else {
                     continue;
                 };
-                if DELIBERATE.iter().any(|d| segment.contains(d)) {
-                    continue;
-                }
                 checked += 1;
                 if !segment.contains("--locked") {
                     unlocked.push(format!(
@@ -1202,8 +1373,19 @@ fn every_uv_project_requires_the_same_resolver() {
 #[test]
 fn the_node_requirement_is_stated_once() {
     let repo = repo_root();
+    let listing = Command::new("git")
+        .args(["ls-files"])
+        .current_dir(repo)
+        .output()
+        .expect("git is available in a git checkout");
     let mut stated: BTreeMap<String, Vec<String>> = BTreeMap::new();
-    for file in ["Makefile", "CONTRIBUTING.md"] {
+    // **Derived from the tree**, not the two files this started with. `examples/javascript/README.md` states
+    // the repository-wide floor as well - a fifth place, invisible to a two-name list, free to drift.
+    for file in String::from_utf8_lossy(&listing.stdout)
+        .lines()
+        .filter(|f| !f.starts_with("server/tests/fixtures/"))
+        .filter(|f| is_text(&repo.join(f)))
+    {
         let text = std::fs::read_to_string(repo.join(file)).unwrap_or_default();
         for (number, line) in text.lines().enumerate() {
             // The shape the floor is written in: `22.22+ or 24+`.
@@ -1226,7 +1408,12 @@ fn the_node_requirement_is_stated_once() {
                 let second_end = second
                     .find(|c: char| !c.is_ascii_digit() && c != '.' && c != '+')
                     .unwrap_or(second.len());
-                let second = &second[..second_end];
+                // A sentence's full stop is not part of the version. `.` has to be *inside* the scan, because
+                // the floor is written `22.22+`, so it is trimmed afterwards - and until it was, a statement
+                // ending in a full stop was invisible: the second version came out as `22+.`, failed the `+`
+                // test, and a whole contradicting claim went unseen. (Phrased without the two-version form on
+                // purpose: this file is scanned too, and an example of the shape would *be* a statement.)
+                let second = second[..second_end].trim_end_matches('.');
                 if !second.ends_with('+') {
                     continue;
                 }
@@ -1339,10 +1526,16 @@ fn every_script_that_locates_the_repository_root_finds_it() {
     let mut wrong: Vec<String> = Vec::new();
     for file in tracked
         .iter()
+        // A **script**, asked of the file rather than of its name: a shebang or a script extension. The
+        // extension allowlist omitted `.githooks/pre-commit` and `.githooks/pre-push`, which are shell scripts
+        // with no extension at all - the same blindness that hid two unlocked commands in `every_resolving_
+        // command_is_locked`, still live in the third scanner after the other two were fixed. Rust is not a
+        // script and its tests legitimately write `let root = …`, so nothing here matches it.
         .filter(|f| {
             [".sh", ".py", ".mjs", ".js", ".ts"]
                 .iter()
                 .any(|ext| f.ends_with(ext))
+                || std::fs::read_to_string(repo.join(f)).is_ok_and(|text| text.starts_with("#!"))
         })
         // Only the vendored trees, not `examples/` wholesale: that blanket exclusion hid `examples/run-all.sh`,
         // which resolves the root exactly as the benchmark did. The sample suites themselves resolve their own
@@ -1554,18 +1747,12 @@ fn every_module_path_cited_anywhere_resolves() {
     let citing: Vec<&String> = tracked
         .iter()
         .filter(|f| !f.starts_with("server/tests/fixtures/"))
-        // Every file kind that carries prose about this repository's layout. Markdown and Rust alone made the
-        // test's name ("anywhere") false: `sdk/python`'s `protocol.py` cites the schema in its module docstring,
-        // the TLA+ specifications cite the protocol they model, and the Makefile cites the scripts it runs - so
-        // a move could recreate exactly the defect this guard exists for while it passed.
-        .filter(|f| {
-            [
-                ".md", ".mdx", ".rs", ".py", ".ts", ".tsx", ".mjs", ".sh", ".tla", ".yml", ".toml",
-            ]
-            .iter()
-            .any(|ext| f.ends_with(ext))
-                || f.ends_with("Makefile")
-        })
+        // **Every tracked text file.** An extension allowlist came first and made the test's name ("anywhere")
+        // false twice over: it started at Markdown and Rust, grew to eleven extensions plus `Makefile` as each
+        // omission was found - `sdk/python`'s `protocol.py`, the TLA+ specifications, the Makefile's script
+        // paths - and still omitted `.json`, `.astro`, `.yaml` and the extensionless hooks. That is the
+        // hand-maintained inventory these invariants exist to remove, inside one of them.
+        .filter(|f| is_text(&repo.join(f)))
         .collect();
 
     let resolves = |citing_file: &str, cited: &str| -> bool {
@@ -1632,7 +1819,9 @@ fn every_module_path_cited_anywhere_resolves() {
                 // a set rather than a file, and `~/.sideseat/sideseat.json`, `./sideseat.json` and
                 // `/path/to/service-account.json` are runtime and example paths that the first version of this
                 // extension reported.
-                let cited = cited.trim_start_matches(['@', '-']);
+                // `!` as well as `@` and `-`: a `.gitignore` negation is a claim about a path, and leaving
+                // the marker on made `!data/.gitkeep` unresolvable while the file was right there.
+                let cited = cited.trim_start_matches(['@', '-', '!']);
                 if !cited.contains('/')
                     || cited.contains('*')
                     // A shell or make variable, an assignment, or an elided path: not a literal claim about

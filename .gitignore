@@ -536,11 +536,9 @@ traces-openai.jsonl.gz
 examples/**/output/
 web/coverage
 web/dist/
-!web/dist/.gitkeep
 !web/src/lib
 docs/dist/
 cli/bin/sideseat-*
-!cli/bin/.gitkeep
 cli/platforms/*/sideseat
 cli/platforms/*/sideseat.exe
 cli/vendor/

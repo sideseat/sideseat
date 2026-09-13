@@ -17,13 +17,27 @@
 //
 // Usage: node scripts/node-floor.mjs [extra versions to test...]
 
+import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
-const packages = ["web", "sdk/js", "examples/javascript", "docs"];
+
+// **Every tracked lockfile**, asked of git rather than listed here. The list was `["web", "sdk/js",
+// "examples/javascript", "docs"]` and it matched the tree only by being correct on the day it was written: a
+// fifth npm package, or a moved one, would have left the floor derived from fewer lockfiles than exist while
+// `--check` certified the stated requirement against that smaller evidence. The floor is what `make setup`
+// refuses builds on, so deriving it from a hand-kept list is the one place that inventory must not live.
+const packages = execFileSync("git", ["ls-files", "*package-lock.json"], { cwd: root, encoding: "utf8" })
+  .split("\n")
+  .filter((line) => line.endsWith("package-lock.json") && !line.includes("/node_modules/"))
+  .map((line) => dirname(line));
+if (packages.length === 0) {
+  console.error("No tracked `package-lock.json` found. This script derives the floor from them and cannot guess.");
+  process.exit(1);
+}
 
 const require = createRequire(import.meta.url);
 let semver;
@@ -73,14 +87,21 @@ const seeded = [
 
 // Collect the constraints first, so the probes can be derived from what they actually say.
 const constraints = [];
+let read = 0;
 for (const pkg of packages) {
   const lock = join(root, pkg, "package-lock.json");
-  if (!existsSync(lock)) continue;
+  // Tracked but unreadable is a refusal, not a skip: git named it, so a missing file means the working tree
+  // and the index disagree, and a floor derived from the rest would be an answer about a different repository.
+  if (!existsSync(lock)) {
+    console.error(`\ngit tracks ${pkg}/package-lock.json and it is not there. Restore it, or the floor below is measured against fewer packages than the repository has.`);
+    process.exit(1);
+  }
+  read += 1;
   const entries = Object.entries(JSON.parse(readFileSync(lock, "utf8")).packages ?? {});
   for (const [name, meta] of entries) {
     const range = meta?.engines?.node;
     if (!range || meta.optional || meta.os || meta.cpu) continue;
-    constraints.push({ who: `${pkg}:${name.replace("node_modules/", "")}`, range });
+    constraints.push({ who: `${pkg}:${name.replace("node_modules/", "") || "(its own manifest)"}`, range });
   }
 }
 const ranges = constraints.length;
@@ -120,7 +141,7 @@ for (const { who, range } of constraints) {
   }
 }
 
-console.log(`${ranges} engine range(s) from ${packages.length} lockfile(s), optional and platform-specific excluded\n`);
+console.log(`${ranges} engine range(s) from ${read} lockfile(s) (${packages.join(", ")}), optional and platform-specific excluded\n`);
 const accepted = [];
 for (const version of candidates) {
   const refusals = blame.get(version);
@@ -177,3 +198,51 @@ if (wrong.length > 0) {
   process.exit(1);
 }
 console.log(`The stated requirement (${floorMajor}.${floorMinor}+ or ${alsoMajor}+) matches the lockfiles.`);
+
+// A **package-scoped** claim is checked against that package's own lockfile. `examples/javascript/README.md`
+// states a floor of its own - lower than the repository's, which is legitimate and useful - and nothing
+// verified it: a dependency bump in that one suite raised its floor while the repository-wide check stayed
+// green, because the repository floor is the union and the union did not move. A claim nobody checks is a
+// convention, which is the same argument that produced `--check` in the first place.
+const scopedProblems = [];
+for (const pkg of packages) {
+  const readme = join(root, pkg, "README.md");
+  if (!existsSync(readme)) continue;
+  const scoped = readFileSync(readme, "utf8").match(
+    /Node\.js\*{0,2}:?\*{0,2}\s*(\d+)\.(\d+)\+ \(within \d+\.x\) or (\d+)\+/,
+  );
+  if (!scoped) continue;
+  const [, major, minor, also] = scoped.map(Number);
+  const mine = constraints.filter((c) => c.who.startsWith(`${pkg}:`));
+  const admits = (version) => {
+    const [M, m] = version.split(".").map(Number);
+    return M >= also || (M === major && m >= minor);
+  };
+  for (const version of candidates) {
+    const accepted = mine.every((c) => {
+      try {
+        return semver.satisfies(version, c.range);
+      } catch {
+        return true;
+      }
+    });
+    if (admits(version) !== accepted) {
+      const why = accepted
+        ? "excluded by the claim but every range in this package accepts it"
+        : `admitted by the claim but refused by ${mine.find((c) => {
+            try {
+              return !semver.satisfies(version, c.range);
+            } catch {
+              return false;
+            }
+          })?.who}`;
+      scopedProblems.push(`  ${pkg}/README.md claims ${major}.${minor}+ or ${also}+: ${version} is ${why}`);
+      break;
+    }
+  }
+}
+if (scopedProblems.length > 0) {
+  console.error(`\nA package states a floor its own lockfile contradicts:\n${scopedProblems.join("\n")}`);
+  process.exit(1);
+}
+console.log(`${packages.length} package(s) checked for a scoped claim of their own.`);

@@ -1,0 +1,180 @@
+{
+  "label": "_synthetic/text_split_by_parallel_calls",
+  "request_count": 1,
+  "span_count": 1,
+  "trace_count": 1,
+  "session_count": 0,
+  "span_views": {
+    "trace-1/chat/span-1": {
+      "message_count": 5,
+      "role_sequence": [
+        "user",
+        "assistant",
+        "assistant",
+        "assistant",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "look up a and b",
+          "content_digest": "ed440b666238e26e",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "checking",
+          "content_digest": "2f8143728914325b",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call-1\",\"name\":\"lookup\",\"input\":{\"q\":\"a\"}}",
+          "content_digest": "1d01d679de29f474",
+          "tool_name": "lookup",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call-2\",\"name\":\"lookup\",\"input\":{\"q\":\"b\"}}",
+          "content_digest": "2eb8b9854f9dd3db",
+          "tool_name": "lookup",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "both dispatched",
+          "content_digest": "54b58e7305bd9008",
+          "observation_type": "generation"
+        }
+      ]
+    }
+  },
+  "trace_views": {
+    "trace-1": {
+      "message_count": 5,
+      "role_sequence": [
+        "user",
+        "assistant",
+        "assistant",
+        "assistant",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "look up a and b",
+          "content_digest": "ed440b666238e26e",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "checking",
+          "content_digest": "2f8143728914325b",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call-1\",\"name\":\"lookup\",\"input\":{\"q\":\"a\"}}",
+          "content_digest": "1d01d679de29f474",
+          "tool_name": "lookup",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call-2\",\"name\":\"lookup\",\"input\":{\"q\":\"b\"}}",
+          "content_digest": "2eb8b9854f9dd3db",
+          "tool_name": "lookup",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "both dispatched",
+          "content_digest": "54b58e7305bd9008",
+          "observation_type": "generation"
+        }
+      ]
+    }
+  },
+  "session_views": {},
+  "feed_view": {
+    "message_count": 5,
+    "role_sequence": [
+      "user",
+      "assistant",
+      "assistant",
+      "assistant",
+      "assistant"
+    ],
+    "tool_names": [],
+    "tool_definition_count": 0,
+    "messages": [
+      {
+        "index": 0,
+        "role": "user",
+        "entry_type": "text",
+        "content": "look up a and b",
+        "content_digest": "ed440b666238e26e",
+        "observation_type": "generation"
+      },
+      {
+        "index": 1,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "checking",
+        "content_digest": "2f8143728914325b",
+        "observation_type": "generation"
+      },
+      {
+        "index": 2,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"call-1\",\"name\":\"lookup\",\"input\":{\"q\":\"a\"}}",
+        "content_digest": "1d01d679de29f474",
+        "tool_name": "lookup",
+        "observation_type": "generation"
+      },
+      {
+        "index": 3,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"call-2\",\"name\":\"lookup\",\"input\":{\"q\":\"b\"}}",
+        "content_digest": "2eb8b9854f9dd3db",
+        "tool_name": "lookup",
+        "observation_type": "generation"
+      },
+      {
+        "index": 4,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "both dispatched",
+        "content_digest": "54b58e7305bd9008",
+        "observation_type": "generation"
+      }
+    ]
+  }
+}

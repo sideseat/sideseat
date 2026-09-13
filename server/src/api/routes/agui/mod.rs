@@ -10,8 +10,6 @@
 //! per-request `agent_request:{request_id}` broadcast topic, synthesises a
 //! terminal `RunErrorEvent` if the SDK fails before any AG-UI event flowed,
 //! cancels the SDK on HTTP-client disconnect.
-//!
-//! See plan: /Users/spugachev/.claude/plans/sdk-python-polymorphic-biscuit.md
 
 use std::convert::Infallible;
 use std::time::Duration;
