@@ -66,7 +66,7 @@ cleanup() {
 trap cleanup EXIT
 
 echo "[bench] building release"
-(cd "$ROOT" && cargo build --release -q -p sideseat-server)
+(cd "$ROOT" && cargo build --locked --release -q -p sideseat-server)
 
 if [ "$MODE" = "distributed" ]; then
   command -v docker >/dev/null || { echo "[bench] docker is required for distributed mode"; exit 1; }

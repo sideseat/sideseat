@@ -311,9 +311,9 @@ if ((${#failed[@]})); then
   echo "[capture] no fixtures for: ${failed[*]}"
 fi
 echo "[capture] fixtures under $FIXTURES"
-echo "[capture] next: UPDATE_GOLDENS=1 cargo test -p sideseat-server message_goldens   # record"
+echo "[capture] next: UPDATE_GOLDENS=1 cargo test --locked -p sideseat-server message_goldens   # record"
 echo "[capture]       scripts/message-fixtures/review-goldens.py                                    # read the result"
-echo "[capture]       cargo test -p sideseat-server message_goldens                     # then it gates"
+echo "[capture]       cargo test --locked -p sideseat-server message_goldens                     # then it gates"
 
 # Non-zero when anything failed. Reporting failures and exiting 0 meant a CI step or a caller
 # chaining with && treated a partial capture as a full one.

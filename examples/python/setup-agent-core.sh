@@ -82,7 +82,7 @@ create_memory() {
     fi
 
     # Use Python for AgentCore API (not available in AWS CLI)
-    uv run python << PYTHON_EOF
+    uv run --locked python << PYTHON_EOF
 import boto3
 import sys
 import time
@@ -301,7 +301,7 @@ main() {
     echo "========================================"
     echo ""
     echo "Run the agent_core sample with:"
-    echo "  uv run strands agent_core"
+    echo "  uv run --locked strands agent_core"
     echo ""
 }
 

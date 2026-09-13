@@ -789,6 +789,132 @@ fn every_lockfile_carries_its_manifests_engines() {
     );
 }
 
+/// Every command that resolves dependencies passes `--locked`.
+///
+/// Four separate reviews found one of these at a time - the audit steps, the Makefile's eleven uv calls, Cargo's
+/// nine, then `make setup`, `dev-server` and the benchmark - because each fix was an instance and the rule lived
+/// nowhere. This is the rule: a lockfile is a statement about what was reviewed, and a command that silently
+/// rewrites it makes every later `--locked` check a statement about a machine instead.
+///
+/// **A line that could be pasted and run**, which is the distinction that makes this checkable: a command at the
+/// start of a line (after a make recipe's `@`, a `(cd … &&` prefix, or an `echo` that prints instructions) or
+/// inside a fenced block is something a reader or a shell executes. A command named mid-sentence - "lint with
+/// `cargo clippy`" - is a reference, and locking prose would be noise rather than rigour.
+///
+/// The exceptions are commands whose **purpose** is to write the lockfile, and they are named rather than
+/// pattern-matched: `uv lock`, `cargo update`, and the installers (`cargo install`, `cargo fetch`, `npm`), which
+/// resolve something other than this workspace.
+#[test]
+fn every_resolving_command_is_locked() {
+    let repo = repo_root();
+    let listing = Command::new("git")
+        .args(["ls-files"])
+        .current_dir(repo)
+        .output()
+        .expect("git is available in a git checkout");
+
+    const RESOLVING: [&str; 9] = [
+        "cargo build",
+        "cargo test",
+        "cargo clippy",
+        "cargo check",
+        "cargo run",
+        "cargo zigbuild",
+        "uv sync",
+        "uv run",
+        "uv export",
+    ];
+    const DELIBERATE: [&str; 6] = [
+        "uv lock",
+        "cargo update",
+        "cargo install",
+        "cargo fetch",
+        "npm install",
+        "uv add",
+    ];
+
+    let mut unlocked: Vec<String> = Vec::new();
+    let mut checked = 0usize;
+    for file in String::from_utf8_lossy(&listing.stdout)
+        .lines()
+        .filter(|f| {
+            f.ends_with("Makefile")
+                || [".sh", ".yml", ".md", ".mdx"]
+                    .iter()
+                    .any(|e| f.ends_with(e))
+        })
+        .filter(|f| !f.starts_with("server/tests/fixtures/"))
+    {
+        let text = std::fs::read_to_string(repo.join(file)).unwrap_or_default();
+        let mut fenced = false;
+        for (number, line) in text.lines().enumerate() {
+            if line.trim_start().starts_with("```") {
+                fenced = !fenced;
+                continue;
+            }
+            // A comment is not a command, and two of them quote a former one in prose ("the line read `cd
+            // examples/python && uv sync`") - which the segment splitting below reaches into otherwise.
+            let bare = line.trim().trim_start_matches(['@', '\t']).trim_start();
+            if bare.starts_with('#') && !fenced {
+                continue;
+            }
+            // What a shell would see: the recipe marker, a subshell, and an `echo` of instructions all leave a
+            // command at the front of what remains.
+            let mut runnable = line.trim();
+            for prefix in ['@', '-', '(', '\t'] {
+                runnable = runnable.trim_start_matches(prefix).trim_start();
+            }
+            for lead in [
+                "cd ",
+                "echo \"",
+                "echo '",
+                "$$_secrets_env ",
+                "timeout 900 ",
+                "if ",
+            ] {
+                if let Some(rest) = runnable.strip_prefix(lead) {
+                    runnable = rest.trim_start_matches(|c: char| c != ' ').trim_start();
+                    let _ = rest;
+                }
+            }
+            // Each segment a shell would run: `(cd "$ROOT" && cargo build …)` puts the command after a `&&`,
+            // which the prefix stripping alone never reached - a mutation of exactly that line passed.
+            let candidate = if fenced { line.trim() } else { runnable };
+            let Some(command) = candidate
+                .split("&&")
+                .flat_map(|part| part.split(';'))
+                .flat_map(|part| part.split("||"))
+                .map(str::trim)
+                .find_map(|segment| RESOLVING.iter().find(|c| segment.starts_with(**c)))
+            else {
+                continue;
+            };
+            if DELIBERATE.iter().any(|d| line.contains(d)) {
+                continue;
+            }
+            checked += 1;
+            if !line.contains("--locked") {
+                unlocked.push(format!(
+                    "{file}:{}: `{command}` without `--locked`",
+                    number + 1
+                ));
+            }
+        }
+    }
+
+    assert!(
+        checked > 40,
+        "only {checked} resolving commands found - the scan is wrong, not the tree"
+    );
+    assert!(
+        unlocked.is_empty(),
+        "{} command(s) can rewrite a lockfile, which makes every `--locked` check downstream a statement \
+         about one machine:\n  {}",
+        unlocked.len(),
+        unlocked.join("\n  ")
+    );
+}
+
 /// A sample suite that declares a collision-free alias is invoked by it everywhere.
 ///
 /// Five suites declare both `<name>` and `telemetry-<name>`, and the alias exists for a reason `run-all.sh`
@@ -836,18 +962,34 @@ fn every_aliased_sample_suite_is_invoked_by_its_alias() {
         aliased.len()
     );
 
+    // The callers are **discovered**, not listed: three filenames were hardcoded, so a new documentation page,
+    // Make target or script could invoke the colliding CLI while this stayed green - and one already did
+    // (`examples/python/README.md`, twenty-five times). Every tracked text file is a candidate.
+    let all = Command::new("git")
+        .args(["ls-files"])
+        .current_dir(repo)
+        .output()
+        .expect("git is available in a git checkout");
     let mut colliding: Vec<String> = Vec::new();
-    for caller in [
-        "scripts/message-fixtures/capture.sh",
-        "examples/README.md",
-        "examples/run-all.sh",
-    ] {
+    for caller in String::from_utf8_lossy(&all.stdout)
+        .lines()
+        .filter(|f| {
+            f.ends_with("Makefile")
+                || [".sh", ".yml", ".md", ".mdx", ".py", ".ts", ".mjs"]
+                    .iter()
+                    .any(|e| f.ends_with(e))
+        })
+        .filter(|f| !f.starts_with("server/tests/fixtures/"))
+    {
         let text = std::fs::read_to_string(repo.join(caller)).unwrap_or_default();
         for (number, line) in text.lines().enumerate() {
             for suite in &aliased {
                 // The two shapes these callers use, both naming the suite and then the entry point.
+                // Both the absolute and the `--directory`-relative spelling, and the `run_py` helper: a
+                // README inside `examples/python` writes `--directory strands strands`, with no path prefix.
                 for pattern in [
                     format!("examples/python/{suite} {suite}"),
+                    format!("--directory {suite} {suite}"),
                     format!("run_py {suite} {suite}"),
                 ] {
                     if line.contains(&pattern) {

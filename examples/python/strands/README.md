@@ -6,57 +6,57 @@
 # Configuration is shared by all suites and lives two levels up, in examples/
 cp ../../.env.example ../../.env
 # Edit examples/.env - at minimum AWS_REGION and AWS_DEFAULT_REGION for Bedrock
-uv sync
+uv sync --locked
 ```
 
 ## Commands
 
 ```bash
 # Run specific sample
-uv run strands tool_use
-uv run strands mcp_tools
-uv run strands structured_output
-uv run strands reasoning
-uv run strands swarm
-uv run strands files
-uv run strands rag_local
-uv run strands image_gen
-uv run strands agent_core
+uv run --locked strands tool_use
+uv run --locked strands mcp_tools
+uv run --locked strands structured_output
+uv run --locked strands reasoning
+uv run --locked strands swarm
+uv run --locked strands files
+uv run --locked strands rag_local
+uv run --locked strands image_gen
+uv run --locked strands agent_core
 
 # Run all samples
-uv run strands all
+uv run --locked strands all
 
 # List available samples and models
-uv run strands --list
+uv run --locked strands --list
 ```
 
 ## Model Selection
 
 ```bash
 # Bedrock (default)
-uv run strands tool_use --model bedrock-haiku
-uv run strands tool_use --model bedrock-sonnet
-uv run strands tool_use --model bedrock-nova
+uv run --locked strands tool_use --model bedrock-haiku
+uv run --locked strands tool_use --model bedrock-sonnet
+uv run --locked strands tool_use --model bedrock-nova
 
 # Anthropic direct API
-uv run strands tool_use --model anthropic-haiku
-uv run strands tool_use --model anthropic-sonnet
+uv run --locked strands tool_use --model anthropic-haiku
+uv run --locked strands tool_use --model anthropic-sonnet
 
 # OpenAI
-uv run strands tool_use --model openai-gpt5nano
+uv run --locked strands tool_use --model openai-gpt5nano
 
 # Gemini
-uv run strands tool_use --model gemini-flash
+uv run --locked strands tool_use --model gemini-flash
 ```
 
 ## Telemetry
 
 ```bash
 # Default: StrandsTelemetry
-uv run strands tool_use
+uv run --locked strands tool_use
 
 # SideSeat telemetry with binary encoding
-uv run strands tool_use --sideseat
+uv run --locked strands tool_use --sideseat
 ```
 
 ## Environment Variables
@@ -77,10 +77,10 @@ Extended thinking enables chain-of-thought reasoning with visible thinking steps
 
 ```bash
 # Run with extended thinking enabled (Bedrock Sonnet recommended)
-uv run strands reasoning --model bedrock-sonnet
+uv run --locked strands reasoning --model bedrock-sonnet
 
 # Also works with Anthropic direct API
-uv run strands reasoning --model anthropic-sonnet
+uv run --locked strands reasoning --model anthropic-sonnet
 ```
 
 Supported models for extended thinking:
@@ -110,7 +110,7 @@ Runs *without* `--sideseat` use the framework's own exporter, which does not rea
 `otel.auth.required` on. See `examples/.env.example`.
 
 ```bash
-uv run strands strands_ws --sideseat
+uv run --locked strands strands_ws --sideseat
 ```
 
 The sample sets the `gen_ai.agent.name` trace attribute to the same name

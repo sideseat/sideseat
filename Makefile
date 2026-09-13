@@ -438,7 +438,7 @@ dev-server:
 	else \
 		echo "No watch tool found. Install: brew install watchexec"; \
 		cd $(SERVER_DIR) && SIDESEAT_LOG=debug SIDESEAT_DATA_DIR=../.sideseat $$_secrets_env \
-			cargo run -- $$_args; \
+			cargo run --locked -- $$_args; \
 	fi
 
 dev-web:
