@@ -20,6 +20,125 @@ fn repo_root() -> &'static Path {
         .expect("the crate sits in the repository")
 }
 
+/// The comment text of a Rust file, one entry per line that carries any, numbered from 1.
+///
+/// **One lexical pass**, because two phases cannot agree about which construct encloses which. Blanking string
+/// literals first and then looking for comment openers was the previous shape, and it silently lost citations
+/// three ways: a comment that put its subject in double quotes had it blanked before the comment was even
+/// recognised (the example cannot be written literally here — this check reads its own file); a lifetime
+/// (`&'a str`) opened a character literal that never closed, blanking the rest of the line including any
+/// trailing comment; and an apostrophe in prose did the same. Handling comments and literals in one state
+/// machine is the only form where "inside a comment, a quote is inert" and "inside a string, `/*` is inert" are
+/// both true.
+///
+/// A `'` is a character literal only when a closing one follows within an escape's reach; otherwise it is a
+/// lifetime or an apostrophe and is ordinary text. Raw strings carry their hash count, so `r#"…"#` ends where
+/// Rust says it does rather than at the first quote.
+fn rust_commentary(text: &str) -> Vec<(usize, String)> {
+    enum Mode {
+        Code,
+        Line,
+        Block,
+        Str,
+        Char,
+        Raw(usize),
+    }
+
+    let chars: Vec<char> = text.chars().collect();
+    let mut out: Vec<(usize, String)> = Vec::new();
+    let mut buffer = String::new();
+    let mut mode = Mode::Code;
+    let mut line = 1usize;
+    let mut i = 0usize;
+    while i < chars.len() {
+        let c = chars[i];
+        if c == '\n' {
+            if !buffer.trim().is_empty() {
+                out.push((line, std::mem::take(&mut buffer)));
+            }
+            buffer.clear();
+            if matches!(mode, Mode::Line) {
+                mode = Mode::Code;
+            }
+            line += 1;
+            i += 1;
+            continue;
+        }
+        let next = chars.get(i + 1).copied();
+        match mode {
+            Mode::Code => {
+                if c == '/' && next == Some('/') {
+                    mode = Mode::Line;
+                    i += 2;
+                } else if c == '/' && next == Some('*') {
+                    mode = Mode::Block;
+                    i += 2;
+                } else if (c == 'r' || c == 'b') && matches!(next, Some('"') | Some('#')) {
+                    let mut hashes = 0usize;
+                    while chars.get(i + 1 + hashes) == Some(&'#') {
+                        hashes += 1;
+                    }
+                    if chars.get(i + 1 + hashes) == Some(&'"') {
+                        mode = Mode::Raw(hashes);
+                        i += 2 + hashes;
+                    } else {
+                        i += 1;
+                    }
+                } else if c == '"' {
+                    mode = Mode::Str;
+                    i += 1;
+                } else if c == '\'' {
+                    // A character literal closes within four characters; anything longer is a lifetime.
+                    let closes = (1..=4).any(|ahead| chars.get(i + ahead) == Some(&'\''));
+                    if closes {
+                        mode = Mode::Char;
+                    }
+                    i += 1;
+                } else {
+                    i += 1;
+                }
+            }
+            Mode::Line => {
+                buffer.push(c);
+                i += 1;
+            }
+            Mode::Block => {
+                if c == '*' && next == Some('/') {
+                    mode = Mode::Code;
+                    i += 2;
+                } else {
+                    buffer.push(c);
+                    i += 1;
+                }
+            }
+            Mode::Str | Mode::Char => {
+                if c == '\\' {
+                    i += 2;
+                } else if (matches!(mode, Mode::Str) && c == '"')
+                    || (matches!(mode, Mode::Char) && c == '\'')
+                {
+                    mode = Mode::Code;
+                    i += 1;
+                } else {
+                    i += 1;
+                }
+            }
+            Mode::Raw(hashes) => {
+                if c == '"' && (1..=hashes).all(|ahead| chars.get(i + ahead) == Some(&'#')) {
+                    mode = Mode::Code;
+                    i += 1 + hashes;
+                } else {
+                    i += 1;
+                }
+            }
+        }
+    }
+    if !buffer.trim().is_empty() {
+        out.push((line, buffer));
+    }
+    out
+}
+
 /// Dependabot watches **every** manifest in the tree that it can read.
 ///
 /// Three inventories of mine were incomplete in a row - the Cargo/npm/uv entries, then the two standalone
@@ -322,6 +441,18 @@ fn every_tree_diagram_names_things_that_exist() {
                     continue;
                 }
                 let depth = indent / 4;
+                // A jump past the next level is not a deeper entry, it is an unreadable one: nothing states
+                // what the skipped level was, and truncating to a shorter branch would resolve the entry as
+                // though it sat one level up - a confident answer to a question the diagram did not ask.
+                if depth > branch.len() {
+                    missing.push(format!(
+                        "{doc}:{}: jumps from level {} to level {depth} - no entry states the level in \
+                         between, so its parentage is unreadable",
+                        start + offset + 1,
+                        branch.len()
+                    ));
+                    continue;
+                }
                 let entry = line[connector + "├── ".len()..]
                     .split('#')
                     .next()
@@ -386,8 +517,12 @@ fn every_tree_diagram_names_things_that_exist() {
             })
             .collect::<Vec<_>>()
             .join("\n");
+        // `-v`, and the source is **verified to be a committed `.gitignore`**. Plain `check-ignore` also
+        // consults `.git/info/exclude` and the user's global excludes, so a name missing from the tree could
+        // have been accepted here because of one machine's configuration - the same class of defect as asking
+        // the filesystem, one step further out.
         let ignored = Command::new("git")
-            .args(["check-ignore", "--stdin"])
+            .args(["check-ignore", "-v", "--stdin"])
             .current_dir(repo)
             .stdin(std::process::Stdio::piped())
             .stdout(std::process::Stdio::piped())
@@ -404,7 +539,15 @@ fn every_tree_diagram_names_things_that_exist() {
             .map(|out| {
                 String::from_utf8_lossy(&out.stdout)
                     .lines()
-                    .map(str::to_string)
+                    .filter_map(|entry| {
+                        // `<source>:<line>:<pattern>\t<pathname>`
+                        let (rule, path) = entry.rsplit_once('\t')?;
+                        let source = rule.split(':').next()?;
+                        tracked
+                            .iter()
+                            .any(|f| f == source)
+                            .then(|| path.to_string())
+                    })
                     .collect::<BTreeSet<String>>()
             })
             .unwrap_or_default();
@@ -498,100 +641,16 @@ fn every_module_path_cited_anywhere_resolves() {
     let mut unresolved: Vec<String> = Vec::new();
     for file in citing {
         let text = std::fs::read_to_string(repo.join(file)).unwrap_or_default();
-        let is_rust = file.ends_with(".rs");
-        let mut inside_block_comment = false;
-        for (number, line) in text.lines().enumerate() {
-            // In Rust, only comments describe the layout; a string literal or a module path is not a citation.
-            // Every comment form counts, not only a line that starts with one: "starts with `//`" left every
-            // trailing comment and every `/* … */` invisible, which is the same "sees less than it says"
-            // shape this test exists to catch.
-            let line = if is_rust {
-                // A `/*` or `//` inside a string literal is not a comment opener, and mistaking one for it
-                // leaves the scanner reading code as commentary for the rest of the file - which it did:
-                // `relative.ends_with("/tests.rs")` was reported as a citation. Literals are blanked out
-                // **in place**, so every offset below still indexes the original line.
-                let scrubbed: String = {
-                    let mut out = String::with_capacity(line.len());
-                    let mut quote: Option<char> = None;
-                    let mut escaped = false;
-                    for c in line.chars() {
-                        match quote {
-                            Some(open) => {
-                                out.push(if c == '\n' { c } else { ' ' });
-                                if escaped {
-                                    escaped = false;
-                                } else if c == '\\' {
-                                    escaped = true;
-                                } else if c == open {
-                                    quote = None;
-                                }
-                            }
-                            None => {
-                                if c == '"' || c == '\'' {
-                                    quote = Some(c);
-                                    out.push(' ');
-                                } else {
-                                    out.push(c);
-                                }
-                            }
-                        }
-                    }
-                    out
-                };
-                let scrubbed = scrubbed.as_str();
-                let mut commentary = String::new();
-                let mut rest = scrubbed;
-                if inside_block_comment {
-                    match rest.find("*/") {
-                        Some(at) => {
-                            commentary.push_str(&rest[..at]);
-                            inside_block_comment = false;
-                            rest = &rest[at + 2..];
-                        }
-                        None => {
-                            commentary.push_str(rest);
-                            rest = "";
-                        }
-                    }
-                }
-                while !rest.is_empty() {
-                    // `://` inside a URL is not a comment opener.
-                    let slashes = rest
-                        .match_indices("//")
-                        .find(|(at, _)| *at == 0 || !rest[..*at].ends_with(':'))
-                        .map(|(at, _)| at);
-                    let block = rest.find("/*");
-                    match (slashes, block) {
-                        (Some(at), b) if b.is_none_or(|b| at < b) => {
-                            commentary.push(' ');
-                            commentary.push_str(&rest[at..]);
-                            break;
-                        }
-                        (_, Some(at)) => {
-                            commentary.push(' ');
-                            let after = &rest[at + 2..];
-                            match after.find("*/") {
-                                Some(end) => {
-                                    commentary.push_str(&after[..end]);
-                                    rest = &after[end + 2..];
-                                }
-                                None => {
-                                    commentary.push_str(after);
-                                    inside_block_comment = true;
-                                    break;
-                                }
-                            }
-                        }
-                        _ => break,
-                    }
-                }
-                if commentary.trim().is_empty() {
-                    continue;
-                }
-                commentary
-            } else {
-                line.to_string()
-            };
+        // In Rust, only comments describe the layout; a string literal or a module path is not a citation.
+        let commentary: Vec<(usize, String)> = if file.ends_with(".rs") {
+            rust_commentary(&text)
+        } else {
+            text.lines()
+                .enumerate()
+                .map(|(n, l)| (n + 1, l.to_string()))
+                .collect()
+        };
+        for (number, line) in commentary {
             for token in line.split(|c: char| c.is_whitespace() || "`(),;\"'[]<>".contains(c)) {
                 // A path with at least one directory and a Rust file at the end. A trailing `:line` is a
                 // citation of a position in that file, so it is stripped before resolving.
@@ -602,7 +661,7 @@ fn every_module_path_cited_anywhere_resolves() {
                 }
                 checked += 1;
                 if !resolves(file, cited) {
-                    unresolved.push(format!("{file}:{}: {cited}", number + 1));
+                    unresolved.push(format!("{file}:{number}: {cited}"));
                 }
             }
         }
