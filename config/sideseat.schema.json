@@ -113,6 +113,18 @@
             }
           },
           "additionalProperties": false
+        },
+        "auth": {
+          "type": "object",
+          "description": "Authentication for OTLP ingestion",
+          "properties": {
+            "required": {
+              "type": "boolean",
+              "description": "Require an API key for OTLP ingestion. Overridden by --otel-auth-required and SIDESEAT_OTEL_AUTH_REQUIRED.",
+              "default": false
+            }
+          },
+          "additionalProperties": false
         }
       },
       "additionalProperties": false

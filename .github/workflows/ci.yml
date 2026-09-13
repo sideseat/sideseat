@@ -320,7 +320,10 @@ jobs:
           toolchain: stable
 
       - name: Install cargo-audit and cargo-deny
-        run: cargo install cargo-audit cargo-deny --locked
+        # Versions pinned, not merely `--locked`: that pins each tool's *dependencies*, so an unchanged
+        # commit still ran whatever crates.io publishes today - and for a gate, the tool deciding the
+        # verdict is part of the input.
+        run: cargo install cargo-audit@0.22.2 cargo-deny@0.20.2 --locked
 
       # **Blocking**, and this is the change: `cargo-deny` was never installed here and `make harden-supply`
       # skips when it is absent, so advisories, licences, bans and sources were gated by nothing - fourteen

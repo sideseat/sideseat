@@ -2052,6 +2052,108 @@ mod config_surface_tests {
                 );
             }
         }
+
+        // And **every** `*FileConfig` struct, at its exact schema path - both derived, neither listed. The
+        // three above are pinned by hand because their `merge` markers are; this pass walks the struct graph
+        // from `FileConfig` down, building the JSON path from the field names that nest them, and asks the
+        // schema for exactly that path.
+        //
+        // A weaker version was written first: "does the field name appear anywhere in the schema text". It
+        // passed while `otel.auth` was missing, because `"required"` is also a JSON Schema keyword and appears
+        // all over the file - the same "a check that sees less than it claims" defect this test exists to
+        // prevent, reintroduced inside the fix for it. The path form has no such collision.
+        let schema: serde_json::Value = serde_json::from_str(SCHEMA).expect("the schema is JSON");
+        // struct name -> [(field, type)]
+        let mut declared: std::collections::BTreeMap<String, Vec<(String, String)>> =
+            std::collections::BTreeMap::new();
+        for (at, _) in SOURCE.match_indices("pub struct ") {
+            let name: String = SOURCE[at + "pub struct ".len()..]
+                .chars()
+                .take_while(|c| c.is_alphanumeric() || *c == '_')
+                .collect();
+            if !name.ends_with("FileConfig") {
+                continue;
+            }
+            let body_start = SOURCE[at..].find('{').expect("brace") + at + 1;
+            let body_end = SOURCE[body_start..].find("\n}").expect("close") + body_start;
+            let mut fields = Vec::new();
+            let mut flatten_next = false;
+            for line in SOURCE[body_start..body_end].lines() {
+                let line = line.trim();
+                if line.contains("serde(flatten)") {
+                    flatten_next = true;
+                    continue;
+                }
+                let Some(rest) = line.strip_prefix("pub ") else {
+                    continue;
+                };
+                let Some((field, ty)) = rest.split_once(':') else {
+                    continue;
+                };
+                // A flattened field is where unknown keys go, not a key of its own.
+                if std::mem::take(&mut flatten_next) {
+                    continue;
+                }
+                fields.push((
+                    field.trim().to_string(),
+                    ty.trim().trim_end_matches(',').to_string(),
+                ));
+            }
+            declared.insert(name, fields);
+        }
+
+        let mut missing: Vec<String> = Vec::new();
+        let mut walk: Vec<(String, Vec<String>)> = vec![("FileConfig".to_string(), Vec::new())];
+        let mut checked = 0usize;
+        let structs = declared.len();
+        while let Some((name, path)) = walk.pop() {
+            let Some(fields) = declared.get(&name) else {
+                continue;
+            };
+            for (field, ty) in fields {
+                let mut here = path.clone();
+                here.push(field.clone());
+                // A nested section: recurse, and check the section itself exists on the way. The type's own
+                // identifier, not a substring search - `Option<SecretsFileConfig>` contains `FileConfig`, so
+                // a `contains` match resolved every section to the *root* struct and walked in circles.
+                let inner = ty
+                    .trim_start_matches("Option<")
+                    .split(['<', '>', ',', ' '])
+                    .find(|part| part.ends_with("FileConfig"))
+                    .unwrap_or_default();
+                let nested = declared.get_key_value(inner).map(|(name, _)| name);
+                checked += 1;
+                let mut node = &schema;
+                let mut resolved = true;
+                for segment in &here {
+                    match node.get("properties").and_then(|p| p.get(segment)) {
+                        Some(next) => node = next,
+                        None => {
+                            resolved = false;
+                            break;
+                        }
+                    }
+                }
+                if !resolved {
+                    missing.push(format!("{name}.{field} -> {}", here.join(".")));
+                    continue;
+                }
+                if let Some(nested) = nested {
+                    walk.push((nested.clone(), here));
+                }
+            }
+        }
+        assert!(
+            missing.is_empty(),
+            "{} config field(s) that sideseat.schema.json does not describe at the path they are read from, \
+             so a config file setting one is rejected by `additionalProperties: false`:\n  {}",
+            missing.len(),
+            missing.join("\n  ")
+        );
+        assert!(
+            structs >= 20 && checked >= 60,
+            "found {structs} config structs and {checked} fields - the scan is wrong, not the schema"
+        );
     }
 }
 
