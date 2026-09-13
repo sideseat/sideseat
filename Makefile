@@ -261,7 +261,7 @@ cli-bin = $(CLI_DIR)/platforms/platform-$(1)/$(BIN_NAME_$(1))
 .PHONY: version version-check bump sync-version
 .PHONY: publish publish-cli publish-sdk-js publish-sdk-python
 .PHONY: release
-.PHONY: build-docs dev-docs preview-docs
+.PHONY: docs-deps build-docs dev-docs preview-docs
 .PHONY: build-docker publish-docker
 .PHONY: sign-release sign-verify sign-notarize
 .PHONY: build-release publish-release publish-brew
@@ -976,15 +976,22 @@ publish-docker:
 # Documentation
 # =============================================================================
 
-build-docs:
+docs-deps:
+	@#  `npm ci`, and keyed on the **lockfile being newer** than the install rather than on the directory
+	@#  existing. A presence check accepts a tree installed from an older lockfile, so the docs built here
+	@#  and the docs CI builds could come from different dependency versions - with nothing saying so.
+	@if [ ! -d docs/node_modules ] || [ docs/package-lock.json -nt docs/node_modules ]; then \
+		echo "[docs-deps] Installing documentation dependencies..."; \
+		cd docs && npm ci; \
+	fi
+
+build-docs: docs-deps
 	@echo "[build-docs] Building documentation..."
-	@[ -d "docs/node_modules" ] || { cd docs && npm install; }
 	@cd docs && npm run build
 	@echo "[build-docs] Output: docs/dist/"
 
-dev-docs:
+dev-docs: docs-deps
 	@echo "[dev-docs] Starting docs dev server..."
-	@[ -d "docs/node_modules" ] || { cd docs && npm install; }
 	@cd docs && npm run dev
 
 preview-docs:

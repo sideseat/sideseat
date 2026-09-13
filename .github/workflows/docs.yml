@@ -19,9 +19,13 @@ permissions:
   pages: write
   id-token: write
 
+# Keyed by ref, so a new push to a pull request supersedes its own earlier run. The `pages` group belongs to
+# the deploy job alone: as a workflow-wide group it was shared by every pull-request build, so unrelated ones
+# cancelled each other and could displace a queued deployment of `main` - GitHub keeps only one pending run
+# per group. That only became reachable when pull requests started triggering this workflow.
 concurrency:
-  group: "pages"
-  cancel-in-progress: false
+  group: docs-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build-docs:
@@ -41,7 +45,7 @@ jobs:
           key: ${{ runner.os }}-node-docs-${{ hashFiles('docs/package-lock.json') }}
 
       - name: Install dependencies
-        run: cd docs && npm install
+        run: cd docs && npm ci
 
       - name: Build documentation
         run: make build-docs
@@ -53,9 +57,14 @@ jobs:
 
   deploy:
     needs: build-docs
-    # A pull request builds to prove the site still builds; publishing belongs to main alone.
-    if: github.event_name != 'pull_request'
+    # A pull request builds to prove the site still builds; publishing belongs to main alone - and `main` has
+    # to be *said*, because `workflow_dispatch` can be aimed at any branch, so excluding pull requests alone
+    # left a manual run from a branch able to publish it.
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    concurrency:
+      group: pages
+      cancel-in-progress: false
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
