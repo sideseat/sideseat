@@ -47,9 +47,9 @@ jobs:
           cache: 'npm'
           cache-dependency-path: docs/package-lock.json
 
-      - name: Install dependencies
-        run: cd docs && npm ci
-
+      # No separate install step: `make build-docs` installs through `docs-deps`, and running `npm ci` first
+      # guaranteed that condition was already satisfied - so CI proved the site builds and never once
+      # exercised the target it builds with. A broken `docs-deps` passed.
       - name: Build documentation
         run: make build-docs
 

@@ -21,7 +21,7 @@
 # Build, test, version, and publish orchestration for all SideSeat packages.
 #
 # PREREQUISITES
-#   bash, make, node 20+, cargo, uv
+#   bash, make, node 20.19+ or 22.12+, cargo, uv
 #   Windows: use Git Bash or MSYS2 (not PowerShell/cmd)
 #
 # QUICK START
@@ -348,7 +348,11 @@ help:
 
 setup:
 	@echo "[setup] Checking prerequisites..."
-	@command -v node >/dev/null 2>&1 || { echo "Error: node not found. Install Node.js 20+"; exit 1; }
+	@command -v node >/dev/null 2>&1 || { echo "Error: node not found. Install Node.js 20.19+ or 22.12+"; exit 1; }
+	@#  The floor is checked, not merely stated: Astro's dependencies demand `^20.19.0 || >=22.12.0`, so the
+	@#  documented "20+" was false for 20.0-20.18 and for all of 21 - and the failure surfaces as a
+	@#  error from inside a dependency, which names neither node nor its version.
+	@node -e 'var v=process.versions.node.split(".").map(Number), ok=(v[0]===20 && v[1]>=19) || v[0]>=23 || (v[0]===22 && v[1]>=12); if (!ok) { console.error("Error: Node " + process.versions.node + " cannot build this repository. Astro needs 20.19+ or 22.12+ (CI uses 24)."); process.exit(1); }'
 	@command -v cargo >/dev/null 2>&1 || { echo "Error: cargo not found. Install Rust"; exit 1; }
 	@command -v uv >/dev/null 2>&1 || { echo "Error: uv not found. Install with: curl -LsSf https://astral.sh/uv/install.sh | sh"; exit 1; }
 	@echo "[setup] Installing workspace dev tools..."
@@ -356,9 +360,12 @@ setup:
 	@echo "[setup] Fetching Rust dependencies..."
 	@cargo fetch
 	@echo "[setup] Installing JS dependencies..."
-	@cd $(WEB_DIR) && npm install
-	@cd sdk/js && npm install
-	@cd examples/javascript && npm install
+	@#  `npm ci`, not `npm install`: setup exists to *reproduce* the locked tree, and `npm install` may
+	@#  rewrite the lockfile to resolve an inconsistency - so the environment a contributor gets could differ
+	@#  from CI's with nothing saying so. Adding a dependency is a deliberate `npm install` in that package.
+	@cd $(WEB_DIR) && npm ci
+	@cd sdk/js && npm ci
+	@cd examples/javascript && npm ci
 	@echo "[setup] Installing Python dependencies..."
 	@cd sdk/python && uv sync --extra dev
 	@cd examples/python && uv sync --group dev

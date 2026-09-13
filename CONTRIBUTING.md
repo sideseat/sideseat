@@ -3,7 +3,7 @@
 ## Prerequisites
 
 - Rust 1.85+
-- Node.js 20+
+- Node.js 20.19+ or 22.12+ (what Astro requires; CI uses 24)
 - [uv](https://docs.astral.sh/uv/)
 - Make
 
