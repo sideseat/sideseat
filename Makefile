@@ -189,6 +189,13 @@ SERVER_DIR := server
 WEB_DIR := web
 CLI_DIR := cli
 
+#  Prettier from web/'s own node_modules, never a bare `npx` from the root. There is no root package, so
+#  `npx prettier` downloads whatever is newest or reuses an unpinned cache - which made root formatting a
+#  function of one machine's network and cache, and disagreed with CI, which runs prettier *inside* each
+#  package. All three packages pin the same version for the same reason: web's was a minor behind, so the
+#  root check and CI's per-package check could reach different verdicts about the same file.
+PRETTIER := $(WEB_DIR)/node_modules/.bin/prettier
+
 # Pricing data
 PRICES_URL := https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json
 PRICES_FILE := $(SERVER_DIR)/assets/pricing/model_prices_and_context_window.json
@@ -414,14 +421,16 @@ dev-web:
 fmt:
 	@echo "[fmt] Formatting code..."
 	@cargo fmt
-	@npx prettier --write "web/src/**/*.{ts,tsx,css,json}" "sdk/js/src/**/*.ts" "examples/javascript/src/**/*.ts"
+	@[ -x "$(PRETTIER)" ] || { echo "Error: prettier not installed. Run 'make setup'."; exit 1; }
+	@$(PRETTIER) --write "web/src/**/*.{ts,tsx,css,json}" "sdk/js/src/**/*.ts" "examples/javascript/src/**/*.ts"
 	@uv run ruff format sdk/python examples/python
 	@echo "[fmt] Done"
 
 fmt-check:
 	@echo "[fmt-check] Checking formatting..."
 	@cargo fmt --check
-	@npx prettier --check "web/src/**/*.{ts,tsx,css,json}" "sdk/js/src/**/*.ts" "examples/javascript/src/**/*.ts"
+	@[ -x "$(PRETTIER)" ] || { echo "Error: prettier not installed. Run 'make setup'."; exit 1; }
+	@$(PRETTIER) --check "web/src/**/*.{ts,tsx,css,json}" "sdk/js/src/**/*.ts" "examples/javascript/src/**/*.ts"
 	@uv run ruff format --check sdk/python examples/python
 
 lint:
@@ -1313,7 +1322,7 @@ clean:
 	@rm -rf sdk/python/dist
 	@rm -rf $(RELEASE_DIR)
 	@echo "[clean] Done. target/ and web/dist are gone; the next Rust build is cold."
-	@echo "[clean] web/dist holds a placeholder so the workspace still compiles - run make build-web for the UI."
+	@echo "[clean] server/build.rs recreates web/dist as a placeholder on the next build - run make build-web for the real UI."
 
 # Aliases
 run: dev

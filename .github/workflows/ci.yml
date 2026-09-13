@@ -1,10 +1,11 @@
 name: CI
 
 on:
+  # No `paths-ignore`. Documentation used to be skipped here, which exempted every docs change from the
+  # repository invariants - and those invariants exist to check documentation: the tree diagrams, the cited
+  # module paths, the project structure. The one class of change most likely to break them was the one class
+  # that never ran them.
   pull_request:
-    paths-ignore:
-      - 'docs/**'
-      - '.github/workflows/docs.yml'
   workflow_dispatch:
 
 concurrency:
