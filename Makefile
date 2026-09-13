@@ -1301,17 +1301,11 @@ disk-guard:
 clean:
 	@echo "[clean] Removing build artifacts..."
 	@rm -rf target
+	@#  `dist` is simply removed. The server *embeds* it, so it has to exist to compile - and that is
+	@#  `server/build.rs`'s job, on the next build. Writing a placeholder here as well gave the same
+	@#  artifact two owners with different content, and since the build script preserves any existing
+	@#  `index.html`, whichever ran last decided what a UI-less binary served.
 	@rm -rf $(WEB_DIR)/dist
-	@#  A placeholder `dist`, because the server *embeds* it: `#[derive(RustEmbed)] #[folder =
-	@#  "../web/dist"]` fails to compile when the directory is absent. Removing it outright left a clean
-	@#  tree that could not build or test at all - and `cargo test` after `make clean` is the obvious next
-	@#  thing anyone does. The placeholder says what it is, so a binary built without the UI is
-	@#  self-explanatory rather than mysteriously blank.
-	@mkdir -p $(WEB_DIR)/dist
-	@printf '%s\n' \
-		'<!doctype html><meta charset="utf-8"><title>SideSeat</title>' \
-		'<p>The web UI was not built. Run <code>make build-web</code>, or <code>make dev</code> for the' \
-		'dev server.</p>' > $(WEB_DIR)/dist/index.html
 	@rm -rf $(WEB_DIR)/node_modules/.vite
 	@rm -f $(CLI_DIR)/bin/sideseat-*
 	@rm -f $(CLI_DIR)/platforms/*/sideseat $(CLI_DIR)/platforms/*/sideseat.exe

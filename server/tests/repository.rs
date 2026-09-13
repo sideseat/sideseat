@@ -73,14 +73,19 @@ fn rust_commentary(text: &str) -> Vec<(usize, String)> {
                 } else if c == '/' && next == Some('*') {
                     mode = Mode::Block;
                     i += 2;
-                } else if (c == 'r' || c == 'b') && matches!(next, Some('"') | Some('#')) {
+                } else if c == 'r' || (c == 'b' && next == Some('r')) {
+                    // Raw only for `r"…"` and `br"…"`. A **byte** string (`b"…"`) is an ordinary escaped
+                    // literal, and treating it as raw desynchronised the scanner on real code:
+                    // `b"\"hello-"` closed at the escaped quote, after which the rest of the file was read
+                    // in the wrong mode and the next comment was invisible.
+                    let at = i + usize::from(c == 'b');
                     let mut hashes = 0usize;
-                    while chars.get(i + 1 + hashes) == Some(&'#') {
+                    while chars.get(at + 1 + hashes) == Some(&'#') {
                         hashes += 1;
                     }
-                    if chars.get(i + 1 + hashes) == Some(&'"') {
+                    if chars.get(at + 1 + hashes) == Some(&'"') {
                         mode = Mode::Raw(hashes);
-                        i += 2 + hashes;
+                        i = at + 2 + hashes;
                     } else {
                         i += 1;
                     }
@@ -635,6 +640,58 @@ fn the_documented_project_structure_matches_the_tree() {
          documented, not in the tree: {:?}",
         undocumented,
         imaginary
+    );
+
+    // A line that names any child of its directory has to name **all** of them, because that is what the
+    // reader takes from an enumeration. Comparing top-level names alone left the very claim that motivated
+    // this test unprotected: `server/`'s line inventories its children, and adding a seventh would have
+    // passed. Lines that describe a directory in prose enumerate nothing and so claim nothing.
+    let mut inventories: Vec<String> = Vec::new();
+    for entry in &documented {
+        let Some(line) = block
+            .lines()
+            .find(|l| l.split_whitespace().next() == Some(&format!("{entry}/")))
+        else {
+            continue;
+        };
+        let named: BTreeSet<&str> = line
+            .split_whitespace()
+            .skip(1)
+            .map(|t| t.trim_matches(|c: char| ",;:()`".contains(c)))
+            // Path-shaped and one segment deep: a child, not a prose word and not a nested path.
+            .filter(|t| t.ends_with('/') || t.contains('.'))
+            .map(|t| t.trim_end_matches('/'))
+            .filter(|t| !t.is_empty() && !t.contains('/'))
+            .collect();
+        if named.is_empty() {
+            continue;
+        }
+        let children: BTreeSet<&str> = String::from_utf8_lossy(&listing.stdout)
+            .lines()
+            .filter_map(|f| f.strip_prefix(&format!("{entry}/")))
+            .map(|rest| rest.split('/').next().unwrap_or(rest))
+            .collect::<BTreeSet<_>>()
+            .iter()
+            .map(|s| Box::leak(s.to_string().into_boxed_str()) as &str)
+            .collect();
+        for child in &named {
+            if !children.contains(child) {
+                inventories.push(format!("{entry}/ names `{child}`, which is not there"));
+            }
+        }
+        for child in &children {
+            if !named.contains(child) {
+                inventories.push(format!(
+                    "{entry}/ enumerates its children but omits `{child}`"
+                ));
+            }
+        }
+    }
+    assert!(
+        inventories.is_empty(),
+        "{} inventory mismatch(es) in CONTRIBUTING.md's project structure:\n  {}",
+        inventories.len(),
+        inventories.join("\n  ")
     );
 }
 

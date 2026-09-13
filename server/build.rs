@@ -29,10 +29,20 @@ fn main() {
     if index.exists() {
         return;
     }
-    if std::fs::create_dir_all(dist).is_err() {
-        return;
+    // A failure here is **reported**, not swallowed. Swallowing it returns to the opaque three-error
+    // `folder does not exist` this script exists to prevent - in a read-only checkout, precisely the case
+    // where nobody can guess the remedy. One sentence naming the directory and the command is the whole point.
+    let explain = |what: &str, error: &std::io::Error| -> String {
+        format!(
+            "cannot {what} ../web/dist: {error}\n\
+             The server embeds that directory, so it must exist to compile. Either make the checkout \
+             writable, or build the frontend with `make build-web`."
+        )
+    };
+    if let Err(error) = std::fs::create_dir_all(dist) {
+        panic!("{}", explain("create", &error));
     }
-    let _ = std::fs::write(
+    if let Err(error) = std::fs::write(
         &index,
         "<!doctype html>\n\
          <html lang=\"en\">\n\
@@ -45,5 +55,7 @@ fn main() {
          <code>make dev</code>.</p>\n\
          </body>\n\
          </html>\n",
-    );
+    ) {
+        panic!("{}", explain("write", &error));
+    }
 }
