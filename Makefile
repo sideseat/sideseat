@@ -21,7 +21,7 @@
 # Build, test, version, and publish orchestration for all SideSeat packages.
 #
 # PREREQUISITES
-#   bash, make, node 20.19+ or 22.12+, cargo, uv
+#   bash, make, node 22.22+ or 24+, cargo, uv
 #   Windows: use Git Bash or MSYS2 (not PowerShell/cmd)
 #
 # QUICK START
@@ -60,7 +60,6 @@
 #
 #   Setup:
 #     setup              Install all dependencies (node, cargo, uv, hooks)
-#     setup-ci           Install CI-only dependencies (npm ci, cargo fetch)
 #     setup-hooks        Install git hooks
 #
 #   Development:
@@ -250,7 +249,7 @@ cli-bin = $(CLI_DIR)/platforms/platform-$(1)/$(BIN_NAME_$(1))
 # =============================================================================
 
 .PHONY: help
-.PHONY: setup setup-ci setup-hooks
+.PHONY: setup setup-hooks
 .PHONY: dev dev-server dev-web
 .PHONY: fmt fmt-check lint lint-advisory check
 .PHONY: secret-scan-tree secret-scan-staged secret-scan-range
@@ -278,7 +277,7 @@ cli-bin = $(CLI_DIR)/platforms/platform-$(1)/$(BIN_NAME_$(1))
 help:
 	@echo "SideSeat Development Commands"
 	@echo ""
-	@echo "Prerequisites: bash, make, node 20+, cargo, uv"
+	@echo "Prerequisites: bash, make, node 22.22+ or 24+, cargo, uv"
 	@echo "Windows: Use Git Bash or MSYS2 (not PowerShell/cmd)"
 	@echo ""
 	@echo "Setup:"
@@ -348,11 +347,21 @@ help:
 
 setup:
 	@echo "[setup] Checking prerequisites..."
-	@command -v node >/dev/null 2>&1 || { echo "Error: node not found. Install Node.js 20.19+ or 22.12+"; exit 1; }
-	@#  The floor is checked, not merely stated: Astro's dependencies demand `^20.19.0 || >=22.12.0`, so the
-	@#  documented "20+" was false for 20.0-20.18 and for all of 21 - and the failure surfaces as a
-	@#  error from inside a dependency, which names neither node nor its version.
-	@node -e 'var v=process.versions.node.split(".").map(Number), ok=(v[0]===20 && v[1]>=19) || v[0]>=23 || (v[0]===22 && v[1]>=12); if (!ok) { console.error("Error: Node " + process.versions.node + " cannot build this repository. Astro needs 20.19+ or 22.12+ (CI uses 24)."); process.exit(1); }'
+	@command -v node >/dev/null 2>&1 || { echo "Error: node not found. Install Node.js 22.22+ or 24+"; exit 1; }
+	@#  The floor is checked, not merely stated, and it is **measured** rather than guessed: no single
+	@#  version satisfies every `engines.node` range in the four lockfiles, because some belong to
+	@#  platform-specific optional packages that are never installed. Over the ranges that are, the answer is
+	@#  22.22+ or 24+ - 23.x is excluded by the `^20.19 || ^22.12 || >=24` idiom dozens of packages use, and
+	@#  20.19 by `react-router`. Two earlier attempts here were wrong in both directions ("20+" admitted a
+	@#  version that fails; ">=22.12" refused none but admitted 23). Redo the measurement after a dependency
+	@#  bump with:
+	@#    node -e 'const s=require("./docs/node_modules/semver"),f=require("fs");for(const l of
+	@#    ["web","sdk/js","examples/javascript","docs"].map(d=>d+"/package-lock.json"))for(const [n,p] of
+	@#    Object.entries(JSON.parse(f.readFileSync(l)).packages||{}))if(p.engines?.node&&!p.optional&&!p.os&&
+	@#    !p.cpu&&!s.satisfies(process.versions.node,p.engines.node))console.log(l,n,p.engines.node)'
+	@#  The failure it prevents surfaces as a module error from inside a dependency, naming neither node nor
+	@#  its version.
+	@node -e 'var v=process.versions.node.split(".").map(Number), ok=(v[0]===22 && v[1]>=22) || v[0]>=24; if (!ok) { console.error("Error: Node " + process.versions.node + " cannot build this repository. It needs 22.22+ or 24+ (CI uses 24)."); process.exit(1); }'
 	@command -v cargo >/dev/null 2>&1 || { echo "Error: cargo not found. Install Rust"; exit 1; }
 	@command -v uv >/dev/null 2>&1 || { echo "Error: uv not found. Install with: curl -LsSf https://astral.sh/uv/install.sh | sh"; exit 1; }
 	@echo "[setup] Installing workspace dev tools..."
@@ -374,11 +383,6 @@ setup:
 	@mkdir -p .sideseat
 	@$(MAKE) --no-print-directory setup-hooks
 	@echo "[setup] Done. Run 'make dev' to start."
-
-setup-ci:
-	@echo "[setup-ci] Installing CI dependencies..."
-	@cd $(WEB_DIR) && npm ci
-	@cd $(SERVER_DIR) && cargo fetch
 
 setup-hooks:
 	@[ -d .git ] || { echo "Error: Not a git repository"; exit 1; }
