@@ -291,19 +291,24 @@ fn dependabot_covers_every_manifest_in_the_tree() {
 /// directory. `record-otlp.py` substitutes a placeholder at capture time now, and this is what keeps the next
 /// capture from quietly reintroducing it — the script is the fix, and a fix nothing checks is a convention.
 ///
-/// The check is "does a fixture contain the *current* user's name", which is the question that can be asked
-/// without a list of forbidden names to maintain. It therefore says nothing about a name nobody has run under,
-/// and that limit is why the substitution lives in the capture script rather than only here.
+/// The question is asked of the **shape of a home directory**, not of one account name. Matching `$USER` was
+/// the first form, and it is vacuous exactly where it matters most: in CI the account is `runner`, so the guard
+/// ran and could not have seen `/Users/alice/…` in a fixture a contributor captured. Every `/Users/<name>/` and
+/// `/home/<name>/` in a tracked fixture is now reported unless the name is the placeholder the capture script
+/// writes — which needs no list of forbidden names and does not depend on who runs it. Windows profile paths are
+/// matched in both slash spellings, since a capture can come from there.
+///
+/// The current account is still checked as well, because a name can reach a fixture by something other than a
+/// path: an author field, a hostname, a bucket name.
 #[test]
 fn no_fixture_carries_the_capturing_users_name() {
-    let user = std::env::var("USER")
+    const PLACEHOLDER: &str = "sideseat";
+    let current = std::env::var("USER")
         .or_else(|_| std::env::var("USERNAME"))
         .unwrap_or_default();
-    if user.is_empty() || user == "sideseat" || user.len() < 3 {
-        eprintln!("fixtures: no distinctive account name to look for - skipping");
-        return;
-    }
-    let needle = user.as_bytes();
+    let current = (current.len() >= 3 && current != PLACEHOLDER).then_some(current);
+    // The prefixes a home directory is spelled with, on every platform a capture can come from.
+    let prefixes: [&[u8]; 4] = [b"/Users/", b"/home/", br"C:\Users\", b"C:/Users/"];
     // **Tracked files only**, which is the property: the concern is what a public repository carries, and a
     // local-only fixture directory is gitignored precisely because it is nobody else's. Scanning the working
     // tree instead reported eight files in `vercel-ai-js/image-gen/`, which `.gitignore` excludes - a failure
@@ -327,15 +332,57 @@ fn no_fixture_carries_the_capturing_users_name() {
             continue;
         };
         scanned += 1;
-        if bytes.windows(needle.len()).any(|w| w == needle) {
-            offenders.push(rel);
+
+        if let Some(user) = current
+            .as_ref()
+            .filter(|user| bytes.windows(user.len()).any(|w| w == user.as_bytes()))
+        {
+            offenders.push(format!("{rel}: the current account name `{user}`"));
+        }
+
+        for prefix in prefixes {
+            let mut at = 0usize;
+            while let Some(found) = bytes
+                .get(at..)
+                .and_then(|tail| tail.windows(prefix.len()).position(|w| w == prefix))
+                .map(|p| at + p)
+            {
+                let after = found + prefix.len();
+                at = after;
+                // The name runs to the next separator; a JSON-escaped Windows path spells it `\\`.
+                let name: Vec<u8> = bytes[after..]
+                    .iter()
+                    .copied()
+                    .take_while(|b| {
+                        !matches!(b, b'/' | b'\\' | b'"' | b'\'' | b' ' | b'\n' | b'\r' | 0)
+                    })
+                    .collect();
+                if name.is_empty() || name.len() > 64 {
+                    continue;
+                }
+                let name = String::from_utf8_lossy(&name).to_string();
+                // A preview truncates, so a golden holds `/Users/si…[960 chars]` where the placeholder was
+                // cut mid-name. Anything up to the ellipsis that is still a prefix of the placeholder is
+                // consistent with it, and nothing distinguishes it from the placeholder - the residual is a
+                // real account whose name is itself a prefix of `sideseat` *and* truncated at that point.
+                let (name, truncated) = match name.split_once('…') {
+                    Some((head, _)) => (head.to_string(), true),
+                    None => (name, false),
+                };
+                if name != PLACEHOLDER && !(truncated && PLACEHOLDER.starts_with(&name)) {
+                    offenders.push(format!("{rel}: {}{name}", String::from_utf8_lossy(prefix)));
+                    break;
+                }
+            }
         }
     }
+    offenders.sort();
+    offenders.dedup();
     assert!(scanned > 100, "only scanned {scanned} fixture files");
     assert!(
         offenders.is_empty(),
-        "{} fixture(s) contain the account name `{user}`, which a public repository should not carry - \
-         re-capture with scripts/message-fixtures/capture.sh, which substitutes a placeholder:\n  {}",
+        "{} fixture(s) name a home directory a public repository should not carry - re-capture with \
+         scripts/message-fixtures/capture.sh, which substitutes `{PLACEHOLDER}`:\n  {}",
         offenders.len(),
         offenders.join("\n  ")
     );

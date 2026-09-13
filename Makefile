@@ -565,17 +565,28 @@ harden-spec:
 	fi
 	@#  Driven by the **specifications**, not by the configurations: enumerating `specs/*.cfg` meant a new
 	@#  `.tla` with no `.cfg` was silently unchecked while this target claimed to check every specification.
-	@missing=$$(for tla in specs/*.tla; do \
-		[ -f "$${tla%.tla}.cfg" ] || echo "$$tla"; \
-	done); \
-	if [ -n "$$missing" ]; then \
-		echo "[harden-spec] specification(s) with no .cfg, so nothing model-checks them:"; \
-		echo "$$missing" | sed 's/^/  /'; \
-		echo "[harden-spec] Add a configuration, or if it is a helper module only others extend, say so here."; \
+	@#  The pairing is checked **both ways**, because an orphaned `.cfg` is then dead weight nothing runs, and
+	@#  because the `.tla`-driven loop that fixed the first direction had quietly created the second.
+	@#  `*_TTrace_*.tla` is excluded: TLC writes those itself to replay a counterexample, an interrupted run
+	@#  leaves one behind, and they are gitignored - so demanding a configuration for one turns somebody's
+	@#  interrupted run into a failure of the next.
+	@orphans=$$( \
+		for tla in specs/*.tla; do \
+			[ "$${tla#*_TTrace_}" = "$$tla" ] || continue; \
+			[ -f "$${tla%.tla}.cfg" ] || echo "$$tla has no .cfg, so nothing model-checks it"; \
+		done; \
+		for cfg in specs/*.cfg; do \
+			[ -f "$${cfg%.cfg}.tla" ] || echo "$$cfg configures no specification"; \
+		done); \
+	if [ -n "$$orphans" ]; then \
+		echo "[harden-spec] specification and configuration do not pair up:"; \
+		echo "$$orphans" | sed 's/^/  /'; \
+		echo "[harden-spec] Add the missing file, or delete the one left over."; \
 		exit 1; \
 	fi
 	@failed=0; \
 	for tla in specs/*.tla; do \
+		[ "$${tla#*_TTrace_}" = "$$tla" ] || continue; \
 		spec=$$(basename $$tla .tla); \
 		printf "[harden-spec] %-16s " "$$spec"; \
 		out=$$(cd specs && java -XX:+UseParallelGC -cp ../$(TLA_JAR) tlc2.TLC \
