@@ -8998,7 +8998,10 @@ fn an_unreadable_source_stops_a_chain_and_not_a_merge() {
             .refused
             .iter()
             .any(|r| r.carrier == "http.status_code"
-                && matches!(r.reading, Reading::Malformed { .. })),
+                && matches!(
+                    r.cause,
+                    crate::domain::rules::refusal::Unusable::Malformed { .. }
+                )),
         "the refusal names the source and why: {:?}",
         status.refused
     );
@@ -9041,10 +9044,10 @@ fn an_unreadable_source_stops_a_chain_and_not_a_merge() {
         "an overflowing sum fills nothing rather than reporting a believable maximum"
     );
     assert!(
-        summed
-            .refused
-            .iter()
-            .any(|r| matches!(r.reading, Reading::Malformed { .. })),
+        summed.refused.iter().any(|r| matches!(
+            r.cause,
+            crate::domain::rules::refusal::Unusable::Malformed { .. }
+        )),
         "and the refusal says why: {:?}",
         summed.refused
     );

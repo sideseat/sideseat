@@ -1405,7 +1405,7 @@ pub(crate) fn apply_span_fields(
                 carrier = %refusal.carrier,
                 span = %span_name,
                 field = ?resolved.target,
-                detail = ?refusal.reading,
+                cause = %refusal.cause,
                 "a span field source was present and could not be read"
             );
         }

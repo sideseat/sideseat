@@ -3330,27 +3330,28 @@ fn readings(
                     // independently describes a valid reading - and **reported**, because the member the
                     // producer wrote is unusable and that used to be recorded nowhere.
                     Some(value) => {
-                        let defect = super::outcome::Defect::new(
+                        let refusal = super::refusal::Refusal::new(
                             super::expr::ClausePath::root(alternative.id.clone()),
                             "then_present_any_of",
-                            super::outcome::DefectKind::WrongMember,
-                            format!(
-                                "a wrapper member is a list of declarations; found {}",
-                                match value {
-                                    JsonValue::Object(_) => "an object",
-                                    JsonValue::String(_) => "a string",
-                                    JsonValue::Number(_) => "a number",
-                                    JsonValue::Bool(_) => "a boolean",
-                                    JsonValue::Null => "null",
-                                    JsonValue::Array(_) => "an array",
-                                }
-                            ),
+                            super::refusal::Unusable::WrongMember {
+                                detail: format!(
+                                    "a wrapper member is a list of declarations; found {}",
+                                    match value {
+                                        JsonValue::Object(_) => "an object",
+                                        JsonValue::String(_) => "a string",
+                                        JsonValue::Number(_) => "a number",
+                                        JsonValue::Bool(_) => "a boolean",
+                                        JsonValue::Null => "null",
+                                        JsonValue::Array(_) => "an array",
+                                    }
+                                ),
+                            },
                         );
                         tracing::debug!(
                             target: "sideseat::rules",
-                            clause = %defect.clause,
-                            kind = ?defect.kind,
-                            detail = %defect.detail,
+                            clause = %refusal.clause,
+                            carrier = %refusal.carrier,
+                            cause = %refusal.cause,
                             "a presence coalesce named a member of the wrong shape"
                         );
                         match fallback(alternative.on_malformed) {

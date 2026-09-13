@@ -16,6 +16,8 @@ use std::collections::HashMap;
 
 use serde_json::Value as JsonValue;
 
+pub use super::refusal::Refusal;
+use super::refusal::Unusable;
 use super::schema::{
     DetectMatch, FieldCombine, FieldSource, FieldTarget, FieldType, JsonFieldSource,
     MalformedPolicy, Reduction, SpanFieldRule,
@@ -40,6 +42,13 @@ pub enum Reading {
     Malformed {
         detail: String,
     },
+    /// The key holds a number of the right *type* and outside what the field can store - past a counter's
+    /// range, or non-finite. Separate from `Malformed` because the producer wrote the right kind of thing and
+    /// the bound is ours: the two want different diagnoses, and while both arrived as `Malformed` the shared
+    /// vocabulary's `OutOfRange` cause was unreachable.
+    OutOfRange {
+        detail: String,
+    },
     /// A value of the field's own type.
     Text(String),
     Integer(i64),
@@ -56,15 +65,26 @@ impl Reading {
     }
 }
 
-/// One source that was present and could not be read.
-#[derive(Debug, Clone)]
-pub struct Refusal {
-    /// The declaration: `rule/source`, as `expr::ClausePath` renders it.
-    pub clause: super::expr::ClausePath,
-    /// What it read, in the vocabulary a reader recognises - an attribute name, a path, the span's own name.
-    pub carrier: String,
-    /// Why it did not answer.
-    pub reading: Reading,
+impl Reading {
+    /// Why this reading cannot fill a field, or `None` when it can - or when nobody wrote the carrier at all,
+    /// which is **not** a refusal. See [`super::refusal`]: a refusal is present-and-unusable by construction,
+    /// so the guard the push sites used to spell by hand (`if reading != Reading::Absent`) is the type's now.
+    fn unusable(&self) -> Option<Unusable> {
+        match self {
+            Self::Absent
+            | Self::Text(_)
+            | Self::Integer(_)
+            | Self::Float(_)
+            | Self::StringList(_) => None,
+            Self::Empty => Some(Unusable::Empty),
+            Self::Malformed { detail } => Some(Unusable::Malformed {
+                detail: detail.clone(),
+            }),
+            Self::OutOfRange { detail } => Some(Unusable::OutOfRange {
+                detail: detail.clone(),
+            }),
+        }
+    }
 }
 
 /// One field's resolution, and the source that answered it.
@@ -305,13 +325,17 @@ impl SpanFieldPlan {
                     // an unreadable discriminator behave as an absent one and silently took the branch it was
                     // written to rule out.
                     None => {
-                        refused.push(Refusal {
-                            clause: witness_of(source),
-                            carrier: format!("the witness on `{}`", witness.attribute),
-                            reading: Reading::Malformed {
+                        // An unanswerable gate rather than a malformed field: the witness is a
+                        // *discriminator*, and what failed is the question, not the answer. The previous
+                        // vocabulary could only call this `Malformed`, which is why one of `DefectKind`'s five
+                        // causes existed and nothing could produce it.
+                        refused.push(Refusal::new(
+                            witness_of(source),
+                            format!("the witness on `{}`", witness.attribute),
+                            Unusable::UnanswerableGate {
                                 detail: format!("`{}` is not JSON", witness.attribute),
                             },
-                        });
+                        ));
                         match rule.combine {
                             FieldCombine::FirstWins => break,
                             FieldCombine::MergeAll => continue,
@@ -328,19 +352,28 @@ impl SpanFieldPlan {
                 ),
                 rule.target,
             );
-            if let Reading::Malformed { .. } = &reading
-                && source.spec.on_malformed == MalformedPolicy::Stop
+            // `OutOfRange` takes the same policy as `Malformed` and reports a different cause: the *diagnosis*
+            // differs (the producer wrote the right kind of thing; the bound is ours) while the decision does
+            // not - both are present-and-unusable, and stepping over either reports a later spelling's value as
+            // this one. Splitting the reading without splitting the policy is what made the chain continue past
+            // an out-of-range counter, which `a_value_outside_what_a_quantity_can_hold_is_malformed` caught.
+            if matches!(
+                &reading,
+                Reading::Malformed { .. } | Reading::OutOfRange { .. }
+            ) && source.spec.on_malformed == MalformedPolicy::Stop
             {
                 // A present value that does not convert **ends** the search. The key exists and holds the
                 // wrong shape, which is evidence the producer meant it to carry this field: stepping over it
                 // reports a *later* spelling's value as this one, and `http.status_code = "OK"` beside another
                 // key's `503` then answered 503 for a call whose own status attribute says otherwise. An empty
                 // value is the opposite case, and stepping over that is what a chain is for.
-                refused.push(Refusal {
-                    clause: witness_of(source),
-                    carrier: source_label(&source.spec),
-                    reading,
-                });
+                if let Some(cause) = reading.unusable() {
+                    refused.push(Refusal::new(
+                        witness_of(source),
+                        source_label(&source.spec),
+                        cause,
+                    ));
+                }
                 // A **merge** is a union, so one unreadable source does not invalidate the others - which is
                 // also what the retired `merge_tags` did, since an unparseable value contributed nothing and
                 // the loop went on. Only a first-wins chain stops, where continuing would substitute a later
@@ -365,12 +398,14 @@ impl SpanFieldPlan {
                 continue;
             }
             if !reading.yielded() {
-                if reading != Reading::Absent {
-                    refused.push(Refusal {
-                        clause: witness_of(source),
-                        carrier: source_label(&source.spec),
-                        reading,
-                    });
+                // The `Absent` guard is `unusable()`'s now: nobody writing a key is the ordinary case and
+                // carries no diagnosis, which the type says rather than each call site remembering.
+                if let Some(cause) = reading.unusable() {
+                    refused.push(Refusal::new(
+                        witness_of(source),
+                        source_label(&source.spec),
+                        cause,
+                    ));
                 }
                 continue;
             }
@@ -824,7 +859,7 @@ fn within_range(reading: Reading, target: super::schema::FieldTarget) -> Reading
     if value.is_finite() && (low..=high).contains(&value) {
         return reading;
     }
-    Reading::Malformed {
+    Reading::OutOfRange {
         detail: format!("{value} is outside what this field can hold ({low} to {high})"),
     }
 }

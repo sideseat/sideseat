@@ -851,6 +851,49 @@ quotation says fifteen.
 Keeping the coverage inventory out of that count is the point: it says which rules were *exercised*, which
 is a different question from whether the ones that ran agree with the code they replaced.
 
+### Two algebras, resolved
+
+Both were carried as open items - "the failure algebra is three different questions" and "the provenance algebra
+of positions" - and in each case the resolution was smaller than the framing, because measuring what actually
+ran showed one of the alternatives was not running at all.
+
+**Failure.** There were three shapes for "a source was consulted and did not answer": `Outcome<T>` with a
+`Presence` and a `Vec<Defect>`; `span_fields::Refusal` with a `Reading`; and a bare `Option<Verdict<T>>` whose
+`None` carried nothing. Two of them reached nobody - `Outcome` and `Presence` were constructed nowhere outside
+their own tests, and `Defect` survived only as a builder for one log line. The reasoning behind `Outcome`'s shape
+was right and is kept: Codex's ruling that "defects need to be orthogonal to the optional result", because a
+wrapper member that is present and not a list is *simultaneously* a malformed reading of that member and a valid
+reading of the element around it. What that reasoning demands, the live resolver already did - `Resolved` carries
+its answer **and** a `refused` list beside it, which is orthogonality by composition. So `Outcome<T>`,
+`Presence`, `Defect` and `DefectKind` are deleted as a second, unadopted implementation of one ruling, and one
+vocabulary remains:
+
+| | |
+| --- | --- |
+| `refusal::Refusal` | a declaration, the carrier it read, and why it could not use it - produced by span-field resolution *and* by the message rules, logged in both |
+| `refusal::Unusable` | `Empty`, `Malformed`, `WrongMember`, `OutOfRange`, `UnanswerableGate`. **`Absent` is not expressible**: nobody writing a key is the ordinary case and carries no diagnosis, which the push sites used to guard by hand (`if reading != Reading::Absent`) |
+| an absent `Verdict` | "no clause answered", which is a *different* question - nothing was read and refused - and whose diagnostic is `near_misses`, already reported |
+
+Unifying it made two causes reachable that nothing could produce before. An unreadable **witness** is now
+`UnanswerableGate` rather than `Malformed`: a witness is a discriminator, so what failed is the question rather
+than the answer, and the two imply different fixes. And `Reading` gained `OutOfRange`, separate from `Malformed`
+because the producer wrote the right *kind* of thing and the bound is ours. That split has a trap in it, which a
+test caught: the **policy** must not split with the diagnosis - both are present-and-unusable and both must end a
+first-wins chain, and treating only `Malformed` as chain-ending let an out-of-range counter fall through to a
+later spelling's value.
+
+**Provenance.** `PositionPath` derived `Ord`, with the claim that "a set of paths sorts into document order".
+That is false: a JSON object's member order is not recoverable from a parsed value, so `Key` segments sorted
+lexically - `content` before `messages` whatever the payload said - and two paths from different spans compared
+to a definite answer that means nothing. Nothing sorted paths (the only production use is equality, in
+`CallKey::Position`), so it was an unused, wrong guarantee that the next caller would have believed. `Ord`,
+`Hash` and the serde derives are gone; `document_order` replaces them and answers **`None` wherever an order
+would be invented** - different parents, divergence at an object member, or one path inside another. The
+operations the ordering design's own language implies are now on the type rather than hand-rolled by the next
+caller: `depth`, `parent`, `is_ancestor_of`, `divergence`. Writing `document_order` produced its own instructive
+bug: the sibling test measured the shared *suffix* where it needed the shared *prefix*, which is the same number
+by coincidence and inverted the answer - siblings refused, cousins ordered.
+
 ### The limits, in one place
 
 Stated here because a document about enforcement reads as exhaustive, and none of these is a defect to be

@@ -558,8 +558,9 @@ fn a_value_outside_what_a_quantity_can_hold_is_malformed() {
     // present-and-unusable, which is a different fact from nobody having written it.
     assert!(
         found.refused.iter().any(|refusal| matches!(
-            &refusal.reading,
-            Reading::Malformed { detail } if detail.contains("outside what this field can hold")
+            &refusal.cause,
+            crate::domain::rules::refusal::Unusable::OutOfRange { detail }
+                if detail.contains("outside what this field can hold")
         )),
         "the out-of-range value is not reported: {:?}",
         found.refused

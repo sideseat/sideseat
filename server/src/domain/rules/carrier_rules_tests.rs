@@ -537,7 +537,7 @@ fn the_engine_names_no_framework() {
         ("classify.rs", include_str!("classify.rs")),
         ("members.rs", include_str!("members.rs")),
         ("expr.rs", include_str!("expr.rs")),
-        ("outcome.rs", include_str!("outcome.rs")),
+        ("refusal.rs", include_str!("refusal.rs")),
         ("tool_shapes.rs", include_str!("tool_shapes.rs")),
     ];
 
@@ -5100,7 +5100,7 @@ fn a_field_source_can_read_an_event_and_says_which_occurrence_answers() {
         attributes: std::collections::HashMap::from([("count".to_string(), "many".to_string())]),
     };
     let resolved = plan.resolve("span", &attrs, &[malformed]);
-    let refused: Vec<&crate::domain::rules::span_fields::Refusal> =
+    let refused: Vec<&crate::domain::rules::refusal::Refusal> =
         resolved.iter().flat_map(|r| &r.refused).collect();
     assert_eq!(
         refused.len(),
@@ -5109,7 +5109,10 @@ fn a_field_source_can_read_an_event_and_says_which_occurrence_answers() {
          shorter list with nothing recorded"
     );
     assert!(
-        matches!(refused[0].reading, Reading::Malformed { .. }),
+        matches!(
+            refused[0].cause,
+            crate::domain::rules::refusal::Unusable::Malformed { .. }
+        ),
         "recorded as malformed: {:?}",
         refused[0]
     );
@@ -5588,7 +5591,7 @@ fn a_wrong_typed_member_of_a_reduction_is_malformed() {
     // malformed member from an absent one, which is the distinction under test.
     let resolve = |plan: &crate::domain::rules::span_fields::SpanFieldPlan,
                    payload: &str|
-     -> (Reading, Vec<Reading>) {
+     -> (Reading, Vec<crate::domain::rules::refusal::Unusable>) {
         let attrs = std::collections::HashMap::from([("payload".to_string(), payload.to_string())]);
         let resolved = plan
             .resolve("span", &attrs, &[])
@@ -5597,7 +5600,7 @@ fn a_wrong_typed_member_of_a_reduction_is_malformed() {
             .expect("one rule");
         (
             resolved.reading,
-            resolved.refused.into_iter().map(|r| r.reading).collect(),
+            resolved.refused.into_iter().map(|r| r.cause).collect(),
         )
     };
     let read = |plan: &crate::domain::rules::span_fields::SpanFieldPlan,
@@ -5620,7 +5623,10 @@ fn a_wrong_typed_member_of_a_reduction_is_malformed() {
         "a member that is present and not a number makes the sum malformed, and the chain records it"
     );
     assert!(
-        matches!(refused[0], Reading::Malformed { .. }),
+        matches!(
+            refused[0],
+            crate::domain::rules::refusal::Unusable::Malformed { .. }
+        ),
         "recorded as malformed: {:?}",
         refused[0]
     );
@@ -5666,7 +5672,7 @@ fn a_wrong_typed_member_of_a_reduction_is_malformed() {
     assert!(
         refused
             .iter()
-            .any(|r| matches!(r, Reading::Malformed { .. })),
+            .any(|r| matches!(r, crate::domain::rules::refusal::Unusable::Malformed { .. })),
         "a member holding an object is malformed, not one fewer reason: {refused:?}"
     );
     assert_ne!(
@@ -5791,8 +5797,15 @@ fn an_unreadable_witness_is_unanswerable_rather_than_false() {
         "the unreadable witness is recorded, where it used to be indistinguishable from an absent member"
     );
     assert!(
-        matches!(refused[0].reading, Reading::Malformed { .. }),
-        "as malformed: {:?}",
+        matches!(
+            refused[0].cause,
+            crate::domain::rules::refusal::Unusable::UnanswerableGate { .. }
+        ),
+        // The cause this test's own name asserts. It checked `Malformed` before, because that was the only
+        // word the vocabulary had: a witness is a *discriminator*, and what failed is the question rather than
+        // the answer - which is what `UnanswerableGate` says and what a reader needs, since the two imply
+        // different fixes (fix the producer's value, versus this branch could not be decided at all).
+        "as an unanswerable gate: {:?}",
         refused[0]
     );
     assert_ne!(

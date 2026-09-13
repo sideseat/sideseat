@@ -36,6 +36,11 @@ pub struct SideMLMessage {
     /// Carried rather than re-derived: expansion and tool splitting turn one stored payload into
     /// several messages, and without this the only thing left to tell two of them apart is their
     /// content, which is identical whenever a model asks for the same thing twice.
+    ///
+    /// **Not serialised.** It is derived at query time from a payload the caller cannot see, and the comment on
+    /// `Observed` above already says it has no business travelling with a stored shape - `skip` makes that
+    /// true rather than merely intended, and is what let `PositionPath` drop serde entirely.
+    #[serde(skip)]
     pub position: PositionPath,
     /// The message source (event or attribute)
     pub source: MessageSource,

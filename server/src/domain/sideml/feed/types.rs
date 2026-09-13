@@ -83,6 +83,10 @@ impl FeedOptions {
 pub struct BlockEntry {
     /// Where this block sat in its span's stored payload - see `sideml::provenance`.
     ///
+    /// **Not serialised**, for the reason given on `SideMLMessage::position`: it is derived at query time
+    /// from a payload the caller never sees.
+    #[serde(skip)]
+    ///
     /// Unique per block within one payload, which is what distinguishes a genuine repeat from a
     /// re-send: two identical tool calls of one response have different paths, while the same call
     /// re-sent by a later span has its own payload and so is compared by content.

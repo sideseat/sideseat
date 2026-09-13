@@ -25,7 +25,7 @@ pub mod detect_rules;
 pub mod expr;
 pub mod members;
 pub mod message_rules;
-pub mod outcome;
+pub mod refusal;
 pub mod schema;
 pub mod span_fields;
 mod tool_repr;
