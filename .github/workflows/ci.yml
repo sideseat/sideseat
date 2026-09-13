@@ -136,6 +136,8 @@ jobs:
       # happening to carry uv - and its `the pyflakes probe is actually running` assertion is what would have
       # failed, which is a confusing way to be told a tool is missing.
       - uses: astral-sh/setup-uv@6b9c6063abd6010835644d4c2e1bef4cf5cd0fca # v6.0.1
+        with:
+          version: '0.12.13'
 
       - uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
         with:
@@ -204,6 +206,10 @@ jobs:
 
       - uses: astral-sh/setup-uv@6b9c6063abd6010835644d4c2e1bef4cf5cd0fca # v6.0.1
         with:
+          # The **executable**, not only the action: with no version the action installs the latest, so an
+          # unchanged commit could be resolved by a different resolver. Verified against every lockfile in the
+          # tree with `uv sync --locked` under exactly this version before pinning it.
+          version: '0.12.13'
           enable-cache: true
           cache-dependency-glob: sdk/python/uv.lock
 
@@ -250,7 +256,9 @@ jobs:
           cache: 'npm'
           cache-dependency-path: examples/javascript/package-lock.json
 
-      - uses: astral-sh/setup-uv@f94ec6bedd8674c4426838e6b50417d36b6ab231 # v5.4.1
+      - uses: astral-sh/setup-uv@6b9c6063abd6010835644d4c2e1bef4cf5cd0fca # v6.0.1
+        with:
+          version: '0.12.13'
 
       # The sample trees were checked by `make fmt-check`/`make lint` locally but by nothing in
       # CI, so unformatted or type-broken sample code could merge. Runs the same commands the
@@ -331,6 +339,8 @@ jobs:
       # The Python audits below call `uv`, and this job installed Node and Rust only - so they depended on
       # whatever the runner image happens to ship.
       - uses: astral-sh/setup-uv@6b9c6063abd6010835644d4c2e1bef4cf5cd0fca # v6.0.1
+        with:
+          version: '0.12.13'
 
       - uses: dtolnay/rust-toolchain@f7ccc83f9ed1e5b9c81d8a67d7ad1a747e22a561 # stable
         with:

@@ -145,6 +145,7 @@
 #     clean              Remove *all* build artifacts (target, dist, sdk artifacts). Costs a cold
 #                        compile afterwards, so prefer clean-stale unless you want the whole lot.
 #     node-floor         Derive the Node versions the lockfiles accept (see the setup check)
+#     update-python-deps Re-lock every Python project (the only place that re-locks)
 #     download-prices    Update LLM pricing data from litellm
 #     deps-check         Check for outdated dependencies (all components)
 #
@@ -251,7 +252,7 @@ cli-bin = $(CLI_DIR)/platforms/platform-$(1)/$(BIN_NAME_$(1))
 # =============================================================================
 
 .PHONY: help
-.PHONY: setup setup-hooks
+.PHONY: setup update-python-deps setup-hooks
 .PHONY: dev dev-server dev-web
 .PHONY: fmt fmt-check lint lint-advisory check
 .PHONY: secret-scan-tree secret-scan-staged secret-scan-range
@@ -347,6 +348,18 @@ help:
 # Setup
 # =============================================================================
 
+#  Every `uv` invocation below passes `--locked`: `uv sync` and `uv run` **re-lock by default**, so a stale
+#  `pyproject.toml` would be repaired silently and `make check` would pass on a lockfile nobody committed. The
+#  escape hatch is deliberate and separate - `make update-python-deps` re-locks on purpose, so the refusal you
+#  get from a stale manifest names the command that resolves it.
+update-python-deps:
+	@#  The only place that re-locks. Everything else refuses a stale lockfile rather than rewriting it, which is
+	@#  what makes a green `make check` a statement about the dependencies that are committed.
+	@for project in . sdk/python examples/python tools/audit tools/otel-replay tools/mcp-calculator; do \
+		echo "[update-python-deps] $$project"; \
+		(cd "$$project" && uv lock --upgrade); \
+	done
+
 setup:
 	@echo "[setup] Checking prerequisites..."
 	@command -v node >/dev/null 2>&1 || { echo "Error: node not found. Install Node.js 22.22+ or 24+"; exit 1; }
@@ -361,7 +374,7 @@ setup:
 	@command -v cargo >/dev/null 2>&1 || { echo "Error: cargo not found. Install Rust"; exit 1; }
 	@command -v uv >/dev/null 2>&1 || { echo "Error: uv not found. Install with: curl -LsSf https://astral.sh/uv/install.sh | sh"; exit 1; }
 	@echo "[setup] Installing workspace dev tools..."
-	@uv sync --group dev
+	@uv sync --locked --group dev
 	@echo "[setup] Fetching Rust dependencies..."
 	@cargo fetch
 	@echo "[setup] Installing JS dependencies..."
@@ -372,8 +385,8 @@ setup:
 	@cd sdk/js && npm ci
 	@cd examples/javascript && npm ci
 	@echo "[setup] Installing Python dependencies..."
-	@cd sdk/python && uv sync --extra dev
-	@cd examples/python && uv sync --group dev
+	@cd sdk/python && uv sync --locked --extra dev
+	@cd examples/python && uv sync --locked --group dev
 	@echo "[setup] Installing cargo-tarpaulin..."
 	@cargo install cargo-tarpaulin --quiet
 	@mkdir -p .sideseat
@@ -430,7 +443,7 @@ fmt:
 	@cargo fmt
 	@[ -x "$(PRETTIER)" ] || { echo "Error: prettier not installed. Run 'make setup'."; exit 1; }
 	@$(PRETTIER) --write "web/src/**/*.{ts,tsx,css,json}" "sdk/js/src/**/*.ts" "examples/javascript/src/**/*.ts"
-	@uv run ruff format $(PYTHON_CHECKED)
+	@uv run --locked ruff format $(PYTHON_CHECKED)
 	@echo "[fmt] Done"
 
 fmt-check:
@@ -448,7 +461,9 @@ lint:
 	@cd examples/javascript && npm run lint
 	@cd examples/javascript && npm run typecheck
 	@$(MAKE) --no-print-directory lint-python
-	@cd sdk/python && uv run mypy src
+	@#  `--extra dev` names where mypy comes from: `--locked` syncs the *locked default* set, so without it the
+	@#  dev extra is removed and the tool is gone - which is the correct behaviour and needed saying.
+	@cd sdk/python && uv run --locked --extra dev mypy src
 
 # Advisory clippy lints, kept out of `lint` because that gate runs -D warnings and these
 # are suggestions rather than defects. Non-blocking by design: review the output, do not
@@ -523,10 +538,10 @@ PYTHON_CHECKED := sdk/python examples/python scripts tools
 .PHONY: fmt-check-python lint-python
 
 fmt-check-python:
-	@uv run ruff format --check $(PYTHON_CHECKED)
+	@uv run --locked ruff format --check $(PYTHON_CHECKED)
 
 lint-python:
-	@uv run ruff check $(PYTHON_CHECKED)
+	@uv run --locked ruff check $(PYTHON_CHECKED)
 
 harden: harden-supply harden-spec
 	@echo "[harden] All hardening gates passed"
@@ -764,7 +779,7 @@ test-sdk-js:
 
 test-sdk-python:
 	@echo "[test-sdk-python] Running Python SDK tests..."
-	@cd sdk/python && uv run pytest
+	@cd sdk/python && uv run --locked --extra dev pytest
 
 coverage:
 	@echo "[coverage] Running tests with coverage..."
