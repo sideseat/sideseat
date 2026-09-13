@@ -303,6 +303,10 @@ jobs:
         with:
           node-version: '24'
 
+      # The Python audits below call `uv`, and this job installed Node and Rust only - so they depended on
+      # whatever the runner image happens to ship.
+      - uses: astral-sh/setup-uv@6b9c6063abd6010835644d4c2e1bef4cf5cd0fca # v6.0.1
+
       - uses: dtolnay/rust-toolchain@f7ccc83f9ed1e5b9c81d8a67d7ad1a747e22a561 # stable
         with:
           toolchain: stable
@@ -335,16 +339,27 @@ jobs:
       # The Python SDK is published, and no advisory scan covered it: `uv` has no audit of its own, and
       # Dependabot raises pull requests rather than failing a build - which is exactly how fourteen Cargo
       # advisories accumulated.
-      - name: Run pip-audit (sdk/python)
-        run: cd sdk/python && uv run --with pip-audit pip-audit
+      #
+      # `--all-extras` first, because `pip-audit` with no argument audits the *installed environment*: without
+      # syncing the optional framework instrumentation, the scan covered the base dependencies and reported
+      # clean about packages it had never seen. Environment mode rather than `-r`, because `pip-audit -r`
+      # builds a throwaway venv through `ensurepip`, which is one more thing to depend on.
+      - name: Run pip-audit (sdk/python, all extras)
+        run: cd sdk/python && uv sync --all-extras && uv run --with pip-audit pip-audit
 
-      # **Reporting, not blocking, and the reason is upstream.** The docs site was never scanned at all, and it
-      # carries four critical Astro advisories (XSS via spread attributes and transition directives, RCE via
-      # AVIF optimisation) plus a high in `sharp`. The fix is Astro 7.3.2, a major upgrade blocked by
-      # `@pasqal-io/starlight-client-mermaid`, whose only two published versions both peer on
-      # `@astrojs/markdown-remark@^6`. Resolving it means dropping that plugin (and re-doing how the Mermaid
-      # diagrams render), forcing mismatched peers, or waiting for the plugin - a maintainer's decision, not
-      # something to hide behind a passing gate. Reported here so it is visible on every run.
+      # The two standalone tools have their own lockfiles and were covered by nothing. Extending the scan here
+      # found `urllib3` PYSEC-2026-142 and `requests` PYSEC-2026-2275 in `otel-replay`, both fixed by a
+      # `uv lock --upgrade`.
+      - name: Run pip-audit (tools)
+        run: |
+          for tool in tools/otel-replay tools/mcp-calculator; do
+            (cd "$tool" && uv sync && uv run --with pip-audit pip-audit)
+          done
+
+      # Gated by **identifier**, not exempted wholesale. `continue-on-error` tolerated the next advisory as
+      # much as the current ones, so an exemption for one blocked upgrade quietly became an exemption for
+      # everything. `scripts/audit-docs.mjs` fails on any high or critical advisory outside the known set - and
+      # on a known one that has gone away, since a stale exemption is how such a list stops meaning anything.
+      # The set, and why it cannot be fixed here, are documented at the top of that script.
       - name: Run npm audit (docs)
-        continue-on-error: true
-        run: cd docs && npm audit --audit-level=high
+        run: node scripts/audit-docs.mjs
