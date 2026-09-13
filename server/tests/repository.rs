@@ -580,6 +580,80 @@ fn every_tree_diagram_names_things_that_exist() {
     );
 }
 
+/// Each package's `engines` and its lockfile's copy of it agree.
+///
+/// npm writes the root manifest's `engines` into `package-lock.json` and does not refresh it until an install
+/// runs, so editing one leaves the other stating the previous requirement. That is not cosmetic here:
+/// `make node-floor` derives the supported Node versions from the **lockfiles**, so a stale copy means the
+/// derivation silently omits the package's own declared constraint - which is exactly what happened when
+/// `examples/javascript` was corrected from `>=20.0.0` and only the manifest was touched.
+///
+/// The remedy is `npm install --package-lock-only` in that package.
+#[test]
+fn every_lockfile_carries_its_manifests_engines() {
+    let repo = repo_root();
+    let listing = Command::new("git")
+        .args(["ls-files"])
+        .current_dir(repo)
+        .output()
+        .expect("git is available in a git checkout");
+
+    let engines_of = |text: &str, root_entry: bool| -> Option<String> {
+        // Deliberately a small scan rather than a JSON dependency: the lockfiles are megabytes, and the value
+        // wanted is one string in a known place - the manifest's top level, or the lock's `""` package.
+        let region = if root_entry {
+            let at = text.find("\"packages\"")?;
+            let start = text[at..].find("\"\": {")? + at;
+            let end = text[start..]
+                .find("\n    },")
+                .map_or(text.len(), |e| start + e);
+            &text[start..end]
+        } else {
+            text
+        };
+        let at = region.find("\"engines\"")?;
+        let node = region[at..].find("\"node\"")? + at;
+        let open = region[node..].find(':')? + node + 1;
+        let value = region[open..].trim_start();
+        let value = value.strip_prefix('"')?;
+        Some(value[..value.find('"')?].to_string())
+    };
+
+    let mut checked = 0usize;
+    let mut disagree: Vec<String> = Vec::new();
+    for manifest in String::from_utf8_lossy(&listing.stdout)
+        .lines()
+        .filter(|f| f.ends_with("package.json"))
+        .filter(|f| !f.contains("/node_modules/"))
+    {
+        let dir = manifest.trim_end_matches("package.json");
+        let lock_path = format!("{dir}package-lock.json");
+        let Ok(lock) = std::fs::read_to_string(repo.join(&lock_path)) else {
+            continue;
+        };
+        let declared = engines_of(
+            &std::fs::read_to_string(repo.join(manifest)).unwrap_or_default(),
+            false,
+        );
+        let recorded = engines_of(&lock, true);
+        checked += 1;
+        if declared != recorded {
+            disagree.push(format!(
+                "{manifest} says {declared:?} while {lock_path} says {recorded:?} - run \
+                 `npm install --package-lock-only` in {dir}"
+            ));
+        }
+    }
+
+    assert!(checked >= 3, "only compared {checked} manifest/lock pairs");
+    assert!(
+        disagree.is_empty(),
+        "{} package(s) whose lockfile disagrees with their manifest:\n  {}",
+        disagree.len(),
+        disagree.join("\n  ")
+    );
+}
+
 /// The repository's Node requirement is stated identically everywhere it is stated.
 ///
 /// It appears in four places — the Makefile header, `make help`, the `setup` prerequisite check and
@@ -675,14 +749,22 @@ fn every_script_that_locates_the_repository_root_finds_it() {
     let mut wrong: Vec<String> = Vec::new();
     for file in tracked
         .iter()
-        .filter(|f| f.ends_with(".sh") || f.ends_with(".py"))
+        .filter(|f| {
+            [".sh", ".py", ".mjs", ".js", ".ts"]
+                .iter()
+                .any(|ext| f.ends_with(ext))
+        })
         .filter(|f| !f.contains("/.venv/") && !f.starts_with("examples/"))
     {
         // The file's own depth: `benchmarks/http-latency.sh` sits one directory below the root.
         let depth = file.matches('/').count();
         let text = std::fs::read_to_string(repo.join(file)).unwrap_or_default();
         for (number, line) in text.lines().enumerate() {
-            let assigns_root = line.contains("ROOT=") || line.contains("ROOT =");
+            // Case-insensitively, and in every scripting language here. Restricted to shell and Python with
+            // an uppercase name, this could not see `scripts/node-floor.mjs` - a file added in the same
+            // commit as the guard, whose `const root = join(dirname(…), "..")` is the identical claim.
+            let lower = line.to_ascii_lowercase();
+            let assigns_root = lower.contains("root=") || lower.contains("root =");
             if !assigns_root {
                 continue;
             }
