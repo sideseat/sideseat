@@ -636,31 +636,73 @@ fn every_lockfile_carries_its_manifests_engines() {
         // refreshes that copy only when *this* package is installed. So editing `sdk/js` and regenerating its
         // own lock leaves the examples' lock stating the old requirement - and `make node-floor` reads every
         // lock, so it would keep deriving from the stale copy. Checking only `packages[""]` missed this.
+        // A local entry is recognised by what the lock *says about it*, not by how its key is spelled: a
+        // `file:./thing` dependency produces a key with no `../` at all, so a prefix test is a hole waiting
+        // for the next local dependency. Every `packages` key whose own `resolved` is not an `https:` URL, or
+        // which is itself a relative path, names a directory in this repository.
         let mut pairs: Vec<(String, String)> = vec![(manifest.to_string(), String::new())];
+        let mut current: Option<String> = None;
+        let mut local_keys: BTreeSet<String> = BTreeSet::new();
         for line in lock.lines() {
-            let Some(rest) = line.trim().strip_prefix('"') else {
-                continue;
+            if let Some(key) = line
+                .strip_prefix("    \"")
+                .and_then(|rest| rest.split("\": {").next())
+                .filter(|k| !k.contains('"'))
+            {
+                current = Some(key.to_string());
+                if key.starts_with("../") || key.starts_with("./") {
+                    local_keys.insert(key.to_string());
+                }
+            }
+            if let Some(key) = current.as_ref() {
+                let trimmed = line.trim();
+                let resolved_locally = trimmed
+                    .strip_prefix("\"resolved\": \"")
+                    .is_some_and(|v| !v.starts_with("https:") && !v.starts_with("http:"));
+                if resolved_locally && !key.is_empty() {
+                    local_keys.insert(key.clone());
+                }
+            }
+        }
+        for key in local_keys {
+            // `resolved` on a linked entry points at the directory; the entry that *carries the engines* is
+            // keyed by that same relative path, so both spellings resolve to one manifest.
+            let target = key
+                .rsplit_once("node_modules/")
+                .map_or(key.as_str(), |(_, name)| name);
+            let raw = if key.starts_with('.') {
+                key.as_str()
+            } else {
+                target
             };
-            let Some(key) = rest.split("\": {").next().filter(|k| k.starts_with("../")) else {
-                continue;
-            };
-            // The key is relative to the lock's own directory.
             let mut parts: Vec<String> = dir
                 .trim_end_matches('/')
                 .split('/')
                 .map(str::to_string)
                 .collect();
-            let mut relative = key.to_string();
-            while let Some(tail) = relative.strip_prefix("../") {
-                if parts.pop().is_none() {
+            let mut relative = raw.to_string();
+            while let Some(tail) = relative
+                .strip_prefix("../")
+                .or_else(|| relative.strip_prefix("./"))
+            {
+                if relative.starts_with("../") && parts.pop().is_none() {
                     break;
                 }
                 relative = tail.to_string();
             }
+            if relative.is_empty() {
+                continue;
+            }
             parts.push(relative);
             let local = format!("{}/package.json", parts.join("/"));
+            // A referenced manifest that is not there is itself worth saying: the lock names a package this
+            // repository does not contain, so nothing can check what it copied.
             if repo.join(&local).exists() {
-                pairs.push((local, key.to_string()));
+                pairs.push((local, key.clone()));
+            } else if key.starts_with('.') {
+                disagree.push(format!(
+                    "{lock_path} has a local entry `{key}` but {local} does not exist"
+                ));
             }
         }
 

@@ -1194,7 +1194,7 @@ deps-check:
 node-floor:
 	@#  Prints the Node versions every installed `engines.node` range accepts. Needs an installed tree for
 	@#  `semver`, which is transitive rather than declared - the script says so and stops if none is there.
-	@node scripts/node-floor.mjs
+	@node scripts/node-floor.mjs --check
 
 download-prices:
 	@echo "[download-prices] Downloading LLM pricing data..."

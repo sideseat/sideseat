@@ -52,7 +52,9 @@ SideSeat ingests telemetry from AI applications and serves it back, so the inter
 
 ## Hardening this repository applies to itself
 
-- `gitleaks` runs on staged changes and on the whole tree (`make secret-scan`, `make secret-scan-tree`), and in
+- `gitleaks` runs on every pull request (the `Secret Scan` job, over the full history of the branch), and
+  locally on staged changes and on the whole tree (`make secret-scan-staged`, `make secret-scan-tree`,
+  `make secret-scan-range`), in
   the pre-commit and pre-push hooks.
 - `cargo deny` checks advisories, licences and bans (`make harden-supply`).
 - Dependencies are updated through Dependabot, for GitHub Actions, Cargo, npm, uv and the container images in `deploy/`. The sample suites

@@ -64,7 +64,8 @@ const candidates = [
   "24.12.0",
   "25.0.0",
   "25.2.1",
-  ...process.argv.slice(2),
+  // Extra versions may be named on the command line; flags are not versions.
+  ...process.argv.slice(2).filter((arg) => !arg.startsWith("-")),
 ];
 
 const blame = new Map(candidates.map((v) => [v, []]));
@@ -100,8 +101,49 @@ for (const version of candidates) {
     console.log(`  ${version.padEnd(9)} refused by ${refusals.length}, e.g. ${refusals[0]}`);
   }
 }
-console.log(
-  `\nAccepted: ${accepted.join(", ") || "none"}\n` +
+console.log(`\nAccepted: ${accepted.join(", ") || "none"}`);
+
+// `--check` closes the loop. Deriving the answer and printing it leaves the *statement* ungated: a dependency
+// bump can raise the floor while CI keeps pinning Node 24, every invariant stays green, and the four places
+// that state the requirement quietly become wrong. So the declaration is read back and tested against the
+// derivation. `CONTRIBUTING.md` is the declaration because it is what a contributor reads first, and
+// `the_node_requirement_is_stated_once` already holds the Makefile's copies identical to it.
+if (!process.argv.includes("--check")) {
+  console.log(
     "State the resulting range in the same four places: the Makefile header, `make help`, the `setup` " +
-    "prerequisite check, and CONTRIBUTING.md.",
-);
+      "prerequisite check, and CONTRIBUTING.md. `--check` verifies they still match.",
+  );
+  process.exit(0);
+}
+
+const contributing = readFileSync(join(root, "CONTRIBUTING.md"), "utf8");
+const claim = contributing.match(/Node\.js (\d+)\.(\d+)\+ or (\d+)\+/);
+if (!claim) {
+  console.error(
+    "\nCONTRIBUTING.md does not state a Node requirement in the form `Node.js <major>.<minor>+ or <major>+`, " +
+      "so there is nothing to check the derivation against.",
+  );
+  process.exit(1);
+}
+const [, floorMajor, floorMinor, alsoMajor] = claim.map(Number);
+const admits = (version) => {
+  const [major, minor] = version.split(".").map(Number);
+  return major >= alsoMajor || (major === floorMajor && minor >= floorMinor);
+};
+
+const wrong = candidates.filter((v) => admits(v) !== (blame.get(v).length === 0));
+if (wrong.length > 0) {
+  console.error(
+    `\nCONTRIBUTING.md claims ${floorMajor}.${floorMinor}+ or ${alsoMajor}+, which the lockfiles contradict:\n` +
+      wrong
+        .map((v) =>
+          admits(v)
+            ? `  ${v} is admitted by the claim but refused by ${blame.get(v)[0]}`
+            : `  ${v} is excluded by the claim but every installed range accepts it`,
+        )
+        .join("\n") +
+      "\n\nUpdate the requirement in all four places, then re-run.",
+  );
+  process.exit(1);
+}
+console.log(`The stated requirement (${floorMajor}.${floorMinor}+ or ${alsoMajor}+) matches the lockfiles.`);

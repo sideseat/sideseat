@@ -118,6 +118,12 @@ jobs:
       - name: Test
         run: cd web && npm test -- --run
 
+      # Here rather than in `make check`: the derivation needs an installed `semver`, which this job has and a
+      # bare Rust checkout does not. Without a gate somewhere, a dependency bump can raise the Node floor while
+      # everything stays green and the four places that state the requirement quietly become wrong.
+      - name: Node requirement matches the lockfiles
+        run: make node-floor
+
   check-sdk-js:
     name: JS SDK (fmt, lint, test)
     runs-on: ubuntu-latest
@@ -210,6 +216,39 @@ jobs:
         run: |
           cd examples/javascript && npm run lint && npm run typecheck
           cd "$GITHUB_WORKSPACE" && uv run ruff check examples/python
+
+  secrets:
+    name: Secret Scan
+    runs-on: ubuntu-latest
+    steps:
+      # `fetch-depth: 0`, because a scan of one commit is not a scan of the branch: a secret added and then
+      # removed by a later commit of the same pull request is still in the history being proposed.
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+
+      # Installed from the pinned release and **checksum-verified**, rather than through a third-party action:
+      # this way CI runs the repository's own targets against the repository's own `.gitleaks.toml`, so the gate
+      # and the hooks cannot disagree about what counts as a secret.
+      - name: Install gitleaks
+        env:
+          GITLEAKS_VERSION: 8.30.1
+          GITLEAKS_SHA256: 551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb
+        run: |
+          curl -sSLo /tmp/gitleaks.tar.gz \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          echo "${GITLEAKS_SHA256}  /tmp/gitleaks.tar.gz" | sha256sum -c -
+          tar -xzf /tmp/gitleaks.tar.gz -C /usr/local/bin gitleaks
+          gitleaks version
+
+      # The whole tree, then the branch's history. The local targets skip when gitleaks is absent so that a
+      # fresh clone can still commit, which makes them a convenience; this job is the gate, and it is the only
+      # place an external contribution is scanned at all.
+      - name: Working tree
+        run: make secret-scan-tree
+
+      - name: Branch history
+        run: make secret-scan-range RANGE=origin/${{ github.base_ref || 'main' }}..HEAD
 
   audit:
     name: Security Audit
