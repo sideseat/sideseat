@@ -79,6 +79,29 @@ def test_schema_file_is_loadable() -> None:
     assert "frames" in schema["$defs"]
 
 
+def test_bundled_schema_is_the_protocol_schema() -> None:
+    """The bundled copy is byte-identical to `protocol/ws-v1/schema.json`.
+
+    The copy exists because the SDK ships without the repository
+    around it, and until now the only check on it was that it parsed
+    and had two keys - so the canonical schema could gain a frame, or
+    change a field's type, and this copy would go on describing the
+    previous protocol while every test passed. Two files stating the
+    wire format is a fact of packaging; two files stating *different*
+    wire formats is the defect.
+
+    Byte equality rather than a semantic comparison, deliberately: a
+    difference in formatting is still a difference in what was copied,
+    and `make sync-protocol-schema` is one command.
+    """
+    canonical = Path(__file__).resolve().parents[3] / "protocol" / "ws-v1" / "schema.json"
+    if not canonical.exists():
+        pytest.skip("running from an installed package, without the repository around it")
+    assert SCHEMA_PATH.read_bytes() == canonical.read_bytes(), (
+        f"{SCHEMA_PATH} differs from {canonical} - run `make sync-protocol-schema`"
+    )
+
+
 @pytest.mark.parametrize(
     "frame_type",
     [

@@ -55,10 +55,8 @@ jobs:
       # is `--with-deps` and why it must come **after** the install: run before `npm ci`, `npx playwright`
       # fetches whatever the registry currently publishes instead of the locked version, and the build then
       # downloads a second browser.
-      - name: Install documentation dependencies
-        run: make docs-deps
-
-      - name: Install the system libraries the browser needs
+      # One step: `docs-system-deps` depends on `docs-deps`, so the npm install and the browser come with it.
+      - name: Install documentation dependencies and the browser's system libraries
         run: make docs-system-deps
 
       - name: Build documentation

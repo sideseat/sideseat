@@ -262,7 +262,7 @@ cli-bin = $(CLI_DIR)/platforms/platform-$(1)/$(BIN_NAME_$(1))
 .PHONY: version version-check bump sync-version
 .PHONY: publish publish-cli publish-sdk-js publish-sdk-python
 .PHONY: release
-.PHONY: docs-deps docs-system-deps build-docs dev-docs preview-docs
+.PHONY: sync-protocol-schema docs-deps docs-system-deps build-docs dev-docs preview-docs
 .PHONY: build-docker publish-docker
 .PHONY: sign-release sign-verify sign-notarize
 .PHONY: build-release publish-release publish-brew
@@ -1039,6 +1039,14 @@ publish-docker:
 # Documentation
 # =============================================================================
 
+#  The wire protocol is stated in `protocol/ws-v1/schema.json`, and the Python SDK bundles a copy because it
+#  ships without the repository around it. One command keeps them identical, and
+#  `test_bundled_schema_is_the_protocol_schema` fails when they are not - previously the only check was that
+#  the copy parsed, so the canonical schema could gain a frame while the copy described the old protocol.
+sync-protocol-schema:
+	@cp protocol/ws-v1/schema.json sdk/python/src/sideseat/runtime/_schema.json
+	@echo "[sync-protocol-schema] sdk/python now bundles protocol/ws-v1/schema.json"
+
 docs-deps:
 	@#  `npm ci`, and keyed on the **lockfile being newer** than the install rather than on the directory
 	@#  existing. A presence check accepts a tree installed from an older lockfile, so the docs built here
@@ -1064,7 +1072,10 @@ docs-deps:
 	@#  the missing libraries precisely, so it is not probed for here - only pointed at.
 	@[ "$$(uname -s)" != "Linux" ] || echo "[docs-deps] On Linux, if the build cannot launch the browser: make docs-system-deps (needs sudo)"
 
-docs-system-deps:
+docs-system-deps: docs-deps
+	@#  Depends on `docs-deps`, because it runs the **locked** playwright - and in a fresh clone there is no
+	@#  `docs/node_modules` for `--no-install` to find, so the one command the README names failed. CI hid
+	@#  that by running `make docs-deps` first, which is a dependency stated in the wrong place.
 	@#  Separate and explicit, because it installs distribution packages and needs root. `install-deps` is
 	@#  playwright's own list for the browser it just downloaded, so it stays correct across browser versions.
 	@echo "[docs-system-deps] Installing the system libraries the diagram browser needs (sudo)..."
