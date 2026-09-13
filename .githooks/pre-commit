@@ -23,7 +23,7 @@ RUST=0; WEB=0; JS_SDK=0; PY=0
 staged 'server/' 'sdk/rust/' && RUST=1
 staged 'web/'                && WEB=1
 staged 'sdk/js/'             && JS_SDK=1
-staged 'sdk/python/' 'examples/python/' && PY=1
+staged 'sdk/python/' 'examples/python/' 'scripts/' 'tools/' && PY=1
 
 if [ "$RUST$WEB$JS_SDK$PY" = "0000" ]; then
     echo "[pre-commit] No code staged, skipping build checks"

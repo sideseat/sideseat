@@ -43,7 +43,7 @@ jobs:
   # it means what the DuckDB original means - some of it does not even parse. `make test-clickhouse`
   # runs the same test locally against its own container.
   check-msrv:
-    name: Rust MSRV (1.94)
+    name: Rust MSRV (1.94.1)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -53,7 +53,7 @@ jobs:
           # The version `Cargo.toml` and CONTRIBUTING.md promise. Declaring `rust-version` refuses an older
           # toolchain and clippy's `incompatible_msrv` catches an item that is too new, but neither *compiles*
           # the workspace on that version - so the promise was unproven while every job used `stable`.
-          toolchain: '1.94'
+          toolchain: '1.94.1'
 
       - uses: Swatinem/rust-cache@779680da715d629ac1d338a641029a2f4372abb5 # v2.8.2
         with:
@@ -185,11 +185,14 @@ jobs:
       - name: Install dependencies
         run: cd sdk/python && uv sync --extra dev
 
+      # Delegated to the Makefile, so CI and `make` cannot disagree about *what* is checked. Running ruff
+      # inside `sdk/python` covered the SDK alone, while the Makefile had been extended to `scripts/` and
+      # `tools/` - so the blind spot that change closed was still open in the only place that gates.
       - name: Format check
-        run: cd sdk/python && uv run ruff format --check .
+        run: make fmt-check-python
 
       - name: Lint
-        run: cd sdk/python && uv run ruff check .
+        run: make lint-python
 
       - name: Type check
         run: cd sdk/python && uv run mypy src
@@ -325,3 +328,23 @@ jobs:
 
       - name: Run npm audit (sdk/js)
         run: cd sdk/js && npm audit --audit-level=high
+
+      - name: Run npm audit (examples/javascript)
+        run: cd examples/javascript && npm audit --audit-level=high
+
+      # The Python SDK is published, and no advisory scan covered it: `uv` has no audit of its own, and
+      # Dependabot raises pull requests rather than failing a build - which is exactly how fourteen Cargo
+      # advisories accumulated.
+      - name: Run pip-audit (sdk/python)
+        run: cd sdk/python && uv run --with pip-audit pip-audit
+
+      # **Reporting, not blocking, and the reason is upstream.** The docs site was never scanned at all, and it
+      # carries four critical Astro advisories (XSS via spread attributes and transition directives, RCE via
+      # AVIF optimisation) plus a high in `sharp`. The fix is Astro 7.3.2, a major upgrade blocked by
+      # `@pasqal-io/starlight-client-mermaid`, whose only two published versions both peer on
+      # `@astrojs/markdown-remark@^6`. Resolving it means dropping that plugin (and re-doing how the Mermaid
+      # diagrams render), forcing mismatched peers, or waiting for the plugin - a maintainer's decision, not
+      # something to hide behind a passing gate. Reported here so it is visible on every run.
+      - name: Run npm audit (docs)
+        continue-on-error: true
+        run: cd docs && npm audit --audit-level=high

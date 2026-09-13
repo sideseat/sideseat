@@ -429,7 +429,7 @@ fmt:
 	@cargo fmt
 	@[ -x "$(PRETTIER)" ] || { echo "Error: prettier not installed. Run 'make setup'."; exit 1; }
 	@$(PRETTIER) --write "web/src/**/*.{ts,tsx,css,json}" "sdk/js/src/**/*.ts" "examples/javascript/src/**/*.ts"
-	@uv run ruff format sdk/python examples/python scripts tools
+	@uv run ruff format $(PYTHON_CHECKED)
 	@echo "[fmt] Done"
 
 fmt-check:
@@ -437,7 +437,7 @@ fmt-check:
 	@cargo fmt --check
 	@[ -x "$(PRETTIER)" ] || { echo "Error: prettier not installed. Run 'make setup'."; exit 1; }
 	@$(PRETTIER) --check "web/src/**/*.{ts,tsx,css,json}" "sdk/js/src/**/*.ts" "examples/javascript/src/**/*.ts"
-	@uv run ruff format --check sdk/python examples/python scripts tools
+	@$(MAKE) --no-print-directory fmt-check-python
 
 lint:
 	@echo "[lint] Running linters..."
@@ -446,9 +446,7 @@ lint:
 	@cd sdk/js && npm run lint
 	@cd examples/javascript && npm run lint
 	@cd examples/javascript && npm run typecheck
-	@#  `scripts` and `tools` are included: the fixture-capture scripts and the two standalone tools are
-	@#  automation this repository depends on, and nothing checked them - a syntax error in one merged green.
-	@uv run ruff check sdk/python examples/python scripts tools
+	@$(MAKE) --no-print-directory lint-python
 	@cd sdk/python && uv run mypy src
 
 # Advisory clippy lints, kept out of `lint` because that gate runs -D warnings and these
@@ -514,6 +512,20 @@ check: disk-guard fmt-check lint test
 # =============================================================================
 
 .PHONY: harden harden-supply harden-spec
+
+#  What "the Python of this repository" means, in one place. `scripts` and `tools` are in it because the
+#  fixture-capture scripts and the two standalone tools are automation this repository depends on, and nothing
+#  checked them - a syntax error in one merged green. Named targets, because CI needs to run *this* set: it had
+#  its own `cd sdk/python && ruff` and so kept the blind spot after the Makefile lost it.
+PYTHON_CHECKED := sdk/python examples/python scripts tools
+
+.PHONY: fmt-check-python lint-python
+
+fmt-check-python:
+	@uv run ruff format --check $(PYTHON_CHECKED)
+
+lint-python:
+	@uv run ruff check $(PYTHON_CHECKED)
 
 harden: harden-supply harden-spec
 	@echo "[harden] All hardening gates passed"

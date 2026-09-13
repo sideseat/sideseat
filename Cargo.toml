@@ -10,11 +10,14 @@ resolver = "2"
 # source and not only against the lockfile, and a CI job compiles the workspace on exactly this version -
 # `rust-version` refuses an older toolchain but proves nothing about building on this one. `CONTRIBUTING.md`
 # had said 1.85 with nothing able to notice, because every job used `stable`. Verified locally on 1.94.1.
+# Stated to the **patch**: `1.94` means 1.94.0, which the AWS crates' own `1.94.1` does not satisfy, and
+# the CI job asked for the `1.94` shorthand, which rustup resolves to the newest 1.94.x - so a floor that
+# was one patch release low would have looked verified.
 # Re-measure the dependency half after a bump with:
 #   cargo metadata --format-version 1 --manifest-path server/Cargo.toml |
 #     python3 -c 'import json,sys; print(max((p["rust_version"] for p in json.load(sys.stdin)["packages"] if p.get("rust_version")), key=lambda v: tuple(int(x) for x in v.split("."))))'
 [workspace.package]
-rust-version = "1.94"
+rust-version = "1.94.1"
 
 # ---------------------------------------------------------------------------
 # Lint gates
