@@ -226,7 +226,7 @@ enum Totals {
 /// projection was copied verbatim, so a fix to the tags union or the `trace_name` fallback had
 /// to be applied three times or the three views disagreed. Must stay in sync with
 /// [`ChTraceRow`] and with DuckDB's equivalent projection, which the ClickHouse parity test
-/// (`server/tests/clickhouse_parity.rs`) checks against a live server.
+/// (`data/clickhouse/parity_tests.rs`) checks against a live server.
 fn trace_projection(trace_id_expr: &str, totals_alias: &str, totals: Totals) -> String {
     let totals_columns = totals_projection(totals_alias, &totals);
 

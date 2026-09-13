@@ -138,7 +138,7 @@ graph LR
     D --> E[Unified Messages]
 ```
 
-This happens at query time via `sideml/pipeline.rs`:
+This happens at query time via `sideml/normalize.rs`:
 
 1. **Extract events** from span
 2. **Categorize** by role (system/user/assistant/tool)
@@ -208,18 +208,23 @@ server/src/
 ├── core/
 │   ├── config.rs       # Configuration loading
 │   ├── cli.rs          # CLI argument parsing
-│   ├── constants.rs    # All constants
-│   └── topic.rs        # Pub/sub messaging
+│   └── constants.rs    # All constants
 ├── data/
 │   ├── duckdb/         # DuckDB implementation
 │   ├── clickhouse/     # ClickHouse implementation
 │   ├── sqlite/         # SQLite implementation
 │   ├── postgres/       # PostgreSQL implementation
+│   ├── files/          # File storage (filesystem / S3)
+│   ├── topics/         # Pub/sub messaging (in-memory / Redis)
 │   └── traits.rs       # Repository interfaces
 ├── domain/
 │   ├── pricing/        # Cost calculation
+│   ├── providers/      # Provider connectors
+│   ├── rules/          # Framework knowledge, interpreted from assets
+│   ├── metrics/        # Metric datapoint identity
 │   ├── sideml/         # Message normalization
 │   └── traces/         # Trace extraction/enrichment
+├── utils/              # Shared helpers
 └── api/
     └── routes/         # HTTP handlers
 ```

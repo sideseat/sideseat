@@ -2,6 +2,10 @@
 
 Sample applications demonstrating OpenTelemetry integration with various AI/LLM frameworks.
 
+Each suite is its own [uv](https://docs.astral.sh/uv/) project, so `uv run` resolves and installs its
+dependencies on first use. Install uv with `curl -LsSf https://astral.sh/uv/install.sh | sh`
+(`powershell -c "irm https://astral.sh/uv/install.ps1 | iex"` on Windows).
+
 ## Run Commands
 
 All suites share the same CLI options (`--model`, `--sideseat`, `--list`, `--help`), but **not

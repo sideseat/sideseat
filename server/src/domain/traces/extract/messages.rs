@@ -250,7 +250,7 @@ pub(crate) fn extract_message_from_event(
         raw.insert(key.clone(), json_val);
     }
 
-    // Role derivation moved to query-time in sideml/pipeline.rs
+    // Role derivation moved to query-time in sideml/normalize.rs
     // (role_from_event_name_with_context handles tool span semantics)
     // Store raw event data; let query-time pipeline derive role from event name
 
