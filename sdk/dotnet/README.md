@@ -9,13 +9,19 @@ SideSeat captures every LLM call, tool call, and agent decision, then displays t
 
 ## Status
 
-This package is under development. The API is not yet stable.
+**This package holds the `SideSeat` name on NuGet and contains no implementation** — one version constant and
+nothing else. There is no .NET client to install yet, and the repository does not build, test or publish it;
+`sdk/python`, `sdk/js` and `sdk/rust` are the real SDKs.
 
-## Quick Start
+Until there is one, .NET applications can be traced with any OpenTelemetry exporter pointed at a running
+workbench, which needs no SDK at all:
 
 ```bash
-npx sideseat
+npx sideseat                                   # the workbench, on http://localhost:5389
+export OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:5388/otel/default/v1/traces
 ```
+
+See [the integration docs](https://sideseat.ai/docs) for the exporter configuration.
 
 See [sideseat.ai/docs](https://sideseat.ai/docs) for full documentation.
 

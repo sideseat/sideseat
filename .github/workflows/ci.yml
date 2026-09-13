@@ -217,6 +217,23 @@ jobs:
           cd examples/javascript && npm run lint && npm run typecheck
           cd "$GITHUB_WORKSPACE" && uv run ruff check examples/python
 
+  specs:
+    name: TLA+ Specifications
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      # `make harden-spec` fetches tla2tools itself and fails on any violation, so this job needs nothing but a
+      # JVM. It exists because CONTRIBUTING describes the specifications as checked and nothing checked them:
+      # a broken `.tla` or `.cfg` could merge with every gate green.
+      - name: Model-check every specification
+        run: make harden-spec
+
   secrets:
     name: Secret Scan
     runs-on: ubuntu-latest

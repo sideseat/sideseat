@@ -617,6 +617,11 @@ fn every_lockfile_carries_its_manifests_engines() {
         .output()
         .expect("git is available in a git checkout");
 
+    let tracked: BTreeSet<String> = String::from_utf8_lossy(&listing.stdout)
+        .lines()
+        .map(str::to_string)
+        .collect();
+
     let engines_of = |value: &serde_json::Value| -> Option<String> {
         value
             .get("engines")?
@@ -627,8 +632,8 @@ fn every_lockfile_carries_its_manifests_engines() {
 
     let mut checked = 0usize;
     let mut disagree: Vec<String> = Vec::new();
-    for manifest in String::from_utf8_lossy(&listing.stdout)
-        .lines()
+    for manifest in tracked
+        .iter()
         .filter(|f| f.ends_with("package.json"))
         .filter(|f| !f.contains("/node_modules/"))
     {
@@ -669,16 +674,30 @@ fn every_lockfile_carries_its_manifests_engines() {
                 _ => None,
             };
             let Some(path) = path else { continue };
+            // A path that climbs past the repository root names something outside this tree, and a lockfile
+            // depending on a directory beside the checkout is a dependency nobody else can resolve. That was a
+            // silent `continue`, so it passed.
             let Some(joined) = join_relative(dir, path) else {
+                disagree.push(format!(
+                    "{lock_path} resolves `{key}` to `{path}`, which climbs above the repository root - a \
+                     local dependency outside the tree is one only this machine has"
+                ));
                 continue;
             };
             let candidate = format!("{joined}/package.json");
-            if repo.join(&candidate).exists() {
+            // **Tracked**, not merely present: an untracked manifest is the same machine-specific dependency
+            // by another route, and it is what a fresh clone would not have.
+            if tracked.contains(&candidate) {
                 // Keyed by the path, so the link and its metadata entry collapse to one comparison.
                 local.insert(path.to_string(), candidate);
             } else if resolved.is_some_and(|v| !v.starts_with("http")) {
+                let why = if repo.join(&candidate).exists() {
+                    "exists but is not tracked"
+                } else {
+                    "does not exist"
+                };
                 disagree.push(format!(
-                    "{lock_path} resolves `{key}` to `{path}`, but {candidate} does not exist"
+                    "{lock_path} resolves `{key}` to `{path}`, but {candidate} {why}"
                 ));
             }
         }
