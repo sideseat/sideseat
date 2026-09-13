@@ -377,13 +377,18 @@ jobs:
       # `websockets` resolves to 16.1.1 below 3.11 and 17.0.1 above, for instance - so auditing a single
       # interpreter leaves the other branches unexamined while the package supports `>=3.10`. Three
       # interpreters cover every branch that exists today; the `>=3.15` branch has no release to run yet.
+      # The scanner runs from `tools/audit`, which has its **own lockfile**: `--with pip-audit==2.10.1` pinned
+      # the tool and left uv to resolve its dependencies fresh on every run, so an unchanged commit could be
+      # audited by different code. `--path` names the environment to examine, because a locked scanner run from
+      # its own project audits *itself* otherwise - which reports clean about the wrong thing, and did while I
+      # was testing this.
       - name: Run pip-audit (sdk/python, all extras, every interpreter branch)
         run: |
-          cd sdk/python
           for python in 3.10 3.12 3.13; do
             echo "--- python $python"
-            uv sync --all-extras --python "$python"
-            uv run --python "$python" --with pip-audit==2.10.1 pip-audit
+            (cd sdk/python && uv sync --all-extras --python "$python")
+            uv run --project tools/audit pip-audit \
+              --path "$(echo sdk/python/.venv/lib/python*/site-packages)"
           done
 
       # The two standalone tools have their own lockfiles and were covered by nothing. Extending the scan here
@@ -392,7 +397,9 @@ jobs:
       - name: Run pip-audit (tools)
         run: |
           for tool in tools/otel-replay tools/mcp-calculator; do
-            (cd "$tool" && uv sync && uv run --with pip-audit==2.10.1 pip-audit)
+            (cd "$tool" && uv sync)
+            uv run --project tools/audit pip-audit \
+              --path "$(echo "$tool"/.venv/lib/python*/site-packages)"
           done
 
       # Unconditional, like the other three. It was briefly gated by an allowlist of eight known advisories

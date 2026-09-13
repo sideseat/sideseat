@@ -1,7 +1,7 @@
 /**
  * Pure reducer: AG-UI events -> rendered Message[].
  *
- * Adapted from engagement-mck/solution/site/src/lib/agui/reducer.ts.
+ * Adapted from the engagement-mck project's site
  * Trimmed to the events SideSeat agents emit; unknown events are
  * preserved in `eventLog` / `customEvents` / `rawEvents` so debug
  * panels surface everything.

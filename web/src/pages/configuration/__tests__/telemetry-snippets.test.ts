@@ -57,12 +57,34 @@ function undefinedNames(source: string): string[] {
   }
 }
 
+/**
+ * The interpreter the **SDK's own floor** names, fetched by uv rather than whatever `python3` the machine has.
+ *
+ * A snippet that parses on 3.13 and not on 3.10 is broken for a user the SDK says it supports, and a bare
+ * `python3` cannot see that: it was the runner's version in CI and the developer's locally, so the verdict
+ * moved with the machine. `requires-python = ">=3.10"` in `sdk/python/pyproject.toml` is the number this
+ * follows; uv downloads that interpreter if it is not present.
+ */
+const PYTHON_FLOOR = "3.10";
+
 function parsesAsPython(source: string): { ok: boolean; error?: string } {
   try {
-    execFileSync("python3", ["-c", "import ast,sys; ast.parse(sys.stdin.read())"], {
-      input: source,
-      stdio: ["pipe", "pipe", "pipe"],
-    });
+    execFileSync(
+      "uv",
+      [
+        "run",
+        "--python",
+        PYTHON_FLOOR,
+        "--no-project",
+        "python",
+        "-c",
+        "import ast,sys; ast.parse(sys.stdin.read())",
+      ],
+      {
+        input: source,
+        stdio: ["pipe", "pipe", "pipe"],
+      },
+    );
     return { ok: true };
   } catch (e: unknown) {
     const err = e as { stderr?: Buffer };

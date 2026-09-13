@@ -83,6 +83,9 @@ updates:
       # manifest" was the stated rule and these two were missed.
       - "/tools/otel-replay"
       - "/tools/mcp-calculator"
+      # The advisory scanner's own locked environment. Watched like any other manifest: a scanner nobody
+      # updates goes stale against the advisory database it reads.
+      - "/tools/audit"
     schedule:
       interval: "weekly"
     commit-message:

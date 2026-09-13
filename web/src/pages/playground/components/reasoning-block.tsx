@@ -1,4 +1,4 @@
-/* Adapted from engagement-mck/solution/site/src/components/chat/reasoning-block.tsx */
+/* Adapted from the engagement-mck project's site */
 import { Brain, ChevronRight } from "lucide-react";
 import { useMemo } from "react";
 import { cn } from "@/lib/utils";

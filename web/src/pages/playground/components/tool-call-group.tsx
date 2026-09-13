@@ -1,4 +1,4 @@
-/* Adapted from engagement-mck/solution/site/src/components/chat/tool-call-group.tsx */
+/* Adapted from the engagement-mck project's site */
 import { useCallback, useEffect, useState } from "react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import type { ToolCallMessage } from "@/api/agui/types";

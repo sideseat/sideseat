@@ -1,4 +1,4 @@
-# Adapted from observability-talk/demos/agent/agui/stream_buffer.py
+# Adapted from the observability-talk project's demo agent
 """Generic accumulator for AG-UI streaming `_CONTENT` / `_ARGS` / `_CHUNK` deltas.
 
 AG-UI breaks large payloads (tool args, text, reasoning) into many small

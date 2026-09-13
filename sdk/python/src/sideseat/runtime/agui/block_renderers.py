@@ -1,4 +1,4 @@
-# Adapted from observability-talk/demos/agent/agui/block_renderers.py
+# Adapted from the observability-talk project's demo agent
 """Pluggable renderers for the indented "block" portion under each event.
 
 A BlockRenderer takes a raw payload (str | dict | list) and turns it into

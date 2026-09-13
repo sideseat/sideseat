@@ -1,4 +1,4 @@
-# Adapted from observability-talk/demos/agent/agui/format_table.py
+# Adapted from the observability-talk project's demo agent
 """Per-EventType formatting spec.
 
 Each row stores ``(style, inline_fn, payload_attr, block_renderer)``:

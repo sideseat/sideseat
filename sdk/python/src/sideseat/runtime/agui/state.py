@@ -1,4 +1,4 @@
-# Adapted from observability-talk/demos/agent/agui/state.py
+# Adapted from the observability-talk project's demo agent
 """Per-run rendering state."""
 
 from __future__ import annotations

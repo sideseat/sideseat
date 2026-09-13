@@ -1,4 +1,4 @@
-/* Adapted from engagement-mck/solution/site/src/components/chat/tool-call-card.tsx */
+/* Adapted from the engagement-mck project's site */
 import { Check, ChevronRight, Copy, Wrench } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";

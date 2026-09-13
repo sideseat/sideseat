@@ -1,4 +1,4 @@
-# Adapted from observability-talk/demos/agent/agui/config.py
+# Adapted from the observability-talk project's demo agent
 """Configuration for the AG-UI renderer.
 
 Decisions that used to live as `if t in (...)` in the renderer body are

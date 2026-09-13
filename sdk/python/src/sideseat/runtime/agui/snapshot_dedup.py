@@ -1,4 +1,4 @@
-# Adapted from observability-talk/demos/agent/agui/snapshot_dedup.py
+# Adapted from the observability-talk project's demo agent
 """Skip snapshots that haven't actually changed.
 
 Some adapters (ag-ui-strands) emit MESSAGES_SNAPSHOT after every message,

@@ -1,4 +1,4 @@
-/* Adapted from engagement-mck/solution/site/src/components/chat/composer.tsx */
+/* Adapted from the engagement-mck project's site */
 import { ArrowUp, Square } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";

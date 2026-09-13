@@ -1,4 +1,4 @@
-/* Adapted from engagement-mck/solution/site/src/components/chat/message-item.tsx */
+/* Adapted from the engagement-mck project's site */
 import { AlertTriangle } from "lucide-react";
 import { memo } from "react";
 import { TextContent } from "@/components/thread/content/text-content";

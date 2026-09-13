@@ -1,4 +1,4 @@
-# Adapted from observability-talk/demos/agent/agui/renderer.py
+# Adapted from the observability-talk project's demo agent
 """AG-UI event stream → rich console.
 
 Decoupled from Strands: takes any ``AsyncIterator[BaseEvent]`` and prints

@@ -1,4 +1,4 @@
-/* Adapted from engagement-mck/solution/site/src/components/chat/message-list.tsx */
+/* Adapted from the engagement-mck project's site */
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { ChatState, Message, ToolCallMessage } from "@/api/agui/types";
 import { MessageItem } from "./message-item";

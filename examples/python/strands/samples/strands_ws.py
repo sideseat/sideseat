@@ -9,8 +9,8 @@ agents are registered with SideSeat over the persistent WS:
   invokable via POST /api/v1/project/{project_id}/agents/{name}/runs.
 
 Each agent runs with adaptive thinking enabled so the AG-UI stream surfaces
-reasoning blocks alongside text. Pattern lifted from aws-engagement's
-`solution/core/bedrock.py` — Bedrock's `additionalModelRequestFields.thinking`
+reasoning blocks alongside text. Pattern lifted from the aws-engagement
+project's Bedrock helper - Bedrock's `additionalModelRequestFields.thinking`
 is what makes Strands emit `reasoningText` deltas during `stream_async`, which
 the SDK's `StrandsEventTranslator` maps to AG-UI `REASONING_*` events.
 

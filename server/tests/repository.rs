@@ -1154,7 +1154,18 @@ fn every_module_path_cited_anywhere_resolves() {
     let citing: Vec<&String> = tracked
         .iter()
         .filter(|f| !f.starts_with("server/tests/fixtures/"))
-        .filter(|f| f.ends_with(".md") || f.ends_with(".mdx") || f.ends_with(".rs"))
+        // Every file kind that carries prose about this repository's layout. Markdown and Rust alone made the
+        // test's name ("anywhere") false: `sdk/python`'s `protocol.py` cites the schema in its module docstring,
+        // the TLA+ specifications cite the protocol they model, and the Makefile cites the scripts it runs - so
+        // a move could recreate exactly the defect this guard exists for while it passed.
+        .filter(|f| {
+            [
+                ".md", ".mdx", ".rs", ".py", ".ts", ".tsx", ".mjs", ".sh", ".tla", ".yml",
+            ]
+            .iter()
+            .any(|ext| f.ends_with(ext))
+                || f.ends_with("Makefile")
+        })
         .collect();
 
     let resolves = |citing_file: &str, cited: &str| -> bool {
@@ -1172,12 +1183,30 @@ fn every_module_path_cited_anywhere_resolves() {
                     other => parts.push(other),
                 }
             }
-            return tracked.contains(&parts.join("/"));
+            let resolved = parts.join("/");
+            // The ESM allowance applies here too: a relative import of `index` with a `.js` suffix beside an `index.ts` is the same
+            // convention, and this branch returned before the fallback below could say so.
+            return tracked.contains(&resolved)
+                || resolved.strip_suffix(".js").is_some_and(|stem| {
+                    [".ts", ".tsx"]
+                        .iter()
+                        .any(|ext| tracked.contains(&format!("{stem}{ext}")))
+                });
         }
         if tracked.iter().any(|f| f == cited) {
             return true;
         }
-        tracked.iter().any(|f| f.ends_with(&format!("/{cited}")))
+        if tracked.iter().any(|f| f.ends_with(&format!("/{cited}"))) {
+            return true;
+        }
+        // An ESM import names the *emitted* file: an import naming `index` with a `.js` suffix beside an `index.ts` is the convention, not a
+        // stale path, and TypeScript requires it. Resolved against the source it compiles from.
+        cited.strip_suffix(".js").is_some_and(|stem| {
+            [".ts", ".tsx"].iter().any(|ext| {
+                let source = format!("{stem}{ext}");
+                tracked.iter().any(|f| f.ends_with(&format!("/{source}")))
+            })
+        })
     };
 
     let mut checked = 0usize;
@@ -1199,30 +1228,41 @@ fn every_module_path_cited_anywhere_resolves() {
                 // citation of a position in that file, so it is stripped before resolving.
                 let cited = token.trim_end_matches(['.', ':']);
                 let cited = cited.split(':').next().unwrap_or(cited);
-                // `.json` as well as `.rs`. Restricted to Rust modules, this check watched the code and not
-                // the **data**: regrouping `server/assets/rules/` into three subdirectories left nineteen
-                // citations naming the old flat path, and nothing here could see one of them. Extensions the
-                // repository declares things in - a module and an asset - rather than every file type, because
-                // a `.png` in prose is a link and not a claim about layout.
-                if !(cited.ends_with(".rs") || cited.ends_with(".json")) || !cited.contains('/') {
-                    continue;
-                }
-                // Only what can be a path *in this repository*. A glob names a set rather than a file, and
-                // `~/.sideseat/sideseat.json`, `./sideseat.json` and `/path/to/service-account.json` are
-                // runtime and example paths - each of which the first version of this extension reported,
-                // because "ends in .json" is not the same question as "claims a place in this tree".
-                let first = cited.split('/').next().unwrap_or_default();
-                let names_a_directory_here = tracked
-                    .iter()
-                    .any(|f| f.split('/').any(|segment| segment == first));
-                if cited.contains('*')
+                // A path with at least one directory, and not a glob or a path outside the tree: a glob names
+                // a set rather than a file, and `~/.sideseat/sideseat.json`, `./sideseat.json` and
+                // `/path/to/service-account.json` are runtime and example paths that the first version of this
+                // extension reported.
+                let cited = cited.trim_start_matches(['@', '-']);
+                if !cited.contains('/')
+                    || cited.contains('*')
+                    // A shell or make variable, an assignment, or an elided path: not a literal claim about
+                    // where a file is. `$WORK/sideseat.json` and `sdk/python/.../client.py` are both fine.
+                    || cited.contains('$')
+                    || cited.contains('=')
+                    || cited.contains("...")
                     || cited.starts_with('~')
                     || cited.starts_with('/')
                     || cited.starts_with("./")
                     || cited.contains("node_modules/")
                     || cited.starts_with("http")
-                    || !names_a_directory_here
                 {
+                    continue;
+                }
+                // **The question is whether this repository has that file somewhere else.** Requiring the
+                // citation's first segment to name a directory that exists was the previous rule and it had the
+                // defect exactly backwards: a citation left pointing at a *removed* directory - `protocol/`,
+                // `benchmarks/` - was skipped as "not a repository path", which is the one case that matters.
+                // A basename the tree does not hold at all is skipped, and that is a **stated limit** rather
+                // than an oversight: it covers a deleted file, an external path, and - the case worth naming -
+                // a citation of a file that was *renamed*, whose old basename is gone by definition. Catching
+                // that needs history, not the working tree. What is left covering it: a script path in a make
+                // recipe fails when the recipe runs, and `every_script_that_locates_the_repository_root_finds_it`
+                // checks the scripts themselves. A basename the tree holds at another path is always a defect.
+                let basename = cited.rsplit('/').next().unwrap_or(cited);
+                let held_somewhere = tracked
+                    .iter()
+                    .any(|f| f.rsplit('/').next() == Some(basename));
+                if !held_somewhere {
                     continue;
                 }
                 checked += 1;

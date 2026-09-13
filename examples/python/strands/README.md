@@ -4,7 +4,7 @@
 
 ```bash
 # Configuration is shared by all suites and lives two levels up, in examples/
-cp ../../../.env.example ../../../.env
+cp ../../.env.example ../../.env
 # Edit examples/.env - at minimum AWS_REGION and AWS_DEFAULT_REGION for Bedrock
 uv sync
 ```
