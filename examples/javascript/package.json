@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "type": "module",
   "engines": {
-    "node": ">=20.0.0"
+    "node": "^22.13.0 || >=24"
   },
   "scripts": {
     "strands": "tsx src/strands/runner.ts",

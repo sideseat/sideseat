@@ -143,6 +143,7 @@
 #                        Not a machine-wide volume prune - that would take other projects' data.
 #     clean              Remove *all* build artifacts (target, dist, sdk artifacts). Costs a cold
 #                        compile afterwards, so prefer clean-stale unless you want the whole lot.
+#     node-floor         Derive the Node versions the lockfiles accept (see the setup check)
 #     download-prices    Update LLM pricing data from litellm
 #     deps-check         Check for outdated dependencies (all components)
 #
@@ -264,7 +265,7 @@ cli-bin = $(CLI_DIR)/platforms/platform-$(1)/$(BIN_NAME_$(1))
 .PHONY: build-docker publish-docker
 .PHONY: sign-release sign-verify sign-notarize
 .PHONY: build-release publish-release publish-brew
-.PHONY: clean clean-stale clean-docker disk disk-guard download-prices deps-check run start
+.PHONY: node-floor clean clean-stale clean-docker disk disk-guard download-prices deps-check run start
 
 .SILENT: help version
 
@@ -348,19 +349,13 @@ help:
 setup:
 	@echo "[setup] Checking prerequisites..."
 	@command -v node >/dev/null 2>&1 || { echo "Error: node not found. Install Node.js 22.22+ or 24+"; exit 1; }
-	@#  The floor is checked, not merely stated, and it is **measured** rather than guessed: no single
-	@#  version satisfies every `engines.node` range in the four lockfiles, because some belong to
-	@#  platform-specific optional packages that are never installed. Over the ranges that are, the answer is
-	@#  22.22+ or 24+ - 23.x is excluded by the `^20.19 || ^22.12 || >=24` idiom dozens of packages use, and
-	@#  20.19 by `react-router`. Two earlier attempts here were wrong in both directions ("20+" admitted a
-	@#  version that fails; ">=22.12" refused none but admitted 23). Redo the measurement after a dependency
-	@#  bump with:
-	@#    node -e 'const s=require("./docs/node_modules/semver"),f=require("fs");for(const l of
-	@#    ["web","sdk/js","examples/javascript","docs"].map(d=>d+"/package-lock.json"))for(const [n,p] of
-	@#    Object.entries(JSON.parse(f.readFileSync(l)).packages||{}))if(p.engines?.node&&!p.optional&&!p.os&&
-	@#    !p.cpu&&!s.satisfies(process.versions.node,p.engines.node))console.log(l,n,p.engines.node)'
-	@#  The failure it prevents surfaces as a module error from inside a dependency, naming neither node nor
-	@#  its version.
+	@#  The floor is checked, not merely stated, and it is **derived** rather than reasoned about - three
+	@#  attempts at reasoning produced three wrong answers, each written into four places. The derivation is
+	@#  `make node-floor` (scripts/node-floor.mjs), which reads every lockfile and prints which versions every
+	@#  installed `engines.node` range accepts. Today that is 22.22+ or 24+: 23.x is excluded by the
+	@#  `^20.19 || ^22.12 || >=24` idiom dozens of packages use, and 20.19 by `react-router`. Re-run it after a
+	@#  dependency bump; the failure it prevents surfaces as a module error from inside a dependency, naming
+	@#  neither node nor its version.
 	@node -e 'var v=process.versions.node.split(".").map(Number), ok=(v[0]===22 && v[1]>=22) || v[0]>=24; if (!ok) { console.error("Error: Node " + process.versions.node + " cannot build this repository. It needs 22.22+ or 24+ (CI uses 24)."); process.exit(1); }'
 	@command -v cargo >/dev/null 2>&1 || { echo "Error: cargo not found. Install Rust"; exit 1; }
 	@command -v uv >/dev/null 2>&1 || { echo "Error: uv not found. Install with: curl -LsSf https://astral.sh/uv/install.sh | sh"; exit 1; }
@@ -1195,6 +1190,11 @@ deps-check:
 	@echo ""
 	@echo "=== Docs ==="
 	@cd docs && npm outdated || true
+
+node-floor:
+	@#  Prints the Node versions every installed `engines.node` range accepts. Needs an installed tree for
+	@#  `semver`, which is transitive rather than declared - the script says so and stops if none is there.
+	@node scripts/node-floor.mjs
 
 download-prices:
 	@echo "[download-prices] Downloading LLM pricing data..."

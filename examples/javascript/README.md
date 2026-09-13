@@ -4,7 +4,7 @@ TypeScript samples for **Strands Agents**, **Vercel AI SDK** and the **Claude Ag
 
 ## Prerequisites
 
-- **Node.js**: >= 20.0.0
+- **Node.js**: 22.13+ (within 22.x) or 24+ — what this suite's lockfile accepts, measured with `make node-floor`. The repository as a whole needs 22.22+ or 24+, which is stricter.
 - **AWS credentials**: Configure via environment variables or AWS profiles
 - **AWS permissions**: `bedrock:InvokeModel` for Claude, Titan Embeddings, Titan Image
 - **Python**: Required for MCP sample only

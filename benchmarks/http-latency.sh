@@ -44,7 +44,7 @@ MIN_P99_SAMPLES="${BENCH_MIN_P99_SAMPLES:-100}"
 # coin flip. An OTLP exporter batches on a schedule (5 s by default) and never behaves this way. The
 # 8-concurrent read is the deliberate concurrency measurement, and it keeps no gap.
 GAP_MS="${BENCH_GAP_MS:-25}"
-ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 WORK="$(mktemp -d)"
 PG_NAME=sideseat-bench-pg
 CH_NAME=sideseat-bench-ch

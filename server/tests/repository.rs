@@ -580,6 +580,151 @@ fn every_tree_diagram_names_things_that_exist() {
     );
 }
 
+/// The repository's Node requirement is stated identically everywhere it is stated.
+///
+/// It appears in four places — the Makefile header, `make help`, the `setup` prerequisite check and
+/// `CONTRIBUTING.md` — and each time it changed, one of them was missed: `make help` said "20+" for a whole
+/// review cycle after the others were corrected, and a *fifth* place (the JavaScript samples) said "20+" for
+/// two. A prerequisite that is wrong in one place is worse than one that is absent, because the reader who
+/// finds it stops looking.
+///
+/// Scoped to the repository-wide floor: `examples/javascript` states its own, looser range on purpose, since
+/// that suite is installable on its own. What is pinned is that the repository's number has one value.
+#[test]
+fn the_node_requirement_is_stated_once() {
+    let repo = repo_root();
+    let mut stated: BTreeMap<String, Vec<String>> = BTreeMap::new();
+    for file in ["Makefile", "CONTRIBUTING.md"] {
+        let text = std::fs::read_to_string(repo.join(file)).unwrap_or_default();
+        for (number, line) in text.lines().enumerate() {
+            // The shape the floor is written in: `22.22+ or 24+`.
+            for (at, c) in line.char_indices() {
+                if !c.is_ascii_digit() || (at > 0 && !line[..at].ends_with([' ', '(', '>'])) {
+                    continue;
+                }
+                let rest = &line[at..];
+                let end = match rest.find(|c: char| !c.is_ascii_digit() && c != '.' && c != '+') {
+                    Some(end) => end,
+                    None => continue,
+                };
+                let (first, tail) = (&rest[..end], &rest[end..]);
+                if !first.ends_with('+') || !first.contains('.') {
+                    continue;
+                }
+                let Some(second) = tail.strip_prefix(" or ") else {
+                    continue;
+                };
+                let second_end = second
+                    .find(|c: char| !c.is_ascii_digit() && c != '.' && c != '+')
+                    .unwrap_or(second.len());
+                let second = &second[..second_end];
+                if !second.ends_with('+') {
+                    continue;
+                }
+                stated
+                    .entry(format!("{first} or {second}"))
+                    .or_default()
+                    .push(format!("{file}:{}", number + 1));
+            }
+        }
+    }
+
+    assert!(
+        stated.values().map(Vec::len).sum::<usize>() >= 4,
+        "found the Node requirement in {} place(s), expected at least four - the scan is wrong, not the \
+         documents: {stated:?}",
+        stated.values().map(Vec::len).sum::<usize>()
+    );
+    assert!(
+        stated.len() == 1,
+        "the Node requirement is stated {} different ways:\n  {}",
+        stated.len(),
+        stated
+            .iter()
+            .map(|(value, places)| format!("`{value}` at {}", places.join(", ")))
+            .collect::<Vec<_>>()
+            .join("\n  ")
+    );
+}
+
+/// Every script that walks up to the repository root actually arrives there.
+///
+/// This is the **fifth** instance of one class: a file moved to a purpose-named directory keeps counting the
+/// levels its old location had, and nothing fails at the moment of the move. The first four were caught by
+/// running the thing — an embedded asset folder, two `include_str!` paths, thirteen package manifests, the
+/// fixture scripts. The fifth was not: `benchmarks/http-latency.sh` came from `misc/bench/`, kept `../..`, and
+/// resolved the root to the *parent of the repository* — so `make bench-http`, which is the latency gate,
+/// failed before building anything, and it stayed that way because a benchmark is not part of `make check`.
+///
+/// The claim is evaluated, not read: the level count in the expression is compared against the file's own
+/// depth in the tree. That is exactly the fact a move changes, and the only one a reviewer reliably misses.
+#[test]
+fn every_script_that_locates_the_repository_root_finds_it() {
+    let repo = repo_root();
+    let listing = Command::new("git")
+        .args(["ls-files"])
+        .current_dir(repo)
+        .output()
+        .expect("git is available in a git checkout");
+    let tracked: Vec<String> = String::from_utf8_lossy(&listing.stdout)
+        .lines()
+        .map(str::to_string)
+        .collect();
+
+    let mut checked = 0usize;
+    let mut wrong: Vec<String> = Vec::new();
+    for file in tracked
+        .iter()
+        .filter(|f| f.ends_with(".sh") || f.ends_with(".py"))
+        .filter(|f| !f.contains("/.venv/") && !f.starts_with("examples/"))
+    {
+        // The file's own depth: `benchmarks/http-latency.sh` sits one directory below the root.
+        let depth = file.matches('/').count();
+        let text = std::fs::read_to_string(repo.join(file)).unwrap_or_default();
+        for (number, line) in text.lines().enumerate() {
+            let assigns_root = line.contains("ROOT=") || line.contains("ROOT =");
+            if !assigns_root {
+                continue;
+            }
+            // Two idioms, and both state a level count that a move invalidates.
+            let stated = if let Some(at) = line.find("parents[") {
+                line[at + "parents[".len()..]
+                    .split(']')
+                    .next()
+                    .and_then(|n| n.trim().parse::<usize>().ok())
+            } else if line.contains("dirname") {
+                Some(line.matches("..").count())
+            } else {
+                None
+            };
+            let Some(stated) = stated else { continue };
+            if stated == 0 {
+                continue;
+            }
+            checked += 1;
+            if stated != depth {
+                wrong.push(format!(
+                    "{file}:{}: walks up {stated} level(s) from a file {depth} deep, so it lands {} the \
+                     repository root",
+                    number + 1,
+                    if stated > depth { "above" } else { "below" }
+                ));
+            }
+        }
+    }
+
+    assert!(
+        checked >= 3,
+        "only checked {checked} root resolutions - the scan is not finding them"
+    );
+    assert!(
+        wrong.is_empty(),
+        "{} script(s) do not resolve the repository root:\n  {}",
+        wrong.len(),
+        wrong.join("\n  ")
+    );
+}
+
 /// `CONTRIBUTING.md`'s project structure names every top-level directory, and only real ones.
 ///
 /// It is the first thing a contributor reads, and it is a plain list rather than a tree, so the diagram check
