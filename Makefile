@@ -355,7 +355,12 @@ help:
 update-python-deps:
 	@#  The only place that re-locks. Everything else refuses a stale lockfile rather than rewriting it, which is
 	@#  what makes a green `make check` a statement about the dependencies that are committed.
-	@for project in . sdk/python examples/python tools/audit tools/otel-replay tools/mcp-calculator; do \
+	@#  **Derived from the tree.** The list used to be written out, and it named `examples/python`, which is not
+	@#  a uv project: it holds thirteen, each with its own lockfile, and `cd examples/python && uv lock` resolves
+	@#  the *repository root* project instead. So thirteen sample lockfiles were never updated by anything while
+	@#  this target looked complete, and the root's was re-locked twice.
+	@for manifest in $$(git ls-files '*pyproject.toml'); do \
+		project=$$(dirname "$$manifest"); \
 		echo "[update-python-deps] $$project"; \
 		(cd "$$project" && uv lock --upgrade); \
 	done
@@ -386,7 +391,12 @@ setup:
 	@cd examples/javascript && npm ci
 	@echo "[setup] Installing Python dependencies..."
 	@cd sdk/python && uv sync --locked --extra dev
-	@cd examples/python && uv sync --locked --group dev
+	@#  `common`, which holds the helpers the suites share, and the rest on first `uv run` - a suite pulls a
+	@#  framework's whole dependency tree, so installing thirteen of them at setup would cost minutes for
+	@#  frameworks a contributor may never run. Before this the line read `cd examples/python && uv sync`, and
+	@#  there is no project *there*: it silently synced the repository root, so thirteen suites looked installed
+	@#  and were not.
+	@cd examples/python/common && uv sync --locked
 	@echo "[setup] Installing cargo-tarpaulin..."
 	@cargo install cargo-tarpaulin --quiet
 	@mkdir -p .sideseat

@@ -1659,7 +1659,7 @@ wheels = [
 
 [[package]]
 name = "sideseat"
-source = { editable = "../../../../sdk/python" }
+source = { editable = "../../../sdk/python" }
 dependencies = [
     { name = "opentelemetry-api" },
     { name = "opentelemetry-exporter-otlp-proto-http" },
@@ -1883,7 +1883,7 @@ requires-dist = [
     { name = "opentelemetry-instrumentation-botocore", specifier = ">=0.58b0" },
     { name = "pymupdf", specifier = ">=1.25.0" },
     { name = "python-dotenv", specifier = ">=1.2.0" },
-    { name = "sideseat", extras = ["openai", "anthropic", "ws", "agui"], editable = "../../../../sdk/python" },
+    { name = "sideseat", extras = ["openai", "anthropic", "ws", "agui"], editable = "../../../sdk/python" },
     { name = "strands-agents", specifier = ">=1.30.0" },
     { name = "strands-agents-tools", specifier = ">=0.2.22" },
     { name = "telemetry-common", editable = "../common" },
@@ -1928,7 +1928,7 @@ requires-dist = [
     { name = "opentelemetry-exporter-otlp-proto-http", specifier = ">=1.20.0" },
     { name = "opentelemetry-sdk", specifier = ">=1.20.0" },
     { name = "python-dotenv", specifier = ">=0.19.0" },
-    { name = "sideseat", editable = "../../../../sdk/python" },
+    { name = "sideseat", editable = "../../../sdk/python" },
 ]
 provides-extras = ["bedrock-openai", "bedrock-anthropic", "bedrock-compat"]
 

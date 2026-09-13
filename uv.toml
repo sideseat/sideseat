@@ -1,0 +1,12 @@
+# The resolver version, declared once and enforced by uv itself.
+#
+# CI pinned `setup-uv`'s `version` input, which is only half the problem: `make update-python-deps` is the one
+# command that *writes* lockfiles, and it runs on a contributor's machine with whatever uv they have. A lockfile
+# written by a different resolver is exactly what `--locked` everywhere else exists to prevent, so the version is
+# a fact of this repository rather than of a runner configuration - `required-version` makes uv refuse to run at
+# all when it does not match, which no Makefile check can do for `uv` invoked directly.
+#
+# Raising it: bump here and in the four `setup-uv` steps, run `make update-python-deps`, and commit whatever the
+# new resolver writes. Verified before pinning by running `uv sync --locked` under this version against every
+# lockfile in the tree.
+required-version = "==0.12.13"

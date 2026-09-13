@@ -24,6 +24,13 @@ bedrock-anthropic = ["anthropic>=1.0", "httpx2>=2.0"]
 # Convenience bundle for suites that use both.
 bedrock-compat = ["openai>=2.0", "anthropic>=1.0", "httpx2>=2.0"]
 
+[tool.uv]
+# The resolver version this repository declares. Restated here because this project configures uv (the
+# `sources` table below is a `[tool.uv]` subtable), and a project's own configuration **replaces** the
+# `uv.toml` found above it rather than merging. Held equal to the root by
+# `every_uv_project_requires_the_same_resolver`.
+required-version = "==0.12.13"
+
 [tool.uv.sources]
 sideseat = { path = "../../../sdk/python", editable = true }
 

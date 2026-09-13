@@ -229,7 +229,13 @@ jobs:
         run: cd sdk/python && uv run mypy src
 
       - name: Test
-        run: cd sdk/python && uv run pytest
+        run: cd sdk/python && uv run --locked --extra dev pytest
+
+      # The **published artefacts**, which nothing built: an editable install proves the source imports, not
+      # that the sdist and wheel assemble - and a packaging break first appears at `uv publish` otherwise, the
+      # same gap `web` and `sdk/js` had until their builds became steps.
+      - name: Build
+        run: make build-sdk-python
 
   check-versions:
     name: Version Check

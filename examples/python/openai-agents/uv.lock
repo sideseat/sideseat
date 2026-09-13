@@ -556,7 +556,7 @@ requires-dist = [
     { name = "openai-agents", specifier = ">=0.12.1" },
     { name = "pymupdf", specifier = ">=1.24" },
     { name = "python-dotenv", specifier = ">=1.2.0" },
-    { name = "sideseat", extras = ["openai-agents"], editable = "../../../../sdk/python" },
+    { name = "sideseat", extras = ["openai-agents"], editable = "../../../sdk/python" },
     { name = "telemetry-common", extras = ["bedrock-openai"], editable = "../common" },
 ]
 
@@ -926,7 +926,7 @@ wheels = [
 
 [[package]]
 name = "sideseat"
-source = { editable = "../../../../sdk/python" }
+source = { editable = "../../../sdk/python" }
 dependencies = [
     { name = "opentelemetry-api" },
     { name = "opentelemetry-exporter-otlp-proto-http" },
@@ -1059,7 +1059,7 @@ requires-dist = [
     { name = "opentelemetry-exporter-otlp-proto-http", specifier = ">=1.20.0" },
     { name = "opentelemetry-sdk", specifier = ">=1.20.0" },
     { name = "python-dotenv", specifier = ">=0.19.0" },
-    { name = "sideseat", editable = "../../../../sdk/python" },
+    { name = "sideseat", editable = "../../../sdk/python" },
 ]
 provides-extras = ["bedrock-openai", "bedrock-anthropic", "bedrock-compat"]
 

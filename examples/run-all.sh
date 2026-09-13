@@ -39,7 +39,10 @@ run_py() {
   echo "### py/$suite/$sample"
   local mark; mark="$(watermark)"
   # An `error` sample is meant to fail, so its exit code carries no information.
-  if timeout 900 uv run --directory "$ROOT/examples/python/$suite" "$script" "$sample" --sideseat "$@" \
+  # `--locked`: each suite is its own project, and a bare `uv run` rewrites that suite's lockfile to match a
+  # drifted manifest - so a verification run could quietly change what it was verifying. `make
+  # update-python-deps` is the one place that re-locks.
+  if timeout 900 uv run --locked --directory "$ROOT/examples/python/$suite" "$script" "$sample" --sideseat "$@" \
     >"/tmp/s-$suite-$sample.log" 2>&1 || [[ "$expect_err" == yes ]]; then
     verify "py/$suite/$sample" "$expect_err" "$mark"
   else

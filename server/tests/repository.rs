@@ -789,6 +789,102 @@ fn every_lockfile_carries_its_manifests_engines() {
     );
 }
 
+/// Every uv project requires the same resolver, and CI installs exactly that one.
+///
+/// `required-version` is what makes the pin real: uv refuses to run when it does not match, which no Makefile
+/// check can do for a `uv` invoked directly - and `make update-python-deps` is the one command that *writes*
+/// lockfiles, on a contributor's machine. Pinning `setup-uv`'s version input covered CI alone.
+///
+/// It has to be restated per project, and that is uv's rule rather than a choice: a project's own `[tool.uv]`
+/// **replaces** the `uv.toml` found above it instead of merging, so fourteen projects were exactly the ones a
+/// differently-versioned uv could still write lockfiles for. Verified by mutating one and watching uv refuse.
+/// This test is what keeps the fifteen declarations one value.
+#[test]
+fn every_uv_project_requires_the_same_resolver() {
+    let repo = repo_root();
+    let listing = Command::new("git")
+        .args(["ls-files"])
+        .current_dir(repo)
+        .output()
+        .expect("git is available in a git checkout");
+
+    let mut declared: BTreeMap<String, Vec<String>> = BTreeMap::new();
+    for file in String::from_utf8_lossy(&listing.stdout)
+        .lines()
+        .filter(|f| f.ends_with("pyproject.toml") || f.ends_with("uv.toml"))
+    {
+        let text = std::fs::read_to_string(repo.join(file)).unwrap_or_default();
+        for line in text.lines() {
+            let trimmed = line.trim();
+            if trimmed.starts_with('#') {
+                continue;
+            }
+            if let Some(value) = trimmed.strip_prefix("required-version") {
+                let value = value
+                    .trim_start_matches([' ', '='])
+                    .trim()
+                    .trim_matches('"');
+                declared
+                    .entry(value.to_string())
+                    .or_default()
+                    .push(file.to_string());
+            }
+        }
+    }
+
+    assert!(
+        declared.values().map(Vec::len).sum::<usize>() >= 10,
+        "found only {} `required-version` declarations - a project with its own `[tool.uv]` and no \
+         `required-version` is one a differently-versioned uv can write lockfiles for: {declared:?}",
+        declared.values().map(Vec::len).sum::<usize>()
+    );
+    assert!(
+        declared.len() == 1,
+        "the resolver is required at {} different versions:\n  {}",
+        declared.len(),
+        declared
+            .iter()
+            .map(|(value, files)| format!("`{value}` in {}", files.join(", ")))
+            .collect::<Vec<_>>()
+            .join("\n  ")
+    );
+
+    // And every project that configures uv at all must say it, since its own section replaces the root file.
+    let mut silent: Vec<String> = Vec::new();
+    for file in String::from_utf8_lossy(&listing.stdout)
+        .lines()
+        .filter(|f| f.ends_with("pyproject.toml"))
+    {
+        let text = std::fs::read_to_string(repo.join(file)).unwrap_or_default();
+        if text.contains("[tool.uv") && !text.contains("required-version") {
+            silent.push(file.to_string());
+        }
+    }
+    assert!(
+        silent.is_empty(),
+        "{} project(s) configure uv without requiring a version, so the root `uv.toml` does not reach them:\n  {}",
+        silent.len(),
+        silent.join("\n  ")
+    );
+
+    // CI installs the version the tree requires, or the pin holds in one place and not the other.
+    let required = declared
+        .keys()
+        .next()
+        .expect("one value")
+        .trim_start_matches("==")
+        .to_string();
+    let workflow = std::fs::read_to_string(repo.join(".github/workflows/ci.yml"))
+        .expect("the workflow is committed");
+    let pins = workflow.matches(&format!("version: '{required}'")).count();
+    let setups = workflow.matches("astral-sh/setup-uv@").count();
+    assert_eq!(
+        pins, setups,
+        "{setups} job(s) install uv and {pins} pin `{required}` - a job without the version input installs \
+         whatever is newest, which is the resolver writing this repository's lockfiles in CI"
+    );
+}
+
 /// The repository's Node requirement is stated identically everywhere it is stated.
 ///
 /// It appears in four places — the Makefile header, `make help`, the `setup` prerequisite check and

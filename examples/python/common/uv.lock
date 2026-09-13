@@ -491,7 +491,7 @@ wheels = [
 
 [[package]]
 name = "sideseat"
-source = { editable = "../../../../sdk/python" }
+source = { editable = "../../../sdk/python" }
 dependencies = [
     { name = "opentelemetry-api" },
     { name = "opentelemetry-exporter-otlp-proto-http" },
@@ -501,7 +501,8 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "ag-ui-protocol", marker = "extra == 'agui'", specifier = ">=0.1.18" },
-    { name = "ag-ui-protocol", marker = "extra == 'all'", specifier = ">=0.1" },
+    { name = "ag-ui-protocol", marker = "extra == 'all'", specifier = ">=0.1.18" },
+    { name = "httpx", marker = "extra == 'all'", specifier = ">=0.27" },
     { name = "httpx", marker = "extra == 'anthropic'", specifier = ">=0.27" },
     { name = "logfire", marker = "extra == 'all'", specifier = ">=4.29.0" },
     { name = "logfire", marker = "extra == 'anthropic'", specifier = ">=4.29.0" },
@@ -511,15 +512,19 @@ requires-dist = [
     { name = "logfire", marker = "extra == 'pydantic-ai'", specifier = ">=4.29.0" },
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.13.0" },
     { name = "openinference-instrumentation-agno", marker = "extra == 'agno'", specifier = ">=0.1.0" },
+    { name = "openinference-instrumentation-agno", marker = "extra == 'all'", specifier = ">=0.1.0" },
     { name = "openinference-instrumentation-autogen", marker = "extra == 'ag2'", specifier = ">=0.1.0" },
+    { name = "openinference-instrumentation-autogen", marker = "extra == 'all'", specifier = ">=0.1.0" },
     { name = "openinference-instrumentation-autogen-agentchat", marker = "extra == 'all'", specifier = ">=0.1.0" },
     { name = "openinference-instrumentation-autogen-agentchat", marker = "extra == 'autogen'", specifier = ">=0.1.0" },
     { name = "openinference-instrumentation-crewai", marker = "extra == 'all'", specifier = ">=0.1.0" },
     { name = "openinference-instrumentation-crewai", marker = "extra == 'crewai'", specifier = ">=0.1.0" },
+    { name = "openinference-instrumentation-haystack", marker = "extra == 'all'", specifier = ">=0.1.0" },
     { name = "openinference-instrumentation-haystack", marker = "extra == 'haystack'", specifier = ">=0.1.0" },
     { name = "openinference-instrumentation-langchain", marker = "extra == 'all'", specifier = ">=0.1.0" },
     { name = "openinference-instrumentation-langchain", marker = "extra == 'langchain'", specifier = ">=0.1.0" },
     { name = "openinference-instrumentation-langchain", marker = "extra == 'langgraph'", specifier = ">=0.1.0" },
+    { name = "openinference-instrumentation-smolagents", marker = "extra == 'all'", specifier = ">=0.1.0" },
     { name = "openinference-instrumentation-smolagents", marker = "extra == 'smolagents'", specifier = ">=0.1.0" },
     { name = "opentelemetry-api", specifier = ">=1.39.0" },
     { name = "opentelemetry-exporter-otlp-proto-http", specifier = ">=1.39.0" },
@@ -597,7 +602,7 @@ requires-dist = [
     { name = "opentelemetry-exporter-otlp-proto-http", specifier = ">=1.20.0" },
     { name = "opentelemetry-sdk", specifier = ">=1.20.0" },
     { name = "python-dotenv", specifier = ">=0.19.0" },
-    { name = "sideseat", editable = "../../../../sdk/python" },
+    { name = "sideseat", editable = "../../../sdk/python" },
 ]
 provides-extras = ["bedrock-openai", "bedrock-anthropic", "bedrock-compat"]
 

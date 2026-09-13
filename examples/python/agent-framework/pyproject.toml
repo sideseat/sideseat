@@ -24,6 +24,11 @@ agent-framework = "cli:main"
 telemetry-agent-framework = "cli:main"
 
 [tool.uv]
+# The resolver version this repository declares. Restated here because a project's own `[tool.uv]`
+# **replaces** the `uv.toml` found above it rather than merging with it, so without this line these
+# projects were the ones a differently-versioned uv could still write lockfiles for. Held equal to the
+# root by `every_uv_project_requires_the_same_resolver`.
+required-version = "==0.12.13"
 prerelease = "allow"
 
 [tool.uv.sources]

@@ -31,20 +31,20 @@ FIXTURES="server/tests/fixtures/messages"
 # rather than listed here: they differ per suite (bedrock has converse/invoke_model, not
 # tool_use) and a hardcoded list silently skips or fails whole suites when it drifts.
 SUITES=(
-  "strands|uv run --directory examples/python/strands strands {S}"
-  "langgraph|uv run --directory examples/python/langgraph langgraph {S}"
-  "crewai|uv run --directory examples/python/crewai crewai {S}"
-  "adk|uv run --directory examples/python/adk telemetry-adk {S}"
-  "bedrock|uv run --directory examples/python/bedrock bedrock {S}"
-  "openai|uv run --directory examples/python/openai openai-provider {S}"
-  "openai-agents|uv run --directory examples/python/openai-agents openai-agents {S}"
-  "anthropic|uv run --directory examples/python/anthropic anthropic-provider {S}"
-  "agent-framework|uv run --directory examples/python/agent-framework agent-framework {S}"
-  "claude-agent-sdk|uv run --directory examples/python/claude-agent-sdk claude-agent-sdk {S}"
+  "strands|uv run --locked --directory examples/python/strands strands {S}"
+  "langgraph|uv run --locked --directory examples/python/langgraph langgraph {S}"
+  "crewai|uv run --locked --directory examples/python/crewai crewai {S}"
+  "adk|uv run --locked --directory examples/python/adk telemetry-adk {S}"
+  "bedrock|uv run --locked --directory examples/python/bedrock bedrock {S}"
+  "openai|uv run --locked --directory examples/python/openai openai-provider {S}"
+  "openai-agents|uv run --locked --directory examples/python/openai-agents openai-agents {S}"
+  "anthropic|uv run --locked --directory examples/python/anthropic anthropic-provider {S}"
+  "agent-framework|uv run --locked --directory examples/python/agent-framework agent-framework {S}"
+  "claude-agent-sdk|uv run --locked --directory examples/python/claude-agent-sdk claude-agent-sdk {S}"
   # Listed so the inventory is complete and its absence is visible rather than silent. Skipped
   # unless a first-party key is present: autogen's runner has no Bedrock path, so it cannot run
   # on the AWS credentials every other suite uses.
-  "autogen|uv run --directory examples/python/autogen autogen {S}"
+  "autogen|uv run --locked --directory examples/python/autogen autogen {S}"
   "vercel-ai-js|cd examples/javascript && npm run vercel-ai -- {S}"
   "strands-js|cd examples/javascript && npm run strands -- {S}"
   "claude-agent-sdk-js|cd examples/javascript && npm run claude-agent-sdk -- {S}"
