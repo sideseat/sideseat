@@ -4,6 +4,7 @@ version = "1.0.13"
 license = "Apache-2.0"
 publish = false
 edition = "2024"
+rust-version.workspace = true
 
 [[bin]]
 name = "sideseat"

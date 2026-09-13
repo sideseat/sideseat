@@ -307,8 +307,17 @@ fn no_fixture_carries_the_capturing_users_name() {
         .or_else(|_| std::env::var("USERNAME"))
         .unwrap_or_default();
     let current = (current.len() >= 3 && current != PLACEHOLDER).then_some(current);
-    // The prefixes a home directory is spelled with, on every platform a capture can come from.
-    let prefixes: [&[u8]; 4] = [b"/Users/", b"/home/", br"C:\Users\", b"C:/Users/"];
+    // The prefixes a home directory is spelled with, on every platform a capture can come from - and in both
+    // encodings, because a fixture is JSON: a Windows path arrives as `C:\\Users\\alice`, so the literal
+    // single-backslash form never matches the bytes on disk. The first version had only that form, and the
+    // mutation that "verified" it used forward slashes, so the case it was written for was untested.
+    let prefixes: [&[u8]; 5] = [
+        b"/Users/",
+        b"/home/",
+        br"C:\Users\",
+        br"C:\\Users\\",
+        b"C:/Users/",
+    ];
     // **Tracked files only**, which is the property: the concern is what a public repository carries, and a
     // local-only fixture directory is gitignored precisely because it is nobody else's. Scanning the working
     // tree instead reported eight files in `vercel-ai-js/image-gen/`, which `.gitignore` excludes - a failure
@@ -844,6 +853,61 @@ fn the_node_requirement_is_stated_once() {
             .map(|(value, places)| format!("`{value}` at {}", places.join(", ")))
             .collect::<Vec<_>>()
             .join("\n  ")
+    );
+}
+
+/// Every relative `$schema` reference in a tracked JSON file resolves.
+///
+/// The **sixth** instance of the relative-depth class, and the first that no earlier guard could see: nothing
+/// executes a `$schema`, so `deploy/local/sideseat.json` pointed at `../../../config/…` from two levels down
+/// and every check stayed green while an editor silently validated against nothing. A configuration file whose
+/// schema does not load is worse than one with no schema, because the absence of complaints reads as approval.
+#[test]
+fn every_relative_schema_reference_resolves() {
+    let repo = repo_root();
+    let listing = Command::new("git")
+        .args(["ls-files", "*.json"])
+        .current_dir(repo)
+        .output()
+        .expect("git is available in a git checkout");
+
+    let mut checked = 0usize;
+    let mut broken: Vec<String> = Vec::new();
+    for file in String::from_utf8_lossy(&listing.stdout)
+        .lines()
+        .filter(|f| !f.contains("/node_modules/") && !f.starts_with("server/tests/fixtures/"))
+    {
+        let Ok(text) = std::fs::read_to_string(repo.join(file)) else {
+            continue;
+        };
+        let Ok(value) = serde_json::from_str::<serde_json::Value>(&text) else {
+            continue;
+        };
+        let Some(reference) = value.get("$schema").and_then(serde_json::Value::as_str) else {
+            continue;
+        };
+        if reference.starts_with("http") {
+            continue;
+        }
+        checked += 1;
+        let dir = file.rsplit_once('/').map_or("", |(parent, _)| parent);
+        match join_relative(dir, reference) {
+            Some(target) if repo.join(&target).exists() => {}
+            Some(target) => broken.push(format!(
+                "{file}: `{reference}` resolves to {target}, which is absent"
+            )),
+            None => broken.push(format!(
+                "{file}: `{reference}` climbs above the repository root"
+            )),
+        }
+    }
+
+    assert!(checked >= 3, "only checked {checked} schema references");
+    assert!(
+        broken.is_empty(),
+        "{} schema reference(s) resolve to nothing:\n  {}",
+        broken.len(),
+        broken.join("\n  ")
     );
 }
 

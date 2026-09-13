@@ -1,5 +1,5 @@
 {
-  "$schema": "../../../config/sideseat.schema.json",
+  "$schema": "../../config/sideseat.schema.json",
   "server": {
     "host": "127.0.0.1",
     "port": 5388
