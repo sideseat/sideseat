@@ -1,10 +1,12 @@
 [project]
 # The advisory scanner, in its own **locked** environment.
 #
-# `uv run --with pip-audit==2.10.1` pins the tool and not its dependencies: uv resolves that environment fresh
-# on every run, so an unchanged commit could be audited by different code - the same nondeterminism the Cargo
-# tools were pinned for, one level down. A project with a lockfile makes the whole environment a fact of this
-# repository.
+# `uv run --with pip-audit==<version>` pins the tool and not its dependencies: uv resolves that environment
+# fresh on every run, so an unchanged commit could be audited by different code - the same nondeterminism the
+# Cargo tools were pinned for, one level down. A project with a lockfile makes the whole environment a fact of
+# this repository, and every CI invocation passes `--locked`, because `uv sync` and `uv run` **re-lock by
+# default**: without it "locked" is a claim the commands do not make. Verified by asking for a different
+# version here and watching `--locked` refuse the stale lockfile.
 name = "sideseat-audit-tools"
 version = "0.1.0"
 description = "Locked environment for the advisory scanner CI runs"

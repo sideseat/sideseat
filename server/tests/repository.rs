@@ -1160,7 +1160,7 @@ fn every_module_path_cited_anywhere_resolves() {
         // a move could recreate exactly the defect this guard exists for while it passed.
         .filter(|f| {
             [
-                ".md", ".mdx", ".rs", ".py", ".ts", ".tsx", ".mjs", ".sh", ".tla", ".yml",
+                ".md", ".mdx", ".rs", ".py", ".ts", ".tsx", ".mjs", ".sh", ".tla", ".yml", ".toml",
             ]
             .iter()
             .any(|ext| f.ends_with(ext))

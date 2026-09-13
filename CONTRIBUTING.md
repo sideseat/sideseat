@@ -27,7 +27,7 @@ cli/          npm distribution wrapper
 sdk/          Client SDKs: python/ js/ rust/ (dotnet/ reserves the NuGet name; no implementation)
 config/       Product configuration: JSON schema and example files
 examples/     Runnable samples per framework, with their inputs
-tools/        Standalone developer utilities (otel-replay, mcp-calculator)
+tools/        Standalone developer utilities: otel-replay/ mcp-calculator/ audit/
 scripts/      Repository automation and performance measurement
 packaging/    Release metadata: homebrew formula, macOS entitlements
 deploy/       Container image and a local compose stack

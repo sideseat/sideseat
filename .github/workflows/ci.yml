@@ -208,7 +208,7 @@ jobs:
           cache-dependency-glob: sdk/python/uv.lock
 
       - name: Install dependencies
-        run: cd sdk/python && uv sync --extra dev
+        run: cd sdk/python && uv sync --locked --extra dev
 
       # Delegated to the Makefile, so CI and `make` cannot disagree about *what* is checked. Running ruff
       # inside `sdk/python` covered the SDK alone, while the Makefile had been extended to `scripts/` and
@@ -386,8 +386,8 @@ jobs:
         run: |
           for python in 3.10 3.12 3.13; do
             echo "--- python $python"
-            (cd sdk/python && uv sync --all-extras --python "$python")
-            uv run --project tools/audit pip-audit \
+            (cd sdk/python && uv sync --locked --all-extras --python "$python")
+            uv run --locked --project tools/audit pip-audit \
               --path "$(echo sdk/python/.venv/lib/python*/site-packages)"
           done
 
@@ -397,8 +397,8 @@ jobs:
       - name: Run pip-audit (tools)
         run: |
           for tool in tools/otel-replay tools/mcp-calculator; do
-            (cd "$tool" && uv sync)
-            uv run --project tools/audit pip-audit \
+            (cd "$tool" && uv sync --locked)
+            uv run --locked --project tools/audit pip-audit \
               --path "$(echo "$tool"/.venv/lib/python*/site-packages)"
           done
 
