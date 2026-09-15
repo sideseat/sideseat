@@ -102,25 +102,6 @@ impl TransactionalService {
         }
     }
 
-    /// Get the underlying SQLite pool (for direct access when needed)
-    ///
-    /// # Panics
-    /// Panics if the service is not SQLite.
-    pub fn sqlite_pool(&self) -> &sqlx::SqlitePool {
-        match self {
-            Self::Sqlite(s) => s.pool(),
-            Self::Postgres(_) => panic!("Cannot get SQLite pool from PostgreSQL service"),
-        }
-    }
-
-    /// Get the SQLite pool (convenience alias for sqlite_pool)
-    ///
-    /// # Panics
-    /// Panics if the service is not SQLite. Use `backend()` to check first if unsure.
-    pub fn pool(&self) -> &sqlx::SqlitePool {
-        self.sqlite_pool()
-    }
-
     /// Run a WAL checkpoint (SQLite) or equivalent maintenance task
     pub async fn checkpoint(&self) -> Result<(), DataError> {
         match self {
@@ -204,17 +185,6 @@ impl AnalyticsService {
                 let service = ClickhouseService::init(config).await?;
                 Ok(Self::Clickhouse(Arc::new(service)))
             }
-        }
-    }
-
-    /// Get exclusive access to the DuckDB connection
-    ///
-    /// # Panics
-    /// Panics if the service is not DuckDB or if the connection has been closed.
-    pub fn conn(&self) -> parking_lot::MappedMutexGuard<'_, ::duckdb::Connection> {
-        match self {
-            Self::Duckdb(d) => d.conn(),
-            Self::Clickhouse(_) => panic!("Cannot get DuckDB connection from ClickHouse service"),
         }
     }
 
