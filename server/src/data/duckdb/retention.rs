@@ -140,6 +140,14 @@ pub fn cleanup_by_time(
 /// Max batches per count-based cleanup cycle (prevents unbounded blocking)
 const MAX_COUNT_CLEANUP_BATCHES: usize = 10;
 
+/// Ceiling on span identities one count-retention **cycle** may delete, across every project.
+///
+/// `MAX_COUNT_CLEANUP_BATCHES` bounds one project; without a cycle-wide ceiling the total was that bound
+/// multiplied by the number of over-limit projects, which is unbounded. One pass then holds the single
+/// DuckDB connection for as long as it takes - stalling ingestion, since writes take the same connection -
+/// and accumulates every deleted trace id for the file sweep in memory.
+const MAX_COUNT_IDENTITIES_PER_CYCLE: i64 = RETENTION_BATCH_SIZE * MAX_COUNT_CLEANUP_BATCHES as i64;
+
 /// Execute retention based on max span count, **per project**.
 ///
 /// `max_spans` is a limit on each project, not on the deployment. Counting the whole table made it a
@@ -156,6 +164,19 @@ const MAX_COUNT_CLEANUP_BATCHES: usize = 10;
 pub fn cleanup_by_count(
     conn: &Connection,
     max_spans: u64,
+) -> Result<(u64, HashMap<String, Vec<String>>), DuckdbError> {
+    cleanup_by_count_within(conn, max_spans, MAX_COUNT_IDENTITIES_PER_CYCLE)
+}
+
+/// [`cleanup_by_count`] with the cycle budget as a parameter.
+///
+/// Separate for the same reason [`trim_project_to_limit`] is: at the production value the budget is a
+/// million identities, so a test that reached it would have to build a million rows and no unit test is
+/// going to. The split is what makes the budget's effect assertable rather than merely argued for.
+fn cleanup_by_count_within(
+    conn: &Connection,
+    max_spans: u64,
+    identity_budget_for_cycle: i64,
 ) -> Result<(u64, HashMap<String, Vec<String>>), DuckdbError> {
     let max_spans_i64 = i64::try_from(max_spans).unwrap_or(i64::MAX);
 
@@ -175,8 +196,25 @@ pub fn cleanup_by_count(
     let mut total_deleted = 0u64;
     let mut all_trace_ids: HashMap<String, Vec<String>> = HashMap::new();
 
+    // Bounded per **cycle**, not merely per project. Each project may run `MAX_COUNT_CLEANUP_BATCHES`
+    // batches of `RETENTION_BATCH_SIZE`, so with the limit applied per project a deployment with a thousand
+    // over-limit projects performed a thousand times that work in one pass - holding the single DuckDB
+    // connection throughout, which stalls ingestion, and accumulating every deleted trace id for the file
+    // sweep, which is where the memory goes. Whatever is left over is simply the next cycle's work: the
+    // sweep is periodic and the projects that remain over their limit are found again.
+    //
+    // The budget is charged the *requested* overage rather than the rows the delete reported. Those are
+    // different numbers - one identity can carry several revisions - and charging the request is the
+    // conservative direction: it can only end the cycle sooner, never let it run longer than the ceiling.
+    let mut identity_budget = identity_budget_for_cycle;
+    let mut projects_deferred = 0usize;
+
     for (project_id, span_count) in over_limit {
-        let overage = span_count - max_spans_i64;
+        if identity_budget <= 0 {
+            projects_deferred += 1;
+            continue;
+        }
+        let overage = (span_count - max_spans_i64).min(identity_budget);
         tracing::debug!(
             %project_id,
             span_count,
@@ -187,7 +225,16 @@ pub fn cleanup_by_count(
         let (deleted, trace_ids) =
             trim_project_to_limit(conn, &project_id, overage, RETENTION_BATCH_SIZE)?;
         total_deleted += deleted;
+        identity_budget -= overage;
         merge_trace_ids(&mut all_trace_ids, trace_ids);
+    }
+
+    if projects_deferred > 0 {
+        tracing::debug!(
+            projects_deferred,
+            budget = identity_budget_for_cycle,
+            "Count retention hit its per-cycle budget; the rest are next cycle's work"
+        );
     }
 
     Ok((total_deleted, all_trace_ids))
@@ -783,6 +830,66 @@ mod tests {
             "the at-limit project is untouched even though it owns the globally oldest spans"
         );
         assert_eq!(deleted, 3, "only noisy's three excess spans");
+    }
+
+    /// One cycle's work is bounded across every project, not merely within each.
+    ///
+    /// `MAX_COUNT_CLEANUP_BATCHES` bounds one project, so with no cycle-wide ceiling the total was that
+    /// bound times the number of over-limit projects - unbounded. That matters because the whole pass holds
+    /// the single DuckDB connection, which is the same one writes take, and accumulates every deleted trace
+    /// id in memory for the file sweep.
+    ///
+    /// The remainder is not lost: the deferred projects are still over their limit, so the next cycle finds
+    /// them. This asserts both halves - the cycle stops, *and* a second cycle finishes the job - because a
+    /// budget that dropped the remainder would pass the first assertion alone.
+    #[tokio::test]
+    async fn count_retention_is_bounded_per_cycle_across_projects_not_only_per_project() {
+        let (_temp_dir, analytics) = create_test_service().await;
+        let conn = analytics.conn();
+
+        // Three projects, each two identities over a limit of one: six identities of work in total.
+        for project in ["a", "b", "c"] {
+            for i in 0..3 {
+                insert_span_for_project(
+                    &conn,
+                    project,
+                    &format!("{project}t{i}"),
+                    &format!("{project}s{i}"),
+                    &format!("2021-01-0{} 00:00:00", i + 1),
+                );
+            }
+        }
+
+        // A budget of three identities cannot cover all six, so at least one project must be deferred.
+        let (deleted, _) = cleanup_by_count_within(&conn, 1, 3).expect("Should cleanup");
+        assert_eq!(
+            deleted, 3,
+            "the cycle stops at its budget rather than at the work available"
+        );
+
+        let remaining: i64 = ["a", "b", "c"].iter().map(|p| span_count(&conn, p)).sum();
+        assert_eq!(
+            remaining, 6,
+            "nine identities less the three the budget allowed"
+        );
+        assert!(
+            ["a", "b", "c"].iter().any(|p| span_count(&conn, p) > 1),
+            "at least one project is deferred, still over its limit"
+        );
+
+        // The remainder is next cycle's work, not lost work.
+        let (deleted_again, _) = cleanup_by_count_within(&conn, 1, 3).expect("Should cleanup");
+        assert_eq!(
+            deleted_again, 3,
+            "the second cycle takes the deferred remainder"
+        );
+        for project in ["a", "b", "c"] {
+            assert_eq!(
+                span_count(&conn, project),
+                1,
+                "{project} reaches its limit once the cycles have run"
+            );
+        }
     }
 
     /// Retention selects from the deduplicated relation. Selecting raw rows let an expired *old*
