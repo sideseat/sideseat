@@ -8,6 +8,7 @@
 //! - Async inserts for high-throughput ingestion
 //! - HTTP keep-alive for connection reuse
 
+pub mod consistency;
 pub mod error;
 mod filters;
 #[cfg(test)]
@@ -83,10 +84,13 @@ impl ClickhouseService {
         // trade a rare duplicate for a permanent regression on every query. Nor can the duplicate be resolved
         // at read time - that needs a stable tie-break for equal `ingested_at`, and none exists here
         // (`(_part, _part_offset)` is physical placement a merge changes, and no per-delivery discriminator is
-        // stored). So the case is **reported rather than engineered around**: the plan's cross-partition
-        // consistency check is what surfaces it. Until that check exists this is a known, measured hole rather
-        // than a fixed one, and the parity suite pins the boundary
-        // (`a_correction_crossing_midnight_utc_is_one_span_on_both_backends` covers the case v3 *does* fix).
+        // stored). So the case is **reported rather than engineered around**: `consistency.rs` detects it,
+        // records each identity durably in `span_partition_anomalies`, and runs on a schedule - a detector
+        // nobody runs reports nothing. Both boundaries are pinned by the parity suite:
+        // `a_correction_crossing_midnight_utc_is_one_span_on_both_backends` covers the case v3 fixes, and
+        // `a_correction_crossing_a_month_boundary_is_reported_by_the_consistency_check` asserts the residual
+        // is real *and* reported - so if the residual is ever closed, that test fails rather than quietly
+        // over-asserting.
         client = client.with_option("do_not_merge_across_partitions_select_final", "1");
 
         // A distributed insert has to reach the shard before it is reported stored.
@@ -367,6 +371,21 @@ impl ClickhouseService {
             error: e.to_string(),
         };
 
+        // A table introduced *alongside* a migration has to be created on the upgrade path too, and nothing
+        // else does it: `apply_initial_schema` - the only caller of `generate_schema` - runs for a fresh
+        // database and is skipped entirely when a version record exists. So a `CREATE TABLE` added to the
+        // fresh schema alone never reaches a database that upgrades, and the version record then says v3 on a
+        // database missing a v3 table, permanently. That is the same trap that forced `0c` and `0d` into one
+        // commit, and it is why this is ensured here rather than trusted to the fresh path.
+        //
+        // Safe to run at every version because it is `CREATE TABLE IF NOT EXISTS`: idempotent by
+        // construction, and self-healing for a database that somehow lacks it.
+        self.client
+            .query(&schema::consistency_table(&self.config))
+            .execute()
+            .await
+            .map_err(|e| failed(ClickhouseError::from(e)))?;
+
         // Two questions here, resolved separately: is there work left on the local table (guarded by the
         // migration's `precondition`), and does the `Distributed` front end also need catching up. Both
         // asked below, in the order that keeps a partly-applied state recoverable.
@@ -413,6 +432,17 @@ impl ClickhouseService {
         }
 
         tracing::debug!("ClickHouse migration v{} ({}) applied", version, name);
+
+        // Reported here and nowhere else, because here it is free: the metrics table has just been rewritten,
+        // so the scan `datapoint_id = ''` needs is over data already in cache. `datapoint_id` is not indexed,
+        // so asking at every startup would be a full scan per boot. A failure is logged and ignored - this is
+        // a report about a stated residual, not a gate on the migration succeeding.
+        if version == 3
+            && let Err(e) = self.report_unidentified_metric_rows().await
+        {
+            tracing::debug!(error = %e, "Could not count pre-identity metric rows after the upgrade");
+        }
+
         self.record_schema_version(version).await
     }
 

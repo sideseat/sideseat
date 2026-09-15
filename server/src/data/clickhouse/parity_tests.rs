@@ -3569,6 +3569,326 @@ async fn a_correction_crossing_midnight_utc_is_one_span_on_both_backends() {
     );
 }
 
+/// A correction crossing a **month** boundary is returned twice, and the consistency check must say so.
+///
+/// This is the residual schema v3 leaves and cannot close. Taking `toDate(timestamp_start)` out of the span
+/// sorting key collapses the *midnight*-crossing duplicate, which is the common case; but partitioning stays
+/// monthly, parts in different partitions never merge, and `do_not_merge_across_partitions_select_final`
+/// makes `FINAL` per-partition — so two revisions in different partitions both survive.
+///
+/// Two assertions, and the first is the uncomfortable one. It **pins the defect**: ClickHouse really does
+/// return two rows here where DuckDB returns one. Asserting parity instead would fail, and "fixing" it would
+/// mean either the 10-12x read regression of turning the setting off or a read-time version selection with no
+/// stable tie-break available. So the answer is that the check *reports* it — which is only worth anything if
+/// the report actually fires, which is the second assertion.
+///
+/// A test asserting only that the two backends agree everywhere else would pass while this residual was
+/// silently wrong, which is exactly the shape of gate this repository keeps getting caught by.
+#[tokio::test]
+async fn a_correction_crossing_a_month_boundary_is_reported_by_the_consistency_check() {
+    let Ok(url) = std::env::var(URL_ENV) else {
+        eprintln!("clickhouse parity: skipped - set {URL_ENV} (or run `make test-clickhouse`)");
+        return;
+    };
+
+    let (_temp, duck) = duckdb_backend().await;
+    let ch = clickhouse_backend(&url, "sideseat_parity_crossmonth").await;
+
+    // Two instants in **different months**, both recent enough to sit inside the 90-day TTL - so an expiry
+    // cannot be what makes a row disappear, which is the trap that made the midnight test pass for the wrong
+    // reason. Anchored to the current month and the one before it.
+    let now = Utc::now();
+    let this_month = Utc
+        .with_ymd_and_hms(now.year(), now.month(), 5, 12, 0, 0)
+        .unwrap();
+    let last_month = this_month - chrono::Duration::days(20);
+    assert_ne!(
+        this_month.month(),
+        last_month.month(),
+        "the two instants must be in different months or the test proves nothing"
+    );
+
+    let base = NormalizedSpan {
+        project_id: Some(PROJECT.to_string()),
+        trace_id: "trace-crossmonth".to_string(),
+        span_id: "span-crossmonth".to_string(),
+        span_name: "generation".to_string(),
+        observation_type: Some(ObservationType::Generation),
+        duration_ms: 1000,
+        ..Default::default()
+    };
+    let first = NormalizedSpan {
+        timestamp_start: last_month,
+        timestamp_end: Some(last_month),
+        ingested_at: Some(ts(10)),
+        gen_ai_usage_input_tokens: 100,
+        ..base.clone()
+    };
+    let corrected = NormalizedSpan {
+        timestamp_start: this_month,
+        timestamp_end: Some(this_month),
+        ingested_at: Some(ts(20)),
+        gen_ai_usage_input_tokens: 900,
+        ..base
+    };
+    for spans in [vec![first], vec![corrected]] {
+        duck.insert_spans(spans.clone())
+            .await
+            .expect("duckdb insert");
+        ch.insert_spans(spans).await.expect("clickhouse insert");
+    }
+
+    let params = FeedSpansParams {
+        project_id: PROJECT.to_string(),
+        limit: 50,
+        ..Default::default()
+    };
+    let d = duck.get_feed_spans(&params).await.expect("duckdb read");
+    let c = ch.get_feed_spans(&params).await.expect("clickhouse read");
+
+    // The residual, pinned rather than wished away.
+    assert_eq!(
+        d.len(),
+        1,
+        "DuckDB deduplicates by identity regardless of layout"
+    );
+    assert_eq!(
+        c.len(),
+        2,
+        "the stated cross-month residual: both revisions are visible on ClickHouse. If this is ever 1 the \
+         residual has been closed and this test plus the comments describing it are out of date"
+    );
+
+    // And the check has to report it, or the residual is silent rather than stated.
+    let outcome = ch
+        .check_partition_consistency()
+        .await
+        .expect("the consistency check runs");
+    assert_eq!(
+        outcome.anomalies, 1,
+        "the check must report the identity whose revisions span two partitions, got {outcome:?}"
+    );
+
+    let recorded = ch
+        .partition_anomalies()
+        .await
+        .expect("the anomaly record is readable");
+    assert_eq!(recorded.len(), 1, "one durable record, got {recorded:?}");
+    assert_eq!(recorded[0].span_id, "span-crossmonth");
+    assert_eq!(
+        recorded[0].revisions, 2,
+        "both physical revisions are counted"
+    );
+    assert_eq!(
+        recorded[0].partitions.len(),
+        2,
+        "the record names both partitions, got {:?}",
+        recorded[0].partitions
+    );
+
+    // The record is *durable*, which is the whole point: the state that produced the finding can disappear
+    // (a backward move expires the newer revision first, leaving the obsolete one alone and a current-state
+    // query reporting clean) while the damage persists. A second pass must not lose it, and must not
+    // re-report it as new either - the table is keyed by identity, so re-detection updates one row.
+    let second = ch
+        .check_partition_consistency()
+        .await
+        .expect("a second pass runs");
+    assert_eq!(
+        ch.partition_anomalies()
+            .await
+            .expect("still readable")
+            .len(),
+        1,
+        "the record survives a second pass without being duplicated (second pass: {second:?})"
+    );
+}
+
+/// The consistency check's cost is a function of the ingest rate, not of corpus size.
+///
+/// That claim is what makes running it continuously affordable, and it is the whole justification for the
+/// `idx_ingested_at` skip index being a schema requirement. Asked directly the question is a full scan with a
+/// `GROUP BY … HAVING uniq(toYYYYMM(timestamp_start)) > 1` over everything; the check instead reads only rows
+/// ingested since its watermark, because a correction always arrives as a new row.
+///
+/// **Asserted as a scaling property rather than as wall-clock time**, deliberately. A timing ceiling against a
+/// container on a shared laptop measures the host, so it would either be so loose it gates nothing or so tight
+/// it fails at random - and the property that actually needs protecting is incrementality. A pass that
+/// re-examined the corpus would still be fast on a small fixture and would fail here.
+///
+/// **The corpus is spread wider than `WINDOW_OVERLAP`, and that is load-bearing rather than incidental.** The
+/// overlap deliberately re-reads backwards from the watermark to catch a clock-behind writer, so rows stamped
+/// *at* the watermark are re-examined every pass - which means a fixture whose every row shares one
+/// `ingested_at` is re-read in full forever, and a first version of this test asserted incrementality against
+/// exactly that shape and failed. The mechanism was right and the fixture was wrong, which is worth recording
+/// because the failure looked like the opposite. In production ingest is continuous, so what the overlap holds
+/// is a fixed *duration* of arrivals - bounded by rate, which is the claim - not a fixed fraction of the
+/// corpus.
+#[tokio::test]
+async fn the_consistency_check_examines_new_rows_not_the_corpus() {
+    let Ok(url) = std::env::var(URL_ENV) else {
+        eprintln!("clickhouse parity: skipped - set {URL_ENV} (or run `make test-clickhouse`)");
+        return;
+    };
+
+    let ch = clickhouse_backend(&url, "sideseat_parity_checkcost").await;
+    let now = Utc::now();
+    let base_instant = Utc
+        .with_ymd_and_hms(now.year(), now.month(), 5, 12, 0, 0)
+        .unwrap();
+
+    // Ingested well over `WINDOW_OVERLAP` before the row added later, so the overlap cannot reach back to it.
+    let corpus = 200;
+    let spans: Vec<NormalizedSpan> = (0..corpus)
+        .map(|i| NormalizedSpan {
+            project_id: Some(PROJECT.to_string()),
+            trace_id: format!("cost-trace-{i}"),
+            span_id: format!("cost-span-{i}"),
+            span_name: "generation".to_string(),
+            timestamp_start: base_instant,
+            timestamp_end: Some(base_instant),
+            ingested_at: Some(ts(0)),
+            ..Default::default()
+        })
+        .collect();
+    ch.insert_spans(spans).await.expect("seed the corpus");
+
+    // The cold pass reads what exists, because its watermark is the epoch. Expected, and the reason a new
+    // replica is not asked to do this at startup.
+    let first = ch.check_partition_consistency().await.expect("first pass");
+    assert_eq!(
+        first.examined, corpus as u64,
+        "the cold pass reads what exists, got {first:?}"
+    );
+    assert_eq!(
+        first.anomalies, 0,
+        "one partition each, so nothing to report"
+    );
+
+    // One new span, ingested 50 minutes after the corpus - beyond the overlap, so it moves the watermark past
+    // every existing row.
+    ch.insert_spans(vec![NormalizedSpan {
+        project_id: Some(PROJECT.to_string()),
+        trace_id: "cost-trace-new".to_string(),
+        span_id: "cost-span-new".to_string(),
+        span_name: "generation".to_string(),
+        timestamp_start: base_instant,
+        timestamp_end: Some(base_instant),
+        ingested_at: Some(ts(3000)),
+        ..Default::default()
+    }])
+    .await
+    .expect("one more span");
+
+    // This pass still re-reads the corpus, because the watermark is only just past it. What matters is the
+    // pass *after* it.
+    ch.check_partition_consistency()
+        .await
+        .expect("the pass that advances the watermark past the corpus");
+
+    let third = ch.check_partition_consistency().await.expect("third pass");
+    assert!(
+        third.examined <= 1,
+        "with the watermark past the corpus a pass examined {} of {corpus} rows - the window is not \
+         incremental, so the check is a full scan on a schedule and the cost claim is false",
+        third.examined
+    );
+}
+
+/// A released metric row and a later correction of the same datapoint **both** survive, and that is stated.
+///
+/// V2 has no `datapoint_id`, so the v3 rebuild gives existing rows the column's default of `''` while any
+/// post-upgrade delivery carries a real digest. The column is in the new sorting key, so the two keys differ and
+/// `FINAL` returns both rows - the correction adds to the measurement it was meant to replace.
+///
+/// **The assertion is the defect**, deliberately, because the alternative treatments are all worse: the digest
+/// covers OTLP attributes with their protobuf variants preserved, so nothing in SQL reproduces it and no
+/// backfill exists; deleting the released rows is data loss no operator asked for; and hiding an empty-id row
+/// when an identified one appears for the same `(metric, timestamp)` would suppress a genuine unattributed
+/// aggregate as soon as one unrelated series arrived. Over-reporting is the side this codebase takes when the
+/// fact is unavailable - and this test is what stops it being read as fixed.
+///
+/// It also asserts the count is **reported**, since a residual nobody is told about is indistinguishable from a
+/// bug.
+#[tokio::test]
+async fn a_released_metric_row_and_its_correction_both_survive() {
+    let Ok(url) = std::env::var(URL_ENV) else {
+        eprintln!("clickhouse parity: skipped - set {URL_ENV} (or run `make test-clickhouse`)");
+        return;
+    };
+
+    let database = "sideseat_parity_legacymetric";
+    let service = clickhouse_backend(&url, database).await;
+    let client = raw_client(&url, database);
+
+    // A row as released v2 wrote it: no identity. Written directly, because the current writer always stamps
+    // one - which is the point: this shape can only arrive from an older build.
+    client
+        .query(
+            "INSERT INTO otel_metrics (project_id, metric_name, metric_type, timestamp, value_double, \
+             datapoint_id) VALUES (?, 'legacy.counter', 'sum', now64(6), 1, '')",
+        )
+        .bind(PROJECT)
+        .execute()
+        .await
+        .expect("insert a pre-identity row");
+
+    // A correction of that datapoint, as the current build writes it.
+    let stored_timestamp: Vec<i64> = client
+        .query(
+            "SELECT toUnixTimestamp64Micro(timestamp) FROM otel_metrics WHERE datapoint_id = '' LIMIT 1",
+        )
+        .fetch_all()
+        .await
+        .expect("read the instant back");
+    let instant = DateTime::from_timestamp_micros(stored_timestamp[0]).expect("a valid instant");
+
+    service
+        .insert_metrics(&[NormalizedMetric {
+            project_id: Some(PROJECT.to_string()),
+            metric_name: "legacy.counter".to_string(),
+            metric_type: MetricType::Sum,
+            aggregation_temporality: AggregationTemporality::Cumulative,
+            timestamp: instant,
+            datapoint_id: "digest-of-the-same-datapoint".to_string(),
+            value_double: Some(2.0),
+            ..Default::default()
+        }])
+        .await
+        .expect("insert the correction");
+
+    let rows: Vec<f64> = client
+        .query(
+            "SELECT coalesce(value_double, 0) FROM otel_metrics FINAL \
+             WHERE metric_name = 'legacy.counter' ORDER BY datapoint_id",
+        )
+        .fetch_all()
+        .await
+        .expect("read both back");
+
+    assert_eq!(
+        rows.len(),
+        2,
+        "the stated residual: a pre-identity row and its correction are two rows, not one. If this is ever 1 \
+         the residual has been closed and the comments describing it are out of date"
+    );
+    assert_eq!(
+        rows.iter().sum::<f64>(),
+        3.0,
+        "and they are summed, so the measurement is double-counted - got {rows:?}"
+    );
+
+    // Reported, not merely true.
+    let unidentified = service
+        .report_unidentified_metric_rows()
+        .await
+        .expect("the count is available");
+    assert_eq!(
+        unidentified, 1,
+        "the pre-identity row must be counted, or an operator has no way to know the exposure exists"
+    );
+}
+
 /// Every `MIGRATIONS` entry actually runs against a real ClickHouse, from the state it exists to upgrade.
 ///
 /// A migration is the code most likely to be wrong and least likely to be exercised: a fresh database never
@@ -3601,6 +3921,13 @@ async fn every_clickhouse_migration_applies_to_the_state_it_upgrades() {
     let undo: &[(i32, &[&str])] = &[(
         3,
         &[
+            // The skip index has to go too, and forgetting it was the same defect in a third place: v3 adds
+            // `idx_ingested_at`, so a "v2" reconstructed by reversing only the *columns* keeps an index that
+            // released v2 never had - and the migration's `ADD INDEX` could then be deleted with this test
+            // still green, while a production upgrade lost the index the consistency check depends on to
+            // avoid a corpus-scale scan. Dropped before the rebuild, since `CREATE TABLE ... AS` copies
+            // indexes.
+            "ALTER TABLE otel_spans DROP INDEX IF EXISTS idx_ingested_at",
             // Spans back to the v2 sorting key, with the date expression in it.
             "DROP TABLE IF EXISTS otel_spans_v2 SYNC",
             "CREATE TABLE otel_spans_v2 AS otel_spans ENGINE = ReplacingMergeTree(ingested_at) \
@@ -3688,6 +4015,24 @@ async fn every_clickhouse_migration_applies_to_the_state_it_upgrades() {
         "the migrated column must hold what was written, got {:?}",
         stored[0]
     );
+
+    // The skip index the consistency check needs, asserted on the upgraded table. Without this the
+    // migration's `ADD INDEX` could be deleted and every other assertion here would still pass, leaving a
+    // production upgrade whose consistency check scans the corpus instead of a window.
+    let indexes: Vec<String> = client
+        .query(
+            "SELECT name FROM system.data_skipping_indices \
+             WHERE database = currentDatabase() AND table = 'otel_spans' AND name = 'idx_ingested_at'",
+        )
+        .fetch_all()
+        .await
+        .expect("read the skip indexes back");
+    assert_eq!(
+        indexes.len(),
+        1,
+        "the upgraded span table is missing idx_ingested_at, so the consistency check has no index to \
+         find recent rows with"
+    );
 }
 
 /// A crash between `EXCHANGE TABLES` and the `DROP` must not read as a completed migration.
@@ -3709,71 +4054,98 @@ async fn a_leftover_replacement_table_makes_the_migration_run_again() {
         return;
     };
 
-    let database = "sideseat_parity_leftover";
-    let service = clickhouse_backend(&url, database).await;
-    let client = raw_client(&url, database);
-
-    let exists = |name: &'static str| {
-        let client = client.clone();
-        async move {
-            let found: Option<u8> = client
-                .query("SELECT 1 FROM system.tables WHERE database = currentDatabase() AND name = ? LIMIT 1")
-                .bind(name)
-                .fetch_optional()
-                .await
-                .expect("system.tables is readable");
-            found.is_some()
-        }
-    };
-
-    // A fresh database is already at v3, so the shape-based half of the precondition is satisfied and
-    // nothing else would make the migration run. This is exactly the post-exchange, pre-drop state.
-    client
-        .query(
+    // Each replacement table is staged **alone**, in its own database, and that is the whole point of the
+    // arrangement. Staging both was the first version and could not distinguish anything: the precondition
+    // fires on whichever clause is present, and the statements then drop *both* leftovers - so deleting the
+    // `otel_metrics_v3` clause left the test green. One leftover per case is what makes each clause
+    // individually load-bearing.
+    for (index, (leftover, ddl)) in [
+        (
+            "otel_spans_v3",
             "CREATE TABLE otel_spans_v3 AS otel_spans ENGINE = ReplacingMergeTree(ingested_at) \
-                PARTITION BY toYYYYMM(timestamp_start) ORDER BY (project_id, trace_id, span_id)",
-        )
-        .execute()
-        .await
-        .expect("stage a leftover replacement table");
-    assert!(exists("otel_spans_v3").await, "the leftover was staged");
+             PARTITION BY toYYYYMM(timestamp_start) ORDER BY (project_id, trace_id, span_id)",
+        ),
+        (
+            "otel_metrics_v3",
+            "CREATE TABLE otel_metrics_v3 AS otel_metrics ENGINE = ReplacingMergeTree(ingested_at) \
+             PARTITION BY toYYYYMM(timestamp) \
+             ORDER BY (project_id, metric_name, toDate(timestamp), timestamp, datapoint_id)",
+        ),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let database = format!("sideseat_parity_leftover_{index}");
+        let service = clickhouse_backend(&url, &database).await;
+        let client = raw_client(&url, &database);
 
-    service.apply_migration_for_test(3).await.expect(
-        "a re-run over an already-migrated table must succeed, or the precondition is useless",
-    );
+        let exists = |name: String| {
+            let client = client.clone();
+            async move {
+                let found: Option<u8> = client
+                    .query(
+                        "SELECT 1 FROM system.tables WHERE database = currentDatabase() AND name = ? LIMIT 1",
+                    )
+                    .bind(name)
+                    .fetch_optional()
+                    .await
+                    .expect("system.tables is readable");
+                found.is_some()
+            }
+        };
 
-    assert!(
-        !exists("otel_spans_v3").await,
-        "the leftover replacement table survived - the old table is never reclaimed and the storage of the \
-         largest table stays doubled"
-    );
+        // A fresh database is already at v3, so the shape-based half of the precondition is satisfied and
+        // this leftover is the only thing that can make the migration run.
+        client
+            .query(ddl)
+            .execute()
+            .await
+            .unwrap_or_else(|e| panic!("stage {leftover}: {e}"));
+        assert!(exists(leftover.to_string()).await, "{leftover} was staged");
 
-    // And the re-run left the live table intact and writable, which is what makes re-running the right
-    // remedy rather than merely a detectable one.
-    let sorting_key: Vec<String> = client
-        .query("SELECT sorting_key FROM system.tables WHERE database = currentDatabase() AND name = 'otel_spans'")
-        .fetch_all()
-        .await
-        .expect("read the sorting key back");
-    assert_eq!(sorting_key.len(), 1);
-    assert!(
-        !sorting_key[0].contains("toDate("),
-        "the re-run must not reinstate the date expression, got {:?}",
-        sorting_key[0]
-    );
+        service
+            .apply_migration_for_test(3)
+            .await
+            .unwrap_or_else(|e| {
+                panic!("a re-run over an already-migrated table must succeed ({leftover}): {e}")
+            });
 
-    service
-        .insert_spans(vec![NormalizedSpan {
-            project_id: Some(PROJECT.to_string()),
-            trace_id: "leftover-trace".to_string(),
-            span_id: "leftover-span".to_string(),
-            span_name: "after-rerun".to_string(),
-            timestamp_start: ts(1),
-            timestamp_end: Some(ts(1)),
-            ..Default::default()
-        }])
-        .await
-        .expect("the live table accepts a write after the re-run");
+        assert!(
+            !exists(leftover.to_string()).await,
+            "{leftover} survived - the old table is never reclaimed and its storage stays doubled. The \
+             precondition does not name it, so a crash between its EXCHANGE and its DROP is invisible"
+        );
+
+        // And the re-run left the live tables intact and writable, which is what makes re-running the right
+        // remedy rather than merely a detectable state.
+        let sorting_key: Vec<String> = client
+            .query(
+                "SELECT sorting_key FROM system.tables \
+                 WHERE database = currentDatabase() AND name = 'otel_spans'",
+            )
+            .fetch_all()
+            .await
+            .expect("read the sorting key back");
+        assert_eq!(sorting_key.len(), 1);
+        assert!(
+            !sorting_key[0].contains("toDate("),
+            "the re-run must not reinstate the date expression, got {:?}",
+            sorting_key[0]
+        );
+
+        service
+            .insert_spans(vec![NormalizedSpan {
+                project_id: Some(PROJECT.to_string()),
+                trace_id: "leftover-trace".to_string(),
+                span_id: "leftover-span".to_string(),
+                span_name: "after-rerun".to_string(),
+                timestamp_start: ts(1),
+                timestamp_end: Some(ts(1)),
+                ..Default::default()
+            }])
+            .await
+            .expect("the live table accepts a write after the re-run");
+    }
 }
 
 /// A re-delivery that moves a trace to another session must move it on both backends.

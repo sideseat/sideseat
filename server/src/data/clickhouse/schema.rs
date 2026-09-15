@@ -86,6 +86,25 @@ pub struct Migration {
 /// synthesized versions leaves the winner free to flip at the next merge, and stamping *migration time*
 /// would outrank the first legitimate clock-regressed update that follows.
 ///
+/// **Stated residual: a released row and a later correction of the same datapoint both survive.** V2 has no
+/// `datapoint_id`, so the migration gives existing rows the column's default of `''`, while a post-upgrade
+/// delivery of that same OTLP datapoint carries a real digest. `datapoint_id` is in the new sorting key, so the
+/// two keys differ and `FINAL` returns both - a correction *adding to* the measurement it was meant to replace.
+/// Reproduced against 25.8: one released row of 1, one correction of 2, `FINAL` gives two rows summing to 3.
+///
+/// It cannot be backfilled. The id is a digest over OTLP attribute values **with their protobuf variants
+/// preserved** (`domain/metrics/identity.rs`) - which is the whole reason it is not forgeable - and no SQL
+/// expression reproduces that from stored columns. The three alternatives are worse: deleting the released rows
+/// is data loss the operator has not asked for; leaving `toDate(timestamp)`-style keys is the labelled-metric
+/// collapse this migration exists to fix; and hiding an empty-id row whenever an identified one appears for the
+/// same `(metric, timestamp)` would suppress a genuine unattributed aggregate on the arrival of one unrelated
+/// series.
+///
+/// So it over-reports rather than under-reports, which is the side this codebase takes when the fact is
+/// unavailable - and it is **counted rather than merely described**: the count is taken straight after the
+/// rebuild, where it is free because the table has just been rewritten, and reported with the remedy. Pinned by
+/// `a_released_metric_row_and_its_correction_both_survive`, so nobody reads the fix as covering it.
+///
 /// **A leftover `_v3` table means the work is not finished.** After `EXCHANGE TABLES` the *old* table wears
 /// the `_v3` name and is dropped next; a crash in between leaves it there while both the sorting key and the
 /// version column already look correct, so a precondition asking only about those reports the migration
@@ -126,6 +145,17 @@ pub const MIGRATIONS: &[Migration] = &[Migration {
         "ALTER TABLE otel_metrics{local}{on_cluster} ADD COLUMN IF NOT EXISTS exemplars Nullable(String) CODEC(ZSTD(3))",
         "ALTER TABLE otel_spans{local}{on_cluster} ADD COLUMN IF NOT EXISTS scope_name Nullable(String) CODEC(ZSTD(1))",
         "ALTER TABLE otel_spans{local}{on_cluster} ADD COLUMN IF NOT EXISTS scope_version Nullable(String) CODEC(ZSTD(1))",
+        // The skip index the consistency check needs, added **here** rather than after the rebuild: the
+        // replacement is created `AS otel_spans{local}`, which copies data-skipping indexes, so adding it
+        // before the copy is what gets it onto the table that survives. Added after the `EXCHANGE` it would
+        // have landed on the table about to be dropped.
+        //
+        // No backfill statement follows it. `ALTER TABLE ... ADD INDEX` is metadata-only - it does not build
+        // the index over parts that already exist - but the rebuild below rewrites every part through
+        // `INSERT ... SELECT`, so the index is populated as a side effect of the copy this migration was
+        // already doing. A migration that only added the index would need `MATERIALIZE INDEX`.
+        "ALTER TABLE otel_spans{local}{on_cluster} \
+         ADD INDEX IF NOT EXISTS idx_ingested_at ingested_at TYPE minmax GRANULARITY 1",
         // -- spans: re-sort on identity ------------------------------------------------------------
         "DROP TABLE IF EXISTS otel_spans_v3{local}{on_cluster} SYNC",
         "CREATE TABLE otel_spans_v3{local}{on_cluster} AS otel_spans{local} \
@@ -210,6 +240,57 @@ fn safe_cluster_name(config: &ClickhouseConfig) -> &str {
         "Invalid ClickHouse cluster name: {name:?}. Only alphanumeric, underscore, hyphen, and dot are allowed."
     );
     name
+}
+
+/// Where the cross-partition consistency check keeps its findings and its place.
+///
+/// **Why a durable record and not a log line.** The check reports identities whose revisions sit in more than
+/// one partition, which is the residual v3 leaves (see [`MIGRATIONS`]). The state that produces the finding can
+/// disappear while the damage persists: when a correction moves *backward* across a month, the newer revision
+/// expires first and the obsolete one is left alone in its partition - a current-state query then sees one row
+/// per identity and reports clean, having permanently served the wrong revision. Only a record written at the
+/// time survives that.
+///
+/// **Why in ClickHouse rather than the transactional store.** The finding is a statement about rows in this
+/// store, so it belongs beside them - and step 0 deliberately keeps this adapter free of a transactional
+/// dependency that the crate split would immediately have to dismantle. The consequence is stated rather than
+/// hidden: restoring ClickHouse to a point before the check ran loses the record with the evidence it
+/// describes.
+///
+/// `checked_through` is the watermark, stored as a row of the same table keyed by an empty identity: one table
+/// rather than two, because the watermark is only meaningful together with what was found under it. A
+/// `ReplacingMergeTree` on `(project_id, trace_id, span_id)` means re-detecting the same identity updates its
+/// record rather than accumulating a row per pass.
+pub fn consistency_table(config: &ClickhouseConfig) -> String {
+    let engine = if config.distributed {
+        format!(
+            "ReplicatedReplacingMergeTree('/clickhouse/tables/{{shard}}/{db}/span_partition_anomalies', '{{replica}}')",
+            db = config.database
+        )
+    } else {
+        "ReplacingMergeTree(detected_at)".to_string()
+    };
+
+    let on_cluster = if config.distributed {
+        format!(" ON CLUSTER {}", safe_cluster_name(config))
+    } else {
+        String::new()
+    };
+
+    format!(
+        r#"
+CREATE TABLE IF NOT EXISTS span_partition_anomalies{on_cluster} (
+    project_id String,
+    trace_id String,
+    span_id String,
+    partitions Array(String),
+    revisions UInt32,
+    detected_at DateTime64(6, 'UTC') DEFAULT now64(6),
+    checked_through DateTime64(6, 'UTC') DEFAULT toDateTime64(0, 6, 'UTC')
+) ENGINE = {engine}
+ORDER BY (project_id, trace_id, span_id)
+"#
+    )
 }
 
 /// Generate schema version table
@@ -375,7 +456,13 @@ CREATE TABLE IF NOT EXISTS otel_spans_local ON CLUSTER {cluster} (
     INDEX idx_user_id user_id TYPE bloom_filter GRANULARITY 4,
     INDEX idx_gen_ai_system gen_ai_system TYPE bloom_filter GRANULARITY 4,
     INDEX idx_gen_ai_request_model gen_ai_request_model TYPE bloom_filter GRANULARITY 4,
-    INDEX idx_observation_type observation_type TYPE set(0) GRANULARITY 4
+    INDEX idx_observation_type observation_type TYPE set(0) GRANULARITY 4,
+    -- `ingested_at` is neither the partition key nor in the sorting key, so "rows ingested since the last
+    -- run" is otherwise a full scan - which is what would make the cross-partition consistency check
+    -- (`consistency.rs`) too expensive to run continuously, and a check nobody runs reports nothing. A
+    -- `minmax` index works here specifically because parts are roughly insertion-ordered, so a part's
+    -- [min, max] range for this column is narrow and most parts prune.
+    INDEX idx_ingested_at ingested_at TYPE minmax GRANULARITY 1
 ) ENGINE = ReplicatedReplacingMergeTree('/clickhouse/tables/{{shard}}/{db}/otel_spans', '{{replica}}', ingested_at)
 PARTITION BY toYYYYMM(timestamp_start)
 ORDER BY (project_id, trace_id, span_id)
@@ -529,7 +616,13 @@ CREATE TABLE IF NOT EXISTS otel_spans (
     INDEX idx_user_id user_id TYPE bloom_filter GRANULARITY 4,
     INDEX idx_gen_ai_system gen_ai_system TYPE bloom_filter GRANULARITY 4,
     INDEX idx_gen_ai_request_model gen_ai_request_model TYPE bloom_filter GRANULARITY 4,
-    INDEX idx_observation_type observation_type TYPE set(0) GRANULARITY 4
+    INDEX idx_observation_type observation_type TYPE set(0) GRANULARITY 4,
+    -- `ingested_at` is neither the partition key nor in the sorting key, so "rows ingested since the last
+    -- run" is otherwise a full scan - which is what would make the cross-partition consistency check
+    -- (`consistency.rs`) too expensive to run continuously, and a check nobody runs reports nothing. A
+    -- `minmax` index works here specifically because parts are roughly insertion-ordered, so a part's
+    -- [min, max] range for this column is narrow and most parts prune.
+    INDEX idx_ingested_at ingested_at TYPE minmax GRANULARITY 1
 ) ENGINE = ReplacingMergeTree(ingested_at)
 PARTITION BY toYYYYMM(timestamp_start)
 ORDER BY (project_id, trace_id, span_id)
@@ -765,6 +858,8 @@ pub fn generate_schema(config: &ClickhouseConfig) -> Vec<String> {
 
     // Schema version table
     statements.push(schema_version_table(config));
+    // Where the cross-partition consistency check records what it found and how far it has read.
+    statements.push(consistency_table(config));
 
     if config.distributed {
         // Distributed mode: create local tables first, then distributed tables
@@ -863,13 +958,19 @@ mod tests {
         let config = default_config();
         let statements = generate_schema(&config);
 
-        // Should have 3 tables: schema_version, otel_spans, otel_metrics
-        assert_eq!(statements.len(), 3);
+        // schema_version, span_partition_anomalies, otel_spans, otel_metrics.
+        assert_eq!(statements.len(), 4);
+        // Indexed by name rather than by position, because a count plus a positional assertion is what made
+        // adding a table here a two-test edit with a silent window in between.
+        let spans = statements
+            .iter()
+            .find(|s| s.contains("CREATE TABLE IF NOT EXISTS otel_spans"))
+            .expect("the span table is generated");
 
         // Should use ReplacingMergeTree (not Replicated)
-        assert!(statements[1].contains("ReplacingMergeTree"));
-        assert!(!statements[1].contains("ReplicatedReplacingMergeTree"));
-        assert!(!statements[1].contains("ON CLUSTER"));
+        assert!(spans.contains("ReplacingMergeTree"));
+        assert!(!spans.contains("ReplicatedReplacingMergeTree"));
+        assert!(!spans.contains("ON CLUSTER"));
     }
 
     #[test]
@@ -881,15 +982,24 @@ mod tests {
         };
         let statements = generate_schema(&config);
 
-        // Should have 5 tables: schema_version, otel_spans_local, otel_spans, otel_metrics_local, otel_metrics
-        assert_eq!(statements.len(), 5);
+        // schema_version, span_partition_anomalies, otel_spans_local, otel_spans, otel_metrics_local,
+        // otel_metrics.
+        assert_eq!(statements.len(), 6);
+        let local = statements
+            .iter()
+            .find(|s| s.contains("CREATE TABLE IF NOT EXISTS otel_spans_local"))
+            .expect("the local span table is generated");
+        let distributed = statements
+            .iter()
+            .find(|s| s.contains("CREATE TABLE IF NOT EXISTS otel_spans ON CLUSTER"))
+            .expect("the distributed span table is generated");
 
         // Local tables should use ReplicatedReplacingMergeTree
-        assert!(statements[1].contains("ReplicatedReplacingMergeTree"));
-        assert!(statements[1].contains("ON CLUSTER"));
+        assert!(local.contains("ReplicatedReplacingMergeTree"));
+        assert!(local.contains("ON CLUSTER"));
 
         // Distributed tables should use Distributed engine
-        assert!(statements[2].contains("ENGINE = Distributed"));
+        assert!(distributed.contains("ENGINE = Distributed"));
     }
 
     #[test]
@@ -910,32 +1020,35 @@ mod tests {
         assert_eq!(get_insert_table(&config, "otel_spans"), "otel_spans");
     }
 
+    /// The single-node span table, found by name.
+    ///
+    /// These three tests indexed `statements[1]`, which was the span table only as long as nothing was
+    /// inserted before it. Adding `span_partition_anomalies` shifted every one of them onto a table with no
+    /// `LowCardinality`, no TTL and no bloom filters - so all three would have started asserting against the
+    /// wrong statement, and a positional index is why. Naming the table is the fix.
+    fn single_node_spans_schema() -> String {
+        generate_schema(&default_config())
+            .into_iter()
+            .find(|s| s.contains("CREATE TABLE IF NOT EXISTS otel_spans"))
+            .expect("the span table is generated")
+    }
+
     #[test]
     fn test_schema_has_low_cardinality() {
-        let config = default_config();
-        let statements = generate_schema(&config);
-
-        // Check that frequently queried columns use LowCardinality
-        let spans_schema = &statements[1];
+        let spans_schema = single_node_spans_schema();
         assert!(spans_schema.contains("LowCardinality(String)"));
         assert!(spans_schema.contains("LowCardinality(Nullable(String))"));
     }
 
     #[test]
     fn test_schema_has_ttl() {
-        let config = default_config();
-        let statements = generate_schema(&config);
-
-        let spans_schema = &statements[1];
+        let spans_schema = single_node_spans_schema();
         assert!(spans_schema.contains("TTL timestamp_start + INTERVAL"));
     }
 
     #[test]
     fn test_schema_has_indices() {
-        let config = default_config();
-        let statements = generate_schema(&config);
-
-        let spans_schema = &statements[1];
+        let spans_schema = single_node_spans_schema();
         assert!(spans_schema.contains("INDEX idx_trace_id"));
         assert!(spans_schema.contains("INDEX idx_session_id"));
         assert!(spans_schema.contains("INDEX idx_span_id"));

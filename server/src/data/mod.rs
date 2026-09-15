@@ -227,6 +227,23 @@ impl AnalyticsService {
         }
     }
 
+    /// Start the cross-partition consistency check, where the backend can have that defect.
+    ///
+    /// `None` on DuckDB, and structurally rather than as a gap: the residual being detected is two revisions of
+    /// one identity in different **partitions**, and DuckDB has no partitions - its reads go through
+    /// `DEDUP_SPANS`, a window function over the whole table, which picks one winner per identity whatever the
+    /// physical layout. So there is nothing there for such a check to find, and returning `None` says that
+    /// rather than scheduling a task that would always report clean.
+    pub fn start_consistency_check_task(
+        &self,
+        shutdown_rx: watch::Receiver<bool>,
+    ) -> Option<JoinHandle<()>> {
+        match self {
+            Self::Duckdb(_) => None,
+            Self::Clickhouse(c) => Some(Arc::clone(c).start_consistency_check_task(shutdown_rx)),
+        }
+    }
+
     /// Start the retention cleanup task
     pub fn start_retention_task(
         &self,

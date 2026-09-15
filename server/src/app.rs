@@ -349,6 +349,16 @@ impl CoreApp {
             )
             .await;
 
+        // The cross-month duplicate residual is *reported* rather than repaired (see
+        // `clickhouse/consistency.rs`), and a report only exists if something runs. `None` on DuckDB, which
+        // has no partitions and therefore no such residual.
+        if let Some(h) = self
+            .analytics
+            .start_consistency_check_task(self.shutdown.subscribe())
+        {
+            self.shutdown.register(h).await;
+        }
+
         if let Some(h) = self.analytics.start_retention_task(
             self.config.otel.retention.clone(),
             self.shutdown.subscribe(),
