@@ -256,7 +256,7 @@ cli-bin = $(CLI_DIR)/platforms/platform-$(1)/$(BIN_NAME_$(1))
 .PHONY: dev dev-server dev-web
 .PHONY: fmt fmt-check lint lint-advisory check
 .PHONY: secret-scan-tree secret-scan-staged secret-scan-range
-.PHONY: test test-rust test-server test-clickhouse test-postgres test-redis bench-http bench-http-distributed test-web test-sdk-js test-sdk-python coverage
+.PHONY: test test-rust test-server test-clickhouse test-clickhouse-replicated test-postgres test-redis bench-http bench-http-distributed test-web test-sdk-js test-sdk-python coverage
 .PHONY: build build-web build-server
 .PHONY: build-sdk build-sdk-js build-sdk-python
 .PHONY: build-cli build-cli-preflight build-cli-summary $(CLI_BUILD_TARGETS)
@@ -706,6 +706,49 @@ test-clickhouse:
 	cargo test --locked -p sideseat-server clickhouse -- --test-threads=1; \
 	status=$$?; \
 	docker rm -fv $(CH_TEST_CONTAINER) >/dev/null 2>&1; \
+	exit $$status
+
+CH_REPL_CONTAINER := sideseat-clickhouse-replicated-test
+CH_REPL_PORT ?= 8299
+
+# The migration path a single server cannot reach.
+#
+# `test-clickhouse` starts a plain server and the parity helper sets `distributed: false`, so four things
+# specific to a production cluster are untested there: the `distributed_statements` catch-up ALTERs (a
+# `Distributed` front end is created `AS <local>` once and does not follow later changes, so a column added
+# to the local table is missing from the front end and the first insert through it fails), `{uuid}` Keeper
+# paths, `EXCHANGE TABLES ... ON CLUSTER`, and the `Replicated*` engine argument. A cluster migration could
+# fail with the whole suite green.
+#
+# One shard, one replica, with Keeper embedded in the same container - enough for everything structurally
+# different about distributed mode, and deliberately not enough for cross-replica convergence, which needs a
+# second node and is the stated remaining gap.
+test-clickhouse-replicated:
+	@command -v docker >/dev/null 2>&1 || { echo "[test-clickhouse-replicated] docker is required"; exit 1; }
+	@echo "[test-clickhouse-replicated] starting $(CH_TEST_IMAGE) on port $(CH_REPL_PORT)..."
+	@docker rm -fv $(CH_REPL_CONTAINER) >/dev/null 2>&1 || true
+	@docker run -d --name $(CH_REPL_CONTAINER) -p $(CH_REPL_PORT):8123 \
+		-e CLICKHOUSE_USER=sideseat -e CLICKHOUSE_PASSWORD=sideseat \
+		-e CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT=1 \
+		-v "$(CURDIR)/scripts/clickhouse-replicated/cluster.xml:/etc/clickhouse-server/config.d/cluster.xml:ro" \
+		$(CH_TEST_IMAGE) >/dev/null
+	@for i in $$(seq 1 90); do \
+		curl -sf http://127.0.0.1:$(CH_REPL_PORT)/ping >/dev/null && break; \
+		sleep 1; \
+	done; \
+	curl -sf http://127.0.0.1:$(CH_REPL_PORT)/ping >/dev/null || { \
+		echo "[test-clickhouse-replicated] server did not become ready"; \
+		docker logs --tail 30 $(CH_REPL_CONTAINER); \
+		docker rm -fv $(CH_REPL_CONTAINER) >/dev/null 2>&1; \
+		exit 1; \
+	}
+	@set +e; \
+	SIDESEAT_TEST_CLICKHOUSE_REPLICATED_URL=http://127.0.0.1:$(CH_REPL_PORT) \
+	SIDESEAT_TEST_CLICKHOUSE_USER=sideseat \
+	SIDESEAT_TEST_CLICKHOUSE_PASSWORD=sideseat \
+	cargo test --locked -p sideseat-server replicated -- --test-threads=1; \
+	status=$$?; \
+	docker rm -fv $(CH_REPL_CONTAINER) >/dev/null 2>&1; \
 	exit $$status
 
 # PostgreSQL/SQLite transactional parity. Same reasoning as test-clickhouse: the PostgreSQL SQL is

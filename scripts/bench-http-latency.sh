@@ -74,9 +74,15 @@ if [ "$MODE" = "distributed" ]; then
   docker run -d --name "$PG_NAME" -p 5442:5432 \
     -e POSTGRES_USER=sideseat -e POSTGRES_PASSWORD=sideseat -e POSTGRES_DB=sideseat \
     postgres:17-alpine >/dev/null
+  # A **patch** tag, not the rolling `25.8`, for the reason the Makefile records: the rolling tag ships a
+  # 0-byte `/entrypoint.sh` on arm64, so the container exits with `exec format error` and this benchmark
+  # could not run at all on an Apple Silicon machine - a verification command that does not run is not a
+  # verification. `make test-clickhouse` had already been pinned; this script had not, so the two disagreed
+  # about which server the distributed numbers describe.
   docker run -d --name "$CH_NAME" -p 8131:8123 \
     -e CLICKHOUSE_USER=sideseat -e CLICKHOUSE_PASSWORD=sideseat \
-    -e CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT=1 clickhouse/clickhouse-server:25.8 >/dev/null
+    -e CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT=1 \
+    "clickhouse/clickhouse-server:${CH_IMAGE_TAG:-25.8.2}" >/dev/null
   echo "[bench] waiting for PostgreSQL and ClickHouse"
   for _ in $(seq 1 90); do
     docker exec "$PG_NAME" pg_isready -U sideseat -d sideseat >/dev/null 2>&1 &&

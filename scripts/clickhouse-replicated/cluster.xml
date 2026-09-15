@@ -1,0 +1,62 @@
+<?xml version="1.0"?>
+<!--
+  A one-node replicated cluster, for testing the migration path the single-node suite cannot reach.
+
+  `make test-clickhouse` starts a plain server and the parity helper sets `distributed: false`, so every
+  currently-gated migration assertion runs against `ReplacingMergeTree` tables with no `ON CLUSTER`, no
+  `Distributed` front ends and no Keeper paths - which is where the hardest mechanics of the v3 rebuild live.
+  A production cluster migration could fail, or leave hosts on mixed generations, with the whole suite green.
+
+  One shard and one replica is deliberate. It exercises everything that is *structurally* different in
+  distributed mode - `ON CLUSTER` DDL, `Replicated*` engines, `{uuid}` Keeper paths, `EXCHANGE TABLES ... ON
+  CLUSTER`, and the `Distributed` front tables whose schema does not follow their local table - while staying a
+  single container. What it does not cover is cross-replica convergence, which needs two nodes and is stated as
+  the remaining gap rather than implied to be covered.
+
+  Keeper is embedded rather than a second container: the coordination is what the Replicated engines need, and
+  running it in-process removes a network dependency from a test fixture without changing what is under test.
+-->
+<clickhouse>
+    <keeper_server>
+        <tcp_port>9181</tcp_port>
+        <server_id>1</server_id>
+        <log_storage_path>/var/lib/clickhouse/coordination/log</log_storage_path>
+        <snapshot_storage_path>/var/lib/clickhouse/coordination/snapshots</snapshot_storage_path>
+        <coordination_settings>
+            <operation_timeout_ms>10000</operation_timeout_ms>
+            <session_timeout_ms>30000</session_timeout_ms>
+        </coordination_settings>
+        <raft_configuration>
+            <server>
+                <id>1</id>
+                <hostname>localhost</hostname>
+                <port>9234</port>
+            </server>
+        </raft_configuration>
+    </keeper_server>
+
+    <zookeeper>
+        <node>
+            <host>localhost</host>
+            <port>9181</port>
+        </node>
+    </zookeeper>
+
+    <!-- Substituted into the Keeper paths and replica names the schema declares. -->
+    <macros>
+        <shard>01</shard>
+        <replica>01</replica>
+    </macros>
+
+    <remote_servers>
+        <test_cluster>
+            <shard>
+                <internal_replication>true</internal_replication>
+                <replica>
+                    <host>localhost</host>
+                    <port>9000</port>
+                </replica>
+            </shard>
+        </test_cluster>
+    </remote_servers>
+</clickhouse>
