@@ -14,7 +14,7 @@
 use crate::core::config::ClickhouseConfig;
 
 /// Current schema version
-pub const SCHEMA_VERSION: i32 = 2;
+pub const SCHEMA_VERSION: i32 = 3;
 
 /// The oldest schema version this build can migrate *from*.
 ///
@@ -56,10 +56,103 @@ pub struct Migration {
     pub distributed_statements: &'static [&'static str],
 }
 
-/// Empty: the ClickHouse backend was introduced at v2 and nothing above it was ever deployed, so the
-/// initial DDL carries everything - the exemplars column and the span instrumentation scope included.
-/// The runner and its coverage tests stay, because the first real migration is one entry away.
-pub const MIGRATIONS: &[Migration] = &[];
+/// The v2 → v3 rebuild: a sorting key that is a function of identity alone, and a version column on
+/// metrics.
+///
+/// **Why a rebuild and not an `ALTER`.** `MODIFY ORDER BY` is *rejected* on these tables — "Primary key
+/// must be a prefix of the sorting key" — because the existing implicit primary key contains
+/// `toDate(timestamp_start)`, and it is metadata-only in any case, so it would not re-sort the parts
+/// that already exist. The metrics change needs a rebuild too: an engine's version argument cannot be
+/// altered. Both tables are therefore recreated, copied, and swapped in one migration, which is also
+/// why they share a version: split across two, whichever landed first would record v3 and the other
+/// would never run again on that database.
+///
+/// **`CREATE TABLE … AS <old>` copies the columns *and* the data-skipping indexes**, verified against
+/// 25.8, so the migration does not restate a hundred-column DDL that would then drift from the fresh
+/// schema above.
+///
+/// **What existing metric rows get for a version.** V2 has no such column, so the copy defines a
+/// baseline: `FROM otel_metrics FINAL` selects the **pre-migration winner** — defined, because an
+/// unversioned `ReplacingMergeTree` keeps the most recently inserted row — and stamps it with the
+/// epoch. Two ways to get this wrong, both avoided: giving duplicate historical rows *equal*
+/// synthesized versions leaves the winner free to flip at the next merge, and stamping *migration time*
+/// would outrank the first legitimate clock-regressed update that follows.
+///
+/// Spans are copied **without** `FINAL`: their engine is already versioned, so the rebuild is purely a
+/// re-sort and every revision is preserved, leaving deduplication where it belongs — at read time.
+pub const MIGRATIONS: &[Migration] = &[Migration {
+    version: 3,
+    name: "identity_sorting_key_and_metric_version",
+    // Asks the tables themselves whether the work is due - a row means "still to do". A leftover
+    // `_v3` table would have been the wrong signal: it is absent *before* the migration, so the
+    // statements would have been skipped on exactly the databases that need them.
+    precondition: Some(
+        "SELECT 1 FROM system.tables WHERE database = currentDatabase() AND ( \
+           (name = 'otel_spans{local}' AND position(sorting_key, 'toDate(') > 0) \
+           OR (name = 'otel_metrics{local}' AND engine_full NOT LIKE '%ingested_at%') \
+         ) LIMIT 1",
+    ),
+    statements: &[
+        // -- spans: re-sort on identity ------------------------------------------------------------
+        "DROP TABLE IF EXISTS otel_spans_v3{local}{on_cluster} SYNC",
+        "CREATE TABLE otel_spans_v3{local}{on_cluster} AS otel_spans{local} \
+         ENGINE = {replacement_engine} \
+         PARTITION BY toYYYYMM(timestamp_start) \
+         ORDER BY (project_id, trace_id, span_id) \
+         TTL timestamp_start + INTERVAL 90 DAY DELETE \
+         SETTINGS index_granularity = 8192, merge_with_ttl_timeout = 3600",
+        "INSERT INTO otel_spans_v3{local} SELECT * FROM otel_spans{local}",
+        "EXCHANGE TABLES otel_spans{local} AND otel_spans_v3{local}{on_cluster}",
+        "DROP TABLE IF EXISTS otel_spans_v3{local}{on_cluster} SYNC",
+        // -- metrics: a version column, then re-engine ---------------------------------------------
+        // The baseline is the column's DEFAULT, not a value the copy stamps on. Rows written before the
+        // column existed therefore read as the epoch - below any real `ingested_at` - without the copy
+        // having to distinguish them, which is what makes a re-run safe: a `REPLACE (epoch AS
+        // ingested_at)` in the copy would have reset versions the first run had already migrated.
+        "ALTER TABLE otel_metrics{local}{on_cluster} \
+         ADD COLUMN IF NOT EXISTS ingested_at DateTime64(6, 'UTC') DEFAULT toDateTime64(0, 6, 'UTC')",
+        "DROP TABLE IF EXISTS otel_metrics_v3{local}{on_cluster} SYNC",
+        "CREATE TABLE otel_metrics_v3{local}{on_cluster} AS otel_metrics{local} \
+         ENGINE = {replacement_engine} \
+         PARTITION BY toYYYYMM(timestamp) \
+         ORDER BY (project_id, metric_name, toDate(timestamp), timestamp, datapoint_id) \
+         TTL timestamp + INTERVAL 90 DAY DELETE \
+         SETTINGS index_granularity = 8192",
+        // Align the replacement's DEFAULT with the fresh schema *before* it holds data, so an upgraded
+        // database and a fresh one are metadata-identical. Applied here rather than to the old table,
+        // where it would have made the epoch baseline unavailable to the copy below.
+        "ALTER TABLE otel_metrics_v3{local}{on_cluster} \
+         MODIFY COLUMN ingested_at DateTime64(6, 'UTC') DEFAULT now64(6)",
+        // `FINAL` on the source is the pre-migration winner: defined for the unversioned engine (the
+        // most recently inserted row) and, on a re-run against the already-versioned one, the highest
+        // `ingested_at`. Either way exactly one row per datapoint, carrying its real version.
+        "INSERT INTO otel_metrics_v3{local} SELECT * FROM otel_metrics{local} FINAL",
+        "EXCHANGE TABLES otel_metrics{local} AND otel_metrics_v3{local}{on_cluster}",
+        "DROP TABLE IF EXISTS otel_metrics_v3{local}{on_cluster} SYNC",
+    ],
+    // `Distributed` front ends are created `AS otel_x_local`, which copies the structure once and does
+    // not track later changes - so the metrics column has to be added there too. The spans change is
+    // confined to the local table's sorting key, which a front end does not carry.
+    distributed_statements: &["ALTER TABLE otel_metrics{on_cluster} \
+         ADD COLUMN IF NOT EXISTS ingested_at DateTime64(6, 'UTC') DEFAULT now64(6)"],
+}];
+
+/// The engine a v3 rebuild's replacement table uses.
+///
+/// Replicated mode needs a Keeper path **distinct from the table being replaced**, because
+/// `CREATE TABLE ... AS <old>` copies the old engine including its path, and two tables cannot share
+/// one. `{uuid}` is the path: an Atomic database expands it to the table's own UUID, and
+/// `EXCHANGE TABLES` swaps names while UUIDs stay with their tables - so the live table keeps a path
+/// that is unique by construction and no later rebuild has to invent a `_v4` suffix.
+pub fn replacement_engine(config: &ClickhouseConfig, version_column: &str) -> String {
+    if config.distributed {
+        format!(
+            "ReplicatedReplacingMergeTree('/clickhouse/tables/{{shard}}/{{uuid}}', '{{replica}}', {version_column})"
+        )
+    } else {
+        format!("ReplacingMergeTree({version_column})")
+    }
+}
 
 /// Validate and return a cluster name safe for SQL interpolation.
 ///
@@ -243,7 +336,7 @@ CREATE TABLE IF NOT EXISTS otel_spans_local ON CLUSTER {cluster} (
     INDEX idx_observation_type observation_type TYPE set(0) GRANULARITY 4
 ) ENGINE = ReplicatedReplacingMergeTree('/clickhouse/tables/{{shard}}/{db}/otel_spans', '{{replica}}', ingested_at)
 PARTITION BY toYYYYMM(timestamp_start)
-ORDER BY (project_id, toDate(timestamp_start), trace_id, span_id)
+ORDER BY (project_id, trace_id, span_id)
 {ttl_clause}
 SETTINGS index_granularity = 8192, merge_with_ttl_timeout = 3600
 "#,
@@ -397,7 +490,7 @@ CREATE TABLE IF NOT EXISTS otel_spans (
     INDEX idx_observation_type observation_type TYPE set(0) GRANULARITY 4
 ) ENGINE = ReplacingMergeTree(ingested_at)
 PARTITION BY toYYYYMM(timestamp_start)
-ORDER BY (project_id, toDate(timestamp_start), trace_id, span_id)
+ORDER BY (project_id, trace_id, span_id)
 TTL timestamp_start + INTERVAL 90 DAY DELETE
 SETTINGS index_granularity = 8192, merge_with_ttl_timeout = 3600
 "#
@@ -491,10 +584,16 @@ CREATE TABLE IF NOT EXISTS otel_metrics_local ON CLUSTER {cluster} (
     -- columns above hold one trace link out of however many the exporter sent.
     exemplars               Nullable(String) CODEC(ZSTD(3)),
 
+    -- The replacing engine's version. Without it the engine had no version argument at all, so which
+    -- of two deliveries of one `datapoint_id` survived was insert-block order - while DuckDB deletes
+    -- and re-inserts, making it commit-last-wins there. Two rules for one question, and a corrected
+    -- datapoint could read differently per backend.
+    ingested_at             DateTime64(6, 'UTC') DEFAULT now64(6),
+
     -- INDEXES
     INDEX idx_metric_name metric_name TYPE bloom_filter GRANULARITY 1,
     INDEX idx_session_id session_id TYPE bloom_filter GRANULARITY 1
-) ENGINE = ReplicatedReplacingMergeTree('/clickhouse/tables/{{shard}}/{db}/otel_metrics', '{{replica}}')
+) ENGINE = ReplicatedReplacingMergeTree('/clickhouse/tables/{{shard}}/{db}/otel_metrics', '{{replica}}', ingested_at)
 PARTITION BY toYYYYMM(timestamp)
 ORDER BY (project_id, metric_name, toDate(timestamp), timestamp, datapoint_id)
 TTL timestamp + INTERVAL 90 DAY DELETE
@@ -603,10 +702,13 @@ CREATE TABLE IF NOT EXISTS otel_metrics (
     -- columns above hold one trace link out of however many the exporter sent.
     exemplars               Nullable(String) CODEC(ZSTD(3)),
 
+    -- The replacing engine's version - see the note on the local table.
+    ingested_at             DateTime64(6, 'UTC') DEFAULT now64(6),
+
     -- INDEXES
     INDEX idx_metric_name metric_name TYPE bloom_filter GRANULARITY 1,
     INDEX idx_session_id session_id TYPE bloom_filter GRANULARITY 1
-) ENGINE = ReplacingMergeTree()
+) ENGINE = ReplacingMergeTree(ingested_at)
 PARTITION BY toYYYYMM(timestamp)
 ORDER BY (project_id, metric_name, toDate(timestamp), timestamp, datapoint_id)
 TTL timestamp + INTERVAL 90 DAY DELETE
@@ -876,7 +978,10 @@ mod tests {
     /// upgrade, which is the least useful moment to learn about a typo.
     #[test]
     fn migrations_use_only_known_placeholders() {
-        const KNOWN: [&str; 2] = ["{on_cluster}", "{local}"];
+        // Must match the substitutions `apply_versioned_migration` performs. A placeholder it does not
+        // know survives into the SQL as a literal brace, which ClickHouse then rejects at the point the
+        // migration runs - on a real database, not here.
+        const KNOWN: [&str; 3] = ["{on_cluster}", "{local}", "{replacement_engine}"];
         for m in MIGRATIONS {
             let all = m
                 .statements

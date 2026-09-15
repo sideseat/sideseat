@@ -333,10 +333,17 @@ impl ClickhouseService {
         let name = migration.name;
         let on_cluster = schema::get_on_cluster_clause(&self.config);
         let local = schema::local_table_suffix(&self.config);
+        // A rebuild has to name an engine, because `CREATE TABLE ... AS <old>` copies the old one - and
+        // for a replicated table that means copying its **Keeper path**, which then collides with the
+        // table still using it. The replacement's path is therefore `{uuid}`-based: an Atomic database
+        // expands it to the table's own UUID, `EXCHANGE TABLES` swaps names while UUIDs stay put, so each
+        // table keeps its own path and no future rebuild has to invent another suffix.
+        let replacement_engine = schema::replacement_engine(&self.config, "ingested_at");
         let render = |statement: &str| {
             statement
                 .replace("{on_cluster}", &on_cluster)
                 .replace("{local}", local)
+                .replace("{replacement_engine}", &replacement_engine)
         };
         let failed = |e: ClickhouseError| ClickhouseError::MigrationFailed {
             version,

@@ -65,6 +65,9 @@ struct MetricRow {
     scope_schema_url: Option<String>,
     resource_schema_url: Option<String>,
     exemplars: Option<String>,
+    /// The replacing engine's version. See `NormalizedMetric::ingested_at`.
+    #[serde(with = "clickhouse::serde::time::datetime64::micros")]
+    ingested_at: time::OffsetDateTime,
 }
 
 /// Convert chrono DateTime to time OffsetDateTime for a storage-row column.
@@ -152,6 +155,7 @@ impl From<&NormalizedMetric> for MetricRow {
             scope_schema_url: metric.scope_schema_url.clone(),
             resource_schema_url: metric.resource_schema_url.clone(),
             exemplars: json_to_opt_string(&metric.exemplars),
+            ingested_at: chrono_to_time(metric.ingested_at.unwrap_or_else(chrono::Utc::now)),
         }
     }
 }

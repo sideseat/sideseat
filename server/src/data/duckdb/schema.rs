@@ -313,7 +313,20 @@ CREATE TABLE IF NOT EXISTS otel_metrics (
     -- Every exemplar, not just the first. A histogram carries one per bucket, so the six flat
     -- `exemplar_*` columns above - which the trace-correlation index is built on - held one trace link
     -- out of however many the exporter sent. Appended, for the positional-Appender reason above.
-    exemplars               JSON
+    exemplars               JSON,
+    -- Server receipt time, and the version that decides which re-delivery of a datapoint wins.
+    -- ClickHouse sorts its replacing engine by it; this side compares it before replacing, so both
+    -- backends answer that question the same way. Appended, for the positional-Appender reason above.
+    --
+    -- **Nullable, unlike the spans column**, and not by preference: DuckDB refuses
+    -- `ALTER COLUMN ... SET NOT NULL` on a TIMESTAMP added in the same transaction ("Cannot create index
+    -- with outstanding updates" - it succeeds in autocommit and fails inside one, the same class as the
+    -- documented `UPDATE`-then-`SET NOT NULL` refusal, and `datapoint_id` escapes it only by being a
+    -- VARCHAR). The migration therefore cannot produce a NOT NULL column, so the fresh schema must not
+    -- claim one - `a_v1_database_upgrades_to_the_same_column_order_as_a_fresh_one` is what makes that
+    -- agreement a requirement rather than a preference. Nothing exercises the nullability: the writer
+    -- always supplies a value.
+    ingested_at             TIMESTAMP DEFAULT (now())
 );
 
 -- Indexes for metrics

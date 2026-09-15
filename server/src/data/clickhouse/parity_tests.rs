@@ -42,7 +42,7 @@
 
 use std::sync::Arc;
 
-use chrono::{DateTime, TimeZone, Utc};
+use chrono::{DateTime, Datelike, TimeZone, Utc};
 
 use crate::core::config::ClickhouseConfig;
 use crate::core::storage::AppStorage;
@@ -3469,6 +3469,106 @@ async fn a_same_microsecond_redelivery_is_one_row_on_both_backends() {
     );
 }
 
+/// A corrected re-delivery whose `timestamp_start` **crosses midnight UTC** is still one span.
+///
+/// This is the defect the v3 sorting key exists to fix. `ReplacingMergeTree` identifies duplicates *by the
+/// sorting key*, and that key contained `toDate(timestamp_start)` - so a producer re-sending a span with a
+/// corrected start time on the other side of midnight produced a row with a **different** key, and `FINAL`
+/// returned both revisions. A duplicate span is the one thing the feed must never produce, and it was
+/// invisible to every other test here because a re-delivery normally carries an identical timestamp.
+///
+/// Reproduced against 25.8 before the fix: two rows. The month-boundary case is *not* covered, and
+/// deliberately - see the residual in the plan's step 0. `do_not_merge_across_partitions_select_final`
+/// keeps `FINAL` per-partition, and turning it off costs 10-12x on the trace lookup and trace-list page
+/// (measured), so that case is reported rather than fixed here.
+#[tokio::test]
+async fn a_correction_crossing_midnight_utc_is_one_span_on_both_backends() {
+    let Ok(url) = std::env::var(URL_ENV) else {
+        eprintln!("clickhouse parity: skipped - set {URL_ENV} (or run `make test-clickhouse`)");
+        return;
+    };
+
+    let (_temp, duck) = duckdb_backend().await;
+    let ch = clickhouse_backend(&url, "sideseat_parity_midnight").await;
+
+    // Two instants either side of a UTC midnight, in the **current** month: same partition, so the
+    // partition boundary is not what is being tested, and recent enough to sit inside the table's 90-day
+    // TTL. A fixed past date is what a first draft used, and it made the test pass for the wrong reason -
+    // both rows were already TTL-expired, one had been merged away, and a single row came back whatever
+    // the sorting key was. The mutation check is what exposed that.
+    let now = Utc::now();
+    let before = Utc
+        .with_ymd_and_hms(now.year(), now.month(), 10, 23, 30, 0)
+        .unwrap();
+    let after = Utc
+        .with_ymd_and_hms(now.year(), now.month(), 11, 0, 30, 0)
+        .unwrap();
+    let base = NormalizedSpan {
+        project_id: Some(PROJECT.to_string()),
+        trace_id: "trace-midnight".to_string(),
+        span_id: "span-midnight".to_string(),
+        span_name: "generation".to_string(),
+        observation_type: Some(ObservationType::Generation),
+        duration_ms: 1000,
+        ..Default::default()
+    };
+    let first = NormalizedSpan {
+        timestamp_start: before,
+        timestamp_end: Some(before),
+        ingested_at: Some(ts(10)),
+        gen_ai_usage_input_tokens: 100,
+        ..base.clone()
+    };
+    // The correction moves the start time across midnight *and* fixes the token count.
+    let corrected = NormalizedSpan {
+        timestamp_start: after,
+        timestamp_end: Some(after),
+        ingested_at: Some(ts(20)),
+        gen_ai_usage_input_tokens: 900,
+        ..base
+    };
+    for spans in [vec![first], vec![corrected]] {
+        duck.insert_spans(spans.clone())
+            .await
+            .expect("duckdb insert");
+        ch.insert_spans(spans).await.expect("clickhouse insert");
+    }
+
+    let params = FeedSpansParams {
+        project_id: PROJECT.to_string(),
+        limit: 50,
+        ..Default::default()
+    };
+    let d = duck
+        .get_feed_spans(&params)
+        .await
+        .expect("duckdb feed spans");
+    let c = ch
+        .get_feed_spans(&params)
+        .await
+        .expect("clickhouse feed spans");
+
+    assert_eq!(
+        c.len(),
+        1,
+        "a correction crossing midnight UTC must be one span on ClickHouse - with `toDate` in the sorting \
+         key it was two, because the two revisions had different keys"
+    );
+    assert_eq!(
+        d.len(),
+        c.len(),
+        "the two backends disagree on how many rows a midnight-crossing correction yields"
+    );
+    assert_eq!(
+        c[0].gen_ai_usage_input_tokens, 900,
+        "the correction must win on ClickHouse, not the revision it replaced"
+    );
+    assert_eq!(
+        d[0].gen_ai_usage_input_tokens, c[0].gen_ai_usage_input_tokens,
+        "the two backends disagree about which revision survived"
+    );
+}
+
 /// Every `MIGRATIONS` entry actually runs against a real ClickHouse, from the state it exists to upgrade.
 ///
 /// A migration is the code most likely to be wrong and least likely to be exercised: a fresh database never
@@ -3495,9 +3595,30 @@ async fn every_clickhouse_migration_applies_to_the_state_it_upgrades() {
     // The reverse of each migration, so a v3 migration is applied to a v2-shaped table. Kept beside the
     // migration list rather than as a captured schema dump: whoever adds a migration adds its inverse here
     // and the test keeps working, and forgetting to fails loudly on the next line.
-    let undo: &[(i32, &str)] = &[(
+    // Several statements per version, because reverting a *rebuild* takes more than one: v3 changed the
+    // span sorting key and gave metrics a version column, and neither can be undone by an `ALTER` any more
+    // than it could be applied by one. Single-node shapes, which is what this test runs.
+    let undo: &[(i32, &[&str])] = &[(
         3,
-        "ALTER TABLE otel_metrics DROP COLUMN IF EXISTS exemplars",
+        &[
+            // Spans back to the v2 sorting key, with the date expression in it.
+            "DROP TABLE IF EXISTS otel_spans_v2 SYNC",
+            "CREATE TABLE otel_spans_v2 AS otel_spans ENGINE = ReplacingMergeTree(ingested_at) \
+             PARTITION BY toYYYYMM(timestamp_start) \
+             ORDER BY (project_id, toDate(timestamp_start), trace_id, span_id)",
+            "INSERT INTO otel_spans_v2 SELECT * FROM otel_spans",
+            "EXCHANGE TABLES otel_spans AND otel_spans_v2",
+            "DROP TABLE IF EXISTS otel_spans_v2 SYNC",
+            // Metrics back to an engine with no version argument, and without the column it names.
+            "DROP TABLE IF EXISTS otel_metrics_v2 SYNC",
+            "CREATE TABLE otel_metrics_v2 AS otel_metrics ENGINE = ReplacingMergeTree() \
+             PARTITION BY toYYYYMM(timestamp) \
+             ORDER BY (project_id, metric_name, toDate(timestamp), timestamp, datapoint_id)",
+            "ALTER TABLE otel_metrics_v2 DROP COLUMN ingested_at",
+            "INSERT INTO otel_metrics_v2 SELECT * EXCEPT (ingested_at) FROM otel_metrics",
+            "EXCHANGE TABLES otel_metrics AND otel_metrics_v2",
+            "DROP TABLE IF EXISTS otel_metrics_v2 SYNC",
+        ],
     )];
 
     for migration in crate::data::clickhouse::schema::MIGRATIONS {
@@ -3511,11 +3632,13 @@ async fn every_clickhouse_migration_applies_to_the_state_it_upgrades() {
                 migration.name
             ));
 
-        client
-            .query(revert)
-            .execute()
-            .await
-            .unwrap_or_else(|e| panic!("reverting v{version}: {e}"));
+        for statement in *revert {
+            client
+                .query(statement)
+                .execute()
+                .await
+                .unwrap_or_else(|e| panic!("reverting v{version} ({statement}): {e}"));
+        }
 
         service
             .apply_migration_for_test(version)

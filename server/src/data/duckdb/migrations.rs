@@ -106,6 +106,14 @@ ALTER TABLE otel_metrics ADD COLUMN scope_attributes JSON;
 ALTER TABLE otel_metrics ADD COLUMN scope_schema_url VARCHAR;
 ALTER TABLE otel_metrics ADD COLUMN resource_schema_url VARCHAR;
 ALTER TABLE otel_metrics ADD COLUMN exemplars JSON;
+-- The version that decides which re-delivery of a datapoint wins, so this side compares before replacing
+-- rather than always overwriting - which is what makes it agree with ClickHouse's replacing engine.
+--
+-- **Last**, matching the fresh schema, for the positional-`Appender` reason the columns above are
+-- appended for. Nullable, because DuckDB refuses `SET NOT NULL` on a TIMESTAMP inside a transaction -
+-- see the fresh schema's note. Existing rows take the epoch, below any real receipt time, so the first
+-- genuine delivery outranks them.
+ALTER TABLE otel_metrics ADD COLUMN ingested_at TIMESTAMP DEFAULT TIMESTAMP '1970-01-01 00:00:00';
 CREATE INDEX IF NOT EXISTS idx_metrics_project_ts ON otel_metrics(project_id, timestamp DESC);
 CREATE INDEX IF NOT EXISTS idx_metrics_project_name ON otel_metrics(project_id, metric_name);
 CREATE INDEX IF NOT EXISTS idx_metrics_project_name_ts ON otel_metrics(project_id, metric_name, timestamp DESC);
@@ -296,6 +304,7 @@ mod tests {
                  ALTER TABLE otel_metrics DROP COLUMN scope_schema_url;
                  ALTER TABLE otel_metrics DROP COLUMN resource_schema_url;
                  ALTER TABLE otel_metrics DROP COLUMN exemplars;
+                 ALTER TABLE otel_metrics DROP COLUMN ingested_at;
                  -- Recreated, because a real v1 database has them and DuckDB refuses to alter a table
                  -- with dependents: the migration has to handle that itself.
                  CREATE INDEX idx_metrics_project_ts ON otel_metrics(project_id, timestamp DESC);

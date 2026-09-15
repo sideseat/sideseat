@@ -82,6 +82,14 @@ pub struct NormalizedMetric {
     /// most of the trace links the exporter sent.
     pub exemplars: JsonValue,
 
+    /// Server receipt time, and the replacing engine's **version**.
+    ///
+    /// Spans have carried one from the start; metrics did not, so ClickHouse's engine had no version
+    /// argument and which of two deliveries of a `datapoint_id` survived was insert-block order - while
+    /// DuckDB deletes and re-inserts, making it commit-last-wins there. One field, so both backends
+    /// answer "which re-delivery wins" the same way. `None` means "stamp it at write time".
+    pub ingested_at: Option<DateTime<Utc>>,
+
     // Context
     pub session_id: Option<String>,
     pub user_id: Option<String>,

@@ -3,6 +3,7 @@
 //! Provides high-throughput batch writes for normalized metrics.
 
 use duckdb::Connection;
+use duckdb::OptionalExt;
 use duckdb::params;
 
 use crate::data::duckdb::sql_types::{SqlOptTimestamp, SqlTimestamp};
@@ -14,8 +15,13 @@ pub fn insert_batch(conn: &Connection, metrics: &[NormalizedMetric]) -> Result<(
         return Ok(());
     }
 
+    // One `now` for the whole batch, so a row whose `ingested_at` is `None` compares against storage and
+    // against its peers using the same value it will be stamped with.
+    let batch_now = chrono::Utc::now();
+
     in_transaction(conn, |conn| {
-        // A re-delivery *replaces* its datapoints rather than joining them.
+        // A re-delivery *replaces* its datapoints rather than joining them, and **the higher
+        // `ingested_at` wins** - not whichever committed last.
         //
         // The table is append-only, and counting distinct ids at read time hid the duplicates from the
         // deletion check without removing them: two rows for one datapoint remained, holding two possibly
@@ -24,12 +30,80 @@ pub fn insert_batch(conn: &Connection, metrics: &[NormalizedMetric]) -> Result<(
         // `ReplacingMergeTree` avoids by construction, so DuckDB does it explicitly - deleting the ids
         // about to be written, in the same transaction as the append, which is what makes it atomic.
         //
+        // Comparing versions rather than always overwriting is what makes the two backends agree.
+        // ClickHouse keeps the row with the highest version, so an unconditional replace here meant a
+        // clock-regressed correction won on DuckDB and lost on ClickHouse: one corrected datapoint, two
+        // different measurements depending on which backend served the read.
+        //
         // Spans already follow this rule: a re-delivered span id overwrites. `datapoint_id` is what lets
         // metrics follow it - see `domain::metrics::identity`.
-        replace_existing(conn, metrics)?;
-        insert_metrics(conn, metrics)?;
+        let winners = winning_indices(conn, metrics, batch_now)?;
+        replace_existing(conn, metrics, &winners)?;
+        insert_metrics(conn, metrics, &winners, batch_now)?;
         Ok(())
     })
+}
+
+/// The indices of the rows that should actually be written: the highest-versioned occurrence of each
+/// identity in the batch, minus any that lose to what is already stored.
+///
+/// Ties go to the **later occurrence**, which is ClickHouse's rule for an equal version (the most
+/// recently inserted row wins), so a batch carrying one datapoint twice at the same instant resolves the
+/// same way on both backends.
+fn winning_indices(
+    conn: &Connection,
+    metrics: &[NormalizedMetric],
+    batch_now: chrono::DateTime<chrono::Utc>,
+) -> Result<Vec<bool>, DuckdbError> {
+    let version = |m: &NormalizedMetric| m.ingested_at.unwrap_or(batch_now);
+    let mut keep = vec![true; metrics.len()];
+
+    // An *empty* id is "no identity known", never "the same datapoint" - legacy rows carry `''`, and so
+    // does anything written without passing through the extractor that stamps identities. Collapsing on
+    // it made every such datapoint one row.
+    let mut best: std::collections::HashMap<(&str, &str), usize> =
+        std::collections::HashMap::with_capacity(metrics.len());
+    for (index, m) in metrics.iter().enumerate() {
+        if m.datapoint_id.is_empty() {
+            continue;
+        }
+        let key = (
+            m.project_id.as_deref().unwrap_or(""),
+            m.datapoint_id.as_str(),
+        );
+        match best.get(&key) {
+            // `>=` so an equal version prefers the later occurrence.
+            Some(&prev) if version(&metrics[prev]) > version(m) => keep[index] = false,
+            Some(&prev) => {
+                keep[prev] = false;
+                best.insert(key, index);
+            }
+            None => {
+                best.insert(key, index);
+            }
+        }
+    }
+
+    // Now drop the batch's winners that lose to a stored row.
+    for (&(project, id), &index) in &best {
+        // Compared as epoch microseconds: `chrono::DateTime` is not `FromSql` here, and micros are the
+        // column's own resolution, so nothing is lost by the conversion.
+        let stored: Option<i64> = conn
+            .query_row(
+                "SELECT epoch_us(ingested_at) FROM otel_metrics \
+                 WHERE project_id = ? AND datapoint_id = ?",
+                duckdb::params![project, id],
+                |row| row.get(0),
+            )
+            .optional()?;
+        if let Some(stored) = stored
+            && stored > version(&metrics[index]).timestamp_micros()
+        {
+            keep[index] = false;
+        }
+    }
+
+    Ok(keep)
 }
 
 /// Delete any rows already stored for the datapoints about to be written.
@@ -37,12 +111,22 @@ pub fn insert_batch(conn: &Connection, metrics: &[NormalizedMetric]) -> Result<(
 /// Chunked, because a batch can carry many datapoints and a parameter list has a practical limit. Rows
 /// written before the identity existed carry `''`, which never appears in this list - every datapoint that
 /// reaches here has a real id - so legacy rows are untouched.
-fn replace_existing(conn: &Connection, metrics: &[NormalizedMetric]) -> Result<(), DuckdbError> {
+fn replace_existing(
+    conn: &Connection,
+    metrics: &[NormalizedMetric],
+    keep: &[bool],
+) -> Result<(), DuckdbError> {
     const CHUNK: usize = 500;
-    for chunk in metrics.chunks(CHUNK) {
+    for (chunk_index, chunk) in metrics.chunks(CHUNK).enumerate() {
+        let offset = chunk_index * CHUNK;
         let mut by_project: std::collections::HashMap<&str, Vec<&str>> =
             std::collections::HashMap::new();
-        for m in chunk {
+        for (within, m) in chunk.iter().enumerate() {
+            // Only for a row that is actually about to be written. Deleting for a *loser* would remove
+            // the stored winner and put nothing back.
+            if !keep[offset + within] {
+                continue;
+            }
             // Empty means "no identity known" - legacy rows carry it, and deleting `datapoint_id = ''`
             // would take every one of them on the first write after an upgrade.
             if m.datapoint_id.is_empty() {
@@ -72,46 +156,27 @@ fn replace_existing(conn: &Connection, metrics: &[NormalizedMetric]) -> Result<(
     Ok(())
 }
 
-fn insert_metrics(conn: &Connection, metrics: &[NormalizedMetric]) -> Result<(), DuckdbError> {
+fn insert_metrics(
+    conn: &Connection,
+    metrics: &[NormalizedMetric],
+    keep: &[bool],
+    batch_now: chrono::DateTime<chrono::Utc>,
+) -> Result<(), DuckdbError> {
     if metrics.is_empty() {
         return Ok(());
     }
 
     let mut appender = conn.appender("otel_metrics")?;
 
-    // Within one batch too, and last-wins.
+    // Within one batch too, and **highest version wins**.
     //
     // `replace_existing` removes what is already *stored*, which leaves a batch that carries the same
     // datapoint twice - a retrying exporter that re-sends part of a payload, or an SDK that flushes an
     // overlapping window - appending both rows. The delete cannot catch that, because neither row existed
-    // when it ran. Keeping the last occurrence matches the rule everywhere else: a later delivery of a
-    // datapoint replaces an earlier one.
-    // An *empty* id is "no identity known", never "the same datapoint". Legacy rows carry `''` for that
-    // reason, and so does anything written without going through the extractor that stamps identities.
-    // Collapsing on it made every such datapoint one row - which a test writing three metrics by hand
-    // caught at once, and which a caller in production would not have.
-    let mut last_by_identity: std::collections::HashMap<(&str, &str), usize> =
-        std::collections::HashMap::with_capacity(metrics.len());
+    // when it ran. `winning_indices` resolves it before we get here, by the same rule the stored
+    // comparison uses, so one datapoint appears at most once whatever the batch contained.
     for (index, m) in metrics.iter().enumerate() {
-        if m.datapoint_id.is_empty() {
-            continue;
-        }
-        last_by_identity.insert(
-            (
-                m.project_id.as_deref().unwrap_or(""),
-                m.datapoint_id.as_str(),
-            ),
-            index,
-        );
-    }
-
-    for (index, m) in metrics.iter().enumerate() {
-        if !m.datapoint_id.is_empty()
-            && last_by_identity.get(&(
-                m.project_id.as_deref().unwrap_or(""),
-                m.datapoint_id.as_str(),
-            )) != Some(&index)
-        {
+        if !keep[index] {
             continue;
         }
         // Column order must match schema.rs CREATE TABLE definition
@@ -180,6 +245,8 @@ fn insert_metrics(conn: &Connection, metrics: &[NormalizedMetric]) -> Result<(),
             m.scope_schema_url.as_deref(),
             m.resource_schema_url.as_deref(),
             json_to_opt_string(&m.exemplars).as_deref(),
+            // The version, appended last for the same positional reason as everything above it.
+            SqlTimestamp(m.ingested_at.unwrap_or(batch_now)),
         ])?;
     }
 
