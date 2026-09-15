@@ -71,6 +71,22 @@ impl ClickhouseService {
         // Without this, ReplacingMergeTree FINAL merges all partitions in a single pass,
         // which at TB scale causes merge storms processing billions of rows. With this
         // setting, each monthly partition is processed in parallel.
+        //
+        // **Stated residual: a correction that moves a span's `timestamp_start` across a month boundary is
+        // still returned twice.** Schema v3 took `toDate(timestamp_start)` out of the span sorting key, which
+        // is what collapses the *midnight*-crossing case - the common one, since the key became a function of
+        // identity alone. `PARTITION BY toYYYYMM(timestamp_start)` remains, deliberately, because time pruning
+        // is what it is for; so two revisions of one identity can sit in different partitions, parts in
+        // different partitions never merge, and this setting makes `FINAL` per-partition - so both survive.
+        //
+        // Turning the setting off is not the remedy: it was measured at 10-12x the read cost, and it would
+        // trade a rare duplicate for a permanent regression on every query. Nor can the duplicate be resolved
+        // at read time - that needs a stable tie-break for equal `ingested_at`, and none exists here
+        // (`(_part, _part_offset)` is physical placement a merge changes, and no per-delivery discriminator is
+        // stored). So the case is **reported rather than engineered around**: the plan's cross-partition
+        // consistency check is what surfaces it. Until that check exists this is a known, measured hole rather
+        // than a fixed one, and the parity suite pins the boundary
+        // (`a_correction_crossing_midnight_utc_is_one_span_on_both_backends` covers the case v3 *does* fix).
         client = client.with_option("do_not_merge_across_partitions_select_final", "1");
 
         // A distributed insert has to reach the shard before it is reported stored.

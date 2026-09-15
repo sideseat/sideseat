@@ -59,6 +59,14 @@ pub struct Migration {
 /// The v2 → v3 rebuild: a sorting key that is a function of identity alone, and a version column on
 /// metrics.
 ///
+/// **What this fixes, and what it does not.** A `ReplacingMergeTree` identifies duplicates *by the sorting
+/// key*, so with `toDate(timestamp_start)` in it a corrected re-delivery crossing **midnight UTC** got a
+/// different key and `FINAL` returned both revisions. Making the key identity alone collapses that case.
+/// A correction crossing a **month** boundary is **not** fixed: `PARTITION BY toYYYYMM(timestamp_start)`
+/// stays, parts in different partitions never merge, and `do_not_merge_across_partitions_select_final`
+/// (`mod.rs`) makes `FINAL` per-partition — so both revisions remain visible. That residual is stated at the
+/// setting rather than repaired here; it is a reported hole, not a fixed one.
+///
 /// **Why a rebuild and not an `ALTER`.** `MODIFY ORDER BY` is *rejected* on these tables — "Primary key
 /// must be a prefix of the sorting key" — because the existing implicit primary key contains
 /// `toDate(timestamp_start)`, and it is metadata-only in any case, so it would not re-sort the parts
@@ -78,6 +86,13 @@ pub struct Migration {
 /// synthesized versions leaves the winner free to flip at the next merge, and stamping *migration time*
 /// would outrank the first legitimate clock-regressed update that follows.
 ///
+/// **A leftover `_v3` table means the work is not finished.** After `EXCHANGE TABLES` the *old* table wears
+/// the `_v3` name and is dropped next; a crash in between leaves it there while both the sorting key and the
+/// version column already look correct, so a precondition asking only about those reports the migration
+/// applied and the old full-size table is never reclaimed - silently doubling the storage of the two largest
+/// tables. Naming those tables in the precondition makes the re-run finish the job, which is safe because
+/// every statement is idempotent.
+///
 /// Spans are copied **without** `FINAL`: their engine is already versioned, so the rebuild is purely a
 /// re-sort and every revision is preserved, leaving deduplication where it belongs — at read time.
 pub const MIGRATIONS: &[Migration] = &[Migration {
@@ -90,9 +105,27 @@ pub const MIGRATIONS: &[Migration] = &[Migration {
         "SELECT 1 FROM system.tables WHERE database = currentDatabase() AND ( \
            (name = 'otel_spans{local}' AND position(sorting_key, 'toDate(') > 0) \
            OR (name = 'otel_metrics{local}' AND engine_full NOT LIKE '%ingested_at%') \
+           OR name IN ('otel_spans_v3{local}', 'otel_metrics_v3{local}') \
          ) LIMIT 1",
     ),
     statements: &[
+        // -- first, the columns a *genuine* v2 database does not have -----------------------------------
+        //
+        // `MIN_UPGRADABLE_FROM` is 2 and the released v1.0.13 schema declares version 2 - but five metrics
+        // columns and two span columns were added to the fresh schema *after* that release without the
+        // version ever being bumped. So "version 2" names several physically different schemas, and the
+        // rebuild below would fail on a real one: its `ORDER BY (…, datapoint_id)` is `UNKNOWN_IDENTIFIER`
+        // when the column is absent, which is a startup failure no retry can clear.
+        //
+        // Idempotent, so a database that already has them - every one created by a recent build - is
+        // unaffected. This is what makes `MIN_UPGRADABLE_FROM = 2` a true statement rather than an intention.
+        "ALTER TABLE otel_metrics{local}{on_cluster} ADD COLUMN IF NOT EXISTS datapoint_id String",
+        "ALTER TABLE otel_metrics{local}{on_cluster} ADD COLUMN IF NOT EXISTS scope_attributes Nullable(String)",
+        "ALTER TABLE otel_metrics{local}{on_cluster} ADD COLUMN IF NOT EXISTS scope_schema_url Nullable(String)",
+        "ALTER TABLE otel_metrics{local}{on_cluster} ADD COLUMN IF NOT EXISTS resource_schema_url Nullable(String)",
+        "ALTER TABLE otel_metrics{local}{on_cluster} ADD COLUMN IF NOT EXISTS exemplars Nullable(String) CODEC(ZSTD(3))",
+        "ALTER TABLE otel_spans{local}{on_cluster} ADD COLUMN IF NOT EXISTS scope_name Nullable(String) CODEC(ZSTD(1))",
+        "ALTER TABLE otel_spans{local}{on_cluster} ADD COLUMN IF NOT EXISTS scope_version Nullable(String) CODEC(ZSTD(1))",
         // -- spans: re-sort on identity ------------------------------------------------------------
         "DROP TABLE IF EXISTS otel_spans_v3{local}{on_cluster} SYNC",
         "CREATE TABLE otel_spans_v3{local}{on_cluster} AS otel_spans{local} \
@@ -133,8 +166,17 @@ pub const MIGRATIONS: &[Migration] = &[Migration {
     // `Distributed` front ends are created `AS otel_x_local`, which copies the structure once and does
     // not track later changes - so the metrics column has to be added there too. The spans change is
     // confined to the local table's sorting key, which a front end does not carry.
-    distributed_statements: &["ALTER TABLE otel_metrics{on_cluster} \
-         ADD COLUMN IF NOT EXISTS ingested_at DateTime64(6, 'UTC') DEFAULT now64(6)"],
+    distributed_statements: &[
+        "ALTER TABLE otel_metrics{on_cluster} ADD COLUMN IF NOT EXISTS datapoint_id String",
+        "ALTER TABLE otel_metrics{on_cluster} ADD COLUMN IF NOT EXISTS scope_attributes Nullable(String)",
+        "ALTER TABLE otel_metrics{on_cluster} ADD COLUMN IF NOT EXISTS scope_schema_url Nullable(String)",
+        "ALTER TABLE otel_metrics{on_cluster} ADD COLUMN IF NOT EXISTS resource_schema_url Nullable(String)",
+        "ALTER TABLE otel_metrics{on_cluster} ADD COLUMN IF NOT EXISTS exemplars Nullable(String) CODEC(ZSTD(3))",
+        "ALTER TABLE otel_spans{on_cluster} ADD COLUMN IF NOT EXISTS scope_name Nullable(String) CODEC(ZSTD(1))",
+        "ALTER TABLE otel_spans{on_cluster} ADD COLUMN IF NOT EXISTS scope_version Nullable(String) CODEC(ZSTD(1))",
+        "ALTER TABLE otel_metrics{on_cluster} \
+         ADD COLUMN IF NOT EXISTS ingested_at DateTime64(6, 'UTC') DEFAULT now64(6)",
+    ],
 }];
 
 /// The engine a v3 rebuild's replacement table uses.

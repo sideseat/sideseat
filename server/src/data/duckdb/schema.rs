@@ -6,7 +6,7 @@
 //! use an inline DEDUP_SPANS subquery.
 
 /// Current schema version
-pub const SCHEMA_VERSION: i32 = 2;
+pub const SCHEMA_VERSION: i32 = 3;
 
 /// Complete schema SQL
 pub const SCHEMA: &str = r#"

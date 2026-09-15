@@ -106,14 +106,6 @@ ALTER TABLE otel_metrics ADD COLUMN scope_attributes JSON;
 ALTER TABLE otel_metrics ADD COLUMN scope_schema_url VARCHAR;
 ALTER TABLE otel_metrics ADD COLUMN resource_schema_url VARCHAR;
 ALTER TABLE otel_metrics ADD COLUMN exemplars JSON;
--- The version that decides which re-delivery of a datapoint wins, so this side compares before replacing
--- rather than always overwriting - which is what makes it agree with ClickHouse's replacing engine.
---
--- **Last**, matching the fresh schema, for the positional-`Appender` reason the columns above are
--- appended for. Nullable, because DuckDB refuses `SET NOT NULL` on a TIMESTAMP inside a transaction -
--- see the fresh schema's note. Existing rows take the epoch, below any real receipt time, so the first
--- genuine delivery outranks them.
-ALTER TABLE otel_metrics ADD COLUMN ingested_at TIMESTAMP DEFAULT TIMESTAMP '1970-01-01 00:00:00';
 CREATE INDEX IF NOT EXISTS idx_metrics_project_ts ON otel_metrics(project_id, timestamp DESC);
 CREATE INDEX IF NOT EXISTS idx_metrics_project_name ON otel_metrics(project_id, metric_name);
 CREATE INDEX IF NOT EXISTS idx_metrics_project_name_ts ON otel_metrics(project_id, metric_name, timestamp DESC);
@@ -135,10 +127,27 @@ CREATE INDEX IF NOT EXISTS idx_spans_project_session ON otel_spans(project_id, s
 CREATE INDEX IF NOT EXISTS idx_spans_project_span ON otel_spans(project_id, span_id);
 "#;
 
+/// v2 to v3: the metrics version column.
+///
+/// A **new version**, not an addition to `MIGRATION_V2`, and that distinction is the whole point.
+/// `MIGRATION_V2` takes a v1 database to v2; a database *already* at v2 - which is every database created by
+/// any build after v1.0.13 - never runs it again. Putting the column there meant those databases never
+/// received it while the metrics `Appender` had already started writing it: a binder error on the first
+/// metric ingested, on every existing installation.
+///
+/// Declared **last**, matching the fresh schema, for the positional-`Appender` reason every appended column
+/// has. Nullable, because DuckDB refuses `SET NOT NULL` on a TIMESTAMP added in the same transaction - see
+/// the fresh schema's note. Existing rows take the epoch, below any real receipt time, so the first genuine
+/// delivery outranks them. `IF NOT EXISTS` so a v1 database that reached v2 through the migration above,
+/// back when it carried this column, still upgrades.
+const MIGRATION_V3: &str = r#"ALTER TABLE otel_metrics ADD COLUMN IF NOT EXISTS ingested_at TIMESTAMP DEFAULT TIMESTAMP '1970-01-01 00:00:00';
+"#;
+
 fn apply_migration(conn: &Connection, version: i32) -> Result<(), DuckdbError> {
     match version {
         1 => Ok(()), // Handled by apply_initial_schema
         2 => apply_versioned_migration(conn, 2, "v1_to_current", MIGRATION_V2),
+        3 => apply_versioned_migration(conn, 3, "metric_version_column", MIGRATION_V3),
         _ => Err(DuckdbError::MigrationFailed {
             version,
             name: "unknown".to_string(),
@@ -200,6 +209,23 @@ fn apply_versioned_migration(
 mod tests {
     use super::*;
     use crate::data::duckdb::schema::SCHEMA;
+
+    /// Column name and type, **ordered by position** - the property the positional `Appender` depends on.
+    fn columns(conn: &Connection, table: &str) -> Vec<(String, String)> {
+        // `ORDER BY column_index`, not sorted by name: the physical order is what the appender uses.
+        let mut stmt = conn
+            .prepare(
+                "SELECT column_name, data_type FROM duckdb_columns() \
+                 WHERE table_name = ? ORDER BY column_index",
+            )
+            .expect("prepare");
+        let rows = stmt
+            .query_map([table], |row| {
+                Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+            })
+            .expect("query");
+        rows.map(|r| r.expect("row")).collect()
+    }
 
     fn create_test_db() -> Connection {
         Connection::open_in_memory().expect("Failed to create in-memory database")
@@ -268,22 +294,6 @@ mod tests {
     /// neighbour's name.
     #[test]
     fn a_v1_database_upgrades_to_the_same_column_order_as_a_fresh_one() {
-        fn columns(conn: &Connection, table: &str) -> Vec<(String, String)> {
-            // `ORDER BY column_index`, not sorted by name: the physical order is what the appender uses.
-            let mut stmt = conn
-                .prepare(
-                    "SELECT column_name, data_type FROM duckdb_columns() \
-                     WHERE table_name = ? ORDER BY column_index",
-                )
-                .expect("prepare");
-            let rows = stmt
-                .query_map([table], |row| {
-                    Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
-                })
-                .expect("query");
-            rows.map(|r| r.expect("row")).collect()
-        }
-
         let fresh = Connection::open_in_memory().expect("fresh");
         fresh.execute_batch(SCHEMA).expect("fresh schema");
 
@@ -372,6 +382,74 @@ mod tests {
             legacy, "",
             "a legacy datapoint has no computable identity, so it carries the empty one - not a null, \
              which the fresh schema's NOT NULL would refuse"
+        );
+    }
+
+    /// A database **already at v2** upgrades to v3 and gets the metrics version column.
+    ///
+    /// The v1 test above cannot see this class of defect. It walks the whole chain, so a column added to an
+    /// *already-applied* migration still arrives - while a database recorded at version N skips migration N
+    /// forever. `ingested_at` went into `MIGRATION_V2` while the schema still said 2, so every database
+    /// created after v1.0.13 never received it, and the metrics `Appender` had already started writing it: a
+    /// binder error on the first metric ingested. Production is v1-only, so this was a developer-machine
+    /// break rather than a deployed one - which is exactly the kind that reaches everyone who works here and
+    /// nobody who runs it.
+    ///
+    /// Each future bump wants its own arm here, for the same reason: the reduction to version N-1 is
+    /// migration-specific, which is why this cannot be a loop over every prior version.
+    #[tokio::test]
+    async fn a_v2_database_upgrades_to_v3_and_gains_the_metric_version_column() {
+        let fresh = Connection::open_in_memory().expect("fresh");
+        fresh.execute_batch(SCHEMA).expect("fresh schema");
+
+        // A v2 database: the current schema minus what v3 adds. The indexes come off first because DuckDB
+        // refuses to alter a table that has dependents - the same constraint a real migration meets.
+        let upgraded = Connection::open_in_memory().expect("upgraded");
+        upgraded.execute_batch(SCHEMA).expect("base schema");
+        upgraded
+            .execute_batch(
+                "DROP INDEX idx_metrics_project_ts;
+                 DROP INDEX idx_metrics_project_name;
+                 DROP INDEX idx_metrics_project_name_ts;
+                 DROP INDEX idx_metrics_exemplar_trace;
+                 DROP INDEX idx_metrics_session;
+                 ALTER TABLE otel_metrics DROP COLUMN ingested_at;
+                 CREATE INDEX idx_metrics_project_ts ON otel_metrics(project_id, timestamp DESC);
+                 CREATE INDEX idx_metrics_project_name ON otel_metrics(project_id, metric_name);
+                 CREATE INDEX idx_metrics_project_name_ts ON otel_metrics(project_id, metric_name, timestamp DESC);
+                 CREATE INDEX idx_metrics_exemplar_trace ON otel_metrics(project_id, exemplar_trace_id);
+                 CREATE INDEX idx_metrics_session ON otel_metrics(project_id, session_id);",
+            )
+            .expect("reduce to the v2 shape");
+        // A row written before the column existed, so the backfill is exercised rather than assumed.
+        upgraded
+            .execute_batch(
+                "INSERT INTO otel_metrics (project_id, metric_name, metric_type, timestamp, datapoint_id) \
+                 VALUES ('p1', 'v2.metric', 'gauge', TIMESTAMP '2026-01-01 00:00:00', 'dp-v2');",
+            )
+            .expect("v2 row");
+
+        apply_migration(&upgraded, 3).expect("v2 upgrades to v3");
+
+        assert_eq!(
+            columns(&upgraded, "otel_metrics"),
+            columns(&fresh, "otel_metrics"),
+            "a v2 database upgraded to v3 has different otel_metrics columns than a fresh one - and the \
+             metrics writer is a positional Appender, so a difference in position writes every value into \
+             the wrong column"
+        );
+
+        let backfilled: i64 = upgraded
+            .query_row(
+                "SELECT epoch_us(ingested_at) FROM otel_metrics WHERE datapoint_id = 'dp-v2'",
+                [],
+                |row| row.get(0),
+            )
+            .expect("the pre-existing row carries a version");
+        assert_eq!(
+            backfilled, 0,
+            "a row written before the column existed takes the epoch, below any real receipt time, so the \
+             first genuine delivery outranks it"
         );
     }
 }

@@ -3609,13 +3609,25 @@ async fn every_clickhouse_migration_applies_to_the_state_it_upgrades() {
             "INSERT INTO otel_spans_v2 SELECT * FROM otel_spans",
             "EXCHANGE TABLES otel_spans AND otel_spans_v2",
             "DROP TABLE IF EXISTS otel_spans_v2 SYNC",
-            // Metrics back to an engine with no version argument, and without the column it names.
+            // Metrics back to an engine with no version argument, and without the columns a *released* v2
+            // lacks. The released v1.0.13 schema declares version 2 and has no `datapoint_id`,
+            // `scope_attributes`, `scope_schema_url`, `resource_schema_url` or `exemplars` - they were added
+            // to the fresh schema later without the version being bumped. Reversing only what *this*
+            // migration adds reconstructed a "v2" that still had them, so the test passed against a shape no
+            // real database has while v3 would have failed on every real one with `UNKNOWN_IDENTIFIER`.
+            "ALTER TABLE otel_metrics DROP COLUMN IF EXISTS scope_attributes",
+            "ALTER TABLE otel_metrics DROP COLUMN IF EXISTS scope_schema_url",
+            "ALTER TABLE otel_metrics DROP COLUMN IF EXISTS resource_schema_url",
+            "ALTER TABLE otel_metrics DROP COLUMN IF EXISTS exemplars",
+            "ALTER TABLE otel_spans DROP COLUMN IF EXISTS scope_name",
+            "ALTER TABLE otel_spans DROP COLUMN IF EXISTS scope_version",
             "DROP TABLE IF EXISTS otel_metrics_v2 SYNC",
             "CREATE TABLE otel_metrics_v2 AS otel_metrics ENGINE = ReplacingMergeTree() \
              PARTITION BY toYYYYMM(timestamp) \
-             ORDER BY (project_id, metric_name, toDate(timestamp), timestamp, datapoint_id)",
+             ORDER BY (project_id, metric_name, toDate(timestamp), timestamp)",
             "ALTER TABLE otel_metrics_v2 DROP COLUMN ingested_at",
-            "INSERT INTO otel_metrics_v2 SELECT * EXCEPT (ingested_at) FROM otel_metrics",
+            "ALTER TABLE otel_metrics_v2 DROP COLUMN IF EXISTS datapoint_id",
+            "INSERT INTO otel_metrics_v2 SELECT * EXCEPT (ingested_at, datapoint_id) FROM otel_metrics",
             "EXCHANGE TABLES otel_metrics AND otel_metrics_v2",
             "DROP TABLE IF EXISTS otel_metrics_v2 SYNC",
         ],
@@ -3676,6 +3688,92 @@ async fn every_clickhouse_migration_applies_to_the_state_it_upgrades() {
         "the migrated column must hold what was written, got {:?}",
         stored[0]
     );
+}
+
+/// A crash between `EXCHANGE TABLES` and the `DROP` must not read as a completed migration.
+///
+/// The v3 rebuild is copy-swap: a `_v3` replacement is created with the new sorting key, filled, exchanged
+/// into place, and the *old* table - now wearing the `_v3` name - is dropped. After the exchange and before
+/// the drop, both facts a shape-based precondition asks about already look right: the live table has the new
+/// sorting key and metrics have their version column. So a precondition asking only about those reports the
+/// migration applied, the version record advances, and the old full-size table is never reclaimed - silently
+/// doubling the storage of the two largest tables, with nothing to detect it.
+///
+/// Naming the replacement tables in the precondition makes a re-run finish the job. That is safe because the
+/// statements begin by dropping the leftover, so re-running is idempotent - which is what this asserts, since
+/// a precondition that fires but a statement list that then fails would be no better.
+#[tokio::test]
+async fn a_leftover_replacement_table_makes_the_migration_run_again() {
+    let Ok(url) = std::env::var(URL_ENV) else {
+        eprintln!("clickhouse parity: skipped - set {URL_ENV} (or run `make test-clickhouse`)");
+        return;
+    };
+
+    let database = "sideseat_parity_leftover";
+    let service = clickhouse_backend(&url, database).await;
+    let client = raw_client(&url, database);
+
+    let exists = |name: &'static str| {
+        let client = client.clone();
+        async move {
+            let found: Option<u8> = client
+                .query("SELECT 1 FROM system.tables WHERE database = currentDatabase() AND name = ? LIMIT 1")
+                .bind(name)
+                .fetch_optional()
+                .await
+                .expect("system.tables is readable");
+            found.is_some()
+        }
+    };
+
+    // A fresh database is already at v3, so the shape-based half of the precondition is satisfied and
+    // nothing else would make the migration run. This is exactly the post-exchange, pre-drop state.
+    client
+        .query(
+            "CREATE TABLE otel_spans_v3 AS otel_spans ENGINE = ReplacingMergeTree(ingested_at) \
+                PARTITION BY toYYYYMM(timestamp_start) ORDER BY (project_id, trace_id, span_id)",
+        )
+        .execute()
+        .await
+        .expect("stage a leftover replacement table");
+    assert!(exists("otel_spans_v3").await, "the leftover was staged");
+
+    service.apply_migration_for_test(3).await.expect(
+        "a re-run over an already-migrated table must succeed, or the precondition is useless",
+    );
+
+    assert!(
+        !exists("otel_spans_v3").await,
+        "the leftover replacement table survived - the old table is never reclaimed and the storage of the \
+         largest table stays doubled"
+    );
+
+    // And the re-run left the live table intact and writable, which is what makes re-running the right
+    // remedy rather than merely a detectable one.
+    let sorting_key: Vec<String> = client
+        .query("SELECT sorting_key FROM system.tables WHERE database = currentDatabase() AND name = 'otel_spans'")
+        .fetch_all()
+        .await
+        .expect("read the sorting key back");
+    assert_eq!(sorting_key.len(), 1);
+    assert!(
+        !sorting_key[0].contains("toDate("),
+        "the re-run must not reinstate the date expression, got {:?}",
+        sorting_key[0]
+    );
+
+    service
+        .insert_spans(vec![NormalizedSpan {
+            project_id: Some(PROJECT.to_string()),
+            trace_id: "leftover-trace".to_string(),
+            span_id: "leftover-span".to_string(),
+            span_name: "after-rerun".to_string(),
+            timestamp_start: ts(1),
+            timestamp_end: Some(ts(1)),
+            ..Default::default()
+        }])
+        .await
+        .expect("the live table accepts a write after the re-run");
 }
 
 /// A re-delivery that moves a trace to another session must move it on both backends.
