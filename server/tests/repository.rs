@@ -196,8 +196,16 @@ fn rust_commentary(text: &str) -> Vec<(usize, String)> {
 /// defeats outright. Requiring digests would mean a digest bump per patch release of PostgreSQL for a container
 /// that holds a test database for ninety seconds.
 ///
-/// Derived from the tree: every tracked workflow, action definition and Compose file, so a second workflow
-/// cannot be added outside the rule — one already exists (`docs.yml`, which deploys the public site).
+/// Derived from the tree: every tracked workflow, action definition, Compose file **and Dockerfile**, so a
+/// second workflow cannot be added outside the rule — one already exists (`docs.yml`, which deploys the public
+/// site).
+///
+/// **The Dockerfile selection is the part that was missing, and the `FROM` branch below was unreachable
+/// without it.** The comment beside that branch claimed a Dockerfile's base image is checked "in the other
+/// spelling", while the file filter named only workflows, action definitions and paths containing
+/// `docker-compose` — so `deploy/Dockerfile`, the one image that actually reaches a user, was never read and
+/// `FROM debian:latest` would have passed. A gate that sees less than it claims is this file's own recurring
+/// defect; both Compose spellings are matched for the same reason the Dependabot inventory matches both.
 #[test]
 fn every_action_is_pinned_to_a_commit_and_every_image_to_a_tag() {
     let repo = repo_root();
@@ -210,15 +218,33 @@ fn every_action_is_pinned_to_a_commit_and_every_image_to_a_tag() {
     let mut unpinned: Vec<String> = Vec::new();
     let mut actions = 0usize;
     let mut images = 0usize;
+    // Asserted directly rather than inferred from the image total: a count floor is satisfied by the Compose
+    // file alone, so dropping the Dockerfile selection again would leave every assertion here passing.
+    let mut dockerfiles = 0usize;
     for file in String::from_utf8_lossy(&listing.stdout)
         .lines()
         .filter(|f| {
+            let name = f.rsplit('/').next().unwrap_or(f);
             f.starts_with(".github/workflows/")
                 || f.ends_with("/action.yml")
                 || f.ends_with("/action.yaml")
-                || f.contains("docker-compose")
+                // `Dockerfile.dev` and the like carry base images too, so this is a prefix rather than the
+                // exact name the Dependabot inventory needs.
+                || name.starts_with("Dockerfile")
+                || matches!(
+                    name,
+                    "docker-compose.yml" | "docker-compose.yaml" | "compose.yml" | "compose.yaml"
+                )
         })
     {
+        if file
+            .rsplit('/')
+            .next()
+            .unwrap_or(file)
+            .starts_with("Dockerfile")
+        {
+            dockerfiles += 1;
+        }
         let text = std::fs::read_to_string(repo.join(file)).unwrap_or_default();
         for (number, line) in text.lines().enumerate() {
             let trimmed = line.trim().trim_start_matches("- ").trim();
@@ -290,6 +316,11 @@ fn every_action_is_pinned_to_a_commit_and_every_image_to_a_tag() {
 
     assert!(actions > 20, "only found {actions} action references");
     assert!(images > 4, "only found {images} image references");
+    assert!(
+        dockerfiles > 0,
+        "no Dockerfile was read - the `FROM` branch above is unreachable, so a base image on `latest` passes"
+    );
+    eprintln!("IMAGES={images}");
     assert!(
         unpinned.is_empty(),
         "{} unpinned reference(s) - remote code or an image this repository does not control the contents \
