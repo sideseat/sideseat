@@ -285,8 +285,6 @@ fn trim_project_to_limit(
     let mut total_deleted = 0u64;
     let mut all_trace_ids: HashMap<String, Vec<String>> = HashMap::new();
     let mut remaining = overage;
-    // Revisions per identity, measured from the previous batch. `None` until one has run.
-    let mut rows_per_identity: Option<u64> = None;
 
     for _ in 0..MAX_COUNT_CLEANUP_BATCHES {
         if remaining <= 0 {
@@ -304,28 +302,21 @@ fn trim_project_to_limit(
             );
             break;
         }
-        // The batch's identity limit is scaled by the revision ratio observed so far, which is what turns the
-        // row budget from a stop condition into an actual bound. Selection is by identity and the delete takes
-        // every revision, so `batch_size` identities is `batch_size x revisions` rows - unknowable before the
-        // fact, but measurable after one batch.
-        //
-        // **Stated residual: the first batch of a project's trim is not bounded this way**, because there is no
-        // ratio yet. Its rows are bounded only by its identity count times whatever revision depth those
-        // identities happen to carry, so one pathological identity is still one unbounded unit of work - which
-        // `MAX_COUNT_ROWS_PER_CYCLE` records as irreducible, since an identity cannot be split without either
-        // making no progress or promoting an obsolete revision to winner.
-        let limit = match rows_per_identity {
-            Some(ratio) if ratio > 0 => {
-                let affordable = row_budget.saturating_sub(total_deleted) / ratio;
-                remaining.min(batch_size).min(affordable.max(1) as i64)
-            }
-            _ => remaining.min(batch_size),
-        };
-        let batch = delete_oldest_spans_for_project(conn, project_id, limit)?;
+        // The row bound goes to the *statement*, which computes a running revision total and stops there.
+        // Scaling this batch's identity limit from the previous batch's average was the first attempt and is
+        // not a bound: an average says nothing about the next batch, so one batch of shallow identities
+        // followed by one of deep ones overshot by orders of magnitude.
+        let limit = remaining.min(batch_size);
+        let batch = delete_oldest_spans_for_project(
+            conn,
+            project_id,
+            limit,
+            row_budget.saturating_sub(total_deleted),
+            total_deleted == 0,
+        )?;
         if batch.identities == 0 {
             break;
         }
-        rows_per_identity = Some(batch.rows.div_ceil(batch.identities.max(1)));
         tracing::debug!(
             %project_id,
             identities = batch.identities,
@@ -395,21 +386,69 @@ fn delete_spans_before(
 }
 
 /// Delete the oldest N spans **of one project** (for count-based retention).
+/// The oldest `limit` identities of one project, **and at most `row_budget` physical rows**.
+///
+/// The row bound is inside the selection rather than applied to the loop around it, and that is the whole
+/// point: selection is by winning identity while the delete removes every revision of each selected identity,
+/// so an identity count does not bound rows. Scaling the next batch from the previous batch's *average*
+/// revision depth was the first attempt and is not a bound either - a batch of one-revision identities
+/// followed by a batch of hundred-revision ones overshoots by two orders of magnitude, because an average
+/// says nothing about the next batch.
+///
+/// So the running total is computed in SQL: identities are ranked oldest-first, each carries the cumulative
+/// revision count up to and including itself, and the batch takes those whose cumulative count is within
+/// budget.
+///
+/// `allow_overshoot` keeps the first identity **unconditionally**, which is the stated residual: one identity
+/// is atomic, because dropping some of its revisions leaves the identity in place and makes no progress while
+/// dropping its winner promotes an obsolete revision to winner. It is passed only when nothing has been
+/// deleted yet in this trim, and that condition is load-bearing rather than tidy - applied on every batch it
+/// re-opens the hole it exists to plug: a batch fills the budget with shallow identities, the next batch finds
+/// a deep one at rank 1, takes it unconditionally, and the *cycle* overshoots by that identity's whole depth
+/// even though it had already made progress. Progress needs the escape once, not repeatedly.
 fn delete_oldest_spans_for_project(
     conn: &Connection,
     project_id: &str,
     limit: i64,
+    row_budget: u64,
+    allow_overshoot: bool,
 ) -> Result<BatchOutcome, DuckdbError> {
+    let budget = i64::try_from(row_budget).unwrap_or(i64::MAX);
+    let overshoot = if allow_overshoot {
+        " OR row_rank = 1"
+    } else {
+        ""
+    };
     delete_spans_with_query(
         conn,
         &format!(
             "INSERT INTO _retention_batch
-             SELECT project_id, trace_id, span_id FROM {DEDUP_SPANS}
-             WHERE project_id = ?1
-             ORDER BY timestamp_start ASC
-             LIMIT ?2"
+             WITH winners AS (
+                 SELECT project_id, trace_id, span_id, timestamp_start
+                 FROM {DEDUP_SPANS}
+                 WHERE project_id = ?1
+             ),
+             ranked AS (
+                 SELECT w.project_id, w.trace_id, w.span_id,
+                        ROW_NUMBER() OVER (ORDER BY w.timestamp_start ASC, w.trace_id, w.span_id)
+                            AS row_rank,
+                        SUM(r.revisions) OVER (
+                            ORDER BY w.timestamp_start ASC, w.trace_id, w.span_id
+                        ) AS cumulative_rows
+                 FROM winners w
+                 JOIN (
+                     SELECT project_id, trace_id, span_id, COUNT(*) AS revisions
+                     FROM otel_spans WHERE project_id = ?1
+                     GROUP BY project_id, trace_id, span_id
+                 ) r
+                 ON r.project_id = w.project_id
+                    AND r.trace_id = w.trace_id
+                    AND r.span_id = w.span_id
+             )
+             SELECT project_id, trace_id, span_id FROM ranked
+             WHERE row_rank <= ?2 AND (cumulative_rows <= ?3{overshoot})"
         ),
-        &[&project_id as &dyn duckdb::ToSql, &limit],
+        &[&project_id as &dyn duckdb::ToSql, &limit, &budget],
     )
 }
 
@@ -744,7 +783,8 @@ mod tests {
         insert_test_span(&conn, "newest", "span3", "2020-12-01 00:00:00");
 
         // Use the batch primitive directly to verify ordering
-        let batch = delete_oldest_spans_for_project(&conn, "default", 1).expect("Should delete");
+        let batch = delete_oldest_spans_for_project(&conn, "default", 1, u64::MAX, true)
+            .expect("Should delete");
         assert_eq!(batch.rows, 1);
 
         // Verify oldest was deleted
@@ -1018,6 +1058,104 @@ mod tests {
         assert!(
             winners > 1,
             "identities remain, still over the limit, and are the next cycle's work - got {winners}"
+        );
+    }
+
+    /// The row bound holds when revision depth is **not uniform**, which is when an average lies.
+    ///
+    /// The bound was first implemented by scaling the next batch's identity limit from the previous batch's
+    /// average revisions-per-identity. That is not a bound: an average describes what has happened, not what
+    /// the next batch contains. A batch of one-revision identities followed by a batch of hundred-revision ones
+    /// overshoots by two orders of magnitude, and the earlier test could not see it because every identity in
+    /// its fixture carried the same depth.
+    ///
+    /// This fixture is deliberately skewed - shallow identities first, then a deep one - so an average taken
+    /// over the shallow ones is wrong about the deep one by 20x. The bound is now computed inside the delete
+    /// statement as a running revision total, so it does not depend on any prediction.
+    #[tokio::test]
+    async fn the_row_bound_holds_when_revision_depth_is_not_uniform() {
+        let (_temp_dir, analytics) = create_test_service().await;
+        let conn = analytics.conn();
+
+        // Four shallow identities (one revision each), then one carrying twenty.
+        for i in 0..4 {
+            insert_span_for_project(
+                &conn,
+                "default",
+                &format!("shallow{i}"),
+                &format!("s{i}"),
+                &format!("2020-01-0{} 00:00:00", i + 1),
+            );
+        }
+        for rev in 0..20 {
+            redeliver_span(
+                &conn,
+                "default",
+                "deep",
+                "deep-span",
+                "2020-01-05 00:00:00",
+                &format!("2020-01-{:02} 00:00:00", rev + 1),
+            );
+        }
+
+        // Every identity is over a limit of zero, so nothing but the budget decides where it stops. A budget of
+        // six covers the four shallow identities (4 rows) and must **not** reach the deep one, which would take
+        // the total to 24.
+        let (deleted, _) = trim_project_to_limit(&conn, "default", 5, 100, 6).expect("Should trim");
+
+        assert!(
+            deleted <= 6,
+            "the trim deleted {deleted} rows against a budget of 6 - the bound is predicted from an average \
+             rather than computed, so a batch of deep identities blows through it"
+        );
+        assert!(
+            deleted >= 4,
+            "it must still make progress on what fits, got {deleted}"
+        );
+
+        // The deep identity survives to the next cycle rather than being dropped.
+        let deep_rows: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM otel_spans WHERE project_id = 'default' AND trace_id = 'deep'",
+                [],
+                |row| row.get(0),
+            )
+            .expect("Should query");
+        assert_eq!(
+            deep_rows, 20,
+            "the identity that did not fit the budget is left intact for the next cycle"
+        );
+    }
+
+    /// A single identity larger than the whole budget is still deleted, because it cannot be split.
+    ///
+    /// This is the stated residual, asserted rather than described: with a budget of one row and an identity
+    /// carrying twenty, the sweep must take all twenty. Dropping some of an identity's revisions would leave
+    /// the identity in place and make no progress; dropping its winner would promote an obsolete revision,
+    /// which is corruption rather than slow retention. So the batch overshoots by exactly one identity, and
+    /// a mechanism that instead made *no* progress here would be worse.
+    #[tokio::test]
+    async fn one_identity_larger_than_the_budget_is_still_deleted() {
+        let (_temp_dir, analytics) = create_test_service().await;
+        let conn = analytics.conn();
+
+        for rev in 0..20 {
+            redeliver_span(
+                &conn,
+                "default",
+                "deep",
+                "deep-span",
+                "2020-01-05 00:00:00",
+                &format!("2020-01-{:02} 00:00:00", rev + 1),
+            );
+        }
+
+        let (deleted, _) = trim_project_to_limit(&conn, "default", 1, 100, 1).expect("Should trim");
+
+        assert_eq!(
+            deleted, 20,
+            "an identity cannot be split, so a budget of 1 still takes its 20 revisions - the alternative is \
+             a sweep that never makes progress on a deep identity"
         );
     }
 

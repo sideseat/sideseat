@@ -223,19 +223,7 @@ fn every_action_is_pinned_to_a_commit_and_every_image_to_a_tag() {
     let mut dockerfiles = 0usize;
     for file in String::from_utf8_lossy(&listing.stdout)
         .lines()
-        .filter(|f| {
-            let name = f.rsplit('/').next().unwrap_or(f);
-            f.starts_with(".github/workflows/")
-                || f.ends_with("/action.yml")
-                || f.ends_with("/action.yaml")
-                // Prefixes, not exact names. `Dockerfile.dev` carries a base image, and Compose reads
-                // `docker-compose.override.yml` as well as the four canonical spellings - narrowing this to
-                // exact names was a *regression* on the `contains("docker-compose")` it replaced, and an
-                // override file is precisely where a `latest` gets added.
-                || name.starts_with("Dockerfile")
-                || name.starts_with("docker-compose.")
-                || name.starts_with("compose.")
-        })
+        .filter(|f| declares_images(f))
     {
         if file
             .rsplit('/')
@@ -284,16 +272,7 @@ fn every_action_is_pinned_to_a_commit_and_every_image_to_a_tag() {
                 // database for ninety seconds.
                 .or_else(|| trimmed.strip_prefix("FROM "))
             {
-                // `FROM x AS stage` names a stage after the reference, and `FROM --platform=... x` puts
-                // flags *before* it. Taking the first token blind read `--platform=$BUILDPLATFORM` as the
-                // image, saw the `$`, and skipped the line - so `FROM --platform=$BUILDPLATFORM debian:latest`
-                // passed. Flags are stepped over rather than assumed absent.
-                let reference = rest
-                    .trim()
-                    .trim_matches('"')
-                    .split_whitespace()
-                    .find(|token| !token.starts_with("--"))
-                    .unwrap_or_default();
+                let reference = image_reference_in(rest);
                 // A Compose file may build rather than pull, and interpolate its own tag; a later Dockerfile
                 // stage may refer to an earlier one by the name it gave it, which is internal to this build.
                 if reference.is_empty()
@@ -2076,6 +2055,134 @@ fn every_module_path_cited_anywhere_resolves() {
 ///
 /// Comments are stripped before matching, so prose about the API layer is not a violation - the same reason
 /// the framework sweeps tokenise rather than grep.
+/// Does this tracked path declare container images this repository does not control?
+///
+/// Prefixes rather than exact names, and both prefixes were defects. `Dockerfile.dev` carries a base image.
+/// Compose reads `docker-compose.override.yml` as well as the four canonical spellings, and narrowing this to
+/// exact basenames was a **regression** on the `contains("docker-compose")` it replaced - an override file
+/// being precisely where a `latest` gets added.
+fn declares_images(path: &str) -> bool {
+    let name = path.rsplit('/').next().unwrap_or(path);
+    path.starts_with(".github/workflows/")
+        || path.ends_with("/action.yml")
+        || path.ends_with("/action.yaml")
+        || name.starts_with("Dockerfile")
+        || name.starts_with("docker-compose.")
+        || name.starts_with("compose.")
+}
+
+/// The image reference on a `FROM` or `image:` line, with flags and stage names stepped over.
+///
+/// `FROM x AS stage` names a stage *after* the reference and `FROM --platform=... x` puts flags *before* it.
+/// Taking the first token blind read `--platform=$BUILDPLATFORM` as the image, saw the `$`, and skipped the
+/// line - so `FROM --platform=$BUILDPLATFORM debian:latest` passed the one gate that reads the published
+/// image.
+fn image_reference_in(rest: &str) -> &str {
+    rest.trim()
+        .trim_matches('"')
+        .split_whitespace()
+        .find(|token| !token.starts_with("--"))
+        .unwrap_or_default()
+}
+
+/// The two parsing decisions above, on input the tree does not contain.
+///
+/// Both fixes were verified by hand-editing `deploy/Dockerfile` and staging an override file, which is not an
+/// enduring gate: with no tracked file carrying either shape, each fix could be reverted and the suite would
+/// stay green. These cases are the shapes themselves, so the parser is held to them permanently.
+#[test]
+fn the_image_gate_reads_the_shapes_that_defeated_it() {
+    // A flag before the reference, which is ordinary in a multi-arch Dockerfile.
+    assert_eq!(
+        image_reference_in("--platform=$BUILDPLATFORM debian:bookworm-slim AS builder"),
+        "debian:bookworm-slim",
+        "a `--platform` flag must not be mistaken for the image"
+    );
+    assert_eq!(
+        image_reference_in("debian:bookworm-slim AS builder"),
+        "debian:bookworm-slim",
+        "a stage name after the reference is not part of it"
+    );
+    assert_eq!(
+        image_reference_in(" \"postgres:17-alpine\" "),
+        "postgres:17-alpine",
+        "a quoted Compose image is the reference without its quotes"
+    );
+
+    // Compose spellings Compose itself accepts.
+    for path in [
+        "deploy/local/docker-compose.yml",
+        "deploy/local/docker-compose.override.yml",
+        "deploy/compose.yaml",
+        "deploy/Dockerfile",
+        "deploy/Dockerfile.dev",
+        ".github/workflows/ci.yml",
+        "some/action.yml",
+    ] {
+        assert!(
+            declares_images(path),
+            "{path} declares images and must be read"
+        );
+    }
+    for path in ["server/src/app.rs", "docs/compose-notes.md", "README.md"] {
+        assert!(!declares_images(path), "{path} declares no images");
+    }
+}
+
+/// A detector that nothing starts detects nothing, and both of these can be deleted with every other test green.
+///
+/// Two production call sites, each the *only* one, and each invisible to the behavioural tests because those
+/// call the underlying method directly:
+///
+/// - `start_consistency_check_task` in `app.rs` is what runs the cross-partition check. Every consistency test
+///   calls `check_partition_consistency()` itself, so deleting the scheduling left the suite green and the
+///   cross-month residual permanently unreported - which is worse than not having the detector, because the
+///   commit message says it is reported.
+/// - `report_unidentified_metric_rows` in the ClickHouse migration path is what tells an operator that
+///   pre-identity metric rows exist. The parity test invokes the method directly, so deleting the call left an
+///   upgrade silently exposed.
+///
+/// Structural because there is nothing else available: both are `tokio::spawn`-and-forget side effects on a
+/// path that needs a live ClickHouse and a full `AppState`, and asserting on log output is asserting on a
+/// string. What can be checked is that the call exists, which is exactly the property that was missing.
+///
+/// Commentary is stripped first, so a mention of either name in a doc comment does not satisfy it - the same
+/// discipline `the_storage_layer_does_not_import_the_http_layer` uses, and for the same reason: a gate that
+/// accepts prose is a gate that passes while seeing less than it claims.
+#[test]
+fn every_detector_is_actually_started_in_production() {
+    let repo = repo_root();
+    for (file, call, why) in [
+        (
+            "server/src/app.rs",
+            "start_consistency_check_task",
+            "nothing would run the cross-partition consistency check, so the cross-month duplicate residual \
+             would never be reported despite being documented as detected",
+        ),
+        (
+            "server/src/data/clickhouse/mod.rs",
+            "report_unidentified_metric_rows",
+            "an upgrade would not report pre-identity metric rows, so an operator would have no way to learn \
+             that a released row and its correction are both being served",
+        ),
+    ] {
+        let text = std::fs::read_to_string(repo.join(file))
+            .unwrap_or_else(|e| panic!("{file} is readable: {e}"));
+        // `rust_commentary` returns the *comments*, so the code is what is left once they are removed - the
+        // same shape `the_storage_layer_does_not_import_the_http_layer` uses.
+        let mut code = text.clone();
+        for (_, comment) in rust_commentary(&text) {
+            if !comment.is_empty() {
+                code = code.replace(&comment, "");
+            }
+        }
+        assert!(
+            code.contains(call),
+            "{file} no longer calls `{call}`, so {why}"
+        );
+    }
+}
+
 #[test]
 fn the_storage_layer_does_not_import_the_http_layer() {
     let data = repo_root().join("server/src/data");

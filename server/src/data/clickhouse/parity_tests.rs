@@ -3870,6 +3870,40 @@ async fn the_consistency_check_examines_new_rows_not_the_corpus() {
          incremental, so the check is a full scan on a schedule and the cost claim is false",
         third.examined
     );
+
+    // **`examined` is result cardinality, not work**, and asserting it alone is not enough: a pass that scans
+    // the whole corpus and groups it down to one identity satisfies every assertion above. So the rows
+    // ClickHouse actually *read* are checked, from its own query log - which is the only place that number
+    // exists, and the thing the `idx_ingested_at` skip index is there to reduce.
+    let client = raw_client(&url, "sideseat_parity_checkcost");
+    client
+        .query("SYSTEM FLUSH LOGS")
+        .execute()
+        .await
+        .expect("flush the query log");
+
+    let read_rows: Vec<u64> = client
+        .query(
+            "SELECT read_rows FROM system.query_log \
+             WHERE type = 'QueryFinish' AND query LIKE '%groupUniqArray(toString(toYYYYMM%' \
+             ORDER BY event_time_microseconds DESC LIMIT 1",
+        )
+        .fetch_all()
+        .await
+        .expect("read the query log");
+
+    assert_eq!(
+        read_rows.len(),
+        1,
+        "the consistency query is not in the query log, so this cannot check what it read"
+    );
+    assert!(
+        read_rows[0] < corpus as u64,
+        "the last consistency pass read {} rows out of a {corpus}-row corpus. `examined` was small, so the \
+         *answer* was incremental while the *work* was a full scan - which is what an unusable or \
+         unmaterialised skip index looks like, and is the claim this test exists to protect",
+        read_rows[0]
+    );
 }
 
 /// A released metric row and a later correction of the same datapoint **both** survive, and that is stated.
@@ -3998,6 +4032,11 @@ async fn every_clickhouse_migration_applies_to_the_state_it_upgrades() {
     let undo: &[(i32, &[&str])] = &[(
         3,
         &[
+            // The anomaly table is dropped, because released v2 has none - it arrives with v3. Leaving it in
+            // place let the migration's `CREATE TABLE IF NOT EXISTS` be deleted with this test green: a fresh
+            // database already has the table, so nothing here would notice, and a *real* v2 upgrade would then
+            // record v3 without it and every scheduled consistency pass would fail with `UNKNOWN_TABLE`.
+            "DROP TABLE IF EXISTS span_partition_anomalies SYNC",
             // The skip index has to go too, and forgetting it was the same defect in a third place: v3 adds
             // `idx_ingested_at`, so a "v2" reconstructed by reversing only the *columns* keeps an index that
             // released v2 never had - and the migration's `ADD INDEX` could then be deleted with this test
@@ -4110,6 +4149,30 @@ async fn every_clickhouse_migration_applies_to_the_state_it_upgrades() {
         "the upgraded span table is missing idx_ingested_at, so the consistency check has no index to \
          find recent rows with"
     );
+
+    // The table the consistency check writes to has to exist after an upgrade, not only after a fresh
+    // install: `apply_initial_schema` is skipped whenever a version record exists, so a `CREATE TABLE` in the
+    // fresh schema alone never reaches a database that upgrades.
+    let anomalies: Vec<u8> = client
+        .query(
+            "SELECT 1 FROM system.tables WHERE database = currentDatabase() \
+             AND name = 'span_partition_anomalies'",
+        )
+        .fetch_all()
+        .await
+        .expect("look for the anomaly table");
+    assert_eq!(
+        anomalies.len(),
+        1,
+        "the upgraded database has no span_partition_anomalies table, so every consistency pass will fail \
+         with UNKNOWN_TABLE and the cross-month residual is undetected"
+    );
+
+    // And it is usable, not merely present - a pass against the upgraded database must run.
+    service
+        .check_partition_consistency()
+        .await
+        .expect("the consistency check must run against an upgraded database");
 }
 
 /// A crash between `EXCHANGE TABLES` and the `DROP` must not read as a completed migration.
@@ -4330,9 +4393,17 @@ async fn the_migration_applies_to_a_replicated_database() {
         "INSERT INTO otel_metrics_v2_local SELECT * EXCEPT (ingested_at, datapoint_id, \
          scope_attributes, scope_schema_url, resource_schema_url, exemplars) FROM otel_metrics_local"
             .to_string(),
+        // Same reasoning as the spans: the released path, freed and reoccupied, so a replacement reusing it
+        // fails here as it would in production.
+        format!("DROP TABLE IF EXISTS otel_metrics_local ON CLUSTER {cluster} SYNC"),
         format!(
-            "EXCHANGE TABLES otel_metrics_local AND otel_metrics_v2_local ON CLUSTER {cluster}"
+            "CREATE TABLE otel_metrics_local ON CLUSTER {cluster} AS otel_metrics_v2_local \
+             ENGINE = ReplicatedReplacingMergeTree( \
+                 '/clickhouse/tables/{{shard}}/{database}/otel_metrics', '{{replica}}') \
+             PARTITION BY toYYYYMM(timestamp) \
+             ORDER BY (project_id, metric_name, toDate(timestamp), timestamp)"
         ),
+        "INSERT INTO otel_metrics_local SELECT * FROM otel_metrics_v2_local".to_string(),
         format!("DROP TABLE IF EXISTS otel_metrics_v2_local ON CLUSTER {cluster} SYNC"),
         // -- and the front ends, which is the half a `distributed: false` test can never reach -------------
         format!("ALTER TABLE otel_metrics ON CLUSTER {cluster} DROP COLUMN IF EXISTS ingested_at"),
@@ -4447,22 +4518,41 @@ async fn an_interrupted_replicated_migration_resumes() {
     let client = raw_client_at(&url, database, &user, &password);
     let cluster = REPLICATED_CLUSTER;
 
-    // The post-exchange, pre-drop state on a replicated database: the live tables are already right and the old
-    // ones still wear the `_v3` names. Created with their own Keeper paths, because two tables cannot share
-    // one - which is precisely why the migration uses `{uuid}` paths.
+    // A row on the live (v3) table, so "the re-run did not exchange the leftover back" is checkable against
+    // data rather than only against metadata.
+    service
+        .insert_spans(vec![NormalizedSpan {
+            project_id: Some(PROJECT.to_string()),
+            trace_id: "live-trace".to_string(),
+            span_id: "live-span".to_string(),
+            span_name: "current".to_string(),
+            timestamp_start: ts(1),
+            timestamp_end: Some(ts(1)),
+            ..Default::default()
+        }])
+        .await
+        .expect("seed the live table");
+
+    // The state a crash **actually** produces: `EXCHANGE TABLES` has run, so the live table is already v3 and
+    // the table wearing the `_v3` name is the *old, populated, v2-shaped* one waiting to be dropped.
+    //
+    // A first version staged empty v3-shaped tables instead, which is not a state this migration can reach and
+    // is the weaker fixture in the way that matters: a blind re-run that exchanged the leftover back would put
+    // a v2 sorting key and stale data live, and against a v3-shaped empty leftover that damage is invisible.
+    // Only one leftover exists at a time here, because the rebuild is sequential - spans, then metrics - so
+    // staging both was also wrong about the shape of the failure.
     for statement in [
         format!(
             "CREATE TABLE otel_spans_v3_local ON CLUSTER {cluster} AS otel_spans_local \
-             ENGINE = ReplicatedReplacingMergeTree('/clickhouse/tables/{{shard}}/{{uuid}}/spans_leftover', \
-             '{{replica}}', ingested_at) \
-             PARTITION BY toYYYYMM(timestamp_start) ORDER BY (project_id, trace_id, span_id)"
+             ENGINE = ReplicatedReplacingMergeTree( \
+                 '/clickhouse/tables/{{shard}}/{{uuid}}/spans_leftover', '{{replica}}', ingested_at) \
+             PARTITION BY toYYYYMM(timestamp_start) \
+             ORDER BY (project_id, toDate(timestamp_start), trace_id, span_id)"
         ),
+        // Stale content, so exchanging it back would be observable.
         format!(
-            "CREATE TABLE otel_metrics_v3_local ON CLUSTER {cluster} AS otel_metrics_local \
-             ENGINE = ReplicatedReplacingMergeTree('/clickhouse/tables/{{shard}}/{{uuid}}/metrics_leftover', \
-             '{{replica}}', ingested_at) \
-             PARTITION BY toYYYYMM(timestamp) \
-             ORDER BY (project_id, metric_name, toDate(timestamp), timestamp, datapoint_id)"
+            "INSERT INTO otel_spans_v3_local (project_id, trace_id, span_id, span_name, timestamp_start, \
+             ingested_at) VALUES ('{PROJECT}', 'stale-trace', 'stale-span', 'obsolete', now64(6), now64(6))"
         ),
     ] {
         client
@@ -4471,6 +4561,19 @@ async fn an_interrupted_replicated_migration_resumes() {
             .await
             .unwrap_or_else(|e| panic!("staging the interrupted state ({statement}): {e}"));
     }
+
+    let leftover_key: Vec<String> = client
+        .query(
+            "SELECT sorting_key FROM system.tables \
+             WHERE database = currentDatabase() AND name = 'otel_spans_v3_local'",
+        )
+        .fetch_all()
+        .await
+        .expect("read the leftover's key");
+    assert!(
+        leftover_key[0].contains("toDate("),
+        "the leftover must carry the *old* key, or this fixture is not the state a crash produces"
+    );
 
     // A blind re-run, as a restarting instance performs.
     service
@@ -4492,7 +4595,8 @@ async fn an_interrupted_replicated_migration_resumes() {
          storage of the two largest tables stays doubled: {leftovers:?}"
     );
 
-    // And it did not toggle the exchange back, which is the other way a blind re-run goes wrong.
+    // It did not exchange the leftover back, which is the other way a blind re-run goes wrong - and with a
+    // populated v2-shaped leftover that is checkable against both the key and the data.
     let keys: Vec<String> = client
         .query(
             "SELECT sorting_key FROM system.tables \
@@ -4504,8 +4608,22 @@ async fn an_interrupted_replicated_migration_resumes() {
     assert_eq!(keys.len(), 1);
     assert!(
         !keys[0].contains("toDate("),
-        "the re-run put the date expression back into the sorting key, got {:?}",
+        "the re-run exchanged the old table back in, so the date expression is live again: {:?}",
         keys[0]
+    );
+
+    let trace_ids: Vec<String> = client
+        .query("SELECT DISTINCT trace_id FROM otel_spans ORDER BY trace_id")
+        .fetch_all()
+        .await
+        .expect("read the live rows");
+    assert!(
+        trace_ids.iter().any(|t| t == "live-trace"),
+        "the live table's own row is gone after the re-run: {trace_ids:?}"
+    );
+    assert!(
+        !trace_ids.iter().any(|t| t == "stale-trace"),
+        "the leftover's stale row is live, so the re-run exchanged the obsolete table back in: {trace_ids:?}"
     );
 
     service

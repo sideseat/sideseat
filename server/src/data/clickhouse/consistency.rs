@@ -126,10 +126,15 @@ impl ClickhouseService {
     /// what the pass examined and found; the findings themselves are read back with
     /// [`Self::partition_anomalies`], because the point of recording them is that they outlive the pass.
     pub async fn check_partition_consistency(&self) -> Result<CheckOutcome, ClickhouseError> {
-        // `delete_table`, not `insert_table`: this asks about physical parts, and in distributed mode the
-        // parts are on the `_local` table. Asking the `Distributed` front end would report the shard the
-        // connection happened to reach, which is the same mistake the insert path once made.
-        let local = self.delete_table("otel_spans");
+        // The **`Distributed` front end**, not `_local`. A first version read `_local` on the reasoning that
+        // a question about physical parts must be asked where the parts are - which is true of a *mutation*
+        // and backwards for a *read*: a `SELECT` against `_local` sees only the node the connection reached,
+        // so an anomaly on any other shard was reported as clean. The Distributed table fans the read out,
+        // which is what a report about the whole deployment needs.
+        //
+        // Still no `FINAL`: the question is about physical revisions, and `FINAL` shows one per identity per
+        // partition - it would hide exactly what is being looked for.
+        let spans = self.insert_table("otel_spans");
         let since = self.consistency_watermark().await? - WINDOW_OVERLAP;
 
         // Candidates: identities touched since the watermark. `GROUP BY` rather than `DISTINCT` so the
@@ -148,6 +153,19 @@ impl ClickhouseService {
             max_ingested: i64,
         }
 
+        // The inner selection **groups before it limits, and orders by the identity's own newest stamp**.
+        // Three defects in one line otherwise, and a first version had all three:
+        //
+        // - a bare `LIMIT` on rows caps *revisions*, not identities. Ten thousand revisions of one identity
+        //   filled the cap, grouped down to a single candidate, and the pass then looked unfinished-but-not-
+        //   truncated and advanced its watermark past every other identity in the window. Those were never
+        //   examined again, because the watermark only moves forward.
+        // - with no `ORDER BY`, a truncated pass takes an arbitrary subset, so there is no prefix to advance
+        //   the watermark to - and refusing to advance it at all means the next pass selects the same subset
+        //   forever. That is a livelock, not a backlog.
+        // - ordering by `max(ingested_at)` **ascending** makes a pass a prefix of the window, which is what
+        //   lets the watermark advance to what was examined and guarantees progress. The same reasoning as the
+        //   search cursor recording the last position *examined* rather than the last one returned.
         let candidates: Vec<Candidate> = self
             .client
             .query(&format!(
@@ -155,10 +173,12 @@ impl ClickhouseService {
                         groupUniqArray(toString(toYYYYMM(timestamp_start))) AS partitions, \
                         count() AS revisions, \
                         toUnixTimestamp64Micro(max(ingested_at)) AS max_ingested \
-                 FROM {local} \
+                 FROM {spans} \
                  WHERE (project_id, trace_id, span_id) IN ( \
-                     SELECT project_id, trace_id, span_id FROM {local} \
+                     SELECT project_id, trace_id, span_id FROM {spans} \
                      WHERE ingested_at > fromUnixTimestamp64Micro(?) \
+                     GROUP BY project_id, trace_id, span_id \
+                     ORDER BY max(ingested_at) ASC \
                      LIMIT ? \
                  ) \
                  GROUP BY project_id, trace_id, span_id"
@@ -177,9 +197,13 @@ impl ClickhouseService {
             .filter(|c| c.partitions.len() > 1)
             .collect();
 
-        // The watermark advances only to what was actually examined, and only when the pass was not
-        // truncated. Advancing past a truncated window would skip the identities the cap left out; taking
-        // `Utc::now()` instead would compare this reader's clock against other instances' stamps.
+        // The watermark advances to what was **examined**, truncated or not, and that is sound only because
+        // the selection is an ordered prefix: every identity below this stamp has been looked at, so moving
+        // past it skips nothing. Refusing to advance on a truncated pass was the first version and is a
+        // livelock - the next pass re-selects the same prefix and never reaches the rest.
+        //
+        // From the rows, never from `Utc::now()`: `ingested_at` is written by other instances' clocks, and
+        // comparing a reader's clock against them is the mistake this codebase has made more than once.
         let reached = candidates.iter().map(|c| c.max_ingested).max();
 
         if !found.is_empty() {
@@ -214,7 +238,7 @@ impl ClickhouseService {
             );
         }
 
-        if let Some(reached) = reached.filter(|_| !truncated) {
+        if let Some(reached) = reached {
             let reached = OffsetDateTime::from_unix_timestamp_nanos(i128::from(reached) * 1_000)
                 .unwrap_or(OffsetDateTime::UNIX_EPOCH);
             self.record_consistency_watermark(reached).await?;
@@ -371,7 +395,9 @@ impl ClickhouseService {
     /// indexed, so this is a scan, and the one moment it costs nothing extra is when the table has just been
     /// rewritten and is in cache. Doing it at every startup would be a scan of the metrics table on every boot.
     pub async fn report_unidentified_metric_rows(&self) -> Result<u64, ClickhouseError> {
-        let table = self.delete_table("otel_metrics");
+        // The `Distributed` front end, for the reason `check_partition_consistency` records: a read against
+        // `_local` sees one shard, so a count taken there reports zero for rows sitting on any other node.
+        let table = self.insert_table("otel_metrics");
         let count: Option<u64> = self
             .client
             .query(&format!(

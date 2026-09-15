@@ -78,8 +78,10 @@ jobs:
     runs-on: ubuntu-latest
     services:
       clickhouse:
-        # Pinned: `latest` moving would fail an unrelated PR.
-        image: clickhouse/clickhouse-server:25.8
+        # Pinned to the **same patch tag** `make test-clickhouse` uses. `latest` moving would fail an
+        # unrelated PR, and a *different* pin here from the Makefile's meant CI and a developer's machine
+        # tested different servers while both claimed to gate the same parity property.
+        image: clickhouse/clickhouse-server:25.8.2
         env:
           CLICKHOUSE_USER: sideseat
           CLICKHOUSE_PASSWORD: sideseat
@@ -138,6 +140,71 @@ jobs:
             exit 1
           fi
           echo "$passed ClickHouse parity test(s) ran"
+
+  check-clickhouse-replicated:
+    name: ClickHouse (replicated migration)
+    runs-on: ubuntu-latest
+    # Not a service container: this one needs `scripts/clickhouse-replicated/cluster.xml` mounted, and service
+    # containers cannot mount a workspace file. Without the cluster config there is no Keeper, no
+    # `remote_servers` entry and no macros, so `distributed: true` cannot start at all.
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - uses: dtolnay/rust-toolchain@f7ccc83f9ed1e5b9c81d8a67d7ad1a747e22a561 # stable
+        with:
+          toolchain: stable
+
+      - uses: Swatinem/rust-cache@779680da715d629ac1d338a641029a2f4372abb5 # v2.8.2
+        with:
+          workspaces: server
+
+      - name: Start a replicated ClickHouse
+        run: |
+          docker run -d --name sideseat-ch-repl -p 8299:8123 \
+            -e CLICKHOUSE_USER=sideseat -e CLICKHOUSE_PASSWORD=sideseat \
+            -e CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT=1 \
+            -v "$PWD/scripts/clickhouse-replicated/cluster.xml:/etc/clickhouse-server/config.d/cluster.xml:ro" \
+            clickhouse/clickhouse-server:25.8.2
+          for _ in $(seq 1 90); do
+            curl -sf http://127.0.0.1:8299/ping >/dev/null && break
+            sleep 1
+          done
+          curl -sf http://127.0.0.1:8299/ping || {
+            echo "the replicated server did not become ready"
+            docker logs --tail 40 sideseat-ch-repl
+            exit 1
+          }
+          docker exec sideseat-ch-repl clickhouse-client --user sideseat --password sideseat \
+            -q "SELECT cluster, shard_num, replica_num FROM system.clusters WHERE cluster = 'test_cluster'"
+
+      # The gate this job exists for: without it, deleting one of the seven `distributed_statements` catch-up
+      # ALTERs left every other suite green, because they all run `distributed: false`.
+      #
+      # Two ways this could pass while proving nothing, both already learned once on the single-node job: the
+      # tests **skip** when their URL is unset, by design, and `cargo test` exits **0 for a filter that matches
+      # no test**. So the skip message is grepped for and the count is read back.
+      - name: Replicated migration tests
+        env:
+          SIDESEAT_TEST_CLICKHOUSE_REPLICATED_URL: http://127.0.0.1:8299
+          SIDESEAT_TEST_CLICKHOUSE_USER: sideseat
+          SIDESEAT_TEST_CLICKHOUSE_PASSWORD: sideseat
+        run: |
+          cargo test --locked -p sideseat-server replicated \
+            -- --test-threads=1 --nocapture 2>&1 | tee /tmp/replicated.log
+          if grep -q "clickhouse replicated: skipped" /tmp/replicated.log; then
+            echo "the replicated suite skipped - the container was not reachable, so this job was vacuous"
+            exit 1
+          fi
+          passed=$(sed -n 's/^test result: ok\. \([0-9]*\) passed.*/\1/p' /tmp/replicated.log | head -1)
+          if [ "${passed:-0}" -lt 2 ]; then
+            echo "expected at least 2 replicated tests, saw ${passed:-0} - the filter no longer matches them"
+            exit 1
+          fi
+          echo "$passed replicated migration test(s) ran"
+
+      - name: Stop the replicated ClickHouse
+        if: always()
+        run: docker rm -fv sideseat-ch-repl >/dev/null 2>&1 || true
 
   check-postgres:
     name: PostgreSQL (parity with SQLite)
