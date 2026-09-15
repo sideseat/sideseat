@@ -179,6 +179,126 @@ fn rust_commentary(text: &str) -> Vec<(usize, String)> {
     out
 }
 
+/// Every third-party action is pinned to a commit, and every container image to an explicit tag.
+///
+/// A workflow's `uses:` is remote code executed with this repository's token. A tag or a branch there is
+/// mutable by whoever owns that repository, so `@v6` means "whatever they publish next" — the shape every
+/// supply-chain compromise of GitHub Actions has taken. Everything here *was* already pinned to a full SHA, and
+/// that is exactly why this exists: nothing enforced it, so the next step written as `@v6` would have passed
+/// every gate, and "we pin our actions" was a convention rather than a property. The same argument this file
+/// makes about lockfiles.
+///
+/// The version is expected in a trailing comment, because a bare SHA is unreadable and Dependabot writes and
+/// updates that comment itself — an unreadable pin is one nobody dares bump.
+///
+/// Images take a **tag** rather than a digest, and that is the deliberate weaker rule: a service container's tag
+/// is chosen so an upstream release cannot fail an unrelated pull request, which `latest` (or no tag at all)
+/// defeats outright. Requiring digests would mean a digest bump per patch release of PostgreSQL for a container
+/// that holds a test database for ninety seconds.
+///
+/// Derived from the tree: every tracked workflow, action definition and Compose file, so a second workflow
+/// cannot be added outside the rule — one already exists (`docs.yml`, which deploys the public site).
+#[test]
+fn every_action_is_pinned_to_a_commit_and_every_image_to_a_tag() {
+    let repo = repo_root();
+    let listing = Command::new("git")
+        .args(["ls-files"])
+        .current_dir(repo)
+        .output()
+        .expect("git is available in a git checkout");
+
+    let mut unpinned: Vec<String> = Vec::new();
+    let mut actions = 0usize;
+    let mut images = 0usize;
+    for file in String::from_utf8_lossy(&listing.stdout)
+        .lines()
+        .filter(|f| {
+            f.starts_with(".github/workflows/")
+                || f.ends_with("/action.yml")
+                || f.ends_with("/action.yaml")
+                || f.contains("docker-compose")
+        })
+    {
+        let text = std::fs::read_to_string(repo.join(file)).unwrap_or_default();
+        for (number, line) in text.lines().enumerate() {
+            let trimmed = line.trim().trim_start_matches("- ").trim();
+            if let Some(rest) = trimmed.strip_prefix("uses:") {
+                let reference = rest.trim();
+                // A local action is this repository's own code, reviewed with it.
+                if reference.starts_with('.') {
+                    continue;
+                }
+                actions += 1;
+                let (_, version) = match reference.split_once('@') {
+                    Some(pair) => pair,
+                    None => {
+                        unpinned.push(format!(
+                            "{file}:{}: `{reference}` names no version",
+                            number + 1
+                        ));
+                        continue;
+                    }
+                };
+                let sha = version.split_whitespace().next().unwrap_or(version);
+                if sha.len() != 40 || !sha.chars().all(|c| c.is_ascii_hexdigit()) {
+                    unpinned.push(format!(
+                        "{file}:{}: `{reference}` is not pinned to a 40-character commit sha",
+                        number + 1
+                    ));
+                } else if !version.contains('#') {
+                    unpinned.push(format!(
+                        "{file}:{}: `{reference}` is pinned but says nothing about which version that is",
+                        number + 1
+                    ));
+                }
+            } else if let Some(rest) = trimmed
+                .strip_prefix("image:")
+                // A Dockerfile's base image is the same claim in the other spelling, and it is the one that
+                // reaches a user: the published image is built from it, where a service container holds a test
+                // database for ninety seconds.
+                .or_else(|| trimmed.strip_prefix("FROM "))
+            {
+                // `FROM x AS stage` names a stage after the reference.
+                let reference = rest
+                    .trim()
+                    .trim_matches('"')
+                    .split_whitespace()
+                    .next()
+                    .unwrap_or_default();
+                // A Compose file may build rather than pull, and interpolate its own tag; a later Dockerfile
+                // stage may refer to an earlier one by the name it gave it, which is internal to this build.
+                if reference.is_empty()
+                    || reference.contains('$')
+                    || (!reference.contains('/') && !reference.contains(':'))
+                {
+                    continue;
+                }
+                images += 1;
+                // A tag, and not a moving one. The registry host may carry a port, so the tag is looked for
+                // after the last `/`.
+                let last = reference.rsplit('/').next().unwrap_or(reference);
+                match last.split_once(':') {
+                    Some((_, tag)) if tag != "latest" && !tag.is_empty() => {}
+                    _ => unpinned.push(format!(
+                        "{file}:{}: image `{reference}` has no explicit tag, or names `latest`",
+                        number + 1
+                    )),
+                }
+            }
+        }
+    }
+
+    assert!(actions > 20, "only found {actions} action references");
+    assert!(images > 4, "only found {images} image references");
+    assert!(
+        unpinned.is_empty(),
+        "{} unpinned reference(s) - remote code or an image this repository does not control the contents \
+         of:\n  {}",
+        unpinned.len(),
+        unpinned.join("\n  ")
+    );
+}
+
 /// Dependabot watches **every** manifest in the tree that it can read.
 ///
 /// Three inventories of mine were incomplete in a row - the Cargo/npm/uv entries, then the two standalone
