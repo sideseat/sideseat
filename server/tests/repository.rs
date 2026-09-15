@@ -228,13 +228,13 @@ fn every_action_is_pinned_to_a_commit_and_every_image_to_a_tag() {
             f.starts_with(".github/workflows/")
                 || f.ends_with("/action.yml")
                 || f.ends_with("/action.yaml")
-                // `Dockerfile.dev` and the like carry base images too, so this is a prefix rather than the
-                // exact name the Dependabot inventory needs.
+                // Prefixes, not exact names. `Dockerfile.dev` carries a base image, and Compose reads
+                // `docker-compose.override.yml` as well as the four canonical spellings - narrowing this to
+                // exact names was a *regression* on the `contains("docker-compose")` it replaced, and an
+                // override file is precisely where a `latest` gets added.
                 || name.starts_with("Dockerfile")
-                || matches!(
-                    name,
-                    "docker-compose.yml" | "docker-compose.yaml" | "compose.yml" | "compose.yaml"
-                )
+                || name.starts_with("docker-compose.")
+                || name.starts_with("compose.")
         })
     {
         if file
@@ -284,12 +284,15 @@ fn every_action_is_pinned_to_a_commit_and_every_image_to_a_tag() {
                 // database for ninety seconds.
                 .or_else(|| trimmed.strip_prefix("FROM "))
             {
-                // `FROM x AS stage` names a stage after the reference.
+                // `FROM x AS stage` names a stage after the reference, and `FROM --platform=... x` puts
+                // flags *before* it. Taking the first token blind read `--platform=$BUILDPLATFORM` as the
+                // image, saw the `$`, and skipped the line - so `FROM --platform=$BUILDPLATFORM debian:latest`
+                // passed. Flags are stepped over rather than assumed absent.
                 let reference = rest
                     .trim()
                     .trim_matches('"')
                     .split_whitespace()
-                    .next()
+                    .find(|token| !token.starts_with("--"))
                     .unwrap_or_default();
                 // A Compose file may build rather than pull, and interpolate its own tag; a later Dockerfile
                 // stage may refer to an earlier one by the name it gave it, which is internal to this build.

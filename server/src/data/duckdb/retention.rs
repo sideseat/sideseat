@@ -148,6 +148,22 @@ const MAX_COUNT_CLEANUP_BATCHES: usize = 10;
 /// and accumulates every deleted trace id for the file sweep in memory.
 const MAX_COUNT_IDENTITIES_PER_CYCLE: i64 = RETENTION_BATCH_SIZE * MAX_COUNT_CLEANUP_BATCHES as i64;
 
+/// Ceiling on *physical rows* one retention cycle may delete, across every project.
+///
+/// The identity ceiling above is not a bound on work, and that gap is the whole reason this exists. Selection
+/// is by winning identity but the delete removes **every revision** of each selected identity, so a project one
+/// identity over its limit whose oldest identity carries five million revisions is charged `1` against the
+/// identity budget and does five million rows of work - under the single DuckDB connection, which is the same
+/// one writes take. Bounding identities bounds the *logical* progress the sweep needs to report; bounding rows
+/// is what bounds the time the connection is held.
+///
+/// **Stated residual: one identity is atomic, so a single pathological identity can exceed this by itself.**
+/// It cannot be split. Deleting some of an identity's revisions but not its winner leaves the identity in place,
+/// so the count does not fall and the sweep makes no progress; deleting the winner but not the older revisions
+/// promotes an obsolete revision to winner, which is data corruption rather than slow retention. So the ceiling
+/// is enforced *between* identities and the irreducible unit is one identity's revision count.
+const MAX_COUNT_ROWS_PER_CYCLE: u64 = (RETENTION_BATCH_SIZE as u64) * 4;
+
 /// Execute retention based on max span count, **per project**.
 ///
 /// `max_spans` is a limit on each project, not on the deployment. Counting the whole table made it a
@@ -165,7 +181,12 @@ pub fn cleanup_by_count(
     conn: &Connection,
     max_spans: u64,
 ) -> Result<(u64, HashMap<String, Vec<String>>), DuckdbError> {
-    cleanup_by_count_within(conn, max_spans, MAX_COUNT_IDENTITIES_PER_CYCLE)
+    cleanup_by_count_within(
+        conn,
+        max_spans,
+        MAX_COUNT_IDENTITIES_PER_CYCLE,
+        MAX_COUNT_ROWS_PER_CYCLE,
+    )
 }
 
 /// [`cleanup_by_count`] with the cycle budget as a parameter.
@@ -177,6 +198,7 @@ fn cleanup_by_count_within(
     conn: &Connection,
     max_spans: u64,
     identity_budget_for_cycle: i64,
+    row_budget_for_cycle: u64,
 ) -> Result<(u64, HashMap<String, Vec<String>>), DuckdbError> {
     let max_spans_i64 = i64::try_from(max_spans).unwrap_or(i64::MAX);
 
@@ -206,11 +228,17 @@ fn cleanup_by_count_within(
     // The budget is charged the *requested* overage rather than the rows the delete reported. Those are
     // different numbers - one identity can carry several revisions - and charging the request is the
     // conservative direction: it can only end the cycle sooner, never let it run longer than the ceiling.
+    //
+    // Two budgets, because one identity is not one row's worth of work: identities bound the logical progress
+    // and rows bound how long the connection is held. Charging only identities let a project one identity over
+    // its limit delete every revision of an identity carrying millions of them, inside a cycle that reported
+    // itself bounded.
     let mut identity_budget = identity_budget_for_cycle;
+    let mut row_budget = row_budget_for_cycle;
     let mut projects_deferred = 0usize;
 
     for (project_id, span_count) in over_limit {
-        if identity_budget <= 0 {
+        if identity_budget <= 0 || row_budget == 0 {
             projects_deferred += 1;
             continue;
         }
@@ -223,17 +251,19 @@ fn cleanup_by_count_within(
             "Project exceeds its span limit, cleaning up"
         );
         let (deleted, trace_ids) =
-            trim_project_to_limit(conn, &project_id, overage, RETENTION_BATCH_SIZE)?;
+            trim_project_to_limit(conn, &project_id, overage, RETENTION_BATCH_SIZE, row_budget)?;
         total_deleted += deleted;
         identity_budget -= overage;
+        row_budget = row_budget.saturating_sub(deleted);
         merge_trace_ids(&mut all_trace_ids, trace_ids);
     }
 
     if projects_deferred > 0 {
         tracing::debug!(
             projects_deferred,
-            budget = identity_budget_for_cycle,
-            "Count retention hit its per-cycle budget; the rest are next cycle's work"
+            identity_budget = identity_budget_for_cycle,
+            row_budget = row_budget_for_cycle,
+            "Count retention hit a per-cycle budget; the rest are next cycle's work"
         );
     }
 
@@ -250,20 +280,52 @@ fn trim_project_to_limit(
     project_id: &str,
     overage: i64,
     batch_size: i64,
+    row_budget: u64,
 ) -> Result<(u64, HashMap<String, Vec<String>>), DuckdbError> {
     let mut total_deleted = 0u64;
     let mut all_trace_ids: HashMap<String, Vec<String>> = HashMap::new();
     let mut remaining = overage;
+    // Revisions per identity, measured from the previous batch. `None` until one has run.
+    let mut rows_per_identity: Option<u64> = None;
 
     for _ in 0..MAX_COUNT_CLEANUP_BATCHES {
         if remaining <= 0 {
             break;
         }
-        let limit = remaining.min(batch_size);
+        // Checked between batches, not inside one: an identity's revisions are deleted together, for the
+        // reason `MAX_COUNT_ROWS_PER_CYCLE` states. So the budget stops the *next* batch rather than
+        // truncating the current one.
+        if total_deleted >= row_budget {
+            tracing::debug!(
+                %project_id,
+                rows = total_deleted,
+                row_budget,
+                "Stopping this project's trim at the cycle's row budget"
+            );
+            break;
+        }
+        // The batch's identity limit is scaled by the revision ratio observed so far, which is what turns the
+        // row budget from a stop condition into an actual bound. Selection is by identity and the delete takes
+        // every revision, so `batch_size` identities is `batch_size x revisions` rows - unknowable before the
+        // fact, but measurable after one batch.
+        //
+        // **Stated residual: the first batch of a project's trim is not bounded this way**, because there is no
+        // ratio yet. Its rows are bounded only by its identity count times whatever revision depth those
+        // identities happen to carry, so one pathological identity is still one unbounded unit of work - which
+        // `MAX_COUNT_ROWS_PER_CYCLE` records as irreducible, since an identity cannot be split without either
+        // making no progress or promoting an obsolete revision to winner.
+        let limit = match rows_per_identity {
+            Some(ratio) if ratio > 0 => {
+                let affordable = row_budget.saturating_sub(total_deleted) / ratio;
+                remaining.min(batch_size).min(affordable.max(1) as i64)
+            }
+            _ => remaining.min(batch_size),
+        };
         let batch = delete_oldest_spans_for_project(conn, project_id, limit)?;
         if batch.identities == 0 {
             break;
         }
+        rows_per_identity = Some(batch.rows.div_ceil(batch.identities.max(1)));
         tracing::debug!(
             %project_id,
             identities = batch.identities,
@@ -861,7 +923,7 @@ mod tests {
         }
 
         // A budget of three identities cannot cover all six, so at least one project must be deferred.
-        let (deleted, _) = cleanup_by_count_within(&conn, 1, 3).expect("Should cleanup");
+        let (deleted, _) = cleanup_by_count_within(&conn, 1, 3, u64::MAX).expect("Should cleanup");
         assert_eq!(
             deleted, 3,
             "the cycle stops at its budget rather than at the work available"
@@ -878,7 +940,8 @@ mod tests {
         );
 
         // The remainder is next cycle's work, not lost work.
-        let (deleted_again, _) = cleanup_by_count_within(&conn, 1, 3).expect("Should cleanup");
+        let (deleted_again, _) =
+            cleanup_by_count_within(&conn, 1, 3, u64::MAX).expect("Should cleanup");
         assert_eq!(
             deleted_again, 3,
             "the second cycle takes the deferred remainder"
@@ -890,6 +953,72 @@ mod tests {
                 "{project} reaches its limit once the cycles have run"
             );
         }
+    }
+
+    /// The trim is bounded by **rows** as well as identities, because those are different amounts of work.
+    ///
+    /// Selection is by winning identity but the delete removes every revision of each selected identity. So an
+    /// identity budget alone is not a bound on work: a project one identity over its limit whose oldest identity
+    /// carries a large number of revisions is charged `1` against that budget and does that many rows of work,
+    /// holding the single DuckDB connection - the same one writes take - for the duration. The cycle reported
+    /// itself bounded and was not.
+    ///
+    /// The fixture makes the two numbers diverge, which is exactly what the identity-budget test does not: every
+    /// identity carries four revisions, so five identities are twenty rows behind five winners.
+    ///
+    /// **What is asserted is the bound the mechanism actually delivers**, not a stronger one. The row budget is
+    /// checked between batches and the batch's identity limit is scaled by the revision ratio measured from the
+    /// previous batch - so the *first* batch is unbounded (no ratio exists yet) and the overshoot is at most one
+    /// batch. Asserting an exact row count would be asserting that an identity can be split, which it cannot:
+    /// dropping some revisions leaves the identity in place and makes no progress, dropping the winner promotes
+    /// an obsolete revision. So the assertion is "it stopped early", with the residual named.
+    #[tokio::test]
+    async fn count_retention_is_bounded_by_rows_not_only_by_identities() {
+        let (_temp_dir, analytics) = create_test_service().await;
+        let conn = analytics.conn();
+
+        // Five identities, four revisions each: 20 physical rows behind 5 winners.
+        for i in 0..5 {
+            let ts = format!("2020-01-0{} 00:00:00", i + 1);
+            for rev in 0..4 {
+                redeliver_span(
+                    &conn,
+                    "default",
+                    &format!("t{i}"),
+                    &format!("s{i}"),
+                    &ts,
+                    &format!("2020-0{}-01 00:00:00", rev + 1),
+                );
+            }
+        }
+
+        // Batch size 1, so batches are per identity and the ratio is learned after the first. A row budget of 5
+        // then permits the first identity (4 rows), finds 4 < 5 and takes a second (8 rows), and stops - rather
+        // than taking all four identities and 16 rows, which is what an identity-only budget allows.
+        let (deleted, _) = trim_project_to_limit(&conn, "default", 4, 1, 5).expect("Should trim");
+
+        assert!(
+            deleted < 16,
+            "the trim deleted every revision of every over-limit identity ({deleted} rows) - the row budget \
+             is not bounding anything, so one identity's revision depth is unbounded work inside a cycle that \
+             reports itself bounded"
+        );
+        assert!(
+            deleted >= 4,
+            "it must still make progress, got {deleted} rows"
+        );
+
+        let winners: i64 = conn
+            .query_row(
+                &format!("SELECT COUNT(*) FROM {DEDUP_SPANS} WHERE project_id = 'default'"),
+                [],
+                |row| row.get(0),
+            )
+            .expect("Should query");
+        assert!(
+            winners > 1,
+            "identities remain, still over the limit, and are the next cycle's work - got {winners}"
+        );
     }
 
     /// Retention selects from the deduplicated relation. Selecting raw rows let an expired *old*
@@ -985,7 +1114,8 @@ mod tests {
         }
 
         // Three identities over a limit of two, one identity per batch.
-        let (_deleted, _) = trim_project_to_limit(&conn, "default", 3, 1).expect("Should trim");
+        let (_deleted, _) =
+            trim_project_to_limit(&conn, "default", 3, 1, u64::MAX).expect("Should trim");
 
         let winners: i64 = conn
             .query_row(
