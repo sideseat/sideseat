@@ -92,7 +92,7 @@ pub async fn list_organizations(
     let user_id = auth.require_user_id()?;
     let repo = state.database.repository();
     let (orgs, total) = repo
-        .list_orgs_for_user(None, user_id, query.page, query.limit)
+        .list_orgs_for_user(user_id, query.page, query.limit)
         .await
         .map_err(ApiError::from_data)?;
 
@@ -137,7 +137,7 @@ pub async fn create_org(
 
     // Create org + add owner membership atomically in a transaction
     let org = repo
-        .create_organization_with_owner(None, &body.name, &body.slug, user_id)
+        .create_organization_with_owner(&body.name, &body.slug, user_id)
         .await
         .map_err(|e| {
             if e.to_string().contains("UNIQUE constraint failed") {
@@ -174,7 +174,7 @@ pub async fn get_org(
     let repo = state.database.repository();
 
     let org = repo
-        .get_organization(None, &auth.org_id)
+        .get_organization(&auth.org_id)
         .await
         .map_err(ApiError::from_data)?
         .ok_or_else(|| {
@@ -210,7 +210,7 @@ pub async fn update_org(
     let repo = state.database.repository();
 
     let org = repo
-        .update_organization(None, &auth.org_id, &body.name)
+        .update_organization(&auth.org_id, &body.name)
         .await
         .map_err(ApiError::from_data)?
         .ok_or_else(|| {
@@ -334,7 +334,7 @@ pub async fn add_org_member(
 
     // Get current user's exact role for owner-specific logic
     let current_membership = repo
-        .get_membership(None, &auth.org_id, user_id)
+        .get_membership(&auth.org_id, user_id)
         .await
         .map_err(ApiError::from_data)?
         .ok_or_else(|| {
@@ -350,20 +350,20 @@ pub async fn add_org_member(
     }
 
     // Verify user exists before adding
-    repo.get_user(None, &body.user_id)
+    repo.get_user(&body.user_id)
         .await
         .map_err(ApiError::from_data)?
         .ok_or_else(|| ApiError::not_found("USER_NOT_FOUND", "User not found"))?;
 
     // Check if already a member (for correct status code)
     let is_new_member = repo
-        .get_membership(None, &auth.org_id, &body.user_id)
+        .get_membership(&auth.org_id, &body.user_id)
         .await
         .map_err(ApiError::from_data)?
         .is_none();
 
     // Add/update member (upsert)
-    repo.add_member(None, &auth.org_id, &body.user_id, &body.role)
+    repo.add_member(&auth.org_id, &body.user_id, &body.role)
         .await
         .map_err(ApiError::from_data)?;
 
@@ -410,7 +410,7 @@ pub async fn update_member_role(
 
     // Get current user's exact role for owner-specific logic
     let current_membership = repo
-        .get_membership(None, &auth.org_id, user_id)
+        .get_membership(&auth.org_id, user_id)
         .await
         .map_err(ApiError::from_data)?
         .ok_or_else(|| {
@@ -419,7 +419,7 @@ pub async fn update_member_role(
 
     // Get target user's current role
     let target_membership = repo
-        .get_membership(None, &auth.org_id, &target.user_id)
+        .get_membership(&auth.org_id, &target.user_id)
         .await
         .map_err(ApiError::from_data)?
         .ok_or_else(|| ApiError::not_found("MEMBER_NOT_FOUND", "Member not found"))?;
@@ -442,7 +442,7 @@ pub async fn update_member_role(
 
     // Update role atomically with last-owner protection
     match repo
-        .update_role_atomic(None, &auth.org_id, &target.user_id, &body.role)
+        .update_role_atomic(&auth.org_id, &target.user_id, &body.role)
         .await
         .map_err(ApiError::from_data)?
     {
@@ -497,7 +497,7 @@ pub async fn remove_org_member(
 
     // Get current user's role
     let current_membership = repo
-        .get_membership(None, &auth.org_id, user_id)
+        .get_membership(&auth.org_id, user_id)
         .await
         .map_err(ApiError::from_data)?
         .ok_or_else(|| {
@@ -519,7 +519,7 @@ pub async fn remove_org_member(
 
     // Get target user's current role
     let target_membership = repo
-        .get_membership(None, &auth.org_id, &target.user_id)
+        .get_membership(&auth.org_id, &target.user_id)
         .await
         .map_err(ApiError::from_data)?
         .ok_or_else(|| ApiError::not_found("MEMBER_NOT_FOUND", "Member not found"))?;
@@ -537,7 +537,7 @@ pub async fn remove_org_member(
 
     // Remove member atomically with last-owner protection
     match repo
-        .remove_member_atomic(None, &auth.org_id, &target.user_id)
+        .remove_member_atomic(&auth.org_id, &target.user_id)
         .await
         .map_err(ApiError::from_data)?
     {

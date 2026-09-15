@@ -143,7 +143,7 @@ pub async fn auth_status(
     if !state.auth_manager.is_enabled() {
         let repo = state.database.repository();
         let user = repo
-            .get_user(None, DEFAULT_USER_ID)
+            .get_user(DEFAULT_USER_ID)
             .await
             .ok()
             .flatten()
@@ -181,7 +181,7 @@ pub async fn auth_status(
             // Fetch user from database
             let repo = state.database.repository();
             let user = repo
-                .get_user(None, claims.user_id())
+                .get_user(claims.user_id())
                 .await
                 .ok()
                 .flatten()

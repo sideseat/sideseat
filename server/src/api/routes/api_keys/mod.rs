@@ -90,7 +90,6 @@ pub async fn create_api_key(
     // Create in DB (checks limit internally)
     let row = repo
         .create_api_key(
-            Some(&state.cache),
             &org.org_id,
             &req.name,
             &key_hash,
@@ -157,7 +156,7 @@ pub async fn list_api_keys(
     let repo = state.database.repository();
 
     let keys = repo
-        .list_api_keys(Some(&state.cache), &org.org_id)
+        .list_api_keys(&org.org_id)
         .await
         .map_err(ApiError::from_data)?;
 
@@ -187,7 +186,7 @@ pub async fn delete_api_key(
     let repo = state.database.repository();
 
     let deleted = repo
-        .delete_api_key(Some(&state.cache), &path.id, &org.org_id)
+        .delete_api_key(&path.id, &org.org_id)
         .await
         .map_err(ApiError::from_data)?;
 

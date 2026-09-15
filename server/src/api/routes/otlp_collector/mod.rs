@@ -55,12 +55,7 @@ pub struct OtlpState {
 async fn project_accepts_writes(state: &OtlpState, project_id: &str) -> bool {
     // `get_project` reads the project cache and its query filters out a claimed project, and claiming
     // now invalidates that cache - so this is fence-aware without a second lookup path.
-    match state
-        .database
-        .repository()
-        .get_project(Some(&state.cache), project_id)
-        .await
-    {
+    match state.database.repository().get_project(project_id).await {
         Ok(found) => found.is_some(),
         // Unknown: let it through and let the write path decide. Refusing on a lookup failure would
         // turn a database blip into rejected telemetry.

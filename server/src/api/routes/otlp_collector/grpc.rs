@@ -176,7 +176,6 @@ impl GrpcIngestAuth {
                 )
             })?;
         let result = crate::api::auth::validate_api_key_for_project(
-            &self.cache,
             Arc::clone(&self.database),
             &self.api_key_secret,
             header,
@@ -330,7 +329,7 @@ async fn project_accepts_writes(
     database: &Arc<crate::data::TransactionalService>,
     project_id: &str,
 ) -> bool {
-    match database.repository().get_project(None, project_id).await {
+    match database.repository().get_project(project_id).await {
         Ok(found) => found.is_some(),
         // Unknown: let the write path decide, as the HTTP twin does. Refusing on a lookup failure would
         // turn a database blip into rejected telemetry.

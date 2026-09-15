@@ -131,7 +131,7 @@ impl AuthService {
         let project = self
             .database
             .repository()
-            .get_project(None, project_id)
+            .get_project(project_id)
             .await
             .map_err(ApiError::from_data)?
             .ok_or_else(|| {
@@ -156,7 +156,7 @@ impl AuthService {
         let membership = self
             .database
             .repository()
-            .get_membership(None, org_id, user_id)
+            .get_membership(org_id, user_id)
             .await
             .map_err(ApiError::from_data)?;
 
@@ -293,7 +293,7 @@ impl AuthService {
         let membership = self
             .database
             .repository()
-            .get_membership(None, org_id, user_id)
+            .get_membership(org_id, user_id)
             .await
             .map_err(ApiError::from_data)?
             .ok_or_else(|| ApiError::forbidden("ACCESS_DENIED", "Not a member of organization"))?;

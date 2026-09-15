@@ -72,7 +72,7 @@ pub async fn finish_organization_deletion(
     // Every project fenced first. A project that is not fenced can still be written to while its data
     // is being deleted, and nothing later in this function would notice.
     for project_id in repo.list_project_ids(org_id).await? {
-        if let Err(e) = repo.claim_project_for_deletion(cache, &project_id).await {
+        if let Err(e) = repo.claim_project_for_deletion(&project_id).await {
             return Err(anyhow!(
                 "Failed to fence project {} of organization {}: {}",
                 project_id,
@@ -111,7 +111,7 @@ pub async fn finish_organization_deletion(
         return Ok(());
     }
 
-    repo.delete_organization(None, org_id)
+    repo.delete_organization(org_id)
         .await
         .context("Failed to delete organization row")?;
     Ok(())
@@ -193,7 +193,7 @@ pub async fn cleanup_project(
     // claimed or already gone - either way there is nothing for this caller to do. The cache goes with
     // it, so the project stops being readable at the same instant it stops being live.
     if !repo
-        .claim_project_for_deletion(cache, project_id)
+        .claim_project_for_deletion(project_id)
         .await
         .context("Failed to claim project for deletion")?
     {

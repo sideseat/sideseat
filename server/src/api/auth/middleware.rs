@@ -137,7 +137,6 @@ pub async fn require_auth(
     {
         // Validate API key (minimum Read scope to be valid)
         let validation = validate_api_key_general(
-            &state.cache,
             state.database.clone(),
             &state.api_key_secret,
             header_str,

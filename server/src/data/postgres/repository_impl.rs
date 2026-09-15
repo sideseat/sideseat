@@ -7,7 +7,6 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 
-use crate::data::cache::CacheService;
 use crate::data::error::DataError;
 use crate::data::traits::TransactionalRepository;
 use crate::data::types::{
@@ -28,42 +27,32 @@ impl TransactionalRepository for Arc<PostgresService> {
 
     async fn create_user(
         &self,
-        cache: Option<&CacheService>,
         email: &str,
         display_name: Option<&str>,
     ) -> Result<UserRow, DataError> {
-        user::create_user(self.pool(), cache, Some(email), display_name)
+        user::create_user(self.pool(), None, Some(email), display_name)
             .await
             .map_err(Into::into)
     }
 
-    async fn get_user(
-        &self,
-        cache: Option<&CacheService>,
-        id: &str,
-    ) -> Result<Option<UserRow>, DataError> {
-        user::get_user(self.pool(), cache, id)
+    async fn get_user(&self, id: &str) -> Result<Option<UserRow>, DataError> {
+        user::get_user(self.pool(), None, id)
             .await
             .map_err(Into::into)
     }
 
-    async fn get_user_by_email(
-        &self,
-        cache: Option<&CacheService>,
-        email: &str,
-    ) -> Result<Option<UserRow>, DataError> {
-        user::get_by_email(self.pool(), cache, email)
+    async fn get_user_by_email(&self, email: &str) -> Result<Option<UserRow>, DataError> {
+        user::get_by_email(self.pool(), None, email)
             .await
             .map_err(Into::into)
     }
 
     async fn update_user(
         &self,
-        cache: Option<&CacheService>,
         id: &str,
         display_name: Option<&str>,
     ) -> Result<Option<UserRow>, DataError> {
-        user::update_user(self.pool(), cache, id, display_name)
+        user::update_user(self.pool(), None, id, display_name)
             .await
             .map_err(Into::into)
     }
@@ -72,55 +61,44 @@ impl TransactionalRepository for Arc<PostgresService> {
 
     async fn create_organization_with_owner(
         &self,
-        cache: Option<&CacheService>,
         name: &str,
         slug: &str,
         owner_user_id: &str,
     ) -> Result<OrganizationRow, DataError> {
-        organization::create_organization_with_owner(self.pool(), cache, name, slug, owner_user_id)
+        organization::create_organization_with_owner(self.pool(), None, name, slug, owner_user_id)
             .await
             .map_err(Into::into)
     }
 
-    async fn get_organization(
-        &self,
-        cache: Option<&CacheService>,
-        id: &str,
-    ) -> Result<Option<OrganizationRow>, DataError> {
-        organization::get_organization(self.pool(), cache, id)
+    async fn get_organization(&self, id: &str) -> Result<Option<OrganizationRow>, DataError> {
+        organization::get_organization(self.pool(), None, id)
             .await
             .map_err(Into::into)
     }
 
     async fn update_organization(
         &self,
-        cache: Option<&CacheService>,
         id: &str,
         name: &str,
     ) -> Result<Option<OrganizationRow>, DataError> {
-        organization::update_organization(self.pool(), cache, id, name)
+        organization::update_organization(self.pool(), None, id, name)
             .await
             .map_err(Into::into)
     }
 
     async fn list_orgs_for_user(
         &self,
-        cache: Option<&CacheService>,
         user_id: &str,
         page: u32,
         limit: u32,
     ) -> Result<(Vec<OrgWithRole>, u64), DataError> {
-        organization::list_for_user(self.pool(), cache, user_id, page, limit)
+        organization::list_for_user(self.pool(), None, user_id, page, limit)
             .await
             .map_err(Into::into)
     }
 
-    async fn delete_organization(
-        &self,
-        cache: Option<&CacheService>,
-        id: &str,
-    ) -> Result<bool, DataError> {
-        organization::delete_organization(self.pool(), cache, id)
+    async fn delete_organization(&self, id: &str) -> Result<bool, DataError> {
+        organization::delete_organization(self.pool(), None, id)
             .await
             .map_err(Into::into)
     }
@@ -135,11 +113,10 @@ impl TransactionalRepository for Arc<PostgresService> {
 
     async fn get_membership(
         &self,
-        cache: Option<&CacheService>,
         organization_id: &str,
         user_id: &str,
     ) -> Result<Option<MembershipRow>, DataError> {
-        membership::get_membership(self.pool(), cache, organization_id, user_id)
+        membership::get_membership(self.pool(), None, organization_id, user_id)
             .await
             .map_err(Into::into)
     }
@@ -156,12 +133,11 @@ impl TransactionalRepository for Arc<PostgresService> {
 
     async fn add_member(
         &self,
-        cache: Option<&CacheService>,
         organization_id: &str,
         user_id: &str,
         role: &str,
     ) -> Result<MembershipRow, DataError> {
-        membership::add_member(self.pool(), cache, organization_id, user_id, role)
+        membership::add_member(self.pool(), None, organization_id, user_id, role)
             .await
             .map_err(Into::into)
     }
@@ -179,23 +155,21 @@ impl TransactionalRepository for Arc<PostgresService> {
 
     async fn update_role_atomic(
         &self,
-        cache: Option<&CacheService>,
         organization_id: &str,
         user_id: &str,
         new_role: &str,
     ) -> Result<LastOwnerResult<MembershipRow>, DataError> {
-        membership::update_role_atomic(self.pool(), cache, organization_id, user_id, new_role)
+        membership::update_role_atomic(self.pool(), None, organization_id, user_id, new_role)
             .await
             .map_err(Into::into)
     }
 
     async fn remove_member_atomic(
         &self,
-        cache: Option<&CacheService>,
         organization_id: &str,
         user_id: &str,
     ) -> Result<LastOwnerResult<()>, DataError> {
-        membership::remove_member_atomic(self.pool(), cache, organization_id, user_id)
+        membership::remove_member_atomic(self.pool(), None, organization_id, user_id)
             .await
             .map_err(Into::into)
     }
@@ -204,66 +178,50 @@ impl TransactionalRepository for Arc<PostgresService> {
 
     async fn create_project(
         &self,
-        cache: Option<&CacheService>,
         organization_id: &str,
         name: &str,
     ) -> Result<ProjectRow, DataError> {
-        project::create_project(self.pool(), cache, organization_id, name)
+        project::create_project(self.pool(), None, organization_id, name)
             .await
             .map_err(Into::into)
     }
 
-    async fn get_project(
-        &self,
-        cache: Option<&CacheService>,
-        id: &str,
-    ) -> Result<Option<ProjectRow>, DataError> {
-        project::get_project(self.pool(), cache, id)
+    async fn get_project(&self, id: &str) -> Result<Option<ProjectRow>, DataError> {
+        project::get_project(self.pool(), None, id)
             .await
             .map_err(Into::into)
     }
 
-    async fn update_project(
-        &self,
-        cache: Option<&CacheService>,
-        id: &str,
-        name: &str,
-    ) -> Result<Option<ProjectRow>, DataError> {
-        project::update_project(self.pool(), cache, id, name)
+    async fn update_project(&self, id: &str, name: &str) -> Result<Option<ProjectRow>, DataError> {
+        project::update_project(self.pool(), None, id, name)
             .await
             .map_err(Into::into)
     }
 
     async fn list_projects_for_org(
         &self,
-        cache: Option<&CacheService>,
         organization_id: &str,
         page: u32,
         limit: u32,
     ) -> Result<(Vec<ProjectRow>, u64), DataError> {
-        project::list_for_org(self.pool(), cache, organization_id, page, limit)
+        project::list_for_org(self.pool(), None, organization_id, page, limit)
             .await
             .map_err(Into::into)
     }
 
     async fn list_projects_for_user(
         &self,
-        cache: Option<&CacheService>,
         user_id: &str,
         page: u32,
         limit: u32,
     ) -> Result<(Vec<ProjectRow>, u64), DataError> {
-        project::list_for_user(self.pool(), cache, user_id, page, limit)
+        project::list_for_user(self.pool(), None, user_id, page, limit)
             .await
             .map_err(Into::into)
     }
 
-    async fn claim_project_for_deletion(
-        &self,
-        cache: Option<&CacheService>,
-        id: &str,
-    ) -> Result<bool, DataError> {
-        project::claim_project_for_deletion(self.pool(), cache, id)
+    async fn claim_project_for_deletion(&self, id: &str) -> Result<bool, DataError> {
+        project::claim_project_for_deletion(self.pool(), self.cache(), id)
             .await
             .map_err(Into::into)
     }
@@ -476,12 +434,8 @@ impl TransactionalRepository for Arc<PostgresService> {
             .map_err(Into::into)
     }
 
-    async fn delete_project(
-        &self,
-        cache: Option<&CacheService>,
-        id: &str,
-    ) -> Result<bool, DataError> {
-        project::delete_project(self.pool(), cache, id)
+    async fn delete_project(&self, id: &str) -> Result<bool, DataError> {
+        project::delete_project(self.pool(), None, id)
             .await
             .map_err(Into::into)
     }
@@ -491,7 +445,6 @@ impl TransactionalRepository for Arc<PostgresService> {
     #[allow(clippy::too_many_arguments)]
     async fn create_auth_method(
         &self,
-        cache: Option<&CacheService>,
         user_id: &str,
         method_type: &str,
         provider: Option<&str>,
@@ -501,7 +454,7 @@ impl TransactionalRepository for Arc<PostgresService> {
     ) -> Result<AuthMethodRow, DataError> {
         auth_method::create_auth_method(
             self.pool(),
-            cache,
+            None,
             user_id,
             method_type,
             provider,
@@ -515,31 +468,25 @@ impl TransactionalRepository for Arc<PostgresService> {
 
     async fn find_auth_by_oauth(
         &self,
-        cache: Option<&CacheService>,
         provider: &str,
         provider_id: &str,
     ) -> Result<Option<AuthMethodRow>, DataError> {
-        auth_method::find_by_oauth(self.pool(), cache, provider, provider_id)
+        auth_method::find_by_oauth(self.pool(), None, provider, provider_id)
             .await
             .map_err(Into::into)
     }
 
     async fn list_auth_methods_for_user(
         &self,
-        cache: Option<&CacheService>,
         user_id: &str,
     ) -> Result<Vec<AuthMethodRow>, DataError> {
-        auth_method::list_for_user(self.pool(), cache, user_id)
+        auth_method::list_for_user(self.pool(), None, user_id)
             .await
             .map_err(Into::into)
     }
 
-    async fn delete_auth_method(
-        &self,
-        cache: Option<&CacheService>,
-        id: &str,
-    ) -> Result<bool, DataError> {
-        auth_method::delete_auth_method(self.pool(), cache, id)
+    async fn delete_auth_method(&self, id: &str) -> Result<bool, DataError> {
+        auth_method::delete_auth_method(self.pool(), None, id)
             .await
             .map_err(Into::into)
     }
@@ -924,7 +871,6 @@ impl TransactionalRepository for Arc<PostgresService> {
 
     async fn create_api_key(
         &self,
-        cache: Option<&CacheService>,
         org_id: &str,
         name: &str,
         key_hash: &str,
@@ -935,7 +881,7 @@ impl TransactionalRepository for Arc<PostgresService> {
     ) -> Result<ApiKeyRow, DataError> {
         api_key::create_api_key(
             self.pool(),
-            cache,
+            self.cache(),
             org_id,
             name,
             key_hash,
@@ -950,31 +896,21 @@ impl TransactionalRepository for Arc<PostgresService> {
 
     async fn get_api_key_by_hash(
         &self,
-        cache: Option<&CacheService>,
         key_hash: &str,
     ) -> Result<Option<ApiKeyValidation>, DataError> {
-        api_key::get_by_hash(self.pool(), cache, key_hash)
+        api_key::get_by_hash(self.pool(), self.cache(), key_hash)
             .await
             .map_err(Into::into)
     }
 
-    async fn list_api_keys(
-        &self,
-        cache: Option<&CacheService>,
-        org_id: &str,
-    ) -> Result<Vec<ApiKeyRow>, DataError> {
-        api_key::list_for_org(self.pool(), cache, org_id)
+    async fn list_api_keys(&self, org_id: &str) -> Result<Vec<ApiKeyRow>, DataError> {
+        api_key::list_for_org(self.pool(), self.cache(), org_id)
             .await
             .map_err(Into::into)
     }
 
-    async fn delete_api_key(
-        &self,
-        cache: Option<&CacheService>,
-        id: &str,
-        org_id: &str,
-    ) -> Result<bool, DataError> {
-        api_key::delete_api_key(self.pool(), cache, id, org_id)
+    async fn delete_api_key(&self, id: &str, org_id: &str) -> Result<bool, DataError> {
+        api_key::delete_api_key(self.pool(), self.cache(), id, org_id)
             .await
             .map_err(Into::into)
     }
@@ -985,12 +921,8 @@ impl TransactionalRepository for Arc<PostgresService> {
             .map_err(Into::into)
     }
 
-    async fn delete_api_keys_for_org(
-        &self,
-        cache: Option<&CacheService>,
-        org_id: &str,
-    ) -> Result<u64, DataError> {
-        api_key::delete_for_org(self.pool(), cache, org_id)
+    async fn delete_api_keys_for_org(&self, org_id: &str) -> Result<u64, DataError> {
+        api_key::delete_for_org(self.pool(), self.cache(), org_id)
             .await
             .map_err(Into::into)
     }

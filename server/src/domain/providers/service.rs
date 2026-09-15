@@ -370,7 +370,7 @@ impl CredentialService {
 
         // Validate project belongs to org (if specified), using cache to avoid redundant DB hits
         if let Some(pid) = project_id {
-            let project = repo.get_project(Some(self.cache.as_ref()), pid).await?;
+            let project = repo.get_project(pid).await?;
             match project {
                 Some(p) if p.organization_id == org_id => {}
                 _ => return Err(CredentialError::ProjectNotFound),

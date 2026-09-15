@@ -236,20 +236,17 @@ where
 async fn projects_behave_identically() {
     assert_parity("projects", |repo, mut t| async move {
         let alpha = repo
-            .create_project(None, "default", "Alpha")
+            .create_project("default", "Alpha")
             .await
             .expect("create Alpha");
         let beta = repo
-            .create_project(None, "default", "Beta")
+            .create_project("default", "Beta")
             .await
             .expect("create Beta");
         t.note_id("created", &alpha.id);
         t.note_id("created", &beta.id);
 
-        let (listed, total) = repo
-            .list_projects_for_org(None, "default", 1, 50)
-            .await
-            .unwrap();
+        let (listed, total) = repo.list_projects_for_org("default", 1, 50).await.unwrap();
         t.note(&format!("listed_total={total}"));
         for project in &listed {
             let label = t.label(&project.id);
@@ -257,7 +254,7 @@ async fn projects_behave_identically() {
         }
 
         let renamed = repo
-            .update_project(None, &alpha.id, "Alpha Renamed")
+            .update_project(&alpha.id, "Alpha Renamed")
             .await
             .unwrap();
         t.note(&format!(
@@ -268,19 +265,15 @@ async fn projects_behave_identically() {
         // The fence.
         t.note(&format!(
             "claim={}",
-            repo.claim_project_for_deletion(None, &beta.id)
-                .await
-                .unwrap()
+            repo.claim_project_for_deletion(&beta.id).await.unwrap()
         ));
         t.note(&format!(
             "claim_again={}",
-            repo.claim_project_for_deletion(None, &beta.id)
-                .await
-                .unwrap()
+            repo.claim_project_for_deletion(&beta.id).await.unwrap()
         ));
         t.note(&format!(
             "claim_missing={}",
-            repo.claim_project_for_deletion(None, "no-such-project")
+            repo.claim_project_for_deletion("no-such-project")
                 .await
                 .unwrap()
         ));
@@ -290,19 +283,17 @@ async fn projects_behave_identically() {
         ));
         t.note(&format!(
             "get_claimed_is_none={}",
-            repo.get_project(None, &beta.id).await.unwrap().is_none()
+            repo.get_project(&beta.id).await.unwrap().is_none()
         ));
-        let (after_claim, total_after) = repo
-            .list_projects_for_org(None, "default", 1, 50)
-            .await
-            .unwrap();
+        let (after_claim, total_after) =
+            repo.list_projects_for_org("default", 1, 50).await.unwrap();
         t.note(&format!(
             "listed_after_claim={} total={total_after}",
             after_claim.len()
         ));
         t.note(&format!(
             "rename_claimed_is_none={}",
-            repo.update_project(None, &beta.id, "Nope")
+            repo.update_project(&beta.id, "Nope")
                 .await
                 .unwrap()
                 .is_none()
@@ -373,34 +364,29 @@ async fn projects_behave_identically() {
         // something no read can see and the cleanup is about to cascade away.
         t.note(&format!(
             "add_member_to_deleting_org_is_err={}",
-            repo.add_member(None, "default", "local", "member")
-                .await
-                .is_err()
+            repo.add_member("default", "local", "member").await.is_err()
         ));
         t.note(&format!(
             "promote_in_deleting_org={}",
             describe(
                 &repo
-                    .update_role_atomic(None, "default", "local", "admin")
+                    .update_role_atomic("default", "local", "admin")
                     .await
                     .unwrap()
             )
         ));
         t.note(&format!(
             "org_reads_absent={}",
-            repo.get_organization(None, "default")
-                .await
-                .unwrap()
-                .is_none()
+            repo.get_organization("default").await.unwrap().is_none()
         ));
 
         t.note(&format!(
             "deleted={}",
-            repo.delete_project(None, &beta.id).await.unwrap()
+            repo.delete_project(&beta.id).await.unwrap()
         ));
         t.note(&format!(
             "delete_again={}",
-            repo.delete_project(None, &beta.id).await.unwrap()
+            repo.delete_project(&beta.id).await.unwrap()
         ));
         t.note(&format!(
             "remembered_after_removal={}",
@@ -647,28 +633,25 @@ async fn files_and_references_behave_identically() {
 async fn organizations_and_members_behave_identically() {
     assert_parity("orgs", |repo, mut t| async move {
         let owner = repo
-            .create_user(None, "owner@example.com", Some("Owner"))
+            .create_user("owner@example.com", Some("Owner"))
             .await
             .expect("create owner");
         let member = repo
-            .create_user(None, "member@example.com", Some("Member"))
+            .create_user("member@example.com", Some("Member"))
             .await
             .expect("create member");
         t.note_id("owner", &owner.id);
         t.note_id("member", &member.id);
 
         let org = repo
-            .create_organization_with_owner(None, "Acme", "acme", &owner.id)
+            .create_organization_with_owner("Acme", "acme", &owner.id)
             .await
             .expect("create org");
         t.note_id("org", &org.id);
-        let project = repo
-            .create_project(None, &org.id, "Acme Project")
-            .await
-            .unwrap();
+        let project = repo.create_project(&org.id, "Acme Project").await.unwrap();
         t.note_id("project", &project.id);
 
-        repo.add_member(None, &org.id, &member.id, "member")
+        repo.add_member(&org.id, &member.id, "member")
             .await
             .unwrap();
         let (mut members, total) = repo.list_members(&org.id, 1, 50).await.unwrap();
@@ -679,7 +662,7 @@ async fn organizations_and_members_behave_identically() {
         }
         t.note(&format!(
             "membership_role={:?}",
-            repo.get_membership(None, &org.id, &member.id)
+            repo.get_membership(&org.id, &member.id)
                 .await
                 .unwrap()
                 .map(|m| m.role)
@@ -697,7 +680,7 @@ async fn organizations_and_members_behave_identically() {
             "promote={}",
             describe(
                 &repo
-                    .update_role_atomic(None, &org.id, &member.id, "admin")
+                    .update_role_atomic(&org.id, &member.id, "admin")
                     .await
                     .unwrap()
             )
@@ -706,25 +689,20 @@ async fn organizations_and_members_behave_identically() {
             "demote_last_owner={}",
             describe(
                 &repo
-                    .update_role_atomic(None, &org.id, &owner.id, "member")
+                    .update_role_atomic(&org.id, &owner.id, "member")
                     .await
                     .unwrap()
             )
         ));
         t.note(&format!(
             "remove_last_owner={}",
-            describe(
-                &repo
-                    .remove_member_atomic(None, &org.id, &owner.id)
-                    .await
-                    .unwrap()
-            )
+            describe(&repo.remove_member_atomic(&org.id, &owner.id).await.unwrap())
         ));
         t.note(&format!(
             "remove_member={}",
             describe(
                 &repo
-                    .remove_member_atomic(None, &org.id, &member.id)
+                    .remove_member_atomic(&org.id, &member.id)
                     .await
                     .unwrap()
             )
@@ -734,24 +712,21 @@ async fn organizations_and_members_behave_identically() {
         ids.sort();
         t.note(&format!("project_ids={}", ids.len()));
 
-        let (for_user, _) = repo
-            .list_projects_for_user(None, &owner.id, 1, 50)
-            .await
-            .unwrap();
+        let (for_user, _) = repo.list_projects_for_user(&owner.id, 1, 50).await.unwrap();
         t.note(&format!("projects_for_owner={}", for_user.len()));
 
         // Deleting the org must take its projects with it, in both schemas.
         t.note(&format!(
             "org_deleted={}",
-            repo.delete_organization(None, &org.id).await.unwrap()
+            repo.delete_organization(&org.id).await.unwrap()
         ));
         t.note(&format!(
             "project_gone={}",
-            repo.get_project(None, &project.id).await.unwrap().is_none()
+            repo.get_project(&project.id).await.unwrap().is_none()
         ));
         t.note(&format!(
             "membership_gone={}",
-            repo.get_membership(None, &org.id, &owner.id)
+            repo.get_membership(&org.id, &owner.id)
                 .await
                 .unwrap()
                 .is_none()
@@ -883,7 +858,7 @@ async fn a_project_cannot_be_created_under_a_deleting_organization() {
     // Writer two: a creation that must wait for that lock.
     let creation = {
         let repo = Arc::clone(&postgres);
-        tokio::spawn(async move { repo.create_project(None, "default", "Sneaky").await })
+        tokio::spawn(async move { repo.create_project("default", "Sneaky").await })
     };
     tokio::time::sleep(std::time::Duration::from_millis(250)).await;
     assert!(
@@ -932,13 +907,13 @@ async fn a_member_cannot_be_added_while_the_organization_is_being_deleted() {
         .unwrap();
 
     let user = postgres
-        .create_user(None, "joiner@example.com", Some("Joiner"))
+        .create_user("joiner@example.com", Some("Joiner"))
         .await
         .expect("create user");
     let addition = {
         let repo = Arc::clone(&postgres);
         let user_id = user.id.clone();
-        tokio::spawn(async move { repo.add_member(None, "default", &user_id, "member").await })
+        tokio::spawn(async move { repo.add_member("default", &user_id, "member").await })
     };
     tokio::time::sleep(std::time::Duration::from_millis(250)).await;
     assert!(
@@ -972,12 +947,9 @@ async fn two_replicas_cannot_claim_the_same_deleted_project() {
         return;
     };
 
-    let project = postgres
-        .create_project(None, "default", "Swept")
-        .await
-        .unwrap();
+    let project = postgres.create_project("default", "Swept").await.unwrap();
     postgres
-        .claim_project_for_deletion(None, &project.id)
+        .claim_project_for_deletion(&project.id)
         .await
         .unwrap();
     postgres
@@ -1019,7 +991,7 @@ async fn only_one_concurrent_project_claim_wins() {
         return;
     };
     let project = postgres
-        .create_project(None, "default", "Contested")
+        .create_project("default", "Contested")
         .await
         .unwrap();
 
@@ -1029,7 +1001,7 @@ async fn only_one_concurrent_project_claim_wins() {
         let repo = Arc::clone(&postgres);
         let id = project.id.clone();
         handles.push(tokio::spawn(async move {
-            repo.claim_project_for_deletion(None, &id).await
+            repo.claim_project_for_deletion(&id).await
         }));
     }
     for handle in handles {

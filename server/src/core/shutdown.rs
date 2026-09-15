@@ -175,7 +175,7 @@ mod tests {
         std::fs::create_dir_all(data_dir.join("duckdb")).unwrap();
         let storage = AppStorage::init_for_test(data_dir);
         let database = Arc::new(
-            TransactionalService::init(TransactionalBackend::Sqlite, &storage, None)
+            TransactionalService::init(TransactionalBackend::Sqlite, &storage, None, None)
                 .await
                 .unwrap(),
         );

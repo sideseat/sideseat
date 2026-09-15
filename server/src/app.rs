@@ -86,6 +86,7 @@ impl CoreApp {
                     config.database.transactional,
                     &storage,
                     config.database.postgres.as_ref(),
+                    Some(Arc::clone(&cache)),
                 )
                 .await
                 .map_err(anyhow::Error::from)

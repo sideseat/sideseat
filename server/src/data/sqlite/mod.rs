@@ -19,6 +19,8 @@ pub use error::SqliteError;
 pub use sqlx::SqlitePool;
 
 use std::sync::Arc;
+
+use crate::data::cache::CacheService;
 use std::time::Duration;
 
 use sqlx::ConnectOptions;
@@ -39,6 +41,15 @@ use crate::core::storage::{AppStorage, DataSubdir};
 /// Should be created once at server startup and shared across all modules.
 pub struct SqliteService {
     pool: SqlitePool,
+    /// The cache, held by the service rather than passed to every port method.
+    ///
+    /// 29 of `TransactionalRepository`'s 95 methods took `cache: Option<&CacheService>`, which put an
+    /// adapter type in the port's own signature - so the trait could not move to a crate that does not
+    /// know about caching, and every caller had to decide per call whether to use it. Holding it here
+    /// removes the parameter from the port; hoisting the *duplicated* caching bodies out of the two
+    /// backends into one decorator is a later step, once the god-trait is split into the ports that
+    /// actually need it.
+    cache: Option<Arc<CacheService>>,
 }
 
 impl SqliteService {
@@ -69,17 +80,28 @@ impl SqliteService {
         migrations::run_migrations(&pool).await?;
 
         tracing::debug!(path = %db_path.display(), "SqliteService initialized");
-        Ok(Self { pool })
+        Ok(Self { pool, cache: None })
     }
 
     pub fn pool(&self) -> &SqlitePool {
         &self.pool
     }
 
+    /// The cache this service was built with, if any.
+    pub fn cache(&self) -> Option<&CacheService> {
+        self.cache.as_deref()
+    }
+
+    /// Attach a cache. Called once by the composition root, before the service is shared.
+    pub fn with_cache(mut self, cache: Option<Arc<CacheService>>) -> Self {
+        self.cache = cache;
+        self
+    }
+
     /// Create a SqliteService from an existing pool (primarily for testing)
     #[cfg(test)]
     pub fn from_pool(pool: SqlitePool) -> Self {
-        Self { pool }
+        Self { pool, cache: None }
     }
 
     pub async fn checkpoint(&self) -> Result<(), SqliteError> {

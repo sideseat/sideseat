@@ -53,14 +53,14 @@ pub async fn get_current_user(
 
     // Get user info
     let user = repo
-        .get_user(None, user_id)
+        .get_user(user_id)
         .await
         .map_err(ApiError::from_data)?
         .ok_or_else(|| ApiError::not_found("USER_NOT_FOUND", "User not found"))?;
 
     // Get all user's organizations (limited to MAX_USER_ORGS)
     let (orgs, _) = repo
-        .list_orgs_for_user(None, user_id, 1, MAX_USER_ORGS)
+        .list_orgs_for_user(user_id, 1, MAX_USER_ORGS)
         .await
         .map_err(ApiError::from_data)?;
 
@@ -94,7 +94,7 @@ pub async fn update_current_user(
     let repo = state.database.repository();
 
     let user = repo
-        .update_user(None, user_id, body.display_name.as_deref())
+        .update_user(user_id, body.display_name.as_deref())
         .await
         .map_err(ApiError::from_data)?
         .ok_or_else(|| ApiError::not_found("USER_NOT_FOUND", "User not found"))?;

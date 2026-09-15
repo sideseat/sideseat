@@ -57,6 +57,8 @@ pub use types::{
 pub use duckdb::filters;
 
 use std::sync::Arc;
+
+use crate::data::cache::CacheService;
 use tokio::sync::watch;
 use tokio::task::JoinHandle;
 
@@ -82,21 +84,28 @@ impl TransactionalService {
     ///
     /// For SQLite backend, uses the storage path.
     /// For PostgreSQL backend, requires a PostgresConfig.
+    /// `cache` is held by the service rather than passed to every port method.
+    ///
+    /// 29 of `TransactionalRepository`'s 95 methods took `cache: Option<&CacheService>`, so an adapter type
+    /// sat in the port's own signature - which is what stops the trait moving into a crate that knows
+    /// nothing about caching. Which methods actually cache is now stated once, in each backend's `impl`,
+    /// instead of being decided independently at 36 call sites.
     pub async fn init(
         backend: TransactionalBackend,
         storage: &AppStorage,
         postgres_config: Option<&PostgresConfig>,
+        cache: Option<Arc<CacheService>>,
     ) -> Result<Self, DataError> {
         match backend {
             TransactionalBackend::Sqlite => {
-                let service = SqliteService::init(storage).await?;
+                let service = SqliteService::init(storage).await?.with_cache(cache);
                 Ok(Self::Sqlite(Arc::new(service)))
             }
             TransactionalBackend::Postgres => {
                 let config = postgres_config.ok_or_else(|| {
                     DataError::Config("PostgreSQL configuration required".to_string())
                 })?;
-                let service = PostgresService::init(config).await?;
+                let service = PostgresService::init(config).await?.with_cache(cache);
                 Ok(Self::Postgres(Arc::new(service)))
             }
         }

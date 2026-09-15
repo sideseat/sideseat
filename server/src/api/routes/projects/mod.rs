@@ -86,19 +86,19 @@ pub async fn list_projects(
             auth_service
                 .verify_org_access(&auth.ctx, org_id, ApiKeyScope::Read)
                 .await?;
-            repo.list_projects_for_org(None, org_id, query.page, query.limit)
+            repo.list_projects_for_org(org_id, query.page, query.limit)
                 .await
                 .map_err(ApiError::from_data)?
         }
         // API key without org_id filter: list projects in key's org
         (None, AuthContext::ApiKey { org_id, .. }) => repo
-            .list_projects_for_org(None, org_id, query.page, query.limit)
+            .list_projects_for_org(org_id, query.page, query.limit)
             .await
             .map_err(ApiError::from_data)?,
         // Session/Local auth: list all projects across user's orgs
         (None, _) => {
             let user_id = auth.require_user_id()?;
-            repo.list_projects_for_user(None, user_id, query.page, query.limit)
+            repo.list_projects_for_user(user_id, query.page, query.limit)
                 .await
                 .map_err(ApiError::from_data)?
         }
@@ -145,7 +145,7 @@ pub async fn create_project(
         .await?;
 
     let project = repo
-        .create_project(None, &body.organization_id, &body.name)
+        .create_project(&body.organization_id, &body.name)
         .await
         .map_err(ApiError::from_data)?;
 
@@ -173,7 +173,7 @@ pub async fn get_project(
     let repo = state.database.repository();
 
     let project_row = repo
-        .get_project(None, &project.project_id)
+        .get_project(&project.project_id)
         .await
         .map_err(ApiError::from_data)?
         .ok_or_else(|| {
@@ -227,7 +227,7 @@ pub async fn update_project(
 
     let repo = state.database.repository();
     let project_row = repo
-        .update_project(None, &project.project_id, &body.name)
+        .update_project(&project.project_id, &body.name)
         .await
         .map_err(ApiError::from_data)?
         .ok_or_else(|| {

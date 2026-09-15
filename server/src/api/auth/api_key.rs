@@ -87,19 +87,18 @@ impl IntoResponse for ApiKeyAuthError {
 /// Validate API key for project-scoped endpoints.
 /// Verifies the project belongs to the key's organization.
 pub async fn validate_api_key_for_project(
-    cache: &CacheService,
     database: Arc<TransactionalService>,
     api_key_secret: &[u8],
     auth_header: &str,
     project_id: &str,
     required_scope: ApiKeyScope,
 ) -> Result<ApiKeyValidation, ApiKeyAuthError> {
-    let validation = validate_api_key_core(cache, &database, api_key_secret, auth_header).await?;
+    let validation = validate_api_key_core(&database, api_key_secret, auth_header).await?;
 
     // Verify project belongs to the key's org
     let project = database
         .repository()
-        .get_project(Some(cache), project_id)
+        .get_project(project_id)
         .await
         .map_err(|e| {
             tracing::error!(project_id = %project_id, error = %e, "Database error during project lookup");
@@ -120,13 +119,12 @@ pub async fn validate_api_key_for_project(
 /// Validate API key for general endpoints (no org/project validation).
 /// Returns key's org_id in validation result.
 pub async fn validate_api_key_general(
-    cache: &CacheService,
     database: Arc<TransactionalService>,
     api_key_secret: &[u8],
     auth_header: &str,
     required_scope: ApiKeyScope,
 ) -> Result<ApiKeyValidation, ApiKeyAuthError> {
-    let validation = validate_api_key_core(cache, &database, api_key_secret, auth_header).await?;
+    let validation = validate_api_key_core(&database, api_key_secret, auth_header).await?;
     check_expiry_and_scope(&validation, required_scope)?;
     touch_if_needed(database, &validation);
     Ok(validation)
@@ -134,7 +132,6 @@ pub async fn validate_api_key_general(
 
 /// Core validation: parse header, hash, lookup (caching handled by repository)
 async fn validate_api_key_core(
-    cache: &CacheService,
     database: &TransactionalService,
     api_key_secret: &[u8],
     auth_header: &str,
@@ -150,7 +147,7 @@ async fn validate_api_key_core(
     // Repository handles caching (positive + negative)
     database
         .repository()
-        .get_api_key_by_hash(Some(cache), &key_hash)
+        .get_api_key_by_hash(&key_hash)
         .await
         .map_err(|_| ApiKeyAuthError::InvalidKey)?
         .ok_or(ApiKeyAuthError::InvalidKey)
@@ -251,7 +248,6 @@ pub async fn otel_auth_middleware(
     // OTEL ingestion requires 'ingest' scope
     // Key's org must own the project
     let result = validate_api_key_for_project(
-        &state.cache,
         state.database.clone(),
         &state.api_key_secret,
         auth_header,

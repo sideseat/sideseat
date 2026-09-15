@@ -8,7 +8,6 @@ use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use std::collections::HashMap;
 
-use crate::data::cache::CacheService;
 use crate::data::error::DataError;
 use crate::data::types::{
     ApiKeyRow, ApiKeyScope, ApiKeyValidation, AuthMethodRow, CredentialPermissionRow,
@@ -318,29 +317,19 @@ pub trait TransactionalRepository: Send + Sync {
     /// Create a new user
     async fn create_user(
         &self,
-        cache: Option<&CacheService>,
         email: &str,
         display_name: Option<&str>,
     ) -> Result<UserRow, DataError>;
 
     /// Get a user by ID
-    async fn get_user(
-        &self,
-        cache: Option<&CacheService>,
-        id: &str,
-    ) -> Result<Option<UserRow>, DataError>;
+    async fn get_user(&self, id: &str) -> Result<Option<UserRow>, DataError>;
 
     /// Get a user by email
-    async fn get_user_by_email(
-        &self,
-        cache: Option<&CacheService>,
-        email: &str,
-    ) -> Result<Option<UserRow>, DataError>;
+    async fn get_user_by_email(&self, email: &str) -> Result<Option<UserRow>, DataError>;
 
     /// Update a user's display name
     async fn update_user(
         &self,
-        cache: Option<&CacheService>,
         id: &str,
         display_name: Option<&str>,
     ) -> Result<Option<UserRow>, DataError>;
@@ -350,23 +339,17 @@ pub trait TransactionalRepository: Send + Sync {
     /// Create a new organization with owner membership atomically
     async fn create_organization_with_owner(
         &self,
-        cache: Option<&CacheService>,
         name: &str,
         slug: &str,
         owner_user_id: &str,
     ) -> Result<OrganizationRow, DataError>;
 
     /// Get an organization by ID
-    async fn get_organization(
-        &self,
-        cache: Option<&CacheService>,
-        id: &str,
-    ) -> Result<Option<OrganizationRow>, DataError>;
+    async fn get_organization(&self, id: &str) -> Result<Option<OrganizationRow>, DataError>;
 
     /// Update an organization's name
     async fn update_organization(
         &self,
-        cache: Option<&CacheService>,
         id: &str,
         name: &str,
     ) -> Result<Option<OrganizationRow>, DataError>;
@@ -374,18 +357,13 @@ pub trait TransactionalRepository: Send + Sync {
     /// List organizations for a user with their role
     async fn list_orgs_for_user(
         &self,
-        cache: Option<&CacheService>,
         user_id: &str,
         page: u32,
         limit: u32,
     ) -> Result<(Vec<OrgWithRole>, u64), DataError>;
 
     /// Delete an organization (cascades to projects, memberships, files)
-    async fn delete_organization(
-        &self,
-        cache: Option<&CacheService>,
-        id: &str,
-    ) -> Result<bool, DataError>;
+    async fn delete_organization(&self, id: &str) -> Result<bool, DataError>;
 
     /// List project IDs for an organization (for cascade cleanup)
     async fn list_project_ids(&self, organization_id: &str) -> Result<Vec<String>, DataError>;
@@ -395,7 +373,6 @@ pub trait TransactionalRepository: Send + Sync {
     /// Get a membership
     async fn get_membership(
         &self,
-        cache: Option<&CacheService>,
         organization_id: &str,
         user_id: &str,
     ) -> Result<Option<MembershipRow>, DataError>;
@@ -410,7 +387,6 @@ pub trait TransactionalRepository: Send + Sync {
     /// Add a member to an organization
     async fn add_member(
         &self,
-        cache: Option<&CacheService>,
         organization_id: &str,
         user_id: &str,
         role: &str,
@@ -427,7 +403,6 @@ pub trait TransactionalRepository: Send + Sync {
     /// Update a member's role atomically with last-owner protection
     async fn update_role_atomic(
         &self,
-        cache: Option<&CacheService>,
         organization_id: &str,
         user_id: &str,
         new_role: &str,
@@ -436,7 +411,6 @@ pub trait TransactionalRepository: Send + Sync {
     /// Remove a member atomically with last-owner protection
     async fn remove_member_atomic(
         &self,
-        cache: Option<&CacheService>,
         organization_id: &str,
         user_id: &str,
     ) -> Result<LastOwnerResult<()>, DataError>;
@@ -446,30 +420,19 @@ pub trait TransactionalRepository: Send + Sync {
     /// Create a new project
     async fn create_project(
         &self,
-        cache: Option<&CacheService>,
         organization_id: &str,
         name: &str,
     ) -> Result<ProjectRow, DataError>;
 
     /// Get a project by ID
-    async fn get_project(
-        &self,
-        cache: Option<&CacheService>,
-        id: &str,
-    ) -> Result<Option<ProjectRow>, DataError>;
+    async fn get_project(&self, id: &str) -> Result<Option<ProjectRow>, DataError>;
 
     /// Update a project's name
-    async fn update_project(
-        &self,
-        cache: Option<&CacheService>,
-        id: &str,
-        name: &str,
-    ) -> Result<Option<ProjectRow>, DataError>;
+    async fn update_project(&self, id: &str, name: &str) -> Result<Option<ProjectRow>, DataError>;
 
     /// List projects for an organization
     async fn list_projects_for_org(
         &self,
-        cache: Option<&CacheService>,
         organization_id: &str,
         page: u32,
         limit: u32,
@@ -478,7 +441,6 @@ pub trait TransactionalRepository: Send + Sync {
     /// List projects for a user (across all orgs they're a member of)
     async fn list_projects_for_user(
         &self,
-        cache: Option<&CacheService>,
         user_id: &str,
         page: u32,
         limit: u32,
@@ -489,11 +451,7 @@ pub trait TransactionalRepository: Send + Sync {
     /// Takes the cache because a successful claim must drop every cached answer about the project at
     /// once: from that moment it is not live, and a cached "here it is" would outlive the fact by the
     /// cache's five minutes.
-    async fn claim_project_for_deletion(
-        &self,
-        cache: Option<&CacheService>,
-        id: &str,
-    ) -> Result<bool, DataError>;
+    async fn claim_project_for_deletion(&self, id: &str) -> Result<bool, DataError>;
 
     /// Whether this project accepts writes: a row exists and nothing has claimed it.
     ///
@@ -676,11 +634,7 @@ pub trait TransactionalRepository: Send + Sync {
 
     /// Delete a project's row. Only correct once its data is gone: the row is what every other path
     /// finds the data by.
-    async fn delete_project(
-        &self,
-        cache: Option<&CacheService>,
-        id: &str,
-    ) -> Result<bool, DataError>;
+    async fn delete_project(&self, id: &str) -> Result<bool, DataError>;
 
     // ==================== Auth Method Operations ====================
 
@@ -688,7 +642,6 @@ pub trait TransactionalRepository: Send + Sync {
     #[allow(clippy::too_many_arguments)]
     async fn create_auth_method(
         &self,
-        cache: Option<&CacheService>,
         user_id: &str,
         method_type: &str,
         provider: Option<&str>,
@@ -700,7 +653,6 @@ pub trait TransactionalRepository: Send + Sync {
     /// Find an auth method by OAuth provider and provider ID
     async fn find_auth_by_oauth(
         &self,
-        cache: Option<&CacheService>,
         provider: &str,
         provider_id: &str,
     ) -> Result<Option<AuthMethodRow>, DataError>;
@@ -708,16 +660,11 @@ pub trait TransactionalRepository: Send + Sync {
     /// List all auth methods for a user
     async fn list_auth_methods_for_user(
         &self,
-        cache: Option<&CacheService>,
         user_id: &str,
     ) -> Result<Vec<AuthMethodRow>, DataError>;
 
     /// Delete an auth method
-    async fn delete_auth_method(
-        &self,
-        cache: Option<&CacheService>,
-        id: &str,
-    ) -> Result<bool, DataError>;
+    async fn delete_auth_method(&self, id: &str) -> Result<bool, DataError>;
 
     /// Get the bootstrap auth method for a user
     async fn get_bootstrap_method(&self, user_id: &str)
@@ -990,7 +937,6 @@ pub trait TransactionalRepository: Send + Sync {
     #[allow(clippy::too_many_arguments)]
     async fn create_api_key(
         &self,
-        cache: Option<&CacheService>,
         org_id: &str,
         name: &str,
         key_hash: &str,
@@ -1003,34 +949,20 @@ pub trait TransactionalRepository: Send + Sync {
     /// Get validation info by hash. Used for OTEL and API auth.
     async fn get_api_key_by_hash(
         &self,
-        cache: Option<&CacheService>,
         key_hash: &str,
     ) -> Result<Option<ApiKeyValidation>, DataError>;
 
     /// List all keys for organization (metadata only, ordered by created_at DESC).
-    async fn list_api_keys(
-        &self,
-        cache: Option<&CacheService>,
-        org_id: &str,
-    ) -> Result<Vec<ApiKeyRow>, DataError>;
+    async fn list_api_keys(&self, org_id: &str) -> Result<Vec<ApiKeyRow>, DataError>;
 
     /// Delete key by ID.
-    async fn delete_api_key(
-        &self,
-        cache: Option<&CacheService>,
-        id: &str,
-        org_id: &str,
-    ) -> Result<bool, DataError>;
+    async fn delete_api_key(&self, id: &str, org_id: &str) -> Result<bool, DataError>;
 
     /// Update last_used_at (debounced, only if older than threshold).
     async fn touch_api_key(&self, id: &str, threshold_secs: u64) -> Result<bool, DataError>;
 
     /// Delete all keys for organization (for org deletion cleanup).
-    async fn delete_api_keys_for_org(
-        &self,
-        cache: Option<&CacheService>,
-        org_id: &str,
-    ) -> Result<u64, DataError>;
+    async fn delete_api_keys_for_org(&self, org_id: &str) -> Result<u64, DataError>;
 
     /// Get key hashes for organization (for cache invalidation on org delete).
     async fn get_api_key_hashes_for_org(&self, org_id: &str) -> Result<Vec<String>, DataError>;
