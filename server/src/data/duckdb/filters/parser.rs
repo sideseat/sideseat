@@ -15,7 +15,7 @@ const MAX_FILTERS: usize = 50;
 /// Validates JSON size, parses into Filter structs, and validates columns.
 pub fn parse_filters(json_str: &str, allowed_columns: &[&str]) -> Result<Vec<Filter>, FilterError> {
     if json_str.len() > MAX_FILTER_JSON_SIZE {
-        return Err(FilterError::TooMany {
+        return Err(FilterError::TooLarge {
             message: format!(
                 "Filter JSON exceeds maximum size of {} bytes",
                 MAX_FILTER_JSON_SIZE
@@ -65,6 +65,49 @@ mod tests {
         let result = parse_filters(json, columns::TRACE_FILTERABLE);
         assert!(result.is_ok());
         assert_eq!(result.unwrap().len(), 2);
+    }
+
+    /// The two limits are two remedies, so they must not share a code.
+    ///
+    /// `FilterError` was introduced to replace `ApiError` in this layer, and folding both refusals into
+    /// `TooMany` changed what an oversized payload returns from `FILTER_JSON_TOO_LARGE` to
+    /// `TOO_MANY_FILTERS` — telling a caller to send fewer clauses when the fix is to send less text. Both
+    /// codes are asserted here because asserting only `is_err()` is what let the collapse through: every
+    /// prior test on this path passed with one code doing both jobs.
+    #[test]
+    fn the_size_limit_and_the_count_limit_report_different_codes() {
+        let oversized = format!(
+            r#"[{{"type": "string", "column": "trace_id", "operator": "=", "value": "{}"}}]"#,
+            "x".repeat(MAX_FILTER_JSON_SIZE)
+        );
+        assert_eq!(
+            parse_filters(&oversized, columns::TRACE_FILTERABLE)
+                .expect_err("a payload past the size limit is refused")
+                .code(),
+            "FILTER_JSON_TOO_LARGE"
+        );
+
+        // Comfortably inside the size limit, comfortably past the count limit - so the two cannot be
+        // satisfied by one branch.
+        let many = format!(
+            "[{}]",
+            (0..=MAX_FILTERS)
+                .map(
+                    |_| r#"{"type": "string", "column": "trace_id", "operator": "=", "value": "a"}"#
+                )
+                .collect::<Vec<_>>()
+                .join(",")
+        );
+        assert!(
+            many.len() < MAX_FILTER_JSON_SIZE,
+            "the count case must not also trip the size limit"
+        );
+        assert_eq!(
+            parse_filters(&many, columns::TRACE_FILTERABLE)
+                .expect_err("a payload past the count limit is refused")
+                .code(),
+            "TOO_MANY_FILTERS"
+        );
     }
 
     #[test]

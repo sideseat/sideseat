@@ -24,6 +24,13 @@ pub enum FilterError {
     /// More filters than the endpoint accepts.
     #[error("{message}")]
     TooMany { message: String },
+    /// The payload is larger than the endpoint reads.
+    ///
+    /// Distinct from `TooMany`: a first draft folded both into it, which changed the machine-readable code
+    /// an oversized payload returns from `FILTER_JSON_TOO_LARGE` to `TOO_MANY_FILTERS` - two different
+    /// remedies (send less text, send fewer clauses) behind one code.
+    #[error("{message}")]
+    TooLarge { message: String },
 }
 
 impl FilterError {
@@ -33,6 +40,7 @@ impl FilterError {
             Self::UnknownColumn { .. } => "INVALID_FILTER_COLUMN",
             Self::Malformed { .. } => "INVALID_FILTER_JSON",
             Self::TooMany { .. } => "TOO_MANY_FILTERS",
+            Self::TooLarge { .. } => "FILTER_JSON_TOO_LARGE",
         }
     }
 }
