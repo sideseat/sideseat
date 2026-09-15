@@ -10,6 +10,7 @@ use duckdb::Connection;
 
 use super::{DuckdbError, in_transaction};
 use crate::core::config::RetentionConfig;
+use crate::data::duckdb::repositories::query::DEDUP_SPANS;
 
 /// Result of retention cleanup, including trace IDs for file cleanup
 #[derive(Default)]
@@ -94,8 +95,16 @@ const RETENTION_BATCH_SIZE: i64 = 100_000;
 /// Max batches per time-based cleanup cycle (prevents unbounded blocking)
 const MAX_TIME_CLEANUP_BATCHES: usize = 10;
 
-/// Max trace IDs to collect per cleanup cycle (prevents memory explosion)
-const MAX_TRACE_IDS_PER_CYCLE: usize = 10_000;
+/// Cap on trace IDs collected from one batch, as a guard against a pathological batch rather than a
+/// working limit.
+///
+/// It must stay **at or above [`RETENTION_BATCH_SIZE`]**, because in the worst case every span in a
+/// batch belongs to its own trace. A lower value silently truncated the cleanup list: a batch could
+/// delete 100 000 spans while only 10 000 traces were handed to file and favourite cleanup, and the
+/// omitted traces never reappeared in a later pass - their spans were already gone - so their file
+/// associations, ref-counted bytes and favourites were orphaned permanently. The memory this bounds
+/// is a few megabytes at the full batch size, which is not the explosion the old value implied.
+const MAX_TRACE_IDS_PER_CYCLE: usize = RETENTION_BATCH_SIZE as usize;
 
 /// Execute retention based on time limit (delete spans older than N minutes)
 /// Iterates in batches with a limit to prevent unbounded blocking
@@ -113,13 +122,17 @@ pub fn cleanup_by_time(
     let mut all_trace_ids: HashMap<String, Vec<String>> = HashMap::new();
 
     for _ in 0..MAX_TIME_CLEANUP_BATCHES {
-        let (deleted, trace_ids) = delete_spans_before(conn, &cutoff_str, RETENTION_BATCH_SIZE)?;
-        if deleted == 0 {
+        let batch = delete_spans_before(conn, &cutoff_str, RETENTION_BATCH_SIZE)?;
+        if batch.identities == 0 {
             break;
         }
-        tracing::debug!(deleted, "Deleted batch of expired spans");
-        total_deleted += deleted;
-        merge_trace_ids(&mut all_trace_ids, trace_ids);
+        tracing::debug!(
+            identities = batch.identities,
+            rows = batch.rows,
+            "Deleted batch of expired spans"
+        );
+        total_deleted += batch.rows;
+        merge_trace_ids(&mut all_trace_ids, batch.trace_ids_by_project);
     }
     Ok((total_deleted, all_trace_ids))
 }
@@ -127,138 +140,232 @@ pub fn cleanup_by_time(
 /// Max batches per count-based cleanup cycle (prevents unbounded blocking)
 const MAX_COUNT_CLEANUP_BATCHES: usize = 10;
 
-/// Execute retention based on max span count (delete oldest spans exceeding limit)
-/// Returns (spans_deleted, trace_ids_by_project). Iterates in batches with a limit to prevent unbounded blocking.
+/// Execute retention based on max span count, **per project**.
+///
+/// `max_spans` is a limit on each project, not on the deployment. Counting the whole table made it a
+/// shared budget that one noisy tenant exhausted on everyone's behalf, and the spans deleted to make
+/// room belonged to whichever project happened to hold the globally oldest rows - so a quiet tenant
+/// lost data because a busy one was over.
+///
+/// The count is over the **winning** relation. Counting raw rows double-counts an identity that has
+/// been corrected, so a project one span over the limit appeared two over, the sweep deleted both
+/// identities, and it finished *below* the limit.
+///
+/// Returns (spans_deleted, trace_ids_by_project). Iterates in batches with a limit to prevent
+/// unbounded blocking.
 pub fn cleanup_by_count(
     conn: &Connection,
     max_spans: u64,
 ) -> Result<(u64, HashMap<String, Vec<String>>), DuckdbError> {
-    // Use COUNT(span_id) to leverage primary key index for faster counting
-    let span_count: i64 = conn
-        .query_row("SELECT COUNT(span_id) FROM otel_spans", [], |row| {
-            row.get(0)
-        })
-        .unwrap_or_else(|e| {
-            tracing::warn!(error = %e, "Failed to query span count");
-            0
-        });
-
     let max_spans_i64 = i64::try_from(max_spans).unwrap_or(i64::MAX);
-    if span_count <= max_spans_i64 {
-        tracing::debug!(span_count, max_spans, "Span count within limit");
+
+    let over_limit = match projects_over_limit(conn, max_spans_i64) {
+        Ok(projects) => projects,
+        Err(e) => {
+            tracing::warn!(error = %e, "Failed to query per-project span counts");
+            return Ok((0, HashMap::new()));
+        }
+    };
+
+    if over_limit.is_empty() {
+        tracing::debug!(max_spans, "Every project within its span limit");
         return Ok((0, HashMap::new()));
     }
 
-    let to_delete = span_count - max_spans_i64;
-    tracing::debug!(
-        span_count,
-        max_spans,
-        to_delete,
-        "Span count exceeds limit, cleaning up"
-    );
-
-    // Delete in batches to avoid long transactions, with a limit to prevent unbounded blocking
     let mut total_deleted = 0u64;
     let mut all_trace_ids: HashMap<String, Vec<String>> = HashMap::new();
-    let mut remaining = to_delete;
-    for _ in 0..MAX_COUNT_CLEANUP_BATCHES {
-        if remaining <= 0 {
-            break;
-        }
-        let batch = remaining.min(RETENTION_BATCH_SIZE);
-        let (deleted, trace_ids) = delete_oldest_spans(conn, batch)?;
-        if deleted == 0 {
-            break;
-        }
-        tracing::debug!(deleted, "Deleted batch of excess spans");
+
+    for (project_id, span_count) in over_limit {
+        let overage = span_count - max_spans_i64;
+        tracing::debug!(
+            %project_id,
+            span_count,
+            max_spans,
+            to_delete = overage,
+            "Project exceeds its span limit, cleaning up"
+        );
+        let (deleted, trace_ids) =
+            trim_project_to_limit(conn, &project_id, overage, RETENTION_BATCH_SIZE)?;
         total_deleted += deleted;
         merge_trace_ids(&mut all_trace_ids, trace_ids);
-        remaining = remaining.saturating_sub(deleted as i64);
     }
 
     Ok((total_deleted, all_trace_ids))
 }
 
+/// Delete `overage` of one project's oldest span identities, in batches of `batch_size`.
+///
+/// Separate from [`cleanup_by_count`] so the loop's progress arithmetic is reachable in a test with a
+/// small `batch_size`; at the production value an overage large enough to need two batches is 100 000
+/// identities, which no unit test is going to build.
+fn trim_project_to_limit(
+    conn: &Connection,
+    project_id: &str,
+    overage: i64,
+    batch_size: i64,
+) -> Result<(u64, HashMap<String, Vec<String>>), DuckdbError> {
+    let mut total_deleted = 0u64;
+    let mut all_trace_ids: HashMap<String, Vec<String>> = HashMap::new();
+    let mut remaining = overage;
+
+    for _ in 0..MAX_COUNT_CLEANUP_BATCHES {
+        if remaining <= 0 {
+            break;
+        }
+        let limit = remaining.min(batch_size);
+        let batch = delete_oldest_spans_for_project(conn, project_id, limit)?;
+        if batch.identities == 0 {
+            break;
+        }
+        tracing::debug!(
+            %project_id,
+            identities = batch.identities,
+            rows = batch.rows,
+            "Deleted batch of excess spans"
+        );
+        total_deleted += batch.rows;
+        merge_trace_ids(&mut all_trace_ids, batch.trace_ids_by_project);
+        // Identities, not rows. One identity can take several revisions with it, so subtracting the
+        // row count overshoots the remainder and stops the loop while the project is still over its
+        // limit.
+        remaining = remaining.saturating_sub(batch.identities as i64);
+    }
+
+    Ok((total_deleted, all_trace_ids))
+}
+
+/// Projects whose winning span count exceeds `max_spans`, with that count.
+fn projects_over_limit(
+    conn: &Connection,
+    max_spans: i64,
+) -> Result<Vec<(String, i64)>, DuckdbError> {
+    let mut stmt = conn.prepare(&format!(
+        "SELECT project_id, COUNT(*) AS span_count FROM {DEDUP_SPANS}
+         GROUP BY project_id
+         HAVING COUNT(*) > ?1
+         ORDER BY project_id"
+    ))?;
+    let rows = stmt.query_map([max_spans], |row| {
+        Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?))
+    })?;
+    let mut out = Vec::new();
+    for row in rows {
+        out.push(row?);
+    }
+    Ok(out)
+}
+
+/// Outcome of one retention batch.
+struct BatchOutcome {
+    /// Span *identities* selected for deletion. Progress is counted in these, never in deleted
+    /// rows: deleting one identity removes every revision of it, so a row count overshoots the
+    /// caller's remaining budget and stops a count-based sweep while it is still over the limit.
+    identities: u64,
+    /// Physical rows removed, which is what the caller reports.
+    rows: u64,
+    trace_ids_by_project: HashMap<String, Vec<String>>,
+}
+
 /// Delete spans before cutoff timestamp (for time-based retention)
-/// Returns (deleted_count, trace_ids_by_project)
 fn delete_spans_before(
     conn: &Connection,
     cutoff: &str,
     limit: i64,
-) -> Result<(u64, HashMap<String, Vec<String>>), DuckdbError> {
+) -> Result<BatchOutcome, DuckdbError> {
     delete_spans_with_query(
         conn,
-        "INSERT INTO _retention_batch
-         SELECT trace_id, span_id FROM otel_spans
-         WHERE timestamp_start < ?1
-         ORDER BY timestamp_start ASC
-         LIMIT ?2",
+        &format!(
+            "INSERT INTO _retention_batch
+             SELECT project_id, trace_id, span_id FROM {DEDUP_SPANS}
+             WHERE timestamp_start < ?1
+             ORDER BY timestamp_start ASC
+             LIMIT ?2"
+        ),
         &[&cutoff as &dyn duckdb::ToSql, &limit],
     )
 }
 
-/// Delete oldest N spans (for count-based retention)
-/// Returns (deleted_count, trace_ids_by_project)
-fn delete_oldest_spans(
+/// Delete the oldest N spans **of one project** (for count-based retention).
+fn delete_oldest_spans_for_project(
     conn: &Connection,
+    project_id: &str,
     limit: i64,
-) -> Result<(u64, HashMap<String, Vec<String>>), DuckdbError> {
+) -> Result<BatchOutcome, DuckdbError> {
     delete_spans_with_query(
         conn,
-        "INSERT INTO _retention_batch
-         SELECT trace_id, span_id FROM otel_spans
-         ORDER BY timestamp_start ASC
-         LIMIT ?1",
-        &[&limit as &dyn duckdb::ToSql],
+        &format!(
+            "INSERT INTO _retention_batch
+             SELECT project_id, trace_id, span_id FROM {DEDUP_SPANS}
+             WHERE project_id = ?1
+             ORDER BY timestamp_start ASC
+             LIMIT ?2"
+        ),
+        &[&project_id as &dyn duckdb::ToSql, &limit],
     )
 }
 
-/// Common delete logic using temp table for efficiency
-/// Returns (deleted_count, trace_ids_by_project) for file cleanup
+/// Common delete logic using a temp table for efficiency.
+///
+/// Two properties this must not lose:
+///
+/// **The batch is keyed by `(project_id, trace_id, span_id)`.** A span id is unique only within a
+/// trace and a trace id only within a project, and both come from the client - so a batch keyed by
+/// `(trace_id, span_id)` alone let expiring one tenant's span delete another tenant's span, or a
+/// held one, whenever two projects presented the same trace id.
+///
+/// **Candidates come from the deduplicated relation, not the raw table.** `otel_spans` is
+/// append-only, so an expired *old* revision would otherwise select an identity whose winning
+/// correction is recent, and the delete - which removes every revision of the identity - would take
+/// the correction with it. Reads already go through [`DEDUP_SPANS`]; retention has to agree with them.
 fn delete_spans_with_query(
     conn: &Connection,
     insert_sql: &str,
     params: &[&dyn duckdb::ToSql],
-) -> Result<(u64, HashMap<String, Vec<String>>), DuckdbError> {
+) -> Result<BatchOutcome, DuckdbError> {
     in_transaction(conn, |conn| {
-        // Create/clear temp table (query runs once, not 2x)
         conn.execute(
             "CREATE TEMP TABLE IF NOT EXISTS _retention_batch (
+                project_id VARCHAR NOT NULL,
                 trace_id VARCHAR NOT NULL,
                 span_id VARCHAR NOT NULL,
-                PRIMARY KEY (trace_id, span_id)
+                PRIMARY KEY (project_id, trace_id, span_id)
             )",
             [],
         )?;
         conn.execute("DELETE FROM _retention_batch", [])?;
 
-        // Populate with spans to delete
-        conn.execute(insert_sql, params)?;
+        let identities = conn.execute(insert_sql, params)? as u64;
 
-        // Collect distinct (project_id, trace_id) pairs BEFORE deletion for file cleanup
-        // _retention_batch only has (trace_id, span_id), need JOIN with otel_spans for project_id
-        // LIMIT prevents memory explosion for large cleanup batches
+        // Collected BEFORE the deletion: afterwards the rows naming these traces are gone.
         let trace_ids_by_project = collect_trace_ids_for_cleanup(conn)?;
 
-        // Delete spans (events, links, and messages are embedded in span rows)
-        let deleted = conn.execute(
+        // Removes every revision of each selected identity (events, links and messages are
+        // embedded in the span row).
+        let rows = conn.execute(
             "DELETE FROM otel_spans
-             WHERE (trace_id, span_id) IN (SELECT trace_id, span_id FROM _retention_batch)",
+             WHERE (project_id, trace_id, span_id)
+                   IN (SELECT project_id, trace_id, span_id FROM _retention_batch)",
             [],
-        )?;
+        )? as u64;
 
-        Ok((deleted as u64, trace_ids_by_project))
+        Ok(BatchOutcome {
+            identities,
+            rows,
+            trace_ids_by_project,
+        })
     })
 }
 
-/// Collect distinct (project_id, trace_id) pairs from the retention batch for file cleanup
+/// Collect distinct `(project_id, trace_id)` pairs from the retention batch for file cleanup.
+///
+/// Reads the batch directly - the project is a column there now, so the join back to `otel_spans`
+/// that previously recovered it is gone.
 fn collect_trace_ids_for_cleanup(
     conn: &Connection,
 ) -> Result<HashMap<String, Vec<String>>, DuckdbError> {
     let mut stmt = conn.prepare(
-        "SELECT DISTINCT os.project_id, os.trace_id
-         FROM _retention_batch rb
-         JOIN otel_spans os ON rb.trace_id = os.trace_id AND rb.span_id = os.span_id
+        "SELECT DISTINCT project_id, trace_id FROM _retention_batch
+         ORDER BY project_id, trace_id
          LIMIT ?1",
     )?;
 
@@ -340,12 +447,50 @@ mod tests {
     }
 
     fn insert_test_span(conn: &Connection, trace_id: &str, span_id: &str, timestamp: &str) {
+        insert_span_for_project(conn, "default", trace_id, span_id, timestamp);
+    }
+
+    fn insert_span_for_project(
+        conn: &Connection,
+        project_id: &str,
+        trace_id: &str,
+        span_id: &str,
+        timestamp: &str,
+    ) {
         conn.execute(
             "INSERT INTO otel_spans (trace_id, span_id, span_name, timestamp_start, project_id)
-             VALUES (?1, ?2, 'test', ?3, 'default')",
-            [trace_id, span_id, timestamp],
+             VALUES (?1, ?2, 'test', ?3, ?4)",
+            [trace_id, span_id, timestamp, project_id],
         )
         .expect("Failed to insert test span");
+    }
+
+    /// A second delivery of an existing span. `otel_spans` is append-only, so this leaves both rows
+    /// and `ingested_at` decides which one reads see.
+    fn redeliver_span(
+        conn: &Connection,
+        project_id: &str,
+        trace_id: &str,
+        span_id: &str,
+        timestamp: &str,
+        ingested_at: &str,
+    ) {
+        conn.execute(
+            "INSERT INTO otel_spans
+                 (trace_id, span_id, span_name, timestamp_start, project_id, ingested_at)
+             VALUES (?1, ?2, 'test', ?3, ?4, ?5)",
+            [trace_id, span_id, timestamp, project_id, ingested_at],
+        )
+        .expect("Failed to re-deliver test span");
+    }
+
+    fn span_count(conn: &Connection, project_id: &str) -> i64 {
+        conn.query_row(
+            "SELECT COUNT(*) FROM otel_spans WHERE project_id = ?1",
+            [project_id],
+            |row| row.get(0),
+        )
+        .expect("Should query")
     }
 
     #[tokio::test]
@@ -489,9 +634,9 @@ mod tests {
         insert_test_span(&conn, "middle", "span2", "2020-06-01 00:00:00");
         insert_test_span(&conn, "newest", "span3", "2020-12-01 00:00:00");
 
-        // Use delete_oldest_spans directly to verify ordering
-        let (deleted, _trace_ids) = delete_oldest_spans(&conn, 1).expect("Should delete");
-        assert_eq!(deleted, 1);
+        // Use the batch primitive directly to verify ordering
+        let batch = delete_oldest_spans_for_project(&conn, "default", 1).expect("Should delete");
+        assert_eq!(batch.rows, 1);
 
         // Verify oldest was deleted
         let oldest_exists: i64 = conn
@@ -545,6 +690,241 @@ mod tests {
             .query_row("SELECT COUNT(*) FROM otel_spans", [], |row| row.get(0))
             .expect("Should query");
         assert_eq!(count, 2);
+    }
+
+    // ========================================================================
+    // TENANT ISOLATION AND REVISION AWARENESS
+    //
+    // Every test below fails against the pre-fix implementation. The existing cases above cannot:
+    // they use one project and one revision per span, which is exactly the shape in which both
+    // defects are invisible.
+    // ========================================================================
+
+    /// A trace id comes from the client, so two projects can present the same one - and a span id is
+    /// unique only within a trace. Expiring one tenant's span must not touch the other's.
+    #[tokio::test]
+    async fn expiring_one_project_leaves_a_colliding_span_of_another_project() {
+        let (_temp_dir, analytics) = create_test_service().await;
+        let conn = analytics.conn();
+
+        // Same trace id AND same span id in two projects: the realistic collision, since both
+        // values are client-supplied.
+        insert_span_for_project(
+            &conn,
+            "alice",
+            "shared-trace",
+            "shared-span",
+            "2020-01-01 00:00:00",
+        );
+        let recent = Utc::now().format("%Y-%m-%d %H:%M:%S%.6f").to_string();
+        insert_span_for_project(&conn, "bob", "shared-trace", "shared-span", &recent);
+
+        let (deleted, trace_ids) = cleanup_by_time(&conn, 1).expect("Should cleanup");
+        assert_eq!(deleted, 1, "only alice's expired span should go");
+
+        assert_eq!(
+            span_count(&conn, "alice"),
+            0,
+            "alice's expired span is deleted"
+        );
+        assert_eq!(
+            span_count(&conn, "bob"),
+            1,
+            "bob's recent span must survive: a batch keyed only by (trace_id, span_id) deleted it"
+        );
+
+        // And the cleanup list must attribute the trace to alice alone, or bob's files are reclaimed.
+        assert_eq!(trace_ids.get("alice").map(Vec::len), Some(1));
+        assert!(
+            !trace_ids.contains_key("bob"),
+            "bob's trace must not be handed to file cleanup"
+        );
+    }
+
+    /// `max_spans` is a per-project limit. A shared budget let one busy tenant's overage delete a
+    /// quiet tenant's data, because the globally oldest rows are not necessarily the offender's.
+    #[tokio::test]
+    async fn max_spans_is_per_project_and_spends_only_the_offender() {
+        let (_temp_dir, analytics) = create_test_service().await;
+        let conn = analytics.conn();
+
+        // The *innocent* project owns the globally oldest spans. Without that arrangement a global
+        // algorithm passes by luck, deleting the offender's rows because they happen to be oldest.
+        // At the limit, not over it, so the only reason to touch these is a shared budget.
+        for i in 0..2 {
+            insert_span_for_project(
+                &conn,
+                "quiet",
+                &format!("q{i}"),
+                &format!("qs{i}"),
+                &format!("2019-01-0{} 00:00:00", i + 1),
+            );
+        }
+        for i in 0..5 {
+            insert_span_for_project(
+                &conn,
+                "noisy",
+                &format!("n{i}"),
+                &format!("ns{i}"),
+                &format!("2021-01-0{} 00:00:00", i + 1),
+            );
+        }
+
+        let (deleted, _) = cleanup_by_count(&conn, 2).expect("Should cleanup");
+
+        assert_eq!(
+            span_count(&conn, "noisy"),
+            2,
+            "the over-limit project must end at exactly max_spans"
+        );
+        assert_eq!(
+            span_count(&conn, "quiet"),
+            2,
+            "the at-limit project is untouched even though it owns the globally oldest spans"
+        );
+        assert_eq!(deleted, 3, "only noisy's three excess spans");
+    }
+
+    /// Retention selects from the deduplicated relation. Selecting raw rows let an expired *old*
+    /// revision nominate an identity whose winning correction is recent - and the delete, which
+    /// removes every revision of an identity, took the correction with it.
+    #[tokio::test]
+    async fn an_expired_revision_does_not_delete_its_recent_correction() {
+        let (_temp_dir, analytics) = create_test_service().await;
+        let conn = analytics.conn();
+
+        let now = Utc::now();
+        let recent = now.format("%Y-%m-%d %H:%M:%S%.6f").to_string();
+
+        // First delivery is expired; the correction moves the span into the retention window.
+        redeliver_span(
+            &conn,
+            "default",
+            "trace1",
+            "span1",
+            "2020-01-01 00:00:00",
+            "2020-01-01 00:00:00",
+        );
+        redeliver_span(&conn, "default", "trace1", "span1", &recent, &recent);
+
+        let (deleted, trace_ids) = cleanup_by_time(&conn, 1).expect("Should cleanup");
+
+        assert_eq!(
+            deleted, 0,
+            "the winning revision is recent, so nothing is expired"
+        );
+        assert_eq!(
+            span_count(&conn, "default"),
+            2,
+            "both revisions survive: deleting the identity would have destroyed the correction"
+        );
+        assert!(trace_ids.is_empty());
+    }
+
+    /// Counting raw rows double-counts a corrected span, so a project one identity over the limit
+    /// looked two over, both were deleted, and the sweep finished below the limit.
+    #[tokio::test]
+    async fn count_retention_counts_identities_not_revisions() {
+        let (_temp_dir, analytics) = create_test_service().await;
+        let conn = analytics.conn();
+
+        // Two identities, one of which has been re-delivered: three physical rows, two winners.
+        insert_span_for_project(&conn, "default", "t1", "s1", "2020-01-01 00:00:00");
+        redeliver_span(
+            &conn,
+            "default",
+            "t1",
+            "s1",
+            "2020-01-01 00:00:00",
+            "2020-06-01 00:00:00",
+        );
+        insert_span_for_project(&conn, "default", "t2", "s2", "2020-01-02 00:00:00");
+
+        // A limit of 2 is satisfied by two winners: nothing should be deleted.
+        let (deleted, trace_ids) = cleanup_by_count(&conn, 2).expect("Should cleanup");
+        assert_eq!(
+            deleted, 0,
+            "two winning identities are within a limit of two, whatever the revision count"
+        );
+        assert_eq!(span_count(&conn, "default"), 3);
+        assert!(trace_ids.is_empty());
+    }
+
+    /// Progress is counted in identities. Counting deleted *rows* let one batch report more progress
+    /// than it made, zeroing the remainder while the project was still over its limit.
+    ///
+    /// Driven through [`trim_project_to_limit`] with `batch_size = 1`, because at the production
+    /// batch size an overage needing two batches is 100 000 identities. With a batch per identity,
+    /// each batch deletes three rows for one identity - so row-counted progress finishes after the
+    /// first batch and leaves the project two identities over.
+    #[tokio::test]
+    async fn count_retention_progress_is_identities_not_deleted_rows() {
+        let (_temp_dir, analytics) = create_test_service().await;
+        let conn = analytics.conn();
+
+        // Five identities, each carrying three revisions.
+        for i in 0..5 {
+            let ts = format!("2020-01-0{} 00:00:00", i + 1);
+            for rev in 0..3 {
+                redeliver_span(
+                    &conn,
+                    "default",
+                    &format!("t{i}"),
+                    &format!("s{i}"),
+                    &ts,
+                    &format!("2020-0{}-01 00:00:00", rev + 1),
+                );
+            }
+        }
+
+        // Three identities over a limit of two, one identity per batch.
+        let (_deleted, _) = trim_project_to_limit(&conn, "default", 3, 1).expect("Should trim");
+
+        let winners: i64 = conn
+            .query_row(
+                &format!("SELECT COUNT(*) FROM {DEDUP_SPANS} WHERE project_id = 'default'"),
+                [],
+                |row| row.get(0),
+            )
+            .expect("Should query");
+        assert_eq!(
+            winners, 2,
+            "the loop must land exactly on max_spans; row-counted progress stops early"
+        );
+    }
+
+    /// Counting raw rows also makes a corrected span look like two, so the sweep overshoots.
+    #[tokio::test]
+    async fn count_retention_reaches_the_limit_when_identities_carry_many_revisions() {
+        let (_temp_dir, analytics) = create_test_service().await;
+        let conn = analytics.conn();
+
+        for i in 0..2 {
+            let ts = format!("2020-01-0{} 00:00:00", i + 1);
+            for rev in 0..3 {
+                redeliver_span(
+                    &conn,
+                    "default",
+                    &format!("t{i}"),
+                    &format!("s{i}"),
+                    &ts,
+                    &format!("2020-0{}-01 00:00:00", rev + 1),
+                );
+            }
+        }
+        insert_span_for_project(&conn, "default", "t2", "s2", "2020-02-01 00:00:00");
+        insert_span_for_project(&conn, "default", "t3", "s3", "2020-02-02 00:00:00");
+
+        let (_deleted, _) = cleanup_by_count(&conn, 2).expect("Should cleanup");
+
+        let winners: i64 = conn
+            .query_row(
+                &format!("SELECT COUNT(*) FROM {DEDUP_SPANS} WHERE project_id = 'default'"),
+                [],
+                |row| row.get(0),
+            )
+            .expect("Should query");
+        assert_eq!(winners, 2, "the sweep must land exactly on max_spans");
     }
 
     // ========================================================================
