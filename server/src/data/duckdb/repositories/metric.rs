@@ -3,7 +3,6 @@
 //! Provides high-throughput batch writes for normalized metrics.
 
 use duckdb::Connection;
-use duckdb::OptionalExt;
 use duckdb::params;
 
 use crate::data::duckdb::sql_types::{SqlOptTimestamp, SqlTimestamp};
@@ -85,19 +84,54 @@ fn winning_indices(
     }
 
     // Now drop the batch's winners that lose to a stored row.
+    //
+    // Read in **chunks**, one statement per chunk, not one per identity. A query per distinct datapoint
+    // meant a batch of ten thousand datapoints issued ten thousand round trips inside the write
+    // transaction - a throughput regression against the chunked delete this function sits in front of,
+    // and on the hot ingestion path.
+    //
+    // Compared as epoch microseconds: `chrono::DateTime` is not `FromSql` here, and micros are the
+    // column's own resolution, so nothing is lost by the conversion.
+    let mut stored: std::collections::HashMap<(String, String), i64> =
+        std::collections::HashMap::with_capacity(best.len());
+    let keys: Vec<(&str, &str)> = best.keys().copied().collect();
+    const PROBE_CHUNK: usize = 500;
+    for chunk in keys.chunks(PROBE_CHUNK) {
+        // Grouped by project so the predicate stays `project_id = ? AND datapoint_id IN (…)`, which is
+        // what the primary key can serve; a flat `OR` over pairs cannot use it.
+        let mut by_project: std::collections::HashMap<&str, Vec<&str>> =
+            std::collections::HashMap::new();
+        for (project, id) in chunk {
+            by_project.entry(project).or_default().push(id);
+        }
+        for (project, ids) in by_project {
+            let placeholders = vec!["?"; ids.len()].join(", ");
+            let sql = format!(
+                "SELECT datapoint_id, epoch_us(ingested_at) FROM otel_metrics \
+                 WHERE project_id = ? AND datapoint_id IN ({placeholders})"
+            );
+            let mut params: Vec<&str> = Vec::with_capacity(ids.len() + 1);
+            params.push(project);
+            params.extend(ids.iter().copied());
+            let mut stmt = conn.prepare(&sql)?;
+            let rows = stmt.query_map(duckdb::params_from_iter(params), |row| {
+                Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?))
+            })?;
+            for row in rows {
+                let (id, version_us) = row?;
+                // The table holds at most one row per identity, so a later duplicate would be a bug
+                // elsewhere; take the greatest defensively rather than assuming.
+                stored
+                    .entry((project.to_string(), id))
+                    .and_modify(|existing| *existing = (*existing).max(version_us))
+                    .or_insert(version_us);
+            }
+        }
+    }
+
     for (&(project, id), &index) in &best {
-        // Compared as epoch microseconds: `chrono::DateTime` is not `FromSql` here, and micros are the
-        // column's own resolution, so nothing is lost by the conversion.
-        let stored: Option<i64> = conn
-            .query_row(
-                "SELECT epoch_us(ingested_at) FROM otel_metrics \
-                 WHERE project_id = ? AND datapoint_id = ?",
-                duckdb::params![project, id],
-                |row| row.get(0),
-            )
-            .optional()?;
-        if let Some(stored) = stored
-            && stored > version(&metrics[index]).timestamp_micros()
+        if let Some(&stored_us) = stored.get(&(project.to_string(), id.to_string()))
+            && stored_us > version(&metrics[index]).timestamp_micros()
         {
             keep[index] = false;
         }
@@ -274,6 +308,130 @@ mod tests {
             .await
             .expect("Failed to init analytics service");
         (temp_dir, service)
+    }
+
+    /// A datapoint at a given version, for the version-resolution tests below.
+    fn datapoint(
+        id: &str,
+        value: f64,
+        ingested_at: Option<chrono::DateTime<Utc>>,
+    ) -> NormalizedMetric {
+        NormalizedMetric {
+            project_id: Some("default".to_string()),
+            datapoint_id: id.to_string(),
+            metric_name: "cpu".to_string(),
+            metric_type: MetricType::Gauge,
+            timestamp: Utc::now(),
+            value_double: Some(value),
+            ingested_at,
+            ..Default::default()
+        }
+    }
+
+    fn stored_value(conn: &Connection, id: &str) -> Option<f64> {
+        conn.query_row(
+            "SELECT value_double FROM otel_metrics WHERE datapoint_id = ?1",
+            [id],
+            |row| row.get(0),
+        )
+        .ok()
+    }
+
+    fn row_count(conn: &Connection, id: &str) -> i64 {
+        conn.query_row(
+            "SELECT COUNT(*) FROM otel_metrics WHERE datapoint_id = ?1",
+            [id],
+            |row| row.get(0),
+        )
+        .expect("count")
+    }
+
+    /// A **clock-regressed** re-delivery must not overwrite a newer stored version.
+    ///
+    /// This is the case the whole `winning_indices` comparison exists for. DuckDB used to delete and
+    /// re-insert unconditionally, so whichever delivery committed last won - while ClickHouse keeps the
+    /// highest `ingested_at`. One corrected datapoint could therefore read differently per backend.
+    #[tokio::test]
+    async fn a_clock_regressed_redelivery_does_not_overwrite_a_newer_stored_version() {
+        let (_temp_dir, analytics) = create_test_service().await;
+        let conn = analytics.conn();
+
+        let newer = Utc::now();
+        let older = newer - chrono::TimeDelta::hours(1);
+
+        insert_batch(&conn, &[datapoint("dp1", 2.0, Some(newer))]).expect("first write");
+        // Arrives later in wall-clock order but carries an earlier version: it loses.
+        insert_batch(&conn, &[datapoint("dp1", 1.0, Some(older))]).expect("second write");
+
+        assert_eq!(row_count(&conn, "dp1"), 1, "still one row per identity");
+        assert_eq!(
+            stored_value(&conn, "dp1"),
+            Some(2.0),
+            "the higher version must survive; an unconditional replace kept the regressed one"
+        );
+    }
+
+    /// A genuine correction - a higher version - does replace.
+    #[tokio::test]
+    async fn a_higher_versioned_correction_replaces_the_stored_row() {
+        let (_temp_dir, analytics) = create_test_service().await;
+        let conn = analytics.conn();
+
+        let first = Utc::now() - chrono::TimeDelta::hours(1);
+        let corrected = Utc::now();
+
+        insert_batch(&conn, &[datapoint("dp1", 1.0, Some(first))]).expect("first write");
+        insert_batch(&conn, &[datapoint("dp1", 9.0, Some(corrected))]).expect("correction");
+
+        assert_eq!(row_count(&conn, "dp1"), 1);
+        assert_eq!(stored_value(&conn, "dp1"), Some(9.0), "the correction wins");
+    }
+
+    /// Within one batch the highest version wins, whatever order the rows arrive in.
+    #[tokio::test]
+    async fn within_one_batch_the_highest_version_wins_regardless_of_order() {
+        let (_temp_dir, analytics) = create_test_service().await;
+        let conn = analytics.conn();
+
+        let high = Utc::now();
+        let low = high - chrono::TimeDelta::hours(1);
+
+        // The winner is listed *first*, so "last occurrence wins" would pick the wrong one.
+        insert_batch(
+            &conn,
+            &[
+                datapoint("dp1", 7.0, Some(high)),
+                datapoint("dp1", 3.0, Some(low)),
+            ],
+        )
+        .expect("write");
+
+        assert_eq!(row_count(&conn, "dp1"), 1);
+        assert_eq!(stored_value(&conn, "dp1"), Some(7.0));
+    }
+
+    /// Datapoints with no identity are never collapsed onto each other.
+    #[tokio::test]
+    async fn identity_less_datapoints_are_not_collapsed() {
+        let (_temp_dir, analytics) = create_test_service().await;
+        let conn = analytics.conn();
+
+        let now = Utc::now();
+        insert_batch(
+            &conn,
+            &[
+                datapoint("", 1.0, Some(now)),
+                datapoint("", 2.0, Some(now)),
+                datapoint("", 3.0, Some(now)),
+            ],
+        )
+        .expect("write");
+
+        assert_eq!(
+            row_count(&conn, ""),
+            3,
+            "an empty id is 'no identity known', not 'the same datapoint'"
+        );
     }
 
     #[tokio::test]
