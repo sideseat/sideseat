@@ -3,9 +3,9 @@
 use chrono::{DateTime, Utc};
 use duckdb::{Connection, Row};
 
-use crate::api::routes::otel::filters::{SqlParams, columns};
 use crate::core::constants::{QUERY_MAX_FILTER_SUGGESTIONS, QUERY_MAX_SPANS_PER_TRACE};
 use crate::data::duckdb::filters::Filter;
+use crate::data::duckdb::filters::{SqlParams, columns};
 use crate::data::duckdb::{DuckdbError, in_transaction};
 use crate::data::types::{
     DisplayNameDialect, EventRow, FeedSpansParams, LinkRow, ListSessionsParams, ListSpansParams,
@@ -608,8 +608,8 @@ pub fn list_traces(
         .as_ref()
         .map(|o| {
             let dir = match o.direction {
-                crate::api::types::OrderDirection::Desc => "DESC",
-                crate::api::types::OrderDirection::Asc => "ASC",
+                crate::data::types::OrderDirection::Desc => "DESC",
+                crate::data::types::OrderDirection::Asc => "ASC",
             };
             (o.column.as_str(), dir)
         })
@@ -1385,8 +1385,8 @@ pub fn list_sessions(
         .as_ref()
         .map(|o| {
             let dir = match o.direction {
-                crate::api::types::OrderDirection::Desc => "DESC",
-                crate::api::types::OrderDirection::Asc => "ASC",
+                crate::data::types::OrderDirection::Desc => "DESC",
+                crate::data::types::OrderDirection::Asc => "ASC",
             };
             (o.column.as_str(), dir)
         })

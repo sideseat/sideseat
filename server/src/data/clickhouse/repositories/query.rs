@@ -1158,8 +1158,8 @@ pub async fn list_traces(
         .as_ref()
         .map(|o| {
             let dir = match o.direction {
-                crate::api::types::OrderDirection::Desc => "DESC",
-                crate::api::types::OrderDirection::Asc => "ASC",
+                crate::data::types::OrderDirection::Desc => "DESC",
+                crate::data::types::OrderDirection::Asc => "ASC",
             };
             (o.column.as_str(), dir)
         })
@@ -1482,8 +1482,8 @@ pub async fn list_spans(
                 _ => "timestamp_start", // Safe default for unknown columns
             };
             let dir = match o.direction {
-                crate::api::types::OrderDirection::Desc => "DESC",
-                crate::api::types::OrderDirection::Asc => "ASC",
+                crate::data::types::OrderDirection::Desc => "DESC",
+                crate::data::types::OrderDirection::Asc => "ASC",
             };
             format!("{} {}", col, dir)
         })
@@ -1762,8 +1762,8 @@ pub async fn list_sessions(
         .as_ref()
         .map(|o| {
             let dir = match o.direction {
-                crate::api::types::OrderDirection::Desc => "DESC",
-                crate::api::types::OrderDirection::Asc => "ASC",
+                crate::data::types::OrderDirection::Desc => "DESC",
+                crate::data::types::OrderDirection::Asc => "ASC",
             };
             (o.column.as_str(), dir)
         })

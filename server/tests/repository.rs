@@ -2021,3 +2021,78 @@ fn every_module_path_cited_anywhere_resolves() {
         unresolved.join("\n  ")
     );
 }
+
+/// The storage layer does not reach into the HTTP layer.
+///
+/// This is the dependency the crate split turns into a compiler error: once `data` is
+/// `sideseat-adapter-*` and cannot name `sideseat-api` in its manifest, a violation stops compiling. Until
+/// then it is a test, because the compiler cannot see a layer that is only a directory.
+///
+/// Three real violations existed when this was written, and each was a different shape:
+///
+/// * `data/duckdb/repositories/query.rs` imported `crate::api::routes::otel::filters` - a module that is
+///   eight lines of `pub use crate::data::filters::…`. So the analytics adapter reached *through* the HTTP
+///   routing layer to borrow types the data layer already owned.
+/// * `data/duckdb/filters/{types,parser}.rs` returned `ApiError` from filter parsing and validation, which
+///   made the adapter manufacture HTTP responses. They return `FilterError` now and `api::types` converts
+///   at the boundary, so the routes still just use `?`.
+/// * `data/types/analytics.rs` imported `OrderBy`, a column plus a direction, from `api::types` - while
+///   three of its own DTOs carried it as a field. The type and its SQL moved to `data::types::order`;
+///   parsing a `?order_by=` parameter, which is where the 400 belongs, stayed in `api`.
+///
+/// Comments are stripped before matching, so prose about the API layer is not a violation - the same reason
+/// the framework sweeps tokenise rather than grep.
+#[test]
+fn the_storage_layer_does_not_import_the_http_layer() {
+    let data = repo_root().join("server/src/data");
+    let mut offenders: Vec<String> = Vec::new();
+    let mut scanned = 0usize;
+
+    let mut stack = vec![data.clone()];
+    while let Some(dir) = stack.pop() {
+        for entry in std::fs::read_dir(&dir).expect("read data dir") {
+            let path = entry.expect("dir entry").path();
+            if path.is_dir() {
+                stack.push(path);
+                continue;
+            }
+            if path.extension().and_then(|e| e.to_str()) != Some("rs") {
+                continue;
+            }
+            let text = std::fs::read_to_string(&path).expect("read source");
+            scanned += 1;
+
+            // Blank out commentary so only code is matched.
+            let mut code = text.clone();
+            for (_, comment) in rust_commentary(&text) {
+                if !comment.is_empty() {
+                    code = code.replace(&comment, "");
+                }
+            }
+
+            let relative = path
+                .strip_prefix(repo_root())
+                .unwrap_or(&path)
+                .display()
+                .to_string();
+            for (offset, line) in code.lines().enumerate() {
+                // `crate::api` in any position: a `use`, a fully-qualified call, a type in a signature.
+                if line.contains("crate::api") {
+                    offenders.push(format!("{relative}:{}: {}", offset + 1, line.trim()));
+                }
+            }
+        }
+    }
+
+    assert!(
+        scanned > 50,
+        "only scanned {scanned} files under server/src/data - the walk is not reaching the tree"
+    );
+    assert!(
+        offenders.is_empty(),
+        "the storage layer reaches into the HTTP layer in {} place(s), which the crate split will refuse \
+         to compile:\n  {}",
+        offenders.len(),
+        offenders.join("\n  ")
+    );
+}

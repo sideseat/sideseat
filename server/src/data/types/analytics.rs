@@ -5,8 +5,8 @@
 
 use chrono::{DateTime, Utc};
 
-use crate::api::routes::otel::filters::Filter;
-use crate::api::types::OrderBy;
+use super::order::OrderBy;
+use crate::data::filters::Filter;
 
 // ============================================================================
 // Row types (query results)

@@ -249,63 +249,43 @@ impl<T> PaginatedResponse<T> {
     }
 }
 
-/// OrderBy query parameter parsing
-#[derive(Debug, Clone)]
-pub struct OrderBy {
-    pub column: String,
-    pub direction: OrderDirection,
+/// A rejected filter becomes a 400, and the mapping lives here rather than in the adapter.
+///
+/// Filter parsing and validation used to return `ApiError` directly, which made the analytics adapters
+/// depend on the HTTP layer for their own vocabulary. They now return `FilterError` (`data::filters`) and
+/// this converts at the boundary - so every route keeps using `?`, and the storage modules can move into a
+/// crate that cannot see `api` at all.
+impl From<crate::data::filters::FilterError> for ApiError {
+    fn from(e: crate::data::filters::FilterError) -> Self {
+        ApiError::bad_request(e.code(), e.to_string())
+    }
 }
 
-#[derive(Debug, Clone, Copy, Default, Serialize, ToSchema)]
-pub enum OrderDirection {
-    #[default]
-    Desc,
-    Asc,
-}
+/// Turn an `?order_by=column[:asc|:desc]` query parameter into an [`OrderBy`].
+///
+/// The *parsing* stays here because rejecting a bad value with a 400 is an HTTP concern; the type itself
+/// and the SQL it renders are storage concerns and live in `data::types::order`. Keeping them together
+/// meant the analytics DTOs that carry an `OrderBy` had to import from `api`.
+pub use crate::data::types::{OrderBy, OrderDirection};
 
-impl OrderBy {
-    pub fn parse(s: &str, allowed_columns: &[&str]) -> Result<Self, ApiError> {
-        let parts: Vec<&str> = s.split(':').collect();
-        let (column, direction) = match parts.as_slice() {
-            [col] => (*col, OrderDirection::Desc),
-            [col, "asc"] => (*col, OrderDirection::Asc),
-            [col, "desc"] => (*col, OrderDirection::Desc),
-            _ => {
-                return Err(ApiError::bad_request(
-                    "INVALID_ORDER",
-                    "Invalid order_by format. Use 'column' or 'column:asc' or 'column:desc'",
-                ));
-            }
-        };
-        if !allowed_columns.contains(&column) {
+pub fn parse_order_by(s: &str, allowed_columns: &[&str]) -> Result<OrderBy, ApiError> {
+    let parts: Vec<&str> = s.split(':').collect();
+    let (column, direction) = match parts.as_slice() {
+        [col] => (*col, OrderDirection::Desc),
+        [col, "asc"] => (*col, OrderDirection::Asc),
+        [col, "desc"] => (*col, OrderDirection::Desc),
+        _ => {
             return Err(ApiError::bad_request(
-                "INVALID_ORDER_COLUMN",
-                format!("Cannot order by: {}", column),
+                "INVALID_ORDER",
+                "Invalid order_by format. Use 'column' or 'column:asc' or 'column:desc'",
             ));
         }
-        Ok(Self {
-            column: column.to_string(),
-            direction,
-        })
+    };
+    if !allowed_columns.contains(&column) {
+        return Err(ApiError::bad_request(
+            "INVALID_ORDER_COLUMN",
+            format!("Cannot order by: {}", column),
+        ));
     }
-
-    pub fn to_sql(&self) -> String {
-        let dir = match self.direction {
-            OrderDirection::Asc => "ASC",
-            OrderDirection::Desc => "DESC",
-        };
-        format!("{} {}", self.column, dir)
-    }
-
-    /// Generate SQL with column name mapping (e.g., API aliases to DB columns)
-    pub fn to_sql_mapped<F>(&self, mapper: F) -> String
-    where
-        F: Fn(&str) -> &str,
-    {
-        let dir = match self.direction {
-            OrderDirection::Asc => "ASC",
-            OrderDirection::Desc => "DESC",
-        };
-        format!("{} {}", mapper(&self.column), dir)
-    }
+    Ok(OrderBy::new(column, direction))
 }

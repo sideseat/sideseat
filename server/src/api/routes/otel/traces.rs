@@ -13,8 +13,8 @@ use super::types::{SpanDetailDto, SpanSummaryDto, StringOrArray, TraceDetailDto,
 use crate::api::auth::{ProjectRead, ProjectWrite, TraceRead};
 use crate::api::extractors::{ValidatedJson, ValidatedQuery};
 use crate::api::types::{
-    ApiError, OrderBy, PaginatedResponse, default_limit, default_page, parse_timestamp_param,
-    validate_ids_batch, validate_limit, validate_page,
+    ApiError, PaginatedResponse, default_limit, default_page, parse_order_by,
+    parse_timestamp_param, validate_ids_batch, validate_limit, validate_page,
 };
 use crate::data::types::{ListTracesParams, TraceRow, find_root_span};
 
@@ -65,7 +65,7 @@ pub async fn list_traces(
 ) -> Result<(HeaderMap, Json<PaginatedResponse<TraceSummaryDto>>), ApiError> {
     // Parse order_by
     let order_by = if let Some(ref ob) = query.order_by {
-        Some(OrderBy::parse(ob, columns::TRACE_SORTABLE)?)
+        Some(parse_order_by(ob, columns::TRACE_SORTABLE)?)
     } else {
         None
     };

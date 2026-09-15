@@ -14,8 +14,8 @@ use super::types::{SpanDetailDto, SpanSummaryDto, StringOrArray};
 use crate::api::auth::{ProjectRead, ProjectWrite, SpanRead, TraceRead};
 use crate::api::extractors::{ValidatedJson, ValidatedQuery};
 use crate::api::types::{
-    ApiError, OrderBy, PaginatedResponse, default_limit, default_page, parse_timestamp_param,
-    validate_limit, validate_page,
+    ApiError, PaginatedResponse, default_limit, default_page, parse_order_by,
+    parse_timestamp_param, validate_limit, validate_page,
 };
 use crate::data::types::{
     ListSpansParams, filter_observations, get_observation_cost, get_observation_tokens,
@@ -91,7 +91,7 @@ pub async fn list_spans(
 ) -> Result<(HeaderMap, Json<PaginatedResponse<SpanSummaryDto>>), ApiError> {
     // Parse order_by
     let order_by = if let Some(ref ob) = query.order_by {
-        Some(OrderBy::parse(ob, columns::SPAN_SORTABLE)?)
+        Some(parse_order_by(ob, columns::SPAN_SORTABLE)?)
     } else {
         None
     };
@@ -202,7 +202,7 @@ pub async fn list_trace_spans(
 
     // Parse order_by
     let order_by = if let Some(ref ob) = query.order_by {
-        Some(OrderBy::parse(ob, columns::SPAN_SORTABLE)?)
+        Some(parse_order_by(ob, columns::SPAN_SORTABLE)?)
     } else {
         None
     };

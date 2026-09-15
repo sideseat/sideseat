@@ -1110,9 +1110,9 @@ async fn clickhouse_matches_duckdb_on_every_read() {
             project_id: PROJECT.to_string(),
             page,
             limit: 3,
-            order_by: Some(crate::api::types::OrderBy {
+            order_by: Some(crate::data::types::OrderBy {
                 column: "timestamp_start".to_string(),
-                direction: crate::api::types::OrderDirection::Asc,
+                direction: crate::data::types::OrderDirection::Asc,
             }),
             ..Default::default()
         };
@@ -1145,9 +1145,9 @@ async fn clickhouse_matches_duckdb_on_every_read() {
         (
             "sorted by cost desc",
             ListTracesParams {
-                order_by: Some(crate::api::types::OrderBy {
+                order_by: Some(crate::data::types::OrderBy {
                     column: "total_cost".to_string(),
-                    direction: crate::api::types::OrderDirection::Desc,
+                    direction: crate::data::types::OrderDirection::Desc,
                 }),
                 ..trace_params()
             },
@@ -1696,9 +1696,9 @@ async fn clickhouse_matches_duckdb_on_every_read() {
     // the chosen column as active - which was true of total_tokens.
     for column in crate::data::duckdb::filters::columns::TRACE_SORTABLE {
         let params = ListTracesParams {
-            order_by: Some(crate::api::types::OrderBy {
+            order_by: Some(crate::data::types::OrderBy {
                 column: column.to_string(),
-                direction: crate::api::types::OrderDirection::Desc,
+                direction: crate::data::types::OrderDirection::Desc,
             }),
             ..trace_params()
         };
@@ -1732,9 +1732,9 @@ async fn clickhouse_matches_duckdb_on_every_read() {
             project_id: PROJECT.to_string(),
             page: 1,
             limit: 50,
-            order_by: Some(crate::api::types::OrderBy {
+            order_by: Some(crate::data::types::OrderBy {
                 column: column.to_string(),
-                direction: crate::api::types::OrderDirection::Desc,
+                direction: crate::data::types::OrderDirection::Desc,
             }),
             ..Default::default()
         };

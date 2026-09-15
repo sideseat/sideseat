@@ -7,8 +7,13 @@ mod analytics;
 mod enums;
 mod messages;
 mod normalized;
+pub mod order;
 mod stats;
 mod transactional;
+
+// Result ordering: the column, the direction and the SQL they render. Lives here rather than in
+// `api::types` because three analytics DTOs carry it, which made the storage layer import from HTTP.
+pub use order::{OrderBy, OrderDirection};
 
 // Re-export enum types
 pub use enums::{

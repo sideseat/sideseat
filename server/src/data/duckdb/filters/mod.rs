@@ -22,4 +22,6 @@ mod types;
 
 pub use builder::{build_tags_filter, columns};
 pub use parser::parse_filters;
-pub use types::{BooleanOp, DatetimeOp, Filter, NullOp, NumberOp, OptionsOp, SqlParams, StringOp};
+pub use types::{
+    BooleanOp, DatetimeOp, Filter, FilterError, NullOp, NumberOp, OptionsOp, SqlParams, StringOp,
+};

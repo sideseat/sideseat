@@ -4,8 +4,38 @@
 
 use serde::Deserialize;
 
-use crate::api::types::ApiError;
 use crate::utils::sql::{escape_like_pattern, is_plain_identifier};
+
+/// Why a filter could not be accepted.
+///
+/// The storage layer's own error, deliberately **not** `ApiError`. Filter parsing and validation used to
+/// return one, which made the analytics adapters depend on the HTTP layer for their own vocabulary - the
+/// wrong direction, and the thing that stops these modules moving into a crate that cannot see `api` at
+/// all. The API converts it at the boundary (`From<FilterError> for ApiError`), so every route keeps
+/// using `?` exactly as before.
+#[derive(Debug, Clone, thiserror::Error)]
+pub enum FilterError {
+    /// A column that is not on the caller's allowlist.
+    #[error("Cannot filter by column: {column}")]
+    UnknownColumn { column: String },
+    /// The filter payload was not the shape a filter takes.
+    #[error("{message}")]
+    Malformed { message: String },
+    /// More filters than the endpoint accepts.
+    #[error("{message}")]
+    TooMany { message: String },
+}
+
+impl FilterError {
+    /// The stable machine-readable code, so the mapping to a response body carries no guesswork.
+    pub fn code(&self) -> &'static str {
+        match self {
+            Self::UnknownColumn { .. } => "INVALID_FILTER_COLUMN",
+            Self::Malformed { .. } => "INVALID_FILTER_JSON",
+            Self::TooMany { .. } => "TOO_MANY_FILTERS",
+        }
+    }
+}
 
 /// Filter types for advanced queries
 #[derive(Debug, Clone, Deserialize)]
@@ -112,13 +142,12 @@ pub struct SqlParams {
 
 impl Filter {
     /// Validate filter column against whitelist
-    pub fn validate(&self, allowed_columns: &[&str]) -> Result<(), ApiError> {
+    pub fn validate(&self, allowed_columns: &[&str]) -> Result<(), FilterError> {
         let column = self.column();
         if !allowed_columns.contains(&column.as_str()) {
-            return Err(ApiError::bad_request(
-                "INVALID_FILTER_COLUMN",
-                format!("Cannot filter by column: {}", column),
-            ));
+            return Err(FilterError::UnknownColumn {
+                column: column.to_owned(),
+            });
         }
         Ok(())
     }

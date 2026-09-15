@@ -2,9 +2,7 @@
 //!
 //! Parses JSON filter definitions into Filter structs with validation.
 
-use crate::api::types::ApiError;
-
-use super::types::Filter;
+use super::types::{Filter, FilterError};
 
 /// Maximum size of filter JSON in bytes (64KB)
 const MAX_FILTER_JSON_SIZE: usize = 64 * 1024;
@@ -15,25 +13,25 @@ const MAX_FILTERS: usize = 50;
 /// Parse filters from JSON query param
 ///
 /// Validates JSON size, parses into Filter structs, and validates columns.
-pub fn parse_filters(json_str: &str, allowed_columns: &[&str]) -> Result<Vec<Filter>, ApiError> {
+pub fn parse_filters(json_str: &str, allowed_columns: &[&str]) -> Result<Vec<Filter>, FilterError> {
     if json_str.len() > MAX_FILTER_JSON_SIZE {
-        return Err(ApiError::bad_request(
-            "FILTER_JSON_TOO_LARGE",
-            format!(
+        return Err(FilterError::TooMany {
+            message: format!(
                 "Filter JSON exceeds maximum size of {} bytes",
                 MAX_FILTER_JSON_SIZE
             ),
-        ));
+        });
     }
 
-    let filters: Vec<Filter> = serde_json::from_str(json_str)
-        .map_err(|e| ApiError::bad_request("INVALID_FILTER_JSON", e.to_string()))?;
+    let filters: Vec<Filter> =
+        serde_json::from_str(json_str).map_err(|e| FilterError::Malformed {
+            message: e.to_string(),
+        })?;
 
     if filters.len() > MAX_FILTERS {
-        return Err(ApiError::bad_request(
-            "TOO_MANY_FILTERS",
-            format!("Maximum {} filters allowed", MAX_FILTERS),
-        ));
+        return Err(FilterError::TooMany {
+            message: format!("Maximum {} filters allowed", MAX_FILTERS),
+        });
     }
 
     for filter in &filters {
