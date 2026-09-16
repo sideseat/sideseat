@@ -3,7 +3,7 @@
 //! Initial schema with all tables. Compatible with SQLite schema structure.
 
 /// Current schema version
-pub const SCHEMA_VERSION: i32 = 3;
+pub const SCHEMA_VERSION: i32 = 4;
 
 /// Complete schema SQL for PostgreSQL
 pub const SCHEMA: &str = r#"
@@ -173,7 +173,7 @@ CREATE TABLE IF NOT EXISTS files (
     size_bytes BIGINT NOT NULL,
     hash_algo TEXT NOT NULL DEFAULT 'sha256',
     ref_count BIGINT NOT NULL DEFAULT 1,
-    -- Set while cleanup is deleting this file; association refuses through the fence.
+    -- Set while cleanup is deleting this file. Association refuses through the fence.
     deleting_at BIGINT,
     created_at BIGINT NOT NULL,
     updated_at BIGINT NOT NULL,
@@ -391,6 +391,33 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_cred_perms_unique_project
 CREATE UNIQUE INDEX IF NOT EXISTS idx_cred_perms_unique_org_default
     ON credential_project_permissions(credential_id)
     WHERE project_id IS NULL;
+
+-- =============================================================================
+-- Deletion journal: the deletions a restore cannot recompute
+-- =============================================================================
+--
+-- Append-only, permanent, exempt from every sweep. See the SQLite twin and
+-- `sideseat_ports::traits::DeletionJournal` for the full reasoning. The short version is that a snapshot
+-- predating a deletion predates its tombstone too, so a restore needs a record it can replay forward, and the
+-- staged-payload re-drive sweep needs to tell a failed write from a deliberate deletion.
+--
+-- Age retention writes nothing here: it is a predicate, so a restored database recomputes the same verdict.
+--
+-- `BIGSERIAL`, not `SERIAL`: the journal is permanent and never truncated, so a 2^31 id space is a bound on how
+-- many deletions a deployment may ever record. The same mistake the `files` surrogate key was migrated out of.
+CREATE TABLE IF NOT EXISTS deletion_journal (
+    sequence    BIGSERIAL PRIMARY KEY,
+    project_id  TEXT   NOT NULL,
+    cause       TEXT   NOT NULL CHECK(cause IN ('requested', 'pressure')),
+    scope       TEXT   NOT NULL CHECK(scope IN ('trace', 'session', 'project', 'organization', 'span')),
+    target_id   TEXT   NOT NULL,
+    -- Set only for a span-scoped entry, where `target_id` is the span's trace.
+    span_id     TEXT,
+    recorded_at BIGINT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_deletion_journal_target
+    ON deletion_journal(project_id, scope, target_id);
+
 "#;
 
 /// Default data SQL for PostgreSQL (inserted separately after schema)
@@ -423,6 +450,33 @@ ON CONFLICT (id) DO NOTHING;
 
 #[cfg(test)]
 mod tests {
+
+    /// No SQL comment in this schema contains a semicolon.
+    ///
+    /// Not a style rule - it is the one hazard this schema's own comment warns about, and it fired: a `;` inside
+    /// a `--` comment ends a "statement" for anything that splits the script on semicolons, and the fragment
+    /// after it is a syntax error in a place nobody looks. Every runner now uses `raw_sql`, so the schema itself
+    /// is safe; what this protects is the next helper someone writes with a split, and it cost twenty-one
+    /// failing tests in `repositories/file.rs` whose messages named neither the schema nor the comment.
+    #[test]
+    fn no_sql_comment_holds_a_semicolon() {
+        let offenders: Vec<(usize, &str)> = SCHEMA
+            .lines()
+            .enumerate()
+            .filter(|(_, line)| line.trim_start().starts_with("--"))
+            .filter(|(_, line)| line.contains(';'))
+            .map(|(n, line)| (n + 1, line.trim()))
+            .collect();
+        assert!(
+            offenders.is_empty(),
+            "a semicolon inside a `--` comment truncates the script for any splitting reader:\n{}",
+            offenders
+                .iter()
+                .map(|(n, l)| format!("  line {n}: {l}"))
+                .collect::<Vec<_>>()
+                .join("\n")
+        );
+    }
     use super::*;
 
     #[test]

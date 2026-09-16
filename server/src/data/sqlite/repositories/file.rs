@@ -843,14 +843,14 @@ mod tests {
     async fn setup_test_pool() -> SqlitePool {
         let pool = SqlitePool::connect(":memory:").await.unwrap();
 
-        // Apply full schema (includes files and trace_files tables)
-        for statement in crate::data::sqlite::schema::SCHEMA
-            .split(';')
-            .filter(|s| !s.trim().is_empty())
-        {
-            sqlx::query(statement.trim()).execute(&pool).await.unwrap();
-        }
-
+        // `raw_sql`, not a split on `;`. Splitting was the hazard the schema's own comment warns about, and
+        // it fired: a semicolon inside a `--` comment ends a "statement" mid-table, and the fragment after it
+        // is a syntax error in a place nobody looks. Adding one comment containing a semicolon to the schema
+        // broke twenty-one tests in this file and none of the failures named the schema.
+        sqlx::raw_sql(crate::data::sqlite::schema::SCHEMA)
+            .execute(&pool)
+            .await
+            .unwrap();
         pool
     }
 
@@ -1740,12 +1740,14 @@ mod confirm_dedup_tests {
 
     async fn setup() -> SqlitePool {
         let pool = SqlitePool::connect(":memory:").await.unwrap();
-        for statement in crate::data::sqlite::schema::SCHEMA
-            .split(';')
-            .filter(|s| !s.trim().is_empty())
-        {
-            sqlx::query(statement.trim()).execute(&pool).await.unwrap();
-        }
+        // `raw_sql`, not a split on `;`. Splitting was the hazard the schema's own comment warns about, and
+        // it fired: a semicolon inside a `--` comment ends a "statement" mid-table, and the fragment after it
+        // is a syntax error in a place nobody looks. Adding one comment containing a semicolon to the schema
+        // broke twenty-one tests in this file and none of the failures named the schema.
+        sqlx::raw_sql(crate::data::sqlite::schema::SCHEMA)
+            .execute(&pool)
+            .await
+            .unwrap();
         pool
     }
 

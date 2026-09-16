@@ -290,6 +290,38 @@ CREATE TABLE IF NOT EXISTS retention_cleanup (
 CREATE INDEX IF NOT EXISTS idx_retention_cleanup_due ON retention_cleanup(next_attempt_at);
 "#,
         ),
+        // Its own version, for the reason v3 records: a database already on v3 never re-runs the v3 script, so
+        // a table appended there would reach only fresh installs.
+        4 => (
+            "deletion_journal",
+            r#"
+-- =============================================================================
+-- Deletion journal: the deletions a restore cannot recompute
+-- =============================================================================
+--
+-- Append-only, permanent, exempt from every sweep. See the SQLite twin and
+-- `sideseat_ports::traits::DeletionJournal` for the full reasoning. The short version is that a snapshot
+-- predating a deletion predates its tombstone too, so a restore needs a record it can replay forward, and the
+-- staged-payload re-drive sweep needs to tell a failed write from a deliberate deletion.
+--
+-- Age retention writes nothing here: it is a predicate, so a restored database recomputes the same verdict.
+--
+-- `BIGSERIAL`, not `SERIAL`: the journal is permanent and never truncated, so a 2^31 id space is a bound on how
+-- many deletions a deployment may ever record. The same mistake the `files` surrogate key was migrated out of.
+CREATE TABLE IF NOT EXISTS deletion_journal (
+    sequence    BIGSERIAL PRIMARY KEY,
+    project_id  TEXT   NOT NULL,
+    cause       TEXT   NOT NULL CHECK(cause IN ('requested', 'pressure')),
+    scope       TEXT   NOT NULL CHECK(scope IN ('trace', 'session', 'project', 'organization', 'span')),
+    target_id   TEXT   NOT NULL,
+    -- Set only for a span-scoped entry, where `target_id` is the span's trace.
+    span_id     TEXT,
+    recorded_at BIGINT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_deletion_journal_target
+    ON deletion_journal(project_id, scope, target_id);
+"#,
+        ),
         _ => {
             return Err(PostgresError::MigrationFailed {
                 version,

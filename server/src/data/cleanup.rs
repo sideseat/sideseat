@@ -15,6 +15,7 @@ use sideseat_core::core::constants::{
     DELETED_TRACE_CHECK_MAX_SECS, FILE_DELETION_CLAIM_STALE_SECS,
     PROJECT_DELETION_CLAIM_STALE_SECS, PROJECT_TOMBSTONE_CLEAN_SWEEPS,
 };
+use sideseat_ports::traits::{DeletionCause, DeletionRecord, DeletionScope};
 
 /// Delete an organization: tombstone it, tombstone its projects, and let the sweep finish.
 ///
@@ -46,6 +47,9 @@ pub async fn cleanup_organization(
         return Ok(false);
     }
 
+    // At the claim, once - see `cleanup_project` for why not in the re-runnable half.
+    journal_deletion(repo.as_ref(), org_id, DeletionScope::Organization, org_id).await;
+
     // API keys are org-scoped, so their caches go now: the organization is no longer usable.
     if let Some(cache) = cache {
         invalidate_org_api_key_caches(repo.as_ref(), cache, org_id).await;
@@ -72,13 +76,27 @@ pub async fn finish_organization_deletion(
     // Every project fenced first. A project that is not fenced can still be written to while its data
     // is being deleted, and nothing later in this function would notice.
     for project_id in repo.list_project_ids(org_id).await? {
-        if let Err(e) = repo.claim_project_for_deletion(&project_id).await {
-            return Err(anyhow!(
-                "Failed to fence project {} of organization {}: {}",
-                project_id,
-                org_id,
-                e
-            ));
+        match repo.claim_project_for_deletion(&project_id).await {
+            // Journalled only when *this* call won the claim. The bool was previously discarded, and appending
+            // regardless would add an entry every time the sweep resumed an abandoned organization cleanup.
+            Ok(true) => {
+                journal_deletion(
+                    repo.as_ref(),
+                    &project_id,
+                    DeletionScope::Project,
+                    &project_id,
+                )
+                .await;
+            }
+            Ok(false) => {}
+            Err(e) => {
+                return Err(anyhow!(
+                    "Failed to fence project {} of organization {}: {}",
+                    project_id,
+                    org_id,
+                    e
+                ));
+            }
         }
         if let Err(e) =
             finish_project_deletion(database, analytics, file_service, cache, &project_id).await
@@ -199,6 +217,24 @@ pub async fn cleanup_project(
     {
         return Ok(false);
     }
+
+    // Journalled here, at the claim, and not inside `finish_project_deletion`.
+    //
+    // The claim is a compare-and-set, so it succeeds exactly once - while `finish_project_deletion` is
+    // deliberately re-runnable and is called again by the sweep for an abandoned claim. Appending there would
+    // add an entry per resumption to a table that is never truncated and is counted against the project's
+    // quota, for a fact that does not change.
+    //
+    // Before the analytics delete, which is what `finish_project_deletion` performs, so a crash leaves a
+    // record with no deletion (harmless - a replay removes something already gone) rather than a deletion with
+    // no record (the resurrection this exists to prevent).
+    journal_deletion(
+        repo.as_ref(),
+        project_id,
+        DeletionScope::Project,
+        project_id,
+    )
+    .await;
 
     finish_project_deletion(database, analytics, file_service, cache, project_id).await?;
     Ok(true)
@@ -766,6 +802,40 @@ async fn invalidate_org_api_key_caches(
             org_id = %org_id,
             error = %e,
             "Failed to invalidate API key list cache"
+        );
+    }
+}
+
+/// Append one requested deletion to the journal, reporting a failure rather than failing the deletion.
+///
+/// Best effort, and the direction is deliberate. The alternative - failing the deletion when the journal cannot
+/// be written - refuses a deletion the caller asked for because of a bookkeeping write, and the fence has
+/// already been taken so the project is no longer readable either way. What a missing entry costs is narrower:
+/// a restore from before this deletion may bring the data back. That is worth an error-level report and not
+/// worth leaving a half-fenced project.
+///
+/// Reported at error level for exactly that reason, and named so the log says which record is missing.
+async fn journal_deletion(
+    repo: &dyn sideseat_ports::traits::DeletionJournal,
+    tenant_id: &str,
+    scope: DeletionScope,
+    target_id: &str,
+) {
+    let record = DeletionRecord {
+        project_id: tenant_id.to_string(),
+        cause: DeletionCause::Requested,
+        scope,
+        target_id: target_id.to_string(),
+        span_id: None,
+        recorded_at: chrono::Utc::now(),
+    };
+    if let Err(e) = repo.append_deletions(std::slice::from_ref(&record)).await {
+        tracing::error!(
+            error = %e,
+            tenant_id,
+            scope = scope.as_str(),
+            target_id,
+            "Could not journal this deletion; a restore from before it may bring the data back"
         );
     }
 }

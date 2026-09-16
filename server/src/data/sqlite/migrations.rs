@@ -260,12 +260,55 @@ CREATE TABLE IF NOT EXISTS retention_cleanup (
 CREATE INDEX IF NOT EXISTS idx_retention_cleanup_due ON retention_cleanup(next_attempt_at);
 "#;
 
+/// The deletion journal (schema v4).
+///
+/// Its own version, for the reason `MIGRATION_V3` records: a database already on v3 never re-runs the v3
+/// script, so a table appended there would reach only fresh installs. `CREATE TABLE IF NOT EXISTS`, so it is
+/// idempotent. Why the table exists and why it is permanent is documented on the fresh schema.
+const MIGRATION_V4: &str = r#"
+-- =============================================================================
+-- Deletion journal: the deletions a restore cannot recompute
+-- =============================================================================
+--
+-- Append-only, permanent, and exempt from every sweep. Two consumers need it and neither can be served by the
+-- tombstone tables: a restore replays it forward before serving reads, because a snapshot predating a deletion
+-- predates its tombstone too - restoring the analytics store further back than the transactional one, which is
+-- what different backup cadences produce, resurrects rows the caller was told were gone. And the staged-payload
+-- re-drive sweep asks it whether an absence was *intended*, because without that it cannot tell a failed write
+-- from a deliberate deletion or a pressure eviction, and recreates exactly what those removed.
+--
+-- **Age retention writes nothing here.** It is a predicate, so a restored database recomputes the same verdict
+-- from the timestamps it holds, and an entry per aged-out record would be an unbounded write for a fact
+-- that is already derivable.
+-- What is not derivable is a caller's request, and a limit having been reached.
+--
+-- `sequence` is the append order and is what a replay resumes from. Not the timestamp: two entries can share a
+-- microsecond, and a clock is not an order - which is the constraint this whole subsystem is shaped by, since
+-- neither analytics store offers a commit-ordered sequence at all.
+--
+-- No index on `project_id` alone: `deletion_is_journaled` is keyed on the target, and the replay walks
+-- `sequence`, which the primary key already orders.
+CREATE TABLE IF NOT EXISTS deletion_journal (
+    sequence    INTEGER PRIMARY KEY AUTOINCREMENT,
+    project_id  TEXT    NOT NULL,
+    cause       TEXT    NOT NULL CHECK(cause IN ('requested', 'pressure')),
+    scope       TEXT    NOT NULL CHECK(scope IN ('trace', 'session', 'project', 'organization', 'span')),
+    target_id   TEXT    NOT NULL,
+    -- Set only for a span-scoped entry, where `target_id` is the span's trace.
+    span_id     TEXT,
+    recorded_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_deletion_journal_target
+    ON deletion_journal(project_id, scope, target_id);
+"#;
+
 async fn apply_migration(pool: &SqlitePool, version: i32) -> Result<(), SqliteError> {
     match version {
         // Handled by the initial schema.
         1 => Ok(()),
         2 => apply_versioned_migration(pool, 2, "v1_to_current", MIGRATION_V2).await,
         3 => apply_versioned_migration(pool, 3, "retention_cleanup_intent", MIGRATION_V3).await,
+        4 => apply_versioned_migration(pool, 4, "deletion_journal", MIGRATION_V4).await,
         _ => Err(SqliteError::MigrationFailed {
             version,
             name: "unknown".to_string(),

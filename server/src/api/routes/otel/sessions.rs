@@ -3,6 +3,7 @@
 use axum::Json;
 use axum::extract::State;
 use axum::http::{HeaderMap, HeaderValue, StatusCode, header};
+use chrono::Utc;
 use serde::Deserialize;
 use utoipa::ToSchema;
 use validator::Validate;
@@ -17,6 +18,7 @@ use crate::api::types::{
     ApiError, PaginatedResponse, default_limit, default_page, parse_order_by,
     parse_timestamp_param, validate_ids_batch, validate_limit, validate_page,
 };
+use sideseat_ports::traits::{DeletionCause, DeletionRecord, DeletionScope};
 use sideseat_ports::types::{ListSessionsParams, SessionRow};
 
 #[derive(Debug, Deserialize, Validate)]
@@ -329,6 +331,38 @@ pub async fn delete_sessions(
         .await
         .map_err(ApiError::from_data)?;
 
+    // And the journal, before the delete for the same reason the tombstones are.
+    //
+    // **Both** the sessions and the traces, because they answer different questions on a restore. The session
+    // entry is the durable fact - a replay re-resolves it against restored data and removes whatever it names
+    // now, which is what catches a trace that joined after this request's resolution. The trace entries are
+    // what is left when the session is no longer resolvable at all: the analytics rows that named it may have
+    // been restored from a snapshot that predates them.
+    let now = Utc::now();
+    let mut journal: Vec<DeletionRecord> = body
+        .session_ids
+        .iter()
+        .map(|session_id| DeletionRecord {
+            project_id: auth.project_id.clone(),
+            cause: DeletionCause::Requested,
+            scope: DeletionScope::Session,
+            target_id: session_id.clone(),
+            span_id: None,
+            recorded_at: now,
+        })
+        .collect();
+    journal.extend(trace_ids.iter().map(|trace_id| DeletionRecord {
+        project_id: auth.project_id.clone(),
+        cause: DeletionCause::Requested,
+        scope: DeletionScope::Trace,
+        target_id: trace_id.clone(),
+        span_id: None,
+        recorded_at: now,
+    }));
+    repo.append_deletions(&journal)
+        .await
+        .map_err(ApiError::from_data)?;
+
     // Delete from analytics, and take the set it *actually* removed.
     //
     // It re-resolves the sessions, so it deletes any trace that joined since the resolution above - which is
@@ -350,6 +384,32 @@ pub async fn delete_sessions(
         .filter(|t| !trace_ids.contains(t))
         .cloned()
         .collect();
+    if !extra.is_empty() {
+        // Journalled as well as tombstoned, and best effort for the same reason: the spans are gone either
+        // way, and failing the request would only reproduce the state it found. A missing journal entry here
+        // costs a restore the knowledge that this late trace was deleted, which the *session* entry above
+        // still covers as long as the trace is resolvable to it.
+        let late: Vec<DeletionRecord> = extra
+            .iter()
+            .map(|trace_id| DeletionRecord {
+                project_id: auth.project_id.clone(),
+                cause: DeletionCause::Requested,
+                scope: DeletionScope::Trace,
+                target_id: trace_id.clone(),
+                span_id: None,
+                recorded_at: Utc::now(),
+            })
+            .collect();
+        if let Err(e) = repo.append_deletions(&late).await {
+            tracing::error!(
+                error = %e,
+                project_id = %auth.project_id,
+                traces = extra.len(),
+                "Could not journal traces that joined the session after it was resolved; a restore from \
+                 before this deletion may bring them back"
+            );
+        }
+    }
     if !extra.is_empty()
         && let Err(e) = repo.record_deleted_traces(&auth.project_id, &extra).await
     {

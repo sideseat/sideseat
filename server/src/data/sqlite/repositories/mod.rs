@@ -8,6 +8,7 @@ pub mod credential_permissions;
 pub mod credentials;
 pub mod favorite;
 pub mod file;
+pub mod journal;
 pub mod membership;
 pub mod organization;
 pub mod project;

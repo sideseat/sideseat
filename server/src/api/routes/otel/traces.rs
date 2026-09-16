@@ -16,6 +16,8 @@ use crate::api::types::{
     ApiError, PaginatedResponse, default_limit, default_page, parse_order_by,
     parse_timestamp_param, validate_ids_batch, validate_limit, validate_page,
 };
+use chrono::Utc;
+use sideseat_ports::traits::{DeletionCause, DeletionRecord, DeletionScope};
 use sideseat_ports::types::{ListTracesParams, TraceRow, find_root_span};
 
 #[derive(Debug, Deserialize, Validate)]
@@ -318,6 +320,32 @@ pub async fn delete_traces(
     // late batch drops these traces instead of resurrecting them. A failure here is fatal rather than
     // logged: without the tombstone the deletion is not safe to perform.
     repo.record_deleted_traces(&auth.project_id, &body.trace_ids)
+        .await
+        .map_err(ApiError::from_data)?;
+
+    // And the journal, before the delete for the same reason the tombstone is.
+    //
+    // The tombstone and the journal answer different questions and neither substitutes for the other. The
+    // tombstone stops a late *writer*, and it is removed once the trace is provably quiet. The journal is
+    // permanent, and it is what a **restore** replays: a snapshot predating this deletion predates its
+    // tombstone too, so restoring the analytics store further back than the transactional one - which is what
+    // different backup cadences produce - brings these traces back with nothing left to say they were deleted.
+    //
+    // Fatal rather than logged, exactly as the tombstone is: a deletion that is not recorded is a deletion a
+    // restore will undo, and the caller would have been told 204 for it.
+    let journal: Vec<DeletionRecord> = body
+        .trace_ids
+        .iter()
+        .map(|trace_id| DeletionRecord {
+            project_id: auth.project_id.clone(),
+            cause: DeletionCause::Requested,
+            scope: DeletionScope::Trace,
+            target_id: trace_id.clone(),
+            span_id: None,
+            recorded_at: Utc::now(),
+        })
+        .collect();
+    repo.append_deletions(&journal)
         .await
         .map_err(ApiError::from_data)?;
 

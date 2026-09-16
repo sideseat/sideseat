@@ -9,7 +9,8 @@ use async_trait::async_trait;
 
 use sideseat_ports::error::DataError;
 use sideseat_ports::traits::{
-    ApiKeyStore, CredentialStore, FavoriteStore, FileMetaStore, IdentityStore, ProjectStore,
+    ApiKeyStore, CredentialStore, DeletionJournal, DeletionRecord, DeletionScope, FavoriteStore,
+    FileMetaStore, IdentityStore, ProjectStore,
 };
 use sideseat_ports::types::{
     ApiKeyRow, ApiKeyScope, ApiKeyValidation, AuthMethodRow, CredentialPermissionRow,
@@ -19,7 +20,7 @@ use sideseat_ports::types::{
 
 use super::SqliteService;
 use super::repositories::{
-    api_key, auth_method, credential_permissions, credentials, favorite, file, membership,
+    api_key, auth_method, credential_permissions, credentials, favorite, file, journal, membership,
     organization, project, user,
 };
 
@@ -1147,6 +1148,37 @@ impl FavoriteStore for SqliteRepository {
         project_id: &str,
     ) -> Result<u64, DataError> {
         favorite::delete_favorites_by_entity(self.0.pool(), project_id, entity_type, entity_ids)
+            .await
+            .map_err(Into::into)
+    }
+}
+
+#[async_trait]
+impl DeletionJournal for SqliteRepository {
+    async fn append_deletions(&self, records: &[DeletionRecord]) -> Result<(), DataError> {
+        journal::append_deletions(self.0.pool(), records)
+            .await
+            .map_err(Into::into)
+    }
+
+    async fn deletions_since(
+        &self,
+        after_sequence: i64,
+        limit: usize,
+    ) -> Result<Vec<(i64, DeletionRecord)>, DataError> {
+        journal::deletions_since(self.0.pool(), after_sequence, limit)
+            .await
+            .map_err(Into::into)
+    }
+
+    async fn deletion_is_journaled(
+        &self,
+        project_id: &str,
+        scope: DeletionScope,
+        target_id: &str,
+        span_id: Option<&str>,
+    ) -> Result<bool, DataError> {
+        journal::deletion_is_journaled(self.0.pool(), project_id, scope, target_id, span_id)
             .await
             .map_err(Into::into)
     }

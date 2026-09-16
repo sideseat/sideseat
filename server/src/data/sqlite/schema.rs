@@ -3,7 +3,7 @@
 //! Initial schema with all tables. No migrations needed for first version.
 
 /// Current schema version
-pub const SCHEMA_VERSION: i32 = 3;
+pub const SCHEMA_VERSION: i32 = 4;
 
 /// Complete schema SQL
 pub const SCHEMA: &str = r#"
@@ -429,10 +429,73 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_cred_perms_unique_project
 CREATE UNIQUE INDEX IF NOT EXISTS idx_cred_perms_unique_org_default
     ON credential_project_permissions(credential_id)
     WHERE project_id IS NULL;
+
+-- =============================================================================
+-- Deletion journal: the deletions a restore cannot recompute
+-- =============================================================================
+--
+-- Append-only, permanent, and exempt from every sweep. Two consumers need it and neither can be served by the
+-- tombstone tables: a restore replays it forward before serving reads, because a snapshot predating a deletion
+-- predates its tombstone too - restoring the analytics store further back than the transactional one, which is
+-- what different backup cadences produce, resurrects rows the caller was told were gone. And the staged-payload
+-- re-drive sweep asks it whether an absence was *intended*, because without that it cannot tell a failed write
+-- from a deliberate deletion or a pressure eviction, and recreates exactly what those removed.
+--
+-- **Age retention writes nothing here.** It is a predicate, so a restored database recomputes the same verdict
+-- from the timestamps it holds, and an entry per aged-out record would be an unbounded write for a fact
+-- that is already derivable.
+-- What is not derivable is a caller's request, and a limit having been reached.
+--
+-- `sequence` is the append order and is what a replay resumes from. Not the timestamp: two entries can share a
+-- microsecond, and a clock is not an order - which is the constraint this whole subsystem is shaped by, since
+-- neither analytics store offers a commit-ordered sequence at all.
+--
+-- No index on `project_id` alone: `deletion_is_journaled` is keyed on the target, and the replay walks
+-- `sequence`, which the primary key already orders.
+CREATE TABLE IF NOT EXISTS deletion_journal (
+    sequence    INTEGER PRIMARY KEY AUTOINCREMENT,
+    project_id  TEXT    NOT NULL,
+    cause       TEXT    NOT NULL CHECK(cause IN ('requested', 'pressure')),
+    scope       TEXT    NOT NULL CHECK(scope IN ('trace', 'session', 'project', 'organization', 'span')),
+    target_id   TEXT    NOT NULL,
+    -- Set only for a span-scoped entry, where `target_id` is the span's trace.
+    span_id     TEXT,
+    recorded_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_deletion_journal_target
+    ON deletion_journal(project_id, scope, target_id);
+
 "#;
 
 #[cfg(test)]
 mod tests {
+
+    /// No SQL comment in this schema contains a semicolon.
+    ///
+    /// Not a style rule - it is the one hazard this schema's own comment warns about, and it fired: a `;` inside
+    /// a `--` comment ends a "statement" for anything that splits the script on semicolons, and the fragment
+    /// after it is a syntax error in a place nobody looks. Every runner now uses `raw_sql`, so the schema itself
+    /// is safe; what this protects is the next helper someone writes with a split, and it cost twenty-one
+    /// failing tests in `repositories/file.rs` whose messages named neither the schema nor the comment.
+    #[test]
+    fn no_sql_comment_holds_a_semicolon() {
+        let offenders: Vec<(usize, &str)> = SCHEMA
+            .lines()
+            .enumerate()
+            .filter(|(_, line)| line.trim_start().starts_with("--"))
+            .filter(|(_, line)| line.contains(';'))
+            .map(|(n, line)| (n + 1, line.trim()))
+            .collect();
+        assert!(
+            offenders.is_empty(),
+            "a semicolon inside a `--` comment truncates the script for any splitting reader:\n{}",
+            offenders
+                .iter()
+                .map(|(n, l)| format!("  line {n}: {l}"))
+                .collect::<Vec<_>>()
+                .join("\n")
+        );
+    }
     use super::*;
 
     #[test]
