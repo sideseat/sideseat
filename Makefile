@@ -81,6 +81,8 @@
 #     test-postgres      PostgreSQL/SQLite parity (starts a throwaway container)
 #     test-redis         Durable ingestion queue against Redis (starts a throwaway container)
 #     bench-http         End-to-end HTTP latency (add -distributed for PostgreSQL + ClickHouse)
+#     footprint          The four memory ceilings: idle RSS, ingest RSS, session-read residue,
+#                        bytes per queued span. Exits non-zero on a miss, like bench-http.
 #     test-web           Web tests (vitest)
 #     test-sdk-js        JS SDK tests
 #     test-sdk-python    Python SDK tests (pytest)
@@ -256,7 +258,7 @@ cli-bin = $(CLI_DIR)/platforms/platform-$(1)/$(BIN_NAME_$(1))
 .PHONY: dev dev-server dev-web
 .PHONY: fmt fmt-check lint lint-advisory check
 .PHONY: secret-scan-tree secret-scan-staged secret-scan-range
-.PHONY: test test-rust test-server test-clickhouse test-clickhouse-replicated test-clickhouse-two-shard test-postgres test-redis bench-http bench-http-distributed test-web test-sdk-js test-sdk-python coverage
+.PHONY: test test-rust test-server test-clickhouse test-clickhouse-replicated test-clickhouse-two-shard test-postgres test-redis bench-http bench-http-distributed footprint test-web test-sdk-js test-sdk-python coverage
 .PHONY: build build-web build-server
 .PHONY: build-sdk build-sdk-js build-sdk-python
 .PHONY: build-cli build-cli-preflight build-cli-summary $(CLI_BUILD_TARGETS)
@@ -882,6 +884,14 @@ bench-http: disk-guard
 
 bench-http-distributed: disk-guard
 	@scripts/bench-http-latency.sh distributed
+
+# The four footprint ceilings, enforced. Two are resident-memory figures against a running server and two are
+# live-allocation measurements in process - the split is in `runtime/allocation.rs`, and the short version is
+# that both glibc and jemalloc retain freed pages, so a "returns to baseline" gate written on RSS fails correct
+# code. Release build throughout: a debug build's footprint describes the debug build.
+footprint: disk-guard
+	@scripts/footprint-gates.sh
+	@cd $(SERVER_DIR) && cargo test --locked --release --test footprint -- --ignored --nocapture
 
 test-web:
 	@echo "[test-web] Running web tests..."

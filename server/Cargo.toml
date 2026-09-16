@@ -101,6 +101,17 @@ ipnet = "2.12.1"
 [features]
 default = []
 
+# The footprint gates are absolute megabyte figures, so they are only reproducible against a *pinned*
+# allocator: glibc's malloc, macOS's magazine malloc and jemalloc each hold freed pages differently, and a
+# ceiling measured under one says nothing about another. See `runtime/allocation.rs`.
+#
+# Target-scoped rather than feature-gated, because project convention forbids feature gates and because the
+# choice is genuinely a property of the target: `tikv-jemalloc-sys` does not build for Windows. Windows
+# therefore keeps the system allocator, and `allocation::ALLOCATOR_NAME` says so rather than letting a
+# footprint number be read as comparable.
+[target.'cfg(not(target_os = "windows"))'.dependencies]
+tikv-jemallocator = "0.7.0"
+
 [dev-dependencies]
 tempfile = "3"
 proptest = "1"

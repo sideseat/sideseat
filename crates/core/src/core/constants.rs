@@ -778,3 +778,45 @@ pub const REGISTRATION_TTL_SECS: u64 = 60;
 
 /// Time within which the SDK must send `hello` after `welcome`.
 pub const WS_HELLO_TIMEOUT_SECS: u64 = 5;
+
+// ---------------------------------------------------------------------------
+// Footprint ceilings
+//
+// Enforced by `server/tests/footprint.rs` (the two in-process gates) and
+// `scripts/footprint-gates.sh` (the two that need a running server). They live
+// here, in one place, because two of the four are read from a shell script and
+// a ceiling with two spellings is a ceiling that drifts;
+// `the_footprint_script_enforces_the_declared_ceilings` compares the script's
+// text against these values.
+//
+// All four are stated against the *pinned* allocator
+// (`runtime/allocation.rs`). An absolute megabyte figure is only comparable
+// within one allocator, so a build without it reports the numbers and skips
+// the resident gates rather than passing on a figure it cannot interpret.
+// ---------------------------------------------------------------------------
+
+/// Resident bytes after startup, quiesced.
+pub const FOOTPRINT_IDLE_RSS_MAX_BYTES: u64 = 100 * 1024 * 1024;
+
+/// Resident bytes under steady ingest, taken as the median over the sampling window.
+pub const FOOTPRINT_INGEST_RSS_MAX_BYTES: u64 = 400 * 1024 * 1024;
+
+/// Spans per second the steady-ingest ceiling above is stated at.
+pub const FOOTPRINT_INGEST_SPANS_PER_SECOND: u64 = 5_000;
+
+/// How much *live allocated* memory a long session read may leave behind once its answer and its memo are
+/// dropped.
+///
+/// Live allocations rather than RSS, deliberately: both glibc and jemalloc retain freed pages, so an RSS
+/// ceiling here fails correct code and fails it differently depending on timing. See
+/// `runtime::allocation` for the whole argument.
+pub const FOOTPRINT_SESSION_READ_GROWTH_MAX_BYTES: u64 = 50 * 1024 * 1024;
+
+/// Turns in the session the ceiling above is stated against.
+pub const FOOTPRINT_SESSION_READ_TURNS: usize = 10_000;
+
+/// Live bytes a queued span may occupy, as a multiple of its decoded protobuf size.
+///
+/// The denominator is **decoded protobuf bytes**, not wire bytes: HTTP accepts gzip and the queue carries an
+/// uncompressed encoding, so a wire-relative bound is unachievable for a valid repetitive request.
+pub const FOOTPRINT_QUEUED_SPAN_MAX_RATIO: f64 = 3.0;
