@@ -53,7 +53,7 @@ use crate::data::topics::TopicError;
 use crate::data::topics::TopicService;
 use crate::domain::pricing::PricingService;
 use crate::domain::sideml::to_sideml_batch;
-use sideseat_core::core::constants::DEFAULT_PROJECT_ID;
+use sideseat_core::core::constants::{DEFAULT_PROJECT_ID, PIPELINE_CPU_PHASE_MAX_INFLIGHT_BYTES};
 use sideseat_core::utils::time::is_storable;
 use sideseat_ports::types::NormalizedSpan;
 
@@ -481,12 +481,23 @@ impl TracePipeline {
                 .map(|p| p.get())
                 .unwrap_or(4);
 
-            if requests.len() <= num_workers {
-                // Few requests: one thread per request.
-                // Each is wrapped in catch_unwind so a panic in one request
-                // doesn't propagate through thread::scope and drop the batch.
-                std::thread::scope(|s| {
-                    let handles: Vec<_> = requests
+            // Waves bounded by *bytes*, not by worker count.
+            //
+            // One thread per core, each expanding its own request, made peak CPU-phase memory "cores times
+            // the largest request" - so a 32-core host expanded thirty-two 15.8 MB image-heavy exports at
+            // once, and the expansion is several times its input. The host decided the multiplier, which is
+            // not a bound. Grouping by summed size keeps full parallelism for small payloads and reduces
+            // concurrency only where each request is large, which is where it had to.
+            //
+            // `encoded_len` is O(number of fields) rather than O(payload bytes) - a length-delimited field
+            // contributes its length, not a walk of its contents - so measuring is cheap next to the base64
+            // decode and BLAKE3 this phase exists for.
+            let mut results: Vec<Prepared> = Vec::with_capacity(requests.len());
+            for wave in byte_bounded_waves(requests, num_workers) {
+                // Each request is wrapped in `catch_unwind` so a panic in one does not propagate through
+                // `thread::scope` and drop the batch.
+                let wave_results: Vec<Prepared> = std::thread::scope(|s| {
+                    let handles: Vec<_> = wave
                         .iter()
                         .map(|request| {
                             s.spawn(|| {
@@ -518,69 +529,18 @@ impl TracePipeline {
                         .map(|h| match h.join() {
                             Ok(result) => result,
                             Err(_) => {
+                                // A worker thread died, so its request is unaccounted for. Reported as
+                                // `Panicked` rather than omitted, because a short result vector is what the
+                                // cardinality check below has to catch and a silent gap defeats it.
                                 tracing::error!("process_request thread panicked unexpectedly");
                                 Prepared::Panicked
                             }
                         })
                         .collect()
-                })
-            } else {
-                // Many requests: chunk into worker-sized groups.
-                // Each request is individually wrapped in catch_unwind so a panic
-                // in one request doesn't drop the entire chunk.
-                let chunk_size = requests.len().div_ceil(num_workers);
-                std::thread::scope(|s| {
-                    let handles: Vec<_> = requests
-                        .chunks(chunk_size)
-                        .map(|chunk| {
-                            s.spawn(|| {
-                                chunk
-                                    .iter()
-                                    .map(|request| {
-                                        match std::panic::catch_unwind(
-                                            std::panic::AssertUnwindSafe(|| {
-                                                process_request(
-                                                    request,
-                                                    pricing,
-                                                    files_enabled,
-                                                    file_cache,
-                                                    ExtractionMode::PerCarrier,
-                                                )
-                                            }),
-                                        ) {
-                                            Ok(Some((spans, files, incoming))) => {
-                                                Prepared::Ready(spans, files, incoming)
-                                            }
-                                            Ok(None) => Prepared::Nothing,
-                                            Err(_) => {
-                                                tracing::error!(
-                                                    "process_request panicked, refusing the batch"
-                                                );
-                                                Prepared::Panicked
-                                            }
-                                        }
-                                    })
-                                    .collect::<Vec<_>>()
-                            })
-                        })
-                        .collect();
-
-                    handles
-                        .into_iter()
-                        .flat_map(|h| match h.join() {
-                            Ok(results) => results,
-                            Err(_) => {
-                                // A worker thread panicked, so its whole chunk is unaccounted for.
-                                // Returning an empty vector hid that: the results would simply be
-                                // short, and a count of `Panicked` entries would miss them. The
-                                // cardinality check below is what catches it.
-                                tracing::error!("process_request thread panicked unexpectedly");
-                                Vec::new()
-                            }
-                        })
-                        .collect()
-                })
+                });
+                results.extend(wave_results);
             }
+            results
         });
 
         let mut all_db_spans: Vec<NormalizedSpan> = Vec::new();
@@ -2057,6 +2017,51 @@ enum Prepared {
     Panicked,
 }
 
+/// Group requests into consecutive waves whose summed decoded size stays under the in-flight budget.
+///
+/// Two bounds per wave, and both are needed. The **byte** bound is the point: peak CPU-phase memory used to be
+/// "one worker per core, each expanding its own request", so the host's core count decided the multiplier on
+/// the largest request in the batch, and a bound expressed in threads bounds nothing about memory. The
+/// **count** bound keeps a wave from exceeding the available parallelism, which would spawn threads with
+/// nothing to run on.
+///
+/// Order is preserved: waves are consecutive slices of `requests`, so the results concatenate in request
+/// order, which the cardinality check downstream relies on.
+///
+/// A request larger than the whole budget forms a wave of one rather than being refused. Refusing here would
+/// discard a valid export that the byte-budgeted admission at the edge already accepted - and the alternative
+/// to processing it is losing it.
+fn byte_bounded_waves(
+    requests: &[ExportTraceServiceRequest],
+    max_per_wave: usize,
+) -> Vec<&[ExportTraceServiceRequest]> {
+    let max_per_wave = max_per_wave.max(1);
+    let mut waves = Vec::new();
+    let mut wave_start = 0usize;
+    let mut wave_bytes = 0u64;
+
+    for (index, request) in requests.iter().enumerate() {
+        let size = request.encoded_len() as u64;
+        let would_be = wave_bytes.saturating_add(size);
+        let full_by_count = index - wave_start >= max_per_wave;
+        // `index > wave_start` guards the single-oversized-request case: with an empty wave there is nothing
+        // to flush, and closing it here would emit a zero-length slice and then never make progress.
+        let full_by_bytes = index > wave_start && would_be > PIPELINE_CPU_PHASE_MAX_INFLIGHT_BYTES;
+
+        if full_by_count || full_by_bytes {
+            waves.push(&requests[wave_start..index]);
+            wave_start = index;
+            wave_bytes = 0;
+        }
+        wave_bytes = wave_bytes.saturating_add(size);
+    }
+
+    if wave_start < requests.len() {
+        waves.push(&requests[wave_start..]);
+    }
+    waves
+}
+
 /// Process a single OTLP request through stages 1-4.
 ///
 /// Pure CPU work: extract attributes, messages, sideml, enrich, prepare.
@@ -2841,6 +2846,139 @@ mod association_leak_tests {
                      its project's quota forever, because the orphan sweeper only reclaims at zero \
                      references.",
                     line.trim()
+                );
+            }
+        }
+    }
+}
+
+/// The CPU phase's fan-out is bounded by bytes in flight, not by the host's core count.
+///
+/// The property under test is a *memory* bound, and the failure it replaces is invisible in any behavioural
+/// test: one worker per core, each expanding its own request, gave a peak of "cores times the largest request"
+/// - correct output, and a footprint that varied by a factor of the host's core count.
+#[cfg(test)]
+mod fan_out_tests {
+    use super::*;
+    use opentelemetry_proto::tonic::common::v1::{AnyValue, KeyValue, any_value};
+    use opentelemetry_proto::tonic::trace::v1::{ResourceSpans, ScopeSpans, Span};
+
+    /// A request of roughly `payload_bytes`, carried as one attribute value.
+    ///
+    /// One large attribute rather than many spans, because the bound is about bytes and this keeps the
+    /// relationship between the requested size and `encoded_len` direct enough to reason about.
+    fn request_of(payload_bytes: usize) -> ExportTraceServiceRequest {
+        ExportTraceServiceRequest {
+            resource_spans: vec![ResourceSpans {
+                resource: None,
+                scope_spans: vec![ScopeSpans {
+                    scope: None,
+                    spans: vec![Span {
+                        trace_id: vec![1; 16],
+                        span_id: vec![2; 8],
+                        attributes: vec![KeyValue {
+                            key: "payload".to_string(),
+                            value: Some(AnyValue {
+                                value: Some(any_value::Value::StringValue(
+                                    "x".repeat(payload_bytes),
+                                )),
+                            }),
+                        }],
+                        ..Default::default()
+                    }],
+                    schema_url: String::new(),
+                }],
+                schema_url: String::new(),
+            }],
+        }
+    }
+
+    fn wave_shape(waves: &[&[ExportTraceServiceRequest]]) -> Vec<usize> {
+        waves.iter().map(|w| w.len()).collect()
+    }
+
+    /// Small requests keep full parallelism: the byte bound does not fire, so only the worker count shapes it.
+    ///
+    /// This is the common case and the one a byte bound must not make slower - the fixtures this repository
+    /// benchmarks are kilobytes, and a bound that halved their concurrency to protect against a 15 MB export
+    /// would be paying everywhere for a rare shape.
+    #[test]
+    fn small_requests_keep_full_parallelism() {
+        let requests: Vec<_> = (0..8).map(|_| request_of(1_024)).collect();
+        assert_eq!(wave_shape(&byte_bounded_waves(&requests, 8)), vec![8]);
+        assert_eq!(wave_shape(&byte_bounded_waves(&requests, 4)), vec![4, 4]);
+    }
+
+    /// Large requests are split into waves regardless of how many workers are available.
+    ///
+    /// Eight 12 MB requests against a 64 MB budget cannot all be in flight, however many cores the host has -
+    /// which is exactly what the old bound allowed.
+    #[test]
+    fn large_requests_are_bounded_by_bytes_not_by_cores() {
+        let requests: Vec<_> = (0..8).map(|_| request_of(12 * 1024 * 1024)).collect();
+        let waves = byte_bounded_waves(&requests, 32);
+        assert!(
+            waves.len() > 1,
+            "eight 12 MB requests must not all be in flight at once on a 32-core host"
+        );
+        for wave in &waves {
+            let bytes: u64 = wave.iter().map(|r| r.encoded_len() as u64).sum();
+            assert!(
+                bytes <= PIPELINE_CPU_PHASE_MAX_INFLIGHT_BYTES || wave.len() == 1,
+                "a wave holds {bytes} bytes, over the budget, and is not a single oversized request"
+            );
+        }
+    }
+
+    /// A request larger than the whole budget is processed alone, not refused and not skipped.
+    ///
+    /// The case where a naive "flush when full" loop emits an empty wave and then stops making progress -
+    /// which would silently drop every request after the oversized one, and the batch's cardinality check
+    /// would report it as a panicked worker.
+    #[test]
+    fn a_single_oversized_request_forms_its_own_wave() {
+        let oversized = (PIPELINE_CPU_PHASE_MAX_INFLIGHT_BYTES as usize) * 2;
+        let requests = vec![request_of(1_024), request_of(oversized), request_of(1_024)];
+        let waves = byte_bounded_waves(&requests, 8);
+
+        assert!(
+            waves.iter().all(|w| !w.is_empty()),
+            "no wave may be empty: {:?}",
+            wave_shape(&waves)
+        );
+        assert_eq!(
+            waves.iter().map(|w| w.len()).sum::<usize>(),
+            requests.len(),
+            "every request appears in exactly one wave"
+        );
+    }
+
+    /// Every request appears once, in order, for any batch shape and worker count.
+    ///
+    /// The results are concatenated wave by wave and the batch checks its own cardinality, so a partitioner
+    /// that dropped, duplicated or reordered a request would surface as a refused batch rather than as an
+    /// obvious bug.
+    #[test]
+    fn the_waves_partition_the_batch_in_order() {
+        for count in [0usize, 1, 3, 8, 17] {
+            for workers in [1usize, 2, 8] {
+                // Distinct sizes, so a reordering is detectable by the sizes alone.
+                let requests: Vec<_> = (0..count).map(|n| request_of(64 + n * 7)).collect();
+                let waves = byte_bounded_waves(&requests, workers);
+
+                let flattened: Vec<usize> = waves
+                    .iter()
+                    .flat_map(|w| w.iter())
+                    .map(|r| r.encoded_len())
+                    .collect();
+                let expected: Vec<usize> = requests.iter().map(|r| r.encoded_len()).collect();
+                assert_eq!(
+                    flattened, expected,
+                    "count {count}, workers {workers}: the waves must be the batch, in order"
+                );
+                assert!(
+                    waves.iter().all(|w| w.len() <= workers.max(1)),
+                    "count {count}, workers {workers}: a wave exceeded the worker count"
                 );
             }
         }

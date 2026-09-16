@@ -883,3 +883,19 @@ pub const STREAM_ENTRY_OVERHEAD_BYTES: u64 = 256;
 /// be. What a tight limit costs is latency on a large read, not an error - and that cost is measured by
 /// `make bench-http`, whose ceilings are what would notice if this number is too small.
 pub const DUCKDB_MEMORY_LIMIT_BYTES: u64 = FOOTPRINT_INGEST_RSS_MAX_BYTES / 2;
+
+/// Decoded protobuf bytes the CPU phase may have in flight at once.
+///
+/// The fan-out used to be sized by **thread count**: one worker per core, each expanding its own request. So
+/// peak memory during the CPU phase was the number of cores times the largest request, which means a
+/// 32-core host holding thirty-two 15.8 MB image-heavy exports expanded simultaneously - and the expansion is
+/// several times its input, because base64 attachments are decoded and every message is parsed. A bound
+/// expressed in threads is not a bound on memory, and the host decides the multiplier.
+///
+/// So requests are grouped into waves whose summed size stays under this, and the waves run one after another.
+/// Parallelism is unchanged where payloads are small, which is the common case; it degrades to fewer
+/// concurrent requests exactly where each one is large, which is where it had to.
+///
+/// A single request larger than this is still processed - it forms a wave of one - because refusing it here
+/// would refuse a valid export that the byte-budgeted admission at the edge already accepted.
+pub const PIPELINE_CPU_PHASE_MAX_INFLIGHT_BYTES: u64 = 64 * 1024 * 1024;
