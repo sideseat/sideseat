@@ -7,20 +7,20 @@ use anyhow::{Context, Result};
 use crate::api::{ApiServer, AuthManager, OtlpGrpcServer};
 use opentelemetry_proto::tonic::collector::trace::v1::ExportTraceServiceRequest;
 
-use crate::core::TopicService;
-use crate::core::banner;
-use crate::core::cli::{self, CliConfig, Commands, SystemCommands};
-use crate::core::config::AppConfig;
-use crate::core::constants::{APP_NAME_LOWER, ENV_LOG, TOPIC_TRACES};
-use crate::core::shutdown::ShutdownService;
-use crate::core::storage::AppStorage;
-use crate::core::update;
 use crate::data::cache::{CacheService, RateLimiter};
 use crate::data::files::FileService;
 use crate::data::secrets::SecretManager;
+use crate::data::topics::TopicService;
 use crate::data::{AnalyticsService, TransactionalService};
 use crate::domain::pricing::PricingService;
 use crate::domain::providers::CredentialService;
+use crate::runtime::shutdown::ShutdownService;
+use sideseat_core::core::banner;
+use sideseat_core::core::cli::{self, CliConfig, Commands, SystemCommands};
+use sideseat_core::core::config::AppConfig;
+use sideseat_core::core::constants::{APP_NAME_LOWER, ENV_LOG, TOPIC_TRACES};
+use sideseat_core::core::storage::AppStorage;
+use sideseat_core::core::update;
 
 pub struct CoreApp {
     pub shutdown: ShutdownService,
@@ -64,6 +64,16 @@ impl CoreApp {
 
     async fn init(cli: &CliConfig) -> Result<Self> {
         let config = AppConfig::load(cli)?;
+
+        // Compile the framework rule assets now, so a malformed one fails at startup rather than mid-traffic.
+        //
+        // The compile is a `OnceLock` otherwise filled by whichever request reached it first, which for a build
+        // defect means an operator sees a panic on an arbitrary endpoint instead of a refusal to start. It used
+        // to sit inside `AppConfig::validate`, which made the configuration layer call into the domain - the one
+        // dependency pointing the wrong way through `core`, and enough on its own to prevent a crate boundary
+        // there. A startup check belongs at the composition root, which is the only place entitled to know about
+        // every layer. Cheap: the same work the first request would have done.
+        let _ = crate::domain::rules::ruleset();
         let storage = AppStorage::init(&config).await?;
         let secrets = SecretManager::init(&storage, &config.secrets).await?;
         secrets.ensure_secrets().await?;
@@ -244,7 +254,7 @@ impl CoreApp {
             // Parsed before the server is built, so a bad entry refuses startup here as it does for HTTP -
             // see `utils::client_ip` for why skipping one is harmful rather than merely lax.
             let grpc_trusted_proxies = Arc::new(
-                crate::utils::client_ip::TrustedProxies::parse(
+                sideseat_core::utils::client_ip::TrustedProxies::parse(
                     &app.config.rate_limit.trusted_proxies,
                 )
                 .map_err(|e| anyhow::anyhow!(e))?,

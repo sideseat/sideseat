@@ -4,13 +4,13 @@ use chrono::{DateTime, Duration, NaiveTime, TimeZone, Timelike, Utc};
 use chrono_tz::Tz;
 use duckdb::Connection;
 
-use crate::core::constants::QUERY_MAX_TOP_STATS;
 use crate::data::duckdb::DuckdbError;
 use crate::data::duckdb::repositories::query::DEDUP_SPANS;
 use crate::data::types::{
     CostsResult, CountsResult, FrameworkBreakdown, LatencyBucket, ModelBreakdown,
     ProjectStatsResult, StatsParams, TokensResult, TrendBucket,
 };
+use sideseat_core::core::constants::QUERY_MAX_TOP_STATS;
 
 /// Get project stats for the given time range
 ///

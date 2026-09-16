@@ -27,16 +27,18 @@ use super::extract::files::{
     extract_and_replace_files_cached,
 };
 use super::extract::{RawMessage, RawToolDefinition, RawToolNames, SpanData};
-use crate::core::constants::{
-    DEFAULT_PROJECT_ID, FILE_HASH_ALGORITHM, FILES_MAX_CONCURRENT_FINALIZATION,
-};
-use crate::core::{TopicMessage, TopicService};
 use crate::data::AnalyticsService;
 use crate::data::files::FileService;
+use crate::data::topics::{TopicMessage, TopicService};
 use crate::data::types::{NormalizedSpan, json_to_pre_serialized};
-use crate::utils::otlp::{build_attributes_json, extract_attributes};
-use crate::utils::retry::{DEFAULT_BASE_DELAY_MS, DEFAULT_MAX_ATTEMPTS, retry_with_backoff_async};
-use crate::utils::time::nanos_to_iso;
+use sideseat_core::core::constants::{
+    DEFAULT_PROJECT_ID, FILE_HASH_ALGORITHM, FILES_MAX_CONCURRENT_FINALIZATION,
+};
+use sideseat_core::utils::otlp::{build_attributes_json, extract_attributes};
+use sideseat_core::utils::retry::{
+    DEFAULT_BASE_DELAY_MS, DEFAULT_MAX_ATTEMPTS, retry_with_backoff_async,
+};
+use sideseat_core::utils::time::nanos_to_iso;
 
 // ============================================================================
 // SSE EVENT MODEL
@@ -168,7 +170,7 @@ pub(super) fn prepare_batch(
             (
                 f.project_id.as_str(),
                 f.trace_id.as_str(),
-                crate::utils::file_uri::build_file_uri(&f.hash, f.media_type.as_deref()),
+                sideseat_core::utils::file_uri::build_file_uri(&f.hash, f.media_type.as_deref()),
             )
         })
         .collect();
@@ -416,7 +418,7 @@ pub(super) fn note_unstored_files(
             // something that may be untrue of their case.
             let note = format!(
                 "[content not stored ({})]",
-                crate::utils::file_uri::parse_file_uri(uri)
+                sideseat_core::utils::file_uri::parse_file_uri(uri)
                     .and_then(|parsed| parsed.media_type.map(str::to_string))
                     .unwrap_or_else(|| "unknown type".to_string())
             );
@@ -494,7 +496,7 @@ pub(super) async fn reconcile_incoming_references(
         already_associated.iter().cloned().collect();
 
     for (project_id, trace_id, uri) in incoming {
-        let Some(parsed) = crate::utils::file_uri::parse_file_uri(uri) else {
+        let Some(parsed) = sideseat_core::utils::file_uri::parse_file_uri(uri) else {
             continue;
         };
         let key = (project_id.clone(), parsed.hash.to_string());
@@ -687,7 +689,7 @@ async fn filter_over_quota(
         .map(|f| {
             (
                 f.project_id.clone(),
-                crate::utils::file_uri::build_file_uri(&f.hash, f.media_type.as_deref()),
+                sideseat_core::utils::file_uri::build_file_uri(&f.hash, f.media_type.as_deref()),
             )
         })
         .collect();
@@ -1551,8 +1553,8 @@ mod tests {
     /// like a reference to a corrupt one, and nothing on the span distinguishes them.
     #[test]
     fn a_rejected_file_reference_is_replaced_with_a_note() {
-        let uri = crate::utils::file_uri::build_file_uri("abc123", Some("image/png"));
-        let other = crate::utils::file_uri::build_file_uri("def456", Some("image/png"));
+        let uri = sideseat_core::utils::file_uri::build_file_uri("abc123", Some("image/png"));
+        let other = sideseat_core::utils::file_uri::build_file_uri("def456", Some("image/png"));
         let mut spans = vec![NormalizedSpan {
             project_id: Some("proj".to_string()),
             messages: Some(format!(r#"[{{"content":"{uri}"}}]"#)),
@@ -1586,7 +1588,7 @@ mod tests {
     /// Nothing to rewrite must cost nothing and change nothing.
     #[test]
     fn no_rejected_files_leaves_spans_untouched() {
-        let uri = crate::utils::file_uri::build_file_uri("abc123", None);
+        let uri = sideseat_core::utils::file_uri::build_file_uri("abc123", None);
         let mut spans = vec![NormalizedSpan {
             messages: Some(format!(r#"[{{"content":"{uri}"}}]"#)),
             ..NormalizedSpan::default()
@@ -1600,7 +1602,7 @@ mod tests {
     /// another. Rewriting it everywhere would replace a *working* reference with a note.
     #[test]
     fn a_quota_rejection_only_rewrites_the_project_it_happened_in() {
-        let uri = crate::utils::file_uri::build_file_uri("shared", Some("image/png"));
+        let uri = sideseat_core::utils::file_uri::build_file_uri("shared", Some("image/png"));
         let mut spans = vec![
             NormalizedSpan {
                 project_id: Some("over-quota".to_string()),

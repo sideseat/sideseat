@@ -9,8 +9,8 @@ use rmcp::transport::streamable_http_server::{
 use tokio_util::sync::CancellationToken;
 use tower::ServiceExt;
 
-use crate::core::shutdown::ShutdownService;
 use crate::data::AnalyticsService;
+use crate::runtime::shutdown::ShutdownService;
 
 mod tools;
 mod types;

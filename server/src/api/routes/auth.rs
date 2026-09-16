@@ -17,8 +17,10 @@ use validator::Validate;
 use crate::api::auth::AuthManager;
 use crate::api::extractors::ValidatedJson;
 use crate::api::middleware::AllowedOrigins;
-use crate::core::constants::{DEFAULT_SESSION_TTL_DAYS, DEFAULT_USER_ID, SESSION_COOKIE_NAME};
 use crate::data::TransactionalService;
+use sideseat_core::core::constants::{
+    DEFAULT_SESSION_TTL_DAYS, DEFAULT_USER_ID, SESSION_COOKIE_NAME,
+};
 
 #[derive(Debug, Deserialize, Validate, ToSchema)]
 pub struct ExchangeRequest {

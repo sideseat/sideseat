@@ -1,4 +1,4 @@
-use sideseat_server::core::CoreApp;
+use sideseat_server::app::CoreApp;
 
 #[tokio::main]
 async fn main() {

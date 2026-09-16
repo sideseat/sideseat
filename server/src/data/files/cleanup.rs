@@ -392,9 +392,9 @@ impl CleanupStats {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::core::constants::FILE_DELETION_CLAIM_STALE_SECS;
     use crate::data::SqliteService;
     use crate::data::files::FilesystemStorage;
+    use sideseat_core::core::constants::FILE_DELETION_CLAIM_STALE_SECS;
     use tempfile::TempDir;
     use tokio::fs;
 

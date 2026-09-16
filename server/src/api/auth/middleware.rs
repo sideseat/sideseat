@@ -15,10 +15,10 @@ use super::context::{AuthContext, AuthService};
 use super::jwt::JwtError;
 use super::manager::AuthManager;
 use crate::api::middleware::AllowedOrigins;
-use crate::core::constants::{DEFAULT_USER_ID, SESSION_COOKIE_NAME};
 use crate::data::TransactionalService;
 use crate::data::cache::CacheService;
 use crate::data::types::ApiKeyScope;
+use sideseat_core::core::constants::{DEFAULT_USER_ID, SESSION_COOKIE_NAME};
 
 /// Authentication error response
 #[derive(Debug)]

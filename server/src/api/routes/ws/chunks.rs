@@ -25,7 +25,9 @@ use base64::engine::general_purpose::STANDARD as B64;
 use dashmap::DashMap;
 use parking_lot::Mutex;
 
-use crate::core::constants::{AGUI_CHUNK_MAX_PER_REQUEST_BYTES, AGUI_CHUNK_REASSEMBLY_TTL_SECS};
+use sideseat_core::core::constants::{
+    AGUI_CHUNK_MAX_PER_REQUEST_BYTES, AGUI_CHUNK_REASSEMBLY_TTL_SECS,
+};
 
 use super::protocol::AgentEventChunkPayload;
 

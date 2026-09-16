@@ -13,11 +13,11 @@ use opentelemetry_proto::tonic::metrics::v1::{
 use serde_json::{Value as JsonValue, json};
 
 use crate::data::types::{AggregationTemporality, MetricType, NormalizedMetric};
-use crate::utils::otlp::{
+use sideseat_core::utils::otlp::{
     PROJECT_ID_ATTR, attrs_to_typed_json, extract_attributes, get_environment, get_session_id,
     get_user_id, keys,
 };
-use crate::utils::time::{is_storable, nanos_to_datetime};
+use sideseat_core::utils::time::{is_storable, nanos_to_datetime};
 
 use super::identity::IdentityInputs;
 
@@ -614,7 +614,7 @@ fn extract_all_exemplars(
                 // carries has to be the value that was sent.
                 entry.insert(
                     "attributes".to_string(),
-                    crate::utils::otlp::attrs_to_typed_json(&e.filtered_attributes),
+                    sideseat_core::utils::otlp::attrs_to_typed_json(&e.filtered_attributes),
                 );
             }
             JsonValue::Object(entry)
@@ -633,7 +633,7 @@ fn extract_exemplar_attrs(
     exemplar: Option<&opentelemetry_proto::tonic::metrics::v1::Exemplar>,
 ) -> JsonValue {
     exemplar
-        .map(|e| crate::utils::otlp::attrs_to_typed_json(&e.filtered_attributes))
+        .map(|e| sideseat_core::utils::otlp::attrs_to_typed_json(&e.filtered_attributes))
         .unwrap_or(JsonValue::Null)
 }
 

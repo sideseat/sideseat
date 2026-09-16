@@ -29,11 +29,11 @@ use tokio::sync::watch;
 use tokio::task::JoinHandle;
 use tracing::log::LevelFilter;
 
-use crate::core::constants::{
+use sideseat_core::core::constants::{
     SQLITE_BUSY_TIMEOUT_SECS, SQLITE_CACHE_SIZE, SQLITE_CHECKPOINT_INTERVAL_SECS,
     SQLITE_DB_FILENAME, SQLITE_MAX_CONNECTIONS, SQLITE_WAL_AUTOCHECKPOINT,
 };
-use crate::core::storage::{AppStorage, DataSubdir};
+use sideseat_core::core::storage::{AppStorage, DataSubdir};
 
 /// SQLite database service
 ///

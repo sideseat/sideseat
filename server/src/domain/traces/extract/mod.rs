@@ -42,8 +42,8 @@ use std::collections::HashMap;
 use opentelemetry_proto::tonic::collector::trace::v1::ExportTraceServiceRequest;
 use serde_json::Value as JsonValue;
 
-use crate::core::constants;
-use crate::utils::otlp::extract_attributes;
+use sideseat_core::core::constants;
+use sideseat_core::utils::otlp::extract_attributes;
 
 // ============================================================================
 // SHARED HELPER FUNCTIONS

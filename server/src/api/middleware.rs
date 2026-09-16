@@ -6,7 +6,7 @@ use axum::http::{HeaderValue, Method, StatusCode, header};
 use axum::response::IntoResponse;
 use tower_http::cors::{AllowOrigin, CorsLayer};
 
-use crate::core::config::is_all_interfaces;
+use sideseat_core::core::config::is_all_interfaces;
 
 /// Allowed origins configuration
 #[derive(Debug, Clone)]

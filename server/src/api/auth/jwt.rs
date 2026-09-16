@@ -8,7 +8,7 @@ use jsonwebtoken::{Algorithm, DecodingKey, EncodingKey, Header, Validation, deco
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::core::constants::DEFAULT_SESSION_TTL_DAYS;
+use sideseat_core::core::constants::DEFAULT_SESSION_TTL_DAYS;
 
 /// JWT validation error
 #[derive(Debug)]

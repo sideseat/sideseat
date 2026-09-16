@@ -7,12 +7,12 @@ use std::time::Duration;
 
 use sqlx::PgPool;
 
-use crate::core::constants::{
-    API_KEY_MAX_PER_ORG, CACHE_TTL_API_KEY_INVALID, CACHE_TTL_API_KEY_VALID,
-};
 use crate::data::cache::{CacheKey, CacheService};
 use crate::data::postgres::PostgresError;
 use crate::data::types::{ApiKeyRow, ApiKeyScope, ApiKeyValidation};
+use sideseat_core::core::constants::{
+    API_KEY_MAX_PER_ORG, CACHE_TTL_API_KEY_INVALID, CACHE_TTL_API_KEY_VALID,
+};
 
 /// Create a new API key
 #[allow(clippy::too_many_arguments)]

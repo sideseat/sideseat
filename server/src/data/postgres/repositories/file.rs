@@ -4,9 +4,9 @@
 
 use sqlx::PgPool;
 
-use crate::core::constants::FILE_CLEANUP_BATCH_SIZE;
 use crate::data::postgres::PostgresError;
 use crate::data::types::FileRow;
+use sideseat_core::core::constants::FILE_CLEANUP_BATCH_SIZE;
 
 /// Upsert a file record (insert or increment ref_count)
 ///

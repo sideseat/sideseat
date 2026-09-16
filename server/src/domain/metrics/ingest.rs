@@ -24,9 +24,9 @@ use opentelemetry_proto::tonic::collector::metrics::v1::ExportMetricsServiceRequ
 
 use super::extract::extract_metrics_batch;
 use super::persist::persist_batch;
-use crate::core::constants::DEFAULT_PROJECT_ID;
 use crate::data::{AnalyticsService, TransactionalService};
-use crate::utils::time::is_storable;
+use sideseat_core::core::constants::DEFAULT_PROJECT_ID;
+use sideseat_core::utils::time::is_storable;
 
 /// How many of a request's data points were stored, out of how many it had, and **why** the rest were not.
 ///

@@ -30,7 +30,7 @@ use clickhouse::Client;
 use tokio::sync::watch;
 use tokio::task::JoinHandle;
 
-use crate::core::config::{ClickhouseConfig, RetentionConfig};
+use sideseat_core::core::config::{ClickhouseConfig, RetentionConfig};
 
 /// ClickHouse analytics service
 ///

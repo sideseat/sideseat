@@ -62,10 +62,10 @@ use crate::data::cache::CacheService;
 use tokio::sync::watch;
 use tokio::task::JoinHandle;
 
-use crate::core::config::{
+use sideseat_core::core::config::{
     AnalyticsBackend, ClickhouseConfig, PostgresConfig, RetentionConfig, TransactionalBackend,
 };
-use crate::core::storage::AppStorage;
+use sideseat_core::core::storage::AppStorage;
 
 /// Transactional database service enum
 ///

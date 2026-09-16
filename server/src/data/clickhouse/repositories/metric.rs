@@ -8,7 +8,7 @@ use serde::Serialize;
 
 use crate::data::clickhouse::ClickhouseError;
 use crate::data::types::NormalizedMetric;
-use crate::utils::json::json_to_opt_string;
+use sideseat_core::utils::json::json_to_opt_string;
 
 /// Row structure for inserting metrics into ClickHouse
 #[derive(Row, Serialize)]
@@ -79,7 +79,7 @@ struct MetricRow {
 /// representable bound (`clamp_to_storable`) and logging, rather than the epoch (the one value the TTL
 /// destroys) or an out-of-range year the driver cannot encode.
 fn chrono_to_time(dt: chrono::DateTime<chrono::Utc>) -> time::OffsetDateTime {
-    let (dt, clamped) = crate::utils::time::clamp_to_storable(dt);
+    let (dt, clamped) = sideseat_core::utils::time::clamp_to_storable(dt);
     if clamped {
         tracing::error!(
             timestamp = %dt,

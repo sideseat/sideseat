@@ -34,12 +34,12 @@ use parking_lot::{Mutex, MutexGuard};
 use tokio::sync::watch;
 use tokio::task::JoinHandle;
 
-use crate::core::config::RetentionConfig;
-use crate::core::constants::{
+use sideseat_core::core::config::RetentionConfig;
+use sideseat_core::core::constants::{
     DUCKDB_CHECKPOINT_INTERVAL_SECS, DUCKDB_DB_FILENAME, DUCKDB_QUERY_TIMEOUT_SECS,
     DUCKDB_RETENTION_INTERVAL_SECS,
 };
-use crate::core::storage::{AppStorage, DataSubdir};
+use sideseat_core::core::storage::{AppStorage, DataSubdir};
 
 /// DuckDB analytics service
 ///

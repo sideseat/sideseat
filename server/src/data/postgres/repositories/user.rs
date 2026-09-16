@@ -7,10 +7,10 @@ use std::time::Duration;
 
 use sqlx::PgPool;
 
-use crate::core::constants::{CACHE_TTL_NEGATIVE, CACHE_TTL_USER, DEFAULT_USER_ID};
 use crate::data::cache::{CacheKey, CacheService};
 use crate::data::postgres::PostgresError;
 use crate::data::types::UserRow;
+use sideseat_core::core::constants::{CACHE_TTL_NEGATIVE, CACHE_TTL_USER, DEFAULT_USER_ID};
 
 /// Create a new user with a generated CUID2 ID
 pub async fn create_user(

@@ -169,8 +169,12 @@ impl AppStorage {
         self.data_dir.join(subdir.as_str()).join(filename)
     }
 
-    /// Create AppStorage for testing with a specific data directory
-    #[cfg(test)]
+    /// Create AppStorage for testing with a specific data directory.
+    ///
+    /// **Not `#[cfg(test)]`**, because the tests that need it live in other crates and a `cfg(test)` item does
+    /// not exist for a dependent. The alternative is a `testing` feature, which project convention rules out -
+    /// all dependencies are always compiled here - so this is compiled unconditionally. It is a constructor over
+    /// a path with no side effects, so shipping it costs nothing and hides nothing.
     pub fn init_for_test(data_dir: PathBuf) -> Self {
         Self { data_dir }
     }

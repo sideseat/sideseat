@@ -134,9 +134,9 @@ fn insert_spans(conn: &Connection, spans: &[NormalizedSpan]) -> Result<(), Duckd
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::core::storage::AppStorage;
     use crate::data::duckdb::DuckdbService;
     use chrono::Utc;
+    use sideseat_core::core::storage::AppStorage;
     use tempfile::TempDir;
 
     async fn create_test_service() -> (TempDir, DuckdbService) {

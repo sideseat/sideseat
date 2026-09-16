@@ -42,13 +42,13 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 
-use crate::core::config::FilesConfig;
-use crate::core::constants::CACHE_TTL_FILE_QUOTA;
-use crate::core::storage::{AppStorage, DataSubdir};
 use crate::data::TransactionalService;
 use crate::data::cache::{CacheKey, CacheService};
 use crate::domain::traces::extract::files::collect_file_references_in_str;
-use crate::utils::file_uri::parse_file_uri;
+use sideseat_core::core::config::FilesConfig;
+use sideseat_core::core::constants::CACHE_TTL_FILE_QUOTA;
+use sideseat_core::core::storage::{AppStorage, DataSubdir};
+use sideseat_core::utils::file_uri::parse_file_uri;
 
 pub use error::{FileServiceError, FileStorageError};
 pub use filesystem::FilesystemStorage;
@@ -92,7 +92,7 @@ impl FileService {
 
         // Create storage backend based on config
         let storage: Arc<dyn FileStorage> = match config.storage {
-            crate::core::config::StorageBackend::S3 => {
+            sideseat_core::core::config::StorageBackend::S3 => {
                 let s3_config = config.s3.as_ref().ok_or_else(|| {
                     FileServiceError::Storage(FileStorageError::Backend(
                         "S3 storage configured but no s3 config provided (missing bucket)"
@@ -110,11 +110,11 @@ impl FileService {
 
                 Arc::new(s3_storage)
             }
-            crate::core::config::StorageBackend::Filesystem => {
+            sideseat_core::core::config::StorageBackend::Filesystem => {
                 let files_path = config
                     .filesystem_path
                     .as_ref()
-                    .map(|p| crate::utils::file::expand_path(p))
+                    .map(|p| sideseat_core::utils::file::expand_path(p))
                     .unwrap_or_else(|| app_storage.subdir(DataSubdir::Files));
 
                 Arc::new(FilesystemStorage::new(files_path))
@@ -153,7 +153,7 @@ impl FileService {
             && let Err(e) = cleanup::cleanup_zero_ref_files(
                 &service.storage,
                 &service.database,
-                crate::core::constants::FILE_DELETION_CLAIM_STALE_SECS,
+                sideseat_core::core::constants::FILE_DELETION_CLAIM_STALE_SECS,
             )
             .await
         {
@@ -716,10 +716,10 @@ mod tests {
         let sqlite_service = SqliteService::from_pool(pool);
         let database = Arc::new(TransactionalService::Sqlite(Arc::new(sqlite_service)));
 
-        let cache_config = crate::core::config::CacheConfig {
-            backend: crate::core::config::CacheBackendType::Memory,
+        let cache_config = sideseat_core::core::config::CacheConfig {
+            backend: sideseat_core::core::config::CacheBackendType::Memory,
             max_entries: 1000,
-            eviction_policy: crate::core::config::EvictionPolicy::TinyLfu,
+            eviction_policy: sideseat_core::core::config::EvictionPolicy::TinyLfu,
             redis_url: None,
             redis_min_replica_acks: 0,
         };
@@ -734,7 +734,7 @@ mod tests {
 
         let config = FilesConfig {
             enabled: false,
-            storage: crate::core::config::StorageBackend::Filesystem,
+            storage: sideseat_core::core::config::StorageBackend::Filesystem,
             quota_bytes: 1024 * 1024,
             filesystem_path: Some(temp_dir.path().join("files").to_string_lossy().to_string()),
             s3: None,
@@ -757,7 +757,7 @@ mod tests {
 
         let config = FilesConfig {
             enabled: true,
-            storage: crate::core::config::StorageBackend::Filesystem,
+            storage: sideseat_core::core::config::StorageBackend::Filesystem,
             quota_bytes: 1024 * 1024,
             filesystem_path: Some(temp_dir.path().join("files").to_string_lossy().to_string()),
             s3: None,
@@ -811,7 +811,7 @@ mod tests {
 
         let config = FilesConfig {
             enabled: true,
-            storage: crate::core::config::StorageBackend::Filesystem,
+            storage: sideseat_core::core::config::StorageBackend::Filesystem,
             quota_bytes: 1024 * 1024,
             filesystem_path: Some(temp_dir.path().join("files").to_string_lossy().to_string()),
             s3: None,
@@ -912,7 +912,7 @@ mod tests {
 
         let config = FilesConfig {
             enabled: true,
-            storage: crate::core::config::StorageBackend::Filesystem,
+            storage: sideseat_core::core::config::StorageBackend::Filesystem,
             quota_bytes: 1024 * 1024,
             filesystem_path: Some(temp_dir.path().join("files").to_string_lossy().to_string()),
             s3: None,
@@ -1001,7 +1001,7 @@ mod tests {
 
         let config = FilesConfig {
             enabled: true,
-            storage: crate::core::config::StorageBackend::Filesystem,
+            storage: sideseat_core::core::config::StorageBackend::Filesystem,
             quota_bytes: 1024 * 1024,
             filesystem_path: Some(temp_dir.path().join("files").to_string_lossy().to_string()),
             s3: None,
@@ -1070,7 +1070,7 @@ mod tests {
 
         let config = FilesConfig {
             enabled: true,
-            storage: crate::core::config::StorageBackend::Filesystem,
+            storage: sideseat_core::core::config::StorageBackend::Filesystem,
             quota_bytes: 1024 * 1024,
             filesystem_path: Some(temp_dir.path().join("files").to_string_lossy().to_string()),
             s3: None,

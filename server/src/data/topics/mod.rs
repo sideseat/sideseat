@@ -46,8 +46,8 @@ pub use backend::{
 pub use error::TopicError;
 use memory::MemoryTopicBackend;
 
-use crate::core::config::{CacheBackendType, CacheConfig};
-use crate::core::constants::{
+use sideseat_core::core::config::{CacheBackendType, CacheConfig};
+use sideseat_core::core::constants::{
     DEFAULT_TOPIC_BUFFER_SIZE, DEFAULT_TOPIC_CHANNEL_CAPACITY, ENV_TOPIC_BUFFER_SIZE,
     ENV_TOPIC_CHANNEL_CAPACITY,
 };

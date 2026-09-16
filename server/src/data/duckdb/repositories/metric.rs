@@ -7,7 +7,7 @@ use duckdb::params;
 
 use crate::data::duckdb::sql_types::{SqlOptTimestamp, SqlTimestamp};
 use crate::data::duckdb::{DuckdbError, NormalizedMetric, in_transaction};
-use crate::utils::json::json_to_opt_string;
+use sideseat_core::utils::json::json_to_opt_string;
 
 pub fn insert_batch(conn: &Connection, metrics: &[NormalizedMetric]) -> Result<(), DuckdbError> {
     if metrics.is_empty() {
@@ -292,9 +292,9 @@ fn insert_metrics(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::core::storage::AppStorage;
     use crate::data::duckdb::{DuckdbService, MetricType};
     use chrono::Utc;
+    use sideseat_core::core::storage::AppStorage;
     use tempfile::TempDir;
 
     async fn create_test_service() -> (TempDir, DuckdbService) {

@@ -28,15 +28,15 @@ use base64::prelude::*;
 use moka::sync::Cache;
 use serde_json::Value as JsonValue;
 
-use crate::core::constants::{
+use sideseat_core::core::constants::{
     FILE_EXTRACTION_CACHE_IDLE_SECS, FILE_EXTRACTION_CACHE_MAX_ENTRIES, FILES_MAX_SIZE_BYTES,
     FILES_MIN_SIZE_BYTES,
 };
 #[cfg(test)]
-use crate::utils::file_uri::FILE_URI_PREFIX;
-use crate::utils::file_uri::{build_file_uri, is_file_uri};
-use crate::utils::mime::{detect_mime_type, is_valid_mime_type};
-use crate::utils::string::is_placeholder_value;
+use sideseat_core::utils::file_uri::FILE_URI_PREFIX;
+use sideseat_core::utils::file_uri::{build_file_uri, is_file_uri};
+use sideseat_core::utils::mime::{detect_mime_type, is_valid_mime_type};
+use sideseat_core::utils::string::is_placeholder_value;
 
 // ============================================================================
 // FILE EXTRACTION CACHE
@@ -216,12 +216,12 @@ pub fn collect_file_references(json: &JsonValue, into: &mut Vec<String>) {
 pub fn collect_file_references_in_str(s: &str, into: &mut Vec<String>) {
     {
         {
-            if let Some(mut from) = s.find(crate::utils::file_uri::FILE_URI_PREFIX) {
+            if let Some(mut from) = s.find(sideseat_core::utils::file_uri::FILE_URI_PREFIX) {
                 // Embedded in surrounding text, as data URLs are. Split on whitespace missed a
                 // reference followed by punctuation - `...::abc123.` parses as a hash of `abc123.` and
                 // `...::abc123",` not at all - so the end is found by scanning for characters a hash
                 // cannot contain.
-                let prefix = crate::utils::file_uri::FILE_URI_PREFIX;
+                let prefix = sideseat_core::utils::file_uri::FILE_URI_PREFIX;
                 loop {
                     // The scan starts *after* the prefix: `#!B64!#` is itself made of characters a hash
                     // cannot contain, so scanning from the start truncates at once.

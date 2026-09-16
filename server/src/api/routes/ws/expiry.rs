@@ -12,8 +12,8 @@
 
 use std::time::{Duration, SystemTime};
 
-use crate::core::constants::REGISTRATION_TTL_SECS;
 use crate::data::registrations::{DisplacedOwner, PresenceEvent};
+use sideseat_core::core::constants::REGISTRATION_TTL_SECS;
 
 use super::presence;
 use super::state::WsState;

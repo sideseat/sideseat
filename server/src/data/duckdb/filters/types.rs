@@ -4,7 +4,7 @@
 
 use serde::Deserialize;
 
-use crate::utils::sql::{escape_like_pattern, is_plain_identifier};
+use sideseat_core::utils::sql::{escape_like_pattern, is_plain_identifier};
 
 /// Why a filter could not be accepted.
 ///

@@ -7,10 +7,12 @@ use std::time::Duration;
 
 use sqlx::PgPool;
 
-use crate::core::constants::{AUTH_METHOD_BOOTSTRAP, AUTH_METHOD_OAUTH, CACHE_TTL_AUTH_METHOD};
 use crate::data::cache::{CacheKey, CacheService};
 use crate::data::postgres::PostgresError;
 use crate::data::types::AuthMethodRow;
+use sideseat_core::core::constants::{
+    AUTH_METHOD_BOOTSTRAP, AUTH_METHOD_OAUTH, CACHE_TTL_AUTH_METHOD,
+};
 
 /// Create a new auth method with a generated CUID2 ID
 #[allow(clippy::too_many_arguments)]

@@ -1695,7 +1695,7 @@ fn test_cache_different_content_different_hash() {
 /// `...::abc123",` did not parse at all - so a forged reference could hide behind a full stop.
 #[test]
 fn an_embedded_reference_is_found_next_to_punctuation() {
-    let uri = crate::utils::file_uri::build_file_uri("abc123", Some("image/png"));
+    let uri = sideseat_core::utils::file_uri::build_file_uri("abc123", Some("image/png"));
     for (text, why) in [
         (format!("see {uri}"), "plain"),
         (format!("see {uri}."), "sentence end"),
@@ -1725,7 +1725,8 @@ fn an_embedded_reference_is_found_next_to_punctuation() {
 /// references extraction just created and reconcile the rest against storage.
 #[test]
 fn an_incoming_reference_is_collected_and_ours_are_distinguishable() {
-    let forged = crate::utils::file_uri::build_file_uri("never-uploaded", Some("image/png"));
+    let forged =
+        sideseat_core::utils::file_uri::build_file_uri("never-uploaded", Some("image/png"));
     let data = vec![3u8; 2048];
     let b64 = BASE64_STANDARD.encode(&data);
 
@@ -1740,7 +1741,7 @@ fn an_incoming_reference_is_collected_and_ours_are_distinguishable() {
     collect_file_references(&msg, &mut found);
 
     assert_eq!(result.files.len(), 1, "the real payload was extracted");
-    let ours = crate::utils::file_uri::build_file_uri(
+    let ours = sideseat_core::utils::file_uri::build_file_uri(
         &result.files[0].hash,
         result.files[0].media_type.as_deref(),
     );

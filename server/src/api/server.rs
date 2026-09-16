@@ -24,11 +24,11 @@ use super::routes::{
     api_keys, auth, credentials, favorites, health, organizations, otel, otlp_collector, pricing,
     projects, users, ws,
 };
-use crate::core::CoreApp;
-use crate::core::constants::{AUTH_BODY_LIMIT, DEFAULT_BODY_LIMIT, OTLP_BODY_LIMIT};
+use crate::app::CoreApp;
 use crate::data::cache::RateLimitBucket;
 use crate::data::files::FileService;
 use crate::data::registrations::MemoryRegistrationStore;
+use sideseat_core::core::constants::{AUTH_BODY_LIMIT, DEFAULT_BODY_LIMIT, OTLP_BODY_LIMIT};
 
 pub struct ApiServer {
     app: CoreApp,
@@ -65,7 +65,10 @@ impl ApiServer {
 
         // Use debug directory if debug mode is enabled (directory is created in app.rs)
         let debug_path = if app.config.debug {
-            Some(app.storage.subdir(crate::core::storage::DataSubdir::Debug))
+            Some(
+                app.storage
+                    .subdir(sideseat_core::core::storage::DataSubdir::Debug),
+            )
         } else {
             None
         };
@@ -77,8 +80,10 @@ impl ApiServer {
         // Parsed once, and a bad entry refuses startup rather than silently collapsing every client behind
         // that proxy into one rate-limit bucket - see `utils::client_ip`.
         let trusted_proxies = Arc::new(
-            crate::utils::client_ip::TrustedProxies::parse(&app.config.rate_limit.trusted_proxies)
-                .map_err(|e| anyhow::anyhow!(e))?,
+            sideseat_core::utils::client_ip::TrustedProxies::parse(
+                &app.config.rate_limit.trusted_proxies,
+            )
+            .map_err(|e| anyhow::anyhow!(e))?,
         );
 
         // Rate limiting configuration
@@ -454,7 +459,9 @@ impl ApiServer {
         // `validate_store_sharing` uses), and the SDK runtime channel is an optional feature many such
         // deployments never touch - so refusing to start would block them over something they do not use.
         // The invoke route's own error says the same thing at the point someone hits it.
-        if app.config.database.transactional.sharing() == crate::core::config::Sharing::Shared {
+        if app.config.database.transactional.sharing()
+            == sideseat_core::core::config::Sharing::Shared
+        {
             tracing::warn!(
                 "ws: the SDK registration directory is per-process while its AG-UI routing is \
                  cross-instance, so presence and agent invocation are single-instance features. With a \

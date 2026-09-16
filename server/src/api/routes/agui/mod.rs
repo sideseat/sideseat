@@ -28,9 +28,9 @@ use serde::Deserialize;
 use uuid::Uuid;
 
 use crate::api::extractors::is_valid_project_id;
-use crate::core::TopicError;
-use crate::core::constants::{INVOKE_TIMEOUT_MS, WS_MAX_MESSAGE_BYTES};
 use crate::data::registrations::ConnectionControl;
+use crate::data::topics::TopicError;
+use sideseat_core::core::constants::{INVOKE_TIMEOUT_MS, WS_MAX_MESSAGE_BYTES};
 
 /// HTTP body limit for `/agents/{name}/runs`. Sized so that whatever
 /// passes here also fits in the WS frame that carries

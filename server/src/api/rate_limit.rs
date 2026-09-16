@@ -22,7 +22,7 @@ pub struct RateLimitState {
     ///
     /// This limiter had the same defect the auth-failure one did, and it matters as much: trusting the header
     /// unconditionally lets a direct caller rotate it and never exhaust an API, auth or MCP bucket at all.
-    pub trusted_proxies: Arc<crate::utils::client_ip::TrustedProxies>,
+    pub trusted_proxies: Arc<sideseat_core::utils::client_ip::TrustedProxies>,
 }
 
 /// How to extract rate limit key from request
@@ -79,7 +79,7 @@ fn extract_key(
     request: &Request,
     key_extractor: KeyExtractor,
     addr: SocketAddr,
-    trusted: &crate::utils::client_ip::TrustedProxies,
+    trusted: &sideseat_core::utils::client_ip::TrustedProxies,
 ) -> String {
     match key_extractor {
         KeyExtractor::IpAddress => {
@@ -87,7 +87,7 @@ fn extract_key(
             // address counts only from a configured trusted proxy, and the client is the rightmost hop none
             // vouched for. Believing the header unconditionally let a caller rotate it for a fresh bucket
             // every request, which is no limit at all.
-            crate::utils::client_ip::attributable_ip(
+            sideseat_core::utils::client_ip::attributable_ip(
                 Some(addr.ip()),
                 request
                     .headers()

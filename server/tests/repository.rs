@@ -2129,6 +2129,88 @@ fn the_image_gate_reads_the_shapes_that_defeated_it() {
     }
 }
 
+/// No layer crate names a driver, which is what makes the layer boundary a compiler check.
+///
+/// The point of splitting the workspace is that a forbidden dependency **does not compile** - there is no list
+/// to maintain, and no macro or re-export that can defeat it. That property rests on one thing: the manifest not
+/// naming the driver. So the manifest is what is checked.
+///
+/// It is not redundant with the compiler. The compiler refuses `use duckdb::…` in a crate that does not depend on
+/// `duckdb`; it says nothing about someone *adding* the dependency, which is a one-line edit in a file nobody
+/// diffs carefully. This test is the difference between "the boundary holds today" and "the boundary is a rule".
+///
+/// The crate list is derived from the workspace rather than named here, so a new layer crate is covered the
+/// moment it exists, and the count is asserted so the scan cannot pass by finding nothing.
+#[test]
+fn no_layer_crate_depends_on_a_driver() {
+    // The drivers a layer crate must not reach: the two analytics stores, the two transactional stores, the
+    // object store, the queue, the cache, and the two transports. `sqlx` covers SQLite and PostgreSQL both.
+    const DRIVERS: &[&str] = &[
+        "duckdb",
+        "clickhouse",
+        "sqlx",
+        "aws-sdk-s3",
+        "aws-sdk-secretsmanager",
+        "rdkafka",
+        "redis",
+        "axum",
+        "tonic",
+        "moka",
+    ];
+
+    let repo = repo_root();
+    let crates_dir = repo.join("crates");
+    let mut checked = 0usize;
+    let mut violations: Vec<String> = Vec::new();
+
+    let entries = std::fs::read_dir(&crates_dir).expect("crates/ exists");
+    for entry in entries {
+        let path = entry.expect("readable entry").path();
+        let manifest = path.join("Cargo.toml");
+        if !manifest.is_file() {
+            continue;
+        }
+        let text = std::fs::read_to_string(&manifest).expect("manifest is readable");
+        let name = path
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or("<unknown>")
+            .to_string();
+        checked += 1;
+
+        for line in text.lines() {
+            let trimmed = line.trim();
+            // Only dependency declarations, which start with the crate name. A driver named in a *comment* is
+            // how these manifests explain what they may not reach, so matching anywhere would flag the
+            // explanation.
+            if trimmed.starts_with('#') {
+                continue;
+            }
+            for driver in DRIVERS {
+                let declared = trimmed
+                    .split_once(['=', ' '])
+                    .map(|(key, _)| key.trim() == *driver)
+                    .unwrap_or(false);
+                if declared {
+                    violations.push(format!("crates/{name} declares `{driver}`"));
+                }
+            }
+        }
+    }
+
+    assert!(
+        checked > 0,
+        "found no crate manifests under crates/ - the scan is wrong, not the workspace"
+    );
+    assert!(
+        violations.is_empty(),
+        "{} layer crate dependency(ies) on a driver - the boundary these crates exist to enforce is gone, and \
+         a forbidden import in them would now compile:\n  {}",
+        violations.len(),
+        violations.join("\n  ")
+    );
+}
+
 /// Production wiring that behavioural tests cannot see, because they call the underlying method directly.
 ///
 /// Two production call sites, each the *only* one, and each invisible to the behavioural tests because those

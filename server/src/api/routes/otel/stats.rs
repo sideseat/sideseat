@@ -15,9 +15,9 @@ use super::types::{
 };
 use crate::api::auth::ProjectRead;
 use crate::api::types::{ApiError, parse_timestamp_param};
-use crate::core::constants::CACHE_TTL_STATS;
 use crate::data::cache::CacheKey;
 use crate::data::types::{ProjectStatsResult, StatsParams};
+use sideseat_core::core::constants::CACHE_TTL_STATS;
 
 /// TTL for recent data (data from within the last 5 minutes) - 2 minutes
 const CACHE_TTL_STATS_RECENT: u64 = 120;

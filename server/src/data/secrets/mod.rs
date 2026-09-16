@@ -24,10 +24,10 @@ use anyhow::{Context, Result};
 use tokio::sync::watch;
 use tokio::task::JoinHandle;
 
-use crate::core::config::{SecretsBackend, SecretsConfig};
-use crate::core::constants::{SECRET_KEY_API_KEY, SECRET_KEY_JWT_SIGNING};
-use crate::core::storage::AppStorage;
-use crate::utils::crypto;
+use sideseat_core::core::config::{SecretsBackend, SecretsConfig};
+use sideseat_core::core::constants::{SECRET_KEY_API_KEY, SECRET_KEY_JWT_SIGNING};
+use sideseat_core::core::storage::AppStorage;
+use sideseat_core::utils::crypto;
 
 #[derive(Debug, Clone)]
 pub struct SecretManager {
@@ -61,7 +61,7 @@ impl SecretManager {
                     .as_ref()
                     .map(|e| e.prefix.clone())
                     .unwrap_or_else(|| {
-                        crate::core::constants::SECRETS_DEFAULT_ENV_PREFIX.to_string()
+                        sideseat_core::core::constants::SECRETS_DEFAULT_ENV_PREFIX.to_string()
                     });
                 Arc::new(env::EnvProvider::new(prefix))
             }
@@ -387,7 +387,7 @@ impl SecretManager {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::core::storage::AppStorage;
+    use sideseat_core::core::storage::AppStorage;
 
     use async_trait::async_trait;
     use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};

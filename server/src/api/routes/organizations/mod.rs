@@ -13,7 +13,6 @@ use serde::Deserialize;
 use crate::api::auth::{Auth, OrgAdmin, OrgOwner, OrgRead};
 use crate::api::extractors::{ValidatedJson, ValidatedQuery};
 use crate::api::types::{ApiError, PaginatedResponse};
-use crate::core::constants::{DEFAULT_ORG_ID, ORG_ROLE_ADMIN, ORG_ROLE_OWNER, RESERVED_SLUGS};
 use crate::data::AnalyticsService;
 use crate::data::TransactionalService;
 use crate::data::cache::CacheService;
@@ -21,6 +20,9 @@ use crate::data::cleanup::cleanup_organization;
 use crate::data::files::FileService;
 use crate::data::traits::has_min_role_level;
 use crate::data::types::LastOwnerResult;
+use sideseat_core::core::constants::{
+    DEFAULT_ORG_ID, ORG_ROLE_ADMIN, ORG_ROLE_OWNER, RESERVED_SLUGS,
+};
 
 /// Path parameters for member-specific routes
 #[derive(Deserialize)]

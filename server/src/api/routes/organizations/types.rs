@@ -6,11 +6,11 @@ use utoipa::ToSchema;
 use validator::Validate;
 
 use crate::api::types::{default_limit, default_page, validate_limit, validate_page};
-use crate::core::constants::{
+use crate::data::types::{MemberWithUser, OrgWithRole, OrganizationRow};
+use sideseat_core::core::constants::{
     ORG_ROLE_ADMIN, ORG_ROLE_MEMBER, ORG_ROLE_OWNER, ORG_ROLE_VIEWER, ORG_SLUG_MAX_LEN,
     ORG_SLUG_MIN_LEN,
 };
-use crate::data::types::{MemberWithUser, OrgWithRole, OrganizationRow};
 
 /// Organization DTO for API responses
 #[derive(Debug, Serialize, ToSchema)]

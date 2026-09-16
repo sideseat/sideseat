@@ -17,9 +17,9 @@ use axum::Router;
 use axum::routing::get;
 use tokio::sync::watch;
 
-use crate::core::TopicService;
 use crate::data::cache::CacheService;
 use crate::data::files::FileService;
+use crate::data::topics::TopicService;
 use crate::data::{AnalyticsService, TransactionalService};
 
 /// Shared state for OTEL API endpoints

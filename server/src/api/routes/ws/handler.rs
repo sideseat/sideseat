@@ -16,13 +16,13 @@ use tokio::sync::mpsc;
 use uuid::Uuid;
 
 use crate::api::extractors::is_valid_project_id;
-use crate::core::constants::{
-    WS_FRAME_RATE_LIMIT_COUNT, WS_FRAME_RATE_LIMIT_WINDOW_SECS, WS_HEARTBEAT_INTERVAL_SECS,
-    WS_HELLO_TIMEOUT_SECS, WS_MAX_MESSAGE_BYTES, WS_PONG_GRACE_SECS,
-};
 use crate::data::registrations::{
     ConnectionControl, DisplacedOwner, PresenceEvent, RegistrationEntry, RegistrationKind,
     RegistrationManifest, UpsertOutcome,
+};
+use sideseat_core::core::constants::{
+    WS_FRAME_RATE_LIMIT_COUNT, WS_FRAME_RATE_LIMIT_WINDOW_SECS, WS_HEARTBEAT_INTERVAL_SECS,
+    WS_HELLO_TIMEOUT_SECS, WS_MAX_MESSAGE_BYTES, WS_PONG_GRACE_SECS,
 };
 
 use super::invoke::{InvokeReply, publish_invoke_reply};
@@ -734,7 +734,7 @@ mod control_routing_tests {
     fn state() -> WsState {
         let (_tx, rx) = tokio::sync::watch::channel(false);
         WsState::new(
-            Arc::new(crate::core::TopicService::default()),
+            Arc::new(crate::data::topics::TopicService::default()),
             Arc::new(MemoryRegistrationStore::new()),
             rx,
         )

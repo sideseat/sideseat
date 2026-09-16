@@ -14,10 +14,10 @@ use opentelemetry_proto::tonic::common::v1::any_value;
 use super::encoding::{OtlpContentType, decode_request, success_response};
 use super::{OtlpState, inject_project_id_traces};
 use crate::api::extractors::is_valid_project_id;
-use crate::core::constants::BACKPRESSURE_RETRY_AFTER_SECS;
 use crate::domain::traces::{DropReason, IngestOutcome, strip_unstorable_spans};
-use crate::utils::debug::write_debug;
-use crate::utils::otlp::PROJECT_ID_ATTR;
+use sideseat_core::core::constants::BACKPRESSURE_RETRY_AFTER_SECS;
+use sideseat_core::utils::debug::write_debug;
+use sideseat_core::utils::otlp::PROJECT_ID_ATTR;
 
 /// Maximum retry attempts for trace publish
 const PUBLISH_MAX_ATTEMPTS: u32 = 3;

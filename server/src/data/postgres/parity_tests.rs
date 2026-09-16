@@ -52,12 +52,12 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use crate::core::config::PostgresConfig;
 use crate::data::TransactionalService;
 use crate::data::postgres::PostgresService;
 use crate::data::sqlite::SqliteService;
 use crate::data::traits::TransactionalRepository;
 use crate::data::types::LastOwnerResult;
+use sideseat_core::core::config::PostgresConfig;
 
 /// Env var holding a PostgreSQL connection URL, e.g. `postgres://user:pass@127.0.0.1:5433/sideseat`.
 const URL_ENV: &str = "SIDESEAT_TEST_POSTGRES_URL";

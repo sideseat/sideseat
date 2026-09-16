@@ -10,7 +10,7 @@ use crate::data::types::MessageCategory;
 use crate::domain::pricing::{self, PricingService, SpanCostInput};
 use crate::domain::sideml::{ChatMessage, SideMLMessage};
 use crate::domain::traces::SpanData;
-use crate::utils::string::{PREVIEW_MAX_LENGTH, truncate_preview};
+use sideseat_core::utils::string::{PREVIEW_MAX_LENGTH, truncate_preview};
 
 // ============================================================================
 // ENRICHMENT DATA STRUCTURES

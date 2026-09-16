@@ -3,7 +3,7 @@
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
-use crate::core::constants::MAX_CHECK_BATCH;
+use sideseat_core::core::constants::MAX_CHECK_BATCH;
 
 /// Entity type for favorites (trace, session, span)
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, ToSchema)]

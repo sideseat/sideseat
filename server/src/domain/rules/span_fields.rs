@@ -902,7 +902,7 @@ fn from_text(raw: &str, field_type: FieldType) -> Reading {
             }
         }
         FieldType::StringList => {
-            let items = crate::utils::string::parse_string_array(raw);
+            let items = sideseat_core::utils::string::parse_string_array(raw);
             if items.is_empty() {
                 Reading::Empty
             } else {

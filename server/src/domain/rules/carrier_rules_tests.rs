@@ -7384,8 +7384,8 @@ fn metadata_contends_on_the_axis_it_emits_on() {
 /// Server policy rather than a declaration, deliberately: a ceiling an asset could raise would not be a ceiling.
 #[test]
 fn a_rules_work_is_bounded_by_the_server() {
-    use crate::core::constants::{RULE_MAX_EMISSIONS_PER_CARRIER, RULE_WALK_MAX_NODES};
     use crate::domain::rules::message_rules::{MessageContext, compile};
+    use sideseat_core::core::constants::{RULE_MAX_EMISSIONS_PER_CARRIER, RULE_WALK_MAX_NODES};
 
     // A wide payload inside a shallow declared depth: 20,000 sibling objects at depth 1, well past the node
     // ceiling, with a walk that would otherwise visit every one.

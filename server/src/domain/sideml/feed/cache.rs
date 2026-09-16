@@ -30,8 +30,10 @@ use std::time::Duration;
 use moka::sync::Cache;
 
 use super::types::FeedResult;
-use crate::core::constants::{RECONSTRUCTION_CACHE_IDLE_SECS, RECONSTRUCTION_CACHE_MAX_ENTRIES};
 use crate::data::types::MessageSpanRow;
+use sideseat_core::core::constants::{
+    RECONSTRUCTION_CACHE_IDLE_SECS, RECONSTRUCTION_CACHE_MAX_ENTRIES,
+};
 
 /// Which reconstruction the cached answer came from.
 ///

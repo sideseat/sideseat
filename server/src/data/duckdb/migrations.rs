@@ -7,7 +7,7 @@ use duckdb::Connection;
 use super::error::DuckdbError;
 use super::in_transaction;
 use super::schema::{SCHEMA, SCHEMA_VERSION};
-use crate::utils::crypto::sha256_hex;
+use sideseat_core::utils::crypto::sha256_hex;
 
 /// Initialize database schema or run pending migrations
 pub fn run_migrations(conn: &Connection) -> Result<(), DuckdbError> {

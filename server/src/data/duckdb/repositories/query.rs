@@ -3,7 +3,6 @@
 use chrono::{DateTime, Utc};
 use duckdb::{Connection, Row};
 
-use crate::core::constants::{QUERY_MAX_FILTER_SUGGESTIONS, QUERY_MAX_SPANS_PER_TRACE};
 use crate::data::duckdb::filters::Filter;
 use crate::data::duckdb::filters::{SqlParams, columns};
 use crate::data::duckdb::{DuckdbError, in_transaction};
@@ -13,7 +12,8 @@ use crate::data::types::{
     SpanRow, TRACE_FILTER_OPTION_COLUMNS, TraceRow, genai_span_predicate, parse_tags,
     trace_display_first, trace_display_name,
 };
-use crate::utils::time::{micros_to_datetime, parse_iso_timestamp};
+use sideseat_core::core::constants::{QUERY_MAX_FILTER_SUGGESTIONS, QUERY_MAX_SPANS_PER_TRACE};
+use sideseat_core::utils::time::{micros_to_datetime, parse_iso_timestamp};
 
 /// Inline dedup subquery replacing the old `otel_spans_v` view.
 ///
@@ -2842,10 +2842,10 @@ mod tests {
     // Integration tests for leaf generation span filtering (cost deduplication)
     // ============================================================================
 
-    use crate::core::storage::AppStorage;
     use crate::data::duckdb::models::ObservationType;
     use crate::data::duckdb::repositories::span::insert_batch;
     use crate::data::duckdb::{DuckdbService, NormalizedSpan};
+    use sideseat_core::core::storage::AppStorage;
     use tempfile::TempDir;
 
     async fn create_test_service() -> (TempDir, DuckdbService) {

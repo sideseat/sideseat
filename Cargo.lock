@@ -5488,6 +5488,34 @@ dependencies = [
 ]
 
 [[package]]
+name = "sideseat-core"
+version = "1.0.13"
+dependencies = [
+ "anyhow",
+ "base64 0.22.1",
+ "chrono",
+ "clap",
+ "directories",
+ "dirs",
+ "hex",
+ "hmac 0.12.1",
+ "ipnet",
+ "local-ip-address",
+ "opentelemetry-proto",
+ "rand 0.8.8",
+ "reqwest 0.13.5",
+ "semver",
+ "serde",
+ "serde_json",
+ "sha2 0.10.9",
+ "subtle",
+ "supports-hyperlinks",
+ "tempfile",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "sideseat-server"
 version = "1.0.13"
 dependencies = [
@@ -5544,6 +5572,7 @@ dependencies = [
  "serde_json_path",
  "sha2 0.10.9",
  "sideseat",
+ "sideseat-core",
  "sqlx",
  "subtle",
  "supports-hyperlinks",

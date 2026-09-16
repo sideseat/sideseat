@@ -27,7 +27,7 @@ pub fn json_to_opt_string(value: &JsonValue) -> Option<String> {
 /// use std::collections::hash_map::DefaultHasher;
 /// use std::hash::Hasher;
 /// use serde_json::json;
-/// use sideseat_server::utils::json::hash_json_value;
+/// use sideseat_core::utils::json::hash_json_value;
 ///
 /// let mut hasher = DefaultHasher::new();
 /// hash_json_value(&mut hasher, &json!({"key": "value"}));

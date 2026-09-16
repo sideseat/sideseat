@@ -346,5 +346,5 @@ CREATE INDEX IF NOT EXISTS idx_retention_cleanup_due ON retention_cleanup(next_a
 }
 
 fn compute_checksum(sql: &str) -> String {
-    crate::utils::crypto::sha256_hex(sql)
+    sideseat_core::utils::crypto::sha256_hex(sql)
 }

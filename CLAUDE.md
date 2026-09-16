@@ -57,20 +57,37 @@ rg --files          # List files (.gitignore aware)
 
 **Databases**: DuckDB/ClickHouse (analytics) + SQLite/PostgreSQL (transactional). Default: DuckDB + SQLite.
 
-### Server (`server/src/`)
+### Core (`crates/core/src/`)
+
+The innermost layer, and a **separate crate** so the dependency direction is checked by the compiler rather
+than by convention. Its manifest names no driver (`duckdb`, `sqlx`, `clickhouse`, `aws-sdk-*`, `rdkafka`,
+`redis`, `axum`, `tonic`, `moka`) and nothing of SideSeat's own, so a violation does not compile.
+
+Three things had to move for that to be true, and each was a real inversion: `core/mod.rs` re-exported the
+analytics and transactional service enums, the pricing service and the whole topic vocabulary "for backward
+compatibility"; `shutdown.rs` drains the topic service, so it is composition rather than configuration and
+moved to the server's runtime module; and `AppConfig::validate` called `domain::rules::ruleset()` to fail fast
+on a malformed asset, which is a startup check and now runs at the composition root.
 
 ```
-├── app.rs              # Main orchestrator, startup, command dispatch
 ├── core/
 │   ├── constants.rs    # All constants (env vars, defaults) - ADD NEW CONSTANTS HERE
 │   ├── config.rs       # AppConfig loading, validation, StorageBackend enum
 │   └── cli.rs          # Clap argument parsing
-├── utils/              # PREFER THESE OVER WRITING NEW UTILITIES
-│   ├── json.rs         # compute_message_hash() for deduplication
-│   ├── string.rs       # truncate_preview(), PREVIEW_MAX_LENGTH
-│   ├── otlp.rs         # extract_attributes(), build_attributes_raw()
-│   ├── file.rs         # expand_path() for cross-platform paths
-│   └── sql.rs          # escape_like_pattern() for safe SQL
+└── utils/              # PREFER THESE OVER WRITING NEW UTILITIES
+    ├── json.rs         # compute_message_hash() for deduplication
+    ├── string.rs       # truncate_preview(), PREVIEW_MAX_LENGTH
+    ├── otlp.rs         # extract_attributes(), build_attributes_raw()
+    ├── file.rs         # expand_path() for cross-platform paths
+    └── sql.rs          # escape_like_pattern() for safe SQL
+```
+
+### Server (`server/src/`)
+
+```
+├── app.rs              # Main orchestrator, startup, command dispatch
+├── runtime/
+│   └── shutdown.rs     # Shutdown coordination (drains topics, so it is composition not config)
 ├── data/
 │   ├── duckdb/         # DuckDB analytics backend (default)
 │   ├── clickhouse/     # ClickHouse analytics backend (distributed)
@@ -418,8 +435,9 @@ no-op until the host installs a logger, so a `void` return reported the loss now
 **Rust knows nothing about concrete frameworks.** Every fact a framework writes - which carrier holds a
 conversation, which member is the answer, how a content block is shaped, what makes a span a generation, which
 attribute holds the token count, what a source name says about the role, how to label the producer - is
-declared in an embedded asset and interpreted by a generic engine in `server/src/domain/rules/`. 41 assets,
-347 rules. Adding a framework is an **asset edit**;
+declared in an embedded asset and interpreted by a generic engine in `server/src/domain/rules/`. 43 assets
+holding 382 clauses, in `server/assets/rules/{producers,conventions,vocabulary}/`. Adding a framework is a
+new file in **`producers/`**;
 adding a *primitive* is a code change, and needs a shape no existing primitive expresses.
 
 Enforced by **two** sweeps, because names alone were not enough - the defect that invalidated the first
@@ -457,7 +475,7 @@ get_first(attrs, &[keys::GEN_AI_PROVIDER_NAME, keys::GEN_AI_SYSTEM, ...])
 
 **Claude Agent SDK** is the odd one out: it emits no in-process telemetry. It spawns the Claude Code CLI, which self-instruments and is configured via `CLAUDE_CODE_*`/`OTEL_*` subprocess env vars. Spans are named `claude_code.*` and require `CLAUDE_CODE_ENHANCED_TELEMETRY_BETA=1` (tracing is beta). Never set an `OTEL_*_EXPORTER` to `console` — the CLI writes telemetry to stdout, which is the SDK's message channel.
 
-Message content needs a **second** beta tier: `ENABLE_BETA_TRACING_DETAILED=1` + `BETA_TRACING_ENDPOINT` (base URL, not `/v1/traces`). Only then are `response.model_output` (assistant text), `new_context` (user turns / tool results, tagged `[USER PROMPT]` / `[TOOL RESULT: <id>]`), `user_system_prompt` and `tool_input` emitted. `rules/claude-agent-sdk.json` declares how they map; tokens use the CLI's bare `input_tokens`/`output_tokens` names, handled by fallbacks in `attributes.rs`.
+Message content needs a **second** beta tier: `ENABLE_BETA_TRACING_DETAILED=1` + `BETA_TRACING_ENDPOINT` (base URL, not `/v1/traces`). Only then are `response.model_output` (assistant text), `new_context` (user turns / tool results, tagged `[USER PROMPT]` / `[TOOL RESULT: <id>]`), `user_system_prompt` and `tool_input` emitted. `rules/producers/claude-agent-sdk.json` declares how they map; tokens use the CLI's bare `input_tokens`/`output_tokens` names, handled by fallbacks in `attributes.rs`.
 
 ### React Query (`api/otel/keys.ts`)
 
@@ -485,7 +503,7 @@ omitPagination(params); // Remove page/limit for filter comparison
 
 **SDK runtime channel** (presence + introspection + AG-UI invoke):
 
-- `GET /api/v1/project/{project_id}/ws` (persistent WebSocket; protocol in `protocol/ws-v1/`)
+- `GET /api/v1/project/{project_id}/ws` (persistent WebSocket; protocol in `docs/engineering/protocol-ws-v1/`)
 - `GET /api/v1/project/{project_id}/registrations` (read-only snapshot)
 - `POST /api/v1/project/{project_id}/agents/{name}/runs` (AG-UI run-agent SSE; routes through WS to the SDK that owns the registration)
 
@@ -523,7 +541,7 @@ The telemetry config UI is served at `/organizations/default/configuration/telem
 
 **Database**: `./.sideseat/duckdb/sideseat.duckdb` — DuckDB is locked while the server runs. Always check raw data via API, not direct DB access.
 
-**Test data**: `uv run --directory examples/python/strands strands <sample> --sideseat`. Samples: tool_use, mcp_tools, structured_output, files, image_gen, agent_core, swarm, rag_local, reasoning, error, strands_ws (WS runtime channel: registers a Strands graph for presence + AG-UI invoke; blocks until Ctrl-C). Provider samples: `uv run --directory examples/python/openai openai-provider <sample> --sideseat` and `uv run --directory examples/python/bedrock bedrock <sample> --sideseat`. Claude Agent SDK: `uv run --directory examples/python/claude-agent-sdk claude-agent-sdk <sample> --sideseat` (samples: tool_use, mcp_tools, structured_output, reasoning, custom_tools, subagents, multi_turn, permissions, error) and `cd examples/javascript && npm run claude-agent-sdk -- <sample> --sideseat`.
+**Test data**: `uv run --locked --directory examples/python/strands strands <sample> --sideseat`. Samples: tool_use, mcp_tools, structured_output, files, image_gen, agent_core, swarm, rag_local, reasoning, error, strands_ws (WS runtime channel: registers a Strands graph for presence + AG-UI invoke; blocks until Ctrl-C). Provider samples: `uv run --locked --directory examples/python/openai openai-provider <sample> --sideseat` and `uv run --locked --directory examples/python/bedrock bedrock <sample> --sideseat`. Claude Agent SDK: `uv run --locked --directory examples/python/claude-agent-sdk claude-agent-sdk <sample> --sideseat` (samples: tool_use, mcp_tools, structured_output, reasoning, custom_tools, subagents, multi_turn, permissions, error) and `cd examples/javascript && npm run claude-agent-sdk -- <sample> --sideseat`.
 
 **Note**: samples read `examples/.env` (not committed — `cp examples/.env.example examples/.env`). Without it `OTEL_EXPORTER_OTLP_ENDPOINT` is unset and non-`--sideseat` runs fail with connection refused against the OTel default `localhost:4318` instead of SideSeat's 5388.
 
@@ -1062,6 +1080,17 @@ What is unresolved is whether the remaining gap is this host or a cumulative reg
 measurement today was taken with 15-20 other processes competing (load 8-35 all day), and the table below was
 taken on an idle machine. Settling it needs an idle host, or a bisect - and note that `c00fe46d` does not
 build in a `git worktree`, which is worth understanding before attempting one.
+
+**And for a while nothing could measure it at all**: the reorganisation moved this script from `misc/bench/`
+to `benchmarks/`, leaving `ROOT="$(dirname "$0")/../.."` pointing at the *parent of the repository*, so both
+`make bench-http` targets failed before building anything. Unnoticed because a benchmark is not part of `make
+check`. Fixed at `76d95dc9`, with `every_script_that_locates_the_repository_root_finds_it` now comparing each
+script's stated level count against its own depth in the tree. Two runs since, one contended and one after
+the load fell to 4: **two of the five ceilings are breached** - `trace export, 2 KB` at p95 10.9 ms against
+10, and `session messages, 8 concurrent` at p95 202 ms against 150. The other three pass. Both runs agree to
+within noise and the concurrent figure matches the ~35% gap above, so this is that same open question rather
+than a new one; the ceilings are left as they are, because raising a ceiling to meet a measurement is how a
+gate stops meaning anything.
 
 **DuckDB + SQLite**, release build, loopback, 200 samples (100 for the large export):
 

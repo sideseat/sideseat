@@ -26,13 +26,13 @@ use opentelemetry_proto::tonic::collector::{
 };
 
 use crate::api::extractors::is_valid_project_id;
-use crate::core::config::OtelConfig;
-use crate::core::constants::{OTLP_BODY_LIMIT, TOPIC_LOGS, TOPIC_TRACES};
-use crate::core::storage::{AppStorage, DataSubdir};
-use crate::core::{Publisher, TopicService};
 use crate::data::topics::StreamTopic;
-use crate::utils::debug::write_debug;
-use crate::utils::otlp::{
+use crate::data::topics::{Publisher, TopicService};
+use sideseat_core::core::config::OtelConfig;
+use sideseat_core::core::constants::{OTLP_BODY_LIMIT, TOPIC_LOGS, TOPIC_TRACES};
+use sideseat_core::core::storage::{AppStorage, DataSubdir};
+use sideseat_core::utils::debug::write_debug;
+use sideseat_core::utils::otlp::{
     inject_project_id_logs, inject_project_id_metrics, inject_project_id_traces,
 };
 
@@ -78,7 +78,7 @@ pub struct GrpcIngestAuth {
     /// bound on guessing has to be the same on both, or the weaker one is the only one that matters.
     pub rate_limiter: Option<Arc<crate::data::cache::RateLimiter>>,
     /// Whose forwarded-for metadata may be believed - shared with the HTTP transport.
-    pub trusted_proxies: Arc<crate::utils::client_ip::TrustedProxies>,
+    pub trusted_proxies: Arc<sideseat_core::utils::client_ip::TrustedProxies>,
 }
 
 /// What every gRPC ingest call passes through before its payload is read.
@@ -146,7 +146,7 @@ impl GrpcIngestAuth {
         //
         // The bucket name differs (`grpc_auth_fail`), so the two transports cannot exhaust each other's
         // counters: sharing one namespace let a spoofable value on either side reach a peer on the other.
-        let client_ip = crate::utils::client_ip::attributable_ip(
+        let client_ip = sideseat_core::utils::client_ip::attributable_ip(
             request.remote_addr().map(|a| a.ip()),
             request
                 .metadata()
@@ -156,7 +156,7 @@ impl GrpcIngestAuth {
         );
         if let (Some(limiter), Some(ip)) = (&self.rate_limiter, &client_ip) {
             let bucket = crate::data::cache::RateLimitBucket::grpc_auth_failures(
-                crate::core::constants::DEFAULT_RATE_LIMIT_AUTH_FAILURES_RPM,
+                sideseat_core::core::constants::DEFAULT_RATE_LIMIT_AUTH_FAILURES_RPM,
             );
             if limiter.is_blocked(&bucket, ip).await {
                 tracing::warn!(ip = %ip, "gRPC OTLP auth blocked due to too many failures");
@@ -194,7 +194,7 @@ impl GrpcIngestAuth {
             && let (Some(limiter), Some(ip)) = (&self.rate_limiter, &client_ip)
         {
             let bucket = crate::data::cache::RateLimitBucket::grpc_auth_failures(
-                crate::core::constants::DEFAULT_RATE_LIMIT_AUTH_FAILURES_RPM,
+                sideseat_core::core::constants::DEFAULT_RATE_LIMIT_AUTH_FAILURES_RPM,
             );
             let _ = limiter.check(&bucket, ip).await;
         }

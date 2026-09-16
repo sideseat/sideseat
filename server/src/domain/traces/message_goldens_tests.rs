@@ -3080,11 +3080,11 @@ fn a_barrier_orders_exactly_as_pairwise_edges_do() {
 #[tokio::test(flavor = "multi_thread")]
 #[ignore]
 async fn bench_ingestion_end_to_end() {
-    use crate::core::config::{FilesConfig, StorageBackend};
-    use crate::core::storage::AppStorage;
     use crate::data::files::FileService;
     use crate::data::{AnalyticsService, TransactionalService};
     use crate::domain::traces::TracePipeline;
+    use sideseat_core::core::config::{FilesConfig, StorageBackend};
+    use sideseat_core::core::storage::AppStorage;
     use std::sync::Arc;
 
     let want = std::env::var("BENCH").unwrap_or_else(|_| "langgraph/swarm".to_string());
@@ -3159,13 +3159,15 @@ async fn bench_ingestion_end_to_end() {
                 &storage,
                 Arc::clone(&database),
                 Arc::new(
-                    crate::data::cache::CacheService::new(&crate::core::config::CacheConfig {
-                        backend: crate::core::config::CacheBackendType::Memory,
-                        max_entries: 1000,
-                        eviction_policy: crate::core::config::EvictionPolicy::TinyLfu,
-                        redis_url: None,
-                        redis_min_replica_acks: 0,
-                    })
+                    crate::data::cache::CacheService::new(
+                        &sideseat_core::core::config::CacheConfig {
+                            backend: sideseat_core::core::config::CacheBackendType::Memory,
+                            max_entries: 1000,
+                            eviction_policy: sideseat_core::core::config::EvictionPolicy::TinyLfu,
+                            redis_url: None,
+                            redis_min_replica_acks: 0,
+                        },
+                    )
                     .await
                     .expect("memory cache"),
                 ),
@@ -3176,7 +3178,7 @@ async fn bench_ingestion_end_to_end() {
         let pipeline = TracePipeline::new(
             Arc::clone(&analytics),
             Arc::new(PricingService::init_for_test().expect("offline pricing service")),
-            Arc::new(crate::core::TopicService::default()),
+            Arc::new(crate::data::topics::TopicService::default()),
             files,
         );
 
@@ -3789,7 +3791,7 @@ fn clause_paths(emission: &crate::domain::rules::message_rules::Emission<'_>) ->
 fn rules_that_emit() -> BTreeSet<String> {
     use crate::domain::rules::MessageContext;
     use crate::domain::rules::message_rules::OwnedCarrier;
-    use crate::utils::otlp::extract_attributes;
+    use sideseat_core::utils::otlp::extract_attributes;
 
     let plan = &crate::domain::rules::ruleset().messages;
     let mut fired = BTreeSet::new();
@@ -4103,7 +4105,7 @@ fn the_declared_classification_matches_the_sweep_across_the_corpus() {
     use crate::domain::traces::extract::attributes::{
         categorize_span_legacy, detect_observation_type_legacy,
     };
-    use crate::utils::otlp::extract_attributes;
+    use sideseat_core::utils::otlp::extract_attributes;
 
     let plan = &crate::domain::rules::ruleset().observation_types;
     let mut seen: BTreeMap<String, usize> = BTreeMap::new();
@@ -4478,7 +4480,7 @@ fn no_declared_subdivision_is_dead_across_the_corpus() {
 #[test]
 fn a_persisted_tool_set_reports_what_its_provenance_would_have_said() {
     use crate::domain::rules::MessageContext;
-    use crate::utils::otlp::extract_attributes;
+    use sideseat_core::utils::otlp::extract_attributes;
     use std::collections::{BTreeMap, BTreeSet};
 
     let plan = &crate::domain::rules::ruleset().messages;
@@ -4668,7 +4670,7 @@ fn contradiction_among(forms: &std::collections::BTreeSet<String>) -> Option<Str
 #[cfg(test)]
 fn surviving_definitions(sample: &str, tool: &str) -> usize {
     use crate::domain::rules::MessageContext;
-    use crate::utils::otlp::extract_attributes;
+    use sideseat_core::utils::otlp::extract_attributes;
 
     let mut declared: Vec<serde_json::Value> = Vec::new();
     for (found, paths) in discover_fixtures() {
@@ -4724,7 +4726,7 @@ fn surviving_definitions(sample: &str, tool: &str) -> usize {
 /// intersection, and the pairs that matter are the ones a real producer writes.
 #[test]
 fn no_span_is_classified_as_two_incompatible_things() {
-    use crate::utils::otlp::extract_attributes;
+    use sideseat_core::utils::otlp::extract_attributes;
     use std::collections::BTreeMap;
     // The six observation types that name the same operation a category names. `span`, `guardrail` and
     // `evaluator` leave the category free - a transport call is a plain observation with an HTTP category, and

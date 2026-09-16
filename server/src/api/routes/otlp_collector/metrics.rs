@@ -11,8 +11,8 @@ use opentelemetry_proto::tonic::collector::metrics::v1::{
 use super::encoding::{OtlpContentType, decode_request, success_response};
 use super::{OtlpState, inject_project_id_metrics};
 use crate::api::extractors::is_valid_project_id;
-use crate::core::constants::BACKPRESSURE_RETRY_AFTER_SECS;
-use crate::utils::debug::write_debug;
+use sideseat_core::core::constants::BACKPRESSURE_RETRY_AFTER_SECS;
+use sideseat_core::utils::debug::write_debug;
 
 pub async fn export(
     State(state): State<OtlpState>,

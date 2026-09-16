@@ -6,7 +6,9 @@ use std::sync::Arc;
 
 use crate::data::AnalyticsService;
 use crate::data::types::NormalizedMetric;
-use crate::utils::retry::{DEFAULT_BASE_DELAY_MS, DEFAULT_MAX_ATTEMPTS, retry_with_backoff_async};
+use sideseat_core::utils::retry::{
+    DEFAULT_BASE_DELAY_MS, DEFAULT_MAX_ATTEMPTS, retry_with_backoff_async,
+};
 
 /// Persist metrics batch to analytics backend with exponential backoff retry.
 ///

@@ -202,13 +202,22 @@ let port = cli.port
 
 ## Directory Structure
 
+The layers are **separate crates**, so a forbidden dependency does not compile: `crates/core` names no driver
+and nothing of SideSeat's own, which is what makes the direction a fact rather than a convention.
+
 ```
-server/src/
-├── app.rs              # Main orchestrator
+crates/core/src/
 ├── core/
 │   ├── config.rs       # Configuration loading
 │   ├── cli.rs          # CLI argument parsing
 │   └── constants.rs    # All constants
+```
+
+```
+server/src/
+├── app.rs              # Main orchestrator
+├── runtime/
+│   └── shutdown.rs     # Shutdown coordination
 ├── data/
 │   ├── duckdb/         # DuckDB implementation
 │   ├── clickhouse/     # ClickHouse implementation
@@ -224,7 +233,6 @@ server/src/
 │   ├── metrics/        # Metric datapoint identity
 │   ├── sideml/         # Message normalization
 │   └── traces/         # Trace extraction/enrichment
-├── utils/              # Shared helpers
 └── api/
     └── routes/         # HTTP handlers
 ```

@@ -30,7 +30,7 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use super::CacheService;
 use super::key::CacheKey;
-use crate::core::constants::DEFAULT_RATE_LIMIT_WINDOW_SECS;
+use sideseat_core::core::constants::DEFAULT_RATE_LIMIT_WINDOW_SECS;
 
 /// Rate limit bucket configuration
 #[derive(Debug, Clone)]
@@ -235,7 +235,7 @@ impl RateLimiter {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::core::config::{CacheBackendType, CacheConfig, EvictionPolicy};
+    use sideseat_core::core::config::{CacheBackendType, CacheConfig, EvictionPolicy};
 
     async fn test_cache() -> Arc<CacheService> {
         let config = CacheConfig {

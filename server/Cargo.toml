@@ -14,6 +14,9 @@ path = "src/main.rs"
 workspace = true
 
 [dependencies]
+# The innermost layer, and the first compiler-enforced boundary: its manifest names no driver and
+# nothing of SideSeat's own, so a violation does not compile rather than being caught by review.
+sideseat-core = { path = "../crates/core" }
 axum = { workspace = true }
 tokio = { workspace = true }
 tower = { workspace = true }

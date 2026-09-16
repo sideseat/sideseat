@@ -12,12 +12,12 @@ use axum::{Json, Router};
 use crate::api::auth::{Auth, AuthContext, AuthService, ProjectFull, ProjectRead, ProjectWrite};
 use crate::api::extractors::{ValidatedJson, ValidatedQuery};
 use crate::api::types::{ApiError, PaginatedResponse};
-use crate::core::constants::{DEFAULT_PROJECT_ID, ORG_ROLE_ADMIN, ORG_ROLE_MEMBER};
 use crate::data::cache::CacheService;
 use crate::data::cleanup::cleanup_project;
 use crate::data::files::FileService;
 use crate::data::types::ApiKeyScope;
 use crate::data::{AnalyticsService, TransactionalService};
+use sideseat_core::core::constants::{DEFAULT_PROJECT_ID, ORG_ROLE_ADMIN, ORG_ROLE_MEMBER};
 
 use types::{CreateProjectRequest, ListProjectsQuery, ProjectDto, UpdateProjectRequest};
 

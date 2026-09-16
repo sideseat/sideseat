@@ -17,12 +17,12 @@ use opentelemetry_proto::tonic::collector::{
     logs::v1::ExportLogsServiceRequest, trace::v1::ExportTraceServiceRequest,
 };
 
-use crate::core::constants::{TOPIC_LOGS, TOPIC_TRACES};
-use crate::core::{Publisher, TopicService};
 use crate::data::TransactionalService;
 use crate::data::cache::CacheService;
 use crate::data::topics::StreamTopic;
-pub use crate::utils::otlp::{
+use crate::data::topics::{Publisher, TopicService};
+use sideseat_core::core::constants::{TOPIC_LOGS, TOPIC_TRACES};
+pub use sideseat_core::utils::otlp::{
     inject_project_id_logs, inject_project_id_metrics, inject_project_id_traces,
 };
 

@@ -15,8 +15,8 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Value as JsonValue, json};
 
 use crate::data::types::ObservationType;
-use crate::utils::otlp::extract_attributes;
-use crate::utils::time::nanos_to_datetime;
+use sideseat_core::utils::otlp::extract_attributes;
+use sideseat_core::utils::time::nanos_to_datetime;
 
 #[cfg(test)]
 use super::extract_json;

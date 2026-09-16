@@ -44,8 +44,6 @@ use std::sync::Arc;
 
 use chrono::{DateTime, Datelike, TimeZone, Utc};
 
-use crate::core::config::ClickhouseConfig;
-use crate::core::storage::AppStorage;
 use crate::data::clickhouse::ClickhouseService;
 use crate::data::duckdb::DuckdbService;
 use crate::data::duckdb::filters::{DatetimeOp, Filter, NullOp, NumberOp, OptionsOp, StringOp};
@@ -55,6 +53,8 @@ use crate::data::types::{
     MessageQueryParams, MessageSpanRow, MetricType, NormalizedMetric, NormalizedSpan,
     ObservationType, SessionRow, SpanCategory, SpanRow, TraceRow,
 };
+use sideseat_core::core::config::ClickhouseConfig;
+use sideseat_core::core::storage::AppStorage;
 
 /// Env var holding the base URL of a ClickHouse HTTP endpoint, e.g. `http://127.0.0.1:8123`.
 const URL_ENV: &str = "SIDESEAT_TEST_CLICKHOUSE_URL";

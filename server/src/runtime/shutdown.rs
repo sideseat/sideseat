@@ -6,9 +6,9 @@ use std::time::Duration;
 use tokio::sync::{Mutex, watch};
 use tokio::task::JoinHandle;
 
-use super::constants::SHUTDOWN_TIMEOUT_SECS;
 use crate::data::topics::TopicService;
 use crate::data::{AnalyticsService, TransactionalService};
+use sideseat_core::core::constants::SHUTDOWN_TIMEOUT_SECS;
 
 /// Centralized shutdown service for coordinating graceful shutdown
 #[derive(Clone)]
@@ -163,10 +163,10 @@ impl ShutdownService {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::core::storage::AppStorage;
+    use sideseat_core::core::storage::AppStorage;
 
     async fn make_shutdown() -> ShutdownService {
-        use crate::core::config::{AnalyticsBackend, TransactionalBackend};
+        use sideseat_core::core::config::{AnalyticsBackend, TransactionalBackend};
 
         let temp_dir = tempfile::tempdir().unwrap();
         let data_dir = temp_dir.keep();

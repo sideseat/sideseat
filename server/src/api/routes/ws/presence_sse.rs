@@ -19,8 +19,8 @@ use futures::stream::Stream;
 
 use crate::api::extractors::is_valid_project_id;
 use crate::api::types::ApiError;
-use crate::core::TopicError;
 use crate::data::registrations::{PresenceEvent, RegistrationKind};
+use crate::data::topics::TopicError;
 
 use super::listing::{ListingResponse, ProjectPath};
 use super::presence::presence_topic_name;

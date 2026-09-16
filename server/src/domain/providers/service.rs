@@ -11,12 +11,14 @@ use std::time::Duration;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-use crate::core::constants::{CACHE_TTL_CRED_LIST, CACHE_TTL_CRED_SECRET, CRED_SECRET_PREFIX};
 use crate::data::TransactionalService;
 use crate::data::cache::{CacheKey, CacheService};
 use crate::data::error::DataError;
 use crate::data::secrets::{Secret, SecretKey, SecretManager, SecretScope};
 use crate::data::types::{CredentialPermissionRow, CredentialRow};
+use sideseat_core::core::constants::{
+    CACHE_TTL_CRED_LIST, CACHE_TTL_CRED_SECRET, CRED_SECRET_PREFIX,
+};
 
 use super::catalog::{ENV_MAPPINGS, is_known_provider};
 

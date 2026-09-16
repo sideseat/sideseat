@@ -46,15 +46,15 @@ use super::persist::{
     persist_extracted_files, prepare_batch, publish_sse_events, reconcile_incoming_references,
     write_to_duckdb,
 };
-use crate::core::TopicService;
-use crate::core::constants::DEFAULT_PROJECT_ID;
 use crate::data::AnalyticsService;
 use crate::data::files::FileService;
+use crate::data::topics::TopicService;
 use crate::data::topics::{StreamTopic, TopicError};
 use crate::data::types::NormalizedSpan;
 use crate::domain::pricing::PricingService;
 use crate::domain::sideml::to_sideml_batch;
-use crate::utils::time::is_storable;
+use sideseat_core::core::constants::DEFAULT_PROJECT_ID;
+use sideseat_core::utils::time::is_storable;
 
 /// Consumer group name for trace pipeline
 const CONSUMER_GROUP: &str = "trace_pipeline";
@@ -2125,9 +2125,11 @@ pub fn strip_unstorable_spans(request: &mut ExportTraceServiceRequest) -> usize 
         for scope in &mut resource.scope_spans {
             let before = scope.spans.len();
             scope.spans.retain(|span| {
-                let start = crate::utils::time::nanos_to_datetime(span.start_time_unix_nano);
-                let end = (span.end_time_unix_nano > 0)
-                    .then(|| crate::utils::time::nanos_to_datetime(span.end_time_unix_nano));
+                let start =
+                    sideseat_core::utils::time::nanos_to_datetime(span.start_time_unix_nano);
+                let end = (span.end_time_unix_nano > 0).then(|| {
+                    sideseat_core::utils::time::nanos_to_datetime(span.end_time_unix_nano)
+                });
                 is_storable(start) && end.is_none_or(is_storable)
             });
             removed += before - scope.spans.len();
@@ -2296,13 +2298,13 @@ mod session_fence_tests {
     /// A pipeline over a temporary DuckDB, with files off - enough to ask the store a question.
     async fn pipeline_over_a_temp_store()
     -> (tempfile::TempDir, Arc<AnalyticsService>, TracePipeline) {
-        use crate::core::config::{
-            CacheBackendType, CacheConfig, EvictionPolicy, FilesConfig, StorageBackend,
-        };
-        use crate::core::storage::AppStorage;
         use crate::data::TransactionalService;
         use crate::data::files::FileService;
         use crate::domain::pricing::PricingService;
+        use sideseat_core::core::config::{
+            CacheBackendType, CacheConfig, EvictionPolicy, FilesConfig, StorageBackend,
+        };
+        use sideseat_core::core::storage::AppStorage;
 
         let temp = tempfile::TempDir::new().expect("temp dir");
         let storage = AppStorage::init_for_test(temp.path().to_path_buf());
@@ -2355,7 +2357,7 @@ mod session_fence_tests {
         let pipeline = TracePipeline::new(
             Arc::clone(&analytics),
             Arc::new(PricingService::init_for_test().expect("offline pricing")),
-            Arc::new(crate::core::TopicService::default()),
+            Arc::new(crate::data::topics::TopicService::default()),
             files,
         );
         (temp, analytics, pipeline)

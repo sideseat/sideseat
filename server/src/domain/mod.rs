@@ -17,7 +17,7 @@ pub use metrics::Stored as MetricsStored;
 pub use metrics::ingest as ingest_metrics;
 pub use traces::{MessageSource, RawMessage, SseSpanEvent, TracePipeline};
 
-use crate::core::TopicMessage;
+use crate::data::topics::TopicMessage;
 use opentelemetry_proto::tonic::collector::{
     logs::v1::ExportLogsServiceRequest, metrics::v1::ExportMetricsServiceRequest,
     trace::v1::ExportTraceServiceRequest,

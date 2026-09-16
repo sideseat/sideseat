@@ -7,7 +7,7 @@ use sqlx::SqlitePool;
 
 use super::error::SqliteError;
 use super::schema::{SCHEMA, SCHEMA_VERSION};
-use crate::utils::crypto::sha256_hex;
+use sideseat_core::utils::crypto::sha256_hex;
 
 /// Run all pending migrations
 pub async fn run_migrations(pool: &SqlitePool) -> Result<(), SqliteError> {

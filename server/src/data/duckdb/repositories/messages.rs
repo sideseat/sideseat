@@ -15,7 +15,7 @@ use crate::data::types::{
     FeedMessagesParams, MESSAGE_CONTENT_FILTER, MessageQueryParams, MessageQueryResult,
     MessageSpanRow,
 };
-use crate::utils::time::micros_to_datetime;
+use sideseat_core::utils::time::micros_to_datetime;
 
 /// Shared SELECT columns for all message queries.
 /// Column order must match `parse_span_row()` field extraction.
@@ -312,10 +312,10 @@ fn parse_span_row(row: &duckdb::Row) -> Result<MessageSpanRow, duckdb::Error> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::core::storage::AppStorage;
     use crate::data::duckdb::repositories::span::insert_batch;
     use crate::data::duckdb::{DuckdbService, NormalizedSpan};
     use chrono::{Duration, Utc};
+    use sideseat_core::core::storage::AppStorage;
     use tempfile::TempDir;
 
     async fn create_test_service() -> (TempDir, DuckdbService) {

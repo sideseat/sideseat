@@ -19,7 +19,7 @@ use tokio::sync::watch;
 use tokio::task::JoinHandle;
 use utoipa::ToSchema;
 
-use crate::core::storage::AppStorage;
+use sideseat_core::core::storage::AppStorage;
 
 // ============================================================================
 // CONSTANTS

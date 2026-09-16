@@ -25,7 +25,7 @@
 use crate::data::duckdb::filters::{
     BooleanOp, DatetimeOp, Filter, NullOp, NumberOp, OptionsOp, StringOp,
 };
-use crate::utils::sql::{escape_like_pattern, is_plain_identifier};
+use sideseat_core::utils::sql::{escape_like_pattern, is_plain_identifier};
 
 use super::repositories::query::QueryParam;
 

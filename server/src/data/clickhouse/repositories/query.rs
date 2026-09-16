@@ -772,14 +772,14 @@ impl ConditionBuilder {
     }
 }
 
-use crate::core::constants::{QUERY_MAX_FILTER_SUGGESTIONS, QUERY_MAX_SPANS_PER_TRACE};
 use crate::data::clickhouse::ClickhouseError;
 use crate::data::types::{
     EventRow, FeedSpansParams, LinkRow, ListSessionsParams, ListSpansParams, ListTracesParams,
     SESSION_FILTER_OPTION_COLUMNS, SPAN_FILTER_OPTION_COLUMNS, SessionRow, SpanRow,
     TRACE_FILTER_OPTION_COLUMNS, TraceRow, parse_finish_reasons, parse_tags,
 };
-use crate::utils::time::parse_iso_timestamp;
+use sideseat_core::core::constants::{QUERY_MAX_FILTER_SUGGESTIONS, QUERY_MAX_SPANS_PER_TRACE};
+use sideseat_core::utils::time::parse_iso_timestamp;
 
 /// ClickHouse row for trace queries
 #[derive(Row, Deserialize)]

@@ -8,7 +8,7 @@
 /// # Example
 ///
 /// ```
-/// use sideseat_server::utils::sql::escape_like_pattern;
+/// use sideseat_core::utils::sql::escape_like_pattern;
 ///
 /// let user_input = "100% match_test";
 /// let pattern = format!("%{}%", escape_like_pattern(user_input));
@@ -32,7 +32,7 @@ pub fn escape_like_pattern(s: &str) -> String {
 /// # Example
 ///
 /// ```
-/// use sideseat_server::utils::sql::is_plain_identifier;
+/// use sideseat_core::utils::sql::is_plain_identifier;
 ///
 /// assert!(is_plain_identifier("gen_ai_usage_total_tokens"));
 /// assert!(!is_plain_identifier("id; DROP TABLE otel_spans"));

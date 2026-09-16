@@ -1,6 +1,6 @@
 //! Type-safe cache key builder with versioning
 
-use crate::core::constants::CACHE_KEY_VERSION;
+use sideseat_core::core::constants::CACHE_KEY_VERSION;
 
 /// Type-safe cache key builder
 ///

@@ -14,11 +14,13 @@ use axum::middleware::Next;
 use axum::response::{IntoResponse, Response};
 use serde_json::json;
 
-use crate::core::constants::{API_KEY_TOUCH_DEBOUNCE_SECS, DEFAULT_RATE_LIMIT_AUTH_FAILURES_RPM};
 use crate::data::TransactionalService;
 use crate::data::cache::{CacheService, RateLimitBucket, RateLimiter};
 use crate::data::types::{ApiKeyScope, ApiKeyValidation};
-use crate::utils::api_key::{extract_key_from_header, hash_api_key, is_valid_api_key};
+use sideseat_core::core::constants::{
+    API_KEY_TOUCH_DEBOUNCE_SECS, DEFAULT_RATE_LIMIT_AUTH_FAILURES_RPM,
+};
+use sideseat_core::utils::api_key::{extract_key_from_header, hash_api_key, is_valid_api_key};
 
 /// API key authentication error
 #[derive(Debug)]
@@ -199,7 +201,7 @@ pub struct OtelAuthState {
     pub otel_auth_required: bool,
     pub rate_limiter: Option<Arc<RateLimiter>>,
     /// Whose forwarded-for header may be believed - see `utils::client_ip`.
-    pub trusted_proxies: Arc<crate::utils::client_ip::TrustedProxies>,
+    pub trusted_proxies: Arc<sideseat_core::utils::client_ip::TrustedProxies>,
 }
 
 /// OTEL ingestion auth middleware
@@ -272,16 +274,16 @@ pub async fn otel_auth_middleware(
 
 /// Extract the client IP to attribute an auth failure to.
 ///
-/// Delegates to [`crate::utils::client_ip::attributable_ip`], which is shared with the gRPC transport - the
+/// Delegates to [`sideseat_core::utils::client_ip::attributable_ip`], which is shared with the gRPC transport - the
 /// two must agree, or the weaker one is the only one that matters. It believes `X-Forwarded-For` only when the
 /// immediate peer is a configured trusted proxy; with none configured (the default) the peer is used. See that
 /// module for why unconditional trust and peer-only attribution are both wrong.
 fn get_client_ip(
     request: &Request,
     addr: SocketAddr,
-    trusted: &crate::utils::client_ip::TrustedProxies,
+    trusted: &sideseat_core::utils::client_ip::TrustedProxies,
 ) -> Option<String> {
-    crate::utils::client_ip::attributable_ip(
+    sideseat_core::utils::client_ip::attributable_ip(
         Some(addr.ip()),
         request
             .headers()
@@ -383,8 +385,8 @@ mod tests {
         ));
     }
 
-    fn trusted(entries: &[&str]) -> crate::utils::client_ip::TrustedProxies {
-        crate::utils::client_ip::TrustedProxies::parse(
+    fn trusted(entries: &[&str]) -> sideseat_core::utils::client_ip::TrustedProxies {
+        sideseat_core::utils::client_ip::TrustedProxies::parse(
             &entries.iter().map(|s| s.to_string()).collect::<Vec<_>>(),
         )
         .expect("test entries are valid")

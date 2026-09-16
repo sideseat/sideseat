@@ -1737,14 +1737,6 @@ impl AppConfig {
             self.auth.enabled || self.otel.auth_required,
         )?;
 
-        // Compile the framework rule assets now, so a malformed one fails at startup.
-        //
-        // The compile is a `OnceLock` that was previously filled by whichever request reached it first -
-        // which for a build defect means an operator sees a panic mid-traffic, on an arbitrary endpoint,
-        // rather than a refusal to start. Touching it here moves that to boot, where every other
-        // structural check already lives. Cheap: it is the same work the first request would have done.
-        let _ = crate::domain::rules::ruleset();
-
         // ClickHouse URL required when using ClickHouse backend
         if self.database.analytics == AnalyticsBackend::Clickhouse {
             if let Some(ref ch) = self.database.clickhouse {
@@ -1807,7 +1799,7 @@ fn get_profile_config_path() -> Option<PathBuf> {
 }
 
 /// Check if host binds to all network interfaces
-pub(crate) fn is_all_interfaces(host: &str) -> bool {
+pub fn is_all_interfaces(host: &str) -> bool {
     matches!(host, "0.0.0.0" | "::" | "[::]")
 }
 
@@ -2015,7 +2007,7 @@ mod config_surface_tests {
     #[test]
     fn every_file_config_field_is_merged_and_in_the_schema() {
         const SOURCE: &str = include_str!("config.rs");
-        const SCHEMA: &str = include_str!("../../../config/sideseat.schema.json");
+        const SCHEMA: &str = include_str!("../../../../config/sideseat.schema.json");
 
         /// The field names a `pub struct <name> {` block declares.
         fn fields_of(source: &str, struct_name: &str) -> Vec<String> {

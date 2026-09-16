@@ -9,8 +9,8 @@ use chrono::{TimeDelta, Utc};
 use duckdb::Connection;
 
 use super::{DuckdbError, in_transaction};
-use crate::core::config::RetentionConfig;
 use crate::data::duckdb::repositories::query::DEDUP_SPANS;
+use sideseat_core::core::config::RetentionConfig;
 
 /// Records that a batch's traces will need file and favourite cleanup, before their spans are deleted.
 ///
@@ -629,9 +629,9 @@ fn delete_metrics_before(conn: &Connection, cutoff: &str, limit: i64) -> Result<
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::core::storage::AppStorage;
     use crate::data::duckdb::DuckdbService;
     use chrono::Utc;
+    use sideseat_core::core::storage::AppStorage;
     use tempfile::TempDir;
 
     /// A recorder that records nothing, for the tests that are about deletion rather than about the intent.

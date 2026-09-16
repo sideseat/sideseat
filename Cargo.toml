@@ -1,5 +1,5 @@
 [workspace]
-members = ["server", "sdk/rust"]
+members = ["crates/core", "server", "sdk/rust"]
 resolver = "2"
 
 # The minimum Rust, **declared** so cargo refuses an older toolchain with a message naming the version,

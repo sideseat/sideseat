@@ -130,11 +130,14 @@ pub struct UpdateCredentialRequest {
     /// New endpoint URL. Absent = no change; null = clear
     #[serde(
         default,
-        deserialize_with = "crate::utils::serde::double_option_string"
+        deserialize_with = "sideseat_core::utils::serde::double_option_string"
     )]
     pub endpoint_url: Option<Option<String>>,
     /// New extra config. Absent = no change; null = clear
-    #[serde(default, deserialize_with = "crate::utils::serde::double_option_value")]
+    #[serde(
+        default,
+        deserialize_with = "sideseat_core::utils::serde::double_option_value"
+    )]
     pub extra_config: Option<Option<serde_json::Value>>,
 }
 

@@ -21,7 +21,7 @@ use crate::api::extractors::ValidatedJson;
 use crate::api::types::ApiError;
 use crate::data::TransactionalService;
 use crate::data::cache::CacheService;
-use crate::utils::api_key::{generate_api_key, hash_api_key, key_prefix};
+use sideseat_core::utils::api_key::{generate_api_key, hash_api_key, key_prefix};
 
 use types::{ApiKeyDto, CreateApiKeyRequest, CreateApiKeyResponse};
 
