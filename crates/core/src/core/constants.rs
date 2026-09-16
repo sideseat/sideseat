@@ -820,3 +820,28 @@ pub const FOOTPRINT_SESSION_READ_TURNS: usize = 10_000;
 /// The denominator is **decoded protobuf bytes**, not wire bytes: HTTP accepts gzip and the queue carries an
 /// uncompressed encoding, so a wire-relative bound is unachievable for a valid repetitive request.
 pub const FOOTPRINT_QUEUED_SPAN_MAX_RATIO: f64 = 3.0;
+
+// ---------------------------------------------------------------------------
+// In-process queue admission
+//
+// The bound is on *bytes*, not on entry count, and it refuses rather than
+// trims. `PIPELINE_BATCH_MAX_SIZE` is a drain limit, so budgeting it bounds
+// nothing that matters; what has to be bounded is what the queue holds.
+// ---------------------------------------------------------------------------
+
+/// Bytes one in-process stream topic may hold in unconsumed entries.
+///
+/// Sized against the 400 MB steady-ingest ceiling rather than picked: the queue is one contributor to that
+/// figure, alongside the decode, the write path and DuckDB's own buffers, so it gets a fraction of it. An
+/// exporter that outruns the consumer by more than this is told 503 with `Retry-After` and keeps its data,
+/// which is what an OTLP exporter is built to do.
+pub const STREAM_MAX_RETAINED_BYTES: u64 = 128 * 1024 * 1024;
+
+/// Charged per entry on top of its payload, so one budget bounds the memory rather than only the payloads.
+///
+/// A queue of a hundred million one-byte entries costs far more than a hundred megabytes: each occupies a
+/// `VecDeque` slot, a heap allocation for its payload, and a pending-map entry per consumer group. A pure
+/// payload budget would admit that and the process would die inside a bound it was passing. Deliberately
+/// generous, because the failure of underestimating it is an out-of-memory kill and the failure of
+/// overestimating it is refusing slightly early.
+pub const STREAM_ENTRY_OVERHEAD_BYTES: u64 = 256;

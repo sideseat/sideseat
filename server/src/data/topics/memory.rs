@@ -27,12 +27,10 @@ use super::backend::{
     BroadcastSubscription, StreamMessage, StreamStats, StreamSubscription, TopicBackend,
 };
 use crate::data::topics::TopicError;
+use sideseat_core::core::constants::{STREAM_ENTRY_OVERHEAD_BYTES, STREAM_MAX_RETAINED_BYTES};
 
 /// Default broadcast channel capacity
 const DEFAULT_BROADCAST_CAPACITY: usize = 10_000;
-
-/// Default stream max length (approximate, trimmed on publish)
-const DEFAULT_STREAM_MAX_LEN: usize = 100_000;
 
 /// Message stored in memory stream
 #[derive(Clone)]
@@ -42,13 +40,47 @@ struct StreamEntry {
     timestamp: Instant,
 }
 
+impl StreamEntry {
+    /// What this entry costs against the budget: its payload plus the fixed per-entry overhead.
+    ///
+    /// One figure rather than two bounds, so a queue full of tiny entries is refused for the memory it
+    /// actually occupies rather than admitted for the payload bytes it barely uses.
+    fn budget_cost(payload_len: usize) -> u64 {
+        payload_len as u64 + STREAM_ENTRY_OVERHEAD_BYTES
+    }
+}
+
 /// Consumer group state for a stream
 #[derive(Clone, Default)]
 struct ConsumerGroup {
-    /// Last delivered ID for each consumer
-    last_delivered: HashMap<String, u64>,
+    /// The highest id this **group** has handed to any of its consumers.
+    ///
+    /// One cursor for the group, which is what a consumer group is - and what Redis's own
+    /// `last-delivered-id` is. It used to be a cursor *per consumer*, and that had two consequences. It made
+    /// "consumed" undefined, so nothing could decide which entries were safe to drop: a lagging consumer's
+    /// cursor said entries were still owed while the group had already handed them out and been acknowledged
+    /// for them. And it **delivered the same entry twice**: consumer A took entry 51 and acknowledged it,
+    /// which removed the pending record, so consumer B - whose own cursor was still at 50 - found 51
+    /// undelivered and processed it again. Ingestion is idempotent by span id, so that was bounded work rather
+    /// than corruption, but it is not what a consumer group means.
+    last_delivered_id: u64,
+    /// Consumers seen in this group, and when each last took an entry. Kept for `StreamStats::consumers`.
+    consumers: HashMap<String, Instant>,
     /// Pending messages: message_id -> (consumer, delivery_time)
     pending: HashMap<u64, (String, Instant)>,
+}
+
+impl ConsumerGroup {
+    /// The oldest id this group still needs: its oldest pending entry, else one past what it has been handed.
+    ///
+    /// Everything below this has been delivered *and* acknowledged, which is the only definition of consumed
+    /// that makes an entry safe to drop.
+    fn oldest_needed(&self) -> u64 {
+        match self.pending.keys().min() {
+            Some(oldest_pending) => *oldest_pending,
+            None => self.last_delivered_id.saturating_add(1),
+        }
+    }
 }
 
 /// Stream state
@@ -60,17 +92,24 @@ struct StreamState {
     groups: HashMap<String, ConsumerGroup>,
     /// Next message ID
     next_id: u64,
-    /// Maximum stream length
-    max_len: usize,
+    /// Bytes the entries above cost against `max_bytes`, maintained incrementally.
+    ///
+    /// Kept rather than summed on demand because `stream_publish` consults it on every call and the deque can
+    /// hold six figures of entries; `retained_bytes_are_the_sum_of_the_entries` is what keeps the increment
+    /// honest, since a counter maintained in two places is a counter that drifts.
+    retained_bytes: u64,
+    /// Budget for unconsumed entries. See [`STREAM_MAX_RETAINED_BYTES`].
+    max_bytes: u64,
 }
 
-impl Default for StreamState {
-    fn default() -> Self {
+impl StreamState {
+    fn with_budget(max_bytes: u64) -> Self {
         Self {
             messages: VecDeque::new(),
             groups: HashMap::new(),
             next_id: 1,
-            max_len: DEFAULT_STREAM_MAX_LEN,
+            retained_bytes: 0,
+            max_bytes,
         }
     }
 }
@@ -85,6 +124,8 @@ struct SharedState {
     stream_notifiers: RwLock<HashMap<String, Arc<Notify>>>,
     /// Channel capacity for new broadcast topics
     broadcast_capacity: usize,
+    /// Byte budget applied to each stream topic created from now on. See [`STREAM_MAX_RETAINED_BYTES`].
+    stream_max_bytes: u64,
 }
 
 /// In-memory topic backend
@@ -115,6 +156,26 @@ impl MemoryTopicBackend {
                 streams: RwLock::new(HashMap::new()),
                 stream_notifiers: RwLock::new(HashMap::new()),
                 broadcast_capacity: DEFAULT_BROADCAST_CAPACITY,
+                stream_max_bytes: STREAM_MAX_RETAINED_BYTES,
+            }),
+        }
+    }
+
+    /// Create with a smaller stream byte budget, so a test can fill the queue without allocating 128 MB.
+    ///
+    /// A test that has to publish the real budget to reach refusal is a test nobody runs, and a refusal path
+    /// nobody runs is a refusal path that does not work. `#[cfg(test)]` rather than `#[allow(dead_code)]`
+    /// because it is not a production knob: the budget is a constant, and an operator who needs to change it
+    /// needs a configuration key rather than a constructor.
+    #[cfg(test)]
+    pub fn with_stream_budget(stream_max_bytes: u64) -> Self {
+        Self {
+            state: Arc::new(SharedState {
+                broadcast_channels: RwLock::new(HashMap::new()),
+                streams: RwLock::new(HashMap::new()),
+                stream_notifiers: RwLock::new(HashMap::new()),
+                broadcast_capacity: DEFAULT_BROADCAST_CAPACITY,
+                stream_max_bytes,
             }),
         }
     }
@@ -128,6 +189,7 @@ impl MemoryTopicBackend {
                 streams: RwLock::new(HashMap::new()),
                 stream_notifiers: RwLock::new(HashMap::new()),
                 broadcast_capacity: capacity,
+                stream_max_bytes: STREAM_MAX_RETAINED_BYTES,
             }),
         }
     }
@@ -151,16 +213,45 @@ impl MemoryTopicBackend {
         sender
     }
 
-    /// Trim stream to max length (approximately)
-    fn trim_stream(stream: &mut StreamState) {
-        while stream.messages.len() > stream.max_len {
-            if let Some(entry) = stream.messages.pop_front() {
-                // Clean up pending entries for this message
-                for group in stream.groups.values_mut() {
-                    group.pending.remove(&entry.id);
-                }
-            }
+    /// Drop the entries no consumer group still needs, and return how many went.
+    ///
+    /// **This is the only way an entry leaves the stream**, and that is the whole point. What used to be here
+    /// trimmed by *length*: it popped the front until the deque was under a count bound and removed the
+    /// popped entry's pending record from every group - so a message that had been delivered and not yet
+    /// acknowledged was deleted, and the group's own record that it owed work went with it. Every one of those
+    /// entries had already been answered 200. That is the `MAXLEN` defect this repository removed from the
+    /// Redis backend, and it was still live here: a queue that discards accepted work is worse than no queue,
+    /// because the loss is silent and the exporter has already moved on.
+    ///
+    /// The boundary is the oldest entry any group still needs - its oldest pending entry if it has one, else
+    /// one past its last delivered id - which is exactly `stream_trim_consumed`'s rule on the Redis side. A
+    /// stream with **no** consumer group is never trimmed: nobody has read it, so everything is still needed.
+    fn trim_consumed(stream: &mut StreamState) -> u64 {
+        if stream.groups.is_empty() {
+            return 0;
         }
+
+        // The lowest id any group is still owed. `min` across groups, because one lagging group holds the
+        // boundary for all of them - trimming to a faster group's position would delete what the slow one has
+        // not read.
+        let boundary = stream
+            .groups
+            .values()
+            .map(ConsumerGroup::oldest_needed)
+            .min()
+            .unwrap_or(0);
+
+        let mut removed = 0u64;
+        while let Some(entry) = stream.messages.front() {
+            if entry.id >= boundary {
+                break;
+            }
+            let cost = StreamEntry::budget_cost(entry.payload.len());
+            stream.retained_bytes = stream.retained_bytes.saturating_sub(cost);
+            stream.messages.pop_front();
+            removed += 1;
+        }
+        removed
     }
 
     /// Get or create a Notify for a stream topic (for immediate subscriber wakeup)
@@ -230,18 +321,53 @@ impl TopicBackend for MemoryTopicBackend {
     ) -> Result<String, TopicError> {
         let id = {
             let mut streams = self.state.streams.write();
-            let stream = streams.entry(topic.to_string()).or_default();
+            let stream = streams
+                .entry(topic.to_string())
+                .or_insert_with(|| StreamState::with_budget(self.state.stream_max_bytes));
+
+            // Reclaim first, then decide. Consumed entries are dead weight against the budget, so refusing
+            // without collecting them would refuse a queue that is not actually full - and the collection is
+            // cheap, since it pops a prefix rather than scanning.
+            Self::trim_consumed(stream);
+
+            // Refusal, not trimming. The bound is on bytes because that is the resource: a count bound admits
+            // a thousand 64 MiB payloads and refuses a million small ones for no reason, and this queue's
+            // entries are OTLP exports whose sizes span four orders of magnitude. `BufferFull` becomes a 503
+            // with `Retry-After`, which leaves the data with the exporter that still has it - the one place it
+            // is guaranteed to exist.
+            let cost = StreamEntry::budget_cost(payload.len());
+            if stream.retained_bytes + cost > stream.max_bytes {
+                // Not a warning about a full buffer: this is the queue holding the line, and the number is
+                // what an operator needs to size the deployment or the consumer.
+                // The oldest retained entry's age is in the message because it is what separates the two
+                // causes: seconds means the consumer is merely behind, minutes means it is stuck, and those
+                // call for different action.
+                let oldest_age_ms = stream
+                    .messages
+                    .front()
+                    .map(|entry| entry.timestamp.elapsed().as_millis() as u64);
+                tracing::warn!(
+                    topic,
+                    retained_bytes = stream.retained_bytes,
+                    max_bytes = stream.max_bytes,
+                    entries = stream.messages.len(),
+                    payload_bytes = payload.len(),
+                    oldest_retained_ms = ?oldest_age_ms,
+                    "in-process queue is at its byte budget; refusing the publish so the caller keeps the data"
+                );
+                return Err(TopicError::BufferFull);
+            }
 
             let id = stream.next_id;
             stream.next_id += 1;
 
+            stream.retained_bytes += cost;
             stream.messages.push_back(StreamEntry {
                 id,
                 payload: payload.to_vec(),
                 timestamp: Instant::now(),
             });
 
-            Self::trim_stream(stream);
             id
         };
 
@@ -260,7 +386,9 @@ impl TopicBackend for MemoryTopicBackend {
         // Ensure consumer group exists
         {
             let mut streams = self.state.streams.write();
-            let stream = streams.entry(topic.to_string()).or_default();
+            let stream = streams
+                .entry(topic.to_string())
+                .or_insert_with(|| StreamState::with_budget(self.state.stream_max_bytes));
             stream.groups.entry(group.to_string()).or_default();
         }
 
@@ -271,19 +399,6 @@ impl TopicBackend for MemoryTopicBackend {
         let notifier = self.get_or_create_notifier(&topic);
 
         let stream = stream! {
-            let mut last_seen: u64 = 0;
-
-            // Get initial position from consumer's last delivered
-            {
-                let streams = state.streams.read();
-                if let Some(stream_state) = streams.get(&topic)
-                    && let Some(cg) = stream_state.groups.get(&group)
-                    && let Some(&last) = cg.last_delivered.get(&consumer)
-                {
-                    last_seen = last;
-                }
-            }
-
             loop {
                 // Check for new messages - scope the lock to avoid holding across await
                 let (maybe_msg, stream_exists) = {
@@ -293,27 +408,23 @@ impl TopicBackend for MemoryTopicBackend {
                         Some(stream_state) => {
                             let cg = stream_state.groups.entry(group.clone()).or_default();
 
-                            // Find next undelivered message for this consumer
-                            let mut found = None;
-                            for entry in &stream_state.messages {
-                                if entry.id > last_seen && !cg.pending.contains_key(&entry.id) {
-                                    found = Some(StreamEntry {
-                                        id: entry.id,
-                                        payload: entry.payload.clone(),
-                                        timestamp: entry.timestamp,
-                                    });
-                                    break;
-                                }
-                            }
+                            // The next entry past the *group's* cursor. Read from the group rather than from a
+                            // cursor local to this task, so two consumers of one group split the stream
+                            // instead of both replaying whatever the other acknowledged - see
+                            // `ConsumerGroup::last_delivered_id`.
+                            let found = stream_state
+                                .messages
+                                .iter()
+                                .find(|entry| entry.id > cg.last_delivered_id)
+                                .map(|entry| (entry.id, entry.payload.clone()));
 
-                            let msg = if let Some(entry) = found {
-                                // Mark as pending for this consumer
-                                cg.pending.insert(entry.id, (consumer.clone(), Instant::now()));
-                                cg.last_delivered.insert(consumer.clone(), entry.id);
-                                last_seen = entry.id;
+                            let msg = if let Some((id, payload)) = found {
+                                cg.pending.insert(id, (consumer.clone(), Instant::now()));
+                                cg.consumers.insert(consumer.clone(), Instant::now());
+                                cg.last_delivered_id = id;
                                 Some(StreamMessage {
-                                    id: entry.id.to_string(),
-                                    payload: entry.payload,
+                                    id: id.to_string(),
+                                    payload,
                                 })
                             } else {
                                 None
@@ -418,6 +529,7 @@ impl TopicBackend for MemoryTopicBackend {
                 // Update pending to new consumer
                 cg.pending
                     .insert(id, (consumer.to_string(), Instant::now()));
+                cg.consumers.insert(consumer.to_string(), Instant::now());
                 claimed.push(StreamMessage {
                     id: id.to_string(),
                     payload: entry.payload.clone(),
@@ -455,9 +567,23 @@ impl TopicBackend for MemoryTopicBackend {
         Ok(StreamStats {
             length: stream.messages.len() as u64,
             pending: cg.pending.len() as u64,
-            consumers: cg.last_delivered.len() as u64,
+            consumers: cg.consumers.len() as u64,
             oldest_pending_ms,
         })
+    }
+
+    /// Drop what every consumer group has acknowledged, and say how many entries went.
+    ///
+    /// Implemented here rather than left to the trait's `Ok(0)` default because this backend now has a real
+    /// answer: the same boundary the Redis adapter uses. Exposing it lets a caller reclaim on a schedule rather
+    /// than only when a publish happens to arrive - which matters exactly when the queue is at its budget and
+    /// publishes are being refused.
+    async fn stream_trim_consumed(&self, topic: &str) -> Result<u64, TopicError> {
+        let mut streams = self.state.streams.write();
+        match streams.get_mut(topic) {
+            Some(stream) => Ok(Self::trim_consumed(stream)),
+            None => Ok(0),
+        }
     }
 
     // =========================================================================
@@ -581,5 +707,309 @@ mod tests {
     fn test_backend_name() {
         let backend = MemoryTopicBackend::new();
         assert_eq!(backend.backend_name(), "memory");
+    }
+}
+
+/// The admission budget and the consumed-only trim.
+///
+/// These exist because the previous bound was on *length* and enforced by deletion: it popped the oldest
+/// entries until the deque fit a count, and removed their pending records from every group as it went. Every
+/// one of those entries had already been answered 200 by HTTP or gRPC, so the queue was discarding accepted
+/// work - the `MAXLEN` defect this repository removed from the Redis backend, still live in the default one.
+///
+/// Each test below fails if the trim goes back to being length-driven, which is what makes them a gate rather
+/// than a description.
+#[cfg(test)]
+mod admission_tests {
+    use super::*;
+    use futures::StreamExt;
+
+    /// The ids currently retained, in order. Read from the state rather than through a subscription, because
+    /// the property under test is what the queue *kept*, not what a consumer managed to see.
+    fn retained_ids(backend: &MemoryTopicBackend, topic: &str) -> Vec<u64> {
+        let streams = backend.state.streams.read();
+        streams
+            .get(topic)
+            .map(|s| s.messages.iter().map(|e| e.id).collect())
+            .unwrap_or_default()
+    }
+
+    fn retained_bytes(backend: &MemoryTopicBackend, topic: &str) -> u64 {
+        let streams = backend.state.streams.read();
+        streams.get(topic).map_or(0, |s| s.retained_bytes)
+    }
+
+    /// A full queue refuses the next publish and keeps everything it already accepted.
+    ///
+    /// The two halves are one assertion: refusing is only correct *because* nothing was dropped to make room,
+    /// and a bound that trims would satisfy the first half while failing the second silently.
+    #[tokio::test]
+    async fn a_full_queue_refuses_and_loses_nothing() {
+        // Room for exactly three entries of this size, so the fourth has to be refused.
+        let payload = vec![b'x'; 1024];
+        let budget = StreamEntry::budget_cost(payload.len()) * 3;
+        let backend = MemoryTopicBackend::with_stream_budget(budget);
+
+        let mut accepted = Vec::new();
+        for _ in 0..3 {
+            let id = backend
+                .stream_publish("t", "k", &payload)
+                .await
+                .expect("within budget");
+            accepted.push(id.parse::<u64>().expect("numeric id"));
+        }
+
+        let refused = backend.stream_publish("t", "k", &payload).await;
+        assert!(
+            matches!(refused, Err(TopicError::BufferFull)),
+            "a publish past the budget must be refused, not made room for; got {refused:?}"
+        );
+
+        assert_eq!(
+            retained_ids(&backend, "t"),
+            accepted,
+            "every accepted entry is still here - nothing was deleted to admit anything"
+        );
+    }
+
+    /// A delivered-but-unacknowledged entry survives a full queue.
+    ///
+    /// This is the exact shape of the old defect: the entry the consumer is holding is the *oldest*, so a
+    /// length-driven trim takes it first, and takes the group's record that it owed the work with it.
+    #[tokio::test]
+    async fn an_unacknowledged_entry_is_never_dropped_to_make_room() {
+        let payload = vec![b'y'; 512];
+        let budget = StreamEntry::budget_cost(payload.len()) * 2;
+        let backend = MemoryTopicBackend::with_stream_budget(budget);
+
+        backend
+            .stream_publish("t", "k", &payload)
+            .await
+            .expect("first");
+
+        // Take it, and do not acknowledge it.
+        let sub = backend
+            .stream_subscribe("t", "g", "c")
+            .await
+            .expect("subscribe");
+        let mut receiver = sub.receiver;
+        let held = tokio::time::timeout(std::time::Duration::from_millis(500), receiver.next())
+            .await
+            .expect("delivered")
+            .expect("some")
+            .expect("ok");
+        assert_eq!(held.id, "1");
+
+        backend
+            .stream_publish("t", "k", &payload)
+            .await
+            .expect("second fits");
+        let refused = backend.stream_publish("t", "k", &payload).await;
+        assert!(
+            matches!(refused, Err(TopicError::BufferFull)),
+            "the queue is full of work that is still owed, so the publish is refused"
+        );
+
+        assert!(
+            retained_ids(&backend, "t").contains(&1),
+            "the entry the consumer is holding must still exist"
+        );
+        let streams = backend.state.streams.read();
+        assert!(
+            streams["t"].groups["g"].pending.contains_key(&1),
+            "and the group must still record that it owes the work"
+        );
+    }
+
+    /// Acknowledging frees the budget, so a refusal is transient rather than terminal.
+    ///
+    /// Without this the refusal would be a deadlock: the queue fills once and never accepts again.
+    #[tokio::test]
+    async fn acknowledging_frees_the_budget() {
+        let payload = vec![b'z'; 256];
+        let budget = StreamEntry::budget_cost(payload.len()) * 2;
+        let backend = MemoryTopicBackend::with_stream_budget(budget);
+
+        for _ in 0..2 {
+            backend
+                .stream_publish("t", "k", &payload)
+                .await
+                .expect("fits");
+        }
+        assert!(matches!(
+            backend.stream_publish("t", "k", &payload).await,
+            Err(TopicError::BufferFull)
+        ));
+
+        let sub = backend
+            .stream_subscribe("t", "g", "c")
+            .await
+            .expect("subscribe");
+        let mut receiver = sub.receiver;
+        for expected in ["1", "2"] {
+            let msg = tokio::time::timeout(std::time::Duration::from_millis(500), receiver.next())
+                .await
+                .expect("delivered")
+                .expect("some")
+                .expect("ok");
+            assert_eq!(msg.id, expected);
+            backend.stream_ack("t", "g", &msg.id).await.expect("ack");
+        }
+
+        // The next publish reclaims what was acknowledged and is admitted.
+        let id = backend
+            .stream_publish("t", "k", &payload)
+            .await
+            .expect("the budget freed up once the work was acknowledged");
+        assert_eq!(id, "3");
+        assert_eq!(
+            retained_ids(&backend, "t"),
+            vec![3],
+            "the two acknowledged entries were reclaimed and only the new one is retained"
+        );
+    }
+
+    /// Nothing is trimmed while no consumer group exists.
+    ///
+    /// Nobody has read the stream, so every entry is still needed - and a publisher that outruns a consumer
+    /// that has not arrived yet is told to wait rather than having its backlog quietly deleted.
+    #[tokio::test]
+    async fn a_stream_with_no_consumer_group_is_never_trimmed() {
+        let payload = vec![b'w'; 128];
+        let budget = StreamEntry::budget_cost(payload.len()) * 2;
+        let backend = MemoryTopicBackend::with_stream_budget(budget);
+
+        backend
+            .stream_publish("t", "k", &payload)
+            .await
+            .expect("first");
+        backend
+            .stream_publish("t", "k", &payload)
+            .await
+            .expect("second");
+        assert!(matches!(
+            backend.stream_publish("t", "k", &payload).await,
+            Err(TopicError::BufferFull)
+        ));
+        assert_eq!(retained_ids(&backend, "t"), vec![1, 2]);
+        assert_eq!(
+            backend.stream_trim_consumed("t").await.expect("trim"),
+            0,
+            "an unread stream has nothing consumed to reclaim"
+        );
+    }
+
+    /// Two consumers of one group split the stream instead of both replaying it.
+    ///
+    /// With a cursor per consumer, the second consumer's cursor sat behind the first's, so an entry the first
+    /// took *and acknowledged* looked undelivered to the second and was processed twice. Ingestion is
+    /// idempotent by span id, so the cost was duplicated work rather than corruption - and it is still not
+    /// what a consumer group means, and it is what made "consumed" undefinable.
+    #[tokio::test]
+    async fn two_consumers_of_one_group_split_the_stream() {
+        let backend = MemoryTopicBackend::new();
+        for n in 0..4u8 {
+            backend
+                .stream_publish("t", "k", &[n])
+                .await
+                .expect("publish");
+        }
+
+        let mut seen: Vec<String> = Vec::new();
+        for consumer in ["c1", "c2"] {
+            let sub = backend
+                .stream_subscribe("t", "g", consumer)
+                .await
+                .expect("subscribe");
+            let mut receiver = sub.receiver;
+            for _ in 0..2 {
+                let msg =
+                    tokio::time::timeout(std::time::Duration::from_millis(500), receiver.next())
+                        .await
+                        .expect("delivered")
+                        .expect("some")
+                        .expect("ok");
+                backend.stream_ack("t", "g", &msg.id).await.expect("ack");
+                seen.push(msg.id);
+            }
+        }
+
+        seen.sort();
+        assert_eq!(
+            seen,
+            vec!["1", "2", "3", "4"],
+            "each entry goes to exactly one consumer of the group"
+        );
+    }
+
+    /// The incremental byte counter equals the entries it claims to describe.
+    ///
+    /// The counter is maintained in two places - incremented on publish, decremented on trim - and a counter
+    /// maintained in two places is a counter that drifts. A drift downward would let the queue admit past its
+    /// budget; upward, it would refuse a queue that is nearly empty.
+    #[tokio::test]
+    async fn retained_bytes_are_the_sum_of_the_entries() {
+        let backend = MemoryTopicBackend::new();
+        for size in [10usize, 5_000, 1, 900] {
+            backend
+                .stream_publish("t", "k", &vec![b'q'; size])
+                .await
+                .expect("publish");
+        }
+
+        let expected: u64 = {
+            let streams = backend.state.streams.read();
+            streams["t"]
+                .messages
+                .iter()
+                .map(|e| StreamEntry::budget_cost(e.payload.len()))
+                .sum()
+        };
+        assert_eq!(retained_bytes(&backend, "t"), expected, "after publishing");
+
+        // Consume half, then check the counter followed the trim rather than only the publishes.
+        let sub = backend
+            .stream_subscribe("t", "g", "c")
+            .await
+            .expect("subscribe");
+        let mut receiver = sub.receiver;
+        for _ in 0..2 {
+            let msg = tokio::time::timeout(std::time::Duration::from_millis(500), receiver.next())
+                .await
+                .expect("delivered")
+                .expect("some")
+                .expect("ok");
+            backend.stream_ack("t", "g", &msg.id).await.expect("ack");
+        }
+        backend.stream_trim_consumed("t").await.expect("trim");
+
+        let expected: u64 = {
+            let streams = backend.state.streams.read();
+            streams["t"]
+                .messages
+                .iter()
+                .map(|e| StreamEntry::budget_cost(e.payload.len()))
+                .sum()
+        };
+        assert_eq!(retained_bytes(&backend, "t"), expected, "after trimming");
+    }
+
+    /// A single payload larger than the whole budget is refused, not admitted and then deleted.
+    ///
+    /// The boundary case, and the one where "trim to fit" and "refuse" differ most: there is no set of other
+    /// entries whose removal would make room, so a length-driven bound admits it and then empties the queue
+    /// around it.
+    #[tokio::test]
+    async fn a_payload_larger_than_the_budget_is_refused() {
+        let backend = MemoryTopicBackend::with_stream_budget(1024);
+        let refused = backend.stream_publish("t", "k", &vec![b'!'; 4096]).await;
+        assert!(
+            matches!(refused, Err(TopicError::BufferFull)),
+            "got {refused:?}"
+        );
+        assert!(
+            retained_ids(&backend, "t").is_empty(),
+            "and nothing was stored for it"
+        );
     }
 }
