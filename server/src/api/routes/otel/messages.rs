@@ -12,8 +12,8 @@ use super::types::{BlockDto, MessagesMetadataDto, MessagesResponseDto, SpanEnvel
 use crate::api::auth::{SessionRead, SpanRead, TraceRead};
 use crate::api::types::{ApiError, parse_timestamp_param};
 use crate::domain::sideml::{
-    ExtractedTools, FeedOptions, FeedResult, apply_time_window, extract_tools_from_rows,
-    process_spans_cached,
+    BlockEntry, ExtractedTools, FeedMetadata, FeedOptions, FeedResult, apply_time_window,
+    extract_tools_from_rows, process_spans_cached,
 };
 use sideseat_ports::types::MessageQueryParams;
 
@@ -96,9 +96,9 @@ pub async fn get_span_messages(
     let envelopes: Vec<SpanEnvelopeDto> =
         result.rows.iter().map(SpanEnvelopeDto::from_row).collect();
     let processed = process_spans_cached(&state.reconstruction, result.rows, &options);
-    let processed = apply_time_window(processed, from_timestamp, to_timestamp);
+    let processed = apply_time_window(&processed, from_timestamp, to_timestamp);
 
-    let response = build_messages_response(processed, None, envelopes);
+    let response = build_messages_response(&processed, None, envelopes);
     Ok(Json(response))
 }
 
@@ -192,21 +192,27 @@ pub async fn get_trace_messages(
     };
 
     // Process through feed pipeline (auto-routes to multi-trace if needed)
-    let mut processed = process_spans_cached(&state.reconstruction, result.rows, &options);
+    let reconstructed = process_spans_cached(&state.reconstruction, result.rows, &options);
 
     // If session-loaded, retain only the target trace's blocks and apply scoped tools.
     // scoped_tools is Some iff session_id.is_some(), so use it as the single guard.
-    if let Some(scoped_tools) = scoped_tools {
-        scope_feed_to_trace(&mut processed, scoped_tools, trace_id);
-    }
+    //
+    // `Cow`, so a trace that was not session-loaded is read straight out of the memo: with an owned value
+    // here every read copied the whole answer to hand back exactly what the cache already held.
+    let scoped: std::borrow::Cow<'_, FeedResult> = match scoped_tools {
+        Some(scoped_tools) => {
+            std::borrow::Cow::Owned(scope_feed_to_trace(&reconstructed, scoped_tools, trace_id))
+        }
+        None => std::borrow::Cow::Borrowed(&reconstructed),
+    };
 
     // The window applies to the answer, after the whole session has been seen and narrowed to
     // this trace.
-    let processed = apply_time_window(processed, from_timestamp, to_timestamp);
+    let processed = apply_time_window(&scoped, from_timestamp, to_timestamp);
 
     // Use trace-level totals for metadata (matches trace endpoint)
     let trace_totals = Some((trace.total_tokens, trace.total_cost));
-    let response = build_messages_response(processed, trace_totals, envelopes);
+    let response = build_messages_response(&processed, trace_totals, envelopes);
     Ok(Json(response))
 }
 
@@ -275,28 +281,43 @@ pub async fn get_session_messages(
     let envelopes: Vec<SpanEnvelopeDto> =
         result.rows.iter().map(SpanEnvelopeDto::from_row).collect();
     let processed = process_spans_cached(&state.reconstruction, result.rows, &options);
-    let processed = apply_time_window(processed, from_timestamp, to_timestamp);
+    let processed = apply_time_window(&processed, from_timestamp, to_timestamp);
 
-    let response = build_messages_response(processed, session_totals, envelopes);
+    let response = build_messages_response(&processed, session_totals, envelopes);
     Ok(Json(response))
 }
 
 /// Scope a session-loaded FeedResult to a single trace.
 pub(crate) fn scope_feed_to_trace(
-    processed: &mut FeedResult,
+    processed: &FeedResult,
     scoped_tools: ExtractedTools,
     trace_id: &str,
-) {
-    processed.messages.retain(|b| b.trace_id == trace_id);
-    processed.metadata.block_count = processed.messages.len();
-    processed.metadata.span_count = processed
+) -> FeedResult {
+    // Copies the surviving blocks rather than mutating in place, because the source is now the shared memo:
+    // a session read is cached whole and narrowed per trace, so mutating it would corrupt the entry every
+    // other trace of that session reads. The copy is of what is *kept*, which for a trace of a session is a
+    // fraction of what a deep clone would have copied.
+    let messages: Vec<BlockEntry> = processed
         .messages
+        .iter()
+        .filter(|b| b.trace_id == trace_id)
+        .cloned()
+        .collect();
+    let span_count = messages
         .iter()
         .map(|b| (&b.trace_id, &b.span_id))
         .collect::<HashSet<_>>()
         .len();
-    processed.tool_definitions = scoped_tools.tool_definitions;
-    processed.tool_names = scoped_tools.tool_names;
+    FeedResult {
+        metadata: FeedMetadata {
+            block_count: messages.len(),
+            span_count,
+            ..processed.metadata.clone()
+        },
+        messages,
+        tool_definitions: scoped_tools.tool_definitions,
+        tool_names: scoped_tools.tool_names,
+    }
 }
 
 /// Build messages response from processed messages.
@@ -304,7 +325,7 @@ pub(crate) fn scope_feed_to_trace(
 /// If `trace_totals` is provided, use trace-level token/cost totals.
 /// Otherwise, aggregate from message spans.
 pub(crate) fn build_messages_response(
-    processed: FeedResult,
+    processed: &FeedResult,
     trace_totals: Option<(i64, f64)>,
     envelopes: Vec<SpanEnvelopeDto>,
 ) -> MessagesResponseDto {
@@ -347,7 +368,7 @@ pub(crate) fn build_messages_response(
             // the answer may repeat history.
             replay_matching_complete: processed.metadata.replay_matching_complete,
         },
-        tool_definitions: processed.tool_definitions,
-        tool_names: processed.tool_names,
+        tool_definitions: processed.tool_definitions.clone(),
+        tool_names: processed.tool_names.clone(),
     }
 }

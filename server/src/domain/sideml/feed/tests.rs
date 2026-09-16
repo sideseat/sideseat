@@ -9196,8 +9196,9 @@ fn a_time_window_only_removes_messages() {
     ];
 
     let full = process_spans(rows.clone(), &FeedOptions::new());
+    let unwindowed = process_spans(rows, &FeedOptions::new());
     let windowed = apply_time_window(
-        process_spans(rows, &FeedOptions::new()),
+        &unwindowed,
         Some(fixed_time() + chrono::Duration::seconds(2)),
         None,
     );

@@ -204,7 +204,7 @@ impl McpServer {
                 _ => None,
             };
             return ok_json(&build_messages_response(
-                processed,
+                &processed,
                 session_totals,
                 envelopes,
             ));
@@ -248,14 +248,18 @@ impl McpServer {
             .map(SpanEnvelopeDto::from_row)
             .collect();
 
-        let mut processed = process_spans(result.rows, &options);
-
-        if let Some(scoped_tools) = scoped_tools {
-            scope_feed_to_trace(&mut processed, scoped_tools, &trace_id);
-        }
+        let processed = process_spans(result.rows, &options);
+        let processed = match scoped_tools {
+            Some(scoped_tools) => scope_feed_to_trace(&processed, scoped_tools, &trace_id),
+            None => processed,
+        };
 
         let trace_totals = trace.map(|t| (t.total_tokens, t.total_cost));
-        ok_json(&build_messages_response(processed, trace_totals, envelopes))
+        ok_json(&build_messages_response(
+            &processed,
+            trace_totals,
+            envelopes,
+        ))
     }
 
     #[tool(

@@ -31,7 +31,8 @@ use moka::sync::Cache;
 
 use super::types::FeedResult;
 use sideseat_core::core::constants::{
-    RECONSTRUCTION_CACHE_IDLE_SECS, RECONSTRUCTION_CACHE_MAX_ENTRIES,
+    RECONSTRUCTION_CACHE_ENTRY_OVERHEAD_BYTES, RECONSTRUCTION_CACHE_IDLE_SECS,
+    RECONSTRUCTION_CACHE_MAX_BYTES,
 };
 use sideseat_ports::types::MessageSpanRow;
 
@@ -66,7 +67,10 @@ impl ReconstructionCache {
     pub fn new() -> Self {
         Self {
             entries: Cache::builder()
-                .max_capacity(RECONSTRUCTION_CACHE_MAX_ENTRIES)
+                // Weighed in bytes, so the ceiling is a memory figure rather than a count of things whose
+                // size nobody bounded. See `weight_of` for what the measurement does and does not see.
+                .max_capacity(RECONSTRUCTION_CACHE_MAX_BYTES)
+                .weigher(|_key, value: &Arc<FeedResult>| weight_of(value))
                 .time_to_idle(Duration::from_secs(RECONSTRUCTION_CACHE_IDLE_SECS))
                 .build(),
         }
@@ -539,6 +543,106 @@ mod tests {
             runs.get(),
             2,
             "the corrected row is not answered from the old one"
+        );
+    }
+}
+
+/// What one cached answer weighs, in bytes.
+///
+/// Measured by **serialising into a counter**, not by allocating the JSON: the answer is serialised on its way
+/// to a reader anyway, so its serialised size is both a good proxy for what it occupies and the figure that
+/// actually means something to a caller. `serde_json::to_writer` into a sink that only counts is O(bytes) and
+/// O(1) memory, and it runs once per cache fill - immediately after a reconstruction that cost between
+/// milliseconds and seconds, so it is not on any path where it is measurable.
+///
+/// Two things it deliberately does not see, and one flat charge that covers them. It counts content, not the
+/// `BlockEntry` structs, their `Vec` slots, their `span_path` allocations, or the fields marked
+/// `#[serde(skip)]` - which for an answer of many small blocks is most of the memory. So each block is charged
+/// `RECONSTRUCTION_CACHE_ENTRY_OVERHEAD_BYTES` as well, which also gives the entry count an implicit bound.
+///
+/// A serialisation failure weighs the entry at the maximum rather than at nothing. `FeedResult` serialises
+/// infallibly today, and a weigher that answered zero on an error would let a value that cannot be measured
+/// occupy the cache for free - the same shape as a gate that passes because it saw nothing.
+fn weight_of(result: &FeedResult) -> u32 {
+    /// An `io::Write` that keeps only the length.
+    struct CountingSink(u64);
+
+    impl std::io::Write for CountingSink {
+        fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+            self.0 = self.0.saturating_add(buf.len() as u64);
+            Ok(buf.len())
+        }
+
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+
+    // Part by part rather than through a `Serialize` impl on `FeedResult`: the struct is an internal
+    // pipeline result and the wire DTOs are separate, so deriving `Serialize` on it to satisfy a weigher
+    // would add a serialisation surface that nothing serialises.
+    let mut sink = CountingSink(0);
+    let measured = serde_json::to_writer(&mut sink, &result.messages)
+        .and_then(|()| serde_json::to_writer(&mut sink, &result.tool_definitions))
+        .and_then(|()| serde_json::to_writer(&mut sink, &result.tool_names))
+        .and_then(|()| serde_json::to_writer(&mut sink, &result.metadata));
+    if measured.is_err() {
+        return u32::MAX;
+    }
+
+    let overhead =
+        (result.messages.len() as u64).saturating_mul(RECONSTRUCTION_CACHE_ENTRY_OVERHEAD_BYTES);
+    sink.0
+        .saturating_add(overhead)
+        .try_into()
+        .unwrap_or(u32::MAX)
+}
+
+#[cfg(test)]
+mod weight_tests {
+    use super::*;
+
+    /// The weight grows with the answer, and a bigger answer is charged more than a smaller one.
+    ///
+    /// The point of the weigher is that 512 large answers can no longer occupy the cache as cheaply as 512
+    /// small ones, so what has to hold is the ordering - not a byte-exact figure, which would pin the JSON
+    /// representation to this test.
+    #[test]
+    fn a_larger_answer_weighs_more() {
+        let empty = FeedResult::default();
+        let empty_weight = weight_of(&empty);
+        assert!(
+            empty_weight > 0,
+            "even an empty answer occupies its own structure"
+        );
+
+        let larger = FeedResult {
+            tool_names: (0..100)
+                .map(|n| format!("tool-{n}-{}", "x".repeat(200)))
+                .collect(),
+            ..FeedResult::default()
+        };
+        assert!(
+            weight_of(&larger) > empty_weight * 10,
+            "an answer carrying 20 KB of names must weigh far more than an empty one: {} vs {}",
+            weight_of(&larger),
+            empty_weight
+        );
+    }
+
+    /// The declared ceiling admits a useful number of ordinary answers.
+    ///
+    /// A weigher whose per-entry floor is set too high turns a 64 MB cache into a dozen entries, which is a
+    /// footprint win and a cache that never hits. Stated as a test because it is the trade the flat charge
+    /// makes, and it is invisible in the constant.
+    #[test]
+    fn the_ceiling_admits_a_useful_number_of_ordinary_answers() {
+        let ordinary = weight_of(&FeedResult::default()).max(1) as u64
+            + RECONSTRUCTION_CACHE_ENTRY_OVERHEAD_BYTES * 200;
+        let admitted = RECONSTRUCTION_CACHE_MAX_BYTES / ordinary;
+        assert!(
+            admitted >= 128,
+            "a 200-block answer should fit hundreds of times over in the cache, not {admitted}"
         );
     }
 }

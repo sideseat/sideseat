@@ -434,12 +434,11 @@ pub async fn get_feed_messages(
     // are properties of the row page rather than of the answer. That is how the role filter has
     // always behaved here, and it is what lets a client keep paging rather than stopping at the
     // first page a filter empties.
-    let processed = apply_time_window(
-        process_feed_cached(&state.reconstruction, context.rows, &options),
-        start_time,
-        end_time,
-    );
-    let all_messages = scope_feed_to_page(processed.messages, &page_spans);
+    let reconstructed = process_feed_cached(&state.reconstruction, context.rows, &options);
+    let processed = apply_time_window(&reconstructed, start_time, end_time);
+    // Cloned here rather than moved, because the source may be the shared memo: the page scoping consumes the
+    // block vector, and consuming a cached answer is not available to one of several readers of it.
+    let all_messages = scope_feed_to_page(processed.messages.clone(), &page_spans);
     let tool_definitions = page_tools.tool_definitions;
     let tool_names = page_tools.tool_names;
 
@@ -794,7 +793,8 @@ mod tests {
             "premise: the completed response is dated after the window closes"
         );
 
-        let windowed = apply_time_window(process_feed(vec![row], &options), None, Some(window_end));
+        let unwindowed = process_feed(vec![row], &options);
+        let windowed = apply_time_window(&unwindowed, None, Some(window_end));
         assert!(
             windowed.messages.iter().all(|b| b.timestamp < window_end),
             "a message dated after the window was returned: {:?}",

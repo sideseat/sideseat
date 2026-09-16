@@ -343,9 +343,8 @@ fn build_view(rows: Vec<MessageSpanRow>, view: View<'_>) -> (GoldenView, Vec<Inv
         } => {
             let scoped_tools =
                 extract_tools_from_rows(rows.iter().filter(|r| r.trace_id == **trace_id));
-            let mut processed = process_spans(rows, &options);
-            scope_feed_to_trace(&mut processed, scoped_tools, trace_id);
-            processed
+            let processed = process_spans(rows, &options);
+            scope_feed_to_trace(&processed, scoped_tools, trace_id)
         }
         View::Feed => process_feed(rows, &options),
         _ => process_spans(rows, &options),

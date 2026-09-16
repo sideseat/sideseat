@@ -143,7 +143,9 @@ pub(crate) mod order_graph;
 mod props;
 mod types;
 
+use std::borrow::Cow;
 use std::collections::{BTreeMap, HashMap, HashSet};
+use std::sync::Arc;
 
 use chrono::{DateTime, Utc};
 use serde_json::Value as JsonValue;
@@ -604,17 +606,21 @@ pub fn process_spans(rows: Vec<MessageSpanRow>, options: &FeedOptions) -> FeedRe
 
 /// [`process_spans`], memoised on the rows - see [`cache::ReconstructionCache`] for why that is safe.
 ///
-/// The *unfiltered* reconstruction is what is remembered, and the role filter is applied to a copy of
-/// it: the filter narrows an answer rather than changing it, so one cached reconstruction serves every
-/// role a caller asks for.
+/// The *unfiltered* reconstruction is what is remembered, and the role filter narrows it rather than
+/// changing it, so one cached reconstruction serves every role a caller asks for.
+///
+/// Returns the memo itself when nothing narrows. It used to deep-clone the whole answer on every read,
+/// filtered or not - for a long session that is tens of thousands of blocks copied to hand back the same
+/// content, on a path whose whole purpose is to avoid recomputing it. With no `role` the caller now gets the
+/// `Arc`; with one, only the surviving blocks are copied.
 pub fn process_spans_cached(
     cache: &cache::ReconstructionCache,
     rows: Vec<MessageSpanRow>,
     options: &FeedOptions,
-) -> FeedResult {
+) -> Arc<FeedResult> {
     let reconstructed =
         cache.get_or_reconstruct(cache::Reconstruction::Spans, rows, process_spans_unfiltered);
-    apply_role_filter((*reconstructed).clone(), options.role.as_deref())
+    project_role(reconstructed, options.role.as_deref())
 }
 
 /// [`process_feed`], memoised on the rows, exactly as [`process_spans_cached`] is.
@@ -622,7 +628,7 @@ pub fn process_feed_cached(
     cache: &cache::ReconstructionCache,
     rows: Vec<MessageSpanRow>,
     options: &FeedOptions,
-) -> FeedResult {
+) -> Arc<FeedResult> {
     // The grouping is passed through, and is part of the cache key: it is the caller's authoritative
     // trace → session mapping, and the reconstruction's answer depends on it. Reconstructing with a bare
     // `FeedOptions::new()` silently discarded it, so the route's fix had no effect on the cached path -
@@ -634,7 +640,7 @@ pub fn process_feed_cached(
         &options.session_of_trace,
         move |rows| process_feed(rows, &FeedOptions::new().with_session_of_trace(grouping)),
     );
-    apply_role_filter((*reconstructed).clone(), options.role.as_deref())
+    project_role(reconstructed, options.role.as_deref())
 }
 
 /// [`process_spans`] without the role filter, for callers that filter once at their own boundary.
@@ -1409,39 +1415,38 @@ fn sort_feed_newest_first(blocks: Vec<BlockEntry>) -> Vec<BlockEntry> {
 /// irrelevant to what came before and there is no reason to load it.
 ///
 /// Compares the timestamps the API returns, and is half-open: `from <= t < to`, as the queries are.
-pub fn apply_time_window(
-    result: FeedResult,
+///
+/// Borrows when there is no window, which is the ordinary case: a `Cow` rather than an owned return, so an
+/// unwindowed read hands back the memo instead of copying every block of it to change nothing.
+pub fn apply_time_window<'a>(
+    result: &'a FeedResult,
     from: Option<DateTime<Utc>>,
     to: Option<DateTime<Utc>>,
-) -> FeedResult {
+) -> Cow<'a, FeedResult> {
     if from.is_none() && to.is_none() {
-        return result;
+        return Cow::Borrowed(result);
     }
 
     let messages: Vec<BlockEntry> = result
         .messages
-        .into_iter()
+        .iter()
         .filter(|b| from.is_none_or(|from| b.timestamp >= from))
         // Half-open at the top, matching the `timestamp_start < to` the message queries apply:
         // with `<=` here, a message exactly on the bound was returned when its span started
         // earlier and dropped when its span started on the bound too.
         .filter(|b| to.is_none_or(|to| b.timestamp < to))
+        .cloned()
         .collect();
-    let span_count = messages
-        .iter()
-        .map(|b| (&b.trace_id, &b.span_id))
-        .collect::<HashSet<_>>()
-        .len();
-
-    FeedResult {
+    Cow::Owned(FeedResult {
         metadata: FeedMetadata {
             block_count: messages.len(),
-            span_count,
-            ..result.metadata
+            span_count: distinct_span_count(&messages),
+            ..result.metadata.clone()
         },
         messages,
-        ..result
-    }
+        tool_definitions: result.tool_definitions.clone(),
+        tool_names: result.tool_names.clone(),
+    })
 }
 
 /// Keep only blocks whose role matches `role`, if one was requested.
@@ -1461,6 +1466,49 @@ pub fn apply_time_window(
 /// span counts are restated from the blocks that survive, so they describe the response rather
 /// than the scope that was scanned. Token and cost totals are left as span-level sums: they are
 /// the cost of producing the conversation, which filtering the view does not reduce.
+/// [`apply_role_filter`] over a shared answer, copying only what survives.
+///
+/// The distinction from `apply_role_filter` is only about ownership - the predicate and the restated counts
+/// are the same, and the two must stay that way, which is why this delegates the counting rather than
+/// repeating it. With no role the memo is handed back untouched, which is the case that used to cost a full
+/// deep clone of the answer on every read.
+fn project_role(result: Arc<FeedResult>, role: Option<&str>) -> Arc<FeedResult> {
+    let Some(role) = role else {
+        return result;
+    };
+
+    let messages: Vec<BlockEntry> = result
+        .messages
+        .iter()
+        .filter(|b| b.role.as_str() == role)
+        .cloned()
+        .collect();
+
+    Arc::new(FeedResult {
+        metadata: FeedMetadata {
+            block_count: messages.len(),
+            span_count: distinct_span_count(&messages),
+            ..result.metadata.clone()
+        },
+        messages,
+        tool_definitions: result.tool_definitions.clone(),
+        tool_names: result.tool_names.clone(),
+    })
+}
+
+/// How many distinct `(trace, span)` pairs a set of blocks came from.
+///
+/// One definition, because a span count restated in two places is two answers to one question - and the
+/// pair, not the span id alone: a span id is unique only within a trace, so counting ids would merge two
+/// traces' same-id spans into one.
+fn distinct_span_count(messages: &[BlockEntry]) -> usize {
+    messages
+        .iter()
+        .map(|b| (&b.trace_id, &b.span_id))
+        .collect::<HashSet<_>>()
+        .len()
+}
+
 fn apply_role_filter(result: FeedResult, role: Option<&str>) -> FeedResult {
     let Some(role) = role else {
         return result;

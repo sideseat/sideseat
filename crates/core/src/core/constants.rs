@@ -685,14 +685,30 @@ pub const DELETED_TRACE_CHECK_MAX_SECS: i64 = 24 * 60 * 60;
 pub const DELETED_TRACE_CHECK_BATCH: i64 = 200;
 pub const DELETED_TRACE_CHECK_LEASE_SECS: i64 = 300;
 
-/// How many session reconstructions to remember, and how long an unused one stays.
+/// How much memory the reconstruction cache may hold, and how long an unused entry stays.
 ///
-/// Entries are small - a reconstruction's *output* is the blocks a reader sees, not the megabytes of
-/// re-sent history that produced them - so the count can be generous. The idle window exists because a
-/// session that nobody opens again should not hold memory, not because an entry can go stale: the key is
-/// a hash of the rows, so a changed row is a different key.
-pub const RECONSTRUCTION_CACHE_MAX_ENTRIES: u64 = 512;
+/// **Bytes, not entries**, and the entry count this replaced was unbounded in the dimension that matters.
+/// The argument for a count was that a reconstruction's *output* is the blocks a reader sees rather than
+/// the megabytes of re-sent history that produced them - true on average and false in the worst case: an
+/// incremental session's output grows with its turns, so a 10 000-turn read is tens of thousands of blocks
+/// carrying full tool payloads, and 512 of those is however many gigabytes the largest sessions happen to
+/// be. A cache that cannot state its own ceiling is not compatible with a footprint ceiling.
+///
+/// A per-entry floor is folded into the weight ([`RECONSTRUCTION_CACHE_ENTRY_OVERHEAD_BYTES`]), so this
+/// also bounds the entry count - the two questions have one answer instead of two knobs that can disagree.
+///
+/// The idle window exists because a session nobody opens again should not hold memory, not because an entry
+/// can go stale: the key is a hash of the rows, so a changed row is a different key.
+pub const RECONSTRUCTION_CACHE_MAX_BYTES: u64 = 64 * 1024 * 1024;
 pub const RECONSTRUCTION_CACHE_IDLE_SECS: u64 = 900;
+
+/// Charged per cached block on top of its serialised size.
+///
+/// The weight is measured by serialising the answer, which counts the content and not the `BlockEntry`
+/// structs, their `Vec` slots, their `span_path` allocations or the fields marked `#[serde(skip)]`. Those
+/// are real bytes and a weigher that ignores them understates the cache by a factor that grows with how
+/// many small blocks an answer holds - so each block is charged a flat amount as well.
+pub const RECONSTRUCTION_CACHE_ENTRY_OVERHEAD_BYTES: u64 = 512;
 
 // =============================================================================
 // Error Message Limits
