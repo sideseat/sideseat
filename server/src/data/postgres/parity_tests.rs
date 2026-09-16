@@ -501,6 +501,13 @@ async fn projects_behave_identically() {
 
         let (listed, total) = repo.list_projects_for_org("default", 1, 50).await.unwrap();
         t.note(&format!("listed_total={total}"));
+        // Sorted by name before recording, because the *order* of rows that share a `created_at` is broken by
+        // `id` - and the two backends generate their ids independently, so a comparison of tie-broken order is a
+        // comparison of two random number generators. What parity means here is the same projects with the same
+        // names; the newest-first rule and its tie-break are asserted separately, per backend, where the ids are
+        // the same ones the assertion was made about.
+        let mut listed: Vec<_> = listed;
+        listed.sort_by(|a, b| a.name.cmp(&b.name));
         for project in &listed {
             let label = t.label(&project.id);
             t.note(&format!("listed={label} name={}", project.name));

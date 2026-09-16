@@ -36,6 +36,7 @@ impl From<DuckdbError> for DataError {
             DuckdbError::Database(e) => Self::Duckdb {
                 message: e.to_string(),
                 transient: false,
+                source: Some(Box::new(e)),
             },
             DuckdbError::MigrationFailed {
                 version,

@@ -169,13 +169,24 @@ impl AppStorage {
         self.data_dir.join(subdir.as_str()).join(filename)
     }
 
-    /// Create AppStorage for testing with a specific data directory.
+    /// `AppStorage` rooted at a given directory, **with its subdirectory tree created**.
     ///
-    /// **Not `#[cfg(test)]`**, because the tests that need it live in other crates and a `cfg(test)` item does
-    /// not exist for a dependent. The alternative is a `testing` feature, which project convention rules out -
-    /// all dependencies are always compiled here - so this is compiled unconditionally. It is a constructor over
-    /// a path with no side effects, so shipping it costs nothing and hides nothing.
+    /// **Not `#[cfg(test)]`**, because the tests that need it live in other crates and a `cfg(test)` item does not
+    /// exist for a dependent. The alternative is a `testing` feature, which project convention rules out - all
+    /// dependencies are always compiled here - so this is compiled unconditionally.
+    ///
+    /// **Which makes it production-callable, so it has to hold the same invariant as [`Self::init`]**: that the
+    /// subdirectories a component will write into exist. Before, it was a bare field assignment, so a caller
+    /// could hand a component storage rooted at a directory that was not there - and every such component
+    /// assumes otherwise. Creating the tree here removes the difference rather than documenting it.
+    ///
+    /// Synchronous, unlike `init`, because a test constructs this before it has a runtime to await on. The
+    /// directory set is the same one `DataSubdir::all()` drives.
     pub fn init_for_test(data_dir: PathBuf) -> Self {
+        std::fs::create_dir_all(&data_dir).ok();
+        for subdir in DataSubdir::all() {
+            std::fs::create_dir_all(data_dir.join(subdir.as_str())).ok();
+        }
         Self { data_dir }
     }
 }

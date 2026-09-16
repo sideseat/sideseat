@@ -38,6 +38,7 @@ impl From<SqliteError> for DataError {
                     sqlx::Error::PoolTimedOut | sqlx::Error::PoolClosed | sqlx::Error::Io(_)
                 ),
                 message: e.to_string(),
+                source: Some(Box::new(e)),
             },
             SqliteError::MigrationFailed {
                 version,
@@ -89,5 +90,46 @@ mod tests {
         let debug_str = format!("{:?}", err);
         assert!(debug_str.contains("MigrationFailed"));
         assert!(debug_str.contains("version: 1"));
+    }
+}
+
+/// A pool failure is transient and a query failure is not, and the **source chain survives**.
+///
+/// Both halves were unguarded. The transience verdict moved out of `DataError` and into this adapter, so
+/// flipping it here would have changed retry behaviour with nothing failing; and the driver's error used to
+/// be reachable through `Error::source()` via `#[from]`, which a bare message would have severed - a
+/// reporter walking the chain silently getting `None`.
+#[cfg(test)]
+mod port_error_tests {
+    use super::*;
+    use std::error::Error as _;
+
+    #[test]
+    fn a_pool_failure_is_transient_and_a_query_failure_is_not() {
+        let pool: DataError = SqliteError::Database(sqlx::Error::PoolClosed).into();
+        assert!(
+            pool.is_transient(),
+            "a closed pool is worth retrying; if this is false the retry path has been disabled"
+        );
+
+        let query: DataError = SqliteError::Database(sqlx::Error::RowNotFound).into();
+        assert!(
+            !query.is_transient(),
+            "a query that found no row will find no row again; retrying it is a busy loop"
+        );
+    }
+
+    #[test]
+    fn the_drivers_error_is_still_reachable_through_the_source_chain() {
+        let err: DataError = SqliteError::Database(sqlx::Error::PoolClosed).into();
+        let source = err.source().map(|s| s.to_string());
+        assert!(
+            source.is_some(),
+            "the driver's error is not in the source chain, so anything reporting causes gets nothing"
+        );
+        assert!(
+            err.to_string().contains("SQLite error"),
+            "and the message still names the backend: {err}"
+        );
     }
 }

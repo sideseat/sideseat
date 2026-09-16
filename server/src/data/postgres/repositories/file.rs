@@ -260,7 +260,17 @@ pub async fn reclaim_stale_file(
     file_hash: &str,
     observed_deleting_at: i64,
 ) -> Result<bool, PostgresError> {
-    let now = chrono::Utc::now().timestamp();
+    // The refresh must land **strictly above** the observed value, or the compare-and-set does not refuse a
+    // second attempt on the same reading. `deleting_at` is a second-resolution timestamp, so `now` equals the
+    // observed value whenever the claim and the reclaim happen in the same second - which is the ordinary case
+    // for a sweep, not an edge one - and the row then still matches, so the second reclaim succeeds. That made
+    // "a second worker holding the same reading is refused" false, intermittently, and it is what an unstable
+    // parity run was reporting for weeks of runs before anyone read the diff.
+    //
+    // `max(now, observed + 1)` keeps the column's meaning - the instant the claim was refreshed - while
+    // guaranteeing the value changes. In a burst it can run a few seconds ahead of the wall clock, which only
+    // makes the claim expire later, never sooner.
+    let now = chrono::Utc::now().timestamp().max(observed_deleting_at + 1);
     let result = sqlx::query(
         r#"
         UPDATE files SET deleting_at = $1

@@ -2163,9 +2163,19 @@ fn no_adapter_imports_a_sibling_adapter() {
                 if path.extension().and_then(|e| e.to_str()) != Some("rs") {
                     continue;
                 }
-                let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
-                // A parity suite compares two backends by definition.
-                if name.contains("parity") {
+                let relative = path
+                    .strip_prefix(repo)
+                    .unwrap_or(&path)
+                    .to_string_lossy()
+                    .replace('\\', "/");
+                // The parity suites compare two backends by definition. **By exact path**, not by a filename
+                // containing "parity": that form exempted any production file someone named `parity_helpers.rs`,
+                // which is precisely a gate that passes while seeing less than it claims.
+                const PARITY_SUITES: &[&str] = &[
+                    "server/src/data/clickhouse/parity_tests.rs",
+                    "server/src/data/postgres/parity_tests.rs",
+                ];
+                if PARITY_SUITES.contains(&relative.as_str()) {
                     continue;
                 }
                 let text = std::fs::read_to_string(&path).expect("readable file");
@@ -2182,13 +2192,20 @@ fn no_adapter_imports_a_sibling_adapter() {
                     if sibling == adapter {
                         continue;
                     }
-                    if code.contains(&format!("crate::data::{sibling}::")) {
-                        let shown = path
-                            .strip_prefix(repo)
-                            .unwrap_or(&path)
-                            .display()
-                            .to_string();
-                        violations.push(format!("{shown} imports crate::data::{sibling}"));
+                    // The module path, **with or without a trailing `::`**. Requiring `::` missed
+                    // `use crate::data::duckdb;` - which imports the whole module and then reaches into it - and
+                    // `use crate::data::duckdb as db;`, an alias. A trailing character that cannot continue an
+                    // identifier is what distinguishes the sibling from a longer name.
+                    let needle = format!("crate::data::{sibling}");
+                    let reaches = code.match_indices(&needle).any(|(i, _)| {
+                        code[i + needle.len()..]
+                            .chars()
+                            .next()
+                            .map(|c| !c.is_alphanumeric() && c != '_')
+                            .unwrap_or(true)
+                    });
+                    if reaches {
+                        violations.push(format!("{relative} imports crate::data::{sibling}"));
                     }
                 }
             }
@@ -2206,6 +2223,125 @@ fn no_adapter_imports_a_sibling_adapter() {
         violations.len(),
         violations.join("\n  ")
     );
+}
+
+/// Every workspace crate reports the same version, and takes it from one place.
+///
+/// `banner.rs` and `update.rs` read `env!("CARGO_PKG_VERSION")`, so which crate they live in decides which
+/// version the product *claims*. Moving them into `sideseat-core` therefore made `--version`, the banner and the
+/// update check report **core's** version - and `make sync-version` edited `server/Cargo.toml` alone, so the next
+/// release would have printed the previous version and offered the running build to itself as an upgrade.
+///
+/// The fix is one version in `[workspace.package]`. This is the guard: a crate that spells its own version, or a
+/// workspace that spells a different one, fails here rather than at a release.
+#[test]
+fn every_workspace_crate_takes_the_one_version() {
+    let repo = repo_root();
+    let root = std::fs::read_to_string(repo.join("Cargo.toml")).expect("workspace manifest");
+
+    let members: Vec<String> = {
+        let start = root.find("members = [").expect("members list");
+        let end = root[start..].find(']').expect("members list ends") + start;
+        root[start..end]
+            .split('"')
+            .filter(|t| {
+                t.contains('/') || (!t.contains(',') && !t.contains('=') && !t.trim().is_empty())
+            })
+            .filter(|t| repo.join(t).join("Cargo.toml").is_file())
+            .map(str::to_string)
+            .collect()
+    };
+    assert!(
+        members.len() >= 3,
+        "parsed {} workspace members - the parse is wrong, not the manifest",
+        members.len()
+    );
+
+    // The SDKs are released on their own cadence - `make sync-version` says so itself, "server + CLI only; SDKs
+    // maintained separately" - so their versions are deliberately independent. Exempt by prefix, with the reason,
+    // rather than by omitting them from the walk.
+    let mut offenders: Vec<String> = Vec::new();
+    for member in &members {
+        if member.starts_with("sdk/") {
+            continue;
+        }
+        let text = std::fs::read_to_string(repo.join(member).join("Cargo.toml")).expect("manifest");
+        // The `[package]` section only: a *dependency* may pin a version, which is not this question. Taken from
+        // the header to the next section rather than as "everything before the first `[`" - these manifests open
+        // with a comment block, so that form returned the comments and the check could not fail.
+        let package = match text.find("[package]") {
+            Some(start) => {
+                let rest = &text[start + "[package]".len()..];
+                let end = rest.find("\n[").unwrap_or(rest.len());
+                rest[..end].to_string()
+            }
+            None => String::new(),
+        };
+        let spells_own = package
+            .lines()
+            .any(|l| l.trim_start().starts_with("version = \""));
+        if spells_own {
+            offenders.push(format!(
+                "{member} spells its own version instead of `version.workspace = true`"
+            ));
+        }
+    }
+
+    assert!(
+        offenders.is_empty(),
+        "{} crate(s) can drift from the workspace version, which decides what `--version`, the banner and the \
+         update check report:\n  {}",
+        offenders.len(),
+        offenders.join("\n  ")
+    );
+}
+
+/// Does this manifest line declare `driver`, under its own name or a rename?
+///
+/// Extracted so it can be tested on input the workspace does not contain. A live mutation is not available:
+/// adding an unresolvable dependency to a manifest fails the *build*, so the test never runs and proves nothing
+/// about its own logic.
+fn declares_driver(line: &str, driver: &str) -> bool {
+    let trimmed = line.trim();
+    // A driver named in a comment is how these manifests explain what they may not reach.
+    if trimmed.starts_with('#') {
+        return false;
+    }
+    let key_is_driver = trimmed
+        .split_once(['=', ' '])
+        .map(|(key, _)| key.trim() == driver)
+        .unwrap_or(false);
+    // `db = { package = "duckdb" }` followed by `use db::Connection` linked the driver under another name, and a
+    // key-only check saw nothing.
+    let renamed_to_driver =
+        trimmed.contains("package") && trimmed.contains(&format!("\"{driver}\""));
+    key_is_driver || renamed_to_driver
+}
+
+/// The predicate above, on the forms that defeated its first version.
+#[test]
+fn the_driver_gate_reads_a_renamed_dependency() {
+    assert!(declares_driver("duckdb = { workspace = true }", "duckdb"));
+    assert!(
+        declares_driver("db = { package = \"duckdb\", workspace = true }", "duckdb"),
+        "a renamed driver is still the driver, and `use db::…` reaches it"
+    );
+    assert!(
+        declares_driver("  sqlx = { workspace = true }  ", "sqlx"),
+        "indentation is not a defence"
+    );
+    assert!(
+        !declares_driver(
+            "# no `duckdb` here: this crate may not name a driver",
+            "duckdb"
+        ),
+        "a comment explaining the rule must not trip it"
+    );
+    assert!(
+        !declares_driver("duckdb-adjacent = { workspace = true }", "duckdb"),
+        "a different crate whose name starts the same is not the driver"
+    );
+    assert!(!declares_driver("serde = { workspace = true }", "duckdb"));
 }
 
 /// No layer crate names a driver, which is what makes the layer boundary a compiler check.
@@ -2238,48 +2374,44 @@ fn no_layer_crate_depends_on_a_driver() {
     ];
 
     let repo = repo_root();
-    let crates_dir = repo.join("crates");
+
+    // **Workspace members, resolved from the manifest** - not the children of `crates/`. Reading the directory
+    // was a claim the test could not keep: a layer crate placed anywhere else, or one removed from the members
+    // list, was silently unscanned, and `checked > 0` could not tell the difference.
+    let root = std::fs::read_to_string(repo.join("Cargo.toml")).expect("workspace manifest");
+    let start = root.find("members = [").expect("members list");
+    let end = root[start..].find(']').expect("members list ends") + start;
+    let members: Vec<String> = root[start..end]
+        .split('"')
+        .filter(|t| repo.join(t).join("Cargo.toml").is_file())
+        .map(str::to_string)
+        .collect();
+    let layer_crates: Vec<&String> = members
+        .iter()
+        .filter(|m| m.starts_with("crates/"))
+        .collect();
+
     let mut checked = 0usize;
     let mut violations: Vec<String> = Vec::new();
 
-    let entries = std::fs::read_dir(&crates_dir).expect("crates/ exists");
-    for entry in entries {
-        let path = entry.expect("readable entry").path();
-        let manifest = path.join("Cargo.toml");
-        if !manifest.is_file() {
-            continue;
-        }
-        let text = std::fs::read_to_string(&manifest).expect("manifest is readable");
-        let name = path
-            .file_name()
-            .and_then(|n| n.to_str())
-            .unwrap_or("<unknown>")
-            .to_string();
+    for member in &layer_crates {
+        let text = std::fs::read_to_string(repo.join(member).join("Cargo.toml"))
+            .expect("manifest is readable");
         checked += 1;
 
         for line in text.lines() {
             let trimmed = line.trim();
-            // Only dependency declarations, which start with the crate name. A driver named in a *comment* is
-            // how these manifests explain what they may not reach, so matching anywhere would flag the
-            // explanation.
-            if trimmed.starts_with('#') {
-                continue;
-            }
             for driver in DRIVERS {
-                let declared = trimmed
-                    .split_once(['=', ' '])
-                    .map(|(key, _)| key.trim() == *driver)
-                    .unwrap_or(false);
-                if declared {
-                    violations.push(format!("crates/{name} declares `{driver}`"));
+                if declares_driver(trimmed, driver) {
+                    violations.push(format!("{member} declares `{driver}`"));
                 }
             }
         }
     }
 
     assert!(
-        checked > 0,
-        "found no crate manifests under crates/ - the scan is wrong, not the workspace"
+        checked >= 2,
+        "scanned {checked} layer crate manifests - the members parse is wrong, not the workspace"
     );
     assert!(
         violations.is_empty(),

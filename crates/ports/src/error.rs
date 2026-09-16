@@ -5,37 +5,70 @@
 
 use thiserror::Error;
 
+/// A driver's error, type-erased.
+///
+/// `Send + Sync` because these cross task boundaries, and `'static` because they outlive the call that made
+/// them. Erased rather than concrete so this crate names no driver.
+pub type BoxedSource = Box<dyn std::error::Error + Send + Sync + 'static>;
+
 /// Unified error type for data layer operations
 ///
 /// This error type wraps backend-specific errors while preserving context
 /// about which backend generated the error.
 #[derive(Error, Debug)]
 pub enum DataError {
-    // The four backend variants carry the driver's **message**, not the driver's error type.
+    // The four backend variants carry the driver's **message and its error as `dyn Error`**, not the driver's
+    // concrete error type.
     //
     // They used to carry `sqlx::Error`, `duckdb::Error` and `clickhouse::error::Error` directly, which made this
     // - the type every port method returns - name four drivers. Anything that called a port therefore depended
     // on all four, whatever it actually used, and no crate boundary could exist here at all.
     //
-    // Nothing outside this module ever matched on the payloads; they existed to be printed. So a `String` loses
-    // nothing a caller could observe, and each adapter fills it where its own `From` impl lives. What it does
-    // give up is downcasting to a driver error, which no caller did and which would be a layer violation by
-    // definition.
+    // Nothing outside this module ever matched on the payloads. A bare `String` was the first attempt and
+    // over-claimed: `#[from]` had made the driver error reachable through `Error::source()`, so a reporter walking
+    // the chain got `None` where it used to get the driver's error, and that *is* observable. Keeping it as
+    // `Box<dyn Error>` preserves the chain while leaving the driver unnamed here - which is the property this
+    // crate exists for. Downcasting to a concrete driver error is still gone, deliberately: it is a layer
+    // violation by definition, and nothing did it.
     /// SQLite database error (transactional backend)
     #[error("SQLite error: {message}")]
-    Sqlite { message: String, transient: bool },
+    Sqlite {
+        message: String,
+        transient: bool,
+        /// The driver's own error, kept as `dyn Error` so the chain survives without naming the driver.
+        #[source]
+        source: Option<BoxedSource>,
+    },
 
     /// PostgreSQL database error (transactional backend)
     #[error("PostgreSQL error: {message}")]
-    Postgres { message: String, transient: bool },
+    Postgres {
+        message: String,
+        transient: bool,
+        /// The driver's own error, kept as `dyn Error` so the chain survives without naming the driver.
+        #[source]
+        source: Option<BoxedSource>,
+    },
 
     /// DuckDB database error (analytics backend)
     #[error("DuckDB error: {message}")]
-    Duckdb { message: String, transient: bool },
+    Duckdb {
+        message: String,
+        transient: bool,
+        /// The driver's own error, kept as `dyn Error` so the chain survives without naming the driver.
+        #[source]
+        source: Option<BoxedSource>,
+    },
 
     /// ClickHouse database error (analytics backend)
     #[error("ClickHouse error: {message}")]
-    Clickhouse { message: String, transient: bool },
+    Clickhouse {
+        message: String,
+        transient: bool,
+        /// The driver's own error, kept as `dyn Error` so the chain survives without naming the driver.
+        #[source]
+        source: Option<BoxedSource>,
+    },
 
     /// Migration failed
     #[error("Migration {version} ({name}) failed on {backend}: {error}")]
@@ -87,18 +120,28 @@ impl DataError {
     /// The verdict is a parameter rather than something this type works out, because working it out means
     /// matching on `sqlx::Error` - and a port that matches on a driver's error variants is a port that depends on
     /// the driver. The adapter knows; this type records.
-    pub fn from_sqlite(message: impl Into<String>, transient: bool) -> Self {
+    pub fn from_sqlite(
+        message: impl Into<String>,
+        transient: bool,
+        source: Option<BoxedSource>,
+    ) -> Self {
         Self::Sqlite {
             message: message.into(),
             transient,
+            source,
         }
     }
 
     /// A PostgreSQL error, with the adapter's verdict on whether it is worth retrying.
-    pub fn from_postgres(message: impl Into<String>, transient: bool) -> Self {
+    pub fn from_postgres(
+        message: impl Into<String>,
+        transient: bool,
+        source: Option<BoxedSource>,
+    ) -> Self {
         Self::Postgres {
             message: message.into(),
             transient,
+            source,
         }
     }
 

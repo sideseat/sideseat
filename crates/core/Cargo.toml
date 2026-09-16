@@ -10,7 +10,7 @@
 # that can defeat it.
 [package]
 name = "sideseat-core"
-version = "1.0.13"
+version.workspace = true
 edition = "2024"
 rust-version.workspace = true
 license = "Apache-2.0"

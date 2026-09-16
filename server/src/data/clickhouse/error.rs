@@ -43,7 +43,11 @@ impl From<ClickhouseError> for DataError {
                 let transient = message.contains("connection")
                     || message.contains("timeout")
                     || message.contains("network");
-                Self::Clickhouse { message, transient }
+                Self::Clickhouse {
+                    message,
+                    transient,
+                    source: Some(Box::new(e)),
+                }
             }
             ClickhouseError::MigrationFailed {
                 version,

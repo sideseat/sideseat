@@ -1041,14 +1041,14 @@ bump:
 sync-version:
 	@NEW_VERSION=$$(node -p "require('./cli/package.json').version") && \
 	TEMP_FILE=$$(mktemp) && \
-	sed "s/^version = \".*\"/version = \"$$NEW_VERSION\"/" server/Cargo.toml > "$$TEMP_FILE" && \
-	mv "$$TEMP_FILE" server/Cargo.toml && \
-	CARGO_VERSION=$$(grep '^version = ' server/Cargo.toml | head -1 | sed 's/.*"\(.*\)".*/\1/') && \
+	sed "s/^version = \".*\"/version = \"$$NEW_VERSION\"/" Cargo.toml > "$$TEMP_FILE" && \
+	mv "$$TEMP_FILE" Cargo.toml && \
+	CARGO_VERSION=$$(grep '^version = ' Cargo.toml | head -1 | sed 's/.*"\(.*\)".*/\1/') && \
 	if [ "$$NEW_VERSION" != "$$CARGO_VERSION" ]; then \
 		echo "Error: Version sync failed. Expected $$NEW_VERSION, got $$CARGO_VERSION"; \
 		exit 1; \
 	fi && \
-	cargo update -p sideseat-server --quiet && \
+	cargo update --workspace --quiet && \
 	for pkg in $(PLATFORMS); do \
 		node -e "const p=require('./cli/platforms/platform-'+'$$pkg'+'/package.json'); p.version='$$NEW_VERSION'; require('fs').writeFileSync('./cli/platforms/platform-'+'$$pkg'+'/package.json', JSON.stringify(p, null, 2)+'\n')"; \
 	done && \

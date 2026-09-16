@@ -140,7 +140,7 @@ pub async fn list_projects(
 
     let rows = sqlx::query_as::<_, (String, String, String, i64, i64)>(
         "SELECT id, organization_id, name, created_at, updated_at FROM projects \
-         WHERE deleting_at IS NULL ORDER BY created_at DESC LIMIT $1 OFFSET $2",
+         WHERE deleting_at IS NULL ORDER BY created_at DESC, id LIMIT $1 OFFSET $2",
     )
     .bind(limit as i64)
     .bind(offset as i64)
@@ -201,7 +201,7 @@ async fn list_for_user_from_db(
         FROM projects p
         JOIN organization_members om ON p.organization_id = om.organization_id
         WHERE om.user_id = $1 AND p.deleting_at IS NULL
-        ORDER BY p.created_at DESC
+        ORDER BY p.created_at DESC, p.id
         LIMIT $2 OFFSET $3
         "#,
     )
@@ -267,7 +267,7 @@ async fn list_for_org_from_db(
         SELECT id, organization_id, name, created_at, updated_at
         FROM projects
         WHERE organization_id = $1 AND deleting_at IS NULL
-        ORDER BY created_at DESC
+        ORDER BY created_at DESC, id
         LIMIT $2 OFFSET $3
         "#,
     )

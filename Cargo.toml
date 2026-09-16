@@ -17,6 +17,14 @@ resolver = "2"
 #   cargo metadata --locked --format-version 1 --manifest-path server/Cargo.toml |
 #     python3 -c 'import json,sys; print(max((p["rust_version"] for p in json.load(sys.stdin)["packages"] if p.get("rust_version")), key=lambda v: tuple(int(x) for x in v.split("."))))'
 [workspace.package]
+# **One version for every crate in the workspace**, and `make sync-version` edits it here.
+#
+# The layer split made this necessary rather than tidy. `banner.rs` and `update.rs` read
+# `env!("CARGO_PKG_VERSION")`, and once they moved into `sideseat-core` that macro resolved to *core's*
+# version - which `sync-version` did not touch, because it edited `server/Cargo.toml` alone. The next release
+# would have printed the old version in `--version` and in the banner, and the update checker would have
+# offered the running build to itself as an upgrade.
+version = "1.0.13"
 rust-version = "1.94.1"
 
 # ---------------------------------------------------------------------------

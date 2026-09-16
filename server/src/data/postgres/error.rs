@@ -41,6 +41,7 @@ impl From<PostgresError> for DataError {
                     sqlx::Error::PoolTimedOut | sqlx::Error::PoolClosed | sqlx::Error::Io(_)
                 ),
                 message: e.to_string(),
+                source: Some(Box::new(e)),
             },
             PostgresError::MigrationFailed {
                 version,
@@ -80,5 +81,29 @@ mod tests {
     fn test_config_error_display() {
         let err = PostgresError::Config("missing URL".to_string());
         assert_eq!(err.to_string(), "Configuration error: missing URL");
+    }
+}
+
+/// The PostgreSQL twin of the SQLite check: the verdict and the source chain, both of which moved.
+#[cfg(test)]
+mod port_error_tests {
+    use super::*;
+    use std::error::Error as _;
+
+    #[test]
+    fn a_pool_failure_is_transient_and_a_query_failure_is_not() {
+        let pool: DataError = PostgresError::Database(sqlx::Error::PoolTimedOut).into();
+        assert!(pool.is_transient(), "a pool timeout is worth retrying");
+        let query: DataError = PostgresError::Database(sqlx::Error::RowNotFound).into();
+        assert!(!query.is_transient(), "a missing row is not");
+    }
+
+    #[test]
+    fn the_drivers_error_is_still_reachable_through_the_source_chain() {
+        let err: DataError = PostgresError::Database(sqlx::Error::PoolTimedOut).into();
+        assert!(
+            err.source().is_some(),
+            "the driver's error left the source chain"
+        );
     }
 }

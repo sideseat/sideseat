@@ -9,7 +9,7 @@
 # rather than of any transport. `async-trait` is what makes the ports object-safe.
 [package]
 name = "sideseat-ports"
-version = "1.0.13"
+version.workspace = true
 edition = "2024"
 rust-version.workspace = true
 license = "Apache-2.0"
