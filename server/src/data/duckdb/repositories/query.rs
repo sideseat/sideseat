@@ -3,9 +3,11 @@
 use chrono::{DateTime, Utc};
 use duckdb::{Connection, Row};
 
-use crate::data::duckdb::filters::Filter;
-use crate::data::duckdb::filters::{SqlParams, columns};
+use crate::data::duckdb::filters::FilterSql;
+use crate::data::duckdb::filters::SqlParams;
 use crate::data::duckdb::{DuckdbError, in_transaction};
+use crate::data::filters::Filter;
+use crate::data::filters::columns;
 use crate::data::types::{
     DisplayNameDialect, EventRow, FeedSpansParams, LinkRow, ListSessionsParams, ListSpansParams,
     ListTracesParams, SESSION_FILTER_OPTION_COLUMNS, SPAN_FILTER_OPTION_COLUMNS, SessionRow,
@@ -4641,7 +4643,7 @@ mod tests {
     // A trace filter means what the trace list displays
     // ========================================================================
 
-    use crate::data::duckdb::filters::{Filter, NullOp, NumberOp, OptionsOp, StringOp};
+    use crate::data::filters::{Filter, NullOp, NumberOp, OptionsOp, StringOp};
 
     fn trace_filter_params(project_id: &str, filters: Vec<Filter>) -> ListTracesParams {
         ListTracesParams {
@@ -5378,7 +5380,7 @@ mod tests {
     /// its trace under a different session.
     #[tokio::test]
     async fn an_advanced_session_filter_agrees_with_the_session_parameter() {
-        use crate::data::duckdb::filters::{Filter, StringOp};
+        use crate::data::filters::{Filter, StringOp};
 
         let (_tmp, service) = create_test_service().await;
         let project = "p";
@@ -5461,7 +5463,7 @@ mod tests {
     /// canonical subquery, returned its spans. Both routes are now the subquery.
     #[tokio::test]
     async fn a_negated_session_filter_agrees_between_the_trace_and_span_lists() {
-        use crate::data::duckdb::filters::{Filter, OptionsOp};
+        use crate::data::filters::{Filter, OptionsOp};
 
         let (_tmp, service) = create_test_service().await;
         let project = "p";
@@ -5537,7 +5539,7 @@ mod tests {
     /// same query could answer differently twice. `span_id` makes the order total.
     #[tokio::test]
     async fn a_trace_displays_one_name_however_it_is_asked_for() {
-        use crate::data::duckdb::filters::{Filter, StringOp};
+        use crate::data::filters::{Filter, StringOp};
 
         let (_tmp, service) = create_test_service().await;
         let project = "p";
@@ -5642,7 +5644,7 @@ mod tests {
     /// Every negation is now the complement of its positive form, in its own subquery.
     #[tokio::test]
     async fn a_trace_with_no_value_matches_none_of_that_value() {
-        use crate::data::duckdb::filters::{Filter, OptionsOp};
+        use crate::data::filters::{Filter, OptionsOp};
 
         let (_tmp, service) = create_test_service().await;
         let project = "p";
@@ -5701,7 +5703,7 @@ mod tests {
     /// matched it, and the filter's own total was 5,100 - the sum of both deliveries.
     #[tokio::test]
     async fn a_filter_reads_the_delivery_the_row_displays() {
-        use crate::data::duckdb::filters::{Filter, NumberOp, OptionsOp, StringOp};
+        use crate::data::filters::{Filter, NumberOp, OptionsOp, StringOp};
 
         let (_tmp, service) = create_test_service().await;
         let project = "p";
@@ -5906,7 +5908,7 @@ mod tests {
     /// a list nobody had filtered. Such a filter now contributes no condition at all.
     #[tokio::test]
     async fn an_empty_value_list_is_not_a_filter() {
-        use crate::data::duckdb::filters::{Filter, OptionsOp};
+        use crate::data::filters::{Filter, OptionsOp};
 
         let (_tmp, service) = create_test_service().await;
         let project = "p";
@@ -5988,7 +5990,7 @@ mod tests {
     /// not alice.
     #[tokio::test]
     async fn a_session_list_filter_selects_sessions_not_span_rows() {
-        use crate::data::duckdb::filters::{Filter, OptionsOp, StringOp};
+        use crate::data::filters::{Filter, OptionsOp, StringOp};
 
         let (_tmp, service) = create_test_service().await;
         let project = "p";
@@ -6099,7 +6101,7 @@ mod tests {
     /// filters permuted and requiring one answer.
     #[tokio::test]
     async fn a_negated_aggregate_filter_binds_in_step_with_its_neighbours() {
-        use crate::data::duckdb::filters::{Filter, NumberOp, OptionsOp, StringOp};
+        use crate::data::filters::{Filter, NumberOp, OptionsOp, StringOp};
 
         let (_tmp, service) = create_test_service().await;
         let project = "p";
@@ -6206,7 +6208,7 @@ mod tests {
     /// silently wrong answer, not an error - the query runs and compares the wrong values.
     #[tokio::test]
     async fn a_session_filter_binds_in_step_with_its_neighbours() {
-        use crate::data::duckdb::filters::{Filter, OptionsOp, StringOp};
+        use crate::data::filters::{Filter, OptionsOp, StringOp};
 
         let (_tmp, service) = create_test_service().await;
         let project = "p";

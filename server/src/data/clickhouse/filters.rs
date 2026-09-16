@@ -22,9 +22,7 @@
 //! DuckDB applies them, so a filter on a trace-level column means "some span of this trace
 //! matches" on both backends. The parity test asserts that equivalence rather than assuming it.
 
-use crate::data::duckdb::filters::{
-    BooleanOp, DatetimeOp, Filter, NullOp, NumberOp, OptionsOp, StringOp,
-};
+use crate::data::filters::{BooleanOp, DatetimeOp, Filter, NullOp, NumberOp, OptionsOp, StringOp};
 use sideseat_core::utils::sql::{escape_like_pattern, is_plain_identifier};
 
 use super::repositories::query::QueryParam;
@@ -311,7 +309,7 @@ fn tags_condition(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::data::duckdb::filters::columns;
+    use crate::data::filters::columns;
 
     fn render(filter: &Filter) -> (String, Vec<QueryParam>) {
         let mut params = Vec::new();

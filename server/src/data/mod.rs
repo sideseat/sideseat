@@ -24,6 +24,7 @@ pub mod dedup;
 pub mod duckdb;
 pub mod error;
 pub mod files;
+pub mod filters;
 pub mod postgres;
 pub mod registrations;
 pub mod secrets;
@@ -54,7 +55,6 @@ pub use types::{
 };
 
 // Re-export filters for API usage (analytics backend SQL building)
-pub use duckdb::filters;
 
 use std::sync::Arc;
 

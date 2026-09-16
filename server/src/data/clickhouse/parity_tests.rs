@@ -46,7 +46,7 @@ use chrono::{DateTime, Datelike, TimeZone, Utc};
 
 use crate::data::clickhouse::ClickhouseService;
 use crate::data::duckdb::DuckdbService;
-use crate::data::duckdb::filters::{DatetimeOp, Filter, NullOp, NumberOp, OptionsOp, StringOp};
+use crate::data::filters::{DatetimeOp, Filter, NullOp, NumberOp, OptionsOp, StringOp};
 use crate::data::traits::AnalyticsRepository;
 use crate::data::types::{
     AggregationTemporality, FeedSpansParams, ListSessionsParams, ListSpansParams, ListTracesParams,
@@ -1785,7 +1785,7 @@ async fn clickhouse_matches_duckdb_on_every_read() {
     // Every column the API accepts as a trace sort must actually sort by it. One that is accepted
     // and unmapped falls through to min_ts, so the list comes back in time order while the UI shows
     // the chosen column as active - which was true of total_tokens.
-    for column in crate::data::duckdb::filters::columns::TRACE_SORTABLE {
+    for column in crate::data::filters::columns::TRACE_SORTABLE {
         let params = ListTracesParams {
             order_by: Some(crate::data::types::OrderBy {
                 column: column.to_string(),
@@ -1818,7 +1818,7 @@ async fn clickhouse_matches_duckdb_on_every_read() {
         );
     }
 
-    for column in crate::data::duckdb::filters::columns::SESSION_SORTABLE {
+    for column in crate::data::filters::columns::SESSION_SORTABLE {
         let params = ListSessionsParams {
             project_id: PROJECT.to_string(),
             page: 1,

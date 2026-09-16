@@ -2129,6 +2129,85 @@ fn the_image_gate_reads_the_shapes_that_defeated_it() {
     }
 }
 
+/// No adapter reaches into a sibling adapter.
+///
+/// The plan names this defect precisely: "`Filter` lives in one adapter and the other imports it". It did - the
+/// filter vocabulary, its operators and the column allowlists sat inside `data::duckdb::filters` while the
+/// ClickHouse adapter imported them, so a shared type was owned by one implementation and the two could never be
+/// separate crates. The vocabulary now lives in `data::filters` and each adapter keeps only its own rendering.
+///
+/// **Parity tests are exempt, and that is the point of them.** A test whose whole purpose is to require two
+/// backends to return identical rows must see both. The exemption is by path, so it cannot quietly cover
+/// production code.
+#[test]
+fn no_adapter_imports_a_sibling_adapter() {
+    const ADAPTERS: &[&str] = &["duckdb", "clickhouse", "sqlite", "postgres"];
+
+    let repo = repo_root();
+    let mut violations: Vec<String> = Vec::new();
+    let mut checked = 0usize;
+
+    for adapter in ADAPTERS {
+        let dir = repo.join("server/src/data").join(adapter);
+        if !dir.is_dir() {
+            continue;
+        }
+        let mut stack = vec![dir];
+        while let Some(current) = stack.pop() {
+            for entry in std::fs::read_dir(&current).expect("readable directory") {
+                let path = entry.expect("readable entry").path();
+                if path.is_dir() {
+                    stack.push(path);
+                    continue;
+                }
+                if path.extension().and_then(|e| e.to_str()) != Some("rs") {
+                    continue;
+                }
+                let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
+                // A parity suite compares two backends by definition.
+                if name.contains("parity") {
+                    continue;
+                }
+                let text = std::fs::read_to_string(&path).expect("readable file");
+                // Commentary names siblings deliberately - explaining why a rendering is per-dialect is the
+                // documentation this move exists to make true - so only code counts.
+                let mut code = text.clone();
+                for (_, comment) in rust_commentary(&text) {
+                    if !comment.is_empty() {
+                        code = code.replace(&comment, "");
+                    }
+                }
+                checked += 1;
+                for sibling in ADAPTERS {
+                    if sibling == adapter {
+                        continue;
+                    }
+                    if code.contains(&format!("crate::data::{sibling}::")) {
+                        let shown = path
+                            .strip_prefix(repo)
+                            .unwrap_or(&path)
+                            .display()
+                            .to_string();
+                        violations.push(format!("{shown} imports crate::data::{sibling}"));
+                    }
+                }
+            }
+        }
+    }
+
+    assert!(
+        checked > 30,
+        "only scanned {checked} adapter files - the walk is wrong, not the tree"
+    );
+    assert!(
+        violations.is_empty(),
+        "{} cross-adapter import(s) - a type shared by two adapters belongs to neither, and while one owns it \
+         they cannot be separate crates:\n  {}",
+        violations.len(),
+        violations.join("\n  ")
+    );
+}
+
 /// No layer crate names a driver, which is what makes the layer boundary a compiler check.
 ///
 /// The point of splitting the workspace is that a forbidden dependency **does not compile** - there is no list

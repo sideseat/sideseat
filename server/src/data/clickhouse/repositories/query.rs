@@ -6,7 +6,7 @@ use chrono::{DateTime, Utc};
 use clickhouse::{Client, Row};
 use serde::Deserialize;
 
-use crate::data::duckdb::filters::{Filter, columns};
+use crate::data::filters::{Filter, columns};
 use crate::data::types::{
     DisplayNameDialect, genai_span_predicate, trace_display_first, trace_display_name,
 };
