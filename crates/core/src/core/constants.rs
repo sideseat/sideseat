@@ -862,6 +862,14 @@ pub const STREAM_MAX_RETAINED_BYTES: u64 = 128 * 1024 * 1024;
 /// overestimating it is refusing slightly early.
 pub const STREAM_ENTRY_OVERHEAD_BYTES: u64 = 256;
 
+/// Charged per *pending record*, of which each consumer group holds one per delivered-and-unacknowledged entry.
+///
+/// Separate from the per-entry overhead because the two multiply. Counting only entries made the bound blind to
+/// group state: ten thousand entries against a thousand abandoned groups is ten million pending records, and
+/// `retained_bytes` reported the queue comfortably inside its budget while it held gigabytes. Smaller than an
+/// entry's overhead because a pending record is an id, a consumer name and an instant rather than a payload.
+pub const STREAM_PENDING_RECORD_OVERHEAD_BYTES: u64 = 128;
+
 // ---------------------------------------------------------------------------
 // The embedded engine's share of the footprint ceiling
 //
@@ -877,11 +885,17 @@ pub const STREAM_ENTRY_OVERHEAD_BYTES: u64 = 256;
 /// cache - has to fit inside the same ceiling, and those are the parts this repository's own benchmarks
 /// measure.
 ///
-/// **DuckDB spills rather than failing, which is what makes this safe to set at all.** Hash aggregates, sorts
-/// and window functions are out-of-core, and `temp_directory` is set explicitly beside this so the spill
-/// destination is a directory SideSeat owns rather than whatever the process's working directory happens to
-/// be. What a tight limit costs is latency on a large read, not an error - and that cost is measured by
-/// `make bench-http`, whose ceilings are what would notice if this number is too small.
+/// **Most operators spill; not all of them do.** Hash aggregates, sorts and window functions are out-of-core,
+/// and `temp_directory` is set beside this so the destination is a directory SideSeat owns. But DuckDB
+/// documents complex aggregate states - `list()`, `first()` - as unable to offload, and the trace list builds
+/// its tag column with `LIST_DISTINCT(FLATTEN(LIST(...)))`, so a trace with thousands of large tag arrays can
+/// raise an out-of-memory error here where the default limit would have completed.
+///
+/// So the claim is not "a tight limit only costs latency": it can cost the query. The trade is taken because an
+/// error names the limit while the default silently makes the process ceiling meaningless, and because which
+/// way it should go is a measurement rather than an argument - `make bench-http` plus a large-corpus read. If
+/// it proves too tight the fix is a configuration key, not a bigger constant, since the value depends on the
+/// corpus.
 pub const DUCKDB_MEMORY_LIMIT_BYTES: u64 = FOOTPRINT_INGEST_RSS_MAX_BYTES / 2;
 
 /// Decoded protobuf bytes the CPU phase may have in flight at once.

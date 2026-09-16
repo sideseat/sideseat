@@ -13,6 +13,12 @@
 //! `#[ignore]` on the two measurements, like every other benchmark in this repository: the 10 000-turn
 //! fixture takes tens of seconds to build and a debug build's numbers describe the debug build. The
 //! invariants beside them are ordinary tests and run in `make check`.
+//!
+//! **`--test-threads=1` is required, not preferred.** Both measurements read a process-global allocation
+//! counter, so run concurrently the queue test's live bytes fall inside the session test's baseline-to-residue
+//! window - and freed before the session's final snapshot, they mask a leak of their own size. `make footprint`
+//! passes the flag; a hand-run `cargo test --test footprint -- --ignored` without it can report a 52 MB
+//! regression as 48 MB and pass.
 
 use sideseat_core::core::constants::{
     FOOTPRINT_IDLE_RSS_MAX_BYTES, FOOTPRINT_INGEST_RSS_MAX_BYTES, FOOTPRINT_QUEUED_SPAN_MAX_RATIO,
@@ -121,13 +127,17 @@ fn a_long_session_read_returns_to_its_baseline() {
 fn a_queued_span_costs_less_than_three_times_its_protobuf() {
     use prost::Message;
 
+    // A gate that measured nothing must not pass. The fixtures are committed, so an empty set means
+    // `FOOTPRINT_FIXTURE` names a directory that does not exist or holds no `.pb` files - a misconfiguration,
+    // not a legitimate skip, and returning `Ok` for it is the "passes while seeing nothing" shape these gates
+    // exist to remove. `make test-clickhouse` may skip on a missing URL because the *service* is optional;
+    // nothing about this measurement is.
     let requests = fixture_requests();
-    if requests.is_empty() {
-        eprintln!(
-            "FOOTPRINT queue: no fixtures - run scripts/message-fixtures/capture.sh; nothing measured"
-        );
-        return;
-    }
+    assert!(
+        !requests.is_empty(),
+        "no captured requests for FOOTPRINT_FIXTURE; a gate with no input cannot pass. Fixtures live in \
+         server/tests/fixtures/messages/<suite>/<sample> and are committed"
+    );
 
     let spans: usize = requests
         .iter()

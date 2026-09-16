@@ -94,11 +94,25 @@ impl DuckdbService {
         // engine alone is allowed two orders of magnitude more than the whole process is supposed to use -
         // which makes the ceiling a statement about everything except the component most likely to breach it.
         //
-        // `temp_directory` goes with it and is the half that makes it safe: DuckDB's hash aggregates, sorts
-        // and window functions are out-of-core, so a tight limit costs latency on a large read rather than
-        // failing it - but only if there is somewhere to spill. Left unset it defaults to a location derived
-        // from the database path, which is usually right and is not something to leave to chance when the
-        // limit is deliberately tight. Pointed at the DuckDB subdirectory, which SideSeat owns and creates.
+        // `temp_directory` goes with it, and it is necessary rather than sufficient. DuckDB's hash aggregates,
+        // sorts and window functions are out-of-core, so for those a tight limit costs latency rather than the
+        // query - but only if there is somewhere to spill, and left unset the destination is derived from the
+        // database path, which is not a thing to leave to chance when the limit is deliberately tight.
+        //
+        // **Not every operator can spill, so the honest statement is that a large read can fail rather than
+        // merely slow down.** DuckDB documents complex aggregate states - `list()`, `first()` - as unable to
+        // offload, and this codebase's trace list builds its tag column with
+        // `LIST_DISTINCT(FLATTEN(LIST(...)))` per trace (`repositories/query.rs`). A trace carrying thousands
+        // of spans with large tag arrays therefore holds its whole aggregate state in memory, and against a
+        // 200 MB limit that can raise an out-of-memory error where the default 80%-of-RAM limit would have
+        // completed.
+        //
+        // That trade is taken deliberately and is not silent: an error names the limit, whereas the default
+        // makes the process ceiling a statement about everything except the component most likely to breach it
+        // (measured with this `SET` removed: 25.5 GiB). Which way it should go is a *measurement* - the five
+        // p95 ceilings in `make bench-http` and a large-corpus read - and the number is a starting point until
+        // those run. If it proves too tight, the fix is a configuration key rather than a larger constant,
+        // since the right value depends on the corpus.
         let temp_dir = storage.subdir(DataSubdir::Duckdb);
         let conn = tokio::task::spawn_blocking(move || {
             let conn = Connection::open(&db_path)?;

@@ -31,10 +31,12 @@ set -euo pipefail
 
 IDLE_RSS_CEILING_BYTES=104857600
 INGEST_RSS_CEILING_BYTES=419430400
-# The rate the ingest ceiling is *stated* at, reported rather than enforced. This script cannot make a host
-# sustain 5 000 spans/s, and failing a memory gate because the load generator fell short would be a false
-# statement about memory. So the achieved rate is printed with the verdict, and a pass under target says the
-# ceiling was met under lighter load than it claims - which is a caveat on the result, not a hidden one.
+# The rate the ingest ceiling is stated at, and it is **enforced against a floor**, not merely printed.
+#
+# Printing it was wrong: a resident figure taken at 200 spans/s says nothing about whether 5 000 spans/s stays
+# under 400 MB, so reporting that as a pass is a gate that sees less than it claims. A floor rather than the
+# exact target, because a load generator built from `curl` in a loop will not reach 5 000 spans/s on every host
+# and demanding it exactly would make the gate unrunnable rather than strict.
 TARGET_SPANS_PER_SECOND="${FOOTPRINT_SPANS_PER_SECOND:-5000}"
 
 PORT="${FOOTPRINT_PORT:-5597}"
@@ -155,6 +157,7 @@ STOP_FILE="$WORK/stop"
 rm -f "$STOP_FILE" "$WORK/post-errors"
 : >"$WORK/posted"
 
+LOADER_PIDS=()
 for loader in $(seq 1 "$LOADERS"); do
   (
     while [ ! -f "$STOP_FILE" ]; do
@@ -170,6 +173,7 @@ for loader in $(seq 1 "$LOADERS"); do
       done
     done
   ) &
+  LOADER_PIDS+=("$!")
 done
 
 SAMPLES=()
@@ -180,7 +184,15 @@ while [ $(( $(date +%s) - START )) -lt "$INGEST_SECS" ]; do
 done
 ELAPSED=$(( $(date +%s) - START ))
 touch "$STOP_FILE"
-wait
+# The loaders **by pid**, never a bare `wait`.
+#
+# A bare `wait` waits for every background child, and the server is one of them - so it blocked until the
+# server exited, which only the EXIT trap does, and the trap cannot run while `wait` is blocked. The run hung
+# here forever and never evaluated a single ceiling. A gate that cannot reach its own verdict is worse than no
+# gate: it looks like a slow machine.
+for pid in "${LOADER_PIDS[@]}"; do
+  wait "$pid" 2>/dev/null || true
+done
 
 # A 503 here is `BufferFull` or a rate limit, which is the server protecting itself - a legitimate answer, and
 # not load. Reported as a failure of the *measurement*, because the resident figure taken while the server was
@@ -200,8 +212,19 @@ ACHIEVED="$(awk -v posted="$POSTED" -v spans="$SPANS_PER_PASS" -v reqs="$REQUEST
 
 echo "[footprint] steady ingest RSS: median $(mb "$MEDIAN_RSS") MB, max $(mb "$MAX_RSS") MB (ungated), ${#SAMPLES[@]} samples over ${ELAPSED}s"
 echo "[footprint] achieved ~$ACHIEVED spans/s from $POSTED requests across $LOADERS loaders (ceiling is stated at $TARGET_SPANS_PER_SECOND spans/s)"
-if [ "$ACHIEVED" -lt "$TARGET_SPANS_PER_SECOND" ]; then
-  echo "[footprint] NOTE: the achieved rate is below the rate the ceiling is stated at, so a pass here means the ceiling held under lighter load than it claims"
+# Below the rate the ceiling is stated at, the resident figure describes a different workload - so this is a
+# failed *measurement*, not a passed gate. A run achieving 200 spans/s at 350 MB says nothing about whether
+# 5 000 spans/s stays under 400 MB, and reporting it as a pass is the "gate that sees less than it claims"
+# shape this file exists to avoid.
+#
+# A floor rather than the exact target, because a load generator built from `curl` in a loop will not hit
+# 5 000 spans/s on every host, and demanding it exactly would make the gate unrunnable rather than strict.
+# `FOOTPRINT_MIN_RATE_FRACTION` is what an operator lowers deliberately, which leaves a record in the command
+# rather than in a note nobody reads.
+MIN_RATE="$(awk -v target="$TARGET_SPANS_PER_SECOND" -v frac="${FOOTPRINT_MIN_RATE_FRACTION:-0.5}" \
+  'BEGIN { printf "%.0f", target * frac }')"
+if [ "$ACHIEVED" -lt "$MIN_RATE" ]; then
+  fail "achieved ~$ACHIEVED spans/s, below the $MIN_RATE floor for a ceiling stated at $TARGET_SPANS_PER_SECOND spans/s. The resident figure describes a lighter workload than the ceiling claims, so it is not evidence about the ceiling. Raise the load (FOOTPRINT_LOADERS) or lower the floor deliberately (FOOTPRINT_MIN_RATE_FRACTION)."
 fi
 
 # --- verdict ----------------------------------------------------------------

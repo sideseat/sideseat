@@ -58,6 +58,24 @@ impl fmt::Display for PathSegment {
 pub struct PositionPath(Vec<PathSegment>);
 
 impl PositionPath {
+    /// Roughly how many bytes this path holds, for a cache that is bounded in bytes.
+    ///
+    /// Approximate on purpose: what a byte-bounded cache needs is a figure within a constant factor of the truth
+    /// and monotone in the real size, not an exact one. It exists because `PositionPath` is `#[serde(skip)]`, so
+    /// a weigher that measures a serialised answer cannot see it at all - and a path grows with the payload's
+    /// nesting, so "invisible to serialisation" and "small" are not the same thing.
+    pub fn approximate_bytes(&self) -> usize {
+        let segments: usize = self
+            .0
+            .iter()
+            .map(|segment| match segment {
+                PathSegment::Key(key) => key.len() + std::mem::size_of::<PathSegment>(),
+                PathSegment::Index(_) => std::mem::size_of::<PathSegment>(),
+            })
+            .sum();
+        segments + std::mem::size_of::<Self>()
+    }
+
     /// The path of the `index`-th observation of a span's stored list.
     pub fn root(index: usize) -> Self {
         Self(vec![PathSegment::Index(index)])

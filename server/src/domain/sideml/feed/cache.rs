@@ -555,10 +555,13 @@ mod tests {
 /// O(1) memory, and it runs once per cache fill - immediately after a reconstruction that cost between
 /// milliseconds and seconds, so it is not on any path where it is measurable.
 ///
-/// Two things it deliberately does not see, and one flat charge that covers them. It counts content, not the
-/// `BlockEntry` structs, their `Vec` slots, their `span_path` allocations, or the fields marked
-/// `#[serde(skip)]` - which for an answer of many small blocks is most of the memory. So each block is charged
-/// `RECONSTRUCTION_CACHE_ENTRY_OVERHEAD_BYTES` as well, which also gives the entry count an implicit bound.
+/// Serialisation does not see everything, and the two gaps need different treatment. The **fixed** costs - the
+/// `BlockEntry` structs, their `Vec` slots, their `span_path` allocations - are covered by a flat
+/// `RECONSTRUCTION_CACHE_ENTRY_OVERHEAD_BYTES` per block, which also gives the entry count an implicit bound.
+/// The **unbounded** ones cannot be: `span_name`, `scope_name`, `scope_version` and `position` are marked
+/// `#[serde(skip)]` and are as long as a producer makes them, so a flat charge left two blocks carrying 40 MiB
+/// span names weighing about a kilobyte between them while retaining 80 MiB - a ceiling that is not a ceiling.
+/// They are measured directly.
 ///
 /// A serialisation failure weighs the entry at the maximum rather than at nothing. `FeedResult` serialises
 /// infallibly today, and a weigher that answered zero on an error would let a value that cannot be measured

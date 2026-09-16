@@ -891,7 +891,11 @@ bench-http-distributed: disk-guard
 # code. Release build throughout: a debug build's footprint describes the debug build.
 footprint: disk-guard
 	@scripts/footprint-gates.sh
-	@cd $(SERVER_DIR) && cargo test --locked --release --test footprint -- --ignored --nocapture
+	@# `--test-threads=1`, and it is correctness rather than tidiness: both measurements read a *process-global*
+	@# allocation counter, so run concurrently the queue test's live bytes are inside the session test's
+	@# baseline-to-residue window. Freed before the session's final snapshot, they mask a genuine leak of their
+	@# own size - a 52 MB regression reported as 48 MB and passing.
+	@cd $(SERVER_DIR) && cargo test --locked --release --test footprint -- --ignored --nocapture --test-threads=1
 
 test-web:
 	@echo "[test-web] Running web tests..."

@@ -27,7 +27,9 @@ use super::backend::{
     BroadcastSubscription, StreamMessage, StreamStats, StreamSubscription, TopicBackend,
 };
 use crate::data::topics::TopicError;
-use sideseat_core::core::constants::{STREAM_ENTRY_OVERHEAD_BYTES, STREAM_MAX_RETAINED_BYTES};
+use sideseat_core::core::constants::{
+    STREAM_ENTRY_OVERHEAD_BYTES, STREAM_MAX_RETAINED_BYTES, STREAM_PENDING_RECORD_OVERHEAD_BYTES,
+};
 
 /// Default broadcast channel capacity
 const DEFAULT_BROADCAST_CAPACITY: usize = 10_000;
@@ -336,7 +338,23 @@ impl TopicBackend for MemoryTopicBackend {
             // with `Retry-After`, which leaves the data with the exporter that still has it - the one place it
             // is guaranteed to exist.
             let cost = StreamEntry::budget_cost(payload.len());
-            if stream.retained_bytes + cost > stream.max_bytes {
+            // The **pending records too**, because the budget was multiplicative in consumer groups while only
+            // counting each entry once. Every group holds its own pending record per delivered-and-unacked
+            // entry, so ten thousand entries against a thousand abandoned groups is ten million records that
+            // `retained_bytes` did not see at all: the queue sat comfortably inside 128 MB while holding
+            // gigabytes. Retaining a group's unread entries is correct; leaving the group's own state out of
+            // the bound is not.
+            //
+            // Summed rather than maintained incrementally: it is O(groups), and many groups is precisely the
+            // case being bounded, so paying a per-group read there is the right trade against another counter
+            // that can drift.
+            let pending_cost = stream
+                .groups
+                .values()
+                .map(|group| group.pending.len() as u64)
+                .sum::<u64>()
+                .saturating_mul(STREAM_PENDING_RECORD_OVERHEAD_BYTES);
+            if stream.retained_bytes + pending_cost + cost > stream.max_bytes {
                 // Not a warning about a full buffer: this is the queue holding the line, and the number is
                 // what an operator needs to size the deployment or the consumer.
                 // The oldest retained entry's age is in the message because it is what separates the two
@@ -349,6 +367,8 @@ impl TopicBackend for MemoryTopicBackend {
                 tracing::warn!(
                     topic,
                     retained_bytes = stream.retained_bytes,
+                    pending_bytes = pending_cost,
+                    groups = stream.groups.len(),
                     max_bytes = stream.max_bytes,
                     entries = stream.messages.len(),
                     payload_bytes = payload.len(),
@@ -779,7 +799,12 @@ mod admission_tests {
     #[tokio::test]
     async fn an_unacknowledged_entry_is_never_dropped_to_make_room() {
         let payload = vec![b'y'; 512];
-        let budget = StreamEntry::budget_cost(payload.len()) * 2;
+        // Two entries plus the one pending record the delivery below creates. The pending charge is part of the
+        // budget - a group holds one record per delivered-and-unacked entry, and leaving that out of the bound
+        // made it multiplicative in groups - so a budget sized for entries alone would refuse the second
+        // publish and this test would pass for the wrong reason.
+        let budget =
+            StreamEntry::budget_cost(payload.len()) * 2 + STREAM_PENDING_RECORD_OVERHEAD_BYTES;
         let backend = MemoryTopicBackend::with_stream_budget(budget);
 
         backend
@@ -939,6 +964,49 @@ mod admission_tests {
             seen,
             vec!["1", "2", "3", "4"],
             "each entry goes to exactly one consumer of the group"
+        );
+    }
+
+    /// Many consumer groups holding the same entries are charged for their own state.
+    ///
+    /// The bound counted each entry once, so it was blind to a cost that *multiplies*: every group holds a
+    /// pending record per delivered-and-unacknowledged entry. Ten thousand entries against a thousand abandoned
+    /// groups is ten million records the budget did not see, and the queue reported itself comfortably inside
+    /// 128 MB while holding gigabytes. Retaining a group's unread entries is correct; omitting the group's own
+    /// state from the bound is not.
+    #[tokio::test]
+    async fn group_state_is_charged_against_the_budget() {
+        let payload = vec![b'g'; 64];
+        // Room for two entries and nothing else, so the pending records are what tips it over.
+        let budget = StreamEntry::budget_cost(payload.len()) * 2;
+        let backend = MemoryTopicBackend::with_stream_budget(budget);
+
+        backend
+            .stream_publish("t", "k", &payload)
+            .await
+            .expect("first");
+
+        // Several groups take it and none acknowledges. Each holds its own pending record.
+        let mut receivers = Vec::new();
+        for group in ["g1", "g2", "g3", "g4"] {
+            let sub = backend
+                .stream_subscribe("t", group, "c")
+                .await
+                .expect("subscribe");
+            let mut receiver = sub.receiver;
+            let msg = tokio::time::timeout(std::time::Duration::from_millis(500), receiver.next())
+                .await
+                .expect("delivered")
+                .expect("some")
+                .expect("ok");
+            assert_eq!(msg.id, "1");
+            receivers.push(receiver);
+        }
+
+        let refused = backend.stream_publish("t", "k", &payload).await;
+        assert!(
+            matches!(refused, Err(TopicError::BufferFull)),
+            "four groups each holding a pending record cost real memory the budget has to see; got {refused:?}"
         );
     }
 

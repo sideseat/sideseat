@@ -103,8 +103,15 @@ unsafe impl<A: GlobalAlloc> GlobalAlloc for CountingAllocator<A> {
         // counter moves.
         let new_ptr = unsafe { self.backend.realloc(ptr, layout, new_size) };
         if !new_ptr.is_null() {
-            FREED.fetch_add(layout.size() as u64, Ordering::Relaxed);
+            // `ALLOCATED` **before** `FREED`, and this order is the whole correctness of the pair.
+            //
+            // The other way round, a snapshot landing between the two atomics sees the old size freed and the
+            // new size not yet allocated - so a 100 MiB block grown to 200 MiB reads as 100 MiB *less* live
+            // when it is 100 MiB more, an undercount of 200 MiB. A footprint gate reading that passes during
+            // exactly the regression it exists to catch. This order makes the transient error an
+            // *over*-estimate, which is the direction every measurement in this module is biased towards.
             ALLOCATED.fetch_add(new_size as u64, Ordering::Relaxed);
+            FREED.fetch_add(layout.size() as u64, Ordering::Relaxed);
         }
         new_ptr
     }
@@ -243,6 +250,50 @@ mod tests {
         );
         // Growth is deliberately not asserted back to zero: concurrent tests in this binary allocate, so the
         // only sound statement is that the release was counted, which the churn and the free above show.
+    }
+
+    /// Every counter update is ordered so a torn read over-estimates rather than under-estimates.
+    ///
+    /// Read as source text, because the property is about *statement order* inside `unsafe` blocks and no
+    /// runtime test can catch the interleaving reliably. `realloc` had it backwards: freeing the old size
+    /// before recording the new allocation made a growing block read as *shrinking* between the two atomics,
+    /// so a gate could pass during the regression it exists to catch.
+    #[test]
+    fn every_counter_pair_is_ordered_to_over_estimate() {
+        let source = include_str!("allocation.rs");
+        let realloc = source
+            .split_once("unsafe fn realloc")
+            .expect("realloc is defined here")
+            .1;
+        let body = realloc
+            .split_once("unsafe fn alloc_zeroed")
+            .map(|(before, _)| before)
+            .unwrap_or(realloc);
+        let allocated_at = body
+            .find("ALLOCATED.fetch_add")
+            .expect("realloc records an allocation");
+        let freed_at = body
+            .find("FREED.fetch_add")
+            .expect("realloc records a free");
+        assert!(
+            allocated_at < freed_at,
+            "realloc must add to ALLOCATED before FREED: the other order makes a growing block read as \
+             shrinking between the two atomics, which under-reports live bytes by twice the growth"
+        );
+
+        // And the snapshot reads them the other way round, for the same reason from the other side: reading
+        // `freed` first means concurrent activity can only make `freed` stale-small and `allocated`
+        // fresh-large, which over-estimates.
+        let snapshot = source
+            .split_once("pub fn now() -> Self {")
+            .expect("the snapshot constructor is here")
+            .1;
+        let freed_read = snapshot.find("FREED.load").expect("reads FREED");
+        let allocated_read = snapshot.find("ALLOCATED.load").expect("reads ALLOCATED");
+        assert!(
+            freed_read < allocated_read,
+            "AllocationSnapshot::now must read FREED before ALLOCATED, or `live` can underflow"
+        );
     }
 
     /// A reading never reports negative live bytes, whichever way the counters were caught.
