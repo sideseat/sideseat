@@ -861,3 +861,25 @@ pub const STREAM_MAX_RETAINED_BYTES: u64 = 128 * 1024 * 1024;
 /// generous, because the failure of underestimating it is an out-of-memory kill and the failure of
 /// overestimating it is refusing slightly early.
 pub const STREAM_ENTRY_OVERHEAD_BYTES: u64 = 256;
+
+// ---------------------------------------------------------------------------
+// The embedded engine's share of the footprint ceiling
+//
+// DuckDB's default `memory_limit` is 80% of physical RAM - on a 64 GB host that
+// is 51 GB, which makes a 400 MB process ceiling a statement about everything
+// except the component most likely to breach it. An embedded engine that
+// ignores the budget makes the budget false.
+// ---------------------------------------------------------------------------
+
+/// Bytes DuckDB may use, as a share of [`FOOTPRINT_INGEST_RSS_MAX_BYTES`].
+///
+/// Half, not all of it: the rest of the process - the decode, the pipeline, the queue and the reconstruction
+/// cache - has to fit inside the same ceiling, and those are the parts this repository's own benchmarks
+/// measure.
+///
+/// **DuckDB spills rather than failing, which is what makes this safe to set at all.** Hash aggregates, sorts
+/// and window functions are out-of-core, and `temp_directory` is set explicitly beside this so the spill
+/// destination is a directory SideSeat owns rather than whatever the process's working directory happens to
+/// be. What a tight limit costs is latency on a large read, not an error - and that cost is measured by
+/// `make bench-http`, whose ceilings are what would notice if this number is too small.
+pub const DUCKDB_MEMORY_LIMIT_BYTES: u64 = FOOTPRINT_INGEST_RSS_MAX_BYTES / 2;

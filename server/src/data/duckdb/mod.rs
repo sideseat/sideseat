@@ -37,8 +37,8 @@ use tokio::task::JoinHandle;
 
 use sideseat_core::core::config::RetentionConfig;
 use sideseat_core::core::constants::{
-    DUCKDB_CHECKPOINT_INTERVAL_SECS, DUCKDB_DB_FILENAME, DUCKDB_QUERY_TIMEOUT_SECS,
-    DUCKDB_RETENTION_INTERVAL_SECS,
+    DUCKDB_CHECKPOINT_INTERVAL_SECS, DUCKDB_DB_FILENAME, DUCKDB_MEMORY_LIMIT_BYTES,
+    DUCKDB_QUERY_TIMEOUT_SECS, DUCKDB_RETENTION_INTERVAL_SECS,
 };
 use sideseat_core::core::storage::{AppStorage, DataSubdir};
 
@@ -88,16 +88,34 @@ impl DuckdbService {
     pub async fn init(storage: &AppStorage) -> Result<Self, DuckdbError> {
         let db_path = storage.subdir(DataSubdir::Duckdb).join(DUCKDB_DB_FILENAME);
 
+        // The engine participates in the process's footprint ceiling rather than sizing itself from the host.
+        //
+        // DuckDB's default `memory_limit` is 80% of physical RAM, so on any ordinary server the embedded
+        // engine alone is allowed two orders of magnitude more than the whole process is supposed to use -
+        // which makes the ceiling a statement about everything except the component most likely to breach it.
+        //
+        // `temp_directory` goes with it and is the half that makes it safe: DuckDB's hash aggregates, sorts
+        // and window functions are out-of-core, so a tight limit costs latency on a large read rather than
+        // failing it - but only if there is somewhere to spill. Left unset it defaults to a location derived
+        // from the database path, which is usually right and is not something to leave to chance when the
+        // limit is deliberately tight. Pointed at the DuckDB subdirectory, which SideSeat owns and creates.
+        let temp_dir = storage.subdir(DataSubdir::Duckdb);
         let conn = tokio::task::spawn_blocking(move || {
             let conn = Connection::open(&db_path)?;
-            conn.execute_batch(
+            // Doubled single quotes, because a path is not a literal until it is escaped and a user's data
+            // directory may contain an apostrophe. `SET` takes no bind parameters, so this is the escape.
+            let temp_dir_literal = temp_dir.display().to_string().replace('\'', "''");
+            conn.execute_batch(&format!(
                 "SET autoinstall_known_extensions = false;
                  SET autoload_known_extensions = false;
                  SET extension_directory = '';
                  SET force_compression = 'auto';
+                 SET memory_limit = '{limit}B';
+                 SET temp_directory = '{temp_dir_literal}';
                  PRAGMA enable_checkpoint_on_shutdown;
                  LOAD json;",
-            )?;
+                limit = DUCKDB_MEMORY_LIMIT_BYTES,
+            ))?;
             Ok::<_, duckdb::Error>(conn)
         })
         .await
@@ -550,6 +568,66 @@ mod tests {
             result.is_ok(),
             "DuckdbService should initialize successfully"
         );
+    }
+
+    /// The engine's memory limit is the one this crate declares, not 80% of the host's RAM.
+    ///
+    /// Asserted rather than assumed, because DuckDB's default sizes itself from the machine: on any ordinary
+    /// server that is two orders of magnitude above the whole process's footprint ceiling, so a ceiling with
+    /// this `SET` missing or silently ignored would be a statement about everything except the component most
+    /// likely to breach it. Reads the setting back through `current_setting`, since a `SET` DuckDB accepted and
+    /// interpreted differently is indistinguishable from one that worked.
+    #[tokio::test]
+    async fn the_engine_takes_the_declared_memory_limit() {
+        let (_temp_dir, storage) = create_test_storage().await;
+        let service = DuckdbService::init(&storage)
+            .await
+            .expect("Init should succeed");
+
+        let (limit, temp_dir): (String, String) = {
+            let conn = service.conn();
+            conn.query_row(
+                "SELECT current_setting('memory_limit'), current_setting('temp_directory')",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .expect("both settings are readable")
+        };
+
+        // Compared as bytes rather than against a formatted string: DuckDB normalises the value it was given
+        // ("200.0 MiB" for 209715200 bytes), and pinning its formatting would make this a test of DuckDB's
+        // display code. Within 1 MiB, because that normalisation rounds.
+        let reported = parse_duckdb_size(&limit)
+            .unwrap_or_else(|| panic!("could not read a byte count out of {limit:?}"));
+        let declared = DUCKDB_MEMORY_LIMIT_BYTES as f64;
+        assert!(
+            (reported - declared).abs() < 1_048_576.0,
+            "the engine reports a {limit} limit, which is not the declared {declared} bytes"
+        );
+
+        assert!(
+            !temp_dir.is_empty(),
+            "a tight memory limit is only safe because DuckDB can spill, so it needs somewhere to spill to"
+        );
+    }
+
+    /// Bytes from a DuckDB size string such as `200.0 MiB`, `1.5GB` or `1024`.
+    fn parse_duckdb_size(value: &str) -> Option<f64> {
+        let trimmed = value.trim();
+        let split = trimmed
+            .find(|c: char| !c.is_ascii_digit() && c != '.')
+            .unwrap_or(trimmed.len());
+        let (number, unit) = trimmed.split_at(split);
+        let number: f64 = number.parse().ok()?;
+        let scale = match unit.trim().to_ascii_uppercase().as_str() {
+            "" | "B" => 1.0,
+            "KIB" | "KB" => 1024.0,
+            "MIB" | "MB" => 1024.0 * 1024.0,
+            "GIB" | "GB" => 1024.0 * 1024.0 * 1024.0,
+            "TIB" | "TB" => 1024.0 * 1024.0 * 1024.0 * 1024.0,
+            _ => return None,
+        };
+        Some(number * scale)
     }
 
     #[tokio::test]
