@@ -34,7 +34,8 @@
 //! fragmented ordered-input family. Credible time is a **priority** for the topological pop, never an
 //! edge.
 
-use std::collections::{BTreeSet, HashMap, HashSet};
+use std::cmp::Reverse;
+use std::collections::{BTreeSet, BinaryHeap, HashMap, HashSet};
 
 use chrono::{DateTime, Utc};
 
@@ -1544,12 +1545,31 @@ pub(super) fn resolve(
     for (i, &unit) in unit_of.iter().enumerate() {
         members_of.get_mut(&unit).expect("unit present").push(i);
     }
+    // The edges bucketed by unit, once, instead of the whole list rescanned per unit.
+    //
+    // `order_within_unit` filtered `intra_edges` itself, so the scan was O(units x edges) - a session with
+    // thousands of units and thousands of edges rescanned everything for each. Bucketing reproduces exactly
+    // the set each unit's filter kept: an edge whose endpoints sit in different units was skipped by that
+    // filter and is not bucketed under either.
+    let mut edges_of: HashMap<usize, Vec<(usize, usize)>> = HashMap::new();
+    if constraints.source_position_member_order {
+        for &(from, to) in &intra_edges {
+            match (unit_of.get(from), unit_of.get(to)) {
+                (Some(from_unit), Some(to_unit)) if from_unit == to_unit => {
+                    edges_of.entry(*from_unit).or_default().push((from, to));
+                }
+                _ => {}
+            }
+        }
+    }
+
     let mut out = Vec::with_capacity(n);
     for unit in order {
         let mut members = members_of.remove(&unit).unwrap_or_default();
         members.sort_unstable();
         if constraints.source_position_member_order {
-            members = order_within_unit(&members, &intra_edges);
+            let unit_edges = edges_of.remove(&unit).unwrap_or_default();
+            members = order_within_unit(&members, &unit_edges);
         }
         for i in members {
             out.push(survivors[i].clone());
@@ -1598,39 +1618,51 @@ fn order_within_unit(members: &[usize], intra_edges: &[(usize, usize)]) -> Vec<u
     if members.len() < 2 {
         return members.to_vec();
     }
-    let inside: HashMap<usize, ()> = members.iter().map(|&m| (m, ())).collect();
+    let inside: HashSet<usize> = members.iter().copied().collect();
     let mut successors: HashMap<usize, Vec<usize>> =
         members.iter().map(|&m| (m, Vec::new())).collect();
     let mut indegree: HashMap<usize, usize> = members.iter().map(|&m| (m, 0)).collect();
+    // A set rather than `succ.contains(&to)`, which was a linear scan of the adjacency list per edge and so
+    // quadratic in a member's degree. The deduplication itself is load-bearing: a repeated edge would
+    // otherwise raise the indegree twice and the target would never be released.
+    let mut seen_edges: HashSet<(usize, usize)> = HashSet::new();
     for &(from, to) in intra_edges {
-        if !inside.contains_key(&from) || !inside.contains_key(&to) {
+        if !inside.contains(&from) || !inside.contains(&to) {
             continue;
         }
-        let succ = successors.get_mut(&from).expect("member present");
-        if !succ.contains(&to) {
-            succ.push(to);
-            *indegree.get_mut(&to).expect("member present") += 1;
+        if !seen_edges.insert((from, to)) {
+            continue;
         }
+        successors.get_mut(&from).expect("member present").push(to);
+        *indegree.get_mut(&to).expect("member present") += 1;
     }
 
+    // Kahn's algorithm with a min-heap, which is the same selection rule as before - "the smallest member
+    // still having indegree zero" - without rescanning every remaining member to find it. The previous loop
+    // was a filter plus a `min_by_key` plus a `retain` per step, so O(members^2) for a unit that is one long
+    // chain.
+    let mut ready: BinaryHeap<Reverse<usize>> = members
+        .iter()
+        .filter(|m| indegree[m] == 0)
+        .map(|&m| Reverse(m))
+        .collect();
     let mut out: Vec<usize> = Vec::with_capacity(members.len());
-    let mut remaining: Vec<usize> = members.to_vec();
-    while !remaining.is_empty() {
-        let Some(&next) = remaining
-            .iter()
-            .filter(|m| indegree[m] == 0)
-            .min_by_key(|&&m| m)
-        else {
-            // Cycle: the emissions contradict each other about this unit.
-            return members.to_vec();
-        };
+    while let Some(Reverse(next)) = ready.pop() {
         out.push(next);
-        remaining.retain(|&m| m != next);
         for &s in &successors[&next] {
             if let Some(d) = indegree.get_mut(&s) {
                 *d = d.saturating_sub(1);
+                if *d == 0 {
+                    ready.push(Reverse(s));
+                }
             }
         }
+    }
+
+    if out.len() != members.len() {
+        // Cycle: the emissions contradict each other about this unit. Source order stands, exactly as it did
+        // when the old loop found no zero-indegree member left.
+        return members.to_vec();
     }
     out
 }
@@ -1861,5 +1893,137 @@ mod cycle_tests {
             "a turn's intro text and the call it introduces are one response; contracting them is a \
              documented repair, not a re-listing"
         );
+    }
+}
+
+/// The indexed member ordering against the implementation it replaced.
+///
+/// Step 4 of the platform plan requires its rewrites to be *provably* answer-preserving, not merely to pass
+/// the goldens - a golden covers the shapes the corpus happens to hold, and the interesting inputs here are
+/// edge sets no captured framework produces. So the retired implementation is kept as an oracle and the two
+/// are compared over generated graphs, which is the same discipline this repository applies to its retired
+/// SQL.
+///
+/// Pure `usize` data, so the generator can be exhaustive about the cases that matter: multi-edges, edges
+/// pointing outside the member set, self-loops, and cycles - where both are required to fall back to source
+/// order rather than to *some* order.
+#[cfg(test)]
+mod order_within_unit_equivalence {
+    use super::*;
+    use proptest::prelude::*;
+
+    /// The implementation `order_within_unit` replaced, kept verbatim as the oracle.
+    ///
+    /// O(members^2) in its selection loop and O(degree) per edge in its deduplication, which is why it was
+    /// replaced; its *answers* are the specification.
+    fn order_within_unit_reference(
+        members: &[usize],
+        intra_edges: &[(usize, usize)],
+    ) -> Vec<usize> {
+        if members.len() < 2 {
+            return members.to_vec();
+        }
+        let inside: HashMap<usize, ()> = members.iter().map(|&m| (m, ())).collect();
+        let mut successors: HashMap<usize, Vec<usize>> =
+            members.iter().map(|&m| (m, Vec::new())).collect();
+        let mut indegree: HashMap<usize, usize> = members.iter().map(|&m| (m, 0)).collect();
+        for &(from, to) in intra_edges {
+            if !inside.contains_key(&from) || !inside.contains_key(&to) {
+                continue;
+            }
+            let succ = successors.get_mut(&from).expect("member present");
+            if !succ.contains(&to) {
+                succ.push(to);
+                *indegree.get_mut(&to).expect("member present") += 1;
+            }
+        }
+
+        let mut out: Vec<usize> = Vec::with_capacity(members.len());
+        let mut remaining: Vec<usize> = members.to_vec();
+        while !remaining.is_empty() {
+            let Some(&next) = remaining
+                .iter()
+                .filter(|m| indegree[m] == 0)
+                .min_by_key(|&&m| m)
+            else {
+                return members.to_vec();
+            };
+            out.push(next);
+            remaining.retain(|&m| m != next);
+            for &s in &successors[&next] {
+                if let Some(d) = indegree.get_mut(&s) {
+                    *d = d.saturating_sub(1);
+                }
+            }
+        }
+        out
+    }
+
+    proptest! {
+        #![proptest_config(ProptestConfig::with_cases(512))]
+
+        /// The two agree on every generated graph.
+        ///
+        /// Members are drawn as a sorted distinct set because that is what the caller passes
+        /// (`members.sort_unstable()` immediately before). Edges are drawn from a range *wider* than the
+        /// member set, so endpoints outside the unit are generated - the case the `inside` guard exists for
+        /// and the one the new bucketing had to reproduce exactly.
+        #[test]
+        fn the_indexed_order_equals_the_retired_one(
+            members in prop::collection::btree_set(0usize..24, 0..12),
+            edges in prop::collection::vec((0usize..32, 0usize..32), 0..40),
+        ) {
+            let members: Vec<usize> = members.into_iter().collect();
+            prop_assert_eq!(
+                order_within_unit(&members, &edges),
+                order_within_unit_reference(&members, &edges)
+            );
+        }
+
+        /// And on graphs whose edges are all inside the member set, which is where a real ordering happens.
+        ///
+        /// The wide generator above produces mostly-skipped edges, so most of its cases exercise the guard
+        /// rather than the sort. This one keeps every edge in range, which is what makes cycles, chains and
+        /// multi-edges common enough to matter.
+        #[test]
+        fn the_indexed_order_equals_the_retired_one_on_dense_graphs(
+            size in 2usize..10,
+            pairs in prop::collection::vec((0usize..10, 0usize..10), 0..30),
+        ) {
+            let members: Vec<usize> = (0..size).collect();
+            let edges: Vec<(usize, usize)> = pairs
+                .into_iter()
+                .map(|(a, b)| (a % size, b % size))
+                .collect();
+            prop_assert_eq!(
+                order_within_unit(&members, &edges),
+                order_within_unit_reference(&members, &edges)
+            );
+        }
+    }
+
+    /// A cycle falls back to source order in both, rather than to a partial order.
+    ///
+    /// Called out as its own case because it is the one place the two implementations detect the condition
+    /// differently - the old one when no zero-indegree member remained, the new one when the heap drained
+    /// early - and "returns something plausible" would pass an equality test against a matching bug.
+    #[test]
+    fn a_cycle_keeps_source_order() {
+        let members = vec![3usize, 1, 2];
+        let edges = vec![(1, 2), (2, 3), (3, 1)];
+        assert_eq!(order_within_unit(&members, &edges), members);
+        assert_eq!(order_within_unit_reference(&members, &edges), members);
+    }
+
+    /// A repeated edge does not double the indegree, in either implementation.
+    ///
+    /// Without the deduplication the target's indegree never reaches zero, so it is dropped from the output
+    /// and the length check reads it as a cycle - source order, silently, for a graph that has a valid one.
+    #[test]
+    fn a_repeated_edge_does_not_strand_its_target() {
+        let members = vec![0usize, 1];
+        let edges = vec![(0, 1), (0, 1), (0, 1)];
+        assert_eq!(order_within_unit(&members, &edges), vec![0, 1]);
+        assert_eq!(order_within_unit_reference(&members, &edges), vec![0, 1]);
     }
 }

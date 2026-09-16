@@ -199,7 +199,7 @@ impl MessageIdentity {
 /// stay two. Everything else ranks 0: without an id there is no evidence of a genuine repeat, and
 /// treating repeated text as two messages would undo the history collapsing this pipeline exists for.
 /// What identifies one call among same-shaped calls of a response.
-#[derive(PartialEq, Eq)]
+#[derive(PartialEq, Eq, Hash)]
 enum CallKey<'a> {
     /// The provider's id, which is proof on its own: no provider issues two ids for one call.
     Id(&'a str),
@@ -249,7 +249,11 @@ pub(super) fn call_repeat_ordinals(blocks: &[BlockEntry]) -> Vec<u32> {
     // positions while describing one call. Ranking by position alone turned every such echo into a
     // second call, which the goldens' duplicate invariant caught. The position still earns its place
     // where no id was sent: two identical calls with no ids are otherwise indistinguishable.
-    let mut keys_by_response: HashMap<ResponseKey<'_>, Vec<CallKey<'_>>> = HashMap::new();
+    // The rank assigned to each key, not a list to search. As a `Vec` the lookup was
+    // `iter().position(..)`, so a response - or, for id-bearing calls, a whole trace - with N same-shaped
+    // calls cost N^2 comparisons to rank them. A map from key to rank gives the same answer by construction:
+    // the rank *is* the order of first appearance, which is the map's size when the key is inserted.
+    let mut keys_by_response: HashMap<ResponseKey<'_>, HashMap<CallKey<'_>, u32>> = HashMap::new();
     // (trace, call id) -> that call's rank, for the results that answer it.
     let mut rank_by_call: HashMap<(&str, &str), u32> = HashMap::new();
 
@@ -350,7 +354,7 @@ fn plain_message_shape(block: &BlockEntry) -> Option<u64> {
 fn record_position<'a>(
     block: &'a BlockEntry,
     shape: u64,
-    keys_by_response: &mut HashMap<ResponseKey<'a>, Vec<CallKey<'a>>>,
+    keys_by_response: &mut HashMap<ResponseKey<'a>, HashMap<CallKey<'a>, u32>>,
     rank_by_call: &mut HashMap<(&'a str, &'a str), u32>,
     id: Option<&'a str>,
     shape_count: &HashMap<ResponseKey<'a>, usize>,
@@ -375,13 +379,8 @@ fn record_position<'a>(
     let seen = keys_by_response
         .entry(rank_scope(block, shape, id, shape_count))
         .or_default();
-    let rank = match seen.iter().position(|seen| *seen == key) {
-        Some(position) => position as u32,
-        None => {
-            seen.push(key);
-            (seen.len() - 1) as u32
-        }
-    };
+    let next_rank = seen.len() as u32;
+    let rank = *seen.entry(key).or_insert(next_rank);
     if let Some(id) = id.filter(|s| !s.is_empty()) {
         rank_by_call
             .entry((block.trace_id.as_str(), id))
@@ -437,15 +436,14 @@ fn rank_scope<'a>(
 fn lookup_position<'a>(
     block: &'a BlockEntry,
     shape: u64,
-    keys_by_response: &HashMap<ResponseKey<'a>, Vec<CallKey<'a>>>,
+    keys_by_response: &HashMap<ResponseKey<'a>, HashMap<CallKey<'a>, u32>>,
     id: Option<&'a str>,
     shape_count: &HashMap<ResponseKey<'a>, usize>,
 ) -> u32 {
     let key = call_key(block, id);
     keys_by_response
         .get(&rank_scope(block, shape, id, shape_count))
-        .and_then(|seen| seen.iter().position(|seen| *seen == key))
-        .map(|rank| rank as u32)
+        .and_then(|seen| seen.get(&key).copied())
         .unwrap_or(0)
 }
 

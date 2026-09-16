@@ -47,9 +47,14 @@ impl fmt::Display for PathSegment {
 /// under one parent, differing at an array index, are in the order the payload wrote them - and that is the
 /// only comparison the ordering design ever asks for.
 ///
-/// `Hash` and the serde derives went the same way, for the same reason: nothing keyed a map by a path and
-/// nothing put one on the wire.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+/// The serde derives went the same way, for the same reason: nothing puts a path on the wire.
+///
+/// `Hash` is back, and unlike `Ord` it is sound here: equality on a path is structural and means what it says,
+/// so a hash consistent with it says the same thing. `Ord` was removed because the comparison it offered was a
+/// *wrong* answer; `Hash` was removed only because nothing needed it, and `call_repeat_ordinals` now does -
+/// it keys a per-response map by call key to assign repeat ranks, which was a linear scan and therefore
+/// quadratic in the calls of one shape.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Hash)]
 pub struct PositionPath(Vec<PathSegment>);
 
 impl PositionPath {

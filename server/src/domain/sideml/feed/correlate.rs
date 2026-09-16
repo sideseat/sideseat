@@ -32,17 +32,73 @@
 use super::types::BlockEntry;
 use crate::domain::sideml::types::ContentBlock;
 
-/// Mark every pending entry for this call id as answered.
+/// An outstanding tool call, in the document order rule 4 pairs by.
+struct PendingCall {
+    id: String,
+    taken: bool,
+}
+
+/// The outstanding calls, with the two lookups the rules need.
 ///
-/// One call is flattened once per span that carries it, so the same call appears in `pending`
-/// several times over. Marking only the first left the others available, and a later id-less result
-/// then adopted an id that had already been answered - two results with one id, which dedup
-/// resolves by dropping one of them.
-fn claim(pending: &mut [(String, String, String, bool)], trace: &str, id: &str) {
-    for entry in pending.iter_mut() {
-        if entry.0 == trace && entry.2 == id {
-            entry.3 = true;
+/// The rules are unchanged; only their cost is. `claim` used to scan every pending entry and the
+/// oldest-untaken search used to scan them again and collect a `Vec` of candidates, so correlation was
+/// quadratic in the number of tool calls in the scope - and a session is exactly where that number gets
+/// large. Both are now index lookups, and the answers are the same ones by construction:
+///
+/// - `by_id` holds every slot sharing one `(trace, id)`, which is the set the old scan marked. One call is
+///   flattened once per span that carries it, so a call really does appear several times over; marking only
+///   the first left the others available, and a later id-less result then adopted an id that had already been
+///   answered - two results with one id, which dedup resolves by dropping one of them.
+/// - `by_name` holds the slots for one `(trace, tool name)` in ascending document order, so the first
+///   *untaken* one from the front is exactly the "oldest unclaimed" the old `candidates.first()` returned.
+///   Entries claimed by id are skipped when they reach the front rather than being removed from the middle,
+///   which keeps the pass amortised linear.
+#[derive(Default)]
+struct Outstanding {
+    calls: Vec<PendingCall>,
+    by_id: std::collections::HashMap<(String, String), Vec<usize>>,
+    by_name: std::collections::HashMap<(String, String), std::collections::VecDeque<usize>>,
+}
+
+impl Outstanding {
+    fn push(&mut self, trace: &str, name: &str, id: &str) {
+        let slot = self.calls.len();
+        self.calls.push(PendingCall {
+            id: id.to_string(),
+            taken: false,
+        });
+        self.by_id
+            .entry((trace.to_string(), id.to_string()))
+            .or_default()
+            .push(slot);
+        self.by_name
+            .entry((trace.to_string(), name.to_string()))
+            .or_default()
+            .push_back(slot);
+    }
+
+    /// Mark every pending entry for this call id as answered.
+    fn claim(&mut self, trace: &str, id: &str) {
+        if let Some(slots) = self.by_id.get(&(trace.to_string(), id.to_string())) {
+            for &slot in slots {
+                self.calls[slot].taken = true;
+            }
         }
+    }
+
+    /// The id of the oldest unclaimed call for this tool in this trace.
+    fn oldest_unclaimed(&mut self, trace: &str, name: &str) -> Option<String> {
+        let queue = self
+            .by_name
+            .get_mut(&(trace.to_string(), name.to_string()))?;
+        while let Some(&slot) = queue.front() {
+            if self.calls[slot].taken {
+                queue.pop_front();
+                continue;
+            }
+            return Some(self.calls[slot].id.clone());
+        }
+        None
     }
 }
 
@@ -54,8 +110,7 @@ fn claim(pending: &mut [(String, String, String, bool)], trace: &str, id: &str) 
 /// different calls collapse into one. Needs the blocks in source order, which is what they are
 /// in straight after flattening.
 pub fn correlate_tool_results(blocks: &mut [BlockEntry]) {
-    // (trace_id, tool_name) -> call ids in document order, and whether each is taken.
-    let mut pending: Vec<(String, String, String, bool)> = Vec::new();
+    let mut pending = Outstanding::default();
 
     // One forward pass. Blocks are in source order at this stage, so a call always precedes
     // the result it answers.
@@ -64,7 +119,7 @@ pub fn correlate_tool_results(blocks: &mut [BlockEntry]) {
         match &block.content {
             ContentBlock::ToolUse { id, name, .. } => {
                 if let Some(id) = id.as_ref().filter(|s| !s.is_empty()) {
-                    pending.push((trace, name.clone(), id.clone(), false));
+                    pending.push(&trace, name, id);
                 }
             }
             ContentBlock::ToolResult {
@@ -78,7 +133,7 @@ pub fn correlate_tool_results(blocks: &mut [BlockEntry]) {
                 // of them whatever their contents. A framework that supplies ids for some
                 // results and not others is enough to hit this.
                 if let Some(id) = tool_use_id.as_ref().filter(|s| !s.is_empty()) {
-                    claim(&mut pending, &trace, id);
+                    pending.claim(&trace, id);
                     continue;
                 }
                 let Some(result_name) = name.clone() else {
@@ -86,13 +141,6 @@ pub fn correlate_tool_results(blocks: &mut [BlockEntry]) {
                     continue;
                 };
                 // Rules 2-4: preceding unclaimed calls for the same name in this trace.
-                let candidates: Vec<usize> = pending
-                    .iter()
-                    .enumerate()
-                    .filter(|(_, (t, n, _, taken))| !*taken && *t == trace && *n == result_name)
-                    .map(|(idx, _)| idx)
-                    .collect();
-
                 // Rule 4: the OLDEST untaken call with this name, not the nearest.
                 //
                 // Both Gemini and the OpenAI-shaped protocols emit their tool results in the same
@@ -106,9 +154,8 @@ pub fn correlate_tool_results(blocks: &mut [BlockEntry]) {
                 //
                 // Sequential calls are unaffected: the earlier call is already taken by the time
                 // the second result arrives, so oldest-untaken is the second call.
-                if let Some(&slot) = candidates.first() {
-                    let resolved = pending[slot].2.clone();
-                    claim(&mut pending, &trace, &resolved);
+                if let Some(resolved) = pending.oldest_unclaimed(&trace, &result_name) {
+                    pending.claim(&trace, &resolved);
                     if let ContentBlock::ToolResult { tool_use_id, .. } = &mut block.content {
                         *tool_use_id = Some(resolved.clone());
                     }
