@@ -18,8 +18,8 @@
 use std::sync::Arc;
 
 use super::backend::TopicBackend;
-use super::error::TopicError;
 use super::redis::RedisTopicBackend;
+use crate::data::topics::TopicError;
 
 const URL_ENV: &str = "SIDESEAT_TEST_REDIS_URL";
 

@@ -30,7 +30,8 @@ use super::extract::{RawMessage, RawToolDefinition, RawToolNames, SpanData};
 // The **port**, not the service enum: a domain function taking `AnalyticsService` names every backend that
 // exists, which is what keeps the domain and the adapters in one crate.
 use crate::data::files::FileService;
-use crate::data::topics::{TopicMessage, TopicService};
+use crate::data::topics::TopicMessage;
+use crate::data::topics::TopicService;
 use sideseat_core::core::constants::{
     DEFAULT_PROJECT_ID, FILE_HASH_ALGORITHM, FILES_MAX_CONCURRENT_FINALIZATION,
 };

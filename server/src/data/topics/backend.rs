@@ -10,7 +10,7 @@ use std::pin::Pin;
 use async_trait::async_trait;
 use futures::Stream;
 
-use super::error::TopicError;
+use crate::data::topics::TopicError;
 
 /// Message received from a stream with its ID for acknowledgment
 #[derive(Debug, Clone)]

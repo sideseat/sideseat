@@ -1,10 +1,27 @@
-//! File storage trait definition
+//! Where a file's bytes live: the blob store, as a port.
 //!
-//! Defines the interface for file storage backends (filesystem, S3, etc.)
+//! **A port, not a service.** `FileStorage` was a trait in the data layer, so the domain reached into an adapter
+//! module to name the abstraction it depends on - and `FileStorageError` with it. Neither has any dependency of
+//! its own, which is what made this a move rather than a redesign: the trait was already the tightest seam in the
+//! codebase, and the plan calls it the model for the rest.
+//!
+//! The filesystem and S3 implementations stay where they are. What moved is the statement of what they must do.
 
 use async_trait::async_trait;
+use thiserror::Error;
 
-use super::error::FileStorageError;
+/// Errors from low-level file storage operations (filesystem/S3)
+#[derive(Error, Debug)]
+pub enum FileStorageError {
+    #[error("File not found: {project_id}/{hash}")]
+    NotFound { project_id: String, hash: String },
+
+    #[error("IO error: {0}")]
+    Io(#[from] std::io::Error),
+
+    #[error("Storage backend error: {0}")]
+    Backend(String),
+}
 
 /// File content with metadata
 #[derive(Debug)]

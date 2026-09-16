@@ -18,8 +18,38 @@
 //! - `database.cache = "memory"` → in-memory topics
 //! - `database.cache = "redis"` → Redis Streams + Pub/Sub
 
-mod backend;
 mod error;
+pub use error::TopicError;
+
+/// A message a stream topic can carry.
+///
+/// **Here rather than in `sideseat-ports`, and the reason is the orphan rule.** The three signals are OTLP types
+/// from `opentelemetry-proto`, so `impl TopicMessage for ExportTraceServiceRequest` is only legal in the crate
+/// that owns the trait or the type - and the server crate owns neither. Moving the trait to `ports` therefore
+/// means moving these impls there too, which puts the per-signal key rules in the port crate rather than in the
+/// domain that defines them. The plan's answer is a `Signal` port owning the key, which arrives with the domain
+/// crate; until then this is the honest home.
+#[allow(clippy::len_without_is_empty)]
+pub trait TopicMessage: Clone + Send + Sync + 'static {
+    /// Estimate message size in bytes, for backpressure.
+    fn size_bytes(&self) -> usize;
+
+    /// The **partition key** this message must be published under.
+    ///
+    /// On the message type, because the rule is per signal and only the signal knows it: spans key on their trace
+    /// id, metrics on their instrument, logs on their trace id when there is one. A key chosen by the publisher
+    /// instead would be a rule restated at every call site, and one of them would eventually differ - which for a
+    /// partitioned broker means one conversation split across partitions and the serialisation the key exists to
+    /// provide silently gone.
+    ///
+    /// Default `""`, meaning "no ordering requirement": right for a broadcast-shaped message such as a presence
+    /// event, and unobservable on the in-process backend, which has one partition.
+    fn partition_key(&self) -> String {
+        String::new()
+    }
+}
+
+mod backend;
 mod memory;
 mod pubsub;
 mod redis;
@@ -43,7 +73,6 @@ use tokio::task::JoinHandle;
 pub use backend::{
     BroadcastSubscription, StreamMessage, StreamStats, StreamSubscription, TopicBackend,
 };
-pub use error::TopicError;
 use memory::MemoryTopicBackend;
 
 use sideseat_core::core::config::{CacheBackendType, CacheConfig};
@@ -55,27 +84,6 @@ use sideseat_core::core::constants::{
 // ============================================================================
 // TOPIC MESSAGE TRAIT
 // ============================================================================
-
-/// Trait for messages that can be published to topics
-pub trait TopicMessage: Clone + Send + Sync + 'static {
-    /// Estimate message size in bytes for backpressure
-    fn size_bytes(&self) -> usize;
-
-    /// The **partition key** this message must be published under.
-    ///
-    /// On the message type, because the rule is per signal and only the signal knows it: spans key on their trace
-    /// id, metrics on `(project, instrument)`, logs on their trace id when there is one. A key chosen by the
-    /// publisher instead would be a rule restated at every call site, and one of them would eventually differ -
-    /// which for a partitioned broker means one conversation split across partitions and the serialisation the
-    /// key exists to give silently gone.
-    ///
-    /// Default `""`, meaning "no ordering requirement": correct for a broadcast-shaped message such as a presence
-    /// event, and harmless on the in-process backend, which has one partition. A signal that *does* need order
-    /// overrides it, and `every_queued_signal_declares_a_partition_key` is what stops a new one forgetting.
-    fn partition_key(&self) -> String {
-        String::new()
-    }
-}
 
 // Note: TopicMessage implementations for OTLP types (ExportTraceServiceRequest,
 // ExportMetricsServiceRequest, ExportLogsServiceRequest) are defined in domain/mod.rs

@@ -290,6 +290,20 @@ impl CacheService {
     }
 }
 
+/// The invalidation port, implemented over the real cache.
+///
+/// The port is one method because the domain only invalidates; reading through a cache is a decorator's job, not
+/// a caller's. The error is a `String` there because a port that named `CacheError` would put this module's error
+/// type in the abstraction - the same defect `DataError` had with four drivers.
+#[async_trait::async_trait]
+impl sideseat_ports::cache::CacheInvalidator for CacheService {
+    async fn delete_local(&self, key: &str) -> Result<bool, String> {
+        CacheService::delete_local(self, key)
+            .await
+            .map_err(|e| e.to_string())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

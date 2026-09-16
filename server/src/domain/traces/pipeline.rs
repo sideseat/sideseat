@@ -48,8 +48,9 @@ use super::persist::{
 };
 use crate::data::AnalyticsService;
 use crate::data::files::FileService;
+use crate::data::topics::StreamTopic;
+use crate::data::topics::TopicError;
 use crate::data::topics::TopicService;
-use crate::data::topics::{StreamTopic, TopicError};
 use crate::domain::pricing::PricingService;
 use crate::domain::sideml::to_sideml_batch;
 use sideseat_core::core::constants::DEFAULT_PROJECT_ID;

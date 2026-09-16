@@ -51,8 +51,8 @@ use std::fmt;
 use super::backend::{
     BroadcastSubscription, StreamMessage, StreamStats, StreamSubscription, TopicBackend,
 };
-use super::error::TopicError;
 use super::pubsub::{ManagedSubscription, PubSubManager};
+use crate::data::topics::TopicError;
 
 /// Stream key prefix (hash tag for Redis Cluster)
 const STREAM_PREFIX: &str = "{sideseat}:stream:";
@@ -2201,5 +2201,23 @@ mod rotation_tests {
         ] {
             assert_eq!(Rotation::parse(raw), None, "{raw} should not parse");
         }
+    }
+}
+
+/// Redis failures, as the queue port's error.
+///
+/// **Here rather than beside `TopicError`.** They used to live with the enum, which made the error type every
+/// queue operation returns name `deadpool_redis` - so anything handling a queue failure depended on Redis
+/// whatever backend was configured. An adapter knows the port it implements; the port must not know its
+/// implementations.
+impl From<deadpool_redis::PoolError> for TopicError {
+    fn from(err: deadpool_redis::PoolError) -> Self {
+        TopicError::Connection(err.to_string())
+    }
+}
+
+impl From<deadpool_redis::redis::RedisError> for TopicError {
+    fn from(err: deadpool_redis::redis::RedisError) -> Self {
+        TopicError::Stream(err.to_string())
     }
 }

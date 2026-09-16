@@ -13,8 +13,8 @@ use aws_sdk_s3::error::SdkError;
 use aws_sdk_s3::operation::head_object::HeadObjectError;
 use aws_sdk_s3::primitives::ByteStream;
 
-use super::error::FileStorageError;
-use super::storage::FileStorage;
+use sideseat_ports::blobs::FileStorage;
+use sideseat_ports::blobs::FileStorageError;
 
 /// Format an SDK error with HTTP status and error code for diagnostics.
 fn format_sdk_error<E: std::fmt::Debug>(err: &SdkError<E>) -> String {

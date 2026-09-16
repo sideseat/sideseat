@@ -26,7 +26,7 @@ use tokio::sync::{Notify, broadcast};
 use super::backend::{
     BroadcastSubscription, StreamMessage, StreamStats, StreamSubscription, TopicBackend,
 };
-use super::error::TopicError;
+use crate::data::topics::TopicError;
 
 /// Default broadcast channel capacity
 const DEFAULT_BROADCAST_CAPACITY: usize = 10_000;
@@ -476,6 +476,19 @@ impl TopicBackend for MemoryTopicBackend {
     fn is_durable(&self) -> bool {
         // Everything lives in an `Arc<SharedState>`: a crash takes the queue with it.
         false
+    }
+}
+
+/// A lagging broadcast receiver, as the queue port's error.
+///
+/// Beside this backend rather than beside `TopicError`, for the reason the Redis conversions moved: `tokio`'s
+/// broadcast channel is *this* implementation's transport, and a port that names it depends on it.
+impl From<tokio::sync::broadcast::error::RecvError> for TopicError {
+    fn from(err: tokio::sync::broadcast::error::RecvError) -> Self {
+        match err {
+            tokio::sync::broadcast::error::RecvError::Closed => TopicError::ChannelClosed,
+            tokio::sync::broadcast::error::RecvError::Lagged(n) => TopicError::Lagged(n),
+        }
     }
 }
 

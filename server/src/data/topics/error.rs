@@ -1,4 +1,7 @@
-//! Topic error types
+//! Queue failures.
+//!
+//! Still here rather than in `sideseat-ports`, because the `From` impls below name `deadpool_redis` and `tokio` -
+//! see `sideseat_ports::queue` for why moving it is blocked on rewriting 54 `?` sites in the Redis backend.
 
 use std::fmt;
 
@@ -64,23 +67,3 @@ impl fmt::Display for TopicError {
 }
 
 // Conversion from broadcast errors
-impl From<tokio::sync::broadcast::error::RecvError> for TopicError {
-    fn from(err: tokio::sync::broadcast::error::RecvError) -> Self {
-        match err {
-            tokio::sync::broadcast::error::RecvError::Closed => TopicError::ChannelClosed,
-            tokio::sync::broadcast::error::RecvError::Lagged(n) => TopicError::Lagged(n),
-        }
-    }
-}
-
-impl From<deadpool_redis::PoolError> for TopicError {
-    fn from(err: deadpool_redis::PoolError) -> Self {
-        TopicError::Connection(err.to_string())
-    }
-}
-
-impl From<deadpool_redis::redis::RedisError> for TopicError {
-    fn from(err: deadpool_redis::redis::RedisError) -> Self {
-        TopicError::Stream(err.to_string())
-    }
-}

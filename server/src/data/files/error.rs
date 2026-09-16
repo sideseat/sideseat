@@ -1,21 +1,9 @@
 //! File storage error types
 
+use sideseat_ports::blobs::FileStorageError;
 use thiserror::Error;
 
 use sideseat_ports::error::DataError;
-
-/// Errors from low-level file storage operations (filesystem/S3)
-#[derive(Error, Debug)]
-pub enum FileStorageError {
-    #[error("File not found: {project_id}/{hash}")]
-    NotFound { project_id: String, hash: String },
-
-    #[error("IO error: {0}")]
-    Io(#[from] std::io::Error),
-
-    #[error("Storage backend error: {0}")]
-    Backend(String),
-}
 
 /// Errors from the high-level file service
 #[derive(Error, Debug)]

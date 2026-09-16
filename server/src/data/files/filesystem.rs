@@ -8,8 +8,8 @@ use std::path::{Path, PathBuf};
 use async_trait::async_trait;
 use tokio::fs;
 
-use super::error::FileStorageError;
-use super::storage::FileStorage;
+use sideseat_ports::blobs::FileStorage;
+use sideseat_ports::blobs::FileStorageError;
 
 /// Filesystem-based file storage
 #[derive(Debug, Clone)]

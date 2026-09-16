@@ -36,8 +36,8 @@ pub mod cleanup;
 pub mod error;
 pub mod filesystem;
 pub mod s3;
-pub mod storage;
 
+use sideseat_ports::blobs::{FileContent, FileStorage, FileStorageError};
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
@@ -50,10 +50,10 @@ use sideseat_core::core::constants::CACHE_TTL_FILE_QUOTA;
 use sideseat_core::core::storage::{AppStorage, DataSubdir};
 use sideseat_core::utils::file_uri::parse_file_uri;
 
-pub use error::{FileServiceError, FileStorageError};
+pub use error::FileServiceError;
+// `FileStorageError` is the blob port's, so it is imported from there rather than re-exported here.
 pub use filesystem::FilesystemStorage;
 pub use s3::S3Storage;
-pub use storage::{FileContent, FileStorage};
 
 /// File metadata without content
 #[derive(Debug, Clone)]

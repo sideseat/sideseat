@@ -22,8 +22,8 @@ use std::path::Path;
 use std::sync::Arc;
 
 use super::error::FileServiceError;
-use super::storage::FileStorage;
 use crate::data::TransactionalService;
+use sideseat_ports::blobs::FileStorage;
 
 /// Run startup cleanup for orphaned temp files
 ///

@@ -384,6 +384,25 @@ impl SecretManager {
     }
 }
 
+/// The secret-writing port, implemented over the real manager.
+///
+/// The port takes a string key; this maps it onto the scoped key the backends use, which is where the knowledge
+/// of *how* a backend addresses a secret belongs.
+#[async_trait::async_trait]
+impl sideseat_ports::secrets::SecretWriter for SecretManager {
+    async fn put(&self, key: &str, value: &str) -> Result<(), String> {
+        self.set_scoped(&SecretKey::global(key), Secret::new(value.to_string()))
+            .await
+            .map_err(|e| e.to_string())
+    }
+
+    async fn remove(&self, key: &str) -> Result<(), String> {
+        self.delete_scoped(&SecretKey::global(key))
+            .await
+            .map_err(|e| e.to_string())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
