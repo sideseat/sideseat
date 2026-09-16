@@ -75,6 +75,14 @@ impl AnalyticsRepository for DedupAnalyticsRepository {
         self.inner.delete_traces(project_id, trace_ids).await
     }
 
+    async fn traces_without_spans(
+        &self,
+        project_id: &str,
+        trace_ids: &[String],
+    ) -> Result<Vec<String>, DataError> {
+        self.inner.traces_without_spans(project_id, trace_ids).await
+    }
+
     async fn file_reference_fields_for_traces(
         &self,
         project_id: &str,

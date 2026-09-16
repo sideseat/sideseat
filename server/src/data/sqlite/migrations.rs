@@ -241,11 +241,31 @@ CREATE INDEX IF NOT EXISTS idx_deleted_sessions_due ON deleted_sessions(next_che
 
 "#;
 
+/// The v2 → v3 step: retention's cleanup intent.
+///
+/// A table rather than a column, so it is `CREATE TABLE IF NOT EXISTS` and idempotent. Its own version because
+/// v2 *was* released: a database already on v2 never re-runs the v2 script, so a table appended there would
+/// reach only fresh installs - the permanently-skipped-migration trap that forced the ClickHouse v3 changes
+/// into one commit. Why the table exists, and why it needs only one state, is documented on the fresh schema.
+const MIGRATION_V3: &str = r#"
+CREATE TABLE IF NOT EXISTS retention_cleanup (
+    project_id      TEXT    NOT NULL,
+    trace_id        TEXT    NOT NULL,
+    created_at      INTEGER NOT NULL,
+    attempts        INTEGER NOT NULL DEFAULT 0,
+    next_attempt_at INTEGER NOT NULL DEFAULT 0,
+    claim_token     INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (project_id, trace_id)
+);
+CREATE INDEX IF NOT EXISTS idx_retention_cleanup_due ON retention_cleanup(next_attempt_at);
+"#;
+
 async fn apply_migration(pool: &SqlitePool, version: i32) -> Result<(), SqliteError> {
     match version {
         // Handled by the initial schema.
         1 => Ok(()),
         2 => apply_versioned_migration(pool, 2, "v1_to_current", MIGRATION_V2).await,
+        3 => apply_versioned_migration(pool, 3, "retention_cleanup_intent", MIGRATION_V3).await,
         _ => Err(SqliteError::MigrationFailed {
             version,
             name: "unknown".to_string(),
@@ -456,7 +476,11 @@ mod tests {
         // comments, which the real schema does throughout. Spelling the v1 tables here is also the honest
         // form - this *is* what v1 was, and if it drifts, the comparison below is where it shows.
         sqlx::raw_sql(
-            "DROP TABLE credentials;
+            // `retention_cleanup` arrives at v3, so a v1 database has none. Leaving it in place would let the
+            // v3 migration be deleted with this test still green - the fixture would already have the table
+            // and the comparison would find no difference, while a real upgrade never created it.
+            "DROP TABLE retention_cleanup;
+             DROP TABLE credentials;
              DROP TABLE credential_project_permissions;
              DROP TABLE deleted_projects;
              DROP TABLE deleted_traces;

@@ -261,25 +261,27 @@ fn safe_cluster_name(config: &ClickhouseConfig) -> &str {
 /// rather than two, because the watermark is only meaningful together with what was found under it. A
 /// `ReplacingMergeTree` on `(project_id, trace_id, span_id)` means re-detecting the same identity updates its
 /// record rather than accumulating a row per pass.
-pub fn consistency_table(config: &ClickhouseConfig) -> String {
-    let engine = if config.distributed {
-        format!(
-            "ReplicatedReplacingMergeTree('/clickhouse/tables/{{shard}}/{db}/span_partition_anomalies', '{{replica}}')",
-            db = config.database
+pub fn consistency_tables(config: &ClickhouseConfig) -> Vec<String> {
+    let (engine, on_cluster, local) = if config.distributed {
+        (
+            format!(
+                "ReplicatedReplacingMergeTree('/clickhouse/tables/{{shard}}/{db}/span_partition_anomalies_local', '{{replica}}', detected_at)",
+                db = config.database
+            ),
+            format!(" ON CLUSTER {}", safe_cluster_name(config)),
+            "_local",
         )
     } else {
-        "ReplacingMergeTree(detected_at)".to_string()
+        (
+            "ReplacingMergeTree(detected_at)".to_string(),
+            String::new(),
+            "",
+        )
     };
 
-    let on_cluster = if config.distributed {
-        format!(" ON CLUSTER {}", safe_cluster_name(config))
-    } else {
-        String::new()
-    };
-
-    format!(
+    let mut statements = vec![format!(
         r#"
-CREATE TABLE IF NOT EXISTS span_partition_anomalies{on_cluster} (
+CREATE TABLE IF NOT EXISTS span_partition_anomalies{local}{on_cluster} (
     project_id String,
     trace_id String,
     span_id String,
@@ -290,7 +292,29 @@ CREATE TABLE IF NOT EXISTS span_partition_anomalies{on_cluster} (
 ) ENGINE = {engine}
 ORDER BY (project_id, trace_id, span_id)
 "#
-    )
+    )];
+
+    // **A `Distributed` front end, in distributed mode.** Without one this table is per-shard: a pass connected
+    // to shard A records an anomaly there and a read that reaches shard B returns nothing, so a report described
+    // as deployment-wide depends on which shard answered - and the watermark is worse, because each shard would
+    // keep its own and re-scan windows the others had already covered.
+    //
+    // Sharded by identity rather than by `project_id`, unlike the span and metric tables: this table's rows are
+    // written by whichever instance ran the pass, so keying on the project would put every anomaly of a busy
+    // project on one shard while the pass that found them ran anywhere.
+    if config.distributed {
+        statements.push(format!(
+            r#"
+CREATE TABLE IF NOT EXISTS span_partition_anomalies{on_cluster} AS span_partition_anomalies_local
+ENGINE = Distributed({cluster}, {db}, span_partition_anomalies_local,
+                     sipHash64(project_id, trace_id, span_id))
+"#,
+            cluster = safe_cluster_name(config),
+            db = config.database
+        ));
+    }
+
+    statements
 }
 
 /// Generate schema version table
@@ -858,8 +882,10 @@ pub fn generate_schema(config: &ClickhouseConfig) -> Vec<String> {
 
     // Schema version table
     statements.push(schema_version_table(config));
-    // Where the cross-partition consistency check records what it found and how far it has read.
-    statements.push(consistency_table(config));
+    // Where the cross-partition consistency check records what it found and how far it has read. Two
+    // statements in distributed mode: the local table and the `Distributed` front end that makes the report
+    // deployment-wide rather than per-shard.
+    statements.extend(consistency_tables(config));
 
     if config.distributed {
         // Distributed mode: create local tables first, then distributed tables
@@ -982,9 +1008,18 @@ mod tests {
         };
         let statements = generate_schema(&config);
 
-        // schema_version, span_partition_anomalies, otel_spans_local, otel_spans, otel_metrics_local,
-        // otel_metrics.
-        assert_eq!(statements.len(), 6);
+        // schema_version, span_partition_anomalies_local and its `Distributed` front end, otel_spans_local,
+        // otel_spans, otel_metrics_local, otel_metrics.
+        assert_eq!(statements.len(), 7);
+        // The anomaly table needs a front end in distributed mode or the report is per-shard: a pass on shard A
+        // records there and a read reaching shard B returns nothing.
+        assert!(
+            statements
+                .iter()
+                .any(|s| s.contains("span_partition_anomalies ON CLUSTER")
+                    && s.contains("ENGINE = Distributed")),
+            "the anomaly table has no Distributed front end, so its records and watermark are per-shard"
+        );
         let local = statements
             .iter()
             .find(|s| s.contains("CREATE TABLE IF NOT EXISTS otel_spans_local"))

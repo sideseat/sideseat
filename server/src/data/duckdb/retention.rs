@@ -12,6 +12,12 @@ use super::{DuckdbError, in_transaction};
 use crate::core::config::RetentionConfig;
 use crate::data::duckdb::repositories::query::DEDUP_SPANS;
 
+/// Records that a batch's traces will need file and favourite cleanup, before their spans are deleted.
+///
+/// A parameter rather than a call, because retention is synchronous DuckDB work and the record goes to the
+/// transactional store: the composition happens at the caller, which is the only place that has both.
+pub type CleanupRecorder<'a> = &'a dyn Fn(&HashMap<String, Vec<String>>) -> Result<(), DuckdbError>;
+
 /// Result of retention cleanup, including trace IDs for file cleanup
 #[derive(Default)]
 pub struct RetentionResult {
@@ -26,12 +32,13 @@ pub struct RetentionResult {
 pub fn run_retention(
     conn: &Connection,
     config: &RetentionConfig,
+    record_intent: CleanupRecorder<'_>,
 ) -> Result<RetentionResult, DuckdbError> {
     let mut result = RetentionResult::default();
 
     if let Some(max_age_minutes) = config.max_age_minutes {
         // Span cleanup
-        let (deleted, trace_ids) = cleanup_by_time(conn, max_age_minutes)?;
+        let (deleted, trace_ids) = cleanup_by_time(conn, max_age_minutes, record_intent)?;
         if deleted > 0 {
             tracing::debug!(
                 deleted,
@@ -55,7 +62,7 @@ pub fn run_retention(
     }
 
     if let Some(max_spans) = config.max_spans {
-        let (deleted, trace_ids) = cleanup_by_count(conn, max_spans)?;
+        let (deleted, trace_ids) = cleanup_by_count(conn, max_spans, record_intent)?;
         if deleted > 0 {
             tracing::debug!(deleted, max_spans, "Count-based retention cleanup");
             result.deleted_count += deleted;
@@ -112,6 +119,7 @@ const MAX_TRACE_IDS_PER_CYCLE: usize = RETENTION_BATCH_SIZE as usize;
 pub fn cleanup_by_time(
     conn: &Connection,
     minutes: u64,
+    record_intent: CleanupRecorder<'_>,
 ) -> Result<(u64, HashMap<String, Vec<String>>), DuckdbError> {
     let minutes_i64 = i64::try_from(minutes).unwrap_or(i64::MAX);
     let cutoff = Utc::now() - TimeDelta::minutes(minutes_i64);
@@ -122,7 +130,7 @@ pub fn cleanup_by_time(
     let mut all_trace_ids: HashMap<String, Vec<String>> = HashMap::new();
 
     for _ in 0..MAX_TIME_CLEANUP_BATCHES {
-        let batch = delete_spans_before(conn, &cutoff_str, RETENTION_BATCH_SIZE)?;
+        let batch = delete_spans_before(conn, &cutoff_str, RETENTION_BATCH_SIZE, record_intent)?;
         if batch.identities == 0 {
             break;
         }
@@ -157,11 +165,20 @@ const MAX_COUNT_IDENTITIES_PER_CYCLE: i64 = RETENTION_BATCH_SIZE * MAX_COUNT_CLE
 /// one writes take. Bounding identities bounds the *logical* progress the sweep needs to report; bounding rows
 /// is what bounds the time the connection is held.
 ///
-/// **Stated residual: one identity is atomic, so a single pathological identity can exceed this by itself.**
-/// It cannot be split. Deleting some of an identity's revisions but not its winner leaves the identity in place,
-/// so the count does not fall and the sweep makes no progress; deleting the winner but not the older revisions
-/// promotes an obsolete revision to winner, which is data corruption rather than slow retention. So the ceiling
-/// is enforced *between* identities and the irreducible unit is one identity's revision count.
+/// **Two stated residuals, because this bounds rows *deleted* and not work performed.**
+///
+/// One identity is atomic, so a single pathological identity can exceed the ceiling by itself. It cannot be
+/// split: deleting some of an identity's revisions but not its winner leaves the identity in place, so the count
+/// does not fall and the sweep makes no progress; deleting the winner but not the older revisions promotes an
+/// obsolete revision to winner, which is corruption rather than slow retention. So the ceiling is enforced
+/// *between* identities and the irreducible unit is one identity's revision count.
+///
+/// And the **selection** is not bounded by it at all. Choosing which identities to delete windows `DEDUP_SPANS`
+/// and groups the raw table over the whole project, so a project with a hundred million rows pays a scan
+/// proportional to that whether one identity is being deleted or a million - and the connection is held for the
+/// duration, which is what the ceiling was reached for. Bounding the *scan* needs an index that orders
+/// identities by age, which DuckDB will not serve from an ART index over an expression. Stated rather than
+/// implied: this ceiling bounds how much is removed, not how long the connection is occupied.
 const MAX_COUNT_ROWS_PER_CYCLE: u64 = (RETENTION_BATCH_SIZE as u64) * 4;
 
 /// Execute retention based on max span count, **per project**.
@@ -180,12 +197,14 @@ const MAX_COUNT_ROWS_PER_CYCLE: u64 = (RETENTION_BATCH_SIZE as u64) * 4;
 pub fn cleanup_by_count(
     conn: &Connection,
     max_spans: u64,
+    record_intent: CleanupRecorder<'_>,
 ) -> Result<(u64, HashMap<String, Vec<String>>), DuckdbError> {
     cleanup_by_count_within(
         conn,
         max_spans,
         MAX_COUNT_IDENTITIES_PER_CYCLE,
         MAX_COUNT_ROWS_PER_CYCLE,
+        record_intent,
     )
 }
 
@@ -199,6 +218,7 @@ fn cleanup_by_count_within(
     max_spans: u64,
     identity_budget_for_cycle: i64,
     row_budget_for_cycle: u64,
+    record_intent: CleanupRecorder<'_>,
 ) -> Result<(u64, HashMap<String, Vec<String>>), DuckdbError> {
     let max_spans_i64 = i64::try_from(max_spans).unwrap_or(i64::MAX);
 
@@ -250,8 +270,14 @@ fn cleanup_by_count_within(
             to_delete = overage,
             "Project exceeds its span limit, cleaning up"
         );
-        let (deleted, trace_ids) =
-            trim_project_to_limit(conn, &project_id, overage, RETENTION_BATCH_SIZE, row_budget)?;
+        let (deleted, trace_ids) = trim_project_to_limit(
+            conn,
+            &project_id,
+            overage,
+            RETENTION_BATCH_SIZE,
+            row_budget,
+            record_intent,
+        )?;
         total_deleted += deleted;
         identity_budget -= overage;
         row_budget = row_budget.saturating_sub(deleted);
@@ -281,6 +307,7 @@ fn trim_project_to_limit(
     overage: i64,
     batch_size: i64,
     row_budget: u64,
+    record_intent: CleanupRecorder<'_>,
 ) -> Result<(u64, HashMap<String, Vec<String>>), DuckdbError> {
     let mut total_deleted = 0u64;
     let mut all_trace_ids: HashMap<String, Vec<String>> = HashMap::new();
@@ -313,6 +340,7 @@ fn trim_project_to_limit(
             limit,
             row_budget.saturating_sub(total_deleted),
             total_deleted == 0,
+            record_intent,
         )?;
         if batch.identities == 0 {
             break;
@@ -371,6 +399,7 @@ fn delete_spans_before(
     conn: &Connection,
     cutoff: &str,
     limit: i64,
+    record_intent: CleanupRecorder<'_>,
 ) -> Result<BatchOutcome, DuckdbError> {
     delete_spans_with_query(
         conn,
@@ -382,6 +411,7 @@ fn delete_spans_before(
              LIMIT ?2"
         ),
         &[&cutoff as &dyn duckdb::ToSql, &limit],
+        record_intent,
     )
 }
 
@@ -412,6 +442,7 @@ fn delete_oldest_spans_for_project(
     limit: i64,
     row_budget: u64,
     allow_overshoot: bool,
+    record_intent: CleanupRecorder<'_>,
 ) -> Result<BatchOutcome, DuckdbError> {
     let budget = i64::try_from(row_budget).unwrap_or(i64::MAX);
     let overshoot = if allow_overshoot {
@@ -449,6 +480,7 @@ fn delete_oldest_spans_for_project(
              WHERE row_rank <= ?2 AND (cumulative_rows <= ?3{overshoot})"
         ),
         &[&project_id as &dyn duckdb::ToSql, &limit, &budget],
+        record_intent,
     )
 }
 
@@ -469,6 +501,7 @@ fn delete_spans_with_query(
     conn: &Connection,
     insert_sql: &str,
     params: &[&dyn duckdb::ToSql],
+    record_intent: CleanupRecorder<'_>,
 ) -> Result<BatchOutcome, DuckdbError> {
     in_transaction(conn, |conn| {
         conn.execute(
@@ -486,6 +519,20 @@ fn delete_spans_with_query(
 
         // Collected BEFORE the deletion: afterwards the rows naming these traces are gone.
         let trace_ids_by_project = collect_trace_ids_for_cleanup(conn)?;
+
+        // And **recorded** before the deletion, which is the ordering that makes the record useful. The
+        // cleanup runs after the delete commits, asynchronously, and a crash in between otherwise loses the
+        // only knowledge that it is owed - the spans are already gone, so nothing can rediscover the traces,
+        // and their associations, bytes and favourites are orphaned permanently.
+        //
+        // Recorded first, the two failure directions are not symmetric, which is the whole argument: if the
+        // record commits and the delete does not, the cleanup is a no-op (survivor reconciliation releases
+        // only what no surviving span references); if the record fails, this returns and nothing is deleted.
+        // Recording *after* the delete would leave the one case that loses data.
+        //
+        // No transaction spans the two stores - that is this system's standing constraint - so the choice is
+        // only which side of it to take.
+        record_intent(&trace_ids_by_project)?;
 
         // Removes every revision of each selected identity (events, links and messages are
         // embedded in the span row).
@@ -581,6 +628,14 @@ mod tests {
     use chrono::Utc;
     use tempfile::TempDir;
 
+    /// A recorder that records nothing, for the tests that are about deletion rather than about the intent.
+    ///
+    /// Named rather than an inline closure at every call site, so `no_intent` reads as "this test does not
+    /// exercise the record" instead of as noise.
+    fn no_intent(_: &HashMap<String, Vec<String>>) -> Result<(), DuckdbError> {
+        Ok(())
+    }
+
     async fn create_test_service() -> (TempDir, DuckdbService) {
         let temp_dir = TempDir::new().expect("Failed to create temp dir");
         let duckdb_dir = temp_dir.path().join("duckdb");
@@ -646,7 +701,7 @@ mod tests {
         let (_temp_dir, analytics) = create_test_service().await;
         let conn = analytics.conn();
 
-        let (deleted, trace_ids) = cleanup_by_time(&conn, 60).expect("Should cleanup");
+        let (deleted, trace_ids) = cleanup_by_time(&conn, 60, &no_intent).expect("Should cleanup");
         assert_eq!(deleted, 0);
         assert!(trace_ids.is_empty());
     }
@@ -663,7 +718,7 @@ mod tests {
         insert_test_span(&conn, "trace3", "span3", &recent);
 
         // Cleanup spans older than 1 minute
-        let (deleted, _trace_ids) = cleanup_by_time(&conn, 1).expect("Should cleanup");
+        let (deleted, _trace_ids) = cleanup_by_time(&conn, 1, &no_intent).expect("Should cleanup");
         assert_eq!(deleted, 2);
 
         // Verify only recent span remains
@@ -678,7 +733,8 @@ mod tests {
         let (_temp_dir, analytics) = create_test_service().await;
         let conn = analytics.conn();
 
-        let (deleted, trace_ids) = cleanup_by_count(&conn, 100).expect("Should cleanup");
+        let (deleted, trace_ids) =
+            cleanup_by_count(&conn, 100, &no_intent).expect("Should cleanup");
         assert_eq!(deleted, 0);
         assert!(trace_ids.is_empty());
     }
@@ -693,7 +749,8 @@ mod tests {
         insert_test_span(&conn, "trace2", "span2", "2020-01-02 00:00:00");
 
         // 100 span limit - should not delete anything (only 2 spans)
-        let (deleted, trace_ids) = cleanup_by_count(&conn, 100).expect("Should cleanup");
+        let (deleted, trace_ids) =
+            cleanup_by_count(&conn, 100, &no_intent).expect("Should cleanup");
         assert_eq!(deleted, 0);
         assert!(trace_ids.is_empty());
 
@@ -717,7 +774,7 @@ mod tests {
         insert_test_span(&conn, "trace5", "span5", "2020-01-05 00:00:00");
 
         // Limit to 2 spans - should delete 3 oldest
-        let (deleted, _trace_ids) = cleanup_by_count(&conn, 2).expect("Should cleanup");
+        let (deleted, _trace_ids) = cleanup_by_count(&conn, 2, &no_intent).expect("Should cleanup");
         assert_eq!(deleted, 3);
 
         // Verify only 2 spans remain (the newest ones)
@@ -762,7 +819,7 @@ mod tests {
         insert_test_span(&conn, "trace2", "span2", &recent2);
 
         // Cleanup with 1 minute retention - should preserve both
-        let (deleted, trace_ids) = cleanup_by_time(&conn, 1).expect("Should cleanup");
+        let (deleted, trace_ids) = cleanup_by_time(&conn, 1, &no_intent).expect("Should cleanup");
         assert_eq!(deleted, 0);
         assert!(trace_ids.is_empty());
 
@@ -783,8 +840,9 @@ mod tests {
         insert_test_span(&conn, "newest", "span3", "2020-12-01 00:00:00");
 
         // Use the batch primitive directly to verify ordering
-        let batch = delete_oldest_spans_for_project(&conn, "default", 1, u64::MAX, true)
-            .expect("Should delete");
+        let batch =
+            delete_oldest_spans_for_project(&conn, "default", 1, u64::MAX, true, &no_intent)
+                .expect("Should delete");
         assert_eq!(batch.rows, 1);
 
         // Verify oldest was deleted
@@ -831,7 +889,7 @@ mod tests {
         );
 
         // Cleanup old spans
-        let (deleted, _trace_ids) = cleanup_by_time(&conn, 1).expect("Should cleanup");
+        let (deleted, _trace_ids) = cleanup_by_time(&conn, 1, &no_intent).expect("Should cleanup");
         assert_eq!(deleted, 3);
 
         // Only new spans should remain
@@ -868,7 +926,7 @@ mod tests {
         let recent = Utc::now().format("%Y-%m-%d %H:%M:%S%.6f").to_string();
         insert_span_for_project(&conn, "bob", "shared-trace", "shared-span", &recent);
 
-        let (deleted, trace_ids) = cleanup_by_time(&conn, 1).expect("Should cleanup");
+        let (deleted, trace_ids) = cleanup_by_time(&conn, 1, &no_intent).expect("Should cleanup");
         assert_eq!(deleted, 1, "only alice's expired span should go");
 
         assert_eq!(
@@ -919,7 +977,7 @@ mod tests {
             );
         }
 
-        let (deleted, _) = cleanup_by_count(&conn, 2).expect("Should cleanup");
+        let (deleted, _) = cleanup_by_count(&conn, 2, &no_intent).expect("Should cleanup");
 
         assert_eq!(
             span_count(&conn, "noisy"),
@@ -963,7 +1021,8 @@ mod tests {
         }
 
         // A budget of three identities cannot cover all six, so at least one project must be deferred.
-        let (deleted, _) = cleanup_by_count_within(&conn, 1, 3, u64::MAX).expect("Should cleanup");
+        let (deleted, _) =
+            cleanup_by_count_within(&conn, 1, 3, u64::MAX, &no_intent).expect("Should cleanup");
         assert_eq!(
             deleted, 3,
             "the cycle stops at its budget rather than at the work available"
@@ -981,7 +1040,7 @@ mod tests {
 
         // The remainder is next cycle's work, not lost work.
         let (deleted_again, _) =
-            cleanup_by_count_within(&conn, 1, 3, u64::MAX).expect("Should cleanup");
+            cleanup_by_count_within(&conn, 1, 3, u64::MAX, &no_intent).expect("Should cleanup");
         assert_eq!(
             deleted_again, 3,
             "the second cycle takes the deferred remainder"
@@ -1035,7 +1094,8 @@ mod tests {
         // Batch size 1, so batches are per identity and the ratio is learned after the first. A row budget of 5
         // then permits the first identity (4 rows), finds 4 < 5 and takes a second (8 rows), and stops - rather
         // than taking all four identities and 16 rows, which is what an identity-only budget allows.
-        let (deleted, _) = trim_project_to_limit(&conn, "default", 4, 1, 5).expect("Should trim");
+        let (deleted, _) =
+            trim_project_to_limit(&conn, "default", 4, 1, 5, &no_intent).expect("Should trim");
 
         assert!(
             deleted < 16,
@@ -1058,6 +1118,88 @@ mod tests {
         assert!(
             winners > 1,
             "identities remain, still over the limit, and are the next cycle's work - got {winners}"
+        );
+    }
+
+    /// The cleanup intent is recorded **before** the spans are deleted, which is what survives a crash.
+    ///
+    /// The cleanup runs after the delete commits, asynchronously, with failures only logged. A crash or a
+    /// transactional-store outage in between loses the only knowledge that the cleanup is owed - the spans are
+    /// gone, so nothing can rediscover the traces, and their file associations, ref-counted bytes and
+    /// favourites are orphaned permanently.
+    ///
+    /// Two assertions, and the ordering one is the point. A recorder that observes what it was handed *and*
+    /// what the store contains at that moment shows the record is durable while the spans are still there - so
+    /// a crash immediately after the delete leaves the record behind. Asserting only that the record exists
+    /// afterwards would pass just as well with the recording done last, which is the version that loses data.
+    #[tokio::test]
+    async fn the_cleanup_intent_is_recorded_before_the_spans_are_deleted() {
+        let (_temp_dir, analytics) = create_test_service().await;
+        let conn = analytics.conn();
+
+        insert_test_span(&conn, "t1", "s1", "2020-01-01 00:00:00");
+        insert_test_span(&conn, "t2", "s2", "2020-01-02 00:00:00");
+
+        // What the recorder saw, and how many spans still existed when it saw it.
+        let observed: std::sync::Mutex<Vec<(String, usize, i64)>> =
+            std::sync::Mutex::new(Vec::new());
+        let recorder = |by_project: &HashMap<String, Vec<String>>| {
+            let remaining: i64 = conn
+                .query_row("SELECT COUNT(*) FROM otel_spans", [], |row| row.get(0))
+                .expect("count spans");
+            let mut seen = observed.lock().unwrap();
+            for (project_id, trace_ids) in by_project {
+                seen.push((project_id.clone(), trace_ids.len(), remaining));
+            }
+            Ok(())
+        };
+
+        let (deleted, trace_ids) = cleanup_by_time(&conn, 1, &recorder).expect("Should cleanup");
+        assert_eq!(deleted, 2, "both expired spans are deleted");
+
+        let seen = observed.into_inner().unwrap();
+        assert_eq!(seen.len(), 1, "one project was recorded, got {seen:?}");
+        assert_eq!(seen[0].0, "default");
+        assert_eq!(seen[0].1, 2, "both traces were handed to the recorder");
+        assert_eq!(
+            seen[0].2, 2,
+            "the recorder ran with the spans still present, so the record is durable before the delete. It \
+             saw {} spans, which means recording happens after the deletion and a crash in between loses the \
+             cleanup entirely",
+            seen[0].2
+        );
+
+        // And what it was handed is what the caller gets, so the record and the work cannot disagree.
+        assert_eq!(trace_ids.get("default").map(|t| t.len()), Some(2));
+    }
+
+    /// A recorder that fails stops the deletion, because deleting without a record is the loss.
+    ///
+    /// The two failure directions are not symmetric and this is the one that matters: if the record commits and
+    /// the delete does not, the cleanup is a harmless no-op; if the delete commits and the record does not, the
+    /// spans are gone and nothing knows their files are owed. So a failure here must abort rather than proceed.
+    #[tokio::test]
+    async fn a_failed_intent_record_leaves_the_spans_in_place() {
+        let (_temp_dir, analytics) = create_test_service().await;
+        let conn = analytics.conn();
+
+        insert_test_span(&conn, "t1", "s1", "2020-01-01 00:00:00");
+
+        let failing = |_: &HashMap<String, Vec<String>>| {
+            Err(DuckdbError::Io(std::io::Error::other(
+                "the transactional store is unavailable",
+            )))
+        };
+        let result = cleanup_by_time(&conn, 1, &failing);
+        assert!(result.is_err(), "a failed record must fail the batch");
+
+        let remaining: i64 = conn
+            .query_row("SELECT COUNT(*) FROM otel_spans", [], |row| row.get(0))
+            .expect("count spans");
+        assert_eq!(
+            remaining, 1,
+            "the span was deleted although its cleanup could not be recorded, so its files are orphaned with \
+             nothing able to find them"
         );
     }
 
@@ -1101,7 +1243,8 @@ mod tests {
         // Every identity is over a limit of zero, so nothing but the budget decides where it stops. A budget of
         // six covers the four shallow identities (4 rows) and must **not** reach the deep one, which would take
         // the total to 24.
-        let (deleted, _) = trim_project_to_limit(&conn, "default", 5, 100, 6).expect("Should trim");
+        let (deleted, _) =
+            trim_project_to_limit(&conn, "default", 5, 100, 6, &no_intent).expect("Should trim");
 
         assert!(
             deleted <= 6,
@@ -1124,6 +1267,69 @@ mod tests {
         assert_eq!(
             deep_rows, 20,
             "the identity that did not fit the budget is left intact for the next cycle"
+        );
+    }
+
+    /// The overshoot escape fires **once per trim**, not once per batch.
+    ///
+    /// `allow_overshoot` exists so a deep identity larger than the whole budget still makes progress, and it is
+    /// passed only when nothing has been deleted yet. Passed on every batch it re-opens the hole it plugs: a
+    /// batch fills the budget with shallow identities, the next batch finds a deep one at rank 1 and takes it
+    /// unconditionally, and the trim overshoots by that identity's entire depth *after* having already made
+    /// progress.
+    ///
+    /// The fixture needs both a **multi-batch** trim and **skewed** depth, which is what the two earlier tests
+    /// each half-had: shallow identities first so batch one succeeds within budget, then a deep one so batch
+    /// two's rank-1 escape would be visible.
+    #[tokio::test]
+    async fn the_overshoot_escape_applies_once_per_trim_not_once_per_batch() {
+        let (_temp_dir, analytics) = create_test_service().await;
+        let conn = analytics.conn();
+
+        // Four shallow identities (one row each), then one carrying twenty.
+        for i in 0..4 {
+            insert_span_for_project(
+                &conn,
+                "default",
+                &format!("shallow{i}"),
+                &format!("s{i}"),
+                &format!("2020-01-0{} 00:00:00", i + 1),
+            );
+        }
+        for rev in 0..20 {
+            redeliver_span(
+                &conn,
+                "default",
+                "deep",
+                "deep-span",
+                "2020-01-05 00:00:00",
+                &format!("2020-01-{:02} 00:00:00", rev + 1),
+            );
+        }
+
+        // Batch size 2, so the trim takes two batches to reach the deep identity: batch one takes two shallow
+        // identities (2 rows), batch two takes the other two (4 rows total), batch three reaches the deep one.
+        // With a budget of 6 the deep identity does not fit, and because progress has already been made the
+        // escape must not apply.
+        let (deleted, _) =
+            trim_project_to_limit(&conn, "default", 5, 2, 6, &no_intent).expect("Should trim");
+
+        assert!(
+            deleted <= 6,
+            "the trim deleted {deleted} rows against a budget of 6 - the rank-1 escape fired on a later batch, \
+             so a deep identity is taken unconditionally even once the trim has made progress"
+        );
+
+        let deep_rows: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM otel_spans WHERE project_id = 'default' AND trace_id = 'deep'",
+                [],
+                |row| row.get(0),
+            )
+            .expect("Should query");
+        assert_eq!(
+            deep_rows, 20,
+            "the deep identity is left for the next cycle rather than taken past the budget"
         );
     }
 
@@ -1150,7 +1356,8 @@ mod tests {
             );
         }
 
-        let (deleted, _) = trim_project_to_limit(&conn, "default", 1, 100, 1).expect("Should trim");
+        let (deleted, _) =
+            trim_project_to_limit(&conn, "default", 1, 100, 1, &no_intent).expect("Should trim");
 
         assert_eq!(
             deleted, 20,
@@ -1181,7 +1388,7 @@ mod tests {
         );
         redeliver_span(&conn, "default", "trace1", "span1", &recent, &recent);
 
-        let (deleted, trace_ids) = cleanup_by_time(&conn, 1).expect("Should cleanup");
+        let (deleted, trace_ids) = cleanup_by_time(&conn, 1, &no_intent).expect("Should cleanup");
 
         assert_eq!(
             deleted, 0,
@@ -1215,7 +1422,7 @@ mod tests {
         insert_span_for_project(&conn, "default", "t2", "s2", "2020-01-02 00:00:00");
 
         // A limit of 2 is satisfied by two winners: nothing should be deleted.
-        let (deleted, trace_ids) = cleanup_by_count(&conn, 2).expect("Should cleanup");
+        let (deleted, trace_ids) = cleanup_by_count(&conn, 2, &no_intent).expect("Should cleanup");
         assert_eq!(
             deleted, 0,
             "two winning identities are within a limit of two, whatever the revision count"
@@ -1252,8 +1459,8 @@ mod tests {
         }
 
         // Three identities over a limit of two, one identity per batch.
-        let (_deleted, _) =
-            trim_project_to_limit(&conn, "default", 3, 1, u64::MAX).expect("Should trim");
+        let (_deleted, _) = trim_project_to_limit(&conn, "default", 3, 1, u64::MAX, &no_intent)
+            .expect("Should trim");
 
         let winners: i64 = conn
             .query_row(
@@ -1290,7 +1497,7 @@ mod tests {
         insert_span_for_project(&conn, "default", "t2", "s2", "2020-02-01 00:00:00");
         insert_span_for_project(&conn, "default", "t3", "s3", "2020-02-02 00:00:00");
 
-        let (_deleted, _) = cleanup_by_count(&conn, 2).expect("Should cleanup");
+        let (_deleted, _) = cleanup_by_count(&conn, 2, &no_intent).expect("Should cleanup");
 
         let winners: i64 = conn
             .query_row(
@@ -1387,7 +1594,7 @@ mod tests {
             max_age_minutes: Some(1),
             max_spans: None,
         };
-        let result = run_retention(&conn, &config).expect("Should run retention");
+        let result = run_retention(&conn, &config, &no_intent).expect("Should run retention");
         assert!(result.deleted_count > 0);
 
         // Verify both spans and metrics are deleted

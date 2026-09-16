@@ -3,7 +3,7 @@
 //! Initial schema with all tables. No migrations needed for first version.
 
 /// Current schema version
-pub const SCHEMA_VERSION: i32 = 2;
+pub const SCHEMA_VERSION: i32 = 3;
 
 /// Complete schema SQL
 pub const SCHEMA: &str = r#"
@@ -220,6 +220,41 @@ CREATE TABLE IF NOT EXISTS deleted_traces (
     PRIMARY KEY (project_id, trace_id)
 );
 CREATE INDEX IF NOT EXISTS idx_deleted_traces_due ON deleted_traces(next_check_at);
+
+-- Retention's cleanup **intent**, recorded before the spans are deleted.
+--
+-- DuckDB commits the span deletion first and the file and favourite cleanup runs afterwards, asynchronously,
+-- with failures only logged. A crash or a transactional-store outage in between loses the **only** record of
+-- which traces needed cleaning - and their spans are already gone, so a later pass cannot rediscover them.
+-- Their file associations, ref-counted bytes and favourites are then orphaned permanently, which is the quota
+-- leak the whole file protocol exists to prevent.
+--
+-- Recorded *before* the delete, so the record survives a crash on either side of it, and removed only once
+-- the cleanup has completed.
+--
+-- **One state, not three.** The plan this comes from specified `pending` / `ready` / `aborted`, because at the
+-- time cleanup was trace-wide and acting on a candidate whose deletion had *not* committed would have deleted
+-- a live trace's associations. Cleanup is now survivor reconciliation (`reconcile_trace_survivors`), which
+-- releases only what no surviving winning span references and skips anything with `pending_writers > 0` - so
+-- running it on a trace whose deletion failed is a no-op, and running it twice is idempotent. There is
+-- therefore nothing for the extra states to protect, and a state machine with no failure to distinguish is a
+-- state machine to get wrong.
+--
+-- Leased and backed off like the other sweep tables: a claim pushes `next_attempt_at` out before returning, so
+-- a slow reconciliation is not re-claimed while it runs, and a candidate that keeps failing is retried more
+-- slowly rather than spinning.
+CREATE TABLE IF NOT EXISTS retention_cleanup (
+    project_id      TEXT    NOT NULL,
+    trace_id        TEXT    NOT NULL,
+    created_at      INTEGER NOT NULL,
+    attempts        INTEGER NOT NULL DEFAULT 0,
+    next_attempt_at INTEGER NOT NULL DEFAULT 0,
+    claim_token     INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (project_id, trace_id)
+);
+-- On the due time itself, not on an input to it: an index on a column the eligibility expression merely reads
+-- bounds rows returned rather than rows examined.
+CREATE INDEX IF NOT EXISTS idx_retention_cleanup_due ON retention_cleanup(next_attempt_at);
 -- Sessions whose deletion has to outlive the traces it knew about.
 --
 -- A session is deleted *by* deleting its traces, so the route resolves session ids to trace ids and

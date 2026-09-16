@@ -84,9 +84,14 @@ const WINDOW_OVERLAP: TimeDelta = TimeDelta::minutes(10);
 
 /// Identities examined per pass.
 ///
-/// The pass is bounded work, not "all outstanding work": a backlog is the next pass's problem, because the
-/// point of running continuously is that no single run is expensive. A pass that hit the cap does not advance
-/// its watermark past what it examined, so nothing is skipped.
+/// A backlog is the next pass's problem: the point of running continuously is that no single run is expensive.
+///
+/// **This bounds identities returned, not rows scanned**, and the difference is real rather than pedantic. One
+/// recently-touched identity carrying five million revisions is a single candidate, and grouping it still reads
+/// those five million rows - so a pass's *work* is bounded by the revision depth behind its window, which
+/// nothing here caps. What the skip index buys is that the window is a slice of recent ingest rather than the
+/// corpus; what it does not buy is a bound on how deep that slice is. Stated rather than implied, because a cap
+/// that is described as bounding work and does not is worse than no cap at all.
 const MAX_CANDIDATES_PER_PASS: u64 = 10_000;
 
 /// The row key used to store the watermark, which is not an identity.
@@ -135,7 +140,19 @@ impl ClickhouseService {
         // Still no `FINAL`: the question is about physical revisions, and `FINAL` shows one per identity per
         // partition - it would hide exactly what is being looked for.
         let spans = self.insert_table("otel_spans");
-        let since = self.consistency_watermark().await? - WINDOW_OVERLAP;
+        // The overlap is subtracted **only when the previous pass finished its window**. Applied to a
+        // truncated pass it is a livelock: 20 000 identities arriving inside a minute means the first pass
+        // takes the earliest 10 000 and advances the watermark by seconds, and subtracting ten minutes then
+        // re-selects exactly those 10 000 - every pass, forever, with the second half never examined. The
+        // overlap exists to catch a clock-behind writer, which is a different concern from making progress, and
+        // when the detector is knowingly behind there is nothing for it to catch: everything below the
+        // watermark has just been read.
+        let (watermark, behind) = self.consistency_watermark().await?;
+        let since = if behind {
+            watermark
+        } else {
+            watermark - WINDOW_OVERLAP
+        };
 
         // Candidates: identities touched since the watermark. `GROUP BY` rather than `DISTINCT` so the
         // maximum ingested stamp comes back in the same pass - the watermark has to come from the rows
@@ -153,6 +170,13 @@ impl ClickhouseService {
             max_ingested: i64,
         }
 
+        // `GLOBAL IN`, not `IN`. Both sides read the `Distributed` table, and ClickHouse's
+        // `distributed_product_mode` defaults to `deny` - so a plain `IN` here is refused outright on a
+        // multi-shard cluster with "Double-distributed IN/JOIN subqueries is denied", meaning the scheduled
+        // detector fails on every pass instead of reporting anything. `GLOBAL IN` evaluates the subquery once
+        // on the initiator and ships the result, which is both permitted and what the semantics need: the
+        // candidate set must be the same on every shard, not each shard's local view.
+        //
         // The inner selection **groups before it limits, and orders by the identity's own newest stamp**.
         // Three defects in one line otherwise, and a first version had all three:
         //
@@ -174,7 +198,7 @@ impl ClickhouseService {
                         count() AS revisions, \
                         toUnixTimestamp64Micro(max(ingested_at)) AS max_ingested \
                  FROM {spans} \
-                 WHERE (project_id, trace_id, span_id) IN ( \
+                 WHERE (project_id, trace_id, span_id) GLOBAL IN ( \
                      SELECT project_id, trace_id, span_id FROM {spans} \
                      WHERE ingested_at > fromUnixTimestamp64Micro(?) \
                      GROUP BY project_id, trace_id, span_id \
@@ -241,7 +265,8 @@ impl ClickhouseService {
         if let Some(reached) = reached {
             let reached = OffsetDateTime::from_unix_timestamp_nanos(i128::from(reached) * 1_000)
                 .unwrap_or(OffsetDateTime::UNIX_EPOCH);
-            self.record_consistency_watermark(reached).await?;
+            self.record_consistency_watermark(reached, truncated)
+                .await?;
         }
 
         Ok(CheckOutcome {
@@ -266,11 +291,17 @@ impl ClickhouseService {
             .map_err(ClickhouseError::from)
     }
 
-    async fn consistency_watermark(&self) -> Result<DateTime<Utc>, ClickhouseError> {
-        let stored: Option<i64> = self
+    /// The watermark, and whether the pass that set it was truncated.
+    ///
+    /// The second value is what stops the overlap turning a capped pass into a livelock, so it is stored rather
+    /// than inferred: `revisions` on the watermark row carries it, a column that is otherwise meaningless
+    /// there.
+    async fn consistency_watermark(&self) -> Result<(DateTime<Utc>, bool), ClickhouseError> {
+        let stored: Option<(i64, u32)> = self
             .client
             .query(
-                "SELECT toUnixTimestamp64Micro(checked_through) FROM span_partition_anomalies FINAL \
+                "SELECT toUnixTimestamp64Micro(checked_through), revisions \
+                 FROM span_partition_anomalies FINAL \
                  WHERE project_id = ? AND trace_id = ? AND span_id = ?",
             )
             .bind(WATERMARK_KEY)
@@ -280,14 +311,19 @@ impl ClickhouseService {
             .await
             .map_err(ClickhouseError::from)?;
 
-        Ok(stored
-            .and_then(DateTime::from_timestamp_micros)
-            .unwrap_or(DateTime::UNIX_EPOCH))
+        Ok(match stored {
+            Some((micros, behind)) => (
+                DateTime::from_timestamp_micros(micros).unwrap_or(DateTime::UNIX_EPOCH),
+                behind == 1,
+            ),
+            None => (DateTime::UNIX_EPOCH, false),
+        })
     }
 
     async fn record_consistency_watermark(
         &self,
         micros: OffsetDateTime,
+        behind: bool,
     ) -> Result<(), ClickhouseError> {
         let mut insert: clickhouse::insert::Insert<AnomalyRow> = self
             .client
@@ -300,7 +336,9 @@ impl ClickhouseService {
                 trace_id: WATERMARK_KEY.to_string(),
                 span_id: WATERMARK_KEY.to_string(),
                 partitions: Vec::new(),
-                revisions: 0,
+                // Not a revision count on this row: it carries whether the pass that set the watermark was
+                // truncated, which the next pass needs in order to decide about the overlap.
+                revisions: u32::from(behind),
                 detected_at: OffsetDateTime::now_utc(),
                 checked_through: micros,
             })

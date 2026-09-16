@@ -2419,6 +2419,33 @@ const AWAIT_MUTATION: &str = " SETTINGS mutations_sync = 2";
 ///
 /// In distributed mode, `table` should be the local table name (e.g., `otel_spans_local`)
 /// and `on_cluster` should be the ON CLUSTER clause (e.g., ` ON CLUSTER cluster_name`).
+/// Which of these traces have no winning spans left. `FINAL`, for the reason the field query gives.
+pub async fn traces_without_spans(
+    client: &clickhouse::Client,
+    project_id: &str,
+    trace_ids: &[String],
+) -> Result<Vec<String>, ClickhouseError> {
+    if trace_ids.is_empty() {
+        return Ok(Vec::new());
+    }
+    let placeholders = trace_ids.iter().map(|_| "?").collect::<Vec<_>>().join(", ");
+    let mut query = client
+        .query(&format!(
+            "SELECT DISTINCT trace_id FROM otel_spans FINAL \
+             WHERE project_id = ? AND trace_id IN ({placeholders})"
+        ))
+        .bind(project_id);
+    for trace_id in trace_ids {
+        query = query.bind(trace_id);
+    }
+    let alive: Vec<String> = query.fetch_all().await?;
+    Ok(trace_ids
+        .iter()
+        .filter(|t| !alive.contains(t))
+        .cloned()
+        .collect())
+}
+
 /// The text of every field that can hold a `#!B64!#` reference, for the surviving winning spans of these
 /// traces.
 ///

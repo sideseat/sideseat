@@ -271,6 +271,25 @@ CREATE INDEX IF NOT EXISTS idx_deleted_sessions_due ON deleted_sessions(next_che
 
 "#,
         ),
+        // Its own version, because v2 *was* released: a database already on v2 never re-runs the v2 script, so
+        // a table appended there would reach only fresh installs - the permanently-skipped-migration trap that
+        // forced the ClickHouse v3 changes into one commit. Why the table exists, and why one state is enough,
+        // is documented on the fresh schema.
+        3 => (
+            "retention_cleanup_intent",
+            r#"
+CREATE TABLE IF NOT EXISTS retention_cleanup (
+    project_id      TEXT   NOT NULL,
+    trace_id        TEXT   NOT NULL,
+    created_at      BIGINT NOT NULL,
+    attempts        BIGINT NOT NULL DEFAULT 0,
+    next_attempt_at BIGINT NOT NULL DEFAULT 0,
+    claim_token     BIGINT NOT NULL DEFAULT 0,
+    PRIMARY KEY (project_id, trace_id)
+);
+CREATE INDEX IF NOT EXISTS idx_retention_cleanup_due ON retention_cleanup(next_attempt_at);
+"#,
+        ),
         _ => {
             return Err(PostgresError::MigrationFailed {
                 version,

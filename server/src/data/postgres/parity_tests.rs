@@ -66,20 +66,14 @@ const URL_ENV: &str = "SIDESEAT_TEST_POSTGRES_URL";
 ///
 /// The seeded `default` org, user and project are restored afterwards, because most of the API
 /// assumes they exist and the goldens' project id is `default`.
-const DATA_TABLES: &[&str] = &[
-    "deleted_traces",
-    "credential_project_permissions",
-    "credentials",
-    "api_keys",
-    "favorites",
-    "trace_files",
-    "files",
-    "projects",
-    "auth_methods",
-    "organization_members",
-    "users",
-    "organizations",
-];
+/// Tables the reset leaves alone. Everything else is data a scenario may have written.
+///
+/// **Derived from the database rather than listed**, which is a correction: the list was hand-maintained and
+/// had fallen behind by two tables (`deleted_sessions`, and then `retention_cleanup`). A scenario's rows
+/// therefore survived into the next scenario, and the failure that produced was a *different* test - the
+/// project list counting rows another scenario had left - which is the worst shape of flake: it points away
+/// from its cause. One more table added anywhere and the list is stale again, so it is not a list any more.
+const RESET_EXEMPT: &[&str] = &["schema_version"];
 
 fn hash(n: u8) -> String {
     // 64 hex chars, which is what the file columns expect.
@@ -181,12 +175,29 @@ fn repositories(
 /// The container is reused across scenarios, and `--test-threads=1` is what makes that safe; the
 /// `make` target passes it for the same reason the ClickHouse one does.
 async fn reset_postgres(service: &PostgresService) {
-    for table in DATA_TABLES {
-        sqlx::query(&format!("DELETE FROM {table}"))
-            .execute(service.pool())
-            .await
-            .unwrap_or_else(|e| panic!("clear {table}: {e}"));
-    }
+    let tables: Vec<String> = sqlx::query_scalar(
+        "SELECT tablename FROM pg_tables WHERE schemaname = current_schema() ORDER BY tablename",
+    )
+    .fetch_all(service.pool())
+    .await
+    .expect("list the tables to reset");
+
+    let targets: Vec<String> = tables
+        .into_iter()
+        .filter(|t| !RESET_EXEMPT.contains(&t.as_str()))
+        .collect();
+    assert!(
+        targets.len() > 8,
+        "only found {} tables to reset - the query is wrong, not the schema",
+        targets.len()
+    );
+
+    // One `TRUNCATE ... CASCADE`, so foreign keys do not dictate an order this no longer knows. Deleting table
+    // by table needed the list to be in dependency order, which is a second thing to keep correct by hand.
+    sqlx::query(&format!("TRUNCATE TABLE {} CASCADE", targets.join(", ")))
+        .execute(service.pool())
+        .await
+        .unwrap_or_else(|e| panic!("truncate {targets:?}: {e}"));
     sqlx::raw_sql(crate::data::postgres::schema::DEFAULT_DATA)
         .execute(service.pool())
         .await
@@ -230,6 +241,61 @@ where
 // ============================================================================
 // Scenarios
 // ============================================================================
+
+/// Retention's cleanup intent: recording, claiming with a lease, and completing.
+///
+/// The two backends express the claim differently and must not disagree about it. PostgreSQL's uses `FOR UPDATE
+/// SKIP LOCKED` on the inner select, which SQLite neither needs nor has - a blocked replica can otherwise resume
+/// against a stale subquery snapshot and re-claim ids another replica already took - and the backoff arithmetic
+/// is `LEAST` there against `MIN` here. Two hand-written statements for one behaviour is exactly what this suite
+/// exists to compare.
+///
+/// The lease is the part with teeth: a claim must push the candidate's next attempt out **before** returning it,
+/// or every replica drains the same rows and a slow reconciliation is re-entered while it runs.
+#[tokio::test]
+async fn retention_cleanup_intent_behaves_identically() {
+    assert_parity("retention_cleanup_intent", |repo, mut t| async move {
+        // No project row needed: the candidate table carries no foreign key, deliberately - a cleanup that is
+        // owed must remain findable after the project row has gone.
+
+        // Recorded, and idempotent: the same trace twice is one candidate.
+        repo.record_retention_cleanup("p1", &["t1".to_string(), "t2".to_string()])
+            .await
+            .expect("record");
+        repo.record_retention_cleanup("p1", &["t1".to_string()])
+            .await
+            .expect("record again");
+
+        let mut first = repo.claim_retention_cleanup(10, 600).await.expect("claim");
+        first.sort();
+        t.note(&format!("claimed: {first:?}"));
+
+        // Leased, so an immediate second claim finds nothing - this is what stops two replicas doing the same
+        // reconciliation, and what stops one re-entering its own.
+        let again = repo
+            .claim_retention_cleanup(10, 600)
+            .await
+            .expect("reclaim");
+        t.note(&format!("claimed while leased: {}", again.len()));
+
+        // Completing one leaves the other owed.
+        repo.complete_retention_cleanup("p1", &["t1".to_string()])
+            .await
+            .expect("complete");
+        let after = repo.claim_retention_cleanup(10, 0).await.expect("claim");
+        t.note(&format!("owed after completing t1: {after:?}"));
+
+        // A limit bounds the claim.
+        repo.record_retention_cleanup("p1", &["t3".to_string(), "t4".to_string()])
+            .await
+            .expect("record more");
+        let bounded = repo.claim_retention_cleanup(1, 0).await.expect("claim one");
+        t.note(&format!("bounded claim size: {}", bounded.len()));
+
+        t
+    })
+    .await;
+}
 
 /// Projects, including the deletion fence: what a claimed project looks like to every read.
 #[tokio::test]

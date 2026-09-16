@@ -216,6 +216,95 @@ impl DuckdbService {
         })
     }
 
+    /// Candidates claimed per cycle, and how long a claim holds them.
+    ///
+    /// The lease exists so a slow reconciliation is not re-claimed while it runs, which is what turns several
+    /// replicas draining the same table into several replicas draining different rows.
+    const RETENTION_CLEANUP_CLAIM: i64 = 256;
+    const RETENTION_CLEANUP_LEASE_SECS: i64 = 600;
+
+    /// Reconcile a set of traces' files and favourites, and drop their cleanup records.
+    ///
+    /// One place, used by the retention cycle *and* by the crash-recovery claim above, because two copies of
+    /// this would drift - and the recovery path is the one nobody exercises by hand.
+    ///
+    /// The record is removed **only on success**, and each half is independent: a failure in either leaves the
+    /// record in place with its backoff advanced, so the work is owed rather than lost. That is the whole point
+    /// of recording the intent before the delete.
+    async fn finish_retention_cleanup(
+        analytics: &Arc<Self>,
+        database: &Arc<crate::data::TransactionalService>,
+        file_service: Option<&Arc<crate::data::files::FileService>>,
+        project_id: &str,
+        trace_ids: &[String],
+    ) {
+        let mut clean = true;
+
+        // Survivor reconciliation, **not** the trace-wide cleanup. Retention expires individual span
+        // identities, so a trace it touched usually still has live spans; `cleanup_traces` removes *every*
+        // association for a trace, which left those survivors pointing at bytes that had been reclaimed.
+        if let Some(fs) = file_service
+            && fs.is_enabled()
+            && let Err(e) = fs
+                .reconcile_trace_survivors(project_id, trace_ids, analytics)
+                .await
+        {
+            clean = false;
+            tracing::warn!(
+                error = %e,
+                project_id,
+                traces = trace_ids.len(),
+                "Failed to reconcile files during retention; the cleanup stays recorded and is retried"
+            );
+        }
+
+        // Favourites are keyed on the **trace**, so only a trace that is actually gone may lose one. Retention
+        // expires span identities, not traces, so "was in the retention batch" is not that: a favourited trace
+        // with one expired span and one live span stayed visible and lost its favourite anyway - the same defect
+        // as the trace-wide file cleanup, in the call beside it.
+        let repo = database.repository();
+        match crate::data::traits::AnalyticsRepository::traces_without_spans(
+            analytics, project_id, trace_ids,
+        )
+        .await
+        {
+            Ok(emptied) if !emptied.is_empty() => {
+                if let Err(e) = repo
+                    .delete_favorites_by_entity("trace", &emptied, project_id)
+                    .await
+                {
+                    clean = false;
+                    tracing::warn!(
+                        error = %e,
+                        project_id,
+                        traces = emptied.len(),
+                        "Failed to cleanup favorites during retention; the cleanup stays recorded and is \
+                         retried"
+                    );
+                }
+            }
+            Ok(_) => {}
+            Err(e) => {
+                clean = false;
+                tracing::warn!(
+                    error = %e,
+                    project_id,
+                    "Could not tell which traces retention emptied, so no favourite is removed - the cleanup \
+                     stays recorded and is retried"
+                );
+            }
+        }
+
+        if clean && let Err(e) = repo.complete_retention_cleanup(project_id, trace_ids).await {
+            // Harmless: the record is idempotent work, so a stale one costs one extra reconciliation.
+            tracing::debug!(
+                error = %e,
+                project_id,
+                "Could not drop completed retention cleanup records"
+            );
+        }
+    }
+
     pub fn start_retention_task(
         self: &Arc<Self>,
         config: RetentionConfig,
@@ -248,53 +337,55 @@ impl DuckdbService {
                         }
                     }
                     _ = interval.tick() => {
-                        match db.run_retention(&config).await {
+                        // First, whatever a previous cycle recorded and did not finish. Claimed and leased, so
+                        // several instances drain different candidates; the reconciliation is idempotent, so
+                        // acting on one whose deletion never committed is a no-op rather than damage - which is
+                        // why this needs no state machine to tell the two apart.
+                        match database.repository()
+                            .claim_retention_cleanup(Self::RETENTION_CLEANUP_CLAIM, Self::RETENTION_CLEANUP_LEASE_SECS)
+                            .await
+                        {
+                            Ok(claimed) if !claimed.is_empty() => {
+                                let mut by_project: std::collections::HashMap<String, Vec<String>> =
+                                    std::collections::HashMap::new();
+                                for (project_id, trace_id) in claimed {
+                                    by_project.entry(project_id).or_default().push(trace_id);
+                                }
+                                tracing::debug!(
+                                    projects = by_project.len(),
+                                    "Resuming retention cleanup a previous cycle did not finish"
+                                );
+                                for (project_id, trace_ids) in &by_project {
+                                    Self::finish_retention_cleanup(
+                                        &db,
+                                        &database,
+                                        file_service.as_ref(),
+                                        project_id,
+                                        trace_ids,
+                                    )
+                                    .await;
+                                }
+                            }
+                            Ok(_) => {}
+                            Err(e) => tracing::warn!(
+                                error = %e,
+                                "Could not claim outstanding retention cleanup; it stays recorded and is \
+                                 retried next cycle"
+                            ),
+                        }
+
+                        match db.run_retention(&config, &database).await {
                             Ok(result) => {
                                 // Async cleanup (outside DuckDB transaction)
                                 for (project_id, trace_ids) in &result.trace_ids_by_project {
-                                    // Survivor reconciliation, **not** the trace-wide cleanup.
-                                    //
-                                    // Retention expires individual span identities, so a trace it touched
-                                    // usually still has live spans. `cleanup_traces` removes *every*
-                                    // association for a trace, which left those survivors pointing at bytes
-                                    // that had been reclaimed - the dangling reference the
-                                    // write-files-before-rows ordering exists to prevent, produced here
-                                    // instead. `reconcile_trace_survivors` asks which files the remaining
-                                    // winning spans reference and releases only the rest.
-                                    if let Some(ref fs) = file_service
-                                        && fs.is_enabled()
-                                        && let Err(e) = fs
-                                            .reconcile_trace_survivors(
-                                                project_id,
-                                                trace_ids,
-                                                &db,
-                                            )
-                                            .await
-                                    {
-                                        tracing::warn!(
-                                            error = %e,
-                                            project_id,
-                                            traces = trace_ids.len(),
-                                            "Failed to reconcile files during retention"
-                                        );
-                                    }
-
-                                    // Favorites cleanup
-                                    let repo = database.repository();
-                                    if let Err(e) = repo.delete_favorites_by_entity(
-                                        "trace",
-                                        trace_ids,
+                                    Self::finish_retention_cleanup(
+                                        &db,
+                                        &database,
+                                        file_service.as_ref(),
                                         project_id,
+                                        trace_ids,
                                     )
-                                    .await
-                                    {
-                                        tracing::warn!(
-                                            error = %e,
-                                            project_id,
-                                            traces = trace_ids.len(),
-                                            "Failed to cleanup favorites during retention"
-                                        );
-                                    }
+                                    .await;
                                 }
                             }
                             Err(e) => {
@@ -310,13 +401,37 @@ impl DuckdbService {
     async fn run_retention(
         self: &Arc<Self>,
         config: &RetentionConfig,
+        database: &Arc<crate::data::TransactionalService>,
     ) -> Result<retention::RetentionResult, DuckdbError> {
         tracing::debug!("Running retention check");
         let db = Arc::clone(self);
         let config = config.clone();
+        let database = Arc::clone(database);
+        // The current runtime handle, taken here rather than inside the blocking closure: `Handle::current`
+        // panics off-runtime, and `spawn_blocking` threads are off it.
+        let handle = tokio::runtime::Handle::current();
         tokio::task::spawn_blocking(move || {
             let conn = db.conn();
-            retention::run_retention(&conn, &config)
+            // The recorder runs between selecting a batch and deleting it, so the intent is durable before the
+            // spans go. `block_on` inside `spawn_blocking` is the legal direction - this thread is not a
+            // runtime worker, so blocking it cannot stall the reactor - and the retention sweep is sync DuckDB
+            // work that has to interleave with one async write to another store.
+            //
+            // A failure here **fails the batch**, deliberately: without a durable record the deletion would be
+            // a loss with nothing able to find it afterwards, so not deleting is the correct outcome.
+            let record_intent = |by_project: &std::collections::HashMap<String, Vec<String>>| {
+                for (project_id, trace_ids) in by_project {
+                    handle
+                        .block_on(
+                            database
+                                .repository()
+                                .record_retention_cleanup(project_id, trace_ids),
+                        )
+                        .map_err(|e| DuckdbError::Io(std::io::Error::other(e.to_string())))?;
+                }
+                Ok(())
+            };
+            retention::run_retention(&conn, &config, &record_intent)
         })
         .await
         .map_err(|e| DuckdbError::Io(std::io::Error::other(e)))?

@@ -2129,7 +2129,7 @@ fn the_image_gate_reads_the_shapes_that_defeated_it() {
     }
 }
 
-/// A detector that nothing starts detects nothing, and both of these can be deleted with every other test green.
+/// Production wiring that behavioural tests cannot see, because they call the underlying method directly.
 ///
 /// Two production call sites, each the *only* one, and each invisible to the behavioural tests because those
 /// call the underlying method directly:
@@ -2158,6 +2158,23 @@ fn every_detector_is_actually_started_in_production() {
             "start_consistency_check_task",
             "nothing would run the cross-partition consistency check, so the cross-month duplicate residual \
              would never be reported despite being documented as detected",
+        ),
+        (
+            "server/src/data/duckdb/mod.rs",
+            "reconcile_trace_survivors",
+            "retention would go back to the trace-wide file cleanup, reclaiming the files of spans that are \
+             still live - and both behavioural tests call the reconciliation directly, so neither would notice",
+        ),
+        (
+            "server/src/data/duckdb/mod.rs",
+            "record_retention_cleanup",
+            "retention would delete spans without recording that their cleanup is owed, so a crash before the \
+             cleanup orphans their files and favourites with nothing able to rediscover them",
+        ),
+        (
+            "server/src/data/duckdb/mod.rs",
+            "traces_without_spans",
+            "a favourited trace with one expired span would lose its favourite while still being visible",
         ),
         (
             "server/src/data/clickhouse/mod.rs",

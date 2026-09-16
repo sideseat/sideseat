@@ -380,11 +380,13 @@ impl ClickhouseService {
         //
         // Safe to run at every version because it is `CREATE TABLE IF NOT EXISTS`: idempotent by
         // construction, and self-healing for a database that somehow lacks it.
-        self.client
-            .query(&schema::consistency_table(&self.config))
-            .execute()
-            .await
-            .map_err(|e| failed(ClickhouseError::from(e)))?;
+        for statement in schema::consistency_tables(&self.config) {
+            self.client
+                .query(&statement)
+                .execute()
+                .await
+                .map_err(|e| failed(ClickhouseError::from(e)))?;
+        }
 
         // Two questions here, resolved separately: is there work left on the local table (guarded by the
         // migration's `precondition`), and does the `Distributed` front end also need catching up. Both

@@ -72,6 +72,16 @@ impl AnalyticsRepository for Arc<ClickhouseService> {
             .map_err(Into::into)
     }
 
+    async fn traces_without_spans(
+        &self,
+        project_id: &str,
+        trace_ids: &[String],
+    ) -> Result<Vec<String>, DataError> {
+        query::traces_without_spans(self.client(), project_id, trace_ids)
+            .await
+            .map_err(Into::into)
+    }
+
     async fn file_reference_fields_for_traces(
         &self,
         project_id: &str,

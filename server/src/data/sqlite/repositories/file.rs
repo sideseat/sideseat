@@ -1779,3 +1779,81 @@ mod confirm_dedup_tests {
         );
     }
 }
+
+/// Record cleanup intent for these traces. Idempotent: a trace already queued keeps its schedule.
+pub async fn record_retention_cleanup(
+    pool: &SqlitePool,
+    project_id: &str,
+    trace_ids: &[String],
+) -> Result<(), SqliteError> {
+    if trace_ids.is_empty() {
+        return Ok(());
+    }
+    let now = chrono::Utc::now().timestamp();
+    for trace_id in trace_ids {
+        sqlx::query(
+            "INSERT OR IGNORE INTO retention_cleanup \
+             (project_id, trace_id, created_at, attempts, next_attempt_at, claim_token) \
+             VALUES (?, ?, ?, 0, 0, 0)",
+        )
+        .bind(project_id)
+        .bind(trace_id)
+        .bind(now)
+        .execute(pool)
+        .await?;
+    }
+    Ok(())
+}
+
+/// Claim due candidates, pushing their next attempt out before returning them.
+///
+/// `WHERE (project_id, trace_id) IN (SELECT ... LIMIT n)` rather than a bare `LIMIT` on the update: the inner
+/// select fixes the set, and the update then leases exactly those. The backoff is geometric to a ceiling, so a
+/// candidate whose reconciliation keeps failing is retried more slowly rather than spinning - and it is
+/// **never dropped**, because the record is the only thing that knows the cleanup is owed.
+pub async fn claim_retention_cleanup(
+    pool: &SqlitePool,
+    limit: i64,
+    lease_secs: i64,
+) -> Result<Vec<(String, String)>, SqliteError> {
+    let now = chrono::Utc::now().timestamp();
+    let rows: Vec<(String, String)> = sqlx::query_as(
+        "UPDATE retention_cleanup \
+         SET attempts = attempts + 1, \
+             claim_token = claim_token + 1, \
+             next_attempt_at = ? + ? * MIN(attempts + 1, 8) \
+         WHERE (project_id, trace_id) IN ( \
+             SELECT project_id, trace_id FROM retention_cleanup \
+             WHERE next_attempt_at <= ? ORDER BY next_attempt_at LIMIT ? \
+         ) \
+         RETURNING project_id, trace_id",
+    )
+    .bind(now)
+    .bind(lease_secs)
+    .bind(now)
+    .bind(limit)
+    .fetch_all(pool)
+    .await?;
+    Ok(rows)
+}
+
+/// Drop candidates whose cleanup completed.
+pub async fn complete_retention_cleanup(
+    pool: &SqlitePool,
+    project_id: &str,
+    trace_ids: &[String],
+) -> Result<(), SqliteError> {
+    if trace_ids.is_empty() {
+        return Ok(());
+    }
+    let placeholders = trace_ids.iter().map(|_| "?").collect::<Vec<_>>().join(",");
+    let sql = format!(
+        "DELETE FROM retention_cleanup WHERE project_id = ? AND trace_id IN ({placeholders})"
+    );
+    let mut query = sqlx::query(&sql).bind(project_id);
+    for trace_id in trace_ids {
+        query = query.bind(trace_id);
+    }
+    query.execute(pool).await?;
+    Ok(())
+}

@@ -2057,6 +2057,40 @@ fn row_to_session(row: &Row<'_>) -> Result<SessionRow, DuckdbError> {
 // --- Delete operations ---
 
 /// Delete multiple traces and all related spans and messages
+/// Which of these traces have no winning spans left.
+///
+/// `DEDUP_SPANS`, so an obsolete revision does not make a deleted trace look alive.
+pub fn traces_without_spans(
+    conn: &Connection,
+    project_id: &str,
+    trace_ids: &[String],
+) -> Result<Vec<String>, DuckdbError> {
+    if trace_ids.is_empty() {
+        return Ok(Vec::new());
+    }
+    let placeholders: Vec<&str> = trace_ids.iter().map(|_| "?").collect();
+    let sql = format!(
+        "SELECT DISTINCT trace_id FROM {DEDUP_SPANS} WHERE project_id = ? AND trace_id IN ({})",
+        placeholders.join(", ")
+    );
+    let mut params: Vec<String> = Vec::with_capacity(1 + trace_ids.len());
+    params.push(project_id.to_string());
+    params.extend(trace_ids.iter().cloned());
+
+    let mut stmt = conn.prepare(&sql)?;
+    let bound: Vec<&dyn duckdb::ToSql> = params.iter().map(|v| v as &dyn duckdb::ToSql).collect();
+    let mut rows = stmt.query(bound.as_slice())?;
+    let mut alive: Vec<String> = Vec::new();
+    while let Some(row) = rows.next()? {
+        alive.push(row.get(0)?);
+    }
+    Ok(trace_ids
+        .iter()
+        .filter(|t| !alive.contains(t))
+        .cloned()
+        .collect())
+}
+
 /// The text of every field that can hold a `#!B64!#` reference, for the surviving winning spans of these
 /// traces.
 ///

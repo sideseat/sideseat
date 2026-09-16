@@ -32,6 +32,40 @@ pub struct FilterOptionRow {
 // Analytics Repository Trait
 // ============================================================================
 
+/// The one thing survivor reconciliation needs from the analytics store.
+///
+/// A port scoped to its consumer, rather than passing the whole 31-method `AnalyticsRepository` around. Two
+/// reasons, and the second is what forced it: the file layer genuinely needs one method, and a test cannot
+/// otherwise substitute a stub - implementing thirty-one unrelated methods to drive one interleaving is how a
+/// race ends up untested. That is the god-trait problem this codebase already has a plan to split; this is the
+/// first cut of it, made where a test demanded it.
+///
+/// Blanket-implemented for every `AnalyticsRepository`, so production passes its real store unchanged.
+#[async_trait]
+pub trait SurvivorReferences: Send + Sync {
+    /// The text of every field that can hold a `#!B64!#` reference, for the surviving winning spans of these
+    /// traces.
+    async fn file_reference_fields_for_traces(
+        &self,
+        project_id: &str,
+        trace_ids: &[String],
+    ) -> Result<Vec<String>, DataError>;
+}
+
+#[async_trait]
+impl<T> SurvivorReferences for T
+where
+    T: AnalyticsRepository + ?Sized,
+{
+    async fn file_reference_fields_for_traces(
+        &self,
+        project_id: &str,
+        trace_ids: &[String],
+    ) -> Result<Vec<String>, DataError> {
+        AnalyticsRepository::file_reference_fields_for_traces(self, project_id, trace_ids).await
+    }
+}
+
 /// Repository trait for analytics operations (traces, spans, sessions, messages, stats)
 ///
 /// Implemented by DuckDB and ClickHouse backends.
@@ -78,6 +112,17 @@ pub trait AnalyticsRepository: Send + Sync {
     /// both backends do guarantee, and what the parity test checks, is which rows are gone.
     async fn delete_traces(&self, project_id: &str, trace_ids: &[String])
     -> Result<u64, DataError>;
+
+    /// Which of these traces have **no winning spans left**.
+    ///
+    /// Retention expires span identities, not traces, so a trace it touched is usually still there. Anything
+    /// keyed on the trace as a whole - its favourite, for one - may only be removed for a trace that is
+    /// actually gone, and "was in the retention batch" is not that.
+    async fn traces_without_spans(
+        &self,
+        project_id: &str,
+        trace_ids: &[String],
+    ) -> Result<Vec<String>, DataError>;
 
     /// The text of every field that can hold a `#!B64!#` reference, for the **surviving winning** spans of
     /// these traces.
@@ -939,6 +984,38 @@ pub trait TransactionalRepository: Send + Sync {
         project_id: &str,
         trace_ids: &[String],
     ) -> Result<Vec<String>, DataError>;
+
+    /// Record that these traces need file and favourite cleanup, **before** the spans are deleted.
+    ///
+    /// DuckDB commits the span deletion and the cleanup runs afterwards, asynchronously, with failures only
+    /// logged. A crash or a transactional-store outage in between loses the only record of which traces needed
+    /// cleaning - and their spans are already gone, so no later pass can rediscover them. Their associations,
+    /// ref-counted bytes and favourites are orphaned permanently.
+    ///
+    /// Idempotent, so re-recording a trace already queued is a no-op rather than a duplicate.
+    async fn record_retention_cleanup(
+        &self,
+        project_id: &str,
+        trace_ids: &[String],
+    ) -> Result<(), DataError>;
+
+    /// Claim due cleanup candidates, leasing them so a concurrent instance takes different ones.
+    ///
+    /// The claim pushes `next_attempt_at` out **before** returning, which is what stops a slow reconciliation
+    /// being re-claimed while it runs - the same discipline the deleted-project and deleted-trace sweeps use,
+    /// and for the same reason: without it every replica drains the same rows.
+    async fn claim_retention_cleanup(
+        &self,
+        limit: i64,
+        lease_secs: i64,
+    ) -> Result<Vec<(String, String)>, DataError>;
+
+    /// Drop candidates whose cleanup has completed.
+    async fn complete_retention_cleanup(
+        &self,
+        project_id: &str,
+        trace_ids: &[String],
+    ) -> Result<(), DataError>;
 
     /// Release a trace's associations **except** the ones its surviving spans still reference.
     ///

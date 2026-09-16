@@ -843,6 +843,36 @@ impl TransactionalRepository for Arc<PostgresService> {
             .map_err(Into::into)
     }
 
+    async fn record_retention_cleanup(
+        &self,
+        project_id: &str,
+        trace_ids: &[String],
+    ) -> Result<(), DataError> {
+        file::record_retention_cleanup(self.pool(), project_id, trace_ids)
+            .await
+            .map_err(Into::into)
+    }
+
+    async fn claim_retention_cleanup(
+        &self,
+        limit: i64,
+        lease_secs: i64,
+    ) -> Result<Vec<(String, String)>, DataError> {
+        file::claim_retention_cleanup(self.pool(), limit, lease_secs)
+            .await
+            .map_err(Into::into)
+    }
+
+    async fn complete_retention_cleanup(
+        &self,
+        project_id: &str,
+        trace_ids: &[String],
+    ) -> Result<(), DataError> {
+        file::complete_retention_cleanup(self.pool(), project_id, trace_ids)
+            .await
+            .map_err(Into::into)
+    }
+
     async fn release_trace_files_except(
         &self,
         project_id: &str,

@@ -281,7 +281,7 @@ impl FileService {
         &self,
         project_id: &str,
         trace_ids: &[String],
-        analytics: &dyn crate::data::traits::AnalyticsRepository,
+        analytics: &dyn crate::data::traits::SurvivorReferences,
     ) -> Result<(), FileServiceError> {
         if !self.config.enabled || trace_ids.is_empty() {
             return Ok(());
@@ -289,49 +289,146 @@ impl FileService {
 
         let repo = self.database.repository();
         let mut reconcile: Vec<String> = Vec::new();
+        let mut first_error: Option<FileServiceError> = None;
 
         // Per trace, because `keep` is per trace: a file a survivor of trace A references says nothing about
         // trace B's associations, and unioning the survivor sets across traces would keep B's alive on A's
         // evidence.
         for trace_id in trace_ids {
-            let slice = std::slice::from_ref(trace_id);
-            let fields = analytics
-                .file_reference_fields_for_traces(project_id, slice)
+            match self
+                .reconcile_one_trace(project_id, trace_id, analytics, repo.as_ref())
                 .await
-                .map_err(FileServiceError::from)?;
-
-            let mut uris = Vec::new();
-            for field in &fields {
-                collect_file_references_in_str(field, &mut uris);
+            {
+                Ok(removed) => reconcile.extend(removed),
+                // **Kept going, and the reclaim still runs.** Returning here left the associations this loop
+                // had already deleted with a positive stored `ref_count`, and the orphan sweeper selects on
+                // *zero* - so an earlier trace's file became permanently unreclaimable because a later trace
+                // failed. The failure is reported once, after the reclaim it must not cancel.
+                Err(e) => {
+                    tracing::warn!(
+                        error = %e,
+                        project_id,
+                        trace_id,
+                        "Could not reconcile this trace; continuing so the traces already released are still \
+                         reclaimed"
+                    );
+                    if first_error.is_none() {
+                        first_error = Some(e);
+                    }
+                }
             }
-            // The association is keyed by hash, while a reference carries an optional media type - so the
-            // hash is what has to be compared, and taking the whole URI would release a file whose reference
-            // spells the same hash with a media type.
-            let mut keep: Vec<String> = uris
-                .iter()
-                .filter_map(|uri| parse_file_uri(uri).map(|parsed| parsed.hash.to_string()))
-                .collect();
-            keep.sort_unstable();
-            keep.dedup();
-
-            let removed = repo
-                .release_trace_files_except(project_id, trace_id, &keep)
-                .await?;
-            if !removed.is_empty() {
-                tracing::debug!(
-                    project_id,
-                    trace_id,
-                    released = removed.len(),
-                    kept = keep.len(),
-                    "Released associations of expired spans, keeping the survivors'"
-                );
-            }
-            reconcile.extend(removed);
         }
 
         reconcile.sort_unstable();
         reconcile.dedup();
-        self.reclaim_unreferenced(project_id, reconcile).await
+        let reclaimed = self.reclaim_unreferenced(project_id, reconcile).await;
+
+        match first_error {
+            Some(e) => Err(e),
+            None => reclaimed,
+        }
+    }
+
+    /// One trace's release, with the **re-check** that closes the commit-after-scan window.
+    ///
+    /// The survivor scan is a snapshot, and the release happens after it. In between, an ingestion can
+    /// associate a file (`pending_writers = 1`), commit its span, and confirm (`pending_writers = 0`) - so the
+    /// release sees a zero counter and a hash the stale snapshot did not contain, and reclaims bytes a
+    /// committed span references. `pending_writers` alone does not close this: it is zero at exactly the wrong
+    /// moment.
+    ///
+    /// So the release is followed by a **second scan**, and any hash that has appeared is re-associated before
+    /// any byte is deleted. This is the same four-step shape the trace-deletion protocol uses - act, re-check,
+    /// compensate - and for the same reason: no transaction spans the analytics and transactional stores, so
+    /// the window cannot be removed, only compensated.
+    ///
+    /// What remains is bounded rather than open: a batch that associates *after* the release holds a row the
+    /// release never saw, so nothing released it; and one that associated *before* it had `pending_writers`
+    /// above zero and was skipped. The uncovered case is therefore a batch that associates after the release
+    /// and commits after the re-check, whose association is intact throughout.
+    async fn reconcile_one_trace(
+        &self,
+        project_id: &str,
+        trace_id: &str,
+        analytics: &dyn crate::data::traits::SurvivorReferences,
+        repo: &(dyn crate::data::traits::TransactionalRepository + Send + Sync),
+    ) -> Result<Vec<String>, FileServiceError> {
+        let keep = Self::referenced_hashes(project_id, trace_id, analytics).await?;
+
+        let removed = repo
+            .release_trace_files_except(project_id, trace_id, &keep)
+            .await?;
+        if removed.is_empty() {
+            return Ok(removed);
+        }
+
+        // The re-check. Only the released hashes matter, so this compares against them rather than
+        // recomputing a whole set difference.
+        let now_referenced = Self::referenced_hashes(project_id, trace_id, analytics).await?;
+        let mut kept_after_all = Vec::new();
+        let mut released = Vec::new();
+        for hash in removed {
+            if now_referenced.contains(&hash) {
+                kept_after_all.push(hash);
+            } else {
+                released.push(hash);
+            }
+        }
+
+        for hash in &kept_after_all {
+            // Re-associated before any byte is deleted, so the span that arrived mid-flight keeps its
+            // reference. `insert_trace_file` rather than `associate_file`: the reference is already owned by a
+            // *committed* span, so it needs no pending writer - adding one would leave a counter nothing
+            // decrements.
+            repo.insert_trace_file(trace_id, project_id, hash).await?;
+            repo.sync_ref_count(project_id, hash).await?;
+            tracing::warn!(
+                project_id,
+                trace_id,
+                hash,
+                "A span referencing this file committed between the survivor scan and the release; the \
+                 association has been restored before any bytes were reclaimed"
+            );
+        }
+
+        tracing::debug!(
+            project_id,
+            trace_id,
+            released = released.len(),
+            restored = kept_after_all.len(),
+            "Released associations of expired spans, keeping the survivors'"
+        );
+        Ok(released)
+    }
+
+    /// The file hashes the surviving winning spans of one trace reference.
+    async fn referenced_hashes(
+        project_id: &str,
+        trace_id: &str,
+        analytics: &dyn crate::data::traits::SurvivorReferences,
+    ) -> Result<Vec<String>, FileServiceError> {
+        let fields = analytics
+            .file_reference_fields_for_traces(
+                project_id,
+                std::slice::from_ref(&trace_id.to_string()),
+            )
+            .await
+            .map_err(FileServiceError::from)?;
+
+        let mut uris = Vec::new();
+        for field in &fields {
+            collect_file_references_in_str(field, &mut uris);
+        }
+        // The association is keyed by hash, while a reference carries an optional media type - so the hash is
+        // what has to be compared, and taking the whole URI would release a file whose reference spells the
+        // same hash with a media type.
+        let mut hashes: Vec<String> = uris
+            .iter()
+            .filter_map(|uri| parse_file_uri(uri).map(|parsed| parsed.hash.to_string()))
+            .collect();
+        hashes.sort_unstable();
+        hashes.dedup();
+        Ok(hashes)
     }
 
     /// Cleanup files for deleted traces
@@ -767,6 +864,99 @@ mod tests {
                 .unwrap(),
             "the surviving span's file was reclaimed, leaving a live span pointing at bytes that are gone - \
              the exact dangling reference this reconciliation exists to prevent"
+        );
+    }
+
+    /// A span that commits **between the scan and the release** keeps its file.
+    ///
+    /// The window `pending_writers` cannot close, because at the decisive moment the counter is legitimately
+    /// zero: reconciliation scans trace T and does not see hash H; an ingestion then associates H, commits its
+    /// span, and confirms - dropping `pending_writers` back to zero. The release now sees a zero counter and a
+    /// hash the stale snapshot did not contain, and reclaims bytes a committed span references.
+    ///
+    /// The compensation is a second scan after the release, restoring any association whose reference has
+    /// appeared, before any byte is deleted. This test drives exactly that interleaving by writing the span
+    /// *after* the first scan would have run - which is what the previous test could not do, because it left
+    /// the writer pending throughout and so never reached the dangerous state.
+    #[tokio::test]
+    async fn a_span_committing_between_the_scan_and_the_release_keeps_its_file() {
+        let (temp_dir, database, cache) = setup_test().await;
+        fs::create_dir_all(temp_dir.path().join("files"))
+            .await
+            .unwrap();
+        fs::create_dir_all(temp_dir.path().join("files_temp"))
+            .await
+            .unwrap();
+
+        let config = FilesConfig {
+            enabled: true,
+            storage: crate::core::config::StorageBackend::Filesystem,
+            quota_bytes: 1024 * 1024,
+            filesystem_path: Some(temp_dir.path().join("files").to_string_lossy().to_string()),
+            s3: None,
+        };
+        let app_storage = AppStorage::init_for_test(temp_dir.path().to_path_buf());
+        let service = FileService::new(config, &app_storage, database.clone(), cache)
+            .await
+            .unwrap();
+
+        // No analytics store here: the stub below *is* the analytics side, which is the point of the narrow
+        // port - the interleaving is what is under test, not a query.
+        //
+        // A file associated and *confirmed* - so `pending_writers` is zero - whose span is not in the store
+        // when the first scan runs.
+        let racing = "d".repeat(64);
+        let repo = database.repository();
+        service
+            .storage
+            .store("default", &racing, b"bytes")
+            .await
+            .unwrap();
+        repo.upsert_file("default", &racing, None, 5, "sha256")
+            .await
+            .unwrap();
+        repo.insert_trace_file("trace1", "default", &racing)
+            .await
+            .unwrap();
+
+        // An analytics repository that writes the span on its *second* read, which is precisely the
+        // interleaving: the first scan sees nothing, the re-check sees the committed span.
+        struct RacingAnalytics {
+            calls: std::sync::atomic::AtomicUsize,
+            hash: String,
+        }
+
+        #[async_trait::async_trait]
+        impl crate::data::traits::SurvivorReferences for RacingAnalytics {
+            async fn file_reference_fields_for_traces(
+                &self,
+                _project_id: &str,
+                _trace_ids: &[String],
+            ) -> Result<Vec<String>, crate::data::error::DataError> {
+                let n = self.calls.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                if n == 0 {
+                    // The scan, before the span exists.
+                    return Ok(Vec::new());
+                }
+                // The re-check, after it committed.
+                Ok(vec![format!("#!B64!#image/png::{}", self.hash)])
+            }
+        }
+
+        let racing_analytics = RacingAnalytics {
+            calls: std::sync::atomic::AtomicUsize::new(0),
+            hash: racing.clone(),
+        };
+
+        service
+            .reconcile_trace_survivors("default", &["trace1".to_string()], &racing_analytics)
+            .await
+            .expect("reconcile");
+
+        assert!(
+            service.file_exists("default", &racing).await.unwrap(),
+            "a span that committed between the survivor scan and the release lost its file - the re-check did \
+             not restore the association, so a committed span points at bytes that are gone"
         );
     }
 
