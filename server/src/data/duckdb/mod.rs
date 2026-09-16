@@ -289,7 +289,7 @@ impl DuckdbService {
         // is stated rather than engineered around - the alternative is never removing a favourite, and a
         // favourite pointing at a deleted trace is its own defect.
         let repo = database.repository();
-        match sideseat_ports::traits::AnalyticsRepository::traces_without_spans(
+        match sideseat_ports::traits::EntityQuery::traces_without_spans(
             analytics, project_id, trace_ids,
         )
         .await

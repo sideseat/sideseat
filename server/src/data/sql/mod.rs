@@ -5,7 +5,11 @@
 
 mod clickhouse_dialect;
 mod dialect;
+/// The SQL for displayed values, per dialect - moved here from the DTOs, which must not emit SQL.
+pub mod display;
 mod duckdb_dialect;
+/// Rendering an order clause, moved out of the DTOs for the same reason as the display SQL.
+pub mod order;
 mod postgres_dialect;
 mod sqlite_dialect;
 

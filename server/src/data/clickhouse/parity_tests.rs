@@ -40,6 +40,10 @@
 //! make test-clickhouse     # starts a container, runs this, removes it
 //! ```
 
+use sideseat_ports::traits::{
+    AnalyticsMaintenance, AnalyticsRepository, EntityQuery, MessageStore, SpanStore,
+    SurvivorReferences,
+};
 use std::sync::Arc;
 
 use chrono::{DateTime, Datelike, TimeZone, Utc};
@@ -49,7 +53,7 @@ use crate::data::duckdb::DuckdbService;
 use sideseat_core::core::config::ClickhouseConfig;
 use sideseat_core::core::storage::AppStorage;
 use sideseat_ports::filters::{DatetimeOp, Filter, NullOp, NumberOp, OptionsOp, StringOp};
-use sideseat_ports::traits::AnalyticsRepository;
+
 use sideseat_ports::types::{
     AggregationTemporality, FeedSpansParams, ListSessionsParams, ListSpansParams, ListTracesParams,
     MessageQueryParams, MessageSpanRow, MetricType, NormalizedMetric, NormalizedSpan,

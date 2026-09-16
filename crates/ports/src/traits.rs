@@ -40,7 +40,8 @@ pub struct FilterOptionRow {
 /// race ends up untested. That is the god-trait problem this codebase already has a plan to split; this is the
 /// first cut of it, made where a test demanded it.
 ///
-/// Blanket-implemented for every `AnalyticsRepository`, so production passes its real store unchanged.
+/// One of the narrow ports the two aggregates bundle, and the first that existed - written when a test needed
+/// to substitute a stub and could not implement thirty-one unrelated methods to do it.
 #[async_trait]
 pub trait SurvivorReferences: Send + Sync {
     /// The text of every field that can hold a `#!B64!#` reference, for the surviving winning spans of these
@@ -52,101 +53,35 @@ pub trait SurvivorReferences: Send + Sync {
     ) -> Result<Vec<String>, DataError>;
 }
 
-#[async_trait]
-impl<T> SurvivorReferences for T
-where
-    T: AnalyticsRepository + ?Sized,
-{
-    async fn file_reference_fields_for_traces(
-        &self,
-        project_id: &str,
-        trace_ids: &[String],
-    ) -> Result<Vec<String>, DataError> {
-        AnalyticsRepository::file_reference_fields_for_traces(self, project_id, trace_ids).await
-    }
+// ============================================================================
+// Transactional Repository Trait
+// ============================================================================
+
+// ============================================================================
+// Helper function (not part of trait, but shared utility)
+// ============================================================================
+
+/// Check if user has minimum role level (pure function, same for all backends)
+pub fn has_min_role_level(role: &str, min_role: &str) -> bool {
+    // Role hierarchy: owner > admin > member
+    let role_level = match role {
+        "owner" => 3,
+        "admin" => 2,
+        "member" => 1,
+        _ => 0,
+    };
+    let min_level = match min_role {
+        "owner" => 3,
+        "admin" => 2,
+        "member" => 1,
+        _ => 0,
+    };
+    role_level >= min_level
 }
 
-/// Repository trait for analytics operations (traces, spans, sessions, messages, stats)
-///
-/// Implemented by DuckDB and ClickHouse backends.
+/// Writing spans and metrics, and reading them back as rows.
 #[async_trait]
-pub trait AnalyticsRepository: Send + Sync {
-    // ==================== Trace Operations ====================
-
-    /// List traces with pagination and filters
-    async fn list_traces(
-        &self,
-        params: &ListTracesParams,
-    ) -> Result<(Vec<TraceRow>, u64), DataError>;
-
-    /// Get a single trace by ID
-    async fn get_trace(
-        &self,
-        project_id: &str,
-        trace_id: &str,
-    ) -> Result<Option<TraceRow>, DataError>;
-
-    /// Get distinct values with counts for trace filter options
-    async fn get_trace_filter_options(
-        &self,
-        project_id: &str,
-        columns: &[String],
-        from_timestamp: Option<DateTime<Utc>>,
-        to_timestamp: Option<DateTime<Utc>>,
-    ) -> Result<HashMap<String, Vec<FilterOptionRow>>, DataError>;
-
-    /// Get distinct tag values with counts from traces
-    async fn get_trace_tags_options(
-        &self,
-        project_id: &str,
-        from_timestamp: Option<DateTime<Utc>>,
-        to_timestamp: Option<DateTime<Utc>>,
-    ) -> Result<Vec<FilterOptionRow>, DataError>;
-
-    /// Delete traces by IDs.
-    ///
-    /// The returned count means different things per backend and no caller reads it: DuckDB
-    /// reports rows removed, while ClickHouse deletes through an asynchronous mutation and can
-    /// only report how many ids it was asked about. Making them agree would mean waiting for the
-    /// mutation to settle just to produce a number the routes discard - they answer 204. What
-    /// both backends do guarantee, and what the parity test checks, is which rows are gone.
-    async fn delete_traces(&self, project_id: &str, trace_ids: &[String])
-    -> Result<u64, DataError>;
-
-    /// Which of these traces have **no winning spans left**.
-    ///
-    /// Retention expires span identities, not traces, so a trace it touched is usually still there. Anything
-    /// keyed on the trace as a whole - its favourite, for one - may only be removed for a trace that is
-    /// actually gone, and "was in the retention batch" is not that.
-    async fn traces_without_spans(
-        &self,
-        project_id: &str,
-        trace_ids: &[String],
-    ) -> Result<Vec<String>, DataError>;
-
-    /// The text of every field that can hold a `#!B64!#` reference, for the **surviving winning** spans of
-    /// these traces.
-    ///
-    /// Retention expires individual span identities, not whole traces - so after a sweep a trace can still
-    /// have live spans, and those spans' file references must keep their associations. This is what tells the
-    /// file layer which references survived; everything else the trace held is releasable.
-    ///
-    /// Returns the raw field text rather than parsed hashes on purpose. The scanning rule is subtle - a
-    /// reference can be embedded in surrounding text, and a trailing `.` or `:` is punctuation rather than
-    /// part of a hash - so `collect_file_references_in_str` is the single definition of it, in the domain,
-    /// used by both the ingest path and this one. Re-expressing it as a SQL regex per backend would be a
-    /// second implementation of a rule this repository has already been bitten by getting subtly wrong.
-    ///
-    /// The four fields are the four the ingest path scans (`persist.rs`): a reference can arrive in messages,
-    /// tool definitions, raw span JSON or metadata, and each is extracted by a different path.
-    async fn file_reference_fields_for_traces(
-        &self,
-        project_id: &str,
-        trace_ids: &[String],
-    ) -> Result<Vec<String>, DataError>;
-
-    // ==================== Span Operations ====================
-
+pub trait SpanStore: Send + Sync {
     /// List spans with pagination and filters
     async fn list_spans(&self, params: &ListSpansParams) -> Result<(Vec<SpanRow>, u64), DataError>;
 
@@ -209,8 +144,66 @@ pub trait AnalyticsRepository: Send + Sync {
         project_id: &str,
         span_keys: &[(String, String)],
     ) -> Result<u64, DataError>;
+    /// Insert spans in batch (takes ownership to avoid clone for spawn_blocking)
+    async fn insert_spans(&self, spans: Vec<NormalizedSpan>) -> Result<(), DataError>;
 
-    // ==================== Session Operations ====================
+    /// Insert metrics in batch
+    async fn insert_metrics(&self, metrics: &[NormalizedMetric]) -> Result<(), DataError>;
+}
+
+/// Traces, sessions and project statistics: the aggregate views a list page shows.
+#[async_trait]
+pub trait EntityQuery: Send + Sync {
+    /// List traces with pagination and filters
+    async fn list_traces(
+        &self,
+        params: &ListTracesParams,
+    ) -> Result<(Vec<TraceRow>, u64), DataError>;
+
+    /// Get a single trace by ID
+    async fn get_trace(
+        &self,
+        project_id: &str,
+        trace_id: &str,
+    ) -> Result<Option<TraceRow>, DataError>;
+
+    /// Get distinct values with counts for trace filter options
+    async fn get_trace_filter_options(
+        &self,
+        project_id: &str,
+        columns: &[String],
+        from_timestamp: Option<DateTime<Utc>>,
+        to_timestamp: Option<DateTime<Utc>>,
+    ) -> Result<HashMap<String, Vec<FilterOptionRow>>, DataError>;
+
+    /// Get distinct tag values with counts from traces
+    async fn get_trace_tags_options(
+        &self,
+        project_id: &str,
+        from_timestamp: Option<DateTime<Utc>>,
+        to_timestamp: Option<DateTime<Utc>>,
+    ) -> Result<Vec<FilterOptionRow>, DataError>;
+
+    /// Delete traces by IDs.
+    ///
+    /// The returned count means different things per backend and no caller reads it: DuckDB
+    /// reports rows removed, while ClickHouse deletes through an asynchronous mutation and can
+    /// only report how many ids it was asked about. Making them agree would mean waiting for the
+    /// mutation to settle just to produce a number the routes discard - they answer 204. What
+    /// both backends do guarantee, and what the parity test checks, is which rows are gone.
+    async fn delete_traces(&self, project_id: &str, trace_ids: &[String])
+    -> Result<u64, DataError>;
+
+    /// Which of these traces have **no winning spans left**.
+    ///
+    /// Retention expires span identities, not traces, so a trace it touched is usually still there. Anything
+    /// keyed on the trace as a whole - its favourite, for one - may only be removed for a trace that is
+    /// actually gone, and "was in the retention batch" is not that.
+    async fn traces_without_spans(
+        &self,
+        project_id: &str,
+        trace_ids: &[String],
+    ) -> Result<Vec<String>, DataError>;
 
     /// List sessions with pagination and filters
     async fn list_sessions(
@@ -301,9 +294,16 @@ pub trait AnalyticsRepository: Send + Sync {
         project_id: &str,
         session_ids: &[String],
     ) -> Result<Vec<String>, DataError>;
+    /// Get project statistics
+    async fn get_project_stats(
+        &self,
+        params: &crate::types::StatsParams,
+    ) -> Result<crate::types::ProjectStatsResult, DataError>;
+}
 
-    // ==================== Message Operations ====================
-
+/// The rows a message or feed view reconstructs from.
+#[async_trait]
+pub trait MessageStore: Send + Sync {
     /// Get messages for a span, trace, or session (unified query).
     ///
     /// Priority: span_id > session_id > trace_id
@@ -317,25 +317,11 @@ pub trait AnalyticsRepository: Send + Sync {
         &self,
         params: &FeedMessagesParams,
     ) -> Result<MessageQueryResult, DataError>;
+}
 
-    // ==================== Stats Operations ====================
-
-    /// Get project statistics
-    async fn get_project_stats(
-        &self,
-        params: &crate::types::StatsParams,
-    ) -> Result<crate::types::ProjectStatsResult, DataError>;
-
-    // ==================== Ingestion Operations ====================
-
-    /// Insert spans in batch (takes ownership to avoid clone for spawn_blocking)
-    async fn insert_spans(&self, spans: Vec<NormalizedSpan>) -> Result<(), DataError>;
-
-    /// Insert metrics in batch
-    async fn insert_metrics(&self, metrics: &[NormalizedMetric]) -> Result<(), DataError>;
-
-    // ==================== Project Data Operations ====================
-
+/// Deletes, counts and the watermark - what a sweep needs and a read path does not.
+#[async_trait]
+pub trait AnalyticsMaintenance: Send + Sync {
     /// Delete all data for a project
     async fn delete_project_data(&self, project_id: &str) -> Result<u64, DataError>;
 
@@ -369,17 +355,9 @@ pub trait AnalyticsRepository: Send + Sync {
     ) -> Result<HashMap<String, u64>, DataError>;
 }
 
-// ============================================================================
-// Transactional Repository Trait
-// ============================================================================
-
-/// Repository trait for transactional operations (users, orgs, projects, etc.)
-///
-/// Implemented by SQLite and PostgreSQL backends.
+/// Users, organizations, memberships and auth methods: who is asking.
 #[async_trait]
-pub trait TransactionalRepository: Send + Sync {
-    // ==================== User Operations ====================
-
+pub trait IdentityStore: Send + Sync {
     /// Create a new user
     async fn create_user(
         &self,
@@ -399,9 +377,6 @@ pub trait TransactionalRepository: Send + Sync {
         id: &str,
         display_name: Option<&str>,
     ) -> Result<Option<UserRow>, DataError>;
-
-    // ==================== Organization Operations ====================
-
     /// Create a new organization with owner membership atomically
     async fn create_organization_with_owner(
         &self,
@@ -433,9 +408,6 @@ pub trait TransactionalRepository: Send + Sync {
 
     /// List project IDs for an organization (for cascade cleanup)
     async fn list_project_ids(&self, organization_id: &str) -> Result<Vec<String>, DataError>;
-
-    // ==================== Membership Operations ====================
-
     /// Get a membership
     async fn get_membership(
         &self,
@@ -480,9 +452,42 @@ pub trait TransactionalRepository: Send + Sync {
         organization_id: &str,
         user_id: &str,
     ) -> Result<LastOwnerResult<()>, DataError>;
+    /// Create a new auth method
+    #[allow(clippy::too_many_arguments)]
+    async fn create_auth_method(
+        &self,
+        user_id: &str,
+        method_type: &str,
+        provider: Option<&str>,
+        provider_id: Option<&str>,
+        credential_hash: Option<&str>,
+        metadata: Option<&str>,
+    ) -> Result<AuthMethodRow, DataError>;
 
-    // ==================== Project Operations ====================
+    /// Find an auth method by OAuth provider and provider ID
+    async fn find_auth_by_oauth(
+        &self,
+        provider: &str,
+        provider_id: &str,
+    ) -> Result<Option<AuthMethodRow>, DataError>;
 
+    /// List all auth methods for a user
+    async fn list_auth_methods_for_user(
+        &self,
+        user_id: &str,
+    ) -> Result<Vec<AuthMethodRow>, DataError>;
+
+    /// Delete an auth method
+    async fn delete_auth_method(&self, id: &str) -> Result<bool, DataError>;
+
+    /// Get the bootstrap auth method for a user
+    async fn get_bootstrap_method(&self, user_id: &str)
+    -> Result<Option<AuthMethodRow>, DataError>;
+}
+
+/// Projects and their deletion fence.
+#[async_trait]
+pub trait ProjectStore: Send + Sync {
     /// Create a new project
     async fn create_project(
         &self,
@@ -701,103 +706,11 @@ pub trait TransactionalRepository: Send + Sync {
     /// Delete a project's row. Only correct once its data is gone: the row is what every other path
     /// finds the data by.
     async fn delete_project(&self, id: &str) -> Result<bool, DataError>;
+}
 
-    // ==================== Auth Method Operations ====================
-
-    /// Create a new auth method
-    #[allow(clippy::too_many_arguments)]
-    async fn create_auth_method(
-        &self,
-        user_id: &str,
-        method_type: &str,
-        provider: Option<&str>,
-        provider_id: Option<&str>,
-        credential_hash: Option<&str>,
-        metadata: Option<&str>,
-    ) -> Result<AuthMethodRow, DataError>;
-
-    /// Find an auth method by OAuth provider and provider ID
-    async fn find_auth_by_oauth(
-        &self,
-        provider: &str,
-        provider_id: &str,
-    ) -> Result<Option<AuthMethodRow>, DataError>;
-
-    /// List all auth methods for a user
-    async fn list_auth_methods_for_user(
-        &self,
-        user_id: &str,
-    ) -> Result<Vec<AuthMethodRow>, DataError>;
-
-    /// Delete an auth method
-    async fn delete_auth_method(&self, id: &str) -> Result<bool, DataError>;
-
-    /// Get the bootstrap auth method for a user
-    async fn get_bootstrap_method(&self, user_id: &str)
-    -> Result<Option<AuthMethodRow>, DataError>;
-
-    // ==================== Favorite Operations ====================
-
-    /// Add a favorite
-    /// For spans, secondary_id is the span_id (entity_id is trace_id)
-    async fn add_favorite(
-        &self,
-        user_id: &str,
-        entity_type: &str,
-        entity_id: &str,
-        secondary_id: Option<&str>,
-        project_id: &str,
-    ) -> Result<bool, DataError>;
-
-    /// Remove a favorite
-    /// For spans, secondary_id is the span_id (entity_id is trace_id)
-    async fn remove_favorite(
-        &self,
-        user_id: &str,
-        entity_type: &str,
-        entity_id: &str,
-        secondary_id: Option<&str>,
-        project_id: &str,
-    ) -> Result<bool, DataError>;
-
-    /// Check if entities are favorited
-    async fn check_favorites(
-        &self,
-        user_id: &str,
-        entity_type: &str,
-        entity_ids: &[String],
-        project_id: &str,
-    ) -> Result<Vec<String>, DataError>;
-
-    /// Check if spans are favorited
-    async fn check_span_favorites(
-        &self,
-        user_id: &str,
-        span_ids: &[(String, String)],
-        project_id: &str,
-    ) -> Result<Vec<(String, String)>, DataError>;
-
-    /// Count favorites for a user
-    async fn count_favorites(&self, user_id: &str, project_id: &str) -> Result<i64, DataError>;
-
-    /// List all favorite entity IDs for a user
-    async fn list_favorite_ids(
-        &self,
-        user_id: &str,
-        entity_type: &str,
-        project_id: &str,
-    ) -> Result<Vec<String>, DataError>;
-
-    /// Delete favorites by entity (for cascade delete)
-    async fn delete_favorites_by_entity(
-        &self,
-        entity_type: &str,
-        entity_ids: &[String],
-        project_id: &str,
-    ) -> Result<u64, DataError>;
-
-    // ==================== File Operations ====================
-
+/// The rows that name stored bytes, and the reference counting that protects them.
+#[async_trait]
+pub trait FileMetaStore: Send + Sync {
     /// Upsert a file record (insert or increment ref_count)
     /// Returns the new ref_count value.
     async fn upsert_file(
@@ -1077,9 +990,11 @@ pub trait TransactionalRepository: Send + Sync {
 
     /// Get total file storage used across all orgs a user belongs to
     async fn get_user_file_storage_bytes(&self, user_id: &str) -> Result<i64, DataError>;
+}
 
-    // ==================== API Key Operations ====================
-
+/// API keys, stored as a hash.
+#[async_trait]
+pub trait ApiKeyStore: Send + Sync {
     /// Create API key. Returns Err(Conflict) if limit (100) exceeded.
     #[allow(clippy::too_many_arguments)]
     async fn create_api_key(
@@ -1113,9 +1028,11 @@ pub trait TransactionalRepository: Send + Sync {
 
     /// Get key hashes for organization (for cache invalidation on org delete).
     async fn get_api_key_hashes_for_org(&self, org_id: &str) -> Result<Vec<String>, DataError>;
+}
 
-    // ==================== Credential Operations ====================
-
+/// Provider credentials and their per-project permissions.
+#[async_trait]
+pub trait CredentialStore: Send + Sync {
     /// List all credentials for an organization (metadata only, no secrets)
     async fn list_credentials(&self, org_id: &str) -> Result<Vec<CredentialRow>, DataError>;
 
@@ -1154,9 +1071,6 @@ pub trait TransactionalRepository: Send + Sync {
 
     /// Delete a credential row by id, scoped to org. Returns true if deleted.
     async fn delete_credential(&self, id: &str, org_id: &str) -> Result<bool, DataError>;
-
-    // ==================== Credential Permission Operations ====================
-
     /// List permissions for a credential
     async fn list_credential_permissions(
         &self,
@@ -1192,24 +1106,98 @@ pub trait TransactionalRepository: Send + Sync {
     ) -> Result<Vec<String>, DataError>;
 }
 
-// ============================================================================
-// Helper function (not part of trait, but shared utility)
-// ============================================================================
+/// Favourites, keyed on the entity they mark.
+#[async_trait]
+pub trait FavoriteStore: Send + Sync {
+    /// Add a favorite
+    /// For spans, secondary_id is the span_id (entity_id is trace_id)
+    async fn add_favorite(
+        &self,
+        user_id: &str,
+        entity_type: &str,
+        entity_id: &str,
+        secondary_id: Option<&str>,
+        project_id: &str,
+    ) -> Result<bool, DataError>;
 
-/// Check if user has minimum role level (pure function, same for all backends)
-pub fn has_min_role_level(role: &str, min_role: &str) -> bool {
-    // Role hierarchy: owner > admin > member
-    let role_level = match role {
-        "owner" => 3,
-        "admin" => 2,
-        "member" => 1,
-        _ => 0,
-    };
-    let min_level = match min_role {
-        "owner" => 3,
-        "admin" => 2,
-        "member" => 1,
-        _ => 0,
-    };
-    role_level >= min_level
+    /// Remove a favorite
+    /// For spans, secondary_id is the span_id (entity_id is trace_id)
+    async fn remove_favorite(
+        &self,
+        user_id: &str,
+        entity_type: &str,
+        entity_id: &str,
+        secondary_id: Option<&str>,
+        project_id: &str,
+    ) -> Result<bool, DataError>;
+
+    /// Check if entities are favorited
+    async fn check_favorites(
+        &self,
+        user_id: &str,
+        entity_type: &str,
+        entity_ids: &[String],
+        project_id: &str,
+    ) -> Result<Vec<String>, DataError>;
+
+    /// Check if spans are favorited
+    async fn check_span_favorites(
+        &self,
+        user_id: &str,
+        span_ids: &[(String, String)],
+        project_id: &str,
+    ) -> Result<Vec<(String, String)>, DataError>;
+
+    /// Count favorites for a user
+    async fn count_favorites(&self, user_id: &str, project_id: &str) -> Result<i64, DataError>;
+
+    /// List all favorite entity IDs for a user
+    async fn list_favorite_ids(
+        &self,
+        user_id: &str,
+        entity_type: &str,
+        project_id: &str,
+    ) -> Result<Vec<String>, DataError>;
+
+    /// Delete favorites by entity (for cascade delete)
+    async fn delete_favorites_by_entity(
+        &self,
+        entity_type: &str,
+        entity_ids: &[String],
+        project_id: &str,
+    ) -> Result<u64, DataError>;
+}
+
+/// Everything an analytics adapter provides, as one bound.
+///
+/// **A bundle of the narrow ports, not a trait with its own methods.** It was a single 31-method trait, which
+/// meant a caller needing spans depended on session statistics and on every delete - and no consumer could state
+/// what it actually used. The narrow ports are the seams; this exists so the composition root can hand out one
+/// object, and so `dyn AnalyticsRepository` upcasts to whichever port a caller wants.
+///
+/// The blanket impl is what keeps it a bundle: implementing the parts *is* implementing this, so no adapter
+/// writes an empty impl and nothing can drift between the two.
+#[async_trait]
+pub trait AnalyticsRepository:
+    SpanStore + EntityQuery + MessageStore + AnalyticsMaintenance + SurvivorReferences
+{
+}
+
+impl<T> AnalyticsRepository for T where
+    T: SpanStore + EntityQuery + MessageStore + AnalyticsMaintenance + SurvivorReferences
+{
+}
+
+/// Everything a transactional adapter provides, as one bound. See [`AnalyticsRepository`] for why this is a
+/// bundle rather than a trait of its own: it was 95 methods, and the six cohesive ports below are what a caller
+/// can actually name.
+#[async_trait]
+pub trait TransactionalRepository:
+    IdentityStore + ProjectStore + FileMetaStore + ApiKeyStore + CredentialStore + FavoriteStore
+{
+}
+
+impl<T> TransactionalRepository for T where
+    T: IdentityStore + ProjectStore + FileMetaStore + ApiKeyStore + CredentialStore + FavoriteStore
+{
 }

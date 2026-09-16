@@ -10,7 +10,9 @@ use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 
 use sideseat_ports::error::DataError;
-use sideseat_ports::traits::{AnalyticsRepository, FilterOptionRow};
+use sideseat_ports::traits::{
+    AnalyticsMaintenance, EntityQuery, FilterOptionRow, MessageStore, SpanStore, SurvivorReferences,
+};
 use sideseat_ports::types::{
     EventRow, FeedMessagesParams, FeedSpansParams, LinkRow, ListSessionsParams, ListSpansParams,
     ListTracesParams, MessageQueryParams, MessageQueryResult, NormalizedMetric, NormalizedSpan,
@@ -43,89 +45,7 @@ impl std::ops::Deref for ClickhouseRepository {
 }
 
 #[async_trait]
-impl AnalyticsRepository for ClickhouseRepository {
-    // ==================== Trace Operations ====================
-
-    async fn list_traces(
-        &self,
-        params: &ListTracesParams,
-    ) -> Result<(Vec<TraceRow>, u64), DataError> {
-        query::list_traces(self.0.client(), params)
-            .await
-            .map_err(Into::into)
-    }
-
-    async fn get_trace(
-        &self,
-        project_id: &str,
-        trace_id: &str,
-    ) -> Result<Option<TraceRow>, DataError> {
-        query::get_trace(self.0.client(), project_id, trace_id)
-            .await
-            .map_err(Into::into)
-    }
-
-    async fn get_trace_filter_options(
-        &self,
-        project_id: &str,
-        columns: &[String],
-        from_timestamp: Option<DateTime<Utc>>,
-        to_timestamp: Option<DateTime<Utc>>,
-    ) -> Result<HashMap<String, Vec<FilterOptionRow>>, DataError> {
-        query::get_trace_filter_options(
-            self.0.client(),
-            project_id,
-            columns,
-            from_timestamp,
-            to_timestamp,
-        )
-        .await
-        .map_err(Into::into)
-    }
-
-    async fn get_trace_tags_options(
-        &self,
-        project_id: &str,
-        from_timestamp: Option<DateTime<Utc>>,
-        to_timestamp: Option<DateTime<Utc>>,
-    ) -> Result<Vec<FilterOptionRow>, DataError> {
-        query::get_trace_tags_options(self.0.client(), project_id, from_timestamp, to_timestamp)
-            .await
-            .map_err(Into::into)
-    }
-
-    async fn traces_without_spans(
-        &self,
-        project_id: &str,
-        trace_ids: &[String],
-    ) -> Result<Vec<String>, DataError> {
-        query::traces_without_spans(self.0.client(), project_id, trace_ids)
-            .await
-            .map_err(Into::into)
-    }
-
-    async fn file_reference_fields_for_traces(
-        &self,
-        project_id: &str,
-        trace_ids: &[String],
-    ) -> Result<Vec<String>, DataError> {
-        query::file_reference_fields_for_traces(self.0.client(), project_id, trace_ids)
-            .await
-            .map_err(Into::into)
-    }
-
-    async fn delete_traces(
-        &self,
-        project_id: &str,
-        trace_ids: &[String],
-    ) -> Result<u64, DataError> {
-        let table = self.0.delete_table("otel_spans");
-        let on_cluster = self.0.on_cluster_clause();
-        query::delete_traces(self.0.client(), &table, &on_cluster, project_id, trace_ids)
-            .await
-            .map_err(Into::into)
-    }
-
+impl SpanStore for ClickhouseRepository {
     // ==================== Span Operations ====================
 
     async fn list_spans(&self, params: &ListSpansParams) -> Result<(Vec<SpanRow>, u64), DataError> {
@@ -221,6 +141,99 @@ impl AnalyticsRepository for ClickhouseRepository {
         let table = self.0.delete_table("otel_spans");
         let on_cluster = self.0.on_cluster_clause();
         query::delete_spans(self.0.client(), &table, &on_cluster, project_id, span_keys)
+            .await
+            .map_err(Into::into)
+    }
+
+    // ==================== Ingestion Operations ====================
+
+    async fn insert_spans(&self, spans: Vec<NormalizedSpan>) -> Result<(), DataError> {
+        // Use local table for distributed mode for optimal insert performance
+        let table = self.0.insert_table("otel_spans");
+        span::insert_batch(self.0.client(), &table, &spans)
+            .await
+            .map_err(Into::into)
+    }
+
+    async fn insert_metrics(&self, metrics: &[NormalizedMetric]) -> Result<(), DataError> {
+        // Use local table for distributed mode for optimal insert performance
+        let table = self.0.insert_table("otel_metrics");
+        metric::insert_batch(self.0.client(), &table, metrics)
+            .await
+            .map_err(Into::into)
+    }
+}
+
+#[async_trait]
+impl EntityQuery for ClickhouseRepository {
+    // ==================== Trace Operations ====================
+
+    async fn list_traces(
+        &self,
+        params: &ListTracesParams,
+    ) -> Result<(Vec<TraceRow>, u64), DataError> {
+        query::list_traces(self.0.client(), params)
+            .await
+            .map_err(Into::into)
+    }
+
+    async fn get_trace(
+        &self,
+        project_id: &str,
+        trace_id: &str,
+    ) -> Result<Option<TraceRow>, DataError> {
+        query::get_trace(self.0.client(), project_id, trace_id)
+            .await
+            .map_err(Into::into)
+    }
+
+    async fn get_trace_filter_options(
+        &self,
+        project_id: &str,
+        columns: &[String],
+        from_timestamp: Option<DateTime<Utc>>,
+        to_timestamp: Option<DateTime<Utc>>,
+    ) -> Result<HashMap<String, Vec<FilterOptionRow>>, DataError> {
+        query::get_trace_filter_options(
+            self.0.client(),
+            project_id,
+            columns,
+            from_timestamp,
+            to_timestamp,
+        )
+        .await
+        .map_err(Into::into)
+    }
+
+    async fn get_trace_tags_options(
+        &self,
+        project_id: &str,
+        from_timestamp: Option<DateTime<Utc>>,
+        to_timestamp: Option<DateTime<Utc>>,
+    ) -> Result<Vec<FilterOptionRow>, DataError> {
+        query::get_trace_tags_options(self.0.client(), project_id, from_timestamp, to_timestamp)
+            .await
+            .map_err(Into::into)
+    }
+
+    async fn traces_without_spans(
+        &self,
+        project_id: &str,
+        trace_ids: &[String],
+    ) -> Result<Vec<String>, DataError> {
+        query::traces_without_spans(self.0.client(), project_id, trace_ids)
+            .await
+            .map_err(Into::into)
+    }
+
+    async fn delete_traces(
+        &self,
+        project_id: &str,
+        trace_ids: &[String],
+    ) -> Result<u64, DataError> {
+        let table = self.0.delete_table("otel_spans");
+        let on_cluster = self.0.on_cluster_clause();
+        query::delete_traces(self.0.client(), &table, &on_cluster, project_id, trace_ids)
             .await
             .map_err(Into::into)
     }
@@ -340,6 +353,20 @@ impl AnalyticsRepository for ClickhouseRepository {
         .map_err(Into::into)
     }
 
+    // ==================== Stats Operations ====================
+
+    async fn get_project_stats(
+        &self,
+        params: &StatsParams,
+    ) -> Result<ProjectStatsResult, DataError> {
+        stats::get_project_stats(self.0.client(), params)
+            .await
+            .map_err(Into::into)
+    }
+}
+
+#[async_trait]
+impl MessageStore for ClickhouseRepository {
     // ==================== Message Operations ====================
 
     async fn get_messages(
@@ -359,36 +386,10 @@ impl AnalyticsRepository for ClickhouseRepository {
             .await
             .map_err(Into::into)
     }
+}
 
-    // ==================== Stats Operations ====================
-
-    async fn get_project_stats(
-        &self,
-        params: &StatsParams,
-    ) -> Result<ProjectStatsResult, DataError> {
-        stats::get_project_stats(self.0.client(), params)
-            .await
-            .map_err(Into::into)
-    }
-
-    // ==================== Ingestion Operations ====================
-
-    async fn insert_spans(&self, spans: Vec<NormalizedSpan>) -> Result<(), DataError> {
-        // Use local table for distributed mode for optimal insert performance
-        let table = self.0.insert_table("otel_spans");
-        span::insert_batch(self.0.client(), &table, &spans)
-            .await
-            .map_err(Into::into)
-    }
-
-    async fn insert_metrics(&self, metrics: &[NormalizedMetric]) -> Result<(), DataError> {
-        // Use local table for distributed mode for optimal insert performance
-        let table = self.0.insert_table("otel_metrics");
-        metric::insert_batch(self.0.client(), &table, metrics)
-            .await
-            .map_err(Into::into)
-    }
-
+#[async_trait]
+impl AnalyticsMaintenance for ClickhouseRepository {
     // ==================== Project Data Operations ====================
 
     async fn delete_project_data(&self, project_id: &str) -> Result<u64, DataError> {
@@ -436,6 +437,19 @@ impl AnalyticsRepository for ClickhouseRepository {
         project_ids: &[String],
     ) -> Result<HashMap<String, u64>, DataError> {
         query::count_spans_by_project(self.0.client(), project_ids)
+            .await
+            .map_err(Into::into)
+    }
+}
+
+#[async_trait]
+impl SurvivorReferences for ClickhouseRepository {
+    async fn file_reference_fields_for_traces(
+        &self,
+        project_id: &str,
+        trace_ids: &[String],
+    ) -> Result<Vec<String>, DataError> {
+        query::file_reference_fields_for_traces(self.0.client(), project_id, trace_ids)
             .await
             .map_err(Into::into)
     }

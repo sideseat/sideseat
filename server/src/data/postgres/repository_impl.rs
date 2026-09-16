@@ -8,7 +8,9 @@ use std::sync::Arc;
 use async_trait::async_trait;
 
 use sideseat_ports::error::DataError;
-use sideseat_ports::traits::TransactionalRepository;
+use sideseat_ports::traits::{
+    ApiKeyStore, CredentialStore, FavoriteStore, FileMetaStore, IdentityStore, ProjectStore,
+};
 use sideseat_ports::types::{
     ApiKeyRow, ApiKeyScope, ApiKeyValidation, AuthMethodRow, CredentialPermissionRow,
     CredentialRow, FileRow, LastOwnerResult, MemberWithUser, MembershipRow, OrgWithRole,
@@ -44,7 +46,7 @@ impl std::ops::Deref for PostgresRepository {
 }
 
 #[async_trait]
-impl TransactionalRepository for PostgresRepository {
+impl IdentityStore for PostgresRepository {
     // ==================== User Operations ====================
 
     async fn create_user(
@@ -196,6 +198,69 @@ impl TransactionalRepository for PostgresRepository {
             .map_err(Into::into)
     }
 
+    // ==================== Auth Method Operations ====================
+
+    #[allow(clippy::too_many_arguments)]
+    async fn create_auth_method(
+        &self,
+        user_id: &str,
+        method_type: &str,
+        provider: Option<&str>,
+        provider_id: Option<&str>,
+        credential_hash: Option<&str>,
+        metadata: Option<&str>,
+    ) -> Result<AuthMethodRow, DataError> {
+        auth_method::create_auth_method(
+            self.0.pool(),
+            None,
+            user_id,
+            method_type,
+            provider,
+            provider_id,
+            credential_hash,
+            metadata,
+        )
+        .await
+        .map_err(Into::into)
+    }
+
+    async fn find_auth_by_oauth(
+        &self,
+        provider: &str,
+        provider_id: &str,
+    ) -> Result<Option<AuthMethodRow>, DataError> {
+        auth_method::find_by_oauth(self.0.pool(), None, provider, provider_id)
+            .await
+            .map_err(Into::into)
+    }
+
+    async fn list_auth_methods_for_user(
+        &self,
+        user_id: &str,
+    ) -> Result<Vec<AuthMethodRow>, DataError> {
+        auth_method::list_for_user(self.0.pool(), None, user_id)
+            .await
+            .map_err(Into::into)
+    }
+
+    async fn delete_auth_method(&self, id: &str) -> Result<bool, DataError> {
+        auth_method::delete_auth_method(self.0.pool(), None, id)
+            .await
+            .map_err(Into::into)
+    }
+
+    async fn get_bootstrap_method(
+        &self,
+        user_id: &str,
+    ) -> Result<Option<AuthMethodRow>, DataError> {
+        auth_method::get_bootstrap_method(self.0.pool(), user_id)
+            .await
+            .map_err(Into::into)
+    }
+}
+
+#[async_trait]
+impl ProjectStore for PostgresRepository {
     // ==================== Project Operations ====================
 
     async fn create_project(
@@ -461,176 +526,10 @@ impl TransactionalRepository for PostgresRepository {
             .await
             .map_err(Into::into)
     }
+}
 
-    // ==================== Auth Method Operations ====================
-
-    #[allow(clippy::too_many_arguments)]
-    async fn create_auth_method(
-        &self,
-        user_id: &str,
-        method_type: &str,
-        provider: Option<&str>,
-        provider_id: Option<&str>,
-        credential_hash: Option<&str>,
-        metadata: Option<&str>,
-    ) -> Result<AuthMethodRow, DataError> {
-        auth_method::create_auth_method(
-            self.0.pool(),
-            None,
-            user_id,
-            method_type,
-            provider,
-            provider_id,
-            credential_hash,
-            metadata,
-        )
-        .await
-        .map_err(Into::into)
-    }
-
-    async fn find_auth_by_oauth(
-        &self,
-        provider: &str,
-        provider_id: &str,
-    ) -> Result<Option<AuthMethodRow>, DataError> {
-        auth_method::find_by_oauth(self.0.pool(), None, provider, provider_id)
-            .await
-            .map_err(Into::into)
-    }
-
-    async fn list_auth_methods_for_user(
-        &self,
-        user_id: &str,
-    ) -> Result<Vec<AuthMethodRow>, DataError> {
-        auth_method::list_for_user(self.0.pool(), None, user_id)
-            .await
-            .map_err(Into::into)
-    }
-
-    async fn delete_auth_method(&self, id: &str) -> Result<bool, DataError> {
-        auth_method::delete_auth_method(self.0.pool(), None, id)
-            .await
-            .map_err(Into::into)
-    }
-
-    async fn get_bootstrap_method(
-        &self,
-        user_id: &str,
-    ) -> Result<Option<AuthMethodRow>, DataError> {
-        auth_method::get_bootstrap_method(self.0.pool(), user_id)
-            .await
-            .map_err(Into::into)
-    }
-
-    // ==================== Favorite Operations ====================
-
-    async fn add_favorite(
-        &self,
-        user_id: &str,
-        entity_type: &str,
-        entity_id: &str,
-        secondary_id: Option<&str>,
-        project_id: &str,
-    ) -> Result<bool, DataError> {
-        favorite::add_favorite(
-            self.0.pool(),
-            user_id,
-            project_id,
-            entity_type,
-            entity_id,
-            secondary_id,
-        )
-        .await
-        .map_err(Into::into)
-    }
-
-    async fn remove_favorite(
-        &self,
-        user_id: &str,
-        entity_type: &str,
-        entity_id: &str,
-        secondary_id: Option<&str>,
-        project_id: &str,
-    ) -> Result<bool, DataError> {
-        favorite::remove_favorite(
-            self.0.pool(),
-            user_id,
-            project_id,
-            entity_type,
-            entity_id,
-            secondary_id,
-        )
-        .await
-        .map_err(Into::into)
-    }
-
-    async fn check_favorites(
-        &self,
-        user_id: &str,
-        entity_type: &str,
-        entity_ids: &[String],
-        project_id: &str,
-    ) -> Result<Vec<String>, DataError> {
-        let set =
-            favorite::check_favorites(self.0.pool(), user_id, project_id, entity_type, entity_ids)
-                .await
-                .map_err(DataError::from)?;
-        Ok(set.into_iter().collect())
-    }
-
-    async fn check_span_favorites(
-        &self,
-        user_id: &str,
-        span_ids: &[(String, String)],
-        project_id: &str,
-    ) -> Result<Vec<(String, String)>, DataError> {
-        let set = favorite::check_span_favorites(self.0.pool(), user_id, project_id, span_ids)
-            .await
-            .map_err(DataError::from)?;
-        // Convert "trace_id:span_id" strings back to tuples
-        Ok(set
-            .into_iter()
-            .filter_map(|s| {
-                let parts: Vec<&str> = s.splitn(2, ':').collect();
-                if parts.len() == 2 {
-                    Some((parts[0].to_string(), parts[1].to_string()))
-                } else {
-                    None
-                }
-            })
-            .collect())
-    }
-
-    async fn count_favorites(&self, user_id: &str, project_id: &str) -> Result<i64, DataError> {
-        favorite::count_favorites(self.0.pool(), user_id, project_id)
-            .await
-            .map(|c| c as i64)
-            .map_err(Into::into)
-    }
-
-    async fn list_favorite_ids(
-        &self,
-        user_id: &str,
-        entity_type: &str,
-        project_id: &str,
-    ) -> Result<Vec<String>, DataError> {
-        // Use a reasonable default limit
-        favorite::list_all_favorite_ids(self.0.pool(), user_id, project_id, entity_type, 10000)
-            .await
-            .map_err(Into::into)
-    }
-
-    async fn delete_favorites_by_entity(
-        &self,
-        entity_type: &str,
-        entity_ids: &[String],
-        project_id: &str,
-    ) -> Result<u64, DataError> {
-        favorite::delete_favorites_by_entity(self.0.pool(), project_id, entity_type, entity_ids)
-            .await
-            .map_err(Into::into)
-    }
-
+#[async_trait]
+impl FileMetaStore for PostgresRepository {
     // ==================== File Operations ====================
 
     async fn upsert_file(
@@ -940,7 +839,10 @@ impl TransactionalRepository for PostgresRepository {
             .await
             .map_err(Into::into)
     }
+}
 
+#[async_trait]
+impl ApiKeyStore for PostgresRepository {
     // ==================== API Key Operations ====================
 
     async fn create_api_key(
@@ -1006,7 +908,10 @@ impl TransactionalRepository for PostgresRepository {
             .await
             .map_err(Into::into)
     }
+}
 
+#[async_trait]
+impl CredentialStore for PostgresRepository {
     // ==================== Credential Operations ====================
 
     async fn list_credentials(&self, org_id: &str) -> Result<Vec<CredentialRow>, DataError> {
@@ -1132,5 +1037,117 @@ impl TransactionalRepository for PostgresRepository {
         )
         .await
         .map_err(Into::into)
+    }
+}
+
+#[async_trait]
+impl FavoriteStore for PostgresRepository {
+    // ==================== Favorite Operations ====================
+
+    async fn add_favorite(
+        &self,
+        user_id: &str,
+        entity_type: &str,
+        entity_id: &str,
+        secondary_id: Option<&str>,
+        project_id: &str,
+    ) -> Result<bool, DataError> {
+        favorite::add_favorite(
+            self.0.pool(),
+            user_id,
+            project_id,
+            entity_type,
+            entity_id,
+            secondary_id,
+        )
+        .await
+        .map_err(Into::into)
+    }
+
+    async fn remove_favorite(
+        &self,
+        user_id: &str,
+        entity_type: &str,
+        entity_id: &str,
+        secondary_id: Option<&str>,
+        project_id: &str,
+    ) -> Result<bool, DataError> {
+        favorite::remove_favorite(
+            self.0.pool(),
+            user_id,
+            project_id,
+            entity_type,
+            entity_id,
+            secondary_id,
+        )
+        .await
+        .map_err(Into::into)
+    }
+
+    async fn check_favorites(
+        &self,
+        user_id: &str,
+        entity_type: &str,
+        entity_ids: &[String],
+        project_id: &str,
+    ) -> Result<Vec<String>, DataError> {
+        let set =
+            favorite::check_favorites(self.0.pool(), user_id, project_id, entity_type, entity_ids)
+                .await
+                .map_err(DataError::from)?;
+        Ok(set.into_iter().collect())
+    }
+
+    async fn check_span_favorites(
+        &self,
+        user_id: &str,
+        span_ids: &[(String, String)],
+        project_id: &str,
+    ) -> Result<Vec<(String, String)>, DataError> {
+        let set = favorite::check_span_favorites(self.0.pool(), user_id, project_id, span_ids)
+            .await
+            .map_err(DataError::from)?;
+        // Convert "trace_id:span_id" strings back to tuples
+        Ok(set
+            .into_iter()
+            .filter_map(|s| {
+                let parts: Vec<&str> = s.splitn(2, ':').collect();
+                if parts.len() == 2 {
+                    Some((parts[0].to_string(), parts[1].to_string()))
+                } else {
+                    None
+                }
+            })
+            .collect())
+    }
+
+    async fn count_favorites(&self, user_id: &str, project_id: &str) -> Result<i64, DataError> {
+        favorite::count_favorites(self.0.pool(), user_id, project_id)
+            .await
+            .map(|c| c as i64)
+            .map_err(Into::into)
+    }
+
+    async fn list_favorite_ids(
+        &self,
+        user_id: &str,
+        entity_type: &str,
+        project_id: &str,
+    ) -> Result<Vec<String>, DataError> {
+        // Use a reasonable default limit
+        favorite::list_all_favorite_ids(self.0.pool(), user_id, project_id, entity_type, 10000)
+            .await
+            .map_err(Into::into)
+    }
+
+    async fn delete_favorites_by_entity(
+        &self,
+        entity_type: &str,
+        entity_ids: &[String],
+        project_id: &str,
+    ) -> Result<u64, DataError> {
+        favorite::delete_favorites_by_entity(self.0.pool(), project_id, entity_type, entity_ids)
+            .await
+            .map_err(Into::into)
     }
 }

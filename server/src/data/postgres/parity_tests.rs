@@ -49,6 +49,7 @@
 //! make test-postgres     # starts a container, runs this, removes it
 //! ```
 
+use sideseat_ports::traits::{FileMetaStore, IdentityStore, ProjectStore, TransactionalRepository};
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -56,7 +57,7 @@ use crate::data::TransactionalService;
 use crate::data::postgres::PostgresService;
 use crate::data::sqlite::SqliteService;
 use sideseat_core::core::config::PostgresConfig;
-use sideseat_ports::traits::TransactionalRepository;
+
 use sideseat_ports::types::LastOwnerResult;
 
 /// Env var holding a PostgreSQL connection URL, e.g. `postgres://user:pass@127.0.0.1:5433/sideseat`.

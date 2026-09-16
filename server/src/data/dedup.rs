@@ -8,7 +8,10 @@ use chrono::{DateTime, Utc};
 use std::collections::HashMap;
 
 use sideseat_ports::error::DataError;
-use sideseat_ports::traits::{AnalyticsRepository, FilterOptionRow};
+use sideseat_ports::traits::{
+    AnalyticsMaintenance, AnalyticsRepository, EntityQuery, FilterOptionRow, MessageStore,
+    SpanStore, SurvivorReferences,
+};
 use sideseat_ports::types::{
     EventRow, FeedMessagesParams, FeedSpansParams, LinkRow, ListSessionsParams, ListSpansParams,
     ListTracesParams, MessageQueryParams, MessageQueryResult, NormalizedMetric, NormalizedSpan,
@@ -26,73 +29,7 @@ impl DedupAnalyticsRepository {
 }
 
 #[async_trait]
-impl AnalyticsRepository for DedupAnalyticsRepository {
-    // ==================== Trace Operations (pass-through) ====================
-
-    async fn list_traces(
-        &self,
-        params: &ListTracesParams,
-    ) -> Result<(Vec<TraceRow>, u64), DataError> {
-        self.inner.list_traces(params).await
-    }
-
-    async fn get_trace(
-        &self,
-        project_id: &str,
-        trace_id: &str,
-    ) -> Result<Option<TraceRow>, DataError> {
-        self.inner.get_trace(project_id, trace_id).await
-    }
-
-    async fn get_trace_filter_options(
-        &self,
-        project_id: &str,
-        columns: &[String],
-        from_timestamp: Option<DateTime<Utc>>,
-        to_timestamp: Option<DateTime<Utc>>,
-    ) -> Result<HashMap<String, Vec<FilterOptionRow>>, DataError> {
-        self.inner
-            .get_trace_filter_options(project_id, columns, from_timestamp, to_timestamp)
-            .await
-    }
-
-    async fn get_trace_tags_options(
-        &self,
-        project_id: &str,
-        from_timestamp: Option<DateTime<Utc>>,
-        to_timestamp: Option<DateTime<Utc>>,
-    ) -> Result<Vec<FilterOptionRow>, DataError> {
-        self.inner
-            .get_trace_tags_options(project_id, from_timestamp, to_timestamp)
-            .await
-    }
-
-    async fn delete_traces(
-        &self,
-        project_id: &str,
-        trace_ids: &[String],
-    ) -> Result<u64, DataError> {
-        self.inner.delete_traces(project_id, trace_ids).await
-    }
-
-    async fn traces_without_spans(
-        &self,
-        project_id: &str,
-        trace_ids: &[String],
-    ) -> Result<Vec<String>, DataError> {
-        self.inner.traces_without_spans(project_id, trace_ids).await
-    }
-
-    async fn file_reference_fields_for_traces(
-        &self,
-        project_id: &str,
-        trace_ids: &[String],
-    ) -> Result<Vec<String>, DataError> {
-        self.inner
-            .file_reference_fields_for_traces(project_id, trace_ids)
-            .await
-    }
-
+impl SpanStore for DedupAnalyticsRepository {
     // ==================== Span Operations (DEDUP Vec<SpanRow>) ====================
 
     async fn list_spans(&self, params: &ListSpansParams) -> Result<(Vec<SpanRow>, u64), DataError> {
@@ -180,6 +117,75 @@ impl AnalyticsRepository for DedupAnalyticsRepository {
         self.inner.delete_spans(project_id, span_keys).await
     }
 
+    // ==================== Ingestion Operations (pass-through) ====================
+
+    async fn insert_spans(&self, spans: Vec<NormalizedSpan>) -> Result<(), DataError> {
+        self.inner.insert_spans(spans).await
+    }
+
+    async fn insert_metrics(&self, metrics: &[NormalizedMetric]) -> Result<(), DataError> {
+        self.inner.insert_metrics(metrics).await
+    }
+}
+
+#[async_trait]
+impl EntityQuery for DedupAnalyticsRepository {
+    // ==================== Trace Operations (pass-through) ====================
+
+    async fn list_traces(
+        &self,
+        params: &ListTracesParams,
+    ) -> Result<(Vec<TraceRow>, u64), DataError> {
+        self.inner.list_traces(params).await
+    }
+
+    async fn get_trace(
+        &self,
+        project_id: &str,
+        trace_id: &str,
+    ) -> Result<Option<TraceRow>, DataError> {
+        self.inner.get_trace(project_id, trace_id).await
+    }
+
+    async fn get_trace_filter_options(
+        &self,
+        project_id: &str,
+        columns: &[String],
+        from_timestamp: Option<DateTime<Utc>>,
+        to_timestamp: Option<DateTime<Utc>>,
+    ) -> Result<HashMap<String, Vec<FilterOptionRow>>, DataError> {
+        self.inner
+            .get_trace_filter_options(project_id, columns, from_timestamp, to_timestamp)
+            .await
+    }
+
+    async fn get_trace_tags_options(
+        &self,
+        project_id: &str,
+        from_timestamp: Option<DateTime<Utc>>,
+        to_timestamp: Option<DateTime<Utc>>,
+    ) -> Result<Vec<FilterOptionRow>, DataError> {
+        self.inner
+            .get_trace_tags_options(project_id, from_timestamp, to_timestamp)
+            .await
+    }
+
+    async fn delete_traces(
+        &self,
+        project_id: &str,
+        trace_ids: &[String],
+    ) -> Result<u64, DataError> {
+        self.inner.delete_traces(project_id, trace_ids).await
+    }
+
+    async fn traces_without_spans(
+        &self,
+        project_id: &str,
+        trace_ids: &[String],
+    ) -> Result<Vec<String>, DataError> {
+        self.inner.traces_without_spans(project_id, trace_ids).await
+    }
+
     // ==================== Session Operations (pass-through) ====================
 
     async fn list_sessions(
@@ -260,6 +266,18 @@ impl AnalyticsRepository for DedupAnalyticsRepository {
         self.inner.delete_sessions(project_id, session_ids).await
     }
 
+    // ==================== Stats Operations (pass-through) ====================
+
+    async fn get_project_stats(
+        &self,
+        params: &sideseat_ports::types::StatsParams,
+    ) -> Result<sideseat_ports::types::ProjectStatsResult, DataError> {
+        self.inner.get_project_stats(params).await
+    }
+}
+
+#[async_trait]
+impl MessageStore for DedupAnalyticsRepository {
     // ==================== Message Operations (DEDUP rows) ====================
 
     async fn get_messages(
@@ -279,26 +297,10 @@ impl AnalyticsRepository for DedupAnalyticsRepository {
         result.rows = deduplicate_by_span_identity(result.rows);
         Ok(result)
     }
+}
 
-    // ==================== Stats Operations (pass-through) ====================
-
-    async fn get_project_stats(
-        &self,
-        params: &sideseat_ports::types::StatsParams,
-    ) -> Result<sideseat_ports::types::ProjectStatsResult, DataError> {
-        self.inner.get_project_stats(params).await
-    }
-
-    // ==================== Ingestion Operations (pass-through) ====================
-
-    async fn insert_spans(&self, spans: Vec<NormalizedSpan>) -> Result<(), DataError> {
-        self.inner.insert_spans(spans).await
-    }
-
-    async fn insert_metrics(&self, metrics: &[NormalizedMetric]) -> Result<(), DataError> {
-        self.inner.insert_metrics(metrics).await
-    }
-
+#[async_trait]
+impl AnalyticsMaintenance for DedupAnalyticsRepository {
     // ==================== Project Data Operations (pass-through) ====================
 
     async fn delete_project_data(&self, project_id: &str) -> Result<u64, DataError> {
@@ -322,5 +324,18 @@ impl AnalyticsRepository for DedupAnalyticsRepository {
         project_ids: &[String],
     ) -> Result<HashMap<String, u64>, DataError> {
         self.inner.count_spans_by_project(project_ids).await
+    }
+}
+
+#[async_trait]
+impl SurvivorReferences for DedupAnalyticsRepository {
+    async fn file_reference_fields_for_traces(
+        &self,
+        project_id: &str,
+        trace_ids: &[String],
+    ) -> Result<Vec<String>, DataError> {
+        self.inner
+            .file_reference_fields_for_traces(project_id, trace_ids)
+            .await
     }
 }

@@ -7,9 +7,9 @@ use clickhouse::{Client, Row};
 use serde::Deserialize;
 
 use crate::data::clickhouse::ClickhouseError;
+use crate::data::sql::display::MESSAGE_CONTENT_FILTER;
 use sideseat_ports::types::{
-    FeedMessagesParams, MESSAGE_CONTENT_FILTER, MessageQueryParams, MessageQueryResult,
-    MessageSpanRow,
+    FeedMessagesParams, MessageQueryParams, MessageQueryResult, MessageSpanRow,
 };
 
 /// Shared SELECT columns for all message queries.

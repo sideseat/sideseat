@@ -2225,6 +2225,73 @@ fn no_adapter_imports_a_sibling_adapter() {
     );
 }
 
+/// The ports crate emits no SQL.
+///
+/// A port says what a caller may ask for; a statement is how a store answers. Both were mixed in: `Filter` had
+/// three `to_sql` methods, `OrderBy` rendered `column DIRECTION`, and `DisplayNameDialect` was a hand-rolled
+/// per-dialect switch living in the DTOs - beside a real `SqlDialect` seam in the data layer that had no
+/// consumers at all. It is the same shape as `DataError` naming four drivers: the abstraction carrying the
+/// implementation.
+///
+/// Keywords rather than a parser, and the list is deliberately short: these are the words that only appear in a
+/// statement. A port may of course contain the *word* "select" in prose, so commentary is stripped first.
+#[test]
+fn the_ports_crate_emits_no_sql() {
+    const SQL_MARKERS: &[&str] = &[
+        "SELECT ",
+        "INSERT INTO",
+        "UPDATE ",
+        "DELETE FROM",
+        " WHERE ",
+        "ORDER BY ",
+        "GROUP BY ",
+        "LEFT JOIN",
+        "CREATE TABLE",
+    ];
+
+    let repo = repo_root();
+    let mut offenders: Vec<String> = Vec::new();
+    let mut checked = 0usize;
+    let mut stack = vec![repo.join("crates/ports/src")];
+    while let Some(dir) = stack.pop() {
+        for entry in std::fs::read_dir(&dir).expect("readable directory") {
+            let path = entry.expect("readable entry").path();
+            if path.is_dir() {
+                stack.push(path);
+                continue;
+            }
+            if path.extension().and_then(|e| e.to_str()) != Some("rs") {
+                continue;
+            }
+            let text = std::fs::read_to_string(&path).expect("readable file");
+            let mut code = text.clone();
+            for (_, comment) in rust_commentary(&text) {
+                if !comment.is_empty() {
+                    code = code.replace(&comment, "");
+                }
+            }
+            checked += 1;
+            for marker in SQL_MARKERS {
+                if code.contains(marker) {
+                    let shown = path.strip_prefix(repo).unwrap_or(&path).display();
+                    offenders.push(format!("{shown} contains `{}`", marker.trim()));
+                }
+            }
+        }
+    }
+
+    assert!(
+        checked > 5,
+        "scanned {checked} files under crates/ports/src - the walk is wrong, not the crate"
+    );
+    assert!(
+        offenders.is_empty(),
+        "{} SQL fragment(s) in the ports crate - a port describes the question, not the statement:\n  {}",
+        offenders.len(),
+        offenders.join("\n  ")
+    );
+}
+
 /// Every workspace crate reports the same version, and takes it from one place.
 ///
 /// `banner.rs` and `update.rs` read `env!("CARGO_PKG_VERSION")`, so which crate they live in decides which

@@ -36,9 +36,8 @@ pub use analytics::{
 
 // Re-export message types
 pub use messages::{
-    DisplayNameDialect, FeedMessagesParams, MESSAGE_CONTENT_FILTER, MessageQueryParams,
-    MessageQueryResult, MessageSpanRow, SESSION_FILTER_OPTION_COLUMNS, SPAN_FILTER_OPTION_COLUMNS,
-    TRACE_FILTER_OPTION_COLUMNS, genai_span_predicate, trace_display_first, trace_display_name,
+    FeedMessagesParams, MessageQueryParams, MessageQueryResult, MessageSpanRow,
+    SESSION_FILTER_OPTION_COLUMNS, SPAN_FILTER_OPTION_COLUMNS, TRACE_FILTER_OPTION_COLUMNS,
 };
 
 // Re-export stats types

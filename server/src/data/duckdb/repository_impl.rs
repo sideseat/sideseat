@@ -14,7 +14,9 @@ use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 
 use sideseat_ports::error::DataError;
-use sideseat_ports::traits::{AnalyticsRepository, FilterOptionRow};
+use sideseat_ports::traits::{
+    AnalyticsMaintenance, EntityQuery, FilterOptionRow, MessageStore, SpanStore, SurvivorReferences,
+};
 use sideseat_ports::types::{
     EventRow, FeedMessagesParams, FeedSpansParams, LinkRow, ListSessionsParams, ListSpansParams,
     ListTracesParams, MessageQueryParams, MessageQueryResult, NormalizedMetric, NormalizedSpan,
@@ -47,152 +49,7 @@ impl std::ops::Deref for DuckdbRepository {
 }
 
 #[async_trait]
-impl AnalyticsRepository for DuckdbRepository {
-    // ==================== Trace Operations ====================
-
-    async fn list_traces(
-        &self,
-        params: &ListTracesParams,
-    ) -> Result<(Vec<TraceRow>, u64), DataError> {
-        let db = Arc::clone(&self.0);
-        let params = params.clone();
-        DuckdbService::run_query(move || {
-            let conn = db.conn();
-            query::list_traces(&conn, &params)
-        })
-        .await
-        .map_err(DataError::from)?
-        .map_err(Into::into)
-    }
-
-    async fn get_trace(
-        &self,
-        project_id: &str,
-        trace_id: &str,
-    ) -> Result<Option<TraceRow>, DataError> {
-        let db = Arc::clone(&self.0);
-        let pid = project_id.to_string();
-        let tid = trace_id.to_string();
-        DuckdbService::run_query(move || {
-            let conn = db.conn();
-            query::get_trace(&conn, &pid, &tid)
-        })
-        .await
-        .map_err(DataError::from)?
-        .map_err(Into::into)
-    }
-
-    async fn get_trace_filter_options(
-        &self,
-        project_id: &str,
-        columns: &[String],
-        from_timestamp: Option<DateTime<Utc>>,
-        to_timestamp: Option<DateTime<Utc>>,
-    ) -> Result<HashMap<String, Vec<FilterOptionRow>>, DataError> {
-        let db = Arc::clone(&self.0);
-        let pid = project_id.to_string();
-        let cols = columns.to_vec();
-        let result = DuckdbService::run_query(move || {
-            let conn = db.conn();
-            query::get_trace_filter_options(&conn, &pid, &cols, from_timestamp, to_timestamp)
-        })
-        .await
-        .map_err(DataError::from)?
-        .map_err(DataError::from)?;
-
-        // Convert from query::FilterOptionRow to traits::FilterOptionRow
-        Ok(result
-            .into_iter()
-            .map(|(k, v)| {
-                (
-                    k,
-                    v.into_iter()
-                        .map(|r| FilterOptionRow {
-                            value: r.value,
-                            count: r.count,
-                        })
-                        .collect(),
-                )
-            })
-            .collect())
-    }
-
-    async fn get_trace_tags_options(
-        &self,
-        project_id: &str,
-        from_timestamp: Option<DateTime<Utc>>,
-        to_timestamp: Option<DateTime<Utc>>,
-    ) -> Result<Vec<FilterOptionRow>, DataError> {
-        let db = Arc::clone(&self.0);
-        let pid = project_id.to_string();
-        let result = DuckdbService::run_query(move || {
-            let conn = db.conn();
-            query::get_trace_tags_options(&conn, &pid, from_timestamp, to_timestamp)
-        })
-        .await
-        .map_err(DataError::from)?
-        .map_err(DataError::from)?;
-
-        Ok(result
-            .into_iter()
-            .map(|r| FilterOptionRow {
-                value: r.value,
-                count: r.count,
-            })
-            .collect())
-    }
-
-    async fn traces_without_spans(
-        &self,
-        project_id: &str,
-        trace_ids: &[String],
-    ) -> Result<Vec<String>, DataError> {
-        let db = Arc::clone(&self.0);
-        let pid = project_id.to_string();
-        let tids = trace_ids.to_vec();
-        DuckdbService::run_query(move || {
-            let conn = db.conn();
-            query::traces_without_spans(&conn, &pid, &tids)
-        })
-        .await
-        .map_err(DataError::from)?
-        .map_err(Into::into)
-    }
-
-    async fn file_reference_fields_for_traces(
-        &self,
-        project_id: &str,
-        trace_ids: &[String],
-    ) -> Result<Vec<String>, DataError> {
-        let db = Arc::clone(&self.0);
-        let pid = project_id.to_string();
-        let tids = trace_ids.to_vec();
-        DuckdbService::run_query(move || {
-            let conn = db.conn();
-            query::file_reference_fields_for_traces(&conn, &pid, &tids)
-        })
-        .await
-        .map_err(DataError::from)?
-        .map_err(Into::into)
-    }
-
-    async fn delete_traces(
-        &self,
-        project_id: &str,
-        trace_ids: &[String],
-    ) -> Result<u64, DataError> {
-        let db = Arc::clone(&self.0);
-        let pid = project_id.to_string();
-        let tids = trace_ids.to_vec();
-        DuckdbService::run_query(move || {
-            let conn = db.conn();
-            query::delete_traces(&conn, &pid, &tids)
-        })
-        .await
-        .map_err(DataError::from)?
-        .map_err(Into::into)
-    }
-
+impl SpanStore for DuckdbRepository {
     // ==================== Span Operations ====================
 
     async fn list_spans(&self, params: &ListSpansParams) -> Result<(Vec<SpanRow>, u64), DataError> {
@@ -383,6 +240,162 @@ impl AnalyticsRepository for DuckdbRepository {
         .map_err(Into::into)
     }
 
+    // ==================== Ingestion Operations ====================
+
+    async fn insert_spans(&self, spans: Vec<NormalizedSpan>) -> Result<(), DataError> {
+        let db = Arc::clone(&self.0);
+        DuckdbService::run_query(move || {
+            let conn = db.conn();
+            span::insert_batch(&conn, &spans)
+        })
+        .await
+        .map_err(DataError::from)?
+        .map_err(Into::into)
+    }
+
+    async fn insert_metrics(&self, metrics: &[NormalizedMetric]) -> Result<(), DataError> {
+        let db = Arc::clone(&self.0);
+        let metrics = metrics.to_vec();
+        DuckdbService::run_query(move || {
+            let conn = db.conn();
+            metric::insert_batch(&conn, &metrics)
+        })
+        .await
+        .map_err(DataError::from)?
+        .map_err(Into::into)
+    }
+}
+
+#[async_trait]
+impl EntityQuery for DuckdbRepository {
+    // ==================== Trace Operations ====================
+
+    async fn list_traces(
+        &self,
+        params: &ListTracesParams,
+    ) -> Result<(Vec<TraceRow>, u64), DataError> {
+        let db = Arc::clone(&self.0);
+        let params = params.clone();
+        DuckdbService::run_query(move || {
+            let conn = db.conn();
+            query::list_traces(&conn, &params)
+        })
+        .await
+        .map_err(DataError::from)?
+        .map_err(Into::into)
+    }
+
+    async fn get_trace(
+        &self,
+        project_id: &str,
+        trace_id: &str,
+    ) -> Result<Option<TraceRow>, DataError> {
+        let db = Arc::clone(&self.0);
+        let pid = project_id.to_string();
+        let tid = trace_id.to_string();
+        DuckdbService::run_query(move || {
+            let conn = db.conn();
+            query::get_trace(&conn, &pid, &tid)
+        })
+        .await
+        .map_err(DataError::from)?
+        .map_err(Into::into)
+    }
+
+    async fn get_trace_filter_options(
+        &self,
+        project_id: &str,
+        columns: &[String],
+        from_timestamp: Option<DateTime<Utc>>,
+        to_timestamp: Option<DateTime<Utc>>,
+    ) -> Result<HashMap<String, Vec<FilterOptionRow>>, DataError> {
+        let db = Arc::clone(&self.0);
+        let pid = project_id.to_string();
+        let cols = columns.to_vec();
+        let result = DuckdbService::run_query(move || {
+            let conn = db.conn();
+            query::get_trace_filter_options(&conn, &pid, &cols, from_timestamp, to_timestamp)
+        })
+        .await
+        .map_err(DataError::from)?
+        .map_err(DataError::from)?;
+
+        // Convert from query::FilterOptionRow to traits::FilterOptionRow
+        Ok(result
+            .into_iter()
+            .map(|(k, v)| {
+                (
+                    k,
+                    v.into_iter()
+                        .map(|r| FilterOptionRow {
+                            value: r.value,
+                            count: r.count,
+                        })
+                        .collect(),
+                )
+            })
+            .collect())
+    }
+
+    async fn get_trace_tags_options(
+        &self,
+        project_id: &str,
+        from_timestamp: Option<DateTime<Utc>>,
+        to_timestamp: Option<DateTime<Utc>>,
+    ) -> Result<Vec<FilterOptionRow>, DataError> {
+        let db = Arc::clone(&self.0);
+        let pid = project_id.to_string();
+        let result = DuckdbService::run_query(move || {
+            let conn = db.conn();
+            query::get_trace_tags_options(&conn, &pid, from_timestamp, to_timestamp)
+        })
+        .await
+        .map_err(DataError::from)?
+        .map_err(DataError::from)?;
+
+        Ok(result
+            .into_iter()
+            .map(|r| FilterOptionRow {
+                value: r.value,
+                count: r.count,
+            })
+            .collect())
+    }
+
+    async fn traces_without_spans(
+        &self,
+        project_id: &str,
+        trace_ids: &[String],
+    ) -> Result<Vec<String>, DataError> {
+        let db = Arc::clone(&self.0);
+        let pid = project_id.to_string();
+        let tids = trace_ids.to_vec();
+        DuckdbService::run_query(move || {
+            let conn = db.conn();
+            query::traces_without_spans(&conn, &pid, &tids)
+        })
+        .await
+        .map_err(DataError::from)?
+        .map_err(Into::into)
+    }
+
+    async fn delete_traces(
+        &self,
+        project_id: &str,
+        trace_ids: &[String],
+    ) -> Result<u64, DataError> {
+        let db = Arc::clone(&self.0);
+        let pid = project_id.to_string();
+        let tids = trace_ids.to_vec();
+        DuckdbService::run_query(move || {
+            let conn = db.conn();
+            query::delete_traces(&conn, &pid, &tids)
+        })
+        .await
+        .map_err(DataError::from)?
+        .map_err(Into::into)
+    }
+
     // ==================== Session Operations ====================
 
     async fn list_sessions(
@@ -539,6 +552,26 @@ impl AnalyticsRepository for DuckdbRepository {
         .map_err(Into::into)
     }
 
+    // ==================== Stats Operations ====================
+
+    async fn get_project_stats(
+        &self,
+        params: &StatsParams,
+    ) -> Result<ProjectStatsResult, DataError> {
+        let db = Arc::clone(&self.0);
+        let params = params.clone();
+        DuckdbService::run_query(move || {
+            let conn = db.conn();
+            stats::get_project_stats(&conn, &params)
+        })
+        .await
+        .map_err(DataError::from)?
+        .map_err(Into::into)
+    }
+}
+
+#[async_trait]
+impl MessageStore for DuckdbRepository {
     // ==================== Message Operations ====================
 
     async fn get_messages(
@@ -570,49 +603,10 @@ impl AnalyticsRepository for DuckdbRepository {
         .map_err(DataError::from)?
         .map_err(Into::into)
     }
+}
 
-    // ==================== Stats Operations ====================
-
-    async fn get_project_stats(
-        &self,
-        params: &StatsParams,
-    ) -> Result<ProjectStatsResult, DataError> {
-        let db = Arc::clone(&self.0);
-        let params = params.clone();
-        DuckdbService::run_query(move || {
-            let conn = db.conn();
-            stats::get_project_stats(&conn, &params)
-        })
-        .await
-        .map_err(DataError::from)?
-        .map_err(Into::into)
-    }
-
-    // ==================== Ingestion Operations ====================
-
-    async fn insert_spans(&self, spans: Vec<NormalizedSpan>) -> Result<(), DataError> {
-        let db = Arc::clone(&self.0);
-        DuckdbService::run_query(move || {
-            let conn = db.conn();
-            span::insert_batch(&conn, &spans)
-        })
-        .await
-        .map_err(DataError::from)?
-        .map_err(Into::into)
-    }
-
-    async fn insert_metrics(&self, metrics: &[NormalizedMetric]) -> Result<(), DataError> {
-        let db = Arc::clone(&self.0);
-        let metrics = metrics.to_vec();
-        DuckdbService::run_query(move || {
-            let conn = db.conn();
-            metric::insert_batch(&conn, &metrics)
-        })
-        .await
-        .map_err(DataError::from)?
-        .map_err(Into::into)
-    }
-
+#[async_trait]
+impl AnalyticsMaintenance for DuckdbRepository {
     // ==================== Project Data Operations ====================
 
     async fn delete_project_data(&self, project_id: &str) -> Result<u64, DataError> {
@@ -660,6 +654,26 @@ impl AnalyticsRepository for DuckdbRepository {
         DuckdbService::run_query(move || {
             let conn = db.conn();
             query::count_spans_by_project(&conn, &ids)
+        })
+        .await
+        .map_err(DataError::from)?
+        .map_err(Into::into)
+    }
+}
+
+#[async_trait]
+impl SurvivorReferences for DuckdbRepository {
+    async fn file_reference_fields_for_traces(
+        &self,
+        project_id: &str,
+        trace_ids: &[String],
+    ) -> Result<Vec<String>, DataError> {
+        let db = Arc::clone(&self.0);
+        let pid = project_id.to_string();
+        let tids = trace_ids.to_vec();
+        DuckdbService::run_query(move || {
+            let conn = db.conn();
+            query::file_reference_fields_for_traces(&conn, &pid, &tids)
         })
         .await
         .map_err(DataError::from)?

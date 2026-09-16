@@ -1765,7 +1765,7 @@ fn invariant_checks_are_not_vacuous() {
 /// the Rust version tests.
 #[test]
 fn content_filter_matches_the_sql_predicate() {
-    use sideseat_ports::types::MESSAGE_CONTENT_FILTER;
+    use crate::data::sql::display::MESSAGE_CONTENT_FILTER;
 
     // The exact predicate, not a substring or clause count: checking only that the column names
     // appear left an inverted operator (`=` for `!=`) or a changed literal ('ERROR' -> 'error')

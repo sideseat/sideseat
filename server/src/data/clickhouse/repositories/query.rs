@@ -6,10 +6,10 @@ use chrono::{DateTime, Utc};
 use clickhouse::{Client, Row};
 use serde::Deserialize;
 
-use sideseat_ports::filters::{Filter, columns};
-use sideseat_ports::types::{
+use crate::data::sql::display::{
     DisplayNameDialect, genai_span_predicate, trace_display_first, trace_display_name,
 };
+use sideseat_ports::filters::{Filter, columns};
 
 // ============================================================================
 // Token Dedup SQL Fragments

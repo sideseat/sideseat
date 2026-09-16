@@ -853,7 +853,7 @@ mod tests {
 
         // The trace still has one span, and it references B only. A's span is the one retention just expired,
         // so it is simply absent - which is what the survivor scan reads.
-        sideseat_ports::traits::AnalyticsRepository::insert_spans(
+        sideseat_ports::traits::SpanStore::insert_spans(
             &crate::data::duckdb::DuckdbRepository(Arc::clone(&duck)),
             vec![sideseat_ports::types::NormalizedSpan {
                 project_id: Some("default".to_string()),

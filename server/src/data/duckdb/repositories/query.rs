@@ -6,15 +6,18 @@ use duckdb::{Connection, Row};
 use crate::data::duckdb::filters::FilterSql;
 use crate::data::duckdb::filters::SqlParams;
 use crate::data::duckdb::{DuckdbError, in_transaction};
+use crate::data::sql::display::{
+    DisplayNameDialect, genai_span_predicate, trace_display_first, trace_display_name,
+};
+use crate::data::sql::order::OrderSql;
 use sideseat_core::core::constants::{QUERY_MAX_FILTER_SUGGESTIONS, QUERY_MAX_SPANS_PER_TRACE};
 use sideseat_core::utils::time::{micros_to_datetime, parse_iso_timestamp};
 use sideseat_ports::filters::Filter;
 use sideseat_ports::filters::columns;
 use sideseat_ports::types::{
-    DisplayNameDialect, EventRow, FeedSpansParams, LinkRow, ListSessionsParams, ListSpansParams,
-    ListTracesParams, SESSION_FILTER_OPTION_COLUMNS, SPAN_FILTER_OPTION_COLUMNS, SessionRow,
-    SpanRow, TRACE_FILTER_OPTION_COLUMNS, TraceRow, genai_span_predicate, parse_tags,
-    trace_display_first, trace_display_name,
+    EventRow, FeedSpansParams, LinkRow, ListSessionsParams, ListSpansParams, ListTracesParams,
+    SESSION_FILTER_OPTION_COLUMNS, SPAN_FILTER_OPTION_COLUMNS, SessionRow, SpanRow,
+    TRACE_FILTER_OPTION_COLUMNS, TraceRow, parse_tags,
 };
 
 /// Inline dedup subquery replacing the old `otel_spans_v` view.

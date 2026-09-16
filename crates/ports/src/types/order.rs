@@ -26,15 +26,6 @@ pub enum OrderDirection {
     Asc,
 }
 
-impl OrderDirection {
-    fn as_sql(self) -> &'static str {
-        match self {
-            Self::Asc => "ASC",
-            Self::Desc => "DESC",
-        }
-    }
-}
-
 impl OrderBy {
     /// Build one directly, for a caller that is not parsing a query parameter.
     pub fn new(column: impl Into<String>, direction: OrderDirection) -> Self {
@@ -42,17 +33,5 @@ impl OrderBy {
             column: column.into(),
             direction,
         }
-    }
-
-    pub fn to_sql(&self) -> String {
-        format!("{} {}", self.column, self.direction.as_sql())
-    }
-
-    /// Generate SQL with column name mapping (e.g., API aliases to DB columns)
-    pub fn to_sql_mapped<F>(&self, mapper: F) -> String
-    where
-        F: Fn(&str) -> &str,
-    {
-        format!("{} {}", mapper(&self.column), self.direction.as_sql())
     }
 }
