@@ -60,6 +60,21 @@ use sideseat_core::core::constants::{
 pub trait TopicMessage: Clone + Send + Sync + 'static {
     /// Estimate message size in bytes for backpressure
     fn size_bytes(&self) -> usize;
+
+    /// The **partition key** this message must be published under.
+    ///
+    /// On the message type, because the rule is per signal and only the signal knows it: spans key on their trace
+    /// id, metrics on `(project, instrument)`, logs on their trace id when there is one. A key chosen by the
+    /// publisher instead would be a rule restated at every call site, and one of them would eventually differ -
+    /// which for a partitioned broker means one conversation split across partitions and the serialisation the
+    /// key exists to give silently gone.
+    ///
+    /// Default `""`, meaning "no ordering requirement": correct for a broadcast-shaped message such as a presence
+    /// event, and harmless on the in-process backend, which has one partition. A signal that *does* need order
+    /// overrides it, and `every_queued_signal_declares_a_partition_key` is what stops a new one forgetting.
+    fn partition_key(&self) -> String {
+        String::new()
+    }
 }
 
 // Note: TopicMessage implementations for OTLP types (ExportTraceServiceRequest,
@@ -532,7 +547,11 @@ where
     /// Returns the message ID for tracking.
     pub async fn publish(&self, msg: &T) -> Result<String, TopicError> {
         let payload = msg.encode_to_vec();
-        self.backend.stream_publish(&self.name, &payload).await
+        // The key comes from the message, not from here: see `TopicMessage::partition_key`.
+        let partition_key = msg.partition_key();
+        self.backend
+            .stream_publish(&self.name, &partition_key, &payload)
+            .await
     }
 
     /// Subscribe to the stream with a consumer group

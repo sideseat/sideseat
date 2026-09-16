@@ -1016,7 +1016,14 @@ impl TopicBackend for RedisTopicBackend {
     /// stored. Entries are instead removed by `stream_trim_consumed` once every group is past them, and
     /// a backlog that outgrows [`DEFAULT_STREAM_MAX_BACKLOG`] turns into `BufferFull` - which the OTLP
     /// routes answer with 503 and `Retry-After`, leaving the data with the exporter that still has it.
-    async fn stream_publish(&self, topic: &str, payload: &[u8]) -> Result<String, TopicError> {
+    async fn stream_publish(
+        &self,
+        topic: &str,
+        // Redis streams are a single log per key, so there is no partition to choose - the key is recorded on the
+        // entry instead, which is what a later migration to a partitioned broker reads.
+        partition_key: &str,
+        payload: &[u8],
+    ) -> Result<String, TopicError> {
         let key = self.stream_key(topic);
 
         // Fast path: this instance's own observation says the stream is at its limit.
@@ -1049,6 +1056,11 @@ impl TopicBackend for RedisTopicBackend {
             .arg("*")
             .arg("payload")
             .arg(payload)
+            // Recorded on the entry. Redis has no partitions, so this changes nothing here - it is what a later
+            // migration to a partitioned broker reads to place the record, and writing it now means the history
+            // is already keyed when that happens.
+            .arg("partition_key")
+            .arg(partition_key)
             .cmd("XLEN")
             .arg(&key);
         let (id, length): (String, u64) = pipe.query_async(&mut conn).await?;

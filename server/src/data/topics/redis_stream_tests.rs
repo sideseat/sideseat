@@ -59,7 +59,7 @@ async fn a_full_backlog_is_refused_and_nothing_published_is_discarded() {
     let mut refusals = 0;
     for i in 0..40u32 {
         match backend
-            .stream_publish(&topic, format!("payload-{i}").as_bytes())
+            .stream_publish(&topic, "test-key", format!("payload-{i}").as_bytes())
             .await
         {
             Ok(id) => accepted.push((id, i)),
@@ -114,7 +114,11 @@ async fn consuming_the_backlog_releases_the_refusal() {
 
     // Fill until refused.
     let mut published = 0;
-    while backend.stream_publish(&topic, b"payload").await.is_ok() {
+    while backend
+        .stream_publish(&topic, "test-key", b"payload")
+        .await
+        .is_ok()
+    {
         published += 1;
         assert!(published < 100, "the limit was never enforced");
     }
@@ -168,7 +172,7 @@ async fn consuming_the_backlog_releases_the_refusal() {
 
     // And the refusal lifts, without waiting for a later publish to observe the shorter stream.
     backend
-        .stream_publish(&topic, b"after-the-drain")
+        .stream_publish(&topic, "test-key", b"after-the-drain")
         .await
         .expect("publishing resumes once the backlog is gone");
 }
@@ -190,11 +194,11 @@ async fn an_unacknowledged_entry_is_never_trimmed_and_is_redelivered() {
         .expect("create the group");
 
     let first = backend
-        .stream_publish(&topic, b"in-flight")
+        .stream_publish(&topic, "test-key", b"in-flight")
         .await
         .expect("publish");
     let second = backend
-        .stream_publish(&topic, b"following")
+        .stream_publish(&topic, "test-key", b"following")
         .await
         .expect("publish");
 
@@ -271,7 +275,7 @@ async fn the_slowest_group_decides_what_may_be_trimmed() {
 
     for i in 0..4u32 {
         backend
-            .stream_publish(&topic, format!("payload-{i}").as_bytes())
+            .stream_publish(&topic, "test-key", format!("payload-{i}").as_bytes())
             .await
             .expect("publish");
     }
@@ -428,7 +432,7 @@ async fn an_abandoned_entry_behind_fresh_ones_is_still_reclaimed() {
 
     // One entry delivered and abandoned first, so it is the oldest and the most idle.
     let abandoned = backend
-        .stream_publish(&topic, b"abandoned")
+        .stream_publish(&topic, "test-key", b"abandoned")
         .await
         .expect("publish");
     let mut doomed = backend
@@ -449,7 +453,7 @@ async fn an_abandoned_entry_behind_fresh_ones_is_still_reclaimed() {
     // would fill the first `count` slots and hide the abandoned one.
     for i in 0..10u32 {
         backend
-            .stream_publish(&topic, format!("fresh-{i}").as_bytes())
+            .stream_publish(&topic, "test-key", format!("fresh-{i}").as_bytes())
             .await
             .expect("publish");
     }
@@ -505,11 +509,11 @@ async fn a_chronically_failing_entry_never_starves_the_others_and_is_never_disca
         .expect("group");
 
     let poison = backend
-        .stream_publish(&topic, b"poison")
+        .stream_publish(&topic, "test-key", b"poison")
         .await
         .expect("publish");
     let behind = backend
-        .stream_publish(&topic, b"behind")
+        .stream_publish(&topic, "test-key", b"behind")
         .await
         .expect("publish");
 
@@ -610,7 +614,7 @@ async fn an_entry_beyond_one_scan_window_is_still_reached() {
     for i in 0..12u32 {
         ids.push(
             backend
-                .stream_publish(&topic, format!("entry-{i}").as_bytes())
+                .stream_publish(&topic, "test-key", format!("entry-{i}").as_bytes())
                 .await
                 .expect("publish"),
         );
@@ -748,7 +752,9 @@ async fn a_required_replica_ack_is_refused_without_a_replica() {
         .expect("connect to the test Redis");
     let topic = format!("waitaof-{}", uuid::Uuid::new_v4());
 
-    let result = backend.stream_publish(&topic, b"needs a replica").await;
+    let result = backend
+        .stream_publish(&topic, "test-key", b"needs a replica")
+        .await;
     match result {
         Err(TopicError::Stream(msg)) => assert!(
             msg.contains("replica"),
@@ -778,7 +784,7 @@ async fn a_decodable_but_invalid_payload_can_be_dead_lettered() {
         .expect("group");
 
     let id = backend
-        .stream_publish(&topic, b"not-a-valid-protobuf")
+        .stream_publish(&topic, "test-key", b"not-a-valid-protobuf")
         .await
         .expect("publish");
 
@@ -826,7 +832,7 @@ async fn the_scan_cursor_survives_a_restart() {
     for i in 0..6u32 {
         ids.push(
             backend
-                .stream_publish(&topic, format!("entry-{i}").as_bytes())
+                .stream_publish(&topic, "test-key", format!("entry-{i}").as_bytes())
                 .await
                 .expect("publish"),
         );
@@ -961,7 +967,7 @@ async fn rotation_reaches_later_entries_past_a_repeatedly_reclaimed_one() {
     for i in 0..4u32 {
         ids.push(
             backend
-                .stream_publish(&topic, format!("entry-{i}").as_bytes())
+                .stream_publish(&topic, "test-key", format!("entry-{i}").as_bytes())
                 .await
                 .expect("publish"),
         );
@@ -1042,7 +1048,7 @@ async fn a_malformed_cursor_value_is_replaced() {
     for i in 0..4u32 {
         ids.push(
             backend
-                .stream_publish(&topic, format!("entry-{i}").as_bytes())
+                .stream_publish(&topic, "test-key", format!("entry-{i}").as_bytes())
                 .await
                 .expect("publish"),
         );

@@ -69,10 +69,41 @@ pub trait TopicBackend: Send + Sync {
     // Stream - at-least-once with acknowledgment
     // =========================================================================
 
-    /// Publish message to stream topic
+    /// Publish message to stream topic, under a **partition key**.
     ///
     /// Returns the message ID. Messages persist until acknowledged.
-    async fn stream_publish(&self, topic: &str, payload: &[u8]) -> Result<String, TopicError>;
+    ///
+    /// **The key is not optional and not a hint.** Kafka and RedPanda serialise only *within* a partition, so
+    /// which key a record carries decides what order anything downstream can rely on - and `stream_publish` had
+    /// no key at all, which meant a Kafka adapter could not even be expressed without inventing one per call.
+    ///
+    /// It is a **per-signal contract**, declared by the caller, because no single rule fits all three signals:
+    ///
+    /// | Signal | Key |
+    /// | --- | --- |
+    /// | Spans | the trace id, always |
+    /// | Metrics | `(project, instrument)` |
+    /// | Logs | the trace id when present, else `(project, resource, scope)` |
+    ///
+    /// Spans key on the **trace id and nothing else**, and the reason is that every weaker rule reintroduces the
+    /// split it exists to prevent. "Session id when the batch carries one, else trace id" is not stable: a
+    /// session id lives on the span that knows it, usually the root, so a child-only batch keys on the trace
+    /// while a later batch carrying the root keys on the session - the same trace in two partitions, mid
+    /// conversation. A trace id is total, immutable, and knowable from the span alone.
+    ///
+    /// What that gives up is conversation-level serialisation, which is harmless here: ingestion is idempotent by
+    /// span id and conversations are reconstructed at query time. A consumer that needs per-conversation order
+    /// keys at its own level.
+    ///
+    /// The in-process backend ignores the key - it has one partition by construction - but takes it, so the
+    /// callers are already correct when a partitioned adapter arrives. That is the point of putting it in the
+    /// contract now rather than with the adapter.
+    async fn stream_publish(
+        &self,
+        topic: &str,
+        partition_key: &str,
+        payload: &[u8],
+    ) -> Result<String, TopicError>;
 
     /// Subscribe to stream topic with consumer group
     ///

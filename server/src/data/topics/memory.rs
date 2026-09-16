@@ -219,7 +219,15 @@ impl TopicBackend for MemoryTopicBackend {
     // Stream
     // =========================================================================
 
-    async fn stream_publish(&self, topic: &str, payload: &[u8]) -> Result<String, TopicError> {
+    async fn stream_publish(
+        &self,
+        topic: &str,
+        // Ignored, and that is correct rather than unfinished: this backend is one process with one queue per
+        // topic, so there is nothing to partition and ordering is already total. It is in the signature so every
+        // caller states its key now, and a partitioned adapter needs no caller changes.
+        _partition_key: &str,
+        payload: &[u8],
+    ) -> Result<String, TopicError> {
         let id = {
             let mut streams = self.state.streams.write();
             let stream = streams.entry(topic.to_string()).or_default();
@@ -502,7 +510,10 @@ mod tests {
         let backend = MemoryTopicBackend::new();
 
         // Publish first
-        let id = backend.stream_publish("stream", b"msg1").await.unwrap();
+        let id = backend
+            .stream_publish("stream", "test-key", b"msg1")
+            .await
+            .unwrap();
         assert_eq!(id, "1");
 
         // Subscribe
@@ -539,8 +550,14 @@ mod tests {
         let backend = MemoryTopicBackend::new();
 
         // Publish messages
-        backend.stream_publish("stream", b"msg1").await.unwrap();
-        backend.stream_publish("stream", b"msg2").await.unwrap();
+        backend
+            .stream_publish("stream", "test-key", b"msg1")
+            .await
+            .unwrap();
+        backend
+            .stream_publish("stream", "test-key", b"msg2")
+            .await
+            .unwrap();
 
         let stats = backend.stream_stats("stream", "group1").await.unwrap();
         assert_eq!(stats.length, 2);
