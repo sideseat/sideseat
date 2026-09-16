@@ -125,6 +125,16 @@ pub trait TopicBackend: Send + Sync {
     ///
     /// Removes the message from the pending list. Must be called after
     /// successful processing to prevent re-delivery.
+    ///
+    /// **By id, which a partitioned broker cannot do.** Redis's `XACK` removes exactly the entry named; Kafka and
+    /// RedPanda commit an *offset*, and committing offset N asserts that everything below N is done. So an adapter
+    /// that passes this straight through acknowledges an **earlier failure** the moment a later record succeeds,
+    /// and that record is never redelivered - accepted data lost after a 200, invisibly. That is the same shape as
+    /// the `MAXLEN` trim already removed from the Redis publisher.
+    ///
+    /// Such an adapter must therefore track completed offsets and commit only the highest contiguous prefix:
+    /// [`crate::data::topics::ack_window::AckWindow`] is that, written and tested ahead of the adapter because the
+    /// property belongs to the contract rather than to any client library.
     async fn stream_ack(&self, topic: &str, group: &str, id: &str) -> Result<(), TopicError>;
 
     /// Acknowledge multiple messages in a single call

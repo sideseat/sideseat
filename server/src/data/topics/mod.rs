@@ -18,6 +18,8 @@
 //! - `database.cache = "memory"` → in-memory topics
 //! - `database.cache = "redis"` → Redis Streams + Pub/Sub
 
+/// Contiguous-offset acknowledgement, for a broker that commits offsets rather than ids.
+pub mod ack_window;
 mod error;
 pub use error::TopicError;
 
