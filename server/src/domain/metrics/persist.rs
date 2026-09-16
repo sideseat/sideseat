@@ -2,12 +2,13 @@
 //!
 //! Simple batch writes for normalized metrics.
 
-use std::sync::Arc;
-
-use crate::data::AnalyticsService;
+// The **port**, not the service enum. `AnalyticsService` is a composition-root type - an enum over the concrete
+// adapters - so a domain function taking one names every backend that exists, and the domain crate could not be
+// separate from the adapters. What this needs is the trait.
 use sideseat_core::utils::retry::{
     DEFAULT_BASE_DELAY_MS, DEFAULT_MAX_ATTEMPTS, retry_with_backoff_async,
 };
+use sideseat_ports::traits::AnalyticsRepository;
 use sideseat_ports::types::NormalizedMetric;
 
 /// Persist metrics batch to analytics backend with exponential backoff retry.
@@ -17,10 +18,9 @@ use sideseat_ports::types::NormalizedMetric;
 /// request had already been answered 200, the records were gone with the exporter believing otherwise.
 pub async fn persist_batch(
     metrics: &[NormalizedMetric],
-    analytics: &Arc<AnalyticsService>,
+    repo: &(dyn AnalyticsRepository + Send + Sync),
 ) -> Result<(), String> {
     let metric_count = metrics.len();
-    let repo = analytics.repository();
 
     let result = retry_with_backoff_async(DEFAULT_MAX_ATTEMPTS, DEFAULT_BASE_DELAY_MS, || {
         repo.insert_metrics(metrics)

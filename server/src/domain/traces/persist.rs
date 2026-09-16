@@ -27,7 +27,8 @@ use super::extract::files::{
     extract_and_replace_files_cached,
 };
 use super::extract::{RawMessage, RawToolDefinition, RawToolNames, SpanData};
-use crate::data::AnalyticsService;
+// The **port**, not the service enum: a domain function taking `AnalyticsService` names every backend that
+// exists, which is what keeps the domain and the adapters in one crate.
 use crate::data::files::FileService;
 use crate::data::topics::{TopicMessage, TopicService};
 use sideseat_core::core::constants::{
@@ -38,6 +39,7 @@ use sideseat_core::utils::retry::{
     DEFAULT_BASE_DELAY_MS, DEFAULT_MAX_ATTEMPTS, retry_with_backoff_async,
 };
 use sideseat_core::utils::time::nanos_to_iso;
+use sideseat_ports::traits::AnalyticsRepository;
 use sideseat_ports::types::{NormalizedSpan, json_to_pre_serialized};
 
 // ============================================================================
@@ -877,10 +879,9 @@ async fn write_and_record_files(
 /// compared to the DuckDB write which takes milliseconds-to-seconds.
 pub(super) async fn write_to_duckdb(
     spans: Vec<NormalizedSpan>,
-    analytics: &Arc<AnalyticsService>,
+    repo: &(dyn AnalyticsRepository + Send + Sync),
 ) -> bool {
     let span_count = spans.len();
-    let repo = analytics.repository();
 
     let result = retry_with_backoff_async(DEFAULT_MAX_ATTEMPTS, DEFAULT_BASE_DELAY_MS, || {
         repo.insert_spans(spans.clone())

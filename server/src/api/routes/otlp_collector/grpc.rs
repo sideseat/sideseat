@@ -588,14 +588,19 @@ impl MetricsService for OtlpMetricsService {
 
         // Written before the answer - see the HTTP twin: a queued acknowledgement was a 200 for records
         // an in-process buffer could lose.
-        let stored =
-            match crate::domain::ingest_metrics(&req, &self.analytics, &self.database).await {
-                Ok(stored) => stored,
-                Err(e) => {
-                    tracing::error!(error = %e, %project_id, "Failed to store metrics");
-                    return Err(Status::unavailable("could not store metrics"));
-                }
-            };
+        let stored = match crate::domain::ingest_metrics(
+            &req,
+            self.analytics.repository().as_ref(),
+            self.database.repository().as_ref(),
+        )
+        .await
+        {
+            Ok(stored) => stored,
+            Err(e) => {
+                tracing::error!(error = %e, %project_id, "Failed to store metrics");
+                return Err(Status::unavailable("could not store metrics"));
+            }
+        };
 
         // Reported, and named by cause - see the HTTP twin.
         Ok(Response::new(ExportMetricsServiceResponse {

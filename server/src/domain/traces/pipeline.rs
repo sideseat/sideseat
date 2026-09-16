@@ -838,7 +838,7 @@ impl TracePipeline {
                 )
             })
             .collect();
-        let db_ok = write_to_duckdb(all_db_spans, &self.analytics).await;
+        let db_ok = write_to_duckdb(all_db_spans, self.analytics.repository().as_ref()).await;
 
         let t_persist_done = std::time::Instant::now();
 
@@ -1956,7 +1956,7 @@ impl TracePipeline {
                     )
                 })
                 .collect();
-            let db_ok = write_to_duckdb(db_spans, &self.analytics).await;
+            let db_ok = write_to_duckdb(db_spans, self.analytics.repository().as_ref()).await;
             if !db_ok {
                 self.release_created_associations(&created_associations)
                     .await;

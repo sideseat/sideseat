@@ -60,21 +60,26 @@ pub async fn export(
     // Written before the answer, not queued behind it. A 200 used to mean "in an in-process buffer", so
     // a crash or a database that stayed down through its retries lost records the exporter had counted as
     // delivered - and nothing surfaced it. A failure is now a 503 the exporter retries.
-    let stored =
-        match crate::domain::ingest_metrics(&request, &state.analytics, &state.database).await {
-            Ok(stored) => stored,
-            Err(e) => {
-                tracing::error!(error = %e, %project_id, "Failed to store metrics");
-                return (
-                    StatusCode::SERVICE_UNAVAILABLE,
-                    [(
-                        HeaderName::from_static("retry-after"),
-                        BACKPRESSURE_RETRY_AFTER_SECS.to_string(),
-                    )],
-                )
-                    .into_response();
-            }
-        };
+    let stored = match crate::domain::ingest_metrics(
+        &request,
+        state.analytics.repository().as_ref(),
+        state.database.repository().as_ref(),
+    )
+    .await
+    {
+        Ok(stored) => stored,
+        Err(e) => {
+            tracing::error!(error = %e, %project_id, "Failed to store metrics");
+            return (
+                StatusCode::SERVICE_UNAVAILABLE,
+                [(
+                    HeaderName::from_static("retry-after"),
+                    BACKPRESSURE_RETRY_AFTER_SECS.to_string(),
+                )],
+            )
+                .into_response();
+        }
+    };
 
     // Anything dropped is *reported* dropped. A project that stopped accepting writes between the check
     // above and the write leaves records unstored, and an unqualified success would have the exporter

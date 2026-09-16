@@ -18,15 +18,16 @@
 //! correct.
 
 use std::collections::HashSet;
-use std::sync::Arc;
 
 use opentelemetry_proto::tonic::collector::metrics::v1::ExportMetricsServiceRequest;
 
 use super::extract::extract_metrics_batch;
 use super::persist::persist_batch;
-use crate::data::{AnalyticsService, TransactionalService};
+// The **ports**, not the service enums: see `persist.rs` for why a domain function must not name an enum over
+// the concrete adapters.
 use sideseat_core::core::constants::DEFAULT_PROJECT_ID;
 use sideseat_core::utils::time::is_storable;
+use sideseat_ports::traits::{AnalyticsRepository, TransactionalRepository};
 
 /// How many of a request's data points were stored, out of how many it had, and **why** the rest were not.
 ///
@@ -76,8 +77,8 @@ impl Stored {
 /// Extract, fence and write a metrics request. `Err` means nothing was stored and a retry is warranted.
 pub async fn ingest(
     request: &ExportMetricsServiceRequest,
-    analytics: &Arc<AnalyticsService>,
-    database: &Arc<TransactionalService>,
+    analytics: &(dyn AnalyticsRepository + Send + Sync),
+    database: &(dyn TransactionalRepository + Send + Sync),
 ) -> Result<Stored, String> {
     let mut metrics = extract_metrics_batch(request);
     let total = metrics.len();
@@ -101,10 +102,9 @@ pub async fn ingest(
         .collect();
     projects.sort_unstable();
     projects.dedup();
-    let repo = database.repository();
     let mut refusing: HashSet<String> = HashSet::new();
     for project in projects {
-        match repo.project_accepts_writes(project).await {
+        match database.project_accepts_writes(project).await {
             Ok(false) => {
                 refusing.insert(project.to_string());
             }
