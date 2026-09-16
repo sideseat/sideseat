@@ -593,9 +593,28 @@ fn weight_of(result: &FeedResult) -> u32 {
         return u32::MAX;
     }
 
+    // The `#[serde(skip)]` fields, measured directly.
+    //
+    // A flat per-block charge cannot cover these, because they are *unbounded*: `span_name`, `scope_name` and
+    // `scope_version` come off the span row and are as long as a producer makes them, and `position` grows with
+    // the payload's nesting. Serialisation never sees any of them, so two blocks carrying 40 MiB span names
+    // weighed about a kilobyte between them while retaining 80 MiB - which made the byte ceiling not a ceiling,
+    // the one property this weigher exists to provide.
+    let skipped: u64 = result
+        .messages
+        .iter()
+        .map(|block| {
+            let names = block.span_name.as_ref().map_or(0, String::len)
+                + block.scope_name.as_ref().map_or(0, String::len)
+                + block.scope_version.as_ref().map_or(0, String::len);
+            (names + block.position.approximate_bytes()) as u64
+        })
+        .sum();
+
     let overhead =
         (result.messages.len() as u64).saturating_mul(RECONSTRUCTION_CACHE_ENTRY_OVERHEAD_BYTES);
     sink.0
+        .saturating_add(skipped)
         .saturating_add(overhead)
         .try_into()
         .unwrap_or(u32::MAX)
@@ -631,6 +650,82 @@ mod weight_tests {
             weight_of(&larger),
             empty_weight
         );
+    }
+
+    /// A field serialisation cannot see is still charged.
+    ///
+    /// The exact scenario the weigher missed: `span_name` is `#[serde(skip)]`, so a block carrying a megabyte
+    /// of it serialised to nothing and weighed like an empty block. Without this the 64 MB ceiling admits
+    /// unbounded memory, and every other test here passes.
+    #[test]
+    fn a_serde_skipped_field_is_charged() {
+        let plain = FeedResult {
+            messages: vec![block_with_span_name(None)],
+            ..FeedResult::default()
+        };
+        let heavy = FeedResult {
+            messages: vec![block_with_span_name(Some("n".repeat(1024 * 1024)))],
+            ..FeedResult::default()
+        };
+
+        let plain_weight = weight_of(&plain);
+        let heavy_weight = weight_of(&heavy);
+        assert!(
+            heavy_weight as u64 >= plain_weight as u64 + 1024 * 1024,
+            "a 1 MiB span name must be charged: {plain_weight} vs {heavy_weight}"
+        );
+    }
+
+    /// A block whose only difference is an unserialised span name.
+    fn block_with_span_name(span_name: Option<String>) -> crate::domain::sideml::feed::BlockEntry {
+        use crate::domain::sideml::provenance::PositionPath;
+        use crate::domain::sideml::types::{ChatRole, ContentBlock};
+        use chrono::TimeZone;
+        let t = chrono::Utc
+            .with_ymd_and_hms(2026, 1, 1, 0, 0, 0)
+            .single()
+            .expect("valid time");
+        crate::domain::sideml::feed::BlockEntry {
+            position: PositionPath::default(),
+            entry_type: "text".to_string(),
+            content: ContentBlock::Text {
+                text: "hi".to_string(),
+            },
+            role: ChatRole::User,
+            trace_id: "t".to_string(),
+            span_id: "s".to_string(),
+            session_id: None,
+            message_index: 0,
+            entry_index: 0,
+            parent_span_id: None,
+            span_path: Vec::new(),
+            timestamp: t,
+            order_time: t,
+            span_name,
+            scope_name: None,
+            scope_version: None,
+            observation_type: None,
+            model: None,
+            provider: None,
+            name: None,
+            finish_reason: None,
+            tool_use_id: None,
+            tool_name: None,
+            tokens: None,
+            cost: None,
+            status_code: None,
+            is_error: false,
+            source_type: "attribute".to_string(),
+            event_name: None,
+            source_attribute: Some("carrier".to_string()),
+            category: sideseat_ports::types::MessageCategory::GenAIUserMessage,
+            content_hash: "hi".to_string(),
+            is_semantic: true,
+            uses_span_end: false,
+            is_history: false,
+            tool_use_id_correlated: false,
+            promoted_to_span_output: false,
+        }
     }
 
     /// The declared ceiling admits a useful number of ordinary answers.

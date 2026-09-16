@@ -1165,7 +1165,7 @@ impl DeletionJournal for PostgresRepository {
         &self,
         after_sequence: i64,
         limit: usize,
-    ) -> Result<Vec<(i64, DeletionRecord)>, DataError> {
+    ) -> Result<(Vec<(i64, DeletionRecord)>, i64), DataError> {
         journal::deletions_since(self.0.pool(), after_sequence, limit)
             .await
             .map_err(Into::into)

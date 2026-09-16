@@ -50,6 +50,10 @@ FIXTURE_NAME="${FOOTPRINT_FIXTURE:-langgraph/swarm}"
 # Concurrent posters. One is not steady ingest: a single sequential poster idles between requests, and the
 # resident figure would then describe a server at a fraction of the target rate.
 LOADERS="${FOOTPRINT_LOADERS:-4}"
+# A per-request ceiling for the load generator. Without one a stalled response blocks its loader forever, and
+# waiting for that pid is the same hang a bare `wait` produced. Generous against the large-export p99 this
+# repository documents, so it fires on a stall rather than on a slow write.
+LOADER_TIMEOUT_SECS="${FOOTPRINT_LOADER_TIMEOUT_SECS:-30}"
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 WORK="$(mktemp -d)"
@@ -163,10 +167,21 @@ for loader in $(seq 1 "$LOADERS"); do
     while [ ! -f "$STOP_FILE" ]; do
       for f in "$FIXTURE"/*.pb; do
         [ -f "$STOP_FILE" ] && break
-        status="$(curl -s -o /dev/null -w '%{http_code}' -X POST --data-binary @"$f" \
-          -H 'Content-Type: application/x-protobuf' "http://127.0.0.1:$PORT/otel/default/v1/traces")"
+        # `--max-time`, or a stalled response blocks this loader forever and the pid wait below never returns -
+        # the same hang the bare `wait` produced, reached from the other side.
+        #
+        # `|| true` on the assignment, and the curl exit status captured separately: without it a transport
+        # error (exit 7, 28, ...) trips `set -e` and kills this subshell *before* it records anything, so the
+        # verdict below reads a clean `post-errors` and reports a pass for a run whose load stopped early.
+        status="$(curl -s --max-time "$LOADER_TIMEOUT_SECS" -o /dev/null -w '%{http_code}' \
+          -X POST --data-binary @"$f" -H 'Content-Type: application/x-protobuf' \
+          "http://127.0.0.1:$PORT/otel/default/v1/traces")" || curl_status=$?
+        if [ "${curl_status:-0}" != "0" ]; then
+          echo "loader $loader: curl failed with exit ${curl_status}" >>"$WORK/post-errors"
+          exit 0
+        fi
         if [ "$status" != "200" ]; then
-          echo "loader $loader got $status" >>"$WORK/post-errors"
+          echo "loader $loader got HTTP $status" >>"$WORK/post-errors"
           exit 0
         fi
         echo x >>"$WORK/posted"
@@ -217,12 +232,24 @@ echo "[footprint] achieved ~$ACHIEVED spans/s from $POSTED requests across $LOAD
 # 5 000 spans/s stays under 400 MB, and reporting it as a pass is the "gate that sees less than it claims"
 # shape this file exists to avoid.
 #
-# A floor rather than the exact target, because a load generator built from `curl` in a loop will not hit
-# 5 000 spans/s on every host, and demanding it exactly would make the gate unrunnable rather than strict.
+# A floor just below the target rather than the exact figure, because a `curl`-in-a-loop generator will not hit
+# 5 000 spans/s to the request on every host. 90%, not 50%: at half the rate the measurement describes a
+# materially different workload, and a system at 300 MB under 2 500 spans/s can be at 500 MB under 5 000 - so a
+# 50% floor was the same false pass in a smaller size.
 # `FOOTPRINT_MIN_RATE_FRACTION` is what an operator lowers deliberately, which leaves a record in the command
 # rather than in a note nobody reads.
-MIN_RATE="$(awk -v target="$TARGET_SPANS_PER_SECOND" -v frac="${FOOTPRINT_MIN_RATE_FRACTION:-0.5}" \
+# The fraction is validated before it is used. `awk` happily emits `nan` for a non-numeric one, and the integer
+# comparison below then errors *inside* an `if`, where `set -e` does not terminate the script - so the gate would
+# be skipped rather than failed, which is the shape this whole file exists to remove.
+RATE_FRACTION="${FOOTPRINT_MIN_RATE_FRACTION:-0.9}"
+case "$RATE_FRACTION" in
+  ''|*[!0-9.]*|*.*.*) fail "FOOTPRINT_MIN_RATE_FRACTION must be a number, got '$RATE_FRACTION'" ;;
+esac
+MIN_RATE="$(awk -v target="$TARGET_SPANS_PER_SECOND" -v frac="$RATE_FRACTION" \
   'BEGIN { printf "%.0f", target * frac }')"
+case "$MIN_RATE" in
+  ''|*[!0-9]*) fail "could not compute a rate floor from target=$TARGET_SPANS_PER_SECOND fraction=$RATE_FRACTION" ;;
+esac
 if [ "$ACHIEVED" -lt "$MIN_RATE" ]; then
   fail "achieved ~$ACHIEVED spans/s, below the $MIN_RATE floor for a ceiling stated at $TARGET_SPANS_PER_SECOND spans/s. The resident figure describes a lighter workload than the ceiling claims, so it is not evidence about the ceiling. Raise the load (FOOTPRINT_LOADERS) or lower the floor deliberately (FOOTPRINT_MIN_RATE_FRACTION)."
 fi

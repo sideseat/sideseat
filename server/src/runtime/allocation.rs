@@ -33,12 +33,24 @@
 // jemalloc's own statistics, which needs no `unsafe` and measures the wrong thing (see the module docs).
 
 use std::alloc::{GlobalAlloc, Layout};
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicI64, AtomicU64, Ordering};
 
-/// Bytes handed out by [`CountingAllocator`] since the process started.
+/// Bytes handed out by [`CountingAllocator`] since the process started. Monotone; the churn figure.
 static ALLOCATED: AtomicU64 = AtomicU64::new(0);
-/// Bytes returned to it.
-static FREED: AtomicU64 = AtomicU64::new(0);
+
+/// Bytes allocated and not yet freed, as **one** atomic.
+///
+/// Not derived from an `allocated` and a `freed` counter, and that was the first design's mistake. Two separate
+/// `Relaxed` atomics cannot be read consistently: statement order in the writer says nothing about the order a
+/// reader observes them in, so on weakly ordered hardware a reader can see the newer `freed` beside an older
+/// `allocated` and compute a live figure that was never true - understating by the size of whatever was in
+/// flight, which is the direction that lets a footprint gate pass during a regression. Reordering the two
+/// `fetch_add`s does not fix it; it only fixes the *source*, which was the gap the second attempt left open.
+///
+/// One counter removes the question. `i64` rather than `u64` because a `dealloc` may be observed before its
+/// `alloc` on another thread, so the value can dip below zero transiently - which is reported as zero rather
+/// than as a number near `u64::MAX`.
+static LIVE: AtomicI64 = AtomicI64::new(0);
 
 #[cfg(not(target_os = "windows"))]
 type PinnedBackend = tikv_jemallocator::Jemalloc;
@@ -86,12 +98,13 @@ unsafe impl<A: GlobalAlloc> GlobalAlloc for CountingAllocator<A> {
         let ptr = unsafe { self.backend.alloc(layout) };
         if !ptr.is_null() {
             ALLOCATED.fetch_add(layout.size() as u64, Ordering::Relaxed);
+            LIVE.fetch_add(layout.size() as i64, Ordering::Relaxed);
         }
         ptr
     }
 
     unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
-        FREED.fetch_add(layout.size() as u64, Ordering::Relaxed);
+        LIVE.fetch_sub(layout.size() as i64, Ordering::Relaxed);
         unsafe { self.backend.dealloc(ptr, layout) }
     }
 
@@ -103,15 +116,13 @@ unsafe impl<A: GlobalAlloc> GlobalAlloc for CountingAllocator<A> {
         // counter moves.
         let new_ptr = unsafe { self.backend.realloc(ptr, layout, new_size) };
         if !new_ptr.is_null() {
-            // `ALLOCATED` **before** `FREED`, and this order is the whole correctness of the pair.
-            //
-            // The other way round, a snapshot landing between the two atomics sees the old size freed and the
-            // new size not yet allocated - so a 100 MiB block grown to 200 MiB reads as 100 MiB *less* live
-            // when it is 100 MiB more, an undercount of 200 MiB. A footprint gate reading that passes during
-            // exactly the regression it exists to catch. This order makes the transient error an
-            // *over*-estimate, which is the direction every measurement in this module is biased towards.
+            // The live delta as **one** atomic operation, which is why there is no ordering question here at
+            // all. Two updates - a free of the old size and an allocation of the new - leave a window in which
+            // a reader sees one and not the other, and no arrangement of two `Relaxed` atomics closes it: a
+            // 100 MiB block grown to 200 MiB could read as 100 MiB *less* live when it is 100 MiB more, and a
+            // gate reading that passes during exactly the regression it exists to catch.
             ALLOCATED.fetch_add(new_size as u64, Ordering::Relaxed);
-            FREED.fetch_add(layout.size() as u64, Ordering::Relaxed);
+            LIVE.fetch_add(new_size as i64 - layout.size() as i64, Ordering::Relaxed);
         }
         new_ptr
     }
@@ -122,6 +133,7 @@ unsafe impl<A: GlobalAlloc> GlobalAlloc for CountingAllocator<A> {
         let ptr = unsafe { self.backend.alloc_zeroed(layout) };
         if !ptr.is_null() {
             ALLOCATED.fetch_add(layout.size() as u64, Ordering::Relaxed);
+            LIVE.fetch_add(layout.size() as i64, Ordering::Relaxed);
         }
         ptr
     }
@@ -134,25 +146,28 @@ static GLOBAL: CountingAllocator<PinnedBackend> = CountingAllocator::new(PINNED_
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct AllocationSnapshot {
     allocated: u64,
-    freed: u64,
+    live: i64,
 }
 
 impl AllocationSnapshot {
     /// Take a reading now.
+    ///
+    /// `live` is a single atomic load, so it is a value that was actually true at some instant rather than an
+    /// arithmetic combination of two counters read at different ones. `allocated` is read separately and is
+    /// only used for churn, where a monotone counter needs no consistency with anything.
     pub fn now() -> Self {
-        // `freed` first, and this order is load-bearing. Read the other way round, a free landing between
-        // the two loads is counted while its allocation is not, so `live` underflows - and a footprint gate
-        // that occasionally reports a preposterous number is a gate people learn to rerun rather than read.
-        // This way the error is in the safe direction: `live` can overstate by whatever was freed in
-        // between, never understate.
-        let freed = FREED.load(Ordering::Relaxed);
+        let live = LIVE.load(Ordering::Relaxed);
         let allocated = ALLOCATED.load(Ordering::Relaxed);
-        Self { allocated, freed }
+        Self { allocated, live }
     }
 
     /// Bytes allocated and not yet freed.
+    ///
+    /// Clamped at zero: a `dealloc` can be observed before the `alloc` it matches, so the counter dips negative
+    /// transiently, and a footprint gate reporting a preposterous number is one people learn to rerun rather
+    /// than read.
     pub fn live(&self) -> u64 {
-        self.allocated.saturating_sub(self.freed)
+        self.live.max(0) as u64
     }
 
     /// How much more is live now than in `earlier`.
@@ -252,48 +267,61 @@ mod tests {
         // only sound statement is that the release was counted, which the churn and the free above show.
     }
 
-    /// Every counter update is ordered so a torn read over-estimates rather than under-estimates.
+    /// The live figure comes from exactly one atomic, so no read of it can be torn.
     ///
-    /// Read as source text, because the property is about *statement order* inside `unsafe` blocks and no
-    /// runtime test can catch the interleaving reliably. `realloc` had it backwards: freeing the old size
-    /// before recording the new allocation made a growing block read as *shrinking* between the two atomics,
-    /// so a gate could pass during the regression it exists to catch.
+    /// This replaces an ordering argument that did not hold. The first version derived `live` from an
+    /// `allocated` and a `freed` counter and claimed the *source order* of the two `fetch_add`s made a torn read
+    /// over-estimate - which is false: two `Relaxed` atomics may be observed in either order whatever the source
+    /// says, so a reader could see the newer free beside the older allocation and compute a figure that was
+    /// never true, understating by whatever was in flight. That is the direction that lets a gate pass during a
+    /// regression, and no arrangement of two counters closes it.
+    ///
+    /// Read as source text because the property is about which atomics exist, and a runtime test cannot
+    /// reliably produce the interleaving it would need to fail.
     #[test]
-    fn every_counter_pair_is_ordered_to_over_estimate() {
-        let source = include_str!("allocation.rs");
-        let realloc = source
-            .split_once("unsafe fn realloc")
-            .expect("realloc is defined here")
-            .1;
-        let body = realloc
-            .split_once("unsafe fn alloc_zeroed")
-            .map(|(before, _)| before)
-            .unwrap_or(realloc);
-        let allocated_at = body
-            .find("ALLOCATED.fetch_add")
-            .expect("realloc records an allocation");
-        let freed_at = body
-            .find("FREED.fetch_add")
-            .expect("realloc records a free");
+    fn the_live_figure_is_a_single_atomic() {
+        let source: String = include_str!("allocation.rs")
+            .lines()
+            .filter(|line| !line.trim_start().starts_with("//"))
+            .filter(|line| !line.trim_start().starts_with("///"))
+            .collect::<Vec<_>>()
+            .join("\n");
+
+        // Needles assembled from pieces, because this test's own text is inside the source it reads: written
+        // literally, `contains("static FREED")` is satisfied by this very line and the assertion can never
+        // fail. It did exactly that on the first run.
+        let freed_counter = concat!("static ", "FREED");
+        let live_load = concat!("LIVE", ".load");
         assert!(
-            allocated_at < freed_at,
-            "realloc must add to ALLOCATED before FREED: the other order makes a growing block read as \
-             shrinking between the two atomics, which under-reports live bytes by twice the growth"
+            !source.contains(freed_counter),
+            "a separate freed counter is back, and the live figure cannot be derived from two atomics \
+             consistently"
+        );
+        assert_eq!(
+            source.matches(live_load).count(),
+            1,
+            "the live figure must come from one load, in one place"
         );
 
-        // And the snapshot reads them the other way round, for the same reason from the other side: reading
-        // `freed` first means concurrent activity can only make `freed` stale-small and `allocated`
-        // fresh-large, which over-estimates.
-        let snapshot = source
-            .split_once("pub fn now() -> Self {")
-            .expect("the snapshot constructor is here")
-            .1;
-        let freed_read = snapshot.find("FREED.load").expect("reads FREED");
-        let allocated_read = snapshot.find("ALLOCATED.load").expect("reads ALLOCATED");
-        assert!(
-            freed_read < allocated_read,
-            "AllocationSnapshot::now must read FREED before ALLOCATED, or `live` can underflow"
-        );
+        // And every path that hands out or returns memory adjusts it. Missing one would make the counter drift
+        // silently in whichever direction that path goes.
+        for method in [
+            "fn alloc(",
+            "fn dealloc(",
+            "fn realloc(",
+            "fn alloc_zeroed(",
+        ] {
+            let body = source
+                .split_once(method)
+                .unwrap_or_else(|| panic!("{method} is defined here"))
+                .1;
+            let body = &body[..body.find("\n    unsafe fn").unwrap_or(body.len().min(2000))];
+            assert!(
+                body.contains(concat!("LIVE", ".fetch_add"))
+                    || body.contains(concat!("LIVE", ".fetch_sub")),
+                "{method} does not adjust the live counter"
+            );
+        }
     }
 
     /// A reading never reports negative live bytes, whichever way the counters were caught.
@@ -304,12 +332,12 @@ mod tests {
 
         let inverted = AllocationSnapshot {
             allocated: 100,
-            freed: 200,
+            live: -200,
         };
         assert_eq!(
             inverted.live(),
             0,
-            "more freed than allocated reads as zero, not as a number near u64::MAX"
+            "a transiently negative counter reads as zero, not as a number near u64::MAX"
         );
         assert_eq!(
             inverted.growth_since(&observed),

@@ -28,7 +28,8 @@ use super::backend::{
 };
 use crate::data::topics::TopicError;
 use sideseat_core::core::constants::{
-    STREAM_ENTRY_OVERHEAD_BYTES, STREAM_MAX_RETAINED_BYTES, STREAM_PENDING_RECORD_OVERHEAD_BYTES,
+    STREAM_ENTRY_OVERHEAD_BYTES, STREAM_MAX_CONSUMER_GROUPS, STREAM_MAX_RETAINED_BYTES,
+    STREAM_PENDING_RECORD_OVERHEAD_BYTES,
 };
 
 /// Default broadcast channel capacity
@@ -409,6 +410,33 @@ impl TopicBackend for MemoryTopicBackend {
             let stream = streams
                 .entry(topic.to_string())
                 .or_insert_with(|| StreamState::with_budget(self.state.stream_max_bytes));
+
+            // The group count is bounded here, because the byte budget cannot bound it.
+            //
+            // Group state grows at *delivery*, and delivery has no useful refusal: declining to hand an entry to
+            // a subscribed consumer stalls it. So charging pending records at publish - which this does - stops
+            // a backlog being admitted while group state is already large, and does nothing about one retained
+            // entry delivered to unboundedly many groups. A bound on the number of groups is the part that
+            // closes it, and this is the one place a new group appears.
+            //
+            // Refused rather than silently accepted, because a stream with dozens of groups is a mistake in the
+            // calling code and the message says so.
+            if !stream.groups.contains_key(group)
+                && stream.groups.len() >= STREAM_MAX_CONSUMER_GROUPS
+            {
+                tracing::error!(
+                    topic,
+                    group,
+                    groups = stream.groups.len(),
+                    max = STREAM_MAX_CONSUMER_GROUPS,
+                    "refusing a new consumer group: each holds a pending record per unacknowledged entry, so \
+                     an unbounded number of groups is unbounded memory the byte budget cannot see"
+                );
+                return Err(TopicError::ConsumerGroup(format!(
+                    "stream {topic} already has {} consumer groups (max {STREAM_MAX_CONSUMER_GROUPS})",
+                    stream.groups.len()
+                )));
+            }
             stream.groups.entry(group.to_string()).or_default();
         }
 
@@ -426,7 +454,14 @@ impl TopicBackend for MemoryTopicBackend {
                     match streams.get_mut(&topic) {
                         None => (None, false),
                         Some(stream_state) => {
-                            let cg = stream_state.groups.entry(group.clone()).or_default();
+                            // `get_mut`, not `entry(..).or_default()`: creating a group here would bypass the
+                            // cap that `stream_subscribe` enforces, so the one place a group appears stays the
+                            // one place it is counted. The group exists because `stream_subscribe` created it
+                            // before handing out this stream; if a `stream_trim_consumed` or a future path
+                            // removed it, the subscription is over rather than silently re-registered.
+                            let Some(cg) = stream_state.groups.get_mut(&group) else {
+                                break;
+                            };
 
                             // The next entry past the *group's* cursor. Read from the group rather than from a
                             // cursor local to this task, so two consumers of one group split the stream
@@ -1008,6 +1043,41 @@ mod admission_tests {
             matches!(refused, Err(TopicError::BufferFull)),
             "four groups each holding a pending record cost real memory the budget has to see; got {refused:?}"
         );
+    }
+
+    /// The number of consumer groups is bounded, because their pending state is not bounded by bytes.
+    ///
+    /// Charging pending records at publish is only half a bound: group state grows at *delivery*, and delivery
+    /// cannot refuse without stalling a consumer. So one retained entry delivered to unboundedly many groups is
+    /// unbounded memory the byte budget cannot see, and the group count is where that closes.
+    #[tokio::test]
+    async fn the_consumer_group_count_is_bounded() {
+        let backend = MemoryTopicBackend::new();
+        backend
+            .stream_publish("t", "k", b"payload")
+            .await
+            .expect("publish");
+
+        for n in 0..STREAM_MAX_CONSUMER_GROUPS {
+            backend
+                .stream_subscribe("t", &format!("g{n}"), "c")
+                .await
+                .unwrap_or_else(|e| panic!("group {n} is within the cap: {e}"));
+        }
+
+        let refused = backend.stream_subscribe("t", "one-too-many", "c").await;
+        assert!(
+            matches!(refused, Err(TopicError::ConsumerGroup(_))),
+            "a group past the cap must be refused with a reason; got {:?}",
+            refused.map(|_| "subscribed")
+        );
+
+        // An existing group re-subscribing is not a new group, so it is never refused - which is what a
+        // reconnecting consumer does.
+        backend
+            .stream_subscribe("t", "g0", "c2")
+            .await
+            .expect("re-subscribing to an existing group is not a new group");
     }
 
     /// The incremental byte counter equals the entries it claims to describe.

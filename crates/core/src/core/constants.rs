@@ -870,6 +870,19 @@ pub const STREAM_ENTRY_OVERHEAD_BYTES: u64 = 256;
 /// entry's overhead because a pending record is an id, a consumer name and an instant rather than a payload.
 pub const STREAM_PENDING_RECORD_OVERHEAD_BYTES: u64 = 128;
 
+/// Consumer groups one in-process stream may have.
+///
+/// The other half of the pending-record bound, and the half a publish-time check cannot provide: group state
+/// grows at *delivery*, which cannot refuse without stalling a consumer, so the only sound bound on it is a
+/// bound on the number of groups. Charging pending records at publish stops a backlog from being admitted while
+/// group state is already large; it does nothing about a single retained entry delivered to unboundedly many
+/// groups.
+///
+/// Generous, because a legitimate deployment has one group per signal and a handful of consumers inside it: a
+/// stream with dozens is a mistake in the calling code rather than a workload, and this is where that mistake
+/// becomes a refused subscription with a message instead of a slow memory leak.
+pub const STREAM_MAX_CONSUMER_GROUPS: usize = 32;
+
 // ---------------------------------------------------------------------------
 // The embedded engine's share of the footprint ceiling
 //

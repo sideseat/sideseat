@@ -25,7 +25,7 @@ crates/       Layer crates whose manifests enforce the boundary: core/ ports/
               The first holds configuration, constants, storage layout, the CLI and pure utilities; the
               second the traits, DTOs, filter vocabulary and error type. Neither names a driver, so a
               forbidden dependency does not compile rather than being caught in review
-server/       Rust backend (Axum): Cargo.toml, build.rs, src/, tests/, assets/
+server/       Rust backend (Axum): Cargo.toml, build.rs, src/, tests/, assets/, proptest-regressions/
 web/          React frontend (Vite)
 cli/          npm distribution wrapper
 sdk/          Client SDKs: python/ js/ rust/ (dotnet/ reserves the NuGet name; no implementation)

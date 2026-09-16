@@ -324,14 +324,12 @@ pub async fn delete_sessions(
     //   are one instant's view of it.
     //
     // Fatal rather than logged: without the tombstones the deletion is not safe to perform.
-    repo.record_deleted_sessions(&auth.project_id, &body.session_ids)
-        .await
-        .map_err(ApiError::from_data)?;
-    repo.record_deleted_traces(&auth.project_id, &trace_ids)
-        .await
-        .map_err(ApiError::from_data)?;
-
-    // And the journal, before the delete for the same reason the tombstones are.
+    // The journal **before both tombstones**, which are before the delete.
+    //
+    // A tombstone is not inert - the deletion sweeps act on it and remove the rows later - so a failed append
+    // after a committed tombstone produced a deletion that happened anyway, after a request that reported
+    // failure, with no record for a restore to replay. Journalling first makes a failure leave a record with no
+    // deletion, which a replay resolves harmlessly.
     //
     // **Both** the sessions and the traces, because they answer different questions on a restore. The session
     // entry is the durable fact - a replay re-resolves it against restored data and removes whatever it names
@@ -360,6 +358,13 @@ pub async fn delete_sessions(
         recorded_at: now,
     }));
     repo.append_deletions(&journal)
+        .await
+        .map_err(ApiError::from_data)?;
+
+    repo.record_deleted_sessions(&auth.project_id, &body.session_ids)
+        .await
+        .map_err(ApiError::from_data)?;
+    repo.record_deleted_traces(&auth.project_id, &trace_ids)
         .await
         .map_err(ApiError::from_data)?;
 

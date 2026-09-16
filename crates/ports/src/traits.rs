@@ -1332,11 +1332,22 @@ pub trait DeletionJournal: Send + Sync {
     /// interrupted resumes from what it has applied rather than from a timestamp - two entries can share a
     /// microsecond, and a clock is not an order (the analytics stores have no commit-ordered sequence at all,
     /// which is why this one is a column the transactional store assigns).
+    ///
+    /// Returns `(entries, highest_sequence_examined)`, and the second value is not a convenience. A row whose
+    /// cause or scope this build does not understand is skipped rather than guessed at, so a page can yield
+    /// *fewer* entries than it examined - and a page consisting entirely of such rows yields none at all, which
+    /// against a cursor advanced only by returned entries is indistinguishable from the end of the journal. The
+    /// replay would stop there and never reach the known deletions behind them. Advancing on what was
+    /// **examined** makes progress a property of the page rather than of what happened to be interpretable -
+    /// the same reasoning as the search cursor's last-*examined* position in §4.3 of the plan.
+    ///
+    /// `highest_sequence_examined` equals `after_sequence` when the page was empty, so a caller can loop until
+    /// it stops advancing.
     async fn deletions_since(
         &self,
         after_sequence: i64,
         limit: usize,
-    ) -> Result<Vec<(i64, DeletionRecord)>, DataError>;
+    ) -> Result<(Vec<(i64, DeletionRecord)>, i64), DataError>;
 
     /// Whether the journal explains this record's absence.
     ///

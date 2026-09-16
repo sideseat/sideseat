@@ -49,12 +49,16 @@ pub async fn append_deletions(
     Ok(())
 }
 
-/// Entries after `after_sequence`, oldest first.
+/// Entries after `after_sequence`, oldest first, with the highest sequence this page examined.
+///
+/// The second value is what keeps a replay making progress across rows it cannot interpret: skipped rows would
+/// otherwise leave the cursor where it was, and a page of nothing but skipped rows reads exactly like the end of
+/// the journal.
 pub async fn deletions_since(
     pool: &SqlitePool,
     after_sequence: i64,
     limit: usize,
-) -> Result<Vec<(i64, DeletionRecord)>, SqliteError> {
+) -> Result<(Vec<(i64, DeletionRecord)>, i64), SqliteError> {
     let rows = sqlx::query(
         "SELECT sequence, project_id, cause, scope, target_id, span_id, recorded_at
          FROM deletion_journal
@@ -68,8 +72,11 @@ pub async fn deletions_since(
     .await?;
 
     let mut out = Vec::with_capacity(rows.len());
+    let mut examined = after_sequence;
     for row in rows {
         let sequence: i64 = row.try_get("sequence")?;
+        // Advanced for every row read, before any decision about whether it is interpretable.
+        examined = examined.max(sequence);
         let cause_text: String = row.try_get("cause")?;
         let scope_text: String = row.try_get("scope")?;
         // An unparseable spelling is skipped rather than guessed at. A replay that treated an unknown scope as
@@ -104,7 +111,7 @@ pub async fn deletions_since(
             },
         ));
     }
-    Ok(out)
+    Ok((out, examined))
 }
 
 /// Whether the journal explains this record's absence.
@@ -191,8 +198,13 @@ mod tests {
         ];
         append_deletions(&pool, &records).await.unwrap();
 
-        let read = deletions_since(&pool, 0, 100).await.unwrap();
+        let (read, examined) = deletions_since(&pool, 0, 100).await.unwrap();
         assert_eq!(read.len(), 3);
+        assert_eq!(
+            examined,
+            read.last().unwrap().0,
+            "the examined watermark is the last row read"
+        );
         let targets: Vec<&str> = read.iter().map(|(_, r)| r.target_id.as_str()).collect();
         assert_eq!(targets, vec!["trace-a", "session-b", "proj"]);
 
@@ -220,11 +232,11 @@ mod tests {
         .await
         .unwrap();
 
-        let first = deletions_since(&pool, 0, 2).await.unwrap();
+        let (first, examined) = deletions_since(&pool, 0, 2).await.unwrap();
         assert_eq!(first.len(), 2);
-        let resume_from = first.last().unwrap().0;
+        let resume_from = examined;
 
-        let rest = deletions_since(&pool, resume_from, 2).await.unwrap();
+        let (rest, _) = deletions_since(&pool, resume_from, 2).await.unwrap();
         assert_eq!(rest.len(), 1);
         assert_eq!(rest[0].1.target_id, "t3");
     }
@@ -263,9 +275,54 @@ mod tests {
         drop(tx);
 
         assert!(
-            deletions_since(&pool, 0, 100).await.unwrap().is_empty(),
+            deletions_since(&pool, 0, 100).await.unwrap().0.is_empty(),
             "a batch that failed partway must leave none of its rows"
         );
+    }
+
+    /// A page of rows this build cannot interpret does not read as the end of the journal.
+    ///
+    /// Skipped rows used to leave the cursor where it was, so a page consisting entirely of them returned
+    /// nothing - indistinguishable from EOF against a cursor advanced by returned entries. A replay would stop
+    /// there and never reach the known deletions behind them, which is the resurrection the journal exists to
+    /// prevent, arrived at through the mechanism meant to prevent it.
+    #[tokio::test]
+    async fn a_page_of_uninterpretable_rows_still_advances_the_cursor() {
+        let pool = setup_test_pool().await;
+        // Two rows a future version might write, then one this build understands. Inserted through raw SQL
+        // because the typed API cannot express a scope the `CHECK` refuses - which is the point: only a newer
+        // writer produces these.
+        // `ignore_check_constraints`, because a future version's `CHECK` would admit these and this build's
+        // refuses them. Writing them any other way would be testing the constraint rather than the cursor.
+        sqlx::raw_sql(
+            "PRAGMA ignore_check_constraints = ON;
+             INSERT INTO deletion_journal (project_id, cause, scope, target_id, recorded_at)
+                 VALUES ('proj', 'requested', 'future-scope', 'future-1', 1);
+             INSERT INTO deletion_journal (project_id, cause, scope, target_id, recorded_at)
+                 VALUES ('proj', 'requested', 'future-scope', 'future-2', 2);
+             PRAGMA ignore_check_constraints = OFF;",
+        )
+        .execute(&pool)
+        .await
+        .expect("a future version's rows");
+        append_deletions(&pool, &[record(DeletionScope::Trace, "known")])
+            .await
+            .expect("append");
+
+        // A page of two, which is exactly the two uninterpretable rows.
+        let (entries, examined) = deletions_since(&pool, 0, 2).await.unwrap();
+        assert!(
+            entries.is_empty(),
+            "neither row is interpretable, so neither is returned"
+        );
+        assert!(
+            examined > 0,
+            "but the cursor must advance past them, or the replay stops here forever"
+        );
+
+        let (rest, _) = deletions_since(&pool, examined, 2).await.unwrap();
+        assert_eq!(rest.len(), 1, "the known deletion behind them is reachable");
+        assert_eq!(rest[0].1.target_id, "known");
     }
 
     /// A span's absence is explained by an entry for the span or for its trace.
@@ -306,6 +363,53 @@ mod tests {
         );
     }
 
+    /// A span-scoped entry without a span id is refused, not stored as an inert row.
+    ///
+    /// The lookup matches on `span_id = ?`, so such a row can be appended successfully and then never found -
+    /// and the re-drive sweep recreates the very span the entry was written to explain. Refused by the schema
+    /// rather than by the writer, because a writer's care is not a constraint.
+    #[tokio::test]
+    async fn a_span_entry_needs_a_span_id() {
+        let pool = setup_test_pool().await;
+        let mut bad = record(DeletionScope::Span, "trace-x");
+        bad.span_id = None;
+        assert!(
+            append_deletions(&pool, std::slice::from_ref(&bad))
+                .await
+                .is_err(),
+            "a span-scoped entry with no span id must be refused"
+        );
+
+        // And the reverse: a span id on a trace-scoped row claims something about a span the entry does not
+        // describe.
+        let mut also_bad = record(DeletionScope::Trace, "trace-x");
+        also_bad.span_id = Some("span-1".to_string());
+        assert!(
+            append_deletions(&pool, std::slice::from_ref(&also_bad))
+                .await
+                .is_err(),
+            "only a span-scoped entry may carry a span id"
+        );
+
+        let mut good = record(DeletionScope::Span, "trace-x");
+        good.span_id = Some("span-1".to_string());
+        append_deletions(&pool, std::slice::from_ref(&good))
+            .await
+            .expect("a well-formed span entry is accepted");
+        assert!(
+            deletion_is_journaled(
+                &pool,
+                "proj",
+                DeletionScope::Span,
+                "trace-x",
+                Some("span-1")
+            )
+            .await
+            .unwrap(),
+            "and it is findable, which the null-id form was not"
+        );
+    }
+
     /// One project's deletion never explains another's, even for identical ids.
     ///
     /// Trace and session ids are client-supplied, so two projects presenting the same one is the realistic
@@ -343,14 +447,15 @@ mod tests {
             .unwrap();
         // Past the CHECK, because a future version's constraint would admit it.
         sqlx::raw_sql(
-            "PRAGMA writable_schema = ON;
-             UPDATE deletion_journal SET scope = 'future-scope' WHERE target_id = 'known';",
+            "PRAGMA ignore_check_constraints = ON;
+             UPDATE deletion_journal SET scope = 'future-scope' WHERE target_id = 'known';
+             PRAGMA ignore_check_constraints = OFF;",
         )
         .execute(&pool)
         .await
         .ok();
 
-        let read = deletions_since(&pool, 0, 100).await.unwrap();
+        let (read, _) = deletions_since(&pool, 0, 100).await.unwrap();
         assert!(
             read.iter().all(|(_, r)| r.target_id != "known")
                 || read.iter().any(|(_, r)| r.scope == DeletionScope::Trace),

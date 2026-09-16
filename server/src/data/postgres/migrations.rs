@@ -316,7 +316,14 @@ CREATE TABLE IF NOT EXISTS deletion_journal (
     target_id   TEXT   NOT NULL,
     -- Set only for a span-scoped entry, where `target_id` is the span's trace.
     span_id     TEXT,
-    recorded_at BIGINT NOT NULL
+    recorded_at BIGINT NOT NULL,
+    -- A span-scoped entry carries a span id and nothing else does.
+    --
+    -- Without this the pair is expressible and inert: `deletion_is_journaled` matches on `span_id = ?`, so a
+    -- span row with a null id can be appended successfully and then never found, and the re-drive sweep
+    -- recreates the very span the entry was written to explain. The reverse - a span id on a trace-scoped row -
+    -- is a claim about a span the entry does not describe.
+    CHECK ((scope = 'span') = (span_id IS NOT NULL))
 );
 CREATE INDEX IF NOT EXISTS idx_deletion_journal_target
     ON deletion_journal(project_id, scope, target_id);

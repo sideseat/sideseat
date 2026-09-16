@@ -10,15 +10,19 @@
 //! cargo test --locked --release -p sideseat-server --test footprint -- --ignored --nocapture
 //! ```
 //!
+//! or `make footprint`, which also runs the two resident-memory gates against a real server.
+//!
 //! `#[ignore]` on the two measurements, like every other benchmark in this repository: the 10 000-turn
 //! fixture takes tens of seconds to build and a debug build's numbers describe the debug build. The
 //! invariants beside them are ordinary tests and run in `make check`.
 //!
-//! **`--test-threads=1` is required, not preferred.** Both measurements read a process-global allocation
-//! counter, so run concurrently the queue test's live bytes fall inside the session test's baseline-to-residue
-//! window - and freed before the session's final snapshot, they mask a leak of their own size. `make footprint`
-//! passes the flag; a hand-run `cargo test --test footprint -- --ignored` without it can report a 52 MB
-//! regression as 48 MB and pass.
+//! **The measurements serialise themselves**, and do not rely on `--test-threads=1`. Both read a process-global
+//! allocation counter, so run concurrently the queue test's live bytes fall inside the session test's
+//! baseline-to-residue window - and freed before the session's final snapshot, they mask a leak of their own
+//! size: a 52 MB regression reported as 48 MB. Relying on a Makefile flag left that true for anyone running
+//! `cargo test --test footprint -- --ignored` by hand, which is the ordinary way to run one of them. They take
+//! `MEASUREMENT_LOCK` instead, so the correctness is in the file that needs it. The Makefile still passes the
+//! flag, because a serialised gate that also does not interleave its *output* is easier to read.
 
 use sideseat_core::core::constants::{
     FOOTPRINT_IDLE_RSS_MAX_BYTES, FOOTPRINT_INGEST_RSS_MAX_BYTES, FOOTPRINT_QUEUED_SPAN_MAX_RATIO,
@@ -29,6 +33,23 @@ use sideseat_server::runtime::allocation::{
 };
 
 const MIB: f64 = 1_048_576.0;
+
+/// Held for the duration of either live-allocation measurement.
+///
+/// Not a nicety: the counter is process-global, so two measurements overlapping means each is reading the
+/// other's allocations as its own. See the module docs for what that hides.
+static MEASUREMENT_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+/// Take the measurement lock, tolerating a previous panic.
+///
+/// A panicking measurement poisons the mutex, and the next one would then fail on the lock rather than on its
+/// own assertion - reporting the wrong test as broken. The lock protects a counter, not an invariant, so a
+/// poisoned guard is still a usable guard.
+fn measurement_guard() -> std::sync::MutexGuard<'static, ()> {
+    MEASUREMENT_LOCK
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+}
 
 /// A long session read gives its memory back.
 ///
@@ -44,6 +65,7 @@ const MIB: f64 = 1_048_576.0;
 #[test]
 #[ignore]
 fn a_long_session_read_returns_to_its_baseline() {
+    let _serialised = measurement_guard();
     let turns = std::env::var("FOOTPRINT_TURNS")
         .ok()
         .and_then(|v| v.parse().ok())
@@ -125,6 +147,7 @@ fn a_long_session_read_returns_to_its_baseline() {
 #[test]
 #[ignore]
 fn a_queued_span_costs_less_than_three_times_its_protobuf() {
+    let _serialised = measurement_guard();
     use prost::Message;
 
     // A gate that measured nothing must not pass. The fixtures are committed, so an empty set means

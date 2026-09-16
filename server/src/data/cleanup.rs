@@ -39,6 +39,9 @@ pub async fn cleanup_organization(
 ) -> Result<bool> {
     let repo = database.repository();
 
+    // Before the claim - see `cleanup_project` for the ordering and for why not in the re-runnable half.
+    journal_deletion(repo.as_ref(), org_id, DeletionScope::Organization, org_id).await?;
+
     if !repo
         .claim_organization_for_deletion(org_id)
         .await
@@ -46,9 +49,6 @@ pub async fn cleanup_organization(
     {
         return Ok(false);
     }
-
-    // At the claim, once - see `cleanup_project` for why not in the re-runnable half.
-    journal_deletion(repo.as_ref(), org_id, DeletionScope::Organization, org_id).await;
 
     // API keys are org-scoped, so their caches go now: the organization is no longer usable.
     if let Some(cache) = cache {
@@ -76,27 +76,27 @@ pub async fn finish_organization_deletion(
     // Every project fenced first. A project that is not fenced can still be written to while its data
     // is being deleted, and nothing later in this function would notice.
     for project_id in repo.list_project_ids(org_id).await? {
-        match repo.claim_project_for_deletion(&project_id).await {
-            // Journalled only when *this* call won the claim. The bool was previously discarded, and appending
-            // regardless would add an entry every time the sweep resumed an abandoned organization cleanup.
-            Ok(true) => {
-                journal_deletion(
-                    repo.as_ref(),
-                    &project_id,
-                    DeletionScope::Project,
-                    &project_id,
-                )
-                .await;
-            }
-            Ok(false) => {}
-            Err(e) => {
-                return Err(anyhow!(
-                    "Failed to fence project {} of organization {}: {}",
-                    project_id,
-                    org_id,
-                    e
-                ));
-            }
+        // Journalled before the fence, for the ordering reason in `cleanup_project`: a fenced project is deleted
+        // by a later sweep whatever happens here, so a failed append after fencing is a deletion with no record.
+        //
+        // Which means an entry is written even when the claim then reports the project as already claimed. That
+        // is a duplicate rather than a defect - a replay removes something already gone - and it is the price of
+        // having no read-then-act window between the two. Bounded by how often a sweep resumes an abandoned
+        // organization cleanup, which is rare and is itself an alarmed condition.
+        journal_deletion(
+            repo.as_ref(),
+            &project_id,
+            DeletionScope::Project,
+            &project_id,
+        )
+        .await?;
+        if let Err(e) = repo.claim_project_for_deletion(&project_id).await {
+            return Err(anyhow!(
+                "Failed to fence project {} of organization {}: {}",
+                project_id,
+                org_id,
+                e
+            ));
         }
         if let Err(e) =
             finish_project_deletion(database, analytics, file_service, cache, &project_id).await
@@ -210,6 +210,25 @@ pub async fn cleanup_project(
     // The compare-and-set decides who owns this deletion. Losing it means the project was already
     // claimed or already gone - either way there is nothing for this caller to do. The cache goes with
     // it, so the project stops being readable at the same instant it stops being live.
+    //
+    // Journalled **before the claim**, and not inside `finish_project_deletion`.
+    //
+    // Before the claim, because a claim is a tombstone and the sweeps act on tombstones: journalling afterwards
+    // meant a failed append left a fenced project that a later sweep would delete anyway, with no record. This
+    // way a failure leaves the project exactly as it was.
+    //
+    // The cost is an entry for a project the claim then reports as already claimed or already gone, which the
+    // early return below discovers *after* the append. A spurious record is harmless - replaying it removes
+    // something already absent - and the alternative is checking first, which is the read-then-act race the
+    // compare-and-set exists to avoid.
+    journal_deletion(
+        repo.as_ref(),
+        project_id,
+        DeletionScope::Project,
+        project_id,
+    )
+    .await?;
+
     if !repo
         .claim_project_for_deletion(project_id)
         .await
@@ -218,24 +237,9 @@ pub async fn cleanup_project(
         return Ok(false);
     }
 
-    // Journalled here, at the claim, and not inside `finish_project_deletion`.
-    //
-    // The claim is a compare-and-set, so it succeeds exactly once - while `finish_project_deletion` is
-    // deliberately re-runnable and is called again by the sweep for an abandoned claim. Appending there would
-    // add an entry per resumption to a table that is never truncated and is counted against the project's
-    // quota, for a fact that does not change.
-    //
-    // Before the analytics delete, which is what `finish_project_deletion` performs, so a crash leaves a
-    // record with no deletion (harmless - a replay removes something already gone) rather than a deletion with
-    // no record (the resurrection this exists to prevent).
-    journal_deletion(
-        repo.as_ref(),
-        project_id,
-        DeletionScope::Project,
-        project_id,
-    )
-    .await;
-
+    // Not inside `finish_project_deletion`, which is deliberately re-runnable and is called again by the sweep
+    // for an abandoned claim: appending there would add an entry per resumption to a table that is never
+    // truncated and is counted against the project's quota, for a fact that does not change.
     finish_project_deletion(database, analytics, file_service, cache, project_id).await?;
     Ok(true)
 }
@@ -444,31 +448,65 @@ pub async fn advance_pending_deletions(
                         // id) then passes every fence and resurrects a headless trace permanently. Deleting
                         // the snapshot we tombstoned keeps delete and tombstone over the identical set; B is
                         // simply collected by the next sweep, which re-resolves and tombstones it too.
-                        match repo.record_deleted_traces(&project_id, &ids).await {
-                            Ok(()) => {
-                                if let Err(ref e) = analytics
-                                    .repository()
-                                    .delete_traces(&project_id, &ids)
-                                    .await
-                                {
-                                    tracing::warn!(project_id, session_id, error = %e, "Could not sweep a deleted session");
+                        // The journal first, then the tombstone, then the delete - the same order the
+                        // deletion routes use and for the same reason. This sweep deletes traces the route
+                        // never saw: they joined the session after its resolution, so no journal entry names
+                        // them, and the session's own entry only covers them while the session is still
+                        // resolvable from restored data. A restore that brings back a trace's child spans
+                        // without the root that carried the session id therefore resurrects it with nothing
+                        // able to explain the absence. A trace entry here closes that.
+                        //
+                        // A failed append skips the whole step, exactly as a failed tombstone does: the rows
+                        // stay for the next sweep, which re-resolves and retries, and the session tombstone
+                        // that brought us here is untouched.
+                        let journalled: Vec<DeletionRecord> = ids
+                            .iter()
+                            .map(|trace_id| DeletionRecord {
+                                project_id: project_id.clone(),
+                                cause: DeletionCause::Requested,
+                                scope: DeletionScope::Trace,
+                                target_id: trace_id.clone(),
+                                span_id: None,
+                                recorded_at: chrono::Utc::now(),
+                            })
+                            .collect();
+                        if let Err(e) = repo.append_deletions(&journalled).await {
+                            tracing::error!(
+                                error = %e,
+                                project_id,
+                                session_id,
+                                traces = ids.len(),
+                                "Could not journal these late traces; leaving them for the next sweep rather \
+                                 than deleting data whose removal a restore could not undo"
+                            );
+                            false
+                        } else {
+                            match repo.record_deleted_traces(&project_id, &ids).await {
+                                Ok(()) => {
+                                    if let Err(ref e) = analytics
+                                        .repository()
+                                        .delete_traces(&project_id, &ids)
+                                        .await
+                                    {
+                                        tracing::warn!(project_id, session_id, error = %e, "Could not sweep a deleted session");
+                                    }
+                                }
+                                Err(ref e) => {
+                                    tracing::warn!(
+                                        project_id,
+                                        session_id,
+                                        error = %e,
+                                        "Could not tombstone a late session's traces; leaving the rows for the \
+                                         next sweep rather than deleting data nothing would remember to keep gone"
+                                    );
                                 }
                             }
-                            Err(ref e) => {
-                                tracing::warn!(
-                                    project_id,
-                                    session_id,
-                                    error = %e,
-                                    "Could not tombstone a late session's traces; leaving the rows for the \
-                                     next sweep rather than deleting data nothing would remember to keep gone"
-                                );
-                            }
+                            // Not quiet either way: on success something was found, on failure the work is
+                            // still pending - both mean look again at the base interval rather than backing
+                            // off. The trace records now carry the file reconciliation, which is why this does
+                            // not do it here.
+                            false
                         }
-                        // Not quiet either way: on success something was found, on failure the work is still
-                        // pending - both mean look again at the base interval rather than backing off. The
-                        // trace records now carry the file reconciliation, which is why this does not do it
-                        // here.
-                        false
                     }
                     Err(e) => {
                         tracing::warn!(project_id, session_id, error = %e, "Could not check a deleted session");
@@ -806,21 +844,25 @@ async fn invalidate_org_api_key_caches(
     }
 }
 
-/// Append one requested deletion to the journal, reporting a failure rather than failing the deletion.
+/// Append one requested deletion to the journal, **before** anything destructive happens.
 ///
-/// Best effort, and the direction is deliberate. The alternative - failing the deletion when the journal cannot
-/// be written - refuses a deletion the caller asked for because of a bookkeeping write, and the fence has
-/// already been taken so the project is no longer readable either way. What a missing entry costs is narrower:
-/// a restore from before this deletion may bring the data back. That is worth an error-level report and not
-/// worth leaving a half-fenced project.
+/// Fatal, and best effort was the wrong answer. Logging the failure and continuing meant that with the journal
+/// table unavailable and the analytics store healthy - an ordinary partial outage, since they are different
+/// stores - a project's data was removed permanently with no record for a restore to replay. The whole point of
+/// the journal is that this case is recoverable.
 ///
-/// Reported at error level for exactly that reason, and named so the log says which record is missing.
+/// Called before the claim, so a failure leaves nothing fenced and nothing deleted: the caller gets an error and
+/// the project is exactly as it was. The other order cannot give that, because a claim is a tombstone and the
+/// sweeps act on tombstones - so a failure after claiming is a deletion that proceeds anyway.
+///
+/// The cost of being fatal is that a project cannot be deleted while the journal is unwritable. That is the
+/// correct refusal: temporary and legible, against permanent and silent loss.
 async fn journal_deletion(
     repo: &dyn sideseat_ports::traits::DeletionJournal,
     tenant_id: &str,
     scope: DeletionScope,
     target_id: &str,
-) {
+) -> Result<()> {
     let record = DeletionRecord {
         project_id: tenant_id.to_string(),
         cause: DeletionCause::Requested,
@@ -829,15 +871,15 @@ async fn journal_deletion(
         span_id: None,
         recorded_at: chrono::Utc::now(),
     };
-    if let Err(e) = repo.append_deletions(std::slice::from_ref(&record)).await {
-        tracing::error!(
-            error = %e,
-            tenant_id,
-            scope = scope.as_str(),
-            target_id,
-            "Could not journal this deletion; a restore from before it may bring the data back"
-        );
-    }
+    repo.append_deletions(std::slice::from_ref(&record))
+        .await
+        .with_context(|| {
+            format!(
+                "Could not journal the {} deletion of {target_id}; refusing to delete data whose removal a \
+                 restore could not undo",
+                scope.as_str()
+            )
+        })
 }
 
 #[cfg(test)]

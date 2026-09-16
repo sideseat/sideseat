@@ -49,12 +49,16 @@ pub async fn append_deletions(
     Ok(())
 }
 
-/// Entries after `after_sequence`, oldest first.
+/// Entries after `after_sequence`, oldest first, with the highest sequence this page examined.
+///
+/// The second value is what keeps a replay making progress across rows it cannot interpret: skipped rows would
+/// otherwise leave the cursor where it was, and a page of nothing but skipped rows reads exactly like the end of
+/// the journal.
 pub async fn deletions_since(
     pool: &PgPool,
     after_sequence: i64,
     limit: usize,
-) -> Result<Vec<(i64, DeletionRecord)>, PostgresError> {
+) -> Result<(Vec<(i64, DeletionRecord)>, i64), PostgresError> {
     let rows = sqlx::query(
         "SELECT sequence, project_id, cause, scope, target_id, span_id, recorded_at
          FROM deletion_journal
@@ -68,8 +72,11 @@ pub async fn deletions_since(
     .await?;
 
     let mut out = Vec::with_capacity(rows.len());
+    let mut examined = after_sequence;
     for row in rows {
         let sequence: i64 = row.try_get("sequence")?;
+        // Advanced for every row read, before any decision about whether it is interpretable.
+        examined = examined.max(sequence);
         let cause_text: String = row.try_get("cause")?;
         let scope_text: String = row.try_get("scope")?;
         // An unparseable spelling is skipped rather than guessed at. A replay that treated an unknown scope as
@@ -104,7 +111,7 @@ pub async fn deletions_since(
             },
         ));
     }
-    Ok(out)
+    Ok((out, examined))
 }
 
 /// Whether the journal explains this record's absence.
