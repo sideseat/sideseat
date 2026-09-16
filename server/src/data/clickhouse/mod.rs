@@ -14,6 +14,9 @@ mod filters;
 #[cfg(test)]
 #[path = "parity_tests.rs"]
 mod parity_tests;
+/// The released v2 column sets, for the migration fixture to check itself against.
+#[cfg(test)]
+mod released_v2;
 pub mod repositories;
 mod repository_impl;
 pub mod schema;

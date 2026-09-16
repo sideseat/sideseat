@@ -242,6 +242,148 @@ where
 // Scenarios
 // ============================================================================
 
+/// `release_trace_files_except`: the survivor keep, and the in-flight writer it must not touch.
+///
+/// PostgreSQL's version and SQLite's are different statements - `file_hash <> ALL($3::text[])` against an
+/// interpolated `NOT IN (?, ?)`, because SQLite has no array type - and only SQLite's had behavioural coverage,
+/// since the file tests hardwire it. This is the statement that decides whether a live span keeps its file, so
+/// the two must not disagree.
+///
+/// Three cases, and the empty-keep one is the trap: with no survivors the PostgreSQL predicate becomes
+/// `<> ALL('{}')`, which is *true* for every row, while a naive SQLite rendering could emit `NOT IN ()` and be a
+/// syntax error - so the shape where everything is releasable is exactly where two hand-written statements
+/// diverge.
+#[tokio::test]
+async fn releasing_all_but_the_survivors_files_behaves_identically() {
+    assert_parity("release_trace_files_except", |repo, mut t| async move {
+        let keep_hash = hash(1);
+        let drop_hash = hash(2);
+        let inflight_hash = hash(3);
+
+        for h in [&keep_hash, &drop_hash] {
+            repo.upsert_file("default", h, None, 5, "sha256").await.ok();
+            repo.insert_trace_file("t1", "default", h).await.ok();
+        }
+        // Through the real path, so this one carries a pending writer.
+        repo.associate_file("t1", "default", &inflight_hash, None, 5, "sha256")
+            .await
+            .ok();
+
+        let mut released = repo
+            .release_trace_files_except("default", "t1", std::slice::from_ref(&keep_hash))
+            .await
+            .expect("release");
+        released.sort();
+        t.note(&format!("released: {}", released.len()));
+        t.note(&format!(
+            "released the survivor's: {}",
+            released.contains(&keep_hash)
+        ));
+        t.note(&format!(
+            "released the in-flight one: {}",
+            released.contains(&inflight_hash)
+        ));
+
+        let mut left = repo
+            .get_file_hashes_for_traces("default", &["t1".to_string()])
+            .await
+            .expect("read back");
+        left.sort();
+        t.note(&format!("still associated: {}", left.len()));
+
+        // An empty keep list: everything releasable except the in-flight row.
+        let empty = repo
+            .release_trace_files_except("default", "t1", &[])
+            .await
+            .expect("release with no survivors");
+        t.note(&format!("released with no survivors: {}", empty.len()));
+
+        let remaining = repo
+            .get_file_hashes_for_traces("default", &["t1".to_string()])
+            .await
+            .expect("read back again");
+        t.note(&format!("associated after that: {}", remaining.len()));
+
+        // A trace with nothing to release.
+        let none = repo
+            .release_trace_files_except("default", "absent", &[])
+            .await
+            .expect("release for an unknown trace");
+        t.note(&format!("released for an unknown trace: {}", none.len()));
+
+        t
+    })
+    .await;
+}
+
+/// The PostgreSQL v2 → v3 migration, applied to a **v2-shaped** database.
+///
+/// PostgreSQL had no upgrade test at all - SQLite and DuckDB each have one, and this backend's migrations were
+/// only ever exercised by a fresh install, which never runs them. So migration 3 could be deleted or broken and
+/// every suite stayed green: fresh installs get `retention_cleanup` from the schema, and a production v2
+/// database would upgrade without it, leaving every retention cleanup unrecorded.
+///
+/// The v2 shape is produced by dropping what v3 adds and setting the version back, which is the same technique
+/// the SQLite test uses. Its known limit is stated there and applies here: it reverses against the *current*
+/// schema, so it is released v2 only while v3 is the newest migration.
+#[tokio::test]
+async fn a_v2_postgres_database_upgrades_to_the_current_schema() {
+    let Some((_sqlite, postgres)) = pair().await else {
+        return;
+    };
+
+    let pool = postgres.pool();
+
+    // Reset at **both** ends. This test mutates the schema - it drops a table and re-runs migrations - so
+    // leaving state behind makes an unrelated scenario fail later, which is the most misleading kind of flake:
+    // it points away from its cause. One such failure was already traced back to a stale reset list.
+    reset_postgres(&postgres).await;
+
+    // Reduce to v2: the table v3 adds, gone, and the recorded version with it.
+    sqlx::query("DROP TABLE IF EXISTS retention_cleanup")
+        .execute(pool)
+        .await
+        .expect("drop the v3 table");
+    sqlx::query("UPDATE schema_version SET version = 2 WHERE id = 1")
+        .execute(pool)
+        .await
+        .expect("record v2");
+
+    let present = |pool: sqlx::PgPool| async move {
+        let found: Option<i32> = sqlx::query_scalar(
+            "SELECT 1 FROM information_schema.tables \
+             WHERE table_schema = current_schema() AND table_name = 'retention_cleanup'",
+        )
+        .fetch_optional(&pool)
+        .await
+        .expect("look for the table");
+        found.is_some()
+    };
+    assert!(
+        !present(pool.clone()).await,
+        "the fixture must not already have the v3 table, or this test cannot fail"
+    );
+
+    crate::data::postgres::migrations::run_migrations(pool)
+        .await
+        .expect("a v2 database must upgrade");
+
+    assert!(
+        present(pool.clone()).await,
+        "the upgraded database has no retention_cleanup table, so every retention cleanup on a v2 deployment \
+         goes unrecorded and a crash orphans its files and favourites permanently"
+    );
+
+    // Usable, not merely present.
+    let repo = std::sync::Arc::clone(&postgres) as std::sync::Arc<PostgresService>;
+    let repo: Box<dyn TransactionalRepository + Send + Sync> = Box::new(repo);
+    repo.record_retention_cleanup("p1", &["t1".to_string()])
+        .await
+        .expect("the upgraded table must accept a record");
+
+    reset_postgres(&postgres).await;
+}
+
 /// Retention's cleanup intent: recording, claiming with a lease, and completing.
 ///
 /// The two backends express the claim differently and must not disagree about it. PostgreSQL's uses `FOR UPDATE
@@ -259,16 +401,28 @@ async fn retention_cleanup_intent_behaves_identically() {
         // owed must remain findable after the project row has gone.
 
         // Recorded, and idempotent: the same trace twice is one candidate.
-        repo.record_retention_cleanup("p1", &["t1".to_string(), "t2".to_string()])
+        let written = repo
+            .record_retention_cleanup("p1", &["t1".to_string(), "t2".to_string()])
             .await
             .expect("record");
-        repo.record_retention_cleanup("p1", &["t1".to_string()])
+        t.note(&format!("recorded: {}", written.len()));
+
+        // Idempotent for the *row*, and it bumps the token: re-recording means new work behind the same
+        // identity, so a claim an earlier worker still holds must stop matching.
+        let again_written = repo
+            .record_retention_cleanup("p1", &["t1".to_string()])
             .await
             .expect("record again");
+        t.note(&format!(
+            "re-recording bumped the token: {}",
+            again_written
+                .iter()
+                .any(|(trace, token)| trace == "t1" && *token > 1)
+        ));
 
         let mut first = repo.claim_retention_cleanup(10, 600).await.expect("claim");
         first.sort();
-        t.note(&format!("claimed: {first:?}"));
+        t.note(&format!("claimed: {}", first.len()));
 
         // Leased, so an immediate second claim finds nothing - this is what stops two replicas doing the same
         // reconciliation, and what stops one re-entering its own.
@@ -278,12 +432,43 @@ async fn retention_cleanup_intent_behaves_identically() {
             .expect("reclaim");
         t.note(&format!("claimed while leased: {}", again.len()));
 
-        // Completing one leaves the other owed.
-        repo.complete_retention_cleanup("p1", &["t1".to_string()])
+        // **A stale token must not complete.** This is what stops a worker that paused past its lease from
+        // deleting an intent a later retention pass recorded: if that newer work then fails, nothing else knows
+        // it is owed. The tokens come from `first` - the claim actually held - because a fresh claim would not
+        // find these rows while their lease stands, which is the previous point.
+        repo.complete_retention_cleanup("p1", &[("t2".to_string(), 999)])
+            .await
+            .expect("stale completion");
+        let due = repo
+            .claim_retention_cleanup(10, 0)
+            .await
+            .expect("claim after a stale completion");
+        t.note(&format!(
+            "still leased after a stale completion: {}",
+            due.len()
+        ));
+
+        // Completing on the token actually held leaves the other owed.
+        let t1_token = first
+            .iter()
+            .find(|(_, trace, _)| trace == "t1")
+            .map(|(_, _, token)| *token)
+            .expect("t1 was claimed");
+        repo.complete_retention_cleanup("p1", &[("t1".to_string(), t1_token)])
             .await
             .expect("complete");
-        let after = repo.claim_retention_cleanup(10, 0).await.expect("claim");
-        t.note(&format!("owed after completing t1: {after:?}"));
+
+        // t2 survived the stale completion and is still recorded; t1 is gone. Asked with a zero lease so the
+        // leases above do not hide the answer.
+        let owed = repo.claim_retention_cleanup(10, 0).await.expect("claim");
+        t.note(&format!(
+            "t2 survived the stale completion: {}",
+            owed.iter().any(|(_, trace, _)| trace == "t2")
+        ));
+        t.note(&format!(
+            "t1 completed on its own token: {}",
+            !owed.iter().any(|(_, trace, _)| trace == "t1")
+        ));
 
         // A limit bounds the claim.
         repo.record_retention_cleanup("p1", &["t3".to_string(), "t4".to_string()])

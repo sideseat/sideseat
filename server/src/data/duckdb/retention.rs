@@ -25,6 +25,12 @@ pub struct RetentionResult {
     pub deleted_count: u64,
     /// Trace IDs grouped by project for file cleanup
     pub trace_ids_by_project: HashMap<String, Vec<String>>,
+    /// The cleanup-intent token each recorded trace now carries, per project.
+    ///
+    /// Completion is conditional on the token, so the pass that recorded a candidate has to carry the value it
+    /// wrote: guessing either fails to complete, leaving a record the sweep re-drives, or matches a *newer* row
+    /// and discards work another pass recorded.
+    pub cleanup_tokens: HashMap<String, Vec<(String, i64)>>,
 }
 
 /// Run retention cleanup based on config

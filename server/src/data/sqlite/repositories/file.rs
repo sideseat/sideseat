@@ -1785,24 +1785,31 @@ pub async fn record_retention_cleanup(
     pool: &SqlitePool,
     project_id: &str,
     trace_ids: &[String],
-) -> Result<(), SqliteError> {
+) -> Result<Vec<(String, i64)>, SqliteError> {
     if trace_ids.is_empty() {
-        return Ok(());
+        return Ok(Vec::new());
     }
     let now = chrono::Utc::now().timestamp();
+    let mut written = Vec::with_capacity(trace_ids.len());
     for trace_id in trace_ids {
-        sqlx::query(
-            "INSERT OR IGNORE INTO retention_cleanup \
+        // The token moves on a re-record, so a claim an earlier worker still holds no longer matches: new work
+        // behind the same identity must not be discarded by a stale completion.
+        let token: i64 = sqlx::query_scalar(
+            "INSERT INTO retention_cleanup \
              (project_id, trace_id, created_at, attempts, next_attempt_at, claim_token) \
-             VALUES (?, ?, ?, 0, 0, 0)",
+             VALUES (?, ?, ?, 0, 0, 1) \
+             ON CONFLICT(project_id, trace_id) DO UPDATE SET \
+                 claim_token = claim_token + 1, next_attempt_at = 0 \
+             RETURNING claim_token",
         )
         .bind(project_id)
         .bind(trace_id)
         .bind(now)
-        .execute(pool)
+        .fetch_one(pool)
         .await?;
+        written.push((trace_id.clone(), token));
     }
-    Ok(())
+    Ok(written)
 }
 
 /// Claim due candidates, pushing their next attempt out before returning them.
@@ -1815,18 +1822,20 @@ pub async fn claim_retention_cleanup(
     pool: &SqlitePool,
     limit: i64,
     lease_secs: i64,
-) -> Result<Vec<(String, String)>, SqliteError> {
+) -> Result<Vec<(String, String, i64)>, SqliteError> {
     let now = chrono::Utc::now().timestamp();
-    let rows: Vec<(String, String)> = sqlx::query_as(
+    // The token is **returned**, so completion can require it: without that a stale worker's completion deletes
+    // a newer intent. The claim does not bump it - bumping is what a *re-record* means - so a worker holding a
+    // token whose row was re-recorded finds no match and leaves the new work alone.
+    let rows: Vec<(String, String, i64)> = sqlx::query_as(
         "UPDATE retention_cleanup \
          SET attempts = attempts + 1, \
-             claim_token = claim_token + 1, \
              next_attempt_at = ? + ? * MIN(attempts + 1, 8) \
          WHERE (project_id, trace_id) IN ( \
              SELECT project_id, trace_id FROM retention_cleanup \
              WHERE next_attempt_at <= ? ORDER BY next_attempt_at LIMIT ? \
          ) \
-         RETURNING project_id, trace_id",
+         RETURNING project_id, trace_id, claim_token",
     )
     .bind(now)
     .bind(lease_secs)
@@ -1841,19 +1850,49 @@ pub async fn claim_retention_cleanup(
 pub async fn complete_retention_cleanup(
     pool: &SqlitePool,
     project_id: &str,
-    trace_ids: &[String],
+    completed: &[(String, i64)],
 ) -> Result<(), SqliteError> {
-    if trace_ids.is_empty() {
-        return Ok(());
+    // Per row, because the token is per row. A single statement would need a values list; the batch is at most
+    // one claim's worth.
+    for (trace_id, token) in completed {
+        sqlx::query(
+            "DELETE FROM retention_cleanup \
+             WHERE project_id = ? AND trace_id = ? AND claim_token = ?",
+        )
+        .bind(project_id)
+        .bind(trace_id)
+        .bind(token)
+        .execute(pool)
+        .await?;
     }
-    let placeholders = trace_ids.iter().map(|_| "?").collect::<Vec<_>>().join(",");
-    let sql = format!(
-        "DELETE FROM retention_cleanup WHERE project_id = ? AND trace_id IN ({placeholders})"
-    );
-    let mut query = sqlx::query(&sql).bind(project_id);
-    for trace_id in trace_ids {
-        query = query.bind(trace_id);
-    }
-    query.execute(pool).await?;
+    Ok(())
+}
+
+/// Restore an association a survivor scan released, as **durable**.
+///
+/// The compensation path of survivor reconciliation: a span committed between the scan and the release, so its
+/// association was deleted and must come back before any byte is reclaimed.
+///
+/// `durable = 1` is the whole point, and `insert_trace_file` was the first choice and is wrong here: it leaves
+/// the row provisional, so a *later* batch that references the same file and then fails would decrement
+/// `pending_writers` to zero, find a non-durable row, and delete it - taking the association of a span that
+/// committed long before. The reference being restored is owned by a committed span, which is exactly what
+/// `durable` means.
+pub async fn restore_durable_trace_file(
+    pool: &SqlitePool,
+    project_id: &str,
+    trace_id: &str,
+    file_hash: &str,
+) -> Result<(), SqliteError> {
+    sqlx::query(
+        "INSERT INTO trace_files (trace_id, project_id, file_hash, pending_writers, durable) \
+         VALUES (?, ?, ?, 0, 1) \
+         ON CONFLICT(project_id, trace_id, file_hash) DO UPDATE SET durable = 1",
+    )
+    .bind(trace_id)
+    .bind(project_id)
+    .bind(file_hash)
+    .execute(pool)
+    .await?;
     Ok(())
 }

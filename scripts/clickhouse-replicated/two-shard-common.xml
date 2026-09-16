@@ -1,0 +1,47 @@
+<?xml version="1.0"?>
+<!--
+  A **two-shard** cluster, which is what makes several fixes falsifiable at all.
+  
+  `cluster.xml` next to this file is one shard, and on one shard a read against `otel_spans_local` and a read
+  against the `Distributed` front end return the same rows - so the two fixes that changed `_local` to the front
+  end (`consistency.rs`) pass either way there, as does a `span_partition_anomalies` with no front end. A test
+  that cannot fail is the defect class this repository keeps being caught by, so the shard count is the fixture.
+  
+  Two containers rather than two shards in one, deliberately: the schema names the database explicitly in
+  `Distributed('{cluster}', '{db}', 'otel_x_local', ...)`, so two shards differing only by database - the usual
+  single-node trick - would both resolve to the same table and double every write.
+  
+  Keeper runs on the first node only. One Keeper is not highly available, which is the right trade for a test
+  fixture: it is coordination the `Replicated*` engines require, not a property under test.
+-->
+<clickhouse>
+    <zookeeper>
+        <node>
+            <host>ch-shard1</host>
+            <port>9181</port>
+        </node>
+    </zookeeper>
+
+    <remote_servers>
+        <test_cluster>
+            <shard>
+                <internal_replication>true</internal_replication>
+                <replica>
+                    <host>ch-shard1</host>
+                    <port>9000</port>
+                    <user>sideseat</user>
+                    <password>sideseat</password>
+                </replica>
+            </shard>
+            <shard>
+                <internal_replication>true</internal_replication>
+                <replica>
+                    <host>ch-shard2</host>
+                    <port>9000</port>
+                    <user>sideseat</user>
+                    <password>sideseat</password>
+                </replica>
+            </shard>
+        </test_cluster>
+    </remote_servers>
+</clickhouse>

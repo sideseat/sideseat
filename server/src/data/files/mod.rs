@@ -364,7 +364,28 @@ impl FileService {
 
         // The re-check. Only the released hashes matter, so this compares against them rather than
         // recomputing a whole set difference.
-        let now_referenced = Self::referenced_hashes(project_id, trace_id, analytics).await?;
+        //
+        // **A failure here must not discard `removed`.** Propagating with `?` dropped the hashes whose
+        // associations had *already* been deleted, so their stored `ref_count` was never recomputed - and the
+        // orphan sweeper selects on zero, so those files became permanently unreclaimable, with no association
+        // left for a retry to rediscover them from. So the failure is reported and the released set is still
+        // returned for reconciliation; the conservative direction, since recomputing a count is idempotent.
+        let now_referenced = match Self::referenced_hashes(project_id, trace_id, analytics).await {
+            Ok(hashes) => hashes,
+            Err(e) => {
+                tracing::error!(
+                    error = %e,
+                    project_id,
+                    trace_id,
+                    released = removed.len(),
+                    "Could not re-check survivors after releasing their associations. The released hashes are \
+                     still reconciled, so nothing leaks - but a span that committed during the release cannot \
+                     be compensated on this pass and its file may be reclaimed"
+                );
+                return Ok(removed);
+            }
+        };
+
         let mut kept_after_all = Vec::new();
         let mut released = Vec::new();
         for hash in removed {
@@ -376,11 +397,12 @@ impl FileService {
         }
 
         for hash in &kept_after_all {
-            // Re-associated before any byte is deleted, so the span that arrived mid-flight keeps its
-            // reference. `insert_trace_file` rather than `associate_file`: the reference is already owned by a
-            // *committed* span, so it needs no pending writer - adding one would leave a counter nothing
-            // decrements.
-            repo.insert_trace_file(trace_id, project_id, hash).await?;
+            // Restored **durable**, before any byte is deleted, so the span that arrived mid-flight keeps its
+            // reference. Not `insert_trace_file`: that leaves the row provisional, and a later batch that
+            // references the same file and then fails would decrement `pending_writers` to zero, find a
+            // non-durable row and delete it - taking the association of a span that committed long before.
+            repo.restore_durable_trace_file(project_id, trace_id, hash)
+                .await?;
             repo.sync_ref_count(project_id, hash).await?;
             tracing::warn!(
                 project_id,

@@ -73,6 +73,15 @@ const REPLICATED_URL_ENV: &str = "SIDESEAT_TEST_CLICKHOUSE_REPLICATED_URL";
 /// The cluster name declared in that server's config, so the test and the fixture cannot drift.
 const REPLICATED_CLUSTER: &str = "test_cluster";
 
+/// A ClickHouse configured as a **two-shard** cluster.
+///
+/// Separate from [`REPLICATED_URL_ENV`] because the shard count is the fixture, not a detail: on one shard a
+/// read against `otel_spans_local` and a read against the `Distributed` front end return the same rows, so
+/// every test passes whichever the code uses. Two of round three's findings were exactly that - the consistency
+/// check and the pre-identity metric count both read `_local`, reporting one shard's view as the deployment's -
+/// and neither was falsifiable until this existed.
+const TWO_SHARD_URL_ENV: &str = "SIDESEAT_TEST_CLICKHOUSE_TWO_SHARD_URL";
+
 const PROJECT: &str = "parity";
 
 /// Fixture timestamps, relative to a base fixed once per run.
@@ -597,6 +606,11 @@ async fn clickhouse_backend(url: &str, database: &str) -> Arc<ClickhouseService>
 /// the `ON CLUSTER` path, the `Replicated*` engines, the `{uuid}` Keeper paths and the `Distributed` front
 /// tables - the four hardest parts of the v3 rebuild.
 async fn replicated_backend(url: &str, database: &str) -> Arc<ClickhouseService> {
+    replicated_backend_at(url, database).await
+}
+
+/// The same, named separately so the two-shard tests read as using their own fixture.
+async fn replicated_backend_at(url: &str, database: &str) -> Arc<ClickhouseService> {
     let user = std::env::var(USER_ENV).ok();
     let password = std::env::var(PASSWORD_ENV).ok();
 
@@ -4095,6 +4109,54 @@ async fn every_clickhouse_migration_applies_to_the_state_it_upgrades() {
                 .unwrap_or_else(|e| panic!("reverting v{version} ({statement}): {e}"));
         }
 
+        // **The reconstructed state is checked against the *released* shape, not trusted.** The `undo` above
+        // reverses what each migration adds to the *current* schema, which is only released v2 while v3 is the
+        // newest migration: once a v4 exists this loop would test v3 against fresh-v4-minus-v3, and a v3
+        // regression depending on a v4 column would pass while a real upgrade failed. Comparing against a
+        // recorded fact about v1.0.13 is what makes the fixture's claim checkable rather than assumed.
+        if version == 3 {
+            for (table, expected) in [
+                ("otel_spans", super::released_v2::RELEASED_V2_SPANS),
+                ("otel_metrics", super::released_v2::RELEASED_V2_METRICS),
+            ] {
+                // Names **and types**: comparing names alone let the reconstructed database differ in type,
+                // nullability or width while passing, and a migration applied to a source whose types are wrong
+                // is being tested against a schema no database has.
+                let mut actual: Vec<(String, String)> = client
+                    .query(
+                        "SELECT name, type FROM system.columns \
+                         WHERE database = currentDatabase() AND table = ? ORDER BY name",
+                    )
+                    .bind(table)
+                    .fetch_all()
+                    .await
+                    .expect("read the reduced columns");
+                actual.sort();
+                // `Decimal64(S)` is what the released schema *declares*; `system.columns` reports the canonical
+                // `Decimal(18, S)`, which is the same type. Normalised here rather than in the snapshot so that
+                // file stays a faithful transcription of the release - the whole point of it being a recorded
+                // fact. Only this one alias is mapped: an unrecognised spelling should fail rather than be
+                // massaged into agreement.
+                let mut want: Vec<(String, String)> = expected
+                    .iter()
+                    .map(|(n, t)| {
+                        let canonical = match *t {
+                            "Decimal64(6)" => "Decimal(18, 6)".to_string(),
+                            other => other.to_string(),
+                        };
+                        (n.to_string(), canonical)
+                    })
+                    .collect();
+                want.sort();
+                assert_eq!(
+                    actual, want,
+                    "the reduced {table} is not what released v2 declared, so this migration is being applied \
+                     to a state no database has. Either the undo above is incomplete, or it is reversing \
+                     against a schema newer than v3"
+                );
+            }
+        }
+
         service
             .apply_migration_for_test(version)
             .await
@@ -4286,6 +4348,236 @@ async fn a_leftover_replacement_table_makes_the_migration_run_again() {
             .await
             .expect("the live table accepts a write after the re-run");
     }
+}
+
+/// The two reconciliation reads, on ClickHouse: which fields carry file references, and which traces are empty.
+///
+/// Both were written for the survivor reconciliation and only DuckDB's had behavioural coverage - the file tests
+/// hardwire DuckDB plus SQLite, so ClickHouse's `FINAL` versions of both queries were never executed by any
+/// test. Two hand-written statements per question is exactly what the parity suite exists to compare, and these
+/// two decide whether a live span keeps its file.
+///
+/// `FINAL` is the part with teeth: an expired revision's text must not keep an association alive, and an
+/// obsolete revision must not make a deleted trace look alive. So the fixture corrects both a span's *content*
+/// and a trace's existence, which is what tells a `FINAL` read from a raw one.
+#[tokio::test]
+async fn the_reconciliation_reads_agree_with_duckdb() {
+    let Ok(url) = std::env::var(URL_ENV) else {
+        eprintln!("clickhouse parity: skipped - set {URL_ENV} (or run `make test-clickhouse`)");
+        return;
+    };
+
+    let (_temp, duck) = duckdb_backend().await;
+    let ch = clickhouse_backend(&url, "sideseat_parity_reconcile").await;
+
+    let old_hash = "a".repeat(64);
+    let new_hash = "b".repeat(64);
+    let base = NormalizedSpan {
+        project_id: Some(PROJECT.to_string()),
+        trace_id: "reconcile-trace".to_string(),
+        span_id: "reconcile-span".to_string(),
+        span_name: "generation".to_string(),
+        timestamp_start: ts(1),
+        timestamp_end: Some(ts(1)),
+        ..Default::default()
+    };
+
+    // A span whose correction *replaces* which file it references. The obsolete revision still names the old
+    // hash, so a raw read would keep an association the current span does not justify.
+    for (hash, ingested) in [(&old_hash, ts(10)), (&new_hash, ts(20))] {
+        let spans = vec![NormalizedSpan {
+            messages: Some(format!(r#"[{{"content":"see #!B64!#image/png::{hash}"}}]"#)),
+            ingested_at: Some(ingested),
+            ..base.clone()
+        }];
+        duck.insert_spans(spans.clone())
+            .await
+            .expect("duckdb insert");
+        ch.insert_spans(spans).await.expect("clickhouse insert");
+    }
+
+    let traces = vec!["reconcile-trace".to_string(), "never-existed".to_string()];
+
+    let mut d_fields = duck
+        .file_reference_fields_for_traces(PROJECT, &traces)
+        .await
+        .expect("duckdb fields");
+    let mut c_fields = ch
+        .file_reference_fields_for_traces(PROJECT, &traces)
+        .await
+        .expect("clickhouse fields");
+    d_fields.sort();
+    c_fields.sort();
+    assert_eq!(
+        d_fields, c_fields,
+        "the two backends disagree about which field text a surviving span carries, so a file kept on one is \
+         released on the other"
+    );
+    assert!(
+        c_fields.iter().any(|f| f.contains(&new_hash)),
+        "the correction's reference is missing, so its file would be released: {c_fields:?}"
+    );
+    assert!(
+        !c_fields.iter().any(|f| f.contains(&old_hash)),
+        "the *obsolete* revision's reference is still returned, so a file the current span does not reference \
+         is kept forever - the read is not going through FINAL: {c_fields:?}"
+    );
+
+    let mut d_empty = duck
+        .traces_without_spans(PROJECT, &traces)
+        .await
+        .expect("duckdb empty");
+    let mut c_empty = ch
+        .traces_without_spans(PROJECT, &traces)
+        .await
+        .expect("clickhouse empty");
+    d_empty.sort();
+    c_empty.sort();
+    assert_eq!(
+        d_empty, c_empty,
+        "the two backends disagree about which traces retention emptied, so a favourite survives on one and is \
+         removed on the other"
+    );
+    assert_eq!(
+        c_empty,
+        vec!["never-existed".to_string()],
+        "only the trace with no spans is empty; the corrected one is still there"
+    );
+}
+
+/// A read that must span **both shards**: the consistency check, and the pre-identity metric count.
+///
+/// Both of these read the `Distributed` front end, and both read `_local` in a previous version - which on a
+/// one-shard fixture is the same thing, so the fix was unfalsifiable. Here the rows are placed so that each
+/// question has an answer on the shard the client is *not* connected to: a `_local` read reports clean or zero,
+/// a distributed read finds them.
+///
+/// The sharding key is `sipHash64(project_id)`, so two project ids that hash to different shards are what makes
+/// this work. They are found rather than assumed, by asking the cluster which shard each would land on - a
+/// hardcoded pair would silently stop testing anything if the key ever changed.
+#[tokio::test]
+async fn a_two_shard_cluster_reports_anomalies_and_legacy_rows_from_every_shard() {
+    let Ok(url) = std::env::var(TWO_SHARD_URL_ENV) else {
+        eprintln!(
+            "clickhouse two-shard: skipped - set {TWO_SHARD_URL_ENV} (or run \
+             `make test-clickhouse-two-shard`)"
+        );
+        return;
+    };
+
+    let database = "sideseat_two_shard";
+    let service = replicated_backend_at(&url, database).await;
+    let user = std::env::var(USER_ENV).ok();
+    let password = std::env::var(PASSWORD_ENV).ok();
+    let client = raw_client_at(&url, database, &user, &password);
+
+    // Which shard each candidate project lands on, asked rather than assumed.
+    let mut per_shard: [Option<String>; 2] = [None, None];
+    for n in 0..64 {
+        let candidate = format!("shard-probe-{n}");
+        let shard: Vec<u64> = client
+            // `toUInt64` explicitly: `(x % 2) + 1` narrows to **UInt16**, which a `Vec<u64>` fetch rejects
+            // with a schema mismatch - and the failure reads as a broken cluster rather than a wrong type.
+            .query("SELECT toUInt64((sipHash64(?) % 2) + 1)")
+            .bind(&candidate)
+            .fetch_all()
+            .await
+            .expect("compute the shard");
+        let index = (shard[0] - 1) as usize;
+        if per_shard[index].is_none() {
+            per_shard[index] = Some(candidate);
+        }
+        if per_shard.iter().all(Option::is_some) {
+            break;
+        }
+    }
+    let [Some(near), Some(far)] = per_shard else {
+        panic!("could not find a project id for each shard");
+    };
+
+    // A cross-month correction on **each** shard's project, so whichever shard the client reaches, the other
+    // one also holds an anomaly. A `_local` read finds at most one.
+    let now = Utc::now();
+    let this_month = Utc
+        .with_ymd_and_hms(now.year(), now.month(), 5, 12, 0, 0)
+        .unwrap();
+    let last_month = this_month - chrono::Duration::days(20);
+
+    for project in [&near, &far] {
+        for (instant, tokens, ingested) in [(last_month, 100, ts(10)), (this_month, 900, ts(20))] {
+            service
+                .insert_spans(vec![NormalizedSpan {
+                    project_id: Some(project.clone()),
+                    trace_id: format!("{project}-trace"),
+                    span_id: format!("{project}-span"),
+                    span_name: "generation".to_string(),
+                    observation_type: Some(ObservationType::Generation),
+                    timestamp_start: instant,
+                    timestamp_end: Some(instant),
+                    ingested_at: Some(ingested),
+                    gen_ai_usage_input_tokens: tokens,
+                    duration_ms: 1000,
+                    ..Default::default()
+                }])
+                .await
+                .expect("insert a cross-month correction");
+        }
+    }
+
+    let outcome = service
+        .check_partition_consistency()
+        .await
+        .expect("the consistency check must run on a multi-shard cluster");
+    assert_eq!(
+        outcome.anomalies, 2,
+        "the check found {} of 2 anomalies. One sits on each shard, so anything less means the query reads only \
+         the shard the connection reached - and on a real cluster most anomalies are then invisible. A failure \
+         *running* it means the distributed subquery was refused (`distributed_product_mode = deny`), which is \
+         the other half of the same finding",
+        outcome.anomalies
+    );
+
+    let recorded = service
+        .partition_anomalies()
+        .await
+        .expect("the anomaly records are readable");
+    assert_eq!(
+        recorded.len(),
+        2,
+        "the anomaly *records* are per-shard, so a report described as deployment-wide depends on which shard \
+         answered: {recorded:?}"
+    );
+
+    // The same question for pre-identity metric rows: one on each shard, counted through the front end.
+    //
+    // `insert_distributed_sync`, because these go through the `Distributed` table and this client is a raw one -
+    // the service sets it, a raw client does not. Without it the insert returns once the rows are spooled on the
+    // initiating node, so a count taken immediately afterwards saw one of the two and the failure read as a
+    // one-shard *read* rather than an unfinished write. The fixture has to be at least as careful as the code it
+    // is checking.
+    let sync_client =
+        raw_client_at(&url, database, &user, &password).with_option("insert_distributed_sync", "1");
+    for project in [&near, &far] {
+        sync_client
+            .query(
+                "INSERT INTO otel_metrics (project_id, metric_name, metric_type, timestamp, value_double, \
+                 datapoint_id) VALUES (?, 'legacy.counter', 'sum', now64(6), 1, '')",
+            )
+            .bind(project)
+            .execute()
+            .await
+            .expect("insert a pre-identity row");
+    }
+
+    let unidentified = service
+        .report_unidentified_metric_rows()
+        .await
+        .expect("the count is available");
+    assert_eq!(
+        unidentified, 2,
+        "counted {unidentified} of 2 pre-identity rows - one per shard, so a smaller number means the count \
+         reads one shard and an operator is told the exposure is smaller than it is"
+    );
 }
 
 /// The v2 → v3 migration applied to a **replicated** database, which is where its hardest mechanics live.

@@ -237,12 +237,28 @@ impl DuckdbService {
         file_service: Option<&Arc<crate::data::files::FileService>>,
         project_id: &str,
         trace_ids: &[String],
+        claimed: Option<&[(String, i64)]>,
     ) {
         let mut clean = true;
 
         // Survivor reconciliation, **not** the trace-wide cleanup. Retention expires individual span
         // identities, so a trace it touched usually still has live spans; `cleanup_traces` removes *every*
         // association for a trace, which left those survivors pointing at bytes that had been reclaimed.
+        // A **disabled** file service is not a completed cleanup. Skipping the reconciliation while leaving
+        // `clean` true deleted the durable record, so associations recorded while files were enabled could never
+        // be recovered by re-enabling them - the record is the only thing that knows they are owed.
+        match file_service {
+            Some(fs) if fs.is_enabled() => {}
+            _ => {
+                clean = false;
+                tracing::debug!(
+                    project_id,
+                    traces = trace_ids.len(),
+                    "File storage is disabled, so this cleanup stays recorded rather than being marked done"
+                );
+            }
+        }
+
         if let Some(fs) = file_service
             && fs.is_enabled()
             && let Err(e) = fs
@@ -262,6 +278,15 @@ impl DuckdbService {
         // expires span identities, not traces, so "was in the retention batch" is not that: a favourited trace
         // with one expired span and one live span stayed visible and lost its favourite anyway - the same defect
         // as the trace-wide file cleanup, in the call beside it.
+        //
+        // **Stated residual: this is a read-then-act pair and cannot be compensated.** A span for T can commit
+        // between `traces_without_spans` reporting T empty and the delete, and the favourite of a live trace is
+        // then removed. The file path solves the same race with a re-check that *restores* what it released;
+        // there is nothing to restore here, because a favourite records which user marked it and deleting the row
+        // destroys that. Narrowing the window is all that is available, so the check is immediately before the
+        // delete. The cost of getting it wrong is a lost bookmark rather than lost telemetry, which is why this
+        // is stated rather than engineered around - the alternative is never removing a favourite, and a
+        // favourite pointing at a deleted trace is its own defect.
         let repo = database.repository();
         match crate::data::traits::AnalyticsRepository::traces_without_spans(
             analytics, project_id, trace_ids,
@@ -295,7 +320,13 @@ impl DuckdbService {
             }
         }
 
-        if clean && let Err(e) = repo.complete_retention_cleanup(project_id, trace_ids).await {
+        // Completed only on the tokens actually held - the claim's, or the ones the recording pass wrote. With
+        // none, the record is left for the sweep rather than deleted on a guess.
+        let Some(completed) = claimed else {
+            return;
+        };
+
+        if clean && let Err(e) = repo.complete_retention_cleanup(project_id, completed).await {
             // Harmless: the record is idempotent work, so a stale one costs one extra reconciliation.
             tracing::debug!(
                 error = %e,
@@ -312,9 +343,16 @@ impl DuckdbService {
         file_service: Option<Arc<crate::data::files::FileService>>,
         database: Arc<crate::data::TransactionalService>,
     ) -> Option<JoinHandle<()>> {
-        if config.max_spans.is_none() && config.max_age_minutes.is_none() {
-            tracing::debug!("Retention disabled (no limits configured)");
-            return None;
+        // **The task starts even with no limits configured**, because it is also the only thing that drains
+        // outstanding cleanup. A deployment that crashed mid-cleanup and restarted with retention switched off
+        // would otherwise leave those associations, ref-counts and favourites owed forever - and the record is
+        // the only thing that knows about them, so nothing else can find them. Retention itself is skipped in
+        // that case; the claim loop is not.
+        let retention_configured = config.max_spans.is_some() || config.max_age_minutes.is_some();
+        if !retention_configured {
+            tracing::debug!(
+                "Retention has no limits configured; the task still runs to drain any outstanding cleanup"
+            );
         }
 
         let db = Arc::clone(self);
@@ -346,22 +384,30 @@ impl DuckdbService {
                             .await
                         {
                             Ok(claimed) if !claimed.is_empty() => {
-                                let mut by_project: std::collections::HashMap<String, Vec<String>> =
+                                // Grouped with their **claim tokens**, because completion is conditional on
+                                // them: a stale worker that finished old work must not delete a newer intent.
+                                let mut by_project: std::collections::HashMap<String, Vec<(String, i64)>> =
                                     std::collections::HashMap::new();
-                                for (project_id, trace_id) in claimed {
-                                    by_project.entry(project_id).or_default().push(trace_id);
+                                for (project_id, trace_id, token) in claimed {
+                                    by_project
+                                        .entry(project_id)
+                                        .or_default()
+                                        .push((trace_id, token));
                                 }
                                 tracing::debug!(
                                     projects = by_project.len(),
                                     "Resuming retention cleanup a previous cycle did not finish"
                                 );
-                                for (project_id, trace_ids) in &by_project {
+                                for (project_id, claimed) in &by_project {
+                                    let trace_ids: Vec<String> =
+                                        claimed.iter().map(|(t, _)| t.clone()).collect();
                                     Self::finish_retention_cleanup(
                                         &db,
                                         &database,
                                         file_service.as_ref(),
                                         project_id,
-                                        trace_ids,
+                                        &trace_ids,
+                                        Some(claimed),
                                     )
                                     .await;
                                 }
@@ -374,6 +420,10 @@ impl DuckdbService {
                             ),
                         }
 
+                        if !retention_configured {
+                            continue;
+                        }
+
                         match db.run_retention(&config, &database).await {
                             Ok(result) => {
                                 // Async cleanup (outside DuckDB transaction)
@@ -384,6 +434,7 @@ impl DuckdbService {
                                         file_service.as_ref(),
                                         project_id,
                                         trace_ids,
+                                        result.cleanup_tokens.get(project_id).map(|t| t.as_slice()),
                                     )
                                     .await;
                                 }
@@ -419,19 +470,35 @@ impl DuckdbService {
             //
             // A failure here **fails the batch**, deliberately: without a durable record the deletion would be
             // a loss with nothing able to find it afterwards, so not deleting is the correct outcome.
+            let tokens: std::sync::Mutex<std::collections::HashMap<String, Vec<(String, i64)>>> =
+                std::sync::Mutex::new(std::collections::HashMap::new());
             let record_intent = |by_project: &std::collections::HashMap<String, Vec<String>>| {
                 for (project_id, trace_ids) in by_project {
-                    handle
+                    let written = handle
                         .block_on(
                             database
                                 .repository()
                                 .record_retention_cleanup(project_id, trace_ids),
                         )
                         .map_err(|e| DuckdbError::Io(std::io::Error::other(e.to_string())))?;
+                    // Kept, because completion is conditional on the token: guessing one either fails to
+                    // complete - leaving a record the sweep re-drives - or matches a *newer* row and discards
+                    // work someone else recorded.
+                    tokens
+                        .lock()
+                        .unwrap_or_else(|e| e.into_inner())
+                        .entry(project_id.clone())
+                        .or_default()
+                        .extend(written);
                 }
                 Ok(())
             };
-            retention::run_retention(&conn, &config, &record_intent)
+            let outcome = retention::run_retention(&conn, &config, &record_intent);
+            let recorded = tokens.into_inner().unwrap_or_else(|e| e.into_inner());
+            outcome.map(|mut result| {
+                result.cleanup_tokens = recorded;
+                result
+            })
         })
         .await
         .map_err(|e| DuckdbError::Io(std::io::Error::other(e)))?

@@ -992,12 +992,17 @@ pub trait TransactionalRepository: Send + Sync {
     /// cleaning - and their spans are already gone, so no later pass can rediscover them. Their associations,
     /// ref-counted bytes and favourites are orphaned permanently.
     ///
-    /// Idempotent, so re-recording a trace already queued is a no-op rather than a duplicate.
+    /// Idempotent for the *row*, and it **bumps the token**, so a claim held by an earlier worker no longer
+    /// matches: re-recording means there is new work behind the same identity, and a stale completion must not
+    /// discard it.
+    /// Returns each trace with the **token it now carries**, so the recording pass can complete on exactly the
+    /// rows it wrote. Guessing a token would either fail to complete (leaving a record the sweep re-drives) or,
+    /// worse, match a newer one.
     async fn record_retention_cleanup(
         &self,
         project_id: &str,
         trace_ids: &[String],
-    ) -> Result<(), DataError>;
+    ) -> Result<Vec<(String, i64)>, DataError>;
 
     /// Claim due cleanup candidates, leasing them so a concurrent instance takes different ones.
     ///
@@ -1008,13 +1013,31 @@ pub trait TransactionalRepository: Send + Sync {
         &self,
         limit: i64,
         lease_secs: i64,
-    ) -> Result<Vec<(String, String)>, DataError>;
+    ) -> Result<Vec<(String, String, i64)>, DataError>;
 
-    /// Drop candidates whose cleanup has completed.
+    /// Drop candidates whose cleanup has completed, **only if still on the claimed token**.
+    ///
+    /// Deleting by identity alone let a stale worker remove a *newer* intent. A worker claims trace T, pauses
+    /// past its lease; retention runs again for T, re-uses the row and deletes more spans; the paused worker
+    /// then finishes its old work and deletes the row - so if the newer worker fails, the cleanup it recorded is
+    /// gone and nothing can rediscover it. Comparing the token makes the completion refer to the work that was
+    /// actually claimed.
     async fn complete_retention_cleanup(
         &self,
         project_id: &str,
-        trace_ids: &[String],
+        completed: &[(String, i64)],
+    ) -> Result<(), DataError>;
+
+    /// Restore an association a survivor scan released, as **durable**.
+    ///
+    /// The compensation path: a span committed between the scan and the release. `durable` rather than
+    /// provisional, because the reference belongs to a *committed* span - restoring it as provisional lets a
+    /// later failing batch's release delete it, since that release deletes a non-durable row with no writer left.
+    async fn restore_durable_trace_file(
+        &self,
+        project_id: &str,
+        trace_id: &str,
+        file_hash: &str,
     ) -> Result<(), DataError>;
 
     /// Release a trace's associations **except** the ones its surviving spans still reference.

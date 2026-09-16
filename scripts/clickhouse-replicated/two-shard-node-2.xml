@@ -1,0 +1,18 @@
+<?xml version="1.0"?>
+<!--
+  Node 2's own identity: which shard it is, and the name it registers under.
+
+  `interserver_http_host` is not optional here, and the failure without it is not obvious. Each server
+  registers an **ephemeral node** in the distributed-DDL replica registry under the address it believes it has,
+  and with no explicit name both nodes believe they are `localhost:9000` - so they collide on one node, and each
+  logs `Ephemeral node /clickhouse/task_queue/replicas/localhost:9000/active still exists after 90s, probably
+  it's owned by someone else` and falls back to polling. Every `ON CLUSTER` statement then took ~92 seconds
+  instead of milliseconds, which made a two-shard fixture unusable rather than merely slow.
+-->
+<clickhouse>
+    <interserver_http_host>ch-shard2</interserver_http_host>
+    <macros>
+        <shard>02</shard>
+        <replica>01</replica>
+    </macros>
+</clickhouse>

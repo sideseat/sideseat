@@ -847,7 +847,7 @@ impl TransactionalRepository for Arc<PostgresService> {
         &self,
         project_id: &str,
         trace_ids: &[String],
-    ) -> Result<(), DataError> {
+    ) -> Result<Vec<(String, i64)>, DataError> {
         file::record_retention_cleanup(self.pool(), project_id, trace_ids)
             .await
             .map_err(Into::into)
@@ -857,7 +857,7 @@ impl TransactionalRepository for Arc<PostgresService> {
         &self,
         limit: i64,
         lease_secs: i64,
-    ) -> Result<Vec<(String, String)>, DataError> {
+    ) -> Result<Vec<(String, String, i64)>, DataError> {
         file::claim_retention_cleanup(self.pool(), limit, lease_secs)
             .await
             .map_err(Into::into)
@@ -866,9 +866,20 @@ impl TransactionalRepository for Arc<PostgresService> {
     async fn complete_retention_cleanup(
         &self,
         project_id: &str,
-        trace_ids: &[String],
+        completed: &[(String, i64)],
     ) -> Result<(), DataError> {
-        file::complete_retention_cleanup(self.pool(), project_id, trace_ids)
+        file::complete_retention_cleanup(self.pool(), project_id, completed)
+            .await
+            .map_err(Into::into)
+    }
+
+    async fn restore_durable_trace_file(
+        &self,
+        project_id: &str,
+        trace_id: &str,
+        file_hash: &str,
+    ) -> Result<(), DataError> {
+        file::restore_durable_trace_file(self.pool(), project_id, trace_id, file_hash)
             .await
             .map_err(Into::into)
     }

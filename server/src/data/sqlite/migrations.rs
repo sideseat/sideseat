@@ -476,10 +476,12 @@ mod tests {
         // comments, which the real schema does throughout. Spelling the v1 tables here is also the honest
         // form - this *is* what v1 was, and if it drifts, the comparison below is where it shows.
         sqlx::raw_sql(
-            // `retention_cleanup` arrives at v3, so a v1 database has none. Leaving it in place would let the
-            // v3 migration be deleted with this test still green - the fixture would already have the table
-            // and the comparison would find no difference, while a real upgrade never created it.
+            // Tables a v1 database does not have. Each one left in place lets the migration that creates it be
+            // deleted with this test still green: the fixture would already carry it, the comparison would find
+            // no difference, and a real upgrade would never create it. `deleted_sessions` had exactly that hole
+            // - it arrives in migration 2 and the reduction never dropped it.
             "DROP TABLE retention_cleanup;
+             DROP TABLE deleted_sessions;
              DROP TABLE credentials;
              DROP TABLE credential_project_permissions;
              DROP TABLE deleted_projects;

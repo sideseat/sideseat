@@ -256,7 +256,7 @@ cli-bin = $(CLI_DIR)/platforms/platform-$(1)/$(BIN_NAME_$(1))
 .PHONY: dev dev-server dev-web
 .PHONY: fmt fmt-check lint lint-advisory check
 .PHONY: secret-scan-tree secret-scan-staged secret-scan-range
-.PHONY: test test-rust test-server test-clickhouse test-clickhouse-replicated test-postgres test-redis bench-http bench-http-distributed test-web test-sdk-js test-sdk-python coverage
+.PHONY: test test-rust test-server test-clickhouse test-clickhouse-replicated test-clickhouse-two-shard test-postgres test-redis bench-http bench-http-distributed test-web test-sdk-js test-sdk-python coverage
 .PHONY: build build-web build-server
 .PHONY: build-sdk build-sdk-js build-sdk-python
 .PHONY: build-cli build-cli-preflight build-cli-summary $(CLI_BUILD_TARGETS)
@@ -749,6 +749,67 @@ test-clickhouse-replicated:
 	cargo test --locked -p sideseat-server replicated -- --test-threads=1; \
 	status=$$?; \
 	docker rm -fv $(CH_REPL_CONTAINER) >/dev/null 2>&1; \
+	exit $$status
+
+CH_NET := sideseat-ch-net
+CH_SHARD_PORT_1 ?= 8420
+CH_SHARD_PORT_2 ?= 8430
+
+# Two shards, which is the only way several fixes are falsifiable at all.
+#
+# On one shard a read against `otel_spans_local` and a read against the `Distributed` front end return the same
+# rows, so the two fixes that changed `_local` to the front end pass either way, as does an anomaly table with
+# no front end. The shard count *is* the fixture.
+#
+# **Deliberately not part of `make check` or CI, and slow: expect ~15 minutes.** Every `ON CLUSTER` statement
+# takes ~90 seconds against this fixture, and the schema plus the database setup is nine of them. The cause is
+# understood and unfixed: each server registers an ephemeral node in the distributed-DDL replica registry, a
+# third entry named `localhost:9000` exists alongside the two correct `ch-shardN:9000` ones, and the node that
+# does not own it waits the hardcoded 90 seconds in `markReplicasActive` before every task
+# ("Ephemeral node /clickhouse/task_queue/replicas/localhost:9000/active still exists after 90s"). Setting
+# `interserver_http_host` and the container hostname made the two real names correct without removing the third,
+# and it survives restarting either node - so it is not simply a stale session. Anyone picking this up starts
+# there.
+#
+# Slow and real beats fast and unfalsifiable, so it ships as an opt-in target rather than being dropped.
+test-clickhouse-two-shard:
+	@command -v docker >/dev/null 2>&1 || { echo "[two-shard] docker is required"; exit 1; }
+	@echo "[two-shard] starting two $(CH_TEST_IMAGE) nodes - this takes ~15 minutes, see the Makefile comment"
+	@docker rm -fv ch-shard1 ch-shard2 >/dev/null 2>&1 || true
+	@docker network create $(CH_NET) >/dev/null 2>&1 || true
+	@for n in 1 2; do \
+		port=$$(if [ "$$n" = "1" ]; then echo $(CH_SHARD_PORT_1); else echo $(CH_SHARD_PORT_2); fi); \
+		keeper=""; \
+		if [ "$$n" = "1" ]; then \
+			keeper="-v $(CURDIR)/scripts/clickhouse-replicated/two-shard-keeper.xml:/etc/clickhouse-server/config.d/keeper.xml:ro"; \
+		fi; \
+		docker run -d --name ch-shard$$n --hostname ch-shard$$n \
+			--network $(CH_NET) --network-alias ch-shard$$n -p $$port:8123 \
+			-e CLICKHOUSE_USER=sideseat -e CLICKHOUSE_PASSWORD=sideseat \
+			-e CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT=1 \
+			-v "$(CURDIR)/scripts/clickhouse-replicated/two-shard-common.xml:/etc/clickhouse-server/config.d/cluster.xml:ro" \
+			-v "$(CURDIR)/scripts/clickhouse-replicated/two-shard-node-$$n.xml:/etc/clickhouse-server/config.d/node.xml:ro" \
+			$$keeper $(CH_TEST_IMAGE) >/dev/null; \
+	done
+	@for port in $(CH_SHARD_PORT_1) $(CH_SHARD_PORT_2); do \
+		for i in $$(seq 1 90); do \
+			curl -sf http://127.0.0.1:$$port/ping >/dev/null && break; \
+			sleep 1; \
+		done; \
+		curl -sf http://127.0.0.1:$$port/ping >/dev/null || { \
+			echo "[two-shard] node on $$port did not become ready"; \
+			docker rm -fv ch-shard1 ch-shard2 >/dev/null 2>&1; \
+			exit 1; \
+		}; \
+	done
+	@set +e; \
+	SIDESEAT_TEST_CLICKHOUSE_TWO_SHARD_URL=http://127.0.0.1:$(CH_SHARD_PORT_1) \
+	SIDESEAT_TEST_CLICKHOUSE_USER=sideseat \
+	SIDESEAT_TEST_CLICKHOUSE_PASSWORD=sideseat \
+	cargo test --locked -p sideseat-server two_shard -- --test-threads=1 --nocapture; \
+	status=$$?; \
+	docker rm -fv ch-shard1 ch-shard2 >/dev/null 2>&1; \
+	docker network rm $(CH_NET) >/dev/null 2>&1; \
 	exit $$status
 
 # PostgreSQL/SQLite transactional parity. Same reasoning as test-clickhouse: the PostgreSQL SQL is

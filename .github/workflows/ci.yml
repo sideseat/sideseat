@@ -141,6 +141,13 @@ jobs:
           fi
           echo "$passed ClickHouse parity test(s) ran"
 
+  # **No two-shard job here, deliberately.** `make test-clickhouse-two-shard` is the only gate that can fail on
+  # the `_local`-versus-`Distributed` reads and the anomaly table's front end - one shard makes those reads
+  # equivalent - but every `ON CLUSTER` statement against that fixture takes ~90 seconds, so the suite runs for
+  # about fifteen minutes. The cause is recorded on the Makefile target: a third distributed-DDL replica entry
+  # named `localhost:9000` that neither node owns, which makes the other wait the hardcoded 90 s in
+  # `markReplicasActive` before every task. Until that is understood the target is opt-in, and saying so here is
+  # better than a job that times out or one nobody trusts.
   check-clickhouse-replicated:
     name: ClickHouse (replicated migration)
     runs-on: ubuntu-latest

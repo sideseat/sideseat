@@ -786,24 +786,29 @@ pub async fn record_retention_cleanup(
     pool: &PgPool,
     project_id: &str,
     trace_ids: &[String],
-) -> Result<(), PostgresError> {
+) -> Result<Vec<(String, i64)>, PostgresError> {
     if trace_ids.is_empty() {
-        return Ok(());
+        return Ok(Vec::new());
     }
     let now = chrono::Utc::now().timestamp();
+    let mut written = Vec::with_capacity(trace_ids.len());
     for trace_id in trace_ids {
-        sqlx::query(
+        let token: i64 = sqlx::query_scalar(
             "INSERT INTO retention_cleanup \
              (project_id, trace_id, created_at, attempts, next_attempt_at, claim_token) \
-             VALUES ($1, $2, $3, 0, 0, 0) ON CONFLICT (project_id, trace_id) DO NOTHING",
+             VALUES ($1, $2, $3, 0, 0, 1) \
+             ON CONFLICT (project_id, trace_id) DO UPDATE SET \
+                 claim_token = retention_cleanup.claim_token + 1, next_attempt_at = 0 \
+             RETURNING claim_token",
         )
         .bind(project_id)
         .bind(trace_id)
         .bind(now)
-        .execute(pool)
+        .fetch_one(pool)
         .await?;
+        written.push((trace_id.clone(), token));
     }
-    Ok(())
+    Ok(written)
 }
 
 /// Claim due candidates, pushing their next attempt out before returning them.
@@ -816,21 +821,22 @@ pub async fn claim_retention_cleanup(
     pool: &PgPool,
     limit: i64,
     lease_secs: i64,
-) -> Result<Vec<(String, String)>, PostgresError> {
+) -> Result<Vec<(String, String, i64)>, PostgresError> {
     let now = chrono::Utc::now().timestamp();
-    let rows: Vec<(String, String)> = sqlx::query_as(
+    // The token is **returned and not bumped here** - bumping is what a *re-record* means, so a worker holding a
+    // token whose row was re-recorded finds no match on completion and leaves the new work alone.
+    let rows: Vec<(String, String, i64)> = sqlx::query_as(
         // `FOR UPDATE SKIP LOCKED` on the inner select, which the SQLite twin does not need: with several
         // replicas a blocked one can otherwise resume against a stale subquery snapshot and return ids another
         // replica has already claimed. The same reason the file and project claims use it.
         "UPDATE retention_cleanup \
          SET attempts = attempts + 1, \
-             claim_token = claim_token + 1, \
              next_attempt_at = $1 + $2 * LEAST(attempts + 1, 8) \
          WHERE (project_id, trace_id) IN ( \
              SELECT project_id, trace_id FROM retention_cleanup \
              WHERE next_attempt_at <= $3 ORDER BY next_attempt_at LIMIT $4 FOR UPDATE SKIP LOCKED \
          ) \
-         RETURNING project_id, trace_id",
+         RETURNING project_id, trace_id, claim_token",
     )
     .bind(now)
     .bind(lease_secs)
@@ -841,20 +847,50 @@ pub async fn claim_retention_cleanup(
     Ok(rows)
 }
 
-/// Drop candidates whose cleanup completed.
+/// Drop candidates whose cleanup completed, only if still on the claimed token.
 pub async fn complete_retention_cleanup(
     pool: &PgPool,
     project_id: &str,
-    trace_ids: &[String],
+    completed: &[(String, i64)],
 ) -> Result<(), PostgresError> {
-    if trace_ids.is_empty() {
-        return Ok(());
+    for (trace_id, token) in completed {
+        sqlx::query(
+            "DELETE FROM retention_cleanup \
+             WHERE project_id = $1 AND trace_id = $2 AND claim_token = $3",
+        )
+        .bind(project_id)
+        .bind(trace_id)
+        .bind(token)
+        .execute(pool)
+        .await?;
     }
+    Ok(())
+}
+
+/// Restore an association a survivor scan released, as **durable**.
+///
+/// The compensation path of survivor reconciliation: a span committed between the scan and the release, so its
+/// association was deleted and must come back before any byte is reclaimed.
+///
+/// `durable = 1` is the whole point, and `insert_trace_file` was the first choice and is wrong here: it leaves
+/// the row provisional, so a *later* batch that references the same file and then fails would decrement
+/// `pending_writers` to zero, find a non-durable row, and delete it - taking the association of a span that
+/// committed long before. The reference being restored is owned by a committed span, which is exactly what
+/// `durable` means.
+pub async fn restore_durable_trace_file(
+    pool: &PgPool,
+    project_id: &str,
+    trace_id: &str,
+    file_hash: &str,
+) -> Result<(), PostgresError> {
     sqlx::query(
-        "DELETE FROM retention_cleanup WHERE project_id = $1 AND trace_id = ANY($2::text[])",
+        "INSERT INTO trace_files (trace_id, project_id, file_hash, pending_writers, durable) \
+         VALUES ($1, $2, $3, 0, true) \
+         ON CONFLICT (project_id, trace_id, file_hash) DO UPDATE SET durable = true",
     )
+    .bind(trace_id)
     .bind(project_id)
-    .bind(trace_ids)
+    .bind(file_hash)
     .execute(pool)
     .await?;
     Ok(())
