@@ -42,7 +42,7 @@ pub async fn stream_presence(
     // Valid **for this project** - see the AG-UI route. Presence names which agents a project is running.
     if let (Some(axum::Extension(auth)), Some(axum::Extension(service))) = (auth, auth_service) {
         if service
-            .verify_project_access(&auth, &project_id, crate::data::types::ApiKeyScope::Read)
+            .verify_project_access(&auth, &project_id, sideseat_ports::types::ApiKeyScope::Read)
             .await
             .is_err()
         {

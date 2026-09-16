@@ -50,11 +50,11 @@ use crate::data::AnalyticsService;
 use crate::data::files::FileService;
 use crate::data::topics::TopicService;
 use crate::data::topics::{StreamTopic, TopicError};
-use crate::data::types::NormalizedSpan;
 use crate::domain::pricing::PricingService;
 use crate::domain::sideml::to_sideml_batch;
 use sideseat_core::core::constants::DEFAULT_PROJECT_ID;
 use sideseat_core::utils::time::is_storable;
+use sideseat_ports::types::NormalizedSpan;
 
 /// Consumer group name for trace pipeline
 const CONSUMER_GROUP: &str = "trace_pipeline";

@@ -6,11 +6,11 @@ use duckdb::Connection;
 
 use crate::data::duckdb::DuckdbError;
 use crate::data::duckdb::repositories::query::DEDUP_SPANS;
-use crate::data::types::{
+use sideseat_core::core::constants::QUERY_MAX_TOP_STATS;
+use sideseat_ports::types::{
     CostsResult, CountsResult, FrameworkBreakdown, LatencyBucket, ModelBreakdown,
     ProjectStatsResult, StatsParams, TokensResult, TrendBucket,
 };
-use sideseat_core::core::constants::QUERY_MAX_TOP_STATS;
 
 /// Get project stats for the given time range
 ///

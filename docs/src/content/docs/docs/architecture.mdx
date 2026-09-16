@@ -214,6 +214,14 @@ crates/core/src/
 ```
 
 ```
+crates/ports/src/
+├── traits.rs           # Repository interfaces - no implementation may be named here
+├── error.rs            # DataError, carrying each driver's message rather than its error type
+├── filters/            # The filter vocabulary, shared by both analytics adapters
+└── types/              # Shared DTOs
+```
+
+```
 server/src/
 ├── app.rs              # Main orchestrator
 ├── runtime/
@@ -224,8 +232,7 @@ server/src/
 │   ├── sqlite/         # SQLite implementation
 │   ├── postgres/       # PostgreSQL implementation
 │   ├── files/          # File storage (filesystem / S3)
-│   ├── topics/         # Pub/sub messaging (in-memory / Redis)
-│   └── traits.rs       # Repository interfaces
+│   └── topics/         # Pub/sub messaging (in-memory / Redis)
 ├── domain/
 │   ├── pricing/        # Cost calculation
 │   ├── providers/      # Provider connectors

@@ -6,7 +6,7 @@ use utoipa::ToSchema;
 use validator::Validate;
 
 use crate::api::types::{default_limit, default_page, validate_limit, validate_page};
-use crate::data::types::ProjectRow;
+use sideseat_ports::types::ProjectRow;
 
 /// Project DTO for API responses
 #[derive(Debug, Serialize, ToSchema)]

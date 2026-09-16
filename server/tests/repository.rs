@@ -2044,12 +2044,12 @@ fn every_module_path_cited_anywhere_resolves() {
 /// Three real violations existed when this was written, and each was a different shape:
 ///
 /// * `data/duckdb/repositories/query.rs` imported `crate::api::routes::otel::filters` - a module that is
-///   eight lines of `pub use crate::data::filters::…`. So the analytics adapter reached *through* the HTTP
+///   eight lines of `pub use sideseat_ports::filters::…`. So the analytics adapter reached *through* the HTTP
 ///   routing layer to borrow types the data layer already owned.
 /// * `data/duckdb/filters/{types,parser}.rs` returned `ApiError` from filter parsing and validation, which
 ///   made the adapter manufacture HTTP responses. They return `FilterError` now and `api::types` converts
 ///   at the boundary, so the routes still just use `?`.
-/// * `data/types/analytics.rs` imported `OrderBy`, a column plus a direction, from `api::types` - while
+/// * `crates/ports/src/types/analytics.rs` imported `OrderBy`, a column plus a direction, from `api::types` - while
 ///   three of its own DTOs carried it as a field. The type and its SQL moved to `data::types::order`;
 ///   parsing a `?order_by=` parameter, which is where the 400 belongs, stayed in `api`.
 ///

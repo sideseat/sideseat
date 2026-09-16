@@ -7,11 +7,11 @@ use serde::Deserialize;
 
 use super::query::{TOKEN_DEDUP_CONDITION, build_time_scoped_dedup};
 use crate::data::clickhouse::ClickhouseError;
-use crate::data::types::{
+use sideseat_core::core::constants::QUERY_MAX_TOP_STATS;
+use sideseat_ports::types::{
     CostsResult, CountsResult, FrameworkBreakdown, LatencyBucket, ModelBreakdown,
     ProjectStatsResult, StatsParams, TokensResult, TrendBucket,
 };
-use sideseat_core::core::constants::QUERY_MAX_TOP_STATS;
 
 /// ClickHouse row for main aggregation
 #[derive(Row, Deserialize)]

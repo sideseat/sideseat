@@ -17,7 +17,7 @@ use crate::api::types::{
     ApiError, PaginatedResponse, default_limit, default_page, parse_order_by,
     parse_timestamp_param, validate_ids_batch, validate_limit, validate_page,
 };
-use crate::data::types::{ListSessionsParams, SessionRow};
+use sideseat_ports::types::{ListSessionsParams, SessionRow};
 
 #[derive(Debug, Deserialize, Validate)]
 pub struct ListSessionsQuery {

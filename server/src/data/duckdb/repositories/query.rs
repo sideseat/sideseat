@@ -6,16 +6,16 @@ use duckdb::{Connection, Row};
 use crate::data::duckdb::filters::FilterSql;
 use crate::data::duckdb::filters::SqlParams;
 use crate::data::duckdb::{DuckdbError, in_transaction};
-use crate::data::filters::Filter;
-use crate::data::filters::columns;
-use crate::data::types::{
+use sideseat_core::core::constants::{QUERY_MAX_FILTER_SUGGESTIONS, QUERY_MAX_SPANS_PER_TRACE};
+use sideseat_core::utils::time::{micros_to_datetime, parse_iso_timestamp};
+use sideseat_ports::filters::Filter;
+use sideseat_ports::filters::columns;
+use sideseat_ports::types::{
     DisplayNameDialect, EventRow, FeedSpansParams, LinkRow, ListSessionsParams, ListSpansParams,
     ListTracesParams, SESSION_FILTER_OPTION_COLUMNS, SPAN_FILTER_OPTION_COLUMNS, SessionRow,
     SpanRow, TRACE_FILTER_OPTION_COLUMNS, TraceRow, genai_span_predicate, parse_tags,
     trace_display_first, trace_display_name,
 };
-use sideseat_core::core::constants::{QUERY_MAX_FILTER_SUGGESTIONS, QUERY_MAX_SPANS_PER_TRACE};
-use sideseat_core::utils::time::{micros_to_datetime, parse_iso_timestamp};
 
 /// Inline dedup subquery replacing the old `otel_spans_v` view.
 ///
@@ -610,8 +610,8 @@ pub fn list_traces(
         .as_ref()
         .map(|o| {
             let dir = match o.direction {
-                crate::data::types::OrderDirection::Desc => "DESC",
-                crate::data::types::OrderDirection::Asc => "ASC",
+                sideseat_ports::types::OrderDirection::Desc => "DESC",
+                sideseat_ports::types::OrderDirection::Asc => "ASC",
             };
             (o.column.as_str(), dir)
         })
@@ -1387,8 +1387,8 @@ pub fn list_sessions(
         .as_ref()
         .map(|o| {
             let dir = match o.direction {
-                crate::data::types::OrderDirection::Desc => "DESC",
-                crate::data::types::OrderDirection::Asc => "ASC",
+                sideseat_ports::types::OrderDirection::Desc => "DESC",
+                sideseat_ports::types::OrderDirection::Asc => "ASC",
             };
             (o.column.as_str(), dir)
         })
@@ -4643,7 +4643,7 @@ mod tests {
     // A trace filter means what the trace list displays
     // ========================================================================
 
-    use crate::data::filters::{Filter, NullOp, NumberOp, OptionsOp, StringOp};
+    use sideseat_ports::filters::{Filter, NullOp, NumberOp, OptionsOp, StringOp};
 
     fn trace_filter_params(project_id: &str, filters: Vec<Filter>) -> ListTracesParams {
         ListTracesParams {
@@ -5175,7 +5175,7 @@ mod tests {
     #[tokio::test]
     async fn a_session_query_with_a_watermark_binds_in_the_right_order() {
         use crate::data::duckdb::repositories::messages::get_messages;
-        use crate::data::types::MessageQueryParams;
+        use sideseat_ports::types::MessageQueryParams;
 
         let (_tmp, service) = create_test_service().await;
         let project = "p";
@@ -5358,7 +5358,7 @@ mod tests {
         // can agree on being wrong - so the number itself is pinned here.
         let stats = crate::data::duckdb::repositories::stats::get_project_stats(
             &conn,
-            &crate::data::types::StatsParams {
+            &sideseat_ports::types::StatsParams {
                 project_id: project.to_string(),
                 from_timestamp: t0 - chrono::Duration::seconds(10),
                 to_timestamp: t0 + chrono::Duration::seconds(600),
@@ -5380,7 +5380,7 @@ mod tests {
     /// its trace under a different session.
     #[tokio::test]
     async fn an_advanced_session_filter_agrees_with_the_session_parameter() {
-        use crate::data::filters::{Filter, StringOp};
+        use sideseat_ports::filters::{Filter, StringOp};
 
         let (_tmp, service) = create_test_service().await;
         let project = "p";
@@ -5463,7 +5463,7 @@ mod tests {
     /// canonical subquery, returned its spans. Both routes are now the subquery.
     #[tokio::test]
     async fn a_negated_session_filter_agrees_between_the_trace_and_span_lists() {
-        use crate::data::filters::{Filter, OptionsOp};
+        use sideseat_ports::filters::{Filter, OptionsOp};
 
         let (_tmp, service) = create_test_service().await;
         let project = "p";
@@ -5539,7 +5539,7 @@ mod tests {
     /// same query could answer differently twice. `span_id` makes the order total.
     #[tokio::test]
     async fn a_trace_displays_one_name_however_it_is_asked_for() {
-        use crate::data::filters::{Filter, StringOp};
+        use sideseat_ports::filters::{Filter, StringOp};
 
         let (_tmp, service) = create_test_service().await;
         let project = "p";
@@ -5644,7 +5644,7 @@ mod tests {
     /// Every negation is now the complement of its positive form, in its own subquery.
     #[tokio::test]
     async fn a_trace_with_no_value_matches_none_of_that_value() {
-        use crate::data::filters::{Filter, OptionsOp};
+        use sideseat_ports::filters::{Filter, OptionsOp};
 
         let (_tmp, service) = create_test_service().await;
         let project = "p";
@@ -5703,7 +5703,7 @@ mod tests {
     /// matched it, and the filter's own total was 5,100 - the sum of both deliveries.
     #[tokio::test]
     async fn a_filter_reads_the_delivery_the_row_displays() {
-        use crate::data::filters::{Filter, NumberOp, OptionsOp, StringOp};
+        use sideseat_ports::filters::{Filter, NumberOp, OptionsOp, StringOp};
 
         let (_tmp, service) = create_test_service().await;
         let project = "p";
@@ -5908,7 +5908,7 @@ mod tests {
     /// a list nobody had filtered. Such a filter now contributes no condition at all.
     #[tokio::test]
     async fn an_empty_value_list_is_not_a_filter() {
-        use crate::data::filters::{Filter, OptionsOp};
+        use sideseat_ports::filters::{Filter, OptionsOp};
 
         let (_tmp, service) = create_test_service().await;
         let project = "p";
@@ -5990,7 +5990,7 @@ mod tests {
     /// not alice.
     #[tokio::test]
     async fn a_session_list_filter_selects_sessions_not_span_rows() {
-        use crate::data::filters::{Filter, OptionsOp, StringOp};
+        use sideseat_ports::filters::{Filter, OptionsOp, StringOp};
 
         let (_tmp, service) = create_test_service().await;
         let project = "p";
@@ -6101,7 +6101,7 @@ mod tests {
     /// filters permuted and requiring one answer.
     #[tokio::test]
     async fn a_negated_aggregate_filter_binds_in_step_with_its_neighbours() {
-        use crate::data::filters::{Filter, NumberOp, OptionsOp, StringOp};
+        use sideseat_ports::filters::{Filter, NumberOp, OptionsOp, StringOp};
 
         let (_tmp, service) = create_test_service().await;
         let project = "p";
@@ -6208,7 +6208,7 @@ mod tests {
     /// silently wrong answer, not an error - the query runs and compares the wrong values.
     #[tokio::test]
     async fn a_session_filter_binds_in_step_with_its_neighbours() {
-        use crate::data::filters::{Filter, OptionsOp, StringOp};
+        use sideseat_ports::filters::{Filter, OptionsOp, StringOp};
 
         let (_tmp, service) = create_test_service().await;
         let project = "p";
@@ -6373,7 +6373,7 @@ mod tests {
     #[tokio::test]
     async fn a_trace_belongs_to_one_session_across_reads_and_deletion() {
         use crate::data::duckdb::repositories::messages::get_messages;
-        use crate::data::types::MessageQueryParams;
+        use sideseat_ports::types::MessageQueryParams;
 
         let (_tmp, service) = create_test_service().await;
         let project = "p";

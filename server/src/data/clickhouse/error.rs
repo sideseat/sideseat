@@ -1,5 +1,6 @@
 //! ClickHouse error types
 
+use sideseat_ports::error::DataError;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -22,6 +23,46 @@ pub enum ClickhouseError {
 
     #[error("Query timeout after {timeout_secs}s")]
     Timeout { timeout_secs: u64 },
+}
+
+/// This adapter's error, as the port's error.
+///
+/// **Here rather than beside `DataError`.** The conversion used to live in `data::error`, which made the port's
+/// error type name every adapter - the dependency exactly inverted, and enough on its own to stop `ports` being
+/// a crate. An adapter knows the port it implements; the port must not know its implementations. The orphan rule
+/// allows only these two homes, and this is the one that points the right way.
+impl From<ClickhouseError> for DataError {
+    fn from(e: ClickhouseError) -> Self {
+        match e {
+            // The transience verdict is made **here**, where the driver's error is still in hand. It is a
+            // string search, which is a guess - the driver does not classify - but it is a guess about
+            // ClickHouse, made in the ClickHouse adapter, rather than one the port makes about a driver it
+            // should not know.
+            ClickhouseError::Database(e) => {
+                let message = e.to_string();
+                let transient = message.contains("connection")
+                    || message.contains("timeout")
+                    || message.contains("network");
+                Self::Clickhouse { message, transient }
+            }
+            ClickhouseError::MigrationFailed {
+                version,
+                name,
+                error,
+            } => Self::MigrationFailed {
+                backend: "clickhouse",
+                version,
+                name,
+                error,
+            },
+            ClickhouseError::Connection(msg) => Self::Config(msg),
+            ClickhouseError::Io(e) => Self::Io(e),
+            ClickhouseError::Timeout { timeout_secs } => Self::Timeout {
+                backend: "clickhouse",
+                timeout_secs,
+            },
+        }
+    }
 }
 
 #[cfg(test)]

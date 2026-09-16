@@ -4,8 +4,8 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
-use crate::data::types::{MessageCategory, SpanRow};
 use crate::domain::sideml::{BlockEntry, ChatRole, ContentBlock, FinishReason};
+use sideseat_ports::types::{MessageCategory, SpanRow};
 
 /// Helper for query params that accept string or array
 #[derive(Debug, Deserialize)]
@@ -429,7 +429,7 @@ pub struct SpanEnvelopeDto {
 }
 
 impl SpanEnvelopeDto {
-    pub fn from_row(row: &crate::data::types::MessageSpanRow) -> Self {
+    pub fn from_row(row: &sideseat_ports::types::MessageSpanRow) -> Self {
         Self {
             trace_id: row.trace_id.clone(),
             span_id: row.span_id.clone(),

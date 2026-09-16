@@ -3,7 +3,7 @@
 use sqlx::SqlitePool;
 
 use crate::data::sqlite::SqliteError;
-use crate::data::types::CredentialPermissionRow;
+use sideseat_ports::types::CredentialPermissionRow;
 
 /// List all permissions for a credential
 pub async fn list_credential_permissions(

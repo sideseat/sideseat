@@ -7,9 +7,9 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 
-use crate::data::error::DataError;
-use crate::data::traits::TransactionalRepository;
-use crate::data::types::{
+use sideseat_ports::error::DataError;
+use sideseat_ports::traits::TransactionalRepository;
+use sideseat_ports::types::{
     ApiKeyRow, ApiKeyScope, ApiKeyValidation, AuthMethodRow, CredentialPermissionRow,
     CredentialRow, FileRow, LastOwnerResult, MemberWithUser, MembershipRow, OrgWithRole,
     OrganizationRow, ProjectRow, UserRow,
@@ -21,8 +21,30 @@ use super::repositories::{
     organization, project, user,
 };
 
+/// The port, implemented over the service.
+///
+/// A **wrapper rather than `impl … for Arc<PostgresService>`**, and that is the orphan rule rather than taste: with the
+/// trait in `sideseat-ports` and `Arc` in `std`, an impl on `Arc<PostgresService>` has no local type ahead of an
+/// uncovered parameter, so it is refused across a crate boundary. It compiled only while everything was one
+/// crate - which is one more way the single crate hid the direction of its own dependencies.
+#[derive(Clone)]
+pub struct PostgresRepository(pub Arc<PostgresService>);
+
+/// So the wrapper is transparent to the service's own methods.
+///
+/// Without this, wrapping turns every call that is *not* a port method - a maintenance helper, a test probe -
+/// into `wrapper.0.method()`, which is noise that says nothing. The port methods live on the wrapper itself and
+/// are found first, so nothing is shadowed.
+impl std::ops::Deref for PostgresRepository {
+    type Target = PostgresService;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
 #[async_trait]
-impl TransactionalRepository for Arc<PostgresService> {
+impl TransactionalRepository for PostgresRepository {
     // ==================== User Operations ====================
 
     async fn create_user(
@@ -30,19 +52,19 @@ impl TransactionalRepository for Arc<PostgresService> {
         email: &str,
         display_name: Option<&str>,
     ) -> Result<UserRow, DataError> {
-        user::create_user(self.pool(), None, Some(email), display_name)
+        user::create_user(self.0.pool(), None, Some(email), display_name)
             .await
             .map_err(Into::into)
     }
 
     async fn get_user(&self, id: &str) -> Result<Option<UserRow>, DataError> {
-        user::get_user(self.pool(), None, id)
+        user::get_user(self.0.pool(), None, id)
             .await
             .map_err(Into::into)
     }
 
     async fn get_user_by_email(&self, email: &str) -> Result<Option<UserRow>, DataError> {
-        user::get_by_email(self.pool(), None, email)
+        user::get_by_email(self.0.pool(), None, email)
             .await
             .map_err(Into::into)
     }
@@ -52,7 +74,7 @@ impl TransactionalRepository for Arc<PostgresService> {
         id: &str,
         display_name: Option<&str>,
     ) -> Result<Option<UserRow>, DataError> {
-        user::update_user(self.pool(), None, id, display_name)
+        user::update_user(self.0.pool(), None, id, display_name)
             .await
             .map_err(Into::into)
     }
@@ -65,13 +87,13 @@ impl TransactionalRepository for Arc<PostgresService> {
         slug: &str,
         owner_user_id: &str,
     ) -> Result<OrganizationRow, DataError> {
-        organization::create_organization_with_owner(self.pool(), None, name, slug, owner_user_id)
+        organization::create_organization_with_owner(self.0.pool(), None, name, slug, owner_user_id)
             .await
             .map_err(Into::into)
     }
 
     async fn get_organization(&self, id: &str) -> Result<Option<OrganizationRow>, DataError> {
-        organization::get_organization(self.pool(), None, id)
+        organization::get_organization(self.0.pool(), None, id)
             .await
             .map_err(Into::into)
     }
@@ -81,7 +103,7 @@ impl TransactionalRepository for Arc<PostgresService> {
         id: &str,
         name: &str,
     ) -> Result<Option<OrganizationRow>, DataError> {
-        organization::update_organization(self.pool(), None, id, name)
+        organization::update_organization(self.0.pool(), None, id, name)
             .await
             .map_err(Into::into)
     }
@@ -92,19 +114,19 @@ impl TransactionalRepository for Arc<PostgresService> {
         page: u32,
         limit: u32,
     ) -> Result<(Vec<OrgWithRole>, u64), DataError> {
-        organization::list_for_user(self.pool(), None, user_id, page, limit)
+        organization::list_for_user(self.0.pool(), None, user_id, page, limit)
             .await
             .map_err(Into::into)
     }
 
     async fn delete_organization(&self, id: &str) -> Result<bool, DataError> {
-        organization::delete_organization(self.pool(), None, id)
+        organization::delete_organization(self.0.pool(), None, id)
             .await
             .map_err(Into::into)
     }
 
     async fn list_project_ids(&self, organization_id: &str) -> Result<Vec<String>, DataError> {
-        organization::list_project_ids(self.pool(), organization_id)
+        organization::list_project_ids(self.0.pool(), organization_id)
             .await
             .map_err(Into::into)
     }
@@ -116,7 +138,7 @@ impl TransactionalRepository for Arc<PostgresService> {
         organization_id: &str,
         user_id: &str,
     ) -> Result<Option<MembershipRow>, DataError> {
-        membership::get_membership(self.pool(), None, organization_id, user_id)
+        membership::get_membership(self.0.pool(), None, organization_id, user_id)
             .await
             .map_err(Into::into)
     }
@@ -126,7 +148,7 @@ impl TransactionalRepository for Arc<PostgresService> {
         organization_id: &str,
         user_id: &str,
     ) -> Result<Option<MemberWithUser>, DataError> {
-        membership::get_member_with_user(self.pool(), organization_id, user_id)
+        membership::get_member_with_user(self.0.pool(), organization_id, user_id)
             .await
             .map_err(Into::into)
     }
@@ -137,7 +159,7 @@ impl TransactionalRepository for Arc<PostgresService> {
         user_id: &str,
         role: &str,
     ) -> Result<MembershipRow, DataError> {
-        membership::add_member(self.pool(), None, organization_id, user_id, role)
+        membership::add_member(self.0.pool(), None, organization_id, user_id, role)
             .await
             .map_err(Into::into)
     }
@@ -148,7 +170,7 @@ impl TransactionalRepository for Arc<PostgresService> {
         page: u32,
         limit: u32,
     ) -> Result<(Vec<MemberWithUser>, u64), DataError> {
-        membership::list_members(self.pool(), organization_id, page, limit)
+        membership::list_members(self.0.pool(), organization_id, page, limit)
             .await
             .map_err(Into::into)
     }
@@ -159,7 +181,7 @@ impl TransactionalRepository for Arc<PostgresService> {
         user_id: &str,
         new_role: &str,
     ) -> Result<LastOwnerResult<MembershipRow>, DataError> {
-        membership::update_role_atomic(self.pool(), None, organization_id, user_id, new_role)
+        membership::update_role_atomic(self.0.pool(), None, organization_id, user_id, new_role)
             .await
             .map_err(Into::into)
     }
@@ -169,7 +191,7 @@ impl TransactionalRepository for Arc<PostgresService> {
         organization_id: &str,
         user_id: &str,
     ) -> Result<LastOwnerResult<()>, DataError> {
-        membership::remove_member_atomic(self.pool(), None, organization_id, user_id)
+        membership::remove_member_atomic(self.0.pool(), None, organization_id, user_id)
             .await
             .map_err(Into::into)
     }
@@ -181,19 +203,19 @@ impl TransactionalRepository for Arc<PostgresService> {
         organization_id: &str,
         name: &str,
     ) -> Result<ProjectRow, DataError> {
-        project::create_project(self.pool(), None, organization_id, name)
+        project::create_project(self.0.pool(), None, organization_id, name)
             .await
             .map_err(Into::into)
     }
 
     async fn get_project(&self, id: &str) -> Result<Option<ProjectRow>, DataError> {
-        project::get_project(self.pool(), None, id)
+        project::get_project(self.0.pool(), None, id)
             .await
             .map_err(Into::into)
     }
 
     async fn update_project(&self, id: &str, name: &str) -> Result<Option<ProjectRow>, DataError> {
-        project::update_project(self.pool(), None, id, name)
+        project::update_project(self.0.pool(), None, id, name)
             .await
             .map_err(Into::into)
     }
@@ -204,7 +226,7 @@ impl TransactionalRepository for Arc<PostgresService> {
         page: u32,
         limit: u32,
     ) -> Result<(Vec<ProjectRow>, u64), DataError> {
-        project::list_for_org(self.pool(), None, organization_id, page, limit)
+        project::list_for_org(self.0.pool(), None, organization_id, page, limit)
             .await
             .map_err(Into::into)
     }
@@ -215,19 +237,19 @@ impl TransactionalRepository for Arc<PostgresService> {
         page: u32,
         limit: u32,
     ) -> Result<(Vec<ProjectRow>, u64), DataError> {
-        project::list_for_user(self.pool(), None, user_id, page, limit)
+        project::list_for_user(self.0.pool(), None, user_id, page, limit)
             .await
             .map_err(Into::into)
     }
 
     async fn claim_project_for_deletion(&self, id: &str) -> Result<bool, DataError> {
-        project::claim_project_for_deletion(self.pool(), self.cache(), id)
+        project::claim_project_for_deletion(self.0.pool(), self.0.cache(), id)
             .await
             .map_err(Into::into)
     }
 
     async fn project_accepts_writes(&self, id: &str) -> Result<bool, DataError> {
-        project::project_accepts_writes(self.pool(), id)
+        project::project_accepts_writes(self.0.pool(), id)
             .await
             .map_err(Into::into)
     }
@@ -237,7 +259,7 @@ impl TransactionalRepository for Arc<PostgresService> {
         project_id: &str,
         trace_ids: &[String],
     ) -> Result<(), DataError> {
-        project::record_deleted_traces(self.pool(), project_id, trace_ids)
+        project::record_deleted_traces(self.0.pool(), project_id, trace_ids)
             .await
             .map_err(Into::into)
     }
@@ -247,7 +269,7 @@ impl TransactionalRepository for Arc<PostgresService> {
         project_id: &str,
         trace_ids: &[String],
     ) -> Result<std::collections::HashSet<String>, DataError> {
-        project::deleted_traces_among(self.pool(), project_id, trace_ids)
+        project::deleted_traces_among(self.0.pool(), project_id, trace_ids)
             .await
             .map_err(Into::into)
     }
@@ -256,7 +278,7 @@ impl TransactionalRepository for Arc<PostgresService> {
         &self,
         older_than_secs: i64,
     ) -> Result<Vec<(String, i64)>, DataError> {
-        project::get_stale_claimed_projects(self.pool(), older_than_secs)
+        project::get_stale_claimed_projects(self.0.pool(), older_than_secs)
             .await
             .map_err(Into::into)
     }
@@ -266,7 +288,7 @@ impl TransactionalRepository for Arc<PostgresService> {
         id: &str,
         observed_deleting_at: i64,
     ) -> Result<bool, DataError> {
-        project::reclaim_stale_project(self.pool(), id, observed_deleting_at)
+        project::reclaim_stale_project(self.0.pool(), id, observed_deleting_at)
             .await
             .map_err(Into::into)
     }
@@ -278,7 +300,7 @@ impl TransactionalRepository for Arc<PostgresService> {
         required: i64,
         min_gap_secs: i64,
     ) -> Result<bool, DataError> {
-        project::record_project_sweep(self.pool(), id, was_clean, required, min_gap_secs)
+        project::record_project_sweep(self.0.pool(), id, was_clean, required, min_gap_secs)
             .await
             .map_err(Into::into)
     }
@@ -288,7 +310,7 @@ impl TransactionalRepository for Arc<PostgresService> {
         lease_secs: i64,
         limit: i64,
     ) -> Result<Vec<(String, i64)>, DataError> {
-        project::claim_deleted_projects_for_check(self.pool(), lease_secs, limit)
+        project::claim_deleted_projects_for_check(self.0.pool(), lease_secs, limit)
             .await
             .map_err(Into::into)
     }
@@ -298,7 +320,7 @@ impl TransactionalRepository for Arc<PostgresService> {
         project_id: &str,
         session_ids: &[String],
     ) -> Result<(), DataError> {
-        project::record_deleted_sessions(self.pool(), project_id, session_ids)
+        project::record_deleted_sessions(self.0.pool(), project_id, session_ids)
             .await
             .map_err(Into::into)
     }
@@ -308,7 +330,7 @@ impl TransactionalRepository for Arc<PostgresService> {
         project_id: &str,
         session_ids: &[String],
     ) -> Result<std::collections::HashSet<String>, DataError> {
-        project::deleted_sessions_among(self.pool(), project_id, session_ids)
+        project::deleted_sessions_among(self.0.pool(), project_id, session_ids)
             .await
             .map_err(Into::into)
     }
@@ -318,7 +340,7 @@ impl TransactionalRepository for Arc<PostgresService> {
         lease_secs: i64,
         limit: i64,
     ) -> Result<Vec<(String, String, i64)>, DataError> {
-        project::claim_deleted_sessions_for_check(self.pool(), lease_secs, limit)
+        project::claim_deleted_sessions_for_check(self.0.pool(), lease_secs, limit)
             .await
             .map_err(Into::into)
     }
@@ -333,7 +355,7 @@ impl TransactionalRepository for Arc<PostgresService> {
         max_gap_secs: i64,
     ) -> Result<(), DataError> {
         project::record_deleted_session_check(
-            self.pool(),
+            self.0.pool(),
             project_id,
             session_id,
             claim_token,
@@ -350,7 +372,7 @@ impl TransactionalRepository for Arc<PostgresService> {
         lease_secs: i64,
         limit: i64,
     ) -> Result<Vec<(String, String, i64)>, DataError> {
-        project::claim_deleted_traces_for_check(self.pool(), lease_secs, limit)
+        project::claim_deleted_traces_for_check(self.0.pool(), lease_secs, limit)
             .await
             .map_err(Into::into)
     }
@@ -365,7 +387,7 @@ impl TransactionalRepository for Arc<PostgresService> {
         max_gap_secs: i64,
     ) -> Result<(), DataError> {
         project::record_deleted_trace_check(
-            self.pool(),
+            self.0.pool(),
             project_id,
             trace_id,
             claim_token,
@@ -386,7 +408,7 @@ impl TransactionalRepository for Arc<PostgresService> {
         max_gap_secs: i64,
     ) -> Result<(), DataError> {
         project::record_deleted_project_check(
-            self.pool(),
+            self.0.pool(),
             project_id,
             claim_token,
             was_quiet,
@@ -398,13 +420,13 @@ impl TransactionalRepository for Arc<PostgresService> {
     }
 
     async fn forget_deleted_projects(&self, retention_secs: i64) -> Result<u64, DataError> {
-        project::forget_deleted_projects(self.pool(), retention_secs)
+        project::forget_deleted_projects(self.0.pool(), retention_secs)
             .await
             .map_err(Into::into)
     }
 
     async fn claim_organization_for_deletion(&self, id: &str) -> Result<bool, DataError> {
-        project::claim_organization_for_deletion(self.pool(), id)
+        project::claim_organization_for_deletion(self.0.pool(), id)
             .await
             .map_err(Into::into)
     }
@@ -413,7 +435,7 @@ impl TransactionalRepository for Arc<PostgresService> {
         &self,
         older_than_secs: i64,
     ) -> Result<Vec<(String, i64)>, DataError> {
-        project::get_stale_claimed_organizations(self.pool(), older_than_secs)
+        project::get_stale_claimed_organizations(self.0.pool(), older_than_secs)
             .await
             .map_err(Into::into)
     }
@@ -423,19 +445,19 @@ impl TransactionalRepository for Arc<PostgresService> {
         id: &str,
         observed_deleting_at: i64,
     ) -> Result<bool, DataError> {
-        project::reclaim_stale_organization(self.pool(), id, observed_deleting_at)
+        project::reclaim_stale_organization(self.0.pool(), id, observed_deleting_at)
             .await
             .map_err(Into::into)
     }
 
     async fn count_projects_of_organization(&self, org_id: &str) -> Result<i64, DataError> {
-        project::count_projects_of_organization(self.pool(), org_id)
+        project::count_projects_of_organization(self.0.pool(), org_id)
             .await
             .map_err(Into::into)
     }
 
     async fn delete_project(&self, id: &str) -> Result<bool, DataError> {
-        project::delete_project(self.pool(), None, id)
+        project::delete_project(self.0.pool(), None, id)
             .await
             .map_err(Into::into)
     }
@@ -453,7 +475,7 @@ impl TransactionalRepository for Arc<PostgresService> {
         metadata: Option<&str>,
     ) -> Result<AuthMethodRow, DataError> {
         auth_method::create_auth_method(
-            self.pool(),
+            self.0.pool(),
             None,
             user_id,
             method_type,
@@ -471,7 +493,7 @@ impl TransactionalRepository for Arc<PostgresService> {
         provider: &str,
         provider_id: &str,
     ) -> Result<Option<AuthMethodRow>, DataError> {
-        auth_method::find_by_oauth(self.pool(), None, provider, provider_id)
+        auth_method::find_by_oauth(self.0.pool(), None, provider, provider_id)
             .await
             .map_err(Into::into)
     }
@@ -480,13 +502,13 @@ impl TransactionalRepository for Arc<PostgresService> {
         &self,
         user_id: &str,
     ) -> Result<Vec<AuthMethodRow>, DataError> {
-        auth_method::list_for_user(self.pool(), None, user_id)
+        auth_method::list_for_user(self.0.pool(), None, user_id)
             .await
             .map_err(Into::into)
     }
 
     async fn delete_auth_method(&self, id: &str) -> Result<bool, DataError> {
-        auth_method::delete_auth_method(self.pool(), None, id)
+        auth_method::delete_auth_method(self.0.pool(), None, id)
             .await
             .map_err(Into::into)
     }
@@ -495,7 +517,7 @@ impl TransactionalRepository for Arc<PostgresService> {
         &self,
         user_id: &str,
     ) -> Result<Option<AuthMethodRow>, DataError> {
-        auth_method::get_bootstrap_method(self.pool(), user_id)
+        auth_method::get_bootstrap_method(self.0.pool(), user_id)
             .await
             .map_err(Into::into)
     }
@@ -511,7 +533,7 @@ impl TransactionalRepository for Arc<PostgresService> {
         project_id: &str,
     ) -> Result<bool, DataError> {
         favorite::add_favorite(
-            self.pool(),
+            self.0.pool(),
             user_id,
             project_id,
             entity_type,
@@ -531,7 +553,7 @@ impl TransactionalRepository for Arc<PostgresService> {
         project_id: &str,
     ) -> Result<bool, DataError> {
         favorite::remove_favorite(
-            self.pool(),
+            self.0.pool(),
             user_id,
             project_id,
             entity_type,
@@ -550,7 +572,7 @@ impl TransactionalRepository for Arc<PostgresService> {
         project_id: &str,
     ) -> Result<Vec<String>, DataError> {
         let set =
-            favorite::check_favorites(self.pool(), user_id, project_id, entity_type, entity_ids)
+            favorite::check_favorites(self.0.pool(), user_id, project_id, entity_type, entity_ids)
                 .await
                 .map_err(DataError::from)?;
         Ok(set.into_iter().collect())
@@ -562,7 +584,7 @@ impl TransactionalRepository for Arc<PostgresService> {
         span_ids: &[(String, String)],
         project_id: &str,
     ) -> Result<Vec<(String, String)>, DataError> {
-        let set = favorite::check_span_favorites(self.pool(), user_id, project_id, span_ids)
+        let set = favorite::check_span_favorites(self.0.pool(), user_id, project_id, span_ids)
             .await
             .map_err(DataError::from)?;
         // Convert "trace_id:span_id" strings back to tuples
@@ -580,7 +602,7 @@ impl TransactionalRepository for Arc<PostgresService> {
     }
 
     async fn count_favorites(&self, user_id: &str, project_id: &str) -> Result<i64, DataError> {
-        favorite::count_favorites(self.pool(), user_id, project_id)
+        favorite::count_favorites(self.0.pool(), user_id, project_id)
             .await
             .map(|c| c as i64)
             .map_err(Into::into)
@@ -593,7 +615,7 @@ impl TransactionalRepository for Arc<PostgresService> {
         project_id: &str,
     ) -> Result<Vec<String>, DataError> {
         // Use a reasonable default limit
-        favorite::list_all_favorite_ids(self.pool(), user_id, project_id, entity_type, 10000)
+        favorite::list_all_favorite_ids(self.0.pool(), user_id, project_id, entity_type, 10000)
             .await
             .map_err(Into::into)
     }
@@ -604,7 +626,7 @@ impl TransactionalRepository for Arc<PostgresService> {
         entity_ids: &[String],
         project_id: &str,
     ) -> Result<u64, DataError> {
-        favorite::delete_favorites_by_entity(self.pool(), project_id, entity_type, entity_ids)
+        favorite::delete_favorites_by_entity(self.0.pool(), project_id, entity_type, entity_ids)
             .await
             .map_err(Into::into)
     }
@@ -620,7 +642,7 @@ impl TransactionalRepository for Arc<PostgresService> {
         hash_algo: &str,
     ) -> Result<i64, DataError> {
         file::upsert_file(
-            self.pool(),
+            self.0.pool(),
             project_id,
             file_hash,
             media_type,
@@ -636,13 +658,13 @@ impl TransactionalRepository for Arc<PostgresService> {
         project_id: &str,
         file_hash: &str,
     ) -> Result<Option<FileRow>, DataError> {
-        file::get_file(self.pool(), project_id, file_hash)
+        file::get_file(self.0.pool(), project_id, file_hash)
             .await
             .map_err(Into::into)
     }
 
     async fn file_exists(&self, project_id: &str, file_hash: &str) -> Result<bool, DataError> {
-        file::file_exists(self.pool(), project_id, file_hash)
+        file::file_exists(self.0.pool(), project_id, file_hash)
             .await
             .map_err(Into::into)
     }
@@ -652,19 +674,19 @@ impl TransactionalRepository for Arc<PostgresService> {
         project_id: &str,
         file_hash: &str,
     ) -> Result<Option<i64>, DataError> {
-        file::decrement_ref_count(self.pool(), project_id, file_hash)
+        file::decrement_ref_count(self.0.pool(), project_id, file_hash)
             .await
             .map_err(Into::into)
     }
 
     async fn delete_file(&self, project_id: &str, file_hash: &str) -> Result<bool, DataError> {
-        file::delete_file(self.pool(), project_id, file_hash)
+        file::delete_file(self.0.pool(), project_id, file_hash)
             .await
             .map_err(Into::into)
     }
 
     async fn delete_project_files(&self, project_id: &str) -> Result<u64, DataError> {
-        file::delete_project_files(self.pool(), project_id)
+        file::delete_project_files(self.0.pool(), project_id)
             .await
             .map_err(Into::into)
     }
@@ -679,7 +701,7 @@ impl TransactionalRepository for Arc<PostgresService> {
         hash_algo: &str,
     ) -> Result<bool, DataError> {
         file::associate_file(
-            self.pool(),
+            self.0.pool(),
             trace_id,
             project_id,
             file_hash,
@@ -696,7 +718,7 @@ impl TransactionalRepository for Arc<PostgresService> {
         project_id: &str,
         trace_ids: &[String],
     ) -> Result<Vec<(String, i64)>, DataError> {
-        file::get_file_reference_counts_for_traces(self.pool(), project_id, trace_ids)
+        file::get_file_reference_counts_for_traces(self.0.pool(), project_id, trace_ids)
             .await
             .map_err(Into::into)
     }
@@ -707,7 +729,7 @@ impl TransactionalRepository for Arc<PostgresService> {
         project_id: &str,
         file_hash: &str,
     ) -> Result<bool, DataError> {
-        file::associate_existing_file(self.pool(), trace_id, project_id, file_hash)
+        file::associate_existing_file(self.0.pool(), trace_id, project_id, file_hash)
             .await
             .map_err(Into::into)
     }
@@ -716,7 +738,7 @@ impl TransactionalRepository for Arc<PostgresService> {
         &self,
         older_than_secs: i64,
     ) -> Result<Vec<(String, String, i64)>, DataError> {
-        file::get_stale_claimed_files(self.pool(), older_than_secs)
+        file::get_stale_claimed_files(self.0.pool(), older_than_secs)
             .await
             .map_err(Into::into)
     }
@@ -727,7 +749,7 @@ impl TransactionalRepository for Arc<PostgresService> {
         file_hash: &str,
         observed_deleting_at: i64,
     ) -> Result<bool, DataError> {
-        file::reclaim_stale_file(self.pool(), project_id, file_hash, observed_deleting_at)
+        file::reclaim_stale_file(self.0.pool(), project_id, file_hash, observed_deleting_at)
             .await
             .map_err(Into::into)
     }
@@ -737,7 +759,7 @@ impl TransactionalRepository for Arc<PostgresService> {
         project_id: &str,
         file_hash: &str,
     ) -> Result<bool, DataError> {
-        file::claim_file_for_deletion(self.pool(), project_id, file_hash)
+        file::claim_file_for_deletion(self.0.pool(), project_id, file_hash)
             .await
             .map_err(Into::into)
     }
@@ -747,7 +769,7 @@ impl TransactionalRepository for Arc<PostgresService> {
         project_id: &str,
         file_hash: &str,
     ) -> Result<(), DataError> {
-        file::release_deletion_claim(self.pool(), project_id, file_hash)
+        file::release_deletion_claim(self.0.pool(), project_id, file_hash)
             .await
             .map_err(Into::into)
     }
@@ -761,7 +783,7 @@ impl TransactionalRepository for Arc<PostgresService> {
         hash_algo: &str,
     ) -> Result<(), DataError> {
         file::restore_orphan_metadata(
-            self.pool(),
+            self.0.pool(),
             project_id,
             file_hash,
             media_type,
@@ -777,7 +799,7 @@ impl TransactionalRepository for Arc<PostgresService> {
         project_id: &str,
         file_hash: &str,
     ) -> Result<bool, DataError> {
-        file::delete_file_if_unreferenced(self.pool(), project_id, file_hash)
+        file::delete_file_if_unreferenced(self.0.pool(), project_id, file_hash)
             .await
             .map_err(Into::into)
     }
@@ -787,7 +809,7 @@ impl TransactionalRepository for Arc<PostgresService> {
         project_id: &str,
         file_hash: &str,
     ) -> Result<Option<i64>, DataError> {
-        file::sync_ref_count(self.pool(), project_id, file_hash)
+        file::sync_ref_count(self.0.pool(), project_id, file_hash)
             .await
             .map_err(Into::into)
     }
@@ -798,7 +820,7 @@ impl TransactionalRepository for Arc<PostgresService> {
         project_id: &str,
         file_hash: &str,
     ) -> Result<(), DataError> {
-        file::insert_trace_file(self.pool(), trace_id, project_id, file_hash)
+        file::insert_trace_file(self.0.pool(), trace_id, project_id, file_hash)
             .await
             .map_err(Into::into)
     }
@@ -808,7 +830,7 @@ impl TransactionalRepository for Arc<PostgresService> {
         project_id: &str,
         trace_ids: &[String],
     ) -> Result<Vec<String>, DataError> {
-        file::get_file_hashes_for_traces(self.pool(), project_id, trace_ids)
+        file::get_file_hashes_for_traces(self.0.pool(), project_id, trace_ids)
             .await
             .map_err(Into::into)
     }
@@ -817,7 +839,7 @@ impl TransactionalRepository for Arc<PostgresService> {
         &self,
         associations: &[(String, String, String)],
     ) -> Result<u64, DataError> {
-        file::confirm_trace_file_associations(self.pool(), associations)
+        file::confirm_trace_file_associations(self.0.pool(), associations)
             .await
             .map_err(Into::into)
     }
@@ -828,7 +850,7 @@ impl TransactionalRepository for Arc<PostgresService> {
         trace_id: &str,
         file_hash: &str,
     ) -> Result<bool, DataError> {
-        file::release_trace_file_association(self.pool(), project_id, trace_id, file_hash)
+        file::release_trace_file_association(self.0.pool(), project_id, trace_id, file_hash)
             .await
             .map_err(Into::into)
     }
@@ -838,7 +860,7 @@ impl TransactionalRepository for Arc<PostgresService> {
         project_id: &str,
         trace_ids: &[String],
     ) -> Result<Vec<String>, DataError> {
-        file::delete_trace_files(self.pool(), project_id, trace_ids)
+        file::delete_trace_files(self.0.pool(), project_id, trace_ids)
             .await
             .map_err(Into::into)
     }
@@ -848,7 +870,7 @@ impl TransactionalRepository for Arc<PostgresService> {
         project_id: &str,
         trace_ids: &[String],
     ) -> Result<Vec<(String, i64)>, DataError> {
-        file::record_retention_cleanup(self.pool(), project_id, trace_ids)
+        file::record_retention_cleanup(self.0.pool(), project_id, trace_ids)
             .await
             .map_err(Into::into)
     }
@@ -858,7 +880,7 @@ impl TransactionalRepository for Arc<PostgresService> {
         limit: i64,
         lease_secs: i64,
     ) -> Result<Vec<(String, String, i64)>, DataError> {
-        file::claim_retention_cleanup(self.pool(), limit, lease_secs)
+        file::claim_retention_cleanup(self.0.pool(), limit, lease_secs)
             .await
             .map_err(Into::into)
     }
@@ -868,7 +890,7 @@ impl TransactionalRepository for Arc<PostgresService> {
         project_id: &str,
         completed: &[(String, i64)],
     ) -> Result<(), DataError> {
-        file::complete_retention_cleanup(self.pool(), project_id, completed)
+        file::complete_retention_cleanup(self.0.pool(), project_id, completed)
             .await
             .map_err(Into::into)
     }
@@ -879,7 +901,7 @@ impl TransactionalRepository for Arc<PostgresService> {
         trace_id: &str,
         file_hash: &str,
     ) -> Result<(), DataError> {
-        file::restore_durable_trace_file(self.pool(), project_id, trace_id, file_hash)
+        file::restore_durable_trace_file(self.0.pool(), project_id, trace_id, file_hash)
             .await
             .map_err(Into::into)
     }
@@ -890,31 +912,31 @@ impl TransactionalRepository for Arc<PostgresService> {
         trace_id: &str,
         keep: &[String],
     ) -> Result<Vec<String>, DataError> {
-        file::release_trace_files_except(self.pool(), project_id, trace_id, keep)
+        file::release_trace_files_except(self.0.pool(), project_id, trace_id, keep)
             .await
             .map_err(Into::into)
     }
 
     async fn get_project_storage_bytes(&self, project_id: &str) -> Result<i64, DataError> {
-        file::get_project_storage_bytes(self.pool(), project_id)
+        file::get_project_storage_bytes(self.0.pool(), project_id)
             .await
             .map_err(Into::into)
     }
 
     async fn get_orphan_files(&self) -> Result<Vec<(String, String)>, DataError> {
-        file::get_orphan_files(self.pool())
+        file::get_orphan_files(self.0.pool())
             .await
             .map_err(Into::into)
     }
 
     async fn get_org_file_storage_bytes(&self, org_id: &str) -> Result<i64, DataError> {
-        file::get_org_file_storage_bytes(self.pool(), org_id)
+        file::get_org_file_storage_bytes(self.0.pool(), org_id)
             .await
             .map_err(Into::into)
     }
 
     async fn get_user_file_storage_bytes(&self, user_id: &str) -> Result<i64, DataError> {
-        file::get_user_file_storage_bytes(self.pool(), user_id)
+        file::get_user_file_storage_bytes(self.0.pool(), user_id)
             .await
             .map_err(Into::into)
     }
@@ -932,8 +954,8 @@ impl TransactionalRepository for Arc<PostgresService> {
         expires_at: Option<i64>,
     ) -> Result<ApiKeyRow, DataError> {
         api_key::create_api_key(
-            self.pool(),
-            self.cache(),
+            self.0.pool(),
+            self.0.cache(),
             org_id,
             name,
             key_hash,
@@ -950,37 +972,37 @@ impl TransactionalRepository for Arc<PostgresService> {
         &self,
         key_hash: &str,
     ) -> Result<Option<ApiKeyValidation>, DataError> {
-        api_key::get_by_hash(self.pool(), self.cache(), key_hash)
+        api_key::get_by_hash(self.0.pool(), self.0.cache(), key_hash)
             .await
             .map_err(Into::into)
     }
 
     async fn list_api_keys(&self, org_id: &str) -> Result<Vec<ApiKeyRow>, DataError> {
-        api_key::list_for_org(self.pool(), self.cache(), org_id)
+        api_key::list_for_org(self.0.pool(), self.0.cache(), org_id)
             .await
             .map_err(Into::into)
     }
 
     async fn delete_api_key(&self, id: &str, org_id: &str) -> Result<bool, DataError> {
-        api_key::delete_api_key(self.pool(), self.cache(), id, org_id)
+        api_key::delete_api_key(self.0.pool(), self.0.cache(), id, org_id)
             .await
             .map_err(Into::into)
     }
 
     async fn touch_api_key(&self, id: &str, threshold_secs: u64) -> Result<bool, DataError> {
-        api_key::touch_api_key(self.pool(), id, threshold_secs)
+        api_key::touch_api_key(self.0.pool(), id, threshold_secs)
             .await
             .map_err(Into::into)
     }
 
     async fn delete_api_keys_for_org(&self, org_id: &str) -> Result<u64, DataError> {
-        api_key::delete_for_org(self.pool(), self.cache(), org_id)
+        api_key::delete_for_org(self.0.pool(), self.0.cache(), org_id)
             .await
             .map_err(Into::into)
     }
 
     async fn get_api_key_hashes_for_org(&self, org_id: &str) -> Result<Vec<String>, DataError> {
-        api_key::get_hashes_for_org(self.pool(), org_id)
+        api_key::get_hashes_for_org(self.0.pool(), org_id)
             .await
             .map_err(Into::into)
     }
@@ -988,7 +1010,7 @@ impl TransactionalRepository for Arc<PostgresService> {
     // ==================== Credential Operations ====================
 
     async fn list_credentials(&self, org_id: &str) -> Result<Vec<CredentialRow>, DataError> {
-        credentials::list_credentials(self.pool(), org_id)
+        credentials::list_credentials(self.0.pool(), org_id)
             .await
             .map_err(Into::into)
     }
@@ -998,7 +1020,7 @@ impl TransactionalRepository for Arc<PostgresService> {
         id: &str,
         org_id: &str,
     ) -> Result<Option<CredentialRow>, DataError> {
-        credentials::get_credential(self.pool(), id, org_id)
+        credentials::get_credential(self.0.pool(), id, org_id)
             .await
             .map_err(Into::into)
     }
@@ -1015,7 +1037,7 @@ impl TransactionalRepository for Arc<PostgresService> {
         created_by: Option<&str>,
     ) -> Result<CredentialRow, DataError> {
         credentials::create_credential(
-            self.pool(),
+            self.0.pool(),
             id,
             org_id,
             provider_key,
@@ -1038,7 +1060,7 @@ impl TransactionalRepository for Arc<PostgresService> {
         extra_config: Option<Option<&str>>,
     ) -> Result<Option<CredentialRow>, DataError> {
         credentials::update_credential(
-            self.pool(),
+            self.0.pool(),
             id,
             org_id,
             display_name,
@@ -1050,7 +1072,7 @@ impl TransactionalRepository for Arc<PostgresService> {
     }
 
     async fn delete_credential(&self, id: &str, org_id: &str) -> Result<bool, DataError> {
-        credentials::delete_credential(self.pool(), id, org_id)
+        credentials::delete_credential(self.0.pool(), id, org_id)
             .await
             .map_err(Into::into)
     }
@@ -1061,7 +1083,7 @@ impl TransactionalRepository for Arc<PostgresService> {
         &self,
         credential_id: &str,
     ) -> Result<Vec<CredentialPermissionRow>, DataError> {
-        credential_permissions::list_credential_permissions(self.pool(), credential_id)
+        credential_permissions::list_credential_permissions(self.0.pool(), credential_id)
             .await
             .map_err(Into::into)
     }
@@ -1076,7 +1098,7 @@ impl TransactionalRepository for Arc<PostgresService> {
         created_by: Option<&str>,
     ) -> Result<CredentialPermissionRow, DataError> {
         credential_permissions::create_credential_permission(
-            self.pool(),
+            self.0.pool(),
             id,
             credential_id,
             org_id,
@@ -1093,7 +1115,7 @@ impl TransactionalRepository for Arc<PostgresService> {
         id: &str,
         credential_id: &str,
     ) -> Result<bool, DataError> {
-        credential_permissions::delete_credential_permission(self.pool(), id, credential_id)
+        credential_permissions::delete_credential_permission(self.0.pool(), id, credential_id)
             .await
             .map_err(Into::into)
     }
@@ -1104,7 +1126,7 @@ impl TransactionalRepository for Arc<PostgresService> {
         project_id: &str,
     ) -> Result<Vec<String>, DataError> {
         credential_permissions::get_credentials_accessible_by_project(
-            self.pool(),
+            self.0.pool(),
             org_id,
             project_id,
         )

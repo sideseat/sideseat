@@ -15,9 +15,9 @@ use crate::api::types::{ApiError, PaginatedResponse};
 use crate::data::cache::CacheService;
 use crate::data::cleanup::cleanup_project;
 use crate::data::files::FileService;
-use crate::data::types::ApiKeyScope;
 use crate::data::{AnalyticsService, TransactionalService};
 use sideseat_core::core::constants::{DEFAULT_PROJECT_ID, ORG_ROLE_ADMIN, ORG_ROLE_MEMBER};
+use sideseat_ports::types::ApiKeyScope;
 
 use types::{CreateProjectRequest, ListProjectsQuery, ProjectDto, UpdateProjectRequest};
 

@@ -669,10 +669,10 @@ impl HistoryStats {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::data::types::MessageCategory;
     use crate::domain::sideml::provenance::PositionPath;
     use crate::domain::sideml::types::FinishReason;
     use chrono::Utc;
+    use sideseat_ports::types::MessageCategory;
 
     fn make_block(
         entry_type: &str,

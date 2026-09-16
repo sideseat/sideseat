@@ -6,11 +6,11 @@
 //!
 //! Returns enrichment data separately; persist stage applies it to DB records.
 
-use crate::data::types::MessageCategory;
 use crate::domain::pricing::{self, PricingService, SpanCostInput};
 use crate::domain::sideml::{ChatMessage, SideMLMessage};
 use crate::domain::traces::SpanData;
 use sideseat_core::utils::string::{PREVIEW_MAX_LENGTH, truncate_preview};
+use sideseat_ports::types::MessageCategory;
 
 // ============================================================================
 // ENRICHMENT DATA STRUCTURES
@@ -305,11 +305,11 @@ fn extract_content_preview(msg: &ChatMessage, max_len: usize, include_tools: boo
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::data::types::MessageSourceType;
     use crate::domain::sideml::ChatRole;
     use crate::domain::sideml::provenance::PositionPath;
     use crate::domain::traces::MessageSource;
     use chrono::Utc;
+    use sideseat_ports::types::MessageSourceType;
 
     fn make_span() -> SpanData {
         SpanData {

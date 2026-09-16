@@ -5,8 +5,8 @@ use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 use validator::Validate;
 
-use crate::data::types::{CredentialPermissionRow, CredentialRow};
 use crate::domain::providers::{CredentialSource, ResolvedCredential};
+use sideseat_ports::types::{CredentialPermissionRow, CredentialRow};
 
 /// DTO for credential list/get responses (no secret value ever returned)
 #[derive(Debug, Serialize, ToSchema)]

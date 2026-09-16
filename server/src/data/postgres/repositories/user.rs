@@ -9,8 +9,8 @@ use sqlx::PgPool;
 
 use crate::data::cache::{CacheKey, CacheService};
 use crate::data::postgres::PostgresError;
-use crate::data::types::UserRow;
 use sideseat_core::core::constants::{CACHE_TTL_NEGATIVE, CACHE_TTL_USER, DEFAULT_USER_ID};
+use sideseat_ports::types::UserRow;
 
 /// Create a new user with a generated CUID2 ID
 pub async fn create_user(

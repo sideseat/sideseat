@@ -12,7 +12,9 @@
 
 use sideseat_core::utils::sql::{escape_like_pattern, is_plain_identifier};
 
-use crate::data::filters::{BooleanOp, DatetimeOp, Filter, NullOp, NumberOp, OptionsOp, StringOp};
+use sideseat_ports::filters::{
+    BooleanOp, DatetimeOp, Filter, NullOp, NumberOp, OptionsOp, StringOp,
+};
 
 /// Collects SQL parameters during query building (maintains insertion order)
 #[derive(Debug, Default)]

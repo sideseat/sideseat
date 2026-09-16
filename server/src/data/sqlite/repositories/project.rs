@@ -7,7 +7,7 @@ use sqlx::SqlitePool;
 
 use crate::data::cache::{CacheKey, CacheService};
 use crate::data::sqlite::SqliteError;
-use crate::data::types::ProjectRow;
+use sideseat_ports::types::ProjectRow;
 
 use super::membership::list_member_user_ids;
 

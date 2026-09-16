@@ -100,7 +100,7 @@ export interface SpanSummary {
 export type SpanDetail = SpanSummary;
 
 /**
- * Message categories matching server/src/data/types/enums.rs
+ * Message categories matching crates/ports/src/types/enums.rs
  * Used for semantic filtering of messages
  */
 export type MessageCategory =

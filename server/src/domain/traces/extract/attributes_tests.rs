@@ -2,7 +2,8 @@
 
 use std::collections::HashMap;
 
-use crate::data::types::{Framework, ObservationType, SpanCategory};
+use crate::domain::traces::extract::framework_oracle::Framework;
+use sideseat_ports::types::{ObservationType, SpanCategory};
 
 use super::*;
 

@@ -11,11 +11,11 @@ use super::OtelApiState;
 use super::types::{BlockDto, MessagesMetadataDto, MessagesResponseDto, SpanEnvelopeDto};
 use crate::api::auth::{SessionRead, SpanRead, TraceRead};
 use crate::api::types::{ApiError, parse_timestamp_param};
-use crate::data::types::MessageQueryParams;
 use crate::domain::sideml::{
     ExtractedTools, FeedOptions, FeedResult, apply_time_window, extract_tools_from_rows,
     process_spans_cached,
 };
+use sideseat_ports::types::MessageQueryParams;
 
 #[derive(Debug, Deserialize)]
 pub struct MessagesQuery {

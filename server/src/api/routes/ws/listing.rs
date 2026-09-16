@@ -40,7 +40,7 @@ pub async fn list_registrations(
     // otherwise a perfectly good key, and this endpoint lists agent manifests, system prompts included. `--no-auth` yields `LocalDefault`, admitted.
     if let (Some(axum::Extension(auth)), Some(axum::Extension(service))) = (auth, auth_service) {
         if service
-            .verify_project_access(&auth, &project_id, crate::data::types::ApiKeyScope::Read)
+            .verify_project_access(&auth, &project_id, sideseat_ports::types::ApiKeyScope::Read)
             .await
             .is_err()
         {

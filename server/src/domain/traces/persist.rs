@@ -30,7 +30,6 @@ use super::extract::{RawMessage, RawToolDefinition, RawToolNames, SpanData};
 use crate::data::AnalyticsService;
 use crate::data::files::FileService;
 use crate::data::topics::{TopicMessage, TopicService};
-use crate::data::types::{NormalizedSpan, json_to_pre_serialized};
 use sideseat_core::core::constants::{
     DEFAULT_PROJECT_ID, FILE_HASH_ALGORITHM, FILES_MAX_CONCURRENT_FINALIZATION,
 };
@@ -39,6 +38,7 @@ use sideseat_core::utils::retry::{
     DEFAULT_BASE_DELAY_MS, DEFAULT_MAX_ATTEMPTS, retry_with_backoff_async,
 };
 use sideseat_core::utils::time::nanos_to_iso;
+use sideseat_ports::types::{NormalizedSpan, json_to_pre_serialized};
 
 // ============================================================================
 // SSE EVENT MODEL

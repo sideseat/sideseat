@@ -17,7 +17,7 @@ use crate::api::types::{
     ApiError, PaginatedResponse, default_limit, default_page, parse_order_by,
     parse_timestamp_param, validate_limit, validate_page,
 };
-use crate::data::types::{
+use sideseat_ports::types::{
     ListSpansParams, filter_observations, get_observation_cost, get_observation_tokens,
     get_observation_type, is_observation,
 };

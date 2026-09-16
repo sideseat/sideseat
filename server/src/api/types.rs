@@ -148,12 +148,12 @@ impl ApiError {
         }
     }
 
-    pub fn from_data(e: crate::data::DataError) -> Self {
+    pub fn from_data(e: sideseat_ports::error::DataError) -> Self {
         // A conflict is the caller's situation, not a server fault, and it carries a reason worth
         // reading: creating a project under an organization that is being deleted, or referencing a file
         // that is. Collapsing it into a 500 "Database operation failed" told the caller nothing and
         // logged it as an error the operator should investigate.
-        if let crate::data::DataError::Conflict(message) = &e {
+        if let sideseat_ports::error::DataError::Conflict(message) = &e {
             return Self::Conflict {
                 code: "CONFLICT".to_string(),
                 message: message.clone(),
@@ -255,8 +255,8 @@ impl<T> PaginatedResponse<T> {
 /// depend on the HTTP layer for their own vocabulary. They now return `FilterError` (`data::filters`) and
 /// this converts at the boundary - so every route keeps using `?`, and the storage modules can move into a
 /// crate that cannot see `api` at all.
-impl From<crate::data::filters::FilterError> for ApiError {
-    fn from(e: crate::data::filters::FilterError) -> Self {
+impl From<sideseat_ports::filters::FilterError> for ApiError {
+    fn from(e: sideseat_ports::filters::FilterError) -> Self {
         ApiError::bad_request(e.code(), e.to_string())
     }
 }
@@ -266,7 +266,7 @@ impl From<crate::data::filters::FilterError> for ApiError {
 /// The *parsing* stays here because rejecting a bad value with a 400 is an HTTP concern; the type itself
 /// and the SQL it renders are storage concerns and live in `data::types::order`. Keeping them together
 /// meant the analytics DTOs that carry an `OrderBy` had to import from `api`.
-pub use crate::data::types::{OrderBy, OrderDirection};
+pub use sideseat_ports::types::{OrderBy, OrderDirection};
 
 pub fn parse_order_by(s: &str, allowed_columns: &[&str]) -> Result<OrderBy, ApiError> {
     let parts: Vec<&str> = s.split(':').collect();

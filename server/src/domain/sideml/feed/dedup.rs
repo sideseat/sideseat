@@ -52,8 +52,8 @@ use chrono::{DateTime, Utc};
 
 use super::super::provenance::PositionPath;
 use super::types::BlockEntry;
-use crate::data::types::MessageCategory;
 use crate::domain::sideml::types::{ChatRole, ContentBlock};
+use sideseat_ports::types::MessageCategory;
 
 // ============================================================================
 // MESSAGE IDENTITY
@@ -1660,9 +1660,9 @@ pub fn process_dedup_with_lineage(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::data::types::MessageCategory;
     use crate::domain::sideml::types::FinishReason;
     use chrono::TimeZone;
+    use sideseat_ports::types::MessageCategory;
 
     fn make_test_block(
         trace_id: &str,

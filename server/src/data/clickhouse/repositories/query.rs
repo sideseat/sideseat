@@ -6,8 +6,8 @@ use chrono::{DateTime, Utc};
 use clickhouse::{Client, Row};
 use serde::Deserialize;
 
-use crate::data::filters::{Filter, columns};
-use crate::data::types::{
+use sideseat_ports::filters::{Filter, columns};
+use sideseat_ports::types::{
     DisplayNameDialect, genai_span_predicate, trace_display_first, trace_display_name,
 };
 
@@ -773,13 +773,13 @@ impl ConditionBuilder {
 }
 
 use crate::data::clickhouse::ClickhouseError;
-use crate::data::types::{
+use sideseat_core::core::constants::{QUERY_MAX_FILTER_SUGGESTIONS, QUERY_MAX_SPANS_PER_TRACE};
+use sideseat_core::utils::time::parse_iso_timestamp;
+use sideseat_ports::types::{
     EventRow, FeedSpansParams, LinkRow, ListSessionsParams, ListSpansParams, ListTracesParams,
     SESSION_FILTER_OPTION_COLUMNS, SPAN_FILTER_OPTION_COLUMNS, SessionRow, SpanRow,
     TRACE_FILTER_OPTION_COLUMNS, TraceRow, parse_finish_reasons, parse_tags,
 };
-use sideseat_core::core::constants::{QUERY_MAX_FILTER_SUGGESTIONS, QUERY_MAX_SPANS_PER_TRACE};
-use sideseat_core::utils::time::parse_iso_timestamp;
 
 /// ClickHouse row for trace queries
 #[derive(Row, Deserialize)]
@@ -1158,8 +1158,8 @@ pub async fn list_traces(
         .as_ref()
         .map(|o| {
             let dir = match o.direction {
-                crate::data::types::OrderDirection::Desc => "DESC",
-                crate::data::types::OrderDirection::Asc => "ASC",
+                sideseat_ports::types::OrderDirection::Desc => "DESC",
+                sideseat_ports::types::OrderDirection::Asc => "ASC",
             };
             (o.column.as_str(), dir)
         })
@@ -1482,8 +1482,8 @@ pub async fn list_spans(
                 _ => "timestamp_start", // Safe default for unknown columns
             };
             let dir = match o.direction {
-                crate::data::types::OrderDirection::Desc => "DESC",
-                crate::data::types::OrderDirection::Asc => "ASC",
+                sideseat_ports::types::OrderDirection::Desc => "DESC",
+                sideseat_ports::types::OrderDirection::Asc => "ASC",
             };
             format!("{} {}", col, dir)
         })
@@ -1762,8 +1762,8 @@ pub async fn list_sessions(
         .as_ref()
         .map(|o| {
             let dir = match o.direction {
-                crate::data::types::OrderDirection::Desc => "DESC",
-                crate::data::types::OrderDirection::Asc => "ASC",
+                sideseat_ports::types::OrderDirection::Desc => "DESC",
+                sideseat_ports::types::OrderDirection::Asc => "ASC",
             };
             (o.column.as_str(), dir)
         })
@@ -2347,10 +2347,10 @@ pub async fn get_span_counts_bulk(
     project_id: &str,
     spans: &[(String, String)],
 ) -> Result<
-    std::collections::HashMap<(String, String), crate::data::types::SpanCounts>,
+    std::collections::HashMap<(String, String), sideseat_ports::types::SpanCounts>,
     ClickhouseError,
 > {
-    use crate::data::types::SpanCounts;
+    use sideseat_ports::types::SpanCounts;
     use std::collections::HashMap;
 
     if spans.is_empty() {
@@ -2716,10 +2716,10 @@ pub async fn get_trace_filter_options(
     from_timestamp: Option<DateTime<Utc>>,
     to_timestamp: Option<DateTime<Utc>>,
 ) -> Result<
-    std::collections::HashMap<String, Vec<crate::data::traits::FilterOptionRow>>,
+    std::collections::HashMap<String, Vec<sideseat_ports::traits::FilterOptionRow>>,
     ClickhouseError,
 > {
-    use crate::data::traits::FilterOptionRow;
+    use sideseat_ports::traits::FilterOptionRow;
     use std::collections::HashMap;
 
     let mut results: HashMap<String, Vec<FilterOptionRow>> = HashMap::new();
@@ -2841,8 +2841,8 @@ pub async fn get_trace_tags_options(
     project_id: &str,
     from_timestamp: Option<DateTime<Utc>>,
     to_timestamp: Option<DateTime<Utc>>,
-) -> Result<Vec<crate::data::traits::FilterOptionRow>, ClickhouseError> {
-    use crate::data::traits::FilterOptionRow;
+) -> Result<Vec<sideseat_ports::traits::FilterOptionRow>, ClickhouseError> {
+    use sideseat_ports::traits::FilterOptionRow;
 
     // Build time filter conditions with parameterized timestamps
     let mut time_conditions = String::new();
@@ -2910,10 +2910,10 @@ pub async fn get_span_filter_options(
     to_timestamp: Option<DateTime<Utc>>,
     observations_only: bool,
 ) -> Result<
-    std::collections::HashMap<String, Vec<crate::data::traits::FilterOptionRow>>,
+    std::collections::HashMap<String, Vec<sideseat_ports::traits::FilterOptionRow>>,
     ClickhouseError,
 > {
-    use crate::data::traits::FilterOptionRow;
+    use sideseat_ports::traits::FilterOptionRow;
     use std::collections::HashMap;
 
     let mut results: HashMap<String, Vec<FilterOptionRow>> = HashMap::new();
@@ -2983,10 +2983,10 @@ pub async fn get_session_filter_options(
     from_timestamp: Option<DateTime<Utc>>,
     to_timestamp: Option<DateTime<Utc>>,
 ) -> Result<
-    std::collections::HashMap<String, Vec<crate::data::traits::FilterOptionRow>>,
+    std::collections::HashMap<String, Vec<sideseat_ports::traits::FilterOptionRow>>,
     ClickhouseError,
 > {
-    use crate::data::traits::FilterOptionRow;
+    use sideseat_ports::traits::FilterOptionRow;
     use std::collections::HashMap;
 
     let mut results: HashMap<String, Vec<FilterOptionRow>> = HashMap::new();

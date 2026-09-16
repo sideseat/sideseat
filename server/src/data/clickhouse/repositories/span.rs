@@ -8,8 +8,8 @@ use clickhouse::Row;
 use serde::Serialize;
 
 use crate::data::clickhouse::ClickhouseError;
-use crate::data::types::NormalizedSpan;
 use sideseat_core::utils::clickhouse::to_decimal64;
+use sideseat_ports::types::NormalizedSpan;
 
 /// Row structure for inserting spans into ClickHouse
 #[derive(Row, Serialize)]

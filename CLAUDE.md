@@ -57,6 +57,22 @@ rg --files          # List files (.gitignore aware)
 
 **Databases**: DuckDB/ClickHouse (analytics) + SQLite/PostgreSQL (transactional). Default: DuckDB + SQLite.
 
+### Ports (`crates/ports/src/`)
+
+The seams the domain talks through, and a **separate crate** so nothing here can name an implementation.
+
+```
+├── traits.rs           # AnalyticsRepository, TransactionalRepository, SurvivorReferences
+├── error.rs            # DataError - carries each driver's *message*, never its error type
+├── filters/            # The filter vocabulary: what a caller may ask for, with no SQL in it
+└── types/              # Shared DTOs across backends
+```
+
+Three inversions were removed to make it true: `DataError` had a `From` impl for each adapter's error and
+variants wrapping `sqlx::Error`, `duckdb::Error` and `clickhouse::error::Error`, so the type every port method
+returns named four drivers; the filter vocabulary lived inside the DuckDB adapter; and the adapters implemented
+the ports for `Arc<Service>`, which the orphan rule refuses across a crate boundary — each now has a wrapper.
+
 ### Core (`crates/core/src/`)
 
 The innermost layer, and a **separate crate** so the dependency direction is checked by the compiler rather
@@ -94,8 +110,6 @@ on a malformed asset, which is a startup check and now runs at the composition r
 │   ├── sqlite/         # SQLite transactional backend (default)
 │   ├── postgres/       # PostgreSQL transactional backend
 │   ├── topics/         # Pub/sub for inter-component messaging (in-memory or Redis)
-│   ├── types/          # Shared DTOs across backends
-│   ├── traits.rs       # AnalyticsRepository, TransactionalRepository
 │   └── mod.rs          # AnalyticsService, TransactionalService enums
 ├── domain/
 │   ├── pricing/        # LLM cost calculation (model lookup, GitHub sync)

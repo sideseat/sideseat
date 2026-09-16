@@ -1658,6 +1658,15 @@ fn no_production_module_names_a_framework() {
     /// calling that data would be dishonest.
     const EXEMPT: &[(&str, Allowed, &str)] = &[
         (
+            "src/domain/traces/extract/framework_oracle.rs",
+            Allowed::EveryFramework,
+            "*is* the equivalence oracle: a test-only enum of framework names, kept so each retired detection \
+             table can be compared against something independent of the assets. Naming them is the whole \
+             point, and it interprets no telemetry - detection produces its label from the assets. It sat in \
+             the DTO module behind `#[cfg(test)]` until the DTOs became their own crate, where a test-only \
+             item is invisible to a dependent",
+        ),
+        (
             "src/api/mcp/tools.rs",
             Allowed::EveryFramework,
             "generates integration documentation for an AI assistant, so naming each framework is its job - it \

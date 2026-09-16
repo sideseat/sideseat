@@ -1,5 +1,6 @@
 //! SQLite error types
 
+use sideseat_ports::error::DataError;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -19,6 +20,39 @@ pub enum SqliteError {
 
     #[error("Conflict: {0}")]
     Conflict(String),
+}
+
+/// This adapter's error, as the port's error.
+///
+/// **Here rather than beside `DataError`.** The conversion used to live in `data::error`, which made the port's
+/// error type name every adapter - the dependency exactly inverted, and enough on its own to stop `ports` being
+/// a crate. An adapter knows the port it implements; the port must not know its implementations. The orphan rule
+/// allows only these two homes, and this is the one that points the right way.
+impl From<SqliteError> for DataError {
+    fn from(e: SqliteError) -> Self {
+        match e {
+            // What `sqlx` calls transient, decided where `sqlx::Error` is visible.
+            SqliteError::Database(e) => Self::Sqlite {
+                transient: matches!(
+                    e,
+                    sqlx::Error::PoolTimedOut | sqlx::Error::PoolClosed | sqlx::Error::Io(_)
+                ),
+                message: e.to_string(),
+            },
+            SqliteError::MigrationFailed {
+                version,
+                name,
+                error,
+            } => Self::MigrationFailed {
+                backend: "sqlite",
+                version,
+                name,
+                error,
+            },
+            SqliteError::Io(e) => Self::Io(e),
+            SqliteError::Conflict(msg) => Self::Conflict(msg),
+        }
+    }
 }
 
 #[cfg(test)]

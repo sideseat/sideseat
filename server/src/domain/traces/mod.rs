@@ -45,7 +45,7 @@ pub(crate) use extract::SpanData;
 pub(crate) fn normalize_for_test(
     request: &opentelemetry_proto::tonic::collector::trace::v1::ExportTraceServiceRequest,
     pricing: &crate::domain::pricing::PricingService,
-) -> Vec<(String, crate::data::types::MessageSpanRow)> {
+) -> Vec<(String, sideseat_ports::types::MessageSpanRow)> {
     normalize_for_test_with_mode(request, pricing, extract::ExtractionMode::PerCarrier)
 }
 
@@ -56,8 +56,8 @@ pub(crate) fn normalize_for_test_with_mode(
     request: &opentelemetry_proto::tonic::collector::trace::v1::ExportTraceServiceRequest,
     pricing: &crate::domain::pricing::PricingService,
     mode: extract::ExtractionMode,
-) -> Vec<(String, crate::data::types::MessageSpanRow)> {
-    use crate::data::types::MessageSpanRow;
+) -> Vec<(String, sideseat_ports::types::MessageSpanRow)> {
+    use sideseat_ports::types::MessageSpanRow;
 
     let Some((spans, _pending)) =
         pipeline::process_request_for_test_with_mode(request, pricing, mode)

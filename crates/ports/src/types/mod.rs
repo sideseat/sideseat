@@ -20,10 +20,8 @@ pub use enums::{
     AggregationTemporality, MessageCategory, MessageSourceType, MetricType, ObservationType,
     SpanCategory,
 };
-// The framework enum is the detection oracle's vocabulary and is not part of the running server's -
-// see its declaration. Re-exported publicly, it would be a list of frameworks in the library's API.
-#[cfg(test)]
-pub use enums::Framework;
+// No framework enum here. It is the detection oracle's vocabulary, not a shape any port speaks in, and a
+// test-only item cannot be seen by a dependent crate - so it lives beside its only users, in the domain.
 
 // Re-export normalized types (for ingestion)
 pub use normalized::{NormalizedMetric, NormalizedSpan, json_to_pre_serialized};

@@ -11198,8 +11198,8 @@ fn the_token_rules_reproduce_the_table_they_replaced() {
 /// containing both `agent` and `tool` is an agent).
 #[test]
 fn the_declared_classification_matches_the_sweep_it_shadows() {
-    use crate::data::types::ObservationType;
     use crate::domain::traces::extract::attributes::detect_observation_type_legacy;
+    use sideseat_ports::types::ObservationType;
 
     let label = |t: ObservationType| t.as_str().to_string();
     let cases: Vec<(&str, &str, HashMap<String, String>)> = vec![
@@ -11446,8 +11446,8 @@ fn the_declared_classification_matches_the_sweep_it_shadows() {
 /// here and the reverse there, and this one reads only the first dialect's span kind where the other reads two.
 #[test]
 fn the_declared_category_matches_the_sweep_it_shadows() {
-    use crate::data::types::SpanCategory;
     use crate::domain::traces::extract::attributes::categorize_span_legacy;
+    use sideseat_ports::types::SpanCategory;
 
     let cases: Vec<(&str, &str, HashMap<String, String>)> = vec![
         ("nothing at all", "some span", rule_attrs(&[])),

@@ -4,9 +4,9 @@ use super::*;
 use chrono::{TimeZone, Utc};
 use serde_json::json;
 
-use crate::data::types::{MessageCategory, MessageSourceType};
 use crate::domain::traces::{MessageSource, RawMessage};
 use normalize::categorize_tool_message;
+use sideseat_ports::types::{MessageCategory, MessageSourceType};
 
 /// Helper to convert ContentBlock to JsonValue for testing
 fn block_to_json(block: &ContentBlock) -> JsonValue {

@@ -7,9 +7,9 @@ use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use std::collections::HashMap;
 
-use crate::data::error::DataError;
-use crate::data::traits::{AnalyticsRepository, FilterOptionRow};
-use crate::data::types::{
+use sideseat_ports::error::DataError;
+use sideseat_ports::traits::{AnalyticsRepository, FilterOptionRow};
+use sideseat_ports::types::{
     EventRow, FeedMessagesParams, FeedSpansParams, LinkRow, ListSessionsParams, ListSpansParams,
     ListTracesParams, MessageQueryParams, MessageQueryResult, NormalizedMetric, NormalizedSpan,
     SessionRow, SpanCounts, SpanRow, TraceRow, deduplicate_by_span_identity,
@@ -284,8 +284,8 @@ impl AnalyticsRepository for DedupAnalyticsRepository {
 
     async fn get_project_stats(
         &self,
-        params: &crate::data::types::StatsParams,
-    ) -> Result<crate::data::types::ProjectStatsResult, DataError> {
+        params: &sideseat_ports::types::StatsParams,
+    ) -> Result<sideseat_ports::types::ProjectStatsResult, DataError> {
         self.inner.get_project_stats(params).await
     }
 

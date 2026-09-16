@@ -3,7 +3,7 @@
 use sqlx::PgPool;
 
 use crate::data::postgres::PostgresError;
-use crate::data::types::CredentialPermissionRow;
+use sideseat_ports::types::CredentialPermissionRow;
 
 /// List all permissions for a credential
 pub async fn list_credential_permissions(

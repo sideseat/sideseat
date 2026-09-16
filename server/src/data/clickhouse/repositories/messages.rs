@@ -7,7 +7,7 @@ use clickhouse::{Client, Row};
 use serde::Deserialize;
 
 use crate::data::clickhouse::ClickhouseError;
-use crate::data::types::{
+use sideseat_ports::types::{
     FeedMessagesParams, MESSAGE_CONTENT_FILTER, MessageQueryParams, MessageQueryResult,
     MessageSpanRow,
 };

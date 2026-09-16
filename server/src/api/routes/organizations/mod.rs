@@ -18,11 +18,11 @@ use crate::data::TransactionalService;
 use crate::data::cache::CacheService;
 use crate::data::cleanup::cleanup_organization;
 use crate::data::files::FileService;
-use crate::data::traits::has_min_role_level;
-use crate::data::types::LastOwnerResult;
 use sideseat_core::core::constants::{
     DEFAULT_ORG_ID, ORG_ROLE_ADMIN, ORG_ROLE_OWNER, RESERVED_SLUGS,
 };
+use sideseat_ports::traits::has_min_role_level;
+use sideseat_ports::types::LastOwnerResult;
 
 /// Path parameters for member-specific routes
 #[derive(Deserialize)]
@@ -492,7 +492,7 @@ pub async fn remove_org_member(
 ) -> Result<StatusCode, ApiError> {
     // For removal, require Full scope if using API key
     auth.auth
-        .require_scope(crate::data::types::ApiKeyScope::Full)?;
+        .require_scope(sideseat_ports::types::ApiKeyScope::Full)?;
 
     let user_id = auth.auth.require_user_id()?;
     let repo = state.database.repository();

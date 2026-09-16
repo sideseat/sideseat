@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 use validator::Validate;
 
-use crate::data::types::{ApiKeyRow, ApiKeyScope};
+use sideseat_ports::types::{ApiKeyRow, ApiKeyScope};
 
 /// Default scope for API keys
 fn default_scope() -> ApiKeyScope {

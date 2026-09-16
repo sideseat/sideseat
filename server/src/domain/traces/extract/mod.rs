@@ -34,6 +34,9 @@
 #[cfg_attr(test, allow(unreachable_pub))]
 pub(crate) mod attributes;
 pub mod files;
+/// The detection oracle's framework vocabulary. Test-only; see the module for why it is not a port.
+#[cfg(test)]
+pub mod framework_oracle;
 pub(crate) mod messages;
 
 #[cfg(test)]

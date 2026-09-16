@@ -55,9 +55,9 @@ use std::sync::Arc;
 use crate::data::TransactionalService;
 use crate::data::postgres::PostgresService;
 use crate::data::sqlite::SqliteService;
-use crate::data::traits::TransactionalRepository;
-use crate::data::types::LastOwnerResult;
 use sideseat_core::core::config::PostgresConfig;
+use sideseat_ports::traits::TransactionalRepository;
+use sideseat_ports::types::LastOwnerResult;
 
 /// Env var holding a PostgreSQL connection URL, e.g. `postgres://user:pass@127.0.0.1:5433/sideseat`.
 const URL_ENV: &str = "SIDESEAT_TEST_POSTGRES_URL";
@@ -115,7 +115,10 @@ impl Transcript {
 }
 
 /// Both services, or `None` when no PostgreSQL URL is configured.
-async fn pair() -> Option<(Arc<SqliteService>, Arc<PostgresService>)> {
+async fn pair() -> Option<(
+    Arc<SqliteService>,
+    crate::data::postgres::PostgresRepository,
+)> {
     let url = match std::env::var(URL_ENV) {
         Ok(url) if !url.is_empty() => url,
         _ => {
@@ -156,17 +159,17 @@ async fn pair() -> Option<(Arc<SqliteService>, Arc<PostgresService>)> {
     );
     reset_postgres(&postgres).await;
 
-    Some((sqlite, postgres))
+    Some((sqlite, crate::data::postgres::PostgresRepository(postgres)))
 }
 
 /// The two repositories behind the shared trait, in reference-then-candidate order.
 fn repositories(
     sqlite: Arc<SqliteService>,
-    postgres: Arc<PostgresService>,
+    postgres: crate::data::postgres::PostgresRepository,
 ) -> [Box<dyn TransactionalRepository + Send + Sync>; 2] {
     [
         TransactionalService::Sqlite(sqlite).repository(),
-        TransactionalService::Postgres(postgres).repository(),
+        TransactionalService::Postgres(postgres.0).repository(),
     ]
 }
 
@@ -375,8 +378,7 @@ async fn a_v2_postgres_database_upgrades_to_the_current_schema() {
     );
 
     // Usable, not merely present.
-    let repo = std::sync::Arc::clone(&postgres) as std::sync::Arc<PostgresService>;
-    let repo: Box<dyn TransactionalRepository + Send + Sync> = Box::new(repo);
+    let repo: Box<dyn TransactionalRepository + Send + Sync> = Box::new(postgres.clone());
     repo.record_retention_cleanup("p1", &["t1".to_string()])
         .await
         .expect("the upgraded table must accept a record");
@@ -1046,7 +1048,7 @@ async fn the_file_fence_holds_against_a_concurrent_association() {
 
     // Writer two: the claim. It must block on the row lock writer one holds.
     let claim = {
-        let repo = Arc::clone(&postgres);
+        let repo = postgres.clone();
         let file = file.clone();
         tokio::spawn(async move { repo.claim_file_for_deletion("default", &file).await })
     };
@@ -1108,7 +1110,7 @@ async fn a_project_cannot_be_created_under_a_deleting_organization() {
 
     // Writer two: a creation that must wait for that lock.
     let creation = {
-        let repo = Arc::clone(&postgres);
+        let repo = postgres.clone();
         tokio::spawn(async move { repo.create_project("default", "Sneaky").await })
     };
     tokio::time::sleep(std::time::Duration::from_millis(250)).await;
@@ -1162,7 +1164,7 @@ async fn a_member_cannot_be_added_while_the_organization_is_being_deleted() {
         .await
         .expect("create user");
     let addition = {
-        let repo = Arc::clone(&postgres);
+        let repo = postgres.clone();
         let user_id = user.id.clone();
         tokio::spawn(async move { repo.add_member("default", &user_id, "member").await })
     };
@@ -1249,7 +1251,7 @@ async fn only_one_concurrent_project_claim_wins() {
     let mut winners = 0;
     let mut handles = Vec::new();
     for _ in 0..4 {
-        let repo = Arc::clone(&postgres);
+        let repo = postgres.clone();
         let id = project.id.clone();
         handles.push(tokio::spawn(async move {
             repo.claim_project_for_deletion(&id).await
@@ -1282,19 +1284,21 @@ async fn trace_deletion_tombstones_behave_identically() {
     assert_parity("deleted_traces", |repo, mut t| async move {
         let asked = vec!["trace-a".to_string(), "trace-b".to_string()];
         // Sorted, because the answer is a set and the two dialects return rows in their own order.
-        let show =
-            |t: &mut Transcript,
-             what: &str,
-             found: Result<std::collections::HashSet<String>, crate::data::DataError>| {
-                match found {
-                    Ok(set) => {
-                        let mut ids: Vec<String> = set.into_iter().collect();
-                        ids.sort();
-                        t.note(&format!("{what}={ids:?}"));
-                    }
-                    Err(e) => t.note(&format!("{what}=error({e})")),
+        let show = |t: &mut Transcript,
+                    what: &str,
+                    found: Result<
+            std::collections::HashSet<String>,
+            sideseat_ports::error::DataError,
+        >| {
+            match found {
+                Ok(set) => {
+                    let mut ids: Vec<String> = set.into_iter().collect();
+                    ids.sort();
+                    t.note(&format!("{what}={ids:?}"));
                 }
-            };
+                Err(e) => t.note(&format!("{what}=error({e})")),
+            }
+        };
 
         // Nothing deleted yet.
         let found = repo.deleted_traces_among("p1", &asked).await;

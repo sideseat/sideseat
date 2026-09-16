@@ -6,7 +6,7 @@
 use chrono::{DateTime, Utc};
 
 use super::order::OrderBy;
-use crate::data::filters::Filter;
+use crate::filters::Filter;
 
 // ============================================================================
 // Row types (query results)

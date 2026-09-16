@@ -4,7 +4,7 @@
 //! All types are now defined in data/types/ to be shared across all database backends.
 
 // Re-export all types from the shared types module
-pub use crate::data::types::{
+pub use sideseat_ports::types::{
     AggregationTemporality, MessageCategory, MessageSourceType, MetricType, NormalizedMetric,
     NormalizedSpan, ObservationType, SpanCategory,
 };

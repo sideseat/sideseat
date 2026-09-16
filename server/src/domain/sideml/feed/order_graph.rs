@@ -1638,10 +1638,10 @@ fn order_within_unit(members: &[usize], intra_edges: &[(usize, usize)]) -> Vec<u
 #[cfg(test)]
 mod cycle_tests {
     use super::*;
-    use crate::data::types::MessageCategory;
     use crate::domain::sideml::provenance::PositionPath;
     use crate::domain::sideml::types::{ChatRole, ContentBlock};
     use chrono::TimeZone;
+    use sideseat_ports::types::MessageCategory;
 
     fn block(span: &str, text: &str) -> BlockEntry {
         BlockEntry {

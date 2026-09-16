@@ -9,7 +9,7 @@ use std::time::Duration;
 use crate::api::types::ApiError;
 use crate::data::TransactionalService;
 use crate::data::cache::{CacheKey, CacheService};
-use crate::data::types::ApiKeyScope;
+use sideseat_ports::types::ApiKeyScope;
 
 // ============================================================================
 // Cache TTLs
@@ -288,7 +288,7 @@ impl AuthService {
         org_id: &str,
         min_role: &str,
     ) -> Result<(), ApiError> {
-        use crate::data::traits::has_min_role_level;
+        use sideseat_ports::traits::has_min_role_level;
 
         let membership = self
             .database

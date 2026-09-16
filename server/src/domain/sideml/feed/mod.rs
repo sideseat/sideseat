@@ -154,8 +154,8 @@ use super::normalize::to_sideml_with_context;
 use super::provenance::PositionPath;
 use super::tools::{extract_tool_name, normalize_tools, tool_definition_quality};
 use super::types::ContentBlock;
-use crate::data::types::{MessageCategory, MessageSpanRow};
 use crate::domain::traces::{MessageSource, RawMessage};
+use sideseat_ports::types::{MessageCategory, MessageSpanRow};
 
 use classify::uses_span_end;
 use dedup::{

@@ -12,8 +12,8 @@ use crate::api::auth::Auth;
 use crate::api::extractors::ValidatedJson;
 use crate::api::types::ApiError;
 use crate::data::TransactionalService;
-use crate::data::types::ApiKeyScope;
 use sideseat_core::core::constants::MAX_USER_ORGS;
+use sideseat_ports::types::ApiKeyScope;
 
 use types::{UpdateUserRequest, UserDto, UserOrgDto, UserProfileResponse};
 

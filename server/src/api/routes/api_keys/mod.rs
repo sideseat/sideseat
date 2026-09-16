@@ -100,7 +100,7 @@ pub async fn create_api_key(
         )
         .await
         .map_err(|e| {
-            if let crate::data::error::DataError::Conflict(msg) = &e
+            if let sideseat_ports::error::DataError::Conflict(msg) = &e
                 && msg.contains("Maximum")
             {
                 return ApiError::conflict(

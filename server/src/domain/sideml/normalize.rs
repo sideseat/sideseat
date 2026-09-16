@@ -12,8 +12,8 @@ use serde_json::{Value as JsonValue, json};
 
 use super::provenance::PositionPath;
 use super::{ChatMessage, ChatRole, ContentBlock, normalize};
-use crate::data::types::{MessageCategory, MessageSourceType};
 use crate::domain::traces::{MessageSource, RawMessage};
+use sideseat_ports::types::{MessageCategory, MessageSourceType};
 
 // ============================================================================
 // SIDEML MESSAGE (PIPELINE OUTPUT)

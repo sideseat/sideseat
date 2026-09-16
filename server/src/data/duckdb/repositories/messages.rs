@@ -11,11 +11,11 @@ use duckdb::Connection;
 
 use crate::data::duckdb::DuckdbError;
 use crate::data::duckdb::repositories::query::DEDUP_SPANS;
-use crate::data::types::{
+use sideseat_core::utils::time::micros_to_datetime;
+use sideseat_ports::types::{
     FeedMessagesParams, MESSAGE_CONTENT_FILTER, MessageQueryParams, MessageQueryResult,
     MessageSpanRow,
 };
-use sideseat_core::utils::time::micros_to_datetime;
 
 /// Shared SELECT columns for all message queries.
 /// Column order must match `parse_span_row()` field extraction.

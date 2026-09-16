@@ -1,0 +1,28 @@
+# The ports: the traits the domain calls and the DTOs it speaks in, with no implementation of either.
+#
+# **Names no adapter and no driver.** Two inversions had to be removed before that was true: `DataError` carried
+# a `From` impl for each adapter's error, so the port's error type named every implementation of it - and the
+# filter vocabulary lived inside the DuckDB adapter while the ClickHouse one imported it. Both are fixed at the
+# source rather than papered over, and `no_layer_crate_depends_on_a_driver` keeps the manifest honest.
+#
+# `utoipa` is here because the DTOs carry their own OpenAPI schema derivation, which is a property of the shape
+# rather than of any transport. `async-trait` is what makes the ports object-safe.
+[package]
+name = "sideseat-ports"
+version = "1.0.13"
+edition = "2024"
+rust-version.workspace = true
+license = "Apache-2.0"
+
+[lints]
+workspace = true
+
+[dependencies]
+async-trait = { workspace = true }
+chrono = { workspace = true }
+# A faster hash set for the DTO helpers, not a driver.
+rustc-hash = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+utoipa = { workspace = true }

@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 use validator::Validate;
 
-use crate::data::types::{OrgWithRole, UserRow};
+use sideseat_ports::types::{OrgWithRole, UserRow};
 
 /// User DTO for API responses
 #[derive(Debug, Serialize, ToSchema)]

@@ -45,13 +45,13 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 
 use crate::api::routes::otel::messages::scope_feed_to_trace;
-use crate::data::types::MessageSpanRow;
 use crate::domain::pricing::PricingService;
 use crate::domain::sideml::feed::{
     FeedOptions, extract_tools_from_rows, legacy_and_neutral_order, presented_and_unconstrained,
     process_feed, process_spans, shadow_resolved_order,
 };
 use crate::domain::traces::extract::ExtractionMode;
+use sideseat_ports::types::MessageSpanRow;
 
 // ============================================================================
 // Fixture discovery
@@ -1765,7 +1765,7 @@ fn invariant_checks_are_not_vacuous() {
 /// the Rust version tests.
 #[test]
 fn content_filter_matches_the_sql_predicate() {
-    use crate::data::types::MESSAGE_CONTENT_FILTER;
+    use sideseat_ports::types::MESSAGE_CONTENT_FILTER;
 
     // The exact predicate, not a substring or clause count: checking only that the column names
     // appear left an inverted operator (`=` for `!=`) or a changed literal ('ERROR' -> 'error')
@@ -4101,11 +4101,11 @@ fn no_declared_rule_is_dead_across_the_corpus() {
 /// rule that no captured span reaches is visible rather than assumed exercised.
 #[test]
 fn the_declared_classification_matches_the_sweep_across_the_corpus() {
-    use crate::data::types::{ObservationType, SpanCategory};
     use crate::domain::traces::extract::attributes::{
         categorize_span_legacy, detect_observation_type_legacy,
     };
     use sideseat_core::utils::otlp::extract_attributes;
+    use sideseat_ports::types::{ObservationType, SpanCategory};
 
     let plan = &crate::domain::rules::ruleset().observation_types;
     let mut seen: BTreeMap<String, usize> = BTreeMap::new();

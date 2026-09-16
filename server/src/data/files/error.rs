@@ -2,7 +2,7 @@
 
 use thiserror::Error;
 
-use crate::data::error::DataError;
+use sideseat_ports::error::DataError;
 
 /// Errors from low-level file storage operations (filesystem/S3)
 #[derive(Error, Debug)]

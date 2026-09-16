@@ -19,6 +19,7 @@ mod parity_tests;
 mod released_v2;
 pub mod repositories;
 mod repository_impl;
+pub use repository_impl::ClickhouseRepository;
 pub mod schema;
 
 pub use error::ClickhouseError;

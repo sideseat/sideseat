@@ -14,9 +14,9 @@ use opentelemetry_proto::tonic::trace::v1::span::Event;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value as JsonValue, json};
 
-use crate::data::types::ObservationType;
 use sideseat_core::utils::otlp::extract_attributes;
 use sideseat_core::utils::time::nanos_to_datetime;
+use sideseat_ports::types::ObservationType;
 
 #[cfg(test)]
 use super::extract_json;

@@ -16,11 +16,11 @@ use serde_json::json;
 
 use crate::data::TransactionalService;
 use crate::data::cache::{CacheService, RateLimitBucket, RateLimiter};
-use crate::data::types::{ApiKeyScope, ApiKeyValidation};
 use sideseat_core::core::constants::{
     API_KEY_TOUCH_DEBOUNCE_SECS, DEFAULT_RATE_LIMIT_AUTH_FAILURES_RPM,
 };
 use sideseat_core::utils::api_key::{extract_key_from_header, hash_api_key, is_valid_api_key};
+use sideseat_ports::types::{ApiKeyScope, ApiKeyValidation};
 
 /// API key authentication error
 #[derive(Debug)]

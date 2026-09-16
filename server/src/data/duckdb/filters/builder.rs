@@ -4,7 +4,7 @@
 //! Includes column whitelists and mapping functions.
 
 use super::sql::SqlParams;
-use crate::data::filters::OptionsOp;
+use sideseat_ports::filters::OptionsOp;
 
 /// Build a tags filter.
 ///
@@ -54,7 +54,7 @@ pub fn build_tags_filter(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::data::filters::columns;
+    use sideseat_ports::filters::columns;
 
     #[test]
     fn build_tags_filter_any_of() {

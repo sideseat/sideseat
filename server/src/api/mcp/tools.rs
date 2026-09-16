@@ -18,11 +18,11 @@ use crate::api::routes::otel::types::{
 };
 use crate::api::types::{MAX_PAGE_LIMIT, OrderBy, OrderDirection};
 use crate::data::AnalyticsService;
-use crate::data::traits::AnalyticsRepository;
-use crate::data::types::{
+use crate::domain::sideml::{FeedOptions, extract_tools_from_rows, process_spans};
+use sideseat_ports::traits::AnalyticsRepository;
+use sideseat_ports::types::{
     ListSessionsParams, ListSpansParams, ListTracesParams, MessageQueryParams, SpanRow, StatsParams,
 };
-use crate::domain::sideml::{FeedOptions, extract_tools_from_rows, process_spans};
 
 use super::types::*;
 

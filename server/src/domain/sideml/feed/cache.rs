@@ -30,10 +30,10 @@ use std::time::Duration;
 use moka::sync::Cache;
 
 use super::types::FeedResult;
-use crate::data::types::MessageSpanRow;
 use sideseat_core::core::constants::{
     RECONSTRUCTION_CACHE_IDLE_SECS, RECONSTRUCTION_CACHE_MAX_ENTRIES,
 };
+use sideseat_ports::types::MessageSpanRow;
 
 /// Which reconstruction the cached answer came from.
 ///
@@ -294,7 +294,7 @@ mod tests {
     /// that is relevant costs a wrong answer.
     #[test]
     fn every_field_of_a_row_reaches_the_digest() {
-        let types = include_str!("../../../data/types/messages.rs");
+        let types = include_str!("../../../../../crates/ports/src/types/messages.rs");
         let start = types
             .find("pub struct MessageSpanRow {")
             .expect("the row struct");

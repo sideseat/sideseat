@@ -11,21 +11,31 @@ use thiserror::Error;
 /// about which backend generated the error.
 #[derive(Error, Debug)]
 pub enum DataError {
+    // The four backend variants carry the driver's **message**, not the driver's error type.
+    //
+    // They used to carry `sqlx::Error`, `duckdb::Error` and `clickhouse::error::Error` directly, which made this
+    // - the type every port method returns - name four drivers. Anything that called a port therefore depended
+    // on all four, whatever it actually used, and no crate boundary could exist here at all.
+    //
+    // Nothing outside this module ever matched on the payloads; they existed to be printed. So a `String` loses
+    // nothing a caller could observe, and each adapter fills it where its own `From` impl lives. What it does
+    // give up is downcasting to a driver error, which no caller did and which would be a layer violation by
+    // definition.
     /// SQLite database error (transactional backend)
-    #[error("SQLite error: {0}")]
-    Sqlite(sqlx::Error),
+    #[error("SQLite error: {message}")]
+    Sqlite { message: String, transient: bool },
 
     /// PostgreSQL database error (transactional backend)
-    #[error("PostgreSQL error: {0}")]
-    Postgres(sqlx::Error),
+    #[error("PostgreSQL error: {message}")]
+    Postgres { message: String, transient: bool },
 
     /// DuckDB database error (analytics backend)
-    #[error("DuckDB error: {0}")]
-    Duckdb(#[from] duckdb::Error),
+    #[error("DuckDB error: {message}")]
+    Duckdb { message: String, transient: bool },
 
     /// ClickHouse database error (analytics backend)
-    #[error("ClickHouse error: {0}")]
-    Clickhouse(#[from] clickhouse::error::Error),
+    #[error("ClickHouse error: {message}")]
+    Clickhouse { message: String, transient: bool },
 
     /// Migration failed
     #[error("Migration {version} ({name}) failed on {backend}: {error}")]
@@ -72,14 +82,24 @@ pub enum DataError {
 }
 
 impl DataError {
-    /// Create a SQLite error with preserved context
-    pub fn from_sqlite(e: sqlx::Error) -> Self {
-        Self::Sqlite(e)
+    /// A SQLite error, with the adapter's verdict on whether it is worth retrying.
+    ///
+    /// The verdict is a parameter rather than something this type works out, because working it out means
+    /// matching on `sqlx::Error` - and a port that matches on a driver's error variants is a port that depends on
+    /// the driver. The adapter knows; this type records.
+    pub fn from_sqlite(message: impl Into<String>, transient: bool) -> Self {
+        Self::Sqlite {
+            message: message.into(),
+            transient,
+        }
     }
 
-    /// Create a PostgreSQL error with preserved context
-    pub fn from_postgres(e: sqlx::Error) -> Self {
-        Self::Postgres(e)
+    /// A PostgreSQL error, with the adapter's verdict on whether it is worth retrying.
+    pub fn from_postgres(message: impl Into<String>, transient: bool) -> Self {
+        Self::Postgres {
+            message: message.into(),
+            transient,
+        }
     }
 
     /// Create a migration failed error
@@ -113,23 +133,19 @@ impl DataError {
         }
     }
 
-    /// Check if this is a connection-related error that might be transient
+    /// Whether this is worth retrying.
+    ///
+    /// **Read from the flag, not derived here.** Deriving it meant matching on `sqlx::Error`'s variants and
+    /// string-searching a ClickHouse error's `Display` output, so this type - the one every port method returns -
+    /// named the drivers, and anything calling a port depended on all four. Each adapter now decides at
+    /// conversion time, which is the only place that knows what its driver's errors mean.
     pub fn is_transient(&self) -> bool {
         match self {
             Self::Timeout { .. } | Self::PoolExhausted { .. } => true,
-            Self::Sqlite(e) | Self::Postgres(e) => {
-                matches!(
-                    e,
-                    sqlx::Error::PoolTimedOut | sqlx::Error::PoolClosed | sqlx::Error::Io(_)
-                )
-            }
-            Self::Duckdb(_) => false, // DuckDB errors are typically not transient
-            Self::Clickhouse(e) => {
-                // Check if it's a network/connection error
-                e.to_string().contains("connection")
-                    || e.to_string().contains("timeout")
-                    || e.to_string().contains("network")
-            }
+            Self::Sqlite { transient, .. }
+            | Self::Postgres { transient, .. }
+            | Self::Duckdb { transient, .. }
+            | Self::Clickhouse { transient, .. } => *transient,
             _ => false,
         }
     }
@@ -137,10 +153,10 @@ impl DataError {
     /// Get the backend name that generated this error
     pub fn backend(&self) -> &'static str {
         match self {
-            Self::Sqlite(_) => "sqlite",
-            Self::Postgres(_) => "postgres",
-            Self::Duckdb(_) => "duckdb",
-            Self::Clickhouse(_) => "clickhouse",
+            Self::Sqlite { .. } => "sqlite",
+            Self::Postgres { .. } => "postgres",
+            Self::Duckdb { .. } => "duckdb",
+            Self::Clickhouse { .. } => "clickhouse",
             Self::MigrationFailed { backend, .. } => backend,
             Self::Timeout { backend, .. } => backend,
             Self::PoolExhausted { backend } => backend,
@@ -148,98 +164,6 @@ impl DataError {
             Self::Config(_) | Self::Io(_) | Self::NotImplemented(_) | Self::Conflict(_) => {
                 "unknown"
             }
-        }
-    }
-}
-
-/// Convert from the existing DuckdbError type
-impl From<crate::data::duckdb::DuckdbError> for DataError {
-    fn from(e: crate::data::duckdb::DuckdbError) -> Self {
-        match e {
-            crate::data::duckdb::DuckdbError::Database(e) => Self::Duckdb(e),
-            crate::data::duckdb::DuckdbError::MigrationFailed {
-                version,
-                name,
-                error,
-            } => Self::MigrationFailed {
-                backend: "duckdb",
-                version,
-                name,
-                error,
-            },
-            crate::data::duckdb::DuckdbError::Io(e) => Self::Io(e),
-            crate::data::duckdb::DuckdbError::Timeout { timeout_secs } => Self::Timeout {
-                backend: "duckdb",
-                timeout_secs,
-            },
-        }
-    }
-}
-
-/// Convert from the existing SqliteError type
-impl From<crate::data::sqlite::SqliteError> for DataError {
-    fn from(e: crate::data::sqlite::SqliteError) -> Self {
-        match e {
-            crate::data::sqlite::SqliteError::Database(e) => Self::Sqlite(e),
-            crate::data::sqlite::SqliteError::MigrationFailed {
-                version,
-                name,
-                error,
-            } => Self::MigrationFailed {
-                backend: "sqlite",
-                version,
-                name,
-                error,
-            },
-            crate::data::sqlite::SqliteError::Io(e) => Self::Io(e),
-            crate::data::sqlite::SqliteError::Conflict(msg) => Self::Conflict(msg),
-        }
-    }
-}
-
-/// Convert from the existing PostgresError type
-impl From<crate::data::postgres::PostgresError> for DataError {
-    fn from(e: crate::data::postgres::PostgresError) -> Self {
-        match e {
-            crate::data::postgres::PostgresError::Database(e) => Self::Postgres(e),
-            crate::data::postgres::PostgresError::MigrationFailed {
-                version,
-                name,
-                error,
-            } => Self::MigrationFailed {
-                backend: "postgres",
-                version,
-                name,
-                error,
-            },
-            crate::data::postgres::PostgresError::Config(msg) => Self::Config(msg),
-            crate::data::postgres::PostgresError::Io(e) => Self::Io(e),
-            crate::data::postgres::PostgresError::Conflict(msg) => Self::Conflict(msg),
-        }
-    }
-}
-
-/// Convert from the existing ClickhouseError type
-impl From<crate::data::clickhouse::ClickhouseError> for DataError {
-    fn from(e: crate::data::clickhouse::ClickhouseError) -> Self {
-        match e {
-            crate::data::clickhouse::ClickhouseError::Database(e) => Self::Clickhouse(e),
-            crate::data::clickhouse::ClickhouseError::MigrationFailed {
-                version,
-                name,
-                error,
-            } => Self::MigrationFailed {
-                backend: "clickhouse",
-                version,
-                name,
-                error,
-            },
-            crate::data::clickhouse::ClickhouseError::Connection(msg) => Self::Config(msg),
-            crate::data::clickhouse::ClickhouseError::Io(e) => Self::Io(e),
-            crate::data::clickhouse::ClickhouseError::Timeout { timeout_secs } => Self::Timeout {
-                backend: "clickhouse",
-                timeout_secs,
-            },
         }
     }
 }

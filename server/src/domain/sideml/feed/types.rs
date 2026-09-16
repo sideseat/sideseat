@@ -10,7 +10,7 @@ use std::collections::HashMap;
 use super::super::provenance::PositionPath;
 use super::super::types::{ChatRole, ContentBlock, FinishReason};
 use super::{GENAI_INPUT_EVENTS, GENAI_OUTPUT_EVENTS, obs_type, source_type};
-use crate::data::types::MessageCategory;
+use sideseat_ports::types::MessageCategory;
 
 // ============================================================================
 // FEED OPTIONS

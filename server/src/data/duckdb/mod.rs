@@ -9,6 +9,7 @@ mod migrations;
 pub mod models;
 pub mod repositories;
 mod repository_impl;
+pub use repository_impl::DuckdbRepository;
 mod retention;
 pub mod schema;
 pub mod sql_types;
@@ -232,7 +233,7 @@ impl DuckdbService {
     /// record in place with its backoff advanced, so the work is owed rather than lost. That is the whole point
     /// of recording the intent before the delete.
     async fn finish_retention_cleanup(
-        analytics: &Arc<Self>,
+        analytics: &super::duckdb::DuckdbRepository,
         database: &Arc<crate::data::TransactionalService>,
         file_service: Option<&Arc<crate::data::files::FileService>>,
         project_id: &str,
@@ -288,7 +289,7 @@ impl DuckdbService {
         // is stated rather than engineered around - the alternative is never removing a favourite, and a
         // favourite pointing at a deleted trace is its own defect.
         let repo = database.repository();
-        match crate::data::traits::AnalyticsRepository::traces_without_spans(
+        match sideseat_ports::traits::AnalyticsRepository::traces_without_spans(
             analytics, project_id, trace_ids,
         )
         .await
@@ -402,7 +403,7 @@ impl DuckdbService {
                                     let trace_ids: Vec<String> =
                                         claimed.iter().map(|(t, _)| t.clone()).collect();
                                     Self::finish_retention_cleanup(
-                                        &db,
+                                        &DuckdbRepository(Arc::clone(&db)),
                                         &database,
                                         file_service.as_ref(),
                                         project_id,
@@ -429,7 +430,7 @@ impl DuckdbService {
                                 // Async cleanup (outside DuckDB transaction)
                                 for (project_id, trace_ids) in &result.trace_ids_by_project {
                                     Self::finish_retention_cleanup(
-                                        &db,
+                                        &DuckdbRepository(Arc::clone(&db)),
                                         &database,
                                         file_service.as_ref(),
                                         project_id,

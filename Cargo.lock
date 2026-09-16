@@ -5516,6 +5516,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "sideseat-ports"
+version = "1.0.13"
+dependencies = [
+ "async-trait",
+ "chrono",
+ "rustc-hash",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.20",
+ "utoipa",
+]
+
+[[package]]
 name = "sideseat-server"
 version = "1.0.13"
 dependencies = [
@@ -5573,6 +5586,7 @@ dependencies = [
  "sha2 0.10.9",
  "sideseat",
  "sideseat-core",
+ "sideseat-ports",
  "sqlx",
  "subtle",
  "supports-hyperlinks",

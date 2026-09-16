@@ -281,7 +281,7 @@ impl FileService {
         &self,
         project_id: &str,
         trace_ids: &[String],
-        analytics: &dyn crate::data::traits::SurvivorReferences,
+        analytics: &dyn sideseat_ports::traits::SurvivorReferences,
     ) -> Result<(), FileServiceError> {
         if !self.config.enabled || trace_ids.is_empty() {
             return Ok(());
@@ -350,8 +350,8 @@ impl FileService {
         &self,
         project_id: &str,
         trace_id: &str,
-        analytics: &dyn crate::data::traits::SurvivorReferences,
-        repo: &(dyn crate::data::traits::TransactionalRepository + Send + Sync),
+        analytics: &dyn sideseat_ports::traits::SurvivorReferences,
+        repo: &(dyn sideseat_ports::traits::TransactionalRepository + Send + Sync),
     ) -> Result<Vec<String>, FileServiceError> {
         let keep = Self::referenced_hashes(project_id, trace_id, analytics).await?;
 
@@ -427,7 +427,7 @@ impl FileService {
     async fn referenced_hashes(
         project_id: &str,
         trace_id: &str,
-        analytics: &dyn crate::data::traits::SurvivorReferences,
+        analytics: &dyn sideseat_ports::traits::SurvivorReferences,
     ) -> Result<Vec<String>, FileServiceError> {
         let fields = analytics
             .file_reference_fields_for_traces(
@@ -853,9 +853,9 @@ mod tests {
 
         // The trace still has one span, and it references B only. A's span is the one retention just expired,
         // so it is simply absent - which is what the survivor scan reads.
-        crate::data::traits::AnalyticsRepository::insert_spans(
-            &duck,
-            vec![crate::data::types::NormalizedSpan {
+        sideseat_ports::traits::AnalyticsRepository::insert_spans(
+            &crate::data::duckdb::DuckdbRepository(Arc::clone(&duck)),
+            vec![sideseat_ports::types::NormalizedSpan {
                 project_id: Some("default".to_string()),
                 trace_id: "trace1".to_string(),
                 span_id: "survivor".to_string(),
@@ -871,7 +871,11 @@ mod tests {
         .expect("insert the surviving span");
 
         service
-            .reconcile_trace_survivors("default", &["trace1".to_string()], &duck)
+            .reconcile_trace_survivors(
+                "default",
+                &["trace1".to_string()],
+                &crate::data::duckdb::DuckdbRepository(Arc::clone(&duck)),
+            )
             .await
             .expect("reconcile");
 
@@ -949,12 +953,12 @@ mod tests {
         }
 
         #[async_trait::async_trait]
-        impl crate::data::traits::SurvivorReferences for RacingAnalytics {
+        impl sideseat_ports::traits::SurvivorReferences for RacingAnalytics {
             async fn file_reference_fields_for_traces(
                 &self,
                 _project_id: &str,
                 _trace_ids: &[String],
-            ) -> Result<Vec<String>, crate::data::error::DataError> {
+            ) -> Result<Vec<String>, sideseat_ports::error::DataError> {
                 let n = self.calls.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
                 if n == 0 {
                     // The scan, before the span exists.
@@ -1041,7 +1045,11 @@ mod tests {
 
         // No spans at all for this trace, so the survivor set is empty - the worst case for the in-flight batch.
         service
-            .reconcile_trace_survivors("default", &["trace1".to_string()], &duck)
+            .reconcile_trace_survivors(
+                "default",
+                &["trace1".to_string()],
+                &crate::data::duckdb::DuckdbRepository(Arc::clone(&duck)),
+            )
             .await
             .expect("reconcile");
 

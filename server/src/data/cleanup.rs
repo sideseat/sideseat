@@ -731,7 +731,7 @@ pub fn start_claim_recovery_task(
 /// Fetches all API key hashes and invalidates their individual caches,
 /// then invalidates the organization's API key list cache.
 async fn invalidate_org_api_key_caches(
-    repo: &dyn crate::data::traits::TransactionalRepository,
+    repo: &dyn sideseat_ports::traits::TransactionalRepository,
     cache: &CacheService,
     org_id: &str,
 ) {

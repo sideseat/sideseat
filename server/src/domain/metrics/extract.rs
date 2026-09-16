@@ -12,12 +12,12 @@ use opentelemetry_proto::tonic::metrics::v1::{
 };
 use serde_json::{Value as JsonValue, json};
 
-use crate::data::types::{AggregationTemporality, MetricType, NormalizedMetric};
 use sideseat_core::utils::otlp::{
     PROJECT_ID_ATTR, attrs_to_typed_json, extract_attributes, get_environment, get_session_id,
     get_user_id, keys,
 };
 use sideseat_core::utils::time::{is_storable, nanos_to_datetime};
+use sideseat_ports::types::{AggregationTemporality, MetricType, NormalizedMetric};
 
 use super::identity::IdentityInputs;
 

@@ -23,8 +23,8 @@ use proptest::prelude::*;
 use serde_json::json;
 
 use super::{FeedOptions, process_spans};
-use crate::data::types::MessageSpanRow;
 use crate::domain::sideml::types::ContentBlock;
+use sideseat_ports::types::MessageSpanRow;
 
 const BASE_SECS: i64 = 1_700_000_000;
 

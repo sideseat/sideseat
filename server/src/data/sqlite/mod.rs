@@ -13,6 +13,7 @@ pub mod error;
 mod migrations;
 pub mod repositories;
 mod repository_impl;
+pub use repository_impl::SqliteRepository;
 pub mod schema;
 
 pub use error::SqliteError;

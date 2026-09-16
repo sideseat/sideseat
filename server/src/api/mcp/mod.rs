@@ -87,7 +87,7 @@ async fn mcp_proxy(
             .cloned(),
     ) {
         if let Err(e) = service
-            .verify_project_access(&auth, &project_id, crate::data::types::ApiKeyScope::Read)
+            .verify_project_access(&auth, &project_id, sideseat_ports::types::ApiKeyScope::Read)
             .await
         {
             return e.into_response();

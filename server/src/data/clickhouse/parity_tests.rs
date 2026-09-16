@@ -46,15 +46,15 @@ use chrono::{DateTime, Datelike, TimeZone, Utc};
 
 use crate::data::clickhouse::ClickhouseService;
 use crate::data::duckdb::DuckdbService;
-use crate::data::filters::{DatetimeOp, Filter, NullOp, NumberOp, OptionsOp, StringOp};
-use crate::data::traits::AnalyticsRepository;
-use crate::data::types::{
+use sideseat_core::core::config::ClickhouseConfig;
+use sideseat_core::core::storage::AppStorage;
+use sideseat_ports::filters::{DatetimeOp, Filter, NullOp, NumberOp, OptionsOp, StringOp};
+use sideseat_ports::traits::AnalyticsRepository;
+use sideseat_ports::types::{
     AggregationTemporality, FeedSpansParams, ListSessionsParams, ListSpansParams, ListTracesParams,
     MessageQueryParams, MessageSpanRow, MetricType, NormalizedMetric, NormalizedSpan,
     ObservationType, SessionRow, SpanCategory, SpanRow, TraceRow,
 };
-use sideseat_core::core::config::ClickhouseConfig;
-use sideseat_core::core::storage::AppStorage;
 
 /// Env var holding the base URL of a ClickHouse HTTP endpoint, e.g. `http://127.0.0.1:8123`.
 const URL_ENV: &str = "SIDESEAT_TEST_CLICKHOUSE_URL";
@@ -530,14 +530,17 @@ fn describe_message_row(r: &MessageSpanRow) -> String {
 // Harness
 // ============================================================================
 
-async fn duckdb_backend() -> (tempfile::TempDir, Arc<DuckdbService>) {
+async fn duckdb_backend() -> (tempfile::TempDir, crate::data::duckdb::DuckdbRepository) {
     let temp = tempfile::TempDir::new().expect("temp dir");
     tokio::fs::create_dir_all(temp.path().join("duckdb"))
         .await
         .expect("duckdb dir");
     let storage = AppStorage::init_for_test(temp.path().to_path_buf());
     let service = DuckdbService::init(&storage).await.expect("duckdb init");
-    (temp, Arc::new(service))
+    (
+        temp,
+        crate::data::duckdb::DuckdbRepository(Arc::new(service)),
+    )
 }
 
 /// Connects to the ClickHouse named by [`URL_ENV`] in a database of its own, so a run cannot
@@ -556,7 +559,10 @@ fn raw_client(url: &str, database: &str) -> clickhouse::Client {
     client
 }
 
-async fn clickhouse_backend(url: &str, database: &str) -> Arc<ClickhouseService> {
+async fn clickhouse_backend(
+    url: &str,
+    database: &str,
+) -> crate::data::clickhouse::ClickhouseRepository {
     let user = std::env::var(USER_ENV).ok();
     let password = std::env::var(PASSWORD_ENV).ok();
 
@@ -593,11 +599,11 @@ async fn clickhouse_backend(url: &str, database: &str) -> Arc<ClickhouseService>
         distributed: false,
         insert_quorum: 0,
     };
-    Arc::new(
+    crate::data::clickhouse::ClickhouseRepository(Arc::new(
         ClickhouseService::init(&config)
             .await
             .expect("clickhouse init"),
-    )
+    ))
 }
 
 /// A service in **distributed** mode against the replicated fixture.
@@ -605,12 +611,18 @@ async fn clickhouse_backend(url: &str, database: &str) -> Arc<ClickhouseService>
 /// The single-node helper hardcodes `distributed: false`, which is what left every migration assertion blind to
 /// the `ON CLUSTER` path, the `Replicated*` engines, the `{uuid}` Keeper paths and the `Distributed` front
 /// tables - the four hardest parts of the v3 rebuild.
-async fn replicated_backend(url: &str, database: &str) -> Arc<ClickhouseService> {
+async fn replicated_backend(
+    url: &str,
+    database: &str,
+) -> crate::data::clickhouse::ClickhouseRepository {
     replicated_backend_at(url, database).await
 }
 
 /// The same, named separately so the two-shard tests read as using their own fixture.
-async fn replicated_backend_at(url: &str, database: &str) -> Arc<ClickhouseService> {
+async fn replicated_backend_at(
+    url: &str,
+    database: &str,
+) -> crate::data::clickhouse::ClickhouseRepository {
     let user = std::env::var(USER_ENV).ok();
     let password = std::env::var(PASSWORD_ENV).ok();
 
@@ -645,11 +657,11 @@ async fn replicated_backend_at(url: &str, database: &str) -> Arc<ClickhouseServi
         // legitimate deployment the startup warning exists for rather than refuses.
         insert_quorum: 0,
     };
-    Arc::new(
+    crate::data::clickhouse::ClickhouseRepository(Arc::new(
         ClickhouseService::init(&config)
             .await
             .expect("clickhouse init in distributed mode"),
-    )
+    ))
 }
 
 /// A raw client with explicit credentials, so the replicated helper can reach `default` before its own
@@ -1080,7 +1092,7 @@ async fn clickhouse_matches_duckdb_on_every_read() {
     // --- filter options ----------------------------------------------------
     // The tag options feed the UI's filter dropdown, and its counts come from the same tags
     // column the trace projection unions.
-    let describe_options = |rows: Vec<crate::data::traits::FilterOptionRow>| {
+    let describe_options = |rows: Vec<sideseat_ports::traits::FilterOptionRow>| {
         let mut described: Vec<String> = rows
             .into_iter()
             .map(|r| format!("{}={}", r.value, r.count))
@@ -1201,9 +1213,9 @@ async fn clickhouse_matches_duckdb_on_every_read() {
             project_id: PROJECT.to_string(),
             page,
             limit: 3,
-            order_by: Some(crate::data::types::OrderBy {
+            order_by: Some(sideseat_ports::types::OrderBy {
                 column: "timestamp_start".to_string(),
-                direction: crate::data::types::OrderDirection::Asc,
+                direction: sideseat_ports::types::OrderDirection::Asc,
             }),
             ..Default::default()
         };
@@ -1236,9 +1248,9 @@ async fn clickhouse_matches_duckdb_on_every_read() {
         (
             "sorted by cost desc",
             ListTracesParams {
-                order_by: Some(crate::data::types::OrderBy {
+                order_by: Some(sideseat_ports::types::OrderBy {
                     column: "total_cost".to_string(),
-                    direction: crate::data::types::OrderDirection::Desc,
+                    direction: sideseat_ports::types::OrderDirection::Desc,
                 }),
                 ..trace_params()
             },
@@ -1785,11 +1797,11 @@ async fn clickhouse_matches_duckdb_on_every_read() {
     // Every column the API accepts as a trace sort must actually sort by it. One that is accepted
     // and unmapped falls through to min_ts, so the list comes back in time order while the UI shows
     // the chosen column as active - which was true of total_tokens.
-    for column in crate::data::filters::columns::TRACE_SORTABLE {
+    for column in sideseat_ports::filters::columns::TRACE_SORTABLE {
         let params = ListTracesParams {
-            order_by: Some(crate::data::types::OrderBy {
+            order_by: Some(sideseat_ports::types::OrderBy {
                 column: column.to_string(),
-                direction: crate::data::types::OrderDirection::Desc,
+                direction: sideseat_ports::types::OrderDirection::Desc,
             }),
             ..trace_params()
         };
@@ -1818,14 +1830,14 @@ async fn clickhouse_matches_duckdb_on_every_read() {
         );
     }
 
-    for column in crate::data::filters::columns::SESSION_SORTABLE {
+    for column in sideseat_ports::filters::columns::SESSION_SORTABLE {
         let params = ListSessionsParams {
             project_id: PROJECT.to_string(),
             page: 1,
             limit: 50,
-            order_by: Some(crate::data::types::OrderBy {
+            order_by: Some(sideseat_ports::types::OrderBy {
                 column: column.to_string(),
-                direction: crate::data::types::OrderDirection::Desc,
+                direction: sideseat_ports::types::OrderDirection::Desc,
             }),
             ..Default::default()
         };
@@ -1886,7 +1898,7 @@ async fn clickhouse_matches_duckdb_on_every_read() {
             .get_events_for_span(PROJECT, trace_id, span_id)
             .await
             .expect("clickhouse events");
-        let describe_event = |e: &crate::data::types::EventRow| {
+        let describe_event = |e: &sideseat_ports::types::EventRow| {
             format!(
                 "span={} index={} time={} name={:?} attributes={:?}",
                 e.span_id,
@@ -1910,7 +1922,7 @@ async fn clickhouse_matches_duckdb_on_every_read() {
             .get_links_for_span(PROJECT, trace_id, span_id)
             .await
             .expect("clickhouse links");
-        let describe_link = |l: &crate::data::types::LinkRow| {
+        let describe_link = |l: &sideseat_ports::types::LinkRow| {
             format!(
                 "span={} linked={}/{} attributes={:?}",
                 l.span_id,
@@ -1955,7 +1967,10 @@ async fn clickhouse_matches_duckdb_on_every_read() {
         let mut described: Vec<String> = m
             .iter()
             .map(
-                |((trace, span), counts): (&(String, String), &crate::data::types::SpanCounts)| {
+                |((trace, span), counts): (
+                    &(String, String),
+                    &sideseat_ports::types::SpanCounts,
+                )| {
                     format!(
                         "{trace}/{span}=events:{},links:{}",
                         counts.event_count, counts.link_count
@@ -1974,7 +1989,7 @@ async fn clickhouse_matches_duckdb_on_every_read() {
 
     // --- project feed ------------------------------------------------------
     // The feed endpoints page with a (ingested_at, span_id) cursor, whose SQL is written twice.
-    let feed_params = crate::data::types::FeedSpansParams {
+    let feed_params = sideseat_ports::types::FeedSpansParams {
         ingested_before_us: None,
         project_id: PROJECT.to_string(),
         limit: 50,
@@ -1998,7 +2013,7 @@ async fn clickhouse_matches_duckdb_on_every_read() {
         "get_feed_spans differs between backends"
     );
 
-    let feed_messages = crate::data::types::FeedMessagesParams {
+    let feed_messages = sideseat_ports::types::FeedMessagesParams {
         ingested_before_us: None,
         project_id: PROJECT.to_string(),
         limit: 50,
@@ -2028,7 +2043,7 @@ async fn clickhouse_matches_duckdb_on_every_read() {
     // window starting half a second after trace-a's first generation began still contains the moment
     // it finished - and a completed response carries its span's end time, so its message belongs in
     // that window. Selecting rows by the span's start dropped it before reconstruction could see it.
-    let straddling = crate::data::types::FeedMessagesParams {
+    let straddling = sideseat_ports::types::FeedMessagesParams {
         ingested_before_us: None,
         project_id: PROJECT.to_string(),
         limit: 50,
@@ -2069,15 +2084,16 @@ async fn clickhouse_matches_duckdb_on_every_read() {
 
     // Cursor paging, which is a different mechanism from LIMIT/OFFSET and was only ever called
     // with `cursor: None`.
-    let feed_page = |cursor: Option<(i64, String, String)>| crate::data::types::FeedSpansParams {
-        ingested_before_us: None,
-        project_id: PROJECT.to_string(),
-        limit: 3,
-        cursor,
-        start_time: None,
-        end_time: None,
-        is_observation: None,
-    };
+    let feed_page =
+        |cursor: Option<(i64, String, String)>| sideseat_ports::types::FeedSpansParams {
+            ingested_before_us: None,
+            project_id: PROJECT.to_string(),
+            limit: 3,
+            cursor,
+            start_time: None,
+            end_time: None,
+            is_observation: None,
+        };
     let d_first = duck
         .get_feed_spans(&feed_page(None))
         .await
@@ -2130,7 +2146,7 @@ async fn clickhouse_matches_duckdb_on_every_read() {
     );
 
     let messages_page =
-        |cursor: Option<(i64, String, String)>| crate::data::types::FeedMessagesParams {
+        |cursor: Option<(i64, String, String)>| sideseat_ports::types::FeedMessagesParams {
             ingested_before_us: None,
             project_id: PROJECT.to_string(),
             limit: 2,
@@ -2215,7 +2231,7 @@ async fn clickhouse_matches_duckdb_on_every_read() {
     // Every option's count is shown in the UI next to it, so an approximate count on one backend
     // and an exact one on the other means the same project reports different numbers.
     let describe_option_map =
-        |m: std::collections::HashMap<String, Vec<crate::data::traits::FilterOptionRow>>| {
+        |m: std::collections::HashMap<String, Vec<sideseat_ports::traits::FilterOptionRow>>| {
             let mut described: Vec<String> = m
                 .into_iter()
                 .map(|(column, rows)| {
@@ -2232,7 +2248,7 @@ async fn clickhouse_matches_duckdb_on_every_read() {
         };
 
     // The trace list exposes view column names, which the repositories map to span columns.
-    let trace_columns: Vec<String> = crate::data::types::TRACE_FILTER_OPTION_COLUMNS
+    let trace_columns: Vec<String> = sideseat_ports::types::TRACE_FILTER_OPTION_COLUMNS
         .iter()
         .map(|(view_column, _)| view_column.to_string())
         .collect();
@@ -2274,7 +2290,7 @@ async fn clickhouse_matches_duckdb_on_every_read() {
         );
     }
 
-    let span_columns: Vec<String> = crate::data::types::SPAN_FILTER_OPTION_COLUMNS
+    let span_columns: Vec<String> = sideseat_ports::types::SPAN_FILTER_OPTION_COLUMNS
         .iter()
         .map(|c| c.to_string())
         .collect();
@@ -2325,7 +2341,7 @@ async fn clickhouse_matches_duckdb_on_every_read() {
         );
     }
 
-    let session_columns: Vec<String> = crate::data::types::SESSION_FILTER_OPTION_COLUMNS
+    let session_columns: Vec<String> = sideseat_ports::types::SESSION_FILTER_OPTION_COLUMNS
         .iter()
         .map(|c| c.to_string())
         .collect();
@@ -2413,7 +2429,7 @@ async fn clickhouse_matches_duckdb_on_every_read() {
     );
 
     // --- stats -------------------------------------------------------------
-    let stats_params = crate::data::types::StatsParams {
+    let stats_params = sideseat_ports::types::StatsParams {
         project_id: PROJECT.to_string(),
         from_timestamp: ts(-3600),
         to_timestamp: ts(3600),
@@ -2932,6 +2948,7 @@ async fn distinct_metric_series_survive_and_a_redelivery_does_not_duplicate() {
     // `COUNT(DISTINCT ...)` would pass while two rows held two possibly different measurements of one
     // instant, with nothing to say which is current.
     let physical = duck
+        .0
         .count_metric_rows_for_test(PROJECT)
         .await
         .expect("count physical metric rows");
@@ -3095,11 +3112,11 @@ async fn the_feed_watermark_hides_later_rows_on_both_backends() {
 
     async fn check(
         label: &str,
-        backend: &(impl crate::data::traits::AnalyticsRepository + ?Sized),
+        backend: &(impl sideseat_ports::traits::AnalyticsRepository + ?Sized),
         watermark_us: i64,
     ) {
         let bounded = backend
-            .get_feed_spans(&crate::data::types::FeedSpansParams {
+            .get_feed_spans(&sideseat_ports::types::FeedSpansParams {
                 project_id: PROJECT.to_string(),
                 limit: 50,
                 ingested_before_us: Some(watermark_us),
@@ -3117,7 +3134,7 @@ async fn the_feed_watermark_hides_later_rows_on_both_backends() {
         // Without the bound both are there, which is what makes the assertion above about the bound
         // rather than about the fixture.
         let unbounded = backend
-            .get_feed_spans(&crate::data::types::FeedSpansParams {
+            .get_feed_spans(&sideseat_ports::types::FeedSpansParams {
                 project_id: PROJECT.to_string(),
                 limit: 50,
                 ingested_before_us: None,
@@ -3133,7 +3150,7 @@ async fn the_feed_watermark_hides_later_rows_on_both_backends() {
 
         // The message feed takes the same bound, and its context load is the half that mattered.
         let messages = backend
-            .get_project_messages(&crate::data::types::FeedMessagesParams {
+            .get_project_messages(&sideseat_ports::types::FeedMessagesParams {
                 project_id: PROJECT.to_string(),
                 limit: 50,
                 ingested_before_us: Some(watermark_us),
@@ -3182,12 +3199,12 @@ async fn the_feed_watermark_hides_later_rows_on_both_backends() {
     for (label, backend, exact) in [
         (
             "duckdb",
-            &duck as &dyn crate::data::traits::AnalyticsRepository,
+            &duck as &dyn sideseat_ports::traits::AnalyticsRepository,
             true,
         ),
         (
             "clickhouse",
-            &ch as &dyn crate::data::traits::AnalyticsRepository,
+            &ch as &dyn sideseat_ports::traits::AnalyticsRepository,
             false,
         ),
     ] {
@@ -3331,7 +3348,7 @@ async fn a_span_redelivered_during_a_traversal_still_appears_in_it() {
         .expect("redelivery");
 
     let page = duck
-        .get_project_messages(&crate::data::types::FeedMessagesParams {
+        .get_project_messages(&sideseat_ports::types::FeedMessagesParams {
             project_id: PROJECT.to_string(),
             limit: 50,
             ingested_before_us: Some(watermark_us),

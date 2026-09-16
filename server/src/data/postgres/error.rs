@@ -1,5 +1,6 @@
 //! PostgreSQL error types
 
+use sideseat_ports::error::DataError;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -22,6 +23,40 @@ pub enum PostgresError {
 
     #[error("Conflict: {0}")]
     Conflict(String),
+}
+
+/// This adapter's error, as the port's error.
+///
+/// **Here rather than beside `DataError`.** The conversion used to live in `data::error`, which made the port's
+/// error type name every adapter - the dependency exactly inverted, and enough on its own to stop `ports` being
+/// a crate. An adapter knows the port it implements; the port must not know its implementations. The orphan rule
+/// allows only these two homes, and this is the one that points the right way.
+impl From<PostgresError> for DataError {
+    fn from(e: PostgresError) -> Self {
+        match e {
+            // The same `sqlx` classification as the SQLite twin, and for the same reason it lives here.
+            PostgresError::Database(e) => Self::Postgres {
+                transient: matches!(
+                    e,
+                    sqlx::Error::PoolTimedOut | sqlx::Error::PoolClosed | sqlx::Error::Io(_)
+                ),
+                message: e.to_string(),
+            },
+            PostgresError::MigrationFailed {
+                version,
+                name,
+                error,
+            } => Self::MigrationFailed {
+                backend: "postgres",
+                version,
+                name,
+                error,
+            },
+            PostgresError::Config(msg) => Self::Config(msg),
+            PostgresError::Io(e) => Self::Io(e),
+            PostgresError::Conflict(msg) => Self::Conflict(msg),
+        }
+    }
 }
 
 #[cfg(test)]

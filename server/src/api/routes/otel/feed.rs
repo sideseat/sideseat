@@ -18,10 +18,10 @@ use super::types::{
 };
 use crate::api::auth::ProjectRead;
 use crate::api::types::{ApiError, parse_timestamp_param};
-use crate::data::types::{FeedMessagesParams, FeedSpansParams, MessageQueryParams};
 use crate::domain::sideml::{
     FeedOptions, apply_time_window, extract_tools_from_rows, process_feed_cached,
 };
+use sideseat_ports::types::{FeedMessagesParams, FeedSpansParams, MessageQueryParams};
 
 // ============================================================================
 // Constants
@@ -591,9 +591,9 @@ pub async fn get_feed_spans(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::data::types::MessageSpanRow;
     use crate::domain::sideml::process_feed;
     use chrono::TimeZone;
+    use sideseat_ports::types::MessageSpanRow;
 
     // ========================================================================
     // Cursor encoding/decoding tests

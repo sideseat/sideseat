@@ -134,7 +134,11 @@ async fn run_agent(
         if service
             // `Write`, not `Read`: this *runs* an agent, whose side effects are external - it calls models and
             // tools, and it costs money. A query-only key must not be able to trigger that.
-            .verify_project_access(&auth, &project_id, crate::data::types::ApiKeyScope::Write)
+            .verify_project_access(
+                &auth,
+                &project_id,
+                sideseat_ports::types::ApiKeyScope::Write,
+            )
             .await
             .is_err()
         {

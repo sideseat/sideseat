@@ -9,10 +9,10 @@ use sqlx::PgPool;
 
 use crate::data::cache::{CacheKey, CacheService};
 use crate::data::postgres::PostgresError;
-use crate::data::types::{OrgWithRole, OrganizationRow};
 use sideseat_core::core::constants::{
     CACHE_TTL_ORG, CACHE_TTL_ORG_LIST, DEFAULT_ORG_ID, RESERVED_SLUGS,
 };
+use sideseat_ports::types::{OrgWithRole, OrganizationRow};
 
 use super::membership::list_member_user_ids;
 

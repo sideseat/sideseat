@@ -3,7 +3,7 @@
 use sqlx::PgPool;
 
 use crate::data::postgres::PostgresError;
-use crate::data::types::CredentialRow;
+use sideseat_ports::types::CredentialRow;
 
 /// List all credentials for an organization
 pub async fn list_credentials(

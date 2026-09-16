@@ -22,17 +22,13 @@ pub mod cleanup;
 pub mod clickhouse;
 pub mod dedup;
 pub mod duckdb;
-pub mod error;
 pub mod files;
-pub mod filters;
 pub mod postgres;
 pub mod registrations;
 pub mod secrets;
 pub mod sql;
 pub mod sqlite;
 pub mod topics;
-pub mod traits;
-pub mod types;
 
 // Re-export backend-specific services
 pub use clickhouse::ClickhouseService;
@@ -40,23 +36,15 @@ pub use duckdb::DuckdbService;
 pub use postgres::PostgresService;
 pub use sqlite::SqliteService;
 
-// Re-export unified error type
-pub use error::DataError;
-
-// Re-export repository traits
-pub use traits::{
-    AnalyticsRepository, FilterOptionRow, TransactionalRepository, has_min_role_level,
-};
-
-// Re-export shared types for convenient access
-pub use types::{
-    AggregationTemporality, MessageCategory, MessageSourceType, MetricType, NormalizedMetric,
-    NormalizedSpan, ObservationType, SpanCategory,
-};
-
-// Re-export filters for API usage (analytics backend SQL building)
+// **No re-exports of the ports.** `DataError`, the two repository traits and the shared DTOs were re-exported
+// here "for convenient access", so `data` appeared to own its own abstractions and every caller could reach them
+// by two paths. They live in `sideseat-ports`; callers import from there, which is also what makes the direction
+// legible in `cargo tree`.
 
 use std::sync::Arc;
+
+use sideseat_ports::error::DataError;
+use sideseat_ports::traits::{AnalyticsRepository, TransactionalRepository};
 
 use crate::data::cache::CacheService;
 use tokio::sync::watch;
@@ -154,8 +142,8 @@ impl TransactionalService {
     /// data operations through the TransactionalRepository interface.
     pub fn repository(&self) -> Box<dyn TransactionalRepository + Send + Sync> {
         match self {
-            Self::Sqlite(s) => Box::new(Arc::clone(s)),
-            Self::Postgres(p) => Box::new(Arc::clone(p)),
+            Self::Sqlite(s) => Box::new(crate::data::sqlite::SqliteRepository(Arc::clone(s))),
+            Self::Postgres(p) => Box::new(crate::data::postgres::PostgresRepository(Arc::clone(p))),
         }
     }
 }
@@ -277,8 +265,10 @@ impl AnalyticsService {
     /// SQL-level dedup directly.
     pub fn repository(&self) -> Box<dyn AnalyticsRepository + Send + Sync> {
         let inner: Box<dyn AnalyticsRepository + Send + Sync> = match self {
-            Self::Duckdb(d) => Box::new(Arc::clone(d)),
-            Self::Clickhouse(c) => Box::new(Arc::clone(c)),
+            Self::Duckdb(d) => Box::new(crate::data::duckdb::DuckdbRepository(Arc::clone(d))),
+            Self::Clickhouse(c) => {
+                Box::new(crate::data::clickhouse::ClickhouseRepository(Arc::clone(c)))
+            }
         };
         Box::new(dedup::DedupAnalyticsRepository::new(inner))
     }

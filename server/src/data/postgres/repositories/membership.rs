@@ -9,10 +9,10 @@ use sqlx::PgPool;
 
 use crate::data::cache::{CacheKey, CacheService};
 use crate::data::postgres::PostgresError;
-use crate::data::types::{LastOwnerResult, MemberWithUser, MembershipRow};
 use sideseat_core::core::constants::{
     CACHE_TTL_MEMBERSHIP, ORG_ROLE_ADMIN, ORG_ROLE_MEMBER, ORG_ROLE_OWNER, ORG_ROLE_VIEWER,
 };
+use sideseat_ports::types::{LastOwnerResult, MemberWithUser, MembershipRow};
 
 /// Role level for hierarchy checks
 fn role_level(role: &str) -> u8 {

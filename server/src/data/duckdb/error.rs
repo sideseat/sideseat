@@ -1,5 +1,6 @@
 //! DuckDB error types
 
+use sideseat_ports::error::DataError;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -19,6 +20,40 @@ pub enum DuckdbError {
 
     #[error("Query timeout after {timeout_secs}s")]
     Timeout { timeout_secs: u64 },
+}
+
+/// This adapter's error, as the port's error.
+///
+/// **Here rather than beside `DataError`.** The conversion used to live in `data::error`, which made the port's
+/// error type name every adapter - the dependency exactly inverted, and enough on its own to stop `ports` being
+/// a crate. An adapter knows the port it implements; the port must not know its implementations. The orphan rule
+/// allows only these two homes, and this is the one that points the right way.
+impl From<DuckdbError> for DataError {
+    fn from(e: DuckdbError) -> Self {
+        match e {
+            // DuckDB is embedded and single-connection here, so there is no pool to be busy and no network
+            // to drop: a database error means the statement was wrong, and retrying it will be wrong again.
+            DuckdbError::Database(e) => Self::Duckdb {
+                message: e.to_string(),
+                transient: false,
+            },
+            DuckdbError::MigrationFailed {
+                version,
+                name,
+                error,
+            } => Self::MigrationFailed {
+                backend: "duckdb",
+                version,
+                name,
+                error,
+            },
+            DuckdbError::Io(e) => Self::Io(e),
+            DuckdbError::Timeout { timeout_secs } => Self::Timeout {
+                backend: "duckdb",
+                timeout_secs,
+            },
+        }
+    }
 }
 
 #[cfg(test)]

@@ -72,7 +72,7 @@ does not ask for it.
 
 ## What the survey changed: framework identity is not behavioural
 
-`Framework::<Variant>` appears outside `data/types/enums.rs` **only** in `attributes.rs` — the
+`Framework::<Variant>` appears outside `domain/traces/extract/framework_oracle.rs` **only** in `attributes.rs` — the
 detection rules that *produce* the label. Nothing downstream (extraction, normalisation, dedup, cost,
 feed, query, API) branches on it. The stored string is a DB column, a list/stats filter, a display
 field, and one opaque input to the feed cache digest.

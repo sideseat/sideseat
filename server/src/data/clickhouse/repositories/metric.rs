@@ -7,8 +7,8 @@ use clickhouse::Row;
 use serde::Serialize;
 
 use crate::data::clickhouse::ClickhouseError;
-use crate::data::types::NormalizedMetric;
 use sideseat_core::utils::json::json_to_opt_string;
+use sideseat_ports::types::NormalizedMetric;
 
 /// Row structure for inserting metrics into ClickHouse
 #[derive(Row, Serialize)]
@@ -187,7 +187,7 @@ pub async fn insert_batch(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::data::types::MetricType;
+    use sideseat_ports::types::MetricType;
 
     #[test]
     fn test_metric_row_from_normalized_metric() {

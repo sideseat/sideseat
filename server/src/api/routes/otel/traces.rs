@@ -16,7 +16,7 @@ use crate::api::types::{
     ApiError, PaginatedResponse, default_limit, default_page, parse_order_by,
     parse_timestamp_param, validate_ids_batch, validate_limit, validate_page,
 };
-use crate::data::types::{ListTracesParams, TraceRow, find_root_span};
+use sideseat_ports::types::{ListTracesParams, TraceRow, find_root_span};
 
 #[derive(Debug, Deserialize, Validate)]
 pub struct ListTracesQuery {

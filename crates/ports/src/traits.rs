@@ -8,8 +8,8 @@ use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use std::collections::HashMap;
 
-use crate::data::error::DataError;
-use crate::data::types::{
+use crate::error::DataError;
+use crate::types::{
     ApiKeyRow, ApiKeyScope, ApiKeyValidation, AuthMethodRow, CredentialPermissionRow,
     CredentialRow, EventRow, FeedMessagesParams, FeedSpansParams, FileRow, LastOwnerResult,
     LinkRow, ListSessionsParams, ListSpansParams, ListTracesParams, MemberWithUser, MembershipRow,
@@ -323,8 +323,8 @@ pub trait AnalyticsRepository: Send + Sync {
     /// Get project statistics
     async fn get_project_stats(
         &self,
-        params: &crate::data::types::StatsParams,
-    ) -> Result<crate::data::types::ProjectStatsResult, DataError>;
+        params: &crate::types::StatsParams,
+    ) -> Result<crate::types::ProjectStatsResult, DataError>;
 
     // ==================== Ingestion Operations ====================
 

@@ -8,11 +8,11 @@ use crate::api::routes::{
     api_keys, auth, favorites, health, organizations, otel, pricing, projects, users,
 };
 use crate::api::types::{OrderDirection, PaginationMeta};
-use crate::data::types::ApiKeyScope;
 use crate::domain::sideml::{
     CacheControl, ChatMessage, ChatRole, ContentBlock, FinishReason, JsonSchemaDetails,
     ResponseFormat, ToolChoice,
 };
+use sideseat_ports::types::ApiKeyScope;
 
 #[derive(OpenApi)]
 #[openapi(

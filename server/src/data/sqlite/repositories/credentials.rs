@@ -3,7 +3,7 @@
 use sqlx::SqlitePool;
 
 use crate::data::sqlite::SqliteError;
-use crate::data::types::CredentialRow;
+use sideseat_ports::types::CredentialRow;
 
 /// List all credentials for an organization
 pub async fn list_credentials(

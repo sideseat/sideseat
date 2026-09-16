@@ -7,8 +7,8 @@ use chrono::Utc;
 use serde_json::json;
 
 use super::*;
-use crate::data::types::MessageSpanRow;
 use crate::domain::sideml::types::{ChatRole, ContentBlock, FinishReason};
+use sideseat_ports::types::MessageSpanRow;
 
 // ============================================================================
 // HELPER FUNCTIONS
@@ -4016,7 +4016,7 @@ fn test_regression_tool_use_from_assistant_message_uses_event_time() {
     // Category should be GenAIAssistantMessage, not GenAIChoice
     assert_eq!(
         block.category,
-        crate::data::types::MessageCategory::GenAIAssistantMessage
+        sideseat_ports::types::MessageCategory::GenAIAssistantMessage
     );
 }
 
@@ -4106,7 +4106,7 @@ fn test_regression_intermediate_assistant_text_filtered() {
     let final_text = text_blocks[0];
     assert_eq!(
         final_text.category,
-        crate::data::types::MessageCategory::GenAIChoice,
+        sideseat_ports::types::MessageCategory::GenAIChoice,
         "Should be from GenAIChoice (final response)"
     );
     assert!(
@@ -9011,7 +9011,7 @@ fn test_no_promotion_when_choice_exists() {
         source_type: "event".to_string(),
         event_name: Some("gen_ai.assistant.message".to_string()),
         source_attribute: None,
-        category: crate::data::types::MessageCategory::GenAIAssistantMessage,
+        category: sideseat_ports::types::MessageCategory::GenAIAssistantMessage,
         content_hash: "hash_prev".to_string(),
         is_semantic: true,
         uses_span_end: false,
@@ -9053,7 +9053,7 @@ fn test_no_promotion_when_choice_exists() {
         source_type: "event".to_string(),
         event_name: Some("gen_ai.choice".to_string()),
         source_attribute: None,
-        category: crate::data::types::MessageCategory::GenAIChoice,
+        category: sideseat_ports::types::MessageCategory::GenAIChoice,
         content_hash: "hash_4".to_string(),
         is_semantic: true,
         uses_span_end: false,
@@ -9074,7 +9074,7 @@ fn test_no_promotion_when_choice_exists() {
     let asst = &blocks[0];
     assert_eq!(
         asst.category,
-        crate::data::types::MessageCategory::GenAIAssistantMessage,
+        sideseat_ports::types::MessageCategory::GenAIAssistantMessage,
         "gen_ai.assistant.message should keep original category when choice exists"
     );
     assert!(
@@ -10082,7 +10082,7 @@ fn prior_state(
             source_type: "attribute".to_string(),
             event_name: None,
             source_attribute: Some("llm.input_messages".to_string()),
-            category: crate::data::types::MessageCategory::GenAIUserMessage,
+            category: sideseat_ports::types::MessageCategory::GenAIUserMessage,
             content_hash: hash.to_string(),
             is_semantic: true,
             uses_span_end: false,

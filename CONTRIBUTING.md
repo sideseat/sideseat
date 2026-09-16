@@ -21,8 +21,10 @@ Dev server runs at http://localhost:5389 (UI) and http://localhost:5388 (API).
 ## Project Structure
 
 ```
-crates/       Workspace crates that enforce the layer boundaries by manifest: core/ (configuration,
-              constants, storage layout, CLI, pure utilities - names no layer above it and no driver)
+crates/       Layer crates whose manifests enforce the boundary: core/ ports/
+              The first holds configuration, constants, storage layout, the CLI and pure utilities; the
+              second the traits, DTOs, filter vocabulary and error type. Neither names a driver, so a
+              forbidden dependency does not compile rather than being caught in review
 server/       Rust backend (Axum): Cargo.toml, build.rs, src/, tests/, assets/
 web/          React frontend (Vite)
 cli/          npm distribution wrapper

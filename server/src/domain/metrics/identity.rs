@@ -39,7 +39,7 @@
 
 use opentelemetry_proto::tonic::common::v1::{AnyValue, KeyValue, any_value};
 
-use crate::data::types::NormalizedMetric;
+use sideseat_ports::types::NormalizedMetric;
 
 /// The OTLP material an identity needs that `NormalizedMetric` cannot carry losslessly.
 ///
@@ -185,7 +185,7 @@ fn write_optional_str(hasher: &mut blake3::Hasher, value: Option<&str>) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::data::types::MetricType;
+    use sideseat_ports::types::MetricType;
 
     fn kv(key: &str, value: any_value::Value) -> KeyValue {
         KeyValue {

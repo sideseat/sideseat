@@ -9,8 +9,8 @@ use chrono::{TimeZone, Utc};
 use serde_json::json;
 
 use super::*;
-use crate::data::types::MessageCategory;
 use crate::domain::sideml::types::ChatRole;
+use sideseat_ports::types::MessageCategory;
 
 fn base(trace_id: &str, entry_type: &str, content: ContentBlock, role: ChatRole) -> BlockEntry {
     BlockEntry {

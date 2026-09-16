@@ -17,6 +17,8 @@ workspace = true
 # The innermost layer, and the first compiler-enforced boundary: its manifest names no driver and
 # nothing of SideSeat's own, so a violation does not compile rather than being caught by review.
 sideseat-core = { path = "../crates/core" }
+# The ports: traits, DTOs, the filter vocabulary and the error type. Names no adapter and no driver.
+sideseat-ports = { path = "../crates/ports" }
 axum = { workspace = true }
 tokio = { workspace = true }
 tower = { workspace = true }

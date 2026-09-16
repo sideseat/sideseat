@@ -13,9 +13,9 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 
-use crate::data::error::DataError;
-use crate::data::traits::{AnalyticsRepository, FilterOptionRow};
-use crate::data::types::{
+use sideseat_ports::error::DataError;
+use sideseat_ports::traits::{AnalyticsRepository, FilterOptionRow};
+use sideseat_ports::types::{
     EventRow, FeedMessagesParams, FeedSpansParams, LinkRow, ListSessionsParams, ListSpansParams,
     ListTracesParams, MessageQueryParams, MessageQueryResult, NormalizedMetric, NormalizedSpan,
     ProjectStatsResult, SessionRow, SpanCounts, SpanRow, StatsParams, TraceRow,
@@ -24,15 +24,37 @@ use crate::data::types::{
 use super::DuckdbService;
 use super::repositories::{messages, metric, query, span, stats};
 
+/// The port, implemented over the service.
+///
+/// A **wrapper rather than `impl … for Arc<DuckdbService>`**, and that is the orphan rule rather than taste: with the
+/// trait in `sideseat-ports` and `Arc` in `std`, an impl on `Arc<DuckdbService>` has no local type ahead of an
+/// uncovered parameter, so it is refused across a crate boundary. It compiled only while everything was one
+/// crate - which is one more way the single crate hid the direction of its own dependencies.
+#[derive(Clone)]
+pub struct DuckdbRepository(pub Arc<DuckdbService>);
+
+/// So the wrapper is transparent to the service's own methods.
+///
+/// Without this, wrapping turns every call that is *not* a port method - a maintenance helper, a test probe -
+/// into `wrapper.0.method()`, which is noise that says nothing. The port methods live on the wrapper itself and
+/// are found first, so nothing is shadowed.
+impl std::ops::Deref for DuckdbRepository {
+    type Target = DuckdbService;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
 #[async_trait]
-impl AnalyticsRepository for Arc<DuckdbService> {
+impl AnalyticsRepository for DuckdbRepository {
     // ==================== Trace Operations ====================
 
     async fn list_traces(
         &self,
         params: &ListTracesParams,
     ) -> Result<(Vec<TraceRow>, u64), DataError> {
-        let db = Arc::clone(self);
+        let db = Arc::clone(&self.0);
         let params = params.clone();
         DuckdbService::run_query(move || {
             let conn = db.conn();
@@ -48,7 +70,7 @@ impl AnalyticsRepository for Arc<DuckdbService> {
         project_id: &str,
         trace_id: &str,
     ) -> Result<Option<TraceRow>, DataError> {
-        let db = Arc::clone(self);
+        let db = Arc::clone(&self.0);
         let pid = project_id.to_string();
         let tid = trace_id.to_string();
         DuckdbService::run_query(move || {
@@ -67,7 +89,7 @@ impl AnalyticsRepository for Arc<DuckdbService> {
         from_timestamp: Option<DateTime<Utc>>,
         to_timestamp: Option<DateTime<Utc>>,
     ) -> Result<HashMap<String, Vec<FilterOptionRow>>, DataError> {
-        let db = Arc::clone(self);
+        let db = Arc::clone(&self.0);
         let pid = project_id.to_string();
         let cols = columns.to_vec();
         let result = DuckdbService::run_query(move || {
@@ -101,7 +123,7 @@ impl AnalyticsRepository for Arc<DuckdbService> {
         from_timestamp: Option<DateTime<Utc>>,
         to_timestamp: Option<DateTime<Utc>>,
     ) -> Result<Vec<FilterOptionRow>, DataError> {
-        let db = Arc::clone(self);
+        let db = Arc::clone(&self.0);
         let pid = project_id.to_string();
         let result = DuckdbService::run_query(move || {
             let conn = db.conn();
@@ -125,7 +147,7 @@ impl AnalyticsRepository for Arc<DuckdbService> {
         project_id: &str,
         trace_ids: &[String],
     ) -> Result<Vec<String>, DataError> {
-        let db = Arc::clone(self);
+        let db = Arc::clone(&self.0);
         let pid = project_id.to_string();
         let tids = trace_ids.to_vec();
         DuckdbService::run_query(move || {
@@ -142,7 +164,7 @@ impl AnalyticsRepository for Arc<DuckdbService> {
         project_id: &str,
         trace_ids: &[String],
     ) -> Result<Vec<String>, DataError> {
-        let db = Arc::clone(self);
+        let db = Arc::clone(&self.0);
         let pid = project_id.to_string();
         let tids = trace_ids.to_vec();
         DuckdbService::run_query(move || {
@@ -159,7 +181,7 @@ impl AnalyticsRepository for Arc<DuckdbService> {
         project_id: &str,
         trace_ids: &[String],
     ) -> Result<u64, DataError> {
-        let db = Arc::clone(self);
+        let db = Arc::clone(&self.0);
         let pid = project_id.to_string();
         let tids = trace_ids.to_vec();
         DuckdbService::run_query(move || {
@@ -174,7 +196,7 @@ impl AnalyticsRepository for Arc<DuckdbService> {
     // ==================== Span Operations ====================
 
     async fn list_spans(&self, params: &ListSpansParams) -> Result<(Vec<SpanRow>, u64), DataError> {
-        let db = Arc::clone(self);
+        let db = Arc::clone(&self.0);
         let params = params.clone();
         DuckdbService::run_query(move || {
             let conn = db.conn();
@@ -190,7 +212,7 @@ impl AnalyticsRepository for Arc<DuckdbService> {
         project_id: &str,
         trace_id: &str,
     ) -> Result<Vec<SpanRow>, DataError> {
-        let db = Arc::clone(self);
+        let db = Arc::clone(&self.0);
         let pid = project_id.to_string();
         let tid = trace_id.to_string();
         DuckdbService::run_query(move || {
@@ -208,7 +230,7 @@ impl AnalyticsRepository for Arc<DuckdbService> {
         trace_id: &str,
         span_id: &str,
     ) -> Result<Option<SpanRow>, DataError> {
-        let db = Arc::clone(self);
+        let db = Arc::clone(&self.0);
         let pid = project_id.to_string();
         let tid = trace_id.to_string();
         let sid = span_id.to_string();
@@ -227,7 +249,7 @@ impl AnalyticsRepository for Arc<DuckdbService> {
         trace_id: &str,
         span_id: &str,
     ) -> Result<Vec<EventRow>, DataError> {
-        let db = Arc::clone(self);
+        let db = Arc::clone(&self.0);
         let pid = project_id.to_string();
         let tid = trace_id.to_string();
         let sid = span_id.to_string();
@@ -246,7 +268,7 @@ impl AnalyticsRepository for Arc<DuckdbService> {
         trace_id: &str,
         span_id: &str,
     ) -> Result<Vec<LinkRow>, DataError> {
-        let db = Arc::clone(self);
+        let db = Arc::clone(&self.0);
         let pid = project_id.to_string();
         let tid = trace_id.to_string();
         let sid = span_id.to_string();
@@ -264,7 +286,7 @@ impl AnalyticsRepository for Arc<DuckdbService> {
         project_id: &str,
         span_keys: &[(String, String)],
     ) -> Result<HashMap<(String, String), SpanCounts>, DataError> {
-        let db = Arc::clone(self);
+        let db = Arc::clone(&self.0);
         let pid = project_id.to_string();
         let keys = span_keys.to_vec();
         let result = DuckdbService::run_query(move || {
@@ -291,7 +313,7 @@ impl AnalyticsRepository for Arc<DuckdbService> {
     }
 
     async fn get_feed_spans(&self, params: &FeedSpansParams) -> Result<Vec<SpanRow>, DataError> {
-        let db = Arc::clone(self);
+        let db = Arc::clone(&self.0);
         let params = params.clone();
         DuckdbService::run_query(move || {
             let conn = db.conn();
@@ -310,7 +332,7 @@ impl AnalyticsRepository for Arc<DuckdbService> {
         to_timestamp: Option<DateTime<Utc>>,
         observations_only: bool,
     ) -> Result<HashMap<String, Vec<FilterOptionRow>>, DataError> {
-        let db = Arc::clone(self);
+        let db = Arc::clone(&self.0);
         let pid = project_id.to_string();
         let cols = columns.to_vec();
         let result = DuckdbService::run_query(move || {
@@ -349,7 +371,7 @@ impl AnalyticsRepository for Arc<DuckdbService> {
         project_id: &str,
         span_keys: &[(String, String)],
     ) -> Result<u64, DataError> {
-        let db = Arc::clone(self);
+        let db = Arc::clone(&self.0);
         let pid = project_id.to_string();
         let keys = span_keys.to_vec();
         DuckdbService::run_query(move || {
@@ -367,7 +389,7 @@ impl AnalyticsRepository for Arc<DuckdbService> {
         &self,
         params: &ListSessionsParams,
     ) -> Result<(Vec<SessionRow>, u64), DataError> {
-        let db = Arc::clone(self);
+        let db = Arc::clone(&self.0);
         let params = params.clone();
         DuckdbService::run_query(move || {
             let conn = db.conn();
@@ -383,7 +405,7 @@ impl AnalyticsRepository for Arc<DuckdbService> {
         project_id: &str,
         session_id: &str,
     ) -> Result<Option<SessionRow>, DataError> {
-        let db = Arc::clone(self);
+        let db = Arc::clone(&self.0);
         let pid = project_id.to_string();
         let sid = session_id.to_string();
         DuckdbService::run_query(move || {
@@ -400,7 +422,7 @@ impl AnalyticsRepository for Arc<DuckdbService> {
         project_id: &str,
         session_id: &str,
     ) -> Result<Vec<TraceRow>, DataError> {
-        let db = Arc::clone(self);
+        let db = Arc::clone(&self.0);
         let pid = project_id.to_string();
         let sid = session_id.to_string();
         DuckdbService::run_query(move || {
@@ -418,7 +440,7 @@ impl AnalyticsRepository for Arc<DuckdbService> {
         trace_ids: &[String],
         as_of_us: Option<i64>,
     ) -> Result<Vec<(String, String)>, DataError> {
-        let db = Arc::clone(self);
+        let db = Arc::clone(&self.0);
         let pid = project_id.to_string();
         let tids = trace_ids.to_vec();
         DuckdbService::run_query(move || {
@@ -436,7 +458,7 @@ impl AnalyticsRepository for Arc<DuckdbService> {
         trace_ids: &[String],
         as_of_us: Option<i64>,
     ) -> Result<Vec<String>, DataError> {
-        let db = Arc::clone(self);
+        let db = Arc::clone(&self.0);
         let pid = project_id.to_string();
         let tids = trace_ids.to_vec();
         DuckdbService::run_query(move || {
@@ -454,7 +476,7 @@ impl AnalyticsRepository for Arc<DuckdbService> {
         session_ids: &[String],
         as_of_us: Option<i64>,
     ) -> Result<Vec<String>, DataError> {
-        let db = Arc::clone(self);
+        let db = Arc::clone(&self.0);
         let pid = project_id.to_string();
         let sids = session_ids.to_vec();
         DuckdbService::run_query(move || {
@@ -473,7 +495,7 @@ impl AnalyticsRepository for Arc<DuckdbService> {
         from_timestamp: Option<DateTime<Utc>>,
         to_timestamp: Option<DateTime<Utc>>,
     ) -> Result<HashMap<String, Vec<FilterOptionRow>>, DataError> {
-        let db = Arc::clone(self);
+        let db = Arc::clone(&self.0);
         let pid = project_id.to_string();
         let cols = columns.to_vec();
         let result = DuckdbService::run_query(move || {
@@ -505,7 +527,7 @@ impl AnalyticsRepository for Arc<DuckdbService> {
         project_id: &str,
         session_ids: &[String],
     ) -> Result<Vec<String>, DataError> {
-        let db = Arc::clone(self);
+        let db = Arc::clone(&self.0);
         let pid = project_id.to_string();
         let sids = session_ids.to_vec();
         DuckdbService::run_query(move || {
@@ -523,7 +545,7 @@ impl AnalyticsRepository for Arc<DuckdbService> {
         &self,
         params: &MessageQueryParams,
     ) -> Result<MessageQueryResult, DataError> {
-        let db = Arc::clone(self);
+        let db = Arc::clone(&self.0);
         let params = params.clone();
         DuckdbService::run_query(move || {
             let conn = db.conn();
@@ -538,7 +560,7 @@ impl AnalyticsRepository for Arc<DuckdbService> {
         &self,
         params: &FeedMessagesParams,
     ) -> Result<MessageQueryResult, DataError> {
-        let db = Arc::clone(self);
+        let db = Arc::clone(&self.0);
         let params = params.clone();
         DuckdbService::run_query(move || {
             let conn = db.conn();
@@ -555,7 +577,7 @@ impl AnalyticsRepository for Arc<DuckdbService> {
         &self,
         params: &StatsParams,
     ) -> Result<ProjectStatsResult, DataError> {
-        let db = Arc::clone(self);
+        let db = Arc::clone(&self.0);
         let params = params.clone();
         DuckdbService::run_query(move || {
             let conn = db.conn();
@@ -569,7 +591,7 @@ impl AnalyticsRepository for Arc<DuckdbService> {
     // ==================== Ingestion Operations ====================
 
     async fn insert_spans(&self, spans: Vec<NormalizedSpan>) -> Result<(), DataError> {
-        let db = Arc::clone(self);
+        let db = Arc::clone(&self.0);
         DuckdbService::run_query(move || {
             let conn = db.conn();
             span::insert_batch(&conn, &spans)
@@ -580,7 +602,7 @@ impl AnalyticsRepository for Arc<DuckdbService> {
     }
 
     async fn insert_metrics(&self, metrics: &[NormalizedMetric]) -> Result<(), DataError> {
-        let db = Arc::clone(self);
+        let db = Arc::clone(&self.0);
         let metrics = metrics.to_vec();
         DuckdbService::run_query(move || {
             let conn = db.conn();
@@ -594,7 +616,7 @@ impl AnalyticsRepository for Arc<DuckdbService> {
     // ==================== Project Data Operations ====================
 
     async fn delete_project_data(&self, project_id: &str) -> Result<u64, DataError> {
-        let db = Arc::clone(self);
+        let db = Arc::clone(&self.0);
         let pid = project_id.to_string();
         DuckdbService::run_query(move || {
             let conn = db.conn();
@@ -606,7 +628,7 @@ impl AnalyticsRepository for Arc<DuckdbService> {
     }
 
     async fn count_project_rows(&self, project_id: &str) -> Result<u64, DataError> {
-        let db = Arc::clone(self);
+        let db = Arc::clone(&self.0);
         let id = project_id.to_string();
         DuckdbService::run_query(move || {
             let conn = db.conn();
@@ -618,7 +640,7 @@ impl AnalyticsRepository for Arc<DuckdbService> {
     }
 
     async fn max_ingested_at_us(&self, project_id: &str) -> Result<Option<i64>, DataError> {
-        let db = Arc::clone(self);
+        let db = Arc::clone(&self.0);
         let id = project_id.to_string();
         DuckdbService::run_query(move || {
             let conn = db.conn();
@@ -633,7 +655,7 @@ impl AnalyticsRepository for Arc<DuckdbService> {
         &self,
         project_ids: &[String],
     ) -> Result<HashMap<String, u64>, DataError> {
-        let db = Arc::clone(self);
+        let db = Arc::clone(&self.0);
         let ids = project_ids.to_vec();
         DuckdbService::run_query(move || {
             let conn = db.conn();

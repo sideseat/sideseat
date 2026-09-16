@@ -180,7 +180,7 @@ impl GrpcIngestAuth {
             &self.api_key_secret,
             header,
             project_id,
-            crate::data::types::ApiKeyScope::Ingest,
+            sideseat_ports::types::ApiKeyScope::Ingest,
         )
         .await;
 
