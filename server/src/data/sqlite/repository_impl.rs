@@ -843,6 +843,17 @@ impl TransactionalRepository for Arc<SqliteService> {
             .map_err(Into::into)
     }
 
+    async fn release_trace_files_except(
+        &self,
+        project_id: &str,
+        trace_id: &str,
+        keep: &[String],
+    ) -> Result<Vec<String>, DataError> {
+        file::release_trace_files_except(self.pool(), project_id, trace_id, keep)
+            .await
+            .map_err(Into::into)
+    }
+
     async fn get_project_storage_bytes(&self, project_id: &str) -> Result<i64, DataError> {
         file::get_project_storage_bytes(self.pool(), project_id)
             .await

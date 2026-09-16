@@ -2419,6 +2419,42 @@ const AWAIT_MUTATION: &str = " SETTINGS mutations_sync = 2";
 ///
 /// In distributed mode, `table` should be the local table name (e.g., `otel_spans_local`)
 /// and `on_cluster` should be the ON CLUSTER clause (e.g., ` ON CLUSTER cluster_name`).
+/// The text of every field that can hold a `#!B64!#` reference, for the surviving winning spans of these
+/// traces.
+///
+/// `FINAL`, so an expired revision's text does not keep an association alive on behalf of a span that is no
+/// longer current - the DuckDB side reads `DEDUP_SPANS` for the same reason.
+pub async fn file_reference_fields_for_traces(
+    client: &clickhouse::Client,
+    project_id: &str,
+    trace_ids: &[String],
+) -> Result<Vec<String>, ClickhouseError> {
+    if trace_ids.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    let placeholders = trace_ids.iter().map(|_| "?").collect::<Vec<_>>().join(", ");
+    // `coalesce` to `''`, because a bare `Nullable(String)` has no `Row` impl to deserialise into; empty
+    // strings carry no reference and are dropped by the caller's scan anyway.
+    let sql = format!(
+        "SELECT coalesce(messages, ''), coalesce(tool_definitions, ''), coalesce(raw_span, ''), \
+                coalesce(metadata, '') \
+         FROM otel_spans FINAL WHERE project_id = ? AND trace_id IN ({placeholders})"
+    );
+
+    let mut query = client.query(&sql).bind(project_id);
+    for trace_id in trace_ids {
+        query = query.bind(trace_id);
+    }
+
+    let rows: Vec<(String, String, String, String)> = query.fetch_all().await?;
+    Ok(rows
+        .into_iter()
+        .flat_map(|(a, b, c, d)| [a, b, c, d])
+        .filter(|text| !text.is_empty())
+        .collect())
+}
+
 pub async fn delete_traces(
     client: &Client,
     table: &str,

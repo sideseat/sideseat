@@ -120,6 +120,23 @@ impl AnalyticsRepository for Arc<DuckdbService> {
             .collect())
     }
 
+    async fn file_reference_fields_for_traces(
+        &self,
+        project_id: &str,
+        trace_ids: &[String],
+    ) -> Result<Vec<String>, DataError> {
+        let db = Arc::clone(self);
+        let pid = project_id.to_string();
+        let tids = trace_ids.to_vec();
+        DuckdbService::run_query(move || {
+            let conn = db.conn();
+            query::file_reference_fields_for_traces(&conn, &pid, &tids)
+        })
+        .await
+        .map_err(DataError::from)?
+        .map_err(Into::into)
+    }
+
     async fn delete_traces(
         &self,
         project_id: &str,

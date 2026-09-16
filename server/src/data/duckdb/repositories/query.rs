@@ -2057,6 +2057,48 @@ fn row_to_session(row: &Row<'_>) -> Result<SessionRow, DuckdbError> {
 // --- Delete operations ---
 
 /// Delete multiple traces and all related spans and messages
+/// The text of every field that can hold a `#!B64!#` reference, for the surviving winning spans of these
+/// traces.
+///
+/// `DEDUP_SPANS`, not the raw table: an expired revision's text is not evidence that a *live* span still
+/// references a file, and `otel_spans` is append-only so the obsolete rows are still there. Reading raw would
+/// keep an association alive on the strength of a superseded revision - the mirror of the defect that made
+/// retention delete a current span because an old revision of it had expired.
+pub fn file_reference_fields_for_traces(
+    conn: &Connection,
+    project_id: &str,
+    trace_ids: &[String],
+) -> Result<Vec<String>, DuckdbError> {
+    if trace_ids.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    let placeholders: Vec<&str> = trace_ids.iter().map(|_| "?").collect();
+    let sql = format!(
+        "SELECT messages, tool_definitions, raw_span, metadata FROM {DEDUP_SPANS} \
+         WHERE project_id = ? AND trace_id IN ({})",
+        placeholders.join(", ")
+    );
+
+    let mut params: Vec<String> = Vec::with_capacity(1 + trace_ids.len());
+    params.push(project_id.to_string());
+    params.extend(trace_ids.iter().cloned());
+
+    let mut stmt = conn.prepare(&sql)?;
+    let bound: Vec<&dyn duckdb::ToSql> = params.iter().map(|v| v as &dyn duckdb::ToSql).collect();
+    let mut rows = stmt.query(bound.as_slice())?;
+
+    let mut fields = Vec::new();
+    while let Some(row) = rows.next()? {
+        for index in 0..4 {
+            if let Ok(Some(text)) = row.get::<_, Option<String>>(index) {
+                fields.push(text);
+            }
+        }
+    }
+    Ok(fields)
+}
+
 pub fn delete_traces(
     conn: &Connection,
     project_id: &str,

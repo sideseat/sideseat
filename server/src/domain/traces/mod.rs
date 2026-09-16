@@ -10,7 +10,12 @@
 //! Note: Stage 2 (SideML) is in the `domain::sideml` module.
 
 mod enrich;
-mod extract;
+// `pub(crate)` rather than private: the file layer's survivor reconciliation needs
+// `extract::files::collect_file_references_in_str`, which is the single definition of how a `#!B64!#`
+// reference is found in text. Re-implementing that rule there - it has to handle a reference embedded in
+// surrounding text and treat a trailing `.` or `:` as punctuation - would be a second copy of something
+// this repository has already been bitten by getting subtly wrong.
+pub(crate) mod extract;
 mod persist;
 mod pipeline;
 

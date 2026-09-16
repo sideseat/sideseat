@@ -641,6 +641,45 @@ pub async fn delete_trace_files(
     Ok(query_builder.fetch_all(pool).await?)
 }
 
+/// Release a trace's associations except the ones its surviving spans still reference.
+///
+/// Two conditions and neither is optional. `file_hash <> ALL(keep)` leaves a survivor's file alone;
+/// `pending_writers = 0` protects a batch in flight, which the survivor scan cannot see because referencing
+/// a file increments that counter *before* the span row exists. Without it this is a read-then-act race with
+/// exactly the window it exists to close.
+///
+/// `RETURNING`, so the caller reconciles the set this statement produced rather than one it read beforehand.
+///
+/// The `keep` list is interpolated as bound placeholders rather than a bound array, because SQLite has no
+/// array type - the PostgreSQL twin uses `<> ALL($3::text[])`.
+pub async fn release_trace_files_except(
+    pool: &SqlitePool,
+    project_id: &str,
+    trace_id: &str,
+    keep: &[String],
+) -> Result<Vec<String>, SqliteError> {
+    let keep_clause = if keep.is_empty() {
+        String::new()
+    } else {
+        format!(
+            " AND file_hash NOT IN ({})",
+            keep.iter().map(|_| "?").collect::<Vec<_>>().join(",")
+        )
+    };
+    let sql = format!(
+        "DELETE FROM trace_files WHERE project_id = ? AND trace_id = ? AND pending_writers = 0\
+         {keep_clause} RETURNING file_hash"
+    );
+
+    let mut query = sqlx::query_scalar::<_, String>(&sql)
+        .bind(project_id)
+        .bind(trace_id);
+    for hash in keep {
+        query = query.bind(hash);
+    }
+    Ok(query.fetch_all(pool).await?)
+}
+
 /// Get total storage used by a project
 pub async fn get_project_storage_bytes(
     pool: &SqlitePool,

@@ -79,6 +79,27 @@ pub trait AnalyticsRepository: Send + Sync {
     async fn delete_traces(&self, project_id: &str, trace_ids: &[String])
     -> Result<u64, DataError>;
 
+    /// The text of every field that can hold a `#!B64!#` reference, for the **surviving winning** spans of
+    /// these traces.
+    ///
+    /// Retention expires individual span identities, not whole traces - so after a sweep a trace can still
+    /// have live spans, and those spans' file references must keep their associations. This is what tells the
+    /// file layer which references survived; everything else the trace held is releasable.
+    ///
+    /// Returns the raw field text rather than parsed hashes on purpose. The scanning rule is subtle - a
+    /// reference can be embedded in surrounding text, and a trailing `.` or `:` is punctuation rather than
+    /// part of a hash - so `collect_file_references_in_str` is the single definition of it, in the domain,
+    /// used by both the ingest path and this one. Re-expressing it as a SQL regex per backend would be a
+    /// second implementation of a rule this repository has already been bitten by getting subtly wrong.
+    ///
+    /// The four fields are the four the ingest path scans (`persist.rs`): a reference can arrive in messages,
+    /// tool definitions, raw span JSON or metadata, and each is extracted by a different path.
+    async fn file_reference_fields_for_traces(
+        &self,
+        project_id: &str,
+        trace_ids: &[String],
+    ) -> Result<Vec<String>, DataError>;
+
     // ==================== Span Operations ====================
 
     /// List spans with pagination and filters
@@ -917,6 +938,32 @@ pub trait TransactionalRepository: Send + Sync {
         &self,
         project_id: &str,
         trace_ids: &[String],
+    ) -> Result<Vec<String>, DataError>;
+
+    /// Release a trace's associations **except** the ones its surviving spans still reference.
+    ///
+    /// The counterpart to [`Self::delete_trace_files`], and the distinction is the whole point: that one is
+    /// for a trace that is *gone*, this one for a trace that has merely had some of its spans expired.
+    /// Retention selects individual span identities, so handing it the trace-wide delete removed **every**
+    /// association for a trace whose other spans were still live - leaving those spans pointing at bytes that
+    /// had been reclaimed, which is precisely the dangling reference the write-files-before-rows ordering
+    /// exists to prevent, produced by retention instead.
+    ///
+    /// Two conditions, and neither is optional:
+    ///
+    /// - `file_hash NOT IN keep`, so a file a survivor references is untouched.
+    /// - `pending_writers = 0`, which is what protects a batch in flight. Referencing a file increments that
+    ///   counter *before* the span row exists, so a concurrent ingestion is invisible to the survivor scan -
+    ///   there is no span to find yet. Without this the reconciliation is a read-then-act race with exactly
+    ///   the window it is meant to close.
+    ///
+    /// Returns the hashes actually removed, so the caller reconciles the set the statement produced rather
+    /// than one it read beforehand - the same reason `delete_trace_files` uses `RETURNING`.
+    async fn release_trace_files_except(
+        &self,
+        project_id: &str,
+        trace_id: &str,
+        keep: &[String],
     ) -> Result<Vec<String>, DataError>;
 
     /// Get total storage used by a project

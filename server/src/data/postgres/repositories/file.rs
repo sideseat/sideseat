@@ -615,6 +615,34 @@ pub async fn delete_trace_files(
     Ok(rows)
 }
 
+/// Release a trace's associations except the ones its surviving spans still reference.
+///
+/// Two conditions and neither is optional. `file_hash <> ALL(keep)` leaves a survivor's file alone;
+/// `pending_writers = 0` protects a batch in flight, which the survivor scan cannot see because referencing
+/// a file increments that counter *before* the span row exists. Without it this is a read-then-act race with
+/// exactly the window it exists to close.
+///
+/// `RETURNING`, so the caller reconciles the set this statement produced rather than one it read beforehand.
+pub async fn release_trace_files_except(
+    pool: &PgPool,
+    project_id: &str,
+    trace_id: &str,
+    keep: &[String],
+) -> Result<Vec<String>, PostgresError> {
+    let rows: Vec<String> = sqlx::query_scalar(
+        "DELETE FROM trace_files \
+         WHERE project_id = $1 AND trace_id = $2 AND pending_writers = 0 \
+           AND file_hash <> ALL($3::text[]) \
+         RETURNING file_hash",
+    )
+    .bind(project_id)
+    .bind(trace_id)
+    .bind(keep)
+    .fetch_all(pool)
+    .await?;
+    Ok(rows)
+}
+
 /// Get total storage used by a project
 pub async fn get_project_storage_bytes(
     pool: &PgPool,

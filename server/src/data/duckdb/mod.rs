@@ -252,16 +252,30 @@ impl DuckdbService {
                             Ok(result) => {
                                 // Async cleanup (outside DuckDB transaction)
                                 for (project_id, trace_ids) in &result.trace_ids_by_project {
-                                    // File cleanup
+                                    // Survivor reconciliation, **not** the trace-wide cleanup.
+                                    //
+                                    // Retention expires individual span identities, so a trace it touched
+                                    // usually still has live spans. `cleanup_traces` removes *every*
+                                    // association for a trace, which left those survivors pointing at bytes
+                                    // that had been reclaimed - the dangling reference the
+                                    // write-files-before-rows ordering exists to prevent, produced here
+                                    // instead. `reconcile_trace_survivors` asks which files the remaining
+                                    // winning spans reference and releases only the rest.
                                     if let Some(ref fs) = file_service
                                         && fs.is_enabled()
-                                        && let Err(e) = fs.cleanup_traces(project_id, trace_ids).await
+                                        && let Err(e) = fs
+                                            .reconcile_trace_survivors(
+                                                project_id,
+                                                trace_ids,
+                                                &db,
+                                            )
+                                            .await
                                     {
                                         tracing::warn!(
                                             error = %e,
                                             project_id,
                                             traces = trace_ids.len(),
-                                            "Failed to cleanup files during retention"
+                                            "Failed to reconcile files during retention"
                                         );
                                     }
 

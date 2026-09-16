@@ -47,6 +47,8 @@ use crate::core::constants::CACHE_TTL_FILE_QUOTA;
 use crate::core::storage::{AppStorage, DataSubdir};
 use crate::data::TransactionalService;
 use crate::data::cache::{CacheKey, CacheService};
+use crate::domain::traces::extract::files::collect_file_references_in_str;
+use crate::utils::file_uri::parse_file_uri;
 
 pub use error::{FileServiceError, FileStorageError};
 pub use filesystem::FilesystemStorage;
@@ -253,6 +255,85 @@ impl FileService {
         })
     }
 
+    /// Release the associations of traces whose *expired* spans referenced them, keeping the survivors'.
+    ///
+    /// The counterpart to [`Self::cleanup_traces`], and the distinction is the defect this exists to fix.
+    /// Retention expires individual span identities, not whole traces - but it handed every affected
+    /// `trace_id` to the trace-wide cleanup, which removes **all** of a trace's associations. So when one old
+    /// span of a busy trace expired, the surviving spans of that trace were left pointing at bytes that had
+    /// been reclaimed: the dangling reference the write-files-before-rows ordering exists to prevent,
+    /// produced by retention instead.
+    ///
+    /// Gating the trace-wide delete on "the trace is now empty" was considered and is wrong in **both**
+    /// directions, which is why this is a reconciliation rather than a condition:
+    ///
+    /// - a still-active trace would keep every association forever, so a file referenced only by an expired
+    ///   span is never reclaimed - a continuously busy trace retains expired bytes indefinitely, and blobs
+    ///   are supposed to be reclaimable;
+    /// - and "verify empty, then delete by trace" is a read-then-act race: an ingestion can create an
+    ///   association in between, and the span then commits holding a reference to bytes just reclaimed.
+    ///
+    /// So the survivors are asked for directly. `file_reference_fields_for_traces` reads the four fields that
+    /// can carry a reference from the **winning** spans that remain, the domain's single scanner turns them
+    /// into URIs, and everything else the trace held is released - `pending_writers = 0` only, which is what
+    /// protects a batch whose association exists before its span row does.
+    pub async fn reconcile_trace_survivors(
+        &self,
+        project_id: &str,
+        trace_ids: &[String],
+        analytics: &dyn crate::data::traits::AnalyticsRepository,
+    ) -> Result<(), FileServiceError> {
+        if !self.config.enabled || trace_ids.is_empty() {
+            return Ok(());
+        }
+
+        let repo = self.database.repository();
+        let mut reconcile: Vec<String> = Vec::new();
+
+        // Per trace, because `keep` is per trace: a file a survivor of trace A references says nothing about
+        // trace B's associations, and unioning the survivor sets across traces would keep B's alive on A's
+        // evidence.
+        for trace_id in trace_ids {
+            let slice = std::slice::from_ref(trace_id);
+            let fields = analytics
+                .file_reference_fields_for_traces(project_id, slice)
+                .await
+                .map_err(FileServiceError::from)?;
+
+            let mut uris = Vec::new();
+            for field in &fields {
+                collect_file_references_in_str(field, &mut uris);
+            }
+            // The association is keyed by hash, while a reference carries an optional media type - so the
+            // hash is what has to be compared, and taking the whole URI would release a file whose reference
+            // spells the same hash with a media type.
+            let mut keep: Vec<String> = uris
+                .iter()
+                .filter_map(|uri| parse_file_uri(uri).map(|parsed| parsed.hash.to_string()))
+                .collect();
+            keep.sort_unstable();
+            keep.dedup();
+
+            let removed = repo
+                .release_trace_files_except(project_id, trace_id, &keep)
+                .await?;
+            if !removed.is_empty() {
+                tracing::debug!(
+                    project_id,
+                    trace_id,
+                    released = removed.len(),
+                    kept = keep.len(),
+                    "Released associations of expired spans, keeping the survivors'"
+                );
+            }
+            reconcile.extend(removed);
+        }
+
+        reconcile.sort_unstable();
+        reconcile.dedup();
+        self.reclaim_unreferenced(project_id, reconcile).await
+    }
+
     /// Cleanup files for deleted traces
     ///
     /// Decrements ref_count for each file associated with the traces.
@@ -292,6 +373,21 @@ impl FileService {
         hashes.extend(removed);
         hashes.sort_unstable();
         hashes.dedup();
+        self.reclaim_unreferenced(project_id, hashes).await
+    }
+
+    /// Recompute each file's reference count and delete the ones nothing references.
+    ///
+    /// Shared by [`Self::cleanup_traces`] and [`Self::reconcile_trace_survivors`], because the two differ
+    /// only in *which* associations they remove - what happens to a file afterwards is the same question, and
+    /// it is the delicate part: the claim, the bytes, then the row, each ordered so the surviving failure is a
+    /// leak rather than a row promising content that is gone.
+    async fn reclaim_unreferenced(
+        &self,
+        project_id: &str,
+        hashes: Vec<String>,
+    ) -> Result<(), FileServiceError> {
+        let repo = self.database.repository();
 
         // Recompute each count from the associations that remain, and delete when none do.
         //
@@ -570,6 +666,182 @@ mod tests {
         let content = service.get_file("default", &test_hash()).await.unwrap();
         assert_eq!(content.data, b"test content");
         assert_eq!(content.media_type, Some("text/plain".to_string()));
+    }
+
+    /// Retention expiring *some* of a trace's spans must not reclaim the survivors' files.
+    ///
+    /// The live defect: retention selects individual span identities, then handed every affected `trace_id` to
+    /// `cleanup_traces`, which deletes **all** of a trace's associations. So a busy trace with one expired span
+    /// lost the file references of every span still in it, and those spans then pointed at bytes that had been
+    /// reclaimed - the dangling reference the write-files-before-rows ordering exists to prevent, produced by
+    /// retention.
+    ///
+    /// The fixture is the shape that distinguishes the fix from both wrong answers: one expired span uniquely
+    /// referencing file A, one surviving span referencing file B. Trace-wide deletion takes B as well;
+    /// trace-wide *preservation* (only cleaning an emptied trace) never reclaims A. Only reconciliation gets
+    /// both right.
+    #[tokio::test]
+    async fn reconciliation_keeps_a_surviving_spans_file_and_releases_the_expired_ones() {
+        let (temp_dir, database, cache) = setup_test().await;
+        fs::create_dir_all(temp_dir.path().join("files"))
+            .await
+            .unwrap();
+        fs::create_dir_all(temp_dir.path().join("files_temp"))
+            .await
+            .unwrap();
+
+        let config = FilesConfig {
+            enabled: true,
+            storage: crate::core::config::StorageBackend::Filesystem,
+            quota_bytes: 1024 * 1024,
+            filesystem_path: Some(temp_dir.path().join("files").to_string_lossy().to_string()),
+            s3: None,
+        };
+        let app_storage = AppStorage::init_for_test(temp_dir.path().to_path_buf());
+        let service = FileService::new(config, &app_storage, database.clone(), cache)
+            .await
+            .unwrap();
+
+        // A real analytics store, because the survivor set is a fact about spans - a stub would be asserting
+        // against my own idea of what the query returns.
+        let analytics_dir = TempDir::new().unwrap();
+        tokio::fs::create_dir_all(analytics_dir.path().join("duckdb"))
+            .await
+            .unwrap();
+        let analytics_storage = AppStorage::init_for_test(analytics_dir.path().to_path_buf());
+        let duck = Arc::new(
+            crate::data::duckdb::DuckdbService::init(&analytics_storage)
+                .await
+                .expect("duckdb"),
+        );
+
+        let expired_hash = "a".repeat(64);
+        let surviving_hash = "b".repeat(64);
+        let repo = database.repository();
+        for hash in [&expired_hash, &surviving_hash] {
+            service
+                .storage
+                .store("default", hash, b"bytes")
+                .await
+                .unwrap();
+            repo.upsert_file("default", hash, None, 5, "sha256")
+                .await
+                .unwrap();
+            repo.insert_trace_file("trace1", "default", hash)
+                .await
+                .unwrap();
+        }
+
+        // The trace still has one span, and it references B only. A's span is the one retention just expired,
+        // so it is simply absent - which is what the survivor scan reads.
+        crate::data::traits::AnalyticsRepository::insert_spans(
+            &duck,
+            vec![crate::data::types::NormalizedSpan {
+                project_id: Some("default".to_string()),
+                trace_id: "trace1".to_string(),
+                span_id: "survivor".to_string(),
+                span_name: "still-here".to_string(),
+                messages: Some(format!(
+                    r#"[{{"content":"see #!B64!#image/png::{surviving_hash}"}}]"#
+                )),
+                timestamp_start: chrono::Utc::now(),
+                ..Default::default()
+            }],
+        )
+        .await
+        .expect("insert the surviving span");
+
+        service
+            .reconcile_trace_survivors("default", &["trace1".to_string()], &duck)
+            .await
+            .expect("reconcile");
+
+        assert!(
+            !service.file_exists("default", &expired_hash).await.unwrap(),
+            "the expired span's file was not reclaimed, so a busy trace retains expired bytes forever"
+        );
+        assert!(
+            service
+                .file_exists("default", &surviving_hash)
+                .await
+                .unwrap(),
+            "the surviving span's file was reclaimed, leaving a live span pointing at bytes that are gone - \
+             the exact dangling reference this reconciliation exists to prevent"
+        );
+    }
+
+    /// A concurrent ingestion's association is not released, because its writer is counted before its span row
+    /// exists.
+    ///
+    /// This is the race that makes "check the trace is empty, then delete by trace" unsound: the survivor scan
+    /// reads spans, and a batch that has associated a file but not yet written its span is invisible to it. What
+    /// protects that batch is `pending_writers`, which `associate_file` increments *first* - so the release is
+    /// conditional on it being zero rather than on the scan having seen something.
+    #[tokio::test]
+    async fn reconciliation_leaves_an_association_a_batch_still_holds() {
+        let (temp_dir, database, cache) = setup_test().await;
+        fs::create_dir_all(temp_dir.path().join("files"))
+            .await
+            .unwrap();
+        fs::create_dir_all(temp_dir.path().join("files_temp"))
+            .await
+            .unwrap();
+
+        let config = FilesConfig {
+            enabled: true,
+            storage: crate::core::config::StorageBackend::Filesystem,
+            quota_bytes: 1024 * 1024,
+            filesystem_path: Some(temp_dir.path().join("files").to_string_lossy().to_string()),
+            s3: None,
+        };
+        let app_storage = AppStorage::init_for_test(temp_dir.path().to_path_buf());
+        let service = FileService::new(config, &app_storage, database.clone(), cache)
+            .await
+            .unwrap();
+
+        // A real analytics store, because the survivor set is a fact about spans - a stub would be asserting
+        // against my own idea of what the query returns.
+        let analytics_dir = TempDir::new().unwrap();
+        tokio::fs::create_dir_all(analytics_dir.path().join("duckdb"))
+            .await
+            .unwrap();
+        let analytics_storage = AppStorage::init_for_test(analytics_dir.path().to_path_buf());
+        let duck = Arc::new(
+            crate::data::duckdb::DuckdbService::init(&analytics_storage)
+                .await
+                .expect("duckdb"),
+        );
+
+        // An in-flight batch: bytes stored, association created through the **real** path, span row not written
+        // yet. `associate_file` is what increments `pending_writers`; the test-only `insert_trace_file` leaves
+        // it at zero, so building the fixture with that would have been a fixture unable to show the property -
+        // which is what the first version of this test did.
+        let in_flight = "c".repeat(64);
+        let repo = database.repository();
+        service
+            .storage
+            .store("default", &in_flight, b"bytes")
+            .await
+            .unwrap();
+        repo.associate_file("trace1", "default", &in_flight, None, 5, "sha256")
+            .await
+            .unwrap();
+
+        // No spans at all for this trace, so the survivor set is empty - the worst case for the in-flight batch.
+        service
+            .reconcile_trace_survivors("default", &["trace1".to_string()], &duck)
+            .await
+            .expect("reconcile");
+
+        let held = repo
+            .get_file_hashes_for_traces("default", &["trace1".to_string()])
+            .await
+            .expect("read the associations back");
+        assert!(
+            held.contains(&in_flight),
+            "the in-flight batch's association was released, so its span will commit holding a reference to \
+             bytes that have been reclaimed"
+        );
     }
 
     #[tokio::test]
