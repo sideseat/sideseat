@@ -15,7 +15,6 @@ use sideseat_core::core::constants::{
     DELETED_TRACE_CHECK_MAX_SECS, FILE_DELETION_CLAIM_STALE_SECS,
     PROJECT_DELETION_CLAIM_STALE_SECS, PROJECT_TOMBSTONE_CLEAN_SWEEPS,
 };
-use sideseat_ports::traits::{DeletionCause, DeletionRecord, DeletionScope};
 
 /// Delete an organization: tombstone it, tombstone its projects, and let the sweep finish.
 ///
@@ -432,65 +431,49 @@ pub async fn advance_pending_deletions(
                         // id) then passes every fence and resurrects a headless trace permanently. Deleting
                         // the snapshot we tombstoned keeps delete and tombstone over the identical set; B is
                         // simply collected by the next sweep, which re-resolves and tombstones it too.
-                        // The journal first, then the tombstone, then the delete - the same order the
-                        // deletion routes use and for the same reason. This sweep deletes traces the route
-                        // never saw: they joined the session after its resolution, so no journal entry names
-                        // them, and the session's own entry only covers them while the session is still
-                        // resolvable from restored data. A restore that brings back a trace's child spans
-                        // without the root that carried the session id therefore resurrects it with nothing
-                        // able to explain the absence. A trace entry here closes that.
+                        // Tombstone and journal in **one transaction**, then delete - the same shape the
+                        // deletion routes use, and for the same reason: an ordering leaves a window in whichever
+                        // direction it picks, and both rows live in this store.
                         //
-                        // A failed append skips the whole step, exactly as a failed tombstone does: the rows
-                        // stay for the next sweep, which re-resolves and retries, and the session tombstone
-                        // that brought us here is untouched.
-                        let journalled: Vec<DeletionRecord> = ids
-                            .iter()
-                            .map(|trace_id| DeletionRecord {
-                                project_id: project_id.clone(),
-                                cause: DeletionCause::Requested,
-                                scope: DeletionScope::Trace,
-                                target_id: trace_id.clone(),
-                                span_id: None,
-                                recorded_at: chrono::Utc::now(),
-                            })
-                            .collect();
-                        if let Err(e) = repo.append_deletions(&journalled).await {
-                            tracing::error!(
-                                error = %e,
-                                project_id,
-                                session_id,
-                                traces = ids.len(),
-                                "Could not journal these late traces; leaving them for the next sweep rather \
-                                 than deleting data whose removal a restore could not undo"
-                            );
-                            false
-                        } else {
-                            match repo.record_deleted_traces(&project_id, &ids).await {
-                                Ok(()) => {
-                                    if let Err(ref e) = analytics
-                                        .repository()
-                                        .delete_traces(&project_id, &ids)
-                                        .await
-                                    {
-                                        tracing::warn!(project_id, session_id, error = %e, "Could not sweep a deleted session");
-                                    }
-                                }
-                                Err(ref e) => {
-                                    tracing::warn!(
-                                        project_id,
-                                        session_id,
-                                        error = %e,
-                                        "Could not tombstone a late session's traces; leaving the rows for the \
-                                         next sweep rather than deleting data nothing would remember to keep gone"
-                                    );
+                        // This sweep deletes traces the route never saw - they joined the session after its
+                        // resolution - so no journal entry names them, and the session's own entry covers them
+                        // only while the session is still resolvable from restored analytics rows. A restore that
+                        // brings back a trace's child spans without the root that carried the session id would
+                        // otherwise resurrect it with nothing able to explain the absence.
+                        //
+                        // A failure skips the whole step: the rows stay for the next sweep, which re-resolves and
+                        // retries, and the session tombstone that brought us here is untouched. Deleting the
+                        // analytics rows while this write failed would remove the data and leave nothing
+                        // remembering it should stay deleted - so a writer still holding these spans, which is
+                        // the exact reason this sweep exists, re-commits them permanently.
+                        match repo
+                            .record_deleted_traces_journalled(&project_id, &ids)
+                            .await
+                        {
+                            Ok(()) => {
+                                if let Err(ref e) = analytics
+                                    .repository()
+                                    .delete_traces(&project_id, &ids)
+                                    .await
+                                {
+                                    tracing::warn!(project_id, session_id, error = %e, "Could not sweep a deleted session");
                                 }
                             }
-                            // Not quiet either way: on success something was found, on failure the work is
-                            // still pending - both mean look again at the base interval rather than backing
-                            // off. The trace records now carry the file reconciliation, which is why this does
-                            // not do it here.
-                            false
+                            Err(ref e) => {
+                                tracing::warn!(
+                                    project_id,
+                                    session_id,
+                                    error = %e,
+                                    "Could not tombstone and journal a late session's traces; leaving the rows \
+                                     for the next sweep rather than deleting data nothing would remember to \
+                                     keep gone"
+                                );
+                            }
                         }
+                        // Not quiet either way: on success something was found, on failure the work is still
+                        // pending - both mean look again at the base interval rather than backing off. The trace
+                        // records now carry the file reconciliation, which is why this does not do it here.
+                        false
                     }
                     Err(e) => {
                         tracing::warn!(project_id, session_id, error = %e, "Could not check a deleted session");
@@ -845,24 +828,31 @@ mod tombstone_ordering_tests {
     fn a_late_session_delete_is_gated_on_its_trace_tombstone() {
         let source = include_str!("cleanup.rs");
 
-        // The window: from the tombstone write to the end of its match. `delete_sessions` must appear inside
-        // (as delete_traces of the tombstoned ids) must appear inside it, and only after an `Ok(())` arm - never at the block's top level where a failed tombstone would
-        // fall through to it.
-        let anchor = source
-            .find("match repo.record_deleted_traces(&project_id, &ids).await {")
-            .expect("the late-session tombstone match has moved; re-anchor this test");
-        let after = &source[anchor..];
-        let ok_arm = after
-            .find("Ok(()) => {")
-            .expect("the tombstone match should have an Ok arm that performs the delete");
-        let err_arm = after
-            .find("Err(ref e) => {")
-            .expect("the tombstone match should have an Err arm that skips the delete");
+        // The window starts at the **top of the late-session block**, not at the record call, and that
+        // distinction is the whole strength of this test. Anchored at the record call, a delete placed *before*
+        // it sat outside the window and was invisible - so an unconditional early delete passed, which is the
+        // exact regression. Verified by mutation: it did pass, until the window was widened.
+        let block_start = source
+            .find("\"Collected traces written for a session that had already been deleted\"")
+            .expect("the late-session block's log line has moved; re-anchor this test");
+        let after = &source[block_start..];
         // The window ends where the late-session handling does, at the trace-sweep section that follows.
         let window_end = after
             .find("// Spans written for a trace that had already been deleted.")
             .expect("the late-session block should be followed by the trace sweep");
         let window = &after[..window_end];
+
+        let record = window
+            .find(".record_deleted_traces_journalled(&project_id, &ids)")
+            .expect("the late-session record-and-journal call has moved; re-anchor this test");
+        let ok_arm = window[record..]
+            .find("Ok(()) => {")
+            .map(|i| i + record)
+            .expect("the record match should have an Ok arm that performs the delete");
+        let err_arm = window[record..]
+            .find("Err(ref e) => {")
+            .map(|i| i + record)
+            .expect("the record match should have an Err arm that skips the delete");
         let needle = "delete_traces(&project_id, &ids)";
 
         // Exactly one delete, not merely one inside the Ok arm: an *additional* unguarded delete after the

@@ -1111,7 +1111,21 @@ impl TracePipeline {
             if doomed.is_empty() {
                 continue;
             }
-            if let Err(e) = repo.record_deleted_traces(project, &doomed).await {
+            // The journalled form, and the argument for the plain one was wrong.
+            //
+            // It ran: "this is a fence, not a deletion - the session's own entry journalled it, and a second
+            // entry is a duplicate counted against the quota." The first clause is true and the conclusion does
+            // not follow. A session entry is replayed by *re-resolving the session* against restored data, and
+            // these traces are exactly the ones a resolution can miss: a restore holding a trace's child spans
+            // without the root that carried the session id cannot resolve it to the session, so nothing explains
+            // its absence and it is resurrected.
+            //
+            // So the trace gets its own entry, in the same transaction as its tombstone. The duplication is real
+            // and is the cheaper error: an id and an instant per trace, against a resurrected trace.
+            if let Err(e) = repo
+                .record_deleted_traces_journalled(project, &doomed)
+                .await
+            {
                 tracing::warn!(
                     error = %e,
                     project,
@@ -1568,7 +1582,12 @@ impl TracePipeline {
             }
             let repo = self.file_service.database().repository();
             for (project, trace_ids) in by_project {
-                if let Err(e) = repo.record_deleted_traces(project, &trace_ids).await {
+                // Journalled with the tombstone, in one transaction - see the compensation path above for why a
+                // session entry alone does not cover these traces.
+                if let Err(e) = repo
+                    .record_deleted_traces_journalled(project, &trace_ids)
+                    .await
+                {
                     self.file_cache.invalidate_all();
                     tracing::error!(
                         error = %e,

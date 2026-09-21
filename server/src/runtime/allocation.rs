@@ -241,39 +241,41 @@ pub fn describe_footprint() -> String {
 mod tests {
     use super::*;
 
-    /// The counters see an allocation, and the churn sees it whether or not it was freed.
+    /// The allocator is wired to the counters, asserted on the one figure a concurrent test cannot perturb.
     ///
-    /// The margin is wide on purpose, and "assert the exact size" is not available here. `live` is one
-    /// process-global counter, so another test in this binary *freeing* between the two snapshots subtracts from
-    /// this thread's apparent growth - which it did: an 8 MiB block measured 8 388 274 against an 8 388 608
-    /// assertion, 334 bytes short, and the test passed for months only because the previous two-counter design
-    /// happened not to expose it. No test can attribute an exact global delta to its own thread.
+    /// **`churn_since`, not `growth_since`, and this is the difference between a deterministic assertion and a
+    /// less-likely flake.** `live` is one process-global counter, so another test in this binary *freeing*
+    /// between the two snapshots subtracts from this thread's apparent growth - by *any* amount, including more
+    /// than this block. A bigger block lowers the probability and provides no floor; the first version of this
+    /// test asserted 8 MiB exactly and measured 8 388 274, 334 bytes short.
     ///
-    /// So the block is large enough that concurrent noise cannot cover half of it. What is being checked is that
-    /// the allocator is *wired to the counter at all*, which a factor-of-two margin establishes as well as an
-    /// exact figure would.
+    /// `churn_since` reads `ALLOCATED` alone, which is **monotone**: every concurrent allocation adds to it and
+    /// nothing subtracts. So "at least this block's bytes passed through the allocator" is a statement no other
+    /// thread can falsify, which is exactly the property under test - that the wrapper is in force at all.
+    ///
+    /// Growth is measured and *reported*, not asserted. It is the interesting number and it is not a sound
+    /// assertion here; `server/tests/footprint.rs` is where growth is gated, under a mutex that serialises the
+    /// measurements precisely because this counter is global.
     #[test]
-    fn a_large_allocation_shows_as_live_and_its_release_is_counted() {
-        const BLOCK: usize = 64 * 1024 * 1024;
-        const FLOOR: u64 = (BLOCK / 2) as u64;
+    fn an_allocation_passes_through_the_counting_allocator() {
+        const BLOCK: usize = 8 * 1024 * 1024;
 
         let before = AllocationSnapshot::now();
         let block: Vec<u8> = vec![0u8; BLOCK];
-        let during = AllocationSnapshot::now();
-        assert!(
-            during.growth_since(&before) >= FLOOR,
-            "a 64 MiB vector must show as live growth of at least 32 MiB, got {} bytes",
-            during.growth_since(&before)
-        );
+        let growth = AllocationSnapshot::now().growth_since(&before);
         drop(block);
 
         let after = AllocationSnapshot::now();
         assert!(
-            after.churn_since(&before) >= FLOOR,
-            "the churn counts the bytes whether or not they were freed"
+            after.churn_since(&before) >= BLOCK as u64,
+            "an {BLOCK}-byte vector must show in the churn, which no concurrent free can reduce; got {} bytes",
+            after.churn_since(&before)
         );
-        // Growth is deliberately not asserted back to zero: concurrent tests in this binary allocate, so the
-        // only sound statement is that the release was counted, which the churn and the free above show.
+        eprintln!(
+            "allocation: churn {} bytes, live growth at peak {growth} bytes (reported, not asserted - the \
+             counter is process-global)",
+            after.churn_since(&before)
+        );
     }
 
     /// The live figure comes from exactly one atomic, so no read of it can be torn.

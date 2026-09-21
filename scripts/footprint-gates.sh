@@ -57,6 +57,8 @@ LOADER_TIMEOUT_SECS="${FOOTPRINT_LOADER_TIMEOUT_SECS:-30}"
 # The same ceiling for every other request the script makes. Short, because these are health checks and a single
 # fixture post rather than sustained load.
 REQUEST_TIMEOUT_SECS="${FOOTPRINT_REQUEST_TIMEOUT_SECS:-30}"
+# How long the server gets to exit on SIGTERM before SIGKILL. See `cleanup`.
+SHUTDOWN_GRACE_SECS="${FOOTPRINT_SHUTDOWN_GRACE_SECS:-15}"
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 WORK="$(mktemp -d)"
@@ -65,8 +67,22 @@ SERVER_PID=""
 cleanup() {
   # This exact process, never `pkill -f sideseat`: running this beside a developer's own no-auth server would
   # otherwise kill theirs too.
+  #
+  # And the wait is **bounded**, then escalated. A bare `wait` here was the last place the script could hang: every
+  # curl is timed out now, but a server whose graceful shutdown deadlocks - draining a topic, say - would hold the
+  # trap open forever, and a run that never exits is indistinguishable from one still working.
   if [ -n "$SERVER_PID" ]; then
     kill "$SERVER_PID" 2>/dev/null || true
+    for _ in $(seq 1 "$SHUTDOWN_GRACE_SECS"); do
+      kill -0 "$SERVER_PID" 2>/dev/null || break
+      sleep 1
+    done
+    # Still there: SIGKILL, which no handler can defer. The exit status is discarded because by this point the
+    # measurement is over and the only remaining job is not to leave a process holding these ports.
+    if kill -0 "$SERVER_PID" 2>/dev/null; then
+      echo "[footprint] the server did not exit in ${SHUTDOWN_GRACE_SECS}s; killing it" >&2
+      kill -9 "$SERVER_PID" 2>/dev/null || true
+    fi
     wait "$SERVER_PID" 2>/dev/null || true
   fi
   rm -rf "$WORK"

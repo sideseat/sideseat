@@ -333,19 +333,30 @@ CREATE INDEX IF NOT EXISTS idx_deletion_journal_target
         // commit that introduced the table never re-runs the v4 script, so editing the constraint in there
         // reached fresh installs and v3 upgrades only.
         //
-        // `NOT VALID` then `VALIDATE`, deliberately: adding a validated constraint takes an `ACCESS EXCLUSIVE`
-        // lock for a full table scan, and this table is append-only and permanent, so it is the one that grows
-        // without bound. Existing inert rows - span-scoped with no span id, which the lookup could never find -
-        // are deleted first, so the validation has something it can pass.
+        // Two things here are not the obvious spelling, and each was a defect in the obvious one.
+        //
+        // **The malformed shapes are handled differently, because a journal row is evidence.** A span-scoped row
+        // with no span id is inert - `deletion_is_journaled` matches on `span_id`, so it was never findable - and
+        // is deleted. Any other scope carrying a stray `span_id` is read *correctly* today, so its column is
+        // normalised and the row kept: deleting it would lose a real deletion record, and a restore predating
+        // that deletion would bring its target back.
+        //
+        // **`NOT VALID` with no `VALIDATE`, and that is deliberate rather than unfinished.** `ADD CONSTRAINT`
+        // takes `ACCESS EXCLUSIVE`, and PostgreSQL holds it until the surrounding transaction commits - so
+        // validating here would run its full scan under that lock and block every journal read and write, on the
+        // one table designed to grow without bound. It does not need validating: the statements above make every
+        // existing row conform, so the only rows the constraint could reject are future ones, which `NOT VALID`
+        // checks exactly as a validated constraint would. `VALIDATE` would only re-confirm what this migration
+        // just established, at the cost of the lock.
         5 => (
             "deletion_journal_span_id_check",
             r#"
-DELETE FROM deletion_journal WHERE (scope = 'span') <> (span_id IS NOT NULL);
+DELETE FROM deletion_journal WHERE scope = 'span' AND span_id IS NULL;
+UPDATE deletion_journal SET span_id = NULL WHERE scope <> 'span' AND span_id IS NOT NULL;
 ALTER TABLE deletion_journal DROP CONSTRAINT IF EXISTS deletion_journal_span_scope_check;
 ALTER TABLE deletion_journal
     ADD CONSTRAINT deletion_journal_span_scope_check
     CHECK ((scope = 'span') = (span_id IS NOT NULL)) NOT VALID;
-ALTER TABLE deletion_journal VALIDATE CONSTRAINT deletion_journal_span_scope_check;
 "#,
         ),
         _ => {

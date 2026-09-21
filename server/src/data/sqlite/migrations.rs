@@ -316,10 +316,16 @@ CREATE INDEX IF NOT EXISTS idx_deletion_journal_target
 /// marked v4 - which is every database created by the commit that introduced the table. Those would keep
 /// accepting a span-scoped row with no span id, which `deletion_is_journaled` can never find.
 ///
-/// SQLite cannot add a `CHECK` to an existing table, so the table is rebuilt and copied. The copy filters out
-/// any row the new constraint refuses rather than failing the migration: such a row is inert by construction -
-/// the lookup matches on `span_id`, so it has never been findable - and a migration that cannot complete because
-/// of one is worse than losing a record that never did anything. Counted in the log, not silently dropped.
+/// SQLite cannot add a `CHECK` to an existing table, so the table is rebuilt and copied. The copy handles the two
+/// malformed shapes **differently**, and treating them alike was a defect: a journal row is evidence, and
+/// discarding evidence lets a restore resurrect what it recorded.
+///
+/// - `scope = 'span'` with a null `span_id` is genuinely **inert**: `deletion_is_journaled` matches on
+///   `span_id`, so such a row has never been findable and has never explained anything. Dropped.
+/// - Any other scope carrying a stray `span_id` is **understood correctly today**: `deletions_since` replays its
+///   scope and target, and the lookup ignores `span_id` for non-span scopes. So the column is normalised to NULL
+///   and the row is kept. Deleting it would lose a real deletion record, and a restore predating that deletion
+///   would then bring its trace, session, project or organization back.
 const MIGRATION_V5: &str = r#"
 CREATE TABLE deletion_journal_v5 (
     sequence    INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -332,9 +338,15 @@ CREATE TABLE deletion_journal_v5 (
     CHECK ((scope = 'span') = (span_id IS NOT NULL))
 );
 INSERT INTO deletion_journal_v5 (sequence, project_id, cause, scope, target_id, span_id, recorded_at)
-    SELECT sequence, project_id, cause, scope, target_id, span_id, recorded_at
+    SELECT sequence, project_id, cause, scope, target_id,
+           -- Normalised, not filtered: a non-span row's `span_id` is noise the readers already ignore, while the
+           -- row itself is a deletion record a restore has to replay.
+           CASE WHEN scope = 'span' THEN span_id ELSE NULL END,
+           recorded_at
     FROM deletion_journal
-    WHERE (scope = 'span') = (span_id IS NOT NULL);
+    -- The one genuinely inert shape: a span-scoped row with no span id was never findable by
+    -- `deletion_is_journaled`, so it has never explained an absence and dropping it loses nothing.
+    WHERE NOT (scope = 'span' AND span_id IS NULL);
 DROP TABLE deletion_journal;
 ALTER TABLE deletion_journal_v5 RENAME TO deletion_journal;
 CREATE INDEX IF NOT EXISTS idx_deletion_journal_target
