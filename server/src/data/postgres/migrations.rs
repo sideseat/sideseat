@@ -329,6 +329,25 @@ CREATE INDEX IF NOT EXISTS idx_deletion_journal_target
     ON deletion_journal(project_id, scope, target_id);
 "#,
         ),
+        // The span-id constraint, as its own version - see the SQLite twin. A database already marked v4 by the
+        // commit that introduced the table never re-runs the v4 script, so editing the constraint in there
+        // reached fresh installs and v3 upgrades only.
+        //
+        // `NOT VALID` then `VALIDATE`, deliberately: adding a validated constraint takes an `ACCESS EXCLUSIVE`
+        // lock for a full table scan, and this table is append-only and permanent, so it is the one that grows
+        // without bound. Existing inert rows - span-scoped with no span id, which the lookup could never find -
+        // are deleted first, so the validation has something it can pass.
+        5 => (
+            "deletion_journal_span_id_check",
+            r#"
+DELETE FROM deletion_journal WHERE (scope = 'span') <> (span_id IS NOT NULL);
+ALTER TABLE deletion_journal DROP CONSTRAINT IF EXISTS deletion_journal_span_scope_check;
+ALTER TABLE deletion_journal
+    ADD CONSTRAINT deletion_journal_span_scope_check
+    CHECK ((scope = 'span') = (span_id IS NOT NULL)) NOT VALID;
+ALTER TABLE deletion_journal VALIDATE CONSTRAINT deletion_journal_span_scope_check;
+"#,
+        ),
         _ => {
             return Err(PostgresError::MigrationFailed {
                 version,

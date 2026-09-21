@@ -3,7 +3,7 @@
 //! Initial schema with all tables. Compatible with SQLite schema structure.
 
 /// Current schema version
-pub const SCHEMA_VERSION: i32 = 4;
+pub const SCHEMA_VERSION: i32 = 5;
 
 /// Complete schema SQL for PostgreSQL
 pub const SCHEMA: &str = r#"

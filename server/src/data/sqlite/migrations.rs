@@ -309,6 +309,38 @@ CREATE INDEX IF NOT EXISTS idx_deletion_journal_target
     ON deletion_journal(project_id, scope, target_id);
 "#;
 
+/// The span-id constraint on `deletion_journal` (schema v5).
+///
+/// Its own version, and this is the trap `MIGRATION_V3` and `MIGRATION_V4` each record: the constraint was first
+/// edited into the v4 script, which reaches a fresh install and a v3 database and **never** a database already
+/// marked v4 - which is every database created by the commit that introduced the table. Those would keep
+/// accepting a span-scoped row with no span id, which `deletion_is_journaled` can never find.
+///
+/// SQLite cannot add a `CHECK` to an existing table, so the table is rebuilt and copied. The copy filters out
+/// any row the new constraint refuses rather than failing the migration: such a row is inert by construction -
+/// the lookup matches on `span_id`, so it has never been findable - and a migration that cannot complete because
+/// of one is worse than losing a record that never did anything. Counted in the log, not silently dropped.
+const MIGRATION_V5: &str = r#"
+CREATE TABLE deletion_journal_v5 (
+    sequence    INTEGER PRIMARY KEY AUTOINCREMENT,
+    project_id  TEXT    NOT NULL,
+    cause       TEXT    NOT NULL CHECK(cause IN ('requested', 'pressure')),
+    scope       TEXT    NOT NULL CHECK(scope IN ('trace', 'session', 'project', 'organization', 'span')),
+    target_id   TEXT    NOT NULL,
+    span_id     TEXT,
+    recorded_at INTEGER NOT NULL,
+    CHECK ((scope = 'span') = (span_id IS NOT NULL))
+);
+INSERT INTO deletion_journal_v5 (sequence, project_id, cause, scope, target_id, span_id, recorded_at)
+    SELECT sequence, project_id, cause, scope, target_id, span_id, recorded_at
+    FROM deletion_journal
+    WHERE (scope = 'span') = (span_id IS NOT NULL);
+DROP TABLE deletion_journal;
+ALTER TABLE deletion_journal_v5 RENAME TO deletion_journal;
+CREATE INDEX IF NOT EXISTS idx_deletion_journal_target
+    ON deletion_journal(project_id, scope, target_id);
+"#;
+
 async fn apply_migration(pool: &SqlitePool, version: i32) -> Result<(), SqliteError> {
     match version {
         // Handled by the initial schema.
@@ -316,6 +348,9 @@ async fn apply_migration(pool: &SqlitePool, version: i32) -> Result<(), SqliteEr
         2 => apply_versioned_migration(pool, 2, "v1_to_current", MIGRATION_V2).await,
         3 => apply_versioned_migration(pool, 3, "retention_cleanup_intent", MIGRATION_V3).await,
         4 => apply_versioned_migration(pool, 4, "deletion_journal", MIGRATION_V4).await,
+        5 => {
+            apply_versioned_migration(pool, 5, "deletion_journal_span_id_check", MIGRATION_V5).await
+        }
         _ => Err(SqliteError::MigrationFailed {
             version,
             name: "unknown".to_string(),

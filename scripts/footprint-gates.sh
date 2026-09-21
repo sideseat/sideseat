@@ -54,6 +54,9 @@ LOADERS="${FOOTPRINT_LOADERS:-4}"
 # waiting for that pid is the same hang a bare `wait` produced. Generous against the large-export p99 this
 # repository documents, so it fires on a stall rather than on a slow write.
 LOADER_TIMEOUT_SECS="${FOOTPRINT_LOADER_TIMEOUT_SECS:-30}"
+# The same ceiling for every other request the script makes. Short, because these are health checks and a single
+# fixture post rather than sustained load.
+REQUEST_TIMEOUT_SECS="${FOOTPRINT_REQUEST_TIMEOUT_SECS:-30}"
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 WORK="$(mktemp -d)"
@@ -72,6 +75,14 @@ trap cleanup EXIT
 
 fail() { echo "[footprint] FAIL: $*" >&2; exit 1; }
 mb() { awk -v b="$1" 'BEGIN { printf "%.1f", b / 1048576 }'; }
+
+# Every curl in this script goes through one of these, so "add a timeout" cannot be forgotten at a new call site.
+#
+# Only the load loop had `--max-time`, and the other four calls - health, the readiness poll, the priming pass and
+# the session-count read - could each block forever on a server that accepts the connection and never answers.
+# The run then never reaches its verdict, which looks like a slow machine rather than a hang.
+curl_q() { curl -s --max-time "$REQUEST_TIMEOUT_SECS" "$@"; }
+curl_f() { curl -sf --max-time "$REQUEST_TIMEOUT_SECS" "$@"; }
 
 rss_bytes() {
   local kb
@@ -103,10 +114,10 @@ echo "[footprint] starting server on :$PORT"
   "$ROOT/target/release/sideseat" --no-auth > "$WORK/server.log" 2>&1) &
 SERVER_PID=$!
 for _ in $(seq 1 60); do
-  curl -sf "http://127.0.0.1:$PORT/api/v1/health" >/dev/null && break
+  curl_f "http://127.0.0.1:$PORT/api/v1/health" >/dev/null && break
   sleep 1
 done
-curl -sf "http://127.0.0.1:$PORT/api/v1/health" >/dev/null \
+curl_f "http://127.0.0.1:$PORT/api/v1/health" >/dev/null \
   || { echo "[footprint] server did not come up"; cat "$WORK/server.log"; exit 1; }
 
 # --- gate 1: idle -----------------------------------------------------------
@@ -142,13 +153,13 @@ echo "[footprint] idle RSS: $(mb "$IDLE_RSS") MB"
 echo "[footprint] loading one pass of $FIXTURE_NAME to learn its span count"
 REQUESTS=0
 for f in "$FIXTURE"/*.pb; do
-  status="$(curl -s -o /dev/null -w '%{http_code}' -X POST --data-binary @"$f" \
+  status="$(curl_q -o /dev/null -w '%{http_code}' -X POST --data-binary @"$f" \
     -H 'Content-Type: application/x-protobuf' "http://127.0.0.1:$PORT/otel/default/v1/traces")"
   [ "$status" = "200" ] || fail "the priming pass returned $status; the fixture did not load"
   REQUESTS=$((REQUESTS + 1))
 done
 sleep 4
-SPANS_PER_PASS="$(curl -sf "http://127.0.0.1:$PORT/api/v1/project/default/otel/sessions?limit=1" |
+SPANS_PER_PASS="$(curl_f "http://127.0.0.1:$PORT/api/v1/project/default/otel/sessions?limit=1" |
   python3 -c 'import sys,json; r=json.load(sys.stdin).get("data") or []; print(r[0]["span_count"] if r else 0)')"
 [ "$SPANS_PER_PASS" -gt 0 ] || fail "the fixture created no session, so its span count is unknown"
 echo "[footprint] one pass = $REQUESTS requests / $SPANS_PER_PASS spans"
@@ -173,10 +184,14 @@ for loader in $(seq 1 "$LOADERS"); do
         # `|| true` on the assignment, and the curl exit status captured separately: without it a transport
         # error (exit 7, 28, ...) trips `set -e` and kills this subshell *before* it records anything, so the
         # verdict below reads a clean `post-errors` and reports a pass for a run whose load stopped early.
+        # Reset per iteration. `|| curl_status=$?` only assigns on failure, so without this a success carries
+        # the previous iteration's value - harmless today because the loop exits on the first failure, and one
+        # edit away from a loader that reports a stale error or hides a real one.
+        curl_status=0
         status="$(curl -s --max-time "$LOADER_TIMEOUT_SECS" -o /dev/null -w '%{http_code}' \
           -X POST --data-binary @"$f" -H 'Content-Type: application/x-protobuf' \
           "http://127.0.0.1:$PORT/otel/default/v1/traces")" || curl_status=$?
-        if [ "${curl_status:-0}" != "0" ]; then
+        if [ "$curl_status" != "0" ]; then
           echo "loader $loader: curl failed with exit ${curl_status}" >>"$WORK/post-errors"
           exit 0
         fi
@@ -242,14 +257,20 @@ echo "[footprint] achieved ~$ACHIEVED spans/s from $POSTED requests across $LOAD
 # comparison below then errors *inside* an `if`, where `set -e` does not terminate the script - so the gate would
 # be skipped rather than failed, which is the shape this whole file exists to remove.
 RATE_FRACTION="${FOOTPRINT_MIN_RATE_FRACTION:-0.9}"
+# The pattern alone was not enough: `.` contains only permitted characters, and `awk` reads it as zero - so
+# `MIN_RATE` became 0 and every achieved rate passed a gate that says it enforces 90%. A validator that admits a
+# value which disables the thing it guards is the same defect as no validator.
 case "$RATE_FRACTION" in
-  ''|*[!0-9.]*|*.*.*) fail "FOOTPRINT_MIN_RATE_FRACTION must be a number, got '$RATE_FRACTION'" ;;
+  ''|.|*[!0-9.]*|*.*.*) fail "FOOTPRINT_MIN_RATE_FRACTION must be a number, got '$RATE_FRACTION'" ;;
 esac
 MIN_RATE="$(awk -v target="$TARGET_SPANS_PER_SECOND" -v frac="$RATE_FRACTION" \
   'BEGIN { printf "%.0f", target * frac }')"
 case "$MIN_RATE" in
   ''|*[!0-9]*) fail "could not compute a rate floor from target=$TARGET_SPANS_PER_SECOND fraction=$RATE_FRACTION" ;;
 esac
+# And a floor of zero is no floor, however it was arrived at. Refused rather than reported, because a gate that
+# admits everything while claiming a threshold is worse than an absent gate.
+[ "$MIN_RATE" -gt 0 ] || fail "the computed rate floor is 0, which enforces nothing (target=$TARGET_SPANS_PER_SECOND fraction=$RATE_FRACTION)"
 if [ "$ACHIEVED" -lt "$MIN_RATE" ]; then
   fail "achieved ~$ACHIEVED spans/s, below the $MIN_RATE floor for a ceiling stated at $TARGET_SPANS_PER_SECOND spans/s. The resident figure describes a lighter workload than the ceiling claims, so it is not evidence about the ceiling. Raise the load (FOOTPRINT_LOADERS) or lower the floor deliberately (FOOTPRINT_MIN_RATE_FRACTION)."
 fi

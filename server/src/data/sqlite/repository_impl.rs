@@ -1155,6 +1155,47 @@ impl FavoriteStore for SqliteRepository {
 
 #[async_trait]
 impl DeletionJournal for SqliteRepository {
+    async fn record_deleted_traces_journalled(
+        &self,
+        project_id: &str,
+        trace_ids: &[String],
+    ) -> Result<(), DataError> {
+        project::record_deleted_traces_journalled(self.0.pool(), project_id, trace_ids)
+            .await
+            .map_err(Into::into)
+    }
+
+    async fn record_deleted_sessions_journalled(
+        &self,
+        project_id: &str,
+        session_ids: &[String],
+        trace_ids: &[String],
+    ) -> Result<(), DataError> {
+        project::record_deleted_sessions_journalled(
+            self.0.pool(),
+            project_id,
+            session_ids,
+            trace_ids,
+        )
+        .await
+        .map_err(Into::into)
+    }
+
+    async fn claim_project_for_deletion_journalled(&self, id: &str) -> Result<bool, DataError> {
+        project::claim_project_for_deletion_journalled(self.0.pool(), self.0.cache(), id)
+            .await
+            .map_err(Into::into)
+    }
+
+    async fn claim_organization_for_deletion_journalled(
+        &self,
+        id: &str,
+    ) -> Result<bool, DataError> {
+        project::claim_organization_for_deletion_journalled(self.0.pool(), id)
+            .await
+            .map_err(Into::into)
+    }
+
     async fn append_deletions(&self, records: &[DeletionRecord]) -> Result<(), DataError> {
         journal::append_deletions(self.0.pool(), records)
             .await

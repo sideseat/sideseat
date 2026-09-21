@@ -883,6 +883,18 @@ pub const STREAM_PENDING_RECORD_OVERHEAD_BYTES: u64 = 128;
 /// becomes a refused subscription with a message instead of a slow memory leak.
 pub const STREAM_MAX_CONSUMER_GROUPS: usize = 32;
 
+/// Consumer names one group remembers, for `StreamStats::consumers`.
+///
+/// The third place group state can grow without bound, and the one the group cap does not reach: a client that
+/// reconnects with a fresh name adds an entry per reconnect, so one group with a million reconnects is a million
+/// remembered names while the group count stays at one and every entry and pending record is reclaimed.
+///
+/// Bounded by eviction rather than by refusal, because this map is a *statistic* and not a registry - nothing
+/// reads it to decide anything, and refusing a subscription because a stat is full would trade a real capability
+/// for a number. The least recently active name goes, which is the one a "how many consumers are on this group"
+/// answer cares about least.
+pub const STREAM_MAX_REMEMBERED_CONSUMERS: usize = 64;
+
 // ---------------------------------------------------------------------------
 // The embedded engine's share of the footprint ceiling
 //

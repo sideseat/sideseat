@@ -16,8 +16,6 @@ use crate::api::types::{
     ApiError, PaginatedResponse, default_limit, default_page, parse_order_by,
     parse_timestamp_param, validate_ids_batch, validate_limit, validate_page,
 };
-use chrono::Utc;
-use sideseat_ports::traits::{DeletionCause, DeletionRecord, DeletionScope};
 use sideseat_ports::types::{ListTracesParams, TraceRow, find_root_span};
 
 #[derive(Debug, Deserialize, Validate)]
@@ -307,7 +305,7 @@ pub async fn delete_traces(
 ) -> Result<StatusCode, ApiError> {
     let repo = state.database.repository();
 
-    // Journal, then tombstone, then delete.
+    // Tombstone and journal together, then delete.
     //
     // The order is the point. Files and their associations are written *before* the analytics row that
     // references them, so an ingest already in flight for one of these traces commits after this route
@@ -320,39 +318,17 @@ pub async fn delete_traces(
     // late batch drops these traces instead of resurrecting them. A failure there is fatal rather than
     // logged: without the tombstone the deletion is not safe to perform.
     //
-    // The journal comes **before the tombstone**.
+    // The journal and the tombstone in **one transaction**, because an ordering cannot substitute for
+    // atomicity and both orderings are wrong.
     //
-    // The tombstone and the journal answer different questions and neither substitutes for the other. The
-    // tombstone stops a late *writer*, and it is removed once the trace is provably quiet. The journal is
-    // permanent, and it is what a **restore** replays: a snapshot predating this deletion predates its
-    // tombstone too, so restoring the analytics store further back than the transactional one - which is what
-    // different backup cadences produce - brings these traces back with nothing left to say they were deleted.
+    // A tombstone is not inert - the deletion sweeps act on it and remove the rows later - so with the tombstone
+    // first, a failed append leaves a deletion that happens anyway with no record, and a restore undoes it. With
+    // the append first, a failed tombstone leaves a permanent record for a deletion this request reported as
+    // *failed*, and a restore replays it and deletes the data. Both rows live in the transactional store, so
+    // neither window has to exist.
     //
-    // The order between them is load-bearing, and having the tombstone first was wrong. A failed append then
-    // returned an error to the caller while leaving the tombstone committed - and a tombstone is not inert: the
-    // deletion sweeps act on it and remove the rows later. So a transient journal failure produced a deletion
-    // that happened anyway, after a request that reported failure, with no record for a restore to replay.
-    // Journalling first makes a failure leave a record with no deletion, which is the harmless direction: a
-    // replay removes something already gone, and every step of it is idempotent.
-    //
-    // Fatal rather than logged, for the same reason the tombstone is.
-    let journal: Vec<DeletionRecord> = body
-        .trace_ids
-        .iter()
-        .map(|trace_id| DeletionRecord {
-            project_id: auth.project_id.clone(),
-            cause: DeletionCause::Requested,
-            scope: DeletionScope::Trace,
-            target_id: trace_id.clone(),
-            span_id: None,
-            recorded_at: Utc::now(),
-        })
-        .collect();
-    repo.append_deletions(&journal)
-        .await
-        .map_err(ApiError::from_data)?;
-
-    repo.record_deleted_traces(&auth.project_id, &body.trace_ids)
+    // Fatal, as the tombstone alone was: without both, the deletion is not safe to perform.
+    repo.record_deleted_traces_journalled(&auth.project_id, &body.trace_ids)
         .await
         .map_err(ApiError::from_data)?;
 

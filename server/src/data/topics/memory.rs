@@ -28,8 +28,8 @@ use super::backend::{
 };
 use crate::data::topics::TopicError;
 use sideseat_core::core::constants::{
-    STREAM_ENTRY_OVERHEAD_BYTES, STREAM_MAX_CONSUMER_GROUPS, STREAM_MAX_RETAINED_BYTES,
-    STREAM_PENDING_RECORD_OVERHEAD_BYTES,
+    STREAM_ENTRY_OVERHEAD_BYTES, STREAM_MAX_CONSUMER_GROUPS, STREAM_MAX_REMEMBERED_CONSUMERS,
+    STREAM_MAX_RETAINED_BYTES, STREAM_PENDING_RECORD_OVERHEAD_BYTES,
 };
 
 /// Default broadcast channel capacity
@@ -68,12 +68,36 @@ struct ConsumerGroup {
     /// than corruption, but it is not what a consumer group means.
     last_delivered_id: u64,
     /// Consumers seen in this group, and when each last took an entry. Kept for `StreamStats::consumers`.
+    ///
+    /// Bounded - see [`Self::remember_consumer`]. Unbounded it was the one place group state still grew without
+    /// limit after the group cap: a client reconnecting under a fresh name each time adds an entry per reconnect,
+    /// while the group count stays at one and every entry and pending record is reclaimed.
     consumers: HashMap<String, Instant>,
     /// Pending messages: message_id -> (consumer, delivery_time)
     pending: HashMap<u64, (String, Instant)>,
 }
 
 impl ConsumerGroup {
+    /// Note this consumer as active, evicting the least recently active name if the map is full.
+    ///
+    /// Eviction rather than refusal, because the map is a statistic: nothing reads it to decide anything, so
+    /// refusing a subscription to keep a number tidy would trade a capability for a stat. The least recently
+    /// active name is the one "how many consumers are on this group" cares about least.
+    fn remember_consumer(&mut self, consumer: &str) {
+        let now = Instant::now();
+        if !self.consumers.contains_key(consumer)
+            && self.consumers.len() >= STREAM_MAX_REMEMBERED_CONSUMERS
+            && let Some(stalest) = self
+                .consumers
+                .iter()
+                .min_by_key(|(_, seen)| **seen)
+                .map(|(name, _)| name.clone())
+        {
+            self.consumers.remove(&stalest);
+        }
+        self.consumers.insert(consumer.to_string(), now);
+    }
+
     /// The oldest id this group still needs: its oldest pending entry, else one past what it has been handed.
     ///
     /// Everything below this has been delivered *and* acknowledged, which is the only definition of consumed
@@ -460,6 +484,16 @@ impl TopicBackend for MemoryTopicBackend {
                             // before handing out this stream; if a `stream_trim_consumed` or a future path
                             // removed it, the subscription is over rather than silently re-registered.
                             let Some(cg) = stream_state.groups.get_mut(&group) else {
+                                // Unreachable as things stand - `stream_subscribe` created this group and
+                                // nothing removes one - but reported rather than silently ending the
+                                // subscription, because a future path that did remove a group would otherwise
+                                // present as a consumer that quietly stopped receiving.
+                                tracing::error!(
+                                    topic = %topic,
+                                    group = %group,
+                                    consumer = %consumer,
+                                    "consumer group vanished; ending this subscription"
+                                );
                                 break;
                             };
 
@@ -475,7 +509,7 @@ impl TopicBackend for MemoryTopicBackend {
 
                             let msg = if let Some((id, payload)) = found {
                                 cg.pending.insert(id, (consumer.clone(), Instant::now()));
-                                cg.consumers.insert(consumer.clone(), Instant::now());
+                                cg.remember_consumer(&consumer);
                                 cg.last_delivered_id = id;
                                 Some(StreamMessage {
                                     id: id.to_string(),
@@ -584,7 +618,7 @@ impl TopicBackend for MemoryTopicBackend {
                 // Update pending to new consumer
                 cg.pending
                     .insert(id, (consumer.to_string(), Instant::now()));
-                cg.consumers.insert(consumer.to_string(), Instant::now());
+                cg.remember_consumer(consumer);
                 claimed.push(StreamMessage {
                     id: id.to_string(),
                     payload: entry.payload.clone(),
@@ -1078,6 +1112,51 @@ mod admission_tests {
             .stream_subscribe("t", "g0", "c2")
             .await
             .expect("re-subscribing to an existing group is not a new group");
+    }
+
+    /// A group's remembered consumer names are bounded, whatever a reconnecting client does.
+    ///
+    /// The group cap does not reach this: a client that reconnects under a fresh name keeps the group count at one
+    /// while adding a name per reconnect, and every entry and pending record is reclaimed - so nothing else in
+    /// the queue's accounting notices.
+    #[tokio::test]
+    async fn remembered_consumer_names_are_bounded() {
+        let backend = MemoryTopicBackend::new();
+
+        for n in 0..(STREAM_MAX_REMEMBERED_CONSUMERS * 3) {
+            backend
+                .stream_publish("t", "k", b"x")
+                .await
+                .expect("publish");
+            let sub = backend
+                .stream_subscribe("t", "g", &format!("consumer-{n}"))
+                .await
+                .expect("subscribe");
+            let mut receiver = sub.receiver;
+            let msg = tokio::time::timeout(std::time::Duration::from_millis(500), receiver.next())
+                .await
+                .expect("delivered")
+                .expect("some")
+                .expect("ok");
+            backend.stream_ack("t", "g", &msg.id).await.expect("ack");
+        }
+
+        let remembered = {
+            let streams = backend.state.streams.read();
+            streams["t"].groups["g"].consumers.len()
+        };
+        assert!(
+            remembered <= STREAM_MAX_REMEMBERED_CONSUMERS,
+            "a group remembered {remembered} consumer names, past the {STREAM_MAX_REMEMBERED_CONSUMERS} cap"
+        );
+
+        // And the stat still reports something useful rather than collapsing to one.
+        let stats = backend.stream_stats("t", "g").await.expect("stats");
+        assert!(
+            stats.consumers > 0 && stats.consumers as usize <= STREAM_MAX_REMEMBERED_CONSUMERS,
+            "the consumer count stays within the cap and is not zero: {}",
+            stats.consumers
+        );
     }
 
     /// The incremental byte counter equals the entries it claims to describe.

@@ -1016,3 +1016,235 @@ pub async fn reclaim_stale_organization(
             .await?;
     Ok(result.rows_affected() > 0)
 }
+
+/// The tombstone rows, inside a transaction the caller owns.
+///
+/// `UNNEST`, matching the standalone form: one statement for the whole batch, and no placeholder count that grows
+/// with it. Shared so the standalone and journalled forms cannot drift about what a tombstone is.
+async fn insert_trace_tombstones(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    project_id: &str,
+    trace_ids: &[String],
+    now: i64,
+) -> Result<(), PostgresError> {
+    if trace_ids.is_empty() {
+        return Ok(());
+    }
+    sqlx::query(
+        "INSERT INTO deleted_traces (project_id, trace_id, deleted_at)
+         SELECT $1, t, $3 FROM UNNEST($2::text[]) AS t
+         ON CONFLICT (project_id, trace_id) DO NOTHING",
+    )
+    .bind(project_id)
+    .bind(trace_ids)
+    .bind(now)
+    .execute(&mut **tx)
+    .await?;
+    Ok(())
+}
+
+/// The session tombstone rows, inside a transaction the caller owns - see [`insert_trace_tombstones`].
+async fn insert_session_tombstones(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    project_id: &str,
+    session_ids: &[String],
+    now: i64,
+) -> Result<(), PostgresError> {
+    if session_ids.is_empty() {
+        return Ok(());
+    }
+    sqlx::query(
+        "INSERT INTO deleted_sessions (project_id, session_id, deleted_at)
+         SELECT $1, s, $3 FROM UNNEST($2::text[]) AS s
+         ON CONFLICT (project_id, session_id) DO NOTHING",
+    )
+    .bind(project_id)
+    .bind(session_ids)
+    .bind(now)
+    .execute(&mut **tx)
+    .await?;
+    Ok(())
+}
+
+/// Append journal rows inside a transaction the caller already owns.
+///
+/// Exists so a tombstone or a claim can be made atomic with its record. See
+/// [`sideseat_ports::traits::DeletionJournal::record_deleted_traces_journalled`] for why the pair must be one
+/// transaction rather than an ordering.
+async fn append_journal_in_tx(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    records: &[sideseat_ports::traits::DeletionRecord],
+) -> Result<(), PostgresError> {
+    for record in records {
+        sqlx::query(
+            "INSERT INTO deletion_journal (project_id, cause, scope, target_id, span_id, recorded_at)
+             VALUES ($1, $2, $3, $4, $5, $6)",
+        )
+        .bind(&record.project_id)
+        .bind(record.cause.as_str())
+        .bind(record.scope.as_str())
+        .bind(&record.target_id)
+        .bind(record.span_id.as_deref())
+        .bind(
+            record
+                .recorded_at
+                .timestamp_nanos_opt()
+                .unwrap_or(i64::MAX),
+        )
+        .execute(&mut **tx)
+        .await?;
+    }
+    Ok(())
+}
+
+/// One `requested` journal record per target.
+fn requested(
+    project_id: &str,
+    scope: sideseat_ports::traits::DeletionScope,
+    targets: &[String],
+    now: chrono::DateTime<chrono::Utc>,
+) -> Vec<sideseat_ports::traits::DeletionRecord> {
+    targets
+        .iter()
+        .map(|target_id| sideseat_ports::traits::DeletionRecord {
+            project_id: project_id.to_string(),
+            cause: sideseat_ports::traits::DeletionCause::Requested,
+            scope,
+            target_id: target_id.clone(),
+            span_id: None,
+            recorded_at: now,
+        })
+        .collect()
+}
+
+/// [`record_deleted_traces`] and the journal entries, in one transaction.
+pub async fn record_deleted_traces_journalled(
+    pool: &PgPool,
+    project_id: &str,
+    trace_ids: &[String],
+) -> Result<(), PostgresError> {
+    if trace_ids.is_empty() {
+        return Ok(());
+    }
+    let now = chrono::Utc::now();
+    let mut tx = pool.begin().await?;
+    insert_trace_tombstones(&mut tx, project_id, trace_ids, now.timestamp()).await?;
+    append_journal_in_tx(
+        &mut tx,
+        &requested(
+            project_id,
+            sideseat_ports::traits::DeletionScope::Trace,
+            trace_ids,
+            now,
+        ),
+    )
+    .await?;
+    tx.commit().await?;
+    Ok(())
+}
+
+/// Both tombstones and both journal scopes, in one transaction.
+pub async fn record_deleted_sessions_journalled(
+    pool: &PgPool,
+    project_id: &str,
+    session_ids: &[String],
+    trace_ids: &[String],
+) -> Result<(), PostgresError> {
+    if session_ids.is_empty() && trace_ids.is_empty() {
+        return Ok(());
+    }
+    let now = chrono::Utc::now();
+    let mut tx = pool.begin().await?;
+    insert_session_tombstones(&mut tx, project_id, session_ids, now.timestamp()).await?;
+    insert_trace_tombstones(&mut tx, project_id, trace_ids, now.timestamp()).await?;
+
+    let mut records = requested(
+        project_id,
+        sideseat_ports::traits::DeletionScope::Session,
+        session_ids,
+        now,
+    );
+    records.extend(requested(
+        project_id,
+        sideseat_ports::traits::DeletionScope::Trace,
+        trace_ids,
+        now,
+    ));
+    append_journal_in_tx(&mut tx, &records).await?;
+    tx.commit().await?;
+    Ok(())
+}
+
+/// [`claim_project_for_deletion`], with the journal entry written **only if the claim was won**.
+///
+/// One transaction, so there is no state in which the project is fenced without a record or recorded without
+/// being fenced. Conditional on winning, which the separate calls could not express: journalling before the claim
+/// wrote an entry for every losing caller, and an organization cleanup re-runs while its projects' tombstones
+/// remain - so one deletion accumulated permanent, quota-counted records without bound.
+pub async fn claim_project_for_deletion_journalled(
+    pool: &PgPool,
+    cache: Option<&CacheService>,
+    id: &str,
+) -> Result<bool, PostgresError> {
+    let now = chrono::Utc::now();
+    let mut tx = pool.begin().await?;
+    let result =
+        sqlx::query("UPDATE projects SET deleting_at = $1 WHERE id = $2 AND deleting_at IS NULL")
+            .bind(now.timestamp())
+            .bind(id)
+            .execute(&mut *tx)
+            .await?;
+    let claimed = result.rows_affected() > 0;
+    if claimed {
+        append_journal_in_tx(
+            &mut tx,
+            &requested(
+                id,
+                sideseat_ports::traits::DeletionScope::Project,
+                std::slice::from_ref(&id.to_string()),
+                now,
+            ),
+        )
+        .await?;
+    }
+    tx.commit().await?;
+
+    if claimed {
+        // After the commit, not inside it: a cache invalidation is not transactional, and doing it before the
+        // commit would clear the cache for a claim that then rolled back.
+        let org = org_of_project_ignoring_fence(pool, id).await.ok().flatten();
+        invalidate_project_caches(pool, cache, id, org.as_deref()).await;
+    }
+    Ok(claimed)
+}
+
+/// [`claim_organization_for_deletion`], with its journal entry. See the project twin.
+pub async fn claim_organization_for_deletion_journalled(
+    pool: &PgPool,
+    id: &str,
+) -> Result<bool, PostgresError> {
+    let now = chrono::Utc::now();
+    let mut tx = pool.begin().await?;
+    let result = sqlx::query(
+        "UPDATE organizations SET deleting_at = $1 WHERE id = $2 AND deleting_at IS NULL",
+    )
+    .bind(now.timestamp())
+    .bind(id)
+    .execute(&mut *tx)
+    .await?;
+    let claimed = result.rows_affected() > 0;
+    if claimed {
+        append_journal_in_tx(
+            &mut tx,
+            &requested(
+                id,
+                sideseat_ports::traits::DeletionScope::Organization,
+                std::slice::from_ref(&id.to_string()),
+                now,
+            ),
+        )
+        .await?;
+    }
+    tx.commit().await?;
+    Ok(claimed)
+}

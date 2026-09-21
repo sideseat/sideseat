@@ -1324,7 +1324,50 @@ pub trait DeletionJournal: Send + Sync {
     /// A batch, because a trace deletion route removes many traces in one request and one round trip per trace
     /// would make the journal the cost of deleting. Atomic: a partial append is a deletion with no record for
     /// some of its targets, which is the state the ordering above exists to make impossible.
+    ///
+    /// **Prefer the combined methods below where one exists.** Appending on its own leaves a window in whichever
+    /// direction the caller picked: journal first and a failed tombstone leaves a record for a deletion that did
+    /// not happen, which a restore replays as a deletion the caller was told had failed; tombstone first and a
+    /// failed append leaves a deletion the sweeps will perform anyway with no record, which a restore undoes.
+    /// Both writes land in *this* store, so the window is avoidable rather than a trade.
     async fn append_deletions(&self, records: &[DeletionRecord]) -> Result<(), DataError>;
+
+    /// Tombstone these traces and journal their deletion, in one transaction.
+    ///
+    /// The pair has to be atomic, and an ordering cannot substitute for that. A tombstone is not inert - the
+    /// deletion sweeps act on it and remove the rows later - so with the tombstone first a failed append leaves a
+    /// deletion that happens anyway and no record of it; with the append first a failed tombstone leaves a
+    /// permanent record for a deletion the caller was told had failed, and a restore replays it. Both rows live
+    /// in the transactional store, so there is no reason for either.
+    async fn record_deleted_traces_journalled(
+        &self,
+        project_id: &str,
+        trace_ids: &[String],
+    ) -> Result<(), DataError>;
+
+    /// Tombstone these sessions **and** the traces they resolved to, and journal all of it, in one transaction.
+    ///
+    /// Four writes rather than two, for the reason `record_deleted_sessions` exists: a session is deleted by
+    /// deleting its traces, so both tombstones are needed, and the journal needs both scopes - the session entry
+    /// is the durable fact a replay re-resolves, the trace entries are what remains when the session is no longer
+    /// resolvable from restored data at all.
+    async fn record_deleted_sessions_journalled(
+        &self,
+        project_id: &str,
+        session_ids: &[String],
+        trace_ids: &[String],
+    ) -> Result<(), DataError>;
+
+    /// Claim a project for deletion and journal it, in one transaction.
+    ///
+    /// Returns whether this caller won the claim. The journal entry is written **only when it did**, which the
+    /// separate calls could not achieve: journalling before the claim wrote an entry for every losing caller -
+    /// and since an organization cleanup re-runs while its projects' tombstones remain, that was an unbounded
+    /// number of permanent, quota-counted records for one deletion.
+    async fn claim_project_for_deletion_journalled(&self, id: &str) -> Result<bool, DataError>;
+
+    /// Claim an organization for deletion and journal it, in one transaction. See the project twin.
+    async fn claim_organization_for_deletion_journalled(&self, id: &str) -> Result<bool, DataError>;
 
     /// Entries after `after_sequence`, oldest first, at most `limit`.
     ///

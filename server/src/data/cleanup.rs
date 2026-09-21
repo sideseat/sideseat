@@ -39,13 +39,16 @@ pub async fn cleanup_organization(
 ) -> Result<bool> {
     let repo = database.repository();
 
-    // Before the claim - see `cleanup_project` for the ordering and for why not in the re-runnable half.
-    journal_deletion(repo.as_ref(), org_id, DeletionScope::Organization, org_id).await?;
-
+    // The claim and its journal entry in **one transaction**, and the entry written only if this caller won.
+    //
+    // Neither an ordering nor a separate call can give that. Journalling first wrote an entry for every losing
+    // caller - and an organization cleanup re-runs while its projects' tombstones remain, so one deletion
+    // accumulated permanent, quota-counted records without bound. Journalling afterwards left a fenced
+    // organization that a later sweep deletes anyway with no record.
     if !repo
-        .claim_organization_for_deletion(org_id)
+        .claim_organization_for_deletion_journalled(org_id)
         .await
-        .context("Failed to claim organization for deletion")?
+        .context("Failed to claim and journal the organization deletion")?
     {
         return Ok(false);
     }
@@ -76,23 +79,15 @@ pub async fn finish_organization_deletion(
     // Every project fenced first. A project that is not fenced can still be written to while its data
     // is being deleted, and nothing later in this function would notice.
     for project_id in repo.list_project_ids(org_id).await? {
-        // Journalled before the fence, for the ordering reason in `cleanup_project`: a fenced project is deleted
-        // by a later sweep whatever happens here, so a failed append after fencing is a deletion with no record.
-        //
-        // Which means an entry is written even when the claim then reports the project as already claimed. That
-        // is a duplicate rather than a defect - a replay removes something already gone - and it is the price of
-        // having no read-then-act window between the two. Bounded by how often a sweep resumes an abandoned
-        // organization cleanup, which is rare and is itself an alarmed condition.
-        journal_deletion(
-            repo.as_ref(),
-            &project_id,
-            DeletionScope::Project,
-            &project_id,
-        )
-        .await?;
-        if let Err(e) = repo.claim_project_for_deletion(&project_id).await {
+        // Fenced and journalled in one transaction, and the entry only if this call won the claim - see
+        // `cleanup_organization` for why. The returned bool is discarded here deliberately: losing the claim means
+        // another caller owns this project's deletion, which is fine, and the entry was written by whoever won.
+        if let Err(e) = repo
+            .claim_project_for_deletion_journalled(&project_id)
+            .await
+        {
             return Err(anyhow!(
-                "Failed to fence project {} of organization {}: {}",
+                "Failed to fence and journal project {} of organization {}: {}",
                 project_id,
                 org_id,
                 e
@@ -211,28 +206,17 @@ pub async fn cleanup_project(
     // claimed or already gone - either way there is nothing for this caller to do. The cache goes with
     // it, so the project stops being readable at the same instant it stops being live.
     //
-    // Journalled **before the claim**, and not inside `finish_project_deletion`.
+    // The claim and its journal entry go in **one transaction**, and the entry only if this caller won.
     //
-    // Before the claim, because a claim is a tombstone and the sweeps act on tombstones: journalling afterwards
-    // meant a failed append left a fenced project that a later sweep would delete anyway, with no record. This
-    // way a failure leaves the project exactly as it was.
-    //
-    // The cost is an entry for a project the claim then reports as already claimed or already gone, which the
-    // early return below discovers *after* the append. A spurious record is harmless - replaying it removes
-    // something already absent - and the alternative is checking first, which is the read-then-act race the
-    // compare-and-set exists to avoid.
-    journal_deletion(
-        repo.as_ref(),
-        project_id,
-        DeletionScope::Project,
-        project_id,
-    )
-    .await?;
-
+    // Neither ordering works on its own, which is why this is not an ordering. Journalling first leaves a
+    // permanent record for a deletion a failed claim never performed, and a restore replays it; journalling after
+    // leaves a fenced project a later sweep deletes anyway, with no record. Conditional on winning, because
+    // journalling before the claim wrote an entry for every losing caller - and an organization cleanup re-runs
+    // while its projects' tombstones remain, so one deletion accumulated records without bound.
     if !repo
-        .claim_project_for_deletion(project_id)
+        .claim_project_for_deletion_journalled(project_id)
         .await
-        .context("Failed to claim project for deletion")?
+        .context("Failed to claim and journal the project deletion")?
     {
         return Ok(false);
     }
@@ -842,44 +826,6 @@ async fn invalidate_org_api_key_caches(
             "Failed to invalidate API key list cache"
         );
     }
-}
-
-/// Append one requested deletion to the journal, **before** anything destructive happens.
-///
-/// Fatal, and best effort was the wrong answer. Logging the failure and continuing meant that with the journal
-/// table unavailable and the analytics store healthy - an ordinary partial outage, since they are different
-/// stores - a project's data was removed permanently with no record for a restore to replay. The whole point of
-/// the journal is that this case is recoverable.
-///
-/// Called before the claim, so a failure leaves nothing fenced and nothing deleted: the caller gets an error and
-/// the project is exactly as it was. The other order cannot give that, because a claim is a tombstone and the
-/// sweeps act on tombstones - so a failure after claiming is a deletion that proceeds anyway.
-///
-/// The cost of being fatal is that a project cannot be deleted while the journal is unwritable. That is the
-/// correct refusal: temporary and legible, against permanent and silent loss.
-async fn journal_deletion(
-    repo: &dyn sideseat_ports::traits::DeletionJournal,
-    tenant_id: &str,
-    scope: DeletionScope,
-    target_id: &str,
-) -> Result<()> {
-    let record = DeletionRecord {
-        project_id: tenant_id.to_string(),
-        cause: DeletionCause::Requested,
-        scope,
-        target_id: target_id.to_string(),
-        span_id: None,
-        recorded_at: chrono::Utc::now(),
-    };
-    repo.append_deletions(std::slice::from_ref(&record))
-        .await
-        .with_context(|| {
-            format!(
-                "Could not journal the {} deletion of {target_id}; refusing to delete data whose removal a \
-                 restore could not undo",
-                scope.as_str()
-            )
-        })
 }
 
 #[cfg(test)]

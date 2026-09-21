@@ -280,6 +280,102 @@ mod tests {
         );
     }
 
+    /// The tombstone and its journal entry are one transaction, so neither can exist without the other.
+    ///
+    /// An ordering cannot give this, and both orderings are wrong. Tombstone first, a failed append leaves a
+    /// deletion the sweeps perform anyway with no record, and a restore undoes it. Append first, a failed
+    /// tombstone leaves a permanent record for a deletion the request reported as *failed*, and a restore replays
+    /// it and deletes the data. The write that fails here is the tombstone - forced by dropping its table - and
+    /// what has to hold is that no journal entry survives it.
+    #[tokio::test]
+    async fn a_tombstone_and_its_journal_entry_are_atomic() {
+        let pool = setup_test_pool().await;
+        let traces = vec!["trace-a".to_string(), "trace-b".to_string()];
+
+        crate::data::sqlite::repositories::project::record_deleted_traces_journalled(
+            &pool, "proj", &traces,
+        )
+        .await
+        .expect("both writes succeed together");
+
+        let (entries, _) = deletions_since(&pool, 0, 100).await.unwrap();
+        assert_eq!(entries.len(), 2, "one journal entry per trace");
+        let tombstoned: i64 =
+            sqlx::query_scalar("SELECT COUNT(*) FROM deleted_traces WHERE project_id = 'proj'")
+                .fetch_one(&pool)
+                .await
+                .unwrap();
+        assert_eq!(tombstoned, 2, "and one tombstone per trace");
+
+        // Now make the tombstone write fail, and require the journal to roll back with it.
+        sqlx::raw_sql("DROP TABLE deleted_traces;")
+            .execute(&pool)
+            .await
+            .expect("drop");
+        let before = deletions_since(&pool, 0, 100).await.unwrap().0.len();
+        let failed = crate::data::sqlite::repositories::project::record_deleted_traces_journalled(
+            &pool,
+            "proj",
+            &["trace-c".to_string()],
+        )
+        .await;
+        assert!(failed.is_err(), "the tombstone write must fail here");
+
+        let after = deletions_since(&pool, 0, 100).await.unwrap().0.len();
+        assert_eq!(
+            after, before,
+            "a failed tombstone must leave no journal entry: a record for a deletion that did not happen is one \
+             a restore replays"
+        );
+    }
+
+    /// A claim that loses writes no journal entry.
+    ///
+    /// Journalling before the claim wrote an entry for every losing caller - and an organization cleanup re-runs
+    /// while its projects' tombstones remain, so one deletion accumulated permanent, quota-counted records without
+    /// bound. Conditional on winning is only expressible inside the claim's own transaction.
+    #[tokio::test]
+    async fn a_losing_claim_writes_no_journal_entry() {
+        let pool = setup_test_pool().await;
+        sqlx::raw_sql(
+            "INSERT INTO organizations (id, name, slug, created_at, updated_at)
+                 VALUES ('org', 'Org', 'org', 0, 0);
+             INSERT INTO projects (id, organization_id, name, created_at, updated_at)
+                 VALUES ('proj', 'org', 'P', 0, 0);",
+        )
+        .execute(&pool)
+        .await
+        .expect("a project to claim");
+
+        let won =
+            crate::data::sqlite::repositories::project::claim_project_for_deletion_journalled(
+                &pool, None, "proj",
+            )
+            .await
+            .expect("claim");
+        assert!(won, "the first caller wins");
+        assert_eq!(
+            deletions_since(&pool, 0, 100).await.unwrap().0.len(),
+            1,
+            "and its entry is written"
+        );
+
+        for _ in 0..5 {
+            let won =
+                crate::data::sqlite::repositories::project::claim_project_for_deletion_journalled(
+                    &pool, None, "proj",
+                )
+                .await
+                .expect("claim");
+            assert!(!won, "a later caller loses: the project is already fenced");
+        }
+        assert_eq!(
+            deletions_since(&pool, 0, 100).await.unwrap().0.len(),
+            1,
+            "and none of them adds a record - five resumptions of one deletion is still one deletion"
+        );
+    }
+
     /// A page of rows this build cannot interpret does not read as the end of the journal.
     ///
     /// Skipped rows used to leave the cursor where it was, so a page consisting entirely of them returned

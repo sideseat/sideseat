@@ -243,24 +243,33 @@ mod tests {
 
     /// The counters see an allocation, and the churn sees it whether or not it was freed.
     ///
-    /// Bounds are deliberately one-sided. This is a process-global counter in a test binary whose other
-    /// tests allocate concurrently, so an exact figure would be a flake generator; what has to hold is that
-    /// this thread's own block is *at least* accounted for, which is what a footprint gate reads.
+    /// The margin is wide on purpose, and "assert the exact size" is not available here. `live` is one
+    /// process-global counter, so another test in this binary *freeing* between the two snapshots subtracts from
+    /// this thread's apparent growth - which it did: an 8 MiB block measured 8 388 274 against an 8 388 608
+    /// assertion, 334 bytes short, and the test passed for months only because the previous two-counter design
+    /// happened not to expose it. No test can attribute an exact global delta to its own thread.
+    ///
+    /// So the block is large enough that concurrent noise cannot cover half of it. What is being checked is that
+    /// the allocator is *wired to the counter at all*, which a factor-of-two margin establishes as well as an
+    /// exact figure would.
     #[test]
     fn a_large_allocation_shows_as_live_and_its_release_is_counted() {
+        const BLOCK: usize = 64 * 1024 * 1024;
+        const FLOOR: u64 = (BLOCK / 2) as u64;
+
         let before = AllocationSnapshot::now();
-        let block: Vec<u8> = vec![0u8; 8 * 1024 * 1024];
+        let block: Vec<u8> = vec![0u8; BLOCK];
         let during = AllocationSnapshot::now();
         assert!(
-            during.growth_since(&before) >= 8 * 1024 * 1024,
-            "an 8 MiB vector must show as live growth, got {} bytes",
+            during.growth_since(&before) >= FLOOR,
+            "a 64 MiB vector must show as live growth of at least 32 MiB, got {} bytes",
             during.growth_since(&before)
         );
         drop(block);
 
         let after = AllocationSnapshot::now();
         assert!(
-            after.churn_since(&before) >= 8 * 1024 * 1024,
+            after.churn_since(&before) >= FLOOR,
             "the churn counts the bytes whether or not they were freed"
         );
         // Growth is deliberately not asserted back to zero: concurrent tests in this binary allocate, so the

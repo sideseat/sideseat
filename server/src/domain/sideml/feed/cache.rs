@@ -728,6 +728,66 @@ mod weight_tests {
         }
     }
 
+    /// Every `BlockEntry` field serialisation cannot see is either fixed-size or measured by `weight_of`.
+    ///
+    /// The weigher measures a serialised answer, so a `#[serde(skip)]` field is invisible to it. That is fine
+    /// for a `bool` or a `DateTime`, whose cost the flat per-block charge covers, and not fine for a `String`
+    /// or a `Vec`, which is as large as a producer makes it - a 40 MiB span name weighed nothing at all until
+    /// it was measured directly, and the byte ceiling was not a ceiling.
+    ///
+    /// Read from the source, because the failure is *adding a field* and no behavioural test can notice one
+    /// that nothing yet populates. Names the field it does not recognise, so the fix is obvious: either it is
+    /// fixed-size and belongs in the list below, or it is unbounded and belongs in `weight_of`.
+    #[test]
+    fn every_unserialised_block_field_is_accounted_for() {
+        let source = include_str!("types.rs");
+        let block_entry = source
+            .split_once("pub struct BlockEntry {")
+            .expect("BlockEntry is declared here")
+            .1;
+        let block_entry = &block_entry[..block_entry.find("\n}").expect("its declaration ends")];
+
+        // Fields whose size is bounded by their type, so the flat per-block charge covers them.
+        let fixed_size = ["order_time"];
+        // Fields `weight_of` measures directly.
+        let measured = ["position", "span_name", "scope_name", "scope_version"];
+
+        let mut unaccounted: Vec<&str> = Vec::new();
+        let mut skipped_next = false;
+        for line in block_entry.lines() {
+            let trimmed = line.trim();
+            // `skip` and `skip_serializing` both remove the field from what the weigher sees;
+            // `skip_serializing_if` does not, since a present value is still written.
+            if trimmed == "#[serde(skip)]" || trimmed == "#[serde(skip_serializing)]" {
+                skipped_next = true;
+                continue;
+            }
+            if !skipped_next || !trimmed.starts_with("pub ") {
+                continue;
+            }
+            skipped_next = false;
+            let (name, ty) = trimmed
+                .trim_start_matches("pub ")
+                .split_once(':')
+                .expect("a field declaration");
+            let name = name.trim();
+            if fixed_size.contains(&name) || measured.contains(&name) {
+                continue;
+            }
+            // A `bool` needs no measurement whatever it is called; anything else does.
+            if ty.trim().trim_end_matches(',') == "bool" {
+                continue;
+            }
+            unaccounted.push(name);
+        }
+
+        assert!(
+            unaccounted.is_empty(),
+            "these BlockEntry fields are hidden from serialisation and unaccounted for in `weight_of`, so the \
+             cache's byte ceiling does not bound them: {unaccounted:?}"
+        );
+    }
+
     /// The declared ceiling admits a useful number of ordinary answers.
     ///
     /// A weigher whose per-entry floor is set too high turns a 64 MB cache into a dozen entries, which is a
