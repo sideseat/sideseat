@@ -82,6 +82,7 @@ You will not get far in the code or in this document without these.
 | **Parity suite** | a test that writes one dataset into both backends of a tier and requires every read to return identical rows. `clickhouse/parity_tests.rs`, `postgres/parity_tests.rs` |
 | **Golden** | `server/tests/fixtures/messages/<suite>/<sample>/expected.json` — the recorded correct answer for a captured OTLP payload, across four views. **121 committed**; a working copy shows 123 because two image-gen fixtures are gitignored for size, so a count from `ls` and a count from `git ls-files` legitimately differ |
 | **Mutation-verified** | a fix whose test was proven to fail when that fix alone was reverted |
+| **Store** vs **backend** | a *store* is the tier — analytics or transactional. A *backend* is which implementation is serving it — DuckDB or ClickHouse, SQLite or PostgreSQL. Both words appear below and the difference is load-bearing: a property of the *store* holds in either mode, a property of a *backend* is exactly what parity suites exist to compare |
 
 ### 0.2 Repository layout
 
@@ -832,11 +833,11 @@ reviewable and leaves the tree green.
 | **5** query layer | See §6.4 — this one needs more than a row | §6.4 |
 | **6** Signal + logs | See §6.5 | The `Signal` trait with traces as its only implementation, behaviour-identical, both transports through it. Metrics second, logs third |
 | **7** quota + hold | See §6.6 | `logical_bytes` on the span row plus the counter, with no enforcement. Then admission refusal. Hold is its own change with `SCHEMA_VERSION` 6 and populated-upgrade tests |
-| **8** rollups | DuckDB only. **Not a mutable row**: each span writes its own contribution and the rollup is `SUM`/`MIN`/`MAX`/first-value over contributions, so there is no read-modify-write to lose. ClickHouse has none — an incremental materialised view there is not atomically visible with its source. The aggregate is **not a plain `SUM`**: billing dedup is relational, so the contribution row carries `parent_span_id` and `observation_type` and the rollup applies the same suppression rule the span query applies today | `rebuild_contributions` first (a backfill), then the table written in the span's own transaction, then the two-stage trace query. Gated by a before/after trace-list measurement at both fixture scales; **reverted if the narrow read does not pay for the write amplification** |
-| **9** bodies + streaming | Content-address message bodies, per-span references, dual-read (new layout when present, old columns otherwise), a resumable checkpointed backfill reporting drift. Plus streaming chunked JSON on the message endpoints, which currently build a whole `Vec` then serialise it | Content addressing behind a dual-read, old columns still written. Dropping them is a separate change gated on a stated per-project criterion |
-| **10** search | Filter-plus-chronological, **no ranking** — ClickHouse cannot rank in any released version (verified against the 26.1–26.8 changelogs; BM25 is an unmerged PR whose open bug is `_bm25_score` + `FINAL` + `ReplacingMergeTree`, this exact configuration). Local: a `span_terms` table in DuckDB written in the span's own transaction. Server: per-field `Array(String)` with native text indexes. **One tokeniser in the domain produces the terms for both sides.** Truncation makes the logic three-valued and that must propagate through nesting | Raise the ClickHouse floor to 26.4 — today CI and `make test-clickhouse` pin **25.8.2** and `deploy/local/docker-compose.yml` pins **26.1.2**, so three places move. Then the tokeniser and its contract with a golden-corpus parity test, before any index exists |
-| **11** RedPanda | The adapter plus `make test-redpanda`; server Compose brings up SideSeat itself | The adapter against the three trait changes step 1 already made |
-| **12** tenancy + backup | RLS and ClickHouse row policies with a **per-request** tenant context: `SET LOCAL` inside the transaction on PostgreSQL, and on ClickHouse a **per-query setting**, never `SET` — which persists for the session and hands a pooled borrower the previous tenant. On PostgreSQL the runtime role must not own the tables **and** they carry `FORCE ROW LEVEL SECURITY`, because an owner bypasses RLS. Plus per-store backup and a gated restore-and-repair test | The colliding-id leak test (two tenants, same client-supplied trace and session ids) before any policy exists — it should pass today and will catch the policy getting it wrong |
+| **8** rollups | See §6.14 | `rebuild_contributions` first (a backfill), then the table written in the span's own transaction, then the two-stage trace query. Gated by a before/after trace-list measurement at both fixture scales; **reverted if the narrow read does not pay for the write amplification** |
+| **9** bodies + streaming | See §6.12 | Content addressing behind a dual-read, old columns still written. Dropping them is a separate change gated on a stated per-project criterion |
+| **10** search | See §6.15 | Raise the ClickHouse floor to 26.4 — today CI and `make test-clickhouse` pin **25.8.2** and `deploy/local/docker-compose.yml` pins **26.1.2**, so three places move. Then the tokeniser and its contract with a golden-corpus parity test, before any index exists |
+| **11** RedPanda | See §6.15 | The adapter against the three trait changes step 1 already made |
+| **12** tenancy + backup | See §6.13 | The colliding-id leak test (two tenants, same client-supplied trace and session ids) before any policy exists — it should pass today and will catch the policy getting it wrong |
 
 ### 6.4 Step 5 in detail, because its starting point is not what it looks like
 
@@ -979,6 +980,158 @@ records — so at quota the append is refused, nothing can be deleted, and the p
 manual intervention the only escape. The reserve is sized from the maximum simultaneous pre-deletion state: the
 journal batch **plus** the cleanup candidates, because a pressure eviction must persist both before deleting
 anything, and sizing it from the journal alone lets one consume the reserve and block the other.
+
+### 6.12 Step 9 in detail — what "three representations" actually means
+
+Today one span's content exists in three forms, and a reader should check this before assuming:
+
+| Form | Where | Purpose |
+| --- | --- | --- |
+| Extracted columns | `otel_spans` — model, tokens, costs, previews, status | filtering, aggregation, list rows |
+| `messages` JSON | `otel_spans.messages` | what the feed pipeline parses on every read |
+| `raw_span` JSON | `otel_spans.raw_span` | served only for `?include_raw_span=true` |
+
+**`raw_span` is the easy win**: it is read by one query parameter and is the largest of the three for an
+attribute-heavy span. Moving it to the blob store, fetched only when asked, is a physical-layout change with no
+interpretation.
+
+**`messages` is the hard one**, and the reason is in §4.1. Content-addressing it by bytes alone **cannot** collapse
+a replay: a re-sent tool call arrives with a *regenerated call id*, so the bytes differ — and today's dedup handles
+that deliberately, because a tool call's identity **ignores** the provider id. So a reference encoding only body
+equality is not a substitute for the pipeline, and any write-time key the pipeline would depend on freezes a
+decision the design keeps at query time so fixes apply to history.
+
+What content-addressing *does* buy: **not re-fetching and re-parsing identical bytes.** For a replaying framework
+the same conversation arrives once per turn, so the verbatim bulk is highly duplicated — that is the 68 MB fetch a
+1 000-turn session pays today.
+
+**The blob reference convention already exists**: `#!B64!#<mime>::<hash>` inside stored content, with the
+association protocol of §2.3 keeping the bytes alive. Bodies shared across traces will need a **body-level**
+reference count, because the trace-keyed association cannot express them.
+
+**Do not reduce the cache key to the body-reference list.** It deliberately includes timestamps, status, costs, the
+trace→session grouping and the ruleset digest — every one of which changes the answer while leaving bodies
+identical. Keying on references alone serves stale answers the goldens cannot catch, because a cache hit is
+invisible to them. What *can* be cheapened is hashing the body **hashes** instead of the body bytes.
+
+### 6.13 Step 12 in detail — tenancy starts from zero
+
+`grep` finds **no** `ROW LEVEL SECURITY` and no ClickHouse row policy in the tree. Isolation today is a `WHERE
+project_id = ?` that ~126 query sites must each remember — and this repository has been bitten by exactly that: a
+session-membership predicate subtly wrong in **eight places**, returning one tenant's content under another's key.
+
+Three layers, because no one of them is sufficient:
+
+1. **`ProjectId` as a newtype on every port method**, and the query builder unable to construct a statement without
+   a tenant scope. This is step 1's remainder plus step 5's builder, so step 12 inherits it rather than building it.
+2. **A structural test that no adapter holds a SQL literal outside the builder** — an adapter can always issue a
+   raw statement, since it depends on its driver by definition. Scoped to query and DML; **schema DDL is exempt by
+   construction**, since no narrow typed builder is going to express `ALTER TABLE`, and without that exemption
+   stated the gate is unsatisfiable and would simply be disabled.
+3. **A row-level backstop in the store**, so a forgotten predicate returns nothing rather than another tenant's
+   data.
+
+**Layer 3 needs a tenant-context protocol, and naming the mechanism is not designing it.** Both stores are reached
+through a *shared service identity*, so the policy has to read a per-request value:
+
+| Store | How | The trap |
+| --- | --- | --- |
+| PostgreSQL | `SET LOCAL` **inside the transaction** | on its own connection it is a read-then-write a committing deletion defeats |
+| ClickHouse | a **per-query setting attached to each query** | `SET` persists for the session, so a pooled session hands the next borrower the previous tenant — exactly the leak the backstop exists to stop |
+
+**The unset value must be fail-closed** (matches nothing), so a query issued without context returns empty rather
+than everything. For a `Distributed` table the policies must exist on **every local table on every node**, since
+that is where the rows are, and the setting must be declared to propagate with the distributed query.
+
+**On PostgreSQL the role topology is part of the mechanism.** A table's **owner bypasses RLS**, and today one pool
+runs the migrations — which create the tables, making that role the owner — *and* every ordinary query. So the
+policies would be inert on the only role that uses them. Both are required: the runtime role is **not** the schema
+owner, **and** the tables carry `FORCE ROW LEVEL SECURITY`, because a future migration creating a table under the
+runtime role would otherwise silently re-open it. And **global maintenance needs its own privileged path** —
+retention, GC, the deletion sweeps and the migration runner legitimately cross projects, so they use a role the
+policy exempts, declared once rather than achieved by leaving the context unset.
+
+**Two tests, because one oracle cannot cover both halves** — and a single test asserting "empty" would be false:
+
+- with a **valid** context and the `WHERE project_id` predicate dropped, RLS must return **that tenant's rows**;
+- with **no** context, any read must return **empty**.
+
+### 6.14 Step 8 in detail — and the honest version of its win
+
+**The win is narrower than it first looks, which is why the step is gated by a measurement rather than an argument.**
+`list_traces` already paginates trace ids *before* aggregating, so the win is **not** "stop aggregating over
+everything". It is exactly this: the second stage reads a **narrow, purpose-built table** instead of the wide span
+table with its JSON columns, for the same set of traces. The relational suppression and the version selection are
+**retained, not removed** — they cost what they cost. Against that, one row per span plus the term rows is added
+write work and added storage. So the step lands with a before/after measurement on the existing trace-list
+benchmark at both fixture scales, and **if the narrow read does not pay for the write amplification the step is
+reverted rather than argued for**.
+
+**The aggregate is not a plain `SUM`, because billing dedup is relational.** Today a generation parent is suppressed
+by a billed generation child, and a non-generation span by any generation in the trace or by a billed parent
+(`gen_totals_sql` in both adapters' `query.rs`). Summing contributions would double-count a parent and child
+reporting the same 100 tokens, and deleting the child would have to *reactivate* the parent. So the contribution row
+carries `parent_span_id` and `observation_type`, and the rollup applies the **same suppression rule** over
+contributions. The existing billing-dedup tests are the acceptance criteria.
+
+**`is_billed` is `tokens > 0 OR cost > 0`**, which is what both adapters already mean by billed. A draft said
+"tokens > 0", and the consequence is exact: a **cost-only** child would fail to suppress its parent locally while
+ClickHouse continued to suppress it, so the two backends would report different totals for identical data. The
+parity corpus has a cost-only trace but **not** a cost-only parent/child suppression case — so nothing would have
+caught it. That case is required by this step.
+
+**Replace-on-write is conditional on winning by the *source's* rule, not on committing last.** The surviving span is
+chosen by `ingested_at` then `rowid`, so a delivery B that commits *after* A but carries a clock-regressed
+`ingested_at` **loses** in the source relation — while a naive replace-on-write would leave the derived table showing
+B. The result is a rollup that disagrees with the spans it summarises. So the derived write compares against the
+stored version inside its own transaction and replaces only if this delivery would also win in the source relation.
+**This is structurally a DuckDB-only concern**: ClickHouse has no `rowid`, its winner is settled by a merge plus
+`FINAL`, and it has no derived rows to disagree.
+
+**A trace row needs more than contributions**, so the trace query is two-stage: contributions supply counts, sums
+and time bounds; `display_*` and `tags` supply the rest from the same narrow row — `tags` as a per-span array
+**unioned** across contributions, because a union genuinely needs every selected span. **Root metadata returns NULL
+when a trace has no root**, which is what today's queries return; falling back to the earliest span is arguably
+nicer and is a *behaviour change* needing its own goldens.
+
+### 6.15 Steps 10 and 11 — the parts most likely to be got wrong
+
+**Step 10's three-valued logic is the part to get right first.** A truncated `(span, field)` is *unknown*, not false,
+and collapsing unknown to false at the leaf is unsound **under nesting**: in `NOT (A OR B)` a capped `B` becomes
+false, the disjunction false, and the negation returns the span as a **positive** match it should not be.
+
+| Leaf | Value |
+| --- | --- |
+| term present in the index | **true**, truncated or not |
+| term absent, `(span, field)` complete | **false** |
+| term absent, `(span, field)` truncated | **unknown** |
+| phrase: conjunction present, body verifies | **true** |
+| phrase: conjunction present, body refutes | **false** — the body is complete evidence even when the *index* was capped |
+| phrase: body unavailable | **unknown** |
+
+So the relational lowering carries **two relations per clause, not one** — matched and unknown — because
+intersection, union and anti-join over a single relation have nowhere to put a third value. A record whose overall
+value is unknown is **returned, marked indeterminate**: omitted would read as "does not match", silently included as
+"matches".
+
+**And a negated *phrase* cannot use the term anti-join at all.** `NOT "foo bar"` lowered as "anti-join the
+conjunction of `foo` and `bar`" removes a span containing `foo x bar` — which does not contain the phrase and should
+match. A negated phrase selects candidates by the conjunction and excludes only those the verifier confirms.
+
+**The cursor is the last *examined* position, not the last returned one**, and getting this wrong is pagination
+livelock rather than a short page: return A, then hit a bound-sized run of candidates that verification rejects,
+then B — with a returned-item cursor every subsequent request resumes after A, re-examines the same rejected run,
+exhausts the same bound and returns nothing, so **B is unreachable forever**. The response carries the cursor **even
+when the page is empty**.
+
+**Per field, not one combined array.** A single array makes `prompt:foo` and `completion:foo` inspect the same
+values, so `prompt:foo AND completion:foo` returns spans where `foo` occurs only in the prompt — a *wrong* answer,
+not a missing one, and per-clause lowering cannot repair it.
+
+**Step 11 is small but has one real constraint**: `stream_claim` has no Kafka analogue (a rebalance recovers
+abandoned work) and `stream_trim_consumed` becomes a no-op. Also decouple the queue from `CacheBackendType` — today
+"Redis cache + Kafka queue" is inexpressible — and remove the Redis-specific `From` impls from the shared error
+type.
 
 ### 6.7 Review state
 
