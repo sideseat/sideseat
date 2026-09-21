@@ -65,9 +65,9 @@ scripts/              bench-http-latency.sh, footprint-gates.sh, message-fixture
 
 ```bash
 make check                                      # fmt + clippy (no warnings allowed) + all tests
-cargo test -q -p sideseat-server --lib          # the fast inner loop, ~90s, 2360 tests
-cargo test -p sideseat-server message_goldens   # 120 fixtures x 4 views, ~70s — the message oracle
-cargo test -p sideseat-server --test repository # 21 structural invariants
+cargo test --locked -q -p sideseat-server --lib           # the fast inner loop, ~90s, 2360 tests
+cargo test --locked -p sideseat-server message_goldens    # 120 fixtures x 4 views, ~70s — the oracle
+cargo test --locked -p sideseat-server --test repository  # 21 structural invariants
 make test-postgres                              # PostgreSQL/SQLite parity, throwaway container
 make test-clickhouse                            # ClickHouse/DuckDB parity, throwaway container
 make test-redis                                 # queue durability against a pinned Redis
@@ -76,6 +76,11 @@ make footprint                                  # the four memory ceilings; exit
 ```
 
 `cargo clippy` must be warning-free — the workspace sets `all = deny` plus a list of bug classes held at zero.
+
+**`--locked` on every command that resolves dependencies**, including in documentation.
+`every_resolving_command_is_locked` reads every tracked file for a `cargo` invocation without it, and it caught
+this file's own first draft: a command that may rewrite `Cargo.lock` makes every `--locked` check downstream a
+statement about one machine.
 
 ---
 
@@ -569,7 +574,7 @@ never executed. If anything in this batch is broken, it is there.
 
 In order:
 
-1. `cargo test -q -p sideseat-server --lib` — confirm the working tree is green (expect 2 360 passed).
+1. `cargo test --locked -q -p sideseat-server --lib` — confirm the working tree is green (2 360 passed).
 2. `make test-postgres` — the untested path. Then `make test-clickhouse`, `make test-redis`.
 3. `make bench-http` and `make footprint` — the two gates whose numbers are still assertions rather than
    measurements. A miss is information, not necessarily a regression: `bench-http` has two *pre-existing*

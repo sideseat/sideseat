@@ -1367,7 +1367,8 @@ pub trait DeletionJournal: Send + Sync {
     async fn claim_project_for_deletion_journalled(&self, id: &str) -> Result<bool, DataError>;
 
     /// Claim an organization for deletion and journal it, in one transaction. See the project twin.
-    async fn claim_organization_for_deletion_journalled(&self, id: &str) -> Result<bool, DataError>;
+    async fn claim_organization_for_deletion_journalled(&self, id: &str)
+    -> Result<bool, DataError>;
 
     /// Entries after `after_sequence`, oldest first, at most `limit`.
     ///
