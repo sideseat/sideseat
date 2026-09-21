@@ -12,6 +12,28 @@ Written 2026-09-21. "What has landed" is measured from commit `4a9c30c9`.
 
 ---
 
+## Contents
+
+| § | | Read it when |
+| --- | --- | --- |
+| **0** | [What this project is](#0-what-this-project-is) — glossary, layout, commands, how to run it, the four views, the API | first, always |
+| **1** | [The architecture](#1-the-architecture) — crate graph, the ports, **the one constraint** | before designing anything |
+| **2** | [The data model](#2-the-data-model) — tables, schema versions, the span row, what step 0 fixed | before touching storage |
+| **3** | [The ingest path](#3-the-ingest-path) — write order, the fences, where the footprint gates measure | steps 6, 7, 8 |
+| **4** | [The read path](#4-the-read-path) — the cache, the nine feed stages | steps 9, 10 |
+| **5** | [What landed, and why](#5-what-landed-and-why) — sixteen commits, with the reasoning | to avoid re-deciding |
+| **6** | [What remains](#6-what-remains) — dependencies, first increments, acceptance criteria, open questions, known bugs | to pick the next thing |
+| **7** | [Exact current state](#7-exact-current-state) | to orient |
+| **8** | [Verification state](#8-verification-state--read-before-claiming-anything-works) | **before claiming anything works** |
+| **9** | [Start here](#9-start-here) | to begin |
+| **10** | [Working protocol](#10-working-protocol) — mutation verification, Codex, the conventions that bite | before your first commit |
+| **11** | [What this will and will not be](#11-what-this-architecture-will-and-will-not-be) | before trying to "fix" an accepted limit |
+
+**If you have five minutes:** §9 Start here, then §8 to know what is unverified, then §11 so you do not spend the
+day on a limit that is deliberate.
+
+---
+
 ## 0. What this project is
 
 **SideSeat** is an observability toolkit for AI/LLM applications. Instrumented agent code exports OpenTelemetry
@@ -54,7 +76,7 @@ You will not get far in the code or in this document without these.
 | **Survivor reconciliation** | after retention deletes some of a trace's spans, recompute which files the *surviving* spans reference and release only the difference |
 | **Watermark** | `max_ingested_at_us`, taken from the store rather than the reader's clock, bounding a multi-page traversal to one instant |
 | **Parity suite** | a test that writes one dataset into both backends of a tier and requires every read to return identical rows. `clickhouse/parity_tests.rs`, `postgres/parity_tests.rs` |
-| **Golden** | `server/tests/fixtures/messages/<suite>/<sample>/expected.json` — the recorded correct answer for a captured OTLP payload, across four views |
+| **Golden** | `server/tests/fixtures/messages/<suite>/<sample>/expected.json` — the recorded correct answer for a captured OTLP payload, across four views. **121 committed**; a working copy shows 123 because two image-gen fixtures are gitignored for size, so a count from `ls` and a count from `git ls-files` legitimately differ |
 | **Mutation-verified** | a fix whose test was proven to fail when that fix alone was reverted |
 
 ### 0.2 Repository layout
@@ -88,7 +110,7 @@ scripts/              bench-http-latency.sh, footprint-gates.sh, message-fixture
 ```bash
 make check                                                # fmt + clippy + every test. No containers.
 cargo test --locked -q -p sideseat-server --lib           # inner loop, ~90s, 2360 tests
-cargo test --locked -p sideseat-server message_goldens    # 120 fixtures x 4 views, ~70s — the oracle
+cargo test --locked -p sideseat-server message_goldens    # 121 fixtures x 4 views, ~70s — the oracle
 cargo test --locked -p sideseat-server --test repository  # 21 structural invariants
 make test-postgres                                        # PostgreSQL/SQLite parity, throwaway container
 make test-clickhouse                                      # ClickHouse/DuckDB parity, throwaway container
@@ -258,12 +280,15 @@ above it; `AppConfig::validate` called into the domain; `DataError` embedded fou
 
 `crates/ports/src/traits.rs`, 14 traits:
 
-| Trait | Line | Replaces |
+| Traits | Replaces | Note |
 | --- | --- | --- |
-| `SpanStore`, `EntityQuery`, `MessageStore`, `AnalyticsMaintenance`, `SurvivorReferences` | 84, 156, 306, 324, 46 | `AnalyticsRepository`, 31 methods |
-| `IdentityStore`, `ProjectStore`, `FileMetaStore`, `ApiKeyStore`, `CredentialStore`, `FavoriteStore` | 360, 490, 713, 997, 1035, 1111 | `TransactionalRepository`, 95 methods |
-| `DeletionJournal` | 1321 | new — §5.6 |
-| `AnalyticsRepository`, `TransactionalRepository` | 1181, 1412 | bundles, blanket-implemented, so a caller can still name one bound |
+| `SpanStore`, `EntityQuery`, `MessageStore`, `AnalyticsMaintenance`, `SurvivorReferences` | `AnalyticsRepository`, 31 methods | the analytics tier, split by cohesion |
+| `IdentityStore`, `ProjectStore`, `FileMetaStore`, `ApiKeyStore`, `CredentialStore`, `FavoriteStore` | `TransactionalRepository`, 95 methods | the transactional tier |
+| `DeletionJournal` | new | §5.6 |
+| `AnalyticsRepository`, `TransactionalRepository` | — | bundles, blanket-implemented, so a caller can still name one bound |
+
+No line numbers here on purpose: an earlier draft cited them and one had already drifted by the end of the same
+editing session. Grep the trait name.
 
 `BlobStore`, `Cache`, `Secrets` are ports too (`blobs.rs`, `cache.rs`, `secrets.rs`). **Cache is a decorator over
 a port, never a parameter to one** — it used to be `Option<&CacheService>` on 29 transactional methods.
@@ -308,6 +333,9 @@ graph LR
 
 **The rule: where the fact is unavailable, refuse or over-report rather than delete or under-report, and say so in
 the response.** A guard that silently changes the answer is what a caller cannot reason about.
+
+**§11 lists every limit this constraint leaves behind**, with the reason each stays. Read it before trying to
+remove one.
 
 §5.6 is what this looks like applied: both rows were in the transactional store, so no ordering trade was
 needed — one transaction removed the question three review rounds had been arguing about.
@@ -757,7 +785,7 @@ reviewable and leaves the tree green.
 
 | Step | What it involves | First increment |
 | --- | --- | --- |
-| **5** query layer | `data/sql/` declares `SqlDialect` with four impls and **zero consumers**, which is why ~2 760 lines of DuckDB SQL and ~2 990 of ClickHouse SQL implement the same 31 operations. Build a narrow typed builder (select / filter / aggregate / paginate / upsert / delete), migrate **one operation group at a time**, parity-gated. Backend differences become declared *capabilities*: ClickHouse `FINAL`, distributed routing, `AWAIT_MUTATION`, and `as_of_us` which DuckDB honours and ClickHouse cannot express | The builder plus **one** read operation (the simplest `EntityQuery` method), both adapters lowered to it, both parity suites green. Then the raw-SQL invariant scoped to that group *by reading the builder's registry* — never an exemption list |
+| **5** query layer | See §6.9 — this one needs more than a row | §6.9 |
 | **6** Signal + logs | Three signals × two transports is six hand-written handlers with the trace decision tree duplicated. A `Signal` declares per signal: OTLP request type, project-id injection, extraction, storability predicate, `partial_success` shape, queue topic, durability requirement, lifecycle **and a confirmation predicate**. Confirmation is **strict digest equality**, not identity — identity is stable across a correction by design, so an identity-only read-back is satisfied by the *old* row. Then logs become a real signal (currently rejected outright) | The `Signal` trait with traces as its only implementation, behaviour-identical, both transports through it. Metrics second, logs third |
 | **7** quota + hold | Per-row `logical_bytes`, a counter plus reconciliation, a **maintenance reserve** (reclamation writes must be exempt or enforcement deadlocks against itself — the journal is quota-counted and must commit *before* the deletion it records), four enforcement points. Hold is the bigger half: `hold_until`, registry, writer fence, post-write patch, leased convergence sweep, a shared hold/retention mutex, and **conditional TTLs on four ClickHouse tables that are unconditional today** — so a held row is deleted on schedule right now | `logical_bytes` on the span row plus the counter, with no enforcement. Then admission refusal. Hold is its own change with `SCHEMA_VERSION` 6 and populated-upgrade tests |
 | **8** rollups | DuckDB only. **Not a mutable row**: each span writes its own contribution and the rollup is `SUM`/`MIN`/`MAX`/first-value over contributions, so there is no read-modify-write to lose. ClickHouse has none — an incremental materialised view there is not atomically visible with its source. The aggregate is **not a plain `SUM`**: billing dedup is relational, so the contribution row carries `parent_span_id` and `observation_type` and the rollup applies the same suppression rule the span query applies today | `rebuild_contributions` first (a backfill), then the table written in the span's own transaction, then the two-stage trace query. Gated by a before/after trace-list measurement at both fixture scales; **reverted if the narrow read does not pay for the write amplification** |
@@ -765,6 +793,51 @@ reviewable and leaves the tree green.
 | **10** search | Filter-plus-chronological, **no ranking** — ClickHouse cannot rank in any released version (verified against the 26.1–26.8 changelogs; BM25 is an unmerged PR whose open bug is `_bm25_score` + `FINAL` + `ReplacingMergeTree`, this exact configuration). Local: a `span_terms` table in DuckDB written in the span's own transaction. Server: per-field `Array(String)` with native text indexes. **One tokeniser in the domain produces the terms for both sides.** Truncation makes the logic three-valued and that must propagate through nesting | Raise the ClickHouse floor to 26.4 (CI pins 25.8, Compose 26.1.2). Then the tokeniser and its contract with a golden-corpus parity test, before any index exists |
 | **11** RedPanda | The adapter plus `make test-redpanda`; server Compose brings up SideSeat itself | The adapter against the three trait changes step 1 already made |
 | **12** tenancy + backup | RLS and ClickHouse row policies with a **per-request** tenant context: `SET LOCAL` inside the transaction on PostgreSQL, and on ClickHouse a **per-query setting**, never `SET` — which persists for the session and hands a pooled borrower the previous tenant. On PostgreSQL the runtime role must not own the tables **and** they carry `FORCE ROW LEVEL SECURITY`, because an owner bypasses RLS. Plus per-store backup and a gated restore-and-repair test | The colliding-id leak test (two tenants, same client-supplied trace and session ids) before any policy exists — it should pass today and will catch the policy getting it wrong |
+
+### 6.9 Step 5 in detail, because its starting point is not what it looks like
+
+Measured today (`wc -l`): **9 101 lines** across `data/duckdb/repositories/` against **4 691** across
+`data/clickhouse/repositories/`, implementing the same port surface. The two `query.rs` files alone are 6 684 and
+3 064 lines. That asymmetry is itself informative — DuckDB carries the `as_of_us` bound and the window-function
+deduplication that ClickHouse gets from `FINAL`.
+
+**`data/sql/` is not a partially-built query builder, and mistaking it for one would send you the wrong way.** It
+is 756 lines across seven files, and `SqlDialect` is a *token-level* helper:
+
+```rust
+fn name(&self) -> &'static str;
+fn placeholder(&self, index: usize) -> String;   // "?" vs "$1"
+fn array_contains(&self, ...) -> String;         // array_contains(c,?) vs ? = ANY(c)
+// ...
+```
+
+That is worth keeping and is **not** the seam the step needs. A builder has to own *statement structure* — which
+relation, which predicates, which aggregate, which page — because that is where the 13 792 lines of duplication
+live. The dialect becomes the thing the builder lowers *through*, not the thing that replaces it.
+
+**Why it has zero consumers today** matters more than that it does: it was built bottom-up, as the facts two
+engines differ on, and nothing was ever expressed in terms of it. A builder built the same way will end the same
+way. Start from **one real read** and let its needs decide the vocabulary.
+
+**Capabilities, not conditionals.** The differences that must survive as *declared* facts rather than `if
+backend == ` branches:
+
+| Capability | DuckDB | ClickHouse |
+| --- | --- | --- |
+| Deduplicate by version | `QUALIFY ROW_NUMBER()` over `(ingested_at, rowid)` | `FINAL` |
+| `as_of_us` (read at a watermark) | **yes** — the bound goes *inside* the deduplication | **no** — `FINAL` has no "as of" form, and a merge may already have removed the earlier version |
+| Delete | `DELETE`, transactional | `ALTER … DELETE` with `AWAIT_MUTATION` and `mutations_sync = 2`, on `_local` with `ON CLUSTER` |
+| Write target | the table | the `Distributed` table, with `insert_distributed_sync = 1` |
+| Correlated subquery | fine | **silently wrong** — correlated `NOT EXISTS` always returns true; use a materialised CTE plus a tuple `NOT IN` |
+
+**Suggested order**, smallest blast radius first: an `EntityQuery` read with no aggregate → a read with a filter →
+the trace list with its two-stage aggregate (the hardest, because a trace-list filter selects *traces*, never span
+rows) → deletes → upserts. Each group parity-gated before the next.
+
+**The invariant arrives with the step, scoped by the builder's own registry.** `no_adapter_holds_a_sql_literal`
+must read which operation groups have been migrated from the builder itself, so it tightens automatically as
+groups land. A grandfathering list of exempt files is the failure mode: it can always be appended to, and then
+the gate measures nothing.
 
 ### 6.4 Review state
 
@@ -785,7 +858,7 @@ what they were is worth knowing, because the pattern repeats:
 
 ### 6.5 How to know a step is done
 
-Baseline for every step: **the 120 committed goldens and both parity suites byte-identical on the far side**,
+Baseline for every step: **the 121 committed goldens and both parity suites byte-identical on the far side**,
 unless the step is *meant* to change an answer, in which case the changed goldens are reviewed as a diff rather
 than regenerated blindly. (`UPDATE_GOLDENS=1` writes the files but still exits non-zero when an invariant was
 violated, so known-bad output cannot be committed as reviewed.) On top of that:
@@ -813,6 +886,8 @@ violated, so known-bad output cannot be committed as reviewed.) On top of that:
   offline verifier are the *product* on top of this. The foundation must not foreclose it, and does not.
 - **The storage quota is best-effort, per project, enforced by refusal.** Eleven review cycles tried to make it
   exact; six mechanisms died on §1.3. It is not exact at any instant and says so.
+
+§11 is the longer form of this list: every accepted limit, with what would have to change to lift it.
 
 ### 6.7 Questions the design leaves open
 
@@ -884,7 +959,7 @@ committed.
 | `make check` (fmt, clippy, all tests) | **passes end to end** — first full run since `4a9c30c9` |
 | `cargo test -p sideseat-server --lib` | 2 360 passed, 7 ignored |
 | `cargo test --test repository` | 21 structural invariants |
-| `cargo test message_goldens` | 32 passed — 120 fixtures × 4 views |
+| `cargo test message_goldens` | 32 passed — 121 fixtures × 4 views |
 | `cargo test --test footprint -- --ignored` | both live-allocation gates pass (numbers in §5.1) |
 | `make test-postgres` | **37 passed** — PostgreSQL/SQLite parity, including the v5 upgrade and the journal |
 | web / Python SDK | 93 and 203 passed |
@@ -1034,7 +1109,7 @@ including one that had never been applied to the file at all.
   `i64`, SELECT aliases visible in `WHERE`, aggregate nullability. Enumerated in `CLAUDE.md` under "Common
   Gotchas"; each has cost a debugging session.
 
-**When something in the read path breaks**, `message_goldens` is the oracle: 120 captured OTLP payloads replayed
+**When something in the read path breaks**, `message_goldens` is the oracle: 121 captured OTLP payloads replayed
 through the real pipeline, checking message count, content, ordering and duplicate absence across four views. It
 is itself mutation-verified — dropping one message, swapping two or duplicating one each fail four of its tests.
 If a refactor is meant to be answer-preserving, this is what proves it.
@@ -1044,3 +1119,34 @@ If a refactor is meant to be answer-preserving, this is what proves it.
 the rows. DuckDB and SQLite are the reference. A case
 that passes because neither backend was asked the hard question is the failure mode this repository has been
 bitten by twice — make sure the fixture actually contains the shape you are testing for.
+
+---
+
+## 11. What this architecture will and will not be
+
+Read this before trying to improve something below. Each row is a limit **accepted deliberately**, with the reason;
+treating one as a defect wastes a cycle, and several have already been re-litigated once.
+
+| Limit, after the plan is complete | Why it stays |
+| --- | --- |
+| **Confirmation is digest equality, never "newer".** Two genuine corrections racing for one identity are resolved by the store's own choice, and both deliveries are reported as stored | No commit-ordered sequence and no fencing token exists in either analytics backend (§1.3). `ingested_at` is `Utc::now()` per instance, so a clock-regressed correction can carry an earlier value — and since both backends treat that column as the version, an "at least mine" test would let older content falsely confirm a newer delivery |
+| **The storage quota is not exact at any instant.** Usage may exceed it by the total size of writes issued but not yet landed | A stalled writer cannot be fenced, an external multi-store scan is not atomic, and no observation of absence says anything about the next instant. Eleven review cycles produced six mechanisms that all died here. What is unconditional is the *contract*: at or above measured usage, writes are refused with a reason |
+| **Search pagination is not snapshot-isolated.** Records present and unchanged throughout a traversal are returned exactly once; anything arriving or changing during it may be missed or repeated | Needs a snapshot or a durable commit-ordered change token. The arrival predicate raises a flag for what it *can* see, which is strictly better than nothing and strictly weaker than a guarantee — and it is documented as such, because a completeness flag callers read as a proof is worse than an honest caveat |
+| **Restore is a procedure with three named residuals**, not a proof that a record is in a backup | Four designs for proving coverage were tried and each failed: no common watermark exists, truncation cannot undo a destructive operation, and three independently backed-up stores have three boundaries with no fence between them |
+| **The two modes are not feature-identical.** `as_of_us` works on DuckDB and cannot be expressed on ClickHouse; the rollup contribution table exists only on DuckDB; there is no ranking anywhere | Each is a property of the engine, not of the code. The plan's answer is to state the divergence per mechanism and gate the *public read* with parity suites, so two backends computing the same answer by different means is what is tested |
+| **A long session read stays expensive.** Θ(T²) *as sent* for a framework that re-sends its conversation each turn | That cost is a property of the telemetry, not of the normaliser. The pipeline is linear in its input; what grows quadratically is the input. Making the pipeline faster is not the answer — not paying twice for the same rows is, which is what the memo does. Universal O(n) would be a false claim |
+| **The deletion journal is permanent and counted against the quota**, so a project that deletes enough can be refused even after every telemetry byte is reclaimed | Excluding it would make "one limit across all of it" false. Including it is the correct direction: discarding the record of a deletion to admit new writes trades a durable guarantee for throughput. Survivable because entries are ids and instants, and a boot-time check turns it into a configuration error rather than a surprise |
+| **Presence and AG-UI invoke are single-instance.** The registration store is process-local while the control plane around it spans instances | Warned about at startup on the same signal the `Sharing` rule uses, and the invoke route's 404 names the boundary. A shared store would additionally need leader election to avoid N duplicate expiry events |
+| **The query builder will not cover everything.** Schema DDL is exempt by construction, and the raw-SQL invariant's scope is read from the builder's registry rather than from a target of 100% | A narrow typed builder that must satisfy both engines accumulates escape hatches. Stating the scope as "what has been migrated" is what keeps the gate honest; a global ban would simply be disabled |
+| **Revision history is not preserved for held records** | It needs an append-only side table on ClickHouse (`ReplacingMergeTree` merges superseded revisions away and no setting makes that selective), inside the commit sequence, with copy-on-hold, an expiry transition, and reads, exports and confirmation all consulting it. That is a state machine whose incompleteness was found repeatedly, and it belongs to the audit layer, which needs revision history for its own reasons |
+
+**What the plan delivers instead of perfection: limits that are stated and checked rather than discovered.** The
+difference is practical — "search pagination is not snapshot-isolated" in a response contract is something a
+caller can act on; the same fact undetected is a bug someone debugs in six months.
+
+**What would have to change to go further** — none of it a change to the plan:
+
+- a storage substrate with a commit-ordered sequence, which removes four of the rows above at once;
+- **one** mode instead of two, which removes the parity tax and the capability gaps;
+- normalisation at write time, which would make reads cheap and break the property the product is built on — that
+  a pipeline fix applies to history with no re-ingestion.
