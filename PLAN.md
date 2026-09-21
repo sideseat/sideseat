@@ -32,6 +32,7 @@ Written 2026-09-21. "What has landed" is measured from commit `4a9c30c9`.
 | **13** | [First day, first week](#13-first-day-first-week) | on arrival |
 | **14** | [Risk register](#14-risk-register-for-the-remaining-steps) | when planning a step |
 | **15** | [Alternatives already rejected](#15-alternatives-already-evaluated-and-rejected) | **before proposing one** |
+| **16** | [Keeping this file true](#16-keeping-this-file-true) | after editing it, and when a step lands |
 
 **If you have five minutes:** §9 Start here, then §8 to know what is unverified, then §11 so you do not spend the
 day on a limit that is deliberate.
@@ -50,6 +51,12 @@ Three facts about its shape, because they explain nearly every decision below:
    distributed deployments. *Transactional* (projects, users, files, API keys, tombstones) is SQLite by default,
    PostgreSQL otherwise. **Every read method must return identical rows from both backends of a tier** — enforced
    by parity suites, not by review.
+
+   That is a claim about **answers**, not about capabilities, and the distinction matters: where both engines can
+   express a question they must agree, and where one cannot the divergence is *declared* rather than papered over
+   (`as_of_us` is honoured by DuckDB and inexpressible on ClickHouse; the rollup contribution table exists only on
+   DuckDB). §11 lists every such gap. A parity suite compares the public read, so two backends computing the same
+   answer by different means is exactly what it tests.
 2. **Normalisation happens at read time, not at ingest.** Spans are stored close to raw; the message pipeline
    reconstructs conversations on every query. Deliberate: a fix to the pipeline applies to history with no
    re-ingestion. The cost is that reads are expensive, which is why memory is an entire plan step and why a
@@ -814,10 +821,21 @@ can).
 
 ### 6.2 Step 1, still open
 
+**Re-measure before planning.** Every count below drifted between the design being written and this audit — 493
+`Utc::now()` sites became 513, and 63 port methods became 66. The figures are given so the *order of magnitude* is
+clear; the commands are given so you do not trust them:
+
+```bash
+grep -rc 'Utc::now()' server/src crates --include='*.rs' | awk -F: '{s+=$2} END {print s}'
+grep -c 'project_id: &str' crates/ports/src/traits.rs
+grep -c '?;' server/src/data/topics/redis.rs      # the map_err cost of moving TopicError: 54, still exact
+```
+
+
 | Item | Size / where |
 | --- | --- |
-| `ProjectId` newtype | 63 port methods, ~500 call sites. First half of "the query builder cannot construct a statement without a tenant scope" |
-| `Clock` injection | 493 `Utc::now()` sites |
+| `ProjectId` newtype | **66** port methods take `project_id: &str` today. First half of "the query builder cannot construct a statement without a tenant scope" |
+| `Clock` injection | **513** `Utc::now()` sites |
 | Extract `adapter-*`, `api`, `app` crates | what makes property 1 true for the layers that matter |
 | API v1 breaks in place | no v2, no shim — fixed decision |
 | Retention versus lag, **continuously** | Kafka retention can delete unacknowledged records during a long outage; a startup check does not cover it |
@@ -1017,7 +1035,7 @@ invisible to them. What *can* be cheapened is hashing the body **hashes** instea
 ### 6.13 Step 12 in detail — tenancy starts from zero
 
 `grep` finds **no** `ROW LEVEL SECURITY` and no ClickHouse row policy in the tree. Isolation today is a `WHERE
-project_id = ?` that ~126 query sites must each remember — and this repository has been bitten by exactly that: a
+project_id = ?` that (per the design) ~126 query sites must each remember — and this repository has been bitten by exactly that: a
 session-membership predicate subtly wrong in **eight places**, returning one tenant's content under another's key.
 
 Three layers, because no one of them is sufficient:
@@ -1430,7 +1448,7 @@ treating one as a defect wastes a cycle, and several have already been re-litiga
 | **The storage quota is not exact at any instant.** Usage may exceed it by the total size of writes issued but not yet landed | A stalled writer cannot be fenced, an external multi-store scan is not atomic, and no observation of absence says anything about the next instant. Eleven review cycles produced six mechanisms that all died here. What is unconditional is the *contract*: at or above measured usage, writes are refused with a reason |
 | **Search pagination is not snapshot-isolated.** Records present and unchanged throughout a traversal are returned exactly once; anything arriving or changing during it may be missed or repeated | Needs a snapshot or a durable commit-ordered change token. The arrival predicate raises a flag for what it *can* see, which is strictly better than nothing and strictly weaker than a guarantee — and it is documented as such, because a completeness flag callers read as a proof is worse than an honest caveat |
 | **Restore is a procedure with three named residuals**, not a proof that a record is in a backup | Four designs for proving coverage were tried and each failed: no common watermark exists, truncation cannot undo a destructive operation, and three independently backed-up stores have three boundaries with no fence between them |
-| **The two modes are not feature-identical.** `as_of_us` works on DuckDB and cannot be expressed on ClickHouse; the rollup contribution table exists only on DuckDB; there is no ranking anywhere | Each is a property of the engine, not of the code. The plan's answer is to state the divergence per mechanism and gate the *public read* with parity suites, so two backends computing the same answer by different means is what is tested |
+| **The two modes are not feature-identical.** `as_of_us` works on DuckDB and cannot be expressed on ClickHouse; the rollup contribution table exists only on DuckDB; there is no ranking anywhere | Each is a property of the engine, not of the code. This does **not** contradict §0's parity rule: parity is about *answers where both can be asked*, and a capability gap is declared instead. The plan states each divergence per mechanism and gates the public read with parity suites, so two backends computing the same answer by different means is what is tested |
 | **A long session read stays expensive.** Θ(T²) *as sent* for a framework that re-sends its conversation each turn | That cost is a property of the telemetry, not of the normaliser. The pipeline is linear in its input; what grows quadratically is the input. Making the pipeline faster is not the answer — not paying twice for the same rows is, which is what the memo does. Universal O(n) would be a false claim |
 | **The deletion journal is permanent and counted against the quota**, so a project that deletes enough can be refused even after every telemetry byte is reclaimed | Excluding it would make "one limit across all of it" false. Including it is the correct direction: discarding the record of a deletion to admit new writes trades a durable guarantee for throughput. Survivable because entries are ids and instants, and a boot-time check turns it into a configuration error rather than a surprise |
 | **Presence and AG-UI invoke are single-instance.** The registration store is process-local while the control plane around it spans instances | Warned about at startup on the same signal the `Sharing` rule uses, and the invoke route's 404 names the boundary. A shared store would additionally need leader election to avoid N duplicate expiry events |
@@ -1580,3 +1598,57 @@ These are in the tree's comments, and each reverted change looked like an improv
 - **Parameterising the session-membership subquery by relation.** Put the candidate filter *outside* the window and
   silently gave the optimisation back; an interleaved benchmark is what noticed.
 - **Deleting a non-durable association from a drop path** — see §2.3.
+
+---
+
+## 16. Keeping this file true
+
+A document like this fails in one way: it stops matching the tree and nobody notices, and then it is worse than
+nothing because it is trusted. Five of its own claims have already drifted during the sessions that wrote it — a
+line number within one editing session, the golden count, two `grep` totals, and its own commit count once its own
+commits entered the range.
+
+**What is already enforced.** This file is a tracked file, so five structural invariants apply to it, and three have
+rejected drafts:
+
+| Invariant | What it catches here |
+| --- | --- |
+| `every_module_path_cited_anywhere_resolves` | a path that does not exist, including a `{a,b}/x` brace shorthand |
+| `every_resolving_command_is_locked` | a documented `cargo` command without `--locked` |
+| `the_documented_project_structure_matches_the_tree` | a directory listing that has gone stale |
+| `every_tree_diagram_names_things_that_exist` | a diagram naming a module that was renamed |
+| `every_relative_schema_reference_resolves` | a config-schema reference that moved |
+
+Run them after editing: `cargo test --locked -p sideseat-server --test repository`.
+
+**What is not enforced, and is therefore on you.** Everything numeric. The mitigation used throughout is to give
+the *command* beside the figure so a reader can re-derive rather than trust:
+
+```bash
+# counts this file asserts
+git log --oneline 4a9c30c9..HEAD -- ':!PLAN.md' | wc -l    # the code commits (16)
+git ls-files 'server/tests/fixtures/messages/*/*/expected.json' | wc -l   # committed goldens (121)
+grep -c '^pub trait' crates/ports/src/traits.rs            # ports (14)
+grep -n 'pub const SCHEMA_VERSION' server/src/data/*/schema.rs   # schema versions (3,3,5,5)
+cargo test --locked -q -p sideseat-server --lib 2>&1 | tail -2   # the lib test count (2360)
+```
+
+**The rule that keeps it honest: no line numbers.** An earlier draft cited them for every port trait and one had
+already drifted by the end of the same session. Cite a name, which is greppable and does not move.
+
+**When a step lands**, four things change and all four are easy to forget:
+
+1. §2's status table — the step's row.
+2. §5 — a subsection saying what landed and, more importantly, **why**, because the reason is what does not survive
+   being summarised later.
+3. §8 — what is now verified and what is not.
+4. §6's deep dive for that step — delete it, or reduce it to what is still open. A deep dive for finished work
+   competes with the sections about unfinished work.
+
+**When a review round runs**, §6.7's count and §11's residuals may both move. A finding that turns out to be an
+*accepted limit* rather than a defect belongs in §11 with its reason, not in a fix.
+
+**What to delete from this file eventually.** §5 grows without bound if every step adds a subsection. Once a step's
+reasoning is captured in `CLAUDE.md` — which is where the permanent architectural record lives — §5's entry can
+shrink to a line and a commit hash. This file is the *execution* record; it should get shorter as the work finishes,
+not longer.
