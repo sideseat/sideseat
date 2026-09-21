@@ -111,6 +111,98 @@ already rejected drafts of it: the `--locked` rule above, `every_module_path_cit
 **`make check` runs no containers**, and the parity suites *skip silently* when `SIDESEAT_TEST_*_URL` is unset. A
 green `make check` therefore says nothing about whether the two backends of a tier agree.
 
+### 0.4 Running it, and putting data in
+
+Nothing below needs Docker. The defaults are DuckDB + SQLite + filesystem blobs + an in-process queue, which is a
+complete working deployment.
+
+```bash
+make dev-server ARGS="--debug --no-auth"    # API on 5388, gRPC OTLP on 4317
+make dev-web                                # UI on 5389
+make dev                                    # both
+```
+
+| Surface | URL |
+| --- | --- |
+| OTLP ingest (HTTP) | `http://localhost:5388/otel/{project_id}/v1/{traces,metrics,logs}` |
+| Query API | `http://localhost:5388/api/v1/project/{project_id}/otel/...` |
+| UI | `http://localhost:5389/ui/projects/default/observability/traces` |
+
+The default project id is `default`. **To point any OTel-instrumented app at it**, that is the whole
+configuration:
+
+```bash
+OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:5388/otel/default
+```
+
+**To generate real data**, the repository ships runnable samples per framework under `examples/`:
+
+```bash
+uv run --locked --directory examples/python/strands strands tool_use --sideseat
+```
+
+Samples: `tool_use`, `mcp_tools`, `structured_output`, `files`, `image_gen`, `reasoning`, `error`, `swarm`,
+`rag_local`, `strands_ws`. Other suites: `examples/python/{openai,bedrock,claude-agent-sdk,langgraph,crewai,adk}`
+and `examples/javascript`. They read `examples/.env`, which is **not committed** — copy `examples/.env.example`.
+Without it `OTEL_EXPORTER_OTLP_ENDPOINT` is unset and a non-`--sideseat` run fails against the OTel default
+`localhost:4318` rather than SideSeat's 5388. Most suites need Bedrock credentials; `examples/.env.example`
+documents which.
+
+**Configuration layers**, lowest priority first: defaults → `~/.sideseat/` → `./sideseat.json` → CLI args → env
+vars. `config/sideseat.schema.json` is the structure and `config/sideseat.example*.json` are worked examples.
+Switching to PostgreSQL + ClickHouse + S3 is configuration, not a rebuild — but note the **`Sharing` rule**
+refuses incoherent combinations at startup (PostgreSQL with filesystem blobs, or with per-instance secrets while
+auth is on), because each such mismatch produces a silent failure an operator would debug in the wrong place.
+
+**Rust floor is 1.94.1**, stated to the patch in the workspace manifest because the AWS SDK crates require
+1.94.1 and `1.94` means 1.94.0. Clippy's `incompatible_msrv` enforces it against the source, not just the
+lockfile.
+
+### 0.5 The four views
+
+The goldens check four views per fixture, and the difference between them is a frequent source of confusion.
+They share one pipeline (`process_spans`) and differ only in their row set:
+
+| View | Rows | Note |
+| --- | --- | --- |
+| **span** | `WHERE span_id = ?`, no content filter | can hold **more** messages than its trace view: each generation span re-sends the whole history, which trace-level dedup collapses. No cross-trace stripping — it means "what this span carried" |
+| **trace** | if the trace has a session, the query loads **the whole session** so cross-trace stripping can run, then narrows to the trace; otherwise `WHERE trace_id = ?` | |
+| **session** | every row of every trace in the session, not just rows naming the session | |
+| **feed** | a cursor page of the project, newest-first (`process_feed`, a *different* entry point) | pages are chosen by ingestion time while each page is ordered by message time, so concatenating pages is **not** a transcript. `pages_are_globally_ordered` is always false |
+
+**A trace belongs to exactly one session: the one on its earliest span** (`argMin` over
+`(timestamp_start, span_id)` — a total order, because a timestamp tie left to the engine gives three surfaces
+three answers). Asking "any span named it" was wrong in eight places and is worth reading about in `CLAUDE.md`
+before touching session logic.
+
+### 0.6 The API surface
+
+What step 6's "API v1 breaks in place" and step 10's search endpoint are changing.
+
+```
+OTLP ingest      POST /otel/{project_id}/v1/{traces,metrics,logs}        HTTP and gRPC
+Query            GET  /api/v1/project/{project_id}/otel/traces
+                 GET  .../traces/{id}            .../traces/{id}/messages
+                 GET  .../spans                  .../traces/{tid}/spans/{sid}[/messages]
+                 GET  .../sessions               .../sessions/{id}[/messages]
+                 GET  .../sse                                            real-time
+Admin            /api/v1/projects, /api/v1/auth/*, /api/v1/health
+MCP              /api/v1/projects/{id}/mcp                               for AI coding assistants
+SDK channel      GET  /api/v1/project/{id}/ws                            WebSocket: presence + AG-UI invoke
+                 GET  /api/v1/project/{id}/registrations
+                 POST /api/v1/project/{id}/agents/{name}/runs             AG-UI run, SSE
+```
+
+`?include_raw_span=true` on a span or trace route returns the full OTLP JSON.
+
+**Every surface that reads or writes project data is authenticated when auth is on**, and `auth.enabled` defaults
+to **true**. Two layers everywhere, because either alone is insufficient: `require_auth` establishes *who* is
+asking and passes through untouched when auth is disabled; `verify_project_access` turns a valid credential into
+one valid **for this project**, since a key from another organisation is otherwise perfectly valid. A request
+arriving with no auth context is *refused*, so a future mounting that forgets the layer fails closed. Three
+surfaces once shipped with no auth at all — MCP, the SDK channel, and gRPC OTLP — so this is enforced rather than
+reviewed.
+
 ---
 
 ## 1. The architecture
@@ -272,6 +364,47 @@ this repository; the most recent was putting the `span_id` CHECK into v4 after v
 **A DuckDB migration can only append a column, and its metrics writer is a positional `Appender`** — so the fresh
 schema must declare added columns *last*, in the same order the migration adds them.
 `a_v1_database_upgrades_to_the_same_column_order_as_a_fresh_one` compares `duckdb_columns()` ordered by position.
+
+### 2.3 The span row
+
+`NormalizedSpan` (`data/duckdb/models.rs`) is the row every step from 7 to 10 has to extend, so its field groups
+are worth knowing:
+
+```
+Identity        trace_id, span_id, parent_span_id, session_id, user_id
+Classification  span_name, span_category, observation_type, framework
+Time            timestamp_start, timestamp_end, duration_ms
+GenAI core      gen_ai_system, gen_ai_request_model, gen_ai_response_model
+GenAI params    gen_ai_temperature, gen_ai_top_p, gen_ai_max_tokens, ...
+Tokens          gen_ai_usage_input_tokens, gen_ai_usage_output_tokens      i64, NEVER NULL, default 0
+Costs           gen_ai_cost_input, gen_ai_cost_output, gen_ai_cost_total   f64, NEVER NULL, default 0
+Error           status_message, exception_type, exception_message, exception_stacktrace
+Preview         input_preview, output_preview
+Payload         messages (JSON), raw_span (JSON), ingested_at
+```
+
+**Tokens and costs are never `Option<T>`.** That is a hard convention, not a default — the read path, the
+billing dedup and the web all assume a number.
+
+**Three representations of one span exist today** — extracted columns, the `messages` JSON, and the `raw_span`
+JSON. Removing two of them is step 9, and is what makes the "< 3× decoded protobuf" ceiling reachable.
+
+### 2.4 What step 0 fixed, so you do not re-fix it
+
+Marked "Done" in §2's table; these were live data-correctness defects, and seeing the code without this context
+invites re-opening them:
+
+| Defect | Fix |
+| --- | --- |
+| DuckDB retention's batch table was `PRIMARY KEY (trace_id, span_id)` with **no `project_id`** — and a span id is unique only within a trace, a trace id only within a project, both client-supplied. Expiring tenant A's span could delete tenant B's | the project in the key everywhere |
+| Retention selected **raw** rows while reads go through the deduplicated relation, so an expired *old* revision selected an identity whose winning correction was recent — and took the correction with it | candidates and counts from the winning relation |
+| `max_spans` counted `COUNT(span_id)` over the **whole table**, so the limit was deployment-wide and one noisy tenant spent it for everyone | per project, on the winning relation |
+| ClickHouse's span sorting key contained `toDate(timestamp_start)` — a `ReplacingMergeTree` identifies duplicates *by the sorting key*, so a corrected re-delivery crossing midnight UTC returned **both** revisions; across a month boundary it could never collapse, because parts in different partitions never merge | `ORDER BY (project_id, trace_id, span_id)` — identity alone |
+| `otel_metrics` was `ReplacingMergeTree()` with **no version column**, so the survivor was insert-block order, while DuckDB's replace was commit-last-wins. Two rules for one question | `ingested_at` as the version on both |
+
+The **cross-month residual is stated and detected, not fixed**: a correction moving a span's `timestamp_start`
+across a month boundary puts its revisions in different partitions, and `clickhouse/consistency.rs` reports those
+identities rather than the read being silently wrong.
 
 ---
 
@@ -681,6 +814,37 @@ violated, so known-bad output cannot be committed as reviewed.) On top of that:
 - **The storage quota is best-effort, per project, enforced by refusal.** Eleven review cycles tried to make it
   exact; six mechanisms died on §1.3. It is not exact at any instant and says so.
 
+### 6.7 Questions the design leaves open
+
+Four, and they are **decisions, not tasks** — cheap to make before the code exists, expensive after:
+
+| # | Question | Why it matters when |
+| --- | --- | --- |
+| 1 | **Which ClickHouse tokenizer** the domain tokeniser must match (`splitByNonAlpha` is the likely answer), and how diacritics and CJK are handled inside it | decides search membership in *both* modes; cheap now, a full reindex later |
+| 2 | **Storage quota policy**: the default limit, the reclamation order when over quota, the reconciliation interval. **Not** whether it is per project — that is fixed, because a deployment-wide quota lets one tenant refuse writes for every other | the interval does *not* bound the over-quota excess; it sets how fast the counter catches up once writes drain |
+| 3 | **The per-span term cap and its recall floor** — the cap value, and the minimum recall over the golden corpus below which a footprint miss is reported instead of tightening the cap further | without a floor, "tighten the cap" can be applied until search is useless while every gate still passes |
+| 4 | **The re-drive cap** — how many failed re-drives before a staged payload is reported *unconfirmed* and held | the payload is never released on exhaustion; the cap bounds effort, not safety |
+
+Four more belong to the audit layer's own plan rather than here: canonicalisation (JCS + COSE, or deterministic
+CBOR), signing granularity, whether to ship witness co-signing, and key custody across replicas.
+
+### 6.8 Known-unresolved bugs
+
+Not findings from review — things that are simply not understood yet:
+
+- **`make test-clickhouse-two-shard` takes ~15 minutes.** A third distributed-DDL replica entry named
+  `localhost:9000` sits beside the two correct `ch-shardN:9000` ones, so the node that does not own it waits the
+  hardcoded 90 s in `markReplicasActive` before *every* `ON CLUSTER` task. Setting `interserver_http_host` and the
+  container hostname fixed the two real names without removing the third, and it survives restarting either node.
+  Until this is understood, a regression in the `_local`-versus-`Distributed` reads can merge green.
+- **Two of `make bench-http`'s five ceilings are breached** on the development host, by ~35%, across four
+  consecutive runs — so not noise. Two things are established: it is *not* the session-membership work (reverting
+  that subquery leaves the numbers unchanged) and not the narrowing optimisation (justified on its own interleaved
+  measurement). What is unresolved is whether the gap is this host or a cumulative regression. Settling it needs
+  an idle host or a bisect — and note that `c00fe46d` does not build in a `git worktree`, which is worth knowing
+  before attempting one.
+- **Cross-replica ClickHouse convergence is unverified** — it needs a second replica, which no fixture provides.
+
 ---
 
 ## 7. Exact current state
@@ -787,6 +951,69 @@ prompt to a file — the useful ones are long. What makes a round productive:
 3. Demand a **concrete failing scenario** per finding — inputs to wrong output — so speculation is separable.
 4. Ask explicitly **which of the previous round's findings are now correctly fixed**. That question has found four
    non-fixes.
+
+### 10.1 The measurements that are not in `make check`
+
+All `#[ignore]`d, because each takes tens of seconds and a debug build's numbers describe the debug build:
+
+```bash
+cargo test --locked --release -p sideseat-server bench_ingestion -- --ignored --nocapture
+    # the real run_batch: extraction, enrichment, file storage, both writes, the project fence.
+    # BENCH=<suite>/<sample> selects a fixture, ITERATIONS=n the run count.
+
+cargo test --locked --release -p sideseat-server bench_session_scaling -- --ignored --nocapture
+    # how reconstruction scales, in the two shapes that differ: incremental (each span carries its
+    # own turn) and replaying (each generation span re-sends the whole conversation).
+
+cargo test --locked --release -p sideseat-server bench_session_membership -- --ignored --nocapture
+    # the session-membership formulations INTERLEAVED in one process, so the ratio is meaningful on a
+    # contended host. Asserts they select the same trace ids before timing them — a count would have
+    # let a faster wrong answer pass.
+
+cargo test --locked --release -p sideseat-server bench_pipeline -- --ignored --nocapture
+    # CPU only, stopping before file extraction and every persistence step. A floor, not a request's cost.
+
+cargo test --locked --release -p sideseat-server --test footprint -- --ignored --nocapture
+    # the two live-allocation gates. Serialises itself; see §5.1.
+```
+
+The published numbers for the first two are tables in `CLAUDE.md`. `make bench-http` is different in kind — it
+**enforces** its ceilings and exits non-zero on a miss.
+
+### 10.2 A Codex prompt that works
+
+The four elements from above, as a template. The specifics matter: a vague prompt returns style notes, and this
+shape has returned 33 real findings across four rounds.
+
+```
+Review <commits> with `git show`. Read <design file> sections <n> for the intended contract.
+
+The commits, oldest first:
+  <sha>  <one line each>
+
+Files that matter most:
+  <explicit list>
+
+Hunt specifically for this repository's recurring defect classes, which have accounted for most real findings:
+  1. A gate that passes while seeing less than it claims - a test whose assertion cannot fail, or that would
+     pass with the fix reverted, or that reconstructs prior state by subtracting from current state.
+  2. A mechanism whose stated bound is not a bound - a limit in the wrong unit, a counter that can drift,
+     an "eventually" with no bound.
+  3. A refactor claimed answer-preserving that changes an answer on an input the corpus does not contain.
+  4. Two definitions of one fact that can disagree.
+
+Concrete questions I want answered, with evidence from the code:
+  <one per mechanism, naming the function and the property>
+
+Report ONLY real defects, most severe first. For each: file:line, what is wrong, and a concrete failing
+scenario (inputs -> wrong output). If you cannot construct one, say the finding is speculative and why. Do
+not report style, naming, or missing tests unless the missing test hides a defect you can name.
+
+State explicitly which of the previous round's findings are now correctly fixed and which are not.
+```
+
+That last line is the highest-yield sentence in the prompt: it has found four fixes that did not fix anything,
+including one that had never been applied to the file at all.
 
 **Conventions that will bite you:**
 
