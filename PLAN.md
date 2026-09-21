@@ -28,6 +28,7 @@ Written 2026-09-21. "What has landed" is measured from commit `4a9c30c9`.
 | **9** | [Start here](#9-start-here) | to begin |
 | **10** | [Working protocol](#10-working-protocol) — mutation verification, Codex, the conventions that bite | before your first commit |
 | **11** | [What this will and will not be](#11-what-this-architecture-will-and-will-not-be) | before trying to "fix" an accepted limit |
+| **12** | [Verification matrix](#12-verification-matrix--which-check-covers-which-property) — which check covers which property, and what nothing covers | when you change or add a mechanism |
 
 **If you have five minutes:** §9 Start here, then §8 to know what is unverified, then §11 so you do not spend the
 day on a limit that is deliberate.
@@ -393,7 +394,46 @@ this repository; the most recent was putting the `span_id` CHECK into v4 after v
 schema must declare added columns *last*, in the same order the migration adds them.
 `a_v1_database_upgrades_to_the_same_column_order_as_a_fresh_one` compares `duckdb_columns()` ordered by position.
 
-### 2.3 The span row
+### 2.3 The file-reference protocol
+
+Four steps of the deletion protocol and three of the remaining plan steps turn on this, and it is hard to follow
+in prose. An association is a row in `trace_files` keyed `(project, trace, file_hash)` carrying **two facts, not a
+boolean**:
+
+```mermaid
+stateDiagram-v2
+    [*] --> Referenced: a batch references it<br/>pending_writers += 1
+    Referenced --> Referenced: another batch references<br/>the same file (+1)
+    Referenced --> Durable: any batch commits its rows<br/>durable = true
+    Referenced --> Released: that batch fails<br/>pending_writers -= 1
+    Released --> [*]: deleted only if<br/>NOT durable AND pending_writers = 0
+    Durable --> Durable: durable is monotonic —<br/>permanently blocks deletion
+    Durable --> Reclaimed: the trace is deleted and<br/>provably has no rows
+    Reclaimed --> [*]
+```
+
+**Why two facts and not a `provisional` flag.** A flag cannot express *several* batches referencing the same
+`(project, trace, hash)` at once, which is the case that matters under concurrency: whichever failed first deleted
+the row a still-in-flight or just-committed peer depended on, orphaning its file. With a counter, a failing batch
+can never orphan a file another batch committed or is about to.
+
+**Why `durable` is monotonic.** One committed row backs the file, so once any batch commits, deletion must be
+blocked permanently. It is never unset — which means a **restore** needs a reconciliation path for it that does
+not exist today (step 12).
+
+**Every referencing batch confirms or releases**, not only the one that created the row: sharing an association
+makes a batch one of its owners. The four early-return paths between writing the files and writing the rows each
+release, checked structurally
+(`every_early_return_between_files_and_the_write_releases_its_associations`) because a new one compiles and passes
+every behavioural test.
+
+**A crashed writer's increment is reclaimed by the deletion sweep, not by the ingest path.** Deleting the
+non-durable row from a *drop* path was tried and reverted: `durable = false` does not prove no analytics row
+committed (confirmation runs after the write and can fail), and a concurrent batch that passed the fence before
+the tombstone may be committing spans right now — so deleting the shared row leaves readable spans pointing at a
+file nothing holds, which is the dangling reference the write-files-before-rows ordering exists to prevent.
+
+### 2.4 The span row
 
 `NormalizedSpan` (`data/duckdb/models.rs`) is the row every step from 7 to 10 has to extend, so its field groups
 are worth knowing:
@@ -417,7 +457,7 @@ billing dedup and the web all assume a number.
 **Three representations of one span exist today** — extracted columns, the `messages` JSON, and the `raw_span`
 JSON. Removing two of them is step 9, and is what makes the "< 3× decoded protobuf" ceiling reachable.
 
-### 2.4 What step 0 fixed, so you do not re-fix it
+### 2.5 What step 0 fixed, so you do not re-fix it
 
 Marked "Done" in §2's table; these were live data-correctness defects, and seeing the code without this context
 invites re-opening them:
@@ -440,7 +480,7 @@ identities rather than the read being silently wrong.
 
 ```mermaid
 flowchart TD
-    req["POST /otel/{project}/v1/traces<br/>protobuf or JSON, HTTP or gRPC"]
+    req["POST /otel/PROJECT/v1/traces<br/>protobuf or JSON, HTTP or gRPC"]
     auth["auth + rate limit<br/>both transports, shared bucket"]
     strip["strip_unstorable_spans<br/>settled at the edge: a 200 must not precede a drop"]
     fence1{"project_accepts_writes?"}
@@ -494,7 +534,7 @@ allocated bytes**, measured in `server/tests/footprint.rs`. §5.1 says why that 
 
 ```mermaid
 flowchart TD
-    q["GET .../traces/{id}/messages"]
+    q["GET .../traces/ID/messages"]
     params["MessageQueryParams"]
     rows["span rows, deduplicated at read time<br/>QUALIFY ROW_NUMBER() over (ingested_at, rowid)"]
     cache{"reconstruction cache<br/>key = BLAKE3 of everything read"}
@@ -785,16 +825,16 @@ reviewable and leaves the tree green.
 
 | Step | What it involves | First increment |
 | --- | --- | --- |
-| **5** query layer | See §6.9 — this one needs more than a row | §6.9 |
-| **6** Signal + logs | Three signals × two transports is six hand-written handlers with the trace decision tree duplicated. A `Signal` declares per signal: OTLP request type, project-id injection, extraction, storability predicate, `partial_success` shape, queue topic, durability requirement, lifecycle **and a confirmation predicate**. Confirmation is **strict digest equality**, not identity — identity is stable across a correction by design, so an identity-only read-back is satisfied by the *old* row. Then logs become a real signal (currently rejected outright) | The `Signal` trait with traces as its only implementation, behaviour-identical, both transports through it. Metrics second, logs third |
-| **7** quota + hold | Per-row `logical_bytes`, a counter plus reconciliation, a **maintenance reserve** (reclamation writes must be exempt or enforcement deadlocks against itself — the journal is quota-counted and must commit *before* the deletion it records), four enforcement points. Hold is the bigger half: `hold_until`, registry, writer fence, post-write patch, leased convergence sweep, a shared hold/retention mutex, and **conditional TTLs on four ClickHouse tables that are unconditional today** — so a held row is deleted on schedule right now | `logical_bytes` on the span row plus the counter, with no enforcement. Then admission refusal. Hold is its own change with `SCHEMA_VERSION` 6 and populated-upgrade tests |
+| **5** query layer | See §6.4 — this one needs more than a row | §6.4 |
+| **6** Signal + logs | See §6.5 | The `Signal` trait with traces as its only implementation, behaviour-identical, both transports through it. Metrics second, logs third |
+| **7** quota + hold | See §6.6 | `logical_bytes` on the span row plus the counter, with no enforcement. Then admission refusal. Hold is its own change with `SCHEMA_VERSION` 6 and populated-upgrade tests |
 | **8** rollups | DuckDB only. **Not a mutable row**: each span writes its own contribution and the rollup is `SUM`/`MIN`/`MAX`/first-value over contributions, so there is no read-modify-write to lose. ClickHouse has none — an incremental materialised view there is not atomically visible with its source. The aggregate is **not a plain `SUM`**: billing dedup is relational, so the contribution row carries `parent_span_id` and `observation_type` and the rollup applies the same suppression rule the span query applies today | `rebuild_contributions` first (a backfill), then the table written in the span's own transaction, then the two-stage trace query. Gated by a before/after trace-list measurement at both fixture scales; **reverted if the narrow read does not pay for the write amplification** |
 | **9** bodies + streaming | Content-address message bodies, per-span references, dual-read (new layout when present, old columns otherwise), a resumable checkpointed backfill reporting drift. Plus streaming chunked JSON on the message endpoints, which currently build a whole `Vec` then serialise it | Content addressing behind a dual-read, old columns still written. Dropping them is a separate change gated on a stated per-project criterion |
 | **10** search | Filter-plus-chronological, **no ranking** — ClickHouse cannot rank in any released version (verified against the 26.1–26.8 changelogs; BM25 is an unmerged PR whose open bug is `_bm25_score` + `FINAL` + `ReplacingMergeTree`, this exact configuration). Local: a `span_terms` table in DuckDB written in the span's own transaction. Server: per-field `Array(String)` with native text indexes. **One tokeniser in the domain produces the terms for both sides.** Truncation makes the logic three-valued and that must propagate through nesting | Raise the ClickHouse floor to 26.4 (CI pins 25.8, Compose 26.1.2). Then the tokeniser and its contract with a golden-corpus parity test, before any index exists |
 | **11** RedPanda | The adapter plus `make test-redpanda`; server Compose brings up SideSeat itself | The adapter against the three trait changes step 1 already made |
 | **12** tenancy + backup | RLS and ClickHouse row policies with a **per-request** tenant context: `SET LOCAL` inside the transaction on PostgreSQL, and on ClickHouse a **per-query setting**, never `SET` — which persists for the session and hands a pooled borrower the previous tenant. On PostgreSQL the runtime role must not own the tables **and** they carry `FORCE ROW LEVEL SECURITY`, because an owner bypasses RLS. Plus per-store backup and a gated restore-and-repair test | The colliding-id leak test (two tenants, same client-supplied trace and session ids) before any policy exists — it should pass today and will catch the policy getting it wrong |
 
-### 6.9 Step 5 in detail, because its starting point is not what it looks like
+### 6.4 Step 5 in detail, because its starting point is not what it looks like
 
 Measured today (`wc -l`): **9 101 lines** across `data/duckdb/repositories/` against **4 691** across
 `data/clickhouse/repositories/`, implementing the same port surface. The two `query.rs` files alone are 6 684 and
@@ -839,7 +879,100 @@ must read which operation groups have been migrated from the builder itself, so 
 groups land. A grandfathering list of exempt files is the failure mode: it can always be appended to, and then
 the gate measures nothing.
 
-### 6.4 Review state
+### 6.5 Step 6 in detail — the six handlers, and the predicate that is easy to get wrong
+
+`server/src/api/routes/otlp_collector/` is where the duplication is: `traces.rs`, `metrics.rs`, `logs.rs` for HTTP
+and `grpc.rs` carrying all three, plus `encoding.rs` and `mod.rs`. Six paths, one decision tree, kept in step by
+comments and a source-scanning test — which exists precisely because the compiler cannot enforce the shape.
+
+**What a `Signal` has to declare**, and the last item is the one that decides whether this is a real abstraction:
+
+```
+OTLP request type            project-id injection         extraction
+storability predicate        partial_success shape        queue topic
+durability requirement       lifecycle strategy           THE CONFIRMATION PREDICATE
+```
+
+Without the last, the abstraction is transport-only and the three signals become three special cases behind one
+name.
+
+**Each signal's stable identity**, because confirmation is defined against it:
+
+| Signal | Identity |
+| --- | --- |
+| Spans | `(trace, span)` plus position **within the span's own carrier** — so rebatching cannot change it |
+| Metrics | the existing `datapoint_id` (`domain/metrics/identity.rs`) |
+| Logs | a digest of every distinguishing field OTLP offers **plus the resource, the scope and both schema URLs** — without them, two traced records from *different services* with identical text at the same instant, which is what a fan-out of one request looks like, collide and one collapses into the other as a retry |
+
+**Confirmation is strict digest equality, and three wrong versions are worth knowing about:**
+
+1. **Identity alone is not enough.** Identity is stable across a correction *by design* — a corrected span keeps
+   `(trace, span)`, and metric identity deliberately excludes the measurement — so an identity-only read-back is
+   answered by the **old** row: the correction's queue record vanishes, the staged payload is released, and a
+   correction the caller was told was stored is gone with nothing able to detect it.
+2. **"At least mine", compared on `ingested_at`, is not available.** Clock skew can give a later correction an
+   earlier value, and both backends treat that column as the version — so older content would falsely confirm a
+   newer delivery.
+3. **A registry of pending deliveries is unsound.** With A pending and stored, a later C could be staged and lost
+   before writing, and A's stored digest would then confirm C — releasing a payload for data never written.
+
+So: strict equality on this delivery's own digest, a **capped** re-drive loop, and a payload that exhausts the cap
+is reported *unconfirmed* and stays held — never released, because releasing on exhaustion is exactly the loss the
+predicate exists to prevent.
+
+**The digest covers the producer's content and excludes system-managed fields** — `ingested_at`, `hold_until`,
+`logical_bytes`. Include them and a byte-identical retry can never confirm. It must still cover fields the
+*identity* excludes, such as a metric's `description`, or a correction touching only those is invisible to its own
+confirmation. **Test it across a hold patch and a byte-identical retry**: they pull in opposite directions, and
+that pair is the acceptance criterion.
+
+**Logs are new end to end** — table, DTO, `domain/logs/`, retention, fences, deletion, read API, correlation to
+spans — **except search**, which needs step 10's tokeniser. Log ordering is **not** span-shaped: a record may carry
+no trace at all, so it orders by `(time_unix_nano else observed_time_unix_nano, log digest, ordinal)`.
+
+### 6.6 Step 7 in detail — the four TTLs that delete held data today
+
+`grep -n 'TTL ' server/src/data/clickhouse/schema.rs` finds **nine** occurrences across the span and metric
+tables, single-node and replicated, all **unconditional**:
+
+```sql
+TTL timestamp_start + INTERVAL 90 DAY DELETE
+TTL timestamp       + INTERVAL 90 DAY DELETE
+```
+
+So a legal hold does nothing until these change. The replacement is a deterministic expression, **not** a predicate
+containing `now()`, which ClickHouse rejects in a TTL:
+
+```sql
+TTL greatest(<retention expiry>, coalesce(hold_until, toDateTime(0)))
+```
+
+**A hold takes the same four steps a deletion does**, and for the same reason — no single write covers it:
+
+1. **Record the hold durably first**, in the transactional store, so every writer admitted afterwards is fenced.
+2. **Patch the rows in scope.**
+3. **Re-check after**, because step 1 fences new writers and not writers already in flight: scan for rows whose
+   `hold_until` is null or expired and patch them.
+4. **A leased convergence sweep** repeats step 3 while the hold record exists — which is what makes step 3's
+   window bounded rather than merely narrow.
+
+**And those four are not sufficient alone.** A DuckDB retention transaction, or a ClickHouse mutation already
+submitted, can remove a row after the hold commits and before the patch reaches it. So **the hold and retention
+share one fence**: a per-project mutex in the transactional store that retention takes per batch and that recording
+a hold also takes. Retention is periodic and batched, so waiting for it is cheap.
+
+**The mutex's reach has to be stated exactly.** A background TTL merge cannot acquire a transactional-store mutex,
+and an `ALTER … DELETE` continues after the process that submitted it has crashed. So the guarantee is properly
+written as: **a hold protects rows still present when its patch reaches them.** A row removed inside that window by
+a merge or an orphaned mutation is unrecoverable, and no mechanism over these stores changes that.
+
+**The maintenance reserve is not optional.** The journal is quota-counted and must commit *before* the deletion it
+records — so at quota the append is refused, nothing can be deleted, and the project is refused forever with
+manual intervention the only escape. The reserve is sized from the maximum simultaneous pre-deletion state: the
+journal batch **plus** the cleanup candidates, because a pressure eviction must persist both before deleting
+anything, and sizing it from the journal alone lets one consume the reserve and block the other.
+
+### 6.7 Review state
 
 Four Codex rounds have run against this batch: **8, 11, 8 and 6 findings — 33 in total, every one real.** Each
 round after the first found defects in the previous round's *fixes*. Round four's six are all fixed (`0dcdd767`);
@@ -856,7 +989,7 @@ what they were is worth knowing, because the pattern repeats:
 
 **There has been no clean Codex round.** Expect round five to find defects in those six.
 
-### 6.5 How to know a step is done
+### 6.8 How to know a step is done
 
 Baseline for every step: **the 121 committed goldens and both parity suites byte-identical on the far side**,
 unless the step is *meant* to change an answer, in which case the changed goldens are reviewed as a diff rather
@@ -874,7 +1007,7 @@ violated, so known-bad output cannot be committed as reviewed.) On top of that:
 | 10 | membership parity **and** ordering/pagination parity (cursors, ties, empty-page advancement, nested negated and truncated clauses), plus write amplification against a recall floor |
 | 12 | backup → destroy → restore → repair: every surviving read correct, every unrepairable state *reported*, a restored blob with a missing association rebuilt before the GC could take it, and replaying the journal plus a completed retention pass leaves no resurrected row |
 
-### 6.6 Fixed decisions — do not re-litigate
+### 6.9 Fixed decisions — do not re-litigate
 
 - **Ports and adapters as Cargo workspace crates.** Not a source-scanning lint (§1.1).
 - **No framework knowledge in Rust.** Adding a framework is a new file in `server/assets/rules/producers/`.
@@ -889,7 +1022,7 @@ violated, so known-bad output cannot be committed as reviewed.) On top of that:
 
 §11 is the longer form of this list: every accepted limit, with what would have to change to lift it.
 
-### 6.7 Questions the design leaves open
+### 6.10 Questions the design leaves open
 
 Four, and they are **decisions, not tasks** — cheap to make before the code exists, expensive after:
 
@@ -903,7 +1036,7 @@ Four, and they are **decisions, not tasks** — cheap to make before the code ex
 Four more belong to the audit layer's own plan rather than here: canonicalisation (JCS + COSE, or deterministic
 CBOR), signing granularity, whether to ship witness co-signing, and key custody across replicas.
 
-### 6.8 Known-unresolved bugs
+### 6.11 Known-unresolved bugs
 
 Not findings from review — things that are simply not understood yet:
 
@@ -991,7 +1124,7 @@ nobody owns, which makes the node not owning it wait a hardcoded 90 s in `markRe
    A miss is information: see §8's caveats first.
 4. Codex round five against `4a9c30c9..HEAD` — §10.
 5. Then **step 5** (largest reduction in duplication) or **step 6's second half** (unblocks logs, and step 7
-   depends on it). §6.3 has the first increment for each.
+   depends on it). §6.3 has the first increment for each, and §6.4-§6.6 are deep dives on the three largest.
 
 ---
 
@@ -1150,3 +1283,37 @@ caller can act on; the same fact undetected is a bug someone debugs in six month
 - **one** mode instead of two, which removes the parity tax and the capability gaps;
 - normalisation at write time, which would make reads cheap and break the property the product is built on — that
   a pipeline fix applies to history with no re-ingestion.
+
+---
+
+## 12. Verification matrix — which check covers which property
+
+Two uses. If you change a mechanism, this says what should have caught you. If you add one, it says which column
+you owe.
+
+| Property | What checks it | Where |
+| --- | --- | --- |
+| Layers do not invert | the **compiler** (crate manifests), plus `no_layer_crate_depends_on_a_driver`, `the_driver_gate_reads_a_renamed_dependency`, `no_adapter_imports_a_sibling_adapter`, `the_storage_layer_does_not_import_the_http_layer`, `the_ports_crate_emits_no_sql` | `tests/repository.rs` |
+| No framework knowledge in Rust | `no_production_module_names_a_framework`, `no_production_module_carries_a_framework_telemetry_key` — two sweeps, because names alone were not enough: the defect that invalidated the first acceptance was a framework fact spelled as a *value* | lib tests |
+| The two analytics backends agree | **ClickHouse parity suite** — one span set into both, every read method must return identical rows, DuckDB is the reference | `clickhouse/parity_tests.rs` |
+| The two transactional backends agree | **PostgreSQL parity suite**, 37 cases including the v5 upgrade | `postgres/parity_tests.rs` |
+| Message reconstruction is correct | **121 goldens × 4 views**: count, content, ordering, duplicate absence — plus invariants that hold *independently* of the goldens, so a blindly regenerated snapshot still fails on a real defect | `message_goldens` |
+| A rewrite is answer-preserving | the goldens **plus** an equivalence oracle over generated inputs where the interesting cases are ones no framework produces | `order_within_unit_equivalence`, and 17 retired SQL tables kept under `#[cfg(test)]` |
+| Memory ceilings | `make footprint` — two RSS gates against a running server, two live-allocation gates in process | `footprint.rs`, `footprint-gates.sh` |
+| Latency ceilings | `make bench-http` — **enforces**, exits non-zero on a miss | `bench-http-latency.sh` |
+| The queue loses nothing | six tests, each mutation-verified; `make test-redis` for the durable backend | `topics/memory.rs`, `redis_stream_tests.rs` |
+| Schema upgrades reach every database | populated-upgrade tests per backend, comparing a walked-forward v-old database against a fresh one — including **column order** on DuckDB, because its writer is a positional `Appender` | `migrations.rs`, `parity_tests.rs` |
+| Tenant isolation | the colliding-id property test (client-supplied trace, session and content ids, so collision is the realistic case) — and step 12 adds the two RLS tests, because one oracle cannot cover both halves: **with** a valid context the policy must return *that tenant's* rows, not empty; **with no** context any read must return empty | lib tests, then step 12 |
+| Documentation does not rot | `every_module_path_cited_anywhere_resolves`, `every_tree_diagram_names_things_that_exist`, `the_documented_project_structure_matches_the_tree`, `every_resolving_command_is_locked`, `every_relative_schema_reference_resolves` — **this file is subject to all of them** | `tests/repository.rs` |
+| Supply chain | `every_action_is_pinned_to_a_commit_and_every_image_to_a_tag`, `the_image_gate_reads_the_shapes_that_defeated_it`, `every_lockfile_carries_its_manifests_engines`, `dependabot_covers_every_manifest_in_the_tree`, `every_workspace_crate_takes_the_one_version` | `tests/repository.rs` |
+| A background worker is actually started | `every_detector_is_actually_started_in_production` — a sweep that exists and is never spawned is the failure it prevents | `tests/repository.rs` |
+
+**What nothing checks yet**, and each is a real gap rather than an oversight:
+
+| Gap | Why it is not covered |
+| --- | --- |
+| Cross-replica ClickHouse convergence | needs a second replica; no fixture provides one |
+| The replicated migration path end to end | `make test-clickhouse` starts a single server and the parity helper sets `distributed: false`, so the UUID Keeper paths, `ON CLUSTER`, `Distributed` front-table recreation and per-host crash convergence are exercised only by `test-clickhouse-replicated` |
+| A real network hop | every measurement is loopback or a local container |
+| A multi-replica deletion backlog at scale | stated as unmeasured in `CLAUDE.md` |
+| `durable` reconciliation after a restore | the flag is monotonic and never unset, so a restore has no path to correct it (step 12) |
