@@ -21,7 +21,7 @@ Written 2026-09-21. "What has landed" is measured from commit `4a9c30c9`.
 | **2** | [The data model](#2-the-data-model) — tables, schema versions, the span row, what step 0 fixed | before touching storage |
 | **3** | [The ingest path](#3-the-ingest-path) — write order, the fences, where the footprint gates measure | steps 6, 7, 8 |
 | **4** | [The read path](#4-the-read-path) — the cache, the nine feed stages | steps 9, 10 |
-| **5** | [What landed, and why](#5-what-landed-and-why) — sixteen commits, with the reasoning | to avoid re-deciding |
+| **5** | [What landed, and why](#5-what-landed-and-why) — the sixteen code commits, with the reasoning | to avoid re-deciding |
 | **6** | [What remains](#6-what-remains) — dependencies, first increments, acceptance criteria, open questions, known bugs | to pick the next thing |
 | **7** | [Exact current state](#7-exact-current-state) | to orient |
 | **8** | [Verification state](#8-verification-state--read-before-claiming-anything-works) | **before claiming anything works** |
@@ -29,6 +29,9 @@ Written 2026-09-21. "What has landed" is measured from commit `4a9c30c9`.
 | **10** | [Working protocol](#10-working-protocol) — mutation verification, Codex, the conventions that bite | before your first commit |
 | **11** | [What this will and will not be](#11-what-this-architecture-will-and-will-not-be) | before trying to "fix" an accepted limit |
 | **12** | [Verification matrix](#12-verification-matrix--which-check-covers-which-property) — which check covers which property, and what nothing covers | when you change or add a mechanism |
+| **13** | [First day, first week](#13-first-day-first-week) | on arrival |
+| **14** | [Risk register](#14-risk-register-for-the-remaining-steps) | when planning a step |
+| **15** | [Alternatives already rejected](#15-alternatives-already-evaluated-and-rejected) | **before proposing one** |
 
 **If you have five minutes:** §9 Start here, then §8 to know what is unverified, then §11 so you do not spend the
 day on a limit that is deliberate.
@@ -587,7 +590,8 @@ Three ordering facts that are not obvious and have each been re-derived the hard
 
 ## 5. What landed, and why
 
-Sixteen commits after `4a9c30c9`. The *reason* is what does not survive summarising, so it is kept.
+**Sixteen code commits** after `4a9c30c9`; anything else in that range is this document. The *reason* is what does
+not survive summarising, so it is kept.
 
 ### 5.1 Step 2 — the memory harness (`5a43a546`)
 
@@ -830,16 +834,20 @@ reviewable and leaves the tree green.
 | **7** quota + hold | See §6.6 | `logical_bytes` on the span row plus the counter, with no enforcement. Then admission refusal. Hold is its own change with `SCHEMA_VERSION` 6 and populated-upgrade tests |
 | **8** rollups | DuckDB only. **Not a mutable row**: each span writes its own contribution and the rollup is `SUM`/`MIN`/`MAX`/first-value over contributions, so there is no read-modify-write to lose. ClickHouse has none — an incremental materialised view there is not atomically visible with its source. The aggregate is **not a plain `SUM`**: billing dedup is relational, so the contribution row carries `parent_span_id` and `observation_type` and the rollup applies the same suppression rule the span query applies today | `rebuild_contributions` first (a backfill), then the table written in the span's own transaction, then the two-stage trace query. Gated by a before/after trace-list measurement at both fixture scales; **reverted if the narrow read does not pay for the write amplification** |
 | **9** bodies + streaming | Content-address message bodies, per-span references, dual-read (new layout when present, old columns otherwise), a resumable checkpointed backfill reporting drift. Plus streaming chunked JSON on the message endpoints, which currently build a whole `Vec` then serialise it | Content addressing behind a dual-read, old columns still written. Dropping them is a separate change gated on a stated per-project criterion |
-| **10** search | Filter-plus-chronological, **no ranking** — ClickHouse cannot rank in any released version (verified against the 26.1–26.8 changelogs; BM25 is an unmerged PR whose open bug is `_bm25_score` + `FINAL` + `ReplacingMergeTree`, this exact configuration). Local: a `span_terms` table in DuckDB written in the span's own transaction. Server: per-field `Array(String)` with native text indexes. **One tokeniser in the domain produces the terms for both sides.** Truncation makes the logic three-valued and that must propagate through nesting | Raise the ClickHouse floor to 26.4 (CI pins 25.8, Compose 26.1.2). Then the tokeniser and its contract with a golden-corpus parity test, before any index exists |
+| **10** search | Filter-plus-chronological, **no ranking** — ClickHouse cannot rank in any released version (verified against the 26.1–26.8 changelogs; BM25 is an unmerged PR whose open bug is `_bm25_score` + `FINAL` + `ReplacingMergeTree`, this exact configuration). Local: a `span_terms` table in DuckDB written in the span's own transaction. Server: per-field `Array(String)` with native text indexes. **One tokeniser in the domain produces the terms for both sides.** Truncation makes the logic three-valued and that must propagate through nesting | Raise the ClickHouse floor to 26.4 — today CI and `make test-clickhouse` pin **25.8.2** and `deploy/local/docker-compose.yml` pins **26.1.2**, so three places move. Then the tokeniser and its contract with a golden-corpus parity test, before any index exists |
 | **11** RedPanda | The adapter plus `make test-redpanda`; server Compose brings up SideSeat itself | The adapter against the three trait changes step 1 already made |
 | **12** tenancy + backup | RLS and ClickHouse row policies with a **per-request** tenant context: `SET LOCAL` inside the transaction on PostgreSQL, and on ClickHouse a **per-query setting**, never `SET` — which persists for the session and hands a pooled borrower the previous tenant. On PostgreSQL the runtime role must not own the tables **and** they carry `FORCE ROW LEVEL SECURITY`, because an owner bypasses RLS. Plus per-store backup and a gated restore-and-repair test | The colliding-id leak test (two tenants, same client-supplied trace and session ids) before any policy exists — it should pass today and will catch the policy getting it wrong |
 
 ### 6.4 Step 5 in detail, because its starting point is not what it looks like
 
-Measured today (`wc -l`): **9 101 lines** across `data/duckdb/repositories/` against **4 691** across
-`data/clickhouse/repositories/`, implementing the same port surface. The two `query.rs` files alone are 6 684 and
-3 064 lines. That asymmetry is itself informative — DuckDB carries the `as_of_us` bound and the window-function
-deduplication that ClickHouse gets from `FINAL`.
+Two different measurements, and the difference matters. The design says "~2 760 and ~2 990 lines of hand-written
+SQL"; that counts the SQL *content*. **Whole-file `wc -l` today is 9 101 across `data/duckdb/repositories/` against
+4 691 across `data/clickhouse/repositories/`** — the two `query.rs` files alone are 6 684 and 3 064. Neither figure
+is wrong; the first is what a builder replaces, the second is what you will be editing. Use the first when
+arguing about the win and the second when estimating the work.
+
+The asymmetry is itself informative: DuckDB carries the `as_of_us` bound and the window-function deduplication
+that ClickHouse gets from `FINAL`, so the sides are not two spellings of one implementation.
 
 **`data/sql/` is not a partially-built query builder, and mistaking it for one would send you the wrong way.** It
 is 756 lines across seven files, and `SqlDialect` is a *token-level* helper:
@@ -1057,31 +1065,34 @@ Not findings from review — things that are simply not understood yet:
 
 ## 7. Exact current state
 
-**16 commits**, `4a9c30c9..2c329ca2`:
-
-```
-2c329ca2 fix(check): make check passes end to end, and it found two things in this batch's own work
-0dcdd767 fix(review): Codex round four, and PLAN.md as the execution record
-8299c733 fix(review): Codex round three — the journal's ordering was the wrong shape, not the wrong order
-eecec70f fix(review): Codex round two — eleven findings, four of them my round-one "fixes" that did not fix
-30a29262 fix(review): eight Codex findings against the footprint batch, five of which made a gate not gate
-14d99df4 feat(deletion): the deletion journal, so a restore cannot undo a deletion it predates
-268c9b33 perf(feed): the three superlinear reconstruction algorithms, indexed
-749dd253 perf(ingest): the CPU phase's fan-out is bounded by bytes in flight, not by the host's core count
-491df90b perf(duckdb): the embedded engine takes a share of the footprint ceiling instead of the host's RAM
-79e025dc perf(read): the reconstruction cache weighed in bytes, and the answer no longer deep-cloned per read
-9b00a0fc fix(queue): the in-process queue refuses instead of discarding accepted work
-5a43a546 feat(footprint): a pinned counting allocator and the four memory ceilings, before any optimisation
-fedcafc3 feat(queue): contiguous-offset acknowledgement, so a later success cannot bury an earlier failure
-9bfc26dc refactor(ports): the blob store, cache invalidation and secret writing as ports
-d60d2bb1 feat(queue): a partition key on publish, declared per signal
-c73b6b27 refactor(ports): the god-traits split into eleven, and the SQL taken out of the ports
+```bash
+git log --oneline 4a9c30c9..HEAD          # everything since the baseline
+git log --oneline 4a9c30c9..HEAD -- ':!PLAN.md'   # the code commits only
 ```
 
-**Working tree:** only `CLAUDE.md` is modified — project convention keeps it out of commits. Everything else is
-committed.
+The list is not reproduced here, because it drifts every time this file is edited and a stale list is worse than
+no list. The **sixteen code commits**, oldest first, are:
 
----
+| Commit | What |
+| --- | --- |
+| `c73b6b27` | god-traits split into eleven ports; SQL out of `ports` |
+| `d60d2bb1` | a partition key on publish, per signal |
+| `9bfc26dc` | blob store, cache invalidation, secrets as ports |
+| `fedcafc3` | contiguous-offset acknowledgement (`AckWindow`) |
+| `5a43a546` | **step 2**: the pinned counting allocator and the four ceilings |
+| `9b00a0fc` | **step 3.1**: the queue refuses instead of discarding |
+| `79e025dc` | **step 3.7+3.8**: the cache weighed in bytes; no deep clone per read |
+| `491df90b` | **step 3.9**: DuckDB takes a share of the ceiling |
+| `749dd253` | **step 3.5**: the CPU fan-out bounded by bytes |
+| `268c9b33` | **step 4**: the three superlinear algorithms indexed |
+| `14d99df4` | **step 6a**: the deletion journal |
+| `30a29262` | Codex round one — eight findings |
+| `eecec70f` | Codex round two — eleven |
+| `8299c733` | Codex round three — eight |
+| `0dcdd767` | Codex round four — six |
+| `2c329ca2` | `make check` green end to end |
+
+**Working tree:** `CLAUDE.md` is modified and stays that way — project convention keeps it out of commits.
 
 ## 8. Verification state — read before claiming anything works
 
@@ -1317,3 +1328,102 @@ you owe.
 | A real network hop | every measurement is loopback or a local container |
 | A multi-replica deletion backlog at scale | stated as unmeasured in `CLAUDE.md` |
 | `durable` reconciliation after a restore | the flag is monotonic and never unset, so a restore has no path to correct it (step 12) |
+
+---
+
+## 13. First day, first week
+
+**First hour.** `make check` — it needs no containers and no credentials, takes a few minutes, and a green run
+means the tree is sound. Then `make dev-server ARGS="--debug --no-auth"` and
+`uv run --locked --directory examples/python/strands strands tool_use --sideseat` if you have Bedrock credentials,
+or just open the UI against an empty project if not. Seeing a trace render makes everything below concrete.
+
+**First day**, in this order, because each answers a question the next one raises:
+
+1. `CLAUDE.md` — long, and the only place several of these mechanisms are explained at all. Skim the headings,
+   read "Common Gotchas" properly.
+2. This file's §1.3 (the constraint), §2 (the data model), §3 and §4 (the two paths).
+3. `crates/ports/src/traits.rs` — the whole seam in one file. If a method looks odd, its doc comment says why.
+4. `domain/sideml/feed/mod.rs` — the pipeline's nine stages. The comments there record decisions that were made
+   and reverted, which is the fastest way to learn what does not work.
+5. One parity test and one golden test, run individually, to see what an oracle looks like here.
+
+**First week.** Pick something from §6.2 (step 1's remainder) rather than a new step: `ProjectId` or `Clock` are
+mechanical, touch hundreds of sites, and will teach you the layout faster than reading it. Then a
+Codex round on your own change (§10.2) — the first one is educational in a way nothing else is.
+
+**What to be suspicious of in your own work here**, drawn from what has actually gone wrong:
+
+- a test you have not seen fail;
+- a bound in a unit other than the resource it bounds;
+- a fix whose commit message is more convincing than its diff;
+- "this is behaviour-identical" without the goldens run;
+- an argument that a second record is "just a duplicate" — that one has been wrong twice.
+
+## 14. Risk register for the remaining steps
+
+Ordered by the product of likelihood and what it costs to discover late.
+
+| Risk | Why it is plausible | Cheapest mitigation |
+| --- | --- | --- |
+| **Step 5's builder accumulates escape hatches** until it is a second way to write SQL rather than the only way | The dialect seam already failed this way once — built bottom-up, zero consumers | Start from one real read; let its needs define the vocabulary; scope the invariant from the builder's registry so coverage is *measured*, not intended |
+| **Step 7's hold is believed to work and does not** | Its correctness rests on a window bounded by a sweep, plus a mutex whose reach excludes two of the four deletion paths | The survival matrix with **two concurrent cases** — a writer admitted before the fence, and a retention pass already running. A sequential matrix passes while held data is deleted |
+| **Step 9's backfill is run once, half-completes, and nobody notices** | It is resumable and rate-limited by design, which also means it can sit at 60% indefinitely | Drift reporting as a *signal*, and the old columns not dropped until a stated per-project criterion is met |
+| **Step 10 ships with membership parity and no ordering parity** | Membership is the obvious thing to test; cursors, ties and empty-page advancement are not | Both, named in the acceptance criterion (§6.8) — the local properties exercise `span_terms` and would let a server-only skip pass every other gate |
+| **Step 12's RLS is inert on the role that matters** | A table's owner bypasses RLS, and today one pool runs migrations *and* every query, so the runtime role is the owner | Both halves: the runtime role is not the schema owner **and** the tables carry `FORCE ROW LEVEL SECURITY`, because a future migration creating a table under the runtime role would otherwise silently re-open it |
+| **A ClickHouse migration works on a fresh install and fails on every real database** | Has already happened once: an `ALTER` DuckDB refuses while indexes depend on the table | A populated-upgrade test per backend, always, and for ClickHouse the replicated variant plus an interrupted-and-resumed run |
+| **The parity suites pass because neither backend was asked the hard question** | Bitten twice. A filter case once named a user the fixture did not have, so every trace matched and it could not tell a correct answer from a dropped filter | When adding a case, assert the fixture *contains* the shape first |
+| **A review round is treated as done because the findings were addressed** | Four of eight round-one fixes did not fix anything | Ask the next round explicitly which previous findings are now correctly fixed |
+
+---
+
+## 15. Alternatives already evaluated and rejected
+
+A newcomer will propose several of these within a week. Each was considered at length; the reason is the part worth
+keeping, because in most cases the option is *reasonable* and fails on a specific fact.
+
+### 15.1 Search
+
+| Option | Why not |
+| --- | --- |
+| **tantivy embedded** (MIT, real BM25, phrase, fuzzy, snippets) | Ranking is out of scope, so its main capability is unused — while it reintroduces exactly the cross-store consistency machinery a DuckDB table removes: separate index files, a separate commit, a reconciliation sweep. Adds writer memory against the < 100 MB idle gate, and carries pre-1.0 churn: 63 versions, three yanked, breaking changes at minor versions, and an upgrade can change tokenisation and so ranking, forcing a full reindex. **Revisit if local ranking becomes a requirement** — it is still the strongest option for that |
+| **OpenSearch 3.8** | The heaviest thing shippable: a JVM plus `vm.max_map_count=262144` as a *host* sysctl the official Helm chart leaves disabled, `memlock`, `nofile`, `swapoff`, a shipped `securityConfig` the docs say to replace before production, ~1.15–1.3× the indexed text in disk, and delete-by-query that reclaims nothing until merge. The official Rust client is 2.4.0 with a documented ceiling of OpenSearch **2.0** and no 3.x release, so it would have to be plain HTTP. **Revisit when query logs show ranking is the blocker**, and require it to degrade to chronological when absent |
+| **SQLite FTS5 projection** | Statically linked already, so it cost no dependency — and that was its only real advantage. It puts search state in the **transactional** store, the one store with no relationship to analytics; no transaction spans DuckDB and SQLite, so it needed a generation marker, a reconciliation sweep and a consistency window in the API; and it had to duplicate every filterable scalar to keep filtering and pagination inside SQLite |
+| **DuckDB's FTS extension** | Settled by inspection, not argument: `libduckdb-sys` declares its bundleable set exhaustively and **there is no `fts`**. It is out-of-tree, so bundling means forking the sys crate's build and carrying that fork across DuckDB upgrades; loading at runtime is barred by the single-binary rule. And it would be the wrong mechanism anyway — its index "will not update automatically when the input table changes" and the documented refresh is drop-and-recreate |
+| **Index-per-tenant on any Lucene engine** | Hard wall at ≤25 shards per GiB heap and 4 000 per node, so a 16 GiB heap is ~200 tenants with the budget spent on nearly-empty indices. The shared-index alternative shares BM25 statistics across tenants: a relevance problem *and* a leak, since scores reveal term rarity in other tenants' data. No configuration gives both |
+| **Quickwit** | The mature form of "tantivy on object storage", and a second data plane with its own PostgreSQL metastore. Only if server-side ranking is required and OpenSearch refused |
+| **Our own postings with BM25** | The *scorer* was withdrawn: `df` maintenance, `avgdl`, norms, refcount arithmetic, and two holes in its own argument. With no ranking there is nothing to score, and a distinct-term table with a semi-join is not an information-retrieval implementation |
+
+**Ranked cross-engine parity was never achievable**, and this is recorded so it is not retried. tantivy and Lucene
+implement BM25 to the letter — same formula, same `k1`, same `b`, f32 throughout — and their scores still cannot be
+equal: Lucene's `docCount` is *documents having the field* while tantivy sums all segments' `max_doc`, and spans are
+heterogeneous, so a field present on 40% of documents gives the two different N and different `avgdl`. No
+configuration fixes it. Separately, tantivy **drops** tokens of 40 bytes or more while Lucene **splits** at 255
+characters — a recall difference for tool arguments, JSON, base64, UUIDs and CJK.
+
+### 15.2 Storage and consistency
+
+| Option | Why not |
+| --- | --- |
+| **A source-scanning test instead of crate boundaries** | `use` parsing misses fully-qualified paths, macro-generated code, `#[cfg]` branches, re-exports and inferred types |
+| **A rollup as a mutable row, merged per delta** | On ClickHouse that is an application-side read-modify-write with no transaction and no compare-and-swap, and the queue partitions by *trace*, not by rollup key — so two workers read the same value, both write a replacement, and one delta vanishes with every operation reporting success |
+| **A contribution table on ClickHouse too** | "Cannot diverge by construction" is false there: an incremental materialised view is an insert trigger not atomically visible with its source, can leave partial state after a failure, and reacts to no deletion; replicated tables cannot use the experimental multi-table transactions that would be needed |
+| **`PARTITION BY project_id`** | Unbounded partition count, and ClickHouse recommends staying well under ~1 000 distinct values because parts in different partitions never merge. Partition by **time**, order by `(project_id, …)` so a tenant's rows are contiguous, and accept that per-tenant deletion is a mutation |
+| **A global truncation watermark for restore coverage** | `max_ingested_at_us` is span-only and its own documentation says a true bound needs a commit-ordered sequence neither backend provides. Four designs died here — see §11 |
+| **ClickHouse 26.4's experimental `commit_order` projection** | Not usable for any of the four rows in §1.3, and the reasons are specific rather than dismissive: **experimental** (so its on-disk form may change), **per-partition** rather than global, present on **one** of two backends so nothing built on it could be a shared contract, and an insertion order is not a **fencing token**, which is what the byte budget actually needs. Worth re-examining once stable and if a DuckDB counterpart appears |
+
+### 15.3 Things tried in code and reverted
+
+These are in the tree's comments, and each reverted change looked like an improvement:
+
+- **An id-less tool result claiming a *following* call** in a span that starts at the same instant. Both spellings
+  made a real fixture worse: ADK's tool and generation spans do tie, so the relaxation let one result claim a call
+  a later result needed, and three results that *had* ids lost them.
+- **Ranking plain messages by carrier position.** Turned a separator repeated verbatim within one span into
+  duplicates.
+- **Skipping the session read for a batch carrying the trace's parentless span.** Recovers about half of 2.7 ms and
+  privileges the root span — which is exactly what the canonical-session rule refuses to do, since in a distributed
+  trace a child produced on another host can carry an earlier start time than its parent.
+- **Parameterising the session-membership subquery by relation.** Put the candidate filter *outside* the window and
+  silently gave the optimisation back; an interleaved benchmark is what noticed.
+- **Deleting a non-durable association from a drop path** — see §2.3.
