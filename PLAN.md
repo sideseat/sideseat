@@ -1320,6 +1320,7 @@ limit, not an unfinished implementation step.
 | `make footprint` | **all four gates pass:** idle 91.8 MB; steady ingest median 166.4 MB at ~4,958 spans/s; 10k-turn residue 0.0 MB; queued payload 1.00× decoded protobuf |
 | `make test-postgres` | **41 passed** — PostgreSQL/SQLite parity, role separation, forced fail-closed RLS and transactional tenant context |
 | `make test-clickhouse` | **26 passed** on ClickHouse 26.4.3.37 — including row policies and span-only, metric-only and log-only restore project discovery |
+| `make test-clickhouse-replicated` | **3 passed** on the dedicated one-shard replicated fixture — fresh migration, interrupted migration resume and configured-database tenant policy |
 | `make test-backup-restore` | destructive checkpoint → independent restore → repair test passes; the second repair is a fixed point |
 | release search write-amplification gate | **passes:** 0.962 recall against 0.950; 62,052 rows for 532 spans, 5,913 physical bytes/span |
 | embedded HTTP search gate | **passes:** 200 samples, p50 78.6 ms, p95 92.5 ms against 100 ms, p99 104.1 ms |
@@ -1337,11 +1338,10 @@ the file is user-owned and was not changed to manufacture a green aggregate resu
 
 ```
 make bench-http-distributed
-make test-clickhouse-replicated
 make test-clickhouse-two-shard
 ```
 
-The replicated and two-shard suites exercise opt-in topology paths; the latter is intentionally slow for the
+The two remaining commands exercise opt-in distributed paths; the two-shard target is intentionally slow for the
 fixture reason below. Full `cargo deny check` still reports the pre-existing wildcard path dependency used by the
 public `sideseat-ports` crate and two unmatched-license warnings; the advisory check itself is green.
 
