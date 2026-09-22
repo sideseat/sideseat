@@ -18,7 +18,7 @@ pub async fn create_file_service(
     database: Arc<TransactionalService>,
     cache: Arc<CacheService>,
 ) -> Result<FileService, FileServiceError> {
-    create_file_service_inner(config, app_storage, database, cache, None).await
+    create_file_service_inner(config, app_storage, database, cache, None, true).await
 }
 
 pub async fn create_governed_file_service(
@@ -28,7 +28,25 @@ pub async fn create_governed_file_service(
     cache: Arc<CacheService>,
     governance: Arc<StorageGovernanceService>,
 ) -> Result<FileService, FileServiceError> {
-    create_file_service_inner(config, app_storage, database, cache, Some(governance)).await
+    create_file_service_inner(config, app_storage, database, cache, Some(governance), true).await
+}
+
+pub async fn create_governed_file_service_deferred_cleanup(
+    config: FilesConfig,
+    app_storage: &AppStorage,
+    database: Arc<TransactionalService>,
+    cache: Arc<CacheService>,
+    governance: Arc<StorageGovernanceService>,
+) -> Result<FileService, FileServiceError> {
+    create_file_service_inner(
+        config,
+        app_storage,
+        database,
+        cache,
+        Some(governance),
+        false,
+    )
+    .await
 }
 
 async fn create_file_service_inner(
@@ -37,6 +55,7 @@ async fn create_file_service_inner(
     database: Arc<TransactionalService>,
     cache: Arc<CacheService>,
     governance: Option<Arc<StorageGovernanceService>>,
+    run_cleanup: bool,
 ) -> Result<FileService, FileServiceError> {
     let storage: Arc<dyn FileStorage> = match config.storage {
         StorageBackend::S3 => {
@@ -65,8 +84,8 @@ async fn create_file_service_inner(
         }
     };
 
-    match governance {
-        Some(governance) => {
+    match (governance, run_cleanup) {
+        (Some(governance), true) => {
             FileService::new_governed(
                 config,
                 app_storage.subdir(DataSubdir::FilesTemp),
@@ -77,7 +96,18 @@ async fn create_file_service_inner(
             )
             .await
         }
-        None => {
+        (Some(governance), false) => {
+            FileService::new_governed_deferred_cleanup(
+                config,
+                app_storage.subdir(DataSubdir::FilesTemp),
+                storage,
+                Arc::from(database.repository()),
+                cache,
+                governance,
+            )
+            .await
+        }
+        (None, _) => {
             FileService::new(
                 config,
                 app_storage.subdir(DataSubdir::FilesTemp),

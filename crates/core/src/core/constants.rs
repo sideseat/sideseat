@@ -58,6 +58,9 @@ pub const DEFAULT_PORT: u16 = 5388;
 /// Environment variable to override data directory
 pub const ENV_DATA_DIR: &str = "SIDESEAT_DATA_DIR";
 
+/// A restored data directory may not be served until `system restore-repair` removes this marker.
+pub const RESTORE_PENDING_MARKER: &str = ".restore-pending";
+
 // =============================================================================
 // Environment Variables - Secrets
 // =============================================================================

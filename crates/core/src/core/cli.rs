@@ -296,6 +296,12 @@ pub enum SystemCommands {
         #[arg(short, long)]
         yes: bool,
     },
+    /// Replay durable deletions and reconcile independently restored stores before serving.
+    RestoreRepair {
+        /// Write the JSON repair report to this file instead of stdout.
+        #[arg(long)]
+        report: Option<PathBuf>,
+    },
 }
 
 /// Configuration derived from CLI arguments
