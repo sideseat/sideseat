@@ -142,6 +142,12 @@ where
     T: TopicMessage + ProstMessage + Default,
 {
     pub async fn recv(&mut self) -> Result<(String, T), TopicError> {
+        let (id, _, decoded) = self.recv_partitioned().await?;
+        Ok((id, decoded))
+    }
+
+    /// Receive a typed message together with the broker (or virtual) partition that delivered it.
+    pub async fn recv_partitioned(&mut self) -> Result<(String, u32, T), TopicError> {
         let Some(message) = self.subscription.receiver.next().await else {
             return Err(TopicError::ChannelClosed);
         };
@@ -152,7 +158,7 @@ where
                 detail: error.to_string(),
                 raw: message.payload,
             })?;
-        Ok((message.id, decoded))
+        Ok((message.id, message.partition, decoded))
     }
 
     #[must_use]

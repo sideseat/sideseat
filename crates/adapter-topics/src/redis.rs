@@ -1402,14 +1402,18 @@ impl TopicBackend for RedisTopicBackend {
                     continue;
                 };
                 let id = parts.first().and_then(redis_string);
-                let payload = match parts.get(1) {
-                    Some(RedisValue::Array(fields)) => extract_payload_from_fields(fields),
+                let message = match parts.get(1) {
+                    Some(RedisValue::Array(fields)) => extract_message_fields(fields),
                     _ => None,
                 };
-                match (id, payload) {
-                    (Some(id), Some(payload)) => {
+                match (id, message) {
+                    (Some(id), Some((payload, partition))) => {
                         handled.insert(id.clone());
-                        messages.push(StreamMessage { id, payload });
+                        messages.push(StreamMessage {
+                            id,
+                            partition,
+                            payload,
+                        });
                     }
                     (Some(id), None) => {
                         let raw = format!("{:?}", parts.get(1));
@@ -1615,9 +1619,13 @@ fn parse_xreadgroup_response(value: RedisValue) -> Option<Vec<StreamMessage>> {
                 && let (RedisValue::BulkString(id_bytes), RedisValue::Array(fields)) =
                     (&msg_parts[0], &msg_parts[1])
                 && let Ok(id) = String::from_utf8(id_bytes.clone())
-                && let Some(payload) = extract_payload_from_fields(fields)
+                && let Some((payload, partition)) = extract_message_fields(fields)
             {
-                messages.push(StreamMessage { id, payload });
+                messages.push(StreamMessage {
+                    id,
+                    partition,
+                    payload,
+                });
             }
         }
     }
@@ -1629,22 +1637,32 @@ fn parse_xreadgroup_response(value: RedisValue) -> Option<Vec<StreamMessage>> {
     }
 }
 
-/// Extract payload field from Redis stream entry fields
-fn extract_payload_from_fields(fields: &[RedisValue]) -> Option<Vec<u8>> {
+/// Extract the payload and stable virtual partition from Redis stream entry fields.
+fn extract_message_fields(fields: &[RedisValue]) -> Option<(Vec<u8>, u32)> {
     // Fields are [field1, value1, field2, value2, ...]
+    let mut payload = None;
+    let mut partition_key = None;
     let mut iter = fields.iter();
     while let Some(field) = iter.next() {
-        if let RedisValue::BulkString(field_name) = field {
-            if field_name == b"payload" {
-                if let Some(RedisValue::BulkString(payload)) = iter.next() {
-                    return Some(payload.clone());
+        let value = iter.next();
+        if let (RedisValue::BulkString(field_name), Some(RedisValue::BulkString(value))) =
+            (field, value)
+        {
+            match field_name.as_slice() {
+                b"payload" => payload = Some(value.clone()),
+                b"partition_key" => {
+                    partition_key = std::str::from_utf8(value).ok().map(str::to_owned);
                 }
-            } else {
-                iter.next(); // Skip value
+                _ => {}
             }
         }
     }
-    None
+    payload.map(|payload| {
+        (
+            payload,
+            crate::virtual_partition(partition_key.as_deref().unwrap_or_default()),
+        )
+    })
 }
 
 /// Sanitize Redis URL for logging (removes password)
@@ -2093,6 +2111,19 @@ mod tests {
         // An absent field is absent, not the next value along.
         assert_eq!(group_field(&group, "entries-read"), None);
         assert_eq!(group_field(&RedisValue::Nil, "name"), None);
+    }
+
+    #[test]
+    fn stream_fields_preserve_the_publish_partition_key() {
+        let fields = vec![
+            RedisValue::BulkString(b"partition_key".to_vec()),
+            RedisValue::BulkString(b"trace-42".to_vec()),
+            RedisValue::BulkString(b"payload".to_vec()),
+            RedisValue::BulkString(b"bytes".to_vec()),
+        ];
+        let (payload, partition) = extract_message_fields(&fields).expect("stream fields");
+        assert_eq!(payload, b"bytes");
+        assert_eq!(partition, crate::virtual_partition("trace-42"));
     }
 
     #[test]

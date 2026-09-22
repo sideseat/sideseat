@@ -78,6 +78,10 @@ async fn keyed_delivery_uses_contiguous_commits_and_kafka_recovery_semantics() {
     let first = receive(&mut subscription).await;
     let second = receive(&mut subscription).await;
     let third = receive(&mut subscription).await;
+    let delivered_partition = first.id.split_once(':').unwrap().0.parse::<u32>().unwrap();
+    assert_eq!(first.partition, delivered_partition);
+    assert_eq!(second.partition, delivered_partition);
+    assert_eq!(third.partition, delivered_partition);
     assert_eq!(first.payload, b"zero");
     assert_eq!(second.payload, b"one");
     assert_eq!(third.payload, b"two");

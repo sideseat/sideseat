@@ -39,6 +39,7 @@ const DEFAULT_BROADCAST_CAPACITY: usize = 10_000;
 #[derive(Clone)]
 struct StreamEntry {
     id: u64,
+    partition: u32,
     payload: Vec<u8>,
     timestamp: Instant,
 }
@@ -340,10 +341,7 @@ impl TopicBackend for MemoryTopicBackend {
     async fn stream_publish(
         &self,
         topic: &str,
-        // Ignored, and that is correct rather than unfinished: this backend is one process with one queue per
-        // topic, so there is nothing to partition and ordering is already total. It is in the signature so every
-        // caller states its key now, and a partitioned adapter needs no caller changes.
-        _partition_key: &str,
+        partition_key: &str,
         payload: &[u8],
     ) -> Result<String, TopicError> {
         let id = {
@@ -409,6 +407,7 @@ impl TopicBackend for MemoryTopicBackend {
             stream.retained_bytes += cost;
             stream.messages.push_back(StreamEntry {
                 id,
+                partition: crate::virtual_partition(partition_key),
                 payload: payload.to_vec(),
                 timestamp: Instant::now(),
             });
@@ -505,14 +504,17 @@ impl TopicBackend for MemoryTopicBackend {
                                 .messages
                                 .iter()
                                 .find(|entry| entry.id > cg.last_delivered_id)
-                                .map(|entry| (entry.id, entry.payload.clone()));
+                                .map(|entry| {
+                                    (entry.id, entry.partition, entry.payload.clone())
+                                });
 
-                            let msg = if let Some((id, payload)) = found {
+                            let msg = if let Some((id, partition, payload)) = found {
                                 cg.pending.insert(id, (consumer.clone(), Instant::now()));
                                 cg.remember_consumer(&consumer);
                                 cg.last_delivered_id = id;
                                 Some(StreamMessage {
                                     id: id.to_string(),
+                                    partition,
                                     payload,
                                 })
                             } else {
@@ -621,6 +623,7 @@ impl TopicBackend for MemoryTopicBackend {
                 cg.remember_consumer(consumer);
                 claimed.push(StreamMessage {
                     id: id.to_string(),
+                    partition: entry.partition,
                     payload: entry.payload.clone(),
                 });
             }
@@ -746,6 +749,7 @@ mod tests {
             .unwrap();
 
         assert_eq!(msg.id, "1");
+        assert_eq!(msg.partition, crate::virtual_partition("test-key"));
         assert_eq!(msg.payload, b"msg1");
 
         // Ack

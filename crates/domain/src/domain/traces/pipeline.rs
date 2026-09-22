@@ -28,7 +28,7 @@
 //! | 3. Enrich   | `&[SpanData]`, `&[Vec<SideMLMessage>]`       | `Vec<SpanEnrichment>`                               | `enrich.rs`    |
 //! | 4. Persist  | `&Request`, `SpanData`, `RawMessage`, ...    | `()`                                                | `persist.rs`   |
 
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -74,6 +74,13 @@ const CLAIM_MAX_COUNT: usize = 100;
 /// Maximum number of requests to batch before processing
 const PIPELINE_BATCH_MAX_SIZE: usize = 1024;
 
+/// Bound on delivered-but-not-yet-selected requests held by the fair scheduler.
+///
+/// Looking ahead farther than one write batch is what lets a quiet partition get selected ahead of a hot
+/// partition's backlog. Four batches bounds both memory and the number of unacknowledged deliveries held by one
+/// consumer while still giving the scheduler enough choice to make the policy meaningful.
+const PIPELINE_PREFETCH_MAX_SIZE: usize = PIPELINE_BATCH_MAX_SIZE * 4;
+
 /// Timeout for collecting additional messages into a batch (microseconds)
 const PIPELINE_BATCH_DRAIN_TIMEOUT_US: u64 = 5_000;
 
@@ -82,6 +89,120 @@ const PIPELINE_BATCH_DRAIN_TIMEOUT_US: u64 = 5_000;
 /// The queue keeps accepting publishes while nothing consumes it, so the cost of a slow retry is a growing
 /// backlog rather than a lost export - and the backlog is bounded by `stream_publish`'s refusal threshold.
 const SUBSCRIBE_RETRY_DELAY: Duration = Duration::from_secs(5);
+
+struct PartitionLane<T> {
+    weight: usize,
+    items: VecDeque<T>,
+}
+
+/// Bounded weighted round-robin over queue partitions.
+///
+/// FIFO is preserved inside each partition. Across partitions, one round takes `weight` items from each active
+/// lane before returning to the first, so a continuously hot partition cannot occupy every selected batch while
+/// another assigned partition has work waiting.
+struct WeightedFairQueue<T> {
+    lanes: BTreeMap<u32, PartitionLane<T>>,
+    rotation: VecDeque<u32>,
+    len: usize,
+}
+
+impl<T> WeightedFairQueue<T> {
+    fn new() -> Self {
+        Self {
+            lanes: BTreeMap::new(),
+            rotation: VecDeque::new(),
+            len: 0,
+        }
+    }
+
+    fn is_empty(&self) -> bool {
+        self.len == 0
+    }
+
+    fn len(&self) -> usize {
+        self.len
+    }
+
+    fn push(&mut self, partition: u32, item: T) {
+        self.push_with_weight(partition, 1, item);
+    }
+
+    fn push_with_weight(&mut self, partition: u32, weight: usize, item: T) {
+        let weight = weight.max(1);
+        match self.lanes.entry(partition) {
+            std::collections::btree_map::Entry::Occupied(mut lane) => {
+                lane.get_mut().weight = weight;
+                lane.get_mut().items.push_back(item);
+            }
+            std::collections::btree_map::Entry::Vacant(lane) => {
+                self.rotation.push_back(partition);
+                lane.insert(PartitionLane {
+                    weight,
+                    items: VecDeque::from([item]),
+                });
+            }
+        }
+        self.len += 1;
+    }
+
+    fn pop_batch(&mut self, limit: usize) -> Vec<T> {
+        let mut selected = Vec::with_capacity(limit.min(self.len));
+        while selected.len() < limit {
+            let Some(partition) = self.rotation.pop_front() else {
+                break;
+            };
+            let mut remove_lane = false;
+            if let Some(lane) = self.lanes.get_mut(&partition) {
+                for _ in 0..lane.weight {
+                    let Some(item) = lane.items.pop_front() else {
+                        break;
+                    };
+                    selected.push(item);
+                    self.len -= 1;
+                    if selected.len() == limit {
+                        break;
+                    }
+                }
+                remove_lane = lane.items.is_empty();
+            }
+            if remove_lane {
+                self.lanes.remove(&partition);
+            } else {
+                self.rotation.push_back(partition);
+            }
+        }
+        selected
+    }
+}
+
+#[cfg(test)]
+mod weighted_fair_queue_tests {
+    use super::WeightedFairQueue;
+
+    #[test]
+    fn a_quiet_partition_enters_the_batch_ahead_of_a_hot_backlog() {
+        let mut queue = WeightedFairQueue::new();
+        for item in 0..4096 {
+            queue.push(0, item);
+        }
+        queue.push(1, 10_000);
+
+        assert_eq!(queue.pop_batch(4), vec![0, 10_000, 1, 2]);
+    }
+
+    #[test]
+    fn weights_set_each_partitions_quantum_without_breaking_local_fifo() {
+        let mut queue = WeightedFairQueue::new();
+        for item in ["a0", "a1", "a2", "a3"] {
+            queue.push_with_weight(0, 2, item);
+        }
+        for item in ["b0", "b1"] {
+            queue.push_with_weight(1, 1, item);
+        }
+
+        assert_eq!(queue.pop_batch(6), vec!["a0", "a1", "b0", "a2", "a3", "b1"]);
+    }
+}
 
 // ============================================================================
 // PIPELINE PROCESSOR
@@ -253,12 +374,23 @@ impl TracePipeline {
             claim_interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
 
             let mut shutdown_requested = false;
+            let mut buffered = WeightedFairQueue::new();
 
             loop {
                 if shutdown_requested {
                     // Drain remaining messages with timeout
-                    match tokio::time::timeout(Duration::from_millis(100), subscriber.recv()).await
-                    {
+                    let queued = buffered.pop_batch(1).pop();
+                    let next = match queued {
+                        Some(pair) => Ok(Ok(pair)),
+                        None => tokio::time::timeout(
+                            Duration::from_millis(100),
+                            subscriber.recv_partitioned(),
+                        )
+                        .await
+                        .map(|result| result.map(|(id, _, message)| (id, message)))
+                        .map_err(|_| ()),
+                    };
+                    match next {
                         Ok(Ok((msg_id, msg))) => {
                             if self.process_staged_reference(&msg).await {
                                 if let Err(e) = acker.ack(&msg_id).await {
@@ -308,9 +440,10 @@ impl TracePipeline {
                         }
                         continue;
                     }
-                    result = subscriber.recv() => {
+                    _ = async {}, if !buffered.is_empty() => None,
+                    result = subscriber.recv_partitioned(), if buffered.is_empty() => {
                         match result {
-                            Ok(pair) => pair,
+                            Ok(delivery) => Some(delivery),
                             Err(TopicError::Lagged(n)) => {
                                 tracing::warn!(lagged = n, "TracePipeline lagged");
                                 continue;
@@ -356,19 +489,25 @@ impl TracePipeline {
                     }
                 };
 
-                // Phase 2: Drain additional queued messages into batch
-                let mut batch = vec![first];
-                while batch.len() < PIPELINE_BATCH_MAX_SIZE {
+                if let Some((msg_id, partition, payload_ref)) = first {
+                    buffered.push(partition, (msg_id, payload_ref));
+                }
+
+                // Phase 2: Look ahead beyond one write batch, then choose a weighted-fair batch.
+                while buffered.len() < PIPELINE_PREFETCH_MAX_SIZE {
                     match tokio::time::timeout(
                         Duration::from_micros(PIPELINE_BATCH_DRAIN_TIMEOUT_US),
-                        subscriber.recv(),
+                        subscriber.recv_partitioned(),
                     )
                     .await
                     {
-                        Ok(Ok(pair)) => batch.push(pair),
+                        Ok(Ok((msg_id, partition, payload_ref))) => {
+                            buffered.push(partition, (msg_id, payload_ref));
+                        }
                         _ => break,
                     }
                 }
+                let batch = buffered.pop_batch(PIPELINE_BATCH_MAX_SIZE);
 
                 let batch_size = batch.len();
                 if batch_size > 1 {

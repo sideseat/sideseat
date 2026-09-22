@@ -24,6 +24,23 @@ pub use memory::MemoryTopicBackend;
 pub use redis::RedisTopicBackend;
 pub use redpanda::RedpandaTopicBackend;
 
+/// Number of logical partitions exposed by single-log queue backends.
+///
+/// RedPanda reports its real broker partition. Memory and Redis have one physical log, but preserving a stable
+/// virtual partition still lets the domain scheduler keep a hot key from monopolising every selected batch.
+const VIRTUAL_QUEUE_PARTITIONS: u32 = 32;
+
+/// A stable FNV-1a partition for adapters that do not have broker partition metadata.
+fn virtual_partition(partition_key: &str) -> u32 {
+    let hash = partition_key
+        .as_bytes()
+        .iter()
+        .fold(0xcbf29ce484222325_u64, |hash, byte| {
+            (hash ^ u64::from(*byte)).wrapping_mul(0x100000001b3)
+        });
+    (hash % u64::from(VIRTUAL_QUEUE_PARTITIONS)) as u32
+}
+
 /// Build the configured queue backend without coupling queue choice to its typed domain wrapper.
 pub async fn backend_from_queue_config(
     queue_config: &QueueConfig,
@@ -52,4 +69,18 @@ pub async fn backend_from_queue_config(
 #[must_use]
 pub fn memory_backend() -> Arc<dyn TopicBackend> {
     Arc::new(MemoryTopicBackend::new())
+}
+
+#[cfg(test)]
+mod partition_tests {
+    use super::virtual_partition;
+
+    #[test]
+    fn virtual_partitions_are_stable_and_use_more_than_one_lane() {
+        assert_eq!(virtual_partition("trace-a"), virtual_partition("trace-a"));
+        let lanes = (0..64)
+            .map(|index| virtual_partition(&format!("trace-{index}")))
+            .collect::<std::collections::HashSet<_>>();
+        assert!(lanes.len() > 1);
+    }
 }

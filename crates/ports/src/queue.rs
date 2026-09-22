@@ -61,6 +61,11 @@ impl fmt::Display for TopicError {
 pub struct StreamMessage {
     /// Unique message ID (Redis stream ID or memory sequence)
     pub id: String,
+    /// Broker partition, or a stable virtual partition for single-log backends.
+    ///
+    /// Consumers use this for bounded weighted draining. It is delivery metadata rather than part of the
+    /// payload: callers must not infer identity or ordering across partitions from it.
+    pub partition: u32,
     /// Message payload
     pub payload: Vec<u8>,
 }

@@ -361,6 +361,7 @@ impl TopicBackend for RedpandaTopicBackend {
                         pending.insert((key, offset), timestamp);
                         yield Ok(StreamMessage {
                             id: format_message_id(message.partition(), message.offset()),
+                            partition: message.partition() as u32,
                             payload: message.payload().unwrap_or_default().to_vec(),
                         });
                     }
