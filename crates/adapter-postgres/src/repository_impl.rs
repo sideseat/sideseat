@@ -1042,45 +1042,93 @@ impl ContentBodyStore for PostgresRepository {
         &self,
         objects: &[ContentBodyObject],
     ) -> Result<Vec<ContentBodyObject>, DataError> {
-        body::register(self.0.pool(), objects, self.0.clock().now())
-            .await
-            .map_err(Into::into)
+        let mut by_project = BTreeMap::<&ProjectId, Vec<ContentBodyObject>>::new();
+        for object in objects {
+            by_project
+                .entry(&object.project_id)
+                .or_default()
+                .push(object.clone());
+        }
+
+        let mut inserted = Vec::new();
+        for (project_id, objects) in by_project {
+            inserted.extend(tenant_transaction!(self, project_id, |connection| {
+                body::register(connection, &objects, self.0.clock().now())
+            })?);
+        }
+        Ok(inserted)
     }
 
     async fn unresolved_span_bodies(
         &self,
         associations: &[SpanBodyAssociation],
     ) -> Result<Vec<SpanBodyAssociation>, DataError> {
-        body::unresolved(self.0.pool(), associations)
-            .await
-            .map_err(Into::into)
+        let mut by_project = BTreeMap::<&ProjectId, Vec<SpanBodyAssociation>>::new();
+        for association in associations {
+            by_project
+                .entry(&association.project_id)
+                .or_default()
+                .push(association.clone());
+        }
+
+        let mut unresolved = Vec::new();
+        for (project_id, associations) in by_project {
+            unresolved.extend(tenant_transaction!(self, project_id, |connection| {
+                body::unresolved(connection, &associations)
+            })?);
+        }
+        Ok(unresolved)
     }
 
     async fn stage_span_bodies(
         &self,
         associations: &[SpanBodyAssociation],
     ) -> Result<u64, DataError> {
-        body::stage(self.0.pool(), associations)
-            .await
-            .map_err(Into::into)
+        let mut by_project = BTreeMap::<&ProjectId, Vec<SpanBodyAssociation>>::new();
+        for association in associations {
+            by_project
+                .entry(&association.project_id)
+                .or_default()
+                .push(association.clone());
+        }
+
+        let mut staged = 0;
+        for (project_id, associations) in by_project {
+            staged += tenant_transaction!(self, project_id, |connection| {
+                body::stage(connection, &associations)
+            })?;
+        }
+        Ok(staged)
     }
 
     async fn confirm_span_bodies(
         &self,
         associations: &[SpanBodyAssociation],
     ) -> Result<u64, DataError> {
-        body::confirm(self.0.pool(), associations)
-            .await
-            .map_err(Into::into)
+        let mut by_project = BTreeMap::<&ProjectId, Vec<SpanBodyAssociation>>::new();
+        for association in associations {
+            by_project
+                .entry(&association.project_id)
+                .or_default()
+                .push(association.clone());
+        }
+
+        let mut confirmed = 0;
+        for (project_id, associations) in by_project {
+            confirmed += tenant_transaction!(self, project_id, |connection| {
+                body::confirm(connection, &associations)
+            })?;
+        }
+        Ok(confirmed)
     }
 
     async fn release_span_body(
         &self,
         association: &SpanBodyAssociation,
     ) -> Result<bool, DataError> {
-        body::release(self.0.pool(), association)
-            .await
-            .map_err(Into::into)
+        tenant_transaction!(self, &association.project_id, |connection| {
+            body::release(connection, association)
+        })
     }
 
     async fn get_span_body_hash(
@@ -1090,22 +1138,20 @@ impl ContentBodyStore for PostgresRepository {
         span_id: &str,
         field: SpanBodyField,
     ) -> Result<Option<String>, DataError> {
-        body::get_hash(self.0.pool(), project_id, trace_id, span_id, field)
-            .await
-            .map_err(Into::into)
+        tenant_transaction!(self, project_id, |connection| {
+            body::get_hash(connection, project_id, trace_id, span_id, field)
+        })
     }
 
     async fn get_orphan_content_bodies(
         &self,
         limit: usize,
     ) -> Result<Vec<(ProjectId, String)>, DataError> {
-        body::orphans(
-            self.0.pool(),
+        maintenance_transaction!(self, |connection| body::orphans(
+            connection,
             self.0.clock().now() - chrono::Duration::minutes(5),
             limit,
-        )
-        .await
-        .map_err(Into::into)
+        ))
     }
 
     async fn get_stale_claimed_content_bodies(
@@ -1113,9 +1159,9 @@ impl ContentBodyStore for PostgresRepository {
         older_than: DateTime<Utc>,
         limit: usize,
     ) -> Result<Vec<(ProjectId, String)>, DataError> {
-        body::stale_claims(self.0.pool(), older_than, limit)
-            .await
-            .map_err(Into::into)
+        maintenance_transaction!(self, |connection| {
+            body::stale_claims(connection, older_than, limit)
+        })
     }
 
     async fn claim_content_body_for_deletion(
@@ -1123,9 +1169,9 @@ impl ContentBodyStore for PostgresRepository {
         project_id: &ProjectId,
         body_hash: &str,
     ) -> Result<bool, DataError> {
-        body::claim_for_deletion(self.0.pool(), project_id, body_hash, self.0.clock().now())
-            .await
-            .map_err(Into::into)
+        tenant_transaction!(self, project_id, |connection| {
+            body::claim_for_deletion(connection, project_id, body_hash, self.0.clock().now())
+        })
     }
 
     async fn release_content_body_deletion_claim(
@@ -1133,9 +1179,9 @@ impl ContentBodyStore for PostgresRepository {
         project_id: &ProjectId,
         body_hash: &str,
     ) -> Result<(), DataError> {
-        body::release_deletion_claim(self.0.pool(), project_id, body_hash)
-            .await
-            .map_err(Into::into)
+        tenant_transaction!(self, project_id, |connection| {
+            body::release_deletion_claim(connection, project_id, body_hash)
+        })
     }
 
     async fn delete_claimed_content_body(
@@ -1143,9 +1189,9 @@ impl ContentBodyStore for PostgresRepository {
         project_id: &ProjectId,
         body_hash: &str,
     ) -> Result<bool, DataError> {
-        body::delete_claimed(self.0.pool(), project_id, body_hash)
-            .await
-            .map_err(Into::into)
+        tenant_transaction!(self, project_id, |connection| {
+            body::delete_claimed(connection, project_id, body_hash)
+        })
     }
 
     async fn delete_span_bodies(
@@ -1153,9 +1199,9 @@ impl ContentBodyStore for PostgresRepository {
         project_id: &ProjectId,
         spans: &[(String, String)],
     ) -> Result<Vec<String>, DataError> {
-        body::delete_spans(self.0.pool(), project_id, spans)
-            .await
-            .map_err(Into::into)
+        tenant_transaction!(self, project_id, |connection| {
+            body::delete_spans(connection, project_id, spans)
+        })
     }
 
     async fn delete_trace_bodies(
@@ -1163,18 +1209,18 @@ impl ContentBodyStore for PostgresRepository {
         project_id: &ProjectId,
         trace_ids: &[String],
     ) -> Result<Vec<String>, DataError> {
-        body::delete_traces(self.0.pool(), project_id, trace_ids)
-            .await
-            .map_err(Into::into)
+        tenant_transaction!(self, project_id, |connection| {
+            body::delete_traces(connection, project_id, trace_ids)
+        })
     }
 
     async fn delete_project_bodies(
         &self,
         project_id: &ProjectId,
     ) -> Result<Vec<String>, DataError> {
-        body::delete_project(self.0.pool(), project_id)
-            .await
-            .map_err(Into::into)
+        tenant_transaction!(self, project_id, |connection| {
+            body::delete_project(connection, project_id)
+        })
     }
 
     async fn reconcile_span_bodies(
@@ -1183,33 +1229,33 @@ impl ContentBodyStore for PostgresRepository {
         trace_ids: &[String],
         keep: &[SpanBodyAssociation],
     ) -> Result<Vec<String>, DataError> {
-        body::reconcile(self.0.pool(), project_id, trace_ids, keep)
-            .await
-            .map_err(Into::into)
+        tenant_transaction!(self, project_id, |connection| {
+            body::reconcile(connection, project_id, trace_ids, keep)
+        })
     }
 
     async fn content_body_backfill_progress(
         &self,
         project_id: &ProjectId,
     ) -> Result<Option<ContentBodyBackfillProgress>, DataError> {
-        body::backfill_progress(self.0.pool(), project_id)
-            .await
-            .map_err(Into::into)
+        tenant_transaction!(self, project_id, |connection| {
+            body::backfill_progress(connection, project_id)
+        })
     }
 
     async fn save_content_body_backfill_progress(
         &self,
         progress: &ContentBodyBackfillProgress,
     ) -> Result<(), DataError> {
-        body::save_backfill_progress(self.0.pool(), progress)
-            .await
-            .map_err(Into::into)
+        tenant_transaction!(self, &progress.project_id, |connection| {
+            body::save_backfill_progress(connection, progress)
+        })
     }
 
     async fn reset_content_body_backfill(&self, project_id: &ProjectId) -> Result<(), DataError> {
-        body::reset_backfill(self.0.pool(), project_id, self.0.clock().now())
-            .await
-            .map_err(Into::into)
+        tenant_transaction!(self, project_id, |connection| {
+            body::reset_backfill(connection, project_id, self.0.clock().now())
+        })
     }
 }
 

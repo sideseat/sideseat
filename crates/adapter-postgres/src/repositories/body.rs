@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 
 use chrono::{DateTime, Utc};
-use sqlx::PgPool;
+use sqlx::PgConnection;
 
 use sideseat_ports::types::{
     ContentBodyBackfillProgress, ContentBodyObject, ProjectId, SpanBodyAssociation, SpanBodyField,
@@ -38,7 +38,7 @@ fn unique(associations: &[SpanBodyAssociation]) -> Vec<&SpanBodyAssociation> {
 }
 
 pub async fn register(
-    pool: &PgPool,
+    connection: &mut PgConnection,
     objects: &[ContentBodyObject],
     now: DateTime<Utc>,
 ) -> Result<Vec<ContentBodyObject>, PostgresError> {
@@ -48,7 +48,6 @@ pub async fn register(
             .cmp(&(b.project_id.as_str(), b.body_hash.as_str()))
     });
     rows.dedup_by(|a, b| a.project_id == b.project_id && a.body_hash == b.body_hash);
-    let mut tx = pool.begin().await?;
     let now_nanos = now.timestamp_nanos_opt().unwrap_or(0);
     let mut inserted = HashSet::new();
     for chunk in rows.chunks(300) {
@@ -68,7 +67,8 @@ pub async fn register(
             " ON CONFLICT(project_id, body_hash) DO NOTHING
               RETURNING project_id, body_hash",
         );
-        let new_rows: Vec<(String, String)> = insert.build_query_as().fetch_all(&mut *tx).await?;
+        let new_rows: Vec<(String, String)> =
+            insert.build_query_as().fetch_all(&mut *connection).await?;
         inserted.extend(new_rows);
 
         let mut touch =
@@ -89,9 +89,8 @@ pub async fn register(
                AND input.project_id = body.project_id
                AND input.body_hash = body.body_hash",
         );
-        touch.build().execute(&mut *tx).await?;
+        touch.build().execute(&mut *connection).await?;
     }
-    tx.commit().await?;
     Ok(rows
         .into_iter()
         .filter(|row| inserted.contains(&(row.project_id.to_string(), row.body_hash.clone())))
@@ -100,7 +99,7 @@ pub async fn register(
 }
 
 pub async fn unresolved(
-    pool: &PgPool,
+    connection: &mut PgConnection,
     associations: &[SpanBodyAssociation],
 ) -> Result<Vec<SpanBodyAssociation>, PostgresError> {
     let rows = unique(associations);
@@ -133,7 +132,10 @@ pub async fn unresolved(
              )
              ORDER BY ordinal",
         );
-        let ordinals: Vec<i64> = query.build_query_scalar().fetch_all(pool).await?;
+        let ordinals: Vec<i64> = query
+            .build_query_scalar()
+            .fetch_all(&mut *connection)
+            .await?;
         unresolved.extend(ordinals.into_iter().filter_map(|ordinal| {
             usize::try_from(ordinal)
                 .ok()
@@ -145,11 +147,10 @@ pub async fn unresolved(
 }
 
 pub async fn stage(
-    pool: &PgPool,
+    connection: &mut PgConnection,
     associations: &[SpanBodyAssociation],
 ) -> Result<u64, PostgresError> {
     let rows = unique(associations);
-    let mut tx = pool.begin().await?;
     let mut staged = 0;
     for chunk in rows.chunks(400) {
         let mut query = sqlx::QueryBuilder::<sqlx::Postgres>::new(
@@ -175,18 +176,20 @@ pub async fn stage(
              ON CONFLICT(project_id, trace_id, span_id, field, body_hash)
              DO UPDATE SET pending_writers = span_bodies.pending_writers + 1",
         );
-        staged += query.build().execute(&mut *tx).await?.rows_affected();
+        staged += query
+            .build()
+            .execute(&mut *connection)
+            .await?
+            .rows_affected();
     }
-    tx.commit().await?;
     Ok(staged)
 }
 
 pub async fn confirm(
-    pool: &PgPool,
+    connection: &mut PgConnection,
     associations: &[SpanBodyAssociation],
 ) -> Result<u64, PostgresError> {
     let rows = unique(associations);
-    let mut tx = pool.begin().await?;
     let mut confirmed = 0;
     for chunk in rows.chunks(400) {
         let mut update = sqlx::QueryBuilder::<sqlx::Postgres>::new(
@@ -210,7 +213,11 @@ pub async fn confirm(
                AND input.field = body.field
                AND input.body_hash = body.body_hash",
         );
-        confirmed += update.build().execute(&mut *tx).await?.rows_affected();
+        confirmed += update
+            .build()
+            .execute(&mut *connection)
+            .await?
+            .rows_affected();
 
         let mut delete = sqlx::QueryBuilder::<sqlx::Postgres>::new(
             "WITH input(project_id, trace_id, span_id, field, body_hash) AS (",
@@ -233,14 +240,15 @@ pub async fn confirm(
                AND input.field = body.field
                AND input.body_hash <> body.body_hash",
         );
-        delete.build().execute(&mut *tx).await?;
+        delete.build().execute(&mut *connection).await?;
     }
-    tx.commit().await?;
     Ok(confirmed)
 }
 
-pub async fn release(pool: &PgPool, row: &SpanBodyAssociation) -> Result<bool, PostgresError> {
-    let mut tx = pool.begin().await?;
+pub async fn release(
+    connection: &mut PgConnection,
+    row: &SpanBodyAssociation,
+) -> Result<bool, PostgresError> {
     sqlx::query(
         "UPDATE span_bodies SET pending_writers = GREATEST(pending_writers - 1, 0)
          WHERE project_id = $1 AND trace_id = $2 AND span_id = $3
@@ -251,7 +259,7 @@ pub async fn release(pool: &PgPool, row: &SpanBodyAssociation) -> Result<bool, P
     .bind(&row.span_id)
     .bind(row.field.as_str())
     .bind(&row.body_hash)
-    .execute(&mut *tx)
+    .execute(&mut *connection)
     .await?;
     let deleted = sqlx::query(
         "DELETE FROM span_bodies
@@ -264,16 +272,15 @@ pub async fn release(pool: &PgPool, row: &SpanBodyAssociation) -> Result<bool, P
     .bind(&row.span_id)
     .bind(row.field.as_str())
     .bind(&row.body_hash)
-    .execute(&mut *tx)
+    .execute(&mut *connection)
     .await?
     .rows_affected()
         > 0;
-    tx.commit().await?;
     Ok(deleted)
 }
 
 pub async fn get_hash(
-    pool: &PgPool,
+    connection: &mut PgConnection,
     project_id: &ProjectId,
     trace_id: &str,
     span_id: &str,
@@ -289,12 +296,12 @@ pub async fn get_hash(
     .bind(trace_id)
     .bind(span_id)
     .bind(field.as_str())
-    .fetch_optional(pool)
+    .fetch_optional(&mut *connection)
     .await?)
 }
 
 pub async fn orphans(
-    pool: &PgPool,
+    connection: &mut PgConnection,
     older_than: DateTime<Utc>,
     limit: usize,
 ) -> Result<Vec<(ProjectId, String)>, PostgresError> {
@@ -308,7 +315,7 @@ pub async fn orphans(
     )
     .bind(older_than.timestamp_nanos_opt().unwrap_or(0))
     .bind(i64::try_from(limit).unwrap_or(i64::MAX))
-    .fetch_all(pool)
+    .fetch_all(&mut *connection)
     .await?;
     Ok(rows
         .into_iter()
@@ -317,7 +324,7 @@ pub async fn orphans(
 }
 
 pub async fn stale_claims(
-    pool: &PgPool,
+    connection: &mut PgConnection,
     older_than: DateTime<Utc>,
     limit: usize,
 ) -> Result<Vec<(ProjectId, String)>, PostgresError> {
@@ -328,7 +335,7 @@ pub async fn stale_claims(
     )
     .bind(older_than.timestamp_micros())
     .bind(i64::try_from(limit).unwrap_or(i64::MAX))
-    .fetch_all(pool)
+    .fetch_all(&mut *connection)
     .await?;
     Ok(rows
         .into_iter()
@@ -337,7 +344,7 @@ pub async fn stale_claims(
 }
 
 pub async fn claim_for_deletion(
-    pool: &PgPool,
+    connection: &mut PgConnection,
     project_id: &ProjectId,
     body_hash: &str,
     now: DateTime<Utc>,
@@ -353,14 +360,14 @@ pub async fn claim_for_deletion(
     .bind(now.timestamp_micros())
     .bind(project_id.as_str())
     .bind(body_hash)
-    .execute(pool)
+    .execute(&mut *connection)
     .await?
     .rows_affected()
         > 0)
 }
 
 pub async fn release_deletion_claim(
-    pool: &PgPool,
+    connection: &mut PgConnection,
     project_id: &ProjectId,
     body_hash: &str,
 ) -> Result<(), PostgresError> {
@@ -370,13 +377,13 @@ pub async fn release_deletion_claim(
     )
     .bind(project_id.as_str())
     .bind(body_hash)
-    .execute(pool)
+    .execute(&mut *connection)
     .await?;
     Ok(())
 }
 
 pub async fn delete_claimed(
-    pool: &PgPool,
+    connection: &mut PgConnection,
     project_id: &ProjectId,
     body_hash: &str,
 ) -> Result<bool, PostgresError> {
@@ -390,19 +397,18 @@ pub async fn delete_claimed(
     )
     .bind(project_id.as_str())
     .bind(body_hash)
-    .execute(pool)
+    .execute(&mut *connection)
     .await?
     .rows_affected()
         > 0)
 }
 
 pub async fn delete_spans(
-    pool: &PgPool,
+    connection: &mut PgConnection,
     project_id: &ProjectId,
     spans: &[(String, String)],
 ) -> Result<Vec<String>, PostgresError> {
     let mut hashes = Vec::new();
-    let mut tx = pool.begin().await?;
     for (trace_id, span_id) in spans {
         hashes.extend(
             sqlx::query_scalar::<_, String>(
@@ -412,7 +418,7 @@ pub async fn delete_spans(
             .bind(project_id.as_str())
             .bind(trace_id)
             .bind(span_id)
-            .fetch_all(&mut *tx)
+            .fetch_all(&mut *connection)
             .await?,
         );
         sqlx::query(
@@ -422,22 +428,20 @@ pub async fn delete_spans(
         .bind(project_id.as_str())
         .bind(trace_id)
         .bind(span_id)
-        .execute(&mut *tx)
+        .execute(&mut *connection)
         .await?;
     }
-    tx.commit().await?;
     hashes.sort_unstable();
     hashes.dedup();
     Ok(hashes)
 }
 
 pub async fn delete_traces(
-    pool: &PgPool,
+    connection: &mut PgConnection,
     project_id: &ProjectId,
     trace_ids: &[String],
 ) -> Result<Vec<String>, PostgresError> {
     let mut hashes = Vec::new();
-    let mut tx = pool.begin().await?;
     for trace_id in trace_ids {
         hashes.extend(
             sqlx::query_scalar::<_, String>(
@@ -446,46 +450,43 @@ pub async fn delete_traces(
             )
             .bind(project_id.as_str())
             .bind(trace_id)
-            .fetch_all(&mut *tx)
+            .fetch_all(&mut *connection)
             .await?,
         );
         sqlx::query("DELETE FROM span_bodies WHERE project_id = $1 AND trace_id = $2")
             .bind(project_id.as_str())
             .bind(trace_id)
-            .execute(&mut *tx)
+            .execute(&mut *connection)
             .await?;
     }
-    tx.commit().await?;
     hashes.sort_unstable();
     hashes.dedup();
     Ok(hashes)
 }
 
 pub async fn delete_project(
-    pool: &PgPool,
+    connection: &mut PgConnection,
     project_id: &ProjectId,
 ) -> Result<Vec<String>, PostgresError> {
-    let mut tx = pool.begin().await?;
     let hashes = sqlx::query_scalar::<_, String>(
         "SELECT body_hash FROM content_bodies WHERE project_id = $1 ORDER BY body_hash",
     )
     .bind(project_id.as_str())
-    .fetch_all(&mut *tx)
+    .fetch_all(&mut *connection)
     .await?;
     sqlx::query("DELETE FROM content_bodies WHERE project_id = $1")
         .bind(project_id.as_str())
-        .execute(&mut *tx)
+        .execute(&mut *connection)
         .await?;
     sqlx::query("DELETE FROM content_body_backfill WHERE project_id = $1")
         .bind(project_id.as_str())
-        .execute(&mut *tx)
+        .execute(&mut *connection)
         .await?;
-    tx.commit().await?;
     Ok(hashes)
 }
 
 pub async fn reconcile(
-    pool: &PgPool,
+    connection: &mut PgConnection,
     project_id: &ProjectId,
     trace_ids: &[String],
     keep: &[SpanBodyAssociation],
@@ -502,7 +503,6 @@ pub async fn reconcile(
         })
         .collect::<std::collections::HashSet<_>>();
     let mut removed = Vec::new();
-    let mut tx = pool.begin().await?;
     let mut locked_hashes = std::collections::HashSet::new();
     for row in unique(keep) {
         if !locked_hashes.insert(row.body_hash.as_str()) {
@@ -514,7 +514,7 @@ pub async fn reconcile(
         )
         .bind(project_id.as_str())
         .bind(&row.body_hash)
-        .execute(&mut *tx)
+        .execute(&mut *connection)
         .await?
         .rows_affected()
             > 0;
@@ -532,7 +532,7 @@ pub async fn reconcile(
         )
         .bind(project_id.as_str())
         .bind(trace_id)
-        .fetch_all(&mut *tx)
+        .fetch_all(&mut *connection)
         .await?;
         for (trace, span, field, hash, pending) in rows {
             if pending == 0
@@ -553,7 +553,7 @@ pub async fn reconcile(
                 .bind(&span)
                 .bind(&field)
                 .bind(&hash)
-                .execute(&mut *tx)
+                .execute(&mut *connection)
                 .await?
                 .rows_affected()
                     > 0;
@@ -576,17 +576,16 @@ pub async fn reconcile(
         .bind(&row.span_id)
         .bind(row.field.as_str())
         .bind(&row.body_hash)
-        .execute(&mut *tx)
+        .execute(&mut *connection)
         .await?;
     }
-    tx.commit().await?;
     removed.sort_unstable();
     removed.dedup();
     Ok(removed)
 }
 
 pub async fn backfill_progress(
-    pool: &PgPool,
+    connection: &mut PgConnection,
     project_id: &ProjectId,
 ) -> Result<Option<ContentBodyBackfillProgress>, PostgresError> {
     let row = sqlx::query_as::<_, (Option<String>, Option<String>, bool, i64)>(
@@ -594,7 +593,7 @@ pub async fn backfill_progress(
          FROM content_body_backfill WHERE project_id = $1",
     )
     .bind(project_id.as_str())
-    .fetch_optional(pool)
+    .fetch_optional(&mut *connection)
     .await?;
     Ok(
         row.map(|(cursor_trace_id, cursor_span_id, complete, updated_at)| {
@@ -611,7 +610,7 @@ pub async fn backfill_progress(
 }
 
 pub async fn save_backfill_progress(
-    pool: &PgPool,
+    connection: &mut PgConnection,
     progress: &ContentBodyBackfillProgress,
 ) -> Result<(), PostgresError> {
     sqlx::query(
@@ -629,18 +628,18 @@ pub async fn save_backfill_progress(
     .bind(&progress.cursor_span_id)
     .bind(progress.complete)
     .bind(progress.updated_at.timestamp_micros())
-    .execute(pool)
+    .execute(&mut *connection)
     .await?;
     Ok(())
 }
 
 pub async fn reset_backfill(
-    pool: &PgPool,
+    connection: &mut PgConnection,
     project_id: &ProjectId,
     now: DateTime<Utc>,
 ) -> Result<(), PostgresError> {
     save_backfill_progress(
-        pool,
+        connection,
         &ContentBodyBackfillProgress {
             project_id: project_id.clone(),
             cursor_trace_id: None,
