@@ -1,13 +1,13 @@
 //! PostgreSQL legal-hold, maintenance-lease and logical-byte accounting operations.
 
 use chrono::{DateTime, Utc};
-use sqlx::{PgPool, Row};
+use sqlx::{PgConnection, Row};
 
 use crate::PostgresError;
 use sideseat_ports::types::{ProjectHold, ProjectId, ProjectStorageUsage};
 
 pub async fn active_hold(
-    pool: &PgPool,
+    connection: &mut PgConnection,
     project_id: &ProjectId,
     now: DateTime<Utc>,
 ) -> Result<Option<ProjectHold>, PostgresError> {
@@ -18,13 +18,13 @@ pub async fn active_hold(
     )
     .bind(project_id.as_str())
     .bind(now.timestamp_micros())
-    .fetch_optional(pool)
+    .fetch_optional(&mut *connection)
     .await?;
     row.map(row_to_hold).transpose()
 }
 
 pub async fn list_active_holds(
-    pool: &PgPool,
+    connection: &mut PgConnection,
     now: DateTime<Utc>,
     limit: usize,
 ) -> Result<Vec<ProjectHold>, PostgresError> {
@@ -37,13 +37,13 @@ pub async fn list_active_holds(
     )
     .bind(now.timestamp_micros())
     .bind(i64::try_from(limit).unwrap_or(i64::MAX))
-    .fetch_all(pool)
+    .fetch_all(&mut *connection)
     .await?;
     rows.into_iter().map(row_to_hold).collect()
 }
 
 pub async fn set_hold(
-    pool: &PgPool,
+    connection: &mut PgConnection,
     project_id: &ProjectId,
     hold_until: DateTime<Utc>,
     now: DateTime<Utc>,
@@ -58,7 +58,7 @@ pub async fn set_hold(
     .bind(project_id.as_str())
     .bind(hold_until.timestamp_micros())
     .bind(now.timestamp_micros())
-    .execute(pool)
+    .execute(&mut *connection)
     .await?;
     Ok(ProjectHold {
         project_id: project_id.clone(),
@@ -67,11 +67,14 @@ pub async fn set_hold(
     })
 }
 
-pub async fn clear_hold(pool: &PgPool, project_id: &ProjectId) -> Result<bool, PostgresError> {
+pub async fn clear_hold(
+    connection: &mut PgConnection,
+    project_id: &ProjectId,
+) -> Result<bool, PostgresError> {
     Ok(
         sqlx::query("DELETE FROM project_holds WHERE project_id = $1")
             .bind(project_id.as_str())
-            .execute(pool)
+            .execute(&mut *connection)
             .await?
             .rows_affected()
             > 0,
@@ -79,7 +82,7 @@ pub async fn clear_hold(pool: &PgPool, project_id: &ProjectId) -> Result<bool, P
 }
 
 pub async fn acquire_maintenance(
-    pool: &PgPool,
+    connection: &mut PgConnection,
     project_id: &ProjectId,
     owner: &str,
     now: DateTime<Utc>,
@@ -98,26 +101,26 @@ pub async fn acquire_maintenance(
     .bind(owner)
     .bind(lease_until.timestamp_micros())
     .bind(now.timestamp_micros())
-    .execute(pool)
+    .execute(&mut *connection)
     .await?;
     Ok(changed.rows_affected() > 0)
 }
 
 pub async fn release_maintenance(
-    pool: &PgPool,
+    connection: &mut PgConnection,
     project_id: &ProjectId,
     owner: &str,
 ) -> Result<(), PostgresError> {
     sqlx::query("DELETE FROM project_maintenance_leases WHERE project_id = $1 AND owner = $2")
         .bind(project_id.as_str())
         .bind(owner)
-        .execute(pool)
+        .execute(&mut *connection)
         .await?;
     Ok(())
 }
 
 pub async fn reserve_storage(
-    pool: &PgPool,
+    connection: &mut PgConnection,
     project_id: &ProjectId,
     additional_bytes: u64,
     ordinary_limit_bytes: u64,
@@ -138,20 +141,20 @@ pub async fn reserve_storage(
     .bind(additional)
     .bind(now.timestamp_micros())
     .bind(limit)
-    .fetch_optional(pool)
+    .fetch_optional(&mut *connection)
     .await?;
     row.map(row_to_usage).transpose()
 }
 
 pub async fn usage(
-    pool: &PgPool,
+    connection: &mut PgConnection,
     project_id: &ProjectId,
 ) -> Result<ProjectStorageUsage, PostgresError> {
     let row = sqlx::query(
         "SELECT logical_bytes, updated_at FROM project_storage_usage WHERE project_id = $1",
     )
     .bind(project_id.as_str())
-    .fetch_optional(pool)
+    .fetch_optional(&mut *connection)
     .await?;
     row.map(row_to_usage).transpose().map(|usage| {
         usage.unwrap_or(ProjectStorageUsage {
@@ -162,7 +165,7 @@ pub async fn usage(
 }
 
 pub async fn replace_usage(
-    pool: &PgPool,
+    connection: &mut PgConnection,
     project_id: &ProjectId,
     logical_bytes: u64,
     now: DateTime<Utc>,
@@ -178,7 +181,7 @@ pub async fn replace_usage(
     .bind(project_id.as_str())
     .bind(logical_bytes)
     .bind(now.timestamp_micros())
-    .execute(pool)
+    .execute(&mut *connection)
     .await?;
     Ok(ProjectStorageUsage {
         logical_bytes: u64::try_from(logical_bytes).unwrap_or(u64::MAX),
@@ -187,7 +190,7 @@ pub async fn replace_usage(
 }
 
 pub async fn held_transactional_bytes(
-    pool: &PgPool,
+    connection: &mut PgConnection,
     project_id: &ProjectId,
 ) -> Result<u64, PostgresError> {
     let bytes: i64 = sqlx::query_scalar(
@@ -197,12 +200,15 @@ pub async fn held_transactional_bytes(
            + COALESCE((SELECT SUM(logical_bytes) FROM retention_cleanup WHERE project_id = $1), 0)",
     )
     .bind(project_id.as_str())
-    .fetch_one(pool)
+    .fetch_one(&mut *connection)
     .await?;
     Ok(u64::try_from(bytes).unwrap_or(0))
 }
 
-pub async fn project_ids(pool: &PgPool, limit: usize) -> Result<Vec<ProjectId>, PostgresError> {
+pub async fn project_ids(
+    connection: &mut PgConnection,
+    limit: usize,
+) -> Result<Vec<ProjectId>, PostgresError> {
     let ids: Vec<String> = sqlx::query_scalar(
         "SELECT id FROM projects
          UNION SELECT project_id FROM project_storage_usage
@@ -211,7 +217,7 @@ pub async fn project_ids(pool: &PgPool, limit: usize) -> Result<Vec<ProjectId>, 
          LIMIT $1",
     )
     .bind(i64::try_from(limit).unwrap_or(i64::MAX))
-    .fetch_all(pool)
+    .fetch_all(&mut *connection)
     .await?;
     Ok(ids.into_iter().map(ProjectId::from).collect())
 }

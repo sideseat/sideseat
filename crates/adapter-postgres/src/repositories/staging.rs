@@ -1,12 +1,15 @@
 //! PostgreSQL staged-payload registry.
 
 use chrono::{DateTime, Utc};
-use sqlx::{PgPool, Row};
+use sqlx::{PgConnection, Row};
 
 use crate::PostgresError;
 use sideseat_ports::types::{ProjectId, StagedPayload, StagedRecord, StagedSignal};
 
-pub async fn create(pool: &PgPool, payload: &StagedPayload) -> Result<(), PostgresError> {
+pub async fn create(
+    connection: &mut PgConnection,
+    payload: &StagedPayload,
+) -> Result<(), PostgresError> {
     let records = serde_json::to_string(&payload.records)
         .map_err(|error| PostgresError::Conflict(error.to_string()))?;
     sqlx::query(
@@ -23,24 +26,30 @@ pub async fn create(pool: &PgPool, payload: &StagedPayload) -> Result<(), Postgr
     .bind(i64::from(payload.redrive_attempts))
     .bind(payload.unconfirmed)
     .bind(records)
-    .execute(pool)
+    .execute(&mut *connection)
     .await?;
     Ok(())
 }
 
-pub async fn get(pool: &PgPool, id: &str) -> Result<Option<StagedPayload>, PostgresError> {
+pub async fn get(
+    connection: &mut PgConnection,
+    id: &str,
+) -> Result<Option<StagedPayload>, PostgresError> {
     let row = sqlx::query(
         "SELECT id, project_id, signal, blob_hash, byte_len, created_at, redrive_attempts,
                 unconfirmed, records_json
          FROM staged_payloads WHERE id = $1",
     )
     .bind(id)
-    .fetch_optional(pool)
+    .fetch_optional(&mut *connection)
     .await?;
     row.map(row_to_payload).transpose()
 }
 
-pub async fn pending(pool: &PgPool, limit: usize) -> Result<Vec<StagedPayload>, PostgresError> {
+pub async fn pending(
+    connection: &mut PgConnection,
+    limit: usize,
+) -> Result<Vec<StagedPayload>, PostgresError> {
     let rows = sqlx::query(
         "SELECT id, project_id, signal, blob_hash, byte_len, created_at, redrive_attempts,
                 unconfirmed, records_json
@@ -50,12 +59,15 @@ pub async fn pending(pool: &PgPool, limit: usize) -> Result<Vec<StagedPayload>, 
          LIMIT $1",
     )
     .bind(limit as i64)
-    .fetch_all(pool)
+    .fetch_all(&mut *connection)
     .await?;
     rows.into_iter().map(row_to_payload).collect()
 }
 
-pub async fn increment_attempts(pool: &PgPool, id: &str) -> Result<u32, PostgresError> {
+pub async fn increment_attempts(
+    connection: &mut PgConnection,
+    id: &str,
+) -> Result<u32, PostgresError> {
     let attempts: i64 = sqlx::query_scalar(
         "UPDATE staged_payloads
          SET redrive_attempts = redrive_attempts + 1
@@ -63,23 +75,26 @@ pub async fn increment_attempts(pool: &PgPool, id: &str) -> Result<u32, Postgres
          RETURNING redrive_attempts",
     )
     .bind(id)
-    .fetch_one(pool)
+    .fetch_one(&mut *connection)
     .await?;
     Ok(u32::try_from(attempts).unwrap_or(u32::MAX))
 }
 
-pub async fn mark_unconfirmed(pool: &PgPool, id: &str) -> Result<(), PostgresError> {
+pub async fn mark_unconfirmed(
+    connection: &mut PgConnection,
+    id: &str,
+) -> Result<(), PostgresError> {
     sqlx::query("UPDATE staged_payloads SET unconfirmed = TRUE WHERE id = $1")
         .bind(id)
-        .execute(pool)
+        .execute(&mut *connection)
         .await?;
     Ok(())
 }
 
-pub async fn delete(pool: &PgPool, id: &str) -> Result<(), PostgresError> {
+pub async fn delete(connection: &mut PgConnection, id: &str) -> Result<(), PostgresError> {
     sqlx::query("DELETE FROM staged_payloads WHERE id = $1")
         .bind(id)
-        .execute(pool)
+        .execute(&mut *connection)
         .await?;
     Ok(())
 }

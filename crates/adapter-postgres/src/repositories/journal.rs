@@ -5,7 +5,7 @@
 //! PostgreSQL parity suite.
 
 use chrono::DateTime;
-use sqlx::{PgPool, Row};
+use sqlx::{PgConnection, Row};
 use std::collections::HashSet;
 
 use super::super::error::PostgresError;
@@ -17,14 +17,13 @@ use sideseat_ports::types::ProjectId;
 /// One transaction, because a partial append is a deletion with no record for some of its targets - which is
 /// exactly the state the append-before-delete ordering exists to make impossible.
 pub async fn append_deletions(
-    pool: &PgPool,
+    connection: &mut PgConnection,
     records: &[DeletionRecord],
 ) -> Result<(), PostgresError> {
     if records.is_empty() {
         return Ok(());
     }
 
-    let mut tx = pool.begin().await?;
     for record in records {
         sqlx::query(
             "INSERT INTO deletion_journal
@@ -41,10 +40,9 @@ pub async fn append_deletions(
         // would be replayed first and then be indistinguishable from the oldest deletion in the journal.
         .bind(record.recorded_at.timestamp_nanos_opt().unwrap_or(i64::MAX))
         .bind(i64::try_from(record.logical_bytes()).unwrap_or(i64::MAX))
-        .execute(&mut *tx)
+        .execute(&mut *connection)
         .await?;
     }
-    tx.commit().await?;
     Ok(())
 }
 
@@ -54,7 +52,7 @@ pub async fn append_deletions(
 /// otherwise leave the cursor where it was, and a page of nothing but skipped rows reads exactly like the end of
 /// the journal.
 pub async fn deletions_since(
-    pool: &PgPool,
+    connection: &mut PgConnection,
     after_sequence: i64,
     limit: usize,
 ) -> Result<(Vec<(i64, DeletionRecord)>, i64), PostgresError> {
@@ -67,7 +65,7 @@ pub async fn deletions_since(
     )
     .bind(after_sequence)
     .bind(limit as i64)
-    .fetch_all(pool)
+    .fetch_all(&mut *connection)
     .await?;
 
     let mut out = Vec::with_capacity(rows.len());
@@ -119,7 +117,7 @@ pub async fn deletions_since(
 /// removed the span too - and a sweep that only asked about the span would re-drive a payload whose trace was
 /// deliberately deleted.
 pub async fn deletion_is_journaled(
-    pool: &PgPool,
+    connection: &mut PgConnection,
     project_id: &str,
     scope: DeletionScope,
     target_id: &str,
@@ -136,7 +134,7 @@ pub async fn deletion_is_journaled(
         .bind(project_id)
         .bind(target_id)
         .bind(span_id)
-        .fetch_optional(pool)
+        .fetch_optional(&mut *connection)
         .await?;
         return Ok(found.is_some());
     }
@@ -149,13 +147,13 @@ pub async fn deletion_is_journaled(
     .bind(project_id)
     .bind(scope.as_str())
     .bind(target_id)
-    .fetch_optional(pool)
+    .fetch_optional(&mut *connection)
     .await?;
     Ok(found.is_some())
 }
 
 pub async fn journaled_spans_among(
-    pool: &PgPool,
+    connection: &mut PgConnection,
     project_id: &str,
     spans: &[(String, String)],
 ) -> Result<HashSet<(String, String)>, PostgresError> {
@@ -182,14 +180,15 @@ pub async fn journaled_spans_among(
                )
              )",
         );
-        let rows: Vec<(String, String)> = query.build_query_as().fetch_all(pool).await?;
+        let rows: Vec<(String, String)> =
+            query.build_query_as().fetch_all(&mut *connection).await?;
         found.extend(rows);
     }
     Ok(found)
 }
 
 pub async fn journaled_span_deletions_for_traces(
-    pool: &PgPool,
+    connection: &mut PgConnection,
     project_id: &str,
     trace_ids: &[String],
 ) -> Result<Vec<(String, String)>, PostgresError> {
@@ -206,7 +205,8 @@ pub async fn journaled_span_deletions_for_traces(
             separated.push_bind(trace_id);
         }
         separated.push_unseparated(")");
-        let rows: Vec<(String, String)> = query.build_query_as().fetch_all(pool).await?;
+        let rows: Vec<(String, String)> =
+            query.build_query_as().fetch_all(&mut *connection).await?;
         found.extend(rows);
     }
     let mut found = found.into_iter().collect::<Vec<_>>();

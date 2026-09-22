@@ -1479,17 +1479,15 @@ impl FavoriteStore for PostgresRepository {
         secondary_id: Option<&str>,
         project_id: &ProjectId,
     ) -> Result<bool, DataError> {
-        favorite::add_favorite(
-            self.0.pool(),
+        tenant_transaction!(self, project_id, |connection| favorite::add_favorite(
+            connection,
             user_id,
             project_id,
             entity_type,
             entity_id,
             secondary_id,
             self.0.clock().now().timestamp(),
-        )
-        .await
-        .map_err(Into::into)
+        ))
     }
 
     async fn remove_favorite(
@@ -1500,16 +1498,14 @@ impl FavoriteStore for PostgresRepository {
         secondary_id: Option<&str>,
         project_id: &ProjectId,
     ) -> Result<bool, DataError> {
-        favorite::remove_favorite(
-            self.0.pool(),
+        tenant_transaction!(self, project_id, |connection| favorite::remove_favorite(
+            connection,
             user_id,
             project_id,
             entity_type,
             entity_id,
             secondary_id,
-        )
-        .await
-        .map_err(Into::into)
+        ))
     }
 
     async fn check_favorites(
@@ -1519,10 +1515,9 @@ impl FavoriteStore for PostgresRepository {
         entity_ids: &[String],
         project_id: &ProjectId,
     ) -> Result<Vec<String>, DataError> {
-        let set =
-            favorite::check_favorites(self.0.pool(), user_id, project_id, entity_type, entity_ids)
-                .await
-                .map_err(DataError::from)?;
+        let set = tenant_transaction!(self, project_id, |connection| {
+            favorite::check_favorites(connection, user_id, project_id, entity_type, entity_ids)
+        })?;
         Ok(set.into_iter().collect())
     }
 
@@ -1532,9 +1527,9 @@ impl FavoriteStore for PostgresRepository {
         span_ids: &[(String, String)],
         project_id: &ProjectId,
     ) -> Result<Vec<(String, String)>, DataError> {
-        let set = favorite::check_span_favorites(self.0.pool(), user_id, project_id, span_ids)
-            .await
-            .map_err(DataError::from)?;
+        let set = tenant_transaction!(self, project_id, |connection| {
+            favorite::check_span_favorites(connection, user_id, project_id, span_ids)
+        })?;
         // Convert "trace_id:span_id" strings back to tuples
         Ok(set
             .into_iter()
@@ -1554,10 +1549,10 @@ impl FavoriteStore for PostgresRepository {
         user_id: &str,
         project_id: &ProjectId,
     ) -> Result<i64, DataError> {
-        favorite::count_favorites(self.0.pool(), user_id, project_id)
-            .await
-            .map(|c| c as i64)
-            .map_err(Into::into)
+        let count = tenant_transaction!(self, project_id, |connection| {
+            favorite::count_favorites(connection, user_id, project_id)
+        })?;
+        Ok(count as i64)
     }
 
     async fn list_favorite_ids(
@@ -1567,9 +1562,9 @@ impl FavoriteStore for PostgresRepository {
         project_id: &ProjectId,
     ) -> Result<Vec<String>, DataError> {
         // Use a reasonable default limit
-        favorite::list_all_favorite_ids(self.0.pool(), user_id, project_id, entity_type, 10000)
-            .await
-            .map_err(Into::into)
+        tenant_transaction!(self, project_id, |connection| {
+            favorite::list_all_favorite_ids(connection, user_id, project_id, entity_type, 10000)
+        })
     }
 
     async fn delete_favorites_by_entity(
@@ -1578,9 +1573,9 @@ impl FavoriteStore for PostgresRepository {
         entity_ids: &[String],
         project_id: &ProjectId,
     ) -> Result<u64, DataError> {
-        favorite::delete_favorites_by_entity(self.0.pool(), project_id, entity_type, entity_ids)
-            .await
-            .map_err(Into::into)
+        tenant_transaction!(self, project_id, |connection| {
+            favorite::delete_favorites_by_entity(connection, project_id, entity_type, entity_ids)
+        })
     }
 }
 
@@ -1664,9 +1659,20 @@ impl DeletionJournal for PostgresRepository {
     }
 
     async fn append_deletions(&self, records: &[DeletionRecord]) -> Result<(), DataError> {
-        journal::append_deletions(self.0.pool(), records)
-            .await
-            .map_err(Into::into)
+        let Some(first) = records.first() else {
+            return Ok(());
+        };
+        if records
+            .iter()
+            .any(|record| record.project_id != first.project_id)
+        {
+            return Err(DataError::Conflict(
+                "a deletion-journal append must contain exactly one project".to_owned(),
+            ));
+        }
+        tenant_transaction!(self, &first.project_id, |connection| {
+            journal::append_deletions(connection, records)
+        })
     }
 
     async fn deletions_since(
@@ -1674,9 +1680,9 @@ impl DeletionJournal for PostgresRepository {
         after_sequence: i64,
         limit: usize,
     ) -> Result<(Vec<(i64, DeletionRecord)>, i64), DataError> {
-        journal::deletions_since(self.0.pool(), after_sequence, limit)
-            .await
-            .map_err(Into::into)
+        maintenance_transaction!(self, |connection| {
+            journal::deletions_since(connection, after_sequence, limit)
+        })
     }
 
     async fn deletion_is_journaled(
@@ -1686,9 +1692,9 @@ impl DeletionJournal for PostgresRepository {
         target_id: &str,
         span_id: Option<&str>,
     ) -> Result<bool, DataError> {
-        journal::deletion_is_journaled(self.0.pool(), project_id, scope, target_id, span_id)
-            .await
-            .map_err(Into::into)
+        tenant_transaction!(self, project_id, |connection| {
+            journal::deletion_is_journaled(connection, project_id, scope, target_id, span_id)
+        })
     }
 
     async fn journaled_spans_among(
@@ -1696,9 +1702,9 @@ impl DeletionJournal for PostgresRepository {
         project_id: &ProjectId,
         spans: &[(String, String)],
     ) -> Result<std::collections::HashSet<(String, String)>, DataError> {
-        journal::journaled_spans_among(self.0.pool(), project_id, spans)
-            .await
-            .map_err(Into::into)
+        tenant_transaction!(self, project_id, |connection| {
+            journal::journaled_spans_among(connection, project_id, spans)
+        })
     }
 
     async fn journaled_span_deletions_for_traces(
@@ -1706,44 +1712,42 @@ impl DeletionJournal for PostgresRepository {
         project_id: &ProjectId,
         trace_ids: &[String],
     ) -> Result<Vec<(String, String)>, DataError> {
-        journal::journaled_span_deletions_for_traces(self.0.pool(), project_id, trace_ids)
-            .await
-            .map_err(Into::into)
+        tenant_transaction!(self, project_id, |connection| {
+            journal::journaled_span_deletions_for_traces(connection, project_id, trace_ids)
+        })
     }
 }
 
 #[async_trait]
 impl StagedPayloadStore for PostgresRepository {
     async fn create_staged_payload(&self, payload: &StagedPayload) -> Result<(), DataError> {
-        staging::create(self.0.pool(), payload)
-            .await
-            .map_err(Into::into)
+        tenant_transaction!(self, &payload.project_id, |connection| {
+            staging::create(connection, payload)
+        })
     }
 
     async fn get_staged_payload(&self, id: &str) -> Result<Option<StagedPayload>, DataError> {
-        staging::get(self.0.pool(), id).await.map_err(Into::into)
+        maintenance_transaction!(self, |connection| staging::get(connection, id))
     }
 
     async fn pending_staged_payloads(&self, limit: usize) -> Result<Vec<StagedPayload>, DataError> {
-        staging::pending(self.0.pool(), limit)
-            .await
-            .map_err(Into::into)
+        maintenance_transaction!(self, |connection| staging::pending(connection, limit))
     }
 
     async fn increment_staged_redrive_attempts(&self, id: &str) -> Result<u32, DataError> {
-        staging::increment_attempts(self.0.pool(), id)
-            .await
-            .map_err(Into::into)
+        maintenance_transaction!(self, |connection| {
+            staging::increment_attempts(connection, id)
+        })
     }
 
     async fn mark_staged_unconfirmed(&self, id: &str) -> Result<(), DataError> {
-        staging::mark_unconfirmed(self.0.pool(), id)
-            .await
-            .map_err(Into::into)
+        maintenance_transaction!(self, |connection| {
+            staging::mark_unconfirmed(connection, id)
+        })
     }
 
     async fn delete_staged_payload(&self, id: &str) -> Result<(), DataError> {
-        staging::delete(self.0.pool(), id).await.map_err(Into::into)
+        maintenance_transaction!(self, |connection| staging::delete(connection, id))
     }
 }
 
@@ -1754,9 +1758,9 @@ impl StorageGovernance for PostgresRepository {
         project_id: &ProjectId,
         now: DateTime<Utc>,
     ) -> Result<Option<ProjectHold>, DataError> {
-        governance::active_hold(self.0.pool(), project_id, now)
-            .await
-            .map_err(Into::into)
+        tenant_transaction!(self, project_id, |connection| {
+            governance::active_hold(connection, project_id, now)
+        })
     }
 
     async fn list_active_project_holds(
@@ -1764,9 +1768,9 @@ impl StorageGovernance for PostgresRepository {
         now: DateTime<Utc>,
         limit: usize,
     ) -> Result<Vec<ProjectHold>, DataError> {
-        governance::list_active_holds(self.0.pool(), now, limit)
-            .await
-            .map_err(Into::into)
+        maintenance_transaction!(self, |connection| {
+            governance::list_active_holds(connection, now, limit)
+        })
     }
 
     async fn set_project_hold(
@@ -1775,15 +1779,15 @@ impl StorageGovernance for PostgresRepository {
         hold_until: DateTime<Utc>,
         now: DateTime<Utc>,
     ) -> Result<ProjectHold, DataError> {
-        governance::set_hold(self.0.pool(), project_id, hold_until, now)
-            .await
-            .map_err(Into::into)
+        tenant_transaction!(self, project_id, |connection| {
+            governance::set_hold(connection, project_id, hold_until, now)
+        })
     }
 
     async fn clear_project_hold(&self, project_id: &ProjectId) -> Result<bool, DataError> {
-        governance::clear_hold(self.0.pool(), project_id)
-            .await
-            .map_err(Into::into)
+        tenant_transaction!(self, project_id, |connection| {
+            governance::clear_hold(connection, project_id)
+        })
     }
 
     async fn acquire_project_maintenance(
@@ -1793,9 +1797,9 @@ impl StorageGovernance for PostgresRepository {
         now: DateTime<Utc>,
         lease_until: DateTime<Utc>,
     ) -> Result<bool, DataError> {
-        governance::acquire_maintenance(self.0.pool(), project_id, owner, now, lease_until)
-            .await
-            .map_err(Into::into)
+        tenant_transaction!(self, project_id, |connection| {
+            governance::acquire_maintenance(connection, project_id, owner, now, lease_until)
+        })
     }
 
     async fn release_project_maintenance(
@@ -1803,9 +1807,9 @@ impl StorageGovernance for PostgresRepository {
         project_id: &ProjectId,
         owner: &str,
     ) -> Result<(), DataError> {
-        governance::release_maintenance(self.0.pool(), project_id, owner)
-            .await
-            .map_err(Into::into)
+        tenant_transaction!(self, project_id, |connection| {
+            governance::release_maintenance(connection, project_id, owner)
+        })
     }
 
     async fn reserve_project_storage(
@@ -1815,24 +1819,24 @@ impl StorageGovernance for PostgresRepository {
         ordinary_limit_bytes: u64,
         now: DateTime<Utc>,
     ) -> Result<Option<ProjectStorageUsage>, DataError> {
-        governance::reserve_storage(
-            self.0.pool(),
-            project_id,
-            additional_bytes,
-            ordinary_limit_bytes,
-            now,
-        )
-        .await
-        .map_err(Into::into)
+        tenant_transaction!(self, project_id, |connection| {
+            governance::reserve_storage(
+                connection,
+                project_id,
+                additional_bytes,
+                ordinary_limit_bytes,
+                now,
+            )
+        })
     }
 
     async fn project_storage_usage(
         &self,
         project_id: &ProjectId,
     ) -> Result<ProjectStorageUsage, DataError> {
-        governance::usage(self.0.pool(), project_id)
-            .await
-            .map_err(Into::into)
+        tenant_transaction!(self, project_id, |connection| {
+            governance::usage(connection, project_id)
+        })
     }
 
     async fn replace_project_storage_usage(
@@ -1841,20 +1845,20 @@ impl StorageGovernance for PostgresRepository {
         logical_bytes: u64,
         now: DateTime<Utc>,
     ) -> Result<ProjectStorageUsage, DataError> {
-        governance::replace_usage(self.0.pool(), project_id, logical_bytes, now)
-            .await
-            .map_err(Into::into)
+        tenant_transaction!(self, project_id, |connection| {
+            governance::replace_usage(connection, project_id, logical_bytes, now)
+        })
     }
 
     async fn held_transactional_bytes(&self, project_id: &ProjectId) -> Result<u64, DataError> {
-        governance::held_transactional_bytes(self.0.pool(), project_id)
-            .await
-            .map_err(Into::into)
+        tenant_transaction!(self, project_id, |connection| {
+            governance::held_transactional_bytes(connection, project_id)
+        })
     }
 
     async fn storage_project_ids(&self, limit: usize) -> Result<Vec<ProjectId>, DataError> {
-        governance::project_ids(self.0.pool(), limit)
-            .await
-            .map_err(Into::into)
+        maintenance_transaction!(self, |connection| {
+            governance::project_ids(connection, limit)
+        })
     }
 }

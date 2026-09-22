@@ -2,14 +2,14 @@
 
 use std::collections::HashSet;
 
-use sqlx::PgPool;
+use sqlx::PgConnection;
 
 use crate::PostgresError;
 
 /// Add a favorite for a user (idempotent)
 /// Returns true if created, false if already existed
 pub async fn add_favorite(
-    pool: &PgPool,
+    connection: &mut PgConnection,
     user_id: &str,
     project_id: &str,
     entity_type: &str,
@@ -30,7 +30,7 @@ pub async fn add_favorite(
     .bind(entity_id)
     .bind(secondary_id)
     .bind(now)
-    .execute(pool)
+    .execute(&mut *connection)
     .await?;
 
     Ok(result.rows_affected() > 0)
@@ -39,7 +39,7 @@ pub async fn add_favorite(
 /// Remove a favorite (idempotent)
 /// Returns true if removed, false if didn't exist
 pub async fn remove_favorite(
-    pool: &PgPool,
+    connection: &mut PgConnection,
     user_id: &str,
     project_id: &str,
     entity_type: &str,
@@ -59,7 +59,7 @@ pub async fn remove_favorite(
         .bind(entity_type)
         .bind(entity_id)
         .bind(secondary_id)
-        .execute(pool)
+        .execute(&mut *connection)
         .await?
     } else {
         sqlx::query(
@@ -73,7 +73,7 @@ pub async fn remove_favorite(
         .bind(project_id)
         .bind(entity_type)
         .bind(entity_id)
-        .execute(pool)
+        .execute(&mut *connection)
         .await?
     };
 
@@ -84,7 +84,7 @@ pub async fn remove_favorite(
 /// For spans, returns composite "entity_id:secondary_id" strings
 /// For other types, returns just entity_id
 pub async fn list_all_favorite_ids(
-    pool: &PgPool,
+    connection: &mut PgConnection,
     user_id: &str,
     project_id: &str,
     entity_type: &str,
@@ -103,7 +103,7 @@ pub async fn list_all_favorite_ids(
     .bind(project_id)
     .bind(entity_type)
     .bind(limit as i64)
-    .fetch_all(pool)
+    .fetch_all(&mut *connection)
     .await?;
 
     Ok(rows
@@ -118,7 +118,7 @@ pub async fn list_all_favorite_ids(
 /// Check which entity IDs are favorited (batch operation)
 /// Returns the subset of `ids` that are favorited
 pub async fn check_favorites(
-    pool: &PgPool,
+    connection: &mut PgConnection,
     user_id: &str,
     project_id: &str,
     entity_type: &str,
@@ -154,7 +154,7 @@ pub async fn check_favorites(
         query_builder = query_builder.bind(id);
     }
 
-    let rows: Vec<(String,)> = query_builder.fetch_all(pool).await?;
+    let rows: Vec<(String,)> = query_builder.fetch_all(&mut *connection).await?;
 
     Ok(rows.into_iter().map(|(id,)| id).collect())
 }
@@ -162,7 +162,7 @@ pub async fn check_favorites(
 /// Check which spans are favorited (batch operation for composite keys)
 /// Returns the subset of spans that are favorited as "trace_id:span_id" strings
 pub async fn check_span_favorites(
-    pool: &PgPool,
+    connection: &mut PgConnection,
     user_id: &str,
     project_id: &str,
     spans: &[(String, String)], // (trace_id, span_id) pairs
@@ -203,7 +203,7 @@ pub async fn check_span_favorites(
         query_builder = query_builder.bind(trace_id).bind(span_id);
     }
 
-    let rows: Vec<(String, Option<String>)> = query_builder.fetch_all(pool).await?;
+    let rows: Vec<(String, Option<String>)> = query_builder.fetch_all(&mut *connection).await?;
 
     // Return as "trace_id:span_id" composite keys
     Ok(rows
@@ -216,7 +216,7 @@ pub async fn check_span_favorites(
 
 /// Count total favorites for a user in a project (for soft limit check)
 pub async fn count_favorites(
-    pool: &PgPool,
+    connection: &mut PgConnection,
     user_id: &str,
     project_id: &str,
 ) -> Result<u64, PostgresError> {
@@ -224,7 +224,7 @@ pub async fn count_favorites(
         sqlx::query_as("SELECT COUNT(*) FROM favorites WHERE user_id = $1 AND project_id = $2")
             .bind(user_id)
             .bind(project_id)
-            .fetch_one(pool)
+            .fetch_one(&mut *connection)
             .await?;
 
     Ok(count as u64)
@@ -233,7 +233,7 @@ pub async fn count_favorites(
 /// Delete favorites by entity IDs (for cleanup after trace/session deletion)
 /// Returns the number of rows deleted
 pub async fn delete_favorites_by_entity(
-    pool: &PgPool,
+    connection: &mut PgConnection,
     project_id: &str,
     entity_type: &str,
     entity_ids: &[String],
@@ -263,7 +263,7 @@ pub async fn delete_favorites_by_entity(
         query_builder = query_builder.bind(id);
     }
 
-    let result = query_builder.execute(pool).await?;
+    let result = query_builder.execute(&mut *connection).await?;
 
     Ok(result.rows_affected())
 }
