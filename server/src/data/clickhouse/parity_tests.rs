@@ -5167,6 +5167,115 @@ async fn the_reconciliation_reads_agree_with_duckdb() {
     );
 }
 
+/// Restore discovery must not assume that every project has spans.
+///
+/// A newer analytics backup can contain a metric-only or log-only project whose transactional metadata is
+/// outside the selected recovery point. If the maintenance query only enumerates spans, restore repair never
+/// sees that project and its rows remain unreachable forever.
+#[tokio::test]
+async fn restore_project_discovery_covers_every_signal_on_both_backends() {
+    let Ok(url) = std::env::var(URL_ENV) else {
+        eprintln!("clickhouse parity: skipped - set {URL_ENV} (or run `make test-clickhouse`)");
+        return;
+    };
+
+    let (_temp, duck) = duckdb_backend().await;
+    let ch = clickhouse_backend(&url, "sideseat_parity_restore_projects").await;
+    let span_project = "a-span-only";
+    let metric_project = "b-metric-only";
+    let log_project = "c-log-only";
+
+    let span = NormalizedSpan {
+        project_id: Some(span_project.to_string()),
+        trace_id: "restore-trace".to_string(),
+        span_id: "restore-span".to_string(),
+        timestamp_start: ts(1),
+        timestamp_end: Some(ts(1)),
+        ..Default::default()
+    };
+    duck.insert_spans(vec![span.clone()])
+        .await
+        .expect("duckdb span");
+    ch.insert_spans(vec![span]).await.expect("clickhouse span");
+
+    let metric = NormalizedMetric {
+        project_id: Some(metric_project.to_string()),
+        metric_name: "restore.metric".to_string(),
+        metric_type: MetricType::Sum,
+        aggregation_temporality: AggregationTemporality::Cumulative,
+        timestamp: ts(2),
+        value_int: Some(1),
+        ..Default::default()
+    };
+    duck.insert_metrics(std::slice::from_ref(&metric))
+        .await
+        .expect("duckdb metric");
+    ch.insert_metrics(std::slice::from_ref(&metric))
+        .await
+        .expect("clickhouse metric");
+
+    let log = NormalizedLog {
+        project_id: Some(log_project.to_string()),
+        log_digest: "restore-log".to_string(),
+        ordinal: 0,
+        timestamp: ts(3),
+        body: serde_json::json!("restore"),
+        body_text: Some("restore".to_string()),
+        ingested_at: Some(ts(3)),
+        ..Default::default()
+    };
+    duck.insert_logs(std::slice::from_ref(&log))
+        .await
+        .expect("duckdb log");
+    ch.insert_logs(std::slice::from_ref(&log))
+        .await
+        .expect("clickhouse log");
+
+    let expected = [span_project, metric_project, log_project]
+        .into_iter()
+        .map(ProjectId::from)
+        .collect::<Vec<_>>();
+    assert_eq!(
+        duck.analytics_project_ids(10)
+            .await
+            .expect("duckdb project discovery"),
+        expected
+    );
+    assert_eq!(
+        ch.analytics_project_ids(10)
+            .await
+            .expect("clickhouse project discovery"),
+        expected
+    );
+    assert_eq!(
+        ch.analytics_project_ids(2)
+            .await
+            .expect("bounded clickhouse project discovery"),
+        expected[..2]
+    );
+
+    let metric_project = ProjectId::from(metric_project);
+    duck.delete_project_data(&metric_project)
+        .await
+        .expect("duckdb project delete");
+    ch.delete_project_data(&metric_project)
+        .await
+        .expect("clickhouse project delete");
+    let after_delete = vec![expected[0].clone(), expected[2].clone()];
+    assert_eq!(
+        duck.analytics_project_ids(10)
+            .await
+            .expect("duckdb discovery after delete"),
+        after_delete
+    );
+    assert_eq!(
+        ch.analytics_project_ids(10)
+            .await
+            .expect("clickhouse discovery after delete"),
+        after_delete
+    );
+}
+
 /// A read that must span **both shards**: the consistency check, and the pre-identity metric count.
 ///
 /// Both of these read the `Distributed` front end, and both read `_local` in a previous version - which on a
