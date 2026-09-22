@@ -9,7 +9,9 @@ use std::sync::Arc;
 use serde::Serialize;
 use thiserror::Error;
 
-use crate::content_bodies::{ContentBodyError, ContentBodyService};
+use crate::content_bodies::{
+    ContentBodyError, ContentBodyRestoreCleanupReport, ContentBodyService,
+};
 use crate::files::cleanup::{cleanup_orphan_temp_files, cleanup_zero_ref_files_governed};
 use crate::files::{FileRestoreRepairReport, FileService, FileServiceError, MissingFileReference};
 use sideseat_core::core::constants::FILE_DELETION_CLAIM_STALE_SECS;
@@ -54,6 +56,7 @@ pub struct AssociationRepairReport {
     pub ownership_traces_scanned: u64,
     pub temp_files_processed: u64,
     pub orphan_files_deleted: u64,
+    pub content_bodies: ContentBodyRestoreCleanupReport,
     pub files: FileRestoreRepairReport,
 }
 
@@ -240,6 +243,7 @@ pub async fn reconcile_restored_associations(
         project_page += 1;
     }
 
+    report.content_bodies = bodies.cleanup_orphans_after_restore().await?;
     report.orphan_files_deleted = cleanup_zero_ref_files_governed(
         files.storage(),
         files.database(),
@@ -305,7 +309,7 @@ mod tests {
     use sideseat_core::core::storage::{AppStorage, DataSubdir};
     use sideseat_ports::blobs::FileStorage;
     use sideseat_ports::clock::Clock;
-    use sideseat_ports::types::NormalizedSpan;
+    use sideseat_ports::types::{ContentBodyObject, NormalizedSpan};
     use tempfile::TempDir;
 
     #[derive(Debug)]
@@ -430,9 +434,11 @@ mod tests {
         let present = "c".repeat(64);
         let missing = "d".repeat(64);
         let stale = "e".repeat(64);
+        let orphan_body = ContentBodyService::hash(b"orphan body");
         for (hash, bytes) in [
             (&present, b"live".as_slice()),
             (&stale, b"stale".as_slice()),
+            (&orphan_body, b"orphan body".as_slice()),
         ] {
             stores
                 .files
@@ -457,6 +463,15 @@ mod tests {
             .await
             .expect("stale count");
         stores
+            .database
+            .register_content_bodies(&[ContentBodyObject {
+                project_id: ProjectId::from("default"),
+                body_hash: orphan_body.clone(),
+                logical_bytes: 11,
+            }])
+            .await
+            .expect("orphan body metadata");
+        stores
             .analytics
             .insert_spans(vec![span(
                 "survivor",
@@ -474,6 +489,7 @@ mod tests {
                 .expect("first repair");
         assert_eq!(first.files.metadata_rebuilt, 1);
         assert_eq!(first.files.associations_rebuilt, 1);
+        assert_eq!(first.content_bodies.orphans_deleted, 1);
         assert_eq!(
             first.files.missing_content,
             [MissingFileReference {
@@ -499,6 +515,14 @@ mod tests {
                 .expect("stale blob lookup")
         );
         assert!(
+            !stores
+                .files
+                .storage()
+                .exists(&ProjectId::from("default"), &orphan_body)
+                .await
+                .expect("orphan body lookup")
+        );
+        assert!(
             stores
                 .database
                 .get_file(&ProjectId::from("default"), &stale)
@@ -513,6 +537,7 @@ mod tests {
                 .expect("fixed point");
         assert_eq!(second.files.metadata_rebuilt, 0);
         assert_eq!(second.files.associations_rebuilt, 0);
+        assert_eq!(second.content_bodies.orphans_deleted, 0);
         assert_eq!(second.orphan_files_deleted, 0);
         assert_eq!(second.files.missing_content.len(), 1);
     }

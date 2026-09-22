@@ -1246,6 +1246,7 @@ pub trait ContentBodyStore: Send + Sync {
 
     async fn get_orphan_content_bodies(
         &self,
+        older_than: DateTime<Utc>,
         limit: usize,
     ) -> Result<Vec<(ProjectId, String)>, DataError>;
 

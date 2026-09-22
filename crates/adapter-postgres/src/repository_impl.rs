@@ -1157,13 +1157,12 @@ impl ContentBodyStore for PostgresRepository {
 
     async fn get_orphan_content_bodies(
         &self,
+        older_than: DateTime<Utc>,
         limit: usize,
     ) -> Result<Vec<(ProjectId, String)>, DataError> {
-        maintenance_transaction!(self, |connection| body::orphans(
-            connection,
-            self.0.clock().now() - chrono::Duration::minutes(5),
-            limit,
-        ))
+        maintenance_transaction!(self, |connection| {
+            body::orphans(connection, older_than, limit)
+        })
     }
 
     async fn get_stale_claimed_content_bodies(

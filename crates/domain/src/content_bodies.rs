@@ -7,6 +7,7 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 use std::sync::Arc;
 
 use futures::{StreamExt, stream};
+use serde::Serialize;
 use sha2::{Digest, Sha256};
 use thiserror::Error;
 
@@ -50,6 +51,19 @@ pub enum ContentBodyError {
     StageShortfall { expected: usize, staged: u64 },
     #[error("only {confirmed} of {expected} content-body associations were confirmed")]
     ConfirmShortfall { expected: usize, confirmed: u64 },
+    #[error(
+        "content-body deletion claim could not be finalized for project {project_id}, hash {body_hash}"
+    )]
+    DeletionFinalization {
+        project_id: ProjectId,
+        body_hash: String,
+    },
+}
+
+#[derive(Debug, Default, Clone, PartialEq, Eq, Serialize)]
+pub struct ContentBodyRestoreCleanupReport {
+    pub stale_claims_finalized: u64,
+    pub orphans_deleted: u64,
 }
 
 #[derive(Clone)]
@@ -880,60 +894,111 @@ impl ContentBodyService {
     }
 
     async fn delete_one_orphan(&self, project_id: &ProjectId, hash: &str) {
-        match self
-            .database
-            .claim_content_body_for_deletion(project_id, hash)
-            .await
-        {
-            Ok(true) => {}
-            Ok(false) => return,
-            Err(error) => {
-                tracing::warn!(
-                    %error,
-                    %project_id,
-                    body_hash = %hash,
-                    "Could not claim an orphaned content body"
-                );
-                return;
-            }
+        if let Err(error) = self.try_delete_one_orphan(project_id, hash).await {
+            tracing::warn!(
+                %error,
+                %project_id,
+                body_hash = %hash,
+                "Could not delete an orphaned content body"
+            );
         }
-        self.delete_claimed_orphan(project_id, hash).await;
     }
 
     async fn delete_claimed_orphan(&self, project_id: &ProjectId, hash: &str) {
-        if let Err(error) = self.storage.delete(project_id, hash).await {
-            let release = self
-                .database
-                .release_content_body_deletion_claim(project_id, hash)
-                .await;
+        if let Err(error) = self.try_delete_claimed_orphan(project_id, hash).await {
             tracing::warn!(
                 %error,
-                release_error = ?release.err(),
                 %project_id,
                 body_hash = %hash,
-                "Could not delete orphaned body bytes; released its deletion claim"
+                "Could not finish an orphaned content-body deletion claim"
             );
-            return;
         }
-        match self
+    }
+
+    async fn try_delete_one_orphan(
+        &self,
+        project_id: &ProjectId,
+        hash: &str,
+    ) -> Result<bool, ContentBodyError> {
+        if !self
+            .database
+            .claim_content_body_for_deletion(project_id, hash)
+            .await?
+        {
+            return Ok(false);
+        }
+        self.try_delete_claimed_orphan(project_id, hash).await?;
+        Ok(true)
+    }
+
+    async fn try_delete_claimed_orphan(
+        &self,
+        project_id: &ProjectId,
+        hash: &str,
+    ) -> Result<(), ContentBodyError> {
+        if let Err(error) = self.storage.delete(project_id, hash).await {
+            self.database
+                .release_content_body_deletion_claim(project_id, hash)
+                .await?;
+            return Err(ContentBodyError::Storage(error));
+        }
+        if self
             .database
             .delete_claimed_content_body(project_id, hash)
-            .await
+            .await?
         {
-            Ok(true) => {}
-            Ok(false) | Err(_) => {
-                let release = self
-                    .database
-                    .release_content_body_deletion_claim(project_id, hash)
-                    .await;
-                tracing::error!(
-                    release_error = ?release.err(),
-                    %project_id,
-                    body_hash = %hash,
-                    "Body bytes were deleted but claimed metadata could not be finalized"
-                );
+            return Ok(());
+        }
+        self.database
+            .release_content_body_deletion_claim(project_id, hash)
+            .await?;
+        Err(ContentBodyError::DeletionFinalization {
+            project_id: project_id.clone(),
+            body_hash: hash.to_owned(),
+        })
+    }
+
+    /// Drain every body orphan and abandoned deletion claim while the restore marker excludes writers.
+    ///
+    /// Unlike the live sweeper this has no grace period and no one-page bound: independently restored
+    /// metadata can be arbitrarily older or newer than analytics, so repair must reach a fixed point before
+    /// reads resume.
+    pub async fn cleanup_orphans_after_restore(
+        &self,
+    ) -> Result<ContentBodyRestoreCleanupReport, ContentBodyError> {
+        let mut report = ContentBodyRestoreCleanupReport::default();
+        let all_timestamps = chrono::DateTime::<chrono::Utc>::from_timestamp_nanos(i64::MAX);
+
+        loop {
+            let claims = self
+                .database
+                .get_stale_claimed_content_bodies(all_timestamps, ORPHAN_SWEEP_LIMIT)
+                .await?;
+            if claims.is_empty() {
+                break;
+            }
+            for (project_id, hash) in claims {
+                self.try_delete_claimed_orphan(&project_id, &hash).await?;
+                report.stale_claims_finalized += 1;
             }
         }
+
+        loop {
+            let orphans = self
+                .database
+                .get_orphan_content_bodies(all_timestamps, ORPHAN_SWEEP_LIMIT)
+                .await?;
+            if orphans.is_empty() {
+                break;
+            }
+            for (project_id, hash) in orphans {
+                if self.try_delete_one_orphan(&project_id, &hash).await? {
+                    report.orphans_deleted += 1;
+                }
+            }
+        }
+
+        Ok(report)
     }
 
     async fn sweep_orphans(&self, now: chrono::DateTime<chrono::Utc>) {
@@ -956,7 +1021,7 @@ impl ContentBodyService {
 
         match self
             .database
-            .get_orphan_content_bodies(ORPHAN_SWEEP_LIMIT)
+            .get_orphan_content_bodies(now - chrono::Duration::minutes(5), ORPHAN_SWEEP_LIMIT)
             .await
         {
             Ok(orphans) => {
@@ -1505,5 +1570,61 @@ mod tests {
                 .unwrap()
                 .is_empty()
         );
+    }
+
+    #[tokio::test]
+    async fn restore_cleanup_drains_more_than_one_orphan_page_without_grace() {
+        let (_temp, database, storage, service) = setup().await;
+        let project_id = ProjectId::from("project");
+        let objects = (0..(ORPHAN_SWEEP_LIMIT + 44))
+            .map(|index| {
+                let bytes = format!("orphan-{index:03}");
+                ContentBodyObject {
+                    project_id: project_id.clone(),
+                    body_hash: ContentBodyService::hash(bytes.as_bytes()),
+                    logical_bytes: bytes.len() as u64,
+                }
+            })
+            .collect::<Vec<_>>();
+        database
+            .register_content_bodies(&objects)
+            .await
+            .expect("register body orphans");
+        for (index, object) in objects.iter().enumerate() {
+            storage
+                .store(
+                    &project_id,
+                    &object.body_hash,
+                    format!("orphan-{index:03}").as_bytes(),
+                )
+                .await
+                .expect("store body orphan");
+        }
+
+        let report = service
+            .cleanup_orphans_after_restore()
+            .await
+            .expect("restore cleanup");
+
+        assert_eq!(report.orphans_deleted, objects.len() as u64);
+        assert_eq!(report.stale_claims_finalized, 0);
+        assert!(
+            database
+                .get_orphan_content_bodies(
+                    chrono::DateTime::<Utc>::from_timestamp_nanos(i64::MAX),
+                    1,
+                )
+                .await
+                .expect("remaining orphans")
+                .is_empty()
+        );
+        for object in [objects.first().unwrap(), objects.last().unwrap()] {
+            assert!(
+                !storage
+                    .exists(&project_id, &object.body_hash)
+                    .await
+                    .expect("orphan bytes lookup")
+            );
+        }
     }
 }

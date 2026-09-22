@@ -1068,15 +1068,12 @@ impl ContentBodyStore for SqliteRepository {
 
     async fn get_orphan_content_bodies(
         &self,
+        older_than: DateTime<Utc>,
         limit: usize,
     ) -> Result<Vec<(ProjectId, String)>, DataError> {
-        body::orphans(
-            self.0.pool(),
-            self.0.clock().now() - chrono::Duration::minutes(5),
-            limit,
-        )
-        .await
-        .map_err(Into::into)
+        body::orphans(self.0.pool(), older_than, limit)
+            .await
+            .map_err(Into::into)
     }
 
     async fn get_stale_claimed_content_bodies(
