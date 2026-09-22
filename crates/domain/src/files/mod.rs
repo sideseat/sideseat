@@ -44,6 +44,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use crate::domain::traces::extract::files::collect_file_references_in_str;
+use serde::Serialize;
 use sideseat_core::core::config::FilesConfig;
 use sideseat_core::core::constants::CACHE_TTL_FILE_QUOTA;
 use sideseat_core::utils::file_uri::parse_file_uri;
@@ -58,6 +59,26 @@ pub struct FileMetadata {
     pub size_bytes: i64,
     /// MIME type (e.g., "image/png")
     pub media_type: Option<String>,
+}
+
+/// One analytics reference whose content-addressed bytes were not present after a restore.
+///
+/// There is no safe repair for this class: the row contains only a hash, not the original bytes.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct MissingFileReference {
+    pub project_id: ProjectId,
+    pub trace_id: String,
+    pub hash: String,
+}
+
+/// What file-association repair changed, and what it could not repair.
+#[derive(Debug, Default, Clone, PartialEq, Eq, Serialize)]
+pub struct FileRestoreRepairReport {
+    pub traces_scanned: u64,
+    pub references_scanned: u64,
+    pub metadata_rebuilt: u64,
+    pub associations_rebuilt: u64,
+    pub missing_content: Vec<MissingFileReference>,
 }
 
 /// Main file service coordinating storage, metadata, and cleanup
@@ -85,7 +106,7 @@ impl FileService {
         database: Arc<dyn TransactionalRepository + Send + Sync>,
         cache: Arc<dyn CacheStore>,
     ) -> Result<Self, FileServiceError> {
-        Self::new_inner(config, temp_dir, storage, database, cache, None).await
+        Self::new_inner(config, temp_dir, storage, database, cache, None, true).await
     }
 
     pub async fn new_governed(
@@ -96,7 +117,41 @@ impl FileService {
         cache: Arc<dyn CacheStore>,
         governance: Arc<crate::storage_governance::StorageGovernanceService>,
     ) -> Result<Self, FileServiceError> {
-        Self::new_inner(config, temp_dir, storage, database, cache, Some(governance)).await
+        Self::new_inner(
+            config,
+            temp_dir,
+            storage,
+            database,
+            cache,
+            Some(governance),
+            true,
+        )
+        .await
+    }
+
+    /// Construct the service without running orphan GC.
+    ///
+    /// Restore repair needs this ordering: rebuild associations from surviving analytics rows, then
+    /// permit GC. Running the ordinary constructor against independently restored stores could delete a
+    /// live blob in the gap, making a repairable missing association unrecoverable.
+    pub async fn new_governed_deferred_cleanup(
+        config: FilesConfig,
+        temp_dir: PathBuf,
+        storage: Arc<dyn FileStorage>,
+        database: Arc<dyn TransactionalRepository + Send + Sync>,
+        cache: Arc<dyn CacheStore>,
+        governance: Arc<crate::storage_governance::StorageGovernanceService>,
+    ) -> Result<Self, FileServiceError> {
+        Self::new_inner(
+            config,
+            temp_dir,
+            storage,
+            database,
+            cache,
+            Some(governance),
+            false,
+        )
+        .await
     }
 
     async fn new_inner(
@@ -106,6 +161,7 @@ impl FileService {
         database: Arc<dyn TransactionalRepository + Send + Sync>,
         cache: Arc<dyn CacheStore>,
         governance: Option<Arc<crate::storage_governance::StorageGovernanceService>>,
+        run_cleanup: bool,
     ) -> Result<Self, FileServiceError> {
         tracing::debug!(
             enabled = config.enabled,
@@ -123,32 +179,33 @@ impl FileService {
             governance,
         };
 
-        // Run startup cleanup for orphan temp files
-        if service.config.enabled
-            && let Err(e) = cleanup::cleanup_orphan_temp_files(
-                &service.temp_dir,
-                &service.storage,
-                &service.database,
-            )
-            .await
-        {
-            tracing::warn!(error = %e, "Failed to cleanup orphan temp files on startup");
-        }
-
-        // Run startup cleanup for files with ref_count=0 (failed storage deletions)
-        if service.config.enabled
-            && let Err(e) = cleanup::cleanup_zero_ref_files_governed(
-                &service.storage,
-                &service.database,
-                sideseat_core::core::constants::FILE_DELETION_CLAIM_STALE_SECS,
-                service.governance.as_ref(),
-            )
-            .await
-        {
-            tracing::warn!(error = %e, "Failed to cleanup zero-ref files on startup");
+        if run_cleanup {
+            service.run_startup_cleanup().await;
         }
 
         Ok(service)
+    }
+
+    /// Run the ordinary startup cleanup after any restore repair has rebuilt ownership.
+    pub async fn run_startup_cleanup(&self) {
+        if !self.config.enabled {
+            return;
+        }
+        if let Err(error) =
+            cleanup::cleanup_orphan_temp_files(&self.temp_dir, &self.storage, &self.database).await
+        {
+            tracing::warn!(%error, "Failed to cleanup orphan temp files on startup");
+        }
+        if let Err(error) = cleanup::cleanup_zero_ref_files_governed(
+            &self.storage,
+            &self.database,
+            sideseat_core::core::constants::FILE_DELETION_CLAIM_STALE_SECS,
+            self.governance.as_ref(),
+        )
+        .await
+        {
+            tracing::warn!(%error, "Failed to cleanup zero-ref files on startup");
+        }
     }
 
     /// Check if file storage is enabled
@@ -177,10 +234,8 @@ impl FileService {
 
         // Get metadata for media_type via repository trait
         let repo = self.database.as_ref();
-        let media_type = repo
-            .get_file(project_id, hash)
-            .await?
-            .and_then(|f| f.media_type);
+        let metadata = repo.get_file(project_id, hash).await?;
+        let media_type = metadata.as_ref().and_then(|file| file.media_type.clone());
 
         // Get data from storage
         let data = self
@@ -188,6 +243,12 @@ impl FileService {
             .get(project_id, hash)
             .await
             .map_err(|e| match e {
+                FileStorageError::NotFound { .. } if metadata.is_some() => {
+                    FileServiceError::ContentUnavailable {
+                        project_id: project_id.to_string(),
+                        hash: hash.to_string(),
+                    }
+                }
                 FileStorageError::NotFound { .. } => FileServiceError::NotFound {
                     project_id: project_id.to_string(),
                     hash: hash.to_string(),
@@ -235,7 +296,7 @@ impl FileService {
 
         // Verify file exists in storage
         if !self.storage.exists(project_id, hash).await? {
-            return Err(FileServiceError::NotFound {
+            return Err(FileServiceError::ContentUnavailable {
                 project_id: project_id.to_string(),
                 hash: hash.to_string(),
             });
@@ -319,6 +380,110 @@ impl FileService {
             Some(e) => Err(e),
             None => reclaimed,
         }
+    }
+
+    /// Rebuild uploaded-file ownership from the references in surviving analytics rows.
+    ///
+    /// This is the restore-specific direction of reconciliation: ordinary retention starts from
+    /// transactional associations and releases those no survivor needs, while a mismatched restore can
+    /// have the survivor and the bytes but have lost the association itself. The association is restored
+    /// as durable and the cached count is derived from the resulting rows before any orphan GC may run.
+    ///
+    /// A surviving row whose bytes are absent is not fabricated. Its hash is returned in
+    /// [`FileRestoreRepairReport::missing_content`] so an operator and the API can distinguish corruption
+    /// from a reference that never existed.
+    pub async fn repair_trace_associations_after_restore(
+        &self,
+        project_id: &ProjectId,
+        trace_ids: &[String],
+        analytics: &dyn sideseat_ports::traits::SurvivorReferences,
+    ) -> Result<FileRestoreRepairReport, FileServiceError> {
+        let mut report = FileRestoreRepairReport::default();
+        if !self.config.enabled {
+            return Ok(report);
+        }
+
+        for trace_id in trace_ids {
+            report.traces_scanned += 1;
+            let fields = analytics
+                .file_reference_fields_for_traces(project_id, std::slice::from_ref(trace_id))
+                .await?;
+            let mut uris = Vec::new();
+            for field in &fields {
+                collect_file_references_in_str(field, &mut uris);
+            }
+
+            let mut references = std::collections::BTreeMap::<String, Option<String>>::new();
+            for uri in uris {
+                if let Some(parsed) = parse_file_uri(&uri) {
+                    references
+                        .entry(parsed.hash.to_owned())
+                        .or_insert_with(|| parsed.media_type.map(str::to_owned));
+                }
+            }
+            report.references_scanned += references.len() as u64;
+
+            let associated = self
+                .database
+                .get_file_hashes_for_traces(project_id, std::slice::from_ref(trace_id))
+                .await?
+                .into_iter()
+                .collect::<std::collections::HashSet<_>>();
+
+            for (hash, media_type) in references {
+                if !self.storage.exists(project_id, &hash).await? {
+                    report.missing_content.push(MissingFileReference {
+                        project_id: project_id.clone(),
+                        trace_id: trace_id.clone(),
+                        hash,
+                    });
+                    continue;
+                }
+
+                if self.database.get_file(project_id, &hash).await?.is_none() {
+                    let bytes = match self.storage.get(project_id, &hash).await {
+                        Ok(bytes) => bytes,
+                        Err(FileStorageError::NotFound { .. }) => {
+                            report.missing_content.push(MissingFileReference {
+                                project_id: project_id.clone(),
+                                trace_id: trace_id.clone(),
+                                hash,
+                            });
+                            continue;
+                        }
+                        Err(error) => return Err(error.into()),
+                    };
+                    self.database
+                        .restore_orphan_metadata(
+                            project_id,
+                            &hash,
+                            media_type.as_deref(),
+                            i64::try_from(bytes.len()).unwrap_or(i64::MAX),
+                            "sha256",
+                        )
+                        .await?;
+                    report.metadata_rebuilt += 1;
+                }
+
+                self.database
+                    .restore_durable_trace_file(project_id, trace_id, &hash)
+                    .await?;
+                if !associated.contains(&hash) {
+                    report.associations_rebuilt += 1;
+                }
+                self.database.sync_ref_count(project_id, &hash).await?;
+            }
+        }
+
+        report.missing_content.sort_by(|left, right| {
+            (&left.project_id, &left.trace_id, &left.hash).cmp(&(
+                &right.project_id,
+                &right.trace_id,
+                &right.hash,
+            ))
+        });
+        report.missing_content.dedup();
+        Ok(report)
     }
 
     /// One trace's release, with the **re-check** that closes the commit-after-scan window.
@@ -860,6 +1025,152 @@ mod tests {
             .unwrap();
         assert_eq!(content.data, b"test content");
         assert_eq!(content.media_type, Some("text/plain".to_string()));
+    }
+
+    #[tokio::test]
+    async fn restored_metadata_without_bytes_is_reported_as_unavailable() {
+        let (temp_dir, database, cache) = setup_test().await;
+        let app_storage = AppStorage::init_for_test(temp_dir.path().to_path_buf());
+        let service = create_file_service(
+            FilesConfig {
+                enabled: true,
+                storage: sideseat_core::core::config::StorageBackend::Filesystem,
+                quota_bytes: 1024 * 1024,
+                filesystem_path: Some(temp_dir.path().join("files").to_string_lossy().to_string()),
+                s3: None,
+            },
+            &app_storage,
+            Arc::clone(&database),
+            cache,
+        )
+        .await
+        .expect("file service");
+
+        database
+            .restore_orphan_metadata(
+                &ProjectId::from("default"),
+                &test_hash(),
+                Some("image/png"),
+                42,
+                "sha256",
+            )
+            .await
+            .expect("restore metadata");
+
+        assert!(matches!(
+            service
+                .get_file(&ProjectId::from("default"), &test_hash())
+                .await,
+            Err(FileServiceError::ContentUnavailable { .. })
+        ));
+        assert!(matches!(
+            service
+                .get_file_metadata(&ProjectId::from("default"), &test_hash())
+                .await,
+            Err(FileServiceError::ContentUnavailable { .. })
+        ));
+    }
+
+    #[tokio::test]
+    async fn restore_repair_rebuilds_associations_before_orphan_gc_and_reports_missing_bytes() {
+        let (temp_dir, database, cache) = setup_test().await;
+        let app_storage = AppStorage::init_for_test(temp_dir.path().to_path_buf());
+        let service = create_file_service(
+            FilesConfig {
+                enabled: true,
+                storage: sideseat_core::core::config::StorageBackend::Filesystem,
+                quota_bytes: 1024 * 1024,
+                filesystem_path: Some(temp_dir.path().join("files").to_string_lossy().to_string()),
+                s3: None,
+            },
+            &app_storage,
+            Arc::clone(&database),
+            cache,
+        )
+        .await
+        .expect("file service");
+
+        let present = "c".repeat(64);
+        let missing = "d".repeat(64);
+        service
+            .storage
+            .store(&ProjectId::from("default"), &present, b"restored bytes")
+            .await
+            .expect("restore blob bytes");
+
+        let analytics_dir = TempDir::new().expect("analytics temp dir");
+        let analytics_storage = AppStorage::init_for_test(analytics_dir.path().to_path_buf());
+        let analytics = DuckdbRepository(Arc::new(
+            DuckdbService::init(&analytics_storage, Arc::new(TestClock))
+                .await
+                .expect("duckdb"),
+        ));
+        analytics
+            .insert_spans(vec![sideseat_ports::types::NormalizedSpan {
+                project_id: Some("default".to_owned()),
+                trace_id: "restored-trace".to_owned(),
+                span_id: "restored-span".to_owned(),
+                timestamp_start: TestClock.now(),
+                messages: Some(format!(
+                    r##"[{{"present":"#!B64!#image/png::{present}","missing":"#!B64!#::{missing}"}}]"##
+                )),
+                ..Default::default()
+            }])
+            .await
+            .expect("restore analytics row");
+
+        let report = service
+            .repair_trace_associations_after_restore(
+                &ProjectId::from("default"),
+                &["restored-trace".to_owned()],
+                &analytics,
+            )
+            .await
+            .expect("repair associations");
+        assert_eq!(report.metadata_rebuilt, 1);
+        assert_eq!(report.associations_rebuilt, 1);
+        assert_eq!(
+            report.missing_content,
+            vec![MissingFileReference {
+                project_id: ProjectId::from("default"),
+                trace_id: "restored-trace".to_owned(),
+                hash: missing,
+            }]
+        );
+
+        let metadata = database
+            .get_file(&ProjectId::from("default"), &present)
+            .await
+            .expect("metadata read")
+            .expect("metadata rebuilt");
+        assert_eq!(metadata.ref_count, 1);
+        assert_eq!(metadata.media_type.as_deref(), Some("image/png"));
+        assert_eq!(
+            database
+                .get_file_hashes_for_traces(
+                    &ProjectId::from("default"),
+                    &["restored-trace".to_owned()],
+                )
+                .await
+                .expect("association read"),
+            vec![present.clone()]
+        );
+
+        let deleted = cleanup::cleanup_zero_ref_files(
+            service.storage(),
+            service.database(),
+            sideseat_core::core::constants::FILE_DELETION_CLAIM_STALE_SECS,
+        )
+        .await
+        .expect("orphan GC");
+        assert_eq!(deleted, 0);
+        assert!(
+            service
+                .file_exists(&ProjectId::from("default"), &present)
+                .await
+                .expect("blob exists"),
+            "repair must rebuild the association before GC can claim the blob"
+        );
     }
 
     /// Client-owned identifiers are only unique inside a project.

@@ -11,6 +11,9 @@ pub enum FileServiceError {
     #[error("File not found: {project_id}/{hash}")]
     NotFound { project_id: String, hash: String },
 
+    #[error("File metadata exists but content is unavailable: {project_id}/{hash}")]
+    ContentUnavailable { project_id: String, hash: String },
+
     #[error("Storage error: {0}")]
     Storage(#[from] FileStorageError),
 

@@ -80,6 +80,13 @@ pub async fn get_file(
         .get_file(project_id, hash)
         .await
         .map_err(|e| match e {
+            FileServiceError::ContentUnavailable { .. } => ApiError::not_found(
+                "FILE_CONTENT_UNAVAILABLE",
+                format!(
+                    "File metadata was restored but content is unavailable: {}/{}",
+                    project_id, hash
+                ),
+            ),
             FileServiceError::NotFound { .. } => ApiError::not_found(
                 "FILE_NOT_FOUND",
                 format!("File not found: {}/{}", project_id, hash),
@@ -166,6 +173,13 @@ pub async fn head_file(
         .get_file_metadata(project_id, hash)
         .await
         .map_err(|e| match e {
+            FileServiceError::ContentUnavailable { .. } => ApiError::not_found(
+                "FILE_CONTENT_UNAVAILABLE",
+                format!(
+                    "File metadata was restored but content is unavailable: {}/{}",
+                    project_id, hash
+                ),
+            ),
             FileServiceError::NotFound { .. } => ApiError::not_found(
                 "FILE_NOT_FOUND",
                 format!("File not found: {}/{}", project_id, hash),
