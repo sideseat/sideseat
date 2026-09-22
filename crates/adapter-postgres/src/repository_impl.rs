@@ -432,14 +432,14 @@ impl ProjectStore for PostgresRepository {
         project_id: &ProjectId,
         trace_ids: &[String],
     ) -> Result<(), DataError> {
-        project::record_deleted_traces(
-            self.0.pool(),
-            project_id,
-            trace_ids,
-            self.0.clock().now().timestamp(),
-        )
-        .await
-        .map_err(Into::into)
+        tenant_transaction!(self, project_id, |connection| {
+            project::record_deleted_traces(
+                connection,
+                project_id,
+                trace_ids,
+                self.0.clock().now().timestamp(),
+            )
+        })
     }
 
     async fn deleted_traces_among(
@@ -447,9 +447,9 @@ impl ProjectStore for PostgresRepository {
         project_id: &ProjectId,
         trace_ids: &[String],
     ) -> Result<std::collections::HashSet<String>, DataError> {
-        project::deleted_traces_among(self.0.pool(), project_id, trace_ids)
-            .await
-            .map_err(Into::into)
+        tenant_transaction!(self, project_id, |connection| {
+            project::deleted_traces_among(connection, project_id, trace_ids)
+        })
     }
 
     async fn get_stale_claimed_projects(
@@ -487,9 +487,10 @@ impl ProjectStore for PostgresRepository {
         required: i64,
         min_gap_secs: i64,
     ) -> Result<bool, DataError> {
-        project::record_project_sweep(self.0.pool(), id, was_clean, required, min_gap_secs)
-            .await
-            .map_err(Into::into)
+        let project_id = ProjectId::from(id);
+        tenant_transaction!(self, &project_id, |connection| {
+            project::record_project_sweep(connection, id, was_clean, required, min_gap_secs)
+        })
     }
 
     async fn claim_deleted_projects_for_check(
@@ -497,9 +498,9 @@ impl ProjectStore for PostgresRepository {
         lease_secs: i64,
         limit: i64,
     ) -> Result<Vec<(String, i64)>, DataError> {
-        project::claim_deleted_projects_for_check(self.0.pool(), lease_secs, limit)
-            .await
-            .map_err(Into::into)
+        maintenance_transaction!(self, |connection| {
+            project::claim_deleted_projects_for_check(connection, lease_secs, limit)
+        })
     }
 
     async fn record_deleted_sessions(
@@ -507,14 +508,14 @@ impl ProjectStore for PostgresRepository {
         project_id: &ProjectId,
         session_ids: &[String],
     ) -> Result<(), DataError> {
-        project::record_deleted_sessions(
-            self.0.pool(),
-            project_id,
-            session_ids,
-            self.0.clock().now().timestamp(),
-        )
-        .await
-        .map_err(Into::into)
+        tenant_transaction!(self, project_id, |connection| {
+            project::record_deleted_sessions(
+                connection,
+                project_id,
+                session_ids,
+                self.0.clock().now().timestamp(),
+            )
+        })
     }
 
     async fn deleted_sessions_among(
@@ -522,9 +523,9 @@ impl ProjectStore for PostgresRepository {
         project_id: &ProjectId,
         session_ids: &[String],
     ) -> Result<std::collections::HashSet<String>, DataError> {
-        project::deleted_sessions_among(self.0.pool(), project_id, session_ids)
-            .await
-            .map_err(Into::into)
+        tenant_transaction!(self, project_id, |connection| {
+            project::deleted_sessions_among(connection, project_id, session_ids)
+        })
     }
 
     async fn claim_deleted_sessions_for_check(
@@ -532,9 +533,9 @@ impl ProjectStore for PostgresRepository {
         lease_secs: i64,
         limit: i64,
     ) -> Result<Vec<(String, String, i64)>, DataError> {
-        project::claim_deleted_sessions_for_check(self.0.pool(), lease_secs, limit)
-            .await
-            .map_err(Into::into)
+        maintenance_transaction!(self, |connection| {
+            project::claim_deleted_sessions_for_check(connection, lease_secs, limit)
+        })
     }
 
     async fn record_deleted_session_check(
@@ -546,17 +547,17 @@ impl ProjectStore for PostgresRepository {
         base_gap_secs: i64,
         max_gap_secs: i64,
     ) -> Result<(), DataError> {
-        project::record_deleted_session_check(
-            self.0.pool(),
-            project_id,
-            session_id,
-            claim_token,
-            was_quiet,
-            base_gap_secs,
-            max_gap_secs,
-        )
-        .await
-        .map_err(Into::into)
+        tenant_transaction!(self, project_id, |connection| {
+            project::record_deleted_session_check(
+                connection,
+                project_id,
+                session_id,
+                claim_token,
+                was_quiet,
+                base_gap_secs,
+                max_gap_secs,
+            )
+        })
     }
 
     async fn claim_deleted_traces_for_check(
@@ -564,9 +565,9 @@ impl ProjectStore for PostgresRepository {
         lease_secs: i64,
         limit: i64,
     ) -> Result<Vec<(String, String, i64)>, DataError> {
-        project::claim_deleted_traces_for_check(self.0.pool(), lease_secs, limit)
-            .await
-            .map_err(Into::into)
+        maintenance_transaction!(self, |connection| {
+            project::claim_deleted_traces_for_check(connection, lease_secs, limit)
+        })
     }
 
     async fn record_deleted_trace_check(
@@ -578,17 +579,17 @@ impl ProjectStore for PostgresRepository {
         base_gap_secs: i64,
         max_gap_secs: i64,
     ) -> Result<(), DataError> {
-        project::record_deleted_trace_check(
-            self.0.pool(),
-            project_id,
-            trace_id,
-            claim_token,
-            was_quiet,
-            base_gap_secs,
-            max_gap_secs,
-        )
-        .await
-        .map_err(Into::into)
+        tenant_transaction!(self, project_id, |connection| {
+            project::record_deleted_trace_check(
+                connection,
+                project_id,
+                trace_id,
+                claim_token,
+                was_quiet,
+                base_gap_secs,
+                max_gap_secs,
+            )
+        })
     }
 
     async fn record_deleted_project_check(
@@ -599,22 +600,22 @@ impl ProjectStore for PostgresRepository {
         base_gap_secs: i64,
         max_gap_secs: i64,
     ) -> Result<(), DataError> {
-        project::record_deleted_project_check(
-            self.0.pool(),
-            project_id,
-            claim_token,
-            was_quiet,
-            base_gap_secs,
-            max_gap_secs,
-        )
-        .await
-        .map_err(Into::into)
+        tenant_transaction!(self, project_id, |connection| {
+            project::record_deleted_project_check(
+                connection,
+                project_id,
+                claim_token,
+                was_quiet,
+                base_gap_secs,
+                max_gap_secs,
+            )
+        })
     }
 
     async fn forget_deleted_projects(&self, retention_secs: i64) -> Result<u64, DataError> {
-        project::forget_deleted_projects(self.0.pool(), retention_secs)
-            .await
-            .map_err(Into::into)
+        maintenance_transaction!(self, |connection| {
+            project::forget_deleted_projects(connection, retention_secs)
+        })
     }
 
     async fn claim_organization_for_deletion(&self, id: &str) -> Result<bool, DataError> {
@@ -1586,14 +1587,14 @@ impl DeletionJournal for PostgresRepository {
         project_id: &ProjectId,
         trace_ids: &[String],
     ) -> Result<(), DataError> {
-        project::record_deleted_traces_journalled(
-            self.0.pool(),
-            project_id,
-            trace_ids,
-            self.0.clock().now(),
-        )
-        .await
-        .map_err(Into::into)
+        tenant_transaction!(self, project_id, |connection| {
+            project::record_deleted_traces_journalled(
+                connection,
+                project_id,
+                trace_ids,
+                self.0.clock().now(),
+            )
+        })
     }
 
     async fn record_deleted_sessions_journalled(
@@ -1602,15 +1603,15 @@ impl DeletionJournal for PostgresRepository {
         session_ids: &[String],
         trace_ids: &[String],
     ) -> Result<(), DataError> {
-        project::record_deleted_sessions_journalled(
-            self.0.pool(),
-            project_id,
-            session_ids,
-            trace_ids,
-            self.0.clock().now(),
-        )
-        .await
-        .map_err(Into::into)
+        tenant_transaction!(self, project_id, |connection| {
+            project::record_deleted_sessions_journalled(
+                connection,
+                project_id,
+                session_ids,
+                trace_ids,
+                self.0.clock().now(),
+            )
+        })
     }
 
     async fn record_pressure_eviction(
@@ -1618,9 +1619,9 @@ impl DeletionJournal for PostgresRepository {
         project_id: &ProjectId,
         spans: &[(String, String)],
     ) -> Result<Vec<(String, i64)>, DataError> {
-        project::record_pressure_eviction(self.0.pool(), project_id, spans, self.0.clock().now())
-            .await
-            .map_err(Into::into)
+        tenant_transaction!(self, project_id, |connection| {
+            project::record_pressure_eviction(connection, project_id, spans, self.0.clock().now())
+        })
     }
 
     async fn record_deleted_spans_journalled(
@@ -1628,34 +1629,39 @@ impl DeletionJournal for PostgresRepository {
         project_id: &ProjectId,
         spans: &[(String, String)],
     ) -> Result<Vec<(String, i64)>, DataError> {
-        project::record_deleted_spans_journalled(
-            self.0.pool(),
-            project_id,
-            spans,
-            self.0.clock().now(),
-        )
-        .await
-        .map_err(Into::into)
+        tenant_transaction!(self, project_id, |connection| {
+            project::record_deleted_spans_journalled(
+                connection,
+                project_id,
+                spans,
+                self.0.clock().now(),
+            )
+        })
     }
 
     async fn claim_project_for_deletion_journalled(&self, id: &str) -> Result<bool, DataError> {
-        project::claim_project_for_deletion_journalled(
-            self.0.pool(),
-            self.0.cache(),
-            id,
-            self.0.clock().now(),
-        )
-        .await
-        .map_err(Into::into)
+        let project_id = ProjectId::from(id);
+        let claimed = tenant_transaction!(self, &project_id, |connection| {
+            project::claim_project_for_deletion_journalled(connection, id, self.0.clock().now())
+        })?;
+        if claimed {
+            project::invalidate_claimed_project_caches(self.0.pool(), self.0.cache(), id).await;
+        }
+        Ok(claimed)
     }
 
     async fn claim_organization_for_deletion_journalled(
         &self,
         id: &str,
     ) -> Result<bool, DataError> {
-        project::claim_organization_for_deletion_journalled(self.0.pool(), id, self.0.clock().now())
-            .await
-            .map_err(Into::into)
+        let journal_tenant = ProjectId::from(id);
+        tenant_transaction!(self, &journal_tenant, |connection| {
+            project::claim_organization_for_deletion_journalled(
+                connection,
+                id,
+                self.0.clock().now(),
+            )
+        })
     }
 
     async fn append_deletions(&self, records: &[DeletionRecord]) -> Result<(), DataError> {

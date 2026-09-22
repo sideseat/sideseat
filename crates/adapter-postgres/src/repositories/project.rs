@@ -3,7 +3,7 @@
 //! All read operations support optional caching. Pass `Some(cache)` to enable caching,
 //! or `None` to bypass cache. Mutations automatically invalidate relevant cache keys.
 
-use sqlx::PgPool;
+use sqlx::{PgConnection, PgPool};
 
 use crate::PostgresError;
 use sideseat_ports::cache::{CacheKey, CacheStore};
@@ -486,7 +486,7 @@ async fn org_of_project_ignoring_fence(
 ///
 /// Returns whether the row was removed.
 pub async fn record_project_sweep(
-    pool: &PgPool,
+    connection: &mut PgConnection,
     id: &str,
     was_clean: bool,
     required: i64,
@@ -500,7 +500,7 @@ pub async fn record_project_sweep(
         )
         .bind(id)
         .bind(min_gap_secs)
-        .execute(pool)
+        .execute(&mut *connection)
         .await?;
     } else {
         // A late writer's spans reset the evidence, and unconditionally: the safe direction is never
@@ -510,7 +510,7 @@ pub async fn record_project_sweep(
              WHERE id = $1 AND deleting_at IS NOT NULL",
         )
         .bind(id)
-        .execute(pool)
+        .execute(&mut *connection)
         .await?;
     }
 
@@ -521,14 +521,13 @@ pub async fn record_project_sweep(
     // evidence, which an arbitrarily delayed writer defeats - it can commit after the row is gone, and
     // then nothing knows the project was ever there to collect for. `deleted_projects` is what knows.
     // Recording it separately would lose it to a crash in between, which is the one moment it matters.
-    let mut tx = pool.begin().await?;
     let removed = sqlx::query(
         "DELETE FROM projects \
          WHERE id = $1 AND deleting_at IS NOT NULL AND clean_sweeps >= $2",
     )
     .bind(id)
     .bind(required)
-    .execute(&mut *tx)
+    .execute(&mut *connection)
     .await?;
     let removed = removed.rows_affected() > 0;
     if removed {
@@ -540,10 +539,9 @@ pub async fn record_project_sweep(
              ON CONFLICT (project_id) DO NOTHING",
         )
         .bind(id)
-        .execute(&mut *tx)
+        .execute(&mut *connection)
         .await?;
     }
-    tx.commit().await?;
     Ok(removed)
 }
 
@@ -573,7 +571,7 @@ pub async fn record_project_sweep(
 /// **Bounded per sweep**, so one pass cannot outlive its window - and the *search* is bounded too, because
 /// the index is on the due time rather than on an input to it.
 pub async fn claim_deleted_projects_for_check(
-    pool: &PgPool,
+    connection: &mut PgConnection,
     lease_secs: i64,
     limit: i64,
 ) -> Result<Vec<(String, i64)>, PostgresError> {
@@ -591,7 +589,7 @@ pub async fn claim_deleted_projects_for_check(
     )
     .bind(lease_secs)
     .bind(limit)
-    .fetch_all(pool)
+    .fetch_all(&mut *connection)
     .await?;
     Ok(rows)
 }
@@ -603,7 +601,7 @@ pub async fn claim_deleted_projects_for_check(
 /// storage delete that failed, are both reasons to look again soon rather than to conclude the project has
 /// gone quiet.
 pub async fn record_deleted_project_check(
-    pool: &PgPool,
+    connection: &mut PgConnection,
     project_id: &str,
     claim_token: i64,
     was_quiet: bool,
@@ -624,7 +622,7 @@ pub async fn record_deleted_project_check(
         .bind(max_gap_secs)
         .bind(project_id)
         .bind(claim_token)
-        .execute(pool)
+        .execute(&mut *connection)
         .await?;
     } else {
         sqlx::query(
@@ -634,7 +632,7 @@ pub async fn record_deleted_project_check(
         .bind(base_gap_secs)
         .bind(project_id)
         .bind(claim_token)
-        .execute(pool)
+        .execute(&mut *connection)
         .await?;
     }
     Ok(())
@@ -646,14 +644,14 @@ pub async fn record_deleted_project_check(
 /// is no longer collected. It is a retention rather than a guess because nothing keeps a request alive
 /// that long - the exporter has given up, the connection is closed, the process is gone.
 pub async fn forget_deleted_projects(
-    pool: &PgPool,
+    connection: &mut PgConnection,
     retention_secs: i64,
 ) -> Result<u64, PostgresError> {
     let result = sqlx::query(
         "DELETE FROM deleted_projects WHERE deleted_at <= extract(epoch from now())::bigint - $1",
     )
     .bind(retention_secs)
-    .execute(pool)
+    .execute(&mut *connection)
     .await?;
     Ok(result.rows_affected())
 }
@@ -750,7 +748,7 @@ pub async fn delete_project(
 /// See `TransactionalRepository::record_deleted_traces` for the race. Written *before* the analytics
 /// delete, so there is no instant at which a trace is deleted and not yet tombstoned.
 pub async fn record_deleted_traces(
-    pool: &PgPool,
+    connection: &mut PgConnection,
     project_id: &str,
     trace_ids: &[String],
     now: i64,
@@ -768,14 +766,14 @@ pub async fn record_deleted_traces(
     .bind(project_id)
     .bind(trace_ids)
     .bind(now)
-    .execute(pool)
+    .execute(&mut *connection)
     .await?;
     Ok(())
 }
 
 /// Which of these traces are tombstoned.
 pub async fn deleted_traces_among(
-    pool: &PgPool,
+    connection: &mut PgConnection,
     project_id: &str,
     trace_ids: &[String],
 ) -> Result<std::collections::HashSet<String>, PostgresError> {
@@ -787,7 +785,7 @@ pub async fn deleted_traces_among(
     )
     .bind(project_id)
     .bind(trace_ids)
-    .fetch_all(pool)
+    .fetch_all(&mut *connection)
     .await?;
     Ok(rows.into_iter().collect())
 }
@@ -797,7 +795,7 @@ pub async fn deleted_traces_among(
 /// check and the analytics write are in different stores, so a crash between them leaves spans for a
 /// deleted trace and only a sweep collects them. One statement, so a claim is atomic with its lease.
 pub async fn claim_deleted_traces_for_check(
-    pool: &PgPool,
+    connection: &mut PgConnection,
     lease_secs: i64,
     limit: i64,
 ) -> Result<Vec<(String, String, i64)>, PostgresError> {
@@ -818,7 +816,7 @@ pub async fn claim_deleted_traces_for_check(
     )
     .bind(lease_secs)
     .bind(limit)
-    .fetch_all(pool)
+    .fetch_all(&mut *connection)
     .await?;
     rows.sort_unstable_by(|left, right| (&left.0, &left.1).cmp(&(&right.0, &right.1)));
     Ok(rows)
@@ -826,7 +824,7 @@ pub async fn claim_deleted_traces_for_check(
 
 /// Record what a deleted trace's check found, matched on the claim token.
 pub async fn record_deleted_trace_check(
-    pool: &PgPool,
+    connection: &mut PgConnection,
     project_id: &str,
     trace_id: &str,
     claim_token: i64,
@@ -847,7 +845,7 @@ pub async fn record_deleted_trace_check(
         .bind(project_id)
         .bind(trace_id)
         .bind(claim_token)
-        .execute(pool)
+        .execute(&mut *connection)
         .await?;
     } else {
         sqlx::query(
@@ -859,7 +857,7 @@ pub async fn record_deleted_trace_check(
         .bind(project_id)
         .bind(trace_id)
         .bind(claim_token)
-        .execute(pool)
+        .execute(&mut *connection)
         .await?;
     }
     Ok(())
@@ -871,7 +869,7 @@ pub async fn record_deleted_trace_check(
 /// check and the analytics write are in different stores, so a crash between them leaves spans for a
 /// deleted trace and only a sweep collects them. One statement, so a claim is atomic with its lease.
 pub async fn claim_deleted_sessions_for_check(
-    pool: &PgPool,
+    connection: &mut PgConnection,
     lease_secs: i64,
     limit: i64,
 ) -> Result<Vec<(String, String, i64)>, PostgresError> {
@@ -892,7 +890,7 @@ pub async fn claim_deleted_sessions_for_check(
     )
     .bind(lease_secs)
     .bind(limit)
-    .fetch_all(pool)
+    .fetch_all(&mut *connection)
     .await?;
     rows.sort_unstable_by(|left, right| (&left.0, &left.1).cmp(&(&right.0, &right.1)));
     Ok(rows)
@@ -900,7 +898,7 @@ pub async fn claim_deleted_sessions_for_check(
 
 /// Record what a deleted session's check found, matched on the claim token.
 pub async fn record_deleted_session_check(
-    pool: &PgPool,
+    connection: &mut PgConnection,
     project_id: &str,
     session_id: &str,
     claim_token: i64,
@@ -921,7 +919,7 @@ pub async fn record_deleted_session_check(
         .bind(project_id)
         .bind(session_id)
         .bind(claim_token)
-        .execute(pool)
+        .execute(&mut *connection)
         .await?;
     } else {
         sqlx::query(
@@ -933,7 +931,7 @@ pub async fn record_deleted_session_check(
         .bind(project_id)
         .bind(session_id)
         .bind(claim_token)
-        .execute(pool)
+        .execute(&mut *connection)
         .await?;
     }
     Ok(())
@@ -941,7 +939,7 @@ pub async fn record_deleted_session_check(
 /// Record that these sessions were deleted. See the trait method for why the trace tombstone alone is
 /// insufficient.
 pub async fn record_deleted_sessions(
-    pool: &PgPool,
+    connection: &mut PgConnection,
     project_id: &str,
     session_ids: &[String],
     now: i64,
@@ -957,14 +955,14 @@ pub async fn record_deleted_sessions(
     .bind(project_id)
     .bind(session_ids)
     .bind(now)
-    .execute(pool)
+    .execute(&mut *connection)
     .await?;
     Ok(())
 }
 
 /// Which of these sessions are tombstoned.
 pub async fn deleted_sessions_among(
-    pool: &PgPool,
+    connection: &mut PgConnection,
     project_id: &str,
     session_ids: &[String],
 ) -> Result<std::collections::HashSet<String>, PostgresError> {
@@ -977,7 +975,7 @@ pub async fn deleted_sessions_among(
     )
     .bind(project_id)
     .bind(session_ids)
-    .fetch_all(pool)
+    .fetch_all(&mut *connection)
     .await?;
     Ok(rows.into_iter().collect())
 }
@@ -1029,7 +1027,7 @@ pub async fn reclaim_stale_organization(
 /// `UNNEST`, matching the standalone form: one statement for the whole batch, and no placeholder count that grows
 /// with it. Shared so the standalone and journalled forms cannot drift about what a tombstone is.
 async fn insert_trace_tombstones(
-    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    connection: &mut PgConnection,
     project_id: &str,
     trace_ids: &[String],
     now: i64,
@@ -1045,14 +1043,14 @@ async fn insert_trace_tombstones(
     .bind(project_id)
     .bind(trace_ids)
     .bind(now)
-    .execute(&mut **tx)
+    .execute(&mut *connection)
     .await?;
     Ok(())
 }
 
 /// The session tombstone rows, inside a transaction the caller owns - see [`insert_trace_tombstones`].
 async fn insert_session_tombstones(
-    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    connection: &mut PgConnection,
     project_id: &str,
     session_ids: &[String],
     now: i64,
@@ -1068,7 +1066,7 @@ async fn insert_session_tombstones(
     .bind(project_id)
     .bind(session_ids)
     .bind(now)
-    .execute(&mut **tx)
+    .execute(&mut *connection)
     .await?;
     Ok(())
 }
@@ -1078,8 +1076,8 @@ async fn insert_session_tombstones(
 /// Exists so a tombstone or a claim can be made atomic with its record. See
 /// [`sideseat_ports::traits::DeletionJournal::record_deleted_traces_journalled`] for why the pair must be one
 /// transaction rather than an ordering.
-async fn append_journal_in_tx(
-    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+async fn append_journal(
+    connection: &mut PgConnection,
     records: &[sideseat_ports::traits::DeletionRecord],
 ) -> Result<(), PostgresError> {
     for record in records {
@@ -1095,7 +1093,7 @@ async fn append_journal_in_tx(
         .bind(record.span_id.as_deref())
         .bind(record.recorded_at.timestamp_nanos_opt().unwrap_or(i64::MAX))
         .bind(i64::try_from(record.logical_bytes()).unwrap_or(i64::MAX))
-        .execute(&mut **tx)
+        .execute(&mut *connection)
         .await?;
     }
     Ok(())
@@ -1123,7 +1121,7 @@ fn requested(
 
 /// [`record_deleted_traces`] and the journal entries, in one transaction.
 pub async fn record_deleted_traces_journalled(
-    pool: &PgPool,
+    connection: &mut PgConnection,
     project_id: &str,
     trace_ids: &[String],
     now: chrono::DateTime<chrono::Utc>,
@@ -1131,10 +1129,9 @@ pub async fn record_deleted_traces_journalled(
     if trace_ids.is_empty() {
         return Ok(());
     }
-    let mut tx = pool.begin().await?;
-    insert_trace_tombstones(&mut tx, project_id, trace_ids, now.timestamp()).await?;
-    append_journal_in_tx(
-        &mut tx,
+    insert_trace_tombstones(connection, project_id, trace_ids, now.timestamp()).await?;
+    append_journal(
+        connection,
         &requested(
             project_id,
             sideseat_ports::traits::DeletionScope::Trace,
@@ -1143,13 +1140,12 @@ pub async fn record_deleted_traces_journalled(
         ),
     )
     .await?;
-    tx.commit().await?;
     Ok(())
 }
 
 /// Both tombstones and both journal scopes, in one transaction.
 pub async fn record_deleted_sessions_journalled(
-    pool: &PgPool,
+    connection: &mut PgConnection,
     project_id: &str,
     session_ids: &[String],
     trace_ids: &[String],
@@ -1158,9 +1154,8 @@ pub async fn record_deleted_sessions_journalled(
     if session_ids.is_empty() && trace_ids.is_empty() {
         return Ok(());
     }
-    let mut tx = pool.begin().await?;
-    insert_session_tombstones(&mut tx, project_id, session_ids, now.timestamp()).await?;
-    insert_trace_tombstones(&mut tx, project_id, trace_ids, now.timestamp()).await?;
+    insert_session_tombstones(connection, project_id, session_ids, now.timestamp()).await?;
+    insert_trace_tombstones(connection, project_id, trace_ids, now.timestamp()).await?;
 
     let mut records = requested(
         project_id,
@@ -1174,14 +1169,13 @@ pub async fn record_deleted_sessions_journalled(
         trace_ids,
         now,
     ));
-    append_journal_in_tx(&mut tx, &records).await?;
-    tx.commit().await?;
+    append_journal(connection, &records).await?;
     Ok(())
 }
 
 /// Journal pressure-selected spans and record their trace cleanup in the same transaction.
 async fn record_span_deletions_journalled(
-    pool: &PgPool,
+    connection: &mut PgConnection,
     project_id: &str,
     spans: &[(String, String)],
     cause: DeletionCause,
@@ -1190,7 +1184,6 @@ async fn record_span_deletions_journalled(
     if spans.is_empty() {
         return Ok(Vec::new());
     }
-    let mut tx = pool.begin().await?;
     for (trace_id, span_id) in spans {
         let record = DeletionRecord {
             project_id: ProjectId::from(project_id),
@@ -1216,7 +1209,7 @@ async fn record_span_deletions_journalled(
         .bind(span_id)
         .bind(now.timestamp_nanos_opt().unwrap_or(i64::MAX))
         .bind(i64::try_from(record.logical_bytes()).unwrap_or(i64::MAX))
-        .execute(&mut *tx)
+        .execute(&mut *connection)
         .await?;
     }
 
@@ -1243,30 +1236,31 @@ async fn record_span_deletions_journalled(
             i64::try_from(retention_cleanup_logical_bytes(project_id, &trace_id))
                 .unwrap_or(i64::MAX),
         )
-        .fetch_one(&mut *tx)
+        .fetch_one(&mut *connection)
         .await?;
         written.push((trace_id, token));
     }
-    tx.commit().await?;
     Ok(written)
 }
 
 pub async fn record_deleted_spans_journalled(
-    pool: &PgPool,
+    connection: &mut PgConnection,
     project_id: &str,
     spans: &[(String, String)],
     now: chrono::DateTime<chrono::Utc>,
 ) -> Result<Vec<(String, i64)>, PostgresError> {
-    record_span_deletions_journalled(pool, project_id, spans, DeletionCause::Requested, now).await
+    record_span_deletions_journalled(connection, project_id, spans, DeletionCause::Requested, now)
+        .await
 }
 
 pub async fn record_pressure_eviction(
-    pool: &PgPool,
+    connection: &mut PgConnection,
     project_id: &str,
     spans: &[(String, String)],
     now: chrono::DateTime<chrono::Utc>,
 ) -> Result<Vec<(String, i64)>, PostgresError> {
-    record_span_deletions_journalled(pool, project_id, spans, DeletionCause::Pressure, now).await
+    record_span_deletions_journalled(connection, project_id, spans, DeletionCause::Pressure, now)
+        .await
 }
 
 /// [`claim_project_for_deletion`], with the journal entry written **only if the claim was won**.
@@ -1276,22 +1270,20 @@ pub async fn record_pressure_eviction(
 /// wrote an entry for every losing caller, and an organization cleanup re-runs while its projects' tombstones
 /// remain - so one deletion accumulated permanent, quota-counted records without bound.
 pub async fn claim_project_for_deletion_journalled(
-    pool: &PgPool,
-    cache: Option<&dyn CacheStore>,
+    connection: &mut PgConnection,
     id: &str,
     now: chrono::DateTime<chrono::Utc>,
 ) -> Result<bool, PostgresError> {
-    let mut tx = pool.begin().await?;
     let result =
         sqlx::query("UPDATE projects SET deleting_at = $1 WHERE id = $2 AND deleting_at IS NULL")
             .bind(now.timestamp())
             .bind(id)
-            .execute(&mut *tx)
+            .execute(&mut *connection)
             .await?;
     let claimed = result.rows_affected() > 0;
     if claimed {
-        append_journal_in_tx(
-            &mut tx,
+        append_journal(
+            connection,
             &requested(
                 id,
                 sideseat_ports::traits::DeletionScope::Project,
@@ -1301,35 +1293,36 @@ pub async fn claim_project_for_deletion_journalled(
         )
         .await?;
     }
-    tx.commit().await?;
-
-    if claimed {
-        // After the commit, not inside it: a cache invalidation is not transactional, and doing it before the
-        // commit would clear the cache for a claim that then rolled back.
-        let org = org_of_project_ignoring_fence(pool, id).await.ok().flatten();
-        invalidate_project_caches(pool, cache, id, org.as_deref()).await;
-    }
     Ok(claimed)
+}
+
+/// Invalidate project caches after a journalled claim transaction commits.
+pub async fn invalidate_claimed_project_caches(
+    pool: &PgPool,
+    cache: Option<&dyn CacheStore>,
+    id: &str,
+) {
+    let org = org_of_project_ignoring_fence(pool, id).await.ok().flatten();
+    invalidate_project_caches(pool, cache, id, org.as_deref()).await;
 }
 
 /// [`claim_organization_for_deletion`], with its journal entry. See the project twin.
 pub async fn claim_organization_for_deletion_journalled(
-    pool: &PgPool,
+    connection: &mut PgConnection,
     id: &str,
     now: chrono::DateTime<chrono::Utc>,
 ) -> Result<bool, PostgresError> {
-    let mut tx = pool.begin().await?;
     let result = sqlx::query(
         "UPDATE organizations SET deleting_at = $1 WHERE id = $2 AND deleting_at IS NULL",
     )
     .bind(now.timestamp())
     .bind(id)
-    .execute(&mut *tx)
+    .execute(&mut *connection)
     .await?;
     let claimed = result.rows_affected() > 0;
     if claimed {
-        append_journal_in_tx(
-            &mut tx,
+        append_journal(
+            connection,
             &requested(
                 id,
                 sideseat_ports::traits::DeletionScope::Organization,
@@ -1339,6 +1332,5 @@ pub async fn claim_organization_for_deletion_journalled(
         )
         .await?;
     }
-    tx.commit().await?;
     Ok(claimed)
 }
