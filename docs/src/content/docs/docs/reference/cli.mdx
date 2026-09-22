@@ -73,6 +73,13 @@ Running `sideseat` without a command is equivalent to `sideseat start`.
 | `--cache-eviction-policy` | `SIDESEAT_CACHE_EVICTION_POLICY` | `tinylfu` | `tinylfu` or `lru` |
 | `--cache-redis-url` | `SIDESEAT_CACHE_REDIS_URL` | - | Redis connection URL |
 
+### Queue Options
+
+| Option | Env Variable | Default | Description |
+|--------|-------------|---------|-------------|
+| `--queue-backend` | `SIDESEAT_QUEUE_BACKEND` | follows cache for compatibility | `memory`, `redis`, or `redpanda` |
+| `--redpanda-brokers` | `SIDESEAT_REDPANDA_BROKERS` | `127.0.0.1:9092` | Comma-separated bootstrap brokers |
+
 ### Rate Limit Options
 
 | Option | Env Variable | Default | Description |

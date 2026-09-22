@@ -500,9 +500,19 @@
           ],
           "default": "memory"
         },
+        "queue": {
+          "type": "string",
+          "description": "Durable ingestion queue backend, independently selectable from the cache.",
+          "enum": [
+            "memory",
+            "redis",
+            "redpanda"
+          ],
+          "default": "memory"
+        },
         "redis": {
           "type": "object",
-          "description": "Redis cache configuration (used when cache is 'redis'). Supports Redis, Redis Sentinel, Valkey, and Dragonfly.",
+          "description": "Redis configuration used when either cache or queue is 'redis'. Supports Redis, Redis Sentinel, Valkey, and Dragonfly.",
           "properties": {
             "url": {
               "type": [
@@ -523,6 +533,39 @@
               "type": "integer",
               "minimum": 0,
               "description": "How many replicas must acknowledge a queued trace before the export is answered. 0 means a single-instance Redis."
+            }
+          },
+          "additionalProperties": false
+        },
+        "redpanda": {
+          "type": "object",
+          "description": "RedPanda queue configuration (used when queue is 'redpanda').",
+          "properties": {
+            "brokers": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Comma-separated Kafka bootstrap brokers.",
+              "default": "127.0.0.1:9092"
+            },
+            "partitions": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 6
+            },
+            "replication_factor": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1
+            },
+            "retention_ms": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 604800000
+            },
+            "retention_warning_ms": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 3600000
             }
           },
           "additionalProperties": false
@@ -638,6 +681,60 @@
                     "minLength": 1
                   }
                 }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "queue": {
+                "const": "redis"
+              }
+            },
+            "required": [
+              "queue"
+            ]
+          },
+          "then": {
+            "required": [
+              "redis"
+            ],
+            "properties": {
+              "redis": {
+                "required": [
+                  "url"
+                ],
+                "properties": {
+                  "url": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "queue": {
+                "const": "redpanda"
+              }
+            },
+            "required": [
+              "queue"
+            ]
+          },
+          "then": {
+            "required": [
+              "redpanda"
+            ],
+            "properties": {
+              "redpanda": {
+                "required": [
+                  "brokers"
+                ]
               }
             }
           }

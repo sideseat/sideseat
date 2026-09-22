@@ -126,6 +126,42 @@ services:
         limits:
           memory: 384m
 
+  redpanda:
+    image: docker.redpanda.com/redpandadata/redpanda:v26.2.3
+    container_name: sideseat_redpanda
+    restart: unless-stopped
+    command:
+      - redpanda
+      - start
+      - --overprovisioned
+      - --smp
+      - "1"
+      - --memory
+      - 1G
+      - --reserve-memory
+      - 0M
+      - --node-id
+      - "0"
+      - --check=false
+      - --kafka-addr
+      - internal://0.0.0.0:9092,external://0.0.0.0:19092
+      - --advertise-kafka-addr
+      - internal://redpanda:9092,external://127.0.0.1:${REDPANDA_PORT:-19092}
+    ports:
+      - "127.0.0.1:${REDPANDA_PORT:-19092}:19092"
+      - "127.0.0.1:${REDPANDA_ADMIN_PORT:-9644}:9644"
+    volumes:
+      - ./data/redpanda:/var/lib/redpanda/data
+    healthcheck:
+      test: ["CMD-SHELL", "rpk cluster health --exit-when-healthy"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    deploy:
+      resources:
+        limits:
+          memory: 1280m
+
   vault:
     image: hashicorp/vault:1.21.1
     container_name: sideseat_vault
@@ -151,6 +187,33 @@ services:
       resources:
         limits:
           memory: 512m
+
+  sideseat:
+    image: ${SIDESEAT_IMAGE:-sideseat/core:latest}
+    container_name: sideseat
+    restart: unless-stopped
+    command: ["--config", "/etc/sideseat/sideseat.json", "--no-auth"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      clickhouse:
+        condition: service_healthy
+      valkey:
+        condition: service_healthy
+      redpanda:
+        condition: service_healthy
+      vault:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:${SIDESEAT_PORT:-5388}:5388"
+      - "127.0.0.1:${SIDESEAT_GRPC_PORT:-4317}:4317"
+    volumes:
+      - ./sideseat.json:/etc/sideseat/sideseat.json:ro
+      - ./data/sideseat:/data
+    deploy:
+      resources:
+        limits:
+          memory: 1024m
 
 networks:
   default:

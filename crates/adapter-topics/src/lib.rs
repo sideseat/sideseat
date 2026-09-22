@@ -9,6 +9,9 @@ pub mod pubsub;
 pub mod redis;
 #[cfg(test)]
 mod redis_stream_tests;
+pub mod redpanda;
+#[cfg(test)]
+mod redpanda_tests;
 
 use std::sync::Arc;
 
@@ -19,6 +22,7 @@ pub use sideseat_ports::queue::{
 
 pub use memory::MemoryTopicBackend;
 pub use redis::RedisTopicBackend;
+pub use redpanda::RedpandaTopicBackend;
 
 /// Build the configured queue backend without coupling queue choice to its typed domain wrapper.
 pub async fn backend_from_queue_config(
@@ -36,9 +40,12 @@ pub async fn backend_from_queue_config(
                     .await?,
             ))
         }
-        QueueBackendType::Redpanda => Err(TopicError::Config(
-            "RedPanda adapter is not initialized yet".into(),
-        )),
+        QueueBackendType::Redpanda => {
+            let config = queue_config.redpanda.as_ref().ok_or_else(|| {
+                TopicError::Config("redpanda configuration required for RedPanda backend".into())
+            })?;
+            Ok(Arc::new(RedpandaTopicBackend::new(config).await?))
+        }
     }
 }
 

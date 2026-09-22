@@ -80,6 +80,7 @@
 #     test-clickhouse    ClickHouse/DuckDB parity (starts a throwaway container)
 #     test-postgres      PostgreSQL/SQLite parity (starts a throwaway container)
 #     test-redis         Durable ingestion queue against Redis (starts a throwaway container)
+#     test-redpanda      Durable ingestion queue against RedPanda (starts a throwaway container)
 #     bench-http         End-to-end HTTP latency (add -distributed for PostgreSQL + ClickHouse)
 #     footprint          The four memory ceilings: idle RSS, ingest RSS, session-read residue,
 #                        bytes per queued span. Exits non-zero on a miss, like bench-http.
@@ -258,7 +259,7 @@ cli-bin = $(CLI_DIR)/platforms/platform-$(1)/$(BIN_NAME_$(1))
 .PHONY: dev dev-server dev-web
 .PHONY: fmt fmt-check lint lint-advisory check
 .PHONY: secret-scan-tree secret-scan-staged secret-scan-range
-.PHONY: test test-rust test-server test-clickhouse test-clickhouse-replicated test-clickhouse-two-shard test-postgres test-redis bench-http bench-http-distributed footprint test-web test-sdk-js test-sdk-python coverage
+.PHONY: test test-rust test-server test-clickhouse test-clickhouse-replicated test-clickhouse-two-shard test-postgres test-redis test-redpanda bench-http bench-http-distributed footprint test-web test-sdk-js test-sdk-python coverage
 .PHONY: build build-web build-server
 .PHONY: build-sdk build-sdk-js build-sdk-python
 .PHONY: build-cli build-cli-preflight build-cli-summary $(CLI_BUILD_TARGETS)
@@ -875,6 +876,37 @@ test-redis:
 	cargo test --locked -p sideseat-server redis_stream_tests -- --test-threads=1; \
 	status=$$?; \
 	docker rm -fv $(REDIS_TEST_CONTAINER) >/dev/null 2>&1; \
+	exit $$status
+
+REDPANDA_TEST_CONTAINER := sideseat-redpanda-test
+REDPANDA_TEST_PORT ?= 19092
+# Pinned to the current stable RedPanda patch used by the server-mode Compose stack.
+REDPANDA_TEST_IMAGE ?= docker.redpanda.com/redpandadata/redpanda:v26.2.3
+
+test-redpanda:
+	@command -v docker >/dev/null 2>&1 || { echo "[test-redpanda] docker is required"; exit 1; }
+	@echo "[test-redpanda] starting $(REDPANDA_TEST_IMAGE) on port $(REDPANDA_TEST_PORT)..."
+	@docker rm -fv $(REDPANDA_TEST_CONTAINER) >/dev/null 2>&1 || true
+	@docker run -d --name $(REDPANDA_TEST_CONTAINER) -p $(REDPANDA_TEST_PORT):9092 \
+		$(REDPANDA_TEST_IMAGE) redpanda start \
+		  --overprovisioned --smp 1 --memory 1G --reserve-memory 0M \
+		  --node-id 0 --check=false --kafka-addr 0.0.0.0:9092 \
+		  --advertise-kafka-addr 127.0.0.1:$(REDPANDA_TEST_PORT) >/dev/null
+	@for i in $$(seq 1 60); do \
+		docker exec $(REDPANDA_TEST_CONTAINER) rpk cluster health --exit-when-healthy >/dev/null 2>&1 && break; \
+		sleep 1; \
+	done; \
+	docker exec $(REDPANDA_TEST_CONTAINER) rpk cluster health --exit-when-healthy >/dev/null 2>&1 || { \
+		echo "[test-redpanda] broker did not become ready"; \
+		docker logs --tail 40 $(REDPANDA_TEST_CONTAINER); \
+		docker rm -fv $(REDPANDA_TEST_CONTAINER) >/dev/null 2>&1; \
+		exit 1; \
+	}
+	@set +e; \
+	SIDESEAT_TEST_REDPANDA_BROKERS=127.0.0.1:$(REDPANDA_TEST_PORT) \
+	cargo test --locked -p sideseat-adapter-topics redpanda_tests -- --test-threads=1 --nocapture; \
+	status=$$?; \
+	docker rm -fv $(REDPANDA_TEST_CONTAINER) >/dev/null 2>&1; \
 	exit $$status
 
 # End-to-end HTTP latency, which is what a client actually experiences. The in-process benches measure the

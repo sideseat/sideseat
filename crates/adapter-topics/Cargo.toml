@@ -21,10 +21,9 @@ hex = { workspace = true }
 opentelemetry-proto = { workspace = true }
 parking_lot = { workspace = true }
 prost = { workspace = true }
+rdkafka = { workspace = true }
 rmp-serde = { workspace = true }
 serde = { workspace = true }
 tokio = { workspace = true }
 tracing = { workspace = true }
-
-[dev-dependencies]
 uuid = { workspace = true }

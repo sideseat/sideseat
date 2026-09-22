@@ -859,7 +859,7 @@ reviewable and leaves the tree green.
 | **8** rollups | **DONE as a gated rejection:** the complete DuckDB contribution implementation was built and correctness-tested, then release-benchmarked and reverted because it made the trace-list read slower at both fixture scales. The retained wide query now applies suppression only to winning revisions and has cost-only/re-delivery/deletion regressions. | Rejected by the required measurement; details in §6.14 |
 | **9** bodies + streaming | **DONE in the current working tree:** body-level transactional ownership, dual-write/dual-read fallback, resumable backfill, exact cleanup and bounded HTTP JSON streaming are live; unchanged at-least-once deliveries no longer append duplicate analytics revisions. The old columns remain intentionally. | Complete; details and cutover gate in §6.12 |
 | **10** search | **DONE in the current working tree:** ClickHouse 26.4.3.37, one domain tokeniser, capped per-field terms, DuckDB relations, ClickHouse text indexes, three-valued lowering, exact phrase verification, chronological API pagination, scan fallback, marker-checkpointed per-project backfill, range-level completeness reporting, and spans/logs live parity are implemented. Recall is 0.962 against the 0.950 floor; embedded HTTP search p95 is 92.5 ms against 100 ms. | Complete; details and gates in §6.15 |
-| **11** RedPanda | See §6.15 | The adapter against the three trait changes step 1 already made |
+| **11** RedPanda | **DONE in the current working tree:** queue selection is independent from cache selection; the `rdkafka` adapter provides keyed durable publish, consumer-group delivery, contiguous per-partition acknowledgement, broker-lag-versus-retention monitoring, DLQ and stats. Kafka-native rebalance replaces claim and trim is a no-op. `make test-redpanda`, CI, and a complete server-mode Compose stack are present. | Complete; details and gates in §6.15 |
 | **12** tenancy + backup | See §6.13 | The colliding-id leak test (two tenants, same client-supplied trace and session ids) before any policy exists — it should pass today and will catch the policy getting it wrong |
 
 ### 6.4 Step 5 in detail, because its starting point is not what it looks like
@@ -1228,10 +1228,23 @@ when the page is empty**.
 values, so `prompt:foo AND completion:foo` returns spans where `foo` occurs only in the prompt — a *wrong* answer,
 not a missing one, and per-clause lowering cannot repair it.
 
-**Step 11 is small but has one real constraint**: `stream_claim` has no Kafka analogue (a rebalance recovers
-abandoned work) and `stream_trim_consumed` becomes a no-op. Also decouple the queue from `CacheBackendType` — today
-"Redis cache + Kafka queue" is inexpressible — and remove the Redis-specific `From` impls from the shared error
-type.
+**Step 11 result.** `QueueBackendType` and `QueueConfig` are independent from the cache while preserving the old
+implicit cache→queue choice only when no queue setting is supplied. The RedPanda adapter uses `rdkafka` 0.39.0,
+idempotent `acks=all` production and the signal-owned partition key. Received ids encode partition and offset;
+`AckWindow` commits only the highest contiguous completed prefix, so a later success cannot acknowledge an earlier
+failure. `stream_claim` returns no records because group rebalance reassigns abandoned partitions, and
+`stream_trim_consumed` uses the port's no-op default.
+
+Retention is checked continuously rather than only at startup. Every 30 seconds the adapter compares each live
+consumer group's committed offsets with broker timestamp offsets at `retention_ms - retention_warning_ms`; local
+delivered-but-uncommitted timestamps cover the same interval between broker probes. Approaching the boundary logs
+an error and fails queue health. The adapter also exposes broker-derived length/lag statistics and preserves
+undecodable records in a dedicated dead-letter topic.
+
+`make test-redpanda` starts pinned `v26.2.3` and proves same-key partition stability, a deliberately out-of-order
+ack that does not move the group offset past its gap, gap closure, final zero lag, and Kafka-native claim/trim
+semantics. CI runs that target. `deploy/local/docker-compose.yml` now starts SideSeat itself plus PostgreSQL,
+ClickHouse, Valkey, RedPanda and Vault; its checked config selects Redis for cache and RedPanda for queue.
 
 ### 6.7 Review state
 
@@ -1365,7 +1378,7 @@ tested. It is intentionally kept separate from that pre-existing edit.
 | `cargo test --locked -p sideseat-adapter-blob-storage` | 16 passed |
 | `cargo test --locked -p sideseat-adapter-cache` | 55 passed |
 | `cargo test -p sideseat-adapter-secrets` | 36 passed |
-| `cargo test --locked -p sideseat-adapter-topics` | 63 passed |
+| `cargo test --locked -p sideseat-adapter-topics` | 52 passed, including RedPanda unit coverage |
 | `cargo test -p sideseat-adapter-registrations-memory` | 9 passed (the server WS routing regression also passes) |
 | `cargo test --locked -p sideseat-server --test repository` | the search-expanded 45-operation SQL registry gate passes; the previous complete run covered 27 structural invariants |
 | `cargo test --locked -p sideseat-query-sql` | complete package run passes: 65 passed |
@@ -1382,6 +1395,7 @@ tested. It is intentionally kept separate from that pre-existing edit.
 | release search write-amplification gate | **passes:** 0.962 recall against 0.950; 62,052 rows for 532 spans, 5,913 physical bytes/span |
 | embedded HTTP search gate | **passes:** 200 samples, p50 78.6 ms, p95 92.5 ms against 100 ms, p99 104.1 ms |
 | `make test-redis` | **15 passed** — durable queue refusal, reclaim, acknowledgement and trim cases |
+| `make test-redpanda` | **passes live** on pinned RedPanda v26.2.3 — keyed partitioning, contiguous commits, zero final lag, claim/trim semantics |
 | web / Python SDK | 93 and 203 passed |
 
 **Not run:**

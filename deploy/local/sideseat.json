@@ -1,7 +1,7 @@
 {
   "$schema": "../../config/sideseat.schema.json",
   "server": {
-    "host": "127.0.0.1",
+    "host": "0.0.0.0",
     "port": 5388
   },
   "auth": {
@@ -28,12 +28,13 @@
     "transactional": "postgres",
     "analytics": "clickhouse",
     "cache": "redis",
+    "queue": "redpanda",
     "postgres": {
-      "url": "postgres://postgres:postgres@127.0.0.1:5432/sideseat",
+      "url": "postgres://postgres:postgres@postgres:5432/sideseat",
       "max_connections": 10
     },
     "clickhouse": {
-      "url": "http://127.0.0.1:8123",
+      "url": "http://clickhouse:8123",
       "database": "sideseat",
       "timeout_secs": 30,
       "compression": true,
@@ -41,13 +42,20 @@
       "wait_for_async_insert": true
     },
     "redis": {
-      "url": "redis://:dev_password@127.0.0.1:6379/0"
+      "url": "redis://:dev_password@valkey:6379/0"
+    },
+    "redpanda": {
+      "brokers": "redpanda:9092",
+      "partitions": 6,
+      "replication_factor": 1,
+      "retention_ms": 604800000,
+      "retention_warning_ms": 3600000
     }
   },
   "secrets": {
     "backend": "vault",
     "vault": {
-      "address": "http://127.0.0.1:8200",
+      "address": "http://vault:8200",
       "token": "devroot",
       "mount": "secret",
       "prefix": "sideseat"
