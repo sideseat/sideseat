@@ -927,6 +927,18 @@ async fn files_and_references_behave_identically() {
             .unwrap();
         hashes.sort();
         t.note(&format!("hashes_for_trace_2={}", hashes.len()));
+        t.note(&format!(
+            "restore_candidates_first={:?}",
+            repo.restore_association_trace_ids(&ProjectId::from("default"), None, 1)
+                .await
+                .unwrap()
+        ));
+        t.note(&format!(
+            "restore_candidates_after={:?}",
+            repo.restore_association_trace_ids(&ProjectId::from("default"), Some("trace-1"), 10,)
+                .await
+                .unwrap()
+        ));
         let mut counted = repo
             .get_file_reference_counts_for_traces(
                 &ProjectId::from("default"),

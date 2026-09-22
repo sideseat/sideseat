@@ -907,6 +907,18 @@ pub trait ProjectStore: Send + Sync {
 /// The rows that name stored bytes, and the reference counting that protects them.
 #[async_trait]
 pub trait FileMetaStore: Send + Sync {
+    /// A stable page of trace identities still named by transactional byte ownership.
+    ///
+    /// Restore repair must inspect both directions of a mismatched snapshot: analytics rows can have lost
+    /// their ownership rows, and ownership rows can outlive analytics rows. The latter cannot be discovered
+    /// by scanning analytics alone, so this pages the union of `trace_files` and `span_bodies` by trace id.
+    async fn restore_association_trace_ids(
+        &self,
+        project_id: &ProjectId,
+        after_trace_id: Option<&str>,
+        limit: usize,
+    ) -> Result<Vec<String>, DataError>;
+
     /// Upsert a file record (insert or increment ref_count)
     /// Returns the new ref_count value.
     async fn upsert_file(

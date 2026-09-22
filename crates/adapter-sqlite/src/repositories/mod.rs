@@ -14,6 +14,7 @@ pub mod journal;
 pub mod membership;
 pub mod organization;
 pub mod project;
+pub mod restore;
 pub mod staging;
 pub mod user;
 

@@ -24,7 +24,7 @@ use sideseat_ports::types::{
 use super::SqliteService;
 use super::repositories::{
     api_key, auth_method, body, credential_permissions, credentials, favorite, file, governance,
-    journal, membership, organization, project, staging, user,
+    journal, membership, organization, project, restore, staging, user,
 };
 
 /// The port, implemented over the service.
@@ -634,6 +634,17 @@ impl ProjectStore for SqliteRepository {
 #[async_trait]
 impl FileMetaStore for SqliteRepository {
     // ==================== File Operations ====================
+
+    async fn restore_association_trace_ids(
+        &self,
+        project_id: &ProjectId,
+        after_trace_id: Option<&str>,
+        limit: usize,
+    ) -> Result<Vec<String>, DataError> {
+        restore::association_trace_ids(self.0.pool(), project_id, after_trace_id, limit)
+            .await
+            .map_err(Into::into)
+    }
 
     async fn upsert_file(
         &self,
