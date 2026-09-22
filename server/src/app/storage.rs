@@ -246,6 +246,42 @@ impl AnalyticsService {
         }
     }
 
+    /// Complete every currently applicable retention batch before restored data is served.
+    pub async fn run_retention_to_completion(
+        &self,
+        config: &RetentionConfig,
+        quota_bytes: u64,
+        file_service: Arc<sideseat_domain::files::FileService>,
+        database: Arc<TransactionalService>,
+        governance: Arc<dyn StorageGovernance + Send + Sync>,
+    ) -> Result<(), DataError> {
+        let files = file_service as Arc<dyn RetentionFileReconciler>;
+        let repository: Arc<dyn TransactionalRepository + Send + Sync> =
+            Arc::from(database.repository());
+        match self {
+            Self::Duckdb(service) => service
+                .run_retention_to_completion(
+                    config,
+                    quota_bytes,
+                    Some(files),
+                    repository,
+                    governance,
+                )
+                .await
+                .map_err(Into::into),
+            Self::Clickhouse(service) => service
+                .run_retention_to_completion(
+                    config,
+                    quota_bytes,
+                    Some(files),
+                    repository,
+                    governance,
+                )
+                .await
+                .map_err(Into::into),
+        }
+    }
+
     /// Get the backend type
     pub fn backend(&self) -> AnalyticsBackend {
         match self {
@@ -265,5 +301,130 @@ impl AnalyticsService {
             Self::Clickhouse(c) => Box::new(ClickhouseRepository(Arc::clone(c))),
         };
         Box::new(DedupAnalyticsRepository::new(inner))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use chrono::{TimeDelta, TimeZone, Utc};
+    use sideseat_adapter_cache::CacheService;
+    use sideseat_core::core::config::{
+        CacheBackendType, CacheConfig, EvictionPolicy, FilesConfig, StorageBackend,
+    };
+    use sideseat_domain::storage_governance::StorageGovernanceService;
+    use sideseat_ports::clock::Clock;
+    use sideseat_ports::types::{NormalizedSpan, ProjectId};
+    use tempfile::TempDir;
+
+    use crate::app::files::create_governed_file_service;
+
+    #[derive(Debug)]
+    struct TestClock;
+
+    impl Clock for TestClock {
+        fn now(&self) -> chrono::DateTime<Utc> {
+            Utc.timestamp_opt(1_700_000_000, 0).single().unwrap()
+        }
+    }
+
+    #[tokio::test]
+    async fn restore_retention_removes_expired_rows_before_returning() {
+        let root = TempDir::new().expect("temp dir");
+        let app_storage = AppStorage::init_for_test(root.path().to_path_buf());
+        let clock: Arc<dyn Clock> = Arc::new(TestClock);
+        let cache = Arc::new(
+            CacheService::new(&CacheConfig {
+                backend: CacheBackendType::Memory,
+                max_entries: 100,
+                eviction_policy: EvictionPolicy::TinyLfu,
+                redis_url: None,
+            })
+            .await
+            .expect("cache"),
+        );
+        let database = Arc::new(
+            TransactionalService::init(
+                TransactionalBackend::Sqlite,
+                &app_storage,
+                None,
+                Some(cache.clone()),
+                Arc::clone(&clock),
+            )
+            .await
+            .expect("sqlite"),
+        );
+        let analytics = Arc::new(
+            AnalyticsService::init(
+                AnalyticsBackend::Duckdb,
+                &app_storage,
+                None,
+                Arc::clone(&clock),
+            )
+            .await
+            .expect("duckdb"),
+        );
+        let database_port: Arc<dyn TransactionalRepository + Send + Sync> =
+            Arc::from(database.repository());
+        let analytics_port: Arc<dyn AnalyticsRepository + Send + Sync> =
+            Arc::from(analytics.repository());
+        let governance_port: Arc<dyn StorageGovernance + Send + Sync> =
+            Arc::from(database.governance_repository());
+        let governance = Arc::new(StorageGovernanceService::new(
+            Arc::clone(&database_port),
+            governance_port.clone(),
+            Arc::clone(&analytics_port),
+            Arc::clone(&clock),
+            1024 * 1024,
+        ));
+        let files = Arc::new(
+            create_governed_file_service(
+                FilesConfig {
+                    enabled: true,
+                    storage: StorageBackend::Filesystem,
+                    quota_bytes: 1024 * 1024,
+                    filesystem_path: None,
+                    s3: None,
+                },
+                &app_storage,
+                Arc::clone(&database),
+                cache,
+                Arc::clone(&governance),
+            )
+            .await
+            .expect("files"),
+        );
+        analytics_port
+            .insert_spans(vec![NormalizedSpan {
+                project_id: Some("default".to_owned()),
+                trace_id: "expired".to_owned(),
+                span_id: "span".to_owned(),
+                timestamp_start: TestClock.now() - TimeDelta::minutes(10),
+                ..NormalizedSpan::default()
+            }])
+            .await
+            .expect("old span");
+
+        analytics
+            .run_retention_to_completion(
+                &RetentionConfig {
+                    max_age_minutes: Some(5),
+                    max_spans: None,
+                },
+                1024 * 1024,
+                files,
+                database,
+                governance_port,
+            )
+            .await
+            .expect("retention");
+
+        assert!(
+            analytics_port
+                .get_trace(&ProjectId::from("default"), "expired")
+                .await
+                .expect("trace lookup")
+                .is_none()
+        );
     }
 }

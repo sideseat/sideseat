@@ -434,6 +434,98 @@ impl DuckdbService {
         }
     }
 
+    /// Run every configured retention batch to a fixed point before restored data is served.
+    ///
+    /// The periodic worker is intentionally bounded; restore is different because leaving an old row behind
+    /// can resurrect data the age predicate still covers. With ingestion stopped, repeating a bounded project
+    /// pass until it deletes nothing is both terminating and the exact predicate the operation needs.
+    pub async fn run_retention_to_completion(
+        self: &Arc<Self>,
+        config: &RetentionConfig,
+        quota_bytes: u64,
+        file_service: Option<Arc<dyn RetentionFileReconciler>>,
+        database: Arc<dyn TransactionalRepository + Send + Sync>,
+        governance: Arc<dyn StorageGovernance + Send + Sync>,
+    ) -> Result<(), DuckdbError> {
+        let projects = governance
+            .storage_project_ids(usize::MAX)
+            .await
+            .map_err(|error| DuckdbError::Io(std::io::Error::other(error.to_string())))?;
+        for project_id in projects {
+            let owner = format!(
+                "duckdb-restore-retention:{}:{}",
+                std::process::id(),
+                self.clock.now().timestamp_micros()
+            );
+            let lock_now = self.clock.now();
+            let acquired = governance
+                .acquire_project_maintenance(
+                    &project_id,
+                    &owner,
+                    lock_now,
+                    lock_now + chrono::TimeDelta::hours(2),
+                )
+                .await
+                .map_err(|error| DuckdbError::Io(std::io::Error::other(error.to_string())))?;
+            if !acquired {
+                return Err(DuckdbError::Io(std::io::Error::other(format!(
+                    "project {project_id} is already under maintenance"
+                ))));
+            }
+
+            let result: Result<(), DuckdbError> = async {
+                let held = governance
+                    .active_project_hold(&project_id, self.clock.now())
+                    .await
+                    .map_err(|error| DuckdbError::Io(std::io::Error::other(error.to_string())))?
+                    .is_some();
+                if held {
+                    tracing::info!(%project_id, "Restore retention kept data under legal hold");
+                    return Ok(());
+                }
+
+                loop {
+                    let result = self
+                        .run_project_retention(
+                            config,
+                            quota_bytes,
+                            &project_id,
+                            &database,
+                            &governance,
+                        )
+                        .await?;
+                    if let Some(trace_ids) = result.trace_ids_by_project.get(project_id.as_str()) {
+                        Self::finish_retention_cleanup(
+                            &DuckdbRepository(Arc::clone(self)),
+                            &database,
+                            file_service.as_ref(),
+                            &project_id,
+                            trace_ids,
+                            result
+                                .cleanup_tokens
+                                .get(project_id.as_str())
+                                .map(Vec::as_slice),
+                        )
+                        .await;
+                    }
+                    if result.deleted_count == 0 {
+                        break;
+                    }
+                }
+                Ok(())
+            }
+            .await;
+
+            let release = governance
+                .release_project_maintenance(&project_id, &owner)
+                .await
+                .map_err(|error| DuckdbError::Io(std::io::Error::other(error.to_string())));
+            result?;
+            release?;
+        }
+        Ok(())
+    }
+
     pub fn start_retention_task(
         self: &Arc<Self>,
         config: RetentionConfig,
