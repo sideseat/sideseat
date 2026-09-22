@@ -12,7 +12,7 @@ mod redis_stream_tests;
 
 use std::sync::Arc;
 
-use sideseat_core::core::config::{CacheBackendType, CacheConfig};
+use sideseat_core::core::config::{QueueBackendType, QueueConfig};
 pub use sideseat_ports::queue::{
     BroadcastSubscription, StreamMessage, StreamStats, StreamSubscription, TopicBackend, TopicError,
 };
@@ -21,21 +21,24 @@ pub use memory::MemoryTopicBackend;
 pub use redis::RedisTopicBackend;
 
 /// Build the configured queue backend without coupling queue choice to its typed domain wrapper.
-pub async fn backend_from_cache_config(
-    cache_config: &CacheConfig,
+pub async fn backend_from_queue_config(
+    queue_config: &QueueConfig,
 ) -> Result<Arc<dyn TopicBackend>, TopicError> {
-    match cache_config.backend {
-        CacheBackendType::Memory => Ok(Arc::new(MemoryTopicBackend::new())),
-        CacheBackendType::Redis => {
-            let url = cache_config
+    match queue_config.backend {
+        QueueBackendType::Memory => Ok(Arc::new(MemoryTopicBackend::new())),
+        QueueBackendType::Redis => {
+            let url = queue_config
                 .redis_url
                 .as_ref()
                 .ok_or_else(|| TopicError::Config("redis_url required for Redis backend".into()))?;
             Ok(Arc::new(
-                RedisTopicBackend::with_replica_acks(url, cache_config.redis_min_replica_acks)
+                RedisTopicBackend::with_replica_acks(url, queue_config.redis_min_replica_acks)
                     .await?,
             ))
         }
+        QueueBackendType::Redpanda => Err(TopicError::Config(
+            "RedPanda adapter is not initialized yet".into(),
+        )),
     }
 }
 

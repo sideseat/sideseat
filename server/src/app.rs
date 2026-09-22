@@ -148,7 +148,7 @@ impl CoreApp {
             Arc::clone(&clock),
         ));
         let topic_backend =
-            sideseat_adapter_topics::backend_from_cache_config(&config.database.cache_config())
+            sideseat_adapter_topics::backend_from_queue_config(&config.database.queue_config())
                 .await
                 .map_err(|e| anyhow::anyhow!("Failed to initialize topic service: {}", e))?;
         let topics = Arc::new(TopicService::new(topic_backend));

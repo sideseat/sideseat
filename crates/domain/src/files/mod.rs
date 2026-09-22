@@ -764,7 +764,6 @@ mod tests {
             max_entries: 1000,
             eviction_policy: sideseat_core::core::config::EvictionPolicy::TinyLfu,
             redis_url: None,
-            redis_min_replica_acks: 0,
         };
         let cache = Arc::new(CacheService::new(&cache_config).await.unwrap());
 

@@ -251,6 +251,27 @@ pub const DEFAULT_TOPIC_CHANNEL_CAPACITY: usize = 100_000;
 /// Retry-After header value for backpressure (in seconds)
 pub const BACKPRESSURE_RETRY_AFTER_SECS: u64 = 1;
 
+/// Environment variable for the durable queue backend.
+pub const ENV_QUEUE_BACKEND: &str = "SIDESEAT_QUEUE_BACKEND";
+
+/// Environment variable for RedPanda/Kafka bootstrap brokers.
+pub const ENV_REDPANDA_BROKERS: &str = "SIDESEAT_REDPANDA_BROKERS";
+
+/// Default RedPanda broker address for server-mode deployments.
+pub const DEFAULT_REDPANDA_BROKERS: &str = "127.0.0.1:9092";
+
+/// Default partitions for each queue topic.
+pub const DEFAULT_REDPANDA_PARTITIONS: i32 = 6;
+
+/// Default replication factor. Local and test deployments are single-node.
+pub const DEFAULT_REDPANDA_REPLICATION_FACTOR: i32 = 1;
+
+/// Default queue retention: seven days.
+pub const DEFAULT_REDPANDA_RETENTION_MS: u64 = 7 * 24 * 60 * 60 * 1_000;
+
+/// Warn when the oldest uncommitted record is within an hour of retention.
+pub const DEFAULT_REDPANDA_RETENTION_WARNING_MS: u64 = 60 * 60 * 1_000;
+
 // =============================================================================
 // Shutdown
 // =============================================================================

@@ -12,7 +12,9 @@ use super::constants::{
     APP_DOT_FOLDER, CONFIG_FILE_NAME, DEFAULT_CACHE_MAX_ENTRIES, DEFAULT_HOST,
     DEFAULT_OTEL_GRPC_PORT, DEFAULT_OTEL_RETENTION_MAX_SPANS, DEFAULT_OTEL_STAGING_REDRIVE_CAP,
     DEFAULT_PORT, DEFAULT_RATE_LIMIT_API_RPM, DEFAULT_RATE_LIMIT_AUTH_RPM,
-    DEFAULT_RATE_LIMIT_FILES_RPM, DEFAULT_RATE_LIMIT_INGESTION_RPM, ENV_SECRETS_AWS_PREFIX,
+    DEFAULT_RATE_LIMIT_FILES_RPM, DEFAULT_RATE_LIMIT_INGESTION_RPM, DEFAULT_REDPANDA_BROKERS,
+    DEFAULT_REDPANDA_PARTITIONS, DEFAULT_REDPANDA_REPLICATION_FACTOR,
+    DEFAULT_REDPANDA_RETENTION_MS, DEFAULT_REDPANDA_RETENTION_WARNING_MS, ENV_SECRETS_AWS_PREFIX,
     ENV_SECRETS_AWS_REGION, ENV_SECRETS_ENV_PREFIX, ENV_SECRETS_VAULT_ADDR,
     ENV_SECRETS_VAULT_MOUNT, ENV_SECRETS_VAULT_PREFIX, ENV_SECRETS_VAULT_TOKEN,
     FILES_DEFAULT_QUOTA_BYTES, FILES_DEFAULT_S3_PREFIX, POSTGRES_DEFAULT_ACQUIRE_TIMEOUT_SECS,
@@ -107,6 +109,26 @@ impl fmt::Display for CacheBackendType {
         match self {
             CacheBackendType::Memory => write!(f, "memory"),
             CacheBackendType::Redis => write!(f, "redis"),
+        }
+    }
+}
+
+/// Durable queue backend type.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum QueueBackendType {
+    #[default]
+    Memory,
+    Redis,
+    Redpanda,
+}
+
+impl fmt::Display for QueueBackendType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Memory => write!(f, "memory"),
+            Self::Redis => write!(f, "redis"),
+            Self::Redpanda => write!(f, "redpanda"),
         }
     }
 }
@@ -306,6 +328,16 @@ pub struct RedisFileConfig {
     pub min_replica_acks: Option<u32>,
 }
 
+/// RedPanda queue configuration section (from JSON config file).
+#[derive(Debug, Default, Clone, Deserialize)]
+pub struct RedpandaFileConfig {
+    pub brokers: Option<String>,
+    pub partitions: Option<i32>,
+    pub replication_factor: Option<i32>,
+    pub retention_ms: Option<u64>,
+    pub retention_warning_ms: Option<u64>,
+}
+
 /// Memory cache configuration section (from JSON config file)
 #[derive(Debug, Default, Clone, Deserialize)]
 pub struct MemoryCacheFileConfig {
@@ -388,12 +420,16 @@ pub struct DatabaseFileConfig {
     pub analytics: Option<AnalyticsBackend>,
     /// Cache backend: memory (default) or redis
     pub cache: Option<CacheBackendType>,
+    /// Queue backend: memory, redis, or redpanda.
+    pub queue: Option<QueueBackendType>,
     /// PostgreSQL-specific configuration
     pub postgres: Option<PostgresFileConfig>,
     /// ClickHouse-specific configuration
     pub clickhouse: Option<ClickhouseFileConfig>,
     /// Redis cache configuration
     pub redis: Option<RedisFileConfig>,
+    /// RedPanda queue configuration.
+    pub redpanda: Option<RedpandaFileConfig>,
     /// Memory cache configuration
     pub memory_cache: Option<MemoryCacheFileConfig>,
 }
@@ -765,6 +801,10 @@ impl FileConfig {
                 tracing::trace!(cache = ?database.cache, "Merging database.cache");
                 current.cache = database.cache;
             }
+            if database.queue.is_some() {
+                tracing::trace!(queue = ?database.queue, "Merging database.queue");
+                current.queue = database.queue;
+            }
             if let Some(redis) = database.redis {
                 let current_redis = current.redis.get_or_insert_with(RedisFileConfig::default);
                 if redis.url.is_some() {
@@ -774,6 +814,37 @@ impl FileConfig {
                 if redis.min_replica_acks.is_some() {
                     tracing::trace!(min_replica_acks = ?redis.min_replica_acks, "Merging database.redis.min_replica_acks");
                     current_redis.min_replica_acks = redis.min_replica_acks;
+                }
+            }
+            if let Some(redpanda) = database.redpanda {
+                let current_redpanda = current
+                    .redpanda
+                    .get_or_insert_with(RedpandaFileConfig::default);
+                if redpanda.brokers.is_some() {
+                    tracing::trace!(brokers = "***", "Merging database.redpanda.brokers");
+                    current_redpanda.brokers = redpanda.brokers;
+                }
+                if redpanda.partitions.is_some() {
+                    tracing::trace!(partitions = ?redpanda.partitions, "Merging database.redpanda.partitions");
+                    current_redpanda.partitions = redpanda.partitions;
+                }
+                if redpanda.replication_factor.is_some() {
+                    tracing::trace!(
+                        replication_factor = ?redpanda.replication_factor,
+                        "Merging database.redpanda.replication_factor"
+                    );
+                    current_redpanda.replication_factor = redpanda.replication_factor;
+                }
+                if redpanda.retention_ms.is_some() {
+                    tracing::trace!(retention_ms = ?redpanda.retention_ms, "Merging database.redpanda.retention_ms");
+                    current_redpanda.retention_ms = redpanda.retention_ms;
+                }
+                if redpanda.retention_warning_ms.is_some() {
+                    tracing::trace!(
+                        retention_warning_ms = ?redpanda.retention_warning_ms,
+                        "Merging database.redpanda.retention_warning_ms"
+                    );
+                    current_redpanda.retention_warning_ms = redpanda.retention_warning_ms;
                 }
             }
             if let Some(memory_cache) = database.memory_cache {
@@ -983,9 +1054,25 @@ pub struct CacheConfig {
     pub eviction_policy: EvictionPolicy,
     /// Redis URL (redis backend)
     pub redis_url: Option<String>,
-    /// How many replicas must acknowledge a queued trace before the export is answered - see
-    /// [`RedisConfig::min_replica_acks`].
+}
+
+/// RedPanda queue configuration (final/runtime).
+#[derive(Debug, Clone)]
+pub struct RedpandaConfig {
+    pub brokers: String,
+    pub partitions: i32,
+    pub replication_factor: i32,
+    pub retention_ms: u64,
+    pub retention_warning_ms: u64,
+}
+
+/// Queue configuration, deliberately independent from [`CacheConfig`].
+#[derive(Debug, Clone)]
+pub struct QueueConfig {
+    pub backend: QueueBackendType,
+    pub redis_url: Option<String>,
     pub redis_min_replica_acks: u32,
+    pub redpanda: Option<RedpandaConfig>,
 }
 
 /// Rate limit configuration (final/runtime)
@@ -1073,12 +1160,16 @@ pub struct DatabaseConfig {
     pub analytics: AnalyticsBackend,
     /// Cache backend: memory (default) or redis
     pub cache: CacheBackendType,
+    /// Queue backend, independently selectable from the cache.
+    pub queue: QueueBackendType,
     /// PostgreSQL-specific configuration (only used if transactional = postgres)
     pub postgres: Option<PostgresConfig>,
     /// ClickHouse-specific configuration (only used if analytics = clickhouse)
     pub clickhouse: Option<ClickhouseConfig>,
     /// Redis cache configuration (only used if cache = redis)
     pub redis: Option<RedisConfig>,
+    /// RedPanda queue configuration (only used if queue = redpanda).
+    pub redpanda: Option<RedpandaConfig>,
     /// Memory cache configuration
     pub memory_cache: MemoryCacheConfig,
 }
@@ -1127,7 +1218,16 @@ impl DatabaseConfig {
             max_entries: self.memory_cache.max_entries,
             eviction_policy: self.memory_cache.eviction_policy,
             redis_url: self.redis.as_ref().map(|r| r.url.clone()),
+        }
+    }
+
+    /// Build queue configuration independently from the cache selection.
+    pub fn queue_config(&self) -> QueueConfig {
+        QueueConfig {
+            backend: self.queue,
+            redis_url: self.redis.as_ref().map(|r| r.url.clone()),
             redis_min_replica_acks: self.redis.as_ref().map_or(0, |r| r.min_replica_acks),
+            redpanda: self.redpanda.clone(),
         }
     }
 }
@@ -1332,6 +1432,15 @@ impl AppConfig {
             .cache_backend
             .or(file_database.cache)
             .unwrap_or_default();
+        // Preserve the old implicit coupling when no queue setting is present, while allowing either
+        // side to be overridden independently.
+        let queue_backend =
+            cli.queue_backend
+                .or(file_database.queue)
+                .unwrap_or(match cache_backend {
+                    CacheBackendType::Memory => QueueBackendType::Memory,
+                    CacheBackendType::Redis => QueueBackendType::Redis,
+                });
 
         // Memory cache config
         let file_memory_cache = file_database.memory_cache.unwrap_or_default();
@@ -1349,7 +1458,9 @@ impl AppConfig {
         };
 
         // Redis config (only populated if using redis backend)
-        let redis_config = if cache_backend == CacheBackendType::Redis {
+        let redis_config = if cache_backend == CacheBackendType::Redis
+            || queue_backend == QueueBackendType::Redis
+        {
             let file_redis = file_database.redis.unwrap_or_default();
             let url = cli
                 .cache_redis_url
@@ -1359,6 +1470,31 @@ impl AppConfig {
             Some(RedisConfig {
                 url,
                 min_replica_acks: file_redis.min_replica_acks.unwrap_or(0),
+            })
+        } else {
+            None
+        };
+
+        let redpanda_config = if queue_backend == QueueBackendType::Redpanda {
+            let file_redpanda = file_database.redpanda.unwrap_or_default();
+            Some(RedpandaConfig {
+                brokers: cli
+                    .redpanda_brokers
+                    .clone()
+                    .or(file_redpanda.brokers)
+                    .unwrap_or_else(|| DEFAULT_REDPANDA_BROKERS.to_string()),
+                partitions: file_redpanda
+                    .partitions
+                    .unwrap_or(DEFAULT_REDPANDA_PARTITIONS),
+                replication_factor: file_redpanda
+                    .replication_factor
+                    .unwrap_or(DEFAULT_REDPANDA_REPLICATION_FACTOR),
+                retention_ms: file_redpanda
+                    .retention_ms
+                    .unwrap_or(DEFAULT_REDPANDA_RETENTION_MS),
+                retention_warning_ms: file_redpanda
+                    .retention_warning_ms
+                    .unwrap_or(DEFAULT_REDPANDA_RETENTION_WARNING_MS),
             })
         } else {
             None
@@ -1505,9 +1641,11 @@ impl AppConfig {
             transactional: transactional_backend,
             analytics: analytics_backend,
             cache: cache_backend,
+            queue: queue_backend,
             postgres: postgres_config,
             clickhouse: clickhouse_config,
             redis: redis_config,
+            redpanda: redpanda_config,
             memory_cache: memory_cache_config,
         };
 
@@ -1689,6 +1827,39 @@ impl AppConfig {
             anyhow::bail!(
                 "Configuration error: database.redis.url is required when database.cache is 'redis'"
             );
+        }
+        if self.database.queue == QueueBackendType::Redis
+            && self
+                .database
+                .redis
+                .as_ref()
+                .is_none_or(|r| r.url.is_empty())
+        {
+            anyhow::bail!(
+                "Configuration error: database.redis.url is required when database.queue is 'redis'"
+            );
+        }
+        if self.database.queue == QueueBackendType::Redpanda {
+            let Some(redpanda) = self.database.redpanda.as_ref() else {
+                anyhow::bail!(
+                    "Configuration error: RedPanda configuration missing when database.queue is 'redpanda'"
+                );
+            };
+            if redpanda.brokers.trim().is_empty() {
+                anyhow::bail!(
+                    "Configuration error: database.redpanda.brokers is required when database.queue is 'redpanda'"
+                );
+            }
+            if redpanda.partitions <= 0 || redpanda.replication_factor <= 0 {
+                anyhow::bail!(
+                    "Configuration error: RedPanda partitions and replication_factor must be greater than 0"
+                );
+            }
+            if redpanda.retention_warning_ms >= redpanda.retention_ms {
+                anyhow::bail!(
+                    "Configuration error: RedPanda retention_warning_ms must be less than retention_ms"
+                );
+            }
         }
 
         // Warn about rate limiting enabled with 0 RPM
@@ -2577,6 +2748,35 @@ mod tests {
         assert!(config.auth.enabled);
         assert!(!config.debug);
         assert_eq!(config.files.storage, StorageBackend::Filesystem);
+        assert_eq!(config.database.queue, QueueBackendType::Memory);
+    }
+
+    #[test]
+    fn queue_backend_is_independent_from_cache_backend() {
+        let cli = CliConfig {
+            cache_backend: Some(CacheBackendType::Redis),
+            cache_redis_url: Some("redis://127.0.0.1:6379".to_string()),
+            queue_backend: Some(QueueBackendType::Redpanda),
+            redpanda_brokers: Some("redpanda.internal:9092".to_string()),
+            ..CliConfig::default()
+        };
+
+        let config = AppConfig::load(&cli).unwrap();
+
+        assert_eq!(config.database.cache, CacheBackendType::Redis);
+        assert_eq!(config.database.queue, QueueBackendType::Redpanda);
+        assert_eq!(
+            config.database.redpanda.as_ref().unwrap().brokers,
+            "redpanda.internal:9092"
+        );
+        assert_eq!(
+            config.database.cache_config().backend,
+            CacheBackendType::Redis
+        );
+        assert_eq!(
+            config.database.queue_config().backend,
+            QueueBackendType::Redpanda
+        );
     }
 
     #[test]
@@ -2605,6 +2805,8 @@ mod tests {
             cache_max_entries: None,
             cache_eviction_policy: None,
             cache_redis_url: None,
+            queue_backend: None,
+            redpanda_brokers: None,
             rate_limit_enabled: None,
             rate_limit_per_ip: None,
             rate_limit_api_rpm: None,

@@ -3,8 +3,8 @@ use clap::{Parser, Subcommand};
 use std::path::PathBuf;
 
 use super::config::{
-    AnalyticsBackend, CacheBackendType, EvictionPolicy, SecretsBackend, StorageBackend,
-    TransactionalBackend,
+    AnalyticsBackend, CacheBackendType, EvictionPolicy, QueueBackendType, SecretsBackend,
+    StorageBackend, TransactionalBackend,
 };
 use super::constants::{
     ENV_ANALYTICS_BACKEND, ENV_CACHE_BACKEND, ENV_CACHE_EVICTION_POLICY, ENV_CACHE_MAX_ENTRIES,
@@ -13,9 +13,9 @@ use super::constants::{
     ENV_FILES_S3_PREFIX, ENV_FILES_S3_REGION, ENV_FILES_STORAGE, ENV_HOST, ENV_MCP_ENABLED,
     ENV_NO_UPDATE_CHECK, ENV_OTEL_AUTH_REQUIRED, ENV_OTEL_GRPC_ENABLED, ENV_OTEL_GRPC_PORT,
     ENV_OTEL_RETENTION_MAX_AGE_MINUTES, ENV_OTEL_RETENTION_MAX_SPANS, ENV_PORT, ENV_POSTGRES_URL,
-    ENV_PRICING_SYNC_HOURS, ENV_RATE_LIMIT_API_RPM, ENV_RATE_LIMIT_AUTH_RPM,
+    ENV_PRICING_SYNC_HOURS, ENV_QUEUE_BACKEND, ENV_RATE_LIMIT_API_RPM, ENV_RATE_LIMIT_AUTH_RPM,
     ENV_RATE_LIMIT_BYPASS_HEADER, ENV_RATE_LIMIT_ENABLED, ENV_RATE_LIMIT_FILES_RPM,
-    ENV_RATE_LIMIT_INGESTION_RPM, ENV_RATE_LIMIT_PER_IP, ENV_SECRETS_BACKEND,
+    ENV_RATE_LIMIT_INGESTION_RPM, ENV_RATE_LIMIT_PER_IP, ENV_REDPANDA_BROKERS, ENV_SECRETS_BACKEND,
     ENV_TRANSACTIONAL_BACKEND,
 };
 
@@ -124,6 +124,14 @@ pub struct Cli {
     #[arg(long, global = true, env = ENV_CACHE_REDIS_URL)]
     pub cache_redis_url: Option<String>,
 
+    /// Durable queue backend (memory, redis, or redpanda).
+    #[arg(long, global = true, env = ENV_QUEUE_BACKEND, value_parser = parse_queue_backend_type)]
+    pub queue_backend: Option<QueueBackendType>,
+
+    /// RedPanda/Kafka bootstrap broker list.
+    #[arg(long, global = true, env = ENV_REDPANDA_BROKERS)]
+    pub redpanda_brokers: Option<String>,
+
     // Rate limit options
     /// Enable or disable rate limiting
     #[arg(long, global = true, env = ENV_RATE_LIMIT_ENABLED)]
@@ -199,6 +207,17 @@ fn parse_cache_backend_type(s: &str) -> Result<CacheBackendType, String> {
         _ => Err(format!(
             "Invalid cache backend '{}'. Valid options: memory, redis",
             s
+        )),
+    }
+}
+
+fn parse_queue_backend_type(s: &str) -> Result<QueueBackendType, String> {
+    match s.to_lowercase().as_str() {
+        "memory" => Ok(QueueBackendType::Memory),
+        "redis" => Ok(QueueBackendType::Redis),
+        "redpanda" | "kafka" => Ok(QueueBackendType::Redpanda),
+        _ => Err(format!(
+            "Invalid queue backend '{s}'. Valid options: memory, redis, redpanda"
         )),
     }
 }
@@ -306,6 +325,8 @@ pub struct CliConfig {
     pub cache_max_entries: Option<u64>,
     pub cache_eviction_policy: Option<EvictionPolicy>,
     pub cache_redis_url: Option<String>,
+    pub queue_backend: Option<QueueBackendType>,
+    pub redpanda_brokers: Option<String>,
     pub rate_limit_enabled: Option<bool>,
     pub rate_limit_per_ip: Option<bool>,
     pub rate_limit_api_rpm: Option<u32>,
@@ -349,6 +370,8 @@ pub fn parse() -> (CliConfig, Option<Commands>) {
         cache_max_entries: cli.cache_max_entries,
         cache_eviction_policy: cli.cache_eviction_policy,
         cache_redis_url: cli.cache_redis_url,
+        queue_backend: cli.queue_backend,
+        redpanda_brokers: cli.redpanda_brokers,
         rate_limit_enabled: cli.rate_limit_enabled,
         rate_limit_per_ip: cli.rate_limit_per_ip,
         rate_limit_api_rpm: cli.rate_limit_api_rpm,
