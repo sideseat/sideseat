@@ -67,6 +67,8 @@ pub enum QueryOperation {
     SpanBodyBackfillPage,
     /// Count every analytical row still owned by one project.
     CountProjectRows,
+    /// Enumerate projects represented by any analytics signal.
+    AnalyticsProjectIds,
     /// Count winning span identities for an explicit project set.
     CountSpansByProject,
     /// Read all winning spans for one trace.
@@ -137,6 +139,7 @@ impl QueryOperation {
             Self::SpanBodyFieldsForTraces => "span_body_fields_for_traces",
             Self::SpanBodyBackfillPage => "span_body_backfill_page",
             Self::CountProjectRows => "count_project_rows",
+            Self::AnalyticsProjectIds => "analytics_project_ids",
             Self::CountSpansByProject => "count_spans_by_project",
             Self::GetSpansForTrace => "get_spans_for_trace",
             Self::GetEventsForSpan => "get_events_for_span",
@@ -217,6 +220,7 @@ impl QueryOperation {
             | Self::SpanBodyFieldsForTraces
             | Self::SpanBodyBackfillPage
             | Self::CountProjectRows
+            | Self::AnalyticsProjectIds
             | Self::CountSpansByProject
             | Self::GetSpansForTrace
             | Self::GetEventsForSpan
@@ -282,6 +286,7 @@ pub const MIGRATED_OPERATIONS: &[QueryOperation] = &[
     QueryOperation::SpanBodyFieldsForTraces,
     QueryOperation::SpanBodyBackfillPage,
     QueryOperation::CountProjectRows,
+    QueryOperation::AnalyticsProjectIds,
     QueryOperation::CountSpansByProject,
     QueryOperation::GetSpansForTrace,
     QueryOperation::GetEventsForSpan,
@@ -1386,6 +1391,27 @@ pub fn max_ingested_at_us(project_id: &str, backend: Backend) -> ParameterizedQu
              FROM otel_spans WHERE project_id = ?"
         ),
         vec![QueryValue::String(project_id.to_string())],
+    )
+}
+
+/// Enumerate every project represented by an analytics signal.
+pub fn analytics_project_ids(backend: Backend, limit: usize) -> ParameterizedQuery {
+    let (spans, metrics, logs) = match backend {
+        Backend::Duckdb => ("otel_spans", "otel_metrics", "otel_logs"),
+        Backend::Clickhouse => ("otel_spans FINAL", "otel_metrics FINAL", "otel_logs FINAL"),
+        Backend::Sqlite | Backend::Postgres => {
+            panic!("{} is not an analytics query backend", backend.name())
+        }
+    };
+    ParameterizedQuery::new(
+        format!(
+            "SELECT project_id FROM (\
+                 SELECT project_id FROM {spans} \
+                 UNION ALL SELECT project_id FROM {metrics} \
+                 UNION ALL SELECT project_id FROM {logs}\
+             ) GROUP BY project_id ORDER BY project_id LIMIT ?"
+        ),
+        vec![QueryValue::Int64(i64::try_from(limit).unwrap_or(i64::MAX))],
     )
 }
 
@@ -3601,6 +3627,7 @@ mod tests {
                 QueryOperation::SpanBodyFieldsForTraces,
                 QueryOperation::SpanBodyBackfillPage,
                 QueryOperation::CountProjectRows,
+                QueryOperation::AnalyticsProjectIds,
                 QueryOperation::CountSpansByProject,
                 QueryOperation::GetSpansForTrace,
                 QueryOperation::GetEventsForSpan,
@@ -3654,6 +3681,7 @@ mod tests {
                 "span_body_fields_for_traces",
                 "span_body_backfill_page",
                 "count_project_rows",
+                "analytics_project_ids",
                 "count_spans_by_project",
                 "get_spans_for_trace",
                 "get_events_for_span",

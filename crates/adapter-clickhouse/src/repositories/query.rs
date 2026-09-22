@@ -1042,6 +1042,26 @@ pub async fn max_ingested_at_us(
     Ok(value.filter(|value| *value > 0))
 }
 
+pub async fn analytics_project_ids(
+    client: &Client,
+    limit: usize,
+) -> Result<Vec<ProjectId>, ClickhouseError> {
+    #[derive(Row, Deserialize)]
+    struct ProjectRow {
+        project_id: String,
+    }
+
+    let statement = analytics::analytics_project_ids(Backend::Clickhouse, limit);
+    let rows: Vec<ProjectRow> =
+        bind_analytics_values(client.query(statement.sql()), statement.params())
+            .fetch_all()
+            .await?;
+    Ok(rows
+        .into_iter()
+        .map(|row| ProjectId::from(row.project_id))
+        .collect())
+}
+
 pub async fn count_spans_by_project(
     client: &Client,
     project_ids: &[String],

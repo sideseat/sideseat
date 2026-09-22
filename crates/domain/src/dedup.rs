@@ -413,6 +413,10 @@ impl MessageStore for DedupAnalyticsRepository {
 impl AnalyticsMaintenance for DedupAnalyticsRepository {
     // ==================== Project Data Operations (pass-through) ====================
 
+    async fn analytics_project_ids(&self, limit: usize) -> Result<Vec<ProjectId>, DataError> {
+        self.inner.analytics_project_ids(limit).await
+    }
+
     async fn delete_project_data(&self, project_id: &ProjectId) -> Result<u64, DataError> {
         self.inner.delete_project_data(project_id).await
     }

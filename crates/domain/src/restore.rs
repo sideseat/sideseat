@@ -4,6 +4,7 @@
 //! durable deletion facts it still has, reconstructs ownership from surviving analytics rows, releases
 //! ownership with no survivor, and only then permits orphan collection.
 
+use std::collections::BTreeSet;
 use std::sync::Arc;
 
 use serde::Serialize;
@@ -22,7 +23,6 @@ use sideseat_ports::traits::{
 use sideseat_ports::types::{ListTracesParams, ProjectId};
 
 const JOURNAL_PAGE_SIZE: usize = 256;
-const PROJECT_PAGE_SIZE: u32 = 100;
 const TRACE_PAGE_SIZE: u32 = 256;
 
 type TransactionalStore = dyn TransactionalRepository + Send + Sync;
@@ -54,6 +54,10 @@ pub struct AssociationRepairReport {
     pub projects_scanned: u64,
     pub analytics_traces_scanned: u64,
     pub ownership_traces_scanned: u64,
+    pub projects_without_metadata_deleted: u64,
+    pub unreachable_analytics_rows_deleted: u64,
+    pub unreachable_staged_payloads_deleted: u64,
+    pub unreachable_blobs_deleted: u64,
     pub temp_files_processed: u64,
     pub orphan_files_deleted: u64,
     pub content_bodies: ContentBodyRestoreCleanupReport,
@@ -163,84 +167,87 @@ pub async fn reconcile_restored_associations(
     };
     let bodies = ContentBodyService::from_file_service(files);
 
-    let mut project_page = 1;
-    loop {
-        let (projects, _) = database
-            .list_projects(project_page, PROJECT_PAGE_SIZE)
+    let mut projects = database
+        .restore_project_ids(usize::MAX)
+        .await?
+        .into_iter()
+        .collect::<BTreeSet<_>>();
+    projects.extend(analytics.analytics_project_ids(usize::MAX).await?);
+
+    for project_id in projects {
+        report.projects_scanned += 1;
+        if database.get_project(project_id.as_str()).await?.is_none() {
+            report.projects_without_metadata_deleted += 1;
+            report.unreachable_analytics_rows_deleted +=
+                analytics.count_project_rows(&project_id).await?;
+            let _ = analytics.delete_project_data(&project_id).await?;
+            report.unreachable_staged_payloads_deleted +=
+                database.delete_project_staged_payloads(&project_id).await?;
+            report.unreachable_blobs_deleted += files.delete_project(&project_id).await?;
+            continue;
+        }
+
+        let mut trace_page = 1;
+        loop {
+            let (traces, _) = analytics
+                .list_traces(&ListTracesParams {
+                    project_id: project_id.clone(),
+                    page: trace_page,
+                    limit: TRACE_PAGE_SIZE,
+                    include_nongenai: true,
+                    ..ListTracesParams::default()
+                })
+                .await?;
+            if traces.is_empty() {
+                break;
+            }
+            let trace_ids = traces
+                .iter()
+                .map(|trace| trace.trace_id.clone())
+                .collect::<Vec<_>>();
+            report.analytics_traces_scanned += trace_ids.len() as u64;
+            reconcile_trace_batch(
+                &project_id,
+                &trace_ids,
+                analytics,
+                files,
+                &bodies,
+                &mut report.files,
+            )
             .await?;
-        if projects.is_empty() {
-            break;
+            if traces.len() < TRACE_PAGE_SIZE as usize {
+                break;
+            }
+            trace_page += 1;
         }
-        for project in &projects {
-            report.projects_scanned += 1;
-            let project_id = ProjectId::from(project.id.as_str());
 
-            let mut trace_page = 1;
-            loop {
-                let (traces, _) = analytics
-                    .list_traces(&ListTracesParams {
-                        project_id: project_id.clone(),
-                        page: trace_page,
-                        limit: TRACE_PAGE_SIZE,
-                        include_nongenai: true,
-                        ..ListTracesParams::default()
-                    })
-                    .await?;
-                if traces.is_empty() {
-                    break;
-                }
-                let trace_ids = traces
-                    .iter()
-                    .map(|trace| trace.trace_id.clone())
-                    .collect::<Vec<_>>();
-                report.analytics_traces_scanned += trace_ids.len() as u64;
-                reconcile_trace_batch(
+        let mut after = None::<String>;
+        loop {
+            let trace_ids = database
+                .restore_association_trace_ids(
                     &project_id,
-                    &trace_ids,
-                    analytics,
-                    files,
-                    &bodies,
-                    &mut report.files,
+                    after.as_deref(),
+                    TRACE_PAGE_SIZE as usize,
                 )
                 .await?;
-                if traces.len() < TRACE_PAGE_SIZE as usize {
-                    break;
-                }
-                trace_page += 1;
+            if trace_ids.is_empty() {
+                break;
             }
-
-            let mut after = None::<String>;
-            loop {
-                let trace_ids = database
-                    .restore_association_trace_ids(
-                        &project_id,
-                        after.as_deref(),
-                        TRACE_PAGE_SIZE as usize,
-                    )
-                    .await?;
-                if trace_ids.is_empty() {
-                    break;
-                }
-                report.ownership_traces_scanned += trace_ids.len() as u64;
-                reconcile_trace_batch(
-                    &project_id,
-                    &trace_ids,
-                    analytics,
-                    files,
-                    &bodies,
-                    &mut report.files,
-                )
-                .await?;
-                after = trace_ids.last().cloned();
-                if trace_ids.len() < TRACE_PAGE_SIZE as usize {
-                    break;
-                }
+            report.ownership_traces_scanned += trace_ids.len() as u64;
+            reconcile_trace_batch(
+                &project_id,
+                &trace_ids,
+                analytics,
+                files,
+                &bodies,
+                &mut report.files,
+            )
+            .await?;
+            after = trace_ids.last().cloned();
+            if trace_ids.len() < TRACE_PAGE_SIZE as usize {
+                break;
             }
         }
-        if projects.len() < PROJECT_PAGE_SIZE as usize {
-            break;
-        }
-        project_page += 1;
     }
 
     report.content_bodies = bodies.cleanup_orphans_after_restore().await?;
@@ -309,7 +316,7 @@ mod tests {
     use sideseat_core::core::storage::{AppStorage, DataSubdir};
     use sideseat_ports::blobs::FileStorage;
     use sideseat_ports::clock::Clock;
-    use sideseat_ports::types::{ContentBodyObject, NormalizedSpan};
+    use sideseat_ports::types::{ContentBodyObject, NormalizedSpan, StagedPayload, StagedSignal};
     use tempfile::TempDir;
 
     #[derive(Debug)]
@@ -540,5 +547,117 @@ mod tests {
         assert_eq!(second.content_bodies.orphans_deleted, 0);
         assert_eq!(second.orphan_files_deleted, 0);
         assert_eq!(second.files.missing_content.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn association_repair_removes_projects_missing_from_transactional_restore() {
+        let stores = stores().await;
+        let analytics_only = ProjectId::from("analytics-only");
+        let metadata_only = ProjectId::from("metadata-only");
+        let staged_only = ProjectId::from("staged-only");
+        let analytics_blob = "a".repeat(64);
+        let metadata_blob = "b".repeat(64);
+        let staged_blob = "f".repeat(64);
+
+        for (project_id, hash) in [
+            (&analytics_only, &analytics_blob),
+            (&metadata_only, &metadata_blob),
+            (&staged_only, &staged_blob),
+        ] {
+            stores
+                .files
+                .storage()
+                .store(project_id, hash, b"unreachable")
+                .await
+                .expect("unreachable blob");
+        }
+        stores
+            .database
+            .restore_orphan_metadata(&metadata_only, &metadata_blob, None, 11, "sha256")
+            .await
+            .expect("metadata without project");
+        let mut unreachable = span(
+            "unreachable-trace",
+            "span",
+            Some(format!(r##"[{{"file":"#!B64!#::{analytics_blob}"}}]"##)),
+        );
+        unreachable.project_id = Some(analytics_only.to_string());
+        stores
+            .analytics
+            .insert_spans(vec![unreachable])
+            .await
+            .expect("analytics project without metadata");
+        stores
+            .database
+            .create_staged_payload(&StagedPayload {
+                id: "restored-staged-payload".to_owned(),
+                project_id: staged_only.clone(),
+                signal: StagedSignal::Traces,
+                blob_hash: staged_blob.clone(),
+                byte_len: 11,
+                created_at: TestClock.now(),
+                redrive_attempts: 0,
+                unconfirmed: false,
+                records: Vec::new(),
+            })
+            .await
+            .expect("staged payload without project");
+
+        let report =
+            reconcile_restored_associations(&stores.database, &stores.analytics, &stores.files)
+                .await
+                .expect("repair");
+
+        assert_eq!(report.projects_without_metadata_deleted, 3);
+        assert_eq!(report.unreachable_analytics_rows_deleted, 1);
+        assert_eq!(report.unreachable_staged_payloads_deleted, 1);
+        assert_eq!(report.unreachable_blobs_deleted, 3);
+        assert!(
+            stores
+                .analytics
+                .get_trace(&analytics_only, "unreachable-trace")
+                .await
+                .expect("unreachable trace lookup")
+                .is_none()
+        );
+        assert!(
+            stores
+                .database
+                .get_file(&metadata_only, &metadata_blob)
+                .await
+                .expect("unreachable metadata lookup")
+                .is_none()
+        );
+        for (project_id, hash) in [
+            (&analytics_only, &analytics_blob),
+            (&metadata_only, &metadata_blob),
+            (&staged_only, &staged_blob),
+        ] {
+            assert!(
+                !stores
+                    .files
+                    .storage()
+                    .exists(project_id, hash)
+                    .await
+                    .expect("unreachable blob lookup")
+            );
+        }
+        assert!(
+            stores
+                .database
+                .get_staged_payload("restored-staged-payload")
+                .await
+                .expect("staged payload lookup")
+                .is_none()
+        );
+
+        let second =
+            reconcile_restored_associations(&stores.database, &stores.analytics, &stores.files)
+                .await
+                .expect("fixed point");
+        assert_eq!(second.projects_without_metadata_deleted, 0);
+        assert_eq!(second.unreachable_analytics_rows_deleted, 0);
+        assert_eq!(second.unreachable_staged_payloads_deleted, 0);
+        assert_eq!(second.unreachable_blobs_deleted, 0);
     }
 }

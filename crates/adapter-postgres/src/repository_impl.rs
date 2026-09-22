@@ -410,6 +410,12 @@ impl ProjectStore for PostgresRepository {
             .map_err(Into::into)
     }
 
+    async fn restore_project_ids(&self, limit: usize) -> Result<Vec<ProjectId>, DataError> {
+        maintenance_transaction!(self, |connection| {
+            project::restore_project_ids(connection, limit)
+        })
+    }
+
     async fn claim_project_for_deletion(&self, id: &str) -> Result<bool, DataError> {
         project::claim_project_for_deletion(
             self.0.pool(),
@@ -1764,6 +1770,15 @@ impl StagedPayloadStore for PostgresRepository {
 
     async fn delete_staged_payload(&self, id: &str) -> Result<(), DataError> {
         maintenance_transaction!(self, |connection| staging::delete(connection, id))
+    }
+
+    async fn delete_project_staged_payloads(
+        &self,
+        project_id: &ProjectId,
+    ) -> Result<u64, DataError> {
+        maintenance_transaction!(self, |connection| {
+            staging::delete_project(connection, project_id)
+        })
     }
 }
 

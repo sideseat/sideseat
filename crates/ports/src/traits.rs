@@ -465,6 +465,12 @@ pub trait MessageStore: Send + Sync {
 /// Deletes, counts and the watermark - what a sweep needs and a read path does not.
 #[async_trait]
 pub trait AnalyticsMaintenance: Send + Sync {
+    /// Distinct projects represented by any analytics signal.
+    ///
+    /// Restore repair cannot seed its traversal only from the transactional store: an analytics backup may
+    /// be newer and contain a project whose metadata is outside the transactional recovery point.
+    async fn analytics_project_ids(&self, limit: usize) -> Result<Vec<ProjectId>, DataError>;
+
     /// Delete all data for a project
     async fn delete_project_data(&self, project_id: &ProjectId) -> Result<u64, DataError>;
 
@@ -712,6 +718,13 @@ pub trait ProjectStore: Send + Sync {
         page: u32,
         limit: u32,
     ) -> Result<(Vec<ProjectRow>, u64), DataError>;
+
+    /// Every live project or project represented by restored content ownership.
+    ///
+    /// This is broader than [`Self::list_projects`]: restore must also discover project-local rows whose
+    /// parent project was outside the selected transactional backup. Durable lifecycle facts are excluded
+    /// because repair does not consume them and therefore could not reach a fixed point.
+    async fn restore_project_ids(&self, limit: usize) -> Result<Vec<ProjectId>, DataError>;
 
     /// Claim a project for deletion, if it exists and nobody else has claimed it.
     ///
@@ -1841,6 +1854,12 @@ pub trait StagedPayloadStore: Send + Sync {
     async fn mark_staged_unconfirmed(&self, id: &str) -> Result<(), DataError>;
 
     async fn delete_staged_payload(&self, id: &str) -> Result<(), DataError>;
+
+    /// Remove registry rows for a project that does not exist at the transactional restore point.
+    async fn delete_project_staged_payloads(
+        &self,
+        project_id: &ProjectId,
+    ) -> Result<u64, DataError>;
 }
 
 /// Durable legal-hold state, maintenance fencing and quota admission.

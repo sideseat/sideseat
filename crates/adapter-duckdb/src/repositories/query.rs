@@ -7,7 +7,7 @@ use crate::{DuckdbError, in_transaction};
 use sideseat_core::utils::time::{micros_to_datetime, parse_iso_timestamp};
 use sideseat_ports::types::{
     EventRow, FeedSpansParams, LinkRow, ListSessionsParams, ListSpansParams, ListTracesParams,
-    SessionRow, SpanRow, TraceRow, parse_tags,
+    ProjectId, SessionRow, SpanRow, TraceRow, parse_tags,
 };
 use sideseat_query_sql::confirmations;
 use sideseat_query_sql::{Backend, analytics, dml};
@@ -876,6 +876,21 @@ pub fn max_ingested_at_us(conn: &Connection, project_id: &str) -> Result<Option<
     Ok(value)
 }
 
+pub fn analytics_project_ids(
+    conn: &Connection,
+    limit: usize,
+) -> Result<Vec<ProjectId>, DuckdbError> {
+    let query = analytics::analytics_project_ids(Backend::Duckdb, limit);
+    let values = duckdb_values(query.params());
+    let mut statement = conn.prepare(query.sql())?;
+    let rows = statement.query_map(values.as_slice(), |row| row.get::<_, String>(0))?;
+    let mut projects = Vec::new();
+    for row in rows {
+        projects.push(ProjectId::from(row?));
+    }
+    Ok(projects)
+}
+
 /// Count spans grouped by project for a set of project IDs.
 pub fn count_spans_by_project(
     conn: &Connection,
@@ -1019,7 +1034,6 @@ pub fn get_session_filter_options(
 mod tests {
     use super::*;
     use chrono::TimeZone;
-    use sideseat_ports::types::ProjectId;
 
     // ============================================================================
     // Integration tests for leaf generation span filtering (cost deduplication)

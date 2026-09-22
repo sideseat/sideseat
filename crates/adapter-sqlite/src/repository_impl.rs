@@ -373,6 +373,12 @@ impl ProjectStore for SqliteRepository {
             .map_err(Into::into)
     }
 
+    async fn restore_project_ids(&self, limit: usize) -> Result<Vec<ProjectId>, DataError> {
+        project::restore_project_ids(self.0.pool(), limit)
+            .await
+            .map_err(Into::into)
+    }
+
     async fn claim_project_for_deletion(&self, id: &str) -> Result<bool, DataError> {
         project::claim_project_for_deletion(
             self.0.pool(),
@@ -1666,6 +1672,15 @@ impl StagedPayloadStore for SqliteRepository {
 
     async fn delete_staged_payload(&self, id: &str) -> Result<(), DataError> {
         staging::delete(self.0.pool(), id).await.map_err(Into::into)
+    }
+
+    async fn delete_project_staged_payloads(
+        &self,
+        project_id: &ProjectId,
+    ) -> Result<u64, DataError> {
+        staging::delete_project(self.0.pool(), project_id)
+            .await
+            .map_err(Into::into)
     }
 }
 

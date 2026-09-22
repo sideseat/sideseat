@@ -871,6 +871,17 @@ impl MessageStore for DuckdbRepository {
 impl AnalyticsMaintenance for DuckdbRepository {
     // ==================== Project Data Operations ====================
 
+    async fn analytics_project_ids(&self, limit: usize) -> Result<Vec<ProjectId>, DataError> {
+        let db = Arc::clone(&self.0);
+        DuckdbService::run_query(move || {
+            let conn = db.conn();
+            query::analytics_project_ids(&conn, limit)
+        })
+        .await
+        .map_err(DataError::from)?
+        .map_err(Into::into)
+    }
+
     async fn delete_project_data(&self, project_id: &ProjectId) -> Result<u64, DataError> {
         let db = Arc::clone(&self.0);
         let pid = project_id.to_string();

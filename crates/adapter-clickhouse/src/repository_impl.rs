@@ -724,6 +724,10 @@ impl MessageStore for ClickhouseRepository {
 impl AnalyticsMaintenance for ClickhouseRepository {
     // ==================== Project Data Operations ====================
 
+    async fn analytics_project_ids(&self, limit: usize) -> Result<Vec<ProjectId>, DataError> {
+        maintenance_query!(self, query::analytics_project_ids, limit)
+    }
+
     async fn delete_project_data(&self, project_id: &ProjectId) -> Result<u64, DataError> {
         let spans_table = self.0.delete_table("otel_spans");
         let metrics_table = self.0.delete_table("otel_metrics");

@@ -84,6 +84,14 @@ pub async fn delete(pool: &SqlitePool, id: &str) -> Result<(), SqliteError> {
     Ok(())
 }
 
+pub async fn delete_project(pool: &SqlitePool, project_id: &ProjectId) -> Result<u64, SqliteError> {
+    let result = sqlx::query("DELETE FROM staged_payloads WHERE project_id = ?")
+        .bind(project_id.as_str())
+        .execute(pool)
+        .await?;
+    Ok(result.rows_affected())
+}
+
 fn row_to_payload(row: sqlx::sqlite::SqliteRow) -> Result<StagedPayload, SqliteError> {
     let signal: String = row.try_get("signal")?;
     let records: String = row.try_get("records_json")?;

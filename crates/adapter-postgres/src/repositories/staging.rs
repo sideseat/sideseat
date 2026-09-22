@@ -99,6 +99,17 @@ pub async fn delete(connection: &mut PgConnection, id: &str) -> Result<(), Postg
     Ok(())
 }
 
+pub async fn delete_project(
+    connection: &mut PgConnection,
+    project_id: &ProjectId,
+) -> Result<u64, PostgresError> {
+    let result = sqlx::query("DELETE FROM staged_payloads WHERE project_id = $1")
+        .bind(project_id.as_str())
+        .execute(&mut *connection)
+        .await?;
+    Ok(result.rows_affected())
+}
+
 fn row_to_payload(row: sqlx::postgres::PgRow) -> Result<StagedPayload, PostgresError> {
     let signal: String = row.try_get("signal")?;
     let records: String = row.try_get("records_json")?;

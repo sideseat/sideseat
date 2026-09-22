@@ -159,6 +159,32 @@ pub async fn list_projects(
     Ok((projects, total.0 as u64))
 }
 
+/// Enumerate live projects and project-owned rows that restore repair can remove.
+///
+/// Deliberately excludes deletion journals, tombstones, holds, leases, and quota rows: those are durable
+/// lifecycle facts rather than unreachable content, and including them would make a completed repair
+/// rediscover the same deleted project forever.
+pub async fn restore_project_ids(
+    pool: &SqlitePool,
+    limit: usize,
+) -> Result<Vec<ProjectId>, SqliteError> {
+    let ids = sqlx::query_scalar::<_, String>(
+        "SELECT id AS project_id FROM projects WHERE deleting_at IS NULL
+         UNION SELECT project_id FROM files
+         UNION SELECT project_id FROM trace_files
+         UNION SELECT project_id FROM content_bodies
+         UNION SELECT project_id FROM span_bodies
+         UNION SELECT project_id FROM content_body_backfill
+         UNION SELECT project_id FROM staged_payloads
+         ORDER BY 1
+         LIMIT ?",
+    )
+    .bind(i64::try_from(limit).unwrap_or(i64::MAX))
+    .fetch_all(pool)
+    .await?;
+    Ok(ids.into_iter().map(ProjectId::from).collect())
+}
+
 /// List projects for a user (across all their organizations) with optional caching
 ///
 /// Note: Only caches first page with default limit for simplicity.
