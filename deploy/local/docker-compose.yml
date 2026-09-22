@@ -127,6 +127,8 @@ services:
           memory: 384m
 
   redpanda:
+    # One broker, replication factor one, and no Tiered Storage: deliberately a local test fixture,
+    # not a recoverable production queue. See the backup and restore runbook.
     image: docker.redpanda.com/redpandadata/redpanda:v26.2.3
     container_name: sideseat_redpanda
     restart: unless-stopped

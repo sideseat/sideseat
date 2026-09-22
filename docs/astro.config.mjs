@@ -120,6 +120,7 @@ export default defineConfig({
             { label: 'Configuration Schema', slug: 'docs/reference/config' },
             { label: 'OpenTelemetry', slug: 'docs/reference/otel' },
             { label: 'Authentication', slug: 'docs/reference/auth' },
+            { label: 'Backup and Restore', slug: 'docs/reference/backup-restore' },
             { label: 'Storage Manager', slug: 'docs/reference/storage' },
             { label: 'Secret Manager', slug: 'docs/reference/secrets' },
           ],

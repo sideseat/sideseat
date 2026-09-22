@@ -77,6 +77,7 @@
 #     test               Run all tests
 #     test-rust          Rust tests, whole workspace (server + sdk/rust)
 #     test-server        Rust tests, server package only (inner loop)
+#     test-backup-restore Destructive embedded backup -> restore -> repair proof
 #     test-clickhouse    ClickHouse/DuckDB parity (starts a throwaway container)
 #     test-postgres      PostgreSQL/SQLite parity (starts a throwaway container)
 #     test-redis         Durable ingestion queue against Redis (starts a throwaway container)

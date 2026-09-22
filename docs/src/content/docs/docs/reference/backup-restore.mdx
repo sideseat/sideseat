@@ -1,0 +1,152 @@
+---
+title: Backup and restore
+description: Store-specific backup, guarded restore, and repair procedures for SideSeat.
+---
+
+SideSeat has no cross-store snapshot watermark. Back up every configured durable store independently, restore the
+newest usable backup of each, and run the repair command before allowing reads or writes.
+
+## Recovery contract
+
+The restore procedure deliberately has three residuals:
+
+1. Data committed after a store's selected backup is outside that store's recovery point. Staged payloads are not a
+   general restore source because they are released after signal-specific confirmation.
+2. A backup predating a deletion can resurrect that data. Repair replays every deletion still present in the restored
+   transactional journal and reruns deterministic age retention and quota enforcement to completion, but cannot replay
+   a journal entry that is absent from the selected transactional backup.
+3. A tenant-only restore is an export/import runbook. Physical PostgreSQL recovery restores a cluster, not one tenant,
+   and ClickHouse rows and blob objects have separate selective-copy procedures.
+
+Repair can rebuild a missing file association when both the analytics reference and blob exist, release an association
+whose analytics row no longer exists, and reclaim an orphan blob. It cannot reconstruct absent bytes. Those references
+remain in metadata, reads return `FILE_CONTENT_UNAVAILABLE`, and the repair report lists each missing object.
+
+## Embedded SQLite, DuckDB, and filesystem blobs
+
+Stop SideSeat and prevent exporters or operators from writing to it. The backup helper opens both databases, checkpoints
+them, checks SQLite integrity, copies durable files, and writes a SHA-256 manifest. It excludes `files_temp/` and
+`debug/`.
+
+```bash
+./scripts/backup-embedded.sh \
+  "$SIDESEAT_DATA_DIR" \
+  "/backups/sideseat-$(date -u +%Y%m%dT%H%M%SZ)"
+```
+
+The helper requires the `sqlite3` and `duckdb` command-line tools. Keep the backup on storage with independent failure
+and access boundaries; a second directory on the same host is only a test. It covers the default `$DATA_DIR/files`
+blob path and file-backed `secrets.json`. Back up a custom `files.filesystem_path`, external secrets backend, and the
+configuration file as separate stores.
+
+Restore into a new, empty directory. Do not overwrite the damaged directory: retain it until recovery is accepted.
+
+```bash
+./scripts/restore-embedded.sh \
+  /backups/sideseat-20260922T120000Z \
+  /srv/sideseat-restored
+
+SIDESEAT_DATA_DIR=/srv/sideseat-restored \
+  sideseat --config /etc/sideseat/sideseat.json \
+  system restore-repair \
+  --report /srv/sideseat-restored/restore-report.json
+```
+
+The restore helper creates `.restore-pending` before copying any data. Normal server startup refuses that directory until
+repair succeeds and removes the marker. Use the same configuration as production so retention, quota, database, blob,
+and secrets settings match the restored deployment.
+
+Inspect the JSON report before starting service:
+
+- `journal` shows deletion entries replayed.
+- `association_repair_before_quota` shows rebuilt ownership, reclaimed file and body orphans, and missing blob content.
+- `quotas` shows measured usage, pressure reclamation, held bytes, and any remaining overage.
+- `association_repair_after_quota` must be a fixed point except for the same explicitly reported missing content.
+
+Then start SideSeat normally and perform application-level trace, session, file, and ingestion smoke tests.
+
+## Distributed stores
+
+Choose and record a recovery point for every row store, blob store, and queue. Test the complete restore regularly.
+
+For a whole-deployment recovery:
+
+1. Keep SideSeat and all other writers stopped.
+2. Restore or fail over Redpanda, but do not open ingestion.
+3. Recover PostgreSQL, ClickHouse, the blob store, secrets, and the SideSeat configuration to their selected points.
+4. Create `$SIDESEAT_DATA_DIR/.restore-pending` before any SideSeat process can start.
+5. Run `sideseat --config ... system restore-repair --report ...` using the migration/maintenance credentials.
+6. Inspect the report, verify store and queue health, then start SideSeat and reopen ingestion.
+
+### PostgreSQL
+
+Use `pg_basebackup` as the base for continuous archiving and retain the unbroken WAL sequence needed for the target
+recovery point. Test point-in-time recovery into an isolated cluster. PostgreSQL's
+[continuous archiving guide](https://www.postgresql.org/docs/18/continuous-archiving.html) and
+[`pg_basebackup` reference](https://www.postgresql.org/docs/18/app-pgbasebackup.html) are the normative procedures.
+
+After recovery, keep the application role disabled until the other stores are restored and SideSeat repair has
+completed. The migration/maintenance identity must run the repair because global journal replay, retention, and GC
+intentionally cross tenant row policies.
+
+### ClickHouse
+
+Back up every SideSeat database, dictionary, and required access object to independently protected object storage:
+
+```sql
+BACKUP DATABASE sideseat
+TO S3('https://backup-bucket.s3.example.com/sideseat/full-20260922', 'ACCESS_KEY', 'SECRET_KEY');
+```
+
+For incrementals, use a different destination and identify the full or previous incremental with `base_backup`. See
+ClickHouse's [S3 backup and restore procedure](https://clickhouse.com/docs/operations/backup/s3_endpoint). Restore all
+local tables on every shard and replica; verify the distributed tables and tenant row policies before repair.
+
+### S3 or compatible blob storage
+
+Enable object versioning and protect a manifest containing each project/object key, version ID, byte count, and checksum
+for the selected recovery point. Replicate to a separate bucket or account where required by the threat model. AWS
+documents [S3 replication](https://docs.aws.amazon.com/AmazonS3/latest/userguide/replication.html) and its
+[versioning requirements](https://docs.aws.amazon.com/AmazonS3/latest/userguide/replication-requirements.html).
+
+Restore the exact manifest versions before running SideSeat repair. A current bucket listing is not a recovery manifest:
+deletes and overwrites can make it describe a different point.
+
+### Redpanda
+
+The queue is durable application state. An OTLP success response means accepted telemetry will not be resent by the
+exporter, so destroying acknowledged but unconsumed records loses data.
+
+Production must therefore use either:
+
+- a multi-broker topic replication factor greater than one, with broker failure and replacement tested; or
+- Tiered Storage writing the SideSeat topics and recovery metadata to protected object storage, with whole-cluster
+  recovery tested.
+
+Redpanda documents [topic replication](https://docs.redpanda.com/streaming/current/develop/manage-topics/config-topics/),
+[Tiered Storage](https://docs.redpanda.com/streaming/current/manage/tiered-storage/), and
+[`rpk cluster storage restore`](https://docs.redpanda.com/streaming/current/reference/rpk/rpk-cluster/rpk-cluster-storage-restore/).
+The repository's one-node local Compose service has replication factor one and no remote storage; it is a development
+fixture, not a recoverable production queue.
+
+Restore or fail over the queue before opening ingestion. Confirm SideSeat's consumer group offsets and retained topic
+range cover the intended queue recovery point.
+
+## Tenant-only recovery
+
+Never point a whole-cluster physical restore directly at production for one tenant.
+
+1. Recover PostgreSQL into a scratch cluster at the chosen point.
+2. Resolve the tenant's organization IDs, project IDs, and referenced user IDs in that scratch cluster.
+3. Export and import in dependency groups: `users` and `organizations`; then `organization_members`, `auth_methods`,
+   `projects`, `api_keys`, and `credentials`; then project-local metadata and lifecycle rows including `files`,
+   `content_bodies`, tombstones, retention work, `deletion_journal`, staging, holds, leases, and usage; finally
+   `trace_files`, `span_bodies`, `favorites`, and `credential_project_permissions`. Preserve every deletion-journal row
+   for the selected projects and organization.
+4. Restore or copy the tenant's ClickHouse local-table rows on every shard.
+5. Restore only that tenant's blob prefix and exact object versions.
+6. Place the target deployment behind `.restore-pending`, run `system restore-repair`, inspect missing content and quota
+   residuals, then reopen service.
+
+Queue recovery is deployment-wide. Do not replay a shared topic selectively without a separate, tested partition and
+offset procedure.

@@ -1860,6 +1860,11 @@ impl AppConfig {
                     "Configuration error: RedPanda retention_warning_ms must be less than retention_ms"
                 );
             }
+            if redpanda.replication_factor == 1 {
+                tracing::warn!(
+                    "Redpanda queue topics have one replica; recoverable production requires tested Tiered Storage or a replication factor greater than one"
+                );
+            }
         }
 
         // Warn about rate limiting enabled with 0 RPM

@@ -555,7 +555,8 @@
             "replication_factor": {
               "type": "integer",
               "minimum": 1,
-              "default": 1
+              "default": 1,
+              "description": "Topic replica count. A value of 1 is suitable for local development; recoverable production also requires tested Tiered Storage or a value greater than 1."
             },
             "retention_ms": {
               "type": "integer",
