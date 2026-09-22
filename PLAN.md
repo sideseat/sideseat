@@ -21,7 +21,7 @@ Written 2026-09-21, updated 2026-09-22. "What has landed" is measured from commi
 | **2** | [The data model](#2-the-data-model) — tables, schema versions, the span row, what step 0 fixed | before touching storage |
 | **3** | [The ingest path](#3-the-ingest-path) — write order, the fences, where the footprint gates measure | steps 6, 7, 8 |
 | **4** | [The read path](#4-the-read-path) — the cache, the nine feed stages | steps 9, 10 |
-| **5** | [What landed, and why](#5-what-landed-and-why) — the 43 code commits, with the reasoning | to avoid re-deciding |
+| **5** | [What landed, and why](#5-what-landed-and-why) — the 45 code commits, with the reasoning | to avoid re-deciding |
 | **6** | [What remains](#6-what-remains) — completion state, acceptance criteria, fixed decisions and known operational bugs | to pick the next thing |
 | **7** | [Exact current state](#7-exact-current-state) | to orient |
 | **8** | [Verification state](#8-verification-state--read-before-claiming-anything-works) | **before claiming anything works** |
@@ -698,8 +698,9 @@ declared 200 MB (`DUCKDB_MEMORY_LIMIT_BYTES`, half the ingest ceiling).
 Stated rather than sold: `list()` and `first()` **cannot spill**, and the trace list builds its tag column with
 `LIST_DISTINCT(FLATTEN(LIST(...)))`, so a trace with thousands of large tag arrays can raise an out-of-memory
 error where the default would have completed. The trade is taken because an error names the limit while the
-default makes the ceiling meaningless. **Open: 200 MB is an argument, not a measurement** — `make bench-http` is
-what would reject it, and it has not run.
+default makes the ceiling meaningless. The release HTTP gates have now run against both backend pairs: search and
+the embedded large export pass, while the non-search latency misses recorded in §8 reject any claim that the
+current host satisfies every latency ceiling.
 
 The fan-out spawned one worker per core, so peak CPU-phase memory was *cores × the largest request*.
 `byte_bounded_waves` groups requests into consecutive waves under `PIPELINE_CPU_PHASE_MAX_INFLIGHT_BYTES` (64 MB).
@@ -826,6 +827,15 @@ The restore ordering is the important part:
 7. remove the marker only after the report has been written successfully.
 
 That procedure does not pretend the backups share a watermark. The three residuals in §11 remain the contract.
+
+### 5.9 Verification closure (`19da9f7f`, `bd004a2c`)
+
+Running the previously unexecuted distributed HTTP gate found two blockers before it could measure latency.
+PostgreSQL promotes `SUM(BIGINT)` to `NUMERIC`, so fresh-project governance startup failed while decoding the
+held-byte aggregate as `i64`; explicit `::bigint` casts plus a live empty-project regression close that boundary.
+The pinned MinIO releases still existed in MinIO's Quay registry but no longer at their Docker Hub names, so the
+benchmark now uses the same immutable release tags from Quay. The repaired gate reaches all 200-sample workloads;
+its remaining failures are the measured latency gaps in §8, not startup or fixture failures.
 
 ---
 
@@ -1275,16 +1285,18 @@ CBOR), signing granularity, whether to ship witness co-signing, and key custody 
 
 Not findings from review — things that are simply not understood yet:
 
-- **`make test-clickhouse-two-shard` takes ~15 minutes.** A third distributed-DDL replica entry named
-  `localhost:9000` sits beside the two correct `ch-shardN:9000` ones, so the node that does not own it waits the
-  hardcoded 90 s in `markReplicasActive` before *every* `ON CLUSTER` task. Setting `interserver_http_host` and the
-  container hostname fixed the two real names without removing the third, and it survives restarting either node.
-  Until this is understood, a regression in the `_local`-versus-`Distributed` reads can merge green.
+- **`make test-clickhouse-two-shard` has a historically slow fixture path.** Prior runs took ~15 minutes because a
+  third distributed-DDL replica entry named `localhost:9000` sat beside the two correct `ch-shardN:9000` entries
+  and triggered the hardcoded 90 s `markReplicasActive` wait. The latest 1-test run finished in 3.09 s, so the
+  delay did not reproduce; its cause is still not understood well enough to call fixed.
 - **Five non-search `make bench-http` ceilings are breached** on the development host. Search and the large export
   pass. Earlier measurements already missed the 2 KB export and concurrent session read before search existed;
   the latest run also misses sequential session messages, trace list and cold session read. What remains
   unresolved is how much is host load versus cumulative regression; settle it on an idle host or with a buildable
   baseline bisect.
+- **Three `make bench-http-distributed` ceilings are breached** on the same host: small export p95 86.3 ms against
+  80 ms, large export 171.1 ms against 120 ms, and 8-concurrent session messages 2,193.4 ms against 1,500 ms.
+  Sequential session messages, trace list and search complete within that target's ceilings.
 - **Cross-replica ClickHouse convergence is unverified** — it needs a second replica, which no fixture provides.
 
 ---
@@ -1297,12 +1309,12 @@ git log --oneline 4a9c30c9..HEAD -- ':!PLAN.md'   # the code commits only
 ```
 
 The list is not reproduced here, because it drifts every time this file is edited and a stale list is worse than
-no list. The command currently returns **43 code commits**. §5 names the load-bearing groups and their rationale.
+no list. The command currently returns **45 code commits**. §5 names the load-bearing groups and their rationale.
 
-**Working tree:** the foundation implementation is committed through `cdec7ae0`. `CLAUDE.md` is modified by the
-user and remains deliberately uncommitted. Step 1 and Steps 5–12 are complete; Step 8 was rejected by its required
-benchmark and removed. The only remaining work in this file is verification or an explicitly accepted operational
-limit, not an unfinished implementation step.
+**Working tree:** the implementation and verification-harness repairs are committed through `bd004a2c`.
+`CLAUDE.md` is modified by the user and remains deliberately uncommitted. Step 1 and Steps 5–12 are complete;
+Step 8 was rejected by its required benchmark and removed. The only remaining work in this file is verification
+or an explicitly accepted operational limit, not an unfinished implementation step.
 
 ## 8. Verification state — read before claiming anything works
 
@@ -1312,19 +1324,20 @@ limit, not an unfinished implementation step.
 | --- | --- |
 | `cargo check --locked --workspace --all-targets` | passes with rustls 0.23.45 |
 | strict clippy for the server and every changed adapter/domain/query crate | passes with `-D warnings` |
-| `cargo test --locked -p sideseat-server --lib` | 88 passed, 4 ignored; most former server tests now live with their extracted crates |
+| `cargo test --locked -p sideseat-server --lib` | 89 passed, 4 ignored; most former server tests now live with their extracted crates |
 | `cargo test --locked -p sideseat-query-sql` | 65 passed, including the 46-operation typed registry |
 | `cargo test --locked -p sideseat-domain restore::tests` | 3 passed: journal replay, association/body GC fixed point, and analytics/metadata/staging-only project removal |
 | `cargo test --locked -p sideseat-core` | 267 tests plus doctests pass |
 | `cargo test --locked -p sideseat-server --test repository` | 26 of 28 pass; the two failures name only stale paths in the user's uncommitted `CLAUDE.md`, not `PLAN.md` or production code |
 | `make footprint` | **all four gates pass:** idle 91.8 MB; steady ingest median 166.4 MB at ~4,958 spans/s; 10k-turn residue 0.0 MB; queued payload 1.00× decoded protobuf |
-| `make test-postgres` | **41 passed** — PostgreSQL/SQLite parity, role separation, forced fail-closed RLS and transactional tenant context |
+| `make test-postgres` | **43 passed** — including fresh-project governance aggregate decoding, PostgreSQL/SQLite parity, role separation, forced fail-closed RLS and transactional tenant context |
 | `make test-clickhouse` | **26 passed** on ClickHouse 26.4.3.37 — including row policies and span-only, metric-only and log-only restore project discovery |
 | `make test-clickhouse-replicated` | **3 passed** on the dedicated one-shard replicated fixture — fresh migration, interrupted migration resume and configured-database tenant policy |
 | `make test-clickhouse-two-shard` | **1 passed** — the distributed consistency check finds anomalies and legacy rows across both shards |
 | `make test-backup-restore` | destructive checkpoint → independent restore → repair test passes; the second repair is a fixed point |
 | release search write-amplification gate | **passes:** 0.962 recall against 0.950; 62,052 rows for 532 spans, 5,913 physical bytes/span |
 | embedded HTTP search gate | **passes:** 200 samples, p50 78.6 ms, p95 92.5 ms against 100 ms, p99 104.1 ms |
+| `make bench-http-distributed` | completes the 200-sample PostgreSQL + ClickHouse + S3-compatible path; three latency ceilings fail, listed below |
 | `make test-redis` | **15 passed** — durable queue refusal, reclaim, acknowledgement and trim cases |
 | `make test-redpanda` | **passes live** on pinned RedPanda v26.2.3 — keyed partitioning, contiguous commits, zero final lag, claim/trim semantics |
 | backup/restore operational checks | both scripts pass `bash -n` and ShellCheck; a real embedded smoke restore passes; the docs build publishes 45 pages |
@@ -1335,15 +1348,10 @@ limit, not an unfinished implementation step.
 `CLAUDE.md` path groups. All production-code phases and the other 26 structural invariants pass independently;
 the file is user-owned and was not changed to manufacture a green aggregate result.
 
-**Not run after the final restore changes:**
-
-```
-make bench-http-distributed
-```
-
-The remaining command exercises the full distributed HTTP path. Full `cargo deny check` still reports the
-pre-existing wildcard path dependency used by the public `sideseat-ports` crate and two unmatched-license
-warnings; the advisory check itself is green.
+All opt-in backend/topology commands listed for the final restore state have now run. The distributed HTTP run
+first exposed and then verified fixes for PostgreSQL `SUM(BIGINT)` decoding and dead MinIO Docker Hub pins.
+Full `cargo deny check` still reports the pre-existing wildcard path dependency used by the public
+`sideseat-ports` crate and two unmatched-license warnings; the advisory check itself is green.
 
 **Run, still failing on non-search latency ceilings:**
 
@@ -1356,15 +1364,23 @@ make bench-http
     cold session read: 104.9 ms against 60 ms
     search: p95 92.5 ms against 100 ms — passes
     large export: p95 82.8 ms against 100 ms — passes
+
+make bench-http-distributed
+    trace export 2 KB: p95 86.3 ms against 80 ms
+    trace export 754 KB: p95 171.1 ms against 120 ms
+    session messages, sequential: p95 381.4 ms — passes
+    session messages, 8 concurrent: p95 2,193.4 ms against 1,500 ms
+    trace list: p95 79.0 ms — passes
+    search: p95 57.5 ms — passes
+    cold session read: 393.9 ms
 ```
 
 Two historical caveats remain useful when interpreting this host-sensitive suite: `CLAUDE.md` already documented
 breaches for the 2 KB export and 8-concurrent session read before search existed, while this latest run also
 missed the sequential, list and cold-read ceilings. Search itself passed its new gate. Separately,
-`make test-clickhouse-two-shard` takes ~15 minutes
-because of an unresolved fixture problem — a third distributed-DDL replica entry named `localhost:9000` that
-nobody owns, which makes the node not owning it wait a hardcoded 90 s in `markReplicasActive` before *every*
-`ON CLUSTER` task.
+`make test-clickhouse-two-shard` has historically taken ~15 minutes because of an unresolved fixture problem — a
+third distributed-DDL replica entry named `localhost:9000` that nobody owns. The latest run did not reproduce the
+delay and passed in seconds; that is evidence the target works, not evidence that the intermittent wait is fixed.
 
 ---
 
@@ -1374,8 +1390,8 @@ The foundation plan is implemented. There is no next numbered implementation ste
 
 1. Run `git status --short`, preserve the user-owned `CLAUDE.md` edit, then run the checks in §8 appropriate to
    the area being changed.
-2. For release confidence, rerun `make footprint`, `make bench-http`, `make test-clickhouse-replicated` and the
-   deliberately slow `make test-clickhouse-two-shard`; interpret the known latency and fixture caveats first.
+2. For release confidence, rerun `make footprint`, both HTTP benchmark modes, `make test-clickhouse-replicated`
+   and `make test-clickhouse-two-shard`; interpret the known latency and fixture caveats first.
 3. Choose a follow-on explicitly: resolve a §6.11 operational issue, improve the opt-in topology fixtures, or
    start a separate audit-layer plan. Do not reopen Step 8 without a new measurement that changes its rejected
    result.
@@ -1555,11 +1571,11 @@ you owe.
 | Layers do not invert | the **compiler** (crate manifests), plus `no_layer_crate_depends_on_a_driver`, `the_driver_gate_reads_a_renamed_dependency`, `no_adapter_imports_a_sibling_adapter`, `the_storage_layer_does_not_import_the_http_layer`, `the_ports_crate_emits_no_sql` | `tests/repository.rs` |
 | No framework knowledge in Rust | `no_production_module_names_a_framework`, `no_production_module_carries_a_framework_telemetry_key` — two sweeps, because names alone were not enough: the defect that invalidated the first acceptance was a framework fact spelled as a *value* | lib tests |
 | The two analytics backends agree | **ClickHouse parity suite** — one span set into both, every read method must return identical rows, DuckDB is the reference | `clickhouse/parity_tests.rs` |
-| The two transactional backends agree | **PostgreSQL parity suite**, 41 cases including populated upgrades and RLS role/context behaviour | `postgres/parity_tests.rs` |
+| The two transactional backends agree | **PostgreSQL parity suite**, 43 cases including populated upgrades, governance aggregate types and RLS role/context behaviour | `postgres/parity_tests.rs` |
 | Message reconstruction is correct | **121 goldens × 4 views**: count, content, ordering, duplicate absence — plus invariants that hold *independently* of the goldens, so a blindly regenerated snapshot still fails on a real defect | `message_goldens` |
 | A rewrite is answer-preserving | the goldens **plus** an equivalence oracle over generated inputs where the interesting cases are ones no framework produces | `order_within_unit_equivalence`, and 17 retired SQL tables kept under `#[cfg(test)]` |
 | Memory ceilings | `make footprint` — two RSS gates against a running server, two live-allocation gates in process | `footprint.rs`, `footprint-gates.sh` |
-| Latency ceilings | `make bench-http` — **enforces**, exits non-zero on a miss | `bench-http-latency.sh` |
+| Latency ceilings | `make bench-http` and `make bench-http-distributed` — **enforce**, exit non-zero on a miss | `bench-http-latency.sh` |
 | The queue loses nothing | six tests, each mutation-verified; `make test-redis` for the durable backend | `crates/adapter-topics/src/memory.rs`, `crates/adapter-topics/src/redis_stream_tests.rs` |
 | Schema upgrades reach every database | populated-upgrade tests per backend, comparing a walked-forward v-old database against a fresh one — including **column order** on DuckDB, because its writer is a positional `Appender` | `migrations.rs`, `parity_tests.rs` |
 | Tenant isolation | colliding trace/session/content ids across two projects; PostgreSQL valid-context and unset-context RLS tests; ClickHouse per-query policy and maintenance-bypass tests | domain file tests, PostgreSQL and ClickHouse parity suites |
@@ -1619,7 +1635,7 @@ Ordered by the product of likelihood and what it costs to discover late.
 | **The body/search backfills sit incomplete indefinitely** | Both are resumable and bounded, which also means they can remain at 60% without blocking normal reads | Alert on progress/drift and do not drop fallback columns until every live project satisfies the cutover criterion |
 | **The restore runbook is trusted without rehearsal** | The embedded proof cannot validate an operator's WAL archive, S3 permissions, ClickHouse backup chain or RedPanda tiered-storage policy | Schedule restore drills and keep `.restore-pending` until the repair report reaches a fixed point |
 | **Cross-replica ClickHouse behaviour diverges from the single-node suite** | No two-replica fixture exists, and distributed DDL already has a slow unexplained third participant | Build a true two-replica fixture; keep replicated/two-shard targets opt-in but required before topology changes |
-| **Host-sensitive latency regressions are normalised as noise** | Five non-search ceilings miss on this host, while footprint and search pass | Re-run on an idle pinned host, then bisect any stable miss rather than widening ceilings |
+| **Host-sensitive latency regressions are normalised as noise** | Five embedded and three distributed ceilings miss on this host, while footprint and both search gates pass | Re-run on an idle pinned host, then bisect any stable miss rather than widening ceilings |
 | **The parity suites pass because neither backend was asked the hard question** | Bitten repeatedly; a fixture can lack the shape its assertion claims to test | Assert fixture preconditions and mutation-verify every new regression |
 | **A review round is treated as done because findings were addressed** | Four of eight round-one fixes did not fix anything | Ask the next round explicitly which previous findings are now correctly fixed |
 
@@ -1703,11 +1719,11 @@ the *command* beside the figure so a reader can re-derive rather than trust:
 
 ```bash
 # counts this file asserts
-git log --oneline 4a9c30c9..HEAD -- ':!PLAN.md' | wc -l    # the code commits (43)
+git log --oneline 4a9c30c9..HEAD -- ':!PLAN.md' | wc -l    # the code commits (45)
 git ls-files 'server/tests/fixtures/messages/*/*/expected.json' | wc -l   # committed goldens (121)
 grep -c '^pub trait' crates/ports/src/traits.rs            # ports (20)
 grep -n 'pub const SCHEMA_VERSION' crates/adapter-duckdb/src/schema.rs crates/adapter-clickhouse/src/schema.rs crates/adapter-sqlite/src/schema.rs crates/adapter-postgres/src/schema.rs   # 6,7,9,10
-cargo test --locked -q -p sideseat-server --lib 2>&1 | tail -2   # 88 passed, 4 ignored
+cargo test --locked -q -p sideseat-server --lib 2>&1 | tail -2   # 89 passed, 4 ignored
 ```
 
 **The rule that keeps it honest: no line numbers.** An earlier draft cited them for every port trait and one had
