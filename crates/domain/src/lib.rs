@@ -6,6 +6,7 @@ pub mod dedup;
 pub mod domain;
 pub mod files;
 pub mod rate_limit;
+pub mod restore;
 pub mod search;
 pub mod signals;
 pub mod staging;
