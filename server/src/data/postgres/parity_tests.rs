@@ -211,6 +211,112 @@ async fn reset_postgres(service: &PostgresService) {
         .unwrap_or_else(|e| panic!("reseed: {e}"));
 }
 
+/// The runtime role must be a real RLS subject, and tenant context must restrict rather than erase reads.
+#[tokio::test]
+async fn postgres_rls_is_forced_fail_closed_and_bound_per_transaction() {
+    let Some((_sqlite, postgres)) = pair().await else {
+        return;
+    };
+    reset_postgres(&postgres).await;
+
+    sqlx::query(
+        "INSERT INTO files
+             (project_id, file_hash, media_type, size_bytes, hash_algo, ref_count, created_at, updated_at)
+         VALUES
+             ('tenant-a', $1, 'application/a', 1, 'sha256', 1, 1, 1),
+             ('tenant-b', $2, 'application/b', 1, 'sha256', 1, 1, 1)",
+    )
+    .bind(hash(41))
+    .bind(hash(42))
+    .execute(postgres.pool())
+    .await
+    .expect("seed colliding tenant rows through maintenance");
+
+    let role: String = sqlx::query_scalar("SELECT current_user")
+        .fetch_one(postgres.runtime_pool())
+        .await
+        .expect("runtime role");
+    assert_eq!(role, sideseat_adapter_postgres::POSTGRES_RUNTIME_ROLE);
+
+    let policy_tables: Vec<(String, bool, bool)> = sqlx::query_as(
+        "SELECT c.relname, c.relrowsecurity, c.relforcerowsecurity
+         FROM pg_class c
+         JOIN pg_namespace n ON n.oid = c.relnamespace
+         WHERE n.nspname = current_schema()
+           AND c.relname = ANY($1::text[])
+         ORDER BY c.relname",
+    )
+    .bind(crate::data::postgres::schema::TENANT_RLS_TABLES)
+    .fetch_all(postgres.pool())
+    .await
+    .expect("inspect RLS flags");
+    assert_eq!(
+        policy_tables.len(),
+        crate::data::postgres::schema::TENANT_RLS_TABLES.len()
+    );
+    assert!(
+        policy_tables
+            .iter()
+            .all(|(_, enabled, forced)| *enabled && *forced),
+        "every project table must enable and force RLS: {policy_tables:?}"
+    );
+
+    let runtime_owner_pairs: Vec<(String, String)> = sqlx::query_as(
+        "SELECT c.relname, pg_get_userbyid(c.relowner)
+         FROM pg_class c
+         JOIN pg_namespace n ON n.oid = c.relnamespace
+         WHERE n.nspname = current_schema()
+           AND c.relname = ANY($1::text[])
+         ORDER BY c.relname",
+    )
+    .bind(crate::data::postgres::schema::TENANT_RLS_TABLES)
+    .fetch_all(postgres.runtime_pool())
+    .await
+    .expect("inspect table owners");
+    assert!(
+        runtime_owner_pairs
+            .iter()
+            .all(|(_, owner)| owner != sideseat_adapter_postgres::POSTGRES_RUNTIME_ROLE),
+        "the runtime role owning a table would silently bypass non-forced future policies: \
+         {runtime_owner_pairs:?}"
+    );
+
+    let mut tenant_tx = postgres.runtime_pool().begin().await.expect("tenant tx");
+    sqlx::query("SELECT set_config('sideseat.project_id', $1, true)")
+        .bind("tenant-a")
+        .execute(&mut *tenant_tx)
+        .await
+        .expect("bind tenant context");
+    let visible: Vec<String> = sqlx::query_scalar(
+        // Deliberately no project predicate: this is the storage backstop oracle.
+        "SELECT project_id FROM files ORDER BY project_id",
+    )
+    .fetch_all(&mut *tenant_tx)
+    .await
+    .expect("tenant-scoped raw read");
+    assert_eq!(visible, vec!["tenant-a"]);
+    tenant_tx.commit().await.expect("commit tenant tx");
+
+    let mut unset_tx = postgres.runtime_pool().begin().await.expect("unset tx");
+    // A custom GUC is writable by ordinary roles; setting a maintenance-looking value must not grant bypass.
+    sqlx::query("SELECT set_config('sideseat.maintenance', 'on', true)")
+        .execute(&mut *unset_tx)
+        .await
+        .expect("set an unprivileged custom option");
+    let visible_without_context: Vec<String> =
+        sqlx::query_scalar("SELECT project_id FROM files ORDER BY project_id")
+            .fetch_all(&mut *unset_tx)
+            .await
+            .expect("fail-closed raw read");
+    assert!(
+        visible_without_context.is_empty(),
+        "a missing tenant context must match no project rows"
+    );
+    unset_tx.rollback().await.expect("rollback unset tx");
+
+    reset_postgres(&postgres).await;
+}
+
 /// Run one scenario against both backends and require the same transcript.
 async fn assert_parity<F, Fut>(name: &str, scenario: F)
 where
@@ -354,7 +460,7 @@ async fn a_v2_postgres_database_upgrades_to_the_current_schema() {
         return;
     };
 
-    let pool = postgres.pool();
+    let pool = postgres.schema_pool();
 
     // Reset at **both** ends. This test mutates the schema - it drops a table and re-runs migrations - so
     // leaving state behind makes an unrelated scenario fail later, which is the most misleading kind of flake:

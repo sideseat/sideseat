@@ -6,7 +6,7 @@ use sqlx::postgres::PgConnection;
 use sqlx::{Acquire, PgPool};
 
 use super::error::PostgresError;
-use super::schema::{DEFAULT_DATA, SCHEMA, SCHEMA_VERSION};
+use super::schema::{DEFAULT_DATA, SCHEMA, SCHEMA_VERSION, TENANT_RLS_SQL};
 use sideseat_core::migration::{MigrationRun, plan_migrations};
 use sideseat_ports::clock::Clock;
 
@@ -47,6 +47,10 @@ const MIGRATIONS: &[Migration] = &[
     Migration {
         version: 9,
         name: "content_bodies",
+    },
+    Migration {
+        version: 10,
+        name: "tenant_row_level_security",
     },
 ];
 
@@ -165,6 +169,7 @@ async fn apply_initial_schema(
     // the same trap is waiting in any string literal containing a semicolon. `raw_sql` sends the script
     // as a simple query, which is what a script is.
     sqlx::raw_sql(SCHEMA).execute(&mut *tx).await?;
+    sqlx::raw_sql(TENANT_RLS_SQL).execute(&mut *tx).await?;
     sqlx::raw_sql(DEFAULT_DATA).execute(&mut *tx).await?;
 
     // Record schema version
@@ -514,6 +519,7 @@ CREATE TABLE IF NOT EXISTS content_body_backfill (
 );
 "#,
         ),
+        10 => ("tenant_row_level_security", TENANT_RLS_SQL),
         _ => {
             return Err(PostgresError::MigrationFailed {
                 version,

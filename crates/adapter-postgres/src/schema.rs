@@ -3,7 +3,76 @@
 //! Initial schema with all tables. Compatible with SQLite schema structure.
 
 /// Current schema version
-pub const SCHEMA_VERSION: i32 = 9;
+pub const SCHEMA_VERSION: i32 = 10;
+
+/// Project-scoped tables protected by PostgreSQL row-level security.
+///
+/// `projects` is intentionally absent: listing all projects in an organization is a legitimate global read.
+/// `credential_project_permissions` is absent because its null `project_id` rows are organization defaults.
+pub const TENANT_RLS_TABLES: &[&str] = &[
+    "deleted_projects",
+    "files",
+    "deleted_traces",
+    "retention_cleanup",
+    "deleted_sessions",
+    "trace_files",
+    "content_bodies",
+    "span_bodies",
+    "content_body_backfill",
+    "favorites",
+    "deletion_journal",
+    "staged_payloads",
+    "project_holds",
+    "project_maintenance_leases",
+    "project_storage_usage",
+];
+
+/// Fail-closed tenant policies for every project-scoped transactional table.
+///
+/// The runtime context is transaction-local (`set_config(..., true)`). Maintenance is authorized by a
+/// dedicated role, not by a writable custom setting, so ordinary runtime code cannot opt itself out of RLS.
+pub const TENANT_RLS_SQL: &str = r#"
+DO $sideseat_rls$
+DECLARE
+    table_name TEXT;
+BEGIN
+    FOREACH table_name IN ARRAY ARRAY[
+        'deleted_projects',
+        'files',
+        'deleted_traces',
+        'retention_cleanup',
+        'deleted_sessions',
+        'trace_files',
+        'content_bodies',
+        'span_bodies',
+        'content_body_backfill',
+        'favorites',
+        'deletion_journal',
+        'staged_payloads',
+        'project_holds',
+        'project_maintenance_leases',
+        'project_storage_usage'
+    ]
+    LOOP
+        EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY', table_name);
+        EXECUTE format('ALTER TABLE %I FORCE ROW LEVEL SECURITY', table_name);
+        EXECUTE format('DROP POLICY IF EXISTS sideseat_tenant_isolation ON %I', table_name);
+        EXECUTE format(
+            'CREATE POLICY sideseat_tenant_isolation ON %I
+             USING (
+                 current_user = ''sideseat_maintenance''
+                 OR project_id = NULLIF(current_setting(''sideseat.project_id'', true), '''')
+             )
+             WITH CHECK (
+                 current_user = ''sideseat_maintenance''
+                 OR project_id = NULLIF(current_setting(''sideseat.project_id'', true), '''')
+             )',
+            table_name
+        );
+    END LOOP;
+END
+$sideseat_rls$;
+"#;
 
 /// Complete schema SQL for PostgreSQL
 pub const SCHEMA: &str = r#"

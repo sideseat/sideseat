@@ -438,7 +438,7 @@ pub async fn get_stale_claimed_projects(
     now: i64,
 ) -> Result<Vec<(String, i64)>, PostgresError> {
     let cutoff = now - older_than_secs;
-    let rows: Vec<(String, i64)> = sqlx::query_as(
+    let mut rows: Vec<(String, i64)> = sqlx::query_as(
         "SELECT id, deleting_at FROM projects WHERE deleting_at IS NOT NULL AND deleting_at <= $1 \
          ORDER BY deleting_at LIMIT $2",
     )
@@ -446,6 +446,7 @@ pub async fn get_stale_claimed_projects(
     .bind(sideseat_core::core::constants::STALE_CLEANUP_RESUME_BATCH)
     .fetch_all(pool)
     .await?;
+    rows.sort_unstable_by(|left, right| left.0.cmp(&right.0));
     Ok(rows)
 }
 
@@ -583,7 +584,7 @@ pub async fn claim_deleted_projects_for_check(
          WHERE project_id IN ( \
              SELECT project_id FROM deleted_projects \
              WHERE next_check_at <= extract(epoch from now())::bigint \
-             ORDER BY next_check_at \
+             ORDER BY next_check_at, project_id \
              LIMIT $2 FOR UPDATE SKIP LOCKED \
          ) \
          RETURNING project_id, claim_token",
@@ -800,7 +801,7 @@ pub async fn claim_deleted_traces_for_check(
     lease_secs: i64,
     limit: i64,
 ) -> Result<Vec<(String, String, i64)>, PostgresError> {
-    let rows: Vec<(String, String, i64)> = sqlx::query_as(
+    let mut rows: Vec<(String, String, i64)> = sqlx::query_as(
         // `FOR UPDATE SKIP LOCKED` on the inner select: `WHERE (a,b) IN (SELECT ... LIMIT n)` alone lets a
         // blocked replica resume with a stale subquery snapshot and return the same rows, which is the
         // hazard the project claim documents.
@@ -809,7 +810,7 @@ pub async fn claim_deleted_traces_for_check(
          WHERE (project_id, trace_id) IN ( \
              SELECT project_id, trace_id FROM deleted_traces \
              WHERE next_check_at <= EXTRACT(EPOCH FROM now())::bigint \
-             ORDER BY next_check_at \
+             ORDER BY next_check_at, project_id, trace_id \
              LIMIT $2 \
              FOR UPDATE SKIP LOCKED \
          ) \
@@ -819,6 +820,7 @@ pub async fn claim_deleted_traces_for_check(
     .bind(limit)
     .fetch_all(pool)
     .await?;
+    rows.sort_unstable_by(|left, right| (&left.0, &left.1).cmp(&(&right.0, &right.1)));
     Ok(rows)
 }
 
@@ -873,7 +875,7 @@ pub async fn claim_deleted_sessions_for_check(
     lease_secs: i64,
     limit: i64,
 ) -> Result<Vec<(String, String, i64)>, PostgresError> {
-    let rows: Vec<(String, String, i64)> = sqlx::query_as(
+    let mut rows: Vec<(String, String, i64)> = sqlx::query_as(
         // `FOR UPDATE SKIP LOCKED` on the inner select: `WHERE (a,b) IN (SELECT ... LIMIT n)` alone lets a
         // blocked replica resume with a stale subquery snapshot and return the same rows, which is the
         // hazard the project claim documents.
@@ -882,7 +884,7 @@ pub async fn claim_deleted_sessions_for_check(
          WHERE (project_id, session_id) IN ( \
              SELECT project_id, session_id FROM deleted_sessions \
              WHERE next_check_at <= EXTRACT(EPOCH FROM now())::bigint \
-             ORDER BY next_check_at \
+             ORDER BY next_check_at, project_id, session_id \
              LIMIT $2 \
              FOR UPDATE SKIP LOCKED \
          ) \
@@ -892,6 +894,7 @@ pub async fn claim_deleted_sessions_for_check(
     .bind(limit)
     .fetch_all(pool)
     .await?;
+    rows.sort_unstable_by(|left, right| (&left.0, &left.1).cmp(&(&right.0, &right.1)));
     Ok(rows)
 }
 
