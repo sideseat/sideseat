@@ -5,6 +5,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use chrono::{DateTime, TimeDelta, Utc};
+use serde::Serialize;
 use thiserror::Error;
 use tokio::sync::watch;
 use tokio::task::JoinHandle;
@@ -62,6 +63,17 @@ pub enum GovernanceError {
         measured_bytes: u64,
         quota_bytes: u64,
     },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct RestoreQuotaRepairReport {
+    pub project_id: ProjectId,
+    pub usage_before_bytes: u64,
+    pub usage_after_bytes: u64,
+    pub ordinary_limit_bytes: u64,
+    pub reclaimed_span_bytes: u64,
+    pub remaining_overage_bytes: u64,
+    pub blocked_by_project_hold: bool,
 }
 
 /// One inward-facing service for quota admission, hold fencing and convergence.
@@ -455,6 +467,76 @@ impl StorageGovernanceService {
             .map_err(unavailable)
     }
 
+    /// Recompute and reclaim one restored project's ordinary quota to a fixed point.
+    ///
+    /// Stale counters are replaced before any decision. Pressure deletion remains journalled, and legal holds
+    /// win: an overage composed only of held or permanent transactional bytes is reported rather than deleted.
+    pub async fn repair_quota_after_restore(
+        &self,
+        project_id: &ProjectId,
+    ) -> Result<RestoreQuotaRepairReport, GovernanceError> {
+        let owner = self
+            .acquire_maintenance(project_id, "restore-quota")
+            .await?;
+        let result = async {
+            let before = self.reconcile_project(project_id).await?;
+            let limit = self.ordinary_limit_bytes();
+            let blocked_by_project_hold = self.current_hold(project_id).await?.is_some();
+            let mut after = before;
+            let mut reclaimed_span_bytes = 0u64;
+
+            if !blocked_by_project_hold {
+                loop {
+                    let needed = after.logical_bytes.saturating_sub(limit);
+                    if needed == 0 {
+                        break;
+                    }
+                    let reclaimed = self
+                        .reclaim_pressure_spans_under_fence(project_id, needed)
+                        .await?;
+                    if reclaimed == 0 {
+                        break;
+                    }
+                    reclaimed_span_bytes = reclaimed_span_bytes.saturating_add(reclaimed);
+                    let next = self.reconcile_project(project_id).await?;
+                    if next.logical_bytes >= after.logical_bytes {
+                        after = next;
+                        break;
+                    }
+                    after = next;
+                }
+            }
+
+            Ok(RestoreQuotaRepairReport {
+                project_id: project_id.clone(),
+                usage_before_bytes: before.logical_bytes,
+                usage_after_bytes: after.logical_bytes,
+                ordinary_limit_bytes: limit,
+                reclaimed_span_bytes,
+                remaining_overage_bytes: after.logical_bytes.saturating_sub(limit),
+                blocked_by_project_hold,
+            })
+        }
+        .await;
+        self.release_maintenance(project_id, &owner).await;
+        result
+    }
+
+    pub async fn repair_all_quotas_after_restore(
+        &self,
+    ) -> Result<Vec<RestoreQuotaRepairReport>, GovernanceError> {
+        let projects = self
+            .governance
+            .storage_project_ids(usize::MAX)
+            .await
+            .map_err(unavailable)?;
+        let mut reports = Vec::with_capacity(projects.len());
+        for project_id in projects {
+            reports.push(self.repair_quota_after_restore(&project_id).await?);
+        }
+        Ok(reports)
+    }
+
     pub async fn held_bytes(&self, project_id: &ProjectId) -> Result<u64, GovernanceError> {
         let transactional = self
             .governance
@@ -844,6 +926,56 @@ mod tests {
                 .logical_bytes,
             held_bytes_before,
             "reported usage converges to the stored logical-byte sum"
+        );
+    }
+
+    #[tokio::test]
+    async fn restore_quota_repair_reclaims_to_a_fixed_point_and_reports_holds() {
+        let reclaim = harness(1_050).await;
+        reclaim
+            .analytics
+            .insert_spans(vec![
+                span(&reclaim.project_id, "oldest", 800),
+                span(&reclaim.project_id, "newest", 800),
+            ])
+            .await
+            .unwrap();
+        let report = reclaim
+            .service
+            .repair_quota_after_restore(&reclaim.project_id)
+            .await
+            .unwrap();
+        assert_eq!(report.remaining_overage_bytes, 0);
+        assert!(report.reclaimed_span_bytes >= 800);
+        assert!(!report.blocked_by_project_hold);
+        assert!(report.usage_after_bytes <= report.ordinary_limit_bytes);
+
+        let held = harness(100).await;
+        held.analytics
+            .insert_spans(vec![span(&held.project_id, "held", 1_000)])
+            .await
+            .unwrap();
+        held.service
+            .set_hold(
+                &held.project_id,
+                Utc.with_ymd_and_hms(2030, 1, 1, 0, 0, 0).single().unwrap(),
+            )
+            .await
+            .unwrap();
+        let report = held
+            .service
+            .repair_quota_after_restore(&held.project_id)
+            .await
+            .unwrap();
+        assert!(report.blocked_by_project_hold);
+        assert!(report.remaining_overage_bytes > 0);
+        assert_eq!(report.reclaimed_span_bytes, 0);
+        assert_eq!(
+            held.analytics
+                .project_logical_bytes(&held.project_id)
+                .await
+                .unwrap(),
+            1_000
         );
     }
 
