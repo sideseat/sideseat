@@ -195,9 +195,9 @@ pub async fn held_transactional_bytes(
 ) -> Result<u64, PostgresError> {
     let bytes: i64 = sqlx::query_scalar(
         "SELECT
-             COALESCE((SELECT SUM(byte_len) FROM staged_payloads WHERE project_id = $1), 0)
-           + COALESCE((SELECT SUM(logical_bytes) FROM deletion_journal WHERE project_id = $1), 0)
-           + COALESCE((SELECT SUM(logical_bytes) FROM retention_cleanup WHERE project_id = $1), 0)",
+             COALESCE((SELECT SUM(byte_len) FROM staged_payloads WHERE project_id = $1), 0)::bigint
+           + COALESCE((SELECT SUM(logical_bytes) FROM deletion_journal WHERE project_id = $1), 0)::bigint
+           + COALESCE((SELECT SUM(logical_bytes) FROM retention_cleanup WHERE project_id = $1), 0)::bigint",
     )
     .bind(project_id.as_str())
     .fetch_one(&mut *connection)

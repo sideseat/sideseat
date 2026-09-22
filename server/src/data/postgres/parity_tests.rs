@@ -49,7 +49,9 @@
 //! make test-postgres     # starts a container, runs this, removes it
 //! ```
 
-use sideseat_ports::traits::{FileMetaStore, IdentityStore, ProjectStore, TransactionalRepository};
+use sideseat_ports::traits::{
+    FileMetaStore, IdentityStore, ProjectStore, StorageGovernance, TransactionalRepository,
+};
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -313,6 +315,25 @@ async fn postgres_rls_is_forced_fail_closed_and_bound_per_transaction() {
         "a missing tenant context must match no project rows"
     );
     unset_tx.rollback().await.expect("rollback unset tx");
+
+    reset_postgres(&postgres).await;
+}
+
+/// PostgreSQL promotes `SUM(BIGINT)` to `NUMERIC`; governance must cast the aggregate before decoding it.
+///
+/// This is the startup case for a fresh distributed deployment: the seeded project exists, but none of its
+/// held-byte tables has rows yet. SQLite's dynamic integer result hid the PostgreSQL-only type mismatch.
+#[tokio::test]
+async fn empty_postgres_held_bytes_decode_as_zero() {
+    let Some((_sqlite, postgres)) = pair().await else {
+        return;
+    };
+
+    let bytes = postgres
+        .held_transactional_bytes(&ProjectId::from("default"))
+        .await
+        .expect("an empty BIGINT aggregate must decode");
+    assert_eq!(bytes, 0);
 
     reset_postgres(&postgres).await;
 }
