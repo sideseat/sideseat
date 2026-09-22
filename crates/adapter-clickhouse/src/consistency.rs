@@ -131,6 +131,7 @@ impl ClickhouseService {
     /// what the pass examined and found; the findings themselves are read back with
     /// [`Self::partition_anomalies`], because the point of recording them is that they outlive the pass.
     pub async fn check_partition_consistency(&self) -> Result<CheckOutcome, ClickhouseError> {
+        let client = self.maintenance_client();
         // The **`Distributed` front end**, not `_local`. A first version read `_local` on the reasoning that
         // a question about physical parts must be asked where the parts are - which is true of a *mutation*
         // and backwards for a *read*: a `SELECT` against `_local` sees only the node the connection reached,
@@ -190,8 +191,7 @@ impl ClickhouseService {
         // - ordering by `max(ingested_at)` **ascending** makes a pass a prefix of the window, which is what
         //   lets the watermark advance to what was examined and guarantees progress. The same reasoning as the
         //   search cursor recording the last position *examined* rather than the last one returned.
-        let candidates: Vec<Candidate> = self
-            .client
+        let candidates: Vec<Candidate> = client
             .query(&format!(
                 "SELECT project_id, trace_id, span_id, \
                         groupUniqArray(toString(toYYYYMM(timestamp_start))) AS partitions, \
@@ -231,8 +231,7 @@ impl ClickhouseService {
         let reached = candidates.iter().map(|c| c.max_ingested).max();
 
         if !found.is_empty() {
-            let mut insert: clickhouse::insert::Insert<AnomalyRow> = self
-                .client
+            let mut insert: clickhouse::insert::Insert<AnomalyRow> = client
                 .insert("span_partition_anomalies")
                 .await
                 .map_err(ClickhouseError::from)?;
@@ -278,7 +277,7 @@ impl ClickhouseService {
 
     /// Every anomaly recorded so far, newest detection first.
     pub async fn partition_anomalies(&self) -> Result<Vec<PartitionAnomaly>, ClickhouseError> {
-        self.client
+        self.maintenance_client()
             .query(
                 "SELECT project_id, trace_id, span_id, partitions, revisions \
                  FROM span_partition_anomalies FINAL \
@@ -297,8 +296,8 @@ impl ClickhouseService {
     /// than inferred: `revisions` on the watermark row carries it, a column that is otherwise meaningless
     /// there.
     async fn consistency_watermark(&self) -> Result<(DateTime<Utc>, bool), ClickhouseError> {
-        let stored: Option<(i64, u32)> = self
-            .client
+        let client = self.maintenance_client();
+        let stored: Option<(i64, u32)> = client
             .query(
                 "SELECT toUnixTimestamp64Micro(checked_through), revisions \
                  FROM span_partition_anomalies FINAL \
@@ -325,8 +324,8 @@ impl ClickhouseService {
         micros: OffsetDateTime,
         behind: bool,
     ) -> Result<(), ClickhouseError> {
-        let mut insert: clickhouse::insert::Insert<AnomalyRow> = self
-            .client
+        let client = self.maintenance_client();
+        let mut insert: clickhouse::insert::Insert<AnomalyRow> = client
             .insert("span_partition_anomalies")
             .await
             .map_err(ClickhouseError::from)?;
@@ -437,7 +436,7 @@ impl ClickhouseService {
         // `_local` sees one shard, so a count taken there reports zero for rows sitting on any other node.
         let table = self.insert_table("otel_metrics");
         let count: Option<u64> = self
-            .client
+            .maintenance_client()
             .query(&format!(
                 "SELECT count() FROM {table} WHERE datapoint_id = '' LIMIT 1"
             ))

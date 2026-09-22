@@ -14,7 +14,14 @@
 use sideseat_core::core::config::ClickhouseConfig;
 
 /// Current schema version
-pub const SCHEMA_VERSION: i32 = 6;
+pub const SCHEMA_VERSION: i32 = 7;
+
+pub const TENANT_PROJECT_SETTING: &str = "SQL_sideseat_project_id";
+pub const TENANT_MAINTENANCE_SETTING: &str = "SQL_sideseat_maintenance";
+
+const TENANT_POLICY_EXPRESSION: &str = "project_id = \
+getSettingOrDefault('SQL_sideseat_project_id', '') OR \
+getSettingOrDefault('SQL_sideseat_maintenance', 0) = 1";
 
 /// The oldest schema version this build can migrate *from*.
 ///
@@ -382,6 +389,30 @@ pub const MIGRATIONS: &[Migration] = &[
              ADD COLUMN IF NOT EXISTS search_attributes_truncated UInt8 DEFAULT 0",
         ],
     },
+    Migration {
+        version: 7,
+        name: "tenant_row_policies",
+        precondition: None,
+        statements: &[
+            "CREATE ROW POLICY OR REPLACE sideseat_tenant_filter \
+             ON {database_identifier}.otel_spans{local}{on_cluster} \
+             USING project_id = getSettingOrDefault('SQL_sideseat_project_id', '') \
+                OR getSettingOrDefault('SQL_sideseat_maintenance', 0) = 1 TO ALL",
+            "CREATE ROW POLICY OR REPLACE sideseat_tenant_filter \
+             ON {database_identifier}.otel_metrics{local}{on_cluster} \
+             USING project_id = getSettingOrDefault('SQL_sideseat_project_id', '') \
+                OR getSettingOrDefault('SQL_sideseat_maintenance', 0) = 1 TO ALL",
+            "CREATE ROW POLICY OR REPLACE sideseat_tenant_filter \
+             ON {database_identifier}.otel_logs{local}{on_cluster} \
+             USING project_id = getSettingOrDefault('SQL_sideseat_project_id', '') \
+                OR getSettingOrDefault('SQL_sideseat_maintenance', 0) = 1 TO ALL",
+            "CREATE ROW POLICY OR REPLACE sideseat_tenant_filter \
+             ON {database_identifier}.span_partition_anomalies{local}{on_cluster} \
+             USING project_id = getSettingOrDefault('SQL_sideseat_project_id', '') \
+                OR getSettingOrDefault('SQL_sideseat_maintenance', 0) = 1 TO ALL",
+        ],
+        distributed_statements: &[],
+    },
 ];
 
 /// The engine a v3 rebuild's replacement table uses.
@@ -415,6 +446,21 @@ fn safe_cluster_name(config: &ClickhouseConfig) -> &str {
         "Invalid ClickHouse cluster name: {name:?}. Only alphanumeric, underscore, hyphen, and dot are allowed."
     );
     name
+}
+
+/// Quote the configured database as one ClickHouse identifier.
+///
+/// In particular, this must not be interpolated as a bare token into access-control DDL. A row
+/// policy issued `ON CLUSTER` without an explicitly qualified table is created against `default`
+/// on the remote nodes, even when the initiating client selected another database.
+pub(crate) fn database_identifier(config: &ClickhouseConfig) -> String {
+    use clickhouse::sql::{Bind, Identifier};
+
+    let mut quoted = String::new();
+    Identifier(&config.database)
+        .write(&mut quoted)
+        .expect("writing to String cannot fail");
+    quoted
 }
 
 /// Where the cross-partition consistency check keeps its findings and its place.
@@ -1212,7 +1258,30 @@ pub fn generate_schema(config: &ClickhouseConfig) -> Vec<String> {
         statements.push(otel_logs_single_table());
     }
 
+    statements.extend(tenant_row_policies(config));
     statements
+}
+
+/// Row policies live on the physical tables. In distributed mode the front table only routes a
+/// query; each shard applies this policy to its own `_local` table.
+pub fn tenant_row_policies(config: &ClickhouseConfig) -> Vec<String> {
+    let local = local_table_suffix(config);
+    let on_cluster = get_on_cluster_clause(config);
+    let database = database_identifier(config);
+    [
+        "otel_spans",
+        "otel_metrics",
+        "otel_logs",
+        "span_partition_anomalies",
+    ]
+    .into_iter()
+    .map(|table| {
+        format!(
+            "CREATE ROW POLICY OR REPLACE sideseat_tenant_filter \
+             ON {database}.{table}{local}{on_cluster} USING {TENANT_POLICY_EXPRESSION} TO ALL"
+        )
+    })
+    .collect()
 }
 
 /// The table to insert into: the `Distributed` front end, which is the only thing that shards.
@@ -1297,8 +1366,8 @@ mod tests {
         let config = default_config();
         let statements = generate_schema(&config);
 
-        // schema_version, span_partition_anomalies, otel_spans, otel_metrics, otel_logs.
-        assert_eq!(statements.len(), 5);
+        // Five tables followed by one policy for each project-scoped physical table.
+        assert_eq!(statements.len(), 9);
         // Indexed by name rather than by position, because a count plus a positional assertion is what made
         // adding a table here a two-test edit with a silent window in between.
         let spans = statements
@@ -1321,8 +1390,8 @@ mod tests {
         };
         let statements = generate_schema(&config);
 
-        // schema_version, anomaly local/front-end and three analytical local/front-end pairs.
-        assert_eq!(statements.len(), 9);
+        // Nine tables followed by four policies on the physical `_local` tables.
+        assert_eq!(statements.len(), 13);
         // The anomaly table needs a front end in distributed mode or the report is per-shard: a pass on shard A
         // records there and a read reaching shard B returns nothing.
         assert!(
@@ -1365,6 +1434,44 @@ mod tests {
         // The distributed front end, not `_local`: it is what applies the sharding key, and a write
         // aimed past it lands on whichever node the connection reached.
         assert_eq!(get_insert_table(&config, "otel_spans"), "otel_spans");
+    }
+
+    #[test]
+    fn tenant_policies_are_fail_closed_and_target_physical_tables() {
+        let single = tenant_row_policies(&default_config());
+        assert_eq!(single.len(), 4);
+        assert!(single.iter().all(|policy| {
+            policy.contains("getSettingOrDefault('SQL_sideseat_project_id', '')")
+                && policy.contains("getSettingOrDefault('SQL_sideseat_maintenance', 0) = 1")
+                && policy.contains(" ON `sideseat`.")
+                && !policy.contains("_local")
+        }));
+
+        let distributed = tenant_row_policies(&ClickhouseConfig {
+            cluster: Some("test_cluster".to_owned()),
+            distributed: true,
+            ..default_config()
+        });
+        assert!(distributed.iter().all(|policy| {
+            policy.contains(" ON `sideseat`.")
+                && policy.contains("_local ON CLUSTER test_cluster")
+                && !policy.contains(" ON `sideseat`.otel_spans ON CLUSTER")
+                && !policy.contains(" ON `sideseat`.otel_metrics ON CLUSTER")
+                && !policy.contains(" ON `sideseat`.otel_logs ON CLUSTER")
+        }));
+    }
+
+    #[test]
+    fn tenant_policy_database_is_quoted_as_one_identifier() {
+        let policies = tenant_row_policies(&ClickhouseConfig {
+            database: "tenant-db`blue".to_owned(),
+            ..default_config()
+        });
+        assert!(
+            policies
+                .iter()
+                .all(|policy| policy.contains(r"ON `tenant-db\`blue`."))
+        );
     }
 
     /// The single-node span table, found by name.
@@ -1520,12 +1627,13 @@ mod tests {
         // Must match the substitutions `apply_versioned_migration` performs. A placeholder it does not
         // know survives into the SQL as a literal brace, which ClickHouse then rejects at the point the
         // migration runs - on a real database, not here.
-        const KNOWN: [&str; 5] = [
+        const KNOWN: [&str; 6] = [
             "{on_cluster}",
             "{local}",
             "{replacement_engine}",
             "{cluster}",
             "{database}",
+            "{database_identifier}",
         ];
         for m in MIGRATIONS {
             let all = m

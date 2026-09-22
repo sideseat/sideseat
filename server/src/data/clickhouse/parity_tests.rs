@@ -700,6 +700,97 @@ fn raw_client_at(
     client
 }
 
+#[tokio::test]
+async fn clickhouse_row_policies_are_per_query_and_fail_closed() {
+    let Ok(url) = std::env::var(URL_ENV) else {
+        eprintln!("clickhouse parity: skipped - set {URL_ENV} (or run `make test-clickhouse`)");
+        return;
+    };
+
+    let _repository = clickhouse_backend(&url, "sideseat_parity_row_policy").await;
+    let raw = raw_client(&url, "sideseat_parity_row_policy");
+    let maintenance = raw.clone().with_option(
+        crate::data::clickhouse::schema::TENANT_MAINTENANCE_SETTING,
+        "1",
+    );
+
+    for (project_id, trace_id) in [("tenant-a", "trace-a"), ("tenant-b", "trace-b")] {
+        maintenance
+            .query(
+                "INSERT INTO otel_spans \
+                 (project_id, trace_id, span_id, timestamp_start) \
+                 VALUES (?, ?, 'shared-span', now64(6))",
+            )
+            .bind(project_id)
+            .bind(trace_id)
+            .execute()
+            .await
+            .expect("seed a tenant row");
+    }
+
+    let policy_tables: Vec<String> = raw
+        .query(
+            "SELECT table FROM system.row_policies \
+             WHERE database = currentDatabase() AND short_name = 'sideseat_tenant_filter' \
+             ORDER BY table",
+        )
+        .fetch_all()
+        .await
+        .expect("inspect tenant row policies");
+    assert_eq!(
+        policy_tables,
+        vec![
+            "otel_logs",
+            "otel_metrics",
+            "otel_spans",
+            "span_partition_anomalies",
+        ]
+    );
+
+    let tenant = raw.clone().with_option(
+        crate::data::clickhouse::schema::TENANT_PROJECT_SETTING,
+        "tenant-a",
+    );
+    let observed_project: String = tenant
+        .query("SELECT getSettingOrDefault('SQL_sideseat_project_id', '')")
+        .fetch_one()
+        .await
+        .expect("read the tenant setting from the query context");
+    assert_eq!(observed_project, "tenant-a");
+    let seeded_rows: u64 = maintenance
+        .query("SELECT count() FROM otel_spans")
+        .fetch_one()
+        .await
+        .expect("verify the maintenance seed");
+    assert_eq!(seeded_rows, 2);
+    let visible: Vec<String> = tenant
+        .query(
+            // Deliberately no project predicate: the row policy is the storage backstop.
+            "SELECT project_id FROM otel_spans ORDER BY project_id",
+        )
+        .fetch_all()
+        .await
+        .expect("tenant-scoped raw read");
+    assert_eq!(visible, vec!["tenant-a"]);
+
+    let visible_without_context: Vec<String> = raw
+        .query("SELECT project_id FROM otel_spans ORDER BY project_id")
+        .fetch_all()
+        .await
+        .expect("fail-closed raw read");
+    assert!(
+        visible_without_context.is_empty(),
+        "a request without a tenant setting must match no rows"
+    );
+
+    let all_rows: u64 = maintenance
+        .query("SELECT count() FROM otel_spans")
+        .fetch_one()
+        .await
+        .expect("maintenance read");
+    assert_eq!(all_rows, 2);
+}
+
 fn trace_params() -> ListTracesParams {
     ListTracesParams {
         project_id: ProjectId::from(PROJECT),
@@ -4469,7 +4560,10 @@ async fn a_released_metric_row_and_its_correction_both_survive() {
 
     let database = "sideseat_parity_legacymetric";
     let service = clickhouse_backend(&url, database).await;
-    let client = raw_client(&url, database);
+    let client = raw_client(&url, database).with_option(
+        crate::data::clickhouse::schema::TENANT_MAINTENANCE_SETTING,
+        "1",
+    );
 
     // A row as released v2 wrote it: no identity. Written directly, because the current writer always stamps
     // one - which is the point: this shape can only arrive from an older build.
@@ -4560,7 +4654,10 @@ async fn every_clickhouse_migration_applies_to_the_state_it_upgrades() {
 
     let database = "sideseat_parity_migrations";
     let service = clickhouse_backend(&url, database).await;
-    let client = raw_client(&url, database);
+    let client = raw_client(&url, database).with_option(
+        crate::data::clickhouse::schema::TENANT_MAINTENANCE_SETTING,
+        "1",
+    );
 
     // The reverse of each migration, so a v3 migration is applied to a v2-shaped table. Kept beside the
     // migration list rather than as a captured schema dump: whoever adds a migration adds its inverse here
@@ -4702,6 +4799,15 @@ async fn every_clickhouse_migration_applies_to_the_state_it_upgrades() {
                 "ALTER TABLE otel_logs DROP COLUMN IF EXISTS search_severity_truncated",
                 "ALTER TABLE otel_logs DROP COLUMN IF EXISTS search_attributes",
                 "ALTER TABLE otel_logs DROP COLUMN IF EXISTS search_attributes_truncated",
+            ],
+        ),
+        (
+            7,
+            &[
+                "DROP ROW POLICY IF EXISTS sideseat_tenant_filter ON otel_spans",
+                "DROP ROW POLICY IF EXISTS sideseat_tenant_filter ON otel_metrics",
+                "DROP ROW POLICY IF EXISTS sideseat_tenant_filter ON otel_logs",
+                "DROP ROW POLICY IF EXISTS sideseat_tenant_filter ON span_partition_anomalies",
             ],
         ),
     ];
@@ -5140,6 +5246,59 @@ async fn a_two_shard_cluster_reports_anomalies_and_legacy_rows_from_every_shard(
         }
     }
 
+    let policy_count: u64 = client
+        .query(&format!(
+            "SELECT count() FROM clusterAllReplicas('{REPLICATED_CLUSTER}', system.row_policies) \
+             WHERE database = ? AND short_name = 'sideseat_tenant_filter'"
+        ))
+        .bind(database)
+        .fetch_one()
+        .await
+        .expect("inspect every shard's local row policies");
+    assert_eq!(
+        policy_count, 8,
+        "four physical-table policies must exist on each of the two shards"
+    );
+
+    let tenant_client = client.clone().with_option(
+        crate::data::clickhouse::schema::TENANT_PROJECT_SETTING,
+        &near,
+    );
+    let tenant_rows: Vec<String> = tenant_client
+        .query(
+            // No explicit project predicate: each remote `_local` policy has to receive the setting
+            // forwarded with this Distributed query.
+            "SELECT DISTINCT project_id FROM otel_spans ORDER BY project_id",
+        )
+        .fetch_all()
+        .await
+        .expect("read one tenant through the Distributed table");
+    assert_eq!(tenant_rows, vec![near.clone()]);
+
+    let unscoped_rows: Vec<String> = client
+        .query("SELECT DISTINCT project_id FROM otel_spans ORDER BY project_id")
+        .fetch_all()
+        .await
+        .expect("run an unscoped Distributed read");
+    assert!(
+        unscoped_rows.is_empty(),
+        "an unset setting must fail closed on every shard"
+    );
+
+    let maintenance_rows: Vec<String> = client
+        .clone()
+        .with_option(
+            crate::data::clickhouse::schema::TENANT_MAINTENANCE_SETTING,
+            "1",
+        )
+        .query("SELECT DISTINCT project_id FROM otel_spans ORDER BY project_id")
+        .fetch_all()
+        .await
+        .expect("read every tenant through the explicit maintenance path");
+    let mut expected_projects = vec![near.clone(), far.clone()];
+    expected_projects.sort();
+    assert_eq!(maintenance_rows, expected_projects);
+
     let outcome = service
         .check_partition_consistency()
         .await
@@ -5196,6 +5355,73 @@ async fn a_two_shard_cluster_reports_anomalies_and_legacy_rows_from_every_shard(
     );
 }
 
+/// The v7 access-control migration must qualify its policy targets on every host.
+///
+/// ClickHouse accepts `CREATE ROW POLICY ... ON otel_spans_local ON CLUSTER ...`, but remote
+/// hosts resolve that unqualified table in `default`, not in the database selected by the initiating
+/// HTTP client. The DDL therefore succeeds while protecting no application table. This exercises the
+/// incremental migration renderer, separately from the fresh-schema two-shard oracle above.
+#[tokio::test]
+async fn the_replicated_tenant_policy_migration_targets_the_configured_database() {
+    let Ok(url) = std::env::var(REPLICATED_URL_ENV) else {
+        eprintln!(
+            "clickhouse replicated: skipped - set {REPLICATED_URL_ENV} (or run \
+             `make test-clickhouse-replicated`)"
+        );
+        return;
+    };
+
+    let database = "sideseat_repl_policy_migration";
+    let service = replicated_backend(&url, database).await;
+    let user = std::env::var(USER_ENV).ok();
+    let password = std::env::var(PASSWORD_ENV).ok();
+    let raw = raw_client_at(&url, database, &user, &password);
+
+    for table in [
+        "otel_spans_local",
+        "otel_metrics_local",
+        "otel_logs_local",
+        "span_partition_anomalies_local",
+    ] {
+        raw.query(&format!(
+            "DROP ROW POLICY IF EXISTS sideseat_tenant_filter \
+             ON `{database}`.{table} ON CLUSTER {REPLICATED_CLUSTER}"
+        ))
+        .execute()
+        .await
+        .expect("remove the fresh-schema policy");
+    }
+
+    service
+        .apply_migration_for_test(7)
+        .await
+        .expect("apply the tenant policy migration");
+
+    let configured_policies: u64 = raw
+        .query(&format!(
+            "SELECT count() FROM clusterAllReplicas('{REPLICATED_CLUSTER}', system.row_policies) \
+             WHERE database = ? AND short_name = 'sideseat_tenant_filter'"
+        ))
+        .bind(database)
+        .fetch_one()
+        .await
+        .expect("inspect configured-database policies");
+    assert_eq!(configured_policies, 4);
+
+    let default_policies: u64 = raw
+        .query(&format!(
+            "SELECT count() FROM clusterAllReplicas('{REPLICATED_CLUSTER}', system.row_policies) \
+             WHERE database = 'default' AND short_name = 'sideseat_tenant_filter'"
+        ))
+        .fetch_one()
+        .await
+        .expect("inspect default-database policies");
+    assert_eq!(
+        default_policies, 0,
+        "the migration must not silently protect default instead of the configured database"
+    );
+}
+
 /// The v2 → v3 migration applied to a **replicated** database, which is where its hardest mechanics live.
 ///
 /// `make test-clickhouse` starts a plain server and the single-node helper sets `distributed: false`, so every
@@ -5235,7 +5461,10 @@ async fn the_migration_applies_to_a_replicated_database() {
     let service = replicated_backend(&url, database).await;
     let user = std::env::var(USER_ENV).ok();
     let password = std::env::var(PASSWORD_ENV).ok();
-    let client = raw_client_at(&url, database, &user, &password);
+    let client = raw_client_at(&url, database, &user, &password).with_option(
+        crate::data::clickhouse::schema::TENANT_MAINTENANCE_SETTING,
+        "1",
+    );
 
     // Reverse v3 to released v2, on the local tables **and** on the `Distributed` front ends - the split is
     // the thing under test, since a front end is created `AS <local>` once and does not follow later changes.
@@ -5423,7 +5652,10 @@ async fn an_interrupted_replicated_migration_resumes() {
     let service = replicated_backend(&url, database).await;
     let user = std::env::var(USER_ENV).ok();
     let password = std::env::var(PASSWORD_ENV).ok();
-    let client = raw_client_at(&url, database, &user, &password);
+    let client = raw_client_at(&url, database, &user, &password).with_option(
+        crate::data::clickhouse::schema::TENANT_MAINTENANCE_SETTING,
+        "1",
+    );
     let cluster = REPLICATED_CLUSTER;
 
     // A row on the live (v3) table, so "the re-run did not exchange the leftover back" is checkable against

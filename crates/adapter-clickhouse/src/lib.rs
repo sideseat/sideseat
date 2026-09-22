@@ -393,6 +393,27 @@ impl ClickhouseService {
         &self.client
     }
 
+    /// A clone whose tenant selector is sent as an HTTP query option on every request.
+    ///
+    /// This is not a session-level `SET`: each ClickHouse request carries its own value, so
+    /// keep-alive connection reuse cannot leak the previous borrower's project.
+    pub fn tenant_client(&self, project_id: &ProjectId) -> Client {
+        self.tenant_client_str(project_id.as_str())
+    }
+
+    pub fn tenant_client_str(&self, project_id: &str) -> Client {
+        self.client
+            .clone()
+            .with_option(schema::TENANT_PROJECT_SETTING, project_id)
+    }
+
+    /// Explicit cross-project path for retention, repair, consistency checks and migrations.
+    pub fn maintenance_client(&self) -> Client {
+        self.client
+            .clone()
+            .with_option(schema::TENANT_MAINTENANCE_SETTING, "1")
+    }
+
     pub fn clock(&self) -> &dyn Clock {
         self.clock.as_ref()
     }
@@ -569,6 +590,12 @@ impl ClickhouseService {
         let replacement_engine = schema::replacement_engine(&self.config, "ingested_at");
         let cluster = self.config.cluster.as_deref().unwrap_or("default");
         let database = &self.config.database;
+        let database_identifier = schema::database_identifier(&self.config);
+        // Migrations can rebuild a protected table with `INSERT ... SELECT`. Once row policies
+        // exist, the base client fails closed and would copy zero rows while every DDL statement
+        // still succeeds. Keep the bypass local to each migration query rather than persisting a
+        // session-wide setting.
+        let migration_client = self.maintenance_client();
         let render = |statement: &str| {
             statement
                 .replace("{on_cluster}", &on_cluster)
@@ -576,6 +603,7 @@ impl ClickhouseService {
                 .replace("{replacement_engine}", &replacement_engine)
                 .replace("{cluster}", cluster)
                 .replace("{database}", database)
+                .replace("{database_identifier}", &database_identifier)
         };
         let failed = |e: ClickhouseError| ClickhouseError::MigrationFailed {
             version,
@@ -593,7 +621,7 @@ impl ClickhouseService {
         // Safe to run at every version because it is `CREATE TABLE IF NOT EXISTS`: idempotent by
         // construction, and self-healing for a database that somehow lacks it.
         for statement in schema::consistency_tables(&self.config) {
-            self.client
+            migration_client
                 .query(&statement)
                 .execute()
                 .await
@@ -617,7 +645,7 @@ impl ClickhouseService {
                 .iter()
                 .filter(|statement| !statement.trim_start().starts_with("CREATE TABLE"))
             {
-                self.client
+                migration_client
                     .query(&render(statement))
                     .execute()
                     .await
@@ -630,8 +658,7 @@ impl ClickhouseService {
         let local_pending = match migration.precondition {
             None => true,
             Some(precondition) => {
-                let pending: Option<u8> = self
-                    .client
+                let pending: Option<u8> = migration_client
                     .query(&render(precondition))
                     .fetch_optional()
                     .await
@@ -641,7 +668,7 @@ impl ClickhouseService {
         };
         if local_pending {
             for statement in migration.statements {
-                self.client
+                migration_client
                     .query(&render(statement))
                     .execute()
                     .await
@@ -658,7 +685,7 @@ impl ClickhouseService {
                 .iter()
                 .filter(|statement| statement.trim_start().starts_with("CREATE TABLE"))
             {
-                self.client
+                migration_client
                     .query(&render(statement))
                     .execute()
                     .await
@@ -891,8 +918,9 @@ impl ClickhouseService {
                                     let now = service.clock.now();
                                     let cutoff = now
                                         - chrono::Duration::minutes(max_age_minutes as i64);
+                                    let client = service.tenant_client(&project_id);
                                     if let Err(error) = retention::run_retention(
-                                        &service.client,
+                                        &client,
                                         &delete_table,
                                         &metrics_table,
                                         &logs_table,
