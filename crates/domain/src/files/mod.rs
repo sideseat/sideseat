@@ -730,6 +730,7 @@ mod tests {
     use sideseat_adapter_sqlite::{SqliteRepository, SqliteService};
     use sideseat_core::core::storage::AppStorage;
     use sideseat_ports::clock::Clock;
+    use sideseat_ports::traits::{EntityQuery, SpanStore};
     use tempfile::TempDir;
     use tokio::fs;
 
@@ -859,6 +860,158 @@ mod tests {
             .unwrap();
         assert_eq!(content.data, b"test content");
         assert_eq!(content.media_type, Some("text/plain".to_string()));
+    }
+
+    /// Client-owned identifiers are only unique inside a project.
+    ///
+    /// This is the pre-policy tenant oracle: later RLS and row-policy work must keep returning the selected
+    /// tenant's row rather than merely making every read empty. It deliberately collides every identifier that
+    /// crosses a storage boundary: trace, span, session and content hash. Distinct tenant payloads make any leak
+    /// observable instead of allowing equal fixture values to conceal it.
+    #[tokio::test]
+    async fn colliding_client_ids_remain_isolated_across_analytics_metadata_and_blobs() {
+        let (temp_dir, database, cache) = setup_test().await;
+        let app_storage = AppStorage::init_for_test(temp_dir.path().to_path_buf());
+        let files = create_file_service(
+            FilesConfig {
+                enabled: true,
+                storage: sideseat_core::core::config::StorageBackend::Filesystem,
+                quota_bytes: 1024 * 1024,
+                filesystem_path: Some(temp_dir.path().join("files").to_string_lossy().to_string()),
+                s3: None,
+            },
+            &app_storage,
+            Arc::clone(&database),
+            cache,
+        )
+        .await
+        .expect("file service");
+
+        let analytics_dir = TempDir::new().expect("analytics temp dir");
+        tokio::fs::create_dir_all(analytics_dir.path().join("duckdb"))
+            .await
+            .expect("duckdb directory");
+        let analytics_storage = AppStorage::init_for_test(analytics_dir.path().to_path_buf());
+        let analytics = DuckdbRepository(Arc::new(
+            DuckdbService::init(&analytics_storage, Arc::new(TestClock))
+                .await
+                .expect("duckdb"),
+        ));
+
+        let projects = [
+            (ProjectId::from("tenant-a"), "tenant-a"),
+            (ProjectId::from("tenant-b"), "tenant-b"),
+        ];
+        let mut spans = Vec::new();
+
+        // Several independent collisions keep this a property of the project scope rather than one magic id.
+        for case in 1_u8..=8 {
+            let trace_id = format!("client-trace-{case}");
+            let span_id = format!("client-span-{case}");
+            let session_id = format!("client-session-{case}");
+            let hash = format!("{case:064x}");
+
+            for (project_id, tenant_label) in &projects {
+                let payload = format!("{tenant_label}-payload-{case}");
+                files
+                    .storage
+                    .store(project_id, &hash, payload.as_bytes())
+                    .await
+                    .expect("store tenant blob");
+                database
+                    .upsert_file(
+                        project_id,
+                        &hash,
+                        Some(&format!("application/x-{tenant_label}")),
+                        payload.len() as i64,
+                        "sha256",
+                    )
+                    .await
+                    .expect("store tenant metadata");
+                database
+                    .insert_trace_file(&trace_id, project_id, &hash)
+                    .await
+                    .expect("associate tenant trace");
+
+                spans.push(sideseat_ports::types::NormalizedSpan {
+                    project_id: Some(project_id.to_string()),
+                    trace_id: trace_id.clone(),
+                    span_id: span_id.clone(),
+                    session_id: Some(session_id.clone()),
+                    user_id: Some(format!("{tenant_label}-user")),
+                    span_name: format!("{tenant_label}-span-{case}"),
+                    environment: Some(tenant_label.to_string()),
+                    timestamp_start: Utc
+                        .timestamp_opt(1_700_000_000 + i64::from(case), 0)
+                        .single()
+                        .expect("timestamp"),
+                    ..Default::default()
+                });
+            }
+        }
+        analytics
+            .insert_spans(spans)
+            .await
+            .expect("insert colliding spans");
+
+        for case in 1_u8..=8 {
+            let trace_id = format!("client-trace-{case}");
+            let span_id = format!("client-span-{case}");
+            let session_id = format!("client-session-{case}");
+            let hash = format!("{case:064x}");
+
+            for (project_id, tenant_label) in &projects {
+                let span = analytics
+                    .get_span(project_id, &trace_id, &span_id)
+                    .await
+                    .expect("read tenant span")
+                    .expect("tenant span exists");
+                assert_eq!(
+                    span.span_name.as_deref(),
+                    Some(format!("{tenant_label}-span-{case}").as_str())
+                );
+
+                let trace = analytics
+                    .get_trace(project_id, &trace_id)
+                    .await
+                    .expect("read tenant trace")
+                    .expect("tenant trace exists");
+                assert_eq!(trace.environment.as_deref(), Some(*tenant_label));
+
+                let session = analytics
+                    .get_session(project_id, &session_id)
+                    .await
+                    .expect("read tenant session")
+                    .expect("tenant session exists");
+                assert_eq!(session.environment.as_deref(), Some(*tenant_label));
+                assert_eq!(
+                    session.user_id.as_deref(),
+                    Some(format!("{tenant_label}-user").as_str())
+                );
+
+                let content = files
+                    .get_file(project_id, &hash)
+                    .await
+                    .expect("read tenant blob");
+                assert_eq!(
+                    content.data,
+                    format!("{tenant_label}-payload-{case}").as_bytes()
+                );
+                assert_eq!(
+                    content.media_type.as_deref(),
+                    Some(format!("application/x-{tenant_label}").as_str())
+                );
+
+                let association_counts = database
+                    .get_file_reference_counts_for_traces(
+                        project_id,
+                        std::slice::from_ref(&trace_id),
+                    )
+                    .await
+                    .expect("read tenant associations");
+                assert_eq!(association_counts, vec![(hash.clone(), 1)]);
+            }
+        }
     }
 
     /// Retention expiring *some* of a trace's spans must not reclaim the survivors' files.
