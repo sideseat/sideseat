@@ -679,10 +679,10 @@ CH_TEST_PORT ?= 8124
 # Pinned to a **patch** tag, not the rolling `25.8`, because that one is broken on arm64: its
 # `/entrypoint.sh` is 0 bytes, so every container exits with `exec format error` and the parity suite
 # cannot run at all on an Apple Silicon machine. Measured across tags - 25.8 ships an empty entrypoint
-# while 25.8.2, 25.7, 25.9 and 25.3 all ship a real one - so this is an upstream defect in one tag rather
-# than anything about this host, and the fix is to name a tag that works while staying in the 25.8 series
-# the parity claim is about.
-CH_TEST_IMAGE ?= clickhouse/clickhouse-server:25.8.2
+# while supported stable tags ship a real one - so this is an upstream defect in one tag rather
+# than anything about this host. Search text indexes require the 26.4 line, and this exact patch is shared
+# by local, CI, Compose and benchmark runs so they exercise the same server.
+CH_TEST_IMAGE ?= clickhouse/clickhouse-server:26.4.3.37
 
 test-clickhouse:
 	@command -v docker >/dev/null 2>&1 || { echo "[test-clickhouse] docker is required"; exit 1; }

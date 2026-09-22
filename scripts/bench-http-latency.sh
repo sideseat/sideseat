@@ -82,7 +82,7 @@ if [ "$MODE" = "distributed" ]; then
   docker run -d --name "$CH_NAME" -p 8131:8123 \
     -e CLICKHOUSE_USER=sideseat -e CLICKHOUSE_PASSWORD=sideseat \
     -e CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT=1 \
-    "clickhouse/clickhouse-server:${CH_IMAGE_TAG:-25.8.2}" >/dev/null
+    "clickhouse/clickhouse-server:${CH_IMAGE_TAG:-26.4.3.37}" >/dev/null
   echo "[bench] waiting for PostgreSQL and ClickHouse"
   for _ in $(seq 1 90); do
     docker exec "$PG_NAME" pg_isready -U sideseat -d sideseat >/dev/null 2>&1 &&

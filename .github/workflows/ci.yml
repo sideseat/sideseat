@@ -81,7 +81,7 @@ jobs:
         # Pinned to the **same patch tag** `make test-clickhouse` uses. `latest` moving would fail an
         # unrelated PR, and a *different* pin here from the Makefile's meant CI and a developer's machine
         # tested different servers while both claimed to gate the same parity property.
-        image: clickhouse/clickhouse-server:25.8.2
+        image: clickhouse/clickhouse-server:26.4.3.37
         env:
           CLICKHOUSE_USER: sideseat
           CLICKHOUSE_PASSWORD: sideseat
@@ -171,7 +171,7 @@ jobs:
             -e CLICKHOUSE_USER=sideseat -e CLICKHOUSE_PASSWORD=sideseat \
             -e CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT=1 \
             -v "$PWD/scripts/clickhouse-replicated/cluster.xml:/etc/clickhouse-server/config.d/cluster.xml:ro" \
-            clickhouse/clickhouse-server:25.8.2
+            clickhouse/clickhouse-server:26.4.3.37
           for _ in $(seq 1 90); do
             curl -sf http://127.0.0.1:8299/ping >/dev/null && break
             sleep 1

@@ -48,7 +48,7 @@ updates:
         update-types: ["minor", "patch"]
 
   # Container base images and the local stack's pinned services. Both are manifests Dependabot reads, and
-  # both pin exact versions - `debian:bookworm-slim`, `postgres:18.2`, `clickhouse-server:26.1.2`,
+  # both pin exact versions - `debian:bookworm-slim`, `postgres:18.2`, `clickhouse-server:26.4.3.37`,
   # `valkey:9-alpine`, `hashicorp/vault:1.21.1` - so a security fix in any of them is invisible without
   # this. The `docker` ecosystem covers Compose files as well as Dockerfiles.
   - package-ecosystem: "docker"
