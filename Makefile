@@ -259,7 +259,7 @@ cli-bin = $(CLI_DIR)/platforms/platform-$(1)/$(BIN_NAME_$(1))
 .PHONY: dev dev-server dev-web
 .PHONY: fmt fmt-check lint lint-advisory check
 .PHONY: secret-scan-tree secret-scan-staged secret-scan-range
-.PHONY: test test-rust test-server test-clickhouse test-clickhouse-replicated test-clickhouse-two-shard test-postgres test-redis test-redpanda bench-http bench-http-distributed footprint test-web test-sdk-js test-sdk-python coverage
+.PHONY: test test-rust test-server test-clickhouse test-clickhouse-replicated test-clickhouse-two-shard test-postgres test-redis test-redpanda test-backup-restore bench-http bench-http-distributed footprint test-web test-sdk-js test-sdk-python coverage
 .PHONY: build build-web build-server
 .PHONY: build-sdk build-sdk-js build-sdk-python
 .PHONY: build-cli build-cli-preflight build-cli-summary $(CLI_BUILD_TARGETS)
@@ -665,6 +665,13 @@ test-rust: disk-guard
 test-server:
 	@echo "[test-server] Running server tests..."
 	@cargo test --locked -p sideseat-server
+
+# Destructive restore proof, isolated in a temporary directory. It is kept out of `make check` because it
+# builds and launches the release-facing binary twice and deliberately destroys its fixture between phases.
+test-backup-restore: disk-guard
+	@echo "[test-backup-restore] checkpointing, destroying, restoring, and repairing embedded stores..."
+	@SIDESEAT_RUN_BACKUP_RESTORE_TEST=1 \
+		cargo test --locked -p sideseat-server --test backup_restore -- --nocapture
 
 # ClickHouse read-path parity against DuckDB. Not part of `test`/`check`: it needs a container,
 # and a laptop without Docker would fail the gate for a reason unrelated to the change. The test
