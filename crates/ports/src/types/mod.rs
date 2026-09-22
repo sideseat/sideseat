@@ -33,8 +33,9 @@ pub use enums::{
 pub use normalized::{NormalizedLog, NormalizedMetric, NormalizedSpan, json_to_pre_serialized};
 pub use search::{
     DEFAULT_SEARCH_MAX_EXAMINED, LogSearchSource, SEARCH_RECALL_FLOOR, SEARCH_TERMS_PER_FIELD,
-    SearchCandidate, SearchCursor, SearchDocument, SearchExpr, SearchField, SearchFieldTerms,
-    SearchPage, SearchQuery, SearchRecord, SearchSignal, SearchSource, SpanSearchSource,
+    SearchBackfillDocument, SearchBackfillSource, SearchCandidate, SearchCursor, SearchDocument,
+    SearchExpr, SearchField, SearchFieldTerms, SearchLogRecord, SearchPage, SearchQuery,
+    SearchRecord, SearchRecordId, SearchSignal, SearchSource, SearchSpanRecord, SpanSearchSource,
 };
 
 // Re-export analytics types (query results and params)

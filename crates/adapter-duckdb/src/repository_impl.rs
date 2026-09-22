@@ -22,8 +22,9 @@ use sideseat_ports::types::{
     EventRow, FeedMessagesParams, FeedSpansParams, LinkRow, ListLogsParams, ListMetricsParams,
     ListSessionsParams, ListSpansParams, ListTracesParams, LogRow, MessageQueryParams,
     MessageQueryResult, MetricAggregateRow, MetricRow, NormalizedLog, NormalizedMetric,
-    NormalizedSpan, PressureSpanCandidate, ProjectId, ProjectStatsResult, SearchPage, SearchQuery,
-    SessionRow, SpanCounts, SpanRow, StatsParams, TraceRow,
+    NormalizedSpan, PressureSpanCandidate, ProjectId, ProjectStatsResult, SearchBackfillDocument,
+    SearchBackfillSource, SearchPage, SearchQuery, SearchSignal, SessionRow, SpanCounts, SpanRow,
+    StatsParams, TraceRow,
 };
 
 use super::DuckdbService;
@@ -486,6 +487,39 @@ impl SearchIndex for DuckdbRepository {
         DuckdbService::run_query(move || {
             let conn = db.conn();
             search::arrivals_detected(&conn, &request, &through)
+        })
+        .await
+        .map_err(DataError::from)?
+        .map_err(Into::into)
+    }
+
+    async fn search_backfill_page(
+        &self,
+        project_id: &ProjectId,
+        signal: SearchSignal,
+        limit: usize,
+    ) -> Result<Vec<SearchBackfillSource>, DataError> {
+        let db = Arc::clone(&self.0);
+        let project_id = project_id.to_string();
+        DuckdbService::run_query(move || {
+            search::backfill_page(&db.conn(), &project_id, signal, limit)
+        })
+        .await
+        .map_err(DataError::from)?
+        .map_err(Into::into)
+    }
+
+    async fn write_search_backfill(
+        &self,
+        project_id: &ProjectId,
+        signal: SearchSignal,
+        documents: &[SearchBackfillDocument],
+    ) -> Result<(), DataError> {
+        let db = Arc::clone(&self.0);
+        let project_id = project_id.to_string();
+        let documents = documents.to_vec();
+        DuckdbService::run_query(move || {
+            search::write_backfill(&db.conn(), &project_id, signal, &documents)
         })
         .await
         .map_err(DataError::from)?

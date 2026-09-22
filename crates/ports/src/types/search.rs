@@ -4,7 +4,7 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
-use super::{LogRow, ProjectId, SpanRow};
+use super::ProjectId;
 
 pub const SEARCH_TERMS_PER_FIELD: usize = 512;
 pub const SEARCH_RECALL_FLOOR: f64 = 0.95;
@@ -150,6 +150,27 @@ pub enum SearchSource {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub enum SearchRecordId {
+    Span { trace_id: String, span_id: String },
+    Log { log_digest: String, ordinal: u32 },
+}
+
+#[derive(Debug, Clone)]
+pub struct SearchBackfillSource {
+    pub id: SearchRecordId,
+    /// Span revision observed by the source page; absent for logs whose digest is the identity.
+    pub expected_content_digest: Option<String>,
+    pub source: SearchSource,
+}
+
+#[derive(Debug, Clone)]
+pub struct SearchBackfillDocument {
+    pub id: SearchRecordId,
+    pub expected_content_digest: Option<String>,
+    pub document: SearchDocument,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SearchExpr {
     MatchAll,
     Term {
@@ -189,8 +210,29 @@ pub struct SearchQuery {
 
 #[derive(Debug)]
 pub enum SearchRecord {
-    Span(SpanRow),
-    Log(LogRow),
+    Span(SearchSpanRecord),
+    Log(SearchLogRecord),
+}
+
+#[derive(Debug, Clone)]
+pub struct SearchSpanRecord {
+    pub trace_id: String,
+    pub span_id: String,
+    pub timestamp: DateTime<Utc>,
+    pub span_name: Option<String>,
+    pub input_preview: Option<String>,
+    pub output_preview: Option<String>,
+}
+
+#[derive(Debug, Clone)]
+pub struct SearchLogRecord {
+    pub log_digest: String,
+    pub ordinal: u32,
+    pub timestamp: DateTime<Utc>,
+    pub severity_text: Option<String>,
+    pub body_text: Option<String>,
+    pub trace_id: Option<String>,
+    pub span_id: Option<String>,
 }
 
 #[derive(Debug)]

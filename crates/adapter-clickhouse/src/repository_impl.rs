@@ -18,8 +18,9 @@ use sideseat_ports::types::{
     EventRow, FeedMessagesParams, FeedSpansParams, LinkRow, ListLogsParams, ListMetricsParams,
     ListSessionsParams, ListSpansParams, ListTracesParams, LogRow, MessageQueryParams,
     MessageQueryResult, MetricAggregateRow, MetricRow, NormalizedLog, NormalizedMetric,
-    NormalizedSpan, PressureSpanCandidate, ProjectId, ProjectStatsResult, SearchPage, SearchQuery,
-    SessionRow, SpanCounts, SpanRow, StatsParams, TraceRow,
+    NormalizedSpan, PressureSpanCandidate, ProjectId, ProjectStatsResult, SearchBackfillDocument,
+    SearchBackfillSource, SearchPage, SearchQuery, SearchSignal, SessionRow, SpanCounts, SpanRow,
+    StatsParams, TraceRow,
 };
 
 use super::ClickhouseService;
@@ -329,6 +330,39 @@ impl SearchIndex for ClickhouseRepository {
         search::arrivals_detected(self.0.client(), request, through)
             .await
             .map_err(Into::into)
+    }
+
+    async fn search_backfill_page(
+        &self,
+        project_id: &ProjectId,
+        signal: SearchSignal,
+        limit: usize,
+    ) -> Result<Vec<SearchBackfillSource>, DataError> {
+        search::backfill_page(self.0.client(), project_id.as_str(), signal, limit)
+            .await
+            .map_err(Into::into)
+    }
+
+    async fn write_search_backfill(
+        &self,
+        project_id: &ProjectId,
+        signal: SearchSignal,
+        documents: &[SearchBackfillDocument],
+    ) -> Result<(), DataError> {
+        let table = match signal {
+            SearchSignal::Spans => self.0.delete_table("otel_spans"),
+            SearchSignal::Logs => self.0.delete_table("otel_logs"),
+        };
+        search::write_backfill(
+            self.0.client(),
+            &table,
+            &self.0.on_cluster_clause(),
+            project_id.as_str(),
+            signal,
+            documents,
+        )
+        .await
+        .map_err(Into::into)
     }
 }
 

@@ -16,9 +16,10 @@ use crate::types::{
     ListSessionsParams, ListSpansParams, ListTracesParams, LogRow, MemberWithUser, MembershipRow,
     MessageQueryParams, MessageQueryResult, MetricAggregateRow, MetricRow, NormalizedLog,
     NormalizedMetric, NormalizedSpan, OrgWithRole, OrganizationRow, PressureSpanCandidate,
-    ProjectHold, ProjectId, ProjectRow, ProjectStorageUsage, SearchCursor, SearchPage, SearchQuery,
-    SessionRow, SpanBodyAssociation, SpanBodyField, SpanBodySource, SpanCounts, SpanRow,
-    StagedPayload, TraceRow, UserRow,
+    ProjectHold, ProjectId, ProjectRow, ProjectStorageUsage, SearchBackfillDocument,
+    SearchBackfillSource, SearchCursor, SearchPage, SearchQuery, SearchSignal, SessionRow,
+    SpanBodyAssociation, SpanBodyField, SpanBodySource, SpanCounts, SpanRow, StagedPayload,
+    TraceRow, UserRow,
 };
 
 // ============================================================================
@@ -259,6 +260,35 @@ pub trait SearchIndex: Send + Sync {
         query: &SearchQuery,
         through: &SearchCursor,
     ) -> Result<bool, DataError>;
+
+    /// A bounded page of current records without a complete index marker.
+    ///
+    /// The marker is the durable checkpoint: successful rows disappear from the next page, while a
+    /// partial failure naturally resumes at the first unfinished row.
+    async fn search_backfill_page(
+        &self,
+        project_id: &ProjectId,
+        signal: SearchSignal,
+        limit: usize,
+    ) -> Result<Vec<SearchBackfillSource>, DataError> {
+        let _ = (project_id, signal, limit);
+        Err(DataError::NotImplemented(
+            "search backfill source page".to_string(),
+        ))
+    }
+
+    /// Persist domain-produced term documents and their complete markers.
+    async fn write_search_backfill(
+        &self,
+        project_id: &ProjectId,
+        signal: SearchSignal,
+        documents: &[SearchBackfillDocument],
+    ) -> Result<(), DataError> {
+        let _ = (project_id, signal, documents);
+        Err(DataError::NotImplemented(
+            "search backfill document write".to_string(),
+        ))
+    }
 }
 
 /// Traces, sessions and project statistics: the aggregate views a list page shows.

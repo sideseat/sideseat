@@ -236,6 +236,7 @@ SPANS="$(printf '%s' "$SESSION_JSON" |
   python3 -c 'import sys,json; r=json.load(sys.stdin).get("data") or []; print(r[0]["span_count"] if r else "?")')"
 [ -n "$SESSION" ] || { echo "[bench] no session was created; the fixture did not load"; exit 1; }
 MSGS="http://127.0.0.1:$PORT/api/v1/project/default/otel/sessions/$SESSION/messages"
+SEARCH="http://127.0.0.1:$PORT/api/v1/project/default/otel/search?q=weather&signal=spans&limit=20"
 echo "[bench] session $SESSION covers $SPANS spans"
 
 # The *first* read of this session, before anything is warmed. A replica starts with an empty
@@ -248,11 +249,15 @@ echo "[bench] cold read (empty reconstruction cache): $COLD_MS ms"
 
 echo "[bench] warming up ($WARMUP requests each, discarded)"
 : > "$WORK/warm.txt"
-for _ in $(seq 1 "$WARMUP"); do timed_post "$SMALL" "$WORK/warm.txt"; timed_get "$MSGS" "$WORK/warm.txt"; done
+for _ in $(seq 1 "$WARMUP"); do
+  timed_post "$SMALL" "$WORK/warm.txt"
+  timed_get "$MSGS" "$WORK/warm.txt"
+  timed_get "$SEARCH" "$WORK/warm.txt"
+done
 
 echo "[bench] measuring ($SAMPLES samples each)"
 : > "$WORK/ingest-small.txt"; : > "$WORK/ingest-large.txt"
-: > "$WORK/read.txt"; : > "$WORK/list.txt"
+: > "$WORK/read.txt"; : > "$WORK/list.txt"; : > "$WORK/search.txt"
 for _ in $(seq 1 "$SAMPLES"); do timed_post "$SMALL" "$WORK/ingest-small.txt"; pace; done
 for _ in $(seq 1 $((SAMPLES / 2))); do timed_post "$LARGE" "$WORK/ingest-large.txt"; pace; done
 for _ in $(seq 1 "$SAMPLES"); do timed_get "$MSGS" "$WORK/read.txt"; pace; done
@@ -260,6 +265,7 @@ for _ in $(seq 1 "$SAMPLES"); do
   timed_get "http://127.0.0.1:$PORT/api/v1/project/default/otel/traces?limit=50" "$WORK/list.txt"
   pace
 done
+for _ in $(seq 1 "$SAMPLES"); do timed_get "$SEARCH" "$WORK/search.txt"; pace; done
 
 # Concurrent reads: the status check runs per request, and any failure fails the whole run.
 export PORT MSGS WORK
@@ -284,6 +290,7 @@ rows = [
     (f"session messages ({spans} spans), sequential", "read.txt"),
     (f"session messages ({spans} spans), {os.environ['CONCURRENCY']} concurrent", "read-conc.txt"),
     ("trace list, 50", "list.txt"),
+    ("span search, 20", "search.txt"),
 ]
 print(f"\n[bench] {mode}: milliseconds, whole HTTP request, failures excluded by aborting the run\n")
 measured = {}
@@ -322,6 +329,7 @@ SLO_MS = {
         "read.txt": 40,
         "read-conc.txt": 150,
         "list.txt": 40,
+        "search.txt": 100,
     },
     "distributed": {
         "ingest-small.txt": 80,
@@ -329,6 +337,7 @@ SLO_MS = {
         "read.txt": 600,
         "read-conc.txt": 1500,
         "list.txt": 700,
+        "search.txt": 1000,
     },
 }
 # The cold read is gated too. It is the ephemeral-scaling case rather than a curiosity - every new replica

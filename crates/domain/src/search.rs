@@ -7,9 +7,10 @@ use thiserror::Error;
 use sideseat_ports::error::DataError;
 use sideseat_ports::traits::SearchIndex;
 use sideseat_ports::types::{
-    LogSearchSource, NormalizedLog, NormalizedSpan, SEARCH_TERMS_PER_FIELD, SearchCandidate,
-    SearchDocument, SearchExpr, SearchField, SearchFieldTerms, SearchPage, SearchQuery,
-    SearchRecord, SearchSource, SpanSearchSource,
+    LogSearchSource, NormalizedLog, NormalizedSpan, ProjectId, SEARCH_TERMS_PER_FIELD,
+    SearchBackfillDocument, SearchCandidate, SearchDocument, SearchExpr, SearchField,
+    SearchFieldTerms, SearchPage, SearchQuery, SearchRecord, SearchSignal, SearchSource,
+    SpanSearchSource,
 };
 
 const FRAGMENT_CONTEXT_CHARS: usize = 80;
@@ -144,6 +145,33 @@ impl SearchService {
             search_indexing_complete: indexing_complete,
         })
     }
+
+    /// Process one marker-checkpointed historical-index page.
+    pub async fn backfill_project_page<T: SearchIndex + ?Sized>(
+        index: &T,
+        project_id: &ProjectId,
+        signal: SearchSignal,
+        limit: usize,
+    ) -> Result<usize, DataError> {
+        let sources = index
+            .search_backfill_page(project_id, signal, limit)
+            .await?;
+        if sources.is_empty() {
+            return Ok(0);
+        }
+        let documents = sources
+            .into_iter()
+            .map(|source| SearchBackfillDocument {
+                id: source.id,
+                expected_content_digest: source.expected_content_digest,
+                document: document_for_source(&source.source),
+            })
+            .collect::<Vec<_>>();
+        index
+            .write_search_backfill(project_id, signal, &documents)
+            .await?;
+        Ok(documents.len())
+    }
 }
 
 /// ClickHouse `splitByNonAlpha` contract owned by the domain: Unicode alphanumeric runs,
@@ -165,12 +193,16 @@ pub fn tokenize(text: &str) -> Vec<String> {
 }
 
 fn field_terms(field: SearchField, text: String) -> SearchFieldTerms {
+    field_terms_with_limit(field, text, SEARCH_TERMS_PER_FIELD)
+}
+
+fn field_terms_with_limit(field: SearchField, text: String, limit: usize) -> SearchFieldTerms {
     let mut seen = HashSet::new();
     let mut terms = Vec::new();
     let mut truncated = false;
     for term in tokenize(&text) {
         if seen.insert(term.clone()) {
-            if terms.len() == SEARCH_TERMS_PER_FIELD {
+            if terms.len() == limit {
                 truncated = true;
                 break;
             }
@@ -234,25 +266,33 @@ fn document_from_texts(texts: BTreeMap<SearchField, String>) -> SearchDocument {
 }
 
 fn materialize_document(indexed: SearchDocument, source: &SearchSource) -> SearchDocument {
-    let mut texts = match source {
+    let texts = match source {
         SearchSource::Span(source) => span_source_texts(source),
         SearchSource::Log(source) => log_source_texts(source),
     };
-    if !indexed.indexed {
-        let mut scanned = document_from_texts(texts);
-        scanned.indexed = false;
-        return scanned;
-    }
     SearchDocument {
-        indexed: true,
-        fields: indexed
-            .fields
+        indexed: indexed.indexed,
+        fields: texts
             .into_iter()
-            .map(|mut field| {
-                field.text = texts.remove(&field.field).unwrap_or_default();
-                field
+            .map(|(field, text)| {
+                field_terms_with_limit(
+                    field,
+                    text,
+                    if indexed.indexed {
+                        SEARCH_TERMS_PER_FIELD
+                    } else {
+                        usize::MAX
+                    },
+                )
             })
             .collect(),
+    }
+}
+
+pub fn document_for_source(source: &SearchSource) -> SearchDocument {
+    match source {
+        SearchSource::Span(source) => document_from_texts(span_source_texts(source)),
+        SearchSource::Log(source) => document_from_texts(log_source_texts(source)),
     }
 }
 

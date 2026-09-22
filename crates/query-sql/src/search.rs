@@ -9,6 +9,37 @@ use sideseat_ports::types::{SearchCursor, SearchExpr, SearchField, SearchQuery, 
 use crate::Backend;
 use crate::analytics::{ParameterizedQuery, QueryValue};
 
+pub const DUCKDB_SPAN_TERM_DELETE_SQL: &str =
+    "DELETE FROM span_terms WHERE project_id = ? AND trace_id = ? AND span_id = ?";
+pub const DUCKDB_SPAN_TERM_INSERT_SQL: &str = "INSERT INTO span_terms(project_id, trace_id, span_id, field, term, truncated) \
+     VALUES (?, ?, ?, ?, ?, ?)";
+pub const DUCKDB_LOG_TERM_DELETE_SQL: &str =
+    "DELETE FROM log_terms WHERE project_id = ? AND log_digest = ? AND ordinal = ?";
+pub const DUCKDB_LOG_TERM_INSERT_SQL: &str = "INSERT INTO log_terms(project_id, log_digest, ordinal, field, term, truncated) \
+     VALUES (?, ?, ?, ?, ?, ?)";
+pub const DUCKDB_SPAN_TERMS_DELETE_TRACE_SQL: &str =
+    "DELETE FROM span_terms WHERE project_id = ? AND trace_id = ?";
+pub const DUCKDB_LOG_TERMS_DELETE_TRACE_SQL: &str = "DELETE FROM log_terms WHERE project_id = ? AND EXISTS (\
+     SELECT 1 FROM otel_logs l WHERE l.project_id = log_terms.project_id \
+     AND l.log_digest = log_terms.log_digest AND l.ordinal = log_terms.ordinal \
+     AND l.trace_id = ?)";
+pub const DUCKDB_LOG_TERMS_DELETE_SPAN_SQL: &str = "DELETE FROM log_terms WHERE project_id = ? AND EXISTS (\
+     SELECT 1 FROM otel_logs l WHERE l.project_id = log_terms.project_id \
+     AND l.log_digest = log_terms.log_digest AND l.ordinal = log_terms.ordinal \
+     AND l.trace_id = ? AND l.span_id = ?)";
+pub const DUCKDB_SPAN_TERMS_DELETE_PROJECT_SQL: &str =
+    "DELETE FROM span_terms WHERE project_id = ?";
+pub const DUCKDB_LOG_TERMS_DELETE_PROJECT_SQL: &str = "DELETE FROM log_terms WHERE project_id = ?";
+pub const DUCKDB_SPAN_BACKFILL_CAS_SQL: &str = "SELECT EXISTS (\
+     SELECT 1 FROM (\
+       SELECT content_digest FROM otel_spans \
+       WHERE project_id = ? AND trace_id = ? AND span_id = ? \
+       QUALIFY ROW_NUMBER() OVER (PARTITION BY project_id, trace_id, span_id \
+                                  ORDER BY ingested_at DESC, rowid DESC) = 1\
+     ) r WHERE content_digest = ? \
+     AND (SELECT COUNT(DISTINCT field) FROM span_terms t \
+          WHERE t.project_id = ? AND t.trace_id = ? AND t.span_id = ?) < 6)";
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct SearchCandidatePlan {
     pub query: ParameterizedQuery,
@@ -36,15 +67,14 @@ pub fn candidates(request: &SearchQuery, backend: Backend) -> SearchCandidatePla
     };
     let sql = format!(
         "WITH winners AS ({winners}), scored AS (\
-         SELECT {identity}, {timestamp} AS timestamp_us, {state} AS match_state \
-         FROM winners r {predicate}) \
-         SELECT {output_identity}, timestamp_us, match_state FROM scored \
-         WHERE match_state != 0 ORDER BY {order} LIMIT {fetch}",
+         SELECT {projection}, {timestamp} AS timestamp_us, {state} AS match_state, \
+         {indexed} AS search_indexed FROM winners r {predicate}) \
+         SELECT * FROM scored WHERE match_state != 0 ORDER BY {order} LIMIT {fetch}",
         winners = shape.winners(),
-        identity = shape.identity_projection(),
-        output_identity = shape.identity_columns(),
+        projection = shape.candidate_projection(),
         timestamp = shape.timestamp_micros("r"),
         state = state,
+        indexed = shape.indexed_expression(),
         order = shape.order(),
     );
     SearchCandidatePlan {
@@ -96,6 +126,30 @@ pub fn indexing_complete(request: &SearchQuery, backend: Backend) -> Parameteriz
             predicates.join(" AND ")
         ),
         params,
+    )
+}
+
+/// Marker-checkpointed source page for the historical index backfill.
+pub fn backfill_sources(
+    project_id: &str,
+    signal: SearchSignal,
+    limit: usize,
+    backend: Backend,
+) -> ParameterizedQuery {
+    let shape = Shape::new(signal, backend);
+    ParameterizedQuery::new(
+        format!(
+            "WITH winners AS ({winners}) SELECT {projection} FROM winners r \
+             WHERE {unindexed} ORDER BY {identity} LIMIT ?",
+            winners = shape.winners(),
+            projection = shape.backfill_source_projection(),
+            unindexed = shape.unindexed_predicate(),
+            identity = shape.identity_columns(),
+        ),
+        vec![
+            QueryValue::String(project_id.to_string()),
+            QueryValue::Int64(i64::try_from(limit).unwrap_or(i64::MAX)),
+        ],
     )
 }
 
@@ -389,6 +443,20 @@ impl Shape {
         }
     }
 
+    fn candidate_projection(self) -> &'static str {
+        match self.signal {
+            SearchSignal::Spans => {
+                "r.trace_id, r.span_id, r.span_name, r.input_preview, r.output_preview, \
+                 r.messages, r.tool_definitions, r.tool_names, r.gen_ai_tool_name, \
+                 r.status_message, r.exception_type, r.exception_message, r.exception_stacktrace"
+            }
+            SearchSignal::Logs => {
+                "r.log_digest, r.ordinal, r.severity_text, r.body_text, r.trace_id, r.span_id, \
+                 r.body, r.event_name, r.attributes"
+            }
+        }
+    }
+
     fn identity_columns(self) -> &'static str {
         match self.signal {
             SearchSignal::Spans => "trace_id, span_id",
@@ -485,6 +553,32 @@ impl Shape {
                 .collect::<Vec<_>>()
                 .join(" OR "),
             Backend::Sqlite | Backend::Postgres => unreachable!(),
+        }
+    }
+
+    fn indexed_expression(self) -> String {
+        match self.backend {
+            Backend::Clickhouse => "r.search_indexed".to_string(),
+            Backend::Duckdb => format!(
+                "CASE WHEN ({}) THEN 0 ELSE 1 END",
+                self.unindexed_predicate()
+            ),
+            Backend::Sqlite | Backend::Postgres => unreachable!(),
+        }
+    }
+
+    fn backfill_source_projection(self) -> &'static str {
+        match self.signal {
+            SearchSignal::Spans => {
+                "r.trace_id, r.span_id, r.content_digest, r.messages, r.tool_definitions, \
+                 r.tool_names, r.input_preview, r.output_preview, r.gen_ai_tool_name, \
+                 r.status_message, r.exception_type, r.exception_message, \
+                 r.exception_stacktrace, r.span_name"
+            }
+            SearchSignal::Logs => {
+                "r.log_digest, r.ordinal, r.body_text, r.body, r.event_name, r.severity_text, \
+                 r.attributes"
+            }
         }
     }
 }
@@ -584,5 +678,18 @@ mod tests {
                 .sql()
                 .contains("r.search_indexed = 0")
         );
+    }
+
+    #[test]
+    fn backfill_pages_only_unindexed_current_rows_in_identity_order() {
+        let duckdb = backfill_sources("p", SearchSignal::Spans, 256, Backend::Duckdb);
+        assert!(duckdb.sql().contains("FROM span_terms"));
+        assert!(duckdb.sql().contains("ORDER BY trace_id, span_id"));
+        assert!(duckdb.sql().contains("LIMIT ?"));
+
+        let clickhouse = backfill_sources("p", SearchSignal::Logs, 256, Backend::Clickhouse);
+        assert!(clickhouse.sql().contains("FROM otel_logs FINAL"));
+        assert!(clickhouse.sql().contains("r.search_indexed = 0"));
+        assert!(clickhouse.sql().contains("ORDER BY log_digest, ordinal"));
     }
 }

@@ -17,7 +17,7 @@ use sideseat_ports::error::DataError;
 use sideseat_ports::traits::{AnalyticsRepository, SurvivorReferences, TransactionalRepository};
 use sideseat_ports::types::{
     ContentBodyBackfillProgress, ContentBodyObject, MessageSpanRow, NormalizedSpan, ProjectId,
-    SpanBodyAssociation, SpanBodyField, SpanBodySource, SpanRow,
+    SearchSignal, SpanBodyAssociation, SpanBodyField, SpanBodySource, SpanRow,
 };
 use tokio::sync::watch;
 use tokio::task::JoinHandle;
@@ -25,6 +25,7 @@ use tokio::task::JoinHandle;
 const BODY_HASH_DOMAIN: &[u8] = b"sideseat-content-body-v1\0";
 const BODY_IO_CONCURRENCY: usize = 16;
 const BACKFILL_PAGE_SIZE: usize = 256;
+const SEARCH_BACKFILL_PAGE_SIZE: usize = 16;
 const BACKFILL_PROJECT_PAGE_SIZE: u32 = 100;
 const BACKFILL_INTERVAL_SECS: u64 = 30;
 const ORPHAN_SWEEP_LIMIT: usize = 256;
@@ -667,6 +668,42 @@ impl ContentBodyService {
                                         %project_id,
                                         "Content-body backfill page failed; cursor was not advanced"
                                     );
+                                }
+                                for signal in [SearchSignal::Spans, SearchSignal::Logs] {
+                                    match crate::search::SearchService::backfill_project_page(
+                                        analytics.as_ref(),
+                                        &project_id,
+                                        signal,
+                                        SEARCH_BACKFILL_PAGE_SIZE,
+                                    )
+                                    .await
+                                    {
+                                        Ok(count) if count == SEARCH_BACKFILL_PAGE_SIZE => {
+                                            tracing::warn!(
+                                                %project_id,
+                                                ?signal,
+                                                count,
+                                                "Search-index backfill drift remains"
+                                            );
+                                        }
+                                        Ok(count) if count > 0 => {
+                                            tracing::info!(
+                                                %project_id,
+                                                ?signal,
+                                                count,
+                                                "Search-index backfill reached the current project tail"
+                                            );
+                                        }
+                                        Ok(_) => {}
+                                        Err(error) => {
+                                            tracing::warn!(
+                                                %error,
+                                                %project_id,
+                                                ?signal,
+                                                "Search-index backfill page failed; complete markers were not advanced"
+                                            );
+                                        }
+                                    }
                                 }
                             }
                             if projects.len() < BACKFILL_PROJECT_PAGE_SIZE as usize {

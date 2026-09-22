@@ -799,6 +799,17 @@ async fn clickhouse_search_matches_duckdb_on_ordering_pagination_and_unknowns() 
         ingested_at: Some(ingested_at),
         ..Default::default()
     });
+    spans.push(NormalizedSpan {
+        project_id: Some(PROJECT.to_string()),
+        trace_id: "search-backfill-race".to_string(),
+        span_id: "race".to_string(),
+        content_digest: "stale-digest".to_string(),
+        span_name: "backfill-race".to_string(),
+        timestamp_start: ts(496),
+        input_preview: Some("stale backfill race".to_string()),
+        ingested_at: Some(ingested_at),
+        ..Default::default()
+    });
     duck.insert_spans(spans.clone())
         .await
         .expect("duckdb insert");
@@ -914,6 +925,128 @@ async fn clickhouse_search_matches_duckdb_on_ordering_pagination_and_unknowns() 
         !duck_legacy.4,
         "scan fallback must disclose that the historical row is not indexed"
     );
+    let project_id = ProjectId::from(PROJECT);
+    async fn stale_race_document(
+        repository: &impl SearchIndex,
+        project_id: &ProjectId,
+    ) -> sideseat_ports::types::SearchBackfillDocument {
+        repository
+            .search_backfill_page(project_id, SearchSignal::Spans, 10)
+            .await
+            .expect("search backfill source page")
+            .into_iter()
+            .find_map(|source| match &source.id {
+                sideseat_ports::types::SearchRecordId::Span { trace_id, .. }
+                    if trace_id == "search-backfill-race" =>
+                {
+                    Some(sideseat_ports::types::SearchBackfillDocument {
+                        id: source.id,
+                        expected_content_digest: source.expected_content_digest,
+                        document: sideseat_domain::search::document_for_source(&source.source),
+                    })
+                }
+                _ => None,
+            })
+            .expect("race source")
+    }
+    let stale_duck = stale_race_document(&duck, &project_id).await;
+    let stale_ch = stale_race_document(&ch, &project_id).await;
+    let mut correction = NormalizedSpan {
+        project_id: Some(PROJECT.to_string()),
+        trace_id: "search-backfill-race".to_string(),
+        span_id: "race".to_string(),
+        content_digest: "fresh-digest".to_string(),
+        span_name: "backfill-race".to_string(),
+        timestamp_start: ts(496),
+        input_preview: Some("fresh backfill race".to_string()),
+        ingested_at: Some(ts(601)),
+        ..Default::default()
+    };
+    sideseat_domain::search::index_spans(std::slice::from_mut(&mut correction));
+    duck.insert_spans(vec![correction.clone()])
+        .await
+        .expect("duck correction during backfill");
+    ch.insert_spans(vec![correction])
+        .await
+        .expect("clickhouse correction during backfill");
+    duck.write_search_backfill(
+        &project_id,
+        SearchSignal::Spans,
+        std::slice::from_ref(&stale_duck),
+    )
+    .await
+    .expect("stale duck backfill write");
+    ch.write_search_backfill(
+        &project_id,
+        SearchSignal::Spans,
+        std::slice::from_ref(&stale_ch),
+    )
+    .await
+    .expect("stale clickhouse backfill write");
+    let stale_race = sideseat_domain::search::parse(
+        "span_name:backfill-race AND prompt:stale",
+        SearchSignal::Spans,
+    )
+    .unwrap();
+    let duck_stale_race = run(&duck, stale_race.clone(), None, 10).await;
+    assert!(duck_stale_race.0.is_empty());
+    assert!(run(&ch, stale_race, None, 10).await.0.is_empty());
+    let fresh_race = sideseat_domain::search::parse(
+        "span_name:backfill-race AND prompt:fresh",
+        SearchSignal::Spans,
+    )
+    .unwrap();
+    assert_eq!(
+        run(&duck, fresh_race.clone(), None, 10).await.0,
+        vec![("search-backfill-race".to_string(), false)]
+    );
+    assert_eq!(
+        run(&ch, fresh_race, None, 10).await.0,
+        vec![("search-backfill-race".to_string(), false)]
+    );
+    assert_eq!(
+        sideseat_domain::search::SearchService::backfill_project_page(
+            &duck,
+            &project_id,
+            SearchSignal::Spans,
+            10,
+        )
+        .await
+        .expect("duck span search backfill"),
+        1
+    );
+    assert_eq!(
+        sideseat_domain::search::SearchService::backfill_project_page(
+            &ch,
+            &project_id,
+            SearchSignal::Spans,
+            10,
+        )
+        .await
+        .expect("clickhouse span search backfill"),
+        1
+    );
+    assert_eq!(
+        sideseat_domain::search::SearchService::backfill_project_page(
+            &duck,
+            &project_id,
+            SearchSignal::Spans,
+            10,
+        )
+        .await
+        .expect("completed duck span search backfill"),
+        0,
+        "complete markers are the durable checkpoint"
+    );
+    let backfilled_legacy = sideseat_domain::search::parse(
+        "span_name:legacy-unindexed AND prompt:historical",
+        SearchSignal::Spans,
+    )
+    .unwrap();
+    let duck_backfilled = run(&duck, backfilled_legacy.clone(), None, 10).await;
+    let ch_backfilled = run(&ch, backfilled_legacy, None, 10).await;
+    assert_eq!(duck_backfilled, ch_backfilled);
+    assert!(duck_backfilled.4);
 
     let mut logs = vec![
         NormalizedLog {
@@ -1025,6 +1158,34 @@ async fn clickhouse_search_matches_duckdb_on_ordering_pagination_and_unknowns() 
         vec![("log-legacy".to_string(), 0, false)]
     );
     assert!(!duck_legacy_log.4);
+    assert_eq!(
+        sideseat_domain::search::SearchService::backfill_project_page(
+            &duck,
+            &project_id,
+            SearchSignal::Logs,
+            10,
+        )
+        .await
+        .expect("duck log search backfill"),
+        1
+    );
+    assert_eq!(
+        sideseat_domain::search::SearchService::backfill_project_page(
+            &ch,
+            &project_id,
+            SearchSignal::Logs,
+            10,
+        )
+        .await
+        .expect("clickhouse log search backfill"),
+        1
+    );
+    let backfilled_log =
+        sideseat_domain::search::parse("body:historical", SearchSignal::Logs).unwrap();
+    let duck_backfilled_log = run_logs(&duck, backfilled_log.clone(), None, 10).await;
+    let ch_backfilled_log = run_logs(&ch, backfilled_log, None, 10).await;
+    assert_eq!(duck_backfilled_log, ch_backfilled_log);
+    assert!(duck_backfilled_log.4);
 }
 
 #[tokio::test]

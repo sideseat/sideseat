@@ -5,6 +5,9 @@
 
 use chrono::{DateTime, Utc};
 use sideseat_core::utils::sql::is_plain_identifier;
+use sideseat_ports::types::{
+    SearchBackfillDocument, SearchDocument, SearchField, SearchRecordId, SearchSignal,
+};
 
 use crate::Backend;
 use crate::analytics::{QueryOperation, QueryValue};
@@ -182,6 +185,97 @@ impl DmlStatement {
     pub fn params(&self) -> &[QueryValue] {
         &self.params
     }
+}
+
+/// Update only the derived search columns of one current ClickHouse identity.
+///
+/// Terms are alphanumeric tokens and therefore cannot contain spaces; binding one space-joined
+/// string keeps values parameterised while reconstructing the array server-side.
+pub fn search_backfill_update(
+    target: MutationTarget<'_>,
+    project_id: &str,
+    signal: SearchSignal,
+    document: &SearchBackfillDocument,
+) -> DmlStatement {
+    assert_eq!(target.backend, Backend::Clickhouse);
+    let fields: &[SearchField] = match signal {
+        SearchSignal::Spans => &[
+            SearchField::Prompt,
+            SearchField::Completion,
+            SearchField::ToolName,
+            SearchField::ToolArgs,
+            SearchField::Error,
+            SearchField::SpanName,
+        ],
+        SearchSignal::Logs => &[
+            SearchField::Body,
+            SearchField::EventName,
+            SearchField::Severity,
+            SearchField::Attributes,
+        ],
+    };
+    let mut assignments = vec!["search_indexed = 1".to_string()];
+    let mut params = Vec::with_capacity(fields.len() * 2 + 3);
+    for field in fields {
+        let terms = search_field(&document.document, *field);
+        assignments.push(format!(
+            "search_{name} = arrayFilter(value -> notEmpty(value), splitByChar(' ', ?))",
+            name = field.as_str()
+        ));
+        assignments.push(format!("search_{}_truncated = ?", field.as_str()));
+        params.push(QueryValue::String(terms.terms.join(" ")));
+        params.push(QueryValue::Int64(i64::from(terms.truncated)));
+    }
+    params.push(QueryValue::String(project_id.to_string()));
+    let predicate = match (&document.id, signal) {
+        (SearchRecordId::Span { trace_id, span_id }, SearchSignal::Spans) => {
+            params.push(QueryValue::String(trace_id.clone()));
+            params.push(QueryValue::String(span_id.clone()));
+            params.push(QueryValue::String(
+                document
+                    .expected_content_digest
+                    .clone()
+                    .expect("span search backfill requires its observed content digest"),
+            ));
+            "project_id = ? AND trace_id = ? AND span_id = ? \
+             AND content_digest = ? AND search_indexed = 0"
+        }
+        (
+            SearchRecordId::Log {
+                log_digest,
+                ordinal,
+            },
+            SearchSignal::Logs,
+        ) => {
+            params.push(QueryValue::String(log_digest.clone()));
+            params.push(QueryValue::Int64(i64::from(*ordinal)));
+            "project_id = ? AND log_digest = ? AND ordinal = ? AND search_indexed = 0"
+        }
+        _ => panic!("search backfill signal and record identity disagree"),
+    };
+    DmlStatement {
+        operation: match signal {
+            SearchSignal::Spans => QueryOperation::UpsertSpans,
+            SearchSignal::Logs => QueryOperation::UpsertLogs,
+        },
+        sql: format!(
+            "ALTER TABLE {}{} UPDATE {} WHERE {} SETTINGS mutations_sync = 2",
+            target.table,
+            target.on_cluster,
+            assignments.join(", "),
+            predicate
+        ),
+        params,
+    }
+}
+
+fn search_field(
+    document: &SearchDocument,
+    field: SearchField,
+) -> &sideseat_ports::types::SearchFieldTerms {
+    document
+        .field(field)
+        .unwrap_or_else(|| panic!("domain search document omitted {}", field.as_str()))
 }
 
 /// Delete every span row belonging to the requested trace identities.
@@ -1075,6 +1169,52 @@ mod tests {
         for value in ["tenant-'quoted", "dp-'one", "dp-two"] {
             assert!(!probe.sql().contains(value));
             assert!(!delete.sql().contains(value));
+        }
+    }
+
+    #[test]
+    fn search_backfill_is_parameterized_and_revision_guarded() {
+        let document = SearchBackfillDocument {
+            id: SearchRecordId::Span {
+                trace_id: "trace-'quoted".to_string(),
+                span_id: "span".to_string(),
+            },
+            expected_content_digest: Some("digest-'quoted".to_string()),
+            document: SearchDocument {
+                indexed: true,
+                fields: [
+                    SearchField::Prompt,
+                    SearchField::Completion,
+                    SearchField::ToolName,
+                    SearchField::ToolArgs,
+                    SearchField::Error,
+                    SearchField::SpanName,
+                ]
+                .into_iter()
+                .map(|field| sideseat_ports::types::SearchFieldTerms {
+                    field,
+                    terms: vec!["alpha".to_string()],
+                    truncated: false,
+                    text: String::new(),
+                })
+                .collect(),
+            },
+        };
+        let statement = search_backfill_update(
+            MutationTarget::clickhouse("otel_spans_local", " ON CLUSTER prod"),
+            "tenant-'quoted",
+            SearchSignal::Spans,
+            &document,
+        );
+        assert_eq!(
+            statement.sql().matches('?').count(),
+            statement.params().len()
+        );
+        assert!(statement.sql().contains("content_digest = ?"));
+        assert!(statement.sql().contains("search_indexed = 0"));
+        assert!(statement.sql().contains("mutations_sync = 2"));
+        for value in ["tenant-'quoted", "trace-'quoted", "digest-'quoted"] {
+            assert!(!statement.sql().contains(value));
         }
     }
 

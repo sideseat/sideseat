@@ -82,7 +82,7 @@ impl From<SearchHit> for SearchHitDto {
             SearchRecord::Span(row) => SearchRecordDto::Span {
                 trace_id: row.trace_id,
                 span_id: row.span_id,
-                timestamp: row.timestamp_start,
+                timestamp: row.timestamp,
                 span_name: row.span_name,
                 input_preview: row.input_preview,
                 output_preview: row.output_preview,

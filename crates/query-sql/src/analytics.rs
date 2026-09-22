@@ -105,6 +105,8 @@ pub enum QueryOperation {
     EnforceRetention,
     /// Delete every trace canonically owned by selected sessions.
     DeleteSessions,
+    /// Chronological text search, completeness probes, arrivals and historical backfill.
+    Search,
 }
 
 impl QueryOperation {
@@ -154,6 +156,7 @@ impl QueryOperation {
             Self::MaxIngestedAtUs => "max_ingested_at_us",
             Self::EnforceRetention => "enforce_retention",
             Self::DeleteSessions => "delete_sessions",
+            Self::Search => "search",
         }
     }
 
@@ -181,6 +184,7 @@ impl QueryOperation {
             Self::GetMessages | Self::GetProjectMessages => "messages.rs",
             Self::GetProjectStats => "stats.rs",
             Self::EnforceRetention => "../retention.rs",
+            Self::Search => "search.rs",
             _ => "query.rs",
         }
     }
@@ -194,6 +198,7 @@ impl QueryOperation {
                 | Self::UpsertLogs
                 | Self::GetProjectStats
                 | Self::EnforceRetention
+                | Self::Search
         )
     }
 
@@ -235,6 +240,7 @@ impl QueryOperation {
             Self::MaxIngestedAtUs => "analytics::",
             Self::EnforceRetention => "dml::",
             Self::DeleteSessions => "dml::",
+            Self::Search => "search_sql::",
             Self::DeleteTraces
             | Self::DeleteSpans
             | Self::DeleteProjectData
@@ -295,6 +301,7 @@ pub const MIGRATED_OPERATIONS: &[QueryOperation] = &[
     QueryOperation::MaxIngestedAtUs,
     QueryOperation::EnforceRetention,
     QueryOperation::DeleteSessions,
+    QueryOperation::Search,
 ];
 
 /// Driver-neutral parameter values. Adapters only translate these values into their driver's
@@ -3613,6 +3620,7 @@ mod tests {
                 QueryOperation::MaxIngestedAtUs,
                 QueryOperation::EnforceRetention,
                 QueryOperation::DeleteSessions,
+                QueryOperation::Search,
             ]
         );
         assert_eq!(
@@ -3665,6 +3673,7 @@ mod tests {
                 "max_ingested_at_us",
                 "enforce_retention",
                 "delete_sessions",
+                "search",
             ]
         );
     }
