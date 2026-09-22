@@ -96,24 +96,16 @@ You will not get far in the code or in this document without these.
 ```
 crates/core/          sideseat-core: constants, config, CLI, storage paths, utils. Names no driver.
 crates/ports/         sideseat-ports: the traits the domain talks through, plus DTOs. No implementations.
+crates/domain/        sideseat-domain: ingestion, cleanup, pricing, rules, SideML and trace/metric workflows.
+crates/api/           sideseat-api: Axum/gRPC/MCP/WebSocket transport boundary.
+crates/adapter-*/     physical storage, queue, cache, secrets, blob and registration implementations.
+crates/query-sql/     typed analytics query/DML statements and backend capability lowering.
 server/src/
-  app.rs              composition root: startup, wiring, command dispatch
+  app.rs, app/        composition root: startup, backend construction, wiring, command dispatch
   runtime/            allocation.rs (the counting allocator), shutdown.rs
-  data/
-    duckdb/ clickhouse/   analytics adapters
-    sqlite/ postgres/     transactional adapters
-    topics/               pub/sub: memory.rs (default), redis.rs, ack_window.rs
-    files/                blob storage + the file-reference protocol
-    cleanup.rs            project / organization / trace / session deletion sweeps
-    sql/                  SqlDialect + shared SQL helpers (mostly unused — step 5)
-  domain/
-    sideml/           the message pipeline: feed/, normalize.rs, carrier.rs, types.rs
-    traces/           extract/ (OTLP -> spans), enrich.rs (cost), pipeline.rs (ingest)
-    rules/            generic interpreters for the JSON assets
-    metrics/ pricing/
-  api/routes/         Axum handlers; also api/mcp/ and the WebSocket runtime channel
+  data/, domain/      cfg(test)-only compatibility namespaces for the extracted suites
 server/assets/rules/  framework assets: producers/, conventions/, vocabulary/
-server/tests/         repository.rs (21 structural invariants), footprint.rs, fixtures/
+server/tests/         repository.rs (structural invariants), footprint.rs, fixtures/
 scripts/              bench-http-latency.sh, footprint-gates.sh, message-fixtures/capture.sh
 ```
 
@@ -254,30 +246,45 @@ decides every trade below.
 ```mermaid
 graph TD
     subgraph enforced["compiler-enforced today"]
-        core["sideseat-core<br/>std + serde + chrono"]
+        core["sideseat-core"]
         ports["sideseat-ports<br/>traits + DTOs, no impls"]
+        domain["sideseat-domain<br/>rules, sideml, extraction, metrics,<br/>files, cleanup, topics"]
+        api["sideseat-api<br/>http, grpc, mcp, ws"]
+        db["database adapters<br/>duckdb, clickhouse, sqlite, postgres"]
+        blobs["sideseat-adapter-blob-storage"]
+        cache["sideseat-adapter-cache"]
+        reg["sideseat-adapter-registrations-memory"]
+        secrets["sideseat-adapter-secrets"]
+        topics["sideseat-adapter-topics"]
     end
-    subgraph pending["still modules inside server/"]
-        domain["domain<br/>rules, sideml, traces, metrics"]
-        adapters["adapters<br/>duckdb, clickhouse, sqlite,<br/>postgres, topics, files"]
-        api["api<br/>http, grpc, mcp, ws"]
-        app["app.rs<br/>composition root"]
+    subgraph composition["composition root"]
+        app["sideseat-server<br/>app wiring only"]
     end
 
     ports --> core
     domain --> ports
     domain --> core
-    adapters --> ports
-    adapters --> core
+    db --> ports
+    db --> core
+    blobs --> ports
+    cache --> ports
+    reg --> ports
+    secrets --> ports
+    secrets --> core
+    topics --> ports
+    topics --> core
     api --> domain
     api --> ports
     app --> api
-    app --> adapters
+    app --> db
 ```
 
-`crates/core` and `crates/ports` are real crates, so those two boundaries are enforced by the compiler. The rest
-are modules, so the outer boundaries rest on tests and convention. **Extracting them is the largest remaining
-piece of step 1.**
+`crates/core`, `crates/ports`, `crates/domain`, `crates/api`, all four database adapters, registration storage,
+secrets, cache, filesystem/S3 blobs, and the memory/Redis topic backend are real crates. File coordination,
+cross-store deletion cleanup, rate limiting and the typed topic runtime live in `sideseat-domain`.
+`sideseat-server` is now the composition package: its production modules contain startup/runtime wiring,
+backend-selection enums and the provider-SDK implementation, while the former `data` and `domain` namespaces
+exist only behind `cfg(test)` for the legacy parity and golden harnesses.
 
 **Why crates and not a lint.** A source-scanning test was considered and rejected: `use` parsing misses
 fully-qualified paths, macro-generated code, `#[cfg]` branches, re-exports and inferred types. While everything
@@ -305,12 +312,9 @@ editing session. Grep the trait name.
 `BlobStore`, `Cache`, `Secrets` are ports too (`blobs.rs`, `cache.rs`, `secrets.rs`). **Cache is a decorator over
 a port, never a parameter to one** — it used to be `Option<&CacheService>` on 29 transactional methods.
 
-Not yet ports, all from later steps: `MetricStore`, `LogStore`, `SearchIndex`, `RateLimitStore`, `StorageBudget`,
-`Clock`.
-
-**Two things deliberately stayed put, and both are the orphan rule rather than taste.** `TopicError` cannot move
-to `ports` without `map_err` at 54 `?` sites; `TopicMessage` cannot, because its three impls are for foreign OTLP
-types. Documented in code at both ends — read those comments before "fixing" either.
+Not yet ports, all from later steps: `MetricStore`, `LogStore`, `SearchIndex`, `RateLimitStore`, `StorageBudget`.
+`Clock`, queue backend/error/subscription DTOs, registrations, cache, blobs and secrets are ports now. Typed
+`TopicMessage` wrappers remain in the domain, where implementations for foreign OTLP message types are legal.
 
 ### 1.3 The one constraint that shapes everything
 
@@ -446,7 +450,7 @@ file nothing holds, which is the dangling reference the write-files-before-rows 
 
 ### 2.4 The span row
 
-`NormalizedSpan` (`data/duckdb/models.rs`) is the row every step from 7 to 10 has to extend, so its field groups
+`NormalizedSpan` (`crates/ports/src/types/normalized.rs`) is the row every step from 7 to 10 has to extend, so its field groups
 are worth knowing:
 
 ```
@@ -482,7 +486,7 @@ invites re-opening them:
 | `otel_metrics` was `ReplacingMergeTree()` with **no version column**, so the survivor was insert-block order, while DuckDB's replace was commit-last-wins. Two rules for one question | `ingested_at` as the version on both |
 
 The **cross-month residual is stated and detected, not fixed**: a correction moving a span's `timestamp_start`
-across a month boundary puts its revisions in different partitions, and `clickhouse/consistency.rs` reports those
+across a month boundary puts its revisions in different partitions, and `crates/adapter-clickhouse/src/consistency.rs` reports those
 identities rather than the read being silently wrong.
 
 ---
@@ -789,7 +793,7 @@ settled before any row is written under it.
 | `c73b6b27` | god-traits split into eleven ports; SQL taken out of `ports` |
 | `d60d2bb1` | a partition key on publish, declared per signal. **Spans key on trace id and nothing else** — a session id lives on the span that knows it, so "session else trace" splits one conversation across two partitions mid-conversation |
 | `9bfc26dc` | blob store, cache invalidation, secret writing as ports |
-| `fedcafc3` | contiguous-offset acknowledgement (`topics/ack_window.rs`). Kafka commits **offsets, not ids**: committing offset N asserts everything below N is done |
+| `fedcafc3` | contiguous-offset acknowledgement (`crates/adapter-topics/src/ack_window.rs`). Kafka commits **offsets, not ids**: committing offset N asserts everything below N is done |
 
 ---
 
@@ -799,12 +803,12 @@ settled before any row is written under it.
 
 ```mermaid
 graph LR
-    s1["1 restructure<br/>PARTIAL"] --> s5["5 query layer"]
+    s1["1 restructure<br/>DONE"] --> s5["5 query layer<br/>DONE"]
     s1 --> s6["6 Signal + logs"]
-    s2["2 harness<br/>DONE"] --> s3["3 footprint<br/>5 of 7"]
+    s2["2 harness<br/>DONE"] --> s3["3 footprint<br/>DONE"]
     s4["4 algorithms<br/>DONE"]
     s6a["6a journal<br/>DONE"] --> s7["7 quota + hold"]
-    s6a --> s9["9 bodies + streaming"]
+    s6a --> s9["9 bodies + streaming<br/>DONE"]
     s5 --> s8["8 rollups"]
     s6 --> s7
     s6 --> s10["10 search"]
@@ -819,7 +823,7 @@ Two hard orderings: **step 10 needs step 9** (a ClickHouse text index must be de
 exists after bodies move to blobs), and **step 7 needs step 6** (logs must exist before their retention and holds
 can).
 
-### 6.2 Step 1, still open
+### 6.2 Step 1, complete
 
 **Re-measure before planning.** Every count below drifted between the design being written and this audit — 493
 `Utc::now()` sites became 513, and 63 port methods became 66. The figures are given so the *order of magnitude* is
@@ -828,18 +832,19 @@ clear; the commands are given so you do not trust them:
 ```bash
 grep -rc 'Utc::now()' server/src crates --include='*.rs' | awk -F: '{s+=$2} END {print s}'
 grep -c 'project_id: &str' crates/ports/src/traits.rs
-grep -c '?;' server/src/data/topics/redis.rs      # the map_err cost of moving TopicError: 54, still exact
+grep -c '?;' crates/adapter-topics/src/redis.rs   # the map_err cost of moving TopicError: 54, still exact
 ```
 
 
 | Item | Size / where |
 | --- | --- |
-| `ProjectId` newtype | **66** port methods take `project_id: &str` today. First half of "the query builder cannot construct a statement without a tenant scope" |
-| `Clock` injection | **513** `Utc::now()` sites |
-| Extract `adapter-*`, `api`, `app` crates | what makes property 1 true for the layers that matter |
+| `ProjectId` newtype | **DONE in the current working tree:** transactional/analytics/blob and registration ports use `ProjectId`; all 7 tenant-scoped query DTOs own it; `every_tenant_scoped_port_uses_project_id` scans every migrated port surface and prevents a return to `String`/`&str`. The transparent serde representation remains a plain string. |
+| `Clock` injection | **PARTIAL in the current working tree:** auth, pricing, OTLP ingest/debug stamps, analytics writes/retention/stats, transactional repositories/migrations, secrets, rate limiting and WS registration TTLs use one injected clock. `SystemTime::now` is zero; 395 `Utc::now()` calls remain, predominantly tests and unmigrated modules. |
+| Extract `sideseat-domain` | **DONE as a Cargo boundary:** the complete package run is green: 1,585 passed, 2 ignored, plus 2 passing doctests. The normal tree names no storage/message driver and no `moka`; OTLP generated messages still bring `tonic/axum` transitively and remain the wire/domain split to remove. |
+| Extract `adapter-*`, `api`, `app` crates | **DONE:** every adapter and `sideseat-api` is a real workspace crate. The existing `sideseat-server` package is the app/composition root; production code there only wires ports, adapters, API and runtime concerns. Test-only compatibility namespaces remain under `cfg(test)` so existing parity and golden suites keep exercising the extracted crates. |
 | API v1 breaks in place | no v2, no shim — fixed decision |
 | Retention versus lag, **continuously** | Kafka retention can delete unacknowledged records during a long outage; a startup check does not cover it |
-| Domain's remaining couplings | `FileService` and topics in `traces/persist.rs`, `pipeline.rs` |
+| Domain's remaining couplings | `TracePipeline` depends on domain `FileService` and typed topics, each backed by ports; no adapter type crosses the boundary. |
 
 ### 6.3 Steps 5–12: what each involves, and the smallest first increment
 
@@ -848,22 +853,34 @@ reviewable and leaves the tree green.
 
 | Step | What it involves | First increment |
 | --- | --- | --- |
-| **5** query layer | See §6.4 — this one needs more than a row | §6.4 |
+| **5** query layer | **DONE in the current working tree:** 34 registered operation groups cover the DuckDB/ClickHouse analytical repository surface, and the shared migration planner is live in all four DB adapters. Adapters bind, execute and decode; typed plans own statement structure, parameter order and backend capability differences. | Complete; details and gates in §6.4 |
 | **6** Signal + logs | See §6.5 | The `Signal` trait with traces as its only implementation, behaviour-identical, both transports through it. Metrics second, logs third |
 | **7** quota + hold | See §6.6 | `logical_bytes` on the span row plus the counter, with no enforcement. Then admission refusal. Hold is its own change with `SCHEMA_VERSION` 6 and populated-upgrade tests |
-| **8** rollups | See §6.14 | `rebuild_contributions` first (a backfill), then the table written in the span's own transaction, then the two-stage trace query. Gated by a before/after trace-list measurement at both fixture scales; **reverted if the narrow read does not pay for the write amplification** |
-| **9** bodies + streaming | See §6.12 | Content addressing behind a dual-read, old columns still written. Dropping them is a separate change gated on a stated per-project criterion |
+| **8** rollups | **DONE as a gated rejection:** the complete DuckDB contribution implementation was built and correctness-tested, then release-benchmarked and reverted because it made the trace-list read slower at both fixture scales. The retained wide query now applies suppression only to winning revisions and has cost-only/re-delivery/deletion regressions. | Rejected by the required measurement; details in §6.14 |
+| **9** bodies + streaming | **DONE in the current working tree:** body-level transactional ownership, dual-write/dual-read fallback, resumable backfill, exact cleanup and bounded HTTP JSON streaming are live; unchanged at-least-once deliveries no longer append duplicate analytics revisions. The old columns remain intentionally. | Complete; details and cutover gate in §6.12 |
 | **10** search | See §6.15 | Raise the ClickHouse floor to 26.4 — today CI and `make test-clickhouse` pin **25.8.2** and `deploy/local/docker-compose.yml` pins **26.1.2**, so three places move. Then the tokeniser and its contract with a golden-corpus parity test, before any index exists |
 | **11** RedPanda | See §6.15 | The adapter against the three trait changes step 1 already made |
 | **12** tenancy + backup | See §6.13 | The colliding-id leak test (two tenants, same client-supplied trace and session ids) before any policy exists — it should pass today and will catch the policy getting it wrong |
 
 ### 6.4 Step 5 in detail, because its starting point is not what it looks like
 
+**Current working-tree result.** `sideseat-query-sql` owns all 34 registered analytical operation groups:
+point/list/aggregate span, trace and session reads; feed and filter options; messages and project statistics;
+membership, cleanup, row-count and ingestion-watermark reads; session/trace/span/project deletes; span and metric
+write targets; and retention. DuckDB and ClickHouse adapters only bind, execute and decode those typed plans. The
+registry drives a mutation-verified structural gate over every adapter entry point; operations whose SQL could
+hide in helpers (`insert_batch`, statistics and retention) scan their complete production repository files.
+
+The common migration state machine in `sideseat-core::migration` is used by DuckDB, ClickHouse, SQLite and
+PostgreSQL, while each adapter retains its own DDL table and transaction mechanics. Live ClickHouse 25.8.2 parity
+also exercises every migrated read: the shared dialect lowers winner selection to DuckDB windows versus
+ClickHouse `FINAL`, preserves nullable result schemas and supplies equality keys for ClickHouse range joins.
+
 Two different measurements, and the difference matters. The design says "~2 760 and ~2 990 lines of hand-written
-SQL"; that counts the SQL *content*. **Whole-file `wc -l` today is 9 101 across `data/duckdb/repositories/` against
-4 691 across `data/clickhouse/repositories/`** — the two `query.rs` files alone are 6 684 and 3 064. Neither figure
-is wrong; the first is what a builder replaces, the second is what you will be editing. Use the first when
-arguing about the win and the second when estimating the work.
+SQL"; that counts the SQL *content*. The baseline whole-file measurement was 9 101 DuckDB lines against 4 691
+ClickHouse lines. The final adapter executor files are 4 943 and 1 029 lines; their stats/message/retention helpers
+are 2 293 and 439 lines. Shared typed construction is 4 110 lines of analytics, 721 of DML, 436 of messages and
+876 of statistics. Line count is not the completion metric: the 34-entry registry and structural gate are.
 
 The asymmetry is itself informative: DuckDB carries the `as_of_us` bound and the window-function deduplication
 that ClickHouse gets from `FINAL`, so the sides are not two spellings of one implementation.
@@ -908,7 +925,7 @@ the gate measures nothing.
 
 ### 6.5 Step 6 in detail — the six handlers, and the predicate that is easy to get wrong
 
-`server/src/api/routes/otlp_collector/` is where the duplication is: `traces.rs`, `metrics.rs`, `logs.rs` for HTTP
+`crates/api/src/routes/otlp_collector/` is where the duplication is: `traces.rs`, `metrics.rs`, `logs.rs` for HTTP
 and `grpc.rs` carrying all three, plus `encoding.rs` and `mod.rs`. Six paths, one decision tree, kept in step by
 comments and a source-scanning test — which exists precisely because the compiler cannot enforce the shape.
 
@@ -959,7 +976,7 @@ no trace at all, so it orders by `(time_unix_nano else observed_time_unix_nano, 
 
 ### 6.6 Step 7 in detail — the four TTLs that delete held data today
 
-`grep -n 'TTL ' server/src/data/clickhouse/schema.rs` finds **nine** occurrences across the span and metric
+`grep -n 'TTL ' crates/adapter-clickhouse/src/schema.rs` finds **nine** occurrences across the span and metric
 tables, single-node and replicated, all **unconditional**:
 
 ```sql
@@ -1000,6 +1017,25 @@ journal batch **plus** the cleanup candidates, because a pressure eviction must 
 anything, and sizing it from the journal alone lets one consume the reserve and block the other.
 
 ### 6.12 Step 9 in detail — what "three representations" actually means
+
+**Current working-tree result.** `messages`, `tool_definitions`, `tool_names` and `raw_span` are stored as
+domain-separated content-addressed objects with project-scoped body ownership in SQLite/PostgreSQL. Ingestion
+registers bytes, stages provisional field associations, writes analytics, then confirms only the current winner;
+failure keeps the inline analytics columns authoritative. Readers prefer durable bodies, deduplicate object GETs,
+parse each distinct message body once, and fall back inline on any registry/blob failure. Retention and explicit
+deletion reconcile exact surviving references before body GC; losing-winner churn is reclaimed by a five-minute
+grace-period sweeper rather than delete/write thrashing.
+
+Backfill is identity-ordered, page-bounded and resumable per project. The per-project cutover criterion is
+`content_body_backfill.complete = true` after the cursor reaches an empty page; any failed dual-write or
+confirmation resets that project to incomplete. Dropping the old columns is deliberately a separate migration
+and may begin only when every live project satisfies that criterion and a release-level verification finds no
+reset/incomplete project. This step does not drop them.
+
+HTTP message/feed responses now stream their top-level arrays item by item with no `Content-Length`; MCP retains
+its protocol-required materialised JSON value. The 60-second footprint gate uses a paced, minimal 500-span OTLP
+rate fixture and passes at ~4,958 spans/s: idle RSS 91.8 MB, steady median RSS 166.4 MB. The 10,000-turn read leaves
+0.0 MB live residue (25.9 MB peak), and queued protobuf retention is 1.00× against the 3.0× ceiling.
 
 Today one span's content exists in three forms, and a reader should check this before assuming:
 
@@ -1075,6 +1111,24 @@ policy exempts, declared once rather than achieved by leaving the context unset.
 - with **no** context, any read must return **empty**.
 
 ### 6.14 Step 8 in detail — and the honest version of its win
+
+**Current working-tree result: measured and reverted, as this section requires.** The complete DuckDB-only
+`trace_contrib` path was implemented first: v5→v6 backfill, source-winner conditional replacement in the span
+transaction, hold/quota/deletion integration, narrow trace/session reads, root-metadata/tag/preview preservation,
+and regressions for clock-regressed delivery, cost-only child suppression and child deletion reactivating its
+parent. An interleaved release benchmark then compared the old wide second stage with the contribution path:
+
+| Fixture | Wide source median | Contribution median | Result |
+| --- | ---: | ---: | ---: |
+| 400 traces × 5 spans | 10.16 ms | 16.00 ms | contribution was **1.58× slower** |
+| 4,000 traces × 5 spans | 14.93 ms | 27.44 ms | contribution was **1.84× slower** |
+
+The optimisation was therefore removed in full: no table, migration, write amplification, quota accounting or
+read dependency remains. The investigation did expose and fix a correctness defect worth retaining independently:
+DuckDB's billing-suppression subqueries used the raw append-only table, so a superseded billed child could keep
+suppressing its parent. They now use the same winning-span relation as the aggregate. Tests pin that corrected
+unbilled re-delivery reactivates the parent, a cost-only billed child suppresses it, and deleting the child
+reactivates it.
 
 **The win is narrower than it first looks, which is why the step is gated by a measurement rather than an argument.**
 `list_traces` already paginates trace ids *before* aggregating, so the win is **not** "stop aggregating over
@@ -1264,6 +1318,11 @@ no list. The **sixteen code commits**, oldest first, are:
 | `2c329ca2` | `make check` green end to end |
 
 **Working tree:** `CLAUDE.md` is modified and stays that way — project convention keeps it out of commits.
+The current uncommitted implementation completes Step 1's crate restructuring and `ProjectId` item, injects
+`Clock` through the time-sensitive ingest/auth/storage paths, and makes `sideseat-server` the composition root
+over `sideseat-api`, `sideseat-domain`, ports and the extracted adapters. Step 5 is complete: 34 analytical
+operation groups and the four-backend migration planner are centralized, structurally gated and live-parity
+tested. It is intentionally kept separate from that pre-existing edit.
 
 ## 8. Verification state — read before claiming anything works
 
@@ -1273,20 +1332,42 @@ no list. The **sixteen code commits**, oldest first, are:
 | --- | --- |
 | `make check` (fmt, clippy, all tests) | **passes end to end** — first full run since `4a9c30c9` |
 | `cargo test -p sideseat-server --lib` | 2 360 passed, 7 ignored |
-| `cargo test --test repository` | 21 structural invariants |
+| `cargo check --locked --workspace --all-targets` | passes after the domain split and five extracted adapter crates |
+| `cargo test --locked -p sideseat-domain` | 1,585 passed, 2 ignored; 2 doctests passed |
+| `cargo test --locked -p sideseat-adapter-blob-storage` | 16 passed |
+| `cargo test --locked -p sideseat-adapter-cache` | 55 passed |
+| `cargo test -p sideseat-adapter-secrets` | 36 passed |
+| `cargo test --locked -p sideseat-adapter-topics` | 63 passed |
+| `cargo test -p sideseat-adapter-registrations-memory` | 9 passed (the server WS routing regression also passes) |
+| `cargo test --locked -p sideseat-server --test repository` | 27 structural invariants, including the complete 34-operation SQL registry gate |
+| `cargo test --locked -p sideseat-query-sql` | 56 passed after the complete read/write/retention migration |
+| `cargo test --locked -p sideseat-adapter-duckdb` | 149 passed, 1 ignored |
+| `cargo test --locked -p sideseat-adapter-clickhouse` | 28 passed |
+| DuckDB/ClickHouse adapter all-target checks | pass after the complete Step 5 migration |
+| `cargo test -p sideseat-domain carrier_rules_tests` | 94 passed |
+| domain cache/file focused suites | 11 and 95 passed after removing `moka` from domain |
 | `cargo test message_goldens` | 32 passed — 121 fixtures × 4 views |
 | `cargo test --test footprint -- --ignored` | both live-allocation gates pass (numbers in §5.1) |
+| `make footprint` | **all four gates pass:** idle 91.8 MB; steady ingest median 166.4 MB at ~4,958 spans/s; 10k-turn residue 0.0 MB; queued payload 1.00× decoded protobuf |
 | `make test-postgres` | **37 passed** — PostgreSQL/SQLite parity, including the v5 upgrade and the journal |
+| `make test-clickhouse` | **22 passed** in the current selected live suite — ClickHouse/DuckDB read, deletion, reconciliation and migration parity |
+| `make test-redis` | **15 passed** — durable queue refusal, reclaim, acknowledgement and trim cases |
 | web / Python SDK | 93 and 203 passed |
 
 **Not run:**
 
 ```
-make test-clickhouse         # ClickHouse/DuckDB parity
-make test-redis              # queue durability against a real Redis
-make bench-http              # so the DuckDB 200 MB limit is unvalidated
 make bench-http-distributed
-scripts/footprint-gates.sh   # so the two resident ceilings are unmeasured
+```
+
+**Run, still failing on pre-existing latency ceilings:**
+
+```
+make bench-http
+    trace export 2 KB: p95 12.0 ms against 10 ms
+    session messages, 8 concurrent: p95 205.5 ms against 150 ms
+    exited non-zero on the same two pre-existing breaches documented below
+    large export p95 99.9 ms, sequential session p95 35.7 ms, trace list p95 36.6 ms
 ```
 
 Two pre-existing caveats, so a benchmark result is not misread as a regression: `make bench-http` has **two
@@ -1300,13 +1381,11 @@ nobody owns, which makes the node not owning it wait a hardcoded 90 s in `markRe
 
 ## 9. Start here
 
-1. `cargo test --locked -q -p sideseat-server --lib` — confirm green (2 360 passed).
-2. `make test-clickhouse`, then `make test-redis` — the two container suites still unrun.
-3. `make bench-http` and `make footprint` — the two gates whose numbers are assertions rather than measurements.
+1. `make bench-http` and `make footprint` — the two gates whose numbers are assertions rather than measurements.
    A miss is information: see §8's caveats first.
-4. Codex round five against `4a9c30c9..HEAD` — §10.
-5. Then **step 5** (largest reduction in duplication) or **step 6's second half** (unblocks logs, and step 7
-   depends on it). §6.3 has the first increment for each, and §6.4-§6.6 are deep dives on the three largest.
+2. Codex round five against `4a9c30c9..HEAD` plus the current `ProjectId` diff — §10.
+3. Continue **step 5** by registering the remaining repository reads and DML. Do not start step 8 until the
+   builder registry covers the query layer acceptance surface; §6.4 defines the capability differences and gate.
 
 ---
 
@@ -1483,7 +1562,7 @@ you owe.
 | A rewrite is answer-preserving | the goldens **plus** an equivalence oracle over generated inputs where the interesting cases are ones no framework produces | `order_within_unit_equivalence`, and 17 retired SQL tables kept under `#[cfg(test)]` |
 | Memory ceilings | `make footprint` — two RSS gates against a running server, two live-allocation gates in process | `footprint.rs`, `footprint-gates.sh` |
 | Latency ceilings | `make bench-http` — **enforces**, exits non-zero on a miss | `bench-http-latency.sh` |
-| The queue loses nothing | six tests, each mutation-verified; `make test-redis` for the durable backend | `topics/memory.rs`, `redis_stream_tests.rs` |
+| The queue loses nothing | six tests, each mutation-verified; `make test-redis` for the durable backend | `crates/adapter-topics/src/memory.rs`, `crates/adapter-topics/src/redis_stream_tests.rs` |
 | Schema upgrades reach every database | populated-upgrade tests per backend, comparing a walked-forward v-old database against a fresh one — including **column order** on DuckDB, because its writer is a positional `Appender` | `migrations.rs`, `parity_tests.rs` |
 | Tenant isolation | the colliding-id property test (client-supplied trace, session and content ids, so collision is the realistic case) — and step 12 adds the two RLS tests, because one oracle cannot cover both halves: **with** a valid context the policy must return *that tenant's* rows, not empty; **with no** context any read must return empty | lib tests, then step 12 |
 | Documentation does not rot | `every_module_path_cited_anywhere_resolves`, `every_tree_diagram_names_things_that_exist`, `the_documented_project_structure_matches_the_tree`, `every_resolving_command_is_locked`, `every_relative_schema_reference_resolves` — **this file is subject to all of them** | `tests/repository.rs` |

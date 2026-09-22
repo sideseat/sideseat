@@ -1,0 +1,30 @@
+[package]
+name = "sideseat-adapter-topics"
+version.workspace = true
+license = "Apache-2.0"
+publish = false
+edition = "2024"
+rust-version.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+sideseat-core = { path = "../core" }
+sideseat-ports = { path = "../ports" }
+async-stream = { workspace = true }
+async-trait = { workspace = true }
+deadpool-redis = { workspace = true }
+dashmap = { workspace = true }
+futures = { workspace = true }
+hex = { workspace = true }
+opentelemetry-proto = { workspace = true }
+parking_lot = { workspace = true }
+prost = { workspace = true }
+rmp-serde = { workspace = true }
+serde = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+
+[dev-dependencies]
+uuid = { workspace = true }

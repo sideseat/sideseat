@@ -829,10 +829,10 @@ test-postgres:
 		-e POSTGRES_USER=sideseat -e POSTGRES_PASSWORD=sideseat -e POSTGRES_DB=sideseat \
 		$(PG_TEST_IMAGE) >/dev/null
 	@for i in $$(seq 1 60); do \
-		docker exec $(PG_TEST_CONTAINER) pg_isready -U sideseat -d sideseat >/dev/null 2>&1 && break; \
+		docker exec $(PG_TEST_CONTAINER) psql -U sideseat -d sideseat -Atqc 'SELECT 1' >/dev/null 2>&1 && break; \
 		sleep 1; \
 	done; \
-	docker exec $(PG_TEST_CONTAINER) pg_isready -U sideseat -d sideseat >/dev/null 2>&1 || { \
+	docker exec $(PG_TEST_CONTAINER) psql -U sideseat -d sideseat -Atqc 'SELECT 1' >/dev/null 2>&1 || { \
 		echo "[test-postgres] server did not become ready"; \
 		docker logs --tail 20 $(PG_TEST_CONTAINER); \
 		docker rm -fv $(PG_TEST_CONTAINER) >/dev/null 2>&1; \

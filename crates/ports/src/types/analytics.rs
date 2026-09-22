@@ -5,12 +5,21 @@
 
 use chrono::{DateTime, Utc};
 
+use super::ProjectId;
 use super::order::OrderBy;
 use crate::filters::Filter;
 
 // ============================================================================
 // Row types (query results)
 // ============================================================================
+
+/// One winning, non-held span selected oldest-first for pressure reclamation.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PressureSpanCandidate {
+    pub trace_id: String,
+    pub span_id: String,
+    pub logical_bytes: u64,
+}
 
 /// Result row for trace queries
 #[derive(Debug)]
@@ -161,7 +170,7 @@ pub struct ObservationTokens {
 /// Parameters for list_traces query
 #[derive(Debug, Default, Clone)]
 pub struct ListTracesParams {
-    pub project_id: String,
+    pub project_id: ProjectId,
     pub page: u32,
     pub limit: u32,
     pub order_by: Option<OrderBy>,
@@ -178,7 +187,7 @@ pub struct ListTracesParams {
 /// Parameters for list_spans query
 #[derive(Debug, Default, Clone)]
 pub struct ListSpansParams {
-    pub project_id: String,
+    pub project_id: ProjectId,
     pub page: u32,
     pub limit: u32,
     pub order_by: Option<OrderBy>,
@@ -201,7 +210,7 @@ pub struct ListSpansParams {
 /// Parameters for feed spans query (cursor-based pagination)
 #[derive(Debug, Default, Clone)]
 pub struct FeedSpansParams {
-    pub project_id: String,
+    pub project_id: ProjectId,
     /// Maximum number of spans to return
     pub limit: u32,
     /// Cursor for pagination: (ingested_at_us, span_id, trace_id).
@@ -226,7 +235,7 @@ pub struct FeedSpansParams {
 /// Parameters for list_sessions query
 #[derive(Debug, Default, Clone)]
 pub struct ListSessionsParams {
-    pub project_id: String,
+    pub project_id: ProjectId,
     pub page: u32,
     pub limit: u32,
     pub order_by: Option<OrderBy>,

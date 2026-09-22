@@ -1,0 +1,19 @@
+[package]
+name = "sideseat-adapter-registrations-memory"
+version.workspace = true
+license = "Apache-2.0"
+publish = false
+edition = "2024"
+rust-version.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+sideseat-ports = { path = "../ports" }
+async-trait = { workspace = true }
+dashmap = { workspace = true }
+
+[dev-dependencies]
+serde_json = { workspace = true }
+tokio = { workspace = true }

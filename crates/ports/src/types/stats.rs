@@ -4,6 +4,8 @@
 
 use chrono::{DateTime, Utc};
 
+use super::ProjectId;
+
 // ============================================================================
 // Result types
 // ============================================================================
@@ -85,7 +87,7 @@ pub struct LatencyBucket {
 /// Parameters for stats query
 #[derive(Debug, Clone)]
 pub struct StatsParams {
-    pub project_id: String,
+    pub project_id: ProjectId,
     pub from_timestamp: DateTime<Utc>,
     pub to_timestamp: DateTime<Utc>,
     /// IANA timezone (e.g., "America/New_York") for bucketing. Defaults to UTC.
@@ -99,7 +101,7 @@ mod tests {
     #[test]
     fn test_stats_params() {
         let params = StatsParams {
-            project_id: "test".to_string(),
+            project_id: ProjectId::from("test"),
             from_timestamp: chrono::Utc::now() - chrono::Duration::hours(24),
             to_timestamp: chrono::Utc::now(),
             timezone: None,

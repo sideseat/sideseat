@@ -41,7 +41,7 @@
 //! ```
 
 use sideseat_ports::traits::{
-    AnalyticsMaintenance, AnalyticsRepository, EntityQuery, MessageStore, SpanStore,
+    AnalyticsMaintenance, AnalyticsRepository, EntityQuery, MessageStore, MetricStore, SpanStore,
     SurvivorReferences,
 };
 use std::sync::Arc;
@@ -57,7 +57,7 @@ use sideseat_ports::filters::{DatetimeOp, Filter, NullOp, NumberOp, OptionsOp, S
 use sideseat_ports::types::{
     AggregationTemporality, FeedSpansParams, ListSessionsParams, ListSpansParams, ListTracesParams,
     MessageQueryParams, MessageSpanRow, MetricType, NormalizedMetric, NormalizedSpan,
-    ObservationType, SessionRow, SpanCategory, SpanRow, TraceRow,
+    ObservationType, ProjectId, SessionRow, SpanCategory, SpanRow, TraceRow,
 };
 
 /// Env var holding the base URL of a ClickHouse HTTP endpoint, e.g. `http://127.0.0.1:8123`.
@@ -540,7 +540,12 @@ async fn duckdb_backend() -> (tempfile::TempDir, crate::data::duckdb::DuckdbRepo
         .await
         .expect("duckdb dir");
     let storage = AppStorage::init_for_test(temp.path().to_path_buf());
-    let service = DuckdbService::init(&storage).await.expect("duckdb init");
+    let service = DuckdbService::init(
+        &storage,
+        std::sync::Arc::new(crate::runtime::clock::SystemClock),
+    )
+    .await
+    .expect("duckdb init");
     (
         temp,
         crate::data::duckdb::DuckdbRepository(Arc::new(service)),
@@ -604,9 +609,12 @@ async fn clickhouse_backend(
         insert_quorum: 0,
     };
     crate::data::clickhouse::ClickhouseRepository(Arc::new(
-        ClickhouseService::init(&config)
-            .await
-            .expect("clickhouse init"),
+        ClickhouseService::init(
+            &config,
+            std::sync::Arc::new(crate::runtime::clock::SystemClock),
+        )
+        .await
+        .expect("clickhouse init"),
     ))
 }
 
@@ -662,9 +670,12 @@ async fn replicated_backend_at(
         insert_quorum: 0,
     };
     crate::data::clickhouse::ClickhouseRepository(Arc::new(
-        ClickhouseService::init(&config)
-            .await
-            .expect("clickhouse init in distributed mode"),
+        ClickhouseService::init(
+            &config,
+            std::sync::Arc::new(crate::runtime::clock::SystemClock),
+        )
+        .await
+        .expect("clickhouse init in distributed mode"),
     ))
 }
 
@@ -690,7 +701,7 @@ fn raw_client_at(
 
 fn trace_params() -> ListTracesParams {
     ListTracesParams {
-        project_id: PROJECT.to_string(),
+        project_id: ProjectId::from(PROJECT),
         page: 1,
         limit: 50,
         // Half the fixture is deliberately non-GenAI; excluding it would skip the
@@ -763,11 +774,11 @@ async fn clickhouse_matches_duckdb_on_every_read() {
     // --- single trace ------------------------------------------------------
     for trace_id in ["trace-a", "trace-b", "trace-c", "trace-d"] {
         let d = duck
-            .get_trace(PROJECT, trace_id)
+            .get_trace(&ProjectId::from(PROJECT), trace_id)
             .await
             .expect("duckdb get_trace");
         let c = ch
-            .get_trace(PROJECT, trace_id)
+            .get_trace(&ProjectId::from(PROJECT), trace_id)
             .await
             .expect("clickhouse get_trace");
         match (d, c) {
@@ -791,7 +802,7 @@ async fn clickhouse_matches_duckdb_on_every_read() {
         .find(|t| t.trace_id == "trace-a")
         .expect("trace-a in list");
     let fetched = ch
-        .get_trace(PROJECT, "trace-a")
+        .get_trace(&ProjectId::from(PROJECT), "trace-a")
         .await
         .expect("clickhouse get_trace")
         .expect("trace-a exists");
@@ -803,7 +814,7 @@ async fn clickhouse_matches_duckdb_on_every_read() {
 
     // --- spans -------------------------------------------------------------
     let span_params = ListSpansParams {
-        project_id: PROJECT.to_string(),
+        project_id: ProjectId::from(PROJECT),
         page: 1,
         limit: 50,
         ..Default::default()
@@ -822,11 +833,11 @@ async fn clickhouse_matches_duckdb_on_every_read() {
 
     for trace_id in ["trace-a", "trace-c"] {
         let d = duck
-            .get_spans_for_trace(PROJECT, trace_id)
+            .get_spans_for_trace(&ProjectId::from(PROJECT), trace_id)
             .await
             .expect("duckdb spans for trace");
         let c = ch
-            .get_spans_for_trace(PROJECT, trace_id)
+            .get_spans_for_trace(&ProjectId::from(PROJECT), trace_id)
             .await
             .expect("clickhouse spans for trace");
         assert_eq!(
@@ -838,7 +849,7 @@ async fn clickhouse_matches_duckdb_on_every_read() {
 
     // --- sessions ----------------------------------------------------------
     let session_params = ListSessionsParams {
-        project_id: PROJECT.to_string(),
+        project_id: ProjectId::from(PROJECT),
         page: 1,
         limit: 50,
         ..Default::default()
@@ -865,7 +876,7 @@ async fn clickhouse_matches_duckdb_on_every_read() {
     // carries the tokens. Restricting the aggregation to rows that name the session counted the
     // root alone and reported a session with no tokens at all.
     let root_only = duck
-        .get_session(PROJECT, "session-3")
+        .get_session(&ProjectId::from(PROJECT), "session-3")
         .await
         .expect("duckdb get_session")
         .expect("session-3 exists");
@@ -880,7 +891,7 @@ async fn clickhouse_matches_duckdb_on_every_read() {
     assert_eq!(
         describe_session(&root_only),
         describe_session(
-            &ch.get_session(PROJECT, "session-3")
+            &ch.get_session(&ProjectId::from(PROJECT), "session-3")
                 .await
                 .expect("clickhouse get_session")
                 .expect("session-3 exists")
@@ -904,11 +915,11 @@ async fn clickhouse_matches_duckdb_on_every_read() {
 
     for session_id in ["session-1", "session-2"] {
         let d = duck
-            .get_session(PROJECT, session_id)
+            .get_session(&ProjectId::from(PROJECT), session_id)
             .await
             .expect("duckdb get_session");
         let c = ch
-            .get_session(PROJECT, session_id)
+            .get_session(&ProjectId::from(PROJECT), session_id)
             .await
             .expect("clickhouse get_session");
         match (d, c) {
@@ -925,11 +936,11 @@ async fn clickhouse_matches_duckdb_on_every_read() {
         }
 
         let d = duck
-            .get_traces_for_session(PROJECT, session_id)
+            .get_traces_for_session(&ProjectId::from(PROJECT), session_id)
             .await
             .expect("duckdb traces for session");
         let c = ch
-            .get_traces_for_session(PROJECT, session_id)
+            .get_traces_for_session(&ProjectId::from(PROJECT), session_id)
             .await
             .expect("clickhouse traces for session");
         assert_eq!(
@@ -939,11 +950,11 @@ async fn clickhouse_matches_duckdb_on_every_read() {
         );
 
         let mut d = duck
-            .get_trace_ids_for_sessions(PROJECT, &[session_id.to_string()], None)
+            .get_trace_ids_for_sessions(&ProjectId::from(PROJECT), &[session_id.to_string()], None)
             .await
             .expect("duckdb trace ids");
         let mut c = ch
-            .get_trace_ids_for_sessions(PROJECT, &[session_id.to_string()], None)
+            .get_trace_ids_for_sessions(&ProjectId::from(PROJECT), &[session_id.to_string()], None)
             .await
             .expect("clickhouse trace ids");
         d.sort();
@@ -959,11 +970,11 @@ async fn clickhouse_matches_duckdb_on_every_read() {
         // check rather than a formality.
         let trace_ids: Vec<String> = d.clone();
         let mut d = duck
-            .get_session_ids_for_traces(PROJECT, &trace_ids, None)
+            .get_session_ids_for_traces(&ProjectId::from(PROJECT), &trace_ids, None)
             .await
             .expect("duckdb session ids");
         let mut c = ch
-            .get_session_ids_for_traces(PROJECT, &trace_ids, None)
+            .get_session_ids_for_traces(&ProjectId::from(PROJECT), &trace_ids, None)
             .await
             .expect("clickhouse session ids");
         d.sort();
@@ -977,11 +988,11 @@ async fn clickhouse_matches_duckdb_on_every_read() {
         // separately in each dialect - `MIN`/`min` over a Nullable column on one side - so a disagreement
         // here is a feed that collapses a cross-trace replay on one backend and duplicates it on the other.
         let mut d = duck
-            .get_trace_session_pairs(PROJECT, &trace_ids, None)
+            .get_trace_session_pairs(&ProjectId::from(PROJECT), &trace_ids, None)
             .await
             .expect("duckdb trace/session pairs");
         let mut c = ch
-            .get_trace_session_pairs(PROJECT, &trace_ids, None)
+            .get_trace_session_pairs(&ProjectId::from(PROJECT), &trace_ids, None)
             .await
             .expect("clickhouse trace/session pairs");
         d.sort();
@@ -1005,7 +1016,7 @@ async fn clickhouse_matches_duckdb_on_every_read() {
         (
             "span",
             MessageQueryParams {
-                project_id: PROJECT.to_string(),
+                project_id: ProjectId::from(PROJECT),
                 span_id: Some("a-gen-1".to_string()),
                 trace_id: Some("trace-a".to_string()),
                 ..Default::default()
@@ -1014,7 +1025,7 @@ async fn clickhouse_matches_duckdb_on_every_read() {
         (
             "trace",
             MessageQueryParams {
-                project_id: PROJECT.to_string(),
+                project_id: ProjectId::from(PROJECT),
                 trace_id: Some("trace-a".to_string()),
                 ..Default::default()
             },
@@ -1022,7 +1033,7 @@ async fn clickhouse_matches_duckdb_on_every_read() {
         (
             "session",
             MessageQueryParams {
-                project_id: PROJECT.to_string(),
+                project_id: ProjectId::from(PROJECT),
                 session_id: Some("session-1".to_string()),
                 ..Default::default()
             },
@@ -1030,7 +1041,7 @@ async fn clickhouse_matches_duckdb_on_every_read() {
         (
             "trace with no messages",
             MessageQueryParams {
-                project_id: PROJECT.to_string(),
+                project_id: ProjectId::from(PROJECT),
                 trace_id: Some("trace-d".to_string()),
                 ..Default::default()
             },
@@ -1040,7 +1051,7 @@ async fn clickhouse_matches_duckdb_on_every_read() {
             // full before narrowing the reconstruction back to the page.
             "many traces",
             MessageQueryParams {
-                project_id: PROJECT.to_string(),
+                project_id: ProjectId::from(PROJECT),
                 trace_ids: Some(vec!["trace-a".to_string(), "trace-b".to_string()]),
                 ..Default::default()
             },
@@ -1105,11 +1116,11 @@ async fn clickhouse_matches_duckdb_on_every_read() {
         described
     };
     let d = duck
-        .get_trace_tags_options(PROJECT, None, None)
+        .get_trace_tags_options(&ProjectId::from(PROJECT), None, None)
         .await
         .expect("duckdb tags");
     let c = ch
-        .get_trace_tags_options(PROJECT, None, None)
+        .get_trace_tags_options(&ProjectId::from(PROJECT), None, None)
         .await
         .expect("clickhouse tags");
     let described = describe_options(d);
@@ -1173,7 +1184,7 @@ async fn clickhouse_matches_duckdb_on_every_read() {
     let mut session_pages: Vec<String> = Vec::new();
     for page in 1..=2 {
         let params = ListSessionsParams {
-            project_id: PROJECT.to_string(),
+            project_id: ProjectId::from(PROJECT),
             page,
             limit: 1,
             ..Default::default()
@@ -1214,7 +1225,7 @@ async fn clickhouse_matches_duckdb_on_every_read() {
     let span_page_count = (spans.len() as u32).div_ceil(3);
     for page in 1..=span_page_count {
         let params = ListSpansParams {
-            project_id: PROJECT.to_string(),
+            project_id: ProjectId::from(PROJECT),
             page,
             limit: 3,
             order_by: Some(sideseat_ports::types::OrderBy {
@@ -1664,7 +1675,7 @@ async fn clickhouse_matches_duckdb_on_every_read() {
         (
             "span filtered by model",
             ListSpansParams {
-                project_id: PROJECT.to_string(),
+                project_id: ProjectId::from(PROJECT),
                 page: 1,
                 limit: 50,
                 filters: vec![Filter::String {
@@ -1678,7 +1689,7 @@ async fn clickhouse_matches_duckdb_on_every_read() {
         (
             "span filtered by token count",
             ListSpansParams {
-                project_id: PROJECT.to_string(),
+                project_id: ProjectId::from(PROJECT),
                 page: 1,
                 limit: 50,
                 filters: vec![Filter::Number {
@@ -1707,7 +1718,7 @@ async fn clickhouse_matches_duckdb_on_every_read() {
     }
 
     let session_filtered = ListSessionsParams {
-        project_id: PROJECT.to_string(),
+        project_id: ProjectId::from(PROJECT),
         page: 1,
         limit: 50,
         filters: vec![Filter::String {
@@ -1836,7 +1847,7 @@ async fn clickhouse_matches_duckdb_on_every_read() {
 
     for column in sideseat_ports::filters::columns::SESSION_SORTABLE {
         let params = ListSessionsParams {
-            project_id: PROJECT.to_string(),
+            project_id: ProjectId::from(PROJECT),
             page: 1,
             limit: 50,
             order_by: Some(sideseat_ports::types::OrderBy {
@@ -1872,11 +1883,11 @@ async fn clickhouse_matches_duckdb_on_every_read() {
     // --- single span, events, links, bulk counts ---------------------------
     for (trace_id, span_id) in [("trace-a", "a-root"), ("trace-d", "d-root")] {
         let d = duck
-            .get_span(PROJECT, trace_id, span_id)
+            .get_span(&ProjectId::from(PROJECT), trace_id, span_id)
             .await
             .expect("duckdb get_span");
         let c = ch
-            .get_span(PROJECT, trace_id, span_id)
+            .get_span(&ProjectId::from(PROJECT), trace_id, span_id)
             .await
             .expect("clickhouse get_span");
         match (d, c) {
@@ -1895,11 +1906,11 @@ async fn clickhouse_matches_duckdb_on_every_read() {
         // Events and links are extracted from the raw OTLP JSON by two different sets of JSON
         // functions, which is exactly where two dialects drift.
         let d = duck
-            .get_events_for_span(PROJECT, trace_id, span_id)
+            .get_events_for_span(&ProjectId::from(PROJECT), trace_id, span_id)
             .await
             .expect("duckdb events");
         let c = ch
-            .get_events_for_span(PROJECT, trace_id, span_id)
+            .get_events_for_span(&ProjectId::from(PROJECT), trace_id, span_id)
             .await
             .expect("clickhouse events");
         let describe_event = |e: &sideseat_ports::types::EventRow| {
@@ -1919,11 +1930,11 @@ async fn clickhouse_matches_duckdb_on_every_read() {
         );
 
         let d = duck
-            .get_links_for_span(PROJECT, trace_id, span_id)
+            .get_links_for_span(&ProjectId::from(PROJECT), trace_id, span_id)
             .await
             .expect("duckdb links");
         let c = ch
-            .get_links_for_span(PROJECT, trace_id, span_id)
+            .get_links_for_span(&ProjectId::from(PROJECT), trace_id, span_id)
             .await
             .expect("clickhouse links");
         let describe_link = |l: &sideseat_ports::types::LinkRow| {
@@ -1945,12 +1956,12 @@ async fn clickhouse_matches_duckdb_on_every_read() {
     // The span with raw OTLP must actually produce events and links, or the loop above compares
     // two empty lists and reports success.
     let events = duck
-        .get_events_for_span(PROJECT, "trace-d", "d-root")
+        .get_events_for_span(&ProjectId::from(PROJECT), "trace-d", "d-root")
         .await
         .expect("duckdb events");
     assert_eq!(events.len(), 2, "the fixture's events were not read back");
     let links = duck
-        .get_links_for_span(PROJECT, "trace-d", "d-root")
+        .get_links_for_span(&ProjectId::from(PROJECT), "trace-d", "d-root")
         .await
         .expect("duckdb links");
     assert_eq!(links.len(), 1, "the fixture's links were not read back");
@@ -1960,11 +1971,11 @@ async fn clickhouse_matches_duckdb_on_every_read() {
         .map(|s| (s.trace_id.clone(), s.span_id.clone()))
         .collect();
     let d = duck
-        .get_span_counts_bulk(PROJECT, &span_keys)
+        .get_span_counts_bulk(&ProjectId::from(PROJECT), &span_keys)
         .await
         .expect("duckdb counts");
     let c = ch
-        .get_span_counts_bulk(PROJECT, &span_keys)
+        .get_span_counts_bulk(&ProjectId::from(PROJECT), &span_keys)
         .await
         .expect("clickhouse counts");
     let describe_counts = |m: &std::collections::HashMap<(String, String), _>| {
@@ -1995,7 +2006,7 @@ async fn clickhouse_matches_duckdb_on_every_read() {
     // The feed endpoints page with a (ingested_at, span_id) cursor, whose SQL is written twice.
     let feed_params = sideseat_ports::types::FeedSpansParams {
         ingested_before_us: None,
-        project_id: PROJECT.to_string(),
+        project_id: ProjectId::from(PROJECT),
         limit: 50,
         cursor: None,
         start_time: None,
@@ -2019,7 +2030,7 @@ async fn clickhouse_matches_duckdb_on_every_read() {
 
     let feed_messages = sideseat_ports::types::FeedMessagesParams {
         ingested_before_us: None,
-        project_id: PROJECT.to_string(),
+        project_id: ProjectId::from(PROJECT),
         limit: 50,
         cursor: None,
         start_time: None,
@@ -2049,7 +2060,7 @@ async fn clickhouse_matches_duckdb_on_every_read() {
     // that window. Selecting rows by the span's start dropped it before reconstruction could see it.
     let straddling = sideseat_ports::types::FeedMessagesParams {
         ingested_before_us: None,
-        project_id: PROJECT.to_string(),
+        project_id: ProjectId::from(PROJECT),
         limit: 50,
         cursor: None,
         start_time: Some(ts(1) + chrono::Duration::milliseconds(500)),
@@ -2091,7 +2102,7 @@ async fn clickhouse_matches_duckdb_on_every_read() {
     let feed_page =
         |cursor: Option<(i64, String, String)>| sideseat_ports::types::FeedSpansParams {
             ingested_before_us: None,
-            project_id: PROJECT.to_string(),
+            project_id: ProjectId::from(PROJECT),
             limit: 3,
             cursor,
             start_time: None,
@@ -2152,7 +2163,7 @@ async fn clickhouse_matches_duckdb_on_every_read() {
     let messages_page =
         |cursor: Option<(i64, String, String)>| sideseat_ports::types::FeedMessagesParams {
             ingested_before_us: None,
-            project_id: PROJECT.to_string(),
+            project_id: ProjectId::from(PROJECT),
             limit: 2,
             cursor,
             start_time: None,
@@ -2257,11 +2268,11 @@ async fn clickhouse_matches_duckdb_on_every_read() {
         .map(|(view_column, _)| view_column.to_string())
         .collect();
     let d = duck
-        .get_trace_filter_options(PROJECT, &trace_columns, None, None)
+        .get_trace_filter_options(&ProjectId::from(PROJECT), &trace_columns, None, None)
         .await
         .expect("duckdb trace options");
     let c = ch
-        .get_trace_filter_options(PROJECT, &trace_columns, None, None)
+        .get_trace_filter_options(&ProjectId::from(PROJECT), &trace_columns, None, None)
         .await
         .expect("clickhouse trace options");
     // Compared against the fixture, not only against each other: two backends returning empty maps,
@@ -2272,7 +2283,7 @@ async fn clickhouse_matches_duckdb_on_every_read() {
         "get_trace_filter_options differs between backends"
     );
     let d = duck
-        .get_trace_filter_options(PROJECT, &trace_columns, None, None)
+        .get_trace_filter_options(&ProjectId::from(PROJECT), &trace_columns, None, None)
         .await
         .expect("duckdb trace options");
     let described = describe_option_map(d);
@@ -2300,11 +2311,23 @@ async fn clickhouse_matches_duckdb_on_every_read() {
         .collect();
     for observations_only in [false, true] {
         let d = duck
-            .get_span_filter_options(PROJECT, &span_columns, None, None, observations_only)
+            .get_span_filter_options(
+                &ProjectId::from(PROJECT),
+                &span_columns,
+                None,
+                None,
+                observations_only,
+            )
             .await
             .expect("duckdb span options");
         let c = ch
-            .get_span_filter_options(PROJECT, &span_columns, None, None, observations_only)
+            .get_span_filter_options(
+                &ProjectId::from(PROJECT),
+                &span_columns,
+                None,
+                None,
+                observations_only,
+            )
             .await
             .expect("clickhouse span options");
         let described = describe_option_map(d);
@@ -2350,11 +2373,11 @@ async fn clickhouse_matches_duckdb_on_every_read() {
         .map(|c| c.to_string())
         .collect();
     let d = duck
-        .get_session_filter_options(PROJECT, &session_columns, None, None)
+        .get_session_filter_options(&ProjectId::from(PROJECT), &session_columns, None, None)
         .await
         .expect("duckdb session options");
     let c = ch
-        .get_session_filter_options(PROJECT, &session_columns, None, None)
+        .get_session_filter_options(&ProjectId::from(PROJECT), &session_columns, None, None)
         .await
         .expect("clickhouse session options");
     let described = describe_option_map(d);
@@ -2373,11 +2396,11 @@ async fn clickhouse_matches_duckdb_on_every_read() {
 
     // --- project span counts -----------------------------------------------
     let d = duck
-        .count_spans_by_project(&[PROJECT.to_string()])
+        .count_spans_by_project(&[ProjectId::from(PROJECT)])
         .await
         .expect("duckdb project counts");
     let c = ch
-        .count_spans_by_project(&[PROJECT.to_string()])
+        .count_spans_by_project(&[ProjectId::from(PROJECT)])
         .await
         .expect("clickhouse project counts");
     assert_eq!(
@@ -2410,11 +2433,11 @@ async fn clickhouse_matches_duckdb_on_every_read() {
         .expect("clickhouse metric insert");
 
     let d_all = duck
-        .count_project_rows(PROJECT)
+        .count_project_rows(&ProjectId::from(PROJECT))
         .await
         .expect("duckdb project rows");
     let c_all = ch
-        .count_project_rows(PROJECT)
+        .count_project_rows(&ProjectId::from(PROJECT))
         .await
         .expect("clickhouse project rows");
     assert_eq!(
@@ -2434,7 +2457,7 @@ async fn clickhouse_matches_duckdb_on_every_read() {
 
     // --- stats -------------------------------------------------------------
     let stats_params = sideseat_ports::types::StatsParams {
-        project_id: PROJECT.to_string(),
+        project_id: ProjectId::from(PROJECT),
         from_timestamp: ts(-3600),
         to_timestamp: ts(3600),
         timezone: None,
@@ -2539,12 +2562,12 @@ async fn a_span_redelivered_with_new_data_reads_the_same_on_both_backends() {
     }
 
     let d = duck
-        .get_trace(PROJECT, "trace-redelivered")
+        .get_trace(&ProjectId::from(PROJECT), "trace-redelivered")
         .await
         .expect("duckdb trace")
         .expect("trace exists");
     let c = ch
-        .get_trace(PROJECT, "trace-redelivered")
+        .get_trace(&ProjectId::from(PROJECT), "trace-redelivered")
         .await
         .expect("clickhouse trace")
         .expect("trace exists");
@@ -2562,7 +2585,7 @@ async fn a_span_redelivered_with_new_data_reads_the_same_on_both_backends() {
     // backend and one on the other - the message dedup usually hid it, and the totals had to be
     // protected against it by hand.
     let params = MessageQueryParams {
-        project_id: PROJECT.to_string(),
+        project_id: ProjectId::from(PROJECT),
         trace_id: Some("trace-redelivered".to_string()),
         ..Default::default()
     };
@@ -2620,7 +2643,7 @@ async fn deleting_removes_the_same_rows_on_both_backends() {
     /// Span ids still present, sorted, from whichever backend.
     async fn remaining(repo: &impl AnalyticsRepository) -> Vec<String> {
         let params = ListSpansParams {
-            project_id: PROJECT.to_string(),
+            project_id: ProjectId::from(PROJECT),
             page: 1,
             limit: 200,
             ..Default::default()
@@ -2655,10 +2678,10 @@ async fn deleting_removes_the_same_rows_on_both_backends() {
 
     // One span out of a trace, leaving its sibling.
     let pair = [("trace-c".to_string(), "c-child-1".to_string())];
-    duck.delete_spans(PROJECT, &pair)
+    duck.delete_spans(&ProjectId::from(PROJECT), &pair)
         .await
         .expect("duckdb delete span");
-    ch.delete_spans(PROJECT, &pair)
+    ch.delete_spans(&ProjectId::from(PROJECT), &pair)
         .await
         .expect("clickhouse delete span");
     let after_duck = remaining(&duck).await;
@@ -2676,10 +2699,10 @@ async fn deleting_removes_the_same_rows_on_both_backends() {
     // A session spanning two traces: session-1 covers trace-a and trace-b, so this must remove
     // spans from both. Deleting session-2 would have touched a single trace, and an assertion that
     // only compared the backends would have passed even if neither deleted anything.
-    duck.delete_sessions(PROJECT, &["session-1".to_string()])
+    duck.delete_sessions(&ProjectId::from(PROJECT), &["session-1".to_string()])
         .await
         .expect("duckdb delete session");
-    ch.delete_sessions(PROJECT, &["session-1".to_string()])
+    ch.delete_sessions(&ProjectId::from(PROJECT), &["session-1".to_string()])
         .await
         .expect("clickhouse delete session");
     let after_duck = remaining(&duck).await;
@@ -2704,10 +2727,10 @@ async fn deleting_removes_the_same_rows_on_both_backends() {
     // success, leaving spans that no longer belong to any session and so can never be deleted by
     // session again. session-1 above cannot catch it, because the fixture repeats its id on every
     // span; trace-i carries session-3 on its root and nothing on its generation child.
-    duck.delete_sessions(PROJECT, &["session-3".to_string()])
+    duck.delete_sessions(&ProjectId::from(PROJECT), &["session-3".to_string()])
         .await
         .expect("duckdb delete root-only session");
-    ch.delete_sessions(PROJECT, &["session-3".to_string()])
+    ch.delete_sessions(&ProjectId::from(PROJECT), &["session-3".to_string()])
         .await
         .expect("clickhouse delete root-only session");
     let after_duck = remaining(&duck).await;
@@ -2724,10 +2747,10 @@ async fn deleting_removes_the_same_rows_on_both_backends() {
     );
 
     // What is left of a trace, by trace id.
-    duck.delete_traces(PROJECT, &["trace-c".to_string()])
+    duck.delete_traces(&ProjectId::from(PROJECT), &["trace-c".to_string()])
         .await
         .expect("duckdb delete trace");
-    ch.delete_traces(PROJECT, &["trace-c".to_string()])
+    ch.delete_traces(&ProjectId::from(PROJECT), &["trace-c".to_string()])
         .await
         .expect("clickhouse delete trace");
     let after_duck = remaining(&duck).await;
@@ -2750,10 +2773,10 @@ async fn deleting_removes_the_same_rows_on_both_backends() {
     );
 
     // Everything that is left.
-    duck.delete_project_data(PROJECT)
+    duck.delete_project_data(&ProjectId::from(PROJECT))
         .await
         .expect("duckdb delete project");
-    ch.delete_project_data(PROJECT)
+    ch.delete_project_data(&ProjectId::from(PROJECT))
         .await
         .expect("clickhouse delete project");
     assert!(
@@ -2932,11 +2955,11 @@ async fn distinct_metric_series_survive_and_a_redelivery_does_not_duplicate() {
         .expect("clickhouse optimize");
 
     let duck_rows = duck
-        .count_project_rows(PROJECT)
+        .count_project_rows(&ProjectId::from(PROJECT))
         .await
         .expect("duckdb project rows");
     let ch_rows = ch
-        .count_project_rows(PROJECT)
+        .count_project_rows(&ProjectId::from(PROJECT))
         .await
         .expect("clickhouse project rows");
     assert_eq!(
@@ -3002,7 +3025,7 @@ async fn a_deleted_trace_is_gone_before_the_delete_returns() {
         "the fixture must keep a trace, or the test cannot tell deletion from truncation"
     );
 
-    ch.delete_traces(PROJECT, &doomed)
+    ch.delete_traces(&ProjectId::from(PROJECT), &doomed)
         .await
         .expect("delete the trace");
 
@@ -3030,7 +3053,10 @@ async fn a_deleted_trace_is_gone_before_the_delete_returns() {
 #[test]
 fn every_clickhouse_delete_waits_for_its_mutation() {
     let sources = [
-        include_str!("repositories/query.rs"),
+        include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../crates/adapter-clickhouse/src/repositories/query.rs"
+        )),
         include_str!("mod.rs"),
     ];
     for source in sources {
@@ -3121,7 +3147,7 @@ async fn the_feed_watermark_hides_later_rows_on_both_backends() {
     ) {
         let bounded = backend
             .get_feed_spans(&sideseat_ports::types::FeedSpansParams {
-                project_id: PROJECT.to_string(),
+                project_id: ProjectId::from(PROJECT),
                 limit: 50,
                 ingested_before_us: Some(watermark_us),
                 ..Default::default()
@@ -3139,7 +3165,7 @@ async fn the_feed_watermark_hides_later_rows_on_both_backends() {
         // rather than about the fixture.
         let unbounded = backend
             .get_feed_spans(&sideseat_ports::types::FeedSpansParams {
-                project_id: PROJECT.to_string(),
+                project_id: ProjectId::from(PROJECT),
                 limit: 50,
                 ingested_before_us: None,
                 ..Default::default()
@@ -3155,7 +3181,7 @@ async fn the_feed_watermark_hides_later_rows_on_both_backends() {
         // The message feed takes the same bound, and its context load is the half that mattered.
         let messages = backend
             .get_project_messages(&sideseat_ports::types::FeedMessagesParams {
-                project_id: PROJECT.to_string(),
+                project_id: ProjectId::from(PROJECT),
                 limit: 50,
                 ingested_before_us: Some(watermark_us),
                 ..Default::default()
@@ -3217,7 +3243,7 @@ async fn the_feed_watermark_hides_later_rows_on_both_backends() {
         let late = ("trace-moved".to_string(), "session-late".to_string());
 
         let bounded = backend
-            .get_trace_session_pairs(PROJECT, &traces, Some(watermark_us))
+            .get_trace_session_pairs(&ProjectId::from(PROJECT), &traces, Some(watermark_us))
             .await
             .unwrap_or_else(|e| panic!("{label}: bounded pairs: {e}"));
         assert!(
@@ -3234,7 +3260,7 @@ async fn the_feed_watermark_hides_later_rows_on_both_backends() {
         }
 
         let now = backend
-            .get_trace_session_pairs(PROJECT, &traces, None)
+            .get_trace_session_pairs(&ProjectId::from(PROJECT), &traces, None)
             .await
             .unwrap_or_else(|e| panic!("{label}: current pairs: {e}"));
         assert_eq!(
@@ -3244,7 +3270,7 @@ async fn the_feed_watermark_hides_later_rows_on_both_backends() {
         );
 
         let sessions = backend
-            .get_session_ids_for_traces(PROJECT, &traces, Some(watermark_us))
+            .get_session_ids_for_traces(&ProjectId::from(PROJECT), &traces, Some(watermark_us))
             .await
             .unwrap_or_else(|e| panic!("{label}: bounded sessions: {e}"));
         assert!(
@@ -3255,7 +3281,11 @@ async fn the_feed_watermark_hides_later_rows_on_both_backends() {
         // The other direction: which traces a session holds. Unbounded, the old session holds nothing,
         // because the trace has moved on - so a bounded answer naming it is the bound working.
         let expanded_now = backend
-            .get_trace_ids_for_sessions(PROJECT, &["session-early".to_string()], None)
+            .get_trace_ids_for_sessions(
+                &ProjectId::from(PROJECT),
+                &["session-early".to_string()],
+                None,
+            )
             .await
             .unwrap_or_else(|e| panic!("{label}: current expansion: {e}"));
         assert!(
@@ -3267,7 +3297,11 @@ async fn the_feed_watermark_hides_later_rows_on_both_backends() {
         // hold the trace yet. Asserted for both because it also exercises the bound's bind order: with the
         // watermark and the project id swapped this query fails outright rather than answering wrongly.
         let too_early = backend
-            .get_trace_ids_for_sessions(PROJECT, &["session-late".to_string()], Some(watermark_us))
+            .get_trace_ids_for_sessions(
+                &ProjectId::from(PROJECT),
+                &["session-late".to_string()],
+                Some(watermark_us),
+            )
             .await
             .unwrap_or_else(|e| panic!("{label}: bounded expansion of the later session: {e}"));
         assert!(
@@ -3278,7 +3312,7 @@ async fn the_feed_watermark_hides_later_rows_on_both_backends() {
         if exact {
             let expanded = backend
                 .get_trace_ids_for_sessions(
-                    PROJECT,
+                    &ProjectId::from(PROJECT),
                     &["session-early".to_string()],
                     Some(watermark_us),
                 )
@@ -3353,7 +3387,7 @@ async fn a_span_redelivered_during_a_traversal_still_appears_in_it() {
 
     let page = duck
         .get_project_messages(&sideseat_ports::types::FeedMessagesParams {
-            project_id: PROJECT.to_string(),
+            project_id: ProjectId::from(PROJECT),
             limit: 50,
             ingested_before_us: Some(watermark_us),
             ..Default::default()
@@ -3379,7 +3413,7 @@ async fn a_span_redelivered_during_a_traversal_still_appears_in_it() {
     // treat as whole.
     let context = duck
         .get_messages(&MessageQueryParams {
-            project_id: PROJECT.to_string(),
+            project_id: ProjectId::from(PROJECT),
             trace_ids: Some(vec!["trace-redeliver".to_string()]),
             ingested_before_us: Some(watermark_us),
             ..Default::default()
@@ -3451,7 +3485,7 @@ async fn a_span_redelivered_during_a_traversal_stays_visible_in_both_backends() 
     }
 
     let params = FeedSpansParams {
-        project_id: PROJECT.to_string(),
+        project_id: ProjectId::from(PROJECT),
         limit: 50,
         ingested_before_us: Some(watermark_us),
         ..Default::default()
@@ -3486,7 +3520,7 @@ async fn a_span_redelivered_during_a_traversal_stays_visible_in_both_backends() 
 
     // The same question through the message path, which the reconstruction reads.
     let msg_params = MessageQueryParams {
-        project_id: PROJECT.to_string(),
+        project_id: ProjectId::from(PROJECT),
         trace_ids: Some(vec!["trace-w".to_string()]),
         ingested_before_us: Some(watermark_us),
         ..Default::default()
@@ -3551,7 +3585,7 @@ async fn a_same_microsecond_redelivery_is_one_row_on_both_backends() {
     }
 
     let params = FeedSpansParams {
-        project_id: PROJECT.to_string(),
+        project_id: ProjectId::from(PROJECT),
         limit: 50,
         ..Default::default()
     };
@@ -3647,7 +3681,7 @@ async fn a_correction_crossing_midnight_utc_is_one_span_on_both_backends() {
     }
 
     let params = FeedSpansParams {
-        project_id: PROJECT.to_string(),
+        project_id: ProjectId::from(PROJECT),
         limit: 50,
         ..Default::default()
     };
@@ -3751,7 +3785,7 @@ async fn a_correction_crossing_a_month_boundary_is_reported_by_the_consistency_c
     }
 
     let params = FeedSpansParams {
-        project_id: PROJECT.to_string(),
+        project_id: ProjectId::from(PROJECT),
         limit: 50,
         ..Default::default()
     };
@@ -4064,52 +4098,87 @@ async fn every_clickhouse_migration_applies_to_the_state_it_upgrades() {
     // Several statements per version, because reverting a *rebuild* takes more than one: v3 changed the
     // span sorting key and gave metrics a version column, and neither can be undone by an `ALTER` any more
     // than it could be applied by one. Single-node shapes, which is what this test runs.
-    let undo: &[(i32, &[&str])] = &[(
-        3,
-        &[
-            // The anomaly table is dropped, because released v2 has none - it arrives with v3. Leaving it in
-            // place let the migration's `CREATE TABLE IF NOT EXISTS` be deleted with this test green: a fresh
-            // database already has the table, so nothing here would notice, and a *real* v2 upgrade would then
-            // record v3 without it and every scheduled consistency pass would fail with `UNKNOWN_TABLE`.
-            "DROP TABLE IF EXISTS span_partition_anomalies SYNC",
-            // The skip index has to go too, and forgetting it was the same defect in a third place: v3 adds
-            // `idx_ingested_at`, so a "v2" reconstructed by reversing only the *columns* keeps an index that
-            // released v2 never had - and the migration's `ADD INDEX` could then be deleted with this test
-            // still green, while a production upgrade lost the index the consistency check depends on to
-            // avoid a corpus-scale scan. Dropped before the rebuild, since `CREATE TABLE ... AS` copies
-            // indexes.
-            "ALTER TABLE otel_spans DROP INDEX IF EXISTS idx_ingested_at",
-            // Spans back to the v2 sorting key, with the date expression in it.
-            "DROP TABLE IF EXISTS otel_spans_v2 SYNC",
-            "CREATE TABLE otel_spans_v2 AS otel_spans ENGINE = ReplacingMergeTree(ingested_at) \
+    let undo: &[(i32, &[&str])] = &[
+        (
+            3,
+            &[
+                // The test starts from the current fresh schema. A v3 source predates every later migration,
+                // so remove their additions before reversing v3 itself.
+                "DROP TABLE IF EXISTS otel_logs SYNC",
+                "ALTER TABLE otel_spans MODIFY TTL timestamp_start + INTERVAL 90 DAY DELETE",
+                "ALTER TABLE otel_metrics MODIFY TTL timestamp + INTERVAL 90 DAY DELETE",
+                "ALTER TABLE otel_spans DROP COLUMN IF EXISTS content_digest",
+                "ALTER TABLE otel_spans DROP COLUMN IF EXISTS hold_until",
+                "ALTER TABLE otel_spans DROP COLUMN IF EXISTS logical_bytes",
+                "ALTER TABLE otel_metrics DROP COLUMN IF EXISTS content_digest",
+                "ALTER TABLE otel_metrics DROP COLUMN IF EXISTS hold_until",
+                "ALTER TABLE otel_metrics DROP COLUMN IF EXISTS logical_bytes",
+                // The anomaly table is dropped, because released v2 has none - it arrives with v3. Leaving it in
+                // place let the migration's `CREATE TABLE IF NOT EXISTS` be deleted with this test green: a fresh
+                // database already has the table, so nothing here would notice, and a *real* v2 upgrade would then
+                // record v3 without it and every scheduled consistency pass would fail with `UNKNOWN_TABLE`.
+                "DROP TABLE IF EXISTS span_partition_anomalies SYNC",
+                // The skip index has to go too, and forgetting it was the same defect in a third place: v3 adds
+                // `idx_ingested_at`, so a "v2" reconstructed by reversing only the *columns* keeps an index that
+                // released v2 never had - and the migration's `ADD INDEX` could then be deleted with this test
+                // still green, while a production upgrade lost the index the consistency check depends on to
+                // avoid a corpus-scale scan. Dropped before the rebuild, since `CREATE TABLE ... AS` copies
+                // indexes.
+                "ALTER TABLE otel_spans DROP INDEX IF EXISTS idx_ingested_at",
+                // Spans back to the v2 sorting key, with the date expression in it.
+                "DROP TABLE IF EXISTS otel_spans_v2 SYNC",
+                "CREATE TABLE otel_spans_v2 AS otel_spans ENGINE = ReplacingMergeTree(ingested_at) \
              PARTITION BY toYYYYMM(timestamp_start) \
              ORDER BY (project_id, toDate(timestamp_start), trace_id, span_id)",
-            "INSERT INTO otel_spans_v2 SELECT * FROM otel_spans",
-            "EXCHANGE TABLES otel_spans AND otel_spans_v2",
-            "DROP TABLE IF EXISTS otel_spans_v2 SYNC",
-            // Metrics back to an engine with no version argument, and without the columns a *released* v2
-            // lacks. The released v1.0.13 schema declares version 2 and has no `datapoint_id`,
-            // `scope_attributes`, `scope_schema_url`, `resource_schema_url` or `exemplars` - they were added
-            // to the fresh schema later without the version being bumped. Reversing only what *this*
-            // migration adds reconstructed a "v2" that still had them, so the test passed against a shape no
-            // real database has while v3 would have failed on every real one with `UNKNOWN_IDENTIFIER`.
-            "ALTER TABLE otel_metrics DROP COLUMN IF EXISTS scope_attributes",
-            "ALTER TABLE otel_metrics DROP COLUMN IF EXISTS scope_schema_url",
-            "ALTER TABLE otel_metrics DROP COLUMN IF EXISTS resource_schema_url",
-            "ALTER TABLE otel_metrics DROP COLUMN IF EXISTS exemplars",
-            "ALTER TABLE otel_spans DROP COLUMN IF EXISTS scope_name",
-            "ALTER TABLE otel_spans DROP COLUMN IF EXISTS scope_version",
-            "DROP TABLE IF EXISTS otel_metrics_v2 SYNC",
-            "CREATE TABLE otel_metrics_v2 AS otel_metrics ENGINE = ReplacingMergeTree() \
+                "INSERT INTO otel_spans_v2 SELECT * FROM otel_spans",
+                "EXCHANGE TABLES otel_spans AND otel_spans_v2",
+                "DROP TABLE IF EXISTS otel_spans_v2 SYNC",
+                // Metrics back to an engine with no version argument, and without the columns a *released* v2
+                // lacks. The released v1.0.13 schema declares version 2 and has no `datapoint_id`,
+                // `scope_attributes`, `scope_schema_url`, `resource_schema_url` or `exemplars` - they were added
+                // to the fresh schema later without the version being bumped. Reversing only what *this*
+                // migration adds reconstructed a "v2" that still had them, so the test passed against a shape no
+                // real database has while v3 would have failed on every real one with `UNKNOWN_IDENTIFIER`.
+                "ALTER TABLE otel_metrics DROP COLUMN IF EXISTS scope_attributes",
+                "ALTER TABLE otel_metrics DROP COLUMN IF EXISTS scope_schema_url",
+                "ALTER TABLE otel_metrics DROP COLUMN IF EXISTS resource_schema_url",
+                "ALTER TABLE otel_metrics DROP COLUMN IF EXISTS exemplars",
+                "ALTER TABLE otel_spans DROP COLUMN IF EXISTS scope_name",
+                "ALTER TABLE otel_spans DROP COLUMN IF EXISTS scope_version",
+                "DROP TABLE IF EXISTS otel_metrics_v2 SYNC",
+                "CREATE TABLE otel_metrics_v2 AS otel_metrics ENGINE = ReplacingMergeTree() \
              PARTITION BY toYYYYMM(timestamp) \
              ORDER BY (project_id, metric_name, toDate(timestamp), timestamp)",
-            "ALTER TABLE otel_metrics_v2 DROP COLUMN ingested_at",
-            "ALTER TABLE otel_metrics_v2 DROP COLUMN IF EXISTS datapoint_id",
-            "INSERT INTO otel_metrics_v2 SELECT * EXCEPT (ingested_at, datapoint_id) FROM otel_metrics",
-            "EXCHANGE TABLES otel_metrics AND otel_metrics_v2",
-            "DROP TABLE IF EXISTS otel_metrics_v2 SYNC",
-        ],
-    )];
+                "ALTER TABLE otel_metrics_v2 DROP COLUMN ingested_at",
+                "ALTER TABLE otel_metrics_v2 DROP COLUMN IF EXISTS datapoint_id",
+                "INSERT INTO otel_metrics_v2 SELECT * EXCEPT (ingested_at, datapoint_id) FROM otel_metrics",
+                "EXCHANGE TABLES otel_metrics AND otel_metrics_v2",
+                "DROP TABLE IF EXISTS otel_metrics_v2 SYNC",
+            ],
+        ),
+        (
+            4,
+            &[
+                "DROP TABLE IF EXISTS otel_logs SYNC",
+                "ALTER TABLE otel_spans DROP COLUMN IF EXISTS content_digest",
+                "ALTER TABLE otel_metrics DROP COLUMN IF EXISTS content_digest",
+            ],
+        ),
+        (
+            5,
+            &[
+                "ALTER TABLE otel_spans MODIFY TTL timestamp_start + INTERVAL 90 DAY DELETE",
+                "ALTER TABLE otel_metrics MODIFY TTL timestamp + INTERVAL 90 DAY DELETE",
+                "ALTER TABLE otel_logs MODIFY TTL timestamp + INTERVAL 90 DAY DELETE",
+                "ALTER TABLE otel_spans DROP COLUMN IF EXISTS hold_until",
+                "ALTER TABLE otel_spans DROP COLUMN IF EXISTS logical_bytes",
+                "ALTER TABLE otel_metrics DROP COLUMN IF EXISTS hold_until",
+                "ALTER TABLE otel_metrics DROP COLUMN IF EXISTS logical_bytes",
+                "ALTER TABLE otel_logs DROP COLUMN IF EXISTS hold_until",
+                "ALTER TABLE otel_logs DROP COLUMN IF EXISTS logical_bytes",
+            ],
+        ),
+    ];
 
     for migration in crate::data::clickhouse::schema::MIGRATIONS {
         let version = migration.version;
@@ -4420,11 +4489,11 @@ async fn the_reconciliation_reads_agree_with_duckdb() {
     let traces = vec!["reconcile-trace".to_string(), "never-existed".to_string()];
 
     let mut d_fields = duck
-        .file_reference_fields_for_traces(PROJECT, &traces)
+        .file_reference_fields_for_traces(&ProjectId::from(PROJECT), &traces)
         .await
         .expect("duckdb fields");
     let mut c_fields = ch
-        .file_reference_fields_for_traces(PROJECT, &traces)
+        .file_reference_fields_for_traces(&ProjectId::from(PROJECT), &traces)
         .await
         .expect("clickhouse fields");
     d_fields.sort();
@@ -4445,11 +4514,11 @@ async fn the_reconciliation_reads_agree_with_duckdb() {
     );
 
     let mut d_empty = duck
-        .traces_without_spans(PROJECT, &traces)
+        .traces_without_spans(&ProjectId::from(PROJECT), &traces)
         .await
         .expect("duckdb empty");
     let mut c_empty = ch
-        .traces_without_spans(PROJECT, &traces)
+        .traces_without_spans(&ProjectId::from(PROJECT), &traces)
         .await
         .expect("clickhouse empty");
     d_empty.sort();
@@ -5017,7 +5086,7 @@ async fn a_redelivery_that_changes_the_session_moves_the_trace_on_both_backends(
 
     async fn rows_for(repo: &dyn AnalyticsRepository, session: &str) -> Vec<MessageSpanRow> {
         let params = MessageQueryParams {
-            project_id: PROJECT.to_string(),
+            project_id: ProjectId::from(PROJECT),
             session_id: Some(session.to_string()),
             ..Default::default()
         };

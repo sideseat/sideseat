@@ -1,5 +1,22 @@
 [workspace]
-members = ["crates/core", "crates/ports", "server", "sdk/rust"]
+members = [
+  "crates/adapter-blob-storage",
+  "crates/adapter-cache",
+  "crates/adapter-clickhouse",
+  "crates/adapter-duckdb",
+  "crates/adapter-postgres",
+  "crates/adapter-registrations-memory",
+  "crates/adapter-secrets",
+  "crates/adapter-sqlite",
+  "crates/adapter-topics",
+  "crates/api",
+  "crates/core",
+  "crates/domain",
+  "crates/ports",
+  "crates/query-sql",
+  "server",
+  "sdk/rust",
+]
 resolver = "2"
 
 # The minimum Rust, **declared** so cargo refuses an older toolchain with a message naming the version,

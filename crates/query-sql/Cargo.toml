@@ -1,0 +1,15 @@
+[package]
+name = "sideseat-query-sql"
+version.workspace = true
+license = "Apache-2.0"
+publish = false
+edition = "2024"
+rust-version.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+sideseat-core = { path = "../core" }
+sideseat-ports = { path = "../ports" }
+chrono = { workspace = true }

@@ -9,23 +9,15 @@
 //!
 //! Note: Stage 2 (SideML) is in the `domain::sideml` module.
 
-mod enrich;
+pub use sideseat_domain::traces::{
+    DropReason, IngestOutcome, MessageSource, RawMessage, SseSpanEvent, TracePipeline, enrich,
+    extract, strip_unstorable_spans,
+};
 // `pub(crate)` rather than private: the file layer's survivor reconciliation needs
 // `extract::files::collect_file_references_in_str`, which is the single definition of how a `#!B64!#`
 // reference is found in text. Re-implementing that rule there - it has to handle a reference embedded in
 // surrounding text and treat a trailing `.` or `:` as punctuation - would be a second copy of something
 // this repository has already been bitten by getting subtly wrong.
-pub(crate) mod extract;
-mod persist;
-mod pipeline;
-
-// Public API - only types needed by external modules
-pub use extract::{MessageSource, RawMessage};
-pub use persist::SseSpanEvent;
-pub use pipeline::{DropReason, IngestOutcome, TracePipeline, strip_unstorable_spans};
-
-// Internal re-exports for use within domain crate
-pub(crate) use extract::SpanData;
 
 // ============================================================================
 // Test-only replay bridge
@@ -59,8 +51,8 @@ pub(crate) fn normalize_for_test_with_mode(
 ) -> Vec<(String, sideseat_ports::types::MessageSpanRow)> {
     use sideseat_ports::types::MessageSpanRow;
 
-    let Some((spans, _pending)) =
-        pipeline::process_request_for_test_with_mode(request, pricing, mode)
+    let Some(spans) =
+        sideseat_domain::traces::process_request_for_test_with_mode(request, pricing, mode)
     else {
         return Vec::new();
     };
@@ -80,6 +72,7 @@ pub(crate) fn normalize_for_test_with_mode(
                     .clone()
                     .unwrap_or_else(|| "[]".to_string()),
                 tool_names_json: s.tool_names.clone().unwrap_or_else(|| "[]".to_string()),
+                body_cache_key: None,
                 model: s
                     .gen_ai_response_model
                     .clone()

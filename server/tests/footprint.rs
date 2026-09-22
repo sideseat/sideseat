@@ -74,11 +74,11 @@ fn a_long_session_read_returns_to_its_baseline() {
     // Warm every lazy static the read path touches - the rules engine parses its 43 embedded assets on first
     // use, and a one-off parse charged to this measurement would read as a leak of exactly its size.
     {
-        let cache = sideseat_server::domain::sideml::feed::cache::ReconstructionCache::new();
-        let _ = sideseat_server::domain::sideml::feed::process_spans_cached(
+        let cache = sideseat_domain::sideml::feed::cache::ReconstructionCache::new();
+        let _ = sideseat_domain::sideml::feed::process_spans_cached(
             &cache,
             session_rows(2),
-            &sideseat_server::domain::sideml::feed::FeedOptions::new(),
+            &sideseat_domain::sideml::feed::FeedOptions::new(),
         );
     }
 
@@ -86,11 +86,11 @@ fn a_long_session_read_returns_to_its_baseline() {
     let (blocks, peak_growth, input_bytes) = {
         let rows = session_rows(turns);
         let input_bytes: usize = rows.iter().map(|r| r.messages_json.len()).sum();
-        let cache = sideseat_server::domain::sideml::feed::cache::ReconstructionCache::new();
-        let result = sideseat_server::domain::sideml::feed::process_spans_cached(
+        let cache = sideseat_domain::sideml::feed::cache::ReconstructionCache::new();
+        let result = sideseat_domain::sideml::feed::process_spans_cached(
             &cache,
             rows,
-            &sideseat_server::domain::sideml::feed::FeedOptions::new(),
+            &sideseat_domain::sideml::feed::FeedOptions::new(),
         );
         let peak = AllocationSnapshot::now().growth_since(&baseline);
         (result.messages.len(), peak, input_bytes)
@@ -184,7 +184,8 @@ fn a_queued_span_costs_less_than_three_times_its_protobuf() {
         .expect("runtime");
 
     // The queue is never drained, which is the point: the ratio is about what a *backlog* costs.
-    let topics = sideseat_server::data::topics::TopicService::new();
+    let topics =
+        sideseat_domain::topics::TopicService::new(sideseat_adapter_topics::memory_backend());
     let topic = topics.stream_topic::<opentelemetry_proto::tonic::collector::trace::v1::ExportTraceServiceRequest>(
         "footprint-traces",
     );
@@ -327,6 +328,7 @@ fn session_rows(turns: usize) -> Vec<sideseat_ports::types::MessageSpanRow> {
                 messages_json: messages,
                 tool_definitions_json: "[]".to_string(),
                 tool_names_json: "[]".to_string(),
+                body_cache_key: None,
                 model: Some("claude".to_string()),
                 provider: Some("bedrock".to_string()),
                 status_code: None,

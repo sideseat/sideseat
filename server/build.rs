@@ -1,6 +1,6 @@
 //! Makes a fresh clone build.
 //!
-//! `api/embedded.rs` embeds `../web/dist` with `#[derive(RustEmbed)]`, and that directory is a build product:
+//! `crates/api/src/embedded.rs` embeds `../web/dist` with `#[derive(RustEmbed)]`, and that directory is a build product:
 //! gitignored, produced by `make build-web`. So `cargo build` in a clean checkout failed with
 //! `folder '.../web/dist' does not exist` followed by two errors about a method the derive never generated -
 //! three messages, none of which says "build the frontend first". `make setup` does not create it either, so

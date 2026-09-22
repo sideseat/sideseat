@@ -1,0 +1,27 @@
+[package]
+name = "sideseat-adapter-duckdb"
+version.workspace = true
+license = "Apache-2.0"
+publish = false
+edition = "2024"
+rust-version.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+sideseat-core = { path = "../core" }
+sideseat-ports = { path = "../ports" }
+sideseat-query-sql = { path = "../query-sql" }
+async-trait = { workspace = true }
+chrono = { workspace = true }
+chrono-tz = { workspace = true }
+duckdb = { workspace = true }
+parking_lot = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+
+[dev-dependencies]
+tempfile = "3"

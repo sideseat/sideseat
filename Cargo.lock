@@ -5488,6 +5488,217 @@ dependencies = [
 ]
 
 [[package]]
+name = "sideseat-adapter-blob-storage"
+version = "1.0.13"
+dependencies = [
+ "async-trait",
+ "aws-config",
+ "aws-sdk-s3",
+ "sideseat-ports",
+ "tempfile",
+ "tokio",
+ "tracing",
+ "uuid",
+]
+
+[[package]]
+name = "sideseat-adapter-cache"
+version = "1.0.13"
+dependencies = [
+ "async-trait",
+ "chrono",
+ "dashmap",
+ "deadpool-redis",
+ "moka",
+ "rmp-serde",
+ "serde",
+ "sideseat-core",
+ "sideseat-ports",
+ "thiserror 2.0.20",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "sideseat-adapter-clickhouse"
+version = "1.0.13"
+dependencies = [
+ "async-trait",
+ "chrono",
+ "chrono-tz",
+ "clickhouse",
+ "serde",
+ "serde_json",
+ "sideseat-core",
+ "sideseat-ports",
+ "sideseat-query-sql",
+ "thiserror 2.0.20",
+ "time",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "sideseat-adapter-duckdb"
+version = "1.0.13"
+dependencies = [
+ "async-trait",
+ "chrono",
+ "chrono-tz",
+ "duckdb",
+ "parking_lot",
+ "serde_json",
+ "sideseat-core",
+ "sideseat-ports",
+ "sideseat-query-sql",
+ "tempfile",
+ "thiserror 2.0.20",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "sideseat-adapter-postgres"
+version = "1.0.13"
+dependencies = [
+ "async-trait",
+ "chrono",
+ "cuid2",
+ "serde_json",
+ "sideseat-core",
+ "sideseat-ports",
+ "sqlx",
+ "thiserror 2.0.20",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "sideseat-adapter-registrations-memory"
+version = "1.0.13"
+dependencies = [
+ "async-trait",
+ "dashmap",
+ "serde_json",
+ "sideseat-ports",
+ "tokio",
+]
+
+[[package]]
+name = "sideseat-adapter-secrets"
+version = "1.0.13"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "aws-config",
+ "aws-sdk-secretsmanager",
+ "chrono",
+ "keyring",
+ "moka",
+ "parking_lot",
+ "reqwest 0.13.5",
+ "serde",
+ "serde_json",
+ "sideseat-core",
+ "sideseat-ports",
+ "tempfile",
+ "thiserror 2.0.20",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "sideseat-adapter-sqlite"
+version = "1.0.13"
+dependencies = [
+ "async-trait",
+ "chrono",
+ "cuid2",
+ "serde_json",
+ "sideseat-core",
+ "sideseat-ports",
+ "sqlx",
+ "thiserror 2.0.20",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "sideseat-adapter-topics"
+version = "1.0.13"
+dependencies = [
+ "async-stream",
+ "async-trait",
+ "dashmap",
+ "deadpool-redis",
+ "futures",
+ "hex",
+ "opentelemetry-proto",
+ "parking_lot",
+ "prost",
+ "rmp-serde",
+ "serde",
+ "sideseat-core",
+ "sideseat-ports",
+ "tokio",
+ "tracing",
+ "uuid",
+]
+
+[[package]]
+name = "sideseat-api"
+version = "1.0.13"
+dependencies = [
+ "anyhow",
+ "async-stream",
+ "axum 0.8.9",
+ "axum-extra",
+ "base64 0.22.1",
+ "blake3",
+ "chrono",
+ "chrono-tz",
+ "cuid2",
+ "dashmap",
+ "futures",
+ "hex",
+ "hmac 0.12.1",
+ "ipnet",
+ "jsonwebtoken",
+ "local-ip-address",
+ "mime_guess",
+ "opentelemetry-proto",
+ "parking_lot",
+ "prost",
+ "rand 0.8.8",
+ "regex",
+ "reqwest 0.13.5",
+ "rmcp",
+ "rust-embed",
+ "schemars",
+ "serde",
+ "serde_json",
+ "sha2 0.10.9",
+ "sideseat-adapter-registrations-memory",
+ "sideseat-adapter-topics",
+ "sideseat-core",
+ "sideseat-domain",
+ "sideseat-ports",
+ "subtle",
+ "thiserror 2.0.20",
+ "time",
+ "tokio",
+ "tokio-stream",
+ "tokio-util",
+ "tonic",
+ "tower 0.5.3",
+ "tower-http",
+ "tracing",
+ "utoipa",
+ "uuid",
+ "validator",
+]
+
+[[package]]
 name = "sideseat-core"
 version = "1.0.13"
 dependencies = [
@@ -5516,16 +5727,70 @@ dependencies = [
 ]
 
 [[package]]
+name = "sideseat-domain"
+version = "1.0.13"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "base64 0.22.1",
+ "blake3",
+ "chrono",
+ "chrono-tz",
+ "cuid2",
+ "futures",
+ "hex",
+ "opentelemetry-proto",
+ "parking_lot",
+ "proc-macro2",
+ "proptest",
+ "prost",
+ "regex",
+ "reqwest 0.13.5",
+ "rust-embed",
+ "rustc-hash",
+ "serde",
+ "serde_json",
+ "serde_json_path",
+ "sha2 0.10.9",
+ "sideseat-adapter-blob-storage",
+ "sideseat-adapter-cache",
+ "sideseat-adapter-duckdb",
+ "sideseat-adapter-sqlite",
+ "sideseat-adapter-topics",
+ "sideseat-core",
+ "sideseat-ports",
+ "tempfile",
+ "thiserror 2.0.20",
+ "tokio",
+ "tracing",
+ "utoipa",
+ "uuid",
+]
+
+[[package]]
 name = "sideseat-ports"
 version = "1.0.13"
 dependencies = [
  "async-trait",
  "chrono",
+ "futures",
+ "md5",
+ "rmp-serde",
  "rustc-hash",
  "serde",
  "serde_json",
+ "sideseat-core",
  "thiserror 2.0.20",
  "utoipa",
+]
+
+[[package]]
+name = "sideseat-query-sql"
+version = "1.0.13"
+dependencies = [
+ "chrono",
+ "sideseat-core",
+ "sideseat-ports",
 ]
 
 [[package]]
@@ -5535,9 +5800,6 @@ dependencies = [
  "anyhow",
  "async-stream",
  "async-trait",
- "aws-config",
- "aws-sdk-s3",
- "aws-sdk-secretsmanager",
  "axum 0.8.9",
  "axum-extra",
  "base64 0.22.1",
@@ -5548,11 +5810,9 @@ dependencies = [
  "clickhouse",
  "cuid2",
  "dashmap",
- "deadpool-redis",
  "directories",
  "dirs",
  "dotenvy",
- "duckdb",
  "flate2",
  "futures",
  "gcp_auth",
@@ -5560,12 +5820,9 @@ dependencies = [
  "hmac 0.12.1",
  "ipnet",
  "jsonwebtoken",
- "keyring",
  "local-ip-address",
- "md5",
  "memchr",
  "mime_guess",
- "moka",
  "opentelemetry-proto",
  "parking_lot",
  "proc-macro2",
@@ -5575,7 +5832,6 @@ dependencies = [
  "regex",
  "reqwest 0.13.5",
  "rmcp",
- "rmp-serde",
  "rust-embed",
  "rustc-hash",
  "schemars",
@@ -5585,8 +5841,20 @@ dependencies = [
  "serde_json_path",
  "sha2 0.10.9",
  "sideseat",
+ "sideseat-adapter-blob-storage",
+ "sideseat-adapter-cache",
+ "sideseat-adapter-clickhouse",
+ "sideseat-adapter-duckdb",
+ "sideseat-adapter-postgres",
+ "sideseat-adapter-registrations-memory",
+ "sideseat-adapter-secrets",
+ "sideseat-adapter-sqlite",
+ "sideseat-adapter-topics",
+ "sideseat-api",
  "sideseat-core",
+ "sideseat-domain",
  "sideseat-ports",
+ "sideseat-query-sql",
  "sqlx",
  "subtle",
  "supports-hyperlinks",
@@ -6283,6 +6551,7 @@ dependencies = [
  "futures-core",
  "pin-project-lite",
  "tokio",
+ "tokio-util",
 ]
 
 [[package]]

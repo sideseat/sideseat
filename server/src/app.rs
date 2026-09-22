@@ -1,26 +1,38 @@
 //! Core application
 
+pub mod files;
+pub mod providers;
+pub mod storage;
+
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
 
-use crate::api::{ApiServer, AuthManager, OtlpGrpcServer};
-use opentelemetry_proto::tonic::collector::trace::v1::ExportTraceServiceRequest;
+use sideseat_api::{ApiDependencies, ApiServer, AuthManager, OtlpGrpcServer};
 
-use crate::data::cache::{CacheService, RateLimiter};
-use crate::data::files::FileService;
-use crate::data::secrets::SecretManager;
-use crate::data::topics::TopicService;
-use crate::data::{AnalyticsService, TransactionalService};
-use crate::domain::pricing::PricingService;
-use crate::domain::providers::CredentialService;
+use self::files::create_governed_file_service;
+use self::storage::{AnalyticsService, TransactionalService};
+use crate::runtime::clock::SystemClock;
 use crate::runtime::shutdown::ShutdownService;
+use sideseat_adapter_cache::CacheService;
+use sideseat_adapter_secrets::SecretManager;
 use sideseat_core::core::banner;
 use sideseat_core::core::cli::{self, CliConfig, Commands, SystemCommands};
 use sideseat_core::core::config::AppConfig;
 use sideseat_core::core::constants::{APP_NAME_LOWER, ENV_LOG, TOPIC_TRACES};
 use sideseat_core::core::storage::AppStorage;
 use sideseat_core::core::update;
+use sideseat_domain::files::FileService;
+use sideseat_domain::pricing::PricingService;
+use sideseat_domain::providers::CredentialService;
+use sideseat_domain::rate_limit::RateLimiter;
+use sideseat_domain::staging::{StagedPayloadRef, StagingService};
+use sideseat_domain::storage_governance::StorageGovernanceService;
+use sideseat_domain::topics::TopicService;
+use sideseat_ports::cache::CacheStore;
+use sideseat_ports::clock::Clock;
+use sideseat_ports::registrations::RegistrationStore;
+use sideseat_ports::traits::{AnalyticsRepository, TransactionalRepository};
 
 pub struct CoreApp {
     pub shutdown: ShutdownService,
@@ -28,14 +40,20 @@ pub struct CoreApp {
     pub storage: AppStorage,
     pub secrets: SecretManager,
     pub database: Arc<TransactionalService>,
+    pub database_port: Arc<dyn TransactionalRepository + Send + Sync>,
     pub analytics: Arc<AnalyticsService>,
+    pub analytics_port: Arc<dyn AnalyticsRepository + Send + Sync>,
     pub pricing: Arc<PricingService>,
     pub auth: Arc<AuthManager>,
     pub topics: Arc<TopicService>,
     pub files: Arc<FileService>,
+    pub staging: Arc<StagingService>,
+    pub storage_governance: Arc<StorageGovernanceService>,
     pub cache: Arc<CacheService>,
+    pub cache_port: Arc<dyn CacheStore>,
     pub rate_limiter: Arc<RateLimiter>,
     pub credentials: Arc<CredentialService>,
+    pub clock: Arc<dyn Clock>,
 }
 
 impl CoreApp {
@@ -64,6 +82,7 @@ impl CoreApp {
 
     async fn init(cli: &CliConfig) -> Result<Self> {
         let config = AppConfig::load(cli)?;
+        let clock: Arc<dyn Clock> = Arc::new(SystemClock);
 
         // Compile the framework rule assets now, so a malformed one fails at startup rather than mid-traffic.
         //
@@ -73,9 +92,9 @@ impl CoreApp {
         // dependency pointing the wrong way through `core`, and enough on its own to prevent a crate boundary
         // there. A startup check belongs at the composition root, which is the only place entitled to know about
         // every layer. Cheap: the same work the first request would have done.
-        let _ = crate::domain::rules::ruleset();
+        let _ = sideseat_domain::rules::ruleset();
         let storage = AppStorage::init(&config).await?;
-        let secrets = SecretManager::init(&storage, &config.secrets).await?;
+        let secrets = SecretManager::init(&storage, &config.secrets, Arc::clone(&clock)).await?;
         secrets.ensure_secrets().await?;
 
         // Initialize cache service
@@ -88,7 +107,7 @@ impl CoreApp {
         tracing::debug!(backend = cache.backend_name(), "Cache initialized");
 
         // Initialize rate limiter
-        let rate_limiter = Arc::new(RateLimiter::new(cache.clone()));
+        let rate_limiter = Arc::new(RateLimiter::new(cache.clone(), Arc::clone(&clock)));
 
         let (database, analytics) = tokio::try_join!(
             async {
@@ -96,7 +115,8 @@ impl CoreApp {
                     config.database.transactional,
                     &storage,
                     config.database.postgres.as_ref(),
-                    Some(Arc::clone(&cache)),
+                    Some(cache.clone()),
+                    Arc::clone(&clock),
                 )
                 .await
                 .map_err(anyhow::Error::from)
@@ -106,6 +126,7 @@ impl CoreApp {
                     config.database.analytics,
                     &storage,
                     config.database.clickhouse.as_ref(),
+                    Arc::clone(&clock),
                 )
                 .await
                 .map_err(anyhow::Error::from)
@@ -114,27 +135,55 @@ impl CoreApp {
 
         let database = Arc::new(database);
         let analytics = Arc::new(analytics);
-        let pricing = PricingService::init(&storage, config.pricing.sync_hours)
+        let database_port = Arc::from(database.repository());
+        let governance_port = Arc::from(database.governance_repository());
+        let analytics_port = Arc::from(analytics.repository());
+        let cache_port: Arc<dyn CacheStore> = cache.clone();
+        let pricing = PricingService::init(&storage, config.pricing.sync_hours, Arc::clone(&clock))
             .await
             .map_err(|e| anyhow::anyhow!("Failed to initialize pricing service: {}", e))?;
-        let auth = Arc::new(AuthManager::init(&secrets, config.auth.enabled).await?);
-        let topics = Arc::new(
-            crate::data::topics::TopicService::from_cache_config(&config.database.cache_config())
+        let auth = Arc::new(AuthManager::new(
+            secrets.get_jwt_signing_key().await?,
+            config.auth.enabled,
+            Arc::clone(&clock),
+        ));
+        let topic_backend =
+            sideseat_adapter_topics::backend_from_cache_config(&config.database.cache_config())
                 .await
-                .map_err(|e| anyhow::anyhow!("Failed to initialize topic service: {}", e))?,
-        );
+                .map_err(|e| anyhow::anyhow!("Failed to initialize topic service: {}", e))?;
+        let topics = Arc::new(TopicService::new(topic_backend));
 
         tracing::debug!(backend = topics.backend_name(), "Topics initialized");
+        let storage_governance = Arc::new(StorageGovernanceService::new(
+            Arc::clone(&database_port),
+            governance_port,
+            Arc::clone(&analytics_port),
+            Arc::clone(&clock),
+            config.files.quota_bytes,
+        ));
+        storage_governance
+            .validate_startup()
+            .await
+            .map_err(|error| anyhow::anyhow!(error))?;
         let files = Arc::new(
-            FileService::new(
+            create_governed_file_service(
                 config.files.clone(),
                 &storage,
                 database.clone(),
                 cache.clone(),
+                Arc::clone(&storage_governance),
             )
             .await
             .map_err(|e| anyhow::anyhow!("Failed to initialize file service: {}", e))?,
         );
+        let staging = Arc::new(StagingService::new(
+            Arc::clone(files.storage()),
+            Arc::clone(&database_port),
+            Arc::clone(&analytics_port),
+            Arc::clone(&clock),
+            config.otel.retention.clone(),
+            config.otel.staging_redrive_cap,
+        ));
         // No startup sweep here on purpose.
         //
         // Advancing pending deletions used to run inline before the server was listening, which makes every
@@ -146,8 +195,8 @@ impl CoreApp {
         let shutdown = ShutdownService::new(topics.clone(), database.clone(), analytics.clone());
 
         let credentials = CredentialService::new(
-            database.clone(),
-            secrets.clone(),
+            Arc::from(database.repository()),
+            Arc::new(secrets.clone()),
             cache.clone(),
             config.credentials.scan_env,
         );
@@ -157,15 +206,21 @@ impl CoreApp {
             storage,
             secrets,
             database,
+            database_port,
             analytics,
+            analytics_port,
             pricing,
             auth,
             topics,
             shutdown,
             files,
+            staging,
+            storage_governance,
             cache,
+            cache_port,
             rate_limiter,
             credentials,
+            clock,
         })
     }
 
@@ -248,6 +303,7 @@ impl CoreApp {
         }
 
         app.start_background_tasks().await?;
+        let api_key_secret = app.secrets.get_api_key_secret().await?;
 
         // Start OTLP gRPC server if enabled
         if app.config.otel.grpc_enabled {
@@ -264,30 +320,37 @@ impl CoreApp {
                 &app.config.server.host,
                 &app.topics,
                 &app.storage,
-                crate::api::routes::otlp_collector::IngestStores {
-                    analytics: Arc::clone(&app.analytics),
-                    database: Arc::clone(&app.database),
+                sideseat_api::routes::otlp_collector::IngestStores {
+                    analytics: Arc::clone(&app.analytics_port),
+                    database: Arc::clone(&app.database_port),
                     // Only where the queue cannot promise durability - then this transport writes in
                     // the request too, as the HTTP one does.
                     trace_pipeline: (!app.topics.is_durable()).then(|| {
-                        Arc::new(crate::domain::TracePipeline::new(
-                            app.analytics.clone(),
-                            app.pricing.clone(),
-                            app.topics.clone(),
-                            app.files.clone(),
-                        ))
+                        Arc::new(
+                            sideseat_domain::traces::TracePipeline::new(
+                                Arc::clone(&app.analytics_port),
+                                app.pricing.clone(),
+                                app.topics.clone(),
+                                app.files.clone(),
+                                Arc::clone(&app.staging),
+                            )
+                            .with_storage_governance(Arc::clone(&app.storage_governance)),
+                        )
                     }),
+                    clock: Arc::clone(&app.clock),
+                    staging: Arc::clone(&app.staging),
+                    storage_governance: Arc::clone(&app.storage_governance),
                 },
                 app.config.debug,
-                crate::api::routes::otlp_collector::GrpcIngestGuards {
+                sideseat_api::routes::otlp_collector::GrpcIngestGuards {
                     // The same gate the HTTP transport applies. Built here rather than inside the gRPC server so
                     // it shares the one API-key secret: a second read could pick up a *replacement* secret if the
                     // backend had regenerated one, and a key hashed under the other pepper verifies nowhere.
                     auth: if app.config.otel.auth_required {
-                        Some(crate::api::routes::otlp_collector::GrpcIngestAuth {
-                            cache: Arc::clone(&app.cache),
-                            database: Arc::clone(&app.database),
-                            api_key_secret: Arc::new(app.secrets.get_api_key_secret().await?),
+                        Some(sideseat_api::routes::otlp_collector::GrpcIngestAuth {
+                            cache: Arc::clone(&app.cache_port),
+                            database: Arc::clone(&app.database_port),
+                            api_key_secret: Arc::new(api_key_secret.clone()),
                             // Both switches, as the HTTP path reads them: `per_ip` alone ignored the master
                             // `enabled`, so a deployment that had turned rate limiting off still had it enforced
                             // on this transport only.
@@ -295,6 +358,7 @@ impl CoreApp {
                                 && app.config.rate_limit.per_ip)
                                 .then(|| Arc::clone(&app.rate_limiter)),
                             trusted_proxies: Arc::clone(&grpc_trusted_proxies),
+                            clock: Arc::clone(&app.clock),
                         })
                     } else {
                         None
@@ -302,7 +366,7 @@ impl CoreApp {
                     // The per-project ingestion limit the HTTP routes carry. Independent of auth: a quota on how
                     // fast a project may be written to applies whether or not the write is authenticated.
                     limit: (app.config.rate_limit.enabled).then(|| {
-                        crate::api::routes::otlp_collector::GrpcIngestLimit {
+                        sideseat_api::routes::otlp_collector::GrpcIngestLimit {
                             limiter: Arc::clone(&app.rate_limiter),
                             ingestion_rpm: app.config.rate_limit.ingestion_rpm,
                         }
@@ -330,9 +394,31 @@ impl CoreApp {
             app.config.mcp.enabled,
         );
 
-        let server = ApiServer::new(app);
-        let app = server.start().await?;
-        app.shutdown.shutdown().await;
+        let shutdown = app.shutdown.clone();
+        let registrations: Arc<dyn RegistrationStore> =
+            Arc::new(sideseat_adapter_registrations_memory::MemoryRegistrationStore::new());
+        let server = ApiServer::new(ApiDependencies {
+            config: app.config.clone(),
+            storage: app.storage.clone(),
+            database: app.database_port.clone(),
+            analytics: app.analytics_port.clone(),
+            pricing: app.pricing.clone(),
+            auth: app.auth.clone(),
+            topics: app.topics.clone(),
+            files: app.files.clone(),
+            staging: app.staging.clone(),
+            storage_governance: app.storage_governance.clone(),
+            cache: app.cache_port.clone(),
+            rate_limiter: app.rate_limiter.clone(),
+            credentials: app.credentials.clone(),
+            credential_tester: Arc::new(providers::SdkCredentialConnectionTester),
+            registrations,
+            api_key_secret,
+            clock: app.clock.clone(),
+            shutdown_rx: app.shutdown.subscribe(),
+        });
+        server.start().await?;
+        shutdown.shutdown().await;
 
         Ok(())
     }
@@ -360,7 +446,7 @@ impl CoreApp {
             .await;
 
         // The cross-month duplicate residual is *reported* rather than repaired (see
-        // `clickhouse/consistency.rs`), and a report only exists if something runs. `None` on DuckDB, which
+        // `crates/adapter-clickhouse/src/consistency.rs`), and a report only exists if something runs. `None` on DuckDB, which
         // has no partitions and therefore no such residual.
         if let Some(h) = self
             .analytics
@@ -371,9 +457,11 @@ impl CoreApp {
 
         if let Some(h) = self.analytics.start_retention_task(
             self.config.otel.retention.clone(),
+            self.config.files.quota_bytes,
             self.shutdown.subscribe(),
             Some(Arc::clone(&self.files)),
             Arc::clone(&self.database),
+            Arc::from(self.database.governance_repository()),
         ) {
             self.shutdown.register(h).await;
         }
@@ -388,28 +476,54 @@ impl CoreApp {
         // Claims a crash abandoned. Startup swept once already, and that is not enough on its own: a
         // claim taken just before the crash reads as a deletion in progress when the process returns.
         self.shutdown
-            .register(crate::data::cleanup::start_claim_recovery_task(
-                Arc::clone(&self.database),
-                Arc::clone(&self.analytics),
+            .register(sideseat_domain::cleanup::start_claim_recovery_task(
+                Arc::clone(&self.database_port),
+                Arc::clone(&self.analytics_port),
                 Arc::clone(&self.files),
                 self.shutdown.subscribe(),
             ))
             .await;
 
         // Create stream topic for traces (at-least-once delivery with consumer groups)
-        let traces_topic = self
-            .topics
-            .stream_topic::<ExportTraceServiceRequest>(TOPIC_TRACES);
+        let traces_topic = self.topics.stream_topic::<StagedPayloadRef>(TOPIC_TRACES);
 
-        let pipeline = crate::domain::TracePipeline::new(
-            self.analytics.clone(),
-            self.pricing.clone(),
-            self.topics.clone(),
-            self.files.clone(),
+        let pipeline = Arc::new(
+            sideseat_domain::traces::TracePipeline::new(
+                Arc::from(self.analytics.repository()),
+                self.pricing.clone(),
+                self.topics.clone(),
+                self.files.clone(),
+                Arc::clone(&self.staging),
+            )
+            .with_storage_governance(Arc::clone(&self.storage_governance)),
         );
 
         self.shutdown
-            .register(pipeline.start(traces_topic, self.shutdown.subscribe()))
+            .register(Arc::clone(&pipeline).start(traces_topic, self.shutdown.subscribe()))
+            .await;
+        self.shutdown
+            .register(sideseat_domain::staging::start_staging_sweep(
+                Arc::clone(&self.staging),
+                pipeline,
+                self.shutdown.subscribe(),
+            ))
+            .await;
+        self.shutdown
+            .register(Arc::clone(&self.storage_governance).start(self.shutdown.subscribe()))
+            .await;
+        self.shutdown
+            .register(
+                Arc::new(
+                    sideseat_domain::content_bodies::ContentBodyService::from_file_service(
+                        &self.files,
+                    ),
+                )
+                .start_backfill_task(
+                    Arc::clone(&self.analytics_port),
+                    Arc::clone(&self.clock),
+                    self.shutdown.subscribe(),
+                ),
+            )
             .await;
 
         // No metrics pipeline: metrics are written inside their request, so a 200 means they are stored.

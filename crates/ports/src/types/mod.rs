@@ -5,15 +5,21 @@
 
 mod analytics;
 mod enums;
+mod logs;
 mod messages;
+mod metrics;
 mod normalized;
 pub mod order;
+mod project_id;
+mod search;
+mod staging;
 mod stats;
 mod transactional;
 
 // Result ordering: the column, the direction and the SQL they render. Lives here rather than in
 // `api::types` because three analytics DTOs carry it, which made the storage layer import from HTTP.
 pub use order::{OrderBy, OrderDirection};
+pub use project_id::ProjectId;
 
 // Re-export enum types
 pub use enums::{
@@ -24,23 +30,32 @@ pub use enums::{
 // test-only item cannot be seen by a dependent crate - so it lives beside its only users, in the domain.
 
 // Re-export normalized types (for ingestion)
-pub use normalized::{NormalizedMetric, NormalizedSpan, json_to_pre_serialized};
+pub use normalized::{NormalizedLog, NormalizedMetric, NormalizedSpan, json_to_pre_serialized};
+pub use search::{
+    DEFAULT_SEARCH_MAX_EXAMINED, SEARCH_RECALL_FLOOR, SEARCH_TERMS_PER_FIELD, SearchCandidate,
+    SearchCursor, SearchDocument, SearchExpr, SearchField, SearchFieldTerms, SearchPage,
+    SearchQuery, SearchRecord, SearchSignal,
+};
 
 // Re-export analytics types (query results and params)
 pub use analytics::{
     EventRow, FeedSpansParams, LinkRow, ListSessionsParams, ListSpansParams, ListTracesParams,
-    ObservationTokens, SessionRow, SpanCounts, SpanIdentity, SpanRow, TraceRow,
-    deduplicate_by_span_identity, filter_observations, find_root_span, get_observation_cost,
-    get_observation_tokens, get_observation_type, is_observation, parse_finish_reasons, parse_tags,
+    ObservationTokens, PressureSpanCandidate, SessionRow, SpanCounts, SpanIdentity, SpanRow,
+    TraceRow, deduplicate_by_span_identity, filter_observations, find_root_span,
+    get_observation_cost, get_observation_tokens, get_observation_type, is_observation,
+    parse_finish_reasons, parse_tags,
 };
 
 // Re-export message types
+pub use logs::{ListLogsParams, LogRow};
 pub use messages::{
     FeedMessagesParams, MessageQueryParams, MessageQueryResult, MessageSpanRow,
     SESSION_FILTER_OPTION_COLUMNS, SPAN_FILTER_OPTION_COLUMNS, TRACE_FILTER_OPTION_COLUMNS,
 };
+pub use metrics::{ListMetricsParams, MetricAggregateRow, MetricRow};
 
 // Re-export stats types
+pub use staging::{StagedPayload, StagedRecord, StagedSignal};
 pub use stats::{
     CostsResult, CountsResult, FrameworkBreakdown, LatencyBucket, ModelBreakdown,
     ProjectStatsResult, StatsParams, TokensResult, TrendBucket,
@@ -48,7 +63,8 @@ pub use stats::{
 
 // Re-export transactional types (SQLite/PostgreSQL)
 pub use transactional::{
-    ApiKeyRow, ApiKeyScope, ApiKeyValidation, AuthMethodRow, CredentialPermissionRow,
-    CredentialRow, FileRow, LastOwnerResult, MemberWithUser, MembershipRow, OrgWithRole,
-    OrganizationRow, ProjectRow, UserRow,
+    ApiKeyRow, ApiKeyScope, ApiKeyValidation, AuthMethodRow, ContentBodyBackfillProgress,
+    ContentBodyObject, CredentialPermissionRow, CredentialRow, FileRow, LastOwnerResult,
+    MemberWithUser, MembershipRow, OrgWithRole, OrganizationRow, ProjectHold, ProjectRow,
+    ProjectStorageUsage, SpanBodyAssociation, SpanBodyField, SpanBodySource, UserRow,
 };

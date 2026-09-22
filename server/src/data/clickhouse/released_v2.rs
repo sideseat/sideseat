@@ -1,4 +1,4 @@
-//! The **released** v2 column sets, recorded rather than derived.
+//! The **released** v2 column sets used by cross-backend migration parity.
 //!
 //! `every_clickhouse_migration_applies_to_the_state_it_upgrades` builds its "v2" database by reversing what
 //! each migration adds to the *current* schema. That is correct only while the newest migration is the one

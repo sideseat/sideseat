@@ -114,6 +114,12 @@
           },
           "additionalProperties": false
         },
+        "staging_redrive_cap": {
+          "type": "integer",
+          "description": "Failed staged-payload write/read-back cycles before the payload is quarantined as unconfirmed. Quarantined bytes are retained.",
+          "default": 5,
+          "minimum": 1
+        },
         "auth": {
           "type": "object",
           "description": "Authentication for OTLP ingestion",
@@ -162,7 +168,7 @@
         },
         "quota_bytes": {
           "type": "integer",
-          "description": "Per-project storage quota in bytes",
+          "description": "Unified per-project quota in logical bytes across telemetry, staging, deletion journal and blobs",
           "default": 1073741824,
           "minimum": 0,
           "examples": [

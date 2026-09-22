@@ -4,6 +4,7 @@
 
 use chrono::{DateTime, Utc};
 
+use super::ProjectId;
 use super::analytics::SpanIdentity;
 
 pub const SPAN_FILTER_OPTION_COLUMNS: &[&str] = &[
@@ -53,6 +54,11 @@ pub struct MessageSpanRow {
     pub tool_definitions_json: String,
     /// Tool names (JSON string)
     pub tool_names_json: String,
+    /// Compact digest of the interpretation-bearing body inputs.
+    ///
+    /// Body hydration derives this from content-addressed hashes, with inline bytes used for fields
+    /// not migrated yet. `None` means the cache must hash the three inline payloads directly.
+    pub body_cache_key: Option<String>,
     /// Span metadata
     pub model: Option<String>,
     pub provider: Option<String>,
@@ -126,7 +132,7 @@ pub struct MessageQueryResult {
 /// Parameters for project-wide message feed query.
 #[derive(Debug, Default, Clone)]
 pub struct FeedMessagesParams {
-    pub project_id: String,
+    pub project_id: ProjectId,
     /// Maximum number of spans to return
     pub limit: u32,
     /// Cursor for pagination: (ingested_at_us, span_id, trace_id).
@@ -150,7 +156,7 @@ pub struct FeedMessagesParams {
 /// Priority: span_id > session_id > trace_id
 #[derive(Debug, Default, Clone)]
 pub struct MessageQueryParams {
-    pub project_id: String,
+    pub project_id: ProjectId,
     pub span_id: Option<String>,
     pub trace_id: Option<String>,
     pub session_id: Option<String>,

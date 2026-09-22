@@ -42,7 +42,7 @@ export const Frameworks = {
 // Maps framework identifiers to the service.name the server expects for detection.
 // When serviceName is not explicitly set, this is used as the default so the server
 // can identify framework via service.name (fallback when span attributes are absent).
-// Matches server/src/domain/traces/extract/attributes.rs FRAMEWORK_RULES service_name checks.
+// Matches crates/domain/src/domain/traces/extract/attributes.rs FRAMEWORK_RULES service_name checks.
 export const FRAMEWORK_SERVICE_NAMES: Partial<
   Record<Framework | string, string>
 > = {

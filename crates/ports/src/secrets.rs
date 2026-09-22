@@ -21,3 +21,26 @@ pub trait SecretWriter: Send + Sync {
     /// state the caller wanted.
     async fn remove(&self, key: &str) -> Result<(), String>;
 }
+
+/// Secrets owned by one stored provider credential.
+#[async_trait]
+pub trait CredentialSecretStore: Send + Sync {
+    async fn get_credential_secret(
+        &self,
+        organization_id: &str,
+        credential_id: &str,
+    ) -> Result<Option<String>, String>;
+
+    async fn put_credential_secret(
+        &self,
+        organization_id: &str,
+        credential_id: &str,
+        value: &str,
+    ) -> Result<(), String>;
+
+    async fn delete_credential_secret(
+        &self,
+        organization_id: &str,
+        credential_id: &str,
+    ) -> Result<(), String>;
+}

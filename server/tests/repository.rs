@@ -13,6 +13,8 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 use std::process::Command;
 
+use sideseat_query_sql::analytics::MIGRATED_OPERATIONS;
+
 /// The repository root, from this test file's own location.
 fn repo_root() -> &'static Path {
     Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -175,6 +177,128 @@ fn rust_commentary(text: &str) -> Vec<(usize, String)> {
     }
     if !buffer.trim().is_empty() {
         out.push((line, buffer));
+    }
+    out
+}
+
+/// Rust source with comments blanked and string/character literals preserved.
+///
+/// Removing comments by globally replacing their text is order-dependent: a short earlier comment can erase
+/// part of a later one before the later full-line replacement runs, leaving prose that looks like SQL. This
+/// lexical pass preserves byte positions with spaces and therefore cannot manufacture code from comments.
+fn rust_code_without_comments(text: &str) -> String {
+    #[derive(Clone, Copy)]
+    enum Mode {
+        Code,
+        Line,
+        Block(usize),
+        Str,
+        Char,
+        Raw(usize),
+    }
+
+    let chars: Vec<char> = text.chars().collect();
+    let mut out = String::with_capacity(text.len());
+    let mut mode = Mode::Code;
+    let mut i = 0usize;
+    while i < chars.len() {
+        let c = chars[i];
+        let next = chars.get(i + 1).copied();
+        match mode {
+            Mode::Code => {
+                if c == '/' && next == Some('/') {
+                    out.push_str("  ");
+                    mode = Mode::Line;
+                    i += 2;
+                } else if c == '/' && next == Some('*') {
+                    out.push_str("  ");
+                    mode = Mode::Block(1);
+                    i += 2;
+                } else if c == 'r' || (c == 'b' && next == Some('r')) {
+                    let at = i + usize::from(c == 'b');
+                    let mut hashes = 0usize;
+                    while chars.get(at + 1 + hashes) == Some(&'#') {
+                        hashes += 1;
+                    }
+                    if chars.get(at + 1 + hashes) == Some(&'"') {
+                        for value in &chars[i..=at + 1 + hashes] {
+                            out.push(*value);
+                        }
+                        mode = Mode::Raw(hashes);
+                        i = at + 2 + hashes;
+                    } else {
+                        out.push(c);
+                        i += 1;
+                    }
+                } else {
+                    out.push(c);
+                    if c == '"' {
+                        mode = Mode::Str;
+                    } else if c == '\'' {
+                        let closes = (1..=4).any(|ahead| chars.get(i + ahead) == Some(&'\''));
+                        if closes {
+                            mode = Mode::Char;
+                        }
+                    }
+                    i += 1;
+                }
+            }
+            Mode::Line => {
+                if c == '\n' {
+                    out.push('\n');
+                    mode = Mode::Code;
+                } else {
+                    out.push(' ');
+                }
+                i += 1;
+            }
+            Mode::Block(depth) => {
+                if c == '/' && next == Some('*') {
+                    out.push_str("  ");
+                    mode = Mode::Block(depth + 1);
+                    i += 2;
+                } else if c == '*' && next == Some('/') {
+                    out.push_str("  ");
+                    mode = if depth == 1 {
+                        Mode::Code
+                    } else {
+                        Mode::Block(depth - 1)
+                    };
+                    i += 2;
+                } else {
+                    out.push(if c == '\n' { '\n' } else { ' ' });
+                    i += 1;
+                }
+            }
+            Mode::Str | Mode::Char => {
+                out.push(c);
+                if c == '\\' {
+                    if let Some(escaped) = chars.get(i + 1) {
+                        out.push(*escaped);
+                    }
+                    i += 2;
+                } else {
+                    if (matches!(mode, Mode::Str) && c == '"')
+                        || (matches!(mode, Mode::Char) && c == '\'')
+                    {
+                        mode = Mode::Code;
+                    }
+                    i += 1;
+                }
+            }
+            Mode::Raw(hashes) => {
+                out.push(c);
+                if c == '"' && (1..=hashes).all(|ahead| chars.get(i + ahead) == Some(&'#')) {
+                    for ahead in 1..=hashes {
+                        out.push(chars[i + ahead]);
+                    }
+                    mode = Mode::Code;
+                    i += 1 + hashes;
+                } else {
+                    i += 1;
+                }
+            }
+        }
     }
     out
 }
@@ -686,10 +810,20 @@ fn every_tree_diagram_names_things_that_exist() {
         .current_dir(repo)
         .output()
         .expect("git is available in a git checkout");
-    let tracked: Vec<String> = String::from_utf8_lossy(&listing.stdout)
+    let mut tracked: Vec<String> = String::from_utf8_lossy(&listing.stdout)
         .lines()
         .map(str::to_string)
         .collect();
+    let untracked = Command::new("git")
+        .args(["ls-files", "--others", "--exclude-standard"])
+        .current_dir(repo)
+        .output()
+        .expect("git is available in a git checkout");
+    tracked.extend(
+        String::from_utf8_lossy(&untracked.stdout)
+            .lines()
+            .map(str::to_string),
+    );
 
     let mut missing: Vec<String> = Vec::new();
     let mut unresolved_paths: Vec<(String, usize, String, bool)> = Vec::new();
@@ -1892,10 +2026,20 @@ fn every_module_path_cited_anywhere_resolves() {
         .current_dir(repo)
         .output()
         .expect("git is available in a git checkout");
-    let tracked: Vec<String> = String::from_utf8_lossy(&listing.stdout)
+    let mut tracked: Vec<String> = String::from_utf8_lossy(&listing.stdout)
         .lines()
         .map(str::to_string)
         .collect();
+    let untracked = Command::new("git")
+        .args(["ls-files", "--others", "--exclude-standard"])
+        .current_dir(repo)
+        .output()
+        .expect("git is available in a git checkout");
+    tracked.extend(
+        String::from_utf8_lossy(&untracked.stdout)
+            .lines()
+            .map(str::to_string),
+    );
 
     // Captured OTLP payloads are data, not documentation: whatever paths a framework recorded are its business.
     let citing: Vec<&String> = tracked
@@ -2043,7 +2187,7 @@ fn every_module_path_cited_anywhere_resolves() {
 ///
 /// Three real violations existed when this was written, and each was a different shape:
 ///
-/// * `data/duckdb/repositories/query.rs` imported `crate::api::routes::otel::filters` - a module that is
+/// * `crates/adapter-duckdb/src/repositories/query.rs` imported `crate::api::routes::otel::filters` - a module that is
 ///   eight lines of `pub use sideseat_ports::filters::…`. So the analytics adapter reached *through* the HTTP
 ///   routing layer to borrow types the data layer already owned.
 /// * `data/duckdb/filters/{types,parser}.rs` returned `ApiError` from filter parsing and validation, which
@@ -2146,12 +2290,12 @@ fn no_adapter_imports_a_sibling_adapter() {
     let repo = repo_root();
     let mut violations: Vec<String> = Vec::new();
     let mut checked = 0usize;
+    let mut roots_checked = 0usize;
 
     for adapter in ADAPTERS {
-        let dir = repo.join("server/src/data").join(adapter);
-        if !dir.is_dir() {
-            continue;
-        }
+        let dir = repo.join(format!("crates/adapter-{adapter}/src"));
+        assert!(dir.is_dir(), "{} is an adapter source root", dir.display());
+        roots_checked += 1;
         let mut stack = vec![dir];
         while let Some(current) = stack.pop() {
             for entry in std::fs::read_dir(&current).expect("readable directory") {
@@ -2168,16 +2312,6 @@ fn no_adapter_imports_a_sibling_adapter() {
                     .unwrap_or(&path)
                     .to_string_lossy()
                     .replace('\\', "/");
-                // The parity suites compare two backends by definition. **By exact path**, not by a filename
-                // containing "parity": that form exempted any production file someone named `parity_helpers.rs`,
-                // which is precisely a gate that passes while seeing less than it claims.
-                const PARITY_SUITES: &[&str] = &[
-                    "server/src/data/clickhouse/parity_tests.rs",
-                    "server/src/data/postgres/parity_tests.rs",
-                ];
-                if PARITY_SUITES.contains(&relative.as_str()) {
-                    continue;
-                }
                 let text = std::fs::read_to_string(&path).expect("readable file");
                 // Commentary names siblings deliberately - explaining why a rendering is per-dialect is the
                 // documentation this move exists to make true - so only code counts.
@@ -2207,13 +2341,23 @@ fn no_adapter_imports_a_sibling_adapter() {
                     if reaches {
                         violations.push(format!("{relative} imports crate::data::{sibling}"));
                     }
+
+                    let package = format!("sideseat_adapter_{sibling}");
+                    if code.contains(&package) {
+                        violations.push(format!("{relative} imports {package}"));
+                    }
                 }
             }
         }
     }
 
+    assert_eq!(
+        roots_checked,
+        ADAPTERS.len(),
+        "every adapter root was scanned"
+    );
     assert!(
-        checked > 30,
+        checked >= 60,
         "only scanned {checked} adapter files - the walk is wrong, not the tree"
     );
     assert!(
@@ -2290,6 +2434,118 @@ fn the_ports_crate_emits_no_sql() {
         offenders.len(),
         offenders.join("\n  ")
     );
+}
+
+/// Once an operation enters the typed query registry, both analytical adapters must delegate its
+/// statement to that registry and may no longer keep a second SQL spelling.
+///
+/// The operation list is imported from `sideseat-query-sql`, not copied here. Registering the next
+/// migrated operation therefore tightens this gate in the same change.
+#[test]
+fn migrated_analytics_operations_hold_no_adapter_sql_literal() {
+    const ADAPTERS: &[(&str, &str)] = &[
+        ("DuckDB", "crates/adapter-duckdb/src/repositories"),
+        ("ClickHouse", "crates/adapter-clickhouse/src/repositories"),
+    ];
+    const SQL_MARKERS: &[&str] = &[
+        "SELECT ",
+        " FROM ",
+        " WHERE ",
+        "ORDER BY ",
+        "GROUP BY ",
+        "DELETE FROM",
+        "ALTER TABLE",
+        "INSERT INTO",
+    ];
+
+    assert!(
+        !MIGRATED_OPERATIONS.is_empty(),
+        "the query-builder registry must contain a real operation"
+    );
+
+    for operation in MIGRATED_OPERATIONS {
+        for (adapter, repository_dir) in ADAPTERS {
+            let relative = format!("{repository_dir}/{}", operation.adapter_repository());
+            let source = std::fs::read_to_string(repo_root().join(&relative))
+                .unwrap_or_else(|error| panic!("{relative} is readable: {error}"));
+            let sync_marker = format!("pub fn {}(", operation.adapter_function());
+            let async_marker = format!("pub async fn {}(", operation.adapter_function());
+            let start = source
+                .find(&sync_marker)
+                .or_else(|| source.find(&async_marker))
+                .unwrap_or_else(|| {
+                    panic!(
+                        "{adapter} has a `{}` operation for the builder registry",
+                        operation.adapter_function()
+                    )
+                });
+            let rest = &source[start..];
+            let end = rest[1..]
+                .find("\n/// ")
+                .map(|offset| offset + 1)
+                .unwrap_or(rest.len());
+            let function = &rest[..end];
+
+            assert!(
+                function.contains(operation.builder_module()),
+                "{relative}'s `{}` does not delegate to the typed `{}` builder",
+                operation.name(),
+                operation.builder_module(),
+            );
+
+            let scan = if operation.scans_entire_repository() {
+                source.split("\n#[cfg(test)]").next().unwrap_or(&source)
+            } else {
+                function
+            };
+            let code = rust_code_without_comments(scan);
+            let upper = code.to_ascii_uppercase();
+            let offenders = SQL_MARKERS
+                .iter()
+                .filter(|marker| upper.contains(**marker))
+                .copied()
+                .collect::<Vec<_>>();
+            assert!(
+                offenders.is_empty(),
+                "{relative}'s migrated `{}` still owns SQL marker(s): {}",
+                operation.name(),
+                offenders.join(", ")
+            );
+        }
+    }
+}
+
+/// All database adapters share the same version-state machine. SQL and transaction mechanics stay
+/// local, but no adapter may reintroduce its own `(current + 1)..=target` loop or too-new policy.
+#[test]
+fn every_database_adapter_uses_the_shared_migration_runner() {
+    let files = [
+        "crates/adapter-duckdb/src/migrations.rs",
+        "crates/adapter-sqlite/src/migrations.rs",
+        "crates/adapter-postgres/src/migrations.rs",
+        "crates/adapter-clickhouse/src/lib.rs",
+    ];
+
+    for relative in files {
+        let source = std::fs::read_to_string(repo_root().join(relative))
+            .unwrap_or_else(|error| panic!("{relative} is readable: {error}"));
+        let production = source.split("\n#[cfg(test)]").next().unwrap_or(&source);
+        let mut code = production.to_string();
+        for (_, comment) in rust_commentary(production) {
+            if !comment.is_empty() {
+                code = code.replace(&comment, "");
+            }
+        }
+
+        assert!(
+            code.contains("plan_migrations("),
+            "{relative} bypasses sideseat_core::migration::plan_migrations"
+        );
+        assert!(
+            !code.contains("current_version + 1") && !code.contains("(v + 1)..="),
+            "{relative} has reintroduced a local migration-version loop"
+        );
+    }
 }
 
 /// Every workspace crate reports the same version, and takes it from one place.
@@ -2411,7 +2667,7 @@ fn the_driver_gate_reads_a_renamed_dependency() {
     assert!(!declares_driver("serde = { workspace = true }", "duckdb"));
 }
 
-/// No layer crate names a driver, which is what makes the layer boundary a compiler check.
+/// No inward layer crate names a driver, which is what makes the layer boundary a compiler check.
 ///
 /// The point of splitting the workspace is that a forbidden dependency **does not compile** - there is no list
 /// to maintain, and no macro or re-export that can defeat it. That property rests on one thing: the manifest not
@@ -2455,7 +2711,10 @@ fn no_layer_crate_depends_on_a_driver() {
         .collect();
     let layer_crates: Vec<&String> = members
         .iter()
-        .filter(|m| m.starts_with("crates/"))
+        // Adapter crates are the one place a driver belongs. Every other crate under `crates/` is an
+        // inward-facing layer and must stay unable to import one. The prefix is part of the workspace's
+        // target graph (`sideseat-adapter-*`), so a newly extracted adapter is classified immediately.
+        .filter(|m| m.starts_with("crates/") && !m.starts_with("crates/adapter-"))
         .collect();
 
     let mut checked = 0usize;
@@ -2469,6 +2728,11 @@ fn no_layer_crate_depends_on_a_driver() {
         for line in text.lines() {
             let trimmed = line.trim();
             for driver in DRIVERS {
+                // The API is the transport layer, so Axum and Tonic are its own tools rather than an
+                // outward dependency. Storage, cache and queue drivers remain forbidden there.
+                if member.as_str() == "crates/api" && matches!(*driver, "axum" | "tonic") {
+                    continue;
+                }
                 if declares_driver(trimmed, driver) {
                     violations.push(format!("{member} declares `{driver}`"));
                 }
@@ -2477,7 +2741,7 @@ fn no_layer_crate_depends_on_a_driver() {
     }
 
     assert!(
-        checked >= 2,
+        checked >= 4,
         "scanned {checked} layer crate manifests - the members parse is wrong, not the workspace"
     );
     assert!(
@@ -2486,6 +2750,28 @@ fn no_layer_crate_depends_on_a_driver() {
          a forbidden import in them would now compile:\n  {}",
         violations.len(),
         violations.join("\n  ")
+    );
+}
+
+#[test]
+fn the_api_crate_names_only_inward_workspace_crates() {
+    let manifest =
+        std::fs::read_to_string(repo_root().join("crates/api/Cargo.toml")).expect("API manifest");
+    let dependencies = manifest
+        .split("[dependencies]")
+        .nth(1)
+        .and_then(|rest| rest.split("[dev-dependencies]").next())
+        .expect("API dependencies section");
+    let workspace_dependencies: BTreeSet<&str> = dependencies
+        .lines()
+        .filter_map(|line| line.split_once('='))
+        .map(|(name, _)| name.trim())
+        .filter(|name| name.starts_with("sideseat-"))
+        .collect();
+    assert_eq!(
+        workspace_dependencies,
+        BTreeSet::from(["sideseat-core", "sideseat-domain", "sideseat-ports"]),
+        "the API transport may depend only on inward-facing SideSeat crates"
     );
 }
 
@@ -2520,24 +2806,24 @@ fn every_detector_is_actually_started_in_production() {
              would never be reported despite being documented as detected",
         ),
         (
-            "server/src/data/duckdb/mod.rs",
+            "crates/adapter-duckdb/src/lib.rs",
             "reconcile_trace_survivors",
             "retention would go back to the trace-wide file cleanup, reclaiming the files of spans that are \
              still live - and both behavioural tests call the reconciliation directly, so neither would notice",
         ),
         (
-            "server/src/data/duckdb/mod.rs",
+            "crates/adapter-duckdb/src/lib.rs",
             "record_retention_cleanup",
             "retention would delete spans without recording that their cleanup is owed, so a crash before the \
              cleanup orphans their files and favourites with nothing able to rediscover them",
         ),
         (
-            "server/src/data/duckdb/mod.rs",
+            "crates/adapter-duckdb/src/lib.rs",
             "traces_without_spans",
             "a favourited trace with one expired span would lose its favourite while still being visible",
         ),
         (
-            "server/src/data/clickhouse/mod.rs",
+            "crates/adapter-clickhouse/src/lib.rs",
             "report_unidentified_metric_rows",
             "an upgrade would not report pre-identity metric rows, so an operator would have no way to learn \
              that a released row and its correction are both being served",
@@ -2562,11 +2848,22 @@ fn every_detector_is_actually_started_in_production() {
 
 #[test]
 fn the_storage_layer_does_not_import_the_http_layer() {
-    let data = repo_root().join("server/src/data");
+    let repo = repo_root();
     let mut offenders: Vec<String> = Vec::new();
     let mut scanned = 0usize;
+    let mut roots = vec![repo.join("server/src/data")];
+    for entry in std::fs::read_dir(repo.join("crates")).expect("read crates dir") {
+        let path = entry.expect("crate entry").path();
+        if path
+            .file_name()
+            .and_then(|name| name.to_str())
+            .is_some_and(|name| name.starts_with("adapter-"))
+        {
+            roots.push(path.join("src"));
+        }
+    }
 
-    let mut stack = vec![data.clone()];
+    let mut stack = roots;
     while let Some(dir) = stack.pop() {
         for entry in std::fs::read_dir(&dir).expect("read data dir") {
             let path = entry.expect("dir entry").path();
@@ -2595,7 +2892,7 @@ fn the_storage_layer_does_not_import_the_http_layer() {
                 .to_string();
             for (offset, line) in code.lines().enumerate() {
                 // `crate::api` in any position: a `use`, a fully-qualified call, a type in a signature.
-                if line.contains("crate::api") {
+                if line.contains("crate::api") || line.contains("sideseat_server") {
                     offenders.push(format!("{relative}:{}: {}", offset + 1, line.trim()));
                 }
             }
@@ -2603,8 +2900,8 @@ fn the_storage_layer_does_not_import_the_http_layer() {
     }
 
     assert!(
-        scanned > 50,
-        "only scanned {scanned} files under server/src/data - the walk is not reaching the tree"
+        scanned > 100,
+        "only scanned {scanned} storage and adapter files - the walk is not reaching the tree"
     );
     assert!(
         offenders.is_empty(),
@@ -2613,4 +2910,270 @@ fn the_storage_layer_does_not_import_the_http_layer() {
         offenders.len(),
         offenders.join("\n  ")
     );
+}
+
+fn raw_project_method_scope(source: &str) -> bool {
+    source.contains("project_id: &str") || source.contains("project_ids: &[String]")
+}
+
+fn raw_project_query_scope(source: &str) -> bool {
+    source.contains("pub project_id: String")
+}
+
+#[test]
+fn every_tenant_scoped_port_uses_project_id() {
+    let repo = repo_root();
+    let method_sources = [
+        "crates/ports/src/blobs.rs",
+        "crates/ports/src/registrations.rs",
+        "crates/ports/src/traits.rs",
+    ];
+    let query_sources = [
+        "crates/ports/src/types/analytics.rs",
+        "crates/ports/src/types/messages.rs",
+        "crates/ports/src/types/stats.rs",
+    ];
+
+    let mut typed_scopes = 0usize;
+    let mut offenders = Vec::new();
+    for file in method_sources {
+        let source = std::fs::read_to_string(repo.join(file))
+            .unwrap_or_else(|e| panic!("{file} is readable: {e}"));
+        typed_scopes += source.matches("project_id: &ProjectId").count();
+        typed_scopes += source.matches("project_id: ProjectId").count();
+        if raw_project_method_scope(&source) {
+            offenders.push(file);
+        }
+    }
+    for file in query_sources {
+        let source = std::fs::read_to_string(repo.join(file))
+            .unwrap_or_else(|e| panic!("{file} is readable: {e}"));
+        typed_scopes += source.matches("pub project_id: ProjectId").count();
+        if raw_project_query_scope(&source) {
+            offenders.push(file);
+        }
+    }
+
+    assert!(
+        typed_scopes >= 70,
+        "only found {typed_scopes} typed tenant scopes; the scan is no longer covering the port surface"
+    );
+    assert!(
+        offenders.is_empty(),
+        "raw project ids reopened the tenant boundary in: {}",
+        offenders.join(", ")
+    );
+}
+
+#[test]
+fn the_project_id_gate_rejects_each_raw_shape() {
+    for source in [
+        "async fn get(&self, project_id: &str);",
+        "async fn count(&self, project_ids: &[String]);",
+    ] {
+        assert!(
+            raw_project_method_scope(source),
+            "the tenant-scope gate missed its regression fixture: {source}"
+        );
+    }
+    assert!(raw_project_query_scope(
+        "struct Query { pub project_id: String }"
+    ));
+    assert!(!raw_project_method_scope(
+        "async fn get(&self, project_id: &ProjectId);"
+    ));
+    assert!(!raw_project_query_scope(
+        "struct Query { pub project_id: ProjectId }"
+    ));
+}
+
+#[test]
+fn migrated_clock_consumers_cannot_read_the_system_clock() {
+    let repo = repo_root();
+    for file in [
+        "crates/core/src/utils/debug.rs",
+        "crates/api/src/auth/api_key.rs",
+        "crates/api/src/auth/jwt.rs",
+        "crates/api/src/auth/manager.rs",
+        "crates/api/src/routes/otel/messages.rs",
+        "crates/api/src/routes/otlp_collector/mod.rs",
+        "crates/api/src/routes/otlp_collector/traces.rs",
+        "crates/api/src/routes/otlp_collector/metrics.rs",
+        "crates/api/src/routes/otlp_collector/logs.rs",
+        "crates/api/src/routes/otlp_collector/grpc.rs",
+        "crates/api/src/routes/otel/stats.rs",
+        "crates/domain/src/domain/pricing/mod.rs",
+        "crates/domain/src/rate_limit.rs",
+    ] {
+        let source = std::fs::read_to_string(repo.join(file))
+            .unwrap_or_else(|e| panic!("{file} is readable: {e}"));
+        assert!(
+            !source.contains("Utc::now"),
+            "{file} bypasses the injected Clock"
+        );
+    }
+
+    let secrets = repo.join("crates/adapter-secrets/src/secrets");
+    let mut stack = vec![secrets];
+    let mut secret_sources = 0usize;
+    while let Some(dir) = stack.pop() {
+        for entry in std::fs::read_dir(&dir).expect("secrets directory is readable") {
+            let path = entry.expect("secrets entry is readable").path();
+            if path.is_dir() {
+                stack.push(path);
+                continue;
+            }
+            if path.extension().and_then(|extension| extension.to_str()) != Some("rs") {
+                continue;
+            }
+            secret_sources += 1;
+            let source = std::fs::read_to_string(&path).expect("secret source is readable");
+            assert!(
+                !source.contains("Utc::now"),
+                "{} bypasses the injected Clock",
+                path.strip_prefix(repo).unwrap_or(&path).display()
+            );
+        }
+    }
+    assert!(
+        secret_sources >= 10,
+        "the secrets clock gate scanned suspiciously few Rust sources"
+    );
+
+    let mut transactional_sources = 0usize;
+    for relative in [
+        "crates/adapter-sqlite/src/repositories",
+        "crates/adapter-postgres/src/repositories",
+    ] {
+        let mut stack = vec![repo.join(relative)];
+        while let Some(dir) = stack.pop() {
+            for entry in std::fs::read_dir(&dir).expect("repository directory is readable") {
+                let path = entry.expect("repository entry is readable").path();
+                if path.is_dir() {
+                    stack.push(path);
+                    continue;
+                }
+                if path.extension().and_then(|extension| extension.to_str()) != Some("rs") {
+                    continue;
+                }
+                transactional_sources += 1;
+                let source =
+                    std::fs::read_to_string(&path).expect("transactional source is readable");
+                assert!(
+                    !source.contains("Utc::now"),
+                    "{} bypasses the injected Clock",
+                    path.strip_prefix(repo).unwrap_or(&path).display()
+                );
+            }
+        }
+    }
+    for relative in [
+        "crates/adapter-sqlite/src/migrations.rs",
+        "crates/adapter-postgres/src/migrations.rs",
+    ] {
+        transactional_sources += 1;
+        let source = std::fs::read_to_string(repo.join(relative))
+            .unwrap_or_else(|e| panic!("{relative} is readable: {e}"));
+        assert!(
+            !source.contains("Utc::now"),
+            "{relative} bypasses the injected Clock"
+        );
+    }
+    assert!(
+        transactional_sources >= 24,
+        "the transactional clock gate scanned suspiciously few Rust sources"
+    );
+
+    for relative in [
+        "crates/adapter-duckdb/src/lib.rs",
+        "crates/adapter-duckdb/src/migrations.rs",
+        "crates/adapter-duckdb/src/retention.rs",
+        "crates/adapter-duckdb/src/repository_impl.rs",
+        "crates/adapter-duckdb/src/repositories/metric.rs",
+        "crates/adapter-duckdb/src/repositories/span.rs",
+        "crates/adapter-duckdb/src/repositories/stats.rs",
+        "crates/adapter-clickhouse/src/lib.rs",
+        "crates/adapter-clickhouse/src/repository_impl.rs",
+        "crates/adapter-clickhouse/src/repositories/metric.rs",
+        "crates/adapter-clickhouse/src/repositories/span.rs",
+        "crates/adapter-clickhouse/src/repositories/stats.rs",
+    ] {
+        let source = std::fs::read_to_string(repo.join(relative))
+            .unwrap_or_else(|e| panic!("{relative} is readable: {e}"));
+        // Repository unit fixtures deliberately use real-looking timestamps, but the production module
+        // must not. All listed files keep their unit module behind this exact marker.
+        let production = source
+            .split("\n#[cfg(test)]\nmod tests")
+            .next()
+            .expect("split always yields the production prefix");
+        assert!(
+            !production.contains("Utc::now"),
+            "{relative} bypasses the injected Clock"
+        );
+    }
+
+    let app = std::fs::read_to_string(repo.join("server/src/app.rs")).expect("app is readable");
+    assert_eq!(
+        app.matches("Arc::new(SystemClock)").count(),
+        1,
+        "the composition root must create exactly one production wall clock"
+    );
+    assert!(
+        app.matches("Arc::clone(&clock)").count() >= 2,
+        "the composition root stopped sharing its clock with consumers"
+    );
+
+    let server =
+        std::fs::read_to_string(repo.join("crates/api/src/server.rs")).expect("server is readable");
+    assert!(
+        server.matches("clock: app.clock.clone()").count() >= 10,
+        "one or more HTTP auth/router states no longer receive the shared clock"
+    );
+}
+
+#[test]
+fn every_registered_signal_uses_the_shared_lifecycle_on_both_transports() {
+    let repo = repo_root();
+    let routes = std::fs::read_to_string(repo.join("crates/api/src/routes/otlp_collector/mod.rs"))
+        .expect("OTLP route registry is readable");
+    let grpc = std::fs::read_to_string(repo.join("crates/api/src/routes/otlp_collector/grpc.rs"))
+        .expect("OTLP gRPC services are readable");
+
+    for signal in sideseat_domain::signals::REGISTERED_SIGNAL_NAMES {
+        let http_path = repo.join(format!("crates/api/src/routes/otlp_collector/{signal}.rs"));
+        let http = std::fs::read_to_string(&http_path)
+            .unwrap_or_else(|error| panic!("{} is readable: {error}", http_path.display()));
+        assert!(
+            http.contains("export_signal("),
+            "registered signal {signal} bypasses the shared lifecycle on HTTP"
+        );
+        assert!(
+            routes.contains(&format!(".route(\"/{signal}\", post({signal}::export))")),
+            "registered signal {signal} is missing from the HTTP route table"
+        );
+
+        let service = match *signal {
+            "traces" => "OtlpTraceService",
+            "metrics" => "OtlpMetricsService",
+            "logs" => "OtlpLogsService",
+            other => {
+                panic!("registered signal {other} has no gRPC service-name mapping in the gate")
+            }
+        };
+        let start = grpc
+            .find(&format!("impl {service}"))
+            .unwrap_or_else(|| panic!("registered signal {signal} has no {service}"));
+        let service_source = &grpc[start..];
+        let export_start = service_source
+            .find("#[tonic::async_trait]")
+            .unwrap_or_else(|| panic!("{service} has no transport implementation"));
+        let export_source = &service_source[export_start..];
+        let end = export_source
+            .find("\n/// gRPC ")
+            .unwrap_or(export_source.len());
+        assert!(
+            export_source[..end].contains("export_signal("),
+            "registered signal {signal} bypasses the shared lifecycle on gRPC"
+        );
+    }
 }

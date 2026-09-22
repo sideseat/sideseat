@@ -6,15 +6,19 @@
 
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use crate::error::DataError;
 use crate::types::{
-    ApiKeyRow, ApiKeyScope, ApiKeyValidation, AuthMethodRow, CredentialPermissionRow,
-    CredentialRow, EventRow, FeedMessagesParams, FeedSpansParams, FileRow, LastOwnerResult,
-    LinkRow, ListSessionsParams, ListSpansParams, ListTracesParams, MemberWithUser, MembershipRow,
-    MessageQueryParams, MessageQueryResult, NormalizedMetric, NormalizedSpan, OrgWithRole,
-    OrganizationRow, ProjectRow, SessionRow, SpanCounts, SpanRow, TraceRow, UserRow,
+    ApiKeyRow, ApiKeyScope, ApiKeyValidation, AuthMethodRow, ContentBodyBackfillProgress,
+    ContentBodyObject, CredentialPermissionRow, CredentialRow, EventRow, FeedMessagesParams,
+    FeedSpansParams, FileRow, LastOwnerResult, LinkRow, ListLogsParams, ListMetricsParams,
+    ListSessionsParams, ListSpansParams, ListTracesParams, LogRow, MemberWithUser, MembershipRow,
+    MessageQueryParams, MessageQueryResult, MetricAggregateRow, MetricRow, NormalizedLog,
+    NormalizedMetric, NormalizedSpan, OrgWithRole, OrganizationRow, PressureSpanCandidate,
+    ProjectHold, ProjectId, ProjectRow, ProjectStorageUsage, SearchPage, SearchQuery, SessionRow,
+    SpanBodyAssociation, SpanBodyField, SpanBodySource, SpanCounts, SpanRow, StagedPayload,
+    TraceRow, UserRow,
 };
 
 // ============================================================================
@@ -48,9 +52,34 @@ pub trait SurvivorReferences: Send + Sync {
     /// traces.
     async fn file_reference_fields_for_traces(
         &self,
-        project_id: &str,
+        project_id: &ProjectId,
         trace_ids: &[String],
     ) -> Result<Vec<String>, DataError>;
+
+    /// Inline body fields of the current winning spans for exact body-ownership reconciliation.
+    async fn span_body_fields_for_traces(
+        &self,
+        project_id: &ProjectId,
+        trace_ids: &[String],
+    ) -> Result<Vec<SpanBodySource>, DataError> {
+        let _ = (project_id, trace_ids);
+        Err(DataError::NotImplemented(
+            "span body survivor fields".to_string(),
+        ))
+    }
+
+    /// One stable identity-ordered page for the resumable body backfill.
+    async fn span_body_backfill_page(
+        &self,
+        project_id: &ProjectId,
+        after: Option<(String, String)>,
+        limit: usize,
+    ) -> Result<Vec<SpanBodySource>, DataError> {
+        let _ = (project_id, after, limit);
+        Err(DataError::NotImplemented(
+            "span body backfill page".to_string(),
+        ))
+    }
 }
 
 // ============================================================================
@@ -79,7 +108,7 @@ pub fn has_min_role_level(role: &str, min_role: &str) -> bool {
     role_level >= min_level
 }
 
-/// Writing spans and metrics, and reading them back as rows.
+/// Writing spans and reading them back as rows.
 #[async_trait]
 pub trait SpanStore: Send + Sync {
     /// List spans with pagination and filters
@@ -88,14 +117,14 @@ pub trait SpanStore: Send + Sync {
     /// Get spans for a trace
     async fn get_spans_for_trace(
         &self,
-        project_id: &str,
+        project_id: &ProjectId,
         trace_id: &str,
     ) -> Result<Vec<SpanRow>, DataError>;
 
     /// Get a single span by ID
     async fn get_span(
         &self,
-        project_id: &str,
+        project_id: &ProjectId,
         trace_id: &str,
         span_id: &str,
     ) -> Result<Option<SpanRow>, DataError>;
@@ -103,7 +132,7 @@ pub trait SpanStore: Send + Sync {
     /// Get span events
     async fn get_events_for_span(
         &self,
-        project_id: &str,
+        project_id: &ProjectId,
         trace_id: &str,
         span_id: &str,
     ) -> Result<Vec<EventRow>, DataError>;
@@ -111,7 +140,7 @@ pub trait SpanStore: Send + Sync {
     /// Get span links
     async fn get_links_for_span(
         &self,
-        project_id: &str,
+        project_id: &ProjectId,
         trace_id: &str,
         span_id: &str,
     ) -> Result<Vec<LinkRow>, DataError>;
@@ -119,7 +148,7 @@ pub trait SpanStore: Send + Sync {
     /// Get span counts (events, links) in bulk
     async fn get_span_counts_bulk(
         &self,
-        project_id: &str,
+        project_id: &ProjectId,
         span_keys: &[(String, String)],
     ) -> Result<HashMap<(String, String), SpanCounts>, DataError>;
 
@@ -129,7 +158,7 @@ pub trait SpanStore: Send + Sync {
     /// Get distinct values with counts for span filter options
     async fn get_span_filter_options(
         &self,
-        project_id: &str,
+        project_id: &ProjectId,
         columns: &[String],
         from_timestamp: Option<DateTime<Utc>>,
         to_timestamp: Option<DateTime<Utc>>,
@@ -141,14 +170,88 @@ pub trait SpanStore: Send + Sync {
     /// The returned count is backend-specific and unread; see [`AnalyticsRepository::delete_traces`].
     async fn delete_spans(
         &self,
-        project_id: &str,
+        project_id: &ProjectId,
         span_keys: &[(String, String)],
     ) -> Result<u64, DataError>;
     /// Insert spans in batch (takes ownership to avoid clone for spawn_blocking)
     async fn insert_spans(&self, spans: Vec<NormalizedSpan>) -> Result<(), DataError>;
 
-    /// Insert metrics in batch
+    async fn spans_match_content(
+        &self,
+        project_id: &ProjectId,
+        records: &[(String, String, String)],
+    ) -> Result<bool, DataError>;
+}
+
+/// Metric writes and the read API over winning datapoint revisions.
+#[async_trait]
+pub trait MetricStore: Send + Sync {
     async fn insert_metrics(&self, metrics: &[NormalizedMetric]) -> Result<(), DataError>;
+
+    async fn list_metrics(
+        &self,
+        params: &ListMetricsParams,
+    ) -> Result<(Vec<MetricRow>, u64), DataError>;
+
+    async fn get_metric(
+        &self,
+        project_id: &ProjectId,
+        datapoint_id: &str,
+    ) -> Result<Option<MetricRow>, DataError>;
+
+    async fn aggregate_metrics(
+        &self,
+        params: &ListMetricsParams,
+    ) -> Result<Vec<MetricAggregateRow>, DataError>;
+
+    async fn get_metric_filter_options(
+        &self,
+        project_id: &ProjectId,
+        columns: &[String],
+        from_timestamp: Option<DateTime<Utc>>,
+        to_timestamp: Option<DateTime<Utc>>,
+    ) -> Result<HashMap<String, Vec<FilterOptionRow>>, DataError>;
+
+    async fn metrics_match_content(
+        &self,
+        project_id: &ProjectId,
+        records: &[(String, String)],
+    ) -> Result<bool, DataError>;
+}
+
+/// OTLP log writes and correlation-aware reads.
+#[async_trait]
+pub trait LogStore: Send + Sync {
+    async fn insert_logs(&self, logs: &[NormalizedLog]) -> Result<(), DataError>;
+
+    async fn list_logs(&self, params: &ListLogsParams) -> Result<(Vec<LogRow>, u64), DataError>;
+
+    async fn get_log(
+        &self,
+        project_id: &ProjectId,
+        log_digest: &str,
+        ordinal: u32,
+    ) -> Result<Option<LogRow>, DataError>;
+
+    async fn get_log_filter_options(
+        &self,
+        project_id: &ProjectId,
+        columns: &[String],
+        from_timestamp: Option<DateTime<Utc>>,
+        to_timestamp: Option<DateTime<Utc>>,
+    ) -> Result<HashMap<String, Vec<FilterOptionRow>>, DataError>;
+
+    async fn logs_match_content(
+        &self,
+        project_id: &ProjectId,
+        records: &[(String, u32)],
+    ) -> Result<bool, DataError>;
+}
+
+/// Chronological, non-ranking search over spans and logs.
+#[async_trait]
+pub trait SearchIndex: Send + Sync {
+    async fn search(&self, query: &SearchQuery) -> Result<SearchPage, DataError>;
 }
 
 /// Traces, sessions and project statistics: the aggregate views a list page shows.
@@ -163,14 +266,14 @@ pub trait EntityQuery: Send + Sync {
     /// Get a single trace by ID
     async fn get_trace(
         &self,
-        project_id: &str,
+        project_id: &ProjectId,
         trace_id: &str,
     ) -> Result<Option<TraceRow>, DataError>;
 
     /// Get distinct values with counts for trace filter options
     async fn get_trace_filter_options(
         &self,
-        project_id: &str,
+        project_id: &ProjectId,
         columns: &[String],
         from_timestamp: Option<DateTime<Utc>>,
         to_timestamp: Option<DateTime<Utc>>,
@@ -179,7 +282,7 @@ pub trait EntityQuery: Send + Sync {
     /// Get distinct tag values with counts from traces
     async fn get_trace_tags_options(
         &self,
-        project_id: &str,
+        project_id: &ProjectId,
         from_timestamp: Option<DateTime<Utc>>,
         to_timestamp: Option<DateTime<Utc>>,
     ) -> Result<Vec<FilterOptionRow>, DataError>;
@@ -191,8 +294,11 @@ pub trait EntityQuery: Send + Sync {
     /// only report how many ids it was asked about. Making them agree would mean waiting for the
     /// mutation to settle just to produce a number the routes discard - they answer 204. What
     /// both backends do guarantee, and what the parity test checks, is which rows are gone.
-    async fn delete_traces(&self, project_id: &str, trace_ids: &[String])
-    -> Result<u64, DataError>;
+    async fn delete_traces(
+        &self,
+        project_id: &ProjectId,
+        trace_ids: &[String],
+    ) -> Result<u64, DataError>;
 
     /// Which of these traces have **no winning spans left**.
     ///
@@ -201,7 +307,7 @@ pub trait EntityQuery: Send + Sync {
     /// actually gone, and "was in the retention batch" is not that.
     async fn traces_without_spans(
         &self,
-        project_id: &str,
+        project_id: &ProjectId,
         trace_ids: &[String],
     ) -> Result<Vec<String>, DataError>;
 
@@ -214,21 +320,21 @@ pub trait EntityQuery: Send + Sync {
     /// Get a single session by ID
     async fn get_session(
         &self,
-        project_id: &str,
+        project_id: &ProjectId,
         session_id: &str,
     ) -> Result<Option<SessionRow>, DataError>;
 
     /// Get traces for a session (all traces, no pagination)
     async fn get_traces_for_session(
         &self,
-        project_id: &str,
+        project_id: &ProjectId,
         session_id: &str,
     ) -> Result<Vec<TraceRow>, DataError>;
 
     /// Get trace IDs for sessions (for delete)
     async fn get_trace_ids_for_sessions(
         &self,
-        project_id: &str,
+        project_id: &ProjectId,
         session_ids: &[String],
         as_of_us: Option<i64>,
     ) -> Result<Vec<String>, DataError>;
@@ -246,7 +352,7 @@ pub trait EntityQuery: Send + Sync {
     /// because every span of a trace shares the trace's session.
     async fn get_session_ids_for_traces(
         &self,
-        project_id: &str,
+        project_id: &ProjectId,
         trace_ids: &[String],
         as_of_us: Option<i64>,
     ) -> Result<Vec<String>, DataError>;
@@ -266,7 +372,7 @@ pub trait EntityQuery: Send + Sync {
     /// Traces with no session are simply absent from the result.
     async fn get_trace_session_pairs(
         &self,
-        project_id: &str,
+        project_id: &ProjectId,
         trace_ids: &[String],
         as_of_us: Option<i64>,
     ) -> Result<Vec<(String, String)>, DataError>;
@@ -274,7 +380,7 @@ pub trait EntityQuery: Send + Sync {
     /// Get distinct values with counts for session filter options
     async fn get_session_filter_options(
         &self,
-        project_id: &str,
+        project_id: &ProjectId,
         columns: &[String],
         from_timestamp: Option<DateTime<Utc>>,
         to_timestamp: Option<DateTime<Utc>>,
@@ -291,7 +397,7 @@ pub trait EntityQuery: Send + Sync {
     /// sessions through analytics rows that no longer exist.
     async fn delete_sessions(
         &self,
-        project_id: &str,
+        project_id: &ProjectId,
         session_ids: &[String],
     ) -> Result<Vec<String>, DataError>;
     /// Get project statistics
@@ -323,14 +429,14 @@ pub trait MessageStore: Send + Sync {
 #[async_trait]
 pub trait AnalyticsMaintenance: Send + Sync {
     /// Delete all data for a project
-    async fn delete_project_data(&self, project_id: &str) -> Result<u64, DataError>;
+    async fn delete_project_data(&self, project_id: &ProjectId) -> Result<u64, DataError>;
 
     /// Count the rows a project still owns, over every table this backend holds for it.
     ///
     /// Deletion verification asks this rather than counting spans, because "the data is gone" has to mean
     /// all of it: metrics live in their own table, ClickHouse applies its deletes as asynchronous
     /// mutations, and a project whose metrics outlived it is as unreachable as one whose spans did.
-    async fn count_project_rows(&self, project_id: &str) -> Result<u64, DataError>;
+    async fn count_project_rows(&self, project_id: &ProjectId) -> Result<u64, DataError>;
 
     /// The newest ingestion time the store has actually committed for a project, in microseconds.
     ///
@@ -345,14 +451,60 @@ pub trait AnalyticsMaintenance: Send + Sync {
     /// commit-ordered sequence that neither analytics backend provides.
     ///
     /// `None` when the project has no rows, in which case a traversal has nothing to bound.
-    async fn max_ingested_at_us(&self, project_id: &str) -> Result<Option<i64>, DataError>;
+    async fn max_ingested_at_us(&self, project_id: &ProjectId) -> Result<Option<i64>, DataError>;
 
     /// Count spans grouped by project for a set of project IDs.
     /// Used for org/user-level span count aggregation.
     async fn count_spans_by_project(
         &self,
-        project_ids: &[String],
+        project_ids: &[ProjectId],
     ) -> Result<HashMap<String, u64>, DataError>;
+
+    /// Stamp every existing signal row for a project with the durable hold deadline.
+    async fn patch_project_hold(
+        &self,
+        project_id: &ProjectId,
+        hold_until: DateTime<Utc>,
+    ) -> Result<(), DataError> {
+        let _ = (project_id, hold_until);
+        Err(DataError::NotImplemented(
+            "analytics legal-hold patch".to_string(),
+        ))
+    }
+
+    /// Logical bytes currently attributable to a project across analytics signals.
+    async fn project_logical_bytes(&self, project_id: &ProjectId) -> Result<u64, DataError> {
+        let _ = project_id;
+        Err(DataError::NotImplemented(
+            "analytics logical-byte accounting".to_string(),
+        ))
+    }
+
+    /// Logical bytes protected by an active hold at `now`.
+    async fn project_held_logical_bytes(
+        &self,
+        project_id: &ProjectId,
+        now: DateTime<Utc>,
+    ) -> Result<u64, DataError> {
+        let _ = (project_id, now);
+        Err(DataError::NotImplemented(
+            "analytics held-byte accounting".to_string(),
+        ))
+    }
+
+    /// Select a bounded oldest-first batch of winning, non-held spans whose bytes cross `target_bytes`.
+    async fn oldest_reclaimable_spans(
+        &self,
+        project_id: &ProjectId,
+        target_bytes: u64,
+        now: DateTime<Utc>,
+        limit: usize,
+    ) -> Result<Vec<PressureSpanCandidate>, DataError> {
+        let _ = (project_id, target_bytes, now, limit);
+        Err(DataError::NotImplemented(
+            "pressure-reclamation candidate selection".to_string(),
+        ))
+    }
 }
 
 /// Users, organizations, memberships and auth methods: who is asking.
@@ -517,6 +669,13 @@ pub trait ProjectStore: Send + Sync {
         limit: u32,
     ) -> Result<(Vec<ProjectRow>, u64), DataError>;
 
+    /// List all live projects for bounded background maintenance.
+    async fn list_projects(
+        &self,
+        page: u32,
+        limit: u32,
+    ) -> Result<(Vec<ProjectRow>, u64), DataError>;
+
     /// Claim a project for deletion, if it exists and nobody else has claimed it.
     ///
     /// Takes the cache because a successful claim must drop every cached answer about the project at
@@ -544,7 +703,7 @@ pub trait ProjectStore: Send + Sync {
     /// not yet tombstoned.
     async fn record_deleted_traces(
         &self,
-        project_id: &str,
+        project_id: &ProjectId,
         trace_ids: &[String],
     ) -> Result<(), DataError>;
 
@@ -554,7 +713,7 @@ pub trait ProjectStore: Send + Sync {
     /// commonly carries a handful of traces, and this sits directly on the ingestion hot path.
     async fn deleted_traces_among(
         &self,
-        project_id: &str,
+        project_id: &ProjectId,
         trace_ids: &[String],
     ) -> Result<std::collections::HashSet<String>, DataError>;
 
@@ -576,7 +735,7 @@ pub trait ProjectStore: Send + Sync {
     /// stale project and duplicated all of its four-store cleanup.
     async fn reclaim_stale_project(
         &self,
-        project_id: &str,
+        project_id: &ProjectId,
         observed_deleting_at: i64,
     ) -> Result<bool, DataError>;
 
@@ -614,14 +773,14 @@ pub trait ProjectStore: Send + Sync {
     /// the snapshot. The session id is the durable fact - the trace ids are one instant's view of it.
     async fn record_deleted_sessions(
         &self,
-        project_id: &str,
+        project_id: &ProjectId,
         session_ids: &[String],
     ) -> Result<(), DataError>;
 
     /// Which of these sessions are tombstoned, so their spans must not be written.
     async fn deleted_sessions_among(
         &self,
-        project_id: &str,
+        project_id: &ProjectId,
         session_ids: &[String],
     ) -> Result<std::collections::HashSet<String>, DataError>;
 
@@ -639,7 +798,7 @@ pub trait ProjectStore: Send + Sync {
     /// Record what a deleted session's check found, matched on the claim token.
     async fn record_deleted_session_check(
         &self,
-        project_id: &str,
+        project_id: &ProjectId,
         session_id: &str,
         claim_token: i64,
         was_quiet: bool,
@@ -662,7 +821,7 @@ pub trait ProjectStore: Send + Sync {
     /// Record what a deleted trace's check found, matched on the claim token.
     async fn record_deleted_trace_check(
         &self,
-        project_id: &str,
+        project_id: &ProjectId,
         trace_id: &str,
         claim_token: i64,
         was_quiet: bool,
@@ -674,7 +833,7 @@ pub trait ProjectStore: Send + Sync {
     /// brings it back to the base interval.
     async fn record_deleted_project_check(
         &self,
-        project_id: &str,
+        project_id: &ProjectId,
         claim_token: i64,
         was_quiet: bool,
         base_gap_secs: i64,
@@ -715,7 +874,7 @@ pub trait FileMetaStore: Send + Sync {
     /// Returns the new ref_count value.
     async fn upsert_file(
         &self,
-        project_id: &str,
+        project_id: &ProjectId,
         file_hash: &str,
         media_type: Option<&str>,
         size_bytes: i64,
@@ -725,26 +884,28 @@ pub trait FileMetaStore: Send + Sync {
     /// Get a file by project and hash
     async fn get_file(
         &self,
-        project_id: &str,
+        project_id: &ProjectId,
         file_hash: &str,
     ) -> Result<Option<FileRow>, DataError>;
 
     /// Check if a file exists
-    async fn file_exists(&self, project_id: &str, file_hash: &str) -> Result<bool, DataError>;
+    async fn file_exists(&self, project_id: &ProjectId, file_hash: &str)
+    -> Result<bool, DataError>;
 
     /// Decrement ref_count atomically and return the new value
     /// Returns None if file doesn't exist, Some(new_ref_count) otherwise.
     async fn decrement_ref_count(
         &self,
-        project_id: &str,
+        project_id: &ProjectId,
         file_hash: &str,
     ) -> Result<Option<i64>, DataError>;
 
     /// Delete a file metadata record
-    async fn delete_file(&self, project_id: &str, file_hash: &str) -> Result<bool, DataError>;
+    async fn delete_file(&self, project_id: &ProjectId, file_hash: &str)
+    -> Result<bool, DataError>;
 
     /// Delete all file records for a project
-    async fn delete_project_files(&self, project_id: &str) -> Result<u64, DataError>;
+    async fn delete_project_files(&self, project_id: &ProjectId) -> Result<u64, DataError>;
 
     /// Associate a file with a trace, counting the reference only if the association is new.
     ///
@@ -753,7 +914,7 @@ pub trait FileMetaStore: Send + Sync {
     async fn associate_file(
         &self,
         trace_id: &str,
-        project_id: &str,
+        project_id: &ProjectId,
         file_hash: &str,
         media_type: Option<&str>,
         size_bytes: i64,
@@ -763,7 +924,7 @@ pub trait FileMetaStore: Send + Sync {
     /// How many of these traces reference each file, so deletion can decrement by that many.
     async fn get_file_reference_counts_for_traces(
         &self,
-        project_id: &str,
+        project_id: &ProjectId,
         trace_ids: &[String],
     ) -> Result<Vec<(String, i64)>, DataError>;
 
@@ -774,7 +935,7 @@ pub trait FileMetaStore: Send + Sync {
     async fn associate_existing_file(
         &self,
         trace_id: &str,
-        project_id: &str,
+        project_id: &ProjectId,
         file_hash: &str,
     ) -> Result<bool, DataError>;
 
@@ -791,7 +952,7 @@ pub trait FileMetaStore: Send + Sync {
     /// on this compare-and-set is what stops it removing content a committed span references.
     async fn reclaim_stale_file(
         &self,
-        project_id: &str,
+        project_id: &ProjectId,
         file_hash: &str,
         observed_deleting_at: i64,
     ) -> Result<bool, DataError>;
@@ -802,21 +963,21 @@ pub trait FileMetaStore: Send + Sync {
     /// because a claimed file's bytes may already be gone.
     async fn claim_file_for_deletion(
         &self,
-        project_id: &str,
+        project_id: &ProjectId,
         file_hash: &str,
     ) -> Result<bool, DataError>;
 
     /// Give up a deletion claim, leaving the file in place.
     async fn release_deletion_claim(
         &self,
-        project_id: &str,
+        project_id: &ProjectId,
         file_hash: &str,
     ) -> Result<(), DataError>;
 
     /// Put back a metadata row whose bytes could not be deleted, as an orphan for a later sweep.
     async fn restore_orphan_metadata(
         &self,
-        project_id: &str,
+        project_id: &ProjectId,
         file_hash: &str,
         media_type: Option<&str>,
         size_bytes: i64,
@@ -829,7 +990,7 @@ pub trait FileMetaStore: Send + Sync {
     /// a concurrent association, and loses.
     async fn delete_file_if_unreferenced(
         &self,
-        project_id: &str,
+        project_id: &ProjectId,
         file_hash: &str,
     ) -> Result<bool, DataError>;
 
@@ -839,7 +1000,7 @@ pub trait FileMetaStore: Send + Sync {
     /// cleanups both subtracting the same references.
     async fn sync_ref_count(
         &self,
-        project_id: &str,
+        project_id: &ProjectId,
         file_hash: &str,
     ) -> Result<Option<i64>, DataError>;
 
@@ -847,14 +1008,14 @@ pub trait FileMetaStore: Send + Sync {
     async fn insert_trace_file(
         &self,
         trace_id: &str,
-        project_id: &str,
+        project_id: &ProjectId,
         file_hash: &str,
     ) -> Result<(), DataError>;
 
     /// Get file hashes for traces
     async fn get_file_hashes_for_traces(
         &self,
-        project_id: &str,
+        project_id: &ProjectId,
         trace_ids: &[String],
     ) -> Result<Vec<String>, DataError>;
 
@@ -882,7 +1043,7 @@ pub trait FileMetaStore: Send + Sync {
 
     async fn release_trace_file_association(
         &self,
-        project_id: &str,
+        project_id: &ProjectId,
         trace_id: &str,
         file_hash: &str,
     ) -> Result<bool, DataError>;
@@ -894,7 +1055,7 @@ pub trait FileMetaStore: Send + Sync {
     /// never recomputed - and the orphan sweeper selects on that count, so nothing would ever reclaim it.
     async fn delete_trace_files(
         &self,
-        project_id: &str,
+        project_id: &ProjectId,
         trace_ids: &[String],
     ) -> Result<Vec<String>, DataError>;
 
@@ -913,7 +1074,7 @@ pub trait FileMetaStore: Send + Sync {
     /// worse, match a newer one.
     async fn record_retention_cleanup(
         &self,
-        project_id: &str,
+        project_id: &ProjectId,
         trace_ids: &[String],
     ) -> Result<Vec<(String, i64)>, DataError>;
 
@@ -937,7 +1098,7 @@ pub trait FileMetaStore: Send + Sync {
     /// actually claimed.
     async fn complete_retention_cleanup(
         &self,
-        project_id: &str,
+        project_id: &ProjectId,
         completed: &[(String, i64)],
     ) -> Result<(), DataError>;
 
@@ -948,7 +1109,7 @@ pub trait FileMetaStore: Send + Sync {
     /// later failing batch's release delete it, since that release deletes a non-durable row with no writer left.
     async fn restore_durable_trace_file(
         &self,
-        project_id: &str,
+        project_id: &ProjectId,
         trace_id: &str,
         file_hash: &str,
     ) -> Result<(), DataError>;
@@ -974,13 +1135,13 @@ pub trait FileMetaStore: Send + Sync {
     /// than one it read beforehand - the same reason `delete_trace_files` uses `RETURNING`.
     async fn release_trace_files_except(
         &self,
-        project_id: &str,
+        project_id: &ProjectId,
         trace_id: &str,
         keep: &[String],
     ) -> Result<Vec<String>, DataError>;
 
     /// Get total storage used by a project
-    async fn get_project_storage_bytes(&self, project_id: &str) -> Result<i64, DataError>;
+    async fn get_project_storage_bytes(&self, project_id: &ProjectId) -> Result<i64, DataError>;
 
     /// Get all files with zero ref_count (for cleanup)
     async fn get_orphan_files(&self) -> Result<Vec<(String, String)>, DataError>;
@@ -990,6 +1151,117 @@ pub trait FileMetaStore: Send + Sync {
 
     /// Get total file storage used across all orgs a user belongs to
     async fn get_user_file_storage_bytes(&self, user_id: &str) -> Result<i64, DataError>;
+}
+
+/// Transactional ownership of content-addressed span bodies.
+#[async_trait]
+pub trait ContentBodyStore: Send + Sync {
+    /// Register content-addressed objects before their bytes are written.
+    ///
+    /// Returns the logical bytes of objects that were new to this project. Registration alone is not a
+    /// readable reference; only a durable `span_bodies` row makes an object live.
+    async fn register_content_bodies(
+        &self,
+        objects: &[ContentBodyObject],
+    ) -> Result<Vec<ContentBodyObject>, DataError>;
+
+    /// Return associations that do not already have this exact durable body.
+    ///
+    /// Re-delivery of an unchanged span is the steady-state ingest path. It must not rewrite the same
+    /// content-addressed object or churn its ownership row on every delivery.
+    async fn unresolved_span_bodies(
+        &self,
+        associations: &[SpanBodyAssociation],
+    ) -> Result<Vec<SpanBodyAssociation>, DataError>;
+
+    async fn stage_span_bodies(
+        &self,
+        associations: &[SpanBodyAssociation],
+    ) -> Result<u64, DataError>;
+
+    async fn confirm_span_bodies(
+        &self,
+        associations: &[SpanBodyAssociation],
+    ) -> Result<u64, DataError>;
+
+    async fn release_span_body(&self, association: &SpanBodyAssociation)
+    -> Result<bool, DataError>;
+
+    async fn get_span_body_hash(
+        &self,
+        project_id: &ProjectId,
+        trace_id: &str,
+        span_id: &str,
+        field: SpanBodyField,
+    ) -> Result<Option<String>, DataError>;
+
+    async fn get_orphan_content_bodies(
+        &self,
+        limit: usize,
+    ) -> Result<Vec<(ProjectId, String)>, DataError>;
+
+    /// List deletion claims old enough that their worker may have crashed.
+    async fn get_stale_claimed_content_bodies(
+        &self,
+        older_than: DateTime<Utc>,
+        limit: usize,
+    ) -> Result<Vec<(ProjectId, String)>, DataError>;
+
+    async fn claim_content_body_for_deletion(
+        &self,
+        project_id: &ProjectId,
+        body_hash: &str,
+    ) -> Result<bool, DataError>;
+
+    async fn release_content_body_deletion_claim(
+        &self,
+        project_id: &ProjectId,
+        body_hash: &str,
+    ) -> Result<(), DataError>;
+
+    async fn delete_claimed_content_body(
+        &self,
+        project_id: &ProjectId,
+        body_hash: &str,
+    ) -> Result<bool, DataError>;
+
+    async fn delete_span_bodies(
+        &self,
+        project_id: &ProjectId,
+        spans: &[(String, String)],
+    ) -> Result<Vec<String>, DataError>;
+
+    async fn delete_trace_bodies(
+        &self,
+        project_id: &ProjectId,
+        trace_ids: &[String],
+    ) -> Result<Vec<String>, DataError>;
+
+    async fn delete_project_bodies(&self, project_id: &ProjectId)
+    -> Result<Vec<String>, DataError>;
+
+    /// Replace durable body ownership for selected traces with the exact winning-span field set.
+    ///
+    /// Provisional rows (`pending_writers > 0`) are never removed; they belong to an ingest that has not
+    /// reached its analytics write yet.
+    async fn reconcile_span_bodies(
+        &self,
+        project_id: &ProjectId,
+        trace_ids: &[String],
+        keep: &[SpanBodyAssociation],
+    ) -> Result<Vec<String>, DataError>;
+
+    async fn content_body_backfill_progress(
+        &self,
+        project_id: &ProjectId,
+    ) -> Result<Option<ContentBodyBackfillProgress>, DataError>;
+
+    async fn save_content_body_backfill_progress(
+        &self,
+        progress: &ContentBodyBackfillProgress,
+    ) -> Result<(), DataError>;
+
+    async fn reset_content_body_backfill(&self, project_id: &ProjectId) -> Result<(), DataError>;
 }
 
 /// API keys, stored as a hash.
@@ -1083,7 +1355,7 @@ pub trait CredentialStore: Send + Sync {
         id: &str,
         credential_id: &str,
         org_id: &str,
-        project_id: Option<&str>,
+        project_id: Option<&ProjectId>,
         access: &str,
         created_by: Option<&str>,
     ) -> Result<CredentialPermissionRow, DataError>;
@@ -1102,7 +1374,7 @@ pub trait CredentialStore: Send + Sync {
     async fn get_credentials_accessible_by_project(
         &self,
         org_id: &str,
-        project_id: &str,
+        project_id: &ProjectId,
     ) -> Result<Vec<String>, DataError>;
 }
 
@@ -1117,7 +1389,7 @@ pub trait FavoriteStore: Send + Sync {
         entity_type: &str,
         entity_id: &str,
         secondary_id: Option<&str>,
-        project_id: &str,
+        project_id: &ProjectId,
     ) -> Result<bool, DataError>;
 
     /// Remove a favorite
@@ -1128,7 +1400,7 @@ pub trait FavoriteStore: Send + Sync {
         entity_type: &str,
         entity_id: &str,
         secondary_id: Option<&str>,
-        project_id: &str,
+        project_id: &ProjectId,
     ) -> Result<bool, DataError>;
 
     /// Check if entities are favorited
@@ -1137,7 +1409,7 @@ pub trait FavoriteStore: Send + Sync {
         user_id: &str,
         entity_type: &str,
         entity_ids: &[String],
-        project_id: &str,
+        project_id: &ProjectId,
     ) -> Result<Vec<String>, DataError>;
 
     /// Check if spans are favorited
@@ -1145,18 +1417,22 @@ pub trait FavoriteStore: Send + Sync {
         &self,
         user_id: &str,
         span_ids: &[(String, String)],
-        project_id: &str,
+        project_id: &ProjectId,
     ) -> Result<Vec<(String, String)>, DataError>;
 
     /// Count favorites for a user
-    async fn count_favorites(&self, user_id: &str, project_id: &str) -> Result<i64, DataError>;
+    async fn count_favorites(
+        &self,
+        user_id: &str,
+        project_id: &ProjectId,
+    ) -> Result<i64, DataError>;
 
     /// List all favorite entity IDs for a user
     async fn list_favorite_ids(
         &self,
         user_id: &str,
         entity_type: &str,
-        project_id: &str,
+        project_id: &ProjectId,
     ) -> Result<Vec<String>, DataError>;
 
     /// Delete favorites by entity (for cascade delete)
@@ -1164,7 +1440,7 @@ pub trait FavoriteStore: Send + Sync {
         &self,
         entity_type: &str,
         entity_ids: &[String],
-        project_id: &str,
+        project_id: &ProjectId,
     ) -> Result<u64, DataError>;
 }
 
@@ -1179,12 +1455,26 @@ pub trait FavoriteStore: Send + Sync {
 /// writes an empty impl and nothing can drift between the two.
 #[async_trait]
 pub trait AnalyticsRepository:
-    SpanStore + EntityQuery + MessageStore + AnalyticsMaintenance + SurvivorReferences
+    SpanStore
+    + MetricStore
+    + LogStore
+    + SearchIndex
+    + EntityQuery
+    + MessageStore
+    + AnalyticsMaintenance
+    + SurvivorReferences
 {
 }
 
 impl<T> AnalyticsRepository for T where
-    T: SpanStore + EntityQuery + MessageStore + AnalyticsMaintenance + SurvivorReferences
+    T: SpanStore
+        + MetricStore
+        + LogStore
+        + SearchIndex
+        + EntityQuery
+        + MessageStore
+        + AnalyticsMaintenance
+        + SurvivorReferences
 {
 }
 
@@ -1283,7 +1573,7 @@ pub struct DeletionRecord {
     /// the journal is inside the per-project storage quota, and an organization's own deletion has no project
     /// to charge. A second nullable column would have to be joined or coalesced at every read to answer the
     /// same question.
-    pub project_id: String,
+    pub project_id: ProjectId,
     pub cause: DeletionCause,
     pub scope: DeletionScope,
     /// The trace, session, project or organization id.
@@ -1291,6 +1581,37 @@ pub struct DeletionRecord {
     /// Set only for [`DeletionScope::Span`], where the target is the span's trace.
     pub span_id: Option<String>,
     pub recorded_at: DateTime<Utc>,
+}
+
+impl DeletionRecord {
+    pub fn logical_bytes_for<P: AsRef<str> + ?Sized>(
+        project_id: &P,
+        cause: DeletionCause,
+        scope: DeletionScope,
+        target_id: &str,
+        span_id: Option<&str>,
+    ) -> u64 {
+        64u64
+            .saturating_add(project_id.as_ref().len() as u64)
+            .saturating_add(cause.as_str().len() as u64)
+            .saturating_add(scope.as_str().len() as u64)
+            .saturating_add(target_id.len() as u64)
+            .saturating_add(span_id.map(str::len).unwrap_or_default() as u64)
+    }
+
+    /// Stable logical size charged to the project's storage budget.
+    ///
+    /// The fixed portion accounts for the sequence, instant, nullable tag and row framing; strings are charged
+    /// by UTF-8 bytes so SQLite and PostgreSQL report the same value for identical records.
+    pub fn logical_bytes(&self) -> u64 {
+        Self::logical_bytes_for(
+            &self.project_id,
+            self.cause,
+            self.scope,
+            &self.target_id,
+            self.span_id.as_deref(),
+        )
+    }
 }
 
 /// The append-only record of deletions a restore cannot recompute.
@@ -1341,7 +1662,7 @@ pub trait DeletionJournal: Send + Sync {
     /// in the transactional store, so there is no reason for either.
     async fn record_deleted_traces_journalled(
         &self,
-        project_id: &str,
+        project_id: &ProjectId,
         trace_ids: &[String],
     ) -> Result<(), DataError>;
 
@@ -1353,10 +1674,24 @@ pub trait DeletionJournal: Send + Sync {
     /// resolvable from restored data at all.
     async fn record_deleted_sessions_journalled(
         &self,
-        project_id: &str,
+        project_id: &ProjectId,
         session_ids: &[String],
         trace_ids: &[String],
     ) -> Result<(), DataError>;
+
+    /// Journal requested exact-span deletions and record their trace cleanup atomically.
+    async fn record_deleted_spans_journalled(
+        &self,
+        project_id: &ProjectId,
+        spans: &[(String, String)],
+    ) -> Result<Vec<(String, i64)>, DataError>;
+
+    /// Persist pressure-eviction journal rows and cleanup candidates in one transaction.
+    async fn record_pressure_eviction(
+        &self,
+        project_id: &ProjectId,
+        spans: &[(String, String)],
+    ) -> Result<Vec<(String, i64)>, DataError>;
 
     /// Claim a project for deletion and journal it, in one transaction.
     ///
@@ -1400,11 +1735,132 @@ pub trait DeletionJournal: Send + Sync {
     /// deleting the trace removes the span too.
     async fn deletion_is_journaled(
         &self,
-        project_id: &str,
+        project_id: &ProjectId,
         scope: DeletionScope,
         target_id: &str,
         span_id: Option<&str>,
     ) -> Result<bool, DataError>;
+
+    /// Span identities already covered by a span- or trace-scoped journal entry.
+    async fn journaled_spans_among(
+        &self,
+        project_id: &ProjectId,
+        spans: &[(String, String)],
+    ) -> Result<HashSet<(String, String)>, DataError>;
+
+    /// Exact span deletions recorded for these traces.
+    ///
+    /// A cleanup candidate stores one row per trace, while pressure/requested deletion records are exact span
+    /// identities. Re-reading those identities lets cleanup re-apply the analytical deletion after a crash or a
+    /// writer that committed in the cross-store window, before it reconciles the trace's surviving file
+    /// references.
+    async fn journaled_span_deletions_for_traces(
+        &self,
+        project_id: &ProjectId,
+        trace_ids: &[String],
+    ) -> Result<Vec<(String, String)>, DataError>;
+}
+
+/// Stable logical size of one retention-cleanup candidate.
+pub fn retention_cleanup_logical_bytes<P: AsRef<str> + ?Sized>(
+    project_id: &P,
+    trace_id: &str,
+) -> u64 {
+    64u64
+        .saturating_add(project_id.as_ref().len() as u64)
+        .saturating_add(trace_id.len() as u64)
+}
+
+/// Durable metadata for payload bytes staged before OTLP acknowledgement.
+///
+/// The blob itself lives behind `FileStorage`; this registry is what makes queue loss discoverable and
+/// records the bounded redrive state. Rows have no TTL and leave only through confirmation or a proven
+/// deletion.
+#[async_trait]
+pub trait StagedPayloadStore: Send + Sync {
+    async fn create_staged_payload(&self, payload: &StagedPayload) -> Result<(), DataError>;
+
+    async fn get_staged_payload(&self, id: &str) -> Result<Option<StagedPayload>, DataError>;
+
+    /// Oldest payloads that have not exhausted the redrive cap.
+    async fn pending_staged_payloads(&self, limit: usize) -> Result<Vec<StagedPayload>, DataError>;
+
+    /// Increment and return the durable attempt count.
+    async fn increment_staged_redrive_attempts(&self, id: &str) -> Result<u32, DataError>;
+
+    async fn mark_staged_unconfirmed(&self, id: &str) -> Result<(), DataError>;
+
+    async fn delete_staged_payload(&self, id: &str) -> Result<(), DataError>;
+}
+
+/// Durable legal-hold state, maintenance fencing and quota admission.
+///
+/// Hold recording and retention batches share the same leased per-project mutex. The usage counter is
+/// deliberately best-effort: admission increments it atomically, while reconciliation replaces it from
+/// independently measured storage.
+#[async_trait]
+pub trait StorageGovernance: Send + Sync {
+    async fn active_project_hold(
+        &self,
+        project_id: &ProjectId,
+        now: DateTime<Utc>,
+    ) -> Result<Option<ProjectHold>, DataError>;
+
+    async fn list_active_project_holds(
+        &self,
+        now: DateTime<Utc>,
+        limit: usize,
+    ) -> Result<Vec<ProjectHold>, DataError>;
+
+    async fn set_project_hold(
+        &self,
+        project_id: &ProjectId,
+        hold_until: DateTime<Utc>,
+        now: DateTime<Utc>,
+    ) -> Result<ProjectHold, DataError>;
+
+    async fn clear_project_hold(&self, project_id: &ProjectId) -> Result<bool, DataError>;
+
+    async fn acquire_project_maintenance(
+        &self,
+        project_id: &ProjectId,
+        owner: &str,
+        now: DateTime<Utc>,
+        lease_until: DateTime<Utc>,
+    ) -> Result<bool, DataError>;
+
+    async fn release_project_maintenance(
+        &self,
+        project_id: &ProjectId,
+        owner: &str,
+    ) -> Result<(), DataError>;
+
+    /// Reserve ordinary-write capacity. Returns the resulting measured usage, or `None` on refusal.
+    async fn reserve_project_storage(
+        &self,
+        project_id: &ProjectId,
+        additional_bytes: u64,
+        ordinary_limit_bytes: u64,
+        now: DateTime<Utc>,
+    ) -> Result<Option<ProjectStorageUsage>, DataError>;
+
+    async fn project_storage_usage(
+        &self,
+        project_id: &ProjectId,
+    ) -> Result<ProjectStorageUsage, DataError>;
+
+    async fn replace_project_storage_usage(
+        &self,
+        project_id: &ProjectId,
+        logical_bytes: u64,
+        now: DateTime<Utc>,
+    ) -> Result<ProjectStorageUsage, DataError>;
+
+    /// Held transactional bytes: staged payloads plus the permanent deletion journal.
+    async fn held_transactional_bytes(&self, project_id: &ProjectId) -> Result<u64, DataError>;
+
+    /// Projects participating in accounting, including projects whose measured usage is still zero.
+    async fn storage_project_ids(&self, limit: usize) -> Result<Vec<ProjectId>, DataError>;
 }
 
 /// Everything a transactional adapter provides, as one bound. See [`AnalyticsRepository`] for why this is a
@@ -1414,10 +1870,12 @@ pub trait TransactionalRepository:
     IdentityStore
     + ProjectStore
     + FileMetaStore
+    + ContentBodyStore
     + ApiKeyStore
     + CredentialStore
     + FavoriteStore
     + DeletionJournal
+    + StagedPayloadStore
 {
 }
 
@@ -1425,9 +1883,11 @@ impl<T> TransactionalRepository for T where
     T: IdentityStore
         + ProjectStore
         + FileMetaStore
+        + ContentBodyStore
         + ApiKeyStore
         + CredentialStore
         + FavoriteStore
         + DeletionJournal
+        + StagedPayloadStore
 {
 }

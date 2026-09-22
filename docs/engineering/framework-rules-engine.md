@@ -587,7 +587,7 @@ bless a regression; an oracle cannot.
    recorded under step 8, each named for a fact about a carrier rather than for the framework.
 10. ⬜ **Externalise the plain provider and MCP manifests; delete the legacy tables** — **not done, and
     outside the cycle-40 acceptance.** Both are Rust tables, held by the two scoped exemptions the sweep
-    records: `api/mcp/tools.rs` with its argument schema, and the three Azure AI Foundry connector files.
+    records: `crates/api/src/mcp/tools.rs` with its argument schema, and the three Azure AI Foundry connector files.
     Neither interprets telemetry, which is why the acceptance stands without them.
 
     The legacy tables are also **deliberately not deleted**: each is retained under `#[cfg(test)]` as an

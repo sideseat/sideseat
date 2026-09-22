@@ -58,7 +58,7 @@ use crate::data::postgres::PostgresService;
 use crate::data::sqlite::SqliteService;
 use sideseat_core::core::config::PostgresConfig;
 
-use sideseat_ports::types::LastOwnerResult;
+use sideseat_ports::types::{LastOwnerResult, ProjectId};
 
 /// Env var holding a PostgreSQL connection URL, e.g. `postgres://user:pass@127.0.0.1:5433/sideseat`.
 const URL_ENV: &str = "SIDESEAT_TEST_POSTGRES_URL";
@@ -141,7 +141,10 @@ async fn pair() -> Option<(
         .execute(&sqlite_pool)
         .await
         .expect("SQLite schema");
-    let sqlite = Arc::new(SqliteService::from_pool(sqlite_pool));
+    let sqlite = Arc::new(SqliteService::from_pool(
+        sqlite_pool,
+        Arc::new(crate::runtime::clock::SystemClock),
+    ));
 
     // Defaults, except the URL: the point is to run the same pool the server runs.
     let config = PostgresConfig {
@@ -154,7 +157,7 @@ async fn pair() -> Option<(
         statement_timeout_secs: 30,
     };
     let postgres = Arc::new(
-        PostgresService::init(&config)
+        PostgresService::init(&config, Arc::new(crate::runtime::clock::SystemClock))
             .await
             .expect("PostgreSQL connection (is the container up?)"),
     );
@@ -265,16 +268,31 @@ async fn releasing_all_but_the_survivors_files_behaves_identically() {
         let inflight_hash = hash(3);
 
         for h in [&keep_hash, &drop_hash] {
-            repo.upsert_file("default", h, None, 5, "sha256").await.ok();
-            repo.insert_trace_file("t1", "default", h).await.ok();
+            repo.upsert_file(&ProjectId::from("default"), h, None, 5, "sha256")
+                .await
+                .ok();
+            repo.insert_trace_file("t1", &ProjectId::from("default"), h)
+                .await
+                .ok();
         }
         // Through the real path, so this one carries a pending writer.
-        repo.associate_file("t1", "default", &inflight_hash, None, 5, "sha256")
-            .await
-            .ok();
+        repo.associate_file(
+            "t1",
+            &ProjectId::from("default"),
+            &inflight_hash,
+            None,
+            5,
+            "sha256",
+        )
+        .await
+        .ok();
 
         let mut released = repo
-            .release_trace_files_except("default", "t1", std::slice::from_ref(&keep_hash))
+            .release_trace_files_except(
+                &ProjectId::from("default"),
+                "t1",
+                std::slice::from_ref(&keep_hash),
+            )
             .await
             .expect("release");
         released.sort();
@@ -289,7 +307,7 @@ async fn releasing_all_but_the_survivors_files_behaves_identically() {
         ));
 
         let mut left = repo
-            .get_file_hashes_for_traces("default", &["t1".to_string()])
+            .get_file_hashes_for_traces(&ProjectId::from("default"), &["t1".to_string()])
             .await
             .expect("read back");
         left.sort();
@@ -297,20 +315,20 @@ async fn releasing_all_but_the_survivors_files_behaves_identically() {
 
         // An empty keep list: everything releasable except the in-flight row.
         let empty = repo
-            .release_trace_files_except("default", "t1", &[])
+            .release_trace_files_except(&ProjectId::from("default"), "t1", &[])
             .await
             .expect("release with no survivors");
         t.note(&format!("released with no survivors: {}", empty.len()));
 
         let remaining = repo
-            .get_file_hashes_for_traces("default", &["t1".to_string()])
+            .get_file_hashes_for_traces(&ProjectId::from("default"), &["t1".to_string()])
             .await
             .expect("read back again");
         t.note(&format!("associated after that: {}", remaining.len()));
 
         // A trace with nothing to release.
         let none = repo
-            .release_trace_files_except("default", "absent", &[])
+            .release_trace_files_except(&ProjectId::from("default"), "absent", &[])
             .await
             .expect("release for an unknown trace");
         t.note(&format!("released for an unknown trace: {}", none.len()));
@@ -320,16 +338,16 @@ async fn releasing_all_but_the_survivors_files_behaves_identically() {
     .await;
 }
 
-/// The PostgreSQL v2 → v3 migration, applied to a **v2-shaped** database.
+/// The PostgreSQL v2 → current migration chain, applied to a **v2-shaped** database.
 ///
 /// PostgreSQL had no upgrade test at all - SQLite and DuckDB each have one, and this backend's migrations were
 /// only ever exercised by a fresh install, which never runs them. So migration 3 could be deleted or broken and
 /// every suite stayed green: fresh installs get `retention_cleanup` from the schema, and a production v2
 /// database would upgrade without it, leaving every retention cleanup unrecorded.
 ///
-/// The v2 shape is produced by dropping what v3 adds and setting the version back, which is the same technique
-/// the SQLite test uses. Its known limit is stated there and applies here: it reverses against the *current*
-/// schema, so it is released v2 only while v3 is the newest migration.
+/// The v2 shape is produced by dropping every object added after v2 and setting the version back. Keeping this
+/// inventory explicit is load-bearing: subtracting only the first pending migration from the current schema
+/// leaves later columns in place and tests an impossible source state.
 #[tokio::test]
 async fn a_v2_postgres_database_upgrades_to_the_current_schema() {
     let Some((_sqlite, postgres)) = pair().await else {
@@ -343,11 +361,24 @@ async fn a_v2_postgres_database_upgrades_to_the_current_schema() {
     // it points away from its cause. One such failure was already traced back to a stale reset list.
     reset_postgres(&postgres).await;
 
-    // Reduce to v2: the table v3 adds, gone, and the recorded version with it.
-    sqlx::query("DROP TABLE IF EXISTS retention_cleanup")
-        .execute(pool)
-        .await
-        .expect("drop the v3 table");
+    // Reduce the current schema to released v2. Children first where foreign keys require it.
+    sqlx::raw_sql(
+        r#"
+DROP TABLE IF EXISTS span_bodies;
+DROP TABLE IF EXISTS content_bodies;
+DROP TABLE IF EXISTS content_body_backfill;
+DROP TABLE IF EXISTS staged_payloads;
+DROP TABLE IF EXISTS project_storage_usage;
+DROP TABLE IF EXISTS project_maintenance_leases;
+DROP TABLE IF EXISTS project_holds;
+DROP TABLE IF EXISTS deletion_journal;
+DROP TABLE IF EXISTS retention_cleanup;
+DELETE FROM schema_migrations WHERE version > 2;
+"#,
+    )
+    .execute(pool)
+    .await
+    .expect("reduce the current schema to v2");
     sqlx::query("UPDATE schema_version SET version = 2 WHERE id = 1")
         .execute(pool)
         .await
@@ -368,7 +399,7 @@ async fn a_v2_postgres_database_upgrades_to_the_current_schema() {
         "the fixture must not already have the v3 table, or this test cannot fail"
     );
 
-    crate::data::postgres::migrations::run_migrations(pool)
+    crate::data::postgres::migrations::run_migrations(pool, &crate::runtime::clock::SystemClock)
         .await
         .expect("a v2 database must upgrade");
 
@@ -380,7 +411,7 @@ async fn a_v2_postgres_database_upgrades_to_the_current_schema() {
 
     // Usable, not merely present.
     let repo: Box<dyn TransactionalRepository + Send + Sync> = Box::new(postgres.clone());
-    repo.record_retention_cleanup("p1", &["t1".to_string()])
+    repo.record_retention_cleanup(&ProjectId::from("p1"), &["t1".to_string()])
         .await
         .expect("the upgraded table must accept a record");
 
@@ -405,7 +436,10 @@ async fn retention_cleanup_intent_behaves_identically() {
 
         // Recorded, and idempotent: the same trace twice is one candidate.
         let written = repo
-            .record_retention_cleanup("p1", &["t1".to_string(), "t2".to_string()])
+            .record_retention_cleanup(
+                &ProjectId::from("p1"),
+                &["t1".to_string(), "t2".to_string()],
+            )
             .await
             .expect("record");
         t.note(&format!("recorded: {}", written.len()));
@@ -413,7 +447,7 @@ async fn retention_cleanup_intent_behaves_identically() {
         // Idempotent for the *row*, and it bumps the token: re-recording means new work behind the same
         // identity, so a claim an earlier worker still holds must stop matching.
         let again_written = repo
-            .record_retention_cleanup("p1", &["t1".to_string()])
+            .record_retention_cleanup(&ProjectId::from("p1"), &["t1".to_string()])
             .await
             .expect("record again");
         t.note(&format!(
@@ -439,7 +473,7 @@ async fn retention_cleanup_intent_behaves_identically() {
         // deleting an intent a later retention pass recorded: if that newer work then fails, nothing else knows
         // it is owed. The tokens come from `first` - the claim actually held - because a fresh claim would not
         // find these rows while their lease stands, which is the previous point.
-        repo.complete_retention_cleanup("p1", &[("t2".to_string(), 999)])
+        repo.complete_retention_cleanup(&ProjectId::from("p1"), &[("t2".to_string(), 999)])
             .await
             .expect("stale completion");
         let due = repo
@@ -457,7 +491,7 @@ async fn retention_cleanup_intent_behaves_identically() {
             .find(|(_, trace, _)| trace == "t1")
             .map(|(_, _, token)| *token)
             .expect("t1 was claimed");
-        repo.complete_retention_cleanup("p1", &[("t1".to_string(), t1_token)])
+        repo.complete_retention_cleanup(&ProjectId::from("p1"), &[("t1".to_string(), t1_token)])
             .await
             .expect("complete");
 
@@ -474,9 +508,12 @@ async fn retention_cleanup_intent_behaves_identically() {
         ));
 
         // A limit bounds the claim.
-        repo.record_retention_cleanup("p1", &["t3".to_string(), "t4".to_string()])
-            .await
-            .expect("record more");
+        repo.record_retention_cleanup(
+            &ProjectId::from("p1"),
+            &["t3".to_string(), "t4".to_string()],
+        )
+        .await
+        .expect("record more");
         let bounded = repo.claim_retention_cleanup(1, 0).await.expect("claim one");
         t.note(&format!("bounded claim size: {}", bounded.len()));
 
@@ -662,7 +699,7 @@ async fn projects_behave_identically() {
         // backoff, and it must produce the same schedule on both dialects.
         for _ in 0..2 {
             for (id, token) in repo.claim_deleted_projects_for_check(0, 10).await.unwrap() {
-                repo.record_deleted_project_check(&id, token, true, 0, 0)
+                repo.record_deleted_project_check(&ProjectId::from(&id), token, true, 0, 0)
                     .await
                     .unwrap();
             }
@@ -710,21 +747,52 @@ async fn files_and_references_behave_identically() {
         let b = hash(0xb2);
 
         // Two traces referencing one file, and one referencing another.
-        repo.associate_file("trace-1", "default", &a, Some("image/png"), 1024, "sha256")
-            .await
-            .unwrap();
-        repo.associate_file("trace-2", "default", &a, Some("image/png"), 1024, "sha256")
-            .await
-            .unwrap();
-        repo.associate_file("trace-2", "default", &b, None, 64, "sha256")
-            .await
-            .unwrap();
+        repo.associate_file(
+            "trace-1",
+            &ProjectId::from("default"),
+            &a,
+            Some("image/png"),
+            1024,
+            "sha256",
+        )
+        .await
+        .unwrap();
+        repo.associate_file(
+            "trace-2",
+            &ProjectId::from("default"),
+            &a,
+            Some("image/png"),
+            1024,
+            "sha256",
+        )
+        .await
+        .unwrap();
+        repo.associate_file(
+            "trace-2",
+            &ProjectId::from("default"),
+            &b,
+            None,
+            64,
+            "sha256",
+        )
+        .await
+        .unwrap();
         // Idempotent: the same trace naming the same file twice is one reference.
-        repo.associate_file("trace-1", "default", &a, Some("image/png"), 1024, "sha256")
+        repo.associate_file(
+            "trace-1",
+            &ProjectId::from("default"),
+            &a,
+            Some("image/png"),
+            1024,
+            "sha256",
+        )
+        .await
+        .unwrap();
+
+        let file_a = repo
+            .get_file(&ProjectId::from("default"), &a)
             .await
             .unwrap();
-
-        let file_a = repo.get_file("default", &a).await.unwrap();
         t.note(&format!(
             "a_ref_count={:?} size={:?} media={:?}",
             file_a.as_ref().map(|f| f.ref_count),
@@ -733,22 +801,31 @@ async fn files_and_references_behave_identically() {
         ));
         t.note(&format!(
             "exists_a={} exists_missing={}",
-            repo.file_exists("default", &a).await.unwrap(),
-            repo.file_exists("default", &hash(0xcc)).await.unwrap()
+            repo.file_exists(&ProjectId::from("default"), &a)
+                .await
+                .unwrap(),
+            repo.file_exists(&ProjectId::from("default"), &hash(0xcc))
+                .await
+                .unwrap()
         ));
         t.note(&format!(
             "storage_bytes={}",
-            repo.get_project_storage_bytes("default").await.unwrap()
+            repo.get_project_storage_bytes(&ProjectId::from("default"))
+                .await
+                .unwrap()
         ));
 
         let mut hashes = repo
-            .get_file_hashes_for_traces("default", &["trace-2".to_string()])
+            .get_file_hashes_for_traces(&ProjectId::from("default"), &["trace-2".to_string()])
             .await
             .unwrap();
         hashes.sort();
         t.note(&format!("hashes_for_trace_2={}", hashes.len()));
         let mut counted = repo
-            .get_file_reference_counts_for_traces("default", &["trace-1".to_string()])
+            .get_file_reference_counts_for_traces(
+                &ProjectId::from("default"),
+                &["trace-1".to_string()],
+            )
             .await
             .unwrap();
         counted.sort();
@@ -763,7 +840,7 @@ async fn files_and_references_behave_identically() {
             "released={:?}",
             {
                 let mut released = repo
-                    .delete_trace_files("default", &["trace-1".to_string()])
+                    .delete_trace_files(&ProjectId::from("default"), &["trace-1".to_string()])
                     .await
                     .unwrap();
                 released.sort();
@@ -772,7 +849,7 @@ async fn files_and_references_behave_identically() {
         ));
         t.note(&format!(
             "a_after_release={:?}",
-            repo.get_file("default", &a)
+            repo.get_file(&ProjectId::from("default"), &a)
                 .await
                 .unwrap()
                 .map(|f| f.ref_count)
@@ -781,24 +858,37 @@ async fn files_and_references_behave_identically() {
         // The fence: claiming, refusing an association through it, releasing.
         t.note(&format!(
             "claim_referenced={}",
-            repo.claim_file_for_deletion("default", &a).await.unwrap()
+            repo.claim_file_for_deletion(&ProjectId::from("default"), &a)
+                .await
+                .unwrap()
         ));
-        repo.delete_trace_files("default", &["trace-2".to_string()])
+        repo.delete_trace_files(&ProjectId::from("default"), &["trace-2".to_string()])
             .await
             .unwrap();
         t.note(&format!(
             "claim_unreferenced={}",
-            repo.claim_file_for_deletion("default", &a).await.unwrap()
+            repo.claim_file_for_deletion(&ProjectId::from("default"), &a)
+                .await
+                .unwrap()
         ));
         t.note(&format!(
             "claim_again={}",
-            repo.claim_file_for_deletion("default", &a).await.unwrap()
+            repo.claim_file_for_deletion(&ProjectId::from("default"), &a)
+                .await
+                .unwrap()
         ));
         t.note(&format!(
             "associate_through_fence_is_err={}",
-            repo.associate_file("trace-3", "default", &a, None, 1024, "sha256")
-                .await
-                .is_err()
+            repo.associate_file(
+                "trace-3",
+                &ProjectId::from("default"),
+                &a,
+                None,
+                1024,
+                "sha256"
+            )
+            .await
+            .is_err()
         ));
         t.note(&format!(
             "stale_at_zero={}",
@@ -820,63 +910,83 @@ async fn files_and_references_behave_identically() {
             .expect("the claimed file is reported");
         t.note(&format!(
             "reclaim_with_a_different_value={}",
-            repo.reclaim_stale_file("default", &a, observed + 1)
+            repo.reclaim_stale_file(&ProjectId::from("default"), &a, observed + 1)
                 .await
                 .unwrap()
         ));
         t.note(&format!(
             "reclaim_as_observed={}",
-            repo.reclaim_stale_file("default", &a, observed)
+            repo.reclaim_stale_file(&ProjectId::from("default"), &a, observed)
                 .await
                 .unwrap()
         ));
         t.note(&format!(
             "reclaim_twice_on_one_reading={}",
-            repo.reclaim_stale_file("default", &a, observed)
+            repo.reclaim_stale_file(&ProjectId::from("default"), &a, observed)
                 .await
                 .unwrap()
         ));
         t.note(&format!(
             "delete_if_unreferenced={}",
-            repo.delete_file_if_unreferenced("default", &a)
+            repo.delete_file_if_unreferenced(&ProjectId::from("default"), &a)
                 .await
                 .unwrap()
         ));
         t.note(&format!(
             "gone={}",
-            repo.get_file("default", &a).await.unwrap().is_none()
+            repo.get_file(&ProjectId::from("default"), &a)
+                .await
+                .unwrap()
+                .is_none()
         ));
 
         // The release path, on the file that is still there.
         t.note(&format!(
             "claim_b={}",
-            repo.claim_file_for_deletion("default", &b).await.unwrap()
+            repo.claim_file_for_deletion(&ProjectId::from("default"), &b)
+                .await
+                .unwrap()
         ));
-        repo.release_deletion_claim("default", &b).await.unwrap();
+        repo.release_deletion_claim(&ProjectId::from("default"), &b)
+            .await
+            .unwrap();
         t.note(&format!(
             "associate_after_release_ok={}",
-            repo.associate_file("trace-4", "default", &b, None, 64, "sha256")
-                .await
-                .is_ok()
+            repo.associate_file(
+                "trace-4",
+                &ProjectId::from("default"),
+                &b,
+                None,
+                64,
+                "sha256"
+            )
+            .await
+            .is_ok()
         ));
 
         // A count that drifted, recomputed from the associations that exist.
-        repo.decrement_ref_count("default", &b).await.unwrap();
-        repo.decrement_ref_count("default", &b).await.unwrap();
+        repo.decrement_ref_count(&ProjectId::from("default"), &b)
+            .await
+            .unwrap();
+        repo.decrement_ref_count(&ProjectId::from("default"), &b)
+            .await
+            .unwrap();
         t.note(&format!(
             "b_after_two_decrements={:?}",
-            repo.get_file("default", &b)
+            repo.get_file(&ProjectId::from("default"), &b)
                 .await
                 .unwrap()
                 .map(|f| f.ref_count)
         ));
         t.note(&format!(
             "synced={:?}",
-            repo.sync_ref_count("default", &b).await.unwrap()
+            repo.sync_ref_count(&ProjectId::from("default"), &b)
+                .await
+                .unwrap()
         ));
         t.note(&format!(
             "b_after_sync={:?}",
-            repo.get_file("default", &b)
+            repo.get_file(&ProjectId::from("default"), &b)
                 .await
                 .unwrap()
                 .map(|f| f.ref_count)
@@ -1025,11 +1135,18 @@ async fn the_file_fence_holds_against_a_concurrent_association() {
 
     // A file that exists and is unreferenced: claimable, and associable.
     postgres
-        .associate_file("old-trace", "default", &file, None, 128, "sha256")
+        .associate_file(
+            "old-trace",
+            &ProjectId::from("default"),
+            &file,
+            None,
+            128,
+            "sha256",
+        )
         .await
         .unwrap();
     postgres
-        .delete_trace_files("default", &["old-trace".to_string()])
+        .delete_trace_files(&ProjectId::from("default"), &["old-trace".to_string()])
         .await
         .unwrap();
 
@@ -1058,7 +1175,10 @@ async fn the_file_fence_holds_against_a_concurrent_association() {
     let claim = {
         let repo = postgres.clone();
         let file = file.clone();
-        tokio::spawn(async move { repo.claim_file_for_deletion("default", &file).await })
+        tokio::spawn(async move {
+            repo.claim_file_for_deletion(&ProjectId::from("default"), &file)
+                .await
+        })
     };
     tokio::time::sleep(std::time::Duration::from_millis(250)).await;
     assert!(
@@ -1077,7 +1197,10 @@ async fn the_file_fence_holds_against_a_concurrent_association() {
          bytes that a span still points at"
     );
     assert_eq!(
-        postgres.sync_ref_count("default", &file).await.unwrap(),
+        postgres
+            .sync_ref_count(&ProjectId::from("default"), &file)
+            .await
+            .unwrap(),
         Some(1),
         "and the reference that won is the one counted"
     );
@@ -1309,35 +1432,47 @@ async fn trace_deletion_tombstones_behave_identically() {
         };
 
         // Nothing deleted yet.
-        let found = repo.deleted_traces_among("p1", &asked).await;
+        let found = repo
+            .deleted_traces_among(&ProjectId::from("p1"), &asked)
+            .await;
         show(&mut t, "empty", found);
 
         // One deleted, and only that one refused.
         let recorded = repo
-            .record_deleted_traces("p1", &["trace-a".to_string()])
+            .record_deleted_traces(&ProjectId::from("p1"), &["trace-a".to_string()])
             .await;
         t.note(&format!("record a ok={}", recorded.is_ok()));
-        let found = repo.deleted_traces_among("p1", &asked).await;
+        let found = repo
+            .deleted_traces_among(&ProjectId::from("p1"), &asked)
+            .await;
         show(&mut t, "after a", found);
 
         // The deletion route may be retried, so re-recording must not conflict.
         let again = repo
-            .record_deleted_traces("p1", &["trace-a".to_string()])
+            .record_deleted_traces(&ProjectId::from("p1"), &["trace-a".to_string()])
             .await;
         t.note(&format!("record a again ok={}", again.is_ok()));
-        let found = repo.deleted_traces_among("p1", &asked).await;
+        let found = repo
+            .deleted_traces_among(&ProjectId::from("p1"), &asked)
+            .await;
         show(&mut t, "after retry", found);
 
         // A trace id comes from the client, so the same id in another project is untouched.
-        let found = repo.deleted_traces_among("p2", &asked).await;
+        let found = repo
+            .deleted_traces_among(&ProjectId::from("p2"), &asked)
+            .await;
         show(&mut t, "other project", found);
 
         // A batch of several, and an empty ask.
-        let both = repo.record_deleted_traces("p1", &asked).await;
+        let both = repo
+            .record_deleted_traces(&ProjectId::from("p1"), &asked)
+            .await;
         t.note(&format!("record both ok={}", both.is_ok()));
-        let found = repo.deleted_traces_among("p1", &asked).await;
+        let found = repo
+            .deleted_traces_among(&ProjectId::from("p1"), &asked)
+            .await;
         show(&mut t, "after both", found);
-        let found = repo.deleted_traces_among("p1", &[]).await;
+        let found = repo.deleted_traces_among(&ProjectId::from("p1"), &[]).await;
         show(&mut t, "empty ask", found);
         t
     })
@@ -1365,15 +1500,25 @@ async fn releasing_a_created_association_behaves_identically() {
         // Two traces share one file, which is the case that makes precision matter.
         for trace in ["t-keep", "t-drop"] {
             let created = repo
-                .associate_file(trace, project, &file_hash, Some("image/png"), 10, "sha256")
+                .associate_file(
+                    trace,
+                    &ProjectId::from(project),
+                    &file_hash,
+                    Some("image/png"),
+                    10,
+                    "sha256",
+                )
                 .await
                 .expect("associate");
             t.note(&format!("associate {trace} new={created}"));
-            repo.sync_ref_count(project, &file_hash)
+            repo.sync_ref_count(&ProjectId::from(project), &file_hash)
                 .await
                 .expect("sync");
         }
-        let counts = repo.get_file(project, &file_hash).await.expect("file row");
+        let counts = repo
+            .get_file(&ProjectId::from(project), &file_hash)
+            .await
+            .expect("file row");
         t.note(&format!(
             "refs after two associations={:?}",
             counts.map(|f| f.ref_count)
@@ -1381,14 +1526,17 @@ async fn releasing_a_created_association_behaves_identically() {
 
         // Release only the one the failed batch created.
         let released = repo
-            .release_trace_file_association(project, "t-drop", &file_hash)
+            .release_trace_file_association(&ProjectId::from(project), "t-drop", &file_hash)
             .await
             .expect("release");
-        repo.sync_ref_count(project, &file_hash)
+        repo.sync_ref_count(&ProjectId::from(project), &file_hash)
             .await
             .expect("sync");
         t.note(&format!("released={released}"));
-        let counts = repo.get_file(project, &file_hash).await.expect("file row");
+        let counts = repo
+            .get_file(&ProjectId::from(project), &file_hash)
+            .await
+            .expect("file row");
         t.note(&format!(
             "refs after release={:?}",
             counts.map(|f| f.ref_count)
@@ -1402,10 +1550,10 @@ async fn releasing_a_created_association_behaves_identically() {
         ));
 
         // Release the survivor too, and now it is reclaimable.
-        repo.release_trace_file_association(project, "t-keep", &file_hash)
+        repo.release_trace_file_association(&ProjectId::from(project), "t-keep", &file_hash)
             .await
             .expect("release the other");
-        repo.sync_ref_count(project, &file_hash)
+        repo.sync_ref_count(&ProjectId::from(project), &file_hash)
             .await
             .expect("sync");
         let orphans = repo.get_orphan_files().await.expect("orphans");
@@ -1416,7 +1564,7 @@ async fn releasing_a_created_association_behaves_identically() {
 
         // Releasing something that is not there is not an error - the failure path may run twice.
         let again = repo
-            .release_trace_file_association(project, "t-drop", &file_hash)
+            .release_trace_file_association(&ProjectId::from(project), "t-drop", &file_hash)
             .await
             .expect("releasing twice must not error");
         t.note(&format!("release again={again}"));
@@ -1443,7 +1591,7 @@ async fn a_shared_association_survives_a_peer_release_identically() {
             for _ in 0..2 {
                 repo.associate_file(
                     "t-shared",
-                    project,
+                    &ProjectId::from(project),
                     &file_hash,
                     Some("image/png"),
                     10,
@@ -1451,11 +1599,14 @@ async fn a_shared_association_survives_a_peer_release_identically() {
                 )
                 .await
                 .expect("associate");
-                repo.sync_ref_count(project, &file_hash)
+                repo.sync_ref_count(&ProjectId::from(project), &file_hash)
                     .await
                     .expect("sync");
             }
-            let counts = repo.get_file(project, &file_hash).await.expect("file row");
+            let counts = repo
+                .get_file(&ProjectId::from(project), &file_hash)
+                .await
+                .expect("file row");
             t.note(&format!(
                 "refs after two batches={:?}",
                 counts.map(|f| f.ref_count)
@@ -1470,15 +1621,18 @@ async fn a_shared_association_survives_a_peer_release_identically() {
             .await
             .expect("confirm");
             let released = repo
-                .release_trace_file_association(project, "t-shared", &file_hash)
+                .release_trace_file_association(&ProjectId::from(project), "t-shared", &file_hash)
                 .await
                 .expect("release");
-            repo.sync_ref_count(project, &file_hash)
+            repo.sync_ref_count(&ProjectId::from(project), &file_hash)
                 .await
                 .expect("sync");
             t.note(&format!("peer release deleted the row={released}"));
 
-            let counts = repo.get_file(project, &file_hash).await.expect("file row");
+            let counts = repo
+                .get_file(&ProjectId::from(project), &file_hash)
+                .await
+                .expect("file row");
             t.note(&format!(
                 "refs after the peer released={:?}",
                 counts.map(|f| f.ref_count)
@@ -1507,9 +1661,12 @@ async fn the_deleted_trace_sweep_schedule_behaves_identically() {
     assert_parity("deleted trace sweep", |repo, mut t| async move {
         // A fresh tombstone is due immediately: `next_check_at` defaults to 0, and a record that queued
         // behind the backlog would hide its late spans for as long as it waited.
-        repo.record_deleted_traces("p1", &["t1".to_string(), "t2".to_string()])
-            .await
-            .expect("record");
+        repo.record_deleted_traces(
+            &ProjectId::from("p1"),
+            &["t1".to_string(), "t2".to_string()],
+        )
+        .await
+        .expect("record");
         let claimed = repo
             .claim_deleted_traces_for_check(300, 10)
             .await
@@ -1533,9 +1690,16 @@ async fn the_deleted_trace_sweep_schedule_behaves_identically() {
         // A quiet check backs off; anything found brings it back to the base interval. Reported against
         // the claim token, so a worker whose lease expired cannot overwrite the new holder's schedule.
         for (project_id, trace_id, token) in &claimed {
-            repo.record_deleted_trace_check(project_id, trace_id, *token, true, 60, 3600)
-                .await
-                .expect("record quiet");
+            repo.record_deleted_trace_check(
+                &ProjectId::from(project_id),
+                trace_id,
+                *token,
+                true,
+                60,
+                3600,
+            )
+            .await
+            .expect("record quiet");
         }
         let after_quiet = repo
             .claim_deleted_traces_for_check(300, 10)
@@ -1545,9 +1709,16 @@ async fn the_deleted_trace_sweep_schedule_behaves_identically() {
 
         // A stale token changes nothing.
         let (project_id, trace_id, token) = &claimed[0];
-        repo.record_deleted_trace_check(project_id, trace_id, token - 1, false, 0, 3600)
-            .await
-            .expect("stale report must not error");
+        repo.record_deleted_trace_check(
+            &ProjectId::from(project_id),
+            trace_id,
+            token - 1,
+            false,
+            0,
+            3600,
+        )
+        .await
+        .expect("stale report must not error");
         let after_stale = repo
             .claim_deleted_traces_for_check(300, 10)
             .await
@@ -1555,9 +1726,16 @@ async fn the_deleted_trace_sweep_schedule_behaves_identically() {
         t.note(&format!("claim after stale report={}", after_stale.len()));
 
         // A report with the right token and nothing-was-quiet brings it due again at the base interval.
-        repo.record_deleted_trace_check(project_id, trace_id, *token, false, 0, 3600)
-            .await
-            .expect("record found");
+        repo.record_deleted_trace_check(
+            &ProjectId::from(project_id),
+            trace_id,
+            *token,
+            false,
+            0,
+            3600,
+        )
+        .await
+        .expect("record found");
         let after_found = repo
             .claim_deleted_traces_for_check(300, 10)
             .await

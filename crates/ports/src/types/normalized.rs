@@ -4,9 +4,10 @@
 //! and enrichment, ready for storage in any analytics backend.
 
 use chrono::{DateTime, Utc};
+use serde::Serialize;
 use serde_json::Value as JsonValue;
 
-use super::{AggregationTemporality, MetricType, ObservationType, SpanCategory};
+use super::{AggregationTemporality, MetricType, ObservationType, SearchDocument, SpanCategory};
 
 /// Helper to serialize a JsonValue to an Option<String>, returning None for null.
 pub fn json_to_pre_serialized(value: &JsonValue) -> Option<String> {
@@ -23,7 +24,7 @@ pub fn json_to_pre_serialized(value: &JsonValue) -> Option<String> {
 
 /// Normalized metric for analytics storage
 /// One row per data point (flattened from OTLP metric structures)
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, Serialize)]
 pub struct NormalizedMetric {
     // Identity
     pub project_id: Option<String>,
@@ -31,6 +32,11 @@ pub struct NormalizedMetric {
     /// its replacing engine by it and DuckDB deduplicates on it; without one, two labelled series
     /// recorded at the same instant were one row.
     pub datapoint_id: String,
+    /// Digest of producer-supplied semantic content for strict post-write confirmation.
+    ///
+    /// Unlike `datapoint_id`, this includes the measurement and descriptive fields. It excludes the
+    /// injected project id and all server-managed fields.
+    pub content_digest: String,
     pub metric_name: String,
     pub metric_description: Option<String>,
     pub metric_unit: Option<String>,
@@ -124,6 +130,65 @@ pub struct NormalizedMetric {
     pub scope_attributes: JsonValue,
     pub scope_schema_url: Option<String>,
     pub resource_schema_url: Option<String>,
+
+    /// Project legal-hold deadline copied by the writer fence.
+    pub hold_until: Option<DateTime<Utc>>,
+    /// Attributable logical size used by the per-project storage budget.
+    pub logical_bytes: u64,
+}
+
+// ============================================================================
+// NORMALIZED LOG
+// ============================================================================
+
+/// One OTLP log record flattened with its resource and instrumentation-scope context.
+#[derive(Debug, Clone, Default, Serialize)]
+pub struct NormalizedLog {
+    pub project_id: Option<String>,
+    /// Digest of every producer-supplied distinguishing field.
+    pub log_digest: String,
+    /// Occurrence of this digest inside one export, so identical records remain distinct while a retry
+    /// of the same export remains idempotent.
+    pub ordinal: u32,
+
+    /// `time_unix_nano`, falling back to `observed_time_unix_nano` and finally the epoch.
+    pub timestamp: DateTime<Utc>,
+    pub time: Option<DateTime<Utc>>,
+    pub observed_time: Option<DateTime<Utc>>,
+    pub severity_number: i32,
+    pub severity_text: Option<String>,
+    pub body: JsonValue,
+    pub body_text: Option<String>,
+    pub attributes: JsonValue,
+    pub dropped_attributes_count: u32,
+    pub flags: u32,
+    pub trace_id: Option<String>,
+    pub span_id: Option<String>,
+    pub event_name: Option<String>,
+
+    pub session_id: Option<String>,
+    pub user_id: Option<String>,
+    pub environment: Option<String>,
+    pub service_name: Option<String>,
+    pub service_version: Option<String>,
+    pub service_namespace: Option<String>,
+    pub service_instance_id: Option<String>,
+
+    pub resource_attributes: JsonValue,
+    pub scope_name: Option<String>,
+    pub scope_version: Option<String>,
+    pub scope_attributes: JsonValue,
+    pub scope_schema_url: Option<String>,
+    pub resource_schema_url: Option<String>,
+    pub raw_log: JsonValue,
+    pub ingested_at: Option<DateTime<Utc>>,
+
+    /// Project legal-hold deadline copied by the writer fence.
+    pub hold_until: Option<DateTime<Utc>>,
+    /// Attributable logical size used by the per-project storage budget.
+    pub logical_bytes: u64,
+    /// Server-derived search terms. They are not producer content and are not part of identity.
+    pub search: SearchDocument,
 }
 
 // ============================================================================
@@ -131,12 +196,14 @@ pub struct NormalizedMetric {
 // ============================================================================
 
 /// Normalized span for analytics storage
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, Serialize)]
 pub struct NormalizedSpan {
     // Identity
     pub project_id: Option<String>,
     pub trace_id: String,
     pub span_id: String,
+    /// Digest of the producer's resource, scope and span protobuf, excluding the injected project id.
+    pub content_digest: String,
     pub parent_span_id: Option<String>,
     pub trace_state: Option<String>,
 
@@ -268,4 +335,11 @@ pub struct NormalizedSpan {
     // Ingestion time (server time when span was received, for feed cursor)
     // Note: Not used in insert - populated by DB default (now())
     pub ingested_at: Option<DateTime<Utc>>,
+
+    /// Project legal-hold deadline copied by the writer fence.
+    pub hold_until: Option<DateTime<Utc>>,
+    /// Attributable logical size used by the per-project storage budget.
+    pub logical_bytes: u64,
+    /// Server-derived search terms. The same document is consumed by both analytics adapters.
+    pub search: SearchDocument,
 }

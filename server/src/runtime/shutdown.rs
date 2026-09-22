@@ -6,9 +6,9 @@ use std::time::Duration;
 use tokio::sync::{Mutex, watch};
 use tokio::task::JoinHandle;
 
-use crate::data::topics::TopicService;
-use crate::data::{AnalyticsService, TransactionalService};
+use crate::app::storage::{AnalyticsService, TransactionalService};
 use sideseat_core::core::constants::SHUTDOWN_TIMEOUT_SECS;
+use sideseat_domain::topics::TopicService;
 
 /// Centralized shutdown service for coordinating graceful shutdown
 #[derive(Clone)]
@@ -175,16 +175,27 @@ mod tests {
         std::fs::create_dir_all(data_dir.join("duckdb")).unwrap();
         let storage = AppStorage::init_for_test(data_dir);
         let database = Arc::new(
-            TransactionalService::init(TransactionalBackend::Sqlite, &storage, None, None)
-                .await
-                .unwrap(),
+            TransactionalService::init(
+                TransactionalBackend::Sqlite,
+                &storage,
+                None,
+                None,
+                Arc::new(crate::runtime::clock::SystemClock),
+            )
+            .await
+            .unwrap(),
         );
         let analytics = Arc::new(
-            AnalyticsService::init(AnalyticsBackend::Duckdb, &storage, None)
-                .await
-                .unwrap(),
+            AnalyticsService::init(
+                AnalyticsBackend::Duckdb,
+                &storage,
+                None,
+                Arc::new(crate::runtime::clock::SystemClock),
+            )
+            .await
+            .unwrap(),
         );
-        let topics = Arc::new(TopicService::new());
+        let topics = Arc::new(TopicService::new(sideseat_adapter_topics::memory_backend()));
         ShutdownService::new(topics, database, analytics)
     }
 

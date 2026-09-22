@@ -17,8 +17,20 @@ workspace = true
 # The innermost layer, and the first compiler-enforced boundary: its manifest names no driver and
 # nothing of SideSeat's own, so a violation does not compile rather than being caught by review.
 sideseat-core = { path = "../crates/core" }
+sideseat-api = { path = "../crates/api" }
+sideseat-domain = { path = "../crates/domain" }
+sideseat-adapter-blob-storage = { path = "../crates/adapter-blob-storage" }
+sideseat-adapter-cache = { path = "../crates/adapter-cache" }
+sideseat-adapter-clickhouse = { path = "../crates/adapter-clickhouse" }
+sideseat-adapter-duckdb = { path = "../crates/adapter-duckdb" }
+sideseat-adapter-postgres = { path = "../crates/adapter-postgres" }
+sideseat-adapter-registrations-memory = { path = "../crates/adapter-registrations-memory" }
+sideseat-adapter-secrets = { path = "../crates/adapter-secrets" }
+sideseat-adapter-sqlite = { path = "../crates/adapter-sqlite" }
+sideseat-adapter-topics = { path = "../crates/adapter-topics" }
 # The ports: traits, DTOs, the filter vocabulary and the error type. Names no adapter and no driver.
 sideseat-ports = { path = "../crates/ports" }
+sideseat-query-sql = { path = "../crates/query-sql" }
 axum = { workspace = true }
 tokio = { workspace = true }
 tower = { workspace = true }
@@ -42,7 +54,6 @@ directories = { workspace = true }
 dirs = { workspace = true }
 chrono = { workspace = true }
 chrono-tz = { workspace = true }
-keyring = { workspace = true }
 local-ip-address = { workspace = true }
 supports-hyperlinks = { workspace = true }
 jsonwebtoken = { workspace = true }
@@ -64,7 +75,6 @@ blake3 = { workspace = true }
 serde_json_path = { workspace = true }
 hmac = { workspace = true }
 dashmap = { workspace = true }
-duckdb = { workspace = true }
 parking_lot = { workspace = true }
 rustc-hash = { workspace = true }
 validator = { workspace = true }
@@ -72,19 +82,8 @@ cuid2 = { workspace = true }
 utoipa = { workspace = true }
 semver = { workspace = true }
 
-# AWS SDKs
-aws-sdk-s3 = { workspace = true }
-aws-sdk-secretsmanager = { workspace = true }
-aws-config = { workspace = true }
+# Cloud provider SDKs still used by server-owned integrations
 gcp_auth = { workspace = true }
-
-# Cache
-moka = { workspace = true }
-rmp-serde = { workspace = true }
-md5 = { workspace = true }
-
-# Redis cache
-deadpool-redis = { workspace = true }
 
 # ClickHouse client
 clickhouse = { workspace = true }
@@ -113,6 +112,7 @@ default = []
 tikv-jemallocator = "0.7.0"
 
 [dev-dependencies]
+sideseat-domain = { path = "../crates/domain", features = ["test-support"] }
 tempfile = "3"
 proptest = "1"
 # A real tokeniser for the structural sweeps, which read this crate's own source. `span-locations` is what lets

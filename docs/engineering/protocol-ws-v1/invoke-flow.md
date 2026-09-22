@@ -5,7 +5,7 @@ the server WS bridge to the SDK worker thread and back. Each diagram
 maps states a single component traverses; transitions are labelled
 with the event that fires them.
 
-## 1. HTTP SSE handler (`server/src/api/routes/agui/mod.rs::run_agent`)
+## 1. HTTP SSE handler (`crates/api/src/routes/agui/mod.rs::run_agent`)
 
 ```mermaid
 stateDiagram-v2

@@ -10,12 +10,12 @@ use crate::utils::file::expand_path;
 use super::cli::CliConfig;
 use super::constants::{
     APP_DOT_FOLDER, CONFIG_FILE_NAME, DEFAULT_CACHE_MAX_ENTRIES, DEFAULT_HOST,
-    DEFAULT_OTEL_GRPC_PORT, DEFAULT_OTEL_RETENTION_MAX_SPANS, DEFAULT_PORT,
-    DEFAULT_RATE_LIMIT_API_RPM, DEFAULT_RATE_LIMIT_AUTH_RPM, DEFAULT_RATE_LIMIT_FILES_RPM,
-    DEFAULT_RATE_LIMIT_INGESTION_RPM, ENV_SECRETS_AWS_PREFIX, ENV_SECRETS_AWS_REGION,
-    ENV_SECRETS_ENV_PREFIX, ENV_SECRETS_VAULT_ADDR, ENV_SECRETS_VAULT_MOUNT,
-    ENV_SECRETS_VAULT_PREFIX, ENV_SECRETS_VAULT_TOKEN, FILES_DEFAULT_QUOTA_BYTES,
-    FILES_DEFAULT_S3_PREFIX, POSTGRES_DEFAULT_ACQUIRE_TIMEOUT_SECS,
+    DEFAULT_OTEL_GRPC_PORT, DEFAULT_OTEL_RETENTION_MAX_SPANS, DEFAULT_OTEL_STAGING_REDRIVE_CAP,
+    DEFAULT_PORT, DEFAULT_RATE_LIMIT_API_RPM, DEFAULT_RATE_LIMIT_AUTH_RPM,
+    DEFAULT_RATE_LIMIT_FILES_RPM, DEFAULT_RATE_LIMIT_INGESTION_RPM, ENV_SECRETS_AWS_PREFIX,
+    ENV_SECRETS_AWS_REGION, ENV_SECRETS_ENV_PREFIX, ENV_SECRETS_VAULT_ADDR,
+    ENV_SECRETS_VAULT_MOUNT, ENV_SECRETS_VAULT_PREFIX, ENV_SECRETS_VAULT_TOKEN,
+    FILES_DEFAULT_QUOTA_BYTES, FILES_DEFAULT_S3_PREFIX, POSTGRES_DEFAULT_ACQUIRE_TIMEOUT_SECS,
     POSTGRES_DEFAULT_IDLE_TIMEOUT_SECS, POSTGRES_DEFAULT_MAX_CONNECTIONS,
     POSTGRES_DEFAULT_MAX_LIFETIME_SECS, POSTGRES_DEFAULT_MIN_CONNECTIONS,
     POSTGRES_DEFAULT_STATEMENT_TIMEOUT_SECS, PRICING_SYNC_INTERVAL_SECS,
@@ -251,6 +251,7 @@ pub struct OtelFileConfig {
     pub grpc: Option<GrpcFileConfig>,
     pub retention: Option<RetentionFileConfig>,
     pub auth: Option<OtelAuthFileConfig>,
+    pub staging_redrive_cap: Option<u32>,
 }
 
 /// Pricing configuration section (from JSON config file)
@@ -549,6 +550,14 @@ impl FileConfig {
                     tracing::trace!(required = ?auth.required, "Merging otel.auth.required");
                     current_auth.required = auth.required;
                 }
+            }
+
+            if otel.staging_redrive_cap.is_some() {
+                tracing::trace!(
+                    staging_redrive_cap = ?otel.staging_redrive_cap,
+                    "Merging otel.staging_redrive_cap"
+                );
+                current.staging_redrive_cap = otel.staging_redrive_cap;
             }
         }
 
@@ -880,6 +889,7 @@ pub struct OtelConfig {
     pub grpc_enabled: bool,
     pub grpc_port: u16,
     pub retention: RetentionConfig,
+    pub staging_redrive_cap: u32,
     /// Require API key for OTEL ingestion
     pub auth_required: bool,
 }
@@ -1239,6 +1249,9 @@ impl AppConfig {
             .otel_auth_required
             .or(file_otel_auth.required)
             .unwrap_or(false);
+        let staging_redrive_cap = file_otel
+            .staging_redrive_cap
+            .unwrap_or(DEFAULT_OTEL_STAGING_REDRIVE_CAP);
 
         // debug: CLI/env flag takes precedence, then file config, default false
         let debug = cli.debug || file_config.debug.unwrap_or(false);
@@ -1577,6 +1590,7 @@ impl AppConfig {
                 grpc_enabled: otel_grpc_enabled,
                 grpc_port: otel_grpc_port,
                 retention,
+                staging_redrive_cap,
                 auth_required: otel_auth_required,
             },
             pricing: PricingConfig {
@@ -1610,6 +1624,7 @@ impl AppConfig {
             otel_grpc_port = config.otel.grpc_port,
             retention_max_age_minutes = ?config.otel.retention.max_age_minutes,
             retention_max_spans = ?config.otel.retention.max_spans,
+            staging_redrive_cap = config.otel.staging_redrive_cap,
             otel_auth_required = config.otel.auth_required,
             pricing_sync_hours = config.pricing.sync_hours,
             files_enabled = config.files.enabled,
@@ -1642,6 +1657,9 @@ impl AppConfig {
         }
         if self.otel.grpc_enabled && self.otel.grpc_port == 0 {
             anyhow::bail!("Configuration error: otel.grpc.port must be greater than 0");
+        }
+        if self.otel.staging_redrive_cap == 0 {
+            anyhow::bail!("Configuration error: otel.staging_redrive_cap must be greater than 0");
         }
 
         // Port collision check (only if both are enabled)
@@ -1692,11 +1710,11 @@ impl AppConfig {
             }
         }
 
-        // Warn about low quota
-        if self.files.enabled && self.files.quota_bytes < 1024 * 1024 {
+        // This legacy-named setting is the unified project budget even when blob persistence is disabled.
+        if self.files.quota_bytes < 32 * 1024 * 1024 {
             tracing::warn!(
                 quota_bytes = self.files.quota_bytes,
-                "files.quota_bytes is less than 1MB, file storage may fill up quickly"
+                "files.quota_bytes is below the maintenance reserve; ordinary telemetry writes may be refused"
             );
         }
 
@@ -2481,6 +2499,7 @@ mod tests {
                     max_spans: None,
                 }),
                 auth: None,
+                staging_redrive_cap: None,
             }),
             pricing: Some(PricingFileConfig {
                 sync_hours: Some(4),
@@ -2514,6 +2533,7 @@ mod tests {
                     max_spans: Some(1_000_000),
                 }),
                 auth: None,
+                staging_redrive_cap: None,
             }),
             pricing: Some(PricingFileConfig {
                 sync_hours: Some(8),

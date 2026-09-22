@@ -222,26 +222,27 @@ crates/ports/src/
 ```
 
 ```
+crates/
+├── core/                         # Configuration, constants, storage layout, pure utilities
+├── ports/                        # Traits, DTOs, filters, and shared errors
+├── domain/                       # Signal pipelines, reconstruction, governance, search
+├── api/                          # HTTP/gRPC transport and route handlers
+├── query-sql/                    # Typed cross-engine query construction
+├── adapter-duckdb/               # Embedded analytics
+├── adapter-clickhouse/           # Server analytics
+├── adapter-sqlite/               # Embedded transactional store
+├── adapter-postgres/             # Server transactional store
+├── adapter-blob-storage/         # Filesystem and S3 blobs
+├── adapter-cache/                # In-memory and Redis cache
+├── adapter-topics/               # In-memory and Redis queues
+├── adapter-secrets/              # Credential secret providers
+└── adapter-registrations-memory/ # Process-local agent registration
+```
+
+```
 server/src/
-├── app.rs              # Main orchestrator
-├── runtime/
-│   └── shutdown.rs     # Shutdown coordination
-├── data/
-│   ├── duckdb/         # DuckDB implementation
-│   ├── clickhouse/     # ClickHouse implementation
-│   ├── sqlite/         # SQLite implementation
-│   ├── postgres/       # PostgreSQL implementation
-│   ├── files/          # File storage (filesystem / S3)
-│   └── topics/         # Pub/sub messaging (in-memory / Redis)
-├── domain/
-│   ├── pricing/        # Cost calculation
-│   ├── providers/      # Provider connectors
-│   ├── rules/          # Framework knowledge, interpreted from assets
-│   ├── metrics/        # Metric datapoint identity
-│   ├── sideml/         # Message normalization
-│   └── traces/         # Trace extraction/enrichment
-└── api/
-    └── routes/         # HTTP handlers
+├── app.rs                        # Composition root
+└── runtime/                      # Process lifecycle and allocator instrumentation
 ```
 
 ## Key Design Decisions

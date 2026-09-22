@@ -2,9 +2,12 @@
 //!
 //! This module contains row types that are used across transactional database backends.
 
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::fmt;
 use utoipa::ToSchema;
+
+use super::ProjectId;
 
 // ============================================================================
 // User types
@@ -57,6 +60,21 @@ pub struct ProjectRow {
     pub name: String,
     pub created_at: i64,
     pub updated_at: i64,
+}
+
+/// Durable project-wide legal hold.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ProjectHold {
+    pub project_id: super::ProjectId,
+    pub hold_until: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+/// The measured logical-byte counter used for admission.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ProjectStorageUsage {
+    pub logical_bytes: u64,
+    pub updated_at: DateTime<Utc>,
 }
 
 // ============================================================================
@@ -250,6 +268,76 @@ pub struct CredentialPermissionRow {
     pub created_by: Option<String>,
     pub created_at: i64,
     pub updated_at: i64,
+}
+
+/// One content-addressed payload field owned by a winning span delivery.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SpanBodyField {
+    Messages,
+    ToolDefinitions,
+    ToolNames,
+    RawSpan,
+}
+
+impl SpanBodyField {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Messages => "messages",
+            Self::ToolDefinitions => "tool_definitions",
+            Self::ToolNames => "tool_names",
+            Self::RawSpan => "raw_span",
+        }
+    }
+
+    pub fn from_stored(value: &str) -> Option<Self> {
+        match value {
+            "messages" => Some(Self::Messages),
+            "tool_definitions" => Some(Self::ToolDefinitions),
+            "tool_names" => Some(Self::ToolNames),
+            "raw_span" => Some(Self::RawSpan),
+            _ => None,
+        }
+    }
+}
+
+/// A provisional or durable reference from one span field to one shared body object.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ContentBodyObject {
+    pub project_id: ProjectId,
+    pub body_hash: String,
+    pub logical_bytes: u64,
+}
+
+/// A provisional or durable reference from one span field to one shared body object.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SpanBodyAssociation {
+    pub project_id: ProjectId,
+    pub trace_id: String,
+    pub span_id: String,
+    pub field: SpanBodyField,
+    pub body_hash: String,
+    pub logical_bytes: u64,
+}
+
+/// Inline body fields from one winning analytics span, used for backfill and survivor reconciliation.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SpanBodySource {
+    pub trace_id: String,
+    pub span_id: String,
+    pub messages: Option<String>,
+    pub tool_definitions: Option<String>,
+    pub tool_names: Option<String>,
+    pub raw_span: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ContentBodyBackfillProgress {
+    pub project_id: ProjectId,
+    pub cursor_trace_id: Option<String>,
+    pub cursor_span_id: Option<String>,
+    pub complete: bool,
+    pub updated_at: DateTime<Utc>,
 }
 
 #[cfg(test)]

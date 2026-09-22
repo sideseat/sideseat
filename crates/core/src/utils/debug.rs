@@ -3,7 +3,7 @@
 use std::path::Path;
 use std::sync::LazyLock;
 
-use chrono::Utc;
+use chrono::{DateTime, Utc};
 use serde::Serialize;
 use tokio::fs::OpenOptions;
 use tokio::io::AsyncWriteExt;
@@ -28,11 +28,12 @@ pub async fn write_debug<T: Serialize>(
     debug_path: &Path,
     filename: &str,
     project_id: &str,
+    timestamp: DateTime<Utc>,
     data: &T,
 ) {
     let file_path = debug_path.join(filename);
     let entry = DebugEntry {
-        timestamp: Utc::now().to_rfc3339(),
+        timestamp: timestamp.to_rfc3339(),
         project_id: project_id.to_string(),
         data,
     };

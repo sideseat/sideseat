@@ -1,0 +1,61 @@
+[package]
+name = "sideseat-api"
+version.workspace = true
+license = "Apache-2.0"
+publish = false
+edition = "2024"
+rust-version.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+sideseat-core = { path = "../core" }
+sideseat-domain = { path = "../domain" }
+sideseat-ports = { path = "../ports" }
+anyhow = { workspace = true }
+async-stream = { workspace = true }
+axum = { workspace = true }
+axum-extra = { workspace = true }
+base64 = { workspace = true }
+blake3 = { workspace = true }
+chrono = { workspace = true }
+chrono-tz = { workspace = true }
+cuid2 = { workspace = true }
+dashmap = { workspace = true }
+futures = { workspace = true }
+hex = { workspace = true }
+hmac = { workspace = true }
+ipnet = "2.12.1"
+jsonwebtoken = { workspace = true }
+local-ip-address = { workspace = true }
+mime_guess = { workspace = true }
+opentelemetry-proto = { workspace = true }
+parking_lot = { workspace = true }
+prost = { workspace = true }
+rand = { workspace = true }
+reqwest = { workspace = true }
+regex = { workspace = true }
+rmcp = { workspace = true }
+rust-embed = { workspace = true }
+schemars = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+sha2 = { workspace = true }
+subtle = { workspace = true }
+thiserror = { workspace = true }
+time = { workspace = true }
+tokio = { workspace = true }
+tokio-stream = { workspace = true }
+tokio-util = { workspace = true }
+tonic = { workspace = true }
+tower = { workspace = true }
+tower-http = { workspace = true }
+tracing = { workspace = true }
+utoipa = { workspace = true }
+uuid = { workspace = true }
+validator = { workspace = true }
+
+[dev-dependencies]
+sideseat-adapter-registrations-memory = { path = "../adapter-registrations-memory" }
+sideseat-adapter-topics = { path = "../adapter-topics" }

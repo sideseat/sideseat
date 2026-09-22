@@ -168,6 +168,9 @@ pub const ENV_OTEL_RETENTION_MAX_SPANS: &str = "SIDESEAT_OTEL_RETENTION_MAX_SPAN
 
 /// Default retention max spans (5 million)
 pub const DEFAULT_OTEL_RETENTION_MAX_SPANS: u64 = 5_000_000;
+/// Maximum failed staged-payload write/read-back cycles before the payload is
+/// quarantined as unconfirmed. The bytes remain held for operator recovery.
+pub const DEFAULT_OTEL_STAGING_REDRIVE_CAP: u32 = 5;
 
 // =============================================================================
 // OpenTelemetry
@@ -282,7 +285,7 @@ pub const FILES_MAX_MESSAGE_SIZE_BYTES: usize = 10 * 1024 * 1024;
 /// Hash algorithm used for file content addressing
 pub const FILE_HASH_ALGORITHM: &str = "blake3";
 
-/// Default per-project storage quota (1 GB)
+/// Default unified per-project storage quota across analytics, transactional staging/journal and blobs (1 GB).
 pub const FILES_DEFAULT_QUOTA_BYTES: u64 = 1024 * 1024 * 1024;
 
 /// Max concurrent file finalization operations during batch processing

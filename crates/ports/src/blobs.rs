@@ -10,6 +10,9 @@
 use async_trait::async_trait;
 use thiserror::Error;
 
+use crate::traits::SurvivorReferences;
+use crate::types::ProjectId;
+
 /// Errors from low-level file storage operations (filesystem/S3)
 #[derive(Error, Debug)]
 pub enum FileStorageError {
@@ -49,7 +52,7 @@ pub trait FileStorage: Send + Sync {
     /// If a file with the same hash already exists, this is a no-op (content-addressed).
     async fn store(
         &self,
-        project_id: &str,
+        project_id: &ProjectId,
         hash: &str,
         data: &[u8],
     ) -> Result<(), FileStorageError>;
@@ -62,14 +65,14 @@ pub trait FileStorage: Send + Sync {
     ///
     /// # Returns
     /// File bytes or NotFound error
-    async fn get(&self, project_id: &str, hash: &str) -> Result<Vec<u8>, FileStorageError>;
+    async fn get(&self, project_id: &ProjectId, hash: &str) -> Result<Vec<u8>, FileStorageError>;
 
     /// Check if a file exists
     ///
     /// # Arguments
     /// * `project_id` - Project identifier
     /// * `hash` - Content hash of the file
-    async fn exists(&self, project_id: &str, hash: &str) -> Result<bool, FileStorageError>;
+    async fn exists(&self, project_id: &ProjectId, hash: &str) -> Result<bool, FileStorageError>;
 
     /// Delete a file
     ///
@@ -79,7 +82,7 @@ pub trait FileStorage: Send + Sync {
     ///
     /// # Notes
     /// Does not fail if file doesn't exist.
-    async fn delete(&self, project_id: &str, hash: &str) -> Result<(), FileStorageError>;
+    async fn delete(&self, project_id: &ProjectId, hash: &str) -> Result<(), FileStorageError>;
 
     /// Delete all files for a project
     ///
@@ -88,7 +91,7 @@ pub trait FileStorage: Send + Sync {
     ///
     /// # Returns
     /// Number of files deleted
-    async fn delete_project(&self, project_id: &str) -> Result<u64, FileStorageError>;
+    async fn delete_project(&self, project_id: &ProjectId) -> Result<u64, FileStorageError>;
 
     /// Move a file from temp storage to permanent storage
     ///
@@ -102,10 +105,30 @@ pub trait FileStorage: Send + Sync {
     /// For S3, this uploads from temp and deletes temp.
     async fn finalize_temp(
         &self,
-        project_id: &str,
+        project_id: &ProjectId,
         hash: &str,
         temp_path: &std::path::Path,
     ) -> Result<(), FileStorageError>;
+}
+
+/// File-side retention work required by an analytics adapter after span expiry.
+#[async_trait]
+pub trait RetentionFileReconciler: Send + Sync {
+    fn is_enabled(&self) -> bool;
+
+    async fn reconcile_body_survivors(
+        &self,
+        project_id: &ProjectId,
+        trace_ids: &[String],
+        analytics: &dyn SurvivorReferences,
+    ) -> Result<(), String>;
+
+    async fn reconcile_trace_survivors(
+        &self,
+        project_id: &ProjectId,
+        trace_ids: &[String],
+        analytics: &dyn SurvivorReferences,
+    ) -> Result<(), String>;
 }
 
 #[cfg(test)]

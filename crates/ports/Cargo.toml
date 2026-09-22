@@ -18,8 +18,12 @@ license = "Apache-2.0"
 workspace = true
 
 [dependencies]
+sideseat-core = { path = "../core" }
 async-trait = { workspace = true }
 chrono = { workspace = true }
+futures = { workspace = true }
+md5 = { workspace = true }
+rmp-serde = { workspace = true }
 # A faster hash set for the DTO helpers, not a driver.
 rustc-hash = { workspace = true }
 serde = { workspace = true }

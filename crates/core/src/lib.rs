@@ -4,4 +4,5 @@
 //! than by a rule someone has to remember.
 
 pub mod core;
+pub mod migration;
 pub mod utils;

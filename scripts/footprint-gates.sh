@@ -46,7 +46,12 @@ SAMPLE_INTERVAL_SECS="${FOOTPRINT_SAMPLE_INTERVAL_SECS:-1}"
 # Consecutive readings within this much of each other count as settled. 2 MB, because that is smaller than any
 # startup phase and larger than the noise of a sweeper waking up.
 IDLE_STABLE_DELTA_BYTES="${FOOTPRINT_IDLE_STABLE_DELTA_BYTES:-2097152}"
-FIXTURE_NAME="${FOOTPRINT_FIXTURE:-langgraph/swarm}"
+# This gate measures resident memory at a stated *rate*. The golden `langgraph/swarm` fixture remains the
+# correctness, latency and queued-byte workload, but its 1.7 MB of semantic history makes CPU extraction the
+# limiter at a few hundred spans/s even with dozens of clients. That cannot exercise a 5 000 spans/s memory
+# ceiling. Generate a compact, valid OTLP request with many minimal spans so this gate varies rate rather than
+# prompt complexity. `FOOTPRINT_RATE_FIXTURE` may still select a captured fixture for diagnostics.
+FIXTURE_NAME="${FOOTPRINT_RATE_FIXTURE:-synthetic/minimal-500}"
 # Concurrent posters. One is not steady ingest: a single sequential poster idles between requests, and the
 # resident figure would then describe a server at a fraction of the target rate.
 LOADERS="${FOOTPRINT_LOADERS:-4}"
@@ -107,9 +112,62 @@ rss_bytes() {
   echo $((kb * 1024))
 }
 
-FIXTURE="$ROOT/server/tests/fixtures/messages/$FIXTURE_NAME"
-[ -d "$FIXTURE" ] || fail "fixture $FIXTURE_NAME not found; capture it with scripts/message-fixtures/capture.sh"
-ls "$FIXTURE"/*.pb >/dev/null 2>&1 || fail "fixture $FIXTURE_NAME holds no captured requests"
+KNOWN_SPANS_PER_PASS=""
+if [ "$FIXTURE_NAME" = "synthetic/minimal-500" ]; then
+  FIXTURE="$WORK/rate-fixture"
+  mkdir -p "$FIXTURE"
+  KNOWN_SPANS_PER_PASS=500
+  python3 - "$FIXTURE/req-001.pb" "$KNOWN_SPANS_PER_PASS" <<'PY'
+import struct
+import sys
+
+path = sys.argv[1]
+count = int(sys.argv[2])
+
+def varint(value):
+    out = bytearray()
+    while value >= 0x80:
+        out.append((value & 0x7f) | 0x80)
+        value >>= 7
+    out.append(value)
+    return bytes(out)
+
+def key(field, wire):
+    return varint((field << 3) | wire)
+
+def bytes_field(field, value):
+    return key(field, 2) + varint(len(value)) + value
+
+def fixed64_field(field, value):
+    return key(field, 1) + struct.pack("<Q", value)
+
+start = 1_787_825_000_000_000_000
+spans = bytearray()
+for ordinal in range(count):
+    identity = ordinal + 1
+    trace_id = b"footprnt" + identity.to_bytes(8, "big")
+    span_id = identity.to_bytes(8, "big")
+    span = (
+        bytes_field(1, trace_id)
+        + bytes_field(2, span_id)
+        + bytes_field(5, b"footprint-rate")
+        + key(6, 0) + varint(1)
+        + fixed64_field(7, start + ordinal)
+        + fixed64_field(8, start + ordinal + 1_000_000)
+    )
+    spans.extend(bytes_field(2, span))
+
+scope_spans = bytes(spans)
+resource_spans = bytes_field(2, scope_spans)
+request = bytes_field(1, resource_spans)
+with open(path, "wb") as output:
+    output.write(request)
+PY
+else
+  FIXTURE="$ROOT/server/tests/fixtures/messages/$FIXTURE_NAME"
+  [ -d "$FIXTURE" ] || fail "fixture $FIXTURE_NAME not found; capture it with scripts/message-fixtures/capture.sh"
+  ls "$FIXTURE"/*.pb >/dev/null 2>&1 || fail "fixture $FIXTURE_NAME holds no captured requests"
+fi
 
 # Release, always: a debug build's footprint describes the debug build, and the ceilings are stated on what
 # ships.
@@ -175,14 +233,25 @@ for f in "$FIXTURE"/*.pb; do
   REQUESTS=$((REQUESTS + 1))
 done
 sleep 4
-SPANS_PER_PASS="$(curl_f "http://127.0.0.1:$PORT/api/v1/project/default/otel/sessions?limit=1" |
-  python3 -c 'import sys,json; r=json.load(sys.stdin).get("data") or []; print(r[0]["span_count"] if r else 0)')"
+if [ -n "$KNOWN_SPANS_PER_PASS" ]; then
+  SPANS_PER_PASS="$KNOWN_SPANS_PER_PASS"
+else
+  SPANS_PER_PASS="$(curl_f "http://127.0.0.1:$PORT/api/v1/project/default/otel/sessions?limit=1" |
+    python3 -c 'import sys,json; r=json.load(sys.stdin).get("data") or []; print(r[0]["span_count"] if r else 0)')"
+fi
 [ "$SPANS_PER_PASS" -gt 0 ] || fail "the fixture created no session, so its span count is unknown"
 echo "[footprint] one pass = $REQUESTS requests / $SPANS_PER_PASS spans"
 
 # --- gate 2: steady ingest --------------------------------------------------
 #
 # Load and sampling run concurrently: a sample taken between requests is not a reading of the ingest state.
+# Pace each loader toward the rate the ceiling actually names. An unbounded generator made a fast host run at
+# 8 000+ spans/s and then compared that RSS with the 5 000 spans/s ceiling; that is a different workload in the
+# opposite direction from the low-rate false pass guarded below. The 0.75 factor leaves room for request latency,
+# while the mandatory 90% achieved-rate floor still rejects a host that does not reach the stated regime.
+LOADER_PACE_SECS="$(awk -v loaders="$LOADERS" -v spans="$SPANS_PER_PASS" -v reqs="$REQUESTS" \
+  -v target="$TARGET_SPANS_PER_SECOND" \
+  'BEGIN { if (target > 0 && reqs > 0) printf "%.6f", 0.75 * loaders * spans / (reqs * target); else print 0 }')"
 echo "[footprint] gate 2: resident memory under steady ingest (ceiling $(mb $INGEST_RSS_CEILING_BYTES) MB)"
 STOP_FILE="$WORK/stop"
 rm -f "$STOP_FILE" "$WORK/post-errors"
@@ -216,6 +285,7 @@ for loader in $(seq 1 "$LOADERS"); do
           exit 0
         fi
         echo x >>"$WORK/posted"
+        sleep "$LOADER_PACE_SECS"
       done
     done
   ) &

@@ -86,7 +86,7 @@ pub struct Cli {
     #[arg(long, global = true, env = ENV_FILES_STORAGE, value_parser = parse_storage_backend)]
     pub files_storage: Option<StorageBackend>,
 
-    /// File storage quota in bytes per project
+    /// Unified telemetry, staging, journal and blob storage quota in bytes per project
     #[arg(long, global = true, env = ENV_FILES_QUOTA_BYTES)]
     pub files_quota_bytes: Option<u64>,
 

@@ -44,14 +44,14 @@ use prost::Message as _;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 
-use crate::api::routes::otel::messages::scope_feed_to_trace;
 use crate::domain::pricing::PricingService;
 use crate::domain::sideml::feed::{
     FeedOptions, extract_tools_from_rows, legacy_and_neutral_order, presented_and_unconstrained,
     process_feed, process_spans, shadow_resolved_order,
 };
 use crate::domain::traces::extract::ExtractionMode;
-use sideseat_ports::types::MessageSpanRow;
+use sideseat_api::routes::otel::messages::scope_feed_to_trace;
+use sideseat_ports::types::{MessageSpanRow, ProjectId};
 
 // ============================================================================
 // Fixture discovery
@@ -443,7 +443,7 @@ struct Built {
 }
 
 /// The content filter every trace/session message query applies
-/// (`MESSAGE_CONTENT_FILTER` in data/duckdb/repositories/messages.rs). Rows with no messages,
+/// (`MESSAGE_CONTENT_FILTER` in crates/adapter-duckdb/src/repositories/messages.rs). Rows with no messages,
 /// no tools and no error are never returned, so feeding them to the pipeline tests an input
 /// the pipeline never sees. Including them made whole sessions come back empty.
 fn passes_content_filter(row: &MessageSpanRow) -> bool {
@@ -3079,7 +3079,7 @@ fn a_barrier_orders_exactly_as_pairwise_edges_do() {
 #[tokio::test(flavor = "multi_thread")]
 #[ignore]
 async fn bench_ingestion_end_to_end() {
-    use crate::data::files::FileService;
+    use crate::app::files::create_file_service;
     use crate::data::{AnalyticsService, TransactionalService};
     use crate::domain::traces::TracePipeline;
     use sideseat_core::core::config::{FilesConfig, StorageBackend};
@@ -3130,9 +3130,12 @@ async fn bench_ingestion_end_to_end() {
             .await
             .expect("files temp dir");
         let analytics = Arc::new(AnalyticsService::Duckdb(Arc::new(
-            crate::data::duckdb::DuckdbService::init(&storage)
-                .await
-                .expect("duckdb"),
+            crate::data::duckdb::DuckdbService::init(
+                &storage,
+                std::sync::Arc::new(crate::runtime::clock::SystemClock),
+            )
+            .await
+            .expect("duckdb"),
         )));
         let sqlite_pool = sqlx::sqlite::SqlitePoolOptions::new()
             .max_connections(1)
@@ -3144,10 +3147,13 @@ async fn bench_ingestion_end_to_end() {
             .await
             .expect("sqlite schema");
         let database = Arc::new(TransactionalService::Sqlite(Arc::new(
-            crate::data::sqlite::SqliteService::from_pool(sqlite_pool),
+            crate::data::sqlite::SqliteService::from_pool(
+                sqlite_pool,
+                Arc::new(crate::runtime::clock::SystemClock),
+            ),
         )));
         let files = Arc::new(
-            FileService::new(
+            create_file_service(
                 FilesConfig {
                     enabled: true,
                     storage: StorageBackend::Filesystem,
@@ -3174,11 +3180,25 @@ async fn bench_ingestion_end_to_end() {
             .await
             .expect("file service"),
         );
+        let analytics_port: Arc<dyn sideseat_ports::traits::AnalyticsRepository + Send + Sync> =
+            Arc::from(analytics.repository());
+        let database_port: Arc<dyn sideseat_ports::traits::TransactionalRepository + Send + Sync> =
+            Arc::from(database.repository());
         let pipeline = TracePipeline::new(
-            Arc::clone(&analytics),
+            Arc::clone(&analytics_port),
             Arc::new(PricingService::init_for_test().expect("offline pricing service")),
-            Arc::new(crate::data::topics::TopicService::default()),
-            files,
+            Arc::new(sideseat_domain::topics::TopicService::new(
+                sideseat_adapter_topics::memory_backend(),
+            )),
+            Arc::clone(&files),
+            Arc::new(sideseat_domain::staging::StagingService::new(
+                Arc::clone(files.storage()),
+                database_port,
+                analytics_port,
+                Arc::new(crate::runtime::clock::SystemClock),
+                sideseat_core::core::config::RetentionConfig::default(),
+                5,
+            )),
         );
 
         // `PER_REQUEST=1` measures the same work with no batching, which is what acknowledging only
@@ -3204,7 +3224,7 @@ async fn bench_ingestion_end_to_end() {
 
         spans_written = analytics
             .repository()
-            .count_spans_by_project(&["default".to_string()])
+            .count_spans_by_project(&[ProjectId::from("default")])
             .await
             .map(|c| c.values().sum())
             .unwrap_or(0);
@@ -3265,6 +3285,7 @@ fn bench_session_scaling() {
             messages_json: messages,
             tool_definitions_json: "[]".to_string(),
             tool_names_json: "[]".to_string(),
+            body_cache_key: None,
             model: Some("claude".to_string()),
             provider: Some("bedrock".to_string()),
             status_code: None,
