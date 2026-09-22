@@ -233,6 +233,154 @@ fn a_queued_span_costs_less_than_three_times_its_protobuf() {
     );
 }
 
+/// The local term relation's physical cost is measured against a corpus whose
+/// expected matches deliberately cross the per-field cap.
+#[test]
+#[ignore]
+fn search_term_write_amplification_preserves_the_recall_floor() {
+    use sideseat_ports::traits::SpanStore;
+    use sideseat_ports::types::{
+        NormalizedSpan, SEARCH_RECALL_FLOOR, SEARCH_TERMS_PER_FIELD, SearchField,
+    };
+
+    let _serialised = measurement_guard();
+    let timestamp = chrono::DateTime::from_timestamp(1_700_000_000, 0).unwrap();
+    let mut spans = (0..512)
+        .map(|span| NormalizedSpan {
+            project_id: Some("search-footprint".to_string()),
+            trace_id: format!("trace{span:04}"),
+            span_id: format!("span{span:04}"),
+            span_name: format!("regular{span:04}"),
+            timestamp_start: timestamp,
+            input_preview: Some(
+                (0..96)
+                    .map(|term| format!("r{span:04}x{term:03}"))
+                    .collect::<Vec<_>>()
+                    .join(" "),
+            ),
+            ..Default::default()
+        })
+        .collect::<Vec<_>>();
+    spans.extend((0..20).map(|span| {
+        NormalizedSpan {
+            project_id: Some("search-footprint".to_string()),
+            trace_id: format!("overflow-trace{span:02}"),
+            span_id: format!("overflow-span{span:02}"),
+            span_name: format!("overflow{span:02}"),
+            timestamp_start: timestamp,
+            input_preview: Some(
+                (0..=SEARCH_TERMS_PER_FIELD)
+                    .map(|term| format!("o{span:02}x{term:03}"))
+                    .collect::<Vec<_>>()
+                    .join(" "),
+            ),
+            ..Default::default()
+        }
+    }));
+
+    let mut indexed = spans.clone();
+    sideseat_domain::search::index_spans(&mut indexed);
+    let found = indexed
+        .iter()
+        .enumerate()
+        .filter(|(position, span)| {
+            let expected = if *position < 512 {
+                format!("r{position:04}x095")
+            } else {
+                format!("o{:02}x{:03}", position - 512, SEARCH_TERMS_PER_FIELD)
+            };
+            span.search
+                .field(SearchField::Prompt)
+                .is_some_and(|field| field.terms.contains(&expected))
+        })
+        .count();
+    let recall = found as f64 / indexed.len() as f64;
+    assert!(
+        recall >= SEARCH_RECALL_FLOOR,
+        "the {}-term cap retained {:.3} recall, below the {:.3} floor",
+        SEARCH_TERMS_PER_FIELD,
+        recall,
+        SEARCH_RECALL_FLOOR
+    );
+
+    #[derive(Debug)]
+    struct Measurement {
+        bytes: u64,
+        elapsed: std::time::Duration,
+        term_rows: u64,
+        logical_term_bytes: u64,
+    }
+
+    async fn write(spans: Vec<NormalizedSpan>) -> Measurement {
+        let directory = tempfile::TempDir::new().unwrap();
+        let storage =
+            sideseat_core::core::storage::AppStorage::init_for_test(directory.path().to_path_buf());
+        let service = std::sync::Arc::new(
+            sideseat_adapter_duckdb::DuckdbService::init(
+                &storage,
+                std::sync::Arc::new(sideseat_server::runtime::clock::SystemClock),
+            )
+            .await
+            .unwrap(),
+        );
+        let repository = sideseat_adapter_duckdb::DuckdbRepository(std::sync::Arc::clone(&service));
+        let started = std::time::Instant::now();
+        repository.insert_spans(spans).await.unwrap();
+        let elapsed = started.elapsed();
+        let (term_rows, logical_term_bytes): (i64, i64) = {
+            let conn = service.conn();
+            conn.query_row(
+                "SELECT COUNT(*), COALESCE(SUM(\
+                 LENGTH(project_id) + LENGTH(trace_id) + LENGTH(span_id) + \
+                 LENGTH(field) + LENGTH(term) + 1), 0) FROM span_terms",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .unwrap()
+        };
+        service.checkpoint().await.unwrap();
+        let bytes = std::fs::metadata(
+            storage
+                .subdir(sideseat_core::core::storage::DataSubdir::Duckdb)
+                .join(sideseat_core::core::constants::DUCKDB_DB_FILENAME),
+        )
+        .unwrap()
+        .len();
+        Measurement {
+            bytes,
+            elapsed,
+            term_rows: term_rows as u64,
+            logical_term_bytes: logical_term_bytes as u64,
+        }
+    }
+
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .unwrap();
+    let baseline = runtime.block_on(write(spans));
+    let with_index = runtime.block_on(write(indexed));
+    let physical_delta = with_index.bytes.saturating_sub(baseline.bytes);
+    assert!(
+        physical_delta > 0 && with_index.term_rows > 0,
+        "the measurement wrote no physical term index"
+    );
+    eprintln!(
+        "SEARCH INDEX footprint: {} spans, {} term rows ({:.1}/span), {:.0} logical term \
+         bytes/span, {:.0} physical bytes/span; ingest {:?} baseline -> {:?} indexed; recall \
+         {:.3} (floor {:.3})",
+        532,
+        with_index.term_rows,
+        with_index.term_rows as f64 / 532.0,
+        with_index.logical_term_bytes as f64 / 532.0,
+        physical_delta as f64 / 532.0,
+        baseline.elapsed,
+        with_index.elapsed,
+        recall,
+        SEARCH_RECALL_FLOOR,
+    );
+}
+
 /// The shell script enforces the ceilings this crate declares.
 ///
 /// The two resident ceilings are read by a bash script and declared in Rust, so without this they are two

@@ -97,9 +97,10 @@ impl SearchService {
             examination_limit_reached,
             arrivals_detected: _,
             index_lag_us,
+            search_indexing_complete,
         } = index.search(query).await?;
         let mut hits = Vec::with_capacity(query.limit as usize);
-        let mut indexing_complete = true;
+        let mut indexing_complete = search_indexing_complete;
         let mut actual_cursor = None;
         let mut actual_examined = 0;
         for candidate in candidates {
@@ -114,8 +115,8 @@ impl SearchService {
             actual_cursor = Some(cursor);
             let document = materialize_document(document, &source);
             let exact = evaluate(&query.expression, &document, query.signal, true);
-            indexing_complete &=
-                !document_touched_truncation(&query.expression, &document, query.signal);
+            indexing_complete &= document.indexed
+                && !document_touched_truncation(&query.expression, &document, query.signal);
             if exact != Truth::False {
                 hits.push(SearchHit {
                     fragments: fragments(&document, &query.expression, query.signal),
@@ -224,6 +225,7 @@ pub fn log_document(log: &NormalizedLog) -> SearchDocument {
 
 fn document_from_texts(texts: BTreeMap<SearchField, String>) -> SearchDocument {
     SearchDocument {
+        indexed: true,
         fields: texts
             .into_iter()
             .map(|(field, text)| field_terms(field, text))
@@ -236,7 +238,13 @@ fn materialize_document(indexed: SearchDocument, source: &SearchSource) -> Searc
         SearchSource::Span(source) => span_source_texts(source),
         SearchSource::Log(source) => log_source_texts(source),
     };
+    if !indexed.indexed {
+        let mut scanned = document_from_texts(texts);
+        scanned.indexed = false;
+        return scanned;
+    }
     SearchDocument {
+        indexed: true,
         fields: indexed
             .fields
             .into_iter()
@@ -798,6 +806,7 @@ mod tests {
     #[test]
     fn truncated_negation_is_unknown_under_nesting() {
         let document = SearchDocument {
+            indexed: true,
             fields: vec![SearchFieldTerms {
                 field: SearchField::Prompt,
                 terms: vec!["a".into()],
@@ -824,6 +833,7 @@ mod tests {
     #[test]
     fn phrase_is_verified_consecutively() {
         let document = SearchDocument {
+            indexed: true,
             fields: vec![field_terms(SearchField::Prompt, "foo x bar foo bar".into())],
         };
         let expression = SearchExpr::Phrase {

@@ -315,10 +315,11 @@ pub const MIGRATIONS: &[Migration] = &[
         precondition: Some(
             "SELECT 1 WHERE NOT EXISTS (SELECT 1 FROM system.columns \
              WHERE database = currentDatabase() AND table = 'otel_spans{local}' \
-             AND name = 'search_prompt')",
+             AND name = 'search_indexed')",
         ),
         statements: &[
             "ALTER TABLE otel_spans{local}{on_cluster} \
+             ADD COLUMN IF NOT EXISTS search_indexed UInt8 DEFAULT 0, \
              ADD COLUMN IF NOT EXISTS search_prompt Array(String) DEFAULT [], \
              ADD COLUMN IF NOT EXISTS search_prompt_truncated UInt8 DEFAULT 0, \
              ADD COLUMN IF NOT EXISTS search_completion Array(String) DEFAULT [], \
@@ -332,6 +333,7 @@ pub const MIGRATIONS: &[Migration] = &[
              ADD COLUMN IF NOT EXISTS search_span_name Array(String) DEFAULT [], \
              ADD COLUMN IF NOT EXISTS search_span_name_truncated UInt8 DEFAULT 0",
             "ALTER TABLE otel_logs{local}{on_cluster} \
+             ADD COLUMN IF NOT EXISTS search_indexed UInt8 DEFAULT 0, \
              ADD COLUMN IF NOT EXISTS search_body Array(String) DEFAULT [], \
              ADD COLUMN IF NOT EXISTS search_body_truncated UInt8 DEFAULT 0, \
              ADD COLUMN IF NOT EXISTS search_event_name Array(String) DEFAULT [], \
@@ -355,6 +357,7 @@ pub const MIGRATIONS: &[Migration] = &[
         ],
         distributed_statements: &[
             "ALTER TABLE otel_spans{on_cluster} \
+             ADD COLUMN IF NOT EXISTS search_indexed UInt8 DEFAULT 0, \
              ADD COLUMN IF NOT EXISTS search_prompt Array(String) DEFAULT [], \
              ADD COLUMN IF NOT EXISTS search_prompt_truncated UInt8 DEFAULT 0, \
              ADD COLUMN IF NOT EXISTS search_completion Array(String) DEFAULT [], \
@@ -368,6 +371,7 @@ pub const MIGRATIONS: &[Migration] = &[
              ADD COLUMN IF NOT EXISTS search_span_name Array(String) DEFAULT [], \
              ADD COLUMN IF NOT EXISTS search_span_name_truncated UInt8 DEFAULT 0",
             "ALTER TABLE otel_logs{on_cluster} \
+             ADD COLUMN IF NOT EXISTS search_indexed UInt8 DEFAULT 0, \
              ADD COLUMN IF NOT EXISTS search_body Array(String) DEFAULT [], \
              ADD COLUMN IF NOT EXISTS search_body_truncated UInt8 DEFAULT 0, \
              ADD COLUMN IF NOT EXISTS search_event_name Array(String) DEFAULT [], \
@@ -646,6 +650,7 @@ CREATE TABLE IF NOT EXISTS otel_spans_local ON CLUSTER {cluster} (
     content_digest              String DEFAULT '',
     hold_until                 Nullable(DateTime64(6, 'UTC')),
     logical_bytes              UInt64 DEFAULT 0,
+    search_indexed             UInt8 DEFAULT 0,
     search_prompt              Array(String) DEFAULT [],
     search_prompt_truncated    UInt8 DEFAULT 0,
     search_completion          Array(String) DEFAULT [],
@@ -827,6 +832,7 @@ CREATE TABLE IF NOT EXISTS otel_spans (
     content_digest              String DEFAULT '',
     hold_until                 Nullable(DateTime64(6, 'UTC')),
     logical_bytes              UInt64 DEFAULT 0,
+    search_indexed             UInt8 DEFAULT 0,
     search_prompt              Array(String) DEFAULT [],
     search_prompt_truncated    UInt8 DEFAULT 0,
     search_completion          Array(String) DEFAULT [],
@@ -1130,6 +1136,7 @@ fn otel_logs_columns() -> &'static str {
     ingested_at DateTime64(6, 'UTC') DEFAULT now64(6),
     hold_until Nullable(DateTime64(6, 'UTC')),
     logical_bytes UInt64 DEFAULT 0,
+    search_indexed UInt8 DEFAULT 0,
     search_body Array(String) DEFAULT [],
     search_body_truncated UInt8 DEFAULT 0,
     search_event_name Array(String) DEFAULT [],

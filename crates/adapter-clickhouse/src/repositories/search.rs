@@ -23,6 +23,7 @@ struct SpanSearchSource {
     exception_message: Option<String>,
     exception_stacktrace: Option<String>,
     span_name: Option<String>,
+    search_indexed: u8,
     search_prompt: Vec<String>,
     search_prompt_truncated: u8,
     search_completion: Vec<String>,
@@ -44,6 +45,7 @@ struct LogSearchSource {
     event_name: Option<String>,
     severity_text: Option<String>,
     attributes: Option<String>,
+    search_indexed: u8,
     search_body: Vec<String>,
     search_body_truncated: u8,
     search_event_name: Vec<String>,
@@ -82,6 +84,7 @@ async fn search_spans(
     request: &SearchQuery,
 ) -> Result<SearchPage, ClickhouseError> {
     let started_at_us = traversal_watermark(client, request).await?;
+    let search_indexing_complete = indexing_complete(client, request).await?;
     let plan = search_sql::candidates(request, Backend::Clickhouse);
     let mut references: Vec<SpanCandidateRef> =
         query::bind_analytics_values(client.query(plan.query.sql()), plan.query.params())
@@ -134,6 +137,7 @@ async fn search_spans(
         examination_limit_reached: limit_reached,
         arrivals_detected: false,
         index_lag_us: 0,
+        search_indexing_complete,
     })
 }
 
@@ -142,6 +146,7 @@ async fn search_logs(
     request: &SearchQuery,
 ) -> Result<SearchPage, ClickhouseError> {
     let started_at_us = traversal_watermark(client, request).await?;
+    let search_indexing_complete = indexing_complete(client, request).await?;
     let plan = search_sql::candidates(request, Backend::Clickhouse);
     let mut references: Vec<LogCandidateRef> =
         query::bind_analytics_values(client.query(plan.query.sql()), plan.query.params())
@@ -194,6 +199,7 @@ async fn search_logs(
         examination_limit_reached: limit_reached,
         arrivals_detected: false,
         index_lag_us: 0,
+        search_indexing_complete,
     })
 }
 
@@ -210,6 +216,18 @@ async fn traversal_watermark(
             .fetch_one()
             .await?,
     )
+}
+
+async fn indexing_complete(
+    client: &Client,
+    request: &SearchQuery,
+) -> Result<bool, ClickhouseError> {
+    let query_plan = search_sql::indexing_complete(request, Backend::Clickhouse);
+    let value: u8 =
+        query::bind_analytics_values(client.query(query_plan.sql()), query_plan.params())
+            .fetch_one()
+            .await?;
+    Ok(value != 0)
 }
 
 pub async fn arrivals_detected(
@@ -235,7 +253,7 @@ async fn span_document(
         .query(
             "SELECT messages, tool_definitions, tool_names, input_preview, output_preview, \
              gen_ai_tool_name, status_message, exception_type, exception_message, \
-             exception_stacktrace, span_name, \
+             exception_stacktrace, span_name, search_indexed, \
              search_prompt, search_prompt_truncated, search_completion, \
              search_completion_truncated, search_tool_name, search_tool_name_truncated, \
              search_tool_args, search_tool_args_truncated, search_error, \
@@ -249,6 +267,7 @@ async fn span_document(
         .fetch_one()
         .await?;
     let document = SearchDocument {
+        indexed: source.search_indexed != 0,
         fields: vec![
             field(
                 SearchField::Prompt,
@@ -308,7 +327,7 @@ async fn log_document(
 ) -> Result<(SearchDocument, SearchSource), ClickhouseError> {
     let source: LogSearchSource = client
         .query(
-            "SELECT body_text, body, event_name, severity_text, attributes, search_body, \
+            "SELECT body_text, body, event_name, severity_text, attributes, search_indexed, search_body, \
              search_body_truncated, search_event_name, search_event_name_truncated, \
              search_severity, search_severity_truncated, search_attributes, \
              search_attributes_truncated FROM otel_logs FINAL \
@@ -321,6 +340,7 @@ async fn log_document(
         .fetch_one()
         .await?;
     let document = SearchDocument {
+        indexed: source.search_indexed != 0,
         fields: vec![
             field(
                 SearchField::Body,

@@ -858,7 +858,7 @@ reviewable and leaves the tree green.
 | **7** quota + hold | See §6.6 | `logical_bytes` on the span row plus the counter, with no enforcement. Then admission refusal. Hold is its own change with `SCHEMA_VERSION` 6 and populated-upgrade tests |
 | **8** rollups | **DONE as a gated rejection:** the complete DuckDB contribution implementation was built and correctness-tested, then release-benchmarked and reverted because it made the trace-list read slower at both fixture scales. The retained wide query now applies suppression only to winning revisions and has cost-only/re-delivery/deletion regressions. | Rejected by the required measurement; details in §6.14 |
 | **9** bodies + streaming | **DONE in the current working tree:** body-level transactional ownership, dual-write/dual-read fallback, resumable backfill, exact cleanup and bounded HTTP JSON streaming are live; unchanged at-least-once deliveries no longer append duplicate analytics revisions. The old columns remain intentionally. | Complete; details and cutover gate in §6.12 |
-| **10** search | See §6.15 | Raise the ClickHouse floor to 26.4 — today CI and `make test-clickhouse` pin **25.8.2** and `deploy/local/docker-compose.yml` pins **26.1.2**, so three places move. Then the tokeniser and its contract with a golden-corpus parity test, before any index exists |
+| **10** search | **IN PROGRESS in the current working tree:** ClickHouse 26.4.3.37, one domain tokeniser, capped per-field terms, DuckDB relations, ClickHouse text indexes, three-valued lowering, exact phrase verification, chronological API pagination, scan fallback for historical rows, range-level completeness reporting, and spans/logs live parity are implemented. The measured recall is 0.962 against the 0.950 floor. Historical background backfill and the search latency gate remain. | Finish the resumable per-project backfill using Step 9's mechanism, then measure the local lookup and HTTP p95 |
 | **11** RedPanda | See §6.15 | The adapter against the three trait changes step 1 already made |
 | **12** tenancy + backup | See §6.13 | The colliding-id leak test (two tenants, same client-supplied trace and session ids) before any policy exists — it should pass today and will catch the policy getting it wrong |
 
@@ -1168,6 +1168,25 @@ nicer and is a *behaviour change* needing its own goldens.
 
 ### 6.15 Steps 10 and 11 — the parts most likely to be got wrong
 
+**Current Step 10 working-tree result.** The implementation uses one Unicode-alphanumeric, lowercase domain
+tokeniser and a 512-distinct-term cap per field. DuckDB writes `span_terms` / `log_terms` in the same transaction
+as each analytics record; ClickHouse 26.4.3.37 stores the same capped arrays behind native `text(tokenizer=array)`
+indexes. The typed query layer carries false/unknown/true as 0/1/2 through nested AND, OR and NOT, while phrases
+are verified against domain-reconstructed bodies. The API cursor advances over the last examined candidate,
+including an empty page, and arrival detection uses a store-derived traversal watermark.
+
+Live parity covers tied span and log ordering, multi-page and empty-page cursor progression, role-restricted
+phrases, nested negation over truncated fields, current corrections, and legacy rows without index markers.
+Legacy rows degrade to a bounded source scan rather than disappearing; `search_indexing_complete` is false when
+any current row in the requested time range lacks the complete marker, not merely when the current page happens
+to examine one.
+
+The release write-amplification fixture measured 532 spans and 62,052 term rows: 116.6 rows/span,
+5,927 logical term bytes/span and 5,913 physical bytes/span. Ingest changed from 71.4 ms without terms to
+5.370 s with them in this deliberately row-at-a-time measurement. Recall was 0.962 against the fixed 0.950
+floor. These are recorded costs, not a throughput claim; the remaining Step 10 gates are the resumable historical
+backfill and search latency.
+
 **Step 10's three-valued logic is the part to get right first.** A truncated `(span, field)` is *unknown*, not false,
 and collapsing unknown to false at the leaf is unsound **under nesting**: in `NOT (A OR B)` a capped `B` becomes
 false, the disjunction false, and the negation returns the span as a **positive** match it should not be.
@@ -1340,7 +1359,7 @@ tested. It is intentionally kept separate from that pre-existing edit.
 | `cargo test --locked -p sideseat-adapter-topics` | 63 passed |
 | `cargo test -p sideseat-adapter-registrations-memory` | 9 passed (the server WS routing regression also passes) |
 | `cargo test --locked -p sideseat-server --test repository` | 27 structural invariants, including the complete 34-operation SQL registry gate |
-| `cargo test --locked -p sideseat-query-sql` | 56 passed after the complete read/write/retention migration |
+| `cargo test --locked -p sideseat-query-sql` | search's 3 focused typed-lowering tests pass; the previous complete package run was 56 passed |
 | `cargo test --locked -p sideseat-adapter-duckdb` | 149 passed, 1 ignored |
 | `cargo test --locked -p sideseat-adapter-clickhouse` | 28 passed |
 | DuckDB/ClickHouse adapter all-target checks | pass after the complete Step 5 migration |
@@ -1350,7 +1369,8 @@ tested. It is intentionally kept separate from that pre-existing edit.
 | `cargo test --test footprint -- --ignored` | both live-allocation gates pass (numbers in §5.1) |
 | `make footprint` | **all four gates pass:** idle 91.8 MB; steady ingest median 166.4 MB at ~4,958 spans/s; 10k-turn residue 0.0 MB; queued payload 1.00× decoded protobuf |
 | `make test-postgres` | **37 passed** — PostgreSQL/SQLite parity, including the v5 upgrade and the journal |
-| `make test-clickhouse` | **22 passed** in the current selected live suite — ClickHouse/DuckDB read, deletion, reconciliation and migration parity |
+| `make test-clickhouse` | **23 passed** on ClickHouse 26.4.3.37 — including spans/logs search ordering, pagination, three-valued membership, historical scan fallback, and migration parity |
+| release search write-amplification gate | **passes:** 0.962 recall against 0.950; 62,052 rows for 532 spans, 5,913 physical bytes/span |
 | `make test-redis` | **15 passed** — durable queue refusal, reclaim, acknowledgement and trim cases |
 | web / Python SDK | 93 and 203 passed |
 
@@ -1444,6 +1464,11 @@ cargo test --locked --release -p sideseat-server bench_pipeline -- --ignored --n
 
 cargo test --locked --release -p sideseat-server --test footprint -- --ignored --nocapture
     # the two live-allocation gates. Serialises itself; see §5.1.
+
+cargo test --locked --release -p sideseat-server --test footprint \
+    search_term_write_amplification_preserves_the_recall_floor \
+    -- --ignored --exact --nocapture --test-threads=1
+    # Search term rows/span, logical and physical bytes/span, ingest cost, and recall against the floor.
 ```
 
 The published numbers for the first two are tables in `CLAUDE.md`. `make bench-http` is different in kind — it

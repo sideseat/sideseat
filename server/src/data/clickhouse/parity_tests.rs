@@ -41,8 +41,8 @@
 //! ```
 
 use sideseat_ports::traits::{
-    AnalyticsMaintenance, AnalyticsRepository, EntityQuery, MessageStore, MetricStore, SearchIndex,
-    SpanStore, SurvivorReferences,
+    AnalyticsMaintenance, AnalyticsRepository, EntityQuery, LogStore, MessageStore, MetricStore,
+    SearchIndex, SpanStore, SurvivorReferences,
 };
 use std::sync::Arc;
 
@@ -56,9 +56,9 @@ use sideseat_ports::filters::{DatetimeOp, Filter, NullOp, NumberOp, OptionsOp, S
 
 use sideseat_ports::types::{
     AggregationTemporality, FeedSpansParams, ListSessionsParams, ListSpansParams, ListTracesParams,
-    MessageQueryParams, MessageSpanRow, MetricType, NormalizedMetric, NormalizedSpan,
-    ObservationType, ProjectId, SearchQuery, SearchRecord, SearchSignal, SessionRow, SpanCategory,
-    SpanRow, TraceRow,
+    MessageQueryParams, MessageSpanRow, MetricType, NormalizedLog, NormalizedMetric,
+    NormalizedSpan, ObservationType, ProjectId, SearchQuery, SearchRecord, SearchSignal,
+    SessionRow, SpanCategory, SpanRow, TraceRow,
 };
 
 /// Env var holding the base URL of a ClickHouse HTTP endpoint, e.g. `http://127.0.0.1:8123`.
@@ -789,6 +789,16 @@ async fn clickhouse_search_matches_duckdb_on_ordering_pagination_and_unknowns() 
         },
     ];
     sideseat_domain::search::index_spans(&mut spans);
+    spans.push(NormalizedSpan {
+        project_id: Some(PROJECT.to_string()),
+        trace_id: "search-legacy".to_string(),
+        span_id: "legacy".to_string(),
+        span_name: "legacy-unindexed".to_string(),
+        timestamp_start: ts(498),
+        input_preview: Some("historical searchable text".to_string()),
+        ingested_at: Some(ingested_at),
+        ..Default::default()
+    });
     duck.insert_spans(spans.clone())
         .await
         .expect("duckdb insert");
@@ -803,6 +813,7 @@ async fn clickhouse_search_matches_duckdb_on_ordering_pagination_and_unknowns() 
         Vec<(String, bool)>,
         Option<sideseat_ports::types::SearchCursor>,
         u32,
+        bool,
         bool,
     ) {
         let page = sideseat_domain::search::SearchService::execute(
@@ -835,6 +846,7 @@ async fn clickhouse_search_matches_duckdb_on_ordering_pagination_and_unknowns() 
             page.next_cursor,
             page.examined,
             page.examination_limit_reached,
+            page.search_indexing_complete,
         )
     }
 
@@ -888,6 +900,131 @@ async fn clickhouse_search_matches_duckdb_on_ordering_pagination_and_unknowns() 
     let ch_prompt = run(&ch, prompt_role, None, 10).await;
     assert_eq!(duck_prompt, ch_prompt);
     assert_eq!(duck_prompt.0, vec![("search-d".to_string(), false)]);
+
+    let legacy = sideseat_domain::search::parse(
+        "span_name:legacy-unindexed AND prompt:historical",
+        SearchSignal::Spans,
+    )
+    .unwrap();
+    let duck_legacy = run(&duck, legacy.clone(), None, 10).await;
+    let ch_legacy = run(&ch, legacy, None, 10).await;
+    assert_eq!(duck_legacy, ch_legacy);
+    assert_eq!(duck_legacy.0, vec![("search-legacy".to_string(), false)]);
+    assert!(
+        !duck_legacy.4,
+        "scan fallback must disclose that the historical row is not indexed"
+    );
+
+    let mut logs = vec![
+        NormalizedLog {
+            project_id: Some(PROJECT.to_string()),
+            log_digest: "log-a".to_string(),
+            ordinal: 0,
+            timestamp,
+            body: serde_json::json!("alpha x beta"),
+            body_text: Some("alpha x beta".to_string()),
+            severity_number: 9,
+            severity_text: Some("INFO".to_string()),
+            attributes: serde_json::json!({"route": "/a"}),
+            ingested_at: Some(ingested_at),
+            ..Default::default()
+        },
+        NormalizedLog {
+            project_id: Some(PROJECT.to_string()),
+            log_digest: "log-b".to_string(),
+            ordinal: 0,
+            timestamp,
+            body: serde_json::json!("alpha beta"),
+            body_text: Some("alpha beta".to_string()),
+            severity_number: 17,
+            severity_text: Some("ERROR".to_string()),
+            attributes: serde_json::json!({"route": "/b"}),
+            ingested_at: Some(ingested_at),
+            ..Default::default()
+        },
+    ];
+    sideseat_domain::search::index_logs(&mut logs);
+    logs.push(NormalizedLog {
+        project_id: Some(PROJECT.to_string()),
+        log_digest: "log-legacy".to_string(),
+        ordinal: 0,
+        timestamp: ts(497),
+        body: serde_json::json!("historical log text"),
+        body_text: Some("historical log text".to_string()),
+        severity_number: 5,
+        ingested_at: Some(ingested_at),
+        ..Default::default()
+    });
+    duck.insert_logs(&logs).await.expect("duckdb logs");
+    ch.insert_logs(&logs).await.expect("clickhouse logs");
+
+    async fn run_logs(
+        repository: &impl SearchIndex,
+        expression: sideseat_ports::types::SearchExpr,
+        cursor: Option<sideseat_ports::types::SearchCursor>,
+        max_examined: u32,
+    ) -> (
+        Vec<(String, u32, bool)>,
+        Option<sideseat_ports::types::SearchCursor>,
+        u32,
+        bool,
+        bool,
+    ) {
+        let page = sideseat_domain::search::SearchService::execute(
+            repository,
+            &SearchQuery {
+                project_id: ProjectId::from(PROJECT),
+                signal: SearchSignal::Logs,
+                expression,
+                limit: 1,
+                max_examined,
+                cursor,
+                from_timestamp: None,
+                to_timestamp: None,
+            },
+        )
+        .await
+        .expect("log search");
+        let hits = page
+            .hits
+            .into_iter()
+            .map(|hit| {
+                let SearchRecord::Log(log) = hit.record else {
+                    panic!("log search returned a span");
+                };
+                (log.log_digest, log.ordinal, hit.indeterminate)
+            })
+            .collect();
+        (
+            hits,
+            page.next_cursor,
+            page.examined,
+            page.examination_limit_reached,
+            page.search_indexing_complete,
+        )
+    }
+
+    let log_phrase =
+        sideseat_domain::search::parse(r#"body:"alpha beta""#, SearchSignal::Logs).unwrap();
+    let duck_log_first = run_logs(&duck, log_phrase.clone(), None, 1).await;
+    let ch_log_first = run_logs(&ch, log_phrase.clone(), None, 1).await;
+    assert_eq!(duck_log_first, ch_log_first);
+    assert!(duck_log_first.0.is_empty());
+    let log_cursor = duck_log_first.1.clone().expect("empty log page advances");
+    let duck_log_second = run_logs(&duck, log_phrase.clone(), Some(log_cursor.clone()), 1).await;
+    let ch_log_second = run_logs(&ch, log_phrase, Some(log_cursor), 1).await;
+    assert_eq!(duck_log_second, ch_log_second);
+    assert_eq!(duck_log_second.0, vec![("log-b".to_string(), 0, false)]);
+
+    let legacy_log = sideseat_domain::search::parse("body:historical", SearchSignal::Logs).unwrap();
+    let duck_legacy_log = run_logs(&duck, legacy_log.clone(), None, 10).await;
+    let ch_legacy_log = run_logs(&ch, legacy_log, None, 10).await;
+    assert_eq!(duck_legacy_log, ch_legacy_log);
+    assert_eq!(
+        duck_legacy_log.0,
+        vec![("log-legacy".to_string(), 0, false)]
+    );
+    assert!(!duck_legacy_log.4);
 }
 
 #[tokio::test]
@@ -4291,6 +4428,7 @@ async fn every_clickhouse_migration_applies_to_the_state_it_upgrades() {
                 "ALTER TABLE otel_spans DROP INDEX IF EXISTS idx_search_tool_args",
                 "ALTER TABLE otel_spans DROP INDEX IF EXISTS idx_search_error",
                 "ALTER TABLE otel_spans DROP INDEX IF EXISTS idx_search_span_name",
+                "ALTER TABLE otel_spans DROP COLUMN IF EXISTS search_indexed",
                 "ALTER TABLE otel_spans DROP COLUMN IF EXISTS search_prompt",
                 "ALTER TABLE otel_spans DROP COLUMN IF EXISTS search_prompt_truncated",
                 "ALTER TABLE otel_spans DROP COLUMN IF EXISTS search_completion",
@@ -4381,6 +4519,8 @@ async fn every_clickhouse_migration_applies_to_the_state_it_upgrades() {
                 "ALTER TABLE otel_logs DROP INDEX IF EXISTS idx_search_event_name",
                 "ALTER TABLE otel_logs DROP INDEX IF EXISTS idx_search_severity",
                 "ALTER TABLE otel_logs DROP INDEX IF EXISTS idx_search_attributes",
+                "ALTER TABLE otel_spans DROP COLUMN IF EXISTS search_indexed",
+                "ALTER TABLE otel_logs DROP COLUMN IF EXISTS search_indexed",
                 "ALTER TABLE otel_spans DROP COLUMN IF EXISTS search_prompt",
                 "ALTER TABLE otel_spans DROP COLUMN IF EXISTS search_prompt_truncated",
                 "ALTER TABLE otel_spans DROP COLUMN IF EXISTS search_completion",

@@ -32,6 +32,7 @@ use sideseat_ports::types::ApiKeyScope;
         (name = "spans", description = "Span queries"),
         (name = "metrics", description = "Metric queries"),
         (name = "logs", description = "Log queries"),
+        (name = "search", description = "Chronological span and log search"),
         (name = "sessions", description = "Session queries"),
         (name = "stats", description = "Project statistics"),
         (name = "favorites", description = "User favorites"),
@@ -95,6 +96,7 @@ use sideseat_ports::types::ApiKeyScope;
         otel::logs::list_trace_logs,
         otel::logs::list_span_logs,
         otel::logs::get_log_filter_options,
+        otel::search::search,
         // Sessions
         otel::sessions::list_sessions,
         otel::sessions::get_session,
@@ -169,6 +171,10 @@ use sideseat_ports::types::ApiKeyScope;
         otel::metrics::MetricAggregateDto,
         otel::metrics::MetricAggregatesResponse,
         otel::logs::LogDto,
+        otel::search::SearchRecordDto,
+        otel::search::SearchHitDto,
+        otel::search::SearchResponse,
+        sideseat_ports::types::SearchSignal,
         // Trace types
         otel::traces::DeleteTracesBody,
         otel::traces::FilterOptionsResponse,

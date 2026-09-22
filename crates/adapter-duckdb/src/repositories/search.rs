@@ -178,6 +178,7 @@ pub fn search(conn: &Connection, request: &SearchQuery) -> Result<SearchPage, Du
 
 fn search_spans(conn: &Connection, request: &SearchQuery) -> Result<SearchPage, DuckdbError> {
     let started_at_us = traversal_watermark(conn, request)?;
+    let search_indexing_complete = indexing_complete(conn, request)?;
     let plan = search_sql::candidates(request, Backend::Duckdb);
     let values = duckdb_values(plan.query.params());
     let mut statement = conn.prepare(plan.query.sql())?;
@@ -234,11 +235,13 @@ fn search_spans(conn: &Connection, request: &SearchQuery) -> Result<SearchPage, 
         examination_limit_reached: limit_reached,
         arrivals_detected: false,
         index_lag_us: 0,
+        search_indexing_complete,
     })
 }
 
 fn search_logs(conn: &Connection, request: &SearchQuery) -> Result<SearchPage, DuckdbError> {
     let started_at_us = traversal_watermark(conn, request)?;
+    let search_indexing_complete = indexing_complete(conn, request)?;
     let plan = search_sql::candidates(request, Backend::Duckdb);
     let values = duckdb_values(plan.query.params());
     let mut statement = conn.prepare(plan.query.sql())?;
@@ -295,6 +298,7 @@ fn search_logs(conn: &Connection, request: &SearchQuery) -> Result<SearchPage, D
         examination_limit_reached: limit_reached,
         arrivals_detected: false,
         index_lag_us: 0,
+        search_indexing_complete,
     })
 }
 
@@ -303,6 +307,12 @@ fn traversal_watermark(conn: &Connection, request: &SearchQuery) -> Result<i64, 
         return Ok(cursor.started_at_us);
     }
     let query = search_sql::watermark(request, Backend::Duckdb);
+    let values = duckdb_values(query.params());
+    Ok(conn.query_row(query.sql(), values.as_slice(), |row| row.get(0))?)
+}
+
+fn indexing_complete(conn: &Connection, request: &SearchQuery) -> Result<bool, DuckdbError> {
+    let query = search_sql::indexing_complete(request, Backend::Duckdb);
     let values = duckdb_values(query.params());
     Ok(conn.query_row(query.sql(), values.as_slice(), |row| row.get(0))?)
 }
@@ -484,7 +494,9 @@ fn rows_to_document(
         }
         entry.1 |= truncated;
     }
+    let indexed = fields.iter().all(|field| grouped.contains_key(field));
     Ok(SearchDocument {
+        indexed,
         fields: fields
             .iter()
             .copied()

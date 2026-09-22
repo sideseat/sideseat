@@ -53,6 +53,7 @@ struct ChLogInsertRow {
     #[serde(with = "clickhouse::serde::time::datetime64::micros::option")]
     hold_until: Option<time::OffsetDateTime>,
     logical_bytes: u64,
+    search_indexed: u8,
     search_body: Vec<String>,
     search_body_truncated: u8,
     search_event_name: Vec<String>,
@@ -99,6 +100,7 @@ impl From<&NormalizedLog> for ChLogInsertRow {
             ingested_at: chrono_to_time(log.ingested_at.unwrap_or(log.timestamp)),
             hold_until: log.hold_until.map(chrono_to_time),
             logical_bytes: log.logical_bytes,
+            search_indexed: u8::from(log.search.indexed),
             search_body: search_terms(log, SearchField::Body).0,
             search_body_truncated: search_terms(log, SearchField::Body).1,
             search_event_name: search_terms(log, SearchField::EventName).0,

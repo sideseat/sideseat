@@ -165,11 +165,13 @@ fn push_time_filter(
 fn projection(backend: Backend) -> String {
     format!(
         "l.log_digest, l.ordinal, {} AS timestamp_us, {} AS time_us, \
-         {} AS observed_time_us, l.severity_number, l.severity_text, {}, l.body_text, {}, \
+         {} AS observed_time_us, l.severity_number, l.severity_text, {} AS body, \
+         l.body_text, {} AS attributes, \
          l.dropped_attributes_count, l.flags, l.trace_id, l.span_id, l.event_name, \
          l.session_id, l.user_id, l.environment, l.service_name, l.service_version, \
-         l.service_namespace, l.service_instance_id, {}, l.scope_name, l.scope_version, {}, \
-         l.scope_schema_url, l.resource_schema_url, {}, {} AS ingested_at_us",
+         l.service_namespace, l.service_instance_id, {} AS resource_attributes, \
+         l.scope_name, l.scope_version, {} AS scope_attributes, \
+         l.scope_schema_url, l.resource_schema_url, {} AS raw_log, {} AS ingested_at_us",
         timestamp_micros("l.timestamp", backend),
         nullable_timestamp_micros("l.time", backend),
         nullable_timestamp_micros("l.observed_time", backend),

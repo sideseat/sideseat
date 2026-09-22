@@ -80,6 +80,25 @@ pub fn watermark(request: &SearchQuery, backend: Backend) -> ParameterizedQuery 
     )
 }
 
+/// Whether every current record in the requested time range carries the
+/// backend's complete search-index marker. This deliberately ignores the
+/// traversal cursor so every page reports the same range-level fact.
+pub fn indexing_complete(request: &SearchQuery, backend: Backend) -> ParameterizedQuery {
+    let shape = Shape::new(request.signal, backend);
+    let mut params = vec![QueryValue::String(request.project_id.to_string())];
+    let mut predicates = Vec::new();
+    push_time_predicates(request, shape, &mut predicates, &mut params);
+    predicates.push(shape.unindexed_predicate());
+    ParameterizedQuery::new(
+        format!(
+            "WITH winners AS ({}) SELECT COUNT(*) = 0 FROM winners r WHERE {}",
+            shape.winners(),
+            predicates.join(" AND ")
+        ),
+        params,
+    )
+}
+
 /// Detect a current candidate that arrived after the traversal watermark in
 /// the portion of the descending order already visited.
 pub fn arrivals(
@@ -205,9 +224,17 @@ fn duckdb_field_leaf(shape: Shape, field: SearchField, terms: &[String], phrase:
         table = shape.term_table(),
         field = field.as_str(),
     );
+    let field_indexed = format!(
+        "EXISTS (SELECT 1 FROM {table} t WHERE {key} AND t.field = '{field}')",
+        table = shape.term_table(),
+        field = field.as_str(),
+    );
     let positive = if phrase { 1 } else { 2 };
     Lowered {
-        sql: format!("CASE WHEN ({present}) THEN {positive} WHEN {truncated} THEN 1 ELSE 0 END"),
+        sql: format!(
+            "CASE WHEN ({present}) THEN {positive} WHEN {truncated} THEN 1 \
+             WHEN NOT ({field_indexed}) THEN 1 ELSE 0 END"
+        ),
         params: terms.iter().cloned().map(QueryValue::String).collect(),
     }
 }
@@ -218,7 +245,8 @@ fn clickhouse_field_leaf(field: SearchField, terms: &[String], phrase: bool) -> 
     let positive = if phrase { 1 } else { 2 };
     Lowered {
         sql: format!(
-            "CASE WHEN hasAllTokens({column}, ?) THEN {positive} \
+            "CASE WHEN r.search_indexed = 0 THEN 1 \
+             WHEN hasAllTokens({column}, ?) THEN {positive} \
              WHEN {truncated} != 0 THEN 1 ELSE 0 END"
         ),
         params: vec![QueryValue::String(terms.join(" "))],
@@ -439,6 +467,26 @@ impl Shape {
             }
         }
     }
+
+    fn unindexed_predicate(self) -> String {
+        match self.backend {
+            Backend::Clickhouse => "r.search_indexed = 0".to_string(),
+            Backend::Duckdb => self
+                .fields()
+                .iter()
+                .map(|field| {
+                    format!(
+                        "NOT EXISTS (SELECT 1 FROM {table} t WHERE {key} AND t.field = '{field}')",
+                        table = self.term_table(),
+                        key = self.term_key_predicate(),
+                        field = field.as_str(),
+                    )
+                })
+                .collect::<Vec<_>>()
+                .join(" OR "),
+            Backend::Sqlite | Backend::Postgres => unreachable!(),
+        }
+    }
 }
 
 #[cfg(test)]
@@ -514,6 +562,27 @@ mod tests {
                 .query
                 .sql()
                 .contains("hasAllTokens(r.search_completion")
+        );
+    }
+
+    #[test]
+    fn indexing_completeness_covers_the_whole_time_range() {
+        let query = request(SearchExpr::MatchAll, SearchSignal::Spans);
+        for backend in [Backend::Duckdb, Backend::Clickhouse] {
+            let plan = indexing_complete(&query, backend);
+            assert!(!plan.sql().contains("trace_id >"));
+            assert!(plan.sql().contains("COUNT(*) = 0"));
+            assert!(plan.sql().contains("timestamp_start"));
+        }
+        assert!(
+            indexing_complete(&query, Backend::Duckdb)
+                .sql()
+                .contains("NOT EXISTS (SELECT 1 FROM span_terms")
+        );
+        assert!(
+            indexing_complete(&query, Backend::Clickhouse)
+                .sql()
+                .contains("r.search_indexed = 0")
         );
     }
 }

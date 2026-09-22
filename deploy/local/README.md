@@ -2,6 +2,9 @@
 
 Docker Compose stack with PostgreSQL, ClickHouse, Valkey (Redis), and Vault for local development.
 
+The distributed analytics profile requires ClickHouse 26.4 or newer; the Compose stack pins the
+exact patch used by CI and the parity suite.
+
 All data is stored in `./data/` via bind mounts. Delete it to reset everything.
 
 ## Quick Start

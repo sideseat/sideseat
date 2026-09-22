@@ -2,6 +2,7 @@
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use utoipa::ToSchema;
 
 use super::{LogRow, ProjectId, SpanRow};
 
@@ -9,7 +10,9 @@ pub const SEARCH_TERMS_PER_FIELD: usize = 512;
 pub const SEARCH_RECALL_FLOOR: f64 = 0.95;
 pub const DEFAULT_SEARCH_MAX_EXAMINED: u32 = 1_000;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize, ToSchema,
+)]
 #[serde(rename_all = "snake_case")]
 pub enum SearchSignal {
     Spans,
@@ -104,6 +107,9 @@ impl Default for SearchFieldTerms {
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct SearchDocument {
+    /// False for a historical row being evaluated by the correctness-preserving scan fallback.
+    #[serde(default)]
+    pub indexed: bool,
     pub fields: Vec<SearchFieldTerms>,
 }
 
@@ -208,4 +214,6 @@ pub struct SearchPage {
     pub examination_limit_reached: bool,
     pub arrivals_detected: bool,
     pub index_lag_us: u64,
+    /// Every current record in the requested time range has a complete term-index marker.
+    pub search_indexing_complete: bool,
 }

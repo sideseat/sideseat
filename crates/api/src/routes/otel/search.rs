@@ -6,7 +6,7 @@ use base64::Engine;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use utoipa::ToSchema;
+use utoipa::{IntoParams, ToSchema};
 use validator::{Validate, ValidationError};
 
 use super::OtelApiState;
@@ -19,7 +19,8 @@ use sideseat_ports::types::{
     SearchSignal,
 };
 
-#[derive(Debug, Deserialize, Validate)]
+#[derive(Debug, Deserialize, Validate, IntoParams)]
+#[into_params(parameter_in = Query)]
 pub struct SearchQuery {
     pub q: String,
     pub signal: SearchSignal,
@@ -126,6 +127,10 @@ fn is_true(value: &bool) -> bool {
     get,
     path = "/api/v1/project/{project_id}/otel/search",
     tag = "search",
+    params(
+        ("project_id" = String, Path, description = "Project identifier"),
+        SearchQuery
+    ),
     responses((status = 200, description = "Chronological search results", body = SearchResponse))
 )]
 pub async fn search(
