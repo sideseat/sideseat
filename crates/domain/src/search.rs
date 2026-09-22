@@ -7,8 +7,9 @@ use thiserror::Error;
 use sideseat_ports::error::DataError;
 use sideseat_ports::traits::SearchIndex;
 use sideseat_ports::types::{
-    NormalizedLog, NormalizedSpan, SEARCH_TERMS_PER_FIELD, SearchDocument, SearchExpr, SearchField,
-    SearchFieldTerms, SearchPage, SearchQuery, SearchRecord,
+    LogSearchSource, NormalizedLog, NormalizedSpan, SEARCH_TERMS_PER_FIELD, SearchCandidate,
+    SearchDocument, SearchExpr, SearchField, SearchFieldTerms, SearchPage, SearchQuery,
+    SearchRecord, SearchSource, SpanSearchSource,
 };
 
 const FRAGMENT_CONTEXT_CHARS: usize = 80;
@@ -94,7 +95,7 @@ impl SearchService {
             next_cursor,
             examined,
             examination_limit_reached,
-            arrivals_detected,
+            arrivals_detected: _,
             index_lag_us,
         } = index.search(query).await?;
         let mut hits = Vec::with_capacity(query.limit as usize);
@@ -102,16 +103,24 @@ impl SearchService {
         let mut actual_cursor = None;
         let mut actual_examined = 0;
         for candidate in candidates {
+            let SearchCandidate {
+                record,
+                document,
+                source,
+                cursor,
+                indeterminate,
+            } = candidate;
             actual_examined += 1;
-            actual_cursor = Some(candidate.cursor.clone());
-            let exact = evaluate(&query.expression, &candidate.document, query.signal, true);
+            actual_cursor = Some(cursor);
+            let document = materialize_document(document, &source);
+            let exact = evaluate(&query.expression, &document, query.signal, true);
             indexing_complete &=
-                !document_touched_truncation(&query.expression, &candidate.document, query.signal);
+                !document_touched_truncation(&query.expression, &document, query.signal);
             if exact != Truth::False {
                 hits.push(SearchHit {
-                    fragments: fragments(&candidate.document, &query.expression, query.signal),
-                    record: candidate.record,
-                    indeterminate: candidate.indeterminate || exact == Truth::Unknown,
+                    fragments: fragments(&document, &query.expression, query.signal),
+                    record,
+                    indeterminate: indeterminate || exact == Truth::Unknown,
                 });
                 if hits.len() >= query.limit as usize {
                     break;
@@ -119,6 +128,11 @@ impl SearchService {
             }
         }
         let consumed_all = actual_examined == examined;
+        let arrivals_detected = if let Some(cursor) = actual_cursor.as_ref() {
+            index.search_arrivals_detected(query, cursor).await?
+        } else {
+            false
+        };
         Ok(SearchResultPage {
             hits,
             next_cursor: actual_cursor.or(next_cursor),
@@ -183,78 +197,142 @@ pub fn index_logs(logs: &mut [NormalizedLog]) {
 }
 
 pub fn span_document(span: &NormalizedSpan) -> SearchDocument {
-    let mut text: BTreeMap<SearchField, Vec<String>> = BTreeMap::new();
-    push(
-        &mut text,
-        SearchField::Prompt,
-        span.input_preview.as_deref(),
-    );
-    push(
-        &mut text,
-        SearchField::Completion,
-        span.output_preview.as_deref(),
-    );
-    push(
-        &mut text,
-        SearchField::ToolName,
-        span.gen_ai_tool_name.as_deref(),
-    );
-    push(&mut text, SearchField::ToolName, span.tool_names.as_deref());
-    push(
-        &mut text,
-        SearchField::ToolArgs,
-        span.tool_definitions.as_deref(),
-    );
-    for value in [
-        span.status_message.as_deref(),
-        span.exception_type.as_deref(),
-        span.exception_message.as_deref(),
-        span.exception_stacktrace.as_deref(),
-    ] {
-        push(&mut text, SearchField::Error, value);
-    }
-    push(&mut text, SearchField::SpanName, Some(&span.span_name));
-    if let Some(messages) = span.messages.as_deref()
-        && let Ok(value) = serde_json::from_str::<serde_json::Value>(messages)
-    {
-        collect_message_text(&value, None, &mut text);
-    }
-    SearchDocument {
-        fields: text
-            .into_iter()
-            .map(|(field, values)| field_terms(field, values.join("\n")))
-            .collect(),
-    }
+    document_from_texts(span_source_texts(&SpanSearchSource {
+        messages: span.messages.clone(),
+        tool_definitions: span.tool_definitions.clone(),
+        tool_names: span.tool_names.clone(),
+        input_preview: span.input_preview.clone(),
+        output_preview: span.output_preview.clone(),
+        gen_ai_tool_name: span.gen_ai_tool_name.clone(),
+        status_message: span.status_message.clone(),
+        exception_type: span.exception_type.clone(),
+        exception_message: span.exception_message.clone(),
+        exception_stacktrace: span.exception_stacktrace.clone(),
+        span_name: Some(span.span_name.clone()),
+    }))
 }
 
 pub fn log_document(log: &NormalizedLog) -> SearchDocument {
-    let fields = [
-        (
-            SearchField::Body,
-            log.body_text
-                .clone()
-                .or_else(|| serde_json::to_string(&log.body).ok())
-                .unwrap_or_default(),
-        ),
-        (
-            SearchField::EventName,
-            log.event_name.clone().unwrap_or_default(),
-        ),
-        (
-            SearchField::Severity,
-            log.severity_text.clone().unwrap_or_default(),
-        ),
-        (
-            SearchField::Attributes,
-            serde_json::to_string(&log.attributes).unwrap_or_default(),
-        ),
-    ];
+    document_from_texts(log_source_texts(&LogSearchSource {
+        body_text: log.body_text.clone(),
+        body: serde_json::to_string(&log.body).ok(),
+        event_name: log.event_name.clone(),
+        severity_text: log.severity_text.clone(),
+        attributes: serde_json::to_string(&log.attributes).ok(),
+    }))
+}
+
+fn document_from_texts(texts: BTreeMap<SearchField, String>) -> SearchDocument {
     SearchDocument {
-        fields: fields
+        fields: texts
             .into_iter()
             .map(|(field, text)| field_terms(field, text))
             .collect(),
     }
+}
+
+fn materialize_document(indexed: SearchDocument, source: &SearchSource) -> SearchDocument {
+    let mut texts = match source {
+        SearchSource::Span(source) => span_source_texts(source),
+        SearchSource::Log(source) => log_source_texts(source),
+    };
+    SearchDocument {
+        fields: indexed
+            .fields
+            .into_iter()
+            .map(|mut field| {
+                field.text = texts.remove(&field.field).unwrap_or_default();
+                field
+            })
+            .collect(),
+    }
+}
+
+fn span_source_texts(source: &SpanSearchSource) -> BTreeMap<SearchField, String> {
+    let mut text: BTreeMap<SearchField, Vec<String>> = [
+        SearchField::Prompt,
+        SearchField::Completion,
+        SearchField::ToolName,
+        SearchField::ToolArgs,
+        SearchField::Error,
+        SearchField::SpanName,
+    ]
+    .into_iter()
+    .map(|field| (field, Vec::new()))
+    .collect();
+    push(
+        &mut text,
+        SearchField::Prompt,
+        source.input_preview.as_deref(),
+    );
+    push(
+        &mut text,
+        SearchField::Completion,
+        source.output_preview.as_deref(),
+    );
+    push(
+        &mut text,
+        SearchField::ToolName,
+        source.gen_ai_tool_name.as_deref(),
+    );
+    push(
+        &mut text,
+        SearchField::ToolName,
+        source.tool_names.as_deref(),
+    );
+    push(
+        &mut text,
+        SearchField::ToolArgs,
+        source.tool_definitions.as_deref(),
+    );
+    for value in [
+        source.status_message.as_deref(),
+        source.exception_type.as_deref(),
+        source.exception_message.as_deref(),
+        source.exception_stacktrace.as_deref(),
+    ] {
+        push(&mut text, SearchField::Error, value);
+    }
+    push(
+        &mut text,
+        SearchField::SpanName,
+        source.span_name.as_deref(),
+    );
+    if let Some(messages) = source.messages.as_deref()
+        && let Ok(value) = serde_json::from_str::<serde_json::Value>(messages)
+    {
+        collect_message_text(&value, None, &mut text);
+    }
+    text.into_iter()
+        .map(|(field, values)| (field, values.join("\n")))
+        .collect()
+}
+
+fn log_source_texts(source: &LogSearchSource) -> BTreeMap<SearchField, String> {
+    [
+        (
+            SearchField::Body,
+            source
+                .body_text
+                .clone()
+                .or_else(|| source.body.clone())
+                .unwrap_or_default(),
+        ),
+        (
+            SearchField::EventName,
+            source.event_name.clone().unwrap_or_default(),
+        ),
+        (
+            SearchField::Severity,
+            source.severity_text.clone().unwrap_or_default(),
+        ),
+        (
+            SearchField::Attributes,
+            source.attributes.clone().unwrap_or_default(),
+        ),
+    ]
+    .into_iter()
+    .collect()
 }
 
 fn push(map: &mut BTreeMap<SearchField, Vec<String>>, field: SearchField, value: Option<&str>) {

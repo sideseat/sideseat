@@ -41,8 +41,8 @@
 //! ```
 
 use sideseat_ports::traits::{
-    AnalyticsMaintenance, AnalyticsRepository, EntityQuery, MessageStore, MetricStore, SpanStore,
-    SurvivorReferences,
+    AnalyticsMaintenance, AnalyticsRepository, EntityQuery, MessageStore, MetricStore, SearchIndex,
+    SpanStore, SurvivorReferences,
 };
 use std::sync::Arc;
 
@@ -57,7 +57,8 @@ use sideseat_ports::filters::{DatetimeOp, Filter, NullOp, NumberOp, OptionsOp, S
 use sideseat_ports::types::{
     AggregationTemporality, FeedSpansParams, ListSessionsParams, ListSpansParams, ListTracesParams,
     MessageQueryParams, MessageSpanRow, MetricType, NormalizedMetric, NormalizedSpan,
-    ObservationType, ProjectId, SessionRow, SpanCategory, SpanRow, TraceRow,
+    ObservationType, ProjectId, SearchQuery, SearchRecord, SearchSignal, SessionRow, SpanCategory,
+    SpanRow, TraceRow,
 };
 
 /// Env var holding the base URL of a ClickHouse HTTP endpoint, e.g. `http://127.0.0.1:8123`.
@@ -716,6 +717,177 @@ fn trace_params() -> ListTracesParams {
 fn sorted(mut described: Vec<String>) -> Vec<String> {
     described.sort();
     described
+}
+
+#[tokio::test]
+async fn clickhouse_search_matches_duckdb_on_ordering_pagination_and_unknowns() {
+    let Ok(url) = std::env::var(URL_ENV) else {
+        eprintln!("clickhouse parity: skipped - set {URL_ENV} (or run `make test-clickhouse`)");
+        return;
+    };
+
+    let (_temp, duck) = duckdb_backend().await;
+    let ch = clickhouse_backend(&url, "sideseat_parity_search").await;
+    let timestamp = ts(500);
+    let ingested_at = ts(600);
+    let long_prompt = (0..=sideseat_ports::types::SEARCH_TERMS_PER_FIELD)
+        .map(|index| {
+            if index == sideseat_ports::types::SEARCH_TERMS_PER_FIELD {
+                "hiddenneedle".to_string()
+            } else {
+                format!("token{index}")
+            }
+        })
+        .collect::<Vec<_>>()
+        .join(" ");
+    let mut spans = vec![
+        NormalizedSpan {
+            project_id: Some(PROJECT.to_string()),
+            trace_id: "search-a".to_string(),
+            span_id: "a".to_string(),
+            span_name: "rejected-phrase".to_string(),
+            timestamp_start: timestamp,
+            input_preview: Some("alpha x beta".to_string()),
+            ingested_at: Some(ingested_at),
+            ..Default::default()
+        },
+        NormalizedSpan {
+            project_id: Some(PROJECT.to_string()),
+            trace_id: "search-b".to_string(),
+            span_id: "b".to_string(),
+            span_name: "exact-phrase".to_string(),
+            timestamp_start: timestamp,
+            input_preview: Some("alpha beta".to_string()),
+            ingested_at: Some(ingested_at),
+            ..Default::default()
+        },
+        NormalizedSpan {
+            project_id: Some(PROJECT.to_string()),
+            trace_id: "search-c".to_string(),
+            span_id: "c".to_string(),
+            span_name: "truncated".to_string(),
+            timestamp_start: timestamp,
+            input_preview: Some(long_prompt),
+            ingested_at: Some(ingested_at),
+            ..Default::default()
+        },
+        NormalizedSpan {
+            project_id: Some(PROJECT.to_string()),
+            trace_id: "search-d".to_string(),
+            span_id: "d".to_string(),
+            span_name: "role-aware-phrase".to_string(),
+            timestamp_start: ts(499),
+            messages: Some(
+                serde_json::json!([
+                    {"role": "user", "content": "alpha beta"},
+                    {"role": "assistant", "content": "alpha x beta"}
+                ])
+                .to_string(),
+            ),
+            ingested_at: Some(ingested_at),
+            ..Default::default()
+        },
+    ];
+    sideseat_domain::search::index_spans(&mut spans);
+    duck.insert_spans(spans.clone())
+        .await
+        .expect("duckdb insert");
+    ch.insert_spans(spans).await.expect("clickhouse insert");
+
+    async fn run(
+        repository: &impl SearchIndex,
+        expression: sideseat_ports::types::SearchExpr,
+        cursor: Option<sideseat_ports::types::SearchCursor>,
+        max_examined: u32,
+    ) -> (
+        Vec<(String, bool)>,
+        Option<sideseat_ports::types::SearchCursor>,
+        u32,
+        bool,
+    ) {
+        let page = sideseat_domain::search::SearchService::execute(
+            repository,
+            &SearchQuery {
+                project_id: ProjectId::from(PROJECT),
+                signal: SearchSignal::Spans,
+                expression,
+                limit: 1,
+                max_examined,
+                cursor,
+                from_timestamp: None,
+                to_timestamp: None,
+            },
+        )
+        .await
+        .expect("search");
+        let hits = page
+            .hits
+            .into_iter()
+            .map(|hit| {
+                let SearchRecord::Span(span) = hit.record else {
+                    panic!("span search returned a log");
+                };
+                (span.trace_id, hit.indeterminate)
+            })
+            .collect();
+        (
+            hits,
+            page.next_cursor,
+            page.examined,
+            page.examination_limit_reached,
+        )
+    }
+
+    let phrase =
+        sideseat_domain::search::parse(r#"prompt:"alpha beta""#, SearchSignal::Spans).unwrap();
+    let duck_first = run(&duck, phrase.clone(), None, 1).await;
+    let ch_first = run(&ch, phrase.clone(), None, 1).await;
+    assert_eq!(duck_first, ch_first);
+    assert!(duck_first.0.is_empty());
+    assert_eq!(duck_first.2, 1);
+    let cursor = duck_first.1.clone().expect("empty page advances");
+
+    let duck_second = run(&duck, phrase.clone(), Some(cursor.clone()), 1).await;
+    let ch_second = run(&ch, phrase, Some(cursor), 1).await;
+    assert_eq!(duck_second, ch_second);
+    assert_eq!(duck_second.0, vec![("search-b".to_string(), false)]);
+
+    let nested = sideseat_domain::search::parse(
+        "span_name:truncated AND NOT (prompt:missing OR prompt:hiddenneedle)",
+        SearchSignal::Spans,
+    )
+    .unwrap();
+    let duck_unknown = run(&duck, nested.clone(), None, 10).await;
+    let ch_unknown = run(&ch, nested, None, 10).await;
+    assert_eq!(duck_unknown, ch_unknown);
+    assert_eq!(
+        duck_unknown.0,
+        vec![("search-c".to_string(), true)],
+        "a capped negative clause must be returned as indeterminate"
+    );
+
+    let wrong_role = sideseat_domain::search::parse(
+        r#"span_name:role-aware-phrase AND completion:"alpha beta""#,
+        SearchSignal::Spans,
+    )
+    .unwrap();
+    let duck_wrong_role = run(&duck, wrong_role.clone(), None, 10).await;
+    let ch_wrong_role = run(&ch, wrong_role, None, 10).await;
+    assert_eq!(duck_wrong_role, ch_wrong_role);
+    assert!(
+        duck_wrong_role.0.is_empty(),
+        "a phrase in a user message must not verify in the completion field"
+    );
+
+    let prompt_role = sideseat_domain::search::parse(
+        r#"span_name:role-aware-phrase AND prompt:"alpha beta""#,
+        SearchSignal::Spans,
+    )
+    .unwrap();
+    let duck_prompt = run(&duck, prompt_role.clone(), None, 10).await;
+    let ch_prompt = run(&ch, prompt_role, None, 10).await;
+    assert_eq!(duck_prompt, ch_prompt);
+    assert_eq!(duck_prompt.0, vec![("search-d".to_string(), false)]);
 }
 
 #[tokio::test]

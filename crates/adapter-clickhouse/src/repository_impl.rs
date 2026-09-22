@@ -320,6 +320,16 @@ impl SearchIndex for ClickhouseRepository {
             .await
             .map_err(Into::into)
     }
+
+    async fn search_arrivals_detected(
+        &self,
+        request: &SearchQuery,
+        through: &sideseat_ports::types::SearchCursor,
+    ) -> Result<bool, DataError> {
+        search::arrivals_detected(self.0.client(), request, through)
+            .await
+            .map_err(Into::into)
+    }
 }
 
 #[async_trait]

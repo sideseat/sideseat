@@ -16,9 +16,9 @@ use crate::types::{
     ListSessionsParams, ListSpansParams, ListTracesParams, LogRow, MemberWithUser, MembershipRow,
     MessageQueryParams, MessageQueryResult, MetricAggregateRow, MetricRow, NormalizedLog,
     NormalizedMetric, NormalizedSpan, OrgWithRole, OrganizationRow, PressureSpanCandidate,
-    ProjectHold, ProjectId, ProjectRow, ProjectStorageUsage, SearchPage, SearchQuery, SessionRow,
-    SpanBodyAssociation, SpanBodyField, SpanBodySource, SpanCounts, SpanRow, StagedPayload,
-    TraceRow, UserRow,
+    ProjectHold, ProjectId, ProjectRow, ProjectStorageUsage, SearchCursor, SearchPage, SearchQuery,
+    SessionRow, SpanBodyAssociation, SpanBodyField, SpanBodySource, SpanCounts, SpanRow,
+    StagedPayload, TraceRow, UserRow,
 };
 
 // ============================================================================
@@ -252,6 +252,13 @@ pub trait LogStore: Send + Sync {
 #[async_trait]
 pub trait SearchIndex: Send + Sync {
     async fn search(&self, query: &SearchQuery) -> Result<SearchPage, DataError>;
+
+    /// Best-effort detector for writes landing in the traversal region already consumed.
+    async fn search_arrivals_detected(
+        &self,
+        query: &SearchQuery,
+        through: &SearchCursor,
+    ) -> Result<bool, DataError>;
 }
 
 /// Traces, sessions and project statistics: the aggregate views a list page shows.

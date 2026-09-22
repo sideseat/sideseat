@@ -113,6 +113,36 @@ impl SearchDocument {
     }
 }
 
+#[derive(Debug, Clone, Default)]
+pub struct SpanSearchSource {
+    pub messages: Option<String>,
+    pub tool_definitions: Option<String>,
+    pub tool_names: Option<String>,
+    pub input_preview: Option<String>,
+    pub output_preview: Option<String>,
+    pub gen_ai_tool_name: Option<String>,
+    pub status_message: Option<String>,
+    pub exception_type: Option<String>,
+    pub exception_message: Option<String>,
+    pub exception_stacktrace: Option<String>,
+    pub span_name: Option<String>,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct LogSearchSource {
+    pub body_text: Option<String>,
+    pub body: Option<String>,
+    pub event_name: Option<String>,
+    pub severity_text: Option<String>,
+    pub attributes: Option<String>,
+}
+
+#[derive(Debug, Clone)]
+pub enum SearchSource {
+    Span(SpanSearchSource),
+    Log(LogSearchSource),
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SearchExpr {
     MatchAll,
@@ -160,7 +190,10 @@ pub enum SearchRecord {
 #[derive(Debug)]
 pub struct SearchCandidate {
     pub record: SearchRecord,
+    /// Terms and truncation loaded from the backend's index.
     pub document: SearchDocument,
+    /// Raw source reconstructed into field text by the domain, never by an adapter.
+    pub source: SearchSource,
     pub cursor: SearchCursor,
     /// The term index could not prove true or false because a relevant field hit its cap.
     pub indeterminate: bool,

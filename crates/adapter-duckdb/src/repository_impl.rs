@@ -474,6 +474,23 @@ impl SearchIndex for DuckdbRepository {
         .map_err(DataError::from)?
         .map_err(Into::into)
     }
+
+    async fn search_arrivals_detected(
+        &self,
+        request: &SearchQuery,
+        through: &sideseat_ports::types::SearchCursor,
+    ) -> Result<bool, DataError> {
+        let db = Arc::clone(&self.0);
+        let request = request.clone();
+        let through = through.clone();
+        DuckdbService::run_query(move || {
+            let conn = db.conn();
+            search::arrivals_detected(&conn, &request, &through)
+        })
+        .await
+        .map_err(DataError::from)?
+        .map_err(Into::into)
+    }
 }
 
 #[async_trait]

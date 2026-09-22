@@ -1,14 +1,13 @@
-use std::collections::BTreeMap;
-
 use duckdb::{Connection, params};
 use sideseat_ports::types::{
-    ListLogsParams, ListSpansParams, NormalizedLog, NormalizedSpan, SearchCandidate, SearchCursor,
-    SearchDocument, SearchField, SearchFieldTerms, SearchPage, SearchQuery, SearchRecord,
-    SearchSignal,
+    LogSearchSource, NormalizedLog, NormalizedSpan, SearchCandidate, SearchCursor, SearchDocument,
+    SearchField, SearchFieldTerms, SearchPage, SearchQuery, SearchRecord, SearchSignal,
+    SearchSource, SpanSearchSource,
 };
+use sideseat_query_sql::{Backend, analytics::QueryValue, search as search_sql};
 
 use crate::DuckdbError;
-use crate::repositories::{log, query};
+use crate::repositories::query;
 
 struct SpanSource {
     messages: Option<String>,
@@ -16,10 +15,32 @@ struct SpanSource {
     tool_names: Option<String>,
     input_preview: Option<String>,
     output_preview: Option<String>,
+    gen_ai_tool_name: Option<String>,
     status_message: Option<String>,
+    exception_type: Option<String>,
     exception_message: Option<String>,
     exception_stacktrace: Option<String>,
     span_name: Option<String>,
+}
+
+struct LogSource {
+    body_text: Option<String>,
+    body: Option<String>,
+    event_name: Option<String>,
+    severity_text: Option<String>,
+    attributes: Option<String>,
+}
+
+struct SpanCandidateRef {
+    trace_id: String,
+    span_id: String,
+    timestamp_us: i64,
+}
+
+struct LogCandidateRef {
+    log_digest: String,
+    ordinal: u32,
+    timestamp_us: i64,
 }
 
 pub fn replace_span_terms(conn: &Connection, spans: &[NormalizedSpan]) -> Result<(), DuckdbError> {
@@ -156,161 +177,155 @@ pub fn search(conn: &Connection, request: &SearchQuery) -> Result<SearchPage, Du
 }
 
 fn search_spans(conn: &Connection, request: &SearchQuery) -> Result<SearchPage, DuckdbError> {
-    let mut params = ListSpansParams {
-        project_id: request.project_id.clone(),
-        page: 1,
-        limit: 1,
-        from_timestamp: request.from_timestamp,
-        to_timestamp: request.to_timestamp,
-        ..Default::default()
-    };
-    let (_, total) = query::list_spans(conn, &params)?;
-    params.limit = u32::try_from(total).unwrap_or(u32::MAX).max(1);
-    let (mut rows, _) = query::list_spans(conn, &params)?;
-    rows.sort_by(|left, right| {
-        right
-            .timestamp_start
-            .cmp(&left.timestamp_start)
-            .then_with(|| left.trace_id.cmp(&right.trace_id))
-            .then_with(|| left.span_id.cmp(&right.span_id))
-    });
-    let started_at_us = request
-        .cursor
-        .as_ref()
-        .map_or_else(now_us, |cursor| cursor.started_at_us);
+    let started_at_us = traversal_watermark(conn, request)?;
+    let plan = search_sql::candidates(request, Backend::Duckdb);
+    let values = duckdb_values(plan.query.params());
+    let mut statement = conn.prepare(plan.query.sql())?;
+    let mut result = statement.query(values.as_slice())?;
+    let mut references = Vec::new();
+    while let Some(row) = result.next()? {
+        references.push(SpanCandidateRef {
+            trace_id: row.get(0)?,
+            span_id: row.get(1)?,
+            timestamp_us: row.get(2)?,
+        });
+    }
+    let limit_reached = references.len() > request.max_examined as usize;
+    references.truncate(request.max_examined as usize);
     let mut candidates = Vec::new();
     let mut next_cursor = None;
-    let mut examined = 0;
-    for row in rows {
+    for reference in references {
         let cursor = SearchCursor {
-            timestamp_us: row.timestamp_start.timestamp_micros(),
-            tie_breaker: format!("{}\0{}", row.trace_id, row.span_id),
+            timestamp_us: reference.timestamp_us,
+            tie_breaker: format!("{}\0{}", reference.trace_id, reference.span_id),
             ordinal: 0,
             started_at_us,
         };
-        if !after_cursor(&cursor, request.cursor.as_ref()) {
-            continue;
-        }
-        if examined >= request.max_examined {
-            break;
-        }
-        examined += 1;
-        let document = span_document(
+        let Some(row) = query::get_span(
             conn,
             request.project_id.as_str(),
-            &row.trace_id,
-            &row.span_id,
+            &reference.trace_id,
+            &reference.span_id,
+        )?
+        else {
+            next_cursor = Some(cursor);
+            continue;
+        };
+        let (document, source) = span_document(
+            conn,
+            request.project_id.as_str(),
+            &reference.trace_id,
+            &reference.span_id,
         )?;
         next_cursor = Some(cursor.clone());
         candidates.push(SearchCandidate {
             record: SearchRecord::Span(row),
             document,
+            source,
             cursor: cursor.clone(),
             indeterminate: false,
         });
     }
-    let limit_reached = examined >= request.max_examined;
+    let examined = u32::try_from(candidates.len()).unwrap_or(u32::MAX);
     Ok(SearchPage {
         candidates,
         next_cursor,
         examined,
         examination_limit_reached: limit_reached,
-        arrivals_detected: arrivals_detected(conn, request.project_id.as_str(), started_at_us)?,
+        arrivals_detected: false,
         index_lag_us: 0,
     })
 }
 
 fn search_logs(conn: &Connection, request: &SearchQuery) -> Result<SearchPage, DuckdbError> {
-    let mut params = ListLogsParams {
-        project_id: request.project_id.clone(),
-        page: 1,
-        limit: 1,
-        from_timestamp: request.from_timestamp,
-        to_timestamp: request.to_timestamp,
-        ..Default::default()
-    };
-    let (_, total) = log::list_logs(conn, &params)?;
-    params.limit = u32::try_from(total).unwrap_or(u32::MAX).max(1);
-    let (mut rows, _) = log::list_logs(conn, &params)?;
-    rows.sort_by(|left, right| {
-        right
-            .timestamp
-            .cmp(&left.timestamp)
-            .then_with(|| left.log_digest.cmp(&right.log_digest))
-            .then_with(|| left.ordinal.cmp(&right.ordinal))
-    });
-    let started_at_us = request
-        .cursor
-        .as_ref()
-        .map_or_else(now_us, |cursor| cursor.started_at_us);
+    let started_at_us = traversal_watermark(conn, request)?;
+    let plan = search_sql::candidates(request, Backend::Duckdb);
+    let values = duckdb_values(plan.query.params());
+    let mut statement = conn.prepare(plan.query.sql())?;
+    let mut result = statement.query(values.as_slice())?;
+    let mut references = Vec::new();
+    while let Some(row) = result.next()? {
+        references.push(LogCandidateRef {
+            log_digest: row.get(0)?,
+            ordinal: row.get(1)?,
+            timestamp_us: row.get(2)?,
+        });
+    }
+    let limit_reached = references.len() > request.max_examined as usize;
+    references.truncate(request.max_examined as usize);
     let mut candidates = Vec::new();
     let mut next_cursor = None;
-    let mut examined = 0;
-    for row in rows {
+    for reference in references {
         let cursor = SearchCursor {
-            timestamp_us: row.timestamp.timestamp_micros(),
-            tie_breaker: row.log_digest.clone(),
-            ordinal: row.ordinal,
+            timestamp_us: reference.timestamp_us,
+            tie_breaker: reference.log_digest.clone(),
+            ordinal: reference.ordinal,
             started_at_us,
         };
-        if !after_cursor(&cursor, request.cursor.as_ref()) {
+        let Some(row) = crate::repositories::log::get_log(
+            conn,
+            &request.project_id,
+            &reference.log_digest,
+            reference.ordinal,
+        )?
+        else {
+            next_cursor = Some(cursor);
             continue;
-        }
-        if examined >= request.max_examined {
-            break;
-        }
-        examined += 1;
-        let document = log_document(
+        };
+        let (document, source) = log_document(
             conn,
             request.project_id.as_str(),
-            &row.log_digest,
-            row.ordinal,
+            &reference.log_digest,
+            reference.ordinal,
         )?;
         next_cursor = Some(cursor.clone());
         candidates.push(SearchCandidate {
             record: SearchRecord::Log(row),
             document,
+            source,
             cursor: cursor.clone(),
             indeterminate: false,
         });
     }
-    let limit_reached = examined >= request.max_examined;
+    let examined = u32::try_from(candidates.len()).unwrap_or(u32::MAX);
     Ok(SearchPage {
         candidates,
         next_cursor,
         examined,
         examination_limit_reached: limit_reached,
-        arrivals_detected: arrivals_detected(conn, request.project_id.as_str(), started_at_us)?,
+        arrivals_detected: false,
         index_lag_us: 0,
     })
 }
 
-fn after_cursor(candidate: &SearchCursor, cursor: Option<&SearchCursor>) -> bool {
-    cursor.is_none_or(|cursor| {
-        candidate.timestamp_us < cursor.timestamp_us
-            || (candidate.timestamp_us == cursor.timestamp_us
-                && (candidate.tie_breaker.as_str(), candidate.ordinal)
-                    > (cursor.tie_breaker.as_str(), cursor.ordinal))
-    })
+fn traversal_watermark(conn: &Connection, request: &SearchQuery) -> Result<i64, DuckdbError> {
+    if let Some(cursor) = request.cursor.as_ref() {
+        return Ok(cursor.started_at_us);
+    }
+    let query = search_sql::watermark(request, Backend::Duckdb);
+    let values = duckdb_values(query.params());
+    Ok(conn.query_row(query.sql(), values.as_slice(), |row| row.get(0))?)
 }
 
-fn now_us() -> i64 {
-    chrono::Utc::now().timestamp_micros()
-}
-
-fn arrivals_detected(
+pub fn arrivals_detected(
     conn: &Connection,
-    project_id: &str,
-    started_at_us: i64,
+    request: &SearchQuery,
+    through: &SearchCursor,
 ) -> Result<bool, DuckdbError> {
-    Ok(conn.query_row(
-        "SELECT COUNT(*) > 0 FROM (\
-           SELECT ingested_at FROM otel_spans WHERE project_id = ? \
-           UNION ALL SELECT ingested_at FROM otel_logs WHERE project_id = ?\
-         ) WHERE EPOCH_US(ingested_at) > ?",
-        params![project_id, project_id, started_at_us],
-        |row| row.get(0),
-    )?)
+    let query = search_sql::arrivals(request, through, Backend::Duckdb);
+    let values = duckdb_values(query.params());
+    Ok(conn.query_row(query.sql(), values.as_slice(), |row| row.get(0))?)
+}
+
+fn duckdb_values(values: &[QueryValue]) -> Vec<&dyn duckdb::ToSql> {
+    values
+        .iter()
+        .map(|value| match value {
+            QueryValue::String(value) => value as &dyn duckdb::ToSql,
+            QueryValue::Int64(value) => value as &dyn duckdb::ToSql,
+            QueryValue::Float64(value) => value as &dyn duckdb::ToSql,
+        })
+        .collect()
 }
 
 fn span_document(
@@ -318,10 +333,11 @@ fn span_document(
     project_id: &str,
     trace_id: &str,
     span_id: &str,
-) -> Result<SearchDocument, DuckdbError> {
+) -> Result<(SearchDocument, SearchSource), DuckdbError> {
     let source = conn.query_row(
         "SELECT messages, tool_definitions, tool_names, input_preview, output_preview, \
-                    status_message, exception_message, exception_stacktrace, span_name \
+                    gen_ai_tool_name, status_message, exception_type, exception_message, \
+                    exception_stacktrace, span_name \
              FROM otel_spans WHERE project_id = ? AND trace_id = ? AND span_id = ? \
              QUALIFY ROW_NUMBER() OVER (PARTITION BY project_id, trace_id, span_id \
                                         ORDER BY ingested_at DESC, rowid DESC) = 1",
@@ -333,37 +349,32 @@ fn span_document(
                 tool_names: row.get(2)?,
                 input_preview: row.get(3)?,
                 output_preview: row.get(4)?,
-                status_message: row.get(5)?,
-                exception_message: row.get(6)?,
-                exception_stacktrace: row.get(7)?,
-                span_name: row.get(8)?,
+                gen_ai_tool_name: row.get(5)?,
+                status_message: row.get(6)?,
+                exception_type: row.get(7)?,
+                exception_message: row.get(8)?,
+                exception_stacktrace: row.get(9)?,
+                span_name: row.get(10)?,
             })
         },
     )?;
-    let mut texts = BTreeMap::new();
-    texts.insert(
-        SearchField::Prompt,
-        join([source.messages.as_deref(), source.input_preview.as_deref()]),
-    );
-    texts.insert(
-        SearchField::Completion,
-        join([source.messages.as_deref(), source.output_preview.as_deref()]),
-    );
-    texts.insert(SearchField::ToolName, source.tool_names.unwrap_or_default());
-    texts.insert(
-        SearchField::ToolArgs,
-        source.tool_definitions.unwrap_or_default(),
-    );
-    texts.insert(
-        SearchField::Error,
-        join([
-            source.status_message.as_deref(),
-            source.exception_message.as_deref(),
-            source.exception_stacktrace.as_deref(),
-        ]),
-    );
-    texts.insert(SearchField::SpanName, source.span_name.unwrap_or_default());
-    load_span_terms(conn, project_id, trace_id, span_id, texts)
+    let document = load_span_terms(conn, project_id, trace_id, span_id)?;
+    Ok((
+        document,
+        SearchSource::Span(SpanSearchSource {
+            messages: source.messages,
+            tool_definitions: source.tool_definitions,
+            tool_names: source.tool_names,
+            input_preview: source.input_preview,
+            output_preview: source.output_preview,
+            gen_ai_tool_name: source.gen_ai_tool_name,
+            status_message: source.status_message,
+            exception_type: source.exception_type,
+            exception_message: source.exception_message,
+            exception_stacktrace: source.exception_stacktrace,
+            span_name: source.span_name,
+        }),
+    ))
 }
 
 fn log_document(
@@ -371,25 +382,32 @@ fn log_document(
     project_id: &str,
     digest: &str,
     ordinal: u32,
-) -> Result<SearchDocument, DuckdbError> {
-    let source: (
-        Option<String>,
-        Option<String>,
-        Option<String>,
-        Option<String>,
-    ) = conn.query_row(
-        "SELECT body_text, event_name, severity_text, attributes FROM otel_logs \
+) -> Result<(SearchDocument, SearchSource), DuckdbError> {
+    let source = conn.query_row(
+        "SELECT body_text, body, event_name, severity_text, attributes FROM otel_logs \
          WHERE project_id = ? AND log_digest = ? AND ordinal = ?",
         params![project_id, digest, ordinal],
-        |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+        |row| {
+            Ok(LogSource {
+                body_text: row.get(0)?,
+                body: row.get(1)?,
+                event_name: row.get(2)?,
+                severity_text: row.get(3)?,
+                attributes: row.get(4)?,
+            })
+        },
     )?;
-    let texts = BTreeMap::from([
-        (SearchField::Body, source.0.unwrap_or_default()),
-        (SearchField::EventName, source.1.unwrap_or_default()),
-        (SearchField::Severity, source.2.unwrap_or_default()),
-        (SearchField::Attributes, source.3.unwrap_or_default()),
-    ]);
-    load_log_terms(conn, project_id, digest, ordinal, texts)
+    let document = load_log_terms(conn, project_id, digest, ordinal)?;
+    Ok((
+        document,
+        SearchSource::Log(LogSearchSource {
+            body_text: source.body_text,
+            body: source.body,
+            event_name: source.event_name,
+            severity_text: source.severity_text,
+            attributes: source.attributes,
+        }),
+    ))
 }
 
 fn load_span_terms(
@@ -397,7 +415,6 @@ fn load_span_terms(
     project_id: &str,
     trace_id: &str,
     span_id: &str,
-    texts: BTreeMap<SearchField, String>,
 ) -> Result<SearchDocument, DuckdbError> {
     let mut statement = conn.prepare(
         "SELECT field, term, truncated FROM span_terms \
@@ -410,7 +427,17 @@ fn load_span_terms(
             row.get::<_, bool>(2)?,
         ))
     })?;
-    rows_to_document(rows.collect::<Result<Vec<_>, _>>()?, texts)
+    rows_to_document(
+        rows.collect::<Result<Vec<_>, _>>()?,
+        &[
+            SearchField::Prompt,
+            SearchField::Completion,
+            SearchField::ToolName,
+            SearchField::ToolArgs,
+            SearchField::Error,
+            SearchField::SpanName,
+        ],
+    )
 }
 
 fn load_log_terms(
@@ -418,7 +445,6 @@ fn load_log_terms(
     project_id: &str,
     digest: &str,
     ordinal: u32,
-    texts: BTreeMap<SearchField, String>,
 ) -> Result<SearchDocument, DuckdbError> {
     let mut statement = conn.prepare(
         "SELECT field, term, truncated FROM log_terms \
@@ -431,14 +457,23 @@ fn load_log_terms(
             row.get::<_, bool>(2)?,
         ))
     })?;
-    rows_to_document(rows.collect::<Result<Vec<_>, _>>()?, texts)
+    rows_to_document(
+        rows.collect::<Result<Vec<_>, _>>()?,
+        &[
+            SearchField::Body,
+            SearchField::EventName,
+            SearchField::Severity,
+            SearchField::Attributes,
+        ],
+    )
 }
 
 fn rows_to_document(
     rows: Vec<(String, String, bool)>,
-    texts: BTreeMap<SearchField, String>,
+    fields: &[SearchField],
 ) -> Result<SearchDocument, DuckdbError> {
-    let mut grouped: BTreeMap<SearchField, (Vec<String>, bool)> = BTreeMap::new();
+    let mut grouped: std::collections::BTreeMap<SearchField, (Vec<String>, bool)> =
+        std::collections::BTreeMap::new();
     for (field, term, truncated) in rows {
         let Some(field) = SearchField::parse(&field) else {
             continue;
@@ -450,21 +485,18 @@ fn rows_to_document(
         entry.1 |= truncated;
     }
     Ok(SearchDocument {
-        fields: texts
-            .into_iter()
-            .map(|(field, text)| {
+        fields: fields
+            .iter()
+            .copied()
+            .map(|field| {
                 let (terms, truncated) = grouped.remove(&field).unwrap_or_default();
                 SearchFieldTerms {
                     field,
                     terms,
                     truncated,
-                    text,
+                    text: String::new(),
                 }
             })
             .collect(),
     })
-}
-
-fn join<const N: usize>(values: [Option<&str>; N]) -> String {
-    values.into_iter().flatten().collect::<Vec<_>>().join("\n")
 }

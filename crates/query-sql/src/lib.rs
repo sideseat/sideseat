@@ -23,6 +23,8 @@ pub mod metrics;
 /// Rendering an order clause, moved out of the DTOs for the same reason as the display SQL.
 pub mod order;
 mod postgres_dialect;
+/// Typed three-valued chronological search queries.
+pub mod search;
 mod sqlite_dialect;
 /// Typed project-statistics statements and bucket planning.
 pub mod stats;

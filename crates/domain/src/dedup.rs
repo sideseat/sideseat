@@ -228,6 +228,14 @@ impl SearchIndex for DedupAnalyticsRepository {
     async fn search(&self, query: &SearchQuery) -> Result<SearchPage, DataError> {
         self.inner.search(query).await
     }
+
+    async fn search_arrivals_detected(
+        &self,
+        query: &SearchQuery,
+        through: &sideseat_ports::types::SearchCursor,
+    ) -> Result<bool, DataError> {
+        self.inner.search_arrivals_detected(query, through).await
+    }
 }
 
 #[async_trait]
