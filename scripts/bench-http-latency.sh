@@ -101,12 +101,12 @@ if [ "$MODE" = "distributed" ]; then
   # object storage is what a scaled-out instance actually pays for a file.
   docker run -d --name "$MINIO_NAME" -p 9010:9000 \
     -e MINIO_ROOT_USER=sideseat -e MINIO_ROOT_PASSWORD=sideseat12345 \
-    minio/minio:RELEASE.2025-04-22T22-12-26Z server /data >/dev/null
+    quay.io/minio/minio:RELEASE.2025-04-22T22-12-26Z server /data >/dev/null
   for _ in $(seq 1 60); do
     curl -sf http://127.0.0.1:9010/minio/health/live >/dev/null && break
     sleep 1
   done
-  docker run --rm --network host --entrypoint sh minio/mc:RELEASE.2025-04-16T18-13-26Z -c \
+  docker run --rm --network host --entrypoint sh quay.io/minio/mc:RELEASE.2025-04-16T18-13-26Z -c \
     'mc alias set bench http://127.0.0.1:9010 sideseat sideseat12345 >/dev/null &&
      mc mb --ignore-existing bench/sideseat-bench >/dev/null' >/dev/null
 
