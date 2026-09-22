@@ -3,6 +3,7 @@
 //! This module implements the TransactionalRepository trait for Arc<PostgresService>,
 //! providing a unified interface for all transactional database operations.
 
+use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -21,11 +22,11 @@ use sideseat_ports::types::{
     ProjectRow, ProjectStorageUsage, SpanBodyAssociation, SpanBodyField, StagedPayload, UserRow,
 };
 
-use super::PostgresService;
 use super::repositories::{
     api_key, auth_method, body, credential_permissions, credentials, favorite, file, governance,
     journal, membership, organization, project, staging, user,
 };
+use super::{PostgresError, PostgresService};
 
 /// The port, implemented over the service.
 ///
@@ -47,6 +48,42 @@ impl std::ops::Deref for PostgresRepository {
     fn deref(&self) -> &Self::Target {
         &self.0
     }
+}
+
+macro_rules! tenant_transaction {
+    ($repository:expr, $project_id:expr, |$connection:ident| $operation:expr) => {{
+        let mut transaction = $repository
+            .0
+            .tenant_transaction($project_id)
+            .await
+            .map_err(DataError::from)?;
+        let $connection = &mut *transaction;
+        let result = $operation.await.map_err(DataError::from)?;
+        transaction
+            .commit()
+            .await
+            .map_err(PostgresError::from)
+            .map_err(DataError::from)?;
+        Result::<_, DataError>::Ok(result)
+    }};
+}
+
+macro_rules! maintenance_transaction {
+    ($repository:expr, |$connection:ident| $operation:expr) => {{
+        let mut transaction = $repository
+            .0
+            .maintenance_transaction()
+            .await
+            .map_err(DataError::from)?;
+        let $connection = &mut *transaction;
+        let result = $operation.await.map_err(DataError::from)?;
+        transaction
+            .commit()
+            .await
+            .map_err(PostgresError::from)
+            .map_err(DataError::from)?;
+        Result::<_, DataError>::Ok(result)
+    }};
 }
 
 #[async_trait]
@@ -643,17 +680,15 @@ impl FileMetaStore for PostgresRepository {
         size_bytes: i64,
         hash_algo: &str,
     ) -> Result<i64, DataError> {
-        file::upsert_file(
-            self.0.pool(),
+        tenant_transaction!(self, project_id, |connection| file::upsert_file(
+            connection,
             project_id,
             file_hash,
             media_type,
             size_bytes,
             hash_algo,
             self.0.clock().now().timestamp(),
-        )
-        .await
-        .map_err(Into::into)
+        ))
     }
 
     async fn get_file(
@@ -661,9 +696,9 @@ impl FileMetaStore for PostgresRepository {
         project_id: &ProjectId,
         file_hash: &str,
     ) -> Result<Option<FileRow>, DataError> {
-        file::get_file(self.0.pool(), project_id, file_hash)
-            .await
-            .map_err(Into::into)
+        tenant_transaction!(self, project_id, |connection| file::get_file(
+            connection, project_id, file_hash
+        ))
     }
 
     async fn file_exists(
@@ -671,9 +706,9 @@ impl FileMetaStore for PostgresRepository {
         project_id: &ProjectId,
         file_hash: &str,
     ) -> Result<bool, DataError> {
-        file::file_exists(self.0.pool(), project_id, file_hash)
-            .await
-            .map_err(Into::into)
+        tenant_transaction!(self, project_id, |connection| file::file_exists(
+            connection, project_id, file_hash
+        ))
     }
 
     async fn decrement_ref_count(
@@ -681,14 +716,12 @@ impl FileMetaStore for PostgresRepository {
         project_id: &ProjectId,
         file_hash: &str,
     ) -> Result<Option<i64>, DataError> {
-        file::decrement_ref_count(
-            self.0.pool(),
+        tenant_transaction!(self, project_id, |connection| file::decrement_ref_count(
+            connection,
             project_id,
             file_hash,
             self.0.clock().now().timestamp(),
-        )
-        .await
-        .map_err(Into::into)
+        ))
     }
 
     async fn delete_file(
@@ -696,15 +729,15 @@ impl FileMetaStore for PostgresRepository {
         project_id: &ProjectId,
         file_hash: &str,
     ) -> Result<bool, DataError> {
-        file::delete_file(self.0.pool(), project_id, file_hash)
-            .await
-            .map_err(Into::into)
+        tenant_transaction!(self, project_id, |connection| file::delete_file(
+            connection, project_id, file_hash
+        ))
     }
 
     async fn delete_project_files(&self, project_id: &ProjectId) -> Result<u64, DataError> {
-        file::delete_project_files(self.0.pool(), project_id)
-            .await
-            .map_err(Into::into)
+        tenant_transaction!(self, project_id, |connection| file::delete_project_files(
+            connection, project_id
+        ))
     }
 
     async fn associate_file(
@@ -716,8 +749,8 @@ impl FileMetaStore for PostgresRepository {
         size_bytes: i64,
         hash_algo: &str,
     ) -> Result<bool, DataError> {
-        file::associate_file(
-            self.0.pool(),
+        tenant_transaction!(self, project_id, |connection| file::associate_file(
+            connection,
             trace_id,
             project_id,
             file_hash,
@@ -725,9 +758,7 @@ impl FileMetaStore for PostgresRepository {
             size_bytes,
             hash_algo,
             self.0.clock().now().timestamp(),
-        )
-        .await
-        .map_err(Into::into)
+        ))
     }
 
     async fn get_file_reference_counts_for_traces(
@@ -735,9 +766,9 @@ impl FileMetaStore for PostgresRepository {
         project_id: &ProjectId,
         trace_ids: &[String],
     ) -> Result<Vec<(String, i64)>, DataError> {
-        file::get_file_reference_counts_for_traces(self.0.pool(), project_id, trace_ids)
-            .await
-            .map_err(Into::into)
+        tenant_transaction!(self, project_id, |connection| {
+            file::get_file_reference_counts_for_traces(connection, project_id, trace_ids)
+        })
     }
 
     async fn associate_existing_file(
@@ -746,28 +777,28 @@ impl FileMetaStore for PostgresRepository {
         project_id: &ProjectId,
         file_hash: &str,
     ) -> Result<bool, DataError> {
-        file::associate_existing_file(
-            self.0.pool(),
-            trace_id,
+        tenant_transaction!(
+            self,
             project_id,
-            file_hash,
-            self.0.clock().now().timestamp(),
+            |connection| file::associate_existing_file(
+                connection,
+                trace_id,
+                project_id,
+                file_hash,
+                self.0.clock().now().timestamp(),
+            )
         )
-        .await
-        .map_err(Into::into)
     }
 
     async fn get_stale_claimed_files(
         &self,
         older_than_secs: i64,
     ) -> Result<Vec<(String, String, i64)>, DataError> {
-        file::get_stale_claimed_files(
-            self.0.pool(),
+        maintenance_transaction!(self, |connection| file::get_stale_claimed_files(
+            connection,
             older_than_secs,
             self.0.clock().now().timestamp(),
-        )
-        .await
-        .map_err(Into::into)
+        ))
     }
 
     async fn reclaim_stale_file(
@@ -776,15 +807,13 @@ impl FileMetaStore for PostgresRepository {
         file_hash: &str,
         observed_deleting_at: i64,
     ) -> Result<bool, DataError> {
-        file::reclaim_stale_file(
-            self.0.pool(),
+        tenant_transaction!(self, project_id, |connection| file::reclaim_stale_file(
+            connection,
             project_id,
             file_hash,
             observed_deleting_at,
             self.0.clock().now().timestamp(),
-        )
-        .await
-        .map_err(Into::into)
+        ))
     }
 
     async fn claim_file_for_deletion(
@@ -792,14 +821,16 @@ impl FileMetaStore for PostgresRepository {
         project_id: &ProjectId,
         file_hash: &str,
     ) -> Result<bool, DataError> {
-        file::claim_file_for_deletion(
-            self.0.pool(),
+        tenant_transaction!(
+            self,
             project_id,
-            file_hash,
-            self.0.clock().now().timestamp(),
+            |connection| file::claim_file_for_deletion(
+                connection,
+                project_id,
+                file_hash,
+                self.0.clock().now().timestamp(),
+            )
         )
-        .await
-        .map_err(Into::into)
     }
 
     async fn release_deletion_claim(
@@ -807,9 +838,9 @@ impl FileMetaStore for PostgresRepository {
         project_id: &ProjectId,
         file_hash: &str,
     ) -> Result<(), DataError> {
-        file::release_deletion_claim(self.0.pool(), project_id, file_hash)
-            .await
-            .map_err(Into::into)
+        tenant_transaction!(self, project_id, |connection| {
+            file::release_deletion_claim(connection, project_id, file_hash)
+        })
     }
 
     async fn restore_orphan_metadata(
@@ -820,17 +851,19 @@ impl FileMetaStore for PostgresRepository {
         size_bytes: i64,
         hash_algo: &str,
     ) -> Result<(), DataError> {
-        file::restore_orphan_metadata(
-            self.0.pool(),
+        tenant_transaction!(
+            self,
             project_id,
-            file_hash,
-            media_type,
-            size_bytes,
-            hash_algo,
-            self.0.clock().now().timestamp(),
+            |connection| file::restore_orphan_metadata(
+                connection,
+                project_id,
+                file_hash,
+                media_type,
+                size_bytes,
+                hash_algo,
+                self.0.clock().now().timestamp(),
+            )
         )
-        .await
-        .map_err(Into::into)
     }
 
     async fn delete_file_if_unreferenced(
@@ -838,9 +871,9 @@ impl FileMetaStore for PostgresRepository {
         project_id: &ProjectId,
         file_hash: &str,
     ) -> Result<bool, DataError> {
-        file::delete_file_if_unreferenced(self.0.pool(), project_id, file_hash)
-            .await
-            .map_err(Into::into)
+        tenant_transaction!(self, project_id, |connection| {
+            file::delete_file_if_unreferenced(connection, project_id, file_hash)
+        })
     }
 
     async fn sync_ref_count(
@@ -848,14 +881,12 @@ impl FileMetaStore for PostgresRepository {
         project_id: &ProjectId,
         file_hash: &str,
     ) -> Result<Option<i64>, DataError> {
-        file::sync_ref_count(
-            self.0.pool(),
+        tenant_transaction!(self, project_id, |connection| file::sync_ref_count(
+            connection,
             project_id,
             file_hash,
             self.0.clock().now().timestamp(),
-        )
-        .await
-        .map_err(Into::into)
+        ))
     }
 
     async fn insert_trace_file(
@@ -864,9 +895,9 @@ impl FileMetaStore for PostgresRepository {
         project_id: &ProjectId,
         file_hash: &str,
     ) -> Result<(), DataError> {
-        file::insert_trace_file(self.0.pool(), trace_id, project_id, file_hash)
-            .await
-            .map_err(Into::into)
+        tenant_transaction!(self, project_id, |connection| file::insert_trace_file(
+            connection, trace_id, project_id, file_hash
+        ))
     }
 
     async fn get_file_hashes_for_traces(
@@ -874,18 +905,31 @@ impl FileMetaStore for PostgresRepository {
         project_id: &ProjectId,
         trace_ids: &[String],
     ) -> Result<Vec<String>, DataError> {
-        file::get_file_hashes_for_traces(self.0.pool(), project_id, trace_ids)
-            .await
-            .map_err(Into::into)
+        tenant_transaction!(self, project_id, |connection| {
+            file::get_file_hashes_for_traces(connection, project_id, trace_ids)
+        })
     }
 
     async fn confirm_trace_file_associations(
         &self,
         associations: &[(String, String, String)],
     ) -> Result<u64, DataError> {
-        file::confirm_trace_file_associations(self.0.pool(), associations)
-            .await
-            .map_err(Into::into)
+        let mut by_project = BTreeMap::<&str, Vec<(String, String, String)>>::new();
+        for association in associations {
+            by_project
+                .entry(association.0.as_str())
+                .or_default()
+                .push(association.clone());
+        }
+
+        let mut confirmed = 0;
+        for (project_id, project_associations) in by_project {
+            let project_id = ProjectId::from(project_id);
+            confirmed += tenant_transaction!(self, &project_id, |connection| {
+                file::confirm_trace_file_associations(connection, &project_associations)
+            })?;
+        }
+        Ok(confirmed)
     }
 
     async fn release_trace_file_association(
@@ -894,9 +938,9 @@ impl FileMetaStore for PostgresRepository {
         trace_id: &str,
         file_hash: &str,
     ) -> Result<bool, DataError> {
-        file::release_trace_file_association(self.0.pool(), project_id, trace_id, file_hash)
-            .await
-            .map_err(Into::into)
+        tenant_transaction!(self, project_id, |connection| {
+            file::release_trace_file_association(connection, project_id, trace_id, file_hash)
+        })
     }
 
     async fn delete_trace_files(
@@ -904,9 +948,9 @@ impl FileMetaStore for PostgresRepository {
         project_id: &ProjectId,
         trace_ids: &[String],
     ) -> Result<Vec<String>, DataError> {
-        file::delete_trace_files(self.0.pool(), project_id, trace_ids)
-            .await
-            .map_err(Into::into)
+        tenant_transaction!(self, project_id, |connection| file::delete_trace_files(
+            connection, project_id, trace_ids
+        ))
     }
 
     async fn record_retention_cleanup(
@@ -914,14 +958,14 @@ impl FileMetaStore for PostgresRepository {
         project_id: &ProjectId,
         trace_ids: &[String],
     ) -> Result<Vec<(String, i64)>, DataError> {
-        file::record_retention_cleanup(
-            self.0.pool(),
-            project_id,
-            trace_ids,
-            self.0.clock().now().timestamp(),
-        )
-        .await
-        .map_err(Into::into)
+        tenant_transaction!(self, project_id, |connection| {
+            file::record_retention_cleanup(
+                connection,
+                project_id,
+                trace_ids,
+                self.0.clock().now().timestamp(),
+            )
+        })
     }
 
     async fn claim_retention_cleanup(
@@ -929,14 +973,12 @@ impl FileMetaStore for PostgresRepository {
         limit: i64,
         lease_secs: i64,
     ) -> Result<Vec<(String, String, i64)>, DataError> {
-        file::claim_retention_cleanup(
-            self.0.pool(),
+        maintenance_transaction!(self, |connection| file::claim_retention_cleanup(
+            connection,
             limit,
             lease_secs,
             self.0.clock().now().timestamp(),
-        )
-        .await
-        .map_err(Into::into)
+        ))
     }
 
     async fn complete_retention_cleanup(
@@ -944,9 +986,9 @@ impl FileMetaStore for PostgresRepository {
         project_id: &ProjectId,
         completed: &[(String, i64)],
     ) -> Result<(), DataError> {
-        file::complete_retention_cleanup(self.0.pool(), project_id, completed)
-            .await
-            .map_err(Into::into)
+        tenant_transaction!(self, project_id, |connection| {
+            file::complete_retention_cleanup(connection, project_id, completed)
+        })
     }
 
     async fn restore_durable_trace_file(
@@ -955,9 +997,9 @@ impl FileMetaStore for PostgresRepository {
         trace_id: &str,
         file_hash: &str,
     ) -> Result<(), DataError> {
-        file::restore_durable_trace_file(self.0.pool(), project_id, trace_id, file_hash)
-            .await
-            .map_err(Into::into)
+        tenant_transaction!(self, project_id, |connection| {
+            file::restore_durable_trace_file(connection, project_id, trace_id, file_hash)
+        })
     }
 
     async fn release_trace_files_except(
@@ -966,33 +1008,31 @@ impl FileMetaStore for PostgresRepository {
         trace_id: &str,
         keep: &[String],
     ) -> Result<Vec<String>, DataError> {
-        file::release_trace_files_except(self.0.pool(), project_id, trace_id, keep)
-            .await
-            .map_err(Into::into)
+        tenant_transaction!(self, project_id, |connection| {
+            file::release_trace_files_except(connection, project_id, trace_id, keep)
+        })
     }
 
     async fn get_project_storage_bytes(&self, project_id: &ProjectId) -> Result<i64, DataError> {
-        file::get_project_storage_bytes(self.0.pool(), project_id)
-            .await
-            .map_err(Into::into)
+        tenant_transaction!(self, project_id, |connection| {
+            file::get_project_storage_bytes(connection, project_id)
+        })
     }
 
     async fn get_orphan_files(&self) -> Result<Vec<(String, String)>, DataError> {
-        file::get_orphan_files(self.0.pool())
-            .await
-            .map_err(Into::into)
+        maintenance_transaction!(self, |connection| file::get_orphan_files(connection))
     }
 
     async fn get_org_file_storage_bytes(&self, org_id: &str) -> Result<i64, DataError> {
-        file::get_org_file_storage_bytes(self.0.pool(), org_id)
-            .await
-            .map_err(Into::into)
+        maintenance_transaction!(self, |connection| {
+            file::get_org_file_storage_bytes(connection, org_id)
+        })
     }
 
     async fn get_user_file_storage_bytes(&self, user_id: &str) -> Result<i64, DataError> {
-        file::get_user_file_storage_bytes(self.0.pool(), user_id)
-            .await
-            .map_err(Into::into)
+        maintenance_transaction!(self, |connection| {
+            file::get_user_file_storage_bytes(connection, user_id)
+        })
     }
 }
 

@@ -37,6 +37,7 @@ use sideseat_core::core::constants::{
     POSTGRES_DEFAULT_MIN_CONNECTIONS, POSTGRES_DEFAULT_STATEMENT_TIMEOUT_SECS,
 };
 use sideseat_ports::clock::Clock;
+use sideseat_ports::types::ProjectId;
 
 /// PostgreSQL database service
 ///
@@ -269,6 +270,29 @@ impl PostgresService {
     /// Restricted pool for ordinary project-scoped requests.
     pub fn runtime_pool(&self) -> &PgPool {
         &self.runtime_pool
+    }
+
+    /// Start an ordinary application transaction scoped to exactly one project.
+    ///
+    /// `set_config(..., true)` makes the tenant selector transaction-local, so pooled
+    /// connections cannot leak scope between requests.
+    pub async fn tenant_transaction(
+        &self,
+        project_id: &ProjectId,
+    ) -> Result<sqlx::Transaction<'_, sqlx::Postgres>, PostgresError> {
+        let mut transaction = self.runtime_pool.begin().await?;
+        sqlx::query("SELECT set_config('sideseat.project_id', $1, true)")
+            .bind(project_id.as_str())
+            .execute(&mut *transaction)
+            .await?;
+        Ok(transaction)
+    }
+
+    /// Start a privileged transaction for an explicitly cross-project maintenance operation.
+    pub async fn maintenance_transaction(
+        &self,
+    ) -> Result<sqlx::Transaction<'_, sqlx::Postgres>, PostgresError> {
+        self.pool.begin().await.map_err(Into::into)
     }
 
     /// The cache this service was built with, if any.

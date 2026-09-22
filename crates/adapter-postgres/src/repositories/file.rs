@@ -2,7 +2,7 @@
 //!
 //! Manages file metadata and trace-file associations for the file storage system.
 
-use sqlx::PgPool;
+use sqlx::PgConnection;
 
 use crate::PostgresError;
 use sideseat_core::core::constants::FILE_CLEANUP_BATCH_SIZE;
@@ -14,7 +14,7 @@ use sideseat_ports::types::FileRow;
 /// Returns the new ref_count value.
 /// Uses RETURNING for atomic operation to avoid race conditions.
 pub async fn upsert_file(
-    pool: &PgPool,
+    connection: &mut PgConnection,
     project_id: &str,
     file_hash: &str,
     media_type: Option<&str>,
@@ -42,7 +42,7 @@ pub async fn upsert_file(
     .bind(now)
     .bind(now)
     .bind(now)
-    .fetch_one(pool)
+    .fetch_one(&mut *connection)
     .await?;
 
     Ok(result.0)
@@ -53,7 +53,7 @@ pub async fn upsert_file(
 /// Returns None if file doesn't exist, Some(new_ref_count) otherwise.
 /// Caller should delete the file if ref_count reaches 0.
 pub async fn decrement_ref_count(
-    pool: &PgPool,
+    connection: &mut PgConnection,
     project_id: &str,
     file_hash: &str,
     now: i64,
@@ -70,7 +70,7 @@ pub async fn decrement_ref_count(
     .bind(now)
     .bind(project_id)
     .bind(file_hash)
-    .fetch_optional(pool)
+    .fetch_optional(&mut *connection)
     .await?;
 
     Ok(result.map(|(count,)| count))
@@ -78,7 +78,7 @@ pub async fn decrement_ref_count(
 
 /// Get a file by project and hash
 pub async fn get_file(
-    pool: &PgPool,
+    connection: &mut PgConnection,
     project_id: &str,
     file_hash: &str,
 ) -> Result<Option<FileRow>, PostgresError> {
@@ -91,7 +91,7 @@ pub async fn get_file(
     )
     .bind(project_id)
     .bind(file_hash)
-    .fetch_optional(pool)
+    .fetch_optional(&mut *connection)
     .await?;
 
     Ok(row.map(
@@ -123,7 +123,7 @@ pub async fn get_file(
 
 /// Check if a file exists
 pub async fn file_exists(
-    pool: &PgPool,
+    connection: &mut PgConnection,
     project_id: &str,
     file_hash: &str,
 ) -> Result<bool, PostgresError> {
@@ -131,7 +131,7 @@ pub async fn file_exists(
         sqlx::query_as("SELECT COUNT(*) FROM files WHERE project_id = $1 AND file_hash = $2")
             .bind(project_id)
             .bind(file_hash)
-            .fetch_one(pool)
+            .fetch_one(&mut *connection)
             .await?;
 
     Ok(result.0 > 0)
@@ -139,14 +139,14 @@ pub async fn file_exists(
 
 /// Delete a file metadata record
 pub async fn delete_file(
-    pool: &PgPool,
+    connection: &mut PgConnection,
     project_id: &str,
     file_hash: &str,
 ) -> Result<bool, PostgresError> {
     let result = sqlx::query("DELETE FROM files WHERE project_id = $1 AND file_hash = $2")
         .bind(project_id)
         .bind(file_hash)
-        .execute(pool)
+        .execute(&mut *connection)
         .await?;
 
     Ok(result.rows_affected() > 0)
@@ -155,10 +155,13 @@ pub async fn delete_file(
 /// Delete all file records for a project
 ///
 /// Returns the number of files deleted.
-pub async fn delete_project_files(pool: &PgPool, project_id: &str) -> Result<u64, PostgresError> {
+pub async fn delete_project_files(
+    connection: &mut PgConnection,
+    project_id: &str,
+) -> Result<u64, PostgresError> {
     let result = sqlx::query("DELETE FROM files WHERE project_id = $1")
         .bind(project_id)
-        .execute(pool)
+        .execute(&mut *connection)
         .await?;
 
     Ok(result.rows_affected())
@@ -166,14 +169,12 @@ pub async fn delete_project_files(pool: &PgPool, project_id: &str) -> Result<u64
 
 /// Associate a trace with a file that already exists, without inventing metadata - see the SQLite twin.
 pub async fn associate_existing_file(
-    pool: &PgPool,
+    connection: &mut PgConnection,
     trace_id: &str,
     project_id: &str,
     file_hash: &str,
     now: i64,
 ) -> Result<bool, PostgresError> {
-    let mut tx = pool.begin().await?;
-
     let row: Option<(Option<i64>,)> =
         // `FOR UPDATE`, not a bare read. Reading and then writing is a race that loses: ingestion sees
         // no claim, cleanup claims the still-unreferenced file and commits, ingestion then associates
@@ -184,7 +185,7 @@ pub async fn associate_existing_file(
         )
             .bind(project_id)
             .bind(file_hash)
-            .fetch_optional(&mut *tx)
+            .fetch_optional(&mut *connection)
             .await?;
     let Some((claim,)) = row else {
         return Ok(false);
@@ -203,7 +204,7 @@ pub async fn associate_existing_file(
     .bind(trace_id)
     .bind(project_id)
     .bind(file_hash)
-    .execute(&mut *tx)
+    .execute(&mut *connection)
     .await?;
 
     sqlx::query(
@@ -220,17 +221,16 @@ pub async fn associate_existing_file(
     .bind(now)
     .bind(project_id)
     .bind(file_hash)
-    .execute(&mut *tx)
+    .execute(&mut *connection)
     .await?;
 
-    tx.commit().await?;
     Ok(true)
 }
 
 /// Files claimed for deletion longer ago than `older_than`, so an abandoned claim can be resumed - see
 /// the SQLite twin for why a durable claim needs this.
 pub async fn get_stale_claimed_files(
-    pool: &PgPool,
+    connection: &mut PgConnection,
     older_than_secs: i64,
     now: i64,
 ) -> Result<Vec<(String, String, i64)>, PostgresError> {
@@ -240,7 +240,7 @@ pub async fn get_stale_claimed_files(
          WHERE deleting_at IS NOT NULL AND deleting_at <= $1",
     )
     .bind(cutoff)
-    .fetch_all(pool)
+    .fetch_all(&mut *connection)
     .await?)
 }
 
@@ -255,7 +255,7 @@ pub async fn get_stale_claimed_files(
 /// and nothing may reference the file. Success also refreshes the claim, which re-leases it so a second
 /// worker does not act on the same stale reading.
 pub async fn reclaim_stale_file(
-    pool: &PgPool,
+    connection: &mut PgConnection,
     project_id: &str,
     file_hash: &str,
     observed_deleting_at: i64,
@@ -286,20 +286,18 @@ pub async fn reclaim_stale_file(
     .bind(project_id)
     .bind(file_hash)
     .bind(observed_deleting_at)
-    .execute(pool)
+    .execute(&mut *connection)
     .await?;
     Ok(result.rows_affected() > 0)
 }
 
 /// Claim a file for deletion - see the SQLite twin for why a count cannot replace this.
 pub async fn claim_file_for_deletion(
-    pool: &PgPool,
+    connection: &mut PgConnection,
     project_id: &str,
     file_hash: &str,
     now: i64,
 ) -> Result<bool, PostgresError> {
-    let mut tx = pool.begin().await?;
-
     // Lock the row *before* asking whether anything references it, in a statement of its own.
     //
     // As one UPDATE with `NOT EXISTS (SELECT ... FROM trace_files ...)` this was unsound in a way only a
@@ -317,7 +315,7 @@ pub async fn claim_file_for_deletion(
     )
     .bind(project_id)
     .bind(file_hash)
-    .fetch_optional(&mut *tx)
+    .fetch_optional(&mut *connection)
     .await?;
     match existing {
         None => return Ok(false),             // no such file
@@ -338,30 +336,29 @@ pub async fn claim_file_for_deletion(
     .bind(now)
     .bind(project_id)
     .bind(file_hash)
-    .execute(&mut *tx)
+    .execute(&mut *connection)
     .await?;
     let claimed = result.rows_affected() > 0;
-    tx.commit().await?;
     Ok(claimed)
 }
 
 /// Give up a deletion claim, leaving the file in place.
 pub async fn release_deletion_claim(
-    pool: &PgPool,
+    connection: &mut PgConnection,
     project_id: &str,
     file_hash: &str,
 ) -> Result<(), PostgresError> {
     sqlx::query("UPDATE files SET deleting_at = NULL WHERE project_id = $1 AND file_hash = $2")
         .bind(project_id)
         .bind(file_hash)
-        .execute(pool)
+        .execute(&mut *connection)
         .await?;
     Ok(())
 }
 
 /// Put back a metadata row whose bytes could not be deleted - see the SQLite twin.
 pub async fn restore_orphan_metadata(
-    pool: &PgPool,
+    connection: &mut PgConnection,
     project_id: &str,
     file_hash: &str,
     media_type: Option<&str>,
@@ -382,7 +379,7 @@ pub async fn restore_orphan_metadata(
     .bind(size_bytes)
     .bind(hash_algo)
     .bind(now)
-    .execute(pool)
+    .execute(&mut *connection)
     .await?;
     Ok(())
 }
@@ -390,7 +387,7 @@ pub async fn restore_orphan_metadata(
 /// Delete a file's metadata only if nothing references it - see the SQLite twin for why the condition
 /// has to be inside the statement.
 pub async fn delete_file_if_unreferenced(
-    pool: &PgPool,
+    connection: &mut PgConnection,
     project_id: &str,
     file_hash: &str,
 ) -> Result<bool, PostgresError> {
@@ -406,7 +403,7 @@ pub async fn delete_file_if_unreferenced(
     )
     .bind(project_id)
     .bind(file_hash)
-    .execute(pool)
+    .execute(&mut *connection)
     .await?;
     Ok(result.rows_affected() > 0)
 }
@@ -416,7 +413,7 @@ pub async fn delete_file_if_unreferenced(
 /// See the SQLite twin: `ref_count` is a cached `COUNT(*)`, and recomputing it is the only form immune
 /// to concurrent cleanups both subtracting the same references.
 pub async fn sync_ref_count(
-    pool: &PgPool,
+    connection: &mut PgConnection,
     project_id: &str,
     file_hash: &str,
     now: i64,
@@ -436,7 +433,7 @@ pub async fn sync_ref_count(
     .bind(now)
     .bind(project_id)
     .bind(file_hash)
-    .fetch_optional(pool)
+    .fetch_optional(&mut *connection)
     .await?;
     Ok(result.map(|(count,)| count))
 }
@@ -447,7 +444,7 @@ pub async fn sync_ref_count(
 /// associations, because that is what deletion decrements.
 #[allow(clippy::too_many_arguments)]
 pub async fn associate_file(
-    pool: &PgPool,
+    connection: &mut PgConnection,
     trace_id: &str,
     project_id: &str,
     file_hash: &str,
@@ -456,8 +453,6 @@ pub async fn associate_file(
     hash_algo: &str,
     now: i64,
 ) -> Result<bool, PostgresError> {
-    let mut tx = pool.begin().await?;
-
     // Refuse through the fence - see the SQLite twin.
     let claimed: Option<(Option<i64>,)> =
         // `FOR UPDATE`, not a bare read. Reading and then writing is a race that loses: ingestion sees
@@ -469,7 +464,7 @@ pub async fn associate_file(
         )
             .bind(project_id)
             .bind(file_hash)
-            .fetch_optional(&mut *tx)
+            .fetch_optional(&mut *connection)
             .await?;
     if let Some((Some(_),)) = claimed {
         return Err(PostgresError::Conflict(format!(
@@ -490,7 +485,7 @@ pub async fn associate_file(
     .bind(size_bytes)
     .bind(hash_algo)
     .bind(now)
-    .execute(&mut *tx)
+    .execute(&mut *connection)
     .await?;
 
     // One in-flight writer added, new row or shared - see the schema comment and the SQLite twin. Returns
@@ -505,7 +500,7 @@ pub async fn associate_file(
     .bind(trace_id)
     .bind(project_id)
     .bind(file_hash)
-    .execute(&mut *tx)
+    .execute(&mut *connection)
     .await?;
 
     // Recomputed from the associations, not incremented - see `sync_ref_count`. A share leaves the row
@@ -524,16 +519,15 @@ pub async fn associate_file(
     .bind(now)
     .bind(project_id)
     .bind(file_hash)
-    .execute(&mut *tx)
+    .execute(&mut *connection)
     .await?;
 
-    tx.commit().await?;
     Ok(true)
 }
 
 /// How many of these traces reference each file, so deletion can decrement by that many.
 pub async fn get_file_reference_counts_for_traces(
-    pool: &PgPool,
+    connection: &mut PgConnection,
     project_id: &str,
     trace_ids: &[String],
 ) -> Result<Vec<(String, i64)>, PostgresError> {
@@ -546,13 +540,13 @@ pub async fn get_file_reference_counts_for_traces(
     )
     .bind(project_id)
     .bind(trace_ids)
-    .fetch_all(pool)
+    .fetch_all(&mut *connection)
     .await?)
 }
 
 /// Insert a trace-file association
 pub async fn insert_trace_file(
-    pool: &PgPool,
+    connection: &mut PgConnection,
     trace_id: &str,
     project_id: &str,
     file_hash: &str,
@@ -563,7 +557,7 @@ pub async fn insert_trace_file(
     .bind(trace_id)
     .bind(project_id)
     .bind(file_hash)
-    .execute(pool)
+    .execute(&mut *connection)
     .await?;
 
     Ok(())
@@ -573,7 +567,7 @@ pub async fn insert_trace_file(
 ///
 /// Returns unique file hashes associated with the given trace IDs.
 pub async fn get_file_hashes_for_traces(
-    pool: &PgPool,
+    connection: &mut PgConnection,
     project_id: &str,
     trace_ids: &[String],
 ) -> Result<Vec<String>, PostgresError> {
@@ -600,14 +594,14 @@ pub async fn get_file_hashes_for_traces(
         query_builder = query_builder.bind(trace_id);
     }
 
-    let rows = query_builder.fetch_all(pool).await?;
+    let rows = query_builder.fetch_all(&mut *connection).await?;
 
     Ok(rows.into_iter().map(|(hash,)| hash).collect())
 }
 
 /// Delete trace-file associations for traces
 pub async fn delete_trace_files(
-    pool: &PgPool,
+    connection: &mut PgConnection,
     project_id: &str,
     trace_ids: &[String],
 ) -> Result<Vec<String>, PostgresError> {
@@ -622,7 +616,7 @@ pub async fn delete_trace_files(
     )
     .bind(project_id)
     .bind(trace_ids)
-    .fetch_all(pool)
+    .fetch_all(&mut *connection)
     .await?;
     Ok(rows)
 }
@@ -636,7 +630,7 @@ pub async fn delete_trace_files(
 ///
 /// `RETURNING`, so the caller reconciles the set this statement produced rather than one it read beforehand.
 pub async fn release_trace_files_except(
-    pool: &PgPool,
+    connection: &mut PgConnection,
     project_id: &str,
     trace_id: &str,
     keep: &[String],
@@ -650,14 +644,14 @@ pub async fn release_trace_files_except(
     .bind(project_id)
     .bind(trace_id)
     .bind(keep)
-    .fetch_all(pool)
+    .fetch_all(&mut *connection)
     .await?;
     Ok(rows)
 }
 
 /// Get total storage used by a project
 pub async fn get_project_storage_bytes(
-    pool: &PgPool,
+    connection: &mut PgConnection,
     project_id: &str,
 ) -> Result<i64, PostgresError> {
     let result: (i64,) = sqlx::query_as(
@@ -666,14 +660,17 @@ pub async fn get_project_storage_bytes(
            + COALESCE((SELECT SUM(logical_bytes) FROM content_bodies WHERE project_id = $1), 0)::bigint",
     )
     .bind(project_id)
-    .fetch_one(pool)
+    .fetch_one(&mut *connection)
     .await?;
 
     Ok(result.0)
 }
 
 /// Get total file storage used by all projects in an organization
-pub async fn get_org_file_storage_bytes(pool: &PgPool, org_id: &str) -> Result<i64, PostgresError> {
+pub async fn get_org_file_storage_bytes(
+    connection: &mut PgConnection,
+    org_id: &str,
+) -> Result<i64, PostgresError> {
     let result: (Option<i64>,) = sqlx::query_as(
         r#"
         SELECT COALESCE(SUM(f.size_bytes), 0)::bigint
@@ -683,7 +680,7 @@ pub async fn get_org_file_storage_bytes(pool: &PgPool, org_id: &str) -> Result<i
         "#,
     )
     .bind(org_id)
-    .fetch_one(pool)
+    .fetch_one(&mut *connection)
     .await?;
 
     Ok(result.0.unwrap_or(0))
@@ -691,7 +688,7 @@ pub async fn get_org_file_storage_bytes(pool: &PgPool, org_id: &str) -> Result<i
 
 /// Get total file storage used across all orgs a user belongs to
 pub async fn get_user_file_storage_bytes(
-    pool: &PgPool,
+    connection: &mut PgConnection,
     user_id: &str,
 ) -> Result<i64, PostgresError> {
     let result: (Option<i64>,) = sqlx::query_as(
@@ -704,7 +701,7 @@ pub async fn get_user_file_storage_bytes(
         "#,
     )
     .bind(user_id)
-    .fetch_one(pool)
+    .fetch_one(&mut *connection)
     .await?;
 
     Ok(result.0.unwrap_or(0))
@@ -713,13 +710,15 @@ pub async fn get_user_file_storage_bytes(
 /// Get all files with zero ref_count across all projects (for global cleanup)
 ///
 /// Returns (project_id, file_hash) pairs for orphaned files.
-pub async fn get_orphan_files(pool: &PgPool) -> Result<Vec<(String, String)>, PostgresError> {
+pub async fn get_orphan_files(
+    connection: &mut PgConnection,
+) -> Result<Vec<(String, String)>, PostgresError> {
     let sql = format!(
         "SELECT project_id, file_hash FROM files WHERE ref_count = 0 ORDER BY created_at ASC LIMIT {}",
         FILE_CLEANUP_BATCH_SIZE
     );
     let rows = sqlx::query_as::<_, (String, String)>(&sql)
-        .fetch_all(pool)
+        .fetch_all(&mut *connection)
         .await?;
 
     Ok(rows)
@@ -729,7 +728,7 @@ pub async fn get_orphan_files(pool: &PgPool) -> Result<Vec<(String, String)>, Po
 /// See `TransactionalRepository::release_trace_file_association`. The caller follows this with
 /// `sync_ref_count`, which recomputes the count from the associations that remain.
 pub async fn release_trace_file_association(
-    pool: &PgPool,
+    connection: &mut PgConnection,
     project_id: &str,
     trace_id: &str,
     file_hash: &str,
@@ -739,7 +738,6 @@ pub async fn release_trace_file_association(
     // the same row in the outer statement modifies one tuple twice in a single command, which Postgres
     // leaves the delete a silent no-op for. See the SQLite twin for why a boolean could not distinguish the
     // last provisional writer from a still-in-flight peer.
-    let mut tx = pool.begin().await?;
     sqlx::query(
         "UPDATE trace_files SET pending_writers = GREATEST(pending_writers - 1, 0) \
          WHERE project_id = $1 AND trace_id = $2 AND file_hash = $3",
@@ -747,7 +745,7 @@ pub async fn release_trace_file_association(
     .bind(project_id)
     .bind(trace_id)
     .bind(file_hash)
-    .execute(&mut *tx)
+    .execute(&mut *connection)
     .await?;
     let result = sqlx::query(
         "DELETE FROM trace_files \
@@ -757,14 +755,13 @@ pub async fn release_trace_file_association(
     .bind(project_id)
     .bind(trace_id)
     .bind(file_hash)
-    .execute(&mut *tx)
+    .execute(&mut *connection)
     .await?;
-    tx.commit().await?;
     Ok(result.rows_affected() > 0)
 }
 /// Mark a batch's associations durable. See the SQLite twin.
 pub async fn confirm_trace_file_associations(
-    pool: &PgPool,
+    connection: &mut PgConnection,
     associations: &[(String, String, String)],
 ) -> Result<u64, PostgresError> {
     if associations.is_empty() {
@@ -791,14 +788,14 @@ pub async fn confirm_trace_file_associations(
     .bind(&projects)
     .bind(&traces)
     .bind(&hashes)
-    .execute(pool)
+    .execute(&mut *connection)
     .await?;
     Ok(result.rows_affected())
 }
 
 /// Record cleanup intent for these traces. Idempotent: a trace already queued keeps its schedule.
 pub async fn record_retention_cleanup(
-    pool: &PgPool,
+    connection: &mut PgConnection,
     project_id: &str,
     trace_ids: &[String],
     now: i64,
@@ -823,7 +820,7 @@ pub async fn record_retention_cleanup(
             i64::try_from(retention_cleanup_logical_bytes(project_id, trace_id))
                 .unwrap_or(i64::MAX),
         )
-        .fetch_one(pool)
+        .fetch_one(&mut *connection)
         .await?;
         written.push((trace_id.clone(), token));
     }
@@ -837,7 +834,7 @@ pub async fn record_retention_cleanup(
 /// candidate whose reconciliation keeps failing is retried more slowly rather than spinning - and it is
 /// **never dropped**, because the record is the only thing that knows the cleanup is owed.
 pub async fn claim_retention_cleanup(
-    pool: &PgPool,
+    connection: &mut PgConnection,
     limit: i64,
     lease_secs: i64,
     now: i64,
@@ -861,14 +858,14 @@ pub async fn claim_retention_cleanup(
     .bind(lease_secs)
     .bind(now)
     .bind(limit)
-    .fetch_all(pool)
+    .fetch_all(&mut *connection)
     .await?;
     Ok(rows)
 }
 
 /// Drop candidates whose cleanup completed, only if still on the claimed token.
 pub async fn complete_retention_cleanup(
-    pool: &PgPool,
+    connection: &mut PgConnection,
     project_id: &str,
     completed: &[(String, i64)],
 ) -> Result<(), PostgresError> {
@@ -880,7 +877,7 @@ pub async fn complete_retention_cleanup(
         .bind(project_id)
         .bind(trace_id)
         .bind(token)
-        .execute(pool)
+        .execute(&mut *connection)
         .await?;
     }
     Ok(())
@@ -897,7 +894,7 @@ pub async fn complete_retention_cleanup(
 /// committed long before. The reference being restored is owned by a committed span, which is exactly what
 /// `durable` means.
 pub async fn restore_durable_trace_file(
-    pool: &PgPool,
+    connection: &mut PgConnection,
     project_id: &str,
     trace_id: &str,
     file_hash: &str,
@@ -910,7 +907,7 @@ pub async fn restore_durable_trace_file(
     .bind(trace_id)
     .bind(project_id)
     .bind(file_hash)
-    .execute(pool)
+    .execute(&mut *connection)
     .await?;
     Ok(())
 }
