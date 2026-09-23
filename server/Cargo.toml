@@ -14,13 +14,16 @@ path = "src/main.rs"
 workspace = true
 
 [dependencies]
-# The innermost layer, and the first compiler-enforced boundary: its manifest names no driver and
-# nothing of SideSeat's own, so a violation does not compile rather than being caught by review.
+# Application layers
 sideseat-core = { path = "crates/core" }
-sideseat-api = { path = "crates/api" }
+sideseat-ports = { path = "crates/ports" }
 sideseat-domain = { path = "crates/domain" }
-sideseat-ingestion = { path = "crates/ingestion" }
 sideseat-messaging = { path = "crates/messaging" }
+sideseat-ingestion = { path = "crates/ingestion" }
+sideseat-query-sql = { path = "crates/query-sql" }
+sideseat-api = { path = "crates/api" }
+
+# Infrastructure adapters selected by the composition root
 sideseat-adapter-blob-storage = { path = "crates/adapter-blob-storage" }
 sideseat-adapter-cache = { path = "crates/adapter-cache" }
 sideseat-adapter-clickhouse = { path = "crates/adapter-clickhouse" }
@@ -31,9 +34,8 @@ sideseat-adapter-registrations-memory = { path = "crates/adapter-registrations-m
 sideseat-adapter-secrets = { path = "crates/adapter-secrets" }
 sideseat-adapter-sqlite = { path = "crates/adapter-sqlite" }
 sideseat-adapter-topics = { path = "crates/adapter-topics" }
-# The ports: traits, DTOs, the filter vocabulary and the error type. Names no adapter and no driver.
-sideseat-ports = { path = "crates/ports" }
-sideseat-query-sql = { path = "crates/query-sql" }
+
+# Runtime and data
 tokio = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
@@ -48,31 +50,18 @@ futures = { workspace = true }
 anyhow = { workspace = true }
 chrono = { workspace = true }
 
-# OpenTelemetry dependencies
+# Protocol and integration clients
 opentelemetry-proto = { workspace = true }
 prost = { workspace = true }
 tonic = { workspace = true }
-
-# Cloud provider SDKs still used by server-owned integrations
 gcp_auth = { workspace = true }
-
-# ClickHouse client
 clickhouse = { workspace = true }
 
-# SideSeat SDK (for provider test-connection)
+# Provider connection checks
 sideseat = { path = "../sdk/rust" }
 
-[features]
-default = []
-
-# The footprint gates are absolute megabyte figures, so they are only reproducible against a *pinned*
-# allocator: glibc's malloc, macOS's magazine malloc and jemalloc each hold freed pages differently, and a
-# ceiling measured under one says nothing about another. See `runtime/allocation.rs`.
-#
-# Target-scoped rather than feature-gated, because project convention forbids feature gates and because the
-# choice is genuinely a property of the target: `tikv-jemalloc-sys` does not build for Windows. Windows
-# therefore keeps the system allocator, and `allocation::ALLOCATOR_NAME` says so rather than letting a
-# footprint number be read as comparable.
+# Footprint gates require a stable allocator. Supported targets use jemalloc;
+# Windows uses its system allocator and reports that distinction at runtime.
 [target.'cfg(not(target_os = "windows"))'.dependencies]
 tikv-jemallocator = "0.7.0"
 
@@ -80,8 +69,6 @@ tikv-jemallocator = "0.7.0"
 sideseat-domain = { path = "crates/domain", features = ["test-support"] }
 sideseat-ingestion = { path = "crates/ingestion", features = ["test-support"] }
 tempfile = "3"
-# So the privacy sweep can read a compressed replay archive. Shelling out to `gzip -dc` would make the check
-# depend on a tool Windows does not ship, and a sweep that skips where the tool is missing is the shape this
-# whole file exists to remove.
+# Keep compressed-fixture privacy checks cross-platform.
 flate2 = "1"
 memchr = "2"
