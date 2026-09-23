@@ -28,31 +28,8 @@ mod redis;
 use std::sync::Arc;
 use std::time::Duration;
 
-use serde::Serialize;
-use serde::de::DeserializeOwned;
-use sideseat_ports::cache_key::CacheKey;
-
 use backend::CacheBackend;
 pub use error::CacheError;
-
-/// Invalidate all caches related to a user's membership in an organization.
-///
-/// Call this when membership is added, removed, or when an organization is deleted.
-/// This ensures auth checks and user lists stay in sync.
-pub async fn invalidate_membership_caches(cache: &CacheService, org_id: &str, user_id: &str) {
-    cache
-        .invalidate_key(&CacheKey::membership(org_id, user_id))
-        .await;
-    cache
-        .invalidate_key(&CacheKey::user_org_member(user_id, org_id))
-        .await;
-    cache
-        .invalidate_key(&CacheKey::orgs_for_user(user_id))
-        .await;
-    cache
-        .invalidate_key(&CacheKey::projects_for_user(user_id))
-        .await;
-}
 
 use memory::InMemoryCache;
 
@@ -133,12 +110,12 @@ impl CacheService {
     // =========================================================================
 
     /// Get raw bytes from cache
-    pub async fn get_raw(&self, key: &str) -> Result<Option<Vec<u8>>, CacheError> {
+    async fn get_raw(&self, key: &str) -> Result<Option<Vec<u8>>, CacheError> {
         self.backend.get(key).await
     }
 
     /// Set raw bytes in cache
-    pub async fn set_raw(
+    async fn set_raw(
         &self,
         key: &str,
         value: Vec<u8>,
@@ -148,52 +125,20 @@ impl CacheService {
     }
 
     // =========================================================================
-    // Typed API (serde)
-    // =========================================================================
-
-    /// Get a typed value from cache
-    ///
-    /// Uses MessagePack for compact, fast deserialization.
-    pub async fn get<T: DeserializeOwned>(&self, key: &str) -> Result<Option<T>, CacheError> {
-        match self.get_raw(key).await? {
-            Some(bytes) => {
-                let value = rmp_serde::from_slice(&bytes)
-                    .map_err(|e| CacheError::Serialization(e.to_string()))?;
-                Ok(Some(value))
-            }
-            None => Ok(None),
-        }
-    }
-
-    /// Set a typed value in cache
-    ///
-    /// Uses MessagePack for compact, fast serialization.
-    pub async fn set<T: Serialize>(
-        &self,
-        key: &str,
-        value: &T,
-        ttl: Option<Duration>,
-    ) -> Result<(), CacheError> {
-        let bytes =
-            rmp_serde::to_vec(value).map_err(|e| CacheError::Serialization(e.to_string()))?;
-        self.set_raw(key, bytes, ttl).await
-    }
-
-    // =========================================================================
     // Process-local API — always in-process memory, never Redis
     // =========================================================================
 
     /// Get raw bytes from the process-local cache.
     ///
     /// Use for sensitive data that must never leave the process.
-    pub async fn get_local_raw(&self, key: &str) -> Result<Option<Vec<u8>>, CacheError> {
+    async fn get_local_raw(&self, key: &str) -> Result<Option<Vec<u8>>, CacheError> {
         self.local.get(key).await
     }
 
     /// Set raw bytes in the process-local cache.
     ///
     /// Use for sensitive data that must never leave the process.
-    pub async fn set_local_raw(
+    async fn set_local_raw(
         &self,
         key: &str,
         value: Vec<u8>,
@@ -202,36 +147,8 @@ impl CacheService {
         self.local.set(key, value, ttl).await
     }
 
-    /// Get a typed value from the process-local cache (MessagePack).
-    ///
-    /// Use for sensitive data that must never leave the process.
-    pub async fn get_local<T: DeserializeOwned>(&self, key: &str) -> Result<Option<T>, CacheError> {
-        match self.get_local_raw(key).await? {
-            Some(bytes) => {
-                let value = rmp_serde::from_slice(&bytes)
-                    .map_err(|e| CacheError::Serialization(e.to_string()))?;
-                Ok(Some(value))
-            }
-            None => Ok(None),
-        }
-    }
-
-    /// Set a typed value in the process-local cache (MessagePack).
-    ///
-    /// Use for sensitive data that must never leave the process.
-    pub async fn set_local<T: Serialize>(
-        &self,
-        key: &str,
-        value: &T,
-        ttl: Option<Duration>,
-    ) -> Result<(), CacheError> {
-        let bytes =
-            rmp_serde::to_vec(value).map_err(|e| CacheError::Serialization(e.to_string()))?;
-        self.set_local_raw(key, bytes, ttl).await
-    }
-
     /// Delete a key from the process-local cache.
-    pub async fn delete_local(&self, key: &str) -> Result<bool, CacheError> {
+    async fn delete_local(&self, key: &str) -> Result<bool, CacheError> {
         self.local.delete(key).await
     }
 
@@ -240,7 +157,7 @@ impl CacheService {
     // =========================================================================
 
     /// Delete a key from cache
-    pub async fn delete(&self, key: &str) -> Result<bool, CacheError> {
+    async fn delete(&self, key: &str) -> Result<bool, CacheError> {
         self.backend.delete(key).await
     }
 
@@ -248,39 +165,39 @@ impl CacheService {
     ///
     /// This is a convenience method for cache invalidation where errors
     /// should be logged but not propagated (cache misses are acceptable).
-    pub async fn invalidate_key(&self, key: &str) {
+    async fn invalidate_key(&self, key: &str) {
         if let Err(e) = self.backend.delete(key).await {
             tracing::warn!(key = %key, error = %e, "Cache invalidation failed");
         }
     }
 
     /// Check if a key exists
-    pub async fn exists(&self, key: &str) -> Result<bool, CacheError> {
+    async fn exists(&self, key: &str) -> Result<bool, CacheError> {
         self.backend.exists(key).await
     }
 
     /// Invalidate keys matching a pattern
-    pub async fn invalidate(&self, pattern: &str) -> Result<u64, CacheError> {
+    async fn invalidate(&self, pattern: &str) -> Result<u64, CacheError> {
         self.backend.delete_pattern(pattern).await
     }
 
     /// Atomic increment (for rate limiting)
-    pub async fn incr(&self, key: &str, ttl: Option<Duration>) -> Result<i64, CacheError> {
+    async fn incr(&self, key: &str, ttl: Option<Duration>) -> Result<i64, CacheError> {
         self.backend.incr(key, ttl).await
     }
 
     /// Get current counter value without incrementing (for rate limit pre-checks)
-    pub async fn get_counter(&self, key: &str) -> Result<Option<i64>, CacheError> {
+    async fn get_counter(&self, key: &str) -> Result<Option<i64>, CacheError> {
         self.backend.get_counter(key).await
     }
 
     /// Get TTL remaining for a key
-    pub async fn ttl(&self, key: &str) -> Result<Option<Duration>, CacheError> {
+    async fn ttl(&self, key: &str) -> Result<Option<Duration>, CacheError> {
         self.backend.ttl(key).await
     }
 
     /// Health check
-    pub async fn health_check(&self) -> Result<(), CacheError> {
+    async fn health_check(&self) -> Result<(), CacheError> {
         self.backend.health_check().await
     }
 }
@@ -398,7 +315,9 @@ impl sideseat_ports::cache::LocalCacheStore for CacheService {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serde::Serialize;
     use sideseat_core::config::EvictionPolicy;
+    use sideseat_ports::cache::{TypedCache, TypedLocalCache};
 
     fn test_config() -> CacheConfig {
         CacheConfig {
