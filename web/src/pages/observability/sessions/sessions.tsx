@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useQueryParam, NumberParam, StringParam, withDefault } from "use-query-params";
 import { TimeFilter } from "@/components/time-filter";
-import { DEFAULT_TIME_PRESET, getPresetRange } from "@/lib/time-filter";
+import { getPresetRange } from "@/lib/time-filter";
 import { AgGridReact } from "ag-grid-react";
 import {
   AllCommunityModule,
@@ -40,10 +40,10 @@ import { useCurrentProject } from "@/hooks/use-project";
 import { useResolvedTheme } from "@/hooks";
 import { useFilters } from "@/hooks/use-filters";
 import { useRecentlyDeletedIds, useSseDetailRefresh } from "@/hooks/use-grid-helpers";
+import { useTimePresetQueryParam } from "@/hooks/use-time-preset-query-param";
 import {
   settings,
   GLOBAL_PAGE_SIZE_KEY,
-  GLOBAL_TIME_PRESET_KEY,
   SESSIONS_COLUMN_VISIBILITY_KEY,
   SESSIONS_REALTIME_KEY,
 } from "@/lib/settings";
@@ -78,23 +78,9 @@ export default function SessionsPage() {
     "sort",
     withDefault(StringParam, "start_time:desc"),
   );
-  const savedTimePresetRef = useRef(
-    settings.get<string>(GLOBAL_TIME_PRESET_KEY) ?? DEFAULT_TIME_PRESET,
-  );
-  const [timePreset, setTimePreset] = useQueryParam(
-    "time",
-    withDefault(StringParam, savedTimePresetRef.current),
-  );
+  const [timePreset, setTimePreset] = useTimePresetQueryParam();
   const [fromTimestamp, setFromTimestamp] = useQueryParam("from", StringParam);
   const [toTimestamp, setToTimestamp] = useQueryParam("to", StringParam);
-
-  // Persist time preset to settings whenever it changes
-  useEffect(() => {
-    if (timePreset && timePreset !== savedTimePresetRef.current) {
-      settings.set(GLOBAL_TIME_PRESET_KEY, timePreset);
-      savedTimePresetRef.current = timePreset;
-    }
-  }, [timePreset]);
 
   // Compute effective fromTimestamp: use URL param if set, otherwise derive from preset
   const effectiveFromTimestamp = useMemo(() => {
