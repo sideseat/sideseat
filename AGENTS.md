@@ -24,6 +24,8 @@ The Rust workspace follows ports and adapters:
   durability, and persistence orchestration.
 - `server/crates/messaging`: typed stream and broadcast messaging over the queue port.
 - `server/crates/query-sql`: typed analytical queries and backend-specific lowering.
+- `server/crates/rule-assets`: deterministic embedding of framework rule JSON. It
+  contains no interpretation logic or dependencies on other SideSeat crates.
 - `server/crates/api`: HTTP, gRPC, MCP, SSE, and WebSocket transport code.
 - `server/crates/adapter-*`: implementations for databases, blobs, cache, secrets,
   registrations, and queues.
@@ -32,9 +34,9 @@ The Rust workspace follows ports and adapters:
 
 Dependencies point inward. API and ingestion use messaging rather than a queue
 adapter; messaging depends only on ports. Ingestion depends on domain and ports;
-domain talks to ports, never directly to an adapter. Adapters do not import
-sibling adapters. The server may depend on all layers because it assembles the
-application.
+domain talks to ports and consumes rule assets, never an adapter. Adapters do
+not import sibling adapters. The server may depend on all layers because it
+assembles the application.
 
 Detailed architecture belongs in `docs/engineering/`. User-facing behavior
 belongs in `docs/src/`. Do not turn agent instructions into a second

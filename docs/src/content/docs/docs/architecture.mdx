@@ -3,13 +3,14 @@ title: Architecture
 description: Technical overview of the SideSeat local workbench architecture, data flow, and components.
 ---
 
-import { Aside } from '@astrojs/starlight/components';
+import { Aside } from "@astrojs/starlight/components";
 
 This page provides a technical overview of SideSeat’s architecture for developers who want to understand how the local workbench is built or contribute to the project.
 
 ## System Overview
 
 SideSeat runs as a single local binary that includes:
+
 - **HTTP Server** (Axum) - REST API, OTLP ingestion, static file serving
 - **gRPC Server** (Tonic) - Optional high-throughput OTLP ingestion
 - **Workbench UI** (React) - Embedded static files
@@ -61,6 +62,7 @@ The ingestion pipeline processes incoming OTLP data through these stages:
 ### 1. Receive
 
 OTLP data arrives via:
+
 - **HTTP**: `POST /otel/{project_id}/v1/traces` (protobuf or JSON)
 - **gRPC**: `localhost:4317` (protobuf)
 
@@ -85,12 +87,14 @@ let model = get_first(attrs, &[
 ```
 
 <Aside type="note">
-Message normalization (SideML) happens at **query time**, not ingestion. This ensures bug fixes apply to historical data without re-ingestion.
+  Message normalization (SideML) happens at **query time**, not ingestion. This
+  ensures bug fixes apply to historical data without re-ingestion.
 </Aside>
 
 ### 4. Enrich
 
 Enrichment adds derived fields:
+
 - **Cost calculation**: Look up model pricing, compute costs
 - **Preview generation**: Truncate input/output for list views
 - **Timestamps**: Normalize to microseconds
@@ -106,6 +110,7 @@ SideSeat uses two databases:
 ### Analytics Database (DuckDB/ClickHouse)
 
 Stores telemetry data optimized for analytical queries:
+
 - **spans**: Normalized span data with extracted fields
 - **Raw attributes**: Preserved in JSON for ad-hoc queries
 
@@ -116,6 +121,7 @@ Optional: ClickHouse (external, high volume)
 ### Transactional Database (SQLite/PostgreSQL)
 
 Stores application state:
+
 - **projects**: Project configuration
 - **api_tokens**: Authentication tokens
 - **settings**: User preferences
@@ -150,14 +156,14 @@ This happens at query time via `sideml/normalize.rs`:
 
 All query endpoints are prefixed with `/api/v1/project/{project_id}/otel`:
 
-| Endpoint | Purpose |
-|----------|---------|
-| `GET /traces` | List runs with filtering |
-| `GET /traces/{id}` | Get a single run |
-| `GET /traces/{id}/messages` | Get normalized messages |
-| `GET /spans` | List steps with filtering |
-| `GET /sessions` | List sessions |
-| `GET /sse` | Real-time event stream |
+| Endpoint                    | Purpose                   |
+| --------------------------- | ------------------------- |
+| `GET /traces`               | List runs with filtering  |
+| `GET /traces/{id}`          | Get a single run          |
+| `GET /traces/{id}/messages` | Get normalized messages   |
+| `GET /spans`                | List steps with filtering |
+| `GET /sessions`             | List sessions             |
+| `GET /sse`                  | Real-time event stream    |
 
 ## Real-time Streaming
 
@@ -231,6 +237,7 @@ server/crates/
 ├── messaging/                    # Typed streams and broadcasts over the queue port
 ├── api/                          # HTTP/gRPC transport and route handlers
 ├── query-sql/                    # Typed cross-engine query construction
+├── rule-assets/                  # Deterministic embedding of framework rule JSON
 ├── adapter-duckdb/               # Embedded analytics
 ├── adapter-clickhouse/           # Server analytics
 ├── adapter-sqlite/               # Embedded transactional store
@@ -239,13 +246,25 @@ server/crates/
 ├── adapter-cache/                # In-memory and Redis cache
 ├── adapter-topics/               # In-memory and Redis queues
 ├── adapter-secrets/              # Credential secret providers
+├── adapter-pricing/              # External pricing catalogue
 └── adapter-registrations-memory/ # Process-local agent registration
 ```
 
 ```
 server/src/
+├── main.rs                       # Process entry point
+├── lib.rs                        # Testable server library boundary
 ├── app.rs                        # Composition root
+├── app/                          # Adapter selection and service construction
+│   ├── files.rs
+│   ├── providers.rs
+│   ├── storage.rs
+│   └── update.rs
 └── runtime/                      # Process lifecycle and allocator instrumentation
+    ├── allocation.rs
+    ├── clock.rs
+    ├── mod.rs
+    └── shutdown.rs
 ```
 
 ## Key Design Decisions

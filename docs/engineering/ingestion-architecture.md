@@ -9,17 +9,18 @@ not in this file.
 The backend is a Cargo workspace rooted at the repository root. Every backend crate lives under
 `server/crates/`; `server/` is the executable composition root.
 
-| Layer | Responsibility |
-| --- | --- |
-| `sideseat-core` | Configuration, constants, storage paths, migrations, and generic utilities |
-| `sideseat-ports` | Repository, queue, cache, clock, blob, pricing, registration, and secret contracts |
-| `sideseat-domain` | SideML, rules, files, pricing, search, storage governance, and restore workflows |
-| `sideseat-ingestion` | OTLP decoding, normalization, identity, staging, durability, and persistence orchestration |
-| `sideseat-messaging` | Typed stream and broadcast messaging over the queue port |
-| `sideseat-query-sql` | Shared SQL query vocabulary and rendering |
-| `sideseat-api` | HTTP/gRPC decoding, authentication, status mapping, and API schemas |
-| `sideseat-adapter-*` | Concrete databases, queues, caches, blob stores, pricing, secrets, and registrations |
-| `sideseat-server` | Configuration loading, dependency construction, process lifecycle, and background tasks |
+| Layer                  | Responsibility                                                                             |
+| ---------------------- | ------------------------------------------------------------------------------------------ |
+| `sideseat-core`        | Configuration, constants, storage paths, migrations, and generic utilities                 |
+| `sideseat-ports`       | Repository, queue, cache, clock, blob, pricing, registration, and secret contracts         |
+| `sideseat-domain`      | SideML, rules, files, pricing, search, storage governance, and restore workflows           |
+| `sideseat-ingestion`   | OTLP decoding, normalization, identity, staging, durability, and persistence orchestration |
+| `sideseat-messaging`   | Typed stream and broadcast messaging over the queue port                                   |
+| `sideseat-query-sql`   | Shared SQL query vocabulary and rendering                                                  |
+| `sideseat-rule-assets` | Deterministic embedding of framework rule JSON without interpretation                      |
+| `sideseat-api`         | HTTP/gRPC decoding, authentication, status mapping, and API schemas                        |
+| `sideseat-adapter-*`   | Concrete databases, queues, caches, blob stores, pricing, secrets, and registrations       |
+| `sideseat-server`      | Configuration loading, dependency construction, process lifecycle, and background tasks    |
 
 Dependency direction is inward:
 
@@ -28,7 +29,8 @@ server -> api/ingestion/domain/messaging/adapters -> ports/core
 api -> ingestion/domain/messaging/ports/core
 ingestion -> domain/messaging/ports/core
 messaging -> ports
-domain -> ports/core
+domain -> rule-assets/ports/core
+rule-assets -> external embedding library only
 adapters -> ports/core
 ```
 
