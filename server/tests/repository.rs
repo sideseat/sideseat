@@ -2911,6 +2911,40 @@ fn fixture_capture_only_stops_its_own_recorder() {
     }
 }
 
+#[test]
+fn container_tests_share_trapped_cleanup() {
+    let script = std::fs::read_to_string(repo_root().join("scripts/container-test.sh"))
+        .expect("container test helper");
+    for required in [
+        "trap cleanup EXIT",
+        "trap 'exit 130' INT",
+        "trap 'exit 143' TERM",
+        "local exit_code=$?",
+        "if ((exit_code == 0 && cleanup_failed != 0))",
+        "cargo test --locked -p sideseat-adapter-topics redis_stream_tests",
+    ] {
+        assert!(
+            script.contains(required),
+            "container test helper must contain `{required}`"
+        );
+    }
+
+    let makefile = std::fs::read_to_string(repo_root().join("Makefile")).expect("Makefile");
+    for scenario in [
+        "clickhouse",
+        "clickhouse-replicated",
+        "clickhouse-two-shard",
+        "postgres",
+        "redis",
+        "redpanda",
+    ] {
+        assert!(
+            makefile.contains(&format!("./scripts/container-test.sh {scenario}")),
+            "{scenario} must use the shared container lifecycle"
+        );
+    }
+}
+
 /// Does this manifest line declare `driver`, under its own name or a rename?
 ///
 /// Extracted so it can be tested on input the workspace does not contain. A live mutation is not available:

@@ -669,30 +669,8 @@ CH_TEST_PORT ?= 8124
 CH_TEST_IMAGE ?= clickhouse/clickhouse-server:26.4.3.37
 
 test-clickhouse:
-	@command -v docker >/dev/null 2>&1 || { echo "[test-clickhouse] docker is required"; exit 1; }
-	@echo "[test-clickhouse] starting $(CH_TEST_IMAGE) on port $(CH_TEST_PORT)..."
-	@docker rm -fv $(CH_TEST_CONTAINER) >/dev/null 2>&1 || true
-	@docker run -d --name $(CH_TEST_CONTAINER) -p $(CH_TEST_PORT):8123 \
-		-e CLICKHOUSE_USER=sideseat -e CLICKHOUSE_PASSWORD=sideseat \
-		-e CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT=1 $(CH_TEST_IMAGE) >/dev/null
-	@for i in $$(seq 1 60); do \
-		curl -sf http://127.0.0.1:$(CH_TEST_PORT)/ping >/dev/null && break; \
-		sleep 1; \
-	done; \
-	curl -sf http://127.0.0.1:$(CH_TEST_PORT)/ping >/dev/null || { \
-		echo "[test-clickhouse] server did not become ready"; \
-		docker logs --tail 20 $(CH_TEST_CONTAINER); \
-		docker rm -fv $(CH_TEST_CONTAINER) >/dev/null 2>&1; \
-		exit 1; \
-	}
-	@set +e; \
-	SIDESEAT_TEST_CLICKHOUSE_URL=http://127.0.0.1:$(CH_TEST_PORT) \
-	SIDESEAT_TEST_CLICKHOUSE_USER=sideseat \
-	SIDESEAT_TEST_CLICKHOUSE_PASSWORD=sideseat \
-	cargo test --locked -p sideseat-server clickhouse -- --test-threads=1; \
-	status=$$?; \
-	docker rm -fv $(CH_TEST_CONTAINER) >/dev/null 2>&1; \
-	exit $$status
+	@CH_TEST_CONTAINER="$(CH_TEST_CONTAINER)" CH_TEST_PORT="$(CH_TEST_PORT)" \
+		CH_TEST_IMAGE="$(CH_TEST_IMAGE)" ./scripts/container-test.sh clickhouse
 
 CH_REPL_CONTAINER := sideseat-clickhouse-replicated-test-$(DOCKER_SCOPE)
 CH_REPL_PORT ?= 8299
@@ -710,32 +688,8 @@ CH_REPL_PORT ?= 8299
 # different about distributed mode, and deliberately not enough for cross-replica convergence, which needs a
 # second node and is the stated remaining gap.
 test-clickhouse-replicated:
-	@command -v docker >/dev/null 2>&1 || { echo "[test-clickhouse-replicated] docker is required"; exit 1; }
-	@echo "[test-clickhouse-replicated] starting $(CH_TEST_IMAGE) on port $(CH_REPL_PORT)..."
-	@docker rm -fv $(CH_REPL_CONTAINER) >/dev/null 2>&1 || true
-	@docker run -d --name $(CH_REPL_CONTAINER) -p $(CH_REPL_PORT):8123 \
-		-e CLICKHOUSE_USER=sideseat -e CLICKHOUSE_PASSWORD=sideseat \
-		-e CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT=1 \
-		-v "$(CURDIR)/scripts/clickhouse-replicated/cluster.xml:/etc/clickhouse-server/config.d/cluster.xml:ro" \
-		$(CH_TEST_IMAGE) >/dev/null
-	@for i in $$(seq 1 90); do \
-		curl -sf http://127.0.0.1:$(CH_REPL_PORT)/ping >/dev/null && break; \
-		sleep 1; \
-	done; \
-	curl -sf http://127.0.0.1:$(CH_REPL_PORT)/ping >/dev/null || { \
-		echo "[test-clickhouse-replicated] server did not become ready"; \
-		docker logs --tail 30 $(CH_REPL_CONTAINER); \
-		docker rm -fv $(CH_REPL_CONTAINER) >/dev/null 2>&1; \
-		exit 1; \
-	}
-	@set +e; \
-	SIDESEAT_TEST_CLICKHOUSE_REPLICATED_URL=http://127.0.0.1:$(CH_REPL_PORT) \
-	SIDESEAT_TEST_CLICKHOUSE_USER=sideseat \
-	SIDESEAT_TEST_CLICKHOUSE_PASSWORD=sideseat \
-	cargo test --locked -p sideseat-server replicated -- --test-threads=1; \
-	status=$$?; \
-	docker rm -fv $(CH_REPL_CONTAINER) >/dev/null 2>&1; \
-	exit $$status
+	@CH_REPL_CONTAINER="$(CH_REPL_CONTAINER)" CH_REPL_PORT="$(CH_REPL_PORT)" \
+		CH_TEST_IMAGE="$(CH_TEST_IMAGE)" ./scripts/container-test.sh clickhouse-replicated
 
 CH_NET := sideseat-ch-net-$(DOCKER_SCOPE)
 CH_SHARD_1_CONTAINER := sideseat-ch-shard1-$(DOCKER_SCOPE)
@@ -761,45 +715,10 @@ CH_SHARD_PORT_2 ?= 8430
 #
 # Slow and real beats fast and unfalsifiable, so it ships as an opt-in target rather than being dropped.
 test-clickhouse-two-shard:
-	@command -v docker >/dev/null 2>&1 || { echo "[two-shard] docker is required"; exit 1; }
-	@echo "[two-shard] starting two $(CH_TEST_IMAGE) nodes - this takes ~15 minutes, see the Makefile comment"
-	@docker rm -fv $(CH_SHARD_1_CONTAINER) $(CH_SHARD_2_CONTAINER) >/dev/null 2>&1 || true
-	@docker network create $(CH_NET) >/dev/null 2>&1 || true
-	@for n in 1 2; do \
-		port=$$(if [ "$$n" = "1" ]; then echo $(CH_SHARD_PORT_1); else echo $(CH_SHARD_PORT_2); fi); \
-		container=$$(if [ "$$n" = "1" ]; then echo $(CH_SHARD_1_CONTAINER); else echo $(CH_SHARD_2_CONTAINER); fi); \
-		keeper=""; \
-		if [ "$$n" = "1" ]; then \
-			keeper="-v $(CURDIR)/scripts/clickhouse-replicated/two-shard-keeper.xml:/etc/clickhouse-server/config.d/keeper.xml:ro"; \
-		fi; \
-		docker run -d --name $$container --hostname ch-shard$$n \
-			--network $(CH_NET) --network-alias ch-shard$$n -p $$port:8123 \
-			-e CLICKHOUSE_USER=sideseat -e CLICKHOUSE_PASSWORD=sideseat \
-			-e CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT=1 \
-			-v "$(CURDIR)/scripts/clickhouse-replicated/two-shard-common.xml:/etc/clickhouse-server/config.d/cluster.xml:ro" \
-			-v "$(CURDIR)/scripts/clickhouse-replicated/two-shard-node-$$n.xml:/etc/clickhouse-server/config.d/node.xml:ro" \
-			$$keeper $(CH_TEST_IMAGE) >/dev/null; \
-	done
-	@for port in $(CH_SHARD_PORT_1) $(CH_SHARD_PORT_2); do \
-		for i in $$(seq 1 90); do \
-			curl -sf http://127.0.0.1:$$port/ping >/dev/null && break; \
-			sleep 1; \
-		done; \
-		curl -sf http://127.0.0.1:$$port/ping >/dev/null || { \
-			echo "[two-shard] node on $$port did not become ready"; \
-			docker rm -fv $(CH_SHARD_1_CONTAINER) $(CH_SHARD_2_CONTAINER) >/dev/null 2>&1; \
-			exit 1; \
-		}; \
-	done
-	@set +e; \
-	SIDESEAT_TEST_CLICKHOUSE_TWO_SHARD_URL=http://127.0.0.1:$(CH_SHARD_PORT_1) \
-	SIDESEAT_TEST_CLICKHOUSE_USER=sideseat \
-	SIDESEAT_TEST_CLICKHOUSE_PASSWORD=sideseat \
-	cargo test --locked -p sideseat-server two_shard -- --test-threads=1 --nocapture; \
-	status=$$?; \
-	docker rm -fv $(CH_SHARD_1_CONTAINER) $(CH_SHARD_2_CONTAINER) >/dev/null 2>&1; \
-	docker network rm $(CH_NET) >/dev/null 2>&1; \
-	exit $$status
+	@CH_NET="$(CH_NET)" CH_SHARD_1_CONTAINER="$(CH_SHARD_1_CONTAINER)" \
+		CH_SHARD_2_CONTAINER="$(CH_SHARD_2_CONTAINER)" CH_SHARD_PORT_1="$(CH_SHARD_PORT_1)" \
+		CH_SHARD_PORT_2="$(CH_SHARD_PORT_2)" CH_TEST_IMAGE="$(CH_TEST_IMAGE)" \
+		./scripts/container-test.sh clickhouse-two-shard
 
 # PostgreSQL/SQLite transactional parity. Same reasoning as test-clickhouse: the PostgreSQL SQL is
 # hand-written in a second dialect and, until this target existed, had never run against a server.
@@ -809,28 +728,8 @@ PG_TEST_PORT ?= 5433
 PG_TEST_IMAGE ?= postgres:17-alpine
 
 test-postgres:
-	@command -v docker >/dev/null 2>&1 || { echo "[test-postgres] docker is required"; exit 1; }
-	@echo "[test-postgres] starting $(PG_TEST_IMAGE) on port $(PG_TEST_PORT)..."
-	@docker rm -fv $(PG_TEST_CONTAINER) >/dev/null 2>&1 || true
-	@docker run -d --name $(PG_TEST_CONTAINER) -p $(PG_TEST_PORT):5432 \
-		-e POSTGRES_USER=sideseat -e POSTGRES_PASSWORD=sideseat -e POSTGRES_DB=sideseat \
-		$(PG_TEST_IMAGE) >/dev/null
-	@for i in $$(seq 1 60); do \
-		docker exec $(PG_TEST_CONTAINER) psql -U sideseat -d sideseat -Atqc 'SELECT 1' >/dev/null 2>&1 && break; \
-		sleep 1; \
-	done; \
-	docker exec $(PG_TEST_CONTAINER) psql -U sideseat -d sideseat -Atqc 'SELECT 1' >/dev/null 2>&1 || { \
-		echo "[test-postgres] server did not become ready"; \
-		docker logs --tail 20 $(PG_TEST_CONTAINER); \
-		docker rm -fv $(PG_TEST_CONTAINER) >/dev/null 2>&1; \
-		exit 1; \
-	}
-	@set +e; \
-	SIDESEAT_TEST_POSTGRES_URL=postgres://sideseat:sideseat@127.0.0.1:$(PG_TEST_PORT)/sideseat \
-	cargo test --locked -p sideseat-server parity_tests -- --test-threads=1; \
-	status=$$?; \
-	docker rm -fv $(PG_TEST_CONTAINER) >/dev/null 2>&1; \
-	exit $$status
+	@PG_TEST_CONTAINER="$(PG_TEST_CONTAINER)" PG_TEST_PORT="$(PG_TEST_PORT)" \
+		PG_TEST_IMAGE="$(PG_TEST_IMAGE)" ./scripts/container-test.sh postgres
 
 # The durable ingestion queue, against a real Redis. Same reasoning as the two parity targets: the
 # consumer-group semantics that make an asynchronous 200 honest had never run against a Redis, and what
@@ -841,28 +740,8 @@ REDIS_TEST_PORT ?= 6399
 REDIS_TEST_IMAGE ?= redis:7.4-alpine
 
 test-redis:
-	@command -v docker >/dev/null 2>&1 || { echo "[test-redis] docker is required"; exit 1; }
-	@echo "[test-redis] starting $(REDIS_TEST_IMAGE) on port $(REDIS_TEST_PORT)..."
-	@docker rm -fv $(REDIS_TEST_CONTAINER) >/dev/null 2>&1 || true
-	@docker run -d --name $(REDIS_TEST_CONTAINER) -p $(REDIS_TEST_PORT):6379 \
-		$(REDIS_TEST_IMAGE) redis-server \
-		  --appendonly yes --appendfsync always --maxmemory-policy noeviction >/dev/null
-	@for i in $$(seq 1 60); do \
-		docker exec $(REDIS_TEST_CONTAINER) redis-cli ping 2>/dev/null | grep -q PONG && break; \
-		sleep 1; \
-	done; \
-	docker exec $(REDIS_TEST_CONTAINER) redis-cli ping 2>/dev/null | grep -q PONG || { \
-		echo "[test-redis] server did not become ready"; \
-		docker logs --tail 20 $(REDIS_TEST_CONTAINER); \
-		docker rm -fv $(REDIS_TEST_CONTAINER) >/dev/null 2>&1; \
-		exit 1; \
-	}
-	@set +e; \
-	SIDESEAT_TEST_REDIS_URL=redis://127.0.0.1:$(REDIS_TEST_PORT) \
-	cargo test --locked -p sideseat-server redis_stream_tests -- --test-threads=1; \
-	status=$$?; \
-	docker rm -fv $(REDIS_TEST_CONTAINER) >/dev/null 2>&1; \
-	exit $$status
+	@REDIS_TEST_CONTAINER="$(REDIS_TEST_CONTAINER)" REDIS_TEST_PORT="$(REDIS_TEST_PORT)" \
+		REDIS_TEST_IMAGE="$(REDIS_TEST_IMAGE)" ./scripts/container-test.sh redis
 
 REDPANDA_TEST_CONTAINER := sideseat-redpanda-test-$(DOCKER_SCOPE)
 REDPANDA_TEST_PORT ?= 19092
@@ -870,30 +749,8 @@ REDPANDA_TEST_PORT ?= 19092
 REDPANDA_TEST_IMAGE ?= docker.redpanda.com/redpandadata/redpanda:v26.2.3
 
 test-redpanda:
-	@command -v docker >/dev/null 2>&1 || { echo "[test-redpanda] docker is required"; exit 1; }
-	@echo "[test-redpanda] starting $(REDPANDA_TEST_IMAGE) on port $(REDPANDA_TEST_PORT)..."
-	@docker rm -fv $(REDPANDA_TEST_CONTAINER) >/dev/null 2>&1 || true
-	@docker run -d --name $(REDPANDA_TEST_CONTAINER) -p $(REDPANDA_TEST_PORT):9092 \
-		$(REDPANDA_TEST_IMAGE) redpanda start \
-		  --overprovisioned --smp 1 --memory 1G --reserve-memory 0M \
-		  --node-id 0 --check=false --kafka-addr 0.0.0.0:9092 \
-		  --advertise-kafka-addr 127.0.0.1:$(REDPANDA_TEST_PORT) >/dev/null
-	@for i in $$(seq 1 60); do \
-		docker exec $(REDPANDA_TEST_CONTAINER) rpk cluster health --exit-when-healthy >/dev/null 2>&1 && break; \
-		sleep 1; \
-	done; \
-	docker exec $(REDPANDA_TEST_CONTAINER) rpk cluster health --exit-when-healthy >/dev/null 2>&1 || { \
-		echo "[test-redpanda] broker did not become ready"; \
-		docker logs --tail 40 $(REDPANDA_TEST_CONTAINER); \
-		docker rm -fv $(REDPANDA_TEST_CONTAINER) >/dev/null 2>&1; \
-		exit 1; \
-	}
-	@set +e; \
-	SIDESEAT_TEST_REDPANDA_BROKERS=127.0.0.1:$(REDPANDA_TEST_PORT) \
-	cargo test --locked -p sideseat-adapter-topics redpanda_tests -- --test-threads=1 --nocapture; \
-	status=$$?; \
-	docker rm -fv $(REDPANDA_TEST_CONTAINER) >/dev/null 2>&1; \
-	exit $$status
+	@REDPANDA_TEST_CONTAINER="$(REDPANDA_TEST_CONTAINER)" REDPANDA_TEST_PORT="$(REDPANDA_TEST_PORT)" \
+		REDPANDA_TEST_IMAGE="$(REDPANDA_TEST_IMAGE)" ./scripts/container-test.sh redpanda
 
 # End-to-end HTTP latency, which is what a client actually experiences. The in-process benches measure the
 # stages inside a request; these measure the request. The numbers in CLAUDE.md come from here.
