@@ -168,7 +168,9 @@ impl RegistrationStore for MemoryRegistrationStore {
             None => return Ok(()),
         };
         for key in keys {
-            if let Some(mut entry) = self.entries.get_mut(&key) {
+            if let Some(mut entry) = self.entries.get_mut(&key)
+                && entry.owner_client_id == client_id
+            {
                 entry.last_heartbeat_secs = now_secs;
             }
         }
@@ -335,6 +337,40 @@ mod tests {
         let survivors = store.list(&ProjectId::from("p")).await.unwrap();
         assert_eq!(survivors.len(), 1);
         assert_eq!(survivors[0].name, "fresh");
+    }
+
+    #[tokio::test]
+    async fn stale_owner_index_cannot_refresh_the_replacement() {
+        let store = MemoryRegistrationStore::new();
+        store
+            .upsert(entry("p", "agent", "client-1", "instance-a"))
+            .await
+            .unwrap();
+        store
+            .upsert(entry("p", "agent", "client-2", "instance-b"))
+            .await
+            .unwrap();
+
+        let key = (
+            ProjectId::from("p"),
+            RegistrationKind::Agent,
+            "agent".to_owned(),
+        );
+        store
+            .by_client
+            .entry("client-1".to_owned())
+            .or_default()
+            .insert(key);
+
+        store.touch("client-1", 999).await.unwrap();
+
+        let current = store
+            .find(&ProjectId::from("p"), RegistrationKind::Agent, "agent")
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(current.owner_client_id, "client-2");
+        assert_eq!(current.last_heartbeat_secs, 100);
     }
 
     #[tokio::test]
