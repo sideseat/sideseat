@@ -5568,7 +5568,6 @@ dependencies = [
  "dashmap",
  "deadpool-redis",
  "moka",
- "rmp-serde",
  "serde",
  "sideseat-core",
  "sideseat-ports",

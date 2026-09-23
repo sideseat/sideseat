@@ -16,7 +16,6 @@ async-trait = { workspace = true }
 dashmap = { workspace = true }
 deadpool-redis = { workspace = true }
 moka = { workspace = true }
-rmp-serde = { workspace = true }
 serde = { workspace = true }
 thiserror = { workspace = true }
 tokio = { workspace = true }
