@@ -3,21 +3,20 @@
 //! Provides centralized analytics database management for the server.
 //! All schema definitions and migrations are managed here.
 
-pub mod error;
+mod error;
 mod migrations;
-pub mod models;
-pub mod repositories;
+mod repositories;
 mod repository_impl;
+pub use error::DuckdbError;
 pub use repository_impl::DuckdbRepository;
 mod retention;
-pub mod schema;
-pub mod sql_types;
+mod schema;
+mod sql_types;
 
 use std::sync::Arc;
 use std::time::Duration;
 
 use duckdb::Connection;
-use error::DuckdbError;
 use parking_lot::{Mutex, MutexGuard};
 use sideseat_ports::blobs::RetentionFileReconciler;
 use sideseat_ports::clock::Clock;

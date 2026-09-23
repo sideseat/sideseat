@@ -1040,9 +1040,9 @@ mod tests {
     // ============================================================================
 
     use crate::DuckdbService;
-    use crate::models::{NormalizedSpan, ObservationType};
     use crate::repositories::span::insert_batch;
     use sideseat_core::storage::AppStorage;
+    use sideseat_ports::types::{NormalizedSpan, ObservationType};
     use tempfile::TempDir;
 
     async fn create_test_service() -> (TempDir, DuckdbService) {

@@ -8,12 +8,13 @@ use std::collections::HashMap;
 
 use crate::error::DuckdbError;
 use crate::in_transaction;
-use crate::models::NormalizedMetric;
 use crate::sql_types::{SqlOptTimestamp, SqlTimestamp};
 use sideseat_core::utils::json::json_to_opt_string;
 use sideseat_core::utils::time::micros_to_datetime;
 use sideseat_ports::traits::FilterOptionRow;
-use sideseat_ports::types::{ListMetricsParams, MetricAggregateRow, MetricRow, ProjectId};
+use sideseat_ports::types::{
+    ListMetricsParams, MetricAggregateRow, MetricRow, NormalizedMetric, ProjectId,
+};
 use sideseat_query_sql::analytics::QueryValue;
 use sideseat_query_sql::{Backend, confirmations, dml, metrics as metric_sql};
 
@@ -452,9 +453,9 @@ fn string_query_value(value: &QueryValue) -> &str {
 mod tests {
     use super::*;
     use crate::DuckdbService;
-    use crate::models::MetricType;
     use chrono::{DateTime, Utc};
     use sideseat_core::storage::AppStorage;
+    use sideseat_ports::types::MetricType;
     use tempfile::TempDir;
 
     fn test_now() -> DateTime<Utc> {

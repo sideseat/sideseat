@@ -117,11 +117,10 @@ fn parse_span_row(row: &duckdb::Row) -> Result<MessageSpanRow, duckdb::Error> {
 mod tests {
     use super::*;
     use crate::DuckdbService;
-    use crate::models::NormalizedSpan;
     use crate::repositories::span::insert_batch;
     use chrono::{Duration, Utc};
     use sideseat_core::storage::AppStorage;
-    use sideseat_ports::types::ProjectId;
+    use sideseat_ports::types::{NormalizedSpan, ProjectId};
     use tempfile::TempDir;
 
     async fn create_test_service() -> (TempDir, DuckdbService) {
