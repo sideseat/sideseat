@@ -5,14 +5,12 @@ import tailwindcss from "@tailwindcss/vite";
 
 export default defineConfig({
   plugins: [
-    // plugin-react 6 exposes the React Compiler directly; it used to be wired in by
-    // hand through `babel.plugins`, which the new Options type no longer accepts.
     react({ compiler: true }),
     tailwindcss(),
   ],
   resolve: {
     alias: {
-      "@": path.resolve(__dirname, "./src"),
+      "@": path.resolve(import.meta.dirname, "src"),
     },
   },
   base: "/ui",
