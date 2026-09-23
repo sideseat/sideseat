@@ -1,4 +1,3 @@
-/* Adapted from the engagement-mck project's site */
 import { ArrowUp, Square } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -10,8 +9,8 @@ interface Props {
   isStreaming: boolean;
   disabled: boolean;
   placeholder: string;
-  /** Bumped by the parent to refocus the textarea on agent select. */
-  focusKey?: number;
+  /** Refocuses the textarea when the selected agent changes. */
+  focusKey?: string;
   /** Initial visible rows. Defaults to 1 (chat); landing uses 4. */
   rows?: number;
 }

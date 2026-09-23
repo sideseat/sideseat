@@ -1,5 +1,5 @@
 import { Bug, Plus } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useParams } from "react-router";
 
 import { Button } from "@/components/ui/button";
@@ -32,23 +32,17 @@ export default function PlaygroundPage() {
   );
 
   const [selectedName, setSelectedName] = useState<string | null>(null);
+  const [previousEntries, setPreviousEntries] = useState(entries);
   const [debugOpen, setDebugOpen] = useState(false);
-  const [focusKey, setFocusKey] = useState(0);
 
-  const run = useAgentRun({ projectId, agentName: selectedName });
-
-  useEffect(() => {
-    if (selectedName) setFocusKey((k) => k + 1);
-  }, [selectedName]);
-
-  // Drop the selection if the registration disappears (e.g., the SDK
-  // disconnected). Don't auto-select — the user picks the card.
-  useEffect(() => {
+  if (entries !== previousEntries) {
+    setPreviousEntries(entries);
     if (selectedName && !entries.some((a) => a.name === selectedName)) {
       setSelectedName(null);
     }
-  }, [entries, selectedName]);
+  }
 
+  const run = useAgentRun({ projectId, agentName: selectedName });
   const inChat = selectedName !== null && (run.state.messages.length > 0 || run.isStreaming);
 
   const handleNewChat = useCallback(() => {
@@ -99,7 +93,7 @@ export default function PlaygroundPage() {
             run={run}
             disabled={selectedName === null}
             placeholder={`Message ${selectedName}…`}
-            focusKey={focusKey}
+            focusKey={selectedName ?? undefined}
           />
         </>
       ) : (
@@ -123,7 +117,7 @@ export default function PlaygroundPage() {
             placeholder={
               selectedName ? `Message ${selectedName}…` : "Pick an agent above to start chatting"
             }
-            focusKey={focusKey}
+            focusKey={selectedName ?? undefined}
             rows={3}
           />
         </>
@@ -137,7 +131,7 @@ interface ComposerBarProps {
   run: ReturnType<typeof useAgentRun>;
   disabled: boolean;
   placeholder: string;
-  focusKey: number;
+  focusKey?: string;
   rows?: number;
 }
 
