@@ -191,8 +191,7 @@ lint: ## Run all linters
 	@cd examples/javascript && npm run lint
 	@cd examples/javascript && npm run typecheck
 	@$(MAKE) --no-print-directory lint-python
-	@#  `--extra dev` names where mypy comes from: `--locked` syncs the *locked default* set, so without it the
-	@#  dev extra is removed and the tool is gone - which is the correct behaviour and needed saying.
+	@# The dev extra owns mypy.
 	@cd sdk/python && uv run --locked --extra dev mypy src
 
 # Advisory clippy lints, kept out of `lint` because that gate runs -D warnings and these
@@ -252,17 +251,13 @@ check: disk-guard fmt-check lint test ## Run formatting, lint, and test gates
 # =============================================================================
 # Hardening gates
 #
-# Classes the compiler and the test suite cannot see. Each tool is installed on
-# demand and skipped with a visible note if it is unavailable, so a missing tool
-# never reads as a pass.
+# Classes the compiler and test suite cannot see. Optional local tools report
+# explicit skips; CI runs the blocking equivalents.
 # =============================================================================
 
 .PHONY: harden harden-supply harden-spec
 
-#  What "the Python of this repository" means, in one place. `scripts` and `tools` are in it because the
-#  fixture-capture scripts and the two standalone tools are automation this repository depends on, and nothing
-#  checked them - a syntax error in one merged green. Named targets, because CI needs to run *this* set: it had
-#  its own `cd sdk/python && ruff` and so kept the blind spot after the Makefile lost it.
+# Python source roots covered by the shared format and lint gates.
 PYTHON_CHECKED := sdk/python examples/python scripts tools
 
 .PHONY: fmt-check-python lint-python
@@ -276,10 +271,7 @@ lint-python:
 harden: harden-supply harden-spec ## Run supply-chain and specification gates
 	@echo "[harden] All hardening gates passed"
 
-#  The skips below are local convenience only, and that is now a true statement rather than a hope: CI
-#  installs cargo-deny and runs `cargo deny check` **blocking**, so a skip here cannot let a violation
-#  through. Before that job existed this target was the whole supply-chain gate and it skipped by default,
-#  which is how fourteen advisories accumulated unnoticed.
+# Local skips are visible; CI installs and enforces cargo-deny and cargo-machete.
 harden-supply: ## Audit dependencies and secrets
 	@echo "[harden-supply] Vulnerable / banned / unlicensed dependencies..."
 	@if command -v cargo-deny >/dev/null 2>&1; then \
@@ -295,19 +287,9 @@ harden-supply: ## Audit dependencies and secrets
 		echo "  SKIPPED locally: cargo-machete not installed (cargo install cargo-machete). CI runs it blocking."; \
 	fi
 
-# Model-checks **every** spec in specs. Each one's invariants correspond to properties stated in prose
-# elsewhere in the tree, named at the top of the spec.
-#
-# Every spec, not a named one: `OrderGraph.tla` existed for months and no target ever checked it, which makes a
-# spec decorative - it reads as a proof and is not run. A new spec is checked the day it is written, and a
-# violation **fails** rather than being printed into a log nobody reads.
-#
-# Runtime is minutes, not seconds: OrderGraph explores ~83k states in about seven on an M-series laptop. That
-# is why this is its own target and not part of `check`.
-#  Pinned by version **and digest**, in a versioned filename. Previously any `.tools/tla2tools.jar` was
-#  trusted because it existed - so a stale jar from an older version, or a tampered one, was executed without
-#  question - and CI downloaded remote bytes and ran them with nothing checked at all. The digest is verified on
-#  every run, not only after a fetch, which is the difference between pinning and hoping.
+# Every specification must have a matching configuration and pass TLC. The
+# versioned tool archive is digest-checked on every run. Model checking remains
+# separate from `check` because it takes minutes.
 TLA_VERSION := 1.8.0
 TLA_SHA256  := db131ddb48e7004d823bef4493df7b35694babe37505b9d9fa5685e7a331f1f1
 TLA_JAR     := .tools/tla2tools-$(TLA_VERSION).jar
@@ -327,13 +309,8 @@ harden-spec: ## Model-check every TLA+ specification
 		echo "[harden-spec] Delete it and re-run to fetch a fresh copy."; \
 		exit 1; \
 	fi
-	@#  Driven by the **specifications**, not by the configurations: enumerating `specs/*.cfg` meant a new
-	@#  `.tla` with no `.cfg` was silently unchecked while this target claimed to check every specification.
-	@#  The pairing is checked **both ways**, because an orphaned `.cfg` is then dead weight nothing runs, and
-	@#  because the `.tla`-driven loop that fixed the first direction had quietly created the second.
-	@#  `*_TTrace_*.tla` is excluded: TLC writes those itself to replay a counterexample, an interrupted run
-	@#  leaves one behind, and they are gitignored - so demanding a configuration for one turns somebody's
-	@#  interrupted run into a failure of the next.
+	@# Validate spec/config pairs in both directions; TLC counterexample traces
+	@# are generated artifacts rather than source specifications.
 	@orphans=$$( \
 		for tla in specs/*.tla; do \
 			[ "$${tla#*_TTrace_}" = "$$tla" ] || continue; \
@@ -372,8 +349,7 @@ harden-spec: ## Model-check every TLA+ specification
 
 test: test-rust test-web test-sdk-js test-sdk-python ## Run all regular test suites
 
-# Whole workspace: `cd server && cargo test` left sdk/rust's tests unrun, so nothing executed
-# them - not make, not CI, not the hooks.
+# Complete workspace, including the Rust SDK.
 test-rust: disk-guard ## Test the complete Rust workspace
 	@echo "[test-rust] Running Rust tests (workspace)..."
 	@cargo test --locked --workspace
