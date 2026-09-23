@@ -554,10 +554,12 @@ build-cli: build-cli-preflight ## Build CLI packages for all platforms
 # =============================================================================
 
 version: ## Show package versions
-	@echo "CLI:       $$(node -p "require('./cli/package.json').version")"
-	@echo "Server:    $$(./scripts/workspace-version.sh)"
-	@echo "SDK (JS):  $$(node -p "require('./sdk/js/package.json').version")"
-	@echo "SDK (Py):  $$(grep '__version__' sdk/python/src/sideseat/_version.py | sed 's/.*\"\(.*\)\".*/\1/')"
+	@echo "CLI:                $$(node -p "require('./cli/package.json').version")"
+	@echo "Server:             $$(./scripts/workspace-version.sh)"
+	@echo "SDK (JavaScript):   $$(node -p "require('./sdk/js/package.json').version")"
+	@echo "SDK (Python):       $$(grep '__version__' sdk/python/src/sideseat/_version.py | sed 's/.*\"\(.*\)\".*/\1/')"
+	@echo "SDK (Rust):         $$(sed -n 's/^version = \"\(.*\)\"/\1/p' sdk/rust/Cargo.toml | head -1)"
+	@echo "SDK (.NET, stub):   $$(sed -n 's:.*<Version>\(.*\)</Version>.*:\1:p' sdk/dotnet/SideSeat.csproj)"
 
 version-check: ## Verify coordinated package versions
 	@CLI_VERSION=$$(node -p "require('./cli/package.json').version") && \
