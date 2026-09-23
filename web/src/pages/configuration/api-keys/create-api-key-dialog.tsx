@@ -1,4 +1,4 @@
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 
@@ -56,6 +56,10 @@ const createApiKeySchema = z.object({
 type CreateApiKeyFormInput = z.input<typeof createApiKeySchema>;
 type CreateApiKeyFormOutput = z.output<typeof createApiKeySchema>;
 
+function expirationEpochSeconds(days: number): number {
+  return Math.floor(Date.now() / 1000) + days * 86400;
+}
+
 export function CreateApiKeyDialog({
   open,
   onOpenChange,
@@ -69,7 +73,7 @@ export function CreateApiKeyDialog({
     handleSubmit,
     reset,
     setValue,
-    watch,
+    control,
     formState: { errors, isValid },
   } = useForm<CreateApiKeyFormInput, unknown, CreateApiKeyFormOutput>({
     resolver: zodResolver(createApiKeySchema),
@@ -81,13 +85,11 @@ export function CreateApiKeyDialog({
     },
   });
 
-  const scopeValue = watch("scope");
-  const expirationValue = watch("expirationDays");
+  const scopeValue = useWatch({ control, name: "scope" });
+  const expirationValue = useWatch({ control, name: "expirationDays" });
 
   const onSubmit = (data: CreateApiKeyFormOutput) => {
-    const expiresAt = data.expirationDays
-      ? Math.floor(Date.now() / 1000) + data.expirationDays * 86400
-      : undefined;
+    const expiresAt = data.expirationDays ? expirationEpochSeconds(data.expirationDays) : undefined;
 
     mutate(
       {
