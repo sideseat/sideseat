@@ -1,4 +1,4 @@
-//! Core application
+//! Application composition root and lifecycle orchestration.
 
 pub mod files;
 pub mod providers;
@@ -80,7 +80,7 @@ pub struct CoreApp {
 }
 
 impl CoreApp {
-    /// Run the application with CLI argument parsing
+    /// Parse the command line and run the selected application mode.
     pub async fn run() -> Result<()> {
         dotenvy::dotenv().ok();
         Self::init_logging();
@@ -115,20 +115,12 @@ impl CoreApp {
         }
         let clock: Arc<dyn Clock> = Arc::new(SystemClock);
 
-        // Compile the framework rule assets now, so a malformed one fails at startup rather than mid-traffic.
-        //
-        // The compile is a `OnceLock` otherwise filled by whichever request reached it first, which for a build
-        // defect means an operator sees a panic on an arbitrary endpoint instead of a refusal to start. It used
-        // to sit inside `AppConfig::validate`, which made the configuration layer call into the domain - the one
-        // dependency pointing the wrong way through `core`, and enough on its own to prevent a crate boundary
-        // there. A startup check belongs at the composition root, which is the only place entitled to know about
-        // every layer. Cheap: the same work the first request would have done.
+        // Compile embedded rule assets before accepting traffic.
         let _ = sideseat_domain::rules::ruleset();
         let storage = AppStorage::init(&config).await?;
         let secrets = SecretManager::init(&storage, &config.secrets, Arc::clone(&clock)).await?;
         secrets.ensure_secrets().await?;
 
-        // Initialize cache service
         let cache = Arc::new(
             CacheService::new(&config.database.cache_config())
                 .await
@@ -137,7 +129,6 @@ impl CoreApp {
 
         tracing::debug!(backend = cache.backend_name(), "Cache initialized");
 
-        // Initialize rate limiter
         let rate_limiter = Arc::new(RateLimiter::new(cache.clone(), Arc::clone(&clock)));
 
         let (database, analytics) = tokio::try_join!(
@@ -232,13 +223,7 @@ impl CoreApp {
             config.otel.retention.clone(),
             config.otel.staging_redrive_cap,
         ));
-        // No startup sweep here on purpose.
-        //
-        // Advancing pending deletions used to run inline before the server was listening, which makes every
-        // new instance wait for work that is not urgent - and on a horizontally scaled deployment, one
-        // instance's slow sweep delays its own readiness while other instances are already sweeping. The
-        // periodic task in `start_background_tasks` picks it up, and its first tick comes soon enough that
-        // nothing is deferred meaningfully.
+        // Pending deletion cleanup runs in the background so readiness does not depend on a sweep.
 
         let shutdown = ShutdownService::new(topics.clone(), database.clone(), analytics.clone());
 
@@ -424,10 +409,9 @@ impl CoreApp {
     }
 
     async fn start_server(app: Self) -> Result<()> {
-        // Install signal handlers FIRST (before any blocking calls)
+        // Install signal handlers before spawning services or background tasks.
         app.shutdown.install_signal_handlers();
 
-        // Spawn update check (runs in background, prints notification when ready)
         if app.config.update.enabled {
             tokio::spawn(async {
                 if let Some(new_version) = update::check_for_update().await {
@@ -441,10 +425,8 @@ impl CoreApp {
         app.start_background_tasks().await?;
         let api_key_secret = app.secrets.get_api_key_secret().await?;
 
-        // Start OTLP gRPC server if enabled
         if app.config.otel.grpc_enabled {
-            // Parsed before the server is built, so a bad entry refuses startup here as it does for HTTP -
-            // see `utils::client_ip` for why skipping one is harmful rather than merely lax.
+            // Reject invalid proxy ranges before either transport starts.
             let grpc_trusted_proxies = Arc::new(
                 sideseat_core::utils::client_ip::TrustedProxies::parse(
                     &app.config.rate_limit.trusted_proxies,
@@ -459,8 +441,7 @@ impl CoreApp {
                 sideseat_api::routes::otlp_collector::IngestStores {
                     analytics: Arc::clone(&app.analytics_port),
                     database: Arc::clone(&app.database_port),
-                    // Only where the queue cannot promise durability - then this transport writes in
-                    // the request too, as the HTTP one does.
+                    // Non-durable queues require synchronous persistence before acknowledging.
                     trace_pipeline: (!app.topics.is_durable()).then(|| {
                         Arc::new(
                             sideseat_ingestion::traces::TracePipeline::new(
@@ -479,17 +460,12 @@ impl CoreApp {
                 },
                 app.config.debug,
                 sideseat_api::routes::otlp_collector::GrpcIngestGuards {
-                    // The same gate the HTTP transport applies. Built here rather than inside the gRPC server so
-                    // it shares the one API-key secret: a second read could pick up a *replacement* secret if the
-                    // backend had regenerated one, and a key hashed under the other pepper verifies nowhere.
+                    // HTTP and gRPC must share one API-key hashing secret for this process.
                     auth: if app.config.otel.auth_required {
                         Some(sideseat_api::routes::otlp_collector::GrpcIngestAuth {
                             cache: Arc::clone(&app.cache_port),
                             database: Arc::clone(&app.database_port),
                             api_key_secret: Arc::new(api_key_secret.clone()),
-                            // Both switches, as the HTTP path reads them: `per_ip` alone ignored the master
-                            // `enabled`, so a deployment that had turned rate limiting off still had it enforced
-                            // on this transport only.
                             rate_limiter: (app.config.rate_limit.enabled
                                 && app.config.rate_limit.per_ip)
                                 .then(|| Arc::clone(&app.rate_limiter)),
@@ -499,8 +475,7 @@ impl CoreApp {
                     } else {
                         None
                     },
-                    // The per-project ingestion limit the HTTP routes carry. Independent of auth: a quota on how
-                    // fast a project may be written to applies whether or not the write is authenticated.
+                    // Project ingestion limits apply independently of authentication.
                     limit: (app.config.rate_limit.enabled).then(|| {
                         sideseat_api::routes::otlp_collector::GrpcIngestLimit {
                             limiter: Arc::clone(&app.rate_limiter),
@@ -581,9 +556,7 @@ impl CoreApp {
             )
             .await;
 
-        // The cross-month duplicate residual is *reported* rather than repaired (see
-        // `server/crates/adapter-clickhouse/src/consistency.rs`), and a report only exists if something runs. `None` on DuckDB, which
-        // has no partitions and therefore no such residual.
+        // ClickHouse reports cross-month duplicate residuals; DuckDB has no partition check.
         if let Some(h) = self
             .analytics
             .start_consistency_check_task(self.shutdown.subscribe())
@@ -609,8 +582,7 @@ impl CoreApp {
             self.shutdown.register(h).await;
         }
 
-        // Claims a crash abandoned. Startup swept once already, and that is not enough on its own: a
-        // claim taken just before the crash reads as a deletion in progress when the process returns.
+        // Recover deletion claims abandoned by a crashed worker.
         self.shutdown
             .register(sideseat_domain::cleanup::start_claim_recovery_task(
                 Arc::clone(&self.database_port),
@@ -620,7 +592,6 @@ impl CoreApp {
             ))
             .await;
 
-        // Create stream topic for traces (at-least-once delivery with consumer groups)
         let traces_topic = self
             .topics
             .stream_topic::<StagedPayloadRef>(TOPIC_TRACES, StagedPayloadRef::partition_key);
