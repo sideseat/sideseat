@@ -193,7 +193,10 @@ impl RegistrationStore for MemoryRegistrationStore {
             .collect();
         let mut expired = Vec::with_capacity(stale.len());
         for key in stale {
-            if let Some((_, entry)) = self.entries.remove(&key) {
+            if let Some((_, entry)) = self
+                .entries
+                .remove_if(&key, |_, entry| entry.last_heartbeat_secs < cutoff)
+            {
                 self.unindex(&key, &entry);
                 expired.push(entry);
             }
