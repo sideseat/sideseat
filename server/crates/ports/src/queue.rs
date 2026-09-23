@@ -1,6 +1,6 @@
 //! Queue and pub/sub ports.
 //!
-//! Defines the interface for topic implementations (memory and Redis).
+//! Defines the interface implemented by in-memory, Redis, and Redpanda adapters.
 //! Supports two delivery semantics:
 //! - Broadcast (Pub/Sub): Fire-and-forget, all subscribers receive
 //! - Stream: At-least-once, one consumer per message, acknowledgment required
@@ -20,7 +20,6 @@ pub enum TopicError {
     ChannelClosed,
     BufferFull,
     Lagged(u64),
-    TypeMismatch(String),
     Connection(String),
     Serialization(String),
     Stream(String),
@@ -41,9 +40,6 @@ impl fmt::Display for TopicError {
             Self::ChannelClosed => write!(f, "channel closed"),
             Self::BufferFull => write!(f, "buffer full"),
             Self::Lagged(n) => write!(f, "receiver lagged by {n} messages"),
-            Self::TypeMismatch(name) => {
-                write!(f, "topic '{name}' already exists with different type")
-            }
             Self::Connection(message) => write!(f, "connection error: {message}"),
             Self::Serialization(message) => write!(f, "serialization error: {message}"),
             Self::Stream(message) => write!(f, "stream error: {message}"),
@@ -98,10 +94,6 @@ pub struct StreamSubscription {
 ///   Ideal for critical data like OTLP traces.
 #[async_trait]
 pub trait TopicBackend: Send + Sync {
-    // =========================================================================
-    // Broadcast (Pub/Sub) - fire-and-forget, all subscribers receive
-    // =========================================================================
-
     /// Publish message to broadcast topic (fire-and-forget)
     ///
     /// All active subscribers receive the message. If no subscribers exist,
@@ -113,10 +105,6 @@ pub trait TopicBackend: Send + Sync {
     /// Returns a stream of messages. Lagging subscribers may miss messages
     /// (bounded buffer overflow).
     async fn subscribe(&self, topic: &str) -> Result<BroadcastSubscription, TopicError>;
-
-    // =========================================================================
-    // Stream - at-least-once with acknowledgment
-    // =========================================================================
 
     /// Publish message to stream topic, under a **partition key**.
     ///
@@ -225,10 +213,6 @@ pub trait TopicBackend: Send + Sync {
     ) -> Result<(), TopicError> {
         Ok(())
     }
-
-    // =========================================================================
-    // Health and metadata
-    // =========================================================================
 
     /// Health check (validates connection)
     async fn health_check(&self) -> Result<(), TopicError>;

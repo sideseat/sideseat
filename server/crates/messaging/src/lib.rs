@@ -111,11 +111,6 @@ where
             marker: PhantomData,
         })
     }
-
-    #[must_use]
-    pub fn name(&self) -> &str {
-        &self.name
-    }
 }
 
 pub struct StreamTopicSubscriber<T>
@@ -133,11 +128,6 @@ impl<T> StreamTopicSubscriber<T>
 where
     T: ProstMessage + Default + Send + Sync + 'static,
 {
-    pub async fn recv(&mut self) -> Result<(String, T), TopicError> {
-        let (id, _, decoded) = self.recv_partitioned().await?;
-        Ok((id, decoded))
-    }
-
     /// Receive a typed message together with the broker (or virtual) partition that delivered it.
     pub async fn recv_partitioned(&mut self) -> Result<(String, u32, T), TopicError> {
         let Some(message) = self.subscription.receiver.next().await else {
@@ -250,11 +240,6 @@ where
             subscription: self.backend.subscribe(&self.name).await?,
             marker: PhantomData,
         })
-    }
-
-    #[must_use]
-    pub fn name(&self) -> &str {
-        &self.name
     }
 }
 
