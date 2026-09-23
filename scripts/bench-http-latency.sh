@@ -23,9 +23,7 @@
 #   * **The large export's file writes are counted once, deliberately.** Files are content-addressed, so
 #     re-posting the same payload finds the bytes already stored and skips the object write. That makes the
 #     measured figure *steady-state* ingestion of a payload whose attachments are known - which is the
-#     common case for a retrying or overlapping exporter - and **not** first-write object latency. The
-#     latter is measured separately by the S3 numbers in CLAUDE.md, taken against MinIO with fresh content.
-#     Stated because the difference is invisible in the table.
+#     common case for a retrying or overlapping exporter - and **not** first-write object latency.
 #   * **p99 needs samples.** Below `BENCH_MIN_P99_SAMPLES` the p99 column is reported as `max` instead,
 #     because the 99th percentile of fifty samples *is* the maximum and calling it p99 overstates it.
 set -euo pipefail
@@ -36,6 +34,8 @@ SAMPLES="${BENCH_SAMPLES:-200}"
 WARMUP="${BENCH_WARMUP:-5}"
 CONCURRENCY="${BENCH_CONCURRENCY:-8}"
 MIN_P99_SAMPLES="${BENCH_MIN_P99_SAMPLES:-100}"
+CURL_CONNECT_TIMEOUT="${BENCH_CURL_CONNECT_TIMEOUT:-2}"
+CURL_MAX_TIME="${BENCH_CURL_MAX_TIME:-30}"
 # A gap between sequential samples, so the numbers are service time rather than queueing delay.
 #
 # Without it, posting a 754 KB payload back to back measures saturation: each request waits for the
@@ -52,19 +52,35 @@ CH_NAME="sideseat-bench-ch-$DOCKER_SCOPE"
 MINIO_NAME="sideseat-bench-minio-$DOCKER_SCOPE"
 SERVER_PID=""
 
+bench_curl() {
+  curl --connect-timeout "$CURL_CONNECT_TIMEOUT" --max-time "$CURL_MAX_TIME" "$@"
+}
+
 cleanup() {
-  # This exact process, never `pkill -f sideseat`: running the benchmark next to a developer's own no-auth
-  # server would otherwise kill theirs too.
-  if [ -n "$SERVER_PID" ]; then
-    kill "$SERVER_PID" 2>/dev/null || true
-    wait "$SERVER_PID" 2>/dev/null || true
+  local exit_code=$?
+  local attempt
+
+  trap - EXIT INT TERM
+  if [ -n "$SERVER_PID" ] && kill -0 "$SERVER_PID" 2>/dev/null; then
+    kill -TERM "$SERVER_PID" 2>/dev/null || true
+    for ((attempt = 0; attempt < 50; attempt++)); do
+      kill -0 "$SERVER_PID" 2>/dev/null || break
+      sleep 0.1
+    done
+    if kill -0 "$SERVER_PID" 2>/dev/null; then
+      kill -KILL "$SERVER_PID" 2>/dev/null || true
+    fi
   fi
+  [ -z "$SERVER_PID" ] || wait "$SERVER_PID" 2>/dev/null || true
   if [ "$MODE" = "distributed" ]; then
     docker rm -fv "$PG_NAME" "$CH_NAME" "$MINIO_NAME" >/dev/null 2>&1 || true
   fi
   rm -rf "$WORK"
+  exit "$exit_code"
 }
 trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 echo "[bench] building release"
 (cd "$ROOT" && cargo build --locked --release -q -p sideseat-server)
@@ -87,14 +103,14 @@ if [ "$MODE" = "distributed" ]; then
   echo "[bench] waiting for PostgreSQL and ClickHouse"
   for _ in $(seq 1 90); do
     docker exec "$PG_NAME" pg_isready -U sideseat -d sideseat >/dev/null 2>&1 &&
-      curl -sf http://127.0.0.1:8131/ping >/dev/null && break
+      bench_curl -sf http://127.0.0.1:8131/ping >/dev/null && break
     sleep 1
   done
   # Credentials as headers from variables rather than an inline `-u`: the throwaway password is not a
   # secret, but a script that writes credentials into an argv is the pattern the secret scanner exists to
   # catch, and weakening the scanner to allow it would be the wrong trade.
   CH_USER=sideseat CH_KEY=sideseat
-  curl -sf -H "X-ClickHouse-User: $CH_USER" -H "X-ClickHouse-Key: $CH_KEY" \
+  bench_curl -sf -H "X-ClickHouse-User: $CH_USER" -H "X-ClickHouse-Key: $CH_KEY" \
     'http://127.0.0.1:8131/' --data 'CREATE DATABASE IF NOT EXISTS sideseat' >/dev/null
   # MinIO, because the shared-store rule refuses PostgreSQL with filesystem storage - a row every
   # instance can see naming content only one machine holds. Enforced at startup, so the distributed
@@ -104,7 +120,7 @@ if [ "$MODE" = "distributed" ]; then
     -e MINIO_ROOT_USER=sideseat -e MINIO_ROOT_PASSWORD=sideseat12345 \
     quay.io/minio/minio:RELEASE.2025-04-22T22-12-26Z server /data >/dev/null
   for _ in $(seq 1 60); do
-    curl -sf http://127.0.0.1:9010/minio/health/live >/dev/null && break
+    bench_curl -sf http://127.0.0.1:9010/minio/health/live >/dev/null && break
     sleep 1
   done
   docker run --rm --network host --entrypoint sh quay.io/minio/mc:RELEASE.2025-04-16T18-13-26Z -c \
@@ -166,10 +182,10 @@ fi
   "$ROOT/target/release/sideseat" --no-auth > "$WORK/server.log" 2>&1) &
 SERVER_PID=$!
 for _ in $(seq 1 60); do
-  curl -sf "http://127.0.0.1:$PORT/api/v1/health" >/dev/null && break
+  bench_curl -sf "http://127.0.0.1:$PORT/api/v1/health" >/dev/null && break
   sleep 1
 done
-curl -sf "http://127.0.0.1:$PORT/api/v1/health" >/dev/null || {
+bench_curl -sf "http://127.0.0.1:$PORT/api/v1/health" >/dev/null || {
   # The log, in full: the failure that cost the most time here was a *port collision* on the gRPC
   # listener, which the benchmark's own server reported and then exited over - and a truncated tail made it
   # look like an ingestion failure. Every port the benchmark binds is now derived from `BENCH_PORT`,
@@ -179,13 +195,20 @@ curl -sf "http://127.0.0.1:$PORT/api/v1/health" >/dev/null || {
 
 FIXTURE="$ROOT/server/tests/fixtures/messages/langgraph/swarm"
 SMALL="$FIXTURE/req-001.pb"
-LARGE="$(ls -S "$FIXTURE"/*.pb | head -1)"
+LARGE="$(python3 - "$FIXTURE" <<'PY'
+import sys
+from pathlib import Path
+
+files = list(Path(sys.argv[1]).glob("*.pb"))
+print(max(files, key=lambda path: path.stat().st_size))
+PY
+)"
 
 # The status is checked on every measured call. `--fail` alone is not enough with `-w`, because curl still
 # prints the timing and exits non-zero, so the exit code is what decides whether the sample counts.
 timed_post() {  # timed_post <file> <out>
   local out
-  out="$(curl -s -o /dev/null -w '%{time_total} %{http_code}' -X POST --data-binary @"$1" \
+  out="$(bench_curl -s -o /dev/null -w '%{time_total} %{http_code}' -X POST --data-binary @"$1" \
     -H 'Content-Type: application/x-protobuf' "http://127.0.0.1:$PORT/otel/default/v1/traces")"
   local code="${out##* }"
   [ "$code" = "200" ] || { echo "[bench] ingest returned $code, refusing to report it as a sample"; exit 1; }
@@ -199,7 +222,7 @@ timed_get() {  # timed_get <url> <out>
   local body
   body="$WORK/last-read.json"
   local out
-  out="$(curl -s -o "$body" -w '%{time_total} %{http_code}' "$1")"
+  out="$(bench_curl -s -o "$body" -w '%{time_total} %{http_code}' "$1")"
   local code="${out##* }"
   [ "$code" = "200" ] || { echo "[bench] read returned $code, refusing to report it as a sample"; exit 1; }
   # A 200 with an empty or truncated payload would otherwise pass the "status only" check and read as
@@ -230,7 +253,7 @@ sleep 4
 
 # The session's own span count, from the session list - which is what the read workload actually spans, and
 # what the SLO's "151 spans" has to mean if it means anything.
-SESSION_JSON="$(curl -sf "http://127.0.0.1:$PORT/api/v1/project/default/otel/sessions?limit=1")"
+SESSION_JSON="$(bench_curl -sf "http://127.0.0.1:$PORT/api/v1/project/default/otel/sessions?limit=1")"
 SESSION="$(printf '%s' "$SESSION_JSON" |
   python3 -c 'import sys,json; r=json.load(sys.stdin).get("data") or []; print(r[0]["session_id"] if r else "")')"
 SPANS="$(printf '%s' "$SESSION_JSON" |
@@ -269,10 +292,13 @@ done
 for _ in $(seq 1 "$SAMPLES"); do timed_get "$SEARCH" "$WORK/search.txt"; pace; done
 
 # Concurrent reads: the status check runs per request, and any failure fails the whole run.
-export PORT MSGS WORK
+export PORT MSGS WORK CURL_CONNECT_TIMEOUT CURL_MAX_TIME
 : > "$WORK/read-conc.txt"
+# Variables in the quoted program expand in the child shell.
+# shellcheck disable=SC2016
 seq 1 "$SAMPLES" | xargs -P "$CONCURRENCY" -I{} sh -c '
-  out=$(curl -s -o /dev/null -w "%{time_total} %{http_code}" "$MSGS")
+  out=$(curl --connect-timeout "$CURL_CONNECT_TIMEOUT" --max-time "$CURL_MAX_TIME" \
+    -s -o /dev/null -w "%{time_total} %{http_code}" "$MSGS")
   case "$out" in *" 200") echo "${out%% *}" >> "$WORK/read-conc.txt" ;; *) exit 9 ;; esac' ||
   { echo "[bench] a concurrent read failed, refusing to report the run"; exit 1; }
 
@@ -313,8 +339,8 @@ for label, name in rows:
 print(f"\nCold read, empty reconstruction cache: {os.environ['COLD_MS']} ms\n")
 
 # The SLO, enforced rather than printed. A benchmark whose numbers nobody compares against a target is a
-# report, not a check: the tables in CLAUDE.md could drift arbitrarily far from the documented promise and
-# every run would still exit 0.
+# report, not a check: measured values could drift arbitrarily far from the declared ceilings and every run
+# would still exit 0.
 #
 # Gated on **p95**, and the p99 column is reported without being gated. That is not a softer target, it is
 # the only one that means anything at these sample counts: with 200 samples the p99 is the second-worst

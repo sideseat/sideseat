@@ -2981,6 +2981,24 @@ fn ci_rejects_unused_rust_dependencies() {
     );
 }
 
+#[test]
+fn http_benchmark_bounds_requests_and_shutdown() {
+    let script = std::fs::read_to_string(repo_root().join("scripts/bench-http-latency.sh"))
+        .expect("HTTP benchmark script");
+    for required in [
+        "CURL_CONNECT_TIMEOUT=",
+        "CURL_MAX_TIME=",
+        "curl --connect-timeout \"$CURL_CONNECT_TIMEOUT\" --max-time \"$CURL_MAX_TIME\"",
+        "kill -TERM \"$SERVER_PID\"",
+        "kill -KILL \"$SERVER_PID\"",
+    ] {
+        assert!(
+            script.contains(required),
+            "HTTP benchmark must contain `{required}`"
+        );
+    }
+}
+
 /// Does this manifest line declare `driver`, under its own name or a rename?
 ///
 /// Extracted so it can be tested on input the workspace does not contain. A live mutation is not available:
