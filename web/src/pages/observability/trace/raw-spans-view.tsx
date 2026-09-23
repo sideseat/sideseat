@@ -139,6 +139,8 @@ export function RawSpansView({
     });
   }, [spansWithParsedRaw]);
 
+  // TanStack Virtual exposes mutable methods that React Compiler intentionally leaves unmemoized.
+  // eslint-disable-next-line react-hooks/incompatible-library
   const virtualizer = useVirtualizer({
     count: spansWithParsedRaw.length,
     getScrollElement: () => scrollRef.current,
