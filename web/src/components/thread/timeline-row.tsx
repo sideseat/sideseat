@@ -18,6 +18,7 @@ import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/comp
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { cn } from "@/lib/utils";
 import type { Block } from "@/api/otel/types";
+import { useForcedOpenState } from "./use-forced-open-state";
 
 // Role-based configuration (primary)
 const ROLE_CONFIG: Record<
@@ -131,21 +132,10 @@ export function TimelineRow({
   projectId,
 }: TimelineRowProps) {
   const [copied, setCopied] = useState(false);
-  const [openState, setOpenState] = useState({
-    local: forceExpanded ?? true,
-    lastForce: forceExpanded,
-  });
-  if (openState.lastForce !== forceExpanded) {
-    setOpenState({
-      local: forceExpanded ?? openState.local,
-      lastForce: forceExpanded,
-    });
-  }
-
-  const isOpen = forceExpanded ?? openState.local;
+  const [isOpen, setIsOpen] = useForcedOpenState(forceExpanded);
   const handleOpenChange = (open: boolean) => {
     onManualToggle?.();
-    setOpenState({ local: open, lastForce: forceExpanded });
+    setIsOpen(open);
   };
 
   const isError = block.is_error;

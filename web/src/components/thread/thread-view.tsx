@@ -17,6 +17,7 @@ import { TimelineRow } from "./timeline-row";
 import { JsonContent } from "./content";
 import { getBlockKey, getBlockPreview, getBlockCopyText, renderBlockContent } from "./thread-utils";
 import { ImageGalleryProvider } from "./image-gallery-context";
+import { useForcedOpenState } from "./use-forced-open-state";
 import { ModelLink } from "@/components/model-link";
 import type { ThreadViewProps, ThreadTab } from "./types";
 
@@ -36,19 +37,11 @@ function unwrapToolDef(tool: Record<string, unknown>): Record<string, unknown> {
 }
 
 function ToolCard({ tool, index, forceExpanded, onManualToggle }: ToolCardProps) {
-  const [isOpenLocal, setIsOpenLocal] = useState(true);
   const [copied, setCopied] = useState(false);
-
-  useEffect(() => {
-    if (forceExpanded !== undefined) {
-      setIsOpenLocal(forceExpanded);
-    }
-  }, [forceExpanded]);
-
-  const isOpen = forceExpanded !== undefined ? forceExpanded : isOpenLocal;
+  const [isOpen, setIsOpen] = useForcedOpenState(forceExpanded);
   const handleOpenChange = (open: boolean) => {
     onManualToggle?.();
-    setIsOpenLocal(open);
+    setIsOpen(open);
   };
 
   const unwrapped = unwrapToolDef(tool);
