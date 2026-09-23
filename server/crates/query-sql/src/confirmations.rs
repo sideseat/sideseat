@@ -30,9 +30,6 @@ pub fn spans(
              ORDER BY ingested_at DESC, rowid DESC) = 1)"
         }
         Backend::Clickhouse => "otel_spans FINAL",
-        Backend::Sqlite | Backend::Postgres => {
-            panic!("{} is not an analytics backend", backend.name())
-        }
     };
     let mut params = vec![QueryValue::String(project_id.to_string())];
     for (trace_id, span_id, digest) in &records {
@@ -68,9 +65,6 @@ pub fn metrics(
     let source = match backend {
         Backend::Duckdb => "otel_metrics",
         Backend::Clickhouse => "otel_metrics FINAL",
-        Backend::Sqlite | Backend::Postgres => {
-            panic!("{} is not an analytics backend", backend.name())
-        }
     };
     let mut params = vec![QueryValue::String(project_id.to_string())];
     for (datapoint_id, digest) in &records {
@@ -105,9 +99,6 @@ pub fn logs(
     let source = match backend {
         Backend::Duckdb => "otel_logs",
         Backend::Clickhouse => "otel_logs FINAL",
-        Backend::Sqlite | Backend::Postgres => {
-            panic!("{} is not an analytics backend", backend.name())
-        }
     };
     let mut params = vec![QueryValue::String(project_id.to_string())];
     for (digest, ordinal) in &records {
@@ -131,7 +122,6 @@ fn sequential_consistency(backend: Backend) -> &'static str {
     match backend {
         Backend::Clickhouse => " SETTINGS select_sequential_consistency = 1",
         Backend::Duckdb => "",
-        Backend::Sqlite | Backend::Postgres => unreachable!(),
     }
 }
 

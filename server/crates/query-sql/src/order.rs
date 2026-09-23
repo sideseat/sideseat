@@ -1,10 +1,8 @@
 //! Rendering an [`OrderBy`] as SQL.
 //!
-//! Split from the vocabulary for the same reason `Filter`'s rendering was: a column and a direction are what a
-//! caller asks for, and `"col DESC"` is how a store answers. The port keeps the first and this keeps the second.
-//!
-//! An extension trait, because the orphan rule forbids splitting an inherent `impl` across crates - and because
-//! rendering belongs beside the other dialect SQL, where step 5's query builder will absorb it.
+//! The port owns the requested column and direction; this crate owns their SQL
+//! representation. An extension trait keeps that representation out of the
+//! transport-facing type.
 
 use sideseat_ports::types::{OrderBy, OrderDirection};
 

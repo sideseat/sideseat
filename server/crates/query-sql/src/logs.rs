@@ -188,7 +188,6 @@ fn winning_logs(backend: Backend) -> &'static str {
     match backend {
         Backend::Duckdb => "otel_logs",
         Backend::Clickhouse => "(SELECT * FROM otel_logs FINAL)",
-        Backend::Sqlite | Backend::Postgres => unreachable!(),
     }
 }
 
@@ -196,7 +195,6 @@ fn count(backend: Backend) -> &'static str {
     match backend {
         Backend::Duckdb => "COUNT(*)",
         Backend::Clickhouse => "count()",
-        Backend::Sqlite | Backend::Postgres => unreachable!(),
     }
 }
 
@@ -204,7 +202,6 @@ fn string_value(column: &str, backend: Backend) -> String {
     match backend {
         Backend::Duckdb => format!("CAST({column} AS VARCHAR)"),
         Backend::Clickhouse => format!("toNullable(toString({column}))"),
-        Backend::Sqlite | Backend::Postgres => unreachable!(),
     }
 }
 
@@ -212,7 +209,6 @@ fn timestamp_micros(column: &str, backend: Backend) -> String {
     match backend {
         Backend::Duckdb => format!("EPOCH_US({column})"),
         Backend::Clickhouse => format!("toInt64(toUnixTimestamp64Micro({column}))"),
-        Backend::Sqlite | Backend::Postgres => unreachable!(),
     }
 }
 
@@ -224,7 +220,6 @@ fn timestamp_predicate(column: &str, operator: &str, backend: Backend) -> String
     match backend {
         Backend::Duckdb => format!("{column} {operator} CAST(? AS TIMESTAMP)"),
         Backend::Clickhouse => format!("{column} {operator} fromUnixTimestamp64Micro(?)"),
-        Backend::Sqlite | Backend::Postgres => unreachable!(),
     }
 }
 
@@ -232,7 +227,6 @@ fn timestamp_value(value: DateTime<Utc>, backend: Backend) -> QueryValue {
     match backend {
         Backend::Duckdb => QueryValue::String(value.to_rfc3339()),
         Backend::Clickhouse => QueryValue::Int64(value.timestamp_micros()),
-        Backend::Sqlite | Backend::Postgres => unreachable!(),
     }
 }
 

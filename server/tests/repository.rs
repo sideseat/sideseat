@@ -2507,11 +2507,8 @@ fn no_adapter_imports_a_sibling_adapter() {
 
 /// The ports crate emits no SQL.
 ///
-/// A port says what a caller may ask for; a statement is how a store answers. Both were mixed in: `Filter` had
-/// three `to_sql` methods, `OrderBy` rendered `column DIRECTION`, and `DisplayNameDialect` was a hand-rolled
-/// per-dialect switch living in the DTOs - beside a real `SqlDialect` seam in the data layer that had no
-/// consumers at all. It is the same shape as `DataError` naming four drivers: the abstraction carrying the
-/// implementation.
+/// A port says what a caller may ask for; a statement is how a store answers.
+/// SQL rendering belongs to the query layer, not the transport-facing contract.
 ///
 /// Keywords rather than a parser, and the list is deliberately short: these are the words that only appear in a
 /// statement. A port may of course contain the *word* "select" in prose, so commentary is stripped first.

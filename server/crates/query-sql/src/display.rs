@@ -1,19 +1,7 @@
 //! The SQL for values a list row *displays*, per dialect.
 //!
-//! **Moved out of the ports crate**, where it did not belong: these functions emit SQL, and a port describes what
-//! a caller may ask for rather than how a store answers. It was the same defect as `DataError` naming four
-//! drivers - the abstraction carrying an implementation detail - and it is why `DisplayNameDialect` existed at
-//! all: a hand-rolled dialect switch living inside the DTOs, beside the real `SqlDialect` seam in this module
-//! which had no consumers.
-//!
-//! This is the fold the plan asks for at step 1: one home for the dialect-specific SQL. Step 5 replaces the enum
-//! parameter with the `SqlDialect` trait next door, once the query builder exists to route through it - doing it
-//! now would mean writing a builder with one caller.
-//!
-//! The rule these keep is unchanged and is the reason they are shared at all: **one expression per displayed
-//! value**. A trace with two roots at the same instant was listed under one name, opened under another and
-//! matched by a filter for a third, because four projections hand-wrote their own version and three had no
-//! `ORDER BY`.
+//! Each displayed value has one shared expression so projections, filters, and
+//! detail reads cannot disagree about which span represents a trace.
 
 /// Which aggregate syntax to render the display name in.
 #[derive(Clone, Copy)]

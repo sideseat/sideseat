@@ -107,9 +107,6 @@ fn write_target<'a>(
         Backend::Clickhouse => {
             configured_table.expect("ClickHouse write target comes from adapter configuration")
         }
-        Backend::Sqlite | Backend::Postgres => {
-            panic!("{} is not an analytical write backend", backend.name())
-        }
     };
     validate_table(table);
     WriteTarget { operation, table }
@@ -164,7 +161,6 @@ pub fn patch_relation_hold(
             ),
             QueryValue::Int64(hold_until.timestamp_micros()),
         ),
-        Backend::Sqlite | Backend::Postgres => unreachable!(),
     };
     DmlStatement {
         operation: QueryOperation::EnforceRetention,
@@ -473,7 +469,6 @@ pub fn delete_project_data(
             delete_metrics,
             delete_logs,
         },
-        Backend::Sqlite | Backend::Postgres => unreachable!(),
     }
 }
 
@@ -955,12 +950,6 @@ fn render_delete(
             "ALTER TABLE {}{} DELETE WHERE {predicate} SETTINGS mutations_sync = 2",
             target.table, target.on_cluster
         ),
-        Backend::Sqlite | Backend::Postgres => {
-            panic!(
-                "{} is not an analytical mutation backend",
-                target.backend.name()
-            )
-        }
     };
     DmlStatement {
         operation,

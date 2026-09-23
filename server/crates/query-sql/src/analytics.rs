@@ -625,9 +625,6 @@ pub fn feed_spans(params: &FeedSpansParams, backend: Backend) -> ParameterizedQu
             ClickhouseAnalyticsDialect.span_page_relation().to_string(),
             Vec::new(),
         ),
-        (Backend::Sqlite | Backend::Postgres, _) => {
-            panic!("{} is not an analytics query backend", backend.name())
-        }
     };
     let mut conditions = vec!["project_id = ?".to_string()];
     values.push(QueryValue::String(params.project_id.to_string()));
@@ -636,7 +633,6 @@ pub fn feed_spans(params: &FeedSpansParams, backend: Backend) -> ParameterizedQu
         let ingested = match backend {
             Backend::Duckdb => "EPOCH_US(ingested_at)",
             Backend::Clickhouse => "toInt64(toUnixTimestamp64Micro(ingested_at))",
-            Backend::Sqlite | Backend::Postgres => unreachable!(),
         };
         conditions.push(format!("({ingested}, span_id, trace_id) < (?, ?, ?)"));
         values.push(QueryValue::Int64(*cursor_time_us));
@@ -699,7 +695,6 @@ fn filter_option_value(expression: &str, backend: Backend) -> String {
     match backend {
         Backend::Duckdb => expression.to_string(),
         Backend::Clickhouse => format!("toNullable({expression})"),
-        Backend::Sqlite | Backend::Postgres => unreachable!(),
     }
 }
 
@@ -744,7 +739,6 @@ pub fn trace_filter_options(
                 let flavor = match backend {
                     Backend::Duckdb => crate::display::DisplayNameDialect::DuckDb,
                     Backend::Clickhouse => crate::display::DisplayNameDialect::ClickHouse,
-                    Backend::Sqlite | Backend::Postgres => unreachable!(),
                 };
                 let display_name = crate::display::trace_display_name("s", flavor);
                 let value = filter_option_value(&display_name, backend);
@@ -812,7 +806,6 @@ pub fn trace_tag_options(
              GROUP BY value ORDER BY count DESC \
              LIMIT {QUERY_MAX_FILTER_SUGGESTIONS}"
         ),
-        Backend::Sqlite | Backend::Postgres => unreachable!(),
     };
     ParameterizedQuery {
         sql,
@@ -908,9 +901,6 @@ pub fn list_traces(params: &ListTracesParams, backend: Backend) -> PageQuery {
     match backend {
         Backend::Duckdb => duckdb_trace_page(params),
         Backend::Clickhouse => clickhouse_trace_page(params),
-        Backend::Sqlite | Backend::Postgres => {
-            panic!("{} is not an analytics query backend", backend.name())
-        }
     }
 }
 
@@ -927,7 +917,6 @@ pub fn trace_session_pairs(
     let session = match backend {
         Backend::Duckdb => "arg_min(session_id, (timestamp_start, span_id))",
         Backend::Clickhouse => "argMin(assumeNotNull(session_id), (timestamp_start, span_id))",
-        Backend::Sqlite | Backend::Postgres => unreachable!(),
     };
     if backend == Backend::Duckdb {
         let watermark = as_of_us
@@ -982,7 +971,6 @@ pub fn session_ids_for_traces(
     let session = match backend {
         Backend::Duckdb => "arg_min(session_id, (timestamp_start, span_id))",
         Backend::Clickhouse => "argMin(assumeNotNull(session_id), (timestamp_start, span_id))",
-        Backend::Sqlite | Backend::Postgres => unreachable!(),
     };
     Some(ParameterizedQuery {
         sql: format!(
@@ -1014,7 +1002,6 @@ pub fn trace_ids_for_sessions(
     let session = match backend {
         Backend::Duckdb => "arg_min(session_id, (timestamp_start, span_id))",
         Backend::Clickhouse => "argMin(assumeNotNull(session_id), (timestamp_start, span_id))",
-        Backend::Sqlite | Backend::Postgres => unreachable!(),
     };
     Some(ParameterizedQuery {
         sql: format!(
@@ -1051,9 +1038,6 @@ fn membership_source(as_of_us: Option<i64>, backend: Backend) -> (String, Vec<Qu
             vec![QueryValue::Int64(us)],
         ),
         (Backend::Clickhouse, None) => ("otel_spans FINAL".to_string(), Vec::new()),
-        (Backend::Sqlite | Backend::Postgres, _) => {
-            panic!("{} is not an analytics query backend", backend.name())
-        }
     }
 }
 
@@ -1076,7 +1060,6 @@ pub fn span_counts_bulk(
             "coalesce(JSONLength(raw_span, 'events'), 0)",
             "coalesce(JSONLength(raw_span, 'links'), 0)",
         ),
-        Backend::Sqlite | Backend::Postgres => unreachable!(),
     };
     let identities = std::iter::repeat_n("(?, ?)", spans.len())
         .collect::<Vec<_>>()
@@ -1125,7 +1108,6 @@ pub fn file_reference_fields(
             "coalesce(messages, ''), coalesce(tool_definitions, ''), \
              coalesce(raw_span, ''), coalesce(metadata, '')"
         }
-        Backend::Sqlite | Backend::Postgres => unreachable!(),
     };
     trace_identity_read(
         project_id,
@@ -1148,7 +1130,6 @@ pub fn span_body_fields(
             "trace_id, span_id, coalesce(messages, ''), coalesce(tool_definitions, ''), \
              coalesce(tool_names, ''), coalesce(raw_span, '')"
         }
-        Backend::Sqlite | Backend::Postgres => unreachable!(),
     };
     trace_identity_read(
         project_id,
@@ -1172,7 +1153,6 @@ pub fn span_body_backfill_page(
             "trace_id, span_id, coalesce(messages, ''), coalesce(tool_definitions, ''), \
              coalesce(tool_names, ''), coalesce(raw_span, '')"
         }
-        Backend::Sqlite | Backend::Postgres => unreachable!(),
     };
     let mut params = vec![QueryValue::String(project_id.to_string())];
     let cursor = if let Some((trace_id, span_id)) = after {
@@ -1270,9 +1250,6 @@ pub fn project_row_count(
                 },
             }
         }
-        Backend::Sqlite | Backend::Postgres => {
-            panic!("{} is not an analytics query backend", backend.name())
-        }
     }
 }
 
@@ -1293,7 +1270,6 @@ pub fn project_logical_bytes(
             values.push(match backend {
                 Backend::Duckdb => QueryValue::String(held_at.to_rfc3339()),
                 Backend::Clickhouse => QueryValue::Int64(held_at.timestamp_micros()),
-                Backend::Sqlite | Backend::Postgres => unreachable!(),
             });
         }
         values
@@ -1306,7 +1282,6 @@ pub fn project_logical_bytes(
             Backend::Clickhouse => format!(
                 "SELECT toUInt64(sum(logical_bytes)) FROM {relation} FINAL WHERE {predicate}"
             ),
-            Backend::Sqlite | Backend::Postgres => unreachable!(),
         },
         params: params(),
     };
@@ -1315,7 +1290,6 @@ pub fn project_logical_bytes(
              PARTITION BY project_id, trace_id, span_id \
              ORDER BY ingested_at DESC, rowid DESC) = 1)"),
         Backend::Clickhouse => sum("otel_spans"),
-        Backend::Sqlite | Backend::Postgres => unreachable!(),
     };
     ProjectLogicalBytesPlan {
         spans,
@@ -1339,14 +1313,10 @@ pub fn oldest_reclaimable_spans(
              ORDER BY ingested_at DESC, rowid DESC) = 1)"
         }
         Backend::Clickhouse => "otel_spans FINAL",
-        Backend::Sqlite | Backend::Postgres => {
-            panic!("{} is not an analytics query backend", backend.name())
-        }
     };
     let now = match backend {
         Backend::Duckdb => QueryValue::String(now.to_rfc3339()),
         Backend::Clickhouse => QueryValue::Int64(now.timestamp_micros()),
-        Backend::Sqlite | Backend::Postgres => unreachable!(),
     };
     ParameterizedQuery::new(
         format!(
@@ -1381,9 +1351,6 @@ pub fn max_ingested_at_us(project_id: &str, backend: Backend) -> ParameterizedQu
     let expression = match backend {
         Backend::Duckdb => "MAX(EPOCH_US(ingested_at))",
         Backend::Clickhouse => "max(toInt64(toUnixTimestamp64Micro(ingested_at)))",
-        Backend::Sqlite | Backend::Postgres => {
-            panic!("{} is not an analytics query backend", backend.name())
-        }
     };
     ParameterizedQuery::new(
         format!(
@@ -1399,9 +1366,6 @@ pub fn analytics_project_ids(backend: Backend, limit: usize) -> ParameterizedQue
     let (spans, metrics, logs) = match backend {
         Backend::Duckdb => ("otel_spans", "otel_metrics", "otel_logs"),
         Backend::Clickhouse => ("otel_spans FINAL", "otel_metrics FINAL", "otel_logs FINAL"),
-        Backend::Sqlite | Backend::Postgres => {
-            panic!("{} is not an analytics query backend", backend.name())
-        }
     };
     ParameterizedQuery::new(
         format!(
@@ -1435,9 +1399,6 @@ pub fn span_counts_by_project(
              WHERE project_id IN ({}) GROUP BY project_id",
             placeholders(project_ids.len())
         ),
-        Backend::Sqlite | Backend::Postgres => {
-            panic!("{} is not an analytics query backend", backend.name())
-        }
     };
     Some(ParameterizedQuery {
         sql,
@@ -1501,9 +1462,6 @@ pub fn events_for_span(
                AND JSONLength(raw_span, 'events') > 0 \
              ORDER BY event_index LIMIT {QUERY_MAX_SPANS_PER_TRACE}"
         ),
-        Backend::Sqlite | Backend::Postgres => {
-            panic!("{} is not an analytics query backend", backend.name())
-        }
     };
     point_span_json_query(sql, project_id, trace_id, span_id)
 }
@@ -1542,9 +1500,6 @@ pub fn links_for_span(
                AND JSONLength(raw_span, 'links') > 0 \
              LIMIT {QUERY_MAX_SPANS_PER_TRACE}"
         ),
-        Backend::Sqlite | Backend::Postgres => {
-            panic!("{} is not an analytics query backend", backend.name())
-        }
     };
     point_span_json_query(sql, project_id, trace_id, span_id)
 }
@@ -1601,14 +1556,10 @@ pub fn trace_by_id(project_id: &str, trace_id: &str, backend: Backend) -> Parame
             clickhouse_gen_totals_cte(Some("g.trace_id"), "g.project_id = ? AND g.trace_id = ?"),
             clickhouse_trace_projection(),
         ),
-        Backend::Sqlite | Backend::Postgres => {
-            panic!("{} is not an analytics query backend", backend.name())
-        }
     };
     let pairs = match backend {
         Backend::Duckdb => 2,
         Backend::Clickhouse => 3,
-        Backend::Sqlite | Backend::Postgres => unreachable!(),
     };
     let mut params = Vec::with_capacity(pairs * 2);
     for _ in 0..pairs {
@@ -1671,9 +1622,6 @@ pub fn traces_for_session(
             ),
             clickhouse_trace_projection(),
         ),
-        Backend::Sqlite | Backend::Postgres => {
-            panic!("{} is not an analytics query backend", backend.name())
-        }
     };
     let mut params = dialect.traces_of_session_values(project_id, session_id);
     if backend == Backend::Clickhouse {
@@ -1742,7 +1690,6 @@ pub fn session_by_id(project_id: &str, session_id: &str, backend: Backend) -> Pa
                  max(coalesce(s.timestamp_end, s.timestamp_start))))",
                 "countIf(s.observation_type != 'span')",
             ),
-            Backend::Sqlite | Backend::Postgres => unreachable!(),
         };
     let prefix = match backend {
         Backend::Duckdb => format!(
@@ -1763,7 +1710,6 @@ pub fn session_by_id(project_id: &str, session_id: &str, backend: Backend) -> Pa
                 clickhouse_dedup_lookup("trace_id IN (SELECT trace_id FROM session_traces)"),
             )
         }
-        Backend::Sqlite | Backend::Postgres => unreachable!(),
     };
     let sql = format!(
         "{prefix} \
@@ -1800,9 +1746,6 @@ pub fn list_sessions(params: &ListSessionsParams, backend: Backend) -> PageQuery
     match backend {
         Backend::Duckdb => duckdb_session_page(params),
         Backend::Clickhouse => clickhouse_session_page(params),
-        Backend::Sqlite | Backend::Postgres => {
-            panic!("{} is not an analytics query backend", backend.name())
-        }
     }
 }
 
@@ -2000,7 +1943,6 @@ fn session_count_query(params: &ListSessionsParams, backend: Backend) -> Paramet
     let count = match backend {
         Backend::Duckdb => "COUNT",
         Backend::Clickhouse => "count",
-        Backend::Sqlite | Backend::Postgres => unreachable!(),
     };
     ParameterizedQuery {
         sql: format!(
@@ -2070,7 +2012,6 @@ fn session_projection(backend: Backend) -> String {
     countIf(s.observation_type != 'span') AS observation_count,
 {totals}"#
         ),
-        Backend::Sqlite | Backend::Postgres => unreachable!(),
     }
 }
 
@@ -2390,13 +2331,11 @@ fn trace_aggregate_expression(column: &str, backend: Backend) -> Option<String> 
     let display_dialect = match backend {
         Backend::Duckdb => crate::display::DisplayNameDialect::DuckDb,
         Backend::Clickhouse => crate::display::DisplayNameDialect::ClickHouse,
-        Backend::Sqlite | Backend::Postgres => return None,
     };
     let totals = |column: &str| {
         let aggregate = match backend {
             Backend::Duckdb => "MAX",
             Backend::Clickhouse => "max",
-            Backend::Sqlite | Backend::Postgres => unreachable!(),
         };
         Some(format!("COALESCE({aggregate}(gtf.{column}), 0)"))
     };
@@ -2410,12 +2349,10 @@ fn trace_aggregate_expression(column: &str, backend: Backend) -> Option<String> 
         "start_time" => Some(match backend {
             Backend::Duckdb => "MIN(n.timestamp_start)".to_string(),
             Backend::Clickhouse => "min(n.timestamp_start)".to_string(),
-            _ => unreachable!(),
         }),
         "end_time" => Some(match backend {
             Backend::Duckdb => "MAX(COALESCE(n.timestamp_end, n.timestamp_start))".to_string(),
             Backend::Clickhouse => "max(coalesce(n.timestamp_end, n.timestamp_start))".to_string(),
-            _ => unreachable!(),
         }),
         "duration_ms" => Some(match backend {
             Backend::Duckdb => "DATE_DIFF('millisecond', MIN(n.timestamp_start), \
@@ -2424,7 +2361,6 @@ fn trace_aggregate_expression(column: &str, backend: Backend) -> Option<String> 
             Backend::Clickhouse => "dateDiff('millisecond', min(n.timestamp_start), \
                  max(coalesce(n.timestamp_end, n.timestamp_start)))"
                 .to_string(),
-            _ => unreachable!(),
         }),
         "input_tokens" | "output_tokens" | "total_tokens" | "cache_read_tokens"
         | "cache_write_tokens" | "reasoning_tokens" | "input_cost" | "output_cost"
@@ -2484,7 +2420,6 @@ fn trace_totals_context(
                 values,
             )
         }
-        Backend::Sqlite | Backend::Postgres => unreachable!(),
     }
 }
 
@@ -3053,9 +2988,6 @@ fn analytics_dialect(backend: Backend) -> &'static dyn AnalyticsDialect {
     match backend {
         Backend::Duckdb => &DuckdbAnalyticsDialect,
         Backend::Clickhouse => &ClickhouseAnalyticsDialect,
-        Backend::Sqlite | Backend::Postgres => {
-            panic!("{} is not an analytics query backend", backend.name())
-        }
     }
 }
 
@@ -3921,7 +3853,6 @@ mod tests {
                         );
                         assert!(matches!(query.params().get(1), Some(QueryValue::Int64(_))));
                     }
-                    Backend::Sqlite | Backend::Postgres => unreachable!(),
                 }
             }
 
@@ -4167,7 +4098,6 @@ mod tests {
                         assert_eq!(query.params().first(), Some(&QueryValue::Int64(123)));
                     }
                 }
-                Backend::Sqlite | Backend::Postgres => unreachable!(),
             }
             for query in [&sessions, &traces] {
                 assert_eq!(
@@ -4195,7 +4125,6 @@ mod tests {
             match backend {
                 Backend::Duckdb => assert!(reverse.sql().contains("ROW_NUMBER()")),
                 Backend::Clickhouse => assert!(reverse.sql().contains("FINAL")),
-                Backend::Sqlite | Backend::Postgres => unreachable!(),
             }
         }
     }
@@ -4221,7 +4150,6 @@ mod tests {
                     assert!(query.sql().contains("FROM otel_spans FINAL"));
                     assert!(query.sql().contains("JSONLength"));
                 }
-                Backend::Sqlite | Backend::Postgres => unreachable!(),
             }
         }
     }
@@ -4244,7 +4172,6 @@ mod tests {
                     assert!(alive.sql().contains("FROM otel_spans FINAL"));
                     assert!(fields.sql().contains("coalesce(messages, '')"));
                 }
-                Backend::Sqlite | Backend::Postgres => unreachable!(),
             }
         }
     }
@@ -4296,7 +4223,6 @@ mod tests {
             match backend {
                 Backend::Duckdb => assert!(query.sql().contains("QUALIFY ROW_NUMBER()")),
                 Backend::Clickhouse => assert!(query.sql().contains("FROM otel_spans FINAL")),
-                Backend::Sqlite | Backend::Postgres => unreachable!(),
             }
         }
     }
@@ -4324,7 +4250,6 @@ mod tests {
                     assert!(events.sql().contains("FROM otel_spans FINAL"));
                     assert!(links.sql().contains("JSONLength(raw_span, 'links')"));
                 }
-                Backend::Sqlite | Backend::Postgres => unreachable!(),
             }
         }
     }
@@ -4351,7 +4276,6 @@ mod tests {
                     assert!(query.sql().contains("dedup_lookup AS"));
                     assert!(query.sql().contains("NOT IN"));
                 }
-                Backend::Sqlite | Backend::Postgres => unreachable!(),
             }
         }
     }
@@ -4373,7 +4297,6 @@ mod tests {
                     assert_eq!(query.params().len(), 7);
                     assert!(query.sql().contains("dedup_lookup AS"));
                 }
-                Backend::Sqlite | Backend::Postgres => unreachable!(),
             }
         }
     }
@@ -4395,7 +4318,6 @@ mod tests {
                     assert_eq!(query.params().len(), 8);
                     assert!(query.sql().contains("dedup_lookup AS"));
                 }
-                Backend::Sqlite | Backend::Postgres => unreachable!(),
             }
         }
     }
@@ -4413,7 +4335,6 @@ mod tests {
             match backend {
                 Backend::Duckdb => assert!(query.sql().contains("QUALIFY ROW_NUMBER()")),
                 Backend::Clickhouse => assert!(query.sql().contains("otel_spans FINAL")),
-                Backend::Sqlite | Backend::Postgres => unreachable!(),
             }
         }
     }

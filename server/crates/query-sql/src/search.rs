@@ -63,7 +63,6 @@ pub fn candidates(request: &SearchQuery, backend: Backend) -> SearchCandidatePla
     let state = match backend {
         Backend::Duckdb => format!("CAST(({}) AS SMALLINT)", lowered.sql),
         Backend::Clickhouse => format!("toInt16(({}))", lowered.sql),
-        Backend::Sqlite | Backend::Postgres => unreachable!(),
     };
     let sql = format!(
         "WITH winners AS ({winners}), scored AS (\
@@ -99,7 +98,6 @@ pub fn watermark(request: &SearchQuery, backend: Backend) -> ParameterizedQuery 
         Backend::Clickhouse => {
             "ifNull(max(toInt64(toUnixTimestamp64Micro(r.ingested_at))), toInt64(0))"
         }
-        Backend::Sqlite | Backend::Postgres => unreachable!(),
     };
     ParameterizedQuery::new(
         format!(
@@ -173,7 +171,6 @@ pub fn arrivals(
     let count = match backend {
         Backend::Duckdb => "COUNT(*) > 0",
         Backend::Clickhouse => "count() > 0",
-        Backend::Sqlite | Backend::Postgres => unreachable!(),
     };
     ParameterizedQuery::new(
         format!(
@@ -256,7 +253,6 @@ fn field_leaf(shape: Shape, field: SearchField, terms: &[String], phrase: bool) 
     match shape.backend {
         Backend::Duckdb => duckdb_field_leaf(shape, field, terms, phrase),
         Backend::Clickhouse => clickhouse_field_leaf(field, terms, phrase),
-        Backend::Sqlite | Backend::Postgres => unreachable!(),
     }
 }
 
@@ -432,7 +428,6 @@ impl Shape {
             (SearchSignal::Logs, Backend::Clickhouse) => {
                 "SELECT * FROM otel_logs FINAL WHERE project_id = ?"
             }
-            (_, Backend::Sqlite | Backend::Postgres) => unreachable!(),
         }
     }
 
@@ -483,7 +478,6 @@ impl Shape {
         match self.backend {
             Backend::Duckdb => format!("EPOCH_US({column})"),
             Backend::Clickhouse => format!("toInt64(toUnixTimestamp64Micro({column}))"),
-            Backend::Sqlite | Backend::Postgres => unreachable!(),
         }
     }
 
@@ -493,7 +487,6 @@ impl Shape {
             Backend::Clickhouse => {
                 format!("toInt64(toUnixTimestamp64Micro({alias}.ingested_at))")
             }
-            Backend::Sqlite | Backend::Postgres => unreachable!(),
         }
     }
 
@@ -552,7 +545,6 @@ impl Shape {
                 })
                 .collect::<Vec<_>>()
                 .join(" OR "),
-            Backend::Sqlite | Backend::Postgres => unreachable!(),
         }
     }
 
@@ -563,7 +555,6 @@ impl Shape {
                 "CASE WHEN ({}) THEN 0 ELSE 1 END",
                 self.unindexed_predicate()
             ),
-            Backend::Sqlite | Backend::Postgres => unreachable!(),
         }
     }
 

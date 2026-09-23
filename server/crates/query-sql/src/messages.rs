@@ -84,9 +84,6 @@ fn message_projection(backend: Backend) -> &'static str {
     toFloat64(gen_ai_cost_input) AS cost_input,
     toFloat64(gen_ai_cost_output) AS cost_output"#
         }
-        Backend::Sqlite | Backend::Postgres => {
-            panic!("{} is not an analytics query backend", backend.name())
-        }
     }
 }
 
@@ -114,9 +111,6 @@ fn winner_source(backend: Backend, watermark: Option<i64>) -> (String, Vec<Query
             vec![QueryValue::Int64(watermark)],
         ),
         (Backend::Clickhouse, None) => ("(SELECT * FROM otel_spans FINAL)".to_string(), Vec::new()),
-        (Backend::Sqlite | Backend::Postgres, _) => {
-            panic!("{} is not an analytics query backend", backend.name())
-        }
     }
 }
 
@@ -135,7 +129,6 @@ fn timestamp_condition(
             format!("{column} {operator} fromUnixTimestamp64Micro(?)"),
             QueryValue::Int64(value.timestamp_micros()),
         ),
-        Backend::Sqlite | Backend::Postgres => unreachable!(),
     }
 }
 
@@ -209,7 +202,6 @@ fn traces_of_session(
                 values,
             )
         }
-        Backend::Sqlite | Backend::Postgres => unreachable!(),
     }
 }
 
@@ -301,7 +293,6 @@ pub fn get_project_messages(params: &FeedMessagesParams, backend: Backend) -> Pa
         let ingested = match backend {
             Backend::Duckdb => "EPOCH_US(ingested_at)",
             Backend::Clickhouse => "toInt64(toUnixTimestamp64Micro(ingested_at))",
-            Backend::Sqlite | Backend::Postgres => unreachable!(),
         };
         conditions.push(format!("({ingested}, span_id, trace_id) < (?, ?, ?)"));
         values.push(QueryValue::Int64(*cursor_time_us));

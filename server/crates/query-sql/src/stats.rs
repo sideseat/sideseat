@@ -68,17 +68,14 @@ fn main_aggregation(params: &StatsParams, backend: Backend) -> ParameterizedQuer
     let count_distinct = match backend {
         Backend::Duckdb => "COUNT(DISTINCT s.trace_id)",
         Backend::Clickhouse => "count(DISTINCT s.trace_id)",
-        Backend::Sqlite | Backend::Postgres => unreachable!(),
     };
     let count_spans = match backend {
         Backend::Duckdb => "COUNT(*)",
         Backend::Clickhouse => "count()",
-        Backend::Sqlite | Backend::Postgres => unreachable!(),
     };
     let unique_users = match backend {
         Backend::Duckdb => "COUNT(DISTINCT s.user_id) FILTER (WHERE s.user_id IS NOT NULL)",
         Backend::Clickhouse => "countIf(DISTINCT s.user_id, s.user_id IS NOT NULL)",
-        Backend::Sqlite | Backend::Postgres => unreachable!(),
     };
     let sums = token_sums(backend);
     let costs = cost_projection(backend, "ga");
@@ -127,12 +124,10 @@ fn canonical_session_count(params: &StatsParams, backend: Backend) -> Parameteri
         Backend::Clickhouse => {
             "argMin(assumeNotNull(raw.session_id), (raw.timestamp_start, raw.span_id))"
         }
-        Backend::Sqlite | Backend::Postgres => unreachable!(),
     };
     let count = match backend {
         Backend::Duckdb => "COUNT(DISTINCT c.session_id)",
         Backend::Clickhouse => "count(DISTINCT c.session_id)",
-        Backend::Sqlite | Backend::Postgres => unreachable!(),
     };
     let mut values = vec![QueryValue::String(params.project_id.to_string())];
     values.extend(window_values(params, backend));
@@ -175,7 +170,6 @@ fn trace_count(
     let count = match backend {
         Backend::Duckdb => "COUNT(DISTINCT trace_id)",
         Backend::Clickhouse => "count(DISTINCT trace_id)",
-        Backend::Sqlite | Backend::Postgres => unreachable!(),
     };
     ParameterizedQuery::new(
         format!(
@@ -200,17 +194,14 @@ fn average_trace_duration(params: &StatsParams, backend: Backend) -> Parameteriz
     let min = match backend {
         Backend::Duckdb => "MIN(timestamp_start)",
         Backend::Clickhouse => "min(timestamp_start)",
-        Backend::Sqlite | Backend::Postgres => unreachable!(),
     };
     let max = match backend {
         Backend::Duckdb => "MAX(COALESCE(timestamp_end, timestamp_start))",
         Backend::Clickhouse => "max(coalesce(timestamp_end, timestamp_start))",
-        Backend::Sqlite | Backend::Postgres => unreachable!(),
     };
     let average = match backend {
         Backend::Duckdb => "AVG(DATE_DIFF('millisecond', min_ts, max_ts))::DOUBLE",
         Backend::Clickhouse => "avg(dateDiff('millisecond', min_ts, max_ts))",
-        Backend::Sqlite | Backend::Postgres => unreachable!(),
     };
 
     ParameterizedQuery::new(
@@ -237,12 +228,10 @@ fn framework_breakdown(params: &StatsParams, backend: Backend) -> ParameterizedQ
     let count = match backend {
         Backend::Duckdb => "COUNT(DISTINCT trace_id)",
         Backend::Clickhouse => "count(DISTINCT trace_id)",
-        Backend::Sqlite | Backend::Postgres => unreachable!(),
     };
     let round = match backend {
         Backend::Duckdb => "ROUND",
         Backend::Clickhouse => "round",
-        Backend::Sqlite | Backend::Postgres => unreachable!(),
     };
     let mut values = window_values(params, backend);
     values.extend(window_values(params, backend));
@@ -293,17 +282,14 @@ fn model_breakdown(params: &StatsParams, backend: Backend) -> ParameterizedQuery
     let token_sum = match backend {
         Backend::Duckdb => "COALESCE(SUM(gen_ai_usage_total_tokens), 0)",
         Backend::Clickhouse => "sum(gen_ai_usage_total_tokens)",
-        Backend::Sqlite | Backend::Postgres => unreachable!(),
     };
     let cost_sum = match backend {
         Backend::Duckdb => "ROUND(COALESCE(SUM(gen_ai_cost_total), 0)::DOUBLE, 4)",
         Backend::Clickhouse => "round(sum(toFloat64(gen_ai_cost_total)), 4)",
-        Backend::Sqlite | Backend::Postgres => unreachable!(),
     };
     let round = match backend {
         Backend::Duckdb => "ROUND",
         Backend::Clickhouse => "round",
-        Backend::Sqlite | Backend::Postgres => unreachable!(),
     };
     let lookup_prefix = optional_with_prefix(&lookup);
 
@@ -362,7 +348,6 @@ fn token_trend(
     let sum = match backend {
         Backend::Duckdb => "COALESCE(SUM(gr.total_tokens), 0)::BIGINT",
         Backend::Clickhouse => "sum(gr.total_tokens)",
-        Backend::Sqlite | Backend::Postgres => unreachable!(),
     };
     let bucket_value = bucket_micros("ab.bucket", backend);
 
@@ -418,17 +403,14 @@ fn latency_trend(
     let min = match backend {
         Backend::Duckdb => "MIN(timestamp_start)",
         Backend::Clickhouse => "min(timestamp_start)",
-        Backend::Sqlite | Backend::Postgres => unreachable!(),
     };
     let max = match backend {
         Backend::Duckdb => "MAX(COALESCE(timestamp_end, timestamp_start))",
         Backend::Clickhouse => "max(coalesce(timestamp_end, timestamp_start))",
-        Backend::Sqlite | Backend::Postgres => unreachable!(),
     };
     let average = match backend {
         Backend::Duckdb => "AVG(DATE_DIFF('millisecond', t.min_ts, t.max_ts))::DOUBLE",
         Backend::Clickhouse => "avg(dateDiff('millisecond', t.min_ts, t.max_ts))",
-        Backend::Sqlite | Backend::Postgres => unreachable!(),
     };
     let bucket_value = bucket_micros("ab.bucket", backend);
 
@@ -478,7 +460,6 @@ fn winning_spans(backend: Backend) -> String {
             ORDER BY ingested_at DESC, rowid DESC) = 1)"
             .to_string(),
         Backend::Clickhouse => "(SELECT * FROM otel_spans FINAL)".to_string(),
-        Backend::Sqlite | Backend::Postgres => unreachable!(),
     }
 }
 
@@ -486,7 +467,6 @@ fn timestamp_predicate(column: &str, operator: &str, backend: Backend) -> String
     match backend {
         Backend::Duckdb => format!("{column} {operator} ?"),
         Backend::Clickhouse => format!("{column} {operator} fromUnixTimestamp64Micro(?)"),
-        Backend::Sqlite | Backend::Postgres => unreachable!(),
     }
 }
 
@@ -494,7 +474,6 @@ fn timestamp_value(value: DateTime<Utc>, backend: Backend) -> QueryValue {
     match backend {
         Backend::Duckdb => QueryValue::String(value.to_rfc3339()),
         Backend::Clickhouse => QueryValue::Int64(value.timestamp_micros()),
-        Backend::Sqlite | Backend::Postgres => unreachable!(),
     }
 }
 
@@ -537,7 +516,6 @@ fn token_lookup(params: &StatsParams, backend: Backend) -> (String, Vec<QueryVal
                 timestamp_value(params.to_timestamp, backend),
             ],
         ),
-        Backend::Sqlite | Backend::Postgres => unreachable!(),
     }
 }
 
@@ -601,7 +579,6 @@ fn token_dedup_condition(backend: Backend, duck_source: &str) -> String {
 )"#,
             tokenful = tokenful("g"),
         ),
-        Backend::Sqlite | Backend::Postgres => unreachable!(),
     }
 }
 
@@ -618,7 +595,6 @@ fn token_sums(backend: Backend) -> String {
     let cost = |column: &str| match backend {
         Backend::Duckdb => format!("COALESCE(SUM({column}), 0)"),
         Backend::Clickhouse => format!("COALESCE(SUM(toFloat64({column})), 0)"),
-        Backend::Sqlite | Backend::Postgres => unreachable!(),
     };
     format!(
         r#"COALESCE(SUM(gen_ai_usage_input_tokens), 0) AS input_tokens,
@@ -646,7 +622,6 @@ fn cost_projection(backend: Backend, alias: &str) -> String {
     let expression = |column: &str| match backend {
         Backend::Duckdb => format!("ROUND(COALESCE(MAX({alias}.{column}), 0)::DOUBLE, 4)"),
         Backend::Clickhouse => format!("round(COALESCE(MAX({alias}.{column}), 0), 4)"),
-        Backend::Sqlite | Backend::Postgres => unreachable!(),
     };
     format!(
         r#"{} AS input_cost,
@@ -695,7 +670,6 @@ fn bucket_relation(buckets: &[BucketWindow], backend: Backend) -> (String, Vec<Q
             "SELECT fromUnixTimestamp64Micro(?) AS bucket, \
              fromUnixTimestamp64Micro(?) AS bucket_end"
         }
-        Backend::Sqlite | Backend::Postgres => unreachable!(),
     };
     let mut values = Vec::with_capacity(buckets.len() * 2);
     for bucket in buckets {
@@ -712,7 +686,6 @@ fn bucket_micros(column: &str, backend: Backend) -> String {
     match backend {
         Backend::Duckdb => format!("EPOCH_US({column})"),
         Backend::Clickhouse => format!("toInt64(toUnixTimestamp64Micro({column}))"),
-        Backend::Sqlite | Backend::Postgres => unreachable!(),
     }
 }
 
@@ -804,7 +777,6 @@ mod tests {
                             "ClickHouse requires aliases before FINAL; winner relations use subqueries"
                         );
                     }
-                    Backend::Sqlite | Backend::Postgres => unreachable!(),
                 }
             }
         }
