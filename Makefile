@@ -38,10 +38,14 @@ NOTARY_PROFILE  ?= sideseat-notarize
 SHA256CMD       := $(if $(filter Darwin,$(UNAME_S)),shasum -a 256,sha256sum)
 
 # Local build storage
+CARGO_TARGET_DIR ?= target
+override CARGO_TARGET_DIR := $(abspath $(CARGO_TARGET_DIR))
+export CARGO_TARGET_DIR
+
 DISK_BUDGET_MB   ?= 12000
 DISK_FREE_MIN_MB ?= 10000
 
-# Run finite commands that can grow target/ with checks before and after them.
+# Run finite commands that can grow the Cargo target directory with checks before and after them.
 define run-with-disk-guard
 @$(MAKE) --no-print-directory disk-guard
 @command_status=0; guard_status=0; \
@@ -494,7 +498,7 @@ build-web: ## Build the web application
 build-server: build-web ## Build the server
 	@echo "[build-server] Building backend..."
 	$(call run-with-disk-guard,cd $(SERVER_DIR) && cargo build --locked --release)
-	@echo "[build-server] Binary: target/release/sideseat"
+	@echo "[build-server] Binary: $(CARGO_TARGET_DIR)/release/sideseat"
 
 # =============================================================================
 # Build -- SDKs
@@ -523,7 +527,7 @@ define MAKE_CLI_TARGET
 build-cli-$(1): build-web
 	@echo "[build-cli] $(1) ($(BUILD_CMD_$(1)))..."
 	$$(call run-with-disk-guard,cd $$(SERVER_DIR) && $(BUILD_CMD_$(1)) --locked --release --target $(RUST_TARGET_$(1)))
-	@cp target/$(RUST_TARGET_$(1))/release/$(BIN_NAME_$(1)) $$(call cli-bin,$(1))
+	@cp "$$(CARGO_TARGET_DIR)/$(RUST_TARGET_$(1))/release/$(BIN_NAME_$(1))" "$$(call cli-bin,$(1))"
 	@chmod +x $$(call cli-bin,$(1)) 2>/dev/null || true
 endef
 $(foreach p,$(PLATFORMS),$(eval $(call MAKE_CLI_TARGET,$(p))))
@@ -980,7 +984,7 @@ disk: ## Report and enforce the local disk budget
 	@echo "[disk] Free space:"
 	@df -h . | tail -1
 	@echo "[disk] Largest local directories:"
-	@du -sh target $(WEB_DIR)/node_modules docs/node_modules .sideseat 2>/dev/null | sort -rh || true
+	@du -sh "$(CARGO_TARGET_DIR)" $(WEB_DIR)/node_modules docs/node_modules .sideseat 2>/dev/null | sort -rh || true
 	@command -v docker >/dev/null 2>&1 && { echo "[disk] Docker:"; docker system df; } || true
 	@# VM images are sparse: du reports host blocks while ls reports virtual capacity.
 	@echo "[disk] Container VM disk images (sparse; pruning inside the VM does not shrink these):"
@@ -999,16 +1003,16 @@ disk: ## Report and enforce the local disk budget
 	} || true
 	@command -v colima >/dev/null 2>&1 && [ "$$(docker context show 2>/dev/null)" = "colima" ] && \
 		echo "[disk] After pruning Colima, return sparse blocks to macOS: colima ssh -- sudo fstrim -av" || true
-	@used=$$(du -sm target 2>/dev/null | awk '{print $$1}'); \
+	@used=$$(du -sm "$(CARGO_TARGET_DIR)" 2>/dev/null | awk '{print $$1}'); \
 	used=$${used:-0}; \
 	available=$$(df -Pm . | awk 'NR == 2 {print $$4}'); \
 	failed=0; \
 	if [ "$$used" -gt "$(DISK_BUDGET_MB)" ]; then \
-		echo "[disk] OVER BUDGET: target/ is $$used MB against a ceiling of $(DISK_BUDGET_MB) MB"; \
+		echo "[disk] OVER BUDGET: Cargo target is $$used MB against a ceiling of $(DISK_BUDGET_MB) MB"; \
 		echo "[disk] Reclaim: make clean-stale (keeps the current build) or make clean (cold rebuild)"; \
 		failed=1; \
 	else \
-		echo "[disk] target/ is $$used MB, within the $(DISK_BUDGET_MB) MB budget"; \
+		echo "[disk] Cargo target is $$used MB, within the $(DISK_BUDGET_MB) MB budget"; \
 	fi; \
 	if [ "$$available" -lt "$(DISK_FREE_MIN_MB)" ]; then \
 		echo "[disk] LOW SPACE: $$available MB free; reserve is $(DISK_FREE_MIN_MB) MB"; \
@@ -1020,18 +1024,18 @@ disk: ## Report and enforce the local disk budget
 
 # Finite Rust build and test recipes run this before and after their main command.
 disk-guard:
-	@used=$$(du -sm target 2>/dev/null | awk '{print $$1}'); \
+	@used=$$(du -sm "$(CARGO_TARGET_DIR)" 2>/dev/null | awk '{print $$1}'); \
 	used=$${used:-0}; \
 	available=$$(df -Pm . | awk 'NR == 2 {print $$4}'); \
 	if [ "$$used" -gt "$(DISK_BUDGET_MB)" ] || [ "$$available" -lt "$(DISK_FREE_MIN_MB)" ]; then \
 		echo "[disk-guard] target=$$used MB, free=$$available MB; reclaiming stale artifacts"; \
 		$(MAKE) --no-print-directory clean-stale; \
 	fi; \
-	used=$$(du -sm target 2>/dev/null | awk '{print $$1}'); \
+	used=$$(du -sm "$(CARGO_TARGET_DIR)" 2>/dev/null | awk '{print $$1}'); \
 	used=$${used:-0}; \
 	available=$$(df -Pm . | awk 'NR == 2 {print $$4}'); \
 	if [ "$$used" -gt "$(DISK_BUDGET_MB)" ]; then \
-		echo "[disk-guard] target/ remains $$used MB; limit is $(DISK_BUDGET_MB) MB"; \
+		echo "[disk-guard] Cargo target remains $$used MB; limit is $(DISK_BUDGET_MB) MB"; \
 		echo "[disk-guard] Run 'make clean' or raise DISK_BUDGET_MB."; \
 		exit 1; \
 	fi; \
@@ -1043,11 +1047,8 @@ disk-guard:
 
 clean: ## Remove all generated build artifacts
 	@echo "[clean] Removing build artifacts..."
-	@rm -rf target
-	@#  `dist` is simply removed. The server *embeds* it, so it has to exist to compile - and that is
-	@#  the API crate build script's job, on the next build. Writing a placeholder here as well gave the same
-	@#  artifact two owners with different content, and since the build script preserves any existing
-	@#  `index.html`, whichever ran last decided what a UI-less binary served.
+	@cargo clean
+	@# The API build script recreates a placeholder web/dist when the real UI is absent.
 	@rm -rf $(WEB_DIR)/dist
 	@rm -rf $(WEB_DIR)/node_modules/.vite
 	@rm -f $(CLI_DIR)/bin/sideseat-*
@@ -1055,7 +1056,7 @@ clean: ## Remove all generated build artifacts
 	@rm -rf sdk/js/dist
 	@rm -rf sdk/python/dist
 	@rm -rf $(RELEASE_DIR)
-	@echo "[clean] Done. target/ and web/dist are gone; the next Rust build is cold."
+	@echo "[clean] Done. Cargo artifacts and web/dist are gone; the next Rust build is cold."
 	@echo "[clean] The API crate recreates web/dist as a placeholder on the next build - run make build-web for the real UI."
 
 # Aliases

@@ -45,6 +45,11 @@ CURL_MAX_TIME="${BENCH_CURL_MAX_TIME:-30}"
 # 8-concurrent read is the deliberate concurrency measurement, and it keeps no gap.
 GAP_MS="${BENCH_GAP_MS:-25}"
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+CARGO_TARGET_DIR="${CARGO_TARGET_DIR:-$ROOT/target}"
+if [[ "$CARGO_TARGET_DIR" != /* ]]; then
+  CARGO_TARGET_DIR="$ROOT/$CARGO_TARGET_DIR"
+fi
+export CARGO_TARGET_DIR
 WORK="$(mktemp -d)"
 DOCKER_SCOPE="$(printf '%s' "$ROOT" | cksum | awk '{print $1}')"
 PG_NAME="sideseat-bench-pg-$DOCKER_SCOPE"
@@ -179,7 +184,7 @@ fi
   SIDESEAT_DATA_DIR="$WORK" SIDESEAT_SECRETS_BACKEND=file \
   SIDESEAT_PORT="$PORT" SIDESEAT_UI_PORT="$((PORT + 1))" \
   SIDESEAT_OTEL_GRPC_PORT="$((PORT + 2))" \
-  "$ROOT/target/release/sideseat" --no-auth > "$WORK/server.log" 2>&1) &
+  "$CARGO_TARGET_DIR/release/sideseat" --no-auth > "$WORK/server.log" 2>&1) &
 SERVER_PID=$!
 for _ in $(seq 1 60); do
   bench_curl -sf "http://127.0.0.1:$PORT/api/v1/health" >/dev/null && break

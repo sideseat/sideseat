@@ -66,6 +66,11 @@ REQUEST_TIMEOUT_SECS="${FOOTPRINT_REQUEST_TIMEOUT_SECS:-30}"
 SHUTDOWN_GRACE_SECS="${FOOTPRINT_SHUTDOWN_GRACE_SECS:-15}"
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+CARGO_TARGET_DIR="${CARGO_TARGET_DIR:-$ROOT/target}"
+if [[ "$CARGO_TARGET_DIR" != /* ]]; then
+  CARGO_TARGET_DIR="$ROOT/$CARGO_TARGET_DIR"
+fi
+export CARGO_TARGET_DIR
 WORK="$(mktemp -d)"
 SERVER_PID=""
 
@@ -185,7 +190,7 @@ echo "[footprint] starting server on :$PORT"
   SIDESEAT_DATA_DIR="$WORK" SIDESEAT_SECRETS_BACKEND=file \
   SIDESEAT_PORT="$PORT" SIDESEAT_UI_PORT="$((PORT + 1))" \
   SIDESEAT_OTEL_GRPC_PORT="$((PORT + 2))" \
-  "$ROOT/target/release/sideseat" --no-auth > "$WORK/server.log" 2>&1) &
+  "$CARGO_TARGET_DIR/release/sideseat" --no-auth > "$WORK/server.log" 2>&1) &
 SERVER_PID=$!
 for _ in $(seq 1 60); do
   curl_f "http://127.0.0.1:$PORT/api/v1/health" >/dev/null && break
