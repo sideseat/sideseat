@@ -334,6 +334,7 @@ export default function CredentialsPage() {
         onOpenChange={(open) => !open && setDeleteTarget(null)}
       />
       <ManageCredentialDialog
+        key={manageTarget?.id ?? "closed"}
         credential={manageTarget}
         orgId={orgId}
         onClose={() => setManageTarget(null)}

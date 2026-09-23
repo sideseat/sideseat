@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Trash2, Plus, CheckCircle, XCircle, Loader2 } from "lucide-react";
 
 import type { Credential, TestResult } from "@/api/credentials";
@@ -84,16 +84,6 @@ export function ManageCredentialDialog({
   const [endpointUrl, setEndpointUrl] = useState(credential?.endpoint_url ?? "");
   const { mutate: saveMutate, isPending: isSaving } = useUpdateCredential();
   const provider = credential ? getProvider(credential.provider_key) : undefined;
-
-  useEffect(() => {
-    if (credential) {
-      setDisplayName(credential.display_name);
-      setEndpointUrl(credential.endpoint_url ?? "");
-      setActiveTab("general");
-      setTestResult(null);
-      setIsTesting(false);
-    }
-  }, [credential]);
 
   const handleSave = () => {
     if (!credential) return;
