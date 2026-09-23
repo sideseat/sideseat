@@ -6,6 +6,11 @@
 /// - With MIME:    `#!B64!#image/png::abc123`
 /// - Without MIME: `#!B64!#::abc123`
 pub const FILE_URI_PREFIX: &str = "#!B64!#";
+pub const FILE_HASH_HEX_LENGTH: usize = 64;
+
+pub fn is_valid_file_hash(hash: &str) -> bool {
+    hash.len() == FILE_HASH_HEX_LENGTH && hash.bytes().all(|byte| byte.is_ascii_hexdigit())
+}
 
 /// Parsed components of a `#!B64!#` file URI.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -95,6 +100,17 @@ mod tests {
         assert!(parse_file_uri("").is_none());
         assert!(parse_file_uri("#!B64!#::").is_none());
         assert!(parse_file_uri("#!B64!#image/png::").is_none());
+    }
+
+    #[test]
+    fn storage_hashes_are_exactly_64_hex_characters() {
+        assert!(is_valid_file_hash(&"a".repeat(FILE_HASH_HEX_LENGTH)));
+        assert!(!is_valid_file_hash(&"a".repeat(FILE_HASH_HEX_LENGTH - 1)));
+        assert!(!is_valid_file_hash(&"g".repeat(FILE_HASH_HEX_LENGTH)));
+        assert!(!is_valid_file_hash(&format!(
+            "{}.",
+            "a".repeat(FILE_HASH_HEX_LENGTH - 1)
+        )));
     }
 
     #[test]

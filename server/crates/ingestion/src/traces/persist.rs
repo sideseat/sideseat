@@ -33,6 +33,7 @@ use crate::otlp::{build_attributes_json, extract_attributes};
 use sideseat_core::constants::{
     DEFAULT_PROJECT_ID, FILE_HASH_ALGORITHM, FILES_MAX_CONCURRENT_FINALIZATION,
 };
+use sideseat_core::utils::file_uri::is_valid_file_hash;
 use sideseat_core::utils::retry::{
     DEFAULT_BASE_DELAY_MS, DEFAULT_MAX_ATTEMPTS, retry_with_backoff_async,
 };
@@ -492,6 +493,15 @@ pub(super) async fn reconcile_incoming_references(
         let Some(parsed) = sideseat_core::utils::file_uri::parse_file_uri(uri) else {
             continue;
         };
+        if !is_valid_file_hash(parsed.hash) {
+            tracing::warn!(
+                project_id,
+                hash = parsed.hash,
+                "Incoming file reference has an invalid content hash"
+            );
+            unbacked.push((project_id.clone(), uri.clone()));
+            continue;
+        }
         let key = (project_id.clone(), parsed.hash.to_string());
         let exists = match checked.get(&key) {
             Some(known) => *known,

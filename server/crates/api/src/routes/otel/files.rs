@@ -12,6 +12,7 @@ use serde::Deserialize;
 
 use crate::auth::ProjectRead;
 use crate::types::ApiError;
+use sideseat_core::utils::file_uri::is_valid_file_hash;
 use sideseat_domain::files::{FileService, FileServiceError};
 
 const FILE_CACHE_CONTROL: &str = "private, max-age=31536000, immutable";
@@ -50,7 +51,7 @@ pub struct FileQueryParams {
     tag = "files",
     params(
         ("project_id" = String, Path, description = "Project ID"),
-        ("hash" = String, Path, description = "File SHA-256 hash (64 hex chars)"),
+        ("hash" = String, Path, description = "File BLAKE3 hash (64 hex chars)"),
         ("inline" = Option<bool>, Query, description = "If true, serve with Content-Disposition: inline (display in browser). Default: false (download)")
     ),
     responses(
@@ -69,7 +70,7 @@ pub async fn get_file(
     let hash = &path.hash;
 
     // Validate hash format (64 hex chars)
-    if hash.len() != 64 || !hash.chars().all(|c| c.is_ascii_hexdigit()) {
+    if !is_valid_file_hash(hash) {
         return Err(ApiError::bad_request(
             "INVALID_HASH",
             "Invalid file hash format",
@@ -141,7 +142,7 @@ pub async fn get_file(
     tag = "files",
     params(
         ("project_id" = String, Path, description = "Project ID"),
-        ("hash" = String, Path, description = "File SHA-256 hash (64 hex chars)"),
+        ("hash" = String, Path, description = "File BLAKE3 hash (64 hex chars)"),
         ("inline" = Option<bool>, Query, description = "Match the GET response disposition")
     ),
     responses(
@@ -160,7 +161,7 @@ pub async fn head_file(
     let hash = &path.hash;
 
     // Validate hash format
-    if hash.len() != 64 || !hash.chars().all(|c| c.is_ascii_hexdigit()) {
+    if !is_valid_file_hash(hash) {
         return Err(ApiError::bad_request(
             "INVALID_HASH",
             "Invalid file hash format",
