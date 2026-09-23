@@ -3035,6 +3035,52 @@ fn make_help_is_generated_from_target_annotations() {
     );
 }
 
+#[test]
+fn dependency_report_discovers_every_project_manifest() {
+    let repo = repo_root();
+    let output = Command::new("bash")
+        .arg("scripts/deps-check.sh")
+        .env("SIDESEAT_DEPS_CHECK_DRY_RUN", "1")
+        .current_dir(repo)
+        .output()
+        .expect("dependency report dry run");
+    assert!(
+        output.status.success(),
+        "dependency report dry run failed:\n{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let report = String::from_utf8_lossy(&output.stdout);
+    let listing = Command::new("git")
+        .args(["ls-files"])
+        .current_dir(repo)
+        .output()
+        .expect("git is available in a git checkout");
+    for manifest in String::from_utf8_lossy(&listing.stdout)
+        .lines()
+        .filter(|path| path.ends_with("package.json") || path.ends_with("pyproject.toml"))
+    {
+        assert!(
+            report.contains(manifest),
+            "dependency report omitted {manifest}"
+        );
+    }
+    assert!(
+        report.contains("Rust workspace (Cargo.toml)"),
+        "dependency report omitted the Rust workspace"
+    );
+
+    let script =
+        std::fs::read_to_string(repo.join("scripts/deps-check.sh")).expect("dependency report");
+    assert!(
+        script.contains("command -v cargo-outdated")
+            && script.contains("npm_status=0")
+            && script.contains("uv tree --project \"$project\" --locked --outdated --depth 1")
+            && !script.contains("cargo outdated -R || echo"),
+        "dependency failures must not be reported as missing tools or hidden"
+    );
+}
+
 /// Does this manifest line declare `driver`, under its own name or a rename?
 ///
 /// Extracted so it can be tested on input the workspace does not contain. A live mutation is not available:

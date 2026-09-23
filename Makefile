@@ -1026,22 +1026,7 @@ publish-brew: ## Update the Homebrew tap
 # =============================================================================
 
 deps-check: ## Report outdated dependencies
-	@echo "[deps-check] Checking for outdated dependencies..."
-	@echo ""
-	@echo "=== Server (Rust) ==="
-	@command -v cargo-outdated >/dev/null 2>&1 && cd $(SERVER_DIR) && cargo outdated -R || echo "Install cargo-outdated: cargo install cargo-outdated"
-	@echo ""
-	@echo "=== Web ==="
-	@cd $(WEB_DIR) && npm outdated || true
-	@echo ""
-	@echo "=== JS SDK ==="
-	@cd sdk/js && npm outdated || true
-	@echo ""
-	@echo "=== Python SDK ==="
-	@cd sdk/python && uv pip list --outdated || true
-	@echo ""
-	@echo "=== Docs ==="
-	@cd docs && npm outdated || true
+	@./scripts/deps-check.sh
 
 node-floor: ## Derive the supported Node.js floor
 	@#  Prints the Node versions every installed `engines.node` range accepts. Needs an installed tree for
