@@ -1,4 +1,3 @@
-/* Adapted from the engagement-mck project's site */
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { ChatState, Message, ToolCallMessage } from "@/api/agui/types";
 import { MessageItem } from "./message-item";
@@ -53,7 +52,12 @@ export function MessageList({ state, isStreaming }: Props) {
           {renderItems(section.items)}
         </section>
       ))}
-      {live ? <ActivityIndicator tail={tail} tailSignal={tailSignal} /> : null}
+      {live ? (
+        <ActivityIndicator
+          key={`${tail?.id ?? "__none__"}:${tailSignal}`}
+          tail={tail}
+        />
+      ) : null}
       <div className="h-6" />
     </div>
   );
@@ -122,13 +126,7 @@ function StickyStepHeader({ name }: { name: string }) {
  * Trailing live indicator with seconds-since-last-stream-update so a long
  * silent tool call doesn't look frozen.
  */
-function ActivityIndicator({
-  tail,
-  tailSignal,
-}: {
-  tail: Message | undefined;
-  tailSignal: number;
-}) {
+function ActivityIndicator({ tail }: { tail: Message | undefined }) {
   const activity = useMemo(() => {
     if (!tail) return "Working";
     if (tail.kind === "tool_call" && !tail.done) return `Running ${tail.toolName}`;
@@ -137,16 +135,14 @@ function ActivityIndicator({
     return "Working";
   }, [tail]);
 
-  const tailId = tail?.id ?? "__none__";
   const [since, setSince] = useState(0);
   useEffect(() => {
-    setSince(0);
     const start = Date.now();
     const t = setInterval(() => {
       setSince(Math.floor((Date.now() - start) / 1000));
     }, 1000);
     return () => clearInterval(t);
-  }, [tailId, tailSignal]);
+  }, []);
 
   const longPause = since >= 10;
   const label = longPause ? `Still ${activity.toLowerCase()}…` : `${activity}…`;
