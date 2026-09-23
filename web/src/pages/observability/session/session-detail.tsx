@@ -138,11 +138,15 @@ export function SessionDetail({
     };
   }, [sessionData]);
 
-  // Compute session duration from start/end times
   const durationMs = useMemo(() => {
     if (!sessionData?.start_time) return undefined;
     const start = new Date(sessionData.start_time).getTime();
-    const end = sessionData.end_time ? new Date(sessionData.end_time).getTime() : Date.now();
+    const end = sessionData.end_time
+      ? new Date(sessionData.end_time).getTime()
+      : sessionData.traces.reduce((latest, trace) => {
+          const observed = new Date(trace.end_time ?? trace.start_time).getTime();
+          return Number.isFinite(observed) ? Math.max(latest, observed) : latest;
+        }, start);
     return Math.max(0, end - start);
   }, [sessionData]);
 
