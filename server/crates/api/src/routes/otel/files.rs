@@ -6,13 +6,15 @@ use std::sync::Arc;
 
 use axum::body::Body;
 use axum::extract::{Path, Query, State};
-use axum::http::{HeaderMap, header};
+use axum::http::{HeaderMap, HeaderValue, header};
 use axum::response::{IntoResponse, Response};
 use serde::Deserialize;
 
 use crate::auth::ProjectRead;
 use crate::types::ApiError;
 use sideseat_domain::files::{FileService, FileServiceError};
+
+const FILE_CACHE_CONTROL: &str = "private, max-age=31536000, immutable";
 
 /// State for files API
 #[derive(Clone)]
@@ -110,10 +112,9 @@ pub async fn get_file(
             .unwrap_or_else(|_| "application/octet-stream".parse().unwrap()),
     );
 
-    // Add cache headers (files are content-addressed, can be cached forever)
     headers.insert(
         header::CACHE_CONTROL,
-        "public, max-age=31536000, immutable".parse().unwrap(),
+        HeaderValue::from_static(FILE_CACHE_CONTROL),
     );
 
     // Add ETag (the hash is a perfect ETag)
@@ -202,10 +203,9 @@ pub async fn head_file(
             .unwrap_or_else(|_| "application/octet-stream".parse().unwrap()),
     );
 
-    // Add cache headers
     headers.insert(
         header::CACHE_CONTROL,
-        "public, max-age=31536000, immutable".parse().unwrap(),
+        HeaderValue::from_static(FILE_CACHE_CONTROL),
     );
 
     // Add ETag
@@ -218,4 +218,17 @@ pub async fn head_file(
     );
 
     Ok((headers, Body::empty()).into_response())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn authenticated_files_are_cacheable_only_in_private_caches() {
+        assert_eq!(
+            HeaderValue::from_static(FILE_CACHE_CONTROL),
+            "private, max-age=31536000, immutable"
+        );
+    }
 }
