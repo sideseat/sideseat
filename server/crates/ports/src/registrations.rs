@@ -175,6 +175,7 @@ pub trait RegistrationStore: Send + Sync + 'static {
 
     async fn touch(&self, client_id: &str, now_secs: u64) -> Result<(), RegistrationStoreError>;
 
+    /// Remove registrations whose heartbeat age is at least `ttl_secs`.
     async fn expire_due(
         &self,
         now_secs: u64,

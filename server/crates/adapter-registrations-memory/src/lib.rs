@@ -23,6 +23,10 @@ where
     index.remove_if(index_key, |_, set| set.is_empty());
 }
 
+fn is_expired(last_heartbeat_secs: u64, now_secs: u64, ttl_secs: u64) -> bool {
+    now_secs.saturating_sub(last_heartbeat_secs) >= ttl_secs
+}
+
 #[derive(Default)]
 pub struct MemoryRegistrationStore {
     entries: DashMap<Key, RegistrationEntry>,
@@ -195,19 +199,17 @@ impl RegistrationStore for MemoryRegistrationStore {
         now_secs: u64,
         ttl_secs: u64,
     ) -> Result<Vec<RegistrationEntry>, RegistrationStoreError> {
-        let cutoff = now_secs.saturating_sub(ttl_secs);
         let stale: Vec<Key> = self
             .entries
             .iter()
-            .filter(|entry| entry.last_heartbeat_secs < cutoff)
+            .filter(|entry| is_expired(entry.last_heartbeat_secs, now_secs, ttl_secs))
             .map(|entry| entry.key().clone())
             .collect();
         let mut expired = Vec::with_capacity(stale.len());
         for key in stale {
-            if let Some((_, entry)) = self
-                .entries
-                .remove_if(&key, |_, entry| entry.last_heartbeat_secs < cutoff)
-            {
+            if let Some((_, entry)) = self.entries.remove_if(&key, |_, entry| {
+                is_expired(entry.last_heartbeat_secs, now_secs, ttl_secs)
+            }) {
                 self.unindex(&key, &entry);
                 expired.push(entry);
             }
@@ -350,6 +352,22 @@ mod tests {
         let survivors = store.list(&ProjectId::from("p")).await.unwrap();
         assert_eq!(survivors.len(), 1);
         assert_eq!(survivors[0].name, "fresh");
+    }
+
+    #[tokio::test]
+    async fn expiration_includes_the_ttl_boundary_without_expiring_early_epochs() {
+        let store = MemoryRegistrationStore::new();
+        let mut boundary = entry("p", "boundary", "client-1", "instance");
+        boundary.last_heartbeat_secs = 100;
+        store.upsert(boundary).await.unwrap();
+
+        assert!(store.expire_due(159, 60).await.unwrap().is_empty());
+        assert_eq!(store.expire_due(160, 60).await.unwrap().len(), 1);
+
+        let mut early_epoch = entry("p", "early", "client-2", "instance");
+        early_epoch.last_heartbeat_secs = 0;
+        store.upsert(early_epoch).await.unwrap();
+        assert!(store.expire_due(10, 60).await.unwrap().is_empty());
     }
 
     #[tokio::test]
