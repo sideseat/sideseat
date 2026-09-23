@@ -401,14 +401,15 @@ export default function RealtimePage() {
 
   const startTime = useMemo(() => displayBlocks[0]?.timestamp, [displayBlocks]);
 
-  // Virtualizers - overscan ensures items near edges are pre-rendered for smoother scrolling
-  // +1 count for sentinel item at end (ensures scroll-to-end shows bottom padding)
+  // TanStack Virtual exposes mutable methods that React Compiler intentionally leaves unmemoized.
+  // The extra sentinel row keeps bottom padding reachable by scrollToIndex.
+  // eslint-disable-next-line react-hooks/incompatible-library
   const blocksVirtualizer = useVirtualizer({
     count: displayBlocks.length + 1,
     getScrollElement: () => messagesScrollRef.current,
     estimateSize: (index) =>
-      index < displayBlocks.length ? estimateBlockHeight(displayBlocks[index]) : CONTAINER_PADDING, // Sentinel height = bottom padding
-    overscan: 8, // Higher overscan for smoother scroll-to-end
+      index < displayBlocks.length ? estimateBlockHeight(displayBlocks[index]) : CONTAINER_PADDING,
+    overscan: 8,
   });
 
   const spansVirtualizer = useVirtualizer({
