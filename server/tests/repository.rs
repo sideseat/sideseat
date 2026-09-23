@@ -2869,9 +2869,10 @@ fn development_processes_are_scoped_and_environment_is_explicit() {
 fn maintenance_loops_fail_fast_and_hook_setup_supports_worktrees() {
     let makefile = std::fs::read_to_string(repo_root().join("Makefile")).expect("Makefile");
     assert!(
-        makefile.contains(
-            "update-python-deps:\n\t@set -e; for manifest in $$(git ls-files '*pyproject.toml')"
-        ),
+        makefile.contains("update-python-deps: ## Upgrade every Python lockfile")
+            && makefile
+                .contains("@set -e; for manifest in $$(git ls-files '*pyproject.toml'); do \\")
+            && makefile.contains("(cd \"$$project\" && uv lock --upgrade); \\"),
         "dependency updates must stop at the first failed project"
     );
 
@@ -3019,6 +3020,18 @@ fn stale_cleanup_discovers_every_incremental_directory() {
         !script.contains("cargo sweep --installed >/dev/null 2>&1 || true")
             && !script.contains("cargo sweep --time 3 >/dev/null 2>&1 || true"),
         "cargo-sweep failures must not be reported as successful cleanup"
+    );
+}
+
+#[test]
+fn make_help_is_generated_from_target_annotations() {
+    let makefile = std::fs::read_to_string(repo_root().join("Makefile")).expect("Makefile");
+    assert!(
+        makefile.contains("help: ## Show available commands")
+            && makefile.contains("@awk -f scripts/make-help.awk $(MAKEFILE_LIST)")
+            && !makefile.contains("@echo \"SideSeat Development Commands\"")
+            && !makefile.contains("NOTARIZE ?= 1"),
+        "Make help and defaults must have one current source"
     );
 }
 

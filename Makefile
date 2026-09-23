@@ -1,181 +1,4 @@
-# =============================================================================
-# SideSeat Makefile
-# =============================================================================
-#
-# DISK BUDGET
-#   `target/` is what fills this machine's disk - it reached 64 GB across one long session and 30 GB in
-#   another, against a current build of about 6 GB. Debug info is already minimised (`profile.dev` uses
-#   `line-tables-only` and dependencies carry none), so what accumulates is *stale* artifacts and the
-#   incremental cache, not the build itself.
-#
-#   So there is a declared ceiling and something enforces it. `make disk` reports and **fails** when over,
-#   the way `make bench-http` fails a missed latency ceiling - a measurement nobody compares against a
-#   target is a report. `disk-guard` is the cheap version (a `du`, 0.3s) wired into the targets that cause
-#   the growth: it reclaims what a rebuild regenerates cheaply, says what it took, and never touches the
-#   current build.
-#
-#   Raise DISK_BUDGET_MB if the real build outgrows it. Lowering it below the current build's size makes
-#   the guard reclaim on every invocation and buy nothing, which is why the number is stated rather than
-#   guessed at.
-#
-# Build, test, version, and publish orchestration for all SideSeat packages.
-#
-# PREREQUISITES
-#   bash, make, node 22.22+ or 24+, cargo, uv
-#   Windows: use Git Bash or MSYS2 (not PowerShell/cmd)
-#
-# QUICK START
-#   make setup       Install all dependencies
-#   make dev         Start server + web dev servers
-#   make check       Format check + lint + test (all components)
-#
-# WORKFLOWS
-#
-#   Local development:
-#     setup -> dev -> fmt -> check
-#
-#   Single-platform build:
-#     build-cli-darwin-arm64   (or any platform from PLATFORMS list)
-#
-#   Full cross-compile (macOS only, requires zig + mingw):
-#     build-cli                (preflight -> build all 5 platforms -> smoke test)
-#
-#   Version bump:
-#     bump TYPE=patch          (or minor, major; syncs server + CLI, not SDKs)
-#
-#   Publish (manual, after build):
-#     publish-cli              Verify binaries -> publish 5 platform pkgs -> main pkg
-#     publish-sdk-js           Build + publish @sideseat/sdk
-#     publish-sdk-python       Build + publish sideseat (PyPI)
-#     publish-docker           Multi-arch build + push to registry
-#     publish                  All of the above
-#
-#   Tagged release:
-#     release TYPE=patch       check -> bump -> commit -> tag -> push
-#     build-release            create archives (zip/tar.gz) + checksums (NOTARIZE=1 to notarize)
-#     sign-notarize            notarize + staple darwin archives (re-runnable)
-#     publish-release          upload archives to GitHub Releases
-#
-# TARGETS
-#
-#   Setup:
-#     setup              Install all dependencies (node, cargo, uv, hooks)
-#     setup-hooks        Install git hooks
-#
-#   Development:
-#     dev                Start server (5388) + web (5389) in parallel
-#     dev-server         Start Rust server with hot reload (watchexec/cargo-watch)
-#     dev-web            Start Vite dev server
-#
-#   Format & Lint:
-#     fmt                Format all code (cargo fmt, prettier, ruff)
-#     fmt-check          Check formatting without modifying
-#     lint               Run all linters (clippy, eslint, ruff, mypy)
-#     check              fmt-check + lint + test
-#
-#   Test:
-#     test               Run all tests
-#     test-rust          Rust tests, whole workspace (server + sdk/rust)
-#     test-server        Rust tests, server package only (inner loop)
-#     test-backup-restore Destructive embedded backup -> restore -> repair proof
-#     test-clickhouse    ClickHouse/DuckDB parity (starts a throwaway container)
-#     test-postgres      PostgreSQL/SQLite parity (starts a throwaway container)
-#     test-redis         Durable ingestion queue against Redis (starts a throwaway container)
-#     test-redpanda      Durable ingestion queue against RedPanda (starts a throwaway container)
-#     bench-http         End-to-end HTTP latency (add -distributed for PostgreSQL + ClickHouse)
-#     footprint          The four memory ceilings: idle RSS, ingest RSS, session-read residue,
-#                        bytes per queued span. Exits non-zero on a miss, like bench-http.
-#     test-web           Web tests (vitest)
-#     test-sdk-js        JS SDK tests
-#     test-sdk-python    Python SDK tests (pytest)
-#     coverage           Tests with coverage (tarpaulin + vitest)
-#
-#   Build (local):
-#     build              Production build (web + server, current platform)
-#     build-web          Build frontend (requires node_modules)
-#     build-server       Build backend (depends on build-web)
-#
-#   Build -- SDKs:
-#     build-sdk          Build all SDKs
-#     build-sdk-js       Build JS SDK (npm run build)
-#     build-sdk-python   Build Python SDK (uv build)
-#
-#   Build -- CLI (cross-compile):
-#     build-cli              All 5 platforms (preflight -> build -> smoke test)
-#     build-cli-<platform>   Single platform, e.g. build-cli-darwin-arm64
-#     build-cli-preflight    Verify tools (zig, mingw, rust targets)
-#     build-cli-summary      Smoke test native binary + print sizes
-#
-#     Platforms: darwin-arm64, darwin-x64, linux-x64, linux-arm64, win32-x64
-#     Requires: macOS host, cargo-zigbuild, zig, mingw-w64
-#
-#   Build -- Docker:
-#     build-docker       Build image for current platform (local testing)
-#
-#   Version:
-#     version            Show all package versions
-#     version-check      Verify server + CLI packages have the same version
-#     bump               Bump version (TYPE=patch|minor|major, default: patch)
-#     sync-version       Sync cli/package.json version to server + CLI platforms
-#
-#   Publish:
-#     publish            Publish everything (CLI + SDKs + Docker)
-#     publish-cli        Publish CLI: verify binaries -> platform pkgs -> main pkg
-#     publish-sdk-js     Build + publish @sideseat/sdk to npm
-#     publish-sdk-python Build + publish sideseat to PyPI
-#     publish-docker     Multi-arch build + push (linux/amd64 + linux/arm64)
-#     publish-release    Upload release archives to GitHub Releases
-#     publish-brew       Update Homebrew tap formula (requires gh auth + tap repo)
-#
-#   Release:
-#     release            Full release: check -> bump -> commit -> tag -> push
-#                        Usage: make release TYPE=patch (or minor, major)
-#     build-release      Create release archives (zip/tar.gz) + checksums (NOTARIZE=1 to notarize)
-#     publish-release    Upload archives to GitHub Releases (requires tag + gh auth)
-#
-#   Docs:
-#     build-docs         Build documentation site (Astro/Starlight)
-#     dev-docs           Start docs dev server
-#     preview-docs       Preview built docs
-#     docs-system-deps   Linux only: system libraries the diagram browser needs (sudo)
-#
-#   Utilities:
-#     disk               Show free space and what is using it (target, node_modules, Docker)
-#     clean-stale        Reclaim stale artifacts *without* a cold rebuild - run this habitually.
-#                        Most of target/ is not the current build: it is test binaries from earlier
-#                        runs, which cargo never collects. Measured at 64GB across one long session.
-#     clean-docker       Remove throwaway containers and networks owned by this checkout.
-#                        It never runs machine-wide image, cache, or volume pruning.
-#     clean              Remove *all* build artifacts (target, dist, sdk artifacts). Costs a cold
-#                        compile afterwards, so prefer clean-stale unless you want the whole lot.
-#     node-floor         Derive the Node versions the lockfiles accept (see the setup check)
-#     update-python-deps Re-lock every Python project (the only place that re-locks)
-#     download-prices    Update LLM pricing data from litellm
-#     deps-check         Check for outdated dependencies (all components)
-#
-#   Aliases:
-#     run, start         -> dev
-#
-# PLATFORM CONFIG
-#
-#   Adding a new platform requires 4 lines:
-#     RUST_TARGET_<name> := <rustc triple>
-#     BUILD_CMD_<name>   := cargo build | cargo zigbuild
-#     BIN_NAME_<name>    := sideseat | sideseat.exe
-#   Then append <name> to the PLATFORMS list.
-#
-#   All loops (version-check, sync-version, clean, publish, summary)
-#   derive from PLATFORMS automatically.
-#
-# VARIABLES
-#
-#   ARGS      Extra args passed to dev-server (e.g. make dev-server ARGS="--no-auth")
-#   TYPE      Version bump type for bump/release (patch, minor, major; default: patch)
-#   NOTARIZE  Enable Apple notarization in build-release (0|1; default: 0)
-#
-# =============================================================================
-# Preamble
-# =============================================================================
+# SideSeat repository automation. Run `make help` for supported commands.
 
 SHELL := /bin/bash
 .DELETE_ON_ERROR:
@@ -190,7 +13,7 @@ UNAME_M := $(shell uname -m)
 
 ARGS ?=
 TYPE ?= patch
-NOTARIZE ?= 1
+NOTARIZE ?= 0
 SERVER_DIR := server
 WEB_DIR := web
 CLI_DIR := cli
@@ -281,86 +104,23 @@ cli-bin = $(CLI_DIR)/platforms/platform-$(1)/$(BIN_NAME_$(1))
 # Help
 # =============================================================================
 
-help:
-	@echo "SideSeat Development Commands"
-	@echo ""
-	@echo "Prerequisites: bash, make, node 22.22+ or 24+, cargo, uv"
-	@echo "Windows: Use Git Bash or MSYS2 (not PowerShell/cmd)"
-	@echo ""
-	@echo "Setup:"
-	@echo "  make setup           Install dependencies and git hooks"
-	@echo "  make setup-hooks     Install git hooks only"
-	@echo ""
-	@echo "Development:"
-	@echo "  make dev             Start server + web (parallel)"
-	@echo "  make dev-server      Start Rust server with hot reload"
-	@echo "  make dev-web         Start Vite dev server"
-	@echo ""
-	@echo "Build:"
-	@echo "  make build           Production build (web + server)"
-	@echo "  make build-sdk       Build all SDKs"
-	@echo "  make build-sdk-js    Build JS SDK"
-	@echo "  make build-sdk-python Build Python SDK"
-	@echo "  make build-cli       Cross-compile all platforms for npm"
-	@echo "  make build-cli-<p>   Build single platform (e.g. build-cli-darwin-arm64)"
-	@echo "  make build-docker    Build Docker image for current platform"
-	@echo ""
-	@echo "Testing:"
-	@echo "  make test            Run all tests"
-	@echo "  make coverage        Run tests with coverage"
-	@echo ""
-	@echo "Quality:"
-	@echo "  make fmt             Format all code"
-	@echo "  make fmt-check       Check formatting"
-	@echo "  make lint            Run linters"
-	@echo "  make lint-advisory   Advisory clippy lints (informational)"
-	@echo "  make check           Run all checks (fmt-check + lint + test)"
-	@echo ""
-	@echo "Versioning:"
-	@echo "  make version         Show current version"
-	@echo "  make version-check   Verify server + CLI have matching versions"
-	@echo "  make bump            Bump server + CLI version (TYPE=patch|minor|major)"
-	@echo ""
-	@echo "Publish:"
-	@echo "  make publish         Publish everything (CLI + SDKs)"
-	@echo "  make publish-cli     Publish CLI platform packages + main package"
-	@echo "  make publish-sdk-js  Build and publish JS SDK"
-	@echo "  make publish-sdk-python Build and publish Python SDK"
-	@echo "  make publish-docker  Multi-arch build + push to registry"
-	@echo "  make publish-release Upload release archives to GitHub Releases"
-	@echo "  make publish-brew    Update Homebrew tap formula"
-	@echo ""
-	@echo "Release:"
-	@echo "  make release TYPE=patch  Check, bump, commit, tag, push"
-	@echo "  (TYPE can be patch, minor, or major)"
-	@echo "  make build-release   Create archives (zip/tar.gz) + checksums"
-	@echo "  make build-release NOTARIZE=1  ...with Apple notarization"
-	@echo "  make sign-notarize   Notarize + staple darwin archives (re-runnable)"
-	@echo "  make publish-release Upload archives to GitHub Releases"
-	@echo ""
-	@echo "Docs:"
-	@echo "  make build-docs      Build documentation site"
-	@echo "  make dev-docs        Start docs dev server"
-	@echo "  make preview-docs    Preview built docs"
-	@echo ""
-	@echo "Other:"
-	@echo "  make deps-check      Check for outdated dependencies"
-	@echo "  make download-prices Update LLM pricing data"
-	@echo "  make clean           Remove build artifacts"
+help: ## Show available commands
+	@awk -f scripts/make-help.awk $(MAKEFILE_LIST)
+	@printf "\nDefaults: TYPE=%s  NOTARIZE=%s\n" "$(TYPE)" "$(NOTARIZE)"
 
 # =============================================================================
 # Setup
 # =============================================================================
 
 # Normal uv commands use committed lockfiles. This target is the explicit upgrade path.
-update-python-deps:
+update-python-deps: ## Upgrade every Python lockfile
 	@set -e; for manifest in $$(git ls-files '*pyproject.toml'); do \
 		project=$$(dirname "$$manifest"); \
 		echo "[update-python-deps] $$project"; \
 		(cd "$$project" && uv lock --upgrade); \
 	done
 
-setup:
+setup: ## Install development dependencies and hooks
 	@echo "[setup] Checking prerequisites..."
 	@command -v node >/dev/null 2>&1 || { echo "Error: node not found. Install Node.js 22.22+ or 24+"; exit 1; }
 	@#  The floor is checked, not merely stated, and it is **derived** rather than reasoned about - three
@@ -398,7 +158,7 @@ setup:
 	@$(MAKE) --no-print-directory setup-hooks
 	@echo "[setup] Done. Run 'make dev' to start."
 
-setup-hooks:
+setup-hooks: ## Configure repository Git hooks
 	@git rev-parse --git-dir >/dev/null 2>&1 || { echo "Error: Not a git repository"; exit 1; }
 	@for hook in .githooks/pre-commit .githooks/pre-push; do \
 		[ -f "$$hook" ] || { echo "Error: Missing $$hook"; exit 1; }; \
@@ -411,20 +171,20 @@ setup-hooks:
 # Development
 # =============================================================================
 
-dev:
+dev: ## Start server and web development processes
 	@./scripts/dev.sh $(ARGS)
 
-dev-server:
+dev-server: ## Start the Rust server with reload
 	@./scripts/dev-server.sh $(ARGS)
 
-dev-web:
+dev-web: ## Start the web development server
 	@cd $(WEB_DIR) && npm run dev
 
 # =============================================================================
 # Format & Lint
 # =============================================================================
 
-fmt:
+fmt: ## Format all source code
 	@echo "[fmt] Formatting code..."
 	@cargo fmt
 	@[ -x "$(PRETTIER)" ] || { echo "Error: prettier not installed. Run 'make setup'."; exit 1; }
@@ -432,14 +192,14 @@ fmt:
 	@uv run --locked ruff format $(PYTHON_CHECKED)
 	@echo "[fmt] Done"
 
-fmt-check:
+fmt-check: ## Check source formatting
 	@echo "[fmt-check] Checking formatting..."
 	@cargo fmt --check
 	@[ -x "$(PRETTIER)" ] || { echo "Error: prettier not installed. Run 'make setup'."; exit 1; }
 	@$(PRETTIER) --check "web/src/**/*.{ts,tsx,css,json}" "sdk/js/src/**/*.ts" "examples/javascript/src/**/*.ts"
 	@$(MAKE) --no-print-directory fmt-check-python
 
-lint:
+lint: ## Run all linters
 	@echo "[lint] Running linters..."
 	@cargo clippy --locked --all-targets -- -D warnings
 	@cd $(WEB_DIR) && npm run lint
@@ -454,7 +214,7 @@ lint:
 # Advisory clippy lints, kept out of `lint` because that gate runs -D warnings and these
 # are suggestions rather than defects. Non-blocking by design: review the output, do not
 # gate CI on it. Keep this list identical to the advisory block in Cargo.toml.
-lint-advisory:
+lint-advisory: ## Run informational Clippy lints
 	@echo "[lint-advisory] Advisory clippy lints (informational, does not fail)..."
 	@cargo clippy --locked --all-targets -- \
 		-W clippy::redundant_clone \
@@ -502,7 +262,7 @@ secret-scan-range:
 		echo "  SKIPPED: gitleaks not installed (brew install gitleaks)"; \
 	fi
 
-check: disk-guard fmt-check lint test
+check: disk-guard fmt-check lint test ## Run formatting, lint, and test gates
 	@echo "[check] All checks passed"
 
 # =============================================================================
@@ -529,14 +289,14 @@ fmt-check-python:
 lint-python:
 	@uv run --locked ruff check $(PYTHON_CHECKED)
 
-harden: harden-supply harden-spec
+harden: harden-supply harden-spec ## Run supply-chain and specification gates
 	@echo "[harden] All hardening gates passed"
 
 #  The skips below are local convenience only, and that is now a true statement rather than a hope: CI
 #  installs cargo-deny and runs `cargo deny check` **blocking**, so a skip here cannot let a violation
 #  through. Before that job existed this target was the whole supply-chain gate and it skipped by default,
 #  which is how fourteen advisories accumulated unnoticed.
-harden-supply:
+harden-supply: ## Audit dependencies and secrets
 	@echo "[harden-supply] Vulnerable / banned / unlicensed dependencies..."
 	@if command -v cargo-deny >/dev/null 2>&1; then \
 		cargo deny check; \
@@ -568,7 +328,7 @@ TLA_VERSION := 1.8.0
 TLA_SHA256  := db131ddb48e7004d823bef4493df7b35694babe37505b9d9fa5685e7a331f1f1
 TLA_JAR     := .tools/tla2tools-$(TLA_VERSION).jar
 
-harden-spec:
+harden-spec: ## Model-check every TLA+ specification
 	@if [ ! -f $(TLA_JAR) ]; then \
 		echo "[harden-spec] fetching tla2tools $(TLA_VERSION)..."; \
 		mkdir -p .tools; \
@@ -626,22 +386,22 @@ harden-spec:
 # Test
 # =============================================================================
 
-test: test-rust test-web test-sdk-js test-sdk-python
+test: test-rust test-web test-sdk-js test-sdk-python ## Run all regular test suites
 
 # Whole workspace: `cd server && cargo test` left sdk/rust's tests unrun, so nothing executed
 # them - not make, not CI, not the hooks.
-test-rust: disk-guard
+test-rust: disk-guard ## Test the complete Rust workspace
 	@echo "[test-rust] Running Rust tests (workspace)..."
 	@cargo test --locked --workspace
 
 # Server package only, for the inner loop.
-test-server:
+test-server: ## Test the server package
 	@echo "[test-server] Running server tests..."
 	@cargo test --locked -p sideseat-server
 
 # Destructive restore proof, isolated in a temporary directory. It is kept out of `make check` because it
 # builds and launches the release-facing binary twice and deliberately destroys its fixture between phases.
-test-backup-restore: disk-guard
+test-backup-restore: disk-guard ## Verify embedded backup and restore
 	@echo "[test-backup-restore] checkpointing, destroying, restoring, and repairing embedded stores..."
 	@SIDESEAT_RUN_BACKUP_RESTORE_TEST=1 \
 		cargo test --locked -p sideseat-server --test backup_restore -- --nocapture
@@ -668,7 +428,7 @@ CH_TEST_PORT ?= 8124
 # by local, CI, Compose and benchmark runs so they exercise the same server.
 CH_TEST_IMAGE ?= clickhouse/clickhouse-server:26.4.3.37
 
-test-clickhouse:
+test-clickhouse: ## Test ClickHouse parity in Docker
 	@CH_TEST_CONTAINER="$(CH_TEST_CONTAINER)" CH_TEST_PORT="$(CH_TEST_PORT)" \
 		CH_TEST_IMAGE="$(CH_TEST_IMAGE)" ./scripts/container-test.sh clickhouse
 
@@ -687,7 +447,7 @@ CH_REPL_PORT ?= 8299
 # One shard, one replica, with Keeper embedded in the same container - enough for everything structurally
 # different about distributed mode, and deliberately not enough for cross-replica convergence, which needs a
 # second node and is the stated remaining gap.
-test-clickhouse-replicated:
+test-clickhouse-replicated: ## Test replicated ClickHouse migrations
 	@CH_REPL_CONTAINER="$(CH_REPL_CONTAINER)" CH_REPL_PORT="$(CH_REPL_PORT)" \
 		CH_TEST_IMAGE="$(CH_TEST_IMAGE)" ./scripts/container-test.sh clickhouse-replicated
 
@@ -714,7 +474,7 @@ CH_SHARD_PORT_2 ?= 8430
 # there.
 #
 # Slow and real beats fast and unfalsifiable, so it ships as an opt-in target rather than being dropped.
-test-clickhouse-two-shard:
+test-clickhouse-two-shard: ## Test two-shard ClickHouse behavior
 	@CH_NET="$(CH_NET)" CH_SHARD_1_CONTAINER="$(CH_SHARD_1_CONTAINER)" \
 		CH_SHARD_2_CONTAINER="$(CH_SHARD_2_CONTAINER)" CH_SHARD_PORT_1="$(CH_SHARD_PORT_1)" \
 		CH_SHARD_PORT_2="$(CH_SHARD_PORT_2)" CH_TEST_IMAGE="$(CH_TEST_IMAGE)" \
@@ -727,7 +487,7 @@ PG_TEST_PORT ?= 5433
 # Pinned, so an upstream release cannot turn into a failure on an unrelated PR.
 PG_TEST_IMAGE ?= postgres:17-alpine
 
-test-postgres:
+test-postgres: ## Test PostgreSQL parity in Docker
 	@PG_TEST_CONTAINER="$(PG_TEST_CONTAINER)" PG_TEST_PORT="$(PG_TEST_PORT)" \
 		PG_TEST_IMAGE="$(PG_TEST_IMAGE)" ./scripts/container-test.sh postgres
 
@@ -739,7 +499,7 @@ REDIS_TEST_PORT ?= 6399
 # Pinned, so an upstream release cannot turn into a failure on an unrelated PR.
 REDIS_TEST_IMAGE ?= redis:7.4-alpine
 
-test-redis:
+test-redis: ## Test Redis-backed ingestion
 	@REDIS_TEST_CONTAINER="$(REDIS_TEST_CONTAINER)" REDIS_TEST_PORT="$(REDIS_TEST_PORT)" \
 		REDIS_TEST_IMAGE="$(REDIS_TEST_IMAGE)" ./scripts/container-test.sh redis
 
@@ -748,23 +508,23 @@ REDPANDA_TEST_PORT ?= 19092
 # Pinned to the current stable RedPanda patch used by the server-mode Compose stack.
 REDPANDA_TEST_IMAGE ?= docker.redpanda.com/redpandadata/redpanda:v26.2.3
 
-test-redpanda:
+test-redpanda: ## Test Redpanda-backed ingestion
 	@REDPANDA_TEST_CONTAINER="$(REDPANDA_TEST_CONTAINER)" REDPANDA_TEST_PORT="$(REDPANDA_TEST_PORT)" \
 		REDPANDA_TEST_IMAGE="$(REDPANDA_TEST_IMAGE)" ./scripts/container-test.sh redpanda
 
 # End-to-end HTTP latency, which is what a client actually experiences. The in-process benches measure the
 # stages inside a request; these measure the request. The numbers in CLAUDE.md come from here.
-bench-http: disk-guard
+bench-http: disk-guard ## Benchmark embedded HTTP latency
 	@scripts/bench-http-latency.sh embedded
 
-bench-http-distributed: disk-guard
+bench-http-distributed: disk-guard ## Benchmark distributed HTTP latency
 	@scripts/bench-http-latency.sh distributed
 
 # The four footprint ceilings, enforced. Two are resident-memory figures against a running server and two are
 # live-allocation measurements in process - the split is in `runtime/allocation.rs`, and the short version is
 # that both glibc and jemalloc retain freed pages, so a "returns to baseline" gate written on RSS fails correct
 # code. Release build throughout: a debug build's footprint describes the debug build.
-footprint: disk-guard
+footprint: disk-guard ## Enforce memory footprint ceilings
 	@scripts/footprint-gates.sh
 	@# `--test-threads=1`, and it is correctness rather than tidiness: both measurements read a *process-global*
 	@# allocation counter, so run concurrently the queue test's live bytes are inside the session test's
@@ -772,19 +532,19 @@ footprint: disk-guard
 	@# own size - a 52 MB regression reported as 48 MB and passing.
 	@cd $(SERVER_DIR) && cargo test --locked --release --test footprint -- --ignored --nocapture --test-threads=1
 
-test-web:
+test-web: ## Run web tests
 	@echo "[test-web] Running web tests..."
 	@cd $(WEB_DIR) && npm test -- --run
 
-test-sdk-js:
+test-sdk-js: ## Run JavaScript SDK tests
 	@echo "[test-sdk-js] Running JS SDK tests..."
 	@cd sdk/js && npm test
 
-test-sdk-python:
+test-sdk-python: ## Run Python SDK tests
 	@echo "[test-sdk-python] Running Python SDK tests..."
 	@cd sdk/python && uv run --locked --extra dev pytest
 
-coverage:
+coverage: ## Generate test coverage reports
 	@echo "[coverage] Running tests with coverage..."
 	@command -v cargo-tarpaulin >/dev/null 2>&1 || { echo "Error: cargo-tarpaulin not installed. Install with: cargo install cargo-tarpaulin"; exit 1; }
 	@echo "[coverage] Rust coverage..."
@@ -797,14 +557,14 @@ coverage:
 # Build (local dev)
 # =============================================================================
 
-build: build-web build-server
+build: build-web build-server ## Build the production web and server
 
-build-web:
+build-web: ## Build the web application
 	@[ -d "$(WEB_DIR)/node_modules" ] || { echo "Error: $(WEB_DIR)/node_modules not found. Run 'make setup' first."; exit 1; }
 	@echo "[build-web] Building frontend..."
 	@cd $(WEB_DIR) && npm run build
 
-build-server: build-web
+build-server: build-web ## Build the server
 	@echo "[build-server] Building backend..."
 	@cd $(SERVER_DIR) && cargo build --locked --release
 	@echo "[build-server] Binary: target/release/sideseat"
@@ -813,13 +573,13 @@ build-server: build-web
 # Build -- SDKs
 # =============================================================================
 
-build-sdk: build-sdk-js build-sdk-python
+build-sdk: build-sdk-js build-sdk-python ## Build all SDKs
 
-build-sdk-js:
+build-sdk-js: ## Build the JavaScript SDK
 	@echo "[build-sdk-js] Building JS SDK..."
 	@cd sdk/js && npm run build
 
-build-sdk-python:
+build-sdk-python: ## Build the Python SDK
 	@echo "[build-sdk-python] Building Python SDK..."
 	@cd sdk/python && uv build
 
@@ -877,7 +637,7 @@ build-cli-summary:
 	@echo "[build-cli] All platform packages ready for npm publish"
 
 # Orchestrator: preflight -> build all -> summary
-build-cli: build-cli-preflight
+build-cli: build-cli-preflight ## Build CLI packages for all platforms
 	@echo "[build-cli] Building all platform binaries..."
 	@$(MAKE) $(CLI_BUILD_TARGETS)
 	@$(MAKE) build-cli-summary
@@ -886,13 +646,13 @@ build-cli: build-cli-preflight
 # Version
 # =============================================================================
 
-version:
+version: ## Show package versions
 	@echo "CLI:       $$(node -p "require('./cli/package.json').version")"
 	@echo "Server:    $$(./scripts/workspace-version.sh)"
 	@echo "SDK (JS):  $$(node -p "require('./sdk/js/package.json').version")"
 	@echo "SDK (Py):  $$(grep '__version__' sdk/python/src/sideseat/_version.py | sed 's/.*\"\(.*\)\".*/\1/')"
 
-version-check:
+version-check: ## Verify coordinated package versions
 	@CLI_VERSION=$$(node -p "require('./cli/package.json').version") && \
 	SERVER_VERSION=$$(./scripts/workspace-version.sh) && \
 	MISMATCHED="" && \
@@ -918,7 +678,7 @@ version-check:
 	fi && \
 	echo "All versions match: $$CLI_VERSION"
 
-bump:
+bump: ## Bump versions with TYPE=patch|minor|major
 	@if [ "$(TYPE)" != "patch" ] && [ "$(TYPE)" != "minor" ] && [ "$(TYPE)" != "major" ]; then \
 		echo "Error: TYPE must be patch, minor, or major (got: $(TYPE))"; \
 		exit 1; \
@@ -927,7 +687,7 @@ bump:
 	@cd $(CLI_DIR) && npm version $(TYPE) --no-git-tag-version
 	@$(MAKE) --no-print-directory sync-version
 
-sync-version:
+sync-version: ## Synchronize server and CLI versions
 	@NEW_VERSION=$$(node -p "require('./cli/package.json').version") && \
 	TEMP_FILE=$$(mktemp) && \
 	sed "s/^version = \".*\"/version = \"$$NEW_VERSION\"/" Cargo.toml > "$$TEMP_FILE" && \
@@ -948,9 +708,9 @@ sync-version:
 # Publish
 # =============================================================================
 
-publish: publish-cli publish-sdk-js publish-sdk-python publish-docker
+publish: publish-cli publish-sdk-js publish-sdk-python publish-docker ## Publish CLI, SDKs, and Docker image
 
-publish-cli:
+publish-cli: ## Publish CLI platform packages
 	@echo "[publish-cli] Verifying npm authentication..."
 	@npm whoami >/dev/null 2>&1 || { echo "Error: Not logged in to npm. Run 'npm login' first."; exit 1; }
 	@echo "[publish-cli] Verifying binaries exist..."
@@ -1000,14 +760,14 @@ publish-cli:
 	done; \
 	echo "Warning: sideseat@$$VERSION published but not yet verified on registry"
 
-publish-sdk-js:
+publish-sdk-js: ## Publish the JavaScript SDK
 	@echo "[publish-sdk-js] Verifying npm authentication..."
 	@npm whoami >/dev/null 2>&1 || { echo "Error: Not logged in to npm. Run 'npm login' first."; exit 1; }
 	@echo "[publish-sdk-js] Building and publishing..."
 	@cd sdk/js && npm ci && npm run build && npm publish --access public
 	@echo "[publish-sdk-js] Published $$(node -p "require('./sdk/js/package.json').version")"
 
-publish-sdk-python:
+publish-sdk-python: ## Publish the Python SDK
 	@echo "[publish-sdk-python] Building and publishing..."
 	@cd sdk/python && uv build && uv publish
 	@echo "[publish-sdk-python] Published $$(grep '__version__' sdk/python/src/sideseat/_version.py | sed 's/.*\"\(.*\)\".*/\1/')"
@@ -1016,19 +776,19 @@ publish-sdk-python:
 # Release
 # =============================================================================
 
-release:
+release: ## Check, bump, commit, tag, and atomically push
 	@./scripts/release.sh "$(TYPE)"
 
 # =============================================================================
 # Docker
 # =============================================================================
 
-build-docker:
+build-docker: ## Build the local Docker image
 	@echo "[build-docker] Building $(DOCKER_IMAGE) for current platform..."
 	@docker build -t $(DOCKER_IMAGE) -f $(DOCKER_FILE) .
 	@echo "[build-docker] Done. Run: docker run -p 5388:5388 -v sideseat-data:/data $(DOCKER_IMAGE)"
 
-publish-docker:
+publish-docker: ## Publish the multi-platform Docker image
 	@echo "[publish-docker] Building and pushing multi-arch image..."
 	@VERSION=$$(node -p "require('./cli/package.json').version") && \
 	docker buildx build --platform linux/amd64,linux/arm64 \
@@ -1045,7 +805,7 @@ publish-docker:
 #  ships without the repository around it. One command keeps them identical, and
 #  `test_bundled_schema_is_the_protocol_schema` fails when they are not - previously the only check was that
 #  the copy parsed, so the canonical schema could gain a frame while the copy described the old protocol.
-sync-protocol-schema:
+sync-protocol-schema: ## Synchronize the WebSocket protocol schema
 	@cp docs/engineering/protocol-ws-v1/schema.json sdk/python/src/sideseat/runtime/_schema.json
 	@echo "[sync-protocol-schema] sdk/python now bundles docs/engineering/protocol-ws-v1/schema.json"
 
@@ -1074,7 +834,7 @@ docs-deps:
 	@#  the missing libraries precisely, so it is not probed for here - only pointed at.
 	@[ "$$(uname -s)" != "Linux" ] || echo "[docs-deps] On Linux, if the build cannot launch the browser: make docs-system-deps (needs sudo)"
 
-docs-system-deps: docs-deps
+docs-system-deps: docs-deps ## Install Linux documentation system packages
 	@#  Depends on `docs-deps`, because it runs the **locked** playwright - and in a fresh clone there is no
 	@#  `docs/node_modules` for `--no-install` to find, so the one command the README names failed. CI hid
 	@#  that by running `make docs-deps` first, which is a dependency stated in the wrong place.
@@ -1083,16 +843,16 @@ docs-system-deps: docs-deps
 	@echo "[docs-system-deps] Installing the system libraries the diagram browser needs (sudo)..."
 	@cd docs && npx --no-install playwright install-deps chromium
 
-build-docs: docs-deps
+build-docs: docs-deps ## Build the documentation site
 	@echo "[build-docs] Building documentation..."
 	@cd docs && npm run build
 	@echo "[build-docs] Output: docs/dist/"
 
-dev-docs: docs-deps
+dev-docs: docs-deps ## Start the documentation development server
 	@echo "[dev-docs] Starting docs dev server..."
 	@cd docs && npm run dev
 
-preview-docs: docs-deps
+preview-docs: docs-deps ## Preview the built documentation
 	@echo "[preview-docs] Previewing built docs..."
 	@[ -d "docs/dist" ] || { $(MAKE) build-docs; }
 	@cd docs && npm run preview
@@ -1129,7 +889,7 @@ sign-verify:  ## Verify code signature and entitlements on macOS platform binari
 	done; \
 	[ $$FOUND -gt 0 ] || { echo "Error: no macOS binaries found in cli/platforms/"; exit 1; }
 
-sign-notarize:  ## Notarize darwin release archives (requires macOS)
+sign-notarize:  ## Notarize macOS archives; ZIP files cannot be stapled
 	@[ "$$(uname -s)" = "Darwin" ] || { echo "Error: notarization requires macOS"; exit 1; } && \
 	VERSION=$$(node -p "require('./cli/package.json').version") && \
 	OUTDIR="$(RELEASE_DIR)/v$$VERSION" && \
@@ -1150,7 +910,7 @@ sign-notarize:  ## Notarize darwin release archives (requires macOS)
 # Release Archives
 # =============================================================================
 
-build-release:
+build-release: ## Create release archives and checksums
 	@VERSION=$$(node -p "require('./cli/package.json').version") && \
 	OUTDIR="$(RELEASE_DIR)/v$$VERSION" && \
 	echo "[build-release] Building release archives for v$$VERSION..." && \
@@ -1196,7 +956,7 @@ build-release:
 	(cd "$$OUTDIR" && $(SHA256CMD) sideseat-* > checksums-sha256.txt) && \
 	echo "[build-release] Done: $$OUTDIR/"
 
-publish-release:
+publish-release: ## Upload archives to the GitHub release
 	@VERSION=$$(node -p "require('./cli/package.json').version") && \
 	OUTDIR="$(RELEASE_DIR)/v$$VERSION" && \
 	echo "[publish-release] Publishing v$$VERSION to GitHub Releases..." && \
@@ -1218,7 +978,7 @@ publish-release:
 # Homebrew Tap
 # =============================================================================
 
-publish-brew:
+publish-brew: ## Update the Homebrew tap
 	@VERSION=$$(node -p "require('./cli/package.json').version") && \
 	CHECKSUMS="$(RELEASE_DIR)/v$$VERSION/checksums-sha256.txt" && \
 	echo "[publish-brew] Publishing Homebrew formula for v$$VERSION..." && \
@@ -1265,7 +1025,7 @@ publish-brew:
 # Utilities
 # =============================================================================
 
-deps-check:
+deps-check: ## Report outdated dependencies
 	@echo "[deps-check] Checking for outdated dependencies..."
 	@echo ""
 	@echo "=== Server (Rust) ==="
@@ -1283,12 +1043,12 @@ deps-check:
 	@echo "=== Docs ==="
 	@cd docs && npm outdated || true
 
-node-floor:
+node-floor: ## Derive the supported Node.js floor
 	@#  Prints the Node versions every installed `engines.node` range accepts. Needs an installed tree for
 	@#  `semver`, which is transitive rather than declared - the script says so and stops if none is there.
 	@node scripts/node-floor.mjs --check
 
-download-prices:
+download-prices: ## Refresh model pricing data
 	@echo "[download-prices] Downloading LLM pricing data..."
 	@mkdir -p $(dir $(PRICES_FILE))
 	@if command -v curl >/dev/null 2>&1; then \
@@ -1303,7 +1063,7 @@ download-prices:
 	@echo "[download-prices] Saved to $(PRICES_FILE)"
 
 # Reclaim stale and incremental Cargo artifacts without removing the current build.
-clean-stale:
+clean-stale: ## Remove stale Cargo artifacts
 	@./scripts/clean-stale.sh
 
 # Docker resources created by test and benchmark targets. Keep this list explicit:
@@ -1320,7 +1080,7 @@ SIDESEAT_TEST_CONTAINERS = \
 	sideseat-bench-ch-$(DOCKER_SCOPE) \
 	sideseat-bench-minio-$(DOCKER_SCOPE)
 
-clean-docker:
+clean-docker: ## Remove this checkout's test containers
 	@command -v docker >/dev/null 2>&1 || { echo "[clean-docker] docker not installed; nothing to do"; exit 0; }
 	@docker info >/dev/null 2>&1 || { echo "[clean-docker] Docker daemon is unavailable"; exit 1; }
 	@echo "[clean-docker] Removing this repo's throwaway containers..."
@@ -1337,7 +1097,7 @@ clean-docker:
 
 # What is using space, and **whether it is within budget** - which is the difference between a report and a
 # gate. Exits non-zero over the ceiling, the way a missed latency ceiling fails `make bench-http`.
-disk:
+disk: ## Report and enforce the local disk budget
 	@echo "[disk] Free space:"
 	@df -h . | tail -1
 	@echo "[disk] Largest local directories:"
@@ -1396,7 +1156,7 @@ disk-guard:
 		fi; \
 	fi
 
-clean:
+clean: ## Remove all generated build artifacts
 	@echo "[clean] Removing build artifacts..."
 	@rm -rf target
 	@#  `dist` is simply removed. The server *embeds* it, so it has to exist to compile - and that is
@@ -1414,5 +1174,5 @@ clean:
 	@echo "[clean] server/build.rs recreates web/dist as a placeholder on the next build - run make build-web for the real UI."
 
 # Aliases
-run: dev
-start: dev
+run: dev ## Alias for dev
+start: dev ## Alias for dev
