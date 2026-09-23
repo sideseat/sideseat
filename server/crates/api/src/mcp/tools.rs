@@ -11,7 +11,8 @@ use rmcp::{ServerHandler, prompt, prompt_handler, prompt_router, tool, tool_hand
 use crate::routes::otel::messages::{build_messages_response, scope_feed_to_trace};
 use crate::routes::otel::sessions::session_row_to_summary;
 use crate::routes::otel::stats::{
-    INVALID_TIMEZONE_MESSAGE, normalize_timezone, stats_result_to_dto,
+    INVALID_TIME_RANGE_MESSAGE, INVALID_TIMEZONE_MESSAGE, RANGE_TOO_LARGE_MESSAGE, StatsRangeError,
+    normalize_timezone, stats_result_to_dto, validate_stats_time_range,
 };
 use crate::routes::otel::traces::{MAX_SPANS_PER_TRACE, trace_row_to_summary};
 use crate::routes::otel::types::SpanEnvelopeDto;
@@ -364,18 +365,13 @@ impl McpServer {
         let to_ts = parse_ts(&input.to_timestamp)
             .ok_or_else(|| McpError::invalid_params("invalid to_timestamp", None))?;
 
-        if from_ts >= to_ts {
-            return Err(McpError::invalid_params(
-                "from_timestamp must be before to_timestamp",
-                None,
-            ));
-        }
-        if (to_ts - from_ts).num_days() > 90 {
-            return Err(McpError::invalid_params(
-                "time range cannot exceed 90 days",
-                None,
-            ));
-        }
+        validate_stats_time_range(from_ts, to_ts).map_err(|error| {
+            let message = match error {
+                StatsRangeError::InvalidOrder => INVALID_TIME_RANGE_MESSAGE,
+                StatsRangeError::TooLarge => RANGE_TOO_LARGE_MESSAGE,
+            };
+            McpError::invalid_params(message, None)
+        })?;
 
         let timezone = normalize_timezone(input.timezone)
             .map_err(|_| McpError::invalid_params(INVALID_TIMEZONE_MESSAGE, None))?;

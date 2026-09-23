@@ -21,6 +21,7 @@ use sideseat_ports::types::{ProjectStatsResult, StatsParams};
 
 /// TTL for recent data (data from within the last 5 minutes) - 2 minutes
 const CACHE_TTL_STATS_RECENT: u64 = 120;
+const MAX_STATS_RANGE_DAYS: i64 = 90;
 
 #[derive(Debug, Deserialize)]
 pub struct StatsQuery {
@@ -31,6 +32,15 @@ pub struct StatsQuery {
 }
 
 pub(crate) const INVALID_TIMEZONE_MESSAGE: &str = "timezone must be a valid IANA timezone";
+pub(crate) const INVALID_TIME_RANGE_MESSAGE: &str =
+    "from_timestamp must be strictly before to_timestamp";
+pub(crate) const RANGE_TOO_LARGE_MESSAGE: &str = "time range cannot exceed 90 days";
+
+#[derive(Debug, PartialEq, Eq)]
+pub(crate) enum StatsRangeError {
+    InvalidOrder,
+    TooLarge,
+}
 
 pub(crate) fn normalize_timezone(timezone: Option<String>) -> Result<Option<String>, &'static str> {
     timezone
@@ -41,6 +51,19 @@ pub(crate) fn normalize_timezone(timezone: Option<String>) -> Result<Option<Stri
                 .map_err(|_| INVALID_TIMEZONE_MESSAGE)
         })
         .transpose()
+}
+
+pub(crate) fn validate_stats_time_range(
+    from_timestamp: DateTime<Utc>,
+    to_timestamp: DateTime<Utc>,
+) -> Result<(), StatsRangeError> {
+    if from_timestamp >= to_timestamp {
+        return Err(StatsRangeError::InvalidOrder);
+    }
+    if to_timestamp - from_timestamp > chrono::Duration::days(MAX_STATS_RANGE_DAYS) {
+        return Err(StatsRangeError::TooLarge);
+    }
+    Ok(())
 }
 
 /// Get project stats for the given time range
@@ -70,22 +93,14 @@ pub async fn get_project_stats(
     let to_timestamp = parse_timestamp_param(&Some(query.to_timestamp))?
         .ok_or_else(|| ApiError::bad_request("MISSING_PARAM", "to_timestamp is required"))?;
 
-    // Validate time range
-    if from_timestamp >= to_timestamp {
-        return Err(ApiError::bad_request(
-            "INVALID_TIME_RANGE",
-            "from_timestamp must be strictly before to_timestamp",
-        ));
-    }
-
-    // Limit max range to prevent excessive bucket generation
-    let range_days = (to_timestamp - from_timestamp).num_days();
-    if range_days > 90 {
-        return Err(ApiError::bad_request(
-            "RANGE_TOO_LARGE",
-            "Time range cannot exceed 90 days",
-        ));
-    }
+    validate_stats_time_range(from_timestamp, to_timestamp).map_err(|error| match error {
+        StatsRangeError::InvalidOrder => {
+            ApiError::bad_request("INVALID_TIME_RANGE", INVALID_TIME_RANGE_MESSAGE)
+        }
+        StatsRangeError::TooLarge => {
+            ApiError::bad_request("RANGE_TOO_LARGE", RANGE_TOO_LARGE_MESSAGE)
+        }
+    })?;
 
     let project_id = auth.project_id.clone();
     let timezone = normalize_timezone(query.timezone)
@@ -240,7 +255,9 @@ pub(crate) fn stats_result_to_dto(
 
 #[cfg(test)]
 mod tests {
-    use super::normalize_timezone;
+    use chrono::{Duration, TimeZone, Utc};
+
+    use super::{StatsRangeError, normalize_timezone, validate_stats_time_range};
 
     #[test]
     fn timezone_is_validated_and_canonicalized_before_caching() {
@@ -250,5 +267,33 @@ mod tests {
             Ok(Some("Europe/London".into()))
         );
         assert!(normalize_timezone(Some("not/a-timezone".into())).is_err());
+    }
+
+    #[test]
+    fn stats_range_limit_is_exact_instead_of_rounded_to_whole_days() {
+        let from = Utc.with_ymd_and_hms(2026, 1, 1, 0, 0, 0).unwrap();
+
+        assert_eq!(
+            validate_stats_time_range(from, from + Duration::days(90)),
+            Ok(())
+        );
+        assert_eq!(
+            validate_stats_time_range(from, from + Duration::days(90) + Duration::microseconds(1)),
+            Err(StatsRangeError::TooLarge)
+        );
+    }
+
+    #[test]
+    fn stats_range_requires_strictly_increasing_timestamps() {
+        let timestamp = Utc.with_ymd_and_hms(2026, 1, 1, 0, 0, 0).unwrap();
+
+        assert_eq!(
+            validate_stats_time_range(timestamp, timestamp),
+            Err(StatsRangeError::InvalidOrder)
+        );
+        assert_eq!(
+            validate_stats_time_range(timestamp, timestamp - Duration::microseconds(1)),
+            Err(StatsRangeError::InvalidOrder)
+        );
     }
 }
