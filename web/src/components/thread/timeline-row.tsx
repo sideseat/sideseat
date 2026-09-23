@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo, useEffect } from "react";
+import { useState, useCallback, useMemo } from "react";
 import {
   Copy,
   Check,
@@ -131,18 +131,21 @@ export function TimelineRow({
   projectId,
 }: TimelineRowProps) {
   const [copied, setCopied] = useState(false);
-  const [isOpenLocal, setIsOpenLocal] = useState(true);
+  const [openState, setOpenState] = useState({
+    local: forceExpanded ?? true,
+    lastForce: forceExpanded,
+  });
+  if (openState.lastForce !== forceExpanded) {
+    setOpenState({
+      local: forceExpanded ?? openState.local,
+      lastForce: forceExpanded,
+    });
+  }
 
-  useEffect(() => {
-    if (forceExpanded !== undefined) {
-      setIsOpenLocal(forceExpanded);
-    }
-  }, [forceExpanded]);
-
-  const isOpen = forceExpanded !== undefined ? forceExpanded : isOpenLocal;
+  const isOpen = forceExpanded ?? openState.local;
   const handleOpenChange = (open: boolean) => {
     onManualToggle?.();
-    setIsOpenLocal(open);
+    setOpenState({ local: open, lastForce: forceExpanded });
   };
 
   const isError = block.is_error;
