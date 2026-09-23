@@ -30,6 +30,19 @@ pub struct StatsQuery {
     pub timezone: Option<String>,
 }
 
+pub(crate) const INVALID_TIMEZONE_MESSAGE: &str = "timezone must be a valid IANA timezone";
+
+pub(crate) fn normalize_timezone(timezone: Option<String>) -> Result<Option<String>, &'static str> {
+    timezone
+        .map(|value| {
+            value
+                .parse::<chrono_tz::Tz>()
+                .map(|timezone| timezone.to_string())
+                .map_err(|_| INVALID_TIMEZONE_MESSAGE)
+        })
+        .transpose()
+}
+
 /// Get project stats for the given time range
 #[utoipa::path(
     get,
@@ -75,7 +88,8 @@ pub async fn get_project_stats(
     }
 
     let project_id = auth.project_id.clone();
-    let timezone = query.timezone.clone();
+    let timezone = normalize_timezone(query.timezone)
+        .map_err(|message| ApiError::bad_request("INVALID_TIMEZONE", message))?;
     let cache = &state.cache;
 
     // Determine if this query is cacheable and calculate TTL
@@ -221,5 +235,20 @@ pub(crate) fn stats_result_to_dto(
                 avg_duration_ms: t.avg_duration_ms,
             })
             .collect(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::normalize_timezone;
+
+    #[test]
+    fn timezone_is_validated_and_canonicalized_before_caching() {
+        assert_eq!(normalize_timezone(None), Ok(None));
+        assert_eq!(
+            normalize_timezone(Some("Europe/London".into())),
+            Ok(Some("Europe/London".into()))
+        );
+        assert!(normalize_timezone(Some("not/a-timezone".into())).is_err());
     }
 }

@@ -229,7 +229,6 @@ gcp_auth = "0.12"
 moka = { version = "0.12", features = ["future", "sync"] }
 rmp-serde = "1"
 rdkafka = { version = "0.39.0", features = ["cmake-build"] }
-md5 = "0.7"
 deadpool-redis = "0.18"
 
 # ClickHouse client

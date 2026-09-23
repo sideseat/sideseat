@@ -10,7 +10,9 @@ use rmcp::{ServerHandler, prompt, prompt_handler, prompt_router, tool, tool_hand
 
 use crate::routes::otel::messages::{build_messages_response, scope_feed_to_trace};
 use crate::routes::otel::sessions::session_row_to_summary;
-use crate::routes::otel::stats::stats_result_to_dto;
+use crate::routes::otel::stats::{
+    INVALID_TIMEZONE_MESSAGE, normalize_timezone, stats_result_to_dto,
+};
 use crate::routes::otel::traces::{MAX_SPANS_PER_TRACE, trace_row_to_summary};
 use crate::routes::otel::types::SpanEnvelopeDto;
 use crate::routes::otel::types::{
@@ -375,11 +377,13 @@ impl McpServer {
             ));
         }
 
+        let timezone = normalize_timezone(input.timezone)
+            .map_err(|_| McpError::invalid_params(INVALID_TIMEZONE_MESSAGE, None))?;
         let params = StatsParams {
             project_id: self.project_id.clone(),
             from_timestamp: from_ts,
             to_timestamp: to_ts,
-            timezone: input.timezone,
+            timezone,
         };
         let repo = self.analytics.as_ref();
         let result = repo.get_project_stats(&params).await.map_err(mcp_err)?;
