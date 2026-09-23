@@ -1,6 +1,7 @@
 //! In-process implementation of the SDK registration-store port.
 
 use std::collections::HashSet;
+use std::hash::Hash;
 
 use async_trait::async_trait;
 use dashmap::DashMap;
@@ -11,6 +12,16 @@ use sideseat_ports::registrations::{
 use sideseat_ports::types::ProjectId;
 
 type Key = (ProjectId, RegistrationKind, String);
+
+fn remove_index_entry<I>(index: &DashMap<I, HashSet<Key>>, index_key: &I, key: &Key)
+where
+    I: Eq + Hash,
+{
+    if let Some(mut set) = index.get_mut(index_key) {
+        set.remove(key);
+    }
+    index.remove_if(index_key, |_, set| set.is_empty());
+}
 
 #[derive(Default)]
 pub struct MemoryRegistrationStore {
@@ -27,15 +38,9 @@ impl MemoryRegistrationStore {
     }
 
     fn unindex(&self, key: &Key, previous: &RegistrationEntry) {
-        if let Some(mut set) = self.by_project.get_mut(&previous.project_id) {
-            set.remove(key);
-        }
-        if let Some(mut set) = self.by_client.get_mut(&previous.owner_client_id) {
-            set.remove(key);
-        }
-        if let Some(mut set) = self.by_connection.get_mut(&previous.owner_connection_id) {
-            set.remove(key);
-        }
+        remove_index_entry(&self.by_project, &previous.project_id, key);
+        remove_index_entry(&self.by_client, &previous.owner_client_id, key);
+        remove_index_entry(&self.by_connection, &previous.owner_connection_id, key);
     }
 }
 
@@ -50,10 +55,7 @@ impl RegistrationStore for MemoryRegistrationStore {
             dashmap::Entry::Occupied(mut occupied) => {
                 let existing = occupied.get_mut();
                 if existing.owner_connection_id != entry.owner_connection_id {
-                    if let Some(mut set) = self.by_connection.get_mut(&existing.owner_connection_id)
-                    {
-                        set.remove(&key);
-                    }
+                    remove_index_entry(&self.by_connection, &existing.owner_connection_id, &key);
                     self.by_connection
                         .entry(entry.owner_connection_id.clone())
                         .or_default()
@@ -66,9 +68,7 @@ impl RegistrationStore for MemoryRegistrationStore {
                         client_id: existing.owner_client_id.clone(),
                         instance_id: existing.owning_instance_id.clone(),
                     };
-                    if let Some(mut set) = self.by_client.get_mut(&existing.owner_client_id) {
-                        set.remove(&key);
-                    }
+                    remove_index_entry(&self.by_client, &existing.owner_client_id, &key);
                     self.by_client
                         .entry(entry.owner_client_id.clone())
                         .or_default()
@@ -155,12 +155,8 @@ impl RegistrationStore for MemoryRegistrationStore {
             else {
                 continue;
             };
-            if let Some(mut set) = self.by_project.get_mut(&entry.project_id) {
-                set.remove(&key);
-            }
-            if let Some(mut set) = self.by_client.get_mut(&entry.owner_client_id) {
-                set.remove(&key);
-            }
+            remove_index_entry(&self.by_project, &entry.project_id, &key);
+            remove_index_entry(&self.by_client, &entry.owner_client_id, &key);
             removed.push(entry);
         }
         Ok(removed)
@@ -302,6 +298,25 @@ mod tests {
                 .is_some()
         );
         assert!(store.list(&project).await.unwrap().is_empty());
+    }
+
+    #[tokio::test]
+    async fn removing_the_last_registration_prunes_empty_index_buckets() {
+        let store = MemoryRegistrationStore::new();
+        let project = ProjectId::from("p");
+        store
+            .upsert(entry("p", "agent", "client-1", "instance-a"))
+            .await
+            .unwrap();
+
+        store
+            .remove(&project, RegistrationKind::Agent, "agent", "client-1")
+            .await
+            .unwrap();
+
+        assert!(store.by_project.is_empty());
+        assert!(store.by_client.is_empty());
+        assert!(store.by_connection.is_empty());
     }
 
     #[tokio::test]
