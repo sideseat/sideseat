@@ -26,5 +26,5 @@ stored can change with them.
 ## Finding what changed in a specific area
 
 The commit history is the detailed record, and commit messages in this repository state the defect, the
-measurement that established it, and the mutation that verified the fix. `git log --oneline -- server/src/domain`
+measurement that established it, and the mutation that verified the fix. `git log --oneline -- server/crates/domain`
 is usually more informative than a summarised changelog entry would be.

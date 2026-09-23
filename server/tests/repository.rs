@@ -1,13 +1,6 @@
 //! Invariants about the **repository**, not about the server.
 //!
-//! An integration test rather than a module under `src/`: these are about what the tree contains — which
-//! manifests exist, what a committed fixture carries — and the first place a newcomer looks for that is not
-//! `server/src/domain/`. The dependabot check lived inside an 8,500-line carrier-rules test file, which is
-//! where it was written rather than where it belongs.
-//!
-//! What deliberately stays in `src/`: the two checks over the *architecture* diagrams in
-//! `docs/engineering/`. They read `embedded_sources()` and the rule plans, which are crate-private, so an
-//! integration test cannot see them at all. The tree-diagram check below needs nothing but the tree.
+//! These integration tests enforce file layout, dependency boundaries, CI coverage and committed fixtures.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
@@ -3156,6 +3149,17 @@ fn domain_crate_has_a_flat_module_root() {
                 .any(|line| line.trim() == "pub mod domain;"),
         "the domain crate must expose its modules directly from src/"
     );
+}
+
+#[test]
+fn composition_root_has_no_legacy_test_facades() {
+    let repo = repo_root();
+    for path in ["server/src/data", "server/src/domain"] {
+        assert!(
+            !repo.join(path).exists(),
+            "tests must import workspace crates directly instead of restoring {path}"
+        );
+    }
 }
 
 #[test]

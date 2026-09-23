@@ -3,7 +3,7 @@
 #
 # Runs each sample against an in-process recorder (scripts/message-fixtures/record-otlp.py) so the exact bytes the
 # framework emits land in server/tests/fixtures/messages/<suite>/<sample>/. Those fixtures are
-# replayed by server/src/domain/traces/message_goldens_tests.rs, which checks message count,
+# replayed by server/tests/message_goldens.rs, which checks message count,
 # content, ordering and absence of duplicates across the span, trace and session views.
 #
 # Only Bedrock credentials are assumed; suites needing a first-party key are skipped.
@@ -329,9 +329,9 @@ if ((${#failed[@]})); then
   echo "[capture] no fixtures for: ${failed[*]}"
 fi
 echo "[capture] fixtures under $FIXTURES"
-echo "[capture] next: UPDATE_GOLDENS=1 cargo test --locked -p sideseat-server message_goldens   # record"
+echo "[capture] next: UPDATE_GOLDENS=1 cargo test --locked -p sideseat-server --test message_goldens   # record"
 echo "[capture]       scripts/message-fixtures/review-goldens.py                                    # read the result"
-echo "[capture]       cargo test --locked -p sideseat-server message_goldens                     # then it gates"
+echo "[capture]       cargo test --locked -p sideseat-server --test message_goldens                     # then it gates"
 
 # Non-zero when anything failed. Reporting failures and exiting 0 meant a CI step or a caller
 # chaining with && treated a partial capture as a full one.

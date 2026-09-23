@@ -2,7 +2,7 @@
 """Record OTLP trace payloads from a sample run, then forward them to SideSeat.
 
 Sits between a sample and the server so the exact bytes a framework emits are captured as
-test fixtures. Those fixtures drive server/src/domain/traces/message_goldens_tests.rs, which
+test fixtures. Those fixtures drive server/tests/message_goldens.rs, which
 replays them through the real extraction + SideML feed pipeline and compares the resulting
 messages against committed expectations.
 

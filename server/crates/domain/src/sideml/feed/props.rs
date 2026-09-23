@@ -169,14 +169,10 @@ fn any_rows() -> impl Strategy<Value = Vec<MessageSpanRow>> {
 }
 
 proptest! {
-    //  Seeds in **one file beside this one**, rather than proptest's default
-    //  `server/proptest-regressions/domain/sideml/feed/props.txt` - three directories deep to hold a single
-    //  file, mirroring a module path that git already states. `Direct` keeps the path stable if this module
-    //  moves; the seeds themselves are worth committing (they are past failures, re-run before novel cases),
-    //  which is why they are relocated rather than deleted.
+    // Keep generated failure cases beside the property suite so past failures run before new cases.
     #![proptest_config(ProptestConfig {
         failure_persistence: Some(Box::new(
-            proptest::test_runner::FileFailurePersistence::Direct("src/domain/sideml/feed/props.seeds"),
+            proptest::test_runner::FileFailurePersistence::Direct("src/sideml/feed/props.seeds"),
         )),
         ..ProptestConfig::default()
     })]

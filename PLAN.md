@@ -114,7 +114,7 @@ scripts/              bench-http-latency.sh, footprint-gates.sh, message-fixture
 ```bash
 make check                                                # fmt + clippy + every test. No containers.
 cargo test --locked -q -p sideseat-server --lib           # composition-root inner loop, ~90s, 88 tests
-cargo test --locked -p sideseat-server message_goldens    # 121 fixtures x 4 views, ~70s — the oracle
+cargo test --locked -p sideseat-server --test message_goldens # 121 fixtures x 4 views, ~70s — the oracle
 cargo test --locked -p sideseat-server --test repository  # 28 structural invariants
 make test-postgres                                        # PostgreSQL/SQLite parity, throwaway container
 make test-clickhouse                                      # ClickHouse/DuckDB parity, throwaway container

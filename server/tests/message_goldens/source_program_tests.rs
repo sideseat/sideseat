@@ -10,8 +10,8 @@
 use serde_json::json;
 
 use super::source_program::SourceProgram;
-use crate::domain::pricing::PricingService;
-use crate::domain::sideml::feed::{FeedOptions, process_spans};
+use sideseat_domain::pricing::PricingService;
+use sideseat_domain::sideml::feed::{FeedOptions, process_spans};
 
 fn survivors(program: &SourceProgram) -> (usize, usize) {
     let request = program.encode();
@@ -139,7 +139,7 @@ fn an_identical_plain_question_collapses_by_design() {
     let questions = result
         .messages
         .iter()
-        .filter(|b| b.role == crate::domain::sideml::ChatRole::User && b.entry_type == "text")
+        .filter(|b| b.role == sideseat_domain::sideml::ChatRole::User && b.entry_type == "text")
         .count();
     assert_eq!(
         questions, 1,

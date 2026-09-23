@@ -1,6 +1,6 @@
 # Message-parsing fixtures
 
-Inputs for `server/src/domain/traces/message_goldens_tests.rs`, which checks that message
+Inputs for `server/tests/message_goldens.rs`, which checks that message
 **count, content, ordering and absence of duplicates** hold for every framework *that has a
 fixture here*, in all four views the API exposes. Coverage is 11 of the 32 frameworks SideSeat
 recognises and not every fixture has a session view - see [What is and is not
@@ -91,12 +91,12 @@ scripts/message-fixtures/capture.sh strands tool_use   # one sample
 Then record the expectations, **read them**, and only then let them gate:
 
 ```bash
-UPDATE_GOLDENS=1 cargo test --locked -p sideseat-server message_goldens   # write expectations
+UPDATE_GOLDENS=1 cargo test --locked -p sideseat-server --test message_goldens   # write expectations
 scripts/message-fixtures/review-goldens.py                                   # read them: counts, roles, content
 scripts/message-fixtures/review-goldens.py --suspicious                      # only fixtures with warnings
 scripts/message-fixtures/review-goldens.py strands/tool_use                  # one sample, full detail
 git diff server/tests/fixtures/messages
-cargo test --locked -p sideseat-server message_goldens           # from now on it gates
+cargo test --locked -p sideseat-server --test message_goldens           # from now on it gates
 ```
 
 `review-goldens.py` exists because `git diff` on this much JSON is unreadable. It
@@ -216,7 +216,7 @@ weakening the check for everyone.
 
 Hand-written, not captured: shapes no captured sample produces, plus a Strands-shaped tool-use
 conversation that exercises the harness itself. Event shapes are taken from the assertions in
-`server/src/domain/traces/extract/messages_tests.rs` rather than invented — an unrealistic fixture
+`server/crates/domain/src/traces/extract/messages_tests.rs` rather than invented — an unrealistic fixture
 would produce confident but meaningless results.
 
 Real captures are preferred for every framework, and these are not a substitute for one: each exists

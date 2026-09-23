@@ -28,7 +28,7 @@
 //! The result is compared against a committed expectation file. Regenerate with:
 //!
 //! ```bash
-//! UPDATE_GOLDENS=1 cargo test --locked -p sideseat-server message_goldens
+//! UPDATE_GOLDENS=1 cargo test --locked -p sideseat-server --test message_goldens
 //! ```
 //!
 //! Regenerating is deliberately a separate, explicit step: a golden written straight from
@@ -44,14 +44,92 @@ use prost::Message as _;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 
-use crate::domain::pricing::PricingService;
-use crate::domain::sideml::feed::{
+use sideseat_api::routes::otel::messages::scope_feed_to_trace;
+use sideseat_domain::pricing::PricingService;
+use sideseat_domain::sideml::feed::{
     FeedOptions, extract_tools_from_rows, legacy_and_neutral_order, presented_and_unconstrained,
     process_feed, process_spans, shadow_resolved_order,
 };
-use crate::domain::traces::extract::ExtractionMode;
-use sideseat_api::routes::otel::messages::scope_feed_to_trace;
+use sideseat_domain::traces::extract::ExtractionMode;
 use sideseat_ports::types::{MessageSpanRow, ObservationType, ProjectId};
+
+#[path = "message_goldens/source_program.rs"]
+mod source_program;
+#[path = "message_goldens/source_program_tests.rs"]
+mod source_program_tests;
+
+fn normalize_for_test(
+    request: &ExportTraceServiceRequest,
+    pricing: &PricingService,
+) -> Vec<(String, MessageSpanRow)> {
+    normalize_for_test_with_mode(request, pricing, ExtractionMode::PerCarrier)
+}
+
+fn normalize_for_test_with_mode(
+    request: &ExportTraceServiceRequest,
+    pricing: &PricingService,
+    mode: ExtractionMode,
+) -> Vec<(String, MessageSpanRow)> {
+    let Some(spans) =
+        sideseat_domain::traces::process_request_for_test_with_mode(request, pricing, mode)
+    else {
+        return Vec::new();
+    };
+
+    spans
+        .into_iter()
+        .map(|span| {
+            let row = MessageSpanRow {
+                trace_id: span.trace_id.clone(),
+                span_id: span.span_id.clone(),
+                parent_span_id: span.parent_span_id.clone(),
+                span_timestamp: span.timestamp_start,
+                span_end_timestamp: span.timestamp_end,
+                messages_json: span.messages.clone().unwrap_or_else(|| "[]".to_string()),
+                tool_definitions_json: span
+                    .tool_definitions
+                    .clone()
+                    .unwrap_or_else(|| "[]".to_string()),
+                tool_names_json: span.tool_names.clone().unwrap_or_else(|| "[]".to_string()),
+                body_cache_key: None,
+                model: span
+                    .gen_ai_response_model
+                    .clone()
+                    .or_else(|| span.gen_ai_request_model.clone()),
+                provider: span.gen_ai_system.clone(),
+                status_code: span.status_code.clone(),
+                exception_type: span.exception_type.clone(),
+                exception_message: span.exception_message.clone(),
+                exception_stacktrace: span.exception_stacktrace.clone(),
+                input_tokens: span.gen_ai_usage_input_tokens,
+                output_tokens: span.gen_ai_usage_output_tokens,
+                total_tokens: span.gen_ai_usage_total_tokens,
+                cost_total: span.gen_ai_cost_total,
+                observation_type: span
+                    .observation_type
+                    .map(|value| value.as_str().to_string()),
+                session_id: span.session_id.clone(),
+                ingested_at: span.timestamp_start,
+                scope_name: None,
+                scope_version: None,
+                span_name: None,
+                framework: None,
+                response_model: None,
+                response_id: None,
+                temperature: None,
+                top_p: None,
+                max_tokens: None,
+                finish_reasons: None,
+                cache_read_tokens: 0,
+                cache_write_tokens: 0,
+                reasoning_tokens: 0,
+                cost_input: 0.0,
+                cost_output: 0.0,
+            };
+            (span.span_name, row)
+        })
+        .collect()
+}
 
 // ============================================================================
 // Fixture discovery
@@ -129,7 +207,7 @@ fn rows_for(paths: &[PathBuf]) -> Vec<(String, MessageSpanRow)> {
     let mut rows = Vec::new();
     for path in paths {
         let request = decode_request(path);
-        rows.extend(super::normalize_for_test(&request, &pricing));
+        rows.extend(normalize_for_test(&request, &pricing));
     }
     rows
 }
@@ -385,7 +463,7 @@ fn build_view(rows: Vec<MessageSpanRow>, view: View<'_>) -> (GoldenView, Vec<Inv
                 (None, None) => "synthesised".to_string(),
             },
             position: block.position.to_string(),
-            carrier_orders_positions: crate::domain::sideml::carrier::semantics_for_context(
+            carrier_orders_positions: sideseat_domain::sideml::carrier::semantics_for_context(
                 &block.carrier_context(),
             )
             .position_provides_sequence_order,
@@ -2115,7 +2193,7 @@ fn rows_for_mode(
     let mut rows = Vec::new();
     for path in paths {
         let request = decode_request(path);
-        rows.extend(super::normalize_for_test_with_mode(&request, pricing, mode));
+        rows.extend(normalize_for_test_with_mode(&request, pricing, mode));
     }
     rows
 }
@@ -2312,7 +2390,7 @@ fn promoted_constraints_do_not_change_which_messages_appear() {
             }
             let (legacy, _) = legacy_and_neutral_order(rows.clone());
             let produced = process_spans(rows, &FeedOptions::new()).messages;
-            let digest = |blocks: &[crate::domain::sideml::feed::BlockEntry]| -> Vec<String> {
+            let digest = |blocks: &[sideseat_domain::sideml::feed::BlockEntry]| -> Vec<String> {
                 let mut out: Vec<String> = blocks
                     .iter()
                     .map(|b| format!("{}/{}/{}", b.role.as_str(), b.entry_type, b.content_hash))
@@ -2365,7 +2443,7 @@ fn the_neutral_resolver_reproduces_the_legacy_order() {
             // The whole block, serialised. A role/type/span/hash fingerprint is too weak: two
             // identical tool calls with distinct ids share it, so swapping them would have passed -
             // and those two calls are exactly what the resolver's contraction reasons about.
-            let seq = |blocks: &[crate::domain::sideml::feed::BlockEntry]| -> Vec<String> {
+            let seq = |blocks: &[sideseat_domain::sideml::feed::BlockEntry]| -> Vec<String> {
                 blocks
                     .iter()
                     .map(|b| serde_json::to_string(b).expect("a block serialises"))
@@ -2411,7 +2489,7 @@ fn repeated_identical_calls_keep_both_and_stay_resolvable() {
     );
 
     let (legacy, scaffold) = legacy_and_neutral_order(rows.clone());
-    let calls = |blocks: &[crate::domain::sideml::feed::BlockEntry]| -> usize {
+    let calls = |blocks: &[sideseat_domain::sideml::feed::BlockEntry]| -> usize {
         blocks.iter().filter(|b| b.entry_type == "tool_use").count()
     };
     assert!(
@@ -2529,7 +2607,7 @@ fn bench_pipeline() {
         elapsed,
         clone_cost
     );
-    for (stage, took) in crate::domain::sideml::feed::stage_timings(rows) {
+    for (stage, took) in sideseat_domain::sideml::feed::stage_timings(rows) {
         eprintln!("  STAGE {stage}: {took:?}");
     }
 
@@ -2547,7 +2625,7 @@ fn bench_pipeline() {
     for _ in 0..iterations {
         produced = requests
             .iter()
-            .map(|r| super::normalize_for_test(r, &pricing).len())
+            .map(|r| normalize_for_test(r, &pricing).len())
             .sum();
     }
     let per_run = start.elapsed() / iterations;
@@ -2574,7 +2652,7 @@ fn no_fixture_exhausts_the_replay_matching_budget() {
         if rows.is_empty() {
             continue;
         }
-        let result = crate::domain::sideml::feed::process_spans(
+        let result = sideseat_domain::sideml::feed::process_spans(
             sorted_by_timestamp(rows),
             &FeedOptions::new(),
         );
@@ -2709,8 +2787,8 @@ fn the_corpus_matches_the_support_matrix() {
 /// nothing but the saving. What N instances change is the hit rate, not the answer.
 #[test]
 fn a_cached_reconstruction_equals_a_fresh_one() {
-    use crate::domain::sideml::feed::cache::ReconstructionCache;
-    use crate::domain::sideml::feed::{process_spans, process_spans_cached};
+    use sideseat_domain::sideml::feed::cache::ReconstructionCache;
+    use sideseat_domain::sideml::feed::{process_spans, process_spans_cached};
 
     let mut checked = 0usize;
     for (label, paths) in discover_fixtures() {
@@ -2734,7 +2812,7 @@ fn a_cached_reconstruction_equals_a_fresh_one() {
             "{label}: the second read must have been a hit"
         );
 
-        let serialise = |result: &crate::domain::sideml::feed::FeedResult| -> String {
+        let serialise = |result: &sideseat_domain::sideml::feed::FeedResult| -> String {
             result
                 .messages
                 .iter()
@@ -2790,7 +2868,7 @@ fn ordering_constraints_do_not_change_a_session_s_messages() {
             continue;
         }
         let (presented, unconstrained) = presented_and_unconstrained(sorted_by_timestamp(rows));
-        let multiset = |blocks: &[crate::domain::sideml::feed::BlockEntry]| -> Vec<String> {
+        let multiset = |blocks: &[sideseat_domain::sideml::feed::BlockEntry]| -> Vec<String> {
             let mut out: Vec<String> = blocks
                 .iter()
                 .map(|b| {
@@ -2830,9 +2908,10 @@ fn probe_pre_dedup() {
         .map(|(_, r)| r)
         .filter(passes_content_filter)
         .collect();
-    for (i, b) in crate::domain::sideml::feed::classified_blocks_for_test(sorted_by_timestamp(rows))
-        .iter()
-        .enumerate()
+    for (i, b) in
+        sideseat_domain::sideml::feed::classified_blocks_for_test(sorted_by_timestamp(rows))
+            .iter()
+            .enumerate()
     {
         let c: String = format!("{:?}", b.content).chars().take(60).collect();
         eprintln!(
@@ -2857,7 +2936,7 @@ fn probe_pre_dedup() {
 /// That is the difference between a declaration and a guess.
 #[test]
 fn carrier_semantics_are_declared() {
-    use crate::domain::sideml::carrier::declared_semantics;
+    use sideseat_domain::sideml::carrier::declared_semantics;
 
     // Carriers the corpus contains that are knowingly left on the cautious default. Each one is a
     // decision, not an oversight: the reading is "a conversation as this span saw it", which can
@@ -2870,7 +2949,7 @@ fn carrier_semantics_are_declared() {
     let mut seen: BTreeSet<String> = BTreeSet::new();
     for (_, paths) in discover_fixtures() {
         let rows: Vec<MessageSpanRow> = rows_for(&paths).into_iter().map(|(_, r)| r).collect();
-        for block in crate::domain::sideml::feed::classified_blocks_for_test(rows) {
+        for block in sideseat_domain::sideml::feed::classified_blocks_for_test(rows) {
             match (&block.event_name, &block.source_attribute) {
                 (Some(event), _) => seen.insert(format!("event:{event}")),
                 (None, Some(attribute)) => seen.insert(format!("attr:{attribute}")),
@@ -2937,13 +3016,13 @@ fn carrier_semantics_are_declared() {
 /// scoring exists to pick - so what is compared is the sequence of roles and kinds, not the text.
 #[test]
 fn which_copy_survives_does_not_change_the_order() {
-    use crate::domain::sideml::feed::PREFER_LATER_ON_TIE;
+    use sideseat_domain::sideml::feed::PREFER_LATER_ON_TIE;
 
     let set = |value: bool| PREFER_LATER_ON_TIE.with(|flag| flag.set(value));
 
     let mut differing: Vec<String> = Vec::new();
     let mut perturbed = 0usize;
-    let content_of = |result: &crate::domain::sideml::feed::FeedResult| -> Vec<String> {
+    let content_of = |result: &sideseat_domain::sideml::feed::FeedResult| -> Vec<String> {
         result
             .messages
             .iter()
@@ -2962,7 +3041,7 @@ fn which_copy_survives_does_not_change_the_order() {
         let rows = sorted_by_timestamp(rows);
         let rows_again = rows.clone();
 
-        let shape = |blocks: &[crate::domain::sideml::feed::BlockEntry]| -> Vec<String> {
+        let shape = |blocks: &[sideseat_domain::sideml::feed::BlockEntry]| -> Vec<String> {
             blocks
                 .iter()
                 .map(|b| format!("{}/{}", b.role.as_str(), b.entry_type))
@@ -3020,7 +3099,7 @@ fn which_copy_survives_does_not_change_the_order() {
 /// which is why this test compares the whole corpus rather than a constructed case.
 #[test]
 fn a_barrier_orders_exactly_as_pairwise_edges_do() {
-    use crate::domain::sideml::feed::barrier_and_pairwise_order;
+    use sideseat_domain::sideml::feed::barrier_and_pairwise_order;
 
     let mut checked = 0usize;
     for (label, paths) in discover_fixtures() {
@@ -3033,7 +3112,7 @@ fn a_barrier_orders_exactly_as_pairwise_edges_do() {
             continue;
         }
         let (barrier, pairwise) = barrier_and_pairwise_order(sorted_by_timestamp(rows));
-        let shape = |blocks: &[crate::domain::sideml::feed::BlockEntry]| -> Vec<String> {
+        let shape = |blocks: &[sideseat_domain::sideml::feed::BlockEntry]| -> Vec<String> {
             blocks
                 .iter()
                 .map(|b| {
@@ -3072,11 +3151,11 @@ fn a_barrier_orders_exactly_as_pairwise_edges_do() {
 #[tokio::test(flavor = "multi_thread")]
 #[ignore]
 async fn bench_ingestion_end_to_end() {
-    use crate::app::files::create_file_service;
-    use crate::app::storage::{AnalyticsService, TransactionalService};
-    use crate::domain::traces::TracePipeline;
     use sideseat_core::config::{FilesConfig, StorageBackend};
     use sideseat_core::storage::AppStorage;
+    use sideseat_domain::traces::TracePipeline;
+    use sideseat_server::app::files::create_file_service;
+    use sideseat_server::app::storage::{AnalyticsService, TransactionalService};
     use std::sync::Arc;
 
     let want = std::env::var("BENCH").unwrap_or_else(|_| "langgraph/swarm".to_string());
@@ -3125,7 +3204,7 @@ async fn bench_ingestion_end_to_end() {
         let analytics = Arc::new(AnalyticsService::Duckdb(Arc::new(
             sideseat_adapter_duckdb::DuckdbService::init(
                 &storage,
-                std::sync::Arc::new(crate::runtime::clock::SystemClock),
+                std::sync::Arc::new(sideseat_server::runtime::clock::SystemClock),
             )
             .await
             .expect("duckdb"),
@@ -3142,7 +3221,7 @@ async fn bench_ingestion_end_to_end() {
         let database = Arc::new(TransactionalService::Sqlite(Arc::new(
             sideseat_adapter_sqlite::SqliteService::from_pool(
                 sqlite_pool,
-                Arc::new(crate::runtime::clock::SystemClock),
+                Arc::new(sideseat_server::runtime::clock::SystemClock),
             ),
         )));
         let files = Arc::new(
@@ -3187,7 +3266,7 @@ async fn bench_ingestion_end_to_end() {
                 Arc::clone(files.storage()),
                 database_port,
                 analytics_port,
-                Arc::new(crate::runtime::clock::SystemClock),
+                Arc::new(sideseat_server::runtime::clock::SystemClock),
                 sideseat_core::config::RetentionConfig::default(),
                 5,
             )),
@@ -3346,16 +3425,16 @@ fn bench_session_scaling() {
 
             // Cold, then warm: the second read is what a user's second look at a session costs, and
             // whether the memo earns its place is exactly that difference.
-            let cache = crate::domain::sideml::feed::cache::ReconstructionCache::new();
+            let cache = sideseat_domain::sideml::feed::cache::ReconstructionCache::new();
             let start = std::time::Instant::now();
-            let result = crate::domain::sideml::feed::process_spans_cached(
+            let result = sideseat_domain::sideml::feed::process_spans_cached(
                 &cache,
                 rows.clone(),
                 &FeedOptions::new(),
             );
             let cold = start.elapsed();
             let start = std::time::Instant::now();
-            let warm_result = crate::domain::sideml::feed::process_spans_cached(
+            let warm_result = sideseat_domain::sideml::feed::process_spans_cached(
                 &cache,
                 rows,
                 &FeedOptions::new(),
@@ -3442,7 +3521,7 @@ fn a_session_known_only_to_the_store_reconstructs_identically() {
         );
         let ungrouped = process_feed(stripped, &FeedOptions::new());
 
-        let describe = |result: &crate::domain::sideml::FeedResult| -> Vec<String> {
+        let describe = |result: &sideseat_domain::sideml::FeedResult| -> Vec<String> {
             result
                 .messages
                 .iter()
@@ -3717,11 +3796,11 @@ fn ordering_contradictions_are_pinned() {
     let mut cycling: Vec<String> = Vec::new();
     for (label, paths) in &fixtures {
         let rows = rows_for_mode(&pricing, paths, ExtractionMode::PerCarrier);
-        crate::domain::sideml::feed::order_graph::CYCLES_BROKEN_IN_TESTS
+        sideseat_domain::sideml::feed::order_graph::CYCLES_BROKEN_IN_TESTS
             .with(|c| *c.borrow_mut() = 0);
         let _ = build_golden(label, paths, &rows);
-        let n =
-            crate::domain::sideml::feed::order_graph::CYCLES_BROKEN_IN_TESTS.with(|c| *c.borrow());
+        let n = sideseat_domain::sideml::feed::order_graph::CYCLES_BROKEN_IN_TESTS
+            .with(|c| *c.borrow());
         if n > 0 {
             cycling.push(label.clone());
         }
@@ -3756,7 +3835,7 @@ fn ordering_contradictions_are_pinned() {
 /// Every declared rule id, branch leaves included - a leaf emits under its own id.
 fn declared_rule_ids() -> BTreeSet<String> {
     fn walk(
-        rule: &crate::domain::rules::message_rules::CompiledMessageRule,
+        rule: &sideseat_domain::rules::message_rules::CompiledMessageRule,
         out: &mut BTreeSet<String>,
     ) {
         // A branch **parent** never emits under its own id: `emit_rule` delegates to the leaves immediately,
@@ -3774,7 +3853,7 @@ fn declared_rule_ids() -> BTreeSet<String> {
         }
     }
     let mut out = BTreeSet::new();
-    for rule in crate::domain::rules::ruleset().messages.rules() {
+    for rule in sideseat_domain::rules::ruleset().messages.rules() {
         walk(rule, &mut out);
     }
     out
@@ -3786,7 +3865,7 @@ fn declared_rule_ids() -> BTreeSet<String> {
 /// The same shape `expr::ClausePath` renders, so a diagnostic and this gate name a clause the same way. For a
 /// rule that answered directly this is just the rule id, which the caller records anyway - the value is in the
 /// subdivisions, whose required ids used to be discarded before an emission was built.
-fn clause_paths(emission: &crate::domain::rules::message_rules::Emission<'_>) -> Vec<String> {
+fn clause_paths(emission: &sideseat_domain::rules::message_rules::Emission<'_>) -> Vec<String> {
     emission
         .evidence
         .paths()
@@ -3801,11 +3880,11 @@ fn clause_paths(emission: &crate::domain::rules::message_rules::Emission<'_>) ->
 }
 
 fn rules_that_emit() -> BTreeSet<String> {
-    use crate::domain::rules::MessageContext;
-    use crate::domain::rules::message_rules::OwnedCarrier;
     use sideseat_domain::otlp::extract_attributes;
+    use sideseat_domain::rules::MessageContext;
+    use sideseat_domain::rules::message_rules::OwnedCarrier;
 
-    let plan = &crate::domain::rules::ruleset().messages;
+    let plan = &sideseat_domain::rules::ruleset().messages;
     let mut fired = BTreeSet::new();
     for (_, paths) in discover_fixtures() {
         for path in &paths {
@@ -3816,16 +3895,17 @@ fn rules_that_emit() -> BTreeSet<String> {
                         let attrs = extract_attributes(&span.attributes);
                         // The same declared fact the extractor asks, so this measures the plan as ingestion
                         // exercises it rather than a variant of it.
-                        let is_tool = crate::domain::rules::ruleset().span_facts.holds(
-                            crate::domain::rules::schema::SpanFact::ToolExecution,
+                        let is_tool = sideseat_domain::rules::ruleset().span_facts.holds(
+                            sideseat_domain::rules::schema::SpanFact::ToolExecution,
                             &attrs,
                         );
                         let ctx = MessageContext::for_span(&span.name, &attrs, is_tool);
                         let mut read: std::collections::HashSet<OwnedCarrier> =
                             std::collections::HashSet::new();
                         // The sources the dialects produced, in the form the answer-recovery test reads.
-                        let mut dialect_output: Vec<crate::domain::traces::extract::MessageSource> =
-                            Vec::new();
+                        let mut dialect_output: Vec<
+                            sideseat_domain::traces::extract::MessageSource,
+                        > = Vec::new();
                         for emission in plan.run(&ctx) {
                             fired.insert(emission.rule_id.to_string());
                             fired.extend(clause_paths(&emission));
@@ -3833,16 +3913,20 @@ fn rules_that_emit() -> BTreeSet<String> {
                             // Only a *message* is output. A `Claim` enters ownership and produces nothing, so
                             // counting one as the span's answer made the measurement skip the recovery pass
                             // that ingestion still runs.
-                            if emission.target != crate::domain::rules::schema::EmitTarget::Message
+                            if emission.target
+                                != sideseat_domain::rules::schema::EmitTarget::Message
                             {
                                 continue;
                             }
                             let time = chrono::Utc::now();
                             let name = emission.carrier.name().to_string();
                             dialect_output.push(if emission.carrier.is_event() {
-                                crate::domain::traces::extract::MessageSource::Event { name, time }
+                                sideseat_domain::traces::extract::MessageSource::Event {
+                                    name,
+                                    time,
+                                }
                             } else {
-                                crate::domain::traces::extract::MessageSource::Attribute {
+                                sideseat_domain::traces::extract::MessageSource::Attribute {
                                     key: name,
                                     time,
                                 }
@@ -3859,7 +3943,7 @@ fn rules_that_emit() -> BTreeSet<String> {
                         // a genuinely dead one.
                         if !is_tool {
                             let observation =
-                                crate::domain::traces::extract::attributes::detect_observation_type(
+                                sideseat_domain::traces::extract::attributes::detect_observation_type(
                                     &span.name, &attrs,
                                 );
                             let generation = observation == ObservationType::Generation;
@@ -3870,7 +3954,7 @@ fn rules_that_emit() -> BTreeSet<String> {
                                     fired.insert(emission.rule_id.to_string());
                                 }
                             } else if generation && !dialect_output.iter().any(|source| {
-                                crate::domain::traces::extract::messages::carrier_holds_span_output(
+                                sideseat_domain::traces::extract::messages::carrier_holds_span_output(
                                     source,
                                     &span.name,
                                     observation,
@@ -4112,13 +4196,13 @@ fn no_declared_rule_is_dead_across_the_corpus() {
 /// rule that no captured span reaches is visible rather than assumed exercised.
 #[test]
 fn the_declared_classification_matches_the_sweep_across_the_corpus() {
-    use crate::domain::traces::extract::attributes::{
+    use sideseat_domain::otlp::extract_attributes;
+    use sideseat_domain::traces::extract::attributes::{
         categorize_span_legacy, detect_observation_type_legacy,
     };
-    use sideseat_domain::otlp::extract_attributes;
     use sideseat_ports::types::{ObservationType, SpanCategory};
 
-    let plan = &crate::domain::rules::ruleset().observation_types;
+    let plan = &sideseat_domain::rules::ruleset().observation_types;
     let mut seen: BTreeMap<String, usize> = BTreeMap::new();
     let mut spans = 0_usize;
     let mut disagreements: Vec<String> = Vec::new();
@@ -4209,9 +4293,9 @@ fn the_declared_classification_matches_the_sweep_across_the_corpus() {
 /// or one that stops, is a failure with a name.
 #[test]
 fn the_member_vocabulary_answers_as_it_did_across_the_corpus() {
-    use crate::domain::sideml::{is_plain_data_value, is_plain_data_value_legacy};
+    use sideseat_domain::sideml::{is_plain_data_value, is_plain_data_value_legacy};
 
-    let plan = &crate::domain::rules::ruleset().message_members;
+    let plan = &sideseat_domain::rules::ruleset().message_members;
     let mut values = 0_usize;
     let mut disagreements = Vec::new();
     let mut members_seen: BTreeSet<String> = BTreeSet::new();
@@ -4337,7 +4421,7 @@ fn the_member_vocabulary_answers_as_it_did_across_the_corpus() {
         "video",
     ];
 
-    let declared: BTreeSet<&str> = crate::domain::rules::ruleset()
+    let declared: BTreeSet<&str> = sideseat_domain::rules::ruleset()
         .message_members
         .content_in_order()
         .chain(plan.message_shaped_members())
@@ -4377,7 +4461,7 @@ fn the_member_vocabulary_answers_as_it_did_across_the_corpus() {
 /// have moved the discard one level.
 #[test]
 fn no_declared_subdivision_is_dead_across_the_corpus() {
-    use crate::domain::rules::schema::{MessageRule, RuleFile};
+    use sideseat_domain::rules::schema::{MessageRule, RuleFile};
 
     /// Subdivisions no captured request exercises, and why.
     ///
@@ -4435,7 +4519,7 @@ fn no_declared_subdivision_is_dead_across_the_corpus() {
     }
 
     let mut declared: Vec<String> = Vec::new();
-    for (_, bytes) in crate::domain::rules::schema::embedded_sources() {
+    for (_, bytes) in sideseat_domain::rules::schema::embedded_sources() {
         let file: RuleFile = serde_json::from_slice(&bytes).expect("the asset parses");
         for rule in &file.messages {
             paths_of(rule, &rule.id, &mut declared);
@@ -4490,11 +4574,11 @@ fn no_declared_subdivision_is_dead_across_the_corpus() {
 /// so the finding is a number rather than an argument - and pins it, so a later repair has a baseline.
 #[test]
 fn a_persisted_tool_set_reports_what_its_provenance_would_have_said() {
-    use crate::domain::rules::MessageContext;
     use sideseat_domain::otlp::extract_attributes;
+    use sideseat_domain::rules::MessageContext;
     use std::collections::{BTreeMap, BTreeSet};
 
-    let plan = &crate::domain::rules::ruleset().messages;
+    let plan = &sideseat_domain::rules::ruleset().messages;
     // Spans where two carriers name one tool with *different* content: a merge combines two producers'
     // statements into one neither made, and nothing can report that it happened.
     let mut conflicting = 0_usize;
@@ -4519,8 +4603,8 @@ fn a_persisted_tool_set_reports_what_its_provenance_would_have_said() {
                 for scope in &resource.scope_spans {
                     for span in &scope.spans {
                         let attrs = extract_attributes(&span.attributes);
-                        let is_tool = crate::domain::rules::ruleset().span_facts.holds(
-                            crate::domain::rules::schema::SpanFact::ToolExecution,
+                        let is_tool = sideseat_domain::rules::ruleset().span_facts.holds(
+                            sideseat_domain::rules::schema::SpanFact::ToolExecution,
                             &attrs,
                         );
                         let ctx = MessageContext::for_span(&span.name, &attrs, is_tool);
@@ -4535,11 +4619,11 @@ fn a_persisted_tool_set_reports_what_its_provenance_would_have_said() {
                             };
                             for item in items {
                                 let canonical =
-                                    crate::domain::sideml::tools::normalize_tools(&item);
+                                    sideseat_domain::sideml::tools::normalize_tools(&item);
                                 for definition in canonical.as_array().cloned().unwrap_or_default()
                                 {
                                     let Some(name) =
-                                        crate::domain::sideml::extract_tool_name(&definition)
+                                        sideseat_domain::sideml::extract_tool_name(&definition)
                                     else {
                                         continue;
                                     };
@@ -4680,8 +4764,8 @@ fn contradiction_among(forms: &std::collections::BTreeSet<String>) -> Option<Str
 /// what a reader is shown rather than a re-implementation of it.
 #[cfg(test)]
 fn surviving_definitions(sample: &str, tool: &str) -> usize {
-    use crate::domain::rules::MessageContext;
     use sideseat_domain::otlp::extract_attributes;
+    use sideseat_domain::rules::MessageContext;
 
     let mut declared: Vec<serde_json::Value> = Vec::new();
     for (found, paths) in discover_fixtures() {
@@ -4694,12 +4778,12 @@ fn surviving_definitions(sample: &str, tool: &str) -> usize {
                 for scope in &resource.scope_spans {
                     for span in &scope.spans {
                         let attrs = extract_attributes(&span.attributes);
-                        let is_tool = crate::domain::rules::ruleset().span_facts.holds(
-                            crate::domain::rules::schema::SpanFact::ToolExecution,
+                        let is_tool = sideseat_domain::rules::ruleset().span_facts.holds(
+                            sideseat_domain::rules::schema::SpanFact::ToolExecution,
                             &attrs,
                         );
                         let ctx = MessageContext::for_span(&span.name, &attrs, is_tool);
-                        for emission in crate::domain::rules::ruleset()
+                        for emission in sideseat_domain::rules::ruleset()
                             .messages
                             .tool_definitions(&ctx)
                         {
@@ -4713,10 +4797,10 @@ fn surviving_definitions(sample: &str, tool: &str) -> usize {
             }
         }
     }
-    crate::domain::sideml::feed::deduplicate_tools(declared)
+    sideseat_domain::sideml::feed::deduplicate_tools(declared)
         .iter()
         .filter(|definition| {
-            crate::domain::sideml::extract_tool_name(definition).as_deref() == Some(tool)
+            sideseat_domain::sideml::extract_tool_name(definition).as_deref() == Some(tool)
         })
         .count()
 }
@@ -4750,7 +4834,7 @@ fn no_span_is_classified_as_two_incompatible_things() {
         ("chain", "chain"),
         ("retriever", "retriever"),
     ]);
-    let plan = &crate::domain::rules::ruleset().observation_types;
+    let plan = &sideseat_domain::rules::ruleset().observation_types;
     let mut bad: BTreeMap<(String, String), usize> = BTreeMap::new();
     let mut total = 0_usize;
     for (_, paths) in discover_fixtures() {
