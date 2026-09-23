@@ -20,6 +20,7 @@ sideseat-core = { path = "crates/core" }
 sideseat-api = { path = "crates/api" }
 sideseat-domain = { path = "crates/domain" }
 sideseat-ingestion = { path = "crates/ingestion" }
+sideseat-messaging = { path = "crates/messaging" }
 sideseat-adapter-blob-storage = { path = "crates/adapter-blob-storage" }
 sideseat-adapter-cache = { path = "crates/adapter-cache" }
 sideseat-adapter-clickhouse = { path = "crates/adapter-clickhouse" }

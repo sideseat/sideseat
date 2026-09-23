@@ -15,6 +15,7 @@ The backend is a Cargo workspace rooted at the repository root. Every backend cr
 | `sideseat-ports` | Repository, queue, cache, clock, blob, pricing, registration, and secret contracts |
 | `sideseat-domain` | SideML, rules, files, pricing, search, storage governance, and restore workflows |
 | `sideseat-ingestion` | OTLP decoding, normalization, identity, staging, durability, and persistence orchestration |
+| `sideseat-messaging` | Typed stream and broadcast messaging over the queue port |
 | `sideseat-query-sql` | Shared SQL query vocabulary and rendering |
 | `sideseat-api` | HTTP/gRPC decoding, authentication, status mapping, and API schemas |
 | `sideseat-adapter-*` | Concrete databases, queues, caches, blob stores, pricing, secrets, and registrations |
@@ -23,15 +24,17 @@ The backend is a Cargo workspace rooted at the repository root. Every backend cr
 Dependency direction is inward:
 
 ```text
-server -> api/ingestion/domain/adapters -> ports/core
-api -> ingestion/domain/ports/core
-ingestion -> domain/ports/core
+server -> api/ingestion/domain/messaging/adapters -> ports/core
+api -> ingestion/domain/messaging/ports/core
+ingestion -> domain/messaging/ports/core
+messaging -> ports
 domain -> ports/core
 adapters -> ports/core
 ```
 
-Adapters do not import sibling adapters. The API crate does not select infrastructure. The composition root
-is the only place that chooses concrete implementations.
+Adapters do not import sibling adapters. API and ingestion depend on the typed messaging facade, not on a
+queue implementation. The API crate does not select infrastructure. The composition root is the only place
+that chooses concrete implementations.
 
 ## Entry points
 

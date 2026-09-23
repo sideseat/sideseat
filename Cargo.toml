@@ -14,6 +14,7 @@ members = [
   "server/crates/core",
   "server/crates/domain",
   "server/crates/ingestion",
+  "server/crates/messaging",
   "server/crates/ports",
   "server/crates/query-sql",
   "server/crates/rule-assets",

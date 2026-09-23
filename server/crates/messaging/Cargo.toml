@@ -1,0 +1,17 @@
+[package]
+name = "sideseat-messaging"
+version.workspace = true
+license = "Apache-2.0"
+publish = false
+edition = "2024"
+rust-version.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+sideseat-ports = { path = "../ports" }
+futures = { workspace = true }
+prost = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }

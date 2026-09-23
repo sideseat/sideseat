@@ -11,13 +11,6 @@ use sideseat_ports::queue::{
     BroadcastSubscription, StreamMessage, StreamStats, StreamSubscription, TopicBackend, TopicError,
 };
 
-/// A typed message carried by a queue or broadcast topic.
-pub trait TopicMessage: Clone + Send + Sync + 'static {
-    fn partition_key(&self) -> String {
-        String::new()
-    }
-}
-
 /// Typed facade over a selected queue backend.
 pub struct TopicService {
     backend: Arc<dyn TopicBackend>,
@@ -40,13 +33,14 @@ impl TopicService {
     }
 
     #[must_use]
-    pub fn stream_topic<T>(&self, name: &str) -> StreamTopic<T>
+    pub fn stream_topic<T>(&self, name: &str, partition_key: fn(&T) -> String) -> StreamTopic<T>
     where
-        T: TopicMessage + ProstMessage + Default,
+        T: ProstMessage + Default + Send + Sync + 'static,
     {
         StreamTopic {
             name: name.to_string(),
             backend: Arc::clone(&self.backend),
+            partition_key,
             marker: PhantomData,
         }
     }
@@ -54,7 +48,7 @@ impl TopicService {
     #[must_use]
     pub fn broadcast_topic<T>(&self, name: &str) -> BroadcastTopic<T>
     where
-        T: TopicMessage + Serialize + DeserializeOwned,
+        T: Clone + Send + Sync + Serialize + DeserializeOwned + 'static,
     {
         BroadcastTopic {
             name: name.to_string(),
@@ -78,22 +72,23 @@ impl TopicService {
 
 pub struct StreamTopic<T>
 where
-    T: TopicMessage + ProstMessage + Default,
+    T: ProstMessage + Default + Send + Sync + 'static,
 {
     name: String,
     backend: Arc<dyn TopicBackend>,
+    partition_key: fn(&T) -> String,
     marker: PhantomData<T>,
 }
 
 impl<T> StreamTopic<T>
 where
-    T: TopicMessage + ProstMessage + Default,
+    T: ProstMessage + Default + Send + Sync + 'static,
 {
     pub async fn publish(&self, message: &T) -> Result<String, TopicError> {
         self.backend
             .stream_publish(
                 &self.name,
-                &message.partition_key(),
+                &(self.partition_key)(message),
                 &message.encode_to_vec(),
             )
             .await
@@ -125,7 +120,7 @@ where
 
 pub struct StreamTopicSubscriber<T>
 where
-    T: TopicMessage + ProstMessage + Default,
+    T: ProstMessage + Default + Send + Sync + 'static,
 {
     name: String,
     group: String,
@@ -136,7 +131,7 @@ where
 
 impl<T> StreamTopicSubscriber<T>
 where
-    T: TopicMessage + ProstMessage + Default,
+    T: ProstMessage + Default + Send + Sync + 'static,
 {
     pub async fn recv(&mut self) -> Result<(String, T), TopicError> {
         let (id, _, decoded) = self.recv_partitioned().await?;
@@ -233,7 +228,7 @@ impl StreamClaimer {
 
 pub struct BroadcastTopic<T>
 where
-    T: TopicMessage + Serialize + DeserializeOwned,
+    T: Clone + Send + Sync + Serialize + DeserializeOwned + 'static,
 {
     name: String,
     backend: Arc<dyn TopicBackend>,
@@ -242,7 +237,7 @@ where
 
 impl<T> BroadcastTopic<T>
 where
-    T: TopicMessage + Serialize + DeserializeOwned,
+    T: Clone + Send + Sync + Serialize + DeserializeOwned + 'static,
 {
     pub async fn publish(&self, message: &T) -> Result<(), TopicError> {
         let payload = serde_json::to_vec(message)
@@ -265,7 +260,7 @@ where
 
 pub struct BroadcastTopicSubscriber<T>
 where
-    T: TopicMessage + Serialize + DeserializeOwned,
+    T: Clone + Send + Sync + Serialize + DeserializeOwned + 'static,
 {
     subscription: BroadcastSubscription,
     marker: PhantomData<T>,
@@ -273,7 +268,7 @@ where
 
 impl<T> BroadcastTopicSubscriber<T>
 where
-    T: TopicMessage + Serialize + DeserializeOwned,
+    T: Clone + Send + Sync + Serialize + DeserializeOwned + 'static,
 {
     pub async fn recv(&mut self) -> Result<T, TopicError> {
         let Some(payload) = self.subscription.receiver.next().await else {
@@ -283,75 +278,3 @@ where
             .map_err(|error| TopicError::Serialization(error.to_string()))
     }
 }
-
-use crate::staging::StagedPayloadRef;
-use opentelemetry_proto::tonic::collector::{
-    logs::v1::ExportLogsServiceRequest, metrics::v1::ExportMetricsServiceRequest,
-    trace::v1::ExportTraceServiceRequest,
-};
-use sideseat_ports::registrations::{ConnectionControl, PresenceEvent};
-
-impl TopicMessage for StagedPayloadRef {
-    fn partition_key(&self) -> String {
-        self.partition_key.clone()
-    }
-}
-
-impl TopicMessage for ExportTraceServiceRequest {
-    fn partition_key(&self) -> String {
-        self.resource_spans
-            .iter()
-            .flat_map(|resource| &resource.scope_spans)
-            .flat_map(|scope| &scope.spans)
-            .next()
-            .map(|span| hex::encode(&span.trace_id))
-            .unwrap_or_default()
-    }
-}
-
-impl TopicMessage for ExportMetricsServiceRequest {
-    fn partition_key(&self) -> String {
-        self.resource_metrics
-            .iter()
-            .flat_map(|resource| &resource.scope_metrics)
-            .flat_map(|scope| {
-                scope
-                    .metrics
-                    .iter()
-                    .map(move |metric| (scope.scope.as_ref(), metric))
-            })
-            .next()
-            .map(|(scope, metric)| {
-                format!(
-                    "{}/{}",
-                    scope.map_or("", |scope| scope.name.as_str()),
-                    metric.name
-                )
-            })
-            .unwrap_or_default()
-    }
-}
-
-impl TopicMessage for ExportLogsServiceRequest {
-    fn partition_key(&self) -> String {
-        for resource in &self.resource_logs {
-            for scope in &resource.scope_logs {
-                for record in &scope.log_records {
-                    if !record.trace_id.is_empty() {
-                        return hex::encode(&record.trace_id);
-                    }
-                }
-                if let Some(scope) = scope.scope.as_ref()
-                    && !scope.name.is_empty()
-                {
-                    return scope.name.clone();
-                }
-            }
-        }
-        String::new()
-    }
-}
-
-impl TopicMessage for PresenceEvent {}
-
-impl TopicMessage for ConnectionControl {}

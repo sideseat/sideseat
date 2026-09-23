@@ -184,10 +184,10 @@ fn a_queued_span_costs_less_than_three_times_its_protobuf() {
         .expect("runtime");
 
     // The queue is never drained, which is the point: the ratio is about what a *backlog* costs.
-    let topics =
-        sideseat_ingestion::topics::TopicService::new(sideseat_adapter_topics::memory_backend());
+    let topics = sideseat_messaging::TopicService::new(sideseat_adapter_topics::memory_backend());
     let topic = topics.stream_topic::<opentelemetry_proto::tonic::collector::trace::v1::ExportTraceServiceRequest>(
         "footprint-traces",
+        |_| String::new(),
     );
 
     // One publish first, outside the measurement: the backend creates the stream's deque and its notifier

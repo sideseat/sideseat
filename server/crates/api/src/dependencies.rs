@@ -10,7 +10,7 @@ use sideseat_domain::providers::{CredentialConnectionTester, CredentialService};
 use sideseat_domain::rate_limit::RateLimiter;
 use sideseat_domain::storage_governance::StorageGovernanceService;
 use sideseat_ingestion::staging::StagingService;
-use sideseat_ingestion::topics::TopicService;
+use sideseat_messaging::TopicService;
 use sideseat_ports::clock::Clock;
 use sideseat_ports::registrations::RegistrationStore;
 use tokio::sync::watch;

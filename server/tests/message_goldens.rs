@@ -3258,7 +3258,7 @@ async fn bench_ingestion_end_to_end() {
         let pipeline = TracePipeline::new(
             Arc::clone(&analytics_port),
             Arc::new(PricingService::init_for_test().expect("offline pricing service")),
-            Arc::new(sideseat_ingestion::topics::TopicService::new(
+            Arc::new(sideseat_messaging::TopicService::new(
                 sideseat_adapter_topics::memory_backend(),
             )),
             Arc::clone(&files),

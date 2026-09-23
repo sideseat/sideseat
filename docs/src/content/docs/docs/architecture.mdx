@@ -226,7 +226,9 @@ server/crates/ports/src/
 server/crates/
 ├── core/                         # Configuration, constants, storage layout, pure utilities
 ├── ports/                        # Traits, DTOs, filters, and shared errors
-├── domain/                       # Signal pipelines, reconstruction, governance, search
+├── domain/                       # Reconstruction, governance, files, and search
+├── ingestion/                    # OTLP lifecycle, staging, normalization, and persistence
+├── messaging/                    # Typed streams and broadcasts over the queue port
 ├── api/                          # HTTP/gRPC transport and route handlers
 ├── query-sql/                    # Typed cross-engine query construction
 ├── adapter-duckdb/               # Embedded analytics

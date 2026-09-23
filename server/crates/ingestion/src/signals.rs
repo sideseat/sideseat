@@ -25,11 +25,11 @@ use crate::otlp::{
     PROJECT_ID_ATTR, inject_project_id_logs, inject_project_id_metrics, inject_project_id_traces,
 };
 use crate::staging::{StagedPayloadRef, StagingDisposition, StagingService};
-use crate::topics::{StreamTopic, TopicMessage};
 use crate::traces::{DropReason, IngestOutcome, TracePipeline, strip_unstorable_spans};
 use sideseat_core::constants::{TOPIC_LOGS, TOPIC_METRICS, TOPIC_TRACES};
 use sideseat_core::utils::debug::write_debug;
 use sideseat_domain::storage_governance::{GovernanceError, StorageGovernanceService};
+use sideseat_messaging::StreamTopic;
 use sideseat_ports::clock::Clock;
 use sideseat_ports::traits::{AnalyticsRepository, TransactionalRepository};
 use sideseat_ports::types::{StagedRecord, StagedSignal};
@@ -452,7 +452,14 @@ impl Signal for TraceSignal {
     }
 
     fn partition_key(&self, request: &Self::Request) -> String {
-        TopicMessage::partition_key(request)
+        request
+            .resource_spans
+            .iter()
+            .flat_map(|resource| &resource.scope_spans)
+            .flat_map(|scope| &scope.spans)
+            .next()
+            .map(|span| hex::encode(&span.trace_id))
+            .unwrap_or_default()
     }
 
     fn response(&self, rejected: Option<(usize, SignalRejection, bool)>) -> Self::Response {
@@ -610,7 +617,25 @@ impl Signal for MetricsSignal {
     }
 
     fn partition_key(&self, request: &Self::Request) -> String {
-        TopicMessage::partition_key(request)
+        request
+            .resource_metrics
+            .iter()
+            .flat_map(|resource| &resource.scope_metrics)
+            .flat_map(|scope| {
+                scope
+                    .metrics
+                    .iter()
+                    .map(move |metric| (scope.scope.as_ref(), metric))
+            })
+            .next()
+            .map(|(scope, metric)| {
+                format!(
+                    "{}/{}",
+                    scope.map_or("", |scope| scope.name.as_str()),
+                    metric.name
+                )
+            })
+            .unwrap_or_default()
     }
 
     fn response(&self, rejected: Option<(usize, SignalRejection, bool)>) -> Self::Response {
@@ -760,7 +785,21 @@ impl Signal for LogSignal {
     }
 
     fn partition_key(&self, request: &Self::Request) -> String {
-        TopicMessage::partition_key(request)
+        for resource in &request.resource_logs {
+            for scope in &resource.scope_logs {
+                for record in &scope.log_records {
+                    if !record.trace_id.is_empty() {
+                        return hex::encode(&record.trace_id);
+                    }
+                }
+                if let Some(scope) = scope.scope.as_ref()
+                    && !scope.name.is_empty()
+                {
+                    return scope.name.clone();
+                }
+            }
+        }
+        String::new()
     }
 
     fn response(&self, rejected: Option<(usize, SignalRejection, bool)>) -> Self::Response {

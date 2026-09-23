@@ -30,7 +30,6 @@ use super::extract::files::{
 use super::extract::{RawMessage, RawToolDefinition, RawToolNames, SpanData};
 // The analytics port keeps ingestion independent of concrete adapters.
 use crate::otlp::{build_attributes_json, extract_attributes};
-use crate::topics::{TopicMessage, TopicService};
 use sideseat_core::constants::{
     DEFAULT_PROJECT_ID, FILE_HASH_ALGORITHM, FILES_MAX_CONCURRENT_FINALIZATION,
 };
@@ -39,6 +38,7 @@ use sideseat_core::utils::retry::{
 };
 use sideseat_core::utils::time::nanos_to_iso;
 use sideseat_domain::files::{FileService, collect_file_references_in_str};
+use sideseat_messaging::TopicService;
 use sideseat_ports::traits::AnalyticsRepository;
 use sideseat_ports::types::ProjectId;
 use sideseat_ports::types::{NormalizedSpan, json_to_pre_serialized};
@@ -68,8 +68,6 @@ impl From<&NormalizedSpan> for SseSpanEvent {
         }
     }
 }
-
-impl TopicMessage for SseSpanEvent {}
 
 // ============================================================================
 // BATCH PERSISTENCE

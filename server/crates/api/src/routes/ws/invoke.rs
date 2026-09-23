@@ -9,8 +9,6 @@
 
 use serde::{Deserialize, Serialize};
 
-use sideseat_ingestion::topics::TopicMessage;
-
 use super::protocol::ErrorCode;
 use super::state::WsState;
 
@@ -31,8 +29,6 @@ pub enum InvokeReply {
         message: String,
     },
 }
-
-impl TopicMessage for InvokeReply {}
 
 pub fn invoke_topic_name(request_id: &str) -> String {
     format!("agent_request:{}", request_id)

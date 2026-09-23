@@ -33,7 +33,7 @@ use sideseat_ingestion::signals::{
     LogSignal, MetricsSignal, SignalContext, SignalExportError, TraceSignal, export_signal,
 };
 use sideseat_ingestion::staging::{StagedPayloadRef, StagingService};
-use sideseat_ingestion::topics::TopicService;
+use sideseat_messaging::TopicService;
 use sideseat_ports::clock::Clock;
 
 const PROJECT_ID_HEADER: &str = "x-sideseat-project-id";
@@ -225,7 +225,9 @@ impl OtlpGrpcServer {
             None
         };
         // Use stream topic for traces (at-least-once delivery)
-        let trace_topic = Arc::new(topics.stream_topic::<StagedPayloadRef>(TOPIC_TRACES));
+        let trace_topic = Arc::new(
+            topics.stream_topic::<StagedPayloadRef>(TOPIC_TRACES, StagedPayloadRef::partition_key),
+        );
         let trace_signal = Arc::new(TraceSignal::new(trace_topic, trace_pipeline));
         let metrics_signal = Arc::new(MetricsSignal::new(
             Arc::clone(&analytics),

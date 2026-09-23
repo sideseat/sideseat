@@ -13,6 +13,7 @@ workspace = true
 sideseat-core = { path = "../core" }
 sideseat-domain = { path = "../domain" }
 sideseat-ingestion = { path = "../ingestion" }
+sideseat-messaging = { path = "../messaging" }
 sideseat-ports = { path = "../ports" }
 anyhow = { workspace = true }
 async-stream = { workspace = true }

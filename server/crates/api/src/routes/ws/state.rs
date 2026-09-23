@@ -7,7 +7,7 @@ use parking_lot::Mutex;
 use tokio::sync::mpsc;
 use uuid::Uuid;
 
-use sideseat_ingestion::topics::TopicService;
+use sideseat_messaging::TopicService;
 use sideseat_ports::clock::Clock;
 use sideseat_ports::registrations::RegistrationStore;
 use sideseat_ports::types::ProjectId;

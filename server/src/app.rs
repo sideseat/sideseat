@@ -35,7 +35,7 @@ use sideseat_domain::restore::{
 };
 use sideseat_domain::storage_governance::{RestoreQuotaRepairReport, StorageGovernanceService};
 use sideseat_ingestion::staging::{StagedPayloadRef, StagingService};
-use sideseat_ingestion::topics::TopicService;
+use sideseat_messaging::TopicService;
 use sideseat_ports::cache::CacheStore;
 use sideseat_ports::clock::Clock;
 use sideseat_ports::pricing::PricingCatalogueSource;
@@ -621,7 +621,9 @@ impl CoreApp {
             .await;
 
         // Create stream topic for traces (at-least-once delivery with consumer groups)
-        let traces_topic = self.topics.stream_topic::<StagedPayloadRef>(TOPIC_TRACES);
+        let traces_topic = self
+            .topics
+            .stream_topic::<StagedPayloadRef>(TOPIC_TRACES, StagedPayloadRef::partition_key);
 
         let pipeline = Arc::new(
             sideseat_ingestion::traces::TracePipeline::new(

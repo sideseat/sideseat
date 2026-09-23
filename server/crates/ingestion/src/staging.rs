@@ -33,6 +33,13 @@ pub struct StagedPayloadRef {
     pub partition_key: String,
 }
 
+impl StagedPayloadRef {
+    #[must_use]
+    pub fn partition_key(&self) -> String {
+        self.partition_key.clone()
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum StagingDisposition {
     Confirmed,

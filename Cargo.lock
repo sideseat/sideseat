@@ -5747,6 +5747,7 @@ dependencies = [
  "sideseat-core",
  "sideseat-domain",
  "sideseat-ingestion",
+ "sideseat-messaging",
  "sideseat-ports",
  "thiserror 2.0.20",
  "time",
@@ -5841,12 +5842,24 @@ dependencies = [
  "sideseat-adapter-topics",
  "sideseat-core",
  "sideseat-domain",
+ "sideseat-messaging",
  "sideseat-ports",
  "tempfile",
  "thiserror 2.0.20",
  "tokio",
  "tracing",
  "uuid",
+]
+
+[[package]]
+name = "sideseat-messaging"
+version = "1.0.13"
+dependencies = [
+ "futures",
+ "prost",
+ "serde",
+ "serde_json",
+ "sideseat-ports",
 ]
 
 [[package]]
@@ -5916,6 +5929,7 @@ dependencies = [
  "sideseat-core",
  "sideseat-domain",
  "sideseat-ingestion",
+ "sideseat-messaging",
  "sideseat-ports",
  "sideseat-query-sql",
  "sqlx",

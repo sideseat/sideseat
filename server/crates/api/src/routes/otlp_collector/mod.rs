@@ -20,7 +20,7 @@ pub use sideseat_ingestion::otlp::{
 };
 use sideseat_ingestion::signals::{LogSignal, MetricsSignal, TraceSignal};
 use sideseat_ingestion::staging::{StagedPayloadRef, StagingService};
-use sideseat_ingestion::topics::TopicService;
+use sideseat_messaging::TopicService;
 use sideseat_ports::clock::Clock;
 
 #[derive(Clone)]
@@ -75,7 +75,9 @@ pub fn routes(
     trace_pipeline: Option<Arc<sideseat_ingestion::traces::TracePipeline>>,
 ) -> Router {
     // Use stream topic for traces (at-least-once delivery)
-    let trace_topic = Arc::new(topics.stream_topic::<StagedPayloadRef>(TOPIC_TRACES));
+    let trace_topic = Arc::new(
+        topics.stream_topic::<StagedPayloadRef>(TOPIC_TRACES, StagedPayloadRef::partition_key),
+    );
     let trace_signal = Arc::new(TraceSignal::new(trace_topic, trace_pipeline));
     let metrics_signal = Arc::new(MetricsSignal::new(
         Arc::clone(&analytics),

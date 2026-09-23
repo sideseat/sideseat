@@ -47,7 +47,6 @@ use super::persist::{
     write_to_duckdb,
 };
 use crate::staging::{StagedPayloadRef, StagingDisposition, StagingService};
-use crate::topics::{StreamTopic, TopicService};
 use sideseat_core::constants::{DEFAULT_PROJECT_ID, PIPELINE_CPU_PHASE_MAX_INFLIGHT_BYTES};
 use sideseat_core::utils::time::is_storable;
 use sideseat_domain::content_bodies::ContentBodyService;
@@ -55,6 +54,7 @@ use sideseat_domain::files::FileService;
 use sideseat_domain::pricing::PricingService;
 use sideseat_domain::sideml::to_sideml_batch;
 use sideseat_domain::storage_governance::StorageGovernanceService;
+use sideseat_messaging::{StreamAcker, StreamClaimer, StreamTopic, TopicService};
 use sideseat_ports::queue::TopicError;
 use sideseat_ports::traits::AnalyticsRepository;
 use sideseat_ports::types::{NormalizedSpan, ProjectId, StagedPayload, StagedSignal};
@@ -570,8 +570,8 @@ impl TracePipeline {
     /// claimed from other (possibly crashed) consumers, processed, and acknowledged.
     async fn claim_stuck_messages(
         &self,
-        claimer: &crate::topics::StreamClaimer,
-        acker: &crate::topics::StreamAcker,
+        claimer: &StreamClaimer,
+        acker: &StreamAcker,
         consumer: &str,
     ) {
         match claimer
@@ -2933,7 +2933,6 @@ mod session_fence_tests {
         Arc<dyn sideseat_ports::traits::TransactionalRepository + Send + Sync>,
         TracePipeline,
     ) {
-        use crate::topics::TopicService;
         use chrono::{TimeZone, Utc};
         use sideseat_adapter_blob_storage::FilesystemStorage;
         use sideseat_adapter_cache::CacheService;
@@ -2944,6 +2943,7 @@ mod session_fence_tests {
         };
         use sideseat_core::storage::AppStorage;
         use sideseat_domain::pricing::PricingService;
+        use sideseat_messaging::TopicService;
         use sideseat_ports::clock::Clock;
         use sideseat_ports::traits::TransactionalRepository;
 

@@ -3411,9 +3411,36 @@ fn the_api_crate_names_only_inward_workspace_crates() {
             "sideseat-core",
             "sideseat-domain",
             "sideseat-ingestion",
+            "sideseat-messaging",
             "sideseat-ports",
         ]),
         "the API transport may depend only on inward-facing SideSeat crates"
+    );
+}
+
+#[test]
+fn messaging_stays_transport_neutral() {
+    let manifest = std::fs::read_to_string(repo_root().join("server/crates/messaging/Cargo.toml"))
+        .expect("messaging manifest");
+    let dependencies = manifest
+        .split("[dependencies]")
+        .nth(1)
+        .expect("messaging dependencies section");
+    let workspace_dependencies: BTreeSet<&str> = dependencies
+        .lines()
+        .filter_map(|line| line.split_once('='))
+        .map(|(name, _)| name.trim())
+        .filter(|name| name.starts_with("sideseat-"))
+        .collect();
+
+    assert_eq!(
+        workspace_dependencies,
+        BTreeSet::from(["sideseat-ports"]),
+        "typed messaging may depend only on the transport-neutral queue port"
+    );
+    assert!(
+        !manifest.contains("opentelemetry"),
+        "OTLP message policy belongs to ingestion, not generic messaging"
     );
 }
 
