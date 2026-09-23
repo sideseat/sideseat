@@ -20,7 +20,7 @@ use futures::stream::Stream;
 use crate::extractors::is_valid_project_id;
 use crate::types::ApiError;
 use sideseat_ports::queue::TopicError;
-use sideseat_ports::registrations::{PresenceEvent, RegistrationKind};
+use sideseat_ports::registrations::PresenceEvent;
 
 use super::listing::{ListingResponse, ProjectPath};
 use super::presence::presence_topic_name;
@@ -128,22 +128,5 @@ async fn build_snapshot(
         .list(project_id)
         .await
         .map_err(|e| ApiError::internal(e.to_string()))?;
-    let mut agents = Vec::new();
-    let mut mcps = Vec::new();
-    let mut swarms = Vec::new();
-    let mut graphs = Vec::new();
-    for e in entries {
-        match e.kind {
-            RegistrationKind::Agent => agents.push(e),
-            RegistrationKind::Mcp => mcps.push(e),
-            RegistrationKind::Swarm => swarms.push(e),
-            RegistrationKind::Graph => graphs.push(e),
-        }
-    }
-    Ok(ListingResponse {
-        agents,
-        mcps,
-        swarms,
-        graphs,
-    })
+    Ok(ListingResponse::from_entries(entries))
 }
