@@ -55,7 +55,6 @@ pub struct PubSubManager {
     /// Active bridges by topic name
     bridges: RwLock<HashMap<String, Arc<PubSubBridge>>>,
     /// Global shutdown signal
-    #[allow(dead_code)]
     shutdown_tx: watch::Sender<bool>,
     /// Shutdown receiver for cloning
     shutdown_rx: watch::Receiver<bool>,
@@ -129,13 +128,11 @@ impl PubSubManager {
     }
 
     /// Get a bridge if it exists (for publishing)
-    #[allow(dead_code)]
     pub fn get_bridge(&self, topic: &str) -> Option<Arc<PubSubBridge>> {
         self.bridges.read().get(topic).cloned()
     }
 
     /// Shutdown all bridges gracefully
-    #[allow(dead_code)]
     pub async fn shutdown(&self) {
         // Signal all bridges to stop
         let _ = self.shutdown_tx.send(true);
@@ -158,7 +155,6 @@ impl PubSubManager {
     }
 
     /// Get the shutdown receiver for bridge tasks
-    #[allow(dead_code)]
     pub fn shutdown_rx(&self) -> watch::Receiver<bool> {
         self.shutdown_rx.clone()
     }
@@ -266,7 +262,6 @@ impl PubSubBridge {
     }
 
     /// Wait for the bridge task to complete
-    #[allow(dead_code)]
     pub async fn wait_for_stop(&self) {
         let handle = self.task_handle.lock().take();
         if let Some(h) = handle {

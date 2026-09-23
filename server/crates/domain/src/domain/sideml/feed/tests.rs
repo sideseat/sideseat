@@ -144,14 +144,6 @@ fn make_span_row_full(
     }
 }
 
-#[allow(dead_code)]
-fn get_text(block: &ContentBlock) -> Option<&str> {
-    match block {
-        ContentBlock::Text { text } => Some(text.as_str()),
-        _ => None,
-    }
-}
-
 // ============================================================================
 // BASIC TESTS
 // ============================================================================

@@ -939,7 +939,6 @@ impl RedisTopicBackend {
     }
 
     /// Graceful shutdown
-    #[allow(dead_code)]
     pub async fn shutdown(&self) {
         self.pubsub_manager.shutdown().await;
     }

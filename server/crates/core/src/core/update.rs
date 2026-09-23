@@ -111,7 +111,6 @@ pub fn current_version() -> &'static str {
 mod tests {
     use super::*;
 
-    #[allow(dead_code)]
     #[derive(serde::Deserialize)]
     struct TestNpmPackage {
         version: String,

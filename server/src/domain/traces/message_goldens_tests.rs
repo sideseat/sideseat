@@ -286,9 +286,6 @@ struct InvariantRow {
     /// collapsed preview: two genuinely different long messages share a preview and would be
     /// reported as duplicates, while a whitespace-only difference would hide a real one.
     content_digest: String,
-    /// Kept for diagnostics in assertion messages rather than for matching, which goes by id.
-    #[allow(dead_code)]
-    tool_name: Option<String>,
     /// Correlation id, so a result can be matched to the call it answers rather than merely
     /// counted against it.
     tool_use_id: Option<String>,
@@ -381,7 +378,6 @@ fn build_view(rows: Vec<MessageSpanRow>, view: View<'_>) -> (GoldenView, Vec<Inv
             entry_type: m.entry_type.clone(),
             content: m.content.clone(),
             content_digest: m.content_digest.clone(),
-            tool_name: m.tool_name.clone(),
             tool_use_id: block.tool_use_id.clone(),
             carrier: match (&block.event_name, &block.source_attribute) {
                 (Some(event), _) => format!("event:{event}"),
@@ -1511,7 +1507,6 @@ fn invariant_checks_are_not_vacuous() {
             entry_type: kind.to_string(),
             content: content.to_string(),
             content_digest: format!("d:{content}"),
-            tool_name: None,
             tool_use_id: None,
         }
     }
@@ -1534,7 +1529,6 @@ fn invariant_checks_are_not_vacuous() {
             entry_type: kind.to_string(),
             content: format!("{{\"id\":\"{id}\"}}"),
             content_digest: format!("d:{kind}:{id}"),
-            tool_name: Some("calc".to_string()),
             tool_use_id: Some(id.to_string()),
         }
     }
@@ -1619,7 +1613,6 @@ fn invariant_checks_are_not_vacuous() {
         entry_type: "text".to_string(),
         content: "x".to_string(),
         content_digest: "d:x".to_string(),
-        tool_name: None,
         tool_use_id: None,
     }];
     let in_scope = Scope::Span {

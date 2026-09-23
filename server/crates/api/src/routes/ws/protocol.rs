@@ -46,8 +46,8 @@ pub struct Envelope {
 #[derive(Debug, Clone, Deserialize)]
 pub struct HelloPayload {
     pub client_id: String,
-    #[allow(dead_code)] // forwarded into logs only
-    pub sdk_version: String,
+    #[serde(rename = "sdk_version")]
+    pub _sdk_version: String,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -57,8 +57,8 @@ pub struct UnregisterPayload {
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct PongPayload {
-    #[allow(dead_code)] // logged only
-    pub id: String,
+    #[serde(rename = "id")]
+    pub _id: String,
 }
 
 /// SDK→server: an AG-UI event flowing back from a running invoke.

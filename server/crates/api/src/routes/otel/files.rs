@@ -25,8 +25,8 @@ pub struct FilesApiState {
 /// extractor requires ALL path params to be captured in the struct.
 #[derive(Debug, Deserialize)]
 pub struct FilePathParams {
-    #[allow(dead_code)] // Auth handled by ProjectRead extractor
-    pub project_id: String,
+    #[serde(rename = "project_id")]
+    pub _project_id: String,
     pub hash: String,
 }
 
