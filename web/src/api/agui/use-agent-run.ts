@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useReducer, useRef } from "react";
+import { useCallback, useEffect, useReducer, useRef } from "react";
 import { uuid } from "@/lib/utils";
 import { initialState, reduce } from "./reducer";
 import { RunError, runAgentStream } from "./run-stream";
@@ -124,13 +124,14 @@ export function useAgentRun({ projectId, agentName }: UseAgentRunArgs): UseAgent
     dispatch({ type: "reset", threadId: uuid() });
   }, []);
 
-  const error = useMemo<{ code: string; message: string } | null>(() => {
-    for (let i = state.messages.length - 1; i >= 0; i--) {
-      const m = state.messages[i];
-      if (m.kind === "error") return { code: m.code, message: m.message };
+  let error: { code: string; message: string } | null = null;
+  for (let i = state.messages.length - 1; i >= 0; i--) {
+    const message = state.messages[i];
+    if (message.kind === "error") {
+      error = { code: message.code, message: message.message };
+      break;
     }
-    return null;
-  }, [state.messages]);
+  }
 
   return { state, send, cancel, clear, isStreaming, error };
 }
