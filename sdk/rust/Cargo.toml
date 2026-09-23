@@ -65,11 +65,9 @@ yrs = "0.21"
 rmcp = { workspace = true }
 
 [dev-dependencies]
-tokio = { workspace = true }
 httpmock = "0.8.3"
 tempfile = "3"
 crc32fast = "1"
-base64 = { workspace = true }
 
 [lints]
 workspace = true
