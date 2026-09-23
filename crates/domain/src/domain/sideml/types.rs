@@ -629,21 +629,6 @@ impl ContentBlock {
     pub fn is_enrichment(&self) -> bool {
         self.category() == ContentCategory::Enrichment
     }
-
-    /// Returns true if this block is metadata (structural context).
-    ///
-    /// Metadata blocks provide context but are not part of the message content.
-    /// They don't affect identity or quality scoring.
-    ///
-    /// Note: Currently unused in production code but kept for API completeness.
-    /// The `is_semantic()` and `is_enrichment()` methods are actively used for
-    /// deduplication; this method completes the public interface for all three
-    /// content categories.
-    #[inline]
-    #[allow(dead_code)]
-    pub fn is_metadata(&self) -> bool {
-        self.category() == ContentCategory::Metadata
-    }
 }
 
 /// Semantic category for content blocks.

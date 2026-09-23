@@ -222,21 +222,6 @@ impl RedisTopicBackend {
         })
     }
 
-    /// Create using an existing connection pool
-    ///
-    /// Note: Requires Redis URL for dedicated pub/sub connections.
-    #[allow(dead_code)]
-    pub fn with_pool(pool: Pool, redis_url: &str) -> Self {
-        Self {
-            pool,
-            redis_url: redis_url.to_string(),
-            stream_max_backlog: std::sync::atomic::AtomicU64::new(DEFAULT_STREAM_MAX_BACKLOG),
-            observed_backlog: Arc::new(dashmap::DashMap::new()),
-            min_replica_acks: 0,
-            pubsub_manager: Arc::new(PubSubManager::new(DEFAULT_BROADCAST_CAPACITY)),
-        }
-    }
-
     /// The Redis key holding a group's rotating scan cursor.
     ///
     /// **In Redis, not in this process.** As a process-local map the rotation was lost on every restart, so

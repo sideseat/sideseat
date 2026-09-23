@@ -208,20 +208,6 @@ impl MemoryTopicBackend {
         }
     }
 
-    /// Create with custom broadcast capacity
-    #[allow(dead_code)]
-    pub fn with_broadcast_capacity(capacity: usize) -> Self {
-        Self {
-            state: Arc::new(SharedState {
-                broadcast_channels: RwLock::new(HashMap::new()),
-                streams: RwLock::new(HashMap::new()),
-                stream_notifiers: RwLock::new(HashMap::new()),
-                broadcast_capacity: capacity,
-                stream_max_bytes: STREAM_MAX_RETAINED_BYTES,
-            }),
-        }
-    }
-
     /// Get or create a broadcast channel
     fn get_or_create_broadcast(&self, topic: &str) -> broadcast::Sender<Vec<u8>> {
         let channels = self.state.broadcast_channels.read();
