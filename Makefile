@@ -748,35 +748,32 @@ preview-docs: docs-deps ## Preview the built documentation
 # Code Signing (macOS)
 # =============================================================================
 
-# Production signing identity (set via env or make arg)
-sign-release:  ## Sign macOS platform binaries with Developer ID
+# Production signing identity is supplied through the environment or a make argument.
+sign-release: ## Sign macOS platform binaries with Developer ID
 	@[ "$(UNAME_S)" = "Darwin" ] || { echo "Error: code signing requires macOS"; exit 1; }
 	@[ -n "$(SIGN_IDENTITY)" ] || { echo "Error: SIGN_IDENTITY required. Usage: make sign-release SIGN_IDENTITY=\"Developer ID Application: Name (TEAMID)\""; exit 1; }
-	@SIGNED=0; \
-	for bin in cli/platforms/platform-darwin-arm64/sideseat cli/platforms/platform-darwin-x64/sideseat; do \
-		if [ -f "$$bin" ]; then \
-			codesign --force --options runtime --sign "$(SIGN_IDENTITY)" --entitlements packaging/macos/entitlements.plist "$$bin" || \
-				{ echo "Error: failed to sign $$bin"; exit 1; }; \
-			echo "[sign-release] Signed $$bin"; \
-			SIGNED=$$((SIGNED + 1)); \
-		fi; \
-	done; \
-	[ $$SIGNED -gt 0 ] || { echo "Error: no macOS binaries found in cli/platforms/"; exit 1; }
+	@for bin in $(foreach p,$(DARWIN_PLATFORMS),$(call cli-bin,$(p))); do \
+		[ -f "$$bin" ] || { echo "Error: missing $$bin. Run 'make build-cli' first."; exit 1; }; \
+		codesign --force --options runtime --sign "$(SIGN_IDENTITY)" --entitlements packaging/macos/entitlements.plist "$$bin" || \
+			{ echo "Error: failed to sign $$bin"; exit 1; }; \
+		echo "[sign-release] Signed $$bin"; \
+	done
 
-sign-verify:  ## Verify code signature and entitlements on macOS platform binaries
-	@FOUND=0; \
-	for bin in cli/platforms/platform-darwin-arm64/sideseat cli/platforms/platform-darwin-x64/sideseat; do \
-		if [ -f "$$bin" ]; then \
-			echo "=== $$bin ===" && \
-			echo "--- Signature ---" && codesign -dvv "$$bin" && \
-			echo "" && echo "--- Entitlements ---" && codesign -d --entitlements :- "$$bin" && \
-			echo ""; \
-			FOUND=$$((FOUND + 1)); \
-		fi; \
-	done; \
-	[ $$FOUND -gt 0 ] || { echo "Error: no macOS binaries found in cli/platforms/"; exit 1; }
+sign-verify: ## Verify code signature and entitlements on macOS platform binaries
+	@[ "$(UNAME_S)" = "Darwin" ] || { echo "Error: signature verification requires macOS"; exit 1; }
+	@for bin in $(foreach p,$(DARWIN_PLATFORMS),$(call cli-bin,$(p))); do \
+		[ -f "$$bin" ] || { echo "Error: missing $$bin. Run 'make build-cli' first."; exit 1; }; \
+		codesign --verify --strict "$$bin" || { echo "Error: invalid signature on $$bin"; exit 1; }; \
+		echo "=== $$bin ==="; \
+		echo "--- Signature ---"; \
+		codesign -dvv "$$bin" || exit 1; \
+		echo ""; \
+		echo "--- Entitlements ---"; \
+		codesign -d --entitlements :- "$$bin" || exit 1; \
+		echo ""; \
+	done
 
-sign-notarize:  ## Notarize macOS archives; ZIP files cannot be stapled
+sign-notarize: ## Notarize macOS archives; ZIP files cannot be stapled
 	@[ "$$(uname -s)" = "Darwin" ] || { echo "Error: notarization requires macOS"; exit 1; } && \
 	VERSION=$$(node -p "require('./cli/package.json').version") && \
 	OUTDIR="$(RELEASE_DIR)/v$$VERSION" && \
