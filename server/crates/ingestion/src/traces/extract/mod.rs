@@ -492,7 +492,7 @@ pub fn extract_attributes_batch(request: &ExportTraceServiceRequest) -> Vec<Span
                     .cloned();
 
                 // Every declared span field, resolved once - the span's events beside its attributes,
-                // because a field may be declared on an event and one was, hand-read below until cycle 9.
+                // because a field may be declared on an event and one was previously hand-read below.
                 let field_events: Vec<sideseat_domain::rules::span_fields::SpanEvent> = otlp_span
                     .events
                     .iter()

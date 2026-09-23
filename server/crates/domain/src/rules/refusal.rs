@@ -7,8 +7,8 @@
 //! were constructed nowhere outside their own tests, and `Defect` survived only as a builder for one log line.
 //!
 //! The reasoning behind `Outcome`'s shape was sound and is kept, because it is what this module's *structure*
-//! obeys. Codex's ruling was that "defects need to be orthogonal to the optional result": a wrapper member that
-//! is present and not a list is *simultaneously* a malformed reading of that member and a valid reading of the
+//! obeys: defects are orthogonal to the optional result. A wrapper member that is present and not a list is
+//! *simultaneously* a malformed reading of that member and a valid reading of the
 //! element around it, so a sum type over (value | failure) has to choose and either choice is a false statement.
 //! The live resolver already satisfies that - `Resolved` carries its answer *and* a `refused: Vec<Refusal>`
 //! beside it, so the four states are expressible:

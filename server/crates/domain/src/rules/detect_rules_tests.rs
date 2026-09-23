@@ -520,7 +520,7 @@ fn a_rule_an_earlier_one_always_satisfies_is_refused() {
 /// Nothing checked, so `-5` parsed as an `i64` and became a real token count: it summed into the trace total,
 /// priced at a negative cost, and could cancel a genuine counter. A negative count, duration, limit or status is
 /// not a small measurement - it is not a measurement. `DefectKind::OutOfRange` had existed in the outcome algebra
-/// since cycle 10 and nothing produced it.
+/// despite nothing producing it.
 ///
 /// Present-and-unusable is what `Malformed` already means, so the chain's own `on_malformed` policy decides what
 /// follows: a chain that steps over unreadable values reaches the next spelling, which is the behaviour asserted
@@ -688,7 +688,7 @@ fn nothing_recognised_this_producer_says_which_rules_were_close() {
 /// **What the format can express for a producer nobody has captured, measured rather than asserted.**
 ///
 /// The series' central claim is that adding a framework is an *asset edit* and adding a primitive is a code
-/// change. Cycle 25 put four hypothetical producers to it; two were said to be expressible. Running them proved
+/// change. Four hypothetical producers exercise the boundary; two appeared expressible, but running them proved
 /// one of those two wrong, which is the whole reason for running them.
 ///
 /// **Expressible, proven below:** a conversation written as a flat, numerically indexed attribute family -

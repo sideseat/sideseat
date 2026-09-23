@@ -722,11 +722,10 @@ fn classify_span_blocks(
     // All blocks start with is_history = false
     let mut blocks = flatten_to_blocks(parsed_messages, &span_hierarchy);
 
-    // Stage 2.5: Cross-trace prefix marking (multi-trace sessions only)
-    // MUST run BEFORE classify_blocks (which includes Phase 7 duplicate detection).
-    // If run after, Phase 7 would mark the second occurrence as history, then
+    // Cross-trace prefix marking must run before history classification and duplicate detection.
+    // If run after, duplicate detection would mark the second occurrence as history, then
     // cross-trace would mark the first → both become history → genuine content lost.
-    // Running before ensures Phase 7 sees the first copy as already-history and
+    // Running before ensures duplicate detection sees the first copy as already-history and
     // skips it, preserving the genuine (second) copy.
     let replay_matching_complete = match cross_trace_prefix {
         Some(prefix) => mark_cross_trace_prefix(&mut blocks, prefix),
@@ -1026,10 +1025,10 @@ fn reconstruct_trace(
 /// All non-System blocks are accumulated as `(role, content_hash)` entries.
 /// Role-aware matching prevents cross-role false matches when content repeats.
 /// The prefix scan handles both:
-/// - **Root gen spans**: No Phase 4b, all input-source blocks (including assistant)
-///   are matched directly against accumulated.
-/// - **Non-root gen spans**: Phase 4b marks assistant input-source blocks as history.
-///   Prefix scan consumes matched Phase 4b entries without re-marking.
+/// - **Root generation spans**: all input-source blocks, including assistant blocks, are matched directly
+///   against accumulated history.
+/// - **Non-root generation spans**: assistant input-source blocks are already marked as history; the prefix
+///   scan consumes matching entries without marking them again.
 fn process_multi_trace_spans(
     rows: Vec<MessageSpanRow>,
     constraints: order_graph::Constraints,
@@ -1133,15 +1132,15 @@ fn process_multi_trace_spans(
 
 /// Mark input-source blocks that replay what earlier traces already showed.
 ///
-/// Runs BEFORE `classify_blocks` (before Phase 4b and Phase 7) so that:
-/// - Phase 7 (duplicate detection) sees the marked copies as history and skips them,
+/// Runs before `classify_blocks` so that:
+/// - duplicate detection sees the marked copies as history and skips them,
 ///   preserving the genuine copy when content repeats.
-/// - Phase 4b and other history phases layer on top correctly.
+/// - the remaining history passes layer on top correctly.
 ///
 /// # Algorithm
 ///
 /// 1. **Guard**: if there are no attribute-sourced input blocks, skip. Event-based frameworks (Strands
-///    Python) keep original timestamps, so Phase 2 handles their history within each trace and they
+///    Python) keep original timestamps, so timestamp comparison handles their history within each trace and they
 ///    stay trace-independent.
 /// 2. **Per-span injective match**: for each span, walk its strippable input blocks in payload order and
 ///    match each against a distinct prior occurrence whose position the relation permits (see
@@ -1157,10 +1156,10 @@ fn mark_cross_trace_prefix(blocks: &mut [BlockEntry], accumulated: &CrossTracePr
 
     // A block is "cross-trace strippable" if it represents history re-sent to a new LLM call:
     // - Attribute-sourced input (LangGraph, ADK, Vercel, etc.)
-    // - gen_ai.input.messages event (Strands JS bundled format: all messages share event_time
-    //   so timestamp-based Phase 2 can't detect history within a single span)
+    // - gen_ai.input.messages event (Strands JS bundled format: all messages share event_time,
+    //   so timestamp comparison cannot detect history within a single span)
     // Pure per-message event frameworks (Strands Python: gen_ai.user.message etc.) are excluded
-    // because they preserve original timestamps and Phase 2 handles them within each trace.
+    // because they preserve original timestamps and timestamp comparison handles them within each trace.
     let is_strippable = |b: &BlockEntry| {
         (b.is_input_source() && b.source_type == source_type::ATTRIBUTE)
             || b.event_name.as_deref() == Some("gen_ai.input.messages")

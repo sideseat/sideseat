@@ -40,7 +40,7 @@ pub struct CarrierSemantics {
     /// The carrier may re-state observations that already happened, so what it holds can be a replay
     /// rather than news.
     ///
-    /// **Not the same question as `may_contain_framework_state`, and the two were one bit until cycle 9.**
+    /// **Not the same question as `may_contain_framework_state`; keeping them separate is load-bearing.**
     /// The conflated form named both and answered neither: dedup reads *this* one (a re-send regenerates
     /// the provider's call id, so an id from a carrier that may replay is not evidence of a second
     /// execution), while framework state is a claim about the carrier holding a scratchpad rather than a

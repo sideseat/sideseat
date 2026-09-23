@@ -2101,8 +2101,8 @@ pub struct Alternative {
     /// The case `else_element` could not express. A wrapper member is a list of declarations, so
     /// `{"function_declarations": {"name": "weather"}}` has not declared its contents - and treating that as the
     /// member being *absent* sent it to the element fallback, which emits the whole wrapper as a tool
-    /// definition. Codex's ruling: keep the recovery, because the enclosing object independently describes a
-    /// valid bare tool, and **report** the malformed member rather than pretending nobody wrote it.
+    /// definition. Keep the recovery because the enclosing object independently describes a valid bare tool,
+    /// and **report** the malformed member rather than pretending nobody wrote it.
     ///
     /// Also: once presence has selected a representation, a *later* spelling is not tried. Presence chose;
     /// falling through to the next path would answer from a representation the producer did not use.

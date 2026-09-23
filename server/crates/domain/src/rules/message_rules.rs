@@ -1566,8 +1566,8 @@ pub fn compile(sources: &BTreeMap<String, Vec<u8>>) -> Result<MessagePlan, Messa
             //
             // Directional: `a` holds the earlier rank, so it is `a` that can starve `b`. Asked of every
             // multi-owner reading, not only `compose`: an indexed family's entry owns its own members, an
-            // aggregate owns every entry, and an overlay owns both sides of the join. Codex's demonstration is
-            // the family case - a conditional rank-1 rule reading `family.0.role` leaves the entry unable to
+            // aggregate owns every entry, and an overlay owns both sides of the join. In the indexed-family
+            // case, a conditional rank-1 rule reading `family.0.role` leaves the entry unable to
             // take `family.0.content`, which then reaches nobody.
             //
             // Asked **before** the stage exemption below, deliberately. That exemption is sound for the
@@ -5029,8 +5029,8 @@ fn inline_fragments(
             // | `else_element` with neither | it names the fallback for a coalesce that is not there |
             //
             // The third is where the two forms differ: one coalesces by *yielding*, the other by *presence*.
-            // That they are one member with two silently-ordered halves is Codex's finding 8 and stays open;
-            // this refuses the combination that cannot mean anything.
+            // They remain one member with two silently ordered halves; this refuses the combination that
+            // cannot mean anything.
             // A lift **from the element** copies members that sit beside the value being emitted, which is
             // only a different value when something was descended into: without `descend` the element *is* the
             // candidate, so every member is already there and the lift is a no-op.

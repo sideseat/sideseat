@@ -409,7 +409,7 @@ impl TracePipeline {
                     }
                 }
 
-                // Phase 1: Wait for at least one message (with shutdown/claim handling)
+                // Wait for the first delivery while servicing shutdown and abandoned claims.
                 //
                 // Arm order matters. `biased` polls in order and takes the first ready branch, so the
                 // *maintenance tick* must come **before** the receive branch: under sustained saturation
@@ -493,7 +493,7 @@ impl TracePipeline {
                     buffered.push(partition, (msg_id, payload_ref));
                 }
 
-                // Phase 2: Look ahead beyond one write batch, then choose a weighted-fair batch.
+                // Prefetch beyond one write batch, then choose a weighted-fair batch.
                 while buffered.len() < PIPELINE_PREFETCH_MAX_SIZE {
                     match tokio::time::timeout(
                         Duration::from_micros(PIPELINE_BATCH_DRAIN_TIMEOUT_US),
@@ -514,7 +514,7 @@ impl TracePipeline {
                     tracing::debug!(batch_size, "Processing batched requests");
                 }
 
-                // Phase 3: Process entire batch (one DuckDB write)
+                // Load the selected batch before handing it to the persistence port.
                 let mut ready = Vec::with_capacity(batch.len());
                 let mut ack_ids = Vec::new();
                 for (msg_id, payload_ref) in batch {

@@ -2985,7 +2985,7 @@ fn carrier_semantics_are_declared() {
 
     // Both directions, like every list in this file: an entry that has since been *declared* is a
     // contradiction - the table says one thing and this list says another - and it sat unnoticed for a
-    // whole review cycle when `system_prompt` became a declared frame carrier while still listed here
+    // regression when `system_prompt` became a declared frame carrier while still listed here
     // as unclassified.
     for entry in KNOWN_DEFAULTED {
         let declared = match entry.strip_prefix("event:") {
@@ -3994,7 +3994,7 @@ fn rules_that_emit() -> BTreeSet<String> {
 
 /// No declared rule is dead, measured rather than reasoned about.
 ///
-/// The compile-time conflict check is a *static approximation* of a runtime property, and six review cycles
+/// The compile-time conflict check is a *static approximation* of a runtime property, and repeated adversarial reviews
 /// running found successively deeper approximation errors - each one "this rule can never emit and compilation
 /// accepted it". Some of those cases need a satisfiability decision over payload predicates, which the checker
 /// deliberately is not. This is the measurement that covers them: a rule that emits nothing anywhere in the

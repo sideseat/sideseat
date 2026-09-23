@@ -4,7 +4,7 @@
 (* unreachable one at compile time is sound.                               *)
 (*                                                                         *)
 (* Three ordered first-match sweeps share this shape - framework detection, *)
-(* observation type and span category - and review cycles 17 and 18 changed *)
+(* observation type and span category; both have changed independently in production. *)
 (* two things about it that are worth stating as theorems rather than as    *)
 (* prose:                                                                  *)
 (*                                                                         *)

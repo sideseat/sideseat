@@ -32,16 +32,11 @@
 //! 4. **Intermediate filtering**: Assistant text in generation spans (when agent
 //!    spans exist) without finish_reason → intermediate output
 //!
-//! # Eight-Phase Detection
+//! # Detection order
 //!
-//! 1. **Build current tool_use_id set**: From protected tool_uses and agent spans
-//! 2. **Timestamp-based**: Mark messages with timestamp < span_start
-//! 3. **Accumulator span input**: Mark input events from non-root accumulator spans
-//! 4. **Intermediate text**: Mark assistant text from generation spans (when has_agent_spans)
-//!    - **(4b) Input-source assistant**: Mark assistant from input attrs in non-root gen spans
-//! 5. **Multi-turn history**: Mark all unprotected content in generation spans with tool_results
-//! 6. **Orphan tool_results**: Mark tool_results with unknown tool_use_id
-//! 7. **Deduplication**: Mark duplicate content by identity (keep earliest)
+//! The order is part of the algorithm: establish current tool calls, mark timestamp-derived history,
+//! remove accumulator and intermediate copies, suppress replayed generation input, mark orphan results,
+//! preserve a witness for completed turns, and finally deduplicate the remaining blocks.
 
 use std::collections::{HashMap, HashSet};
 
@@ -70,8 +65,8 @@ use crate::sideml::types::{ChatRole, ContentBlock};
 /// NOTE: We intentionally use ONLY protected blocks (not all agent span blocks).
 /// Event-based frameworks (Strands) bubble ALL events (including historical ones
 /// from previous turns) up to the root agent span. Including agent span blocks
-/// would incorrectly collect historical tool_use_ids as "current", causing
-/// Phase 6 to skip marking their tool_results as orphans.
+/// would incorrectly collect historical tool_use_ids as "current", preventing their tool results from being
+/// recognised as orphans.
 fn build_current_tool_use_ids(blocks: &[BlockEntry]) -> HashMap<String, HashSet<String>> {
     let mut map: HashMap<String, HashSet<String>> = HashMap::new();
 
@@ -99,7 +94,7 @@ struct SessionHistoryInfo {
     /// Has agent spans (Strands-like structure)
     has_agent_spans: bool,
     /// Has event-based messages (Strands pattern with gen_ai.* events)
-    /// When true, Phase 4 intermediate filtering applies (events bubble up)
+    /// When true, child-generation intermediate filtering applies because events bubble up.
     /// When false, generation spans hold authoritative output (LangGraph pattern)
     has_event_based_messages: bool,
     /// Traces that have multi-turn history (tool_results in generation spans)
@@ -157,13 +152,8 @@ fn detect_session_history(blocks: &[BlockEntry]) -> SessionHistoryInfo {
 ///
 /// # Algorithm
 ///
-/// 1. Build set of current tool_use_ids (from protected blocks and agent spans)
-/// 2. Timestamp-based: Mark messages with timestamp < span_start
-/// 3. Accumulator spans: Mark input events from non-root accumulator spans
-/// 4. Intermediate text: Mark assistant text from generation spans (when has_agent_spans)
-/// 5. Multi-turn: If tool_results in generation, mark all unprotected generation content
-/// 6. Orphan tool_results: Mark tool_results with unknown tool_use_id
-/// 7. Deduplicate remaining blocks
+/// The passes are intentionally ordered; later passes depend on history and call identity established by
+/// earlier ones.
 pub fn mark_history(
     blocks: &mut [BlockEntry],
     span_timestamps: &HashMap<String, SpanTimestamps>,
@@ -173,7 +163,7 @@ pub fn mark_history(
         ..Default::default()
     };
 
-    // Phase 1: Detect session history and build tool_use_id map
+    // Detect the trace shape and index tool calls that belong to the current turn.
     let current_tool_ids = build_current_tool_use_ids(blocks);
     let history_info = detect_session_history(blocks);
 
@@ -185,7 +175,7 @@ pub fn mark_history(
         "history detection: analysis complete"
     );
 
-    // Phase 2: Mark timestamp-based history in child generation spans
+    // Mark timestamp-derived history in child generation spans.
     // Messages with timestamp < span_start are historical context passed to the span.
     // This handles both simple history (previous turn) and complex multi-turn history.
     for block in blocks.iter_mut() {
@@ -218,22 +208,22 @@ pub fn mark_history(
         }
     }
 
-    // Phase 3: Filter intermediate state from spans
+    // Filter intermediate state from accumulator and chain spans.
     //
     // This phase handles clear intermediate state that should be filtered:
     // 1. Raw JSON output from chain spans (framework state) - even root
     // 2. Input events from non-root accumulator spans (context copies)
     //
     // We DON'T aggressively filter all input-source content because:
-    // - Phase 2 (timestamp) already catches messages predating the span
-    // - Phase 7 (dedup) catches duplicate content
+    // - timestamp comparison already catches messages predating the span
+    // - final identity deduplication catches duplicate content
     // - Some input sources contain unique authoritative messages
     for block in blocks.iter_mut() {
         if block.is_protected() || block.is_history {
             continue;
         }
 
-        // Tool results from execution should be kept (unless orphan - handled in Phase 6)
+        // Tool results from execution remain unless the orphan-result pass rejects them.
         if block.is_tool_result() {
             continue;
         }
@@ -262,21 +252,21 @@ pub fn mark_history(
         }
     }
 
-    // Phase 4: Event-based framework intermediate content filtering
+    // Filter intermediate content from event-based traces.
     //
     // For frameworks using OTEL events (gen_ai.choice, gen_ai.user.message):
     // - Events bubble up from child spans to root agent span
     // - Root agent span has authoritative current-turn messages
     // - Child generation span content is intermediate, duplicated at root
     //
-    // This phase only applies when BOTH conditions are true:
+    // This pass only applies when BOTH conditions are true:
     // - has_agent_spans: Root span is an agent that collects events
     // - has_event_based_messages: Framework uses gen_ai.* events
     //
     // For attribute-based frameworks (LangGraph, OpenInference):
     // - Generation spans have authoritative output in llm.output_messages
     // - No event bubbling, child generation spans ARE the source of truth
-    // - This phase is SKIPPED
+    // - This pass is skipped
     let mut generation_marked_users: Vec<usize> = Vec::new();
     if history_info.has_agent_spans && history_info.has_event_based_messages {
         for (index, block) in blocks.iter_mut().enumerate() {
@@ -310,16 +300,16 @@ pub fn mark_history(
         }
     }
 
-    // Phase 4b: Input-source assistant history
+    // Mark assistant history re-sent through input attributes.
     //
     // For attribute-based frameworks (ADK, Vercel, LiveKit, etc.):
     // A non-root generation span's INPUT attributes (e.g. llm_request) re-send
     // previous assistant responses as context. The current response comes from
     // OUTPUT attributes (e.g. llm_response / gen_ai.choice).
     //
-    // This phase marks assistant content from input sources in non-root generation
+    // This pass marks assistant content from input sources in non-root generation
     // spans as history. It catches re-sent assistant text/thinking/tool_use that
-    // Phase 7 (hash dedup) misses because the LLM regenerates different text.
+    // identity deduplication misses because the LLM regenerates different text.
     for block in blocks.iter_mut() {
         if block.is_protected() || block.is_history {
             continue;
@@ -340,7 +330,7 @@ pub fn mark_history(
         stats.input_source_history += 1;
     }
 
-    // Phase 5: Multi-turn history - filter ALL unprotected generation span content
+    // Suppress all unprotected generation content in traces that re-send complete turns.
     // When tool_results exist in generation spans, it indicates full history re-send
     // IMPORTANT: Check per-trace to avoid cross-trace contamination
     for block in blocks.iter_mut() {
@@ -364,7 +354,7 @@ pub fn mark_history(
         stats.generation_history += 1;
     }
 
-    // Phase 6: Mark orphan tool_results
+    // Mark tool results whose calls do not belong to the current turn.
     // Tool_results whose tool_use_id is not in current set FOR THE SAME TRACE are history
     // IMPORTANT: Check against the same trace's tool_use_ids only to avoid cross-trace contamination
     // IMPORTANT: Only applies to traces with multi-turn history
@@ -414,23 +404,23 @@ pub fn mark_history(
         }
     }
 
-    // Phase 6b: a turn that happened must survive somewhere.
+    // Preserve at least one witness that a completed turn happened.
     //
-    // Phases 3 and 4 both rest on the same assumption - that a copy on the *root* agent span is the
+    // The accumulator and child-generation passes both assume that a copy on the *root* agent span is the
     // authoritative one, so a child's copy is an intermediate duplicate. Where that holds, marking the
     // child costs nothing. `strands-js/swarm` is where it does not: its root agent span carries
-    // `system, assistant` and never re-lists the user's request, so phase 4 marked the chat span's copy
-    // and phase 3 the accumulator's, every copy became history, and the history-only filter dropped the
+    // `system, assistant` and never re-lists the user's request, so child-generation filtering marked the
+    // chat-span copy and accumulator filtering marked the other; every copy became history and the
     // class entirely. The trace and the feed showed a plan with no request, while one span view still
     // displayed it.
     //
     // So one user witness is kept when nothing non-history is left to carry the turn. Two conditions,
     // and the second is what makes it safe:
     //
-    // - it was marked by the **child-generation** phase specifically, not by the accumulator phase. That
+    // - it was marked by **child-generation filtering** specifically, not by accumulator filtering. That
     //   matters because a span view loads one span, where "nothing else carries the turn" is trivially
     //   true - rescuing accumulator-marked blocks there gave langgraph's `tools` span views a message
-    //   they had never shown. The generation phase only runs when an agent span is in scope, so it is
+    //   they had never shown. Child-generation filtering only runs when an agent span is in scope, so it is
     //   scope-safe by construction;
     // - the block's own time is **at or after** its span's start, which is what distinguishes an input
     //   this span was given from a previous turn re-sent into it. A genuine re-send predates the span it
@@ -483,7 +473,7 @@ pub fn mark_history(
         }
     }
 
-    // Phase 7: Deduplicate remaining blocks
+    // Deduplicate the remaining blocks.
     let duplicate_indices = find_duplicate_indices(blocks, span_timestamps);
     for idx in duplicate_indices {
         blocks[idx].is_history = true;
@@ -503,7 +493,7 @@ pub fn mark_history(
     stats
 }
 
-/// The key Phase 7 groups by: what makes two blocks the same message.
+/// The key used to group blocks that represent the same message.
 ///
 /// Content for everything except a tool result, which is keyed by the *call it answers*.
 #[derive(PartialEq, Eq, Hash)]
@@ -610,7 +600,7 @@ fn find_duplicate_indices(
 
         // Sort: output-source DESC, uses_span_end DESC, then timestamp ASC
         // Output-source blocks are preferred over input-source copies to ensure
-        // Phase 7 keeps the authoritative version (e.g. llm_response over llm_request)
+        // Prefer the authoritative output representation (for example, response over request).
         let mut sorted: Vec<_> = indices
             .iter()
             .map(|&i| {
@@ -647,7 +637,7 @@ pub struct HistoryStats {
     pub accumulator_history: usize,
     /// Generation span history (session history context)
     pub generation_history: usize,
-    /// Input-source assistant history (Phase 4b)
+    /// Assistant history re-sent through input attributes.
     pub input_source_history: usize,
     /// Orphan tool results (tool_use_id not in current set)
     pub orphan_tool_results: usize,
@@ -1091,12 +1081,10 @@ mod tests {
         );
     }
 
-    // ========================================================================
-    // PHASE 4b: INPUT-SOURCE ASSISTANT HISTORY TESTS
-    // ========================================================================
+    // Input-source assistant history
 
     #[test]
-    fn test_phase4b_marks_input_source_assistant() {
+    fn marks_input_source_assistant_history() {
         // ADK pattern: assistant text from llm_request (input) in non-root gen span
         let mut blocks = vec![{
             let mut b = make_block_with_source(
@@ -1123,7 +1111,7 @@ mod tests {
     }
 
     #[test]
-    fn test_phase4b_skips_output_source_assistant() {
+    fn preserves_output_source_assistant() {
         // Assistant text from llm_response (output) should NOT be marked
         let mut blocks = vec![{
             let mut b = make_block_with_source(
@@ -1150,8 +1138,8 @@ mod tests {
     }
 
     #[test]
-    fn test_phase4b_skips_protected_blocks() {
-        // Protected blocks (finish_reason) should never be marked by Phase 4b
+    fn preserves_protected_input_source_blocks() {
+        // Protected blocks, such as finish reasons, are authoritative.
         let mut blocks = vec![{
             let mut b = make_block_with_source(
                 "text",
@@ -1172,12 +1160,12 @@ mod tests {
 
         assert!(
             !blocks[0].is_history,
-            "protected block should NOT be marked by Phase 4b"
+            "protected input-source block should remain current"
         );
     }
 
     #[test]
-    fn test_phase4b_skips_user_role() {
+    fn preserves_input_source_user_messages() {
         // User messages from input source should NOT be marked (they're current turn prompts)
         let mut blocks = vec![{
             let mut b = make_block_with_source(
@@ -1198,12 +1186,12 @@ mod tests {
 
         assert!(
             !blocks[0].is_history,
-            "user role should NOT be marked by Phase 4b"
+            "input-source user messages are current-turn prompts"
         );
     }
 
     #[test]
-    fn test_phase4b_skips_root_span() {
+    fn preserves_root_span_input_source_assistant() {
         // Root span input-source assistant should NOT be marked (root is authoritative)
         let mut blocks = vec![{
             let mut b = make_block_with_source(
@@ -1222,15 +1210,12 @@ mod tests {
         let span_timestamps = HashMap::new();
         mark_history(&mut blocks, &span_timestamps);
 
-        assert!(
-            !blocks[0].is_history,
-            "root span should NOT be marked by Phase 4b"
-        );
+        assert!(!blocks[0].is_history, "the root span is authoritative");
     }
 
     #[test]
-    fn test_phase4b_skips_event_source() {
-        // Event-sourced blocks are handled by Phase 4, not 4b
+    fn leaves_event_sources_to_event_history_detection() {
+        // Event-sourced blocks are handled by event history detection.
         let mut blocks = vec![{
             let mut b = make_block_with_source(
                 "text",
@@ -1249,24 +1234,22 @@ mod tests {
 
         assert_eq!(
             stats.input_source_history, 0,
-            "event source should not be counted in Phase 4b"
+            "event sources should not count as input-attribute history"
         );
     }
 
-    // ========================================================================
-    // PHASE 6: ORPHAN TOOL RESULT TESTS (Strands JS multi-turn history)
-    // ========================================================================
+    // Orphan tool results in multi-turn history
 
     /// Reproduces the Strands JS bug where historical tool_use events bubble up
     /// to the root agent span, causing their tool_use_ids to be collected as
-    /// "current" and preventing Phase 6 from marking their tool_results as orphans.
+    /// "current" and preventing orphan detection from marking their tool results as history.
     ///
     /// Scenario: trace has NYC turn (history) + London turn (current).
     /// The root agent span has both NYC and London tool_use events (due to bubbling).
     /// Only the London tool_use appears in gen_ai.choice → only London is "current".
     /// NYC tool_result should be orphan (its tool_use_id not in gen_ai.choice).
     #[test]
-    fn test_phase6_historical_tool_results_are_orphans_not_bubbled_agent_span() {
+    fn historical_tool_results_are_orphans_despite_bubbled_agent_span() {
         // Simulate: root agent span has NYC tool_use (historical, bubbled) +
         //           London gen_ai.choice with London tool_use (current/protected)
         // execute_agent_loop_cycle has NYC tool_result + London tool_result

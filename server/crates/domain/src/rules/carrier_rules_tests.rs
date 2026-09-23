@@ -764,7 +764,7 @@ fn the_selection_language_behaves_as_the_engine_assumes() {
 /// The *extraction* layer names no framework either.
 ///
 /// `the_engine_names_no_framework` reads the rules engine; this reads the code that calls it. That was the
-/// gap Codex named: every framework message and tool-definition carrier had moved into the assets, and
+/// remaining gap: every framework message and tool-definition carrier had moved into the assets, and
 /// nothing held the file to it - a new hardcoded carrier key would compile, pass, and quietly re-open the
 /// hole. Measured on the source, ignoring `#[cfg(test)]` items, which are the retired reference
 /// implementations the equivalence oracles compare against and legitimately name every dialect.
@@ -1788,7 +1788,7 @@ fn no_production_module_names_a_framework() {
 /// itself cannot show it, because a passing sweep is consistent with every exemption being unscoped.
 #[test]
 fn an_exempt_file_may_name_only_what_its_exemption_allows() {
-    // The shape Codex's review used: a parser for a *different* framework, written into a connector module.
+    // Counterexample: a parser for a *different* framework written into a connector module.
     let intruder = "fn parse_haystack_telemetry() {}";
     let names = production_names(intruder, "intruder");
     assert!(
@@ -3609,7 +3609,7 @@ fn the_boolean_grammar_answers_as_the_shell_it_replaces() {
 /// `{path: "$.items[*]", starts_with: "a", one_of: ["apple","banana"]}` is false for `["avocado","banando"]`.
 /// Translating each condition into its own atom under `all` makes that *true*, with different elements
 /// witnessing the two clauses: a silent change of meaning in every multi-condition rule. So the first case
-/// below is Codex's exact example, and the rest is every predicate the assets declare over generated payloads.
+/// below is the minimal counterexample; the rest covers every predicate the assets declare over generated payloads.
 #[test]
 fn the_json_grammar_answers_as_the_shell_it_replaces() {
     use crate::rules::expr::json_expr_of_predicate;
@@ -3909,7 +3909,7 @@ fn a_shared_message_rank_is_refused_only_where_the_order_shows() {
         )]))
     };
 
-    // Codex's case: two conditional message rules reading one attribute at one rank. `a` wins today because
+    // Two conditional message rules read one attribute at one rank. `a` wins today because
     // ids sort; renaming it to `zz` would hand the carrier to the other.
     let contending = serde_json::json!([
         {
@@ -4911,7 +4911,7 @@ fn a_carrier_list_says_how_many_of_its_keys_are_read() {
 ///
 /// `stage` and `when_event` were an implicit sum, and the two entry points disagreed about which fields they
 /// consult: the event path selects on the event name and ignores `stage` entirely, while the span path selects
-/// on `stage` and requires no event. Codex's demonstration is the first case below - two event rules at one
+/// on `stage` and requires no event. The first case below uses two event rules at one
 /// rank declaring *different* stages. The compiler held them to be different ordering arenas (where a shared
 /// rank is legal, because rules in different arenas never contend), and then the event path ran both, leaving
 /// ownership of the contested carrier to be decided by comparing their **ids**.
@@ -4926,7 +4926,7 @@ fn a_rule_declares_where_it_reads_with_one_member() {
         std::collections::BTreeMap::from([("t.json".to_string(), body.into_bytes())])
     };
 
-    // Codex's case, verbatim in substance: two event rules over one event and one carrier, at one rank,
+    // Two event rules cover one event and one carrier at one rank,
     // differing only in a stage the event path does not read.
     let refused = compile(&asset(
         r#"[{"id":"a","source":{"event":{"names":["acme.event"]}},"read":{"attribute":"payload"},
@@ -4943,7 +4943,7 @@ fn a_rule_declares_where_it_reads_with_one_member() {
 
     // The case the *arena* rule owns on its own: two event rules over one event at one rank reading
     // **different** carriers. Nothing contests a carrier here, so the only defect is the shared rank - and
-    // before cycle 9 a stage neither rule's entry point reads was enough to make the compiler call them
+    // Previously, a stage neither rule's entry point reads was enough to make the compiler call them
     // different arenas and accept it.
     let refused = compile(&asset(
         r#"[{"id":"a","source":{"event":{"names":["acme.event"]}},"read":{"attribute":"one"},
@@ -5184,7 +5184,7 @@ fn a_field_source_can_read_an_event_and_says_which_occurrence_answers() {
 /// lost, and false for an all-or-nothing reading - the loser is dropped **whole**, so carriers the taker never
 /// wanted reach nobody.
 ///
-/// The first case is Codex's demonstration, which compiled before cycle 9: a conditional rank-1 rule taking
+/// The first case previously compiled incorrectly: a conditional rank-1 rule taking
 /// `family.0.role` leaves the indexed entry unable to take `family.0.content`, and that content then appears in
 /// no view at all. Neither rule looks wrong on its own, and nothing failed.
 #[test]
@@ -5199,7 +5199,7 @@ fn an_all_or_nothing_reading_cannot_be_starved_by_an_earlier_rank() {
         )]))
     };
 
-    // Codex's case: an indexed family, starved by a conditional earlier rule reading one of its keys.
+    // An indexed family is starved by an earlier conditional rule reading one of its keys.
     let refused = asset(
         r#"[{"id":"t.take_role","when":{"attr_exists":["marker"]},"read":{"attribute":"family.0.role"},
              "parse":"text","tag_as":"taken","emit":"message","legacy_rank":1},
@@ -5637,7 +5637,7 @@ fn a_wrong_typed_member_of_a_reduction_is_malformed() {
         resolve(plan, payload).0
     };
 
-    // Codex's input.
+    // The minimal malformed input.
     let summed = plan(
         "usage_input_tokens",
         "$.messages[*].models_usage.prompt_tokens",
@@ -5723,7 +5723,7 @@ fn a_wrong_typed_member_of_a_reduction_is_malformed() {
 ///
 /// `source_label` ends in `String::new()`, so a source form added without a label there logs an empty carrier -
 /// a diagnostic that says a field could not be read and not what could not be read. The event-attribute form
-/// added in cycle 9 would have been exactly that. This walks the shipped sources and requires each to describe
+/// would have been exactly that. This walks the shipped sources and requires each to describe
 /// itself, which is the part of "structured diagnostics" a test can hold: the clause path comes from the
 /// declaration's own id and cannot be empty (compilation refuses that), while the carrier is hand-built per
 /// form.
@@ -5962,7 +5962,7 @@ fn a_compose_owns_its_members_and_not_its_own_tag() {
 /// Two declarations must not write the same output member.
 ///
 /// A wrap builds its object by inserting in a fixed order - role, literal members, pre-content attachments, the
-/// content, post-content attachments - and every insert **overwrites**. So Codex's case compiled and produced a
+/// content, post-content attachments - and every insert **overwrites**. The conflicting case compiled and produced a
 /// message whose role is its content, with the two declarations before it silently discarded. Attachments could
 /// overwrite literals, the content and each other; `compose.trailing` could overwrite a named or swept member.
 ///
@@ -5982,7 +5982,7 @@ fn two_declarations_must_not_write_one_output_member() {
     };
     let read = r#""read":{"attribute":"x"},"parse":"json","emit":"message","legacy_rank":1"#;
 
-    // Codex's case: a literal over the declared role, then the content over both.
+    // A literal overwrites the declared role, then content overwrites both.
     assert!(
         asset(&format!(
             r#"{{"id":"t.r",{read},"wrap":{{"role":"user","members":{{"role":"assistant"}},
@@ -6071,7 +6071,7 @@ fn two_declarations_must_not_write_one_output_member() {
 ///
 /// The refusals existed and were **incomplete**, which is the harder kind to notice: `sections` refused `wrap`
 /// and `alternatives` and accepted a walk, an aggregate, a `fallback` and a `tag_as` - each of which it returns
-/// before. An indexed family accepted a `fallback`, a walk and `sections`; the named family added in cycle 9
+/// before. An indexed family accepted a `fallback`, a walk and `sections`; the named family
 /// accepted all of them.
 ///
 /// And an element pass could state something other than what it did five different ways, the worst being a
@@ -6188,7 +6188,7 @@ fn a_construction_branch_refuses_the_siblings_it_would_skip() {
 
 /// A reading that **cannot be built** produced nothing, so the chain keeps going.
 ///
-/// Codex's case: the first alternative selects something and its envelope names a member the payload has not, so
+/// Counterexample: the first alternative selects something and its envelope names a member the payload has not, so
 /// `wrapped()` returns `None`. The candidate used to be returned as *the* answer and dropped afterwards by the
 /// caller, so the second alternative and the rule's `fallback` were never tried and the rule emitted nothing -
 /// where a later shape would have worked. Construction happens inside the coalesce now, which makes "could not
@@ -6334,8 +6334,8 @@ fn an_aggregate_wraps_the_assembled_array_once() {
 ///
 /// `Reading` was `(value, wrap, target)`: an emission produced by `{"id":"as_assistant","select":"$.response"}`
 /// carried an empty clause path, and a nested fragment case lost both the selection-point id and the winning
-/// case id. So the required ids of cycle 5 were still discarded before an emission existed - one level down from
-/// where cycle 9 fixed it.
+/// case id. Required ids were therefore still discarded before an emission existed, one level below the
+/// earlier fix.
 ///
 /// And an emission carries an `EvidenceSet` rather than one path, because some emissions genuinely have several
 /// contributing clauses: two cases deriving one key are legitimate aliases, so a run built from both has two
@@ -6437,7 +6437,7 @@ fn an_alternative_and_a_grouped_run_name_every_clause_that_built_them() {
 
 /// An attachment's sources fall through to each other, whichever form is declared.
 ///
-/// Codex's case: `{"from_path": "$.finish_reason", "from": "finish_reason", "default": "unknown"}`. When the
+/// Counterexample: `{"from_path": "$.finish_reason", "from": "finish_reason", "default": "unknown"}`. When the
 /// payload path resolved to nothing, `?` returned from the whole function - so the sibling attribute, the
 /// span-name fallback **and** the default were never consulted, while an absent `from_value_any_of` fell
 /// through to exactly those. One member, two source forms, two different answers to "nothing here", and the
@@ -6562,7 +6562,7 @@ fn a_walk_stops_on_the_clauses_it_names() {
 /// A grouped element run is consecutive in the **array a producer wrote**, not in the pass's filtered view.
 ///
 /// The pass filtered the array before finding runs, so an element it does not match simply vanished - and two
-/// content blocks with a *message* between them became one "consecutive" run of the two. Codex's input is
+/// content blocks with a *message* between them became one "consecutive" run of the two. The input is
 /// Logfire's own shape: an input block, a named assistant event, another input block. The run then claims two
 /// blocks are adjacent while asserting nothing about the message lying between them.
 #[test]
@@ -6603,7 +6603,7 @@ fn a_grouped_run_is_consecutive_in_the_array_the_producer_wrote() {
             .collect()
     };
 
-    // Codex's input: two input blocks with an assistant message between them.
+    // Two input blocks have an assistant message between them.
     assert_eq!(
         runs(
             r#"[{"data":{"type":"input_text","text":"before"}},
@@ -6780,7 +6780,7 @@ fn a_constructor_and_its_target_describe_the_same_thing() {
     };
     let read = r#""read":{"attribute":"x"},"parse":"text","legacy_rank":1"#;
 
-    // Codex's case.
+    // Minimal counterexample.
     assert!(
         asset(&format!(
             r#"{{"id":"t.r",{read},"wrap":{{"role":"user"}},"emit":"tool_names"}}"#
@@ -6849,7 +6849,7 @@ fn a_tool_call_list_declares_what_an_unbuildable_call_means() {
             body.into_bytes(),
         )]))
     };
-    // Codex's input: one call with an id, one without.
+    // One call has an id and the other does not.
     let attrs = std::collections::HashMap::from([(
         "x".to_string(),
         r#"{"summary":"it called two tools",
@@ -7078,7 +7078,7 @@ fn a_repr_field_respects_identifier_boundaries_and_the_earliest_close() {
     // string is not decoded as a repr and **no tool called `admin` is invented**.
     //
     // What it *does* produce is the bare-name reading - the whole string as a tool name - which is the other
-    // half of Codex's finding 6: a non-marker string is accepted as a name whatever it says, and fixing that
+    // A non-marker string is accepted as a name whatever it says; tightening that
     // needs the tagged decoders (`bare_name` versus `python_constructor_repr` declared per candidate) rather
     // than a boundary test. So this asserts the invention is gone, not that the reading is right.
     let mistaken = tools(serde_json::json!([
@@ -7098,7 +7098,7 @@ fn a_repr_field_respects_identifier_boundaries_and_the_earliest_close() {
     assert_eq!(real.len(), 1);
     assert_eq!(real[0]["function"]["name"].as_str(), Some("search"));
 
-    // The earliest boundary: a quoted field *after* the description must not be swallowed by it. Codex's own
+    // The earliest boundary: a quoted field *after* the description must not be swallowed by it. The
     // input, and it needs the **label** inside the quoted value - that value is a container the grammar reads
     // labels out of, so an unlabelled `description='Find records'` reports no description at all, which is
     // this dialect's shape rather than a defect.
@@ -7240,7 +7240,7 @@ fn a_tool_repr_declares_literals_that_can_match_and_types_that_exist() {
 
 /// A tool name that is not a non-blank string names nothing, and it must not cost its siblings.
 ///
-/// Codex's input: `{"gen_ai.agent.tools": "[\"search\", 7]"}`. The rule emitted and persisted the list as
+/// Input: `{"gen_ai.agent.tools": "[\"search\", 7]"}`. The rule emitted and persisted the list as
 /// written, and the read side deserialised the whole column as `Vec<String>` - so the number failed that and
 /// took the valid `"search"` with it. A malformed item poisoning its siblings at the last possible moment,
 /// after storage had already accepted it.
@@ -7294,7 +7294,7 @@ fn a_tool_name_is_a_non_blank_string_and_a_bad_one_costs_only_itself() {
     // A **definition** is deliberately not checked here: at emission it is still the producer's shape - Bedrock
     // writes `{"toolSpec": {"name": …}}` - and the canonical `{"function": {"name": …}}` appears only at
     // query-time normalisation. Written as a check over `function.name` this dropped `bedrock/converse`'s
-    // perfectly good `get_weather`, which is cycle 13's finding 3: the provider shapes live in Rust and must
+    // perfectly good `get_weather`: provider shapes live in Rust and must
     // move into the assets before a definition can be validated where it is produced.
     let definitions = compile(&std::collections::BTreeMap::from([(
         "t.json".to_string(),
@@ -7320,7 +7320,7 @@ fn a_tool_name_is_a_non_blank_string_and_a_bad_one_costs_only_itself() {
 ///
 /// The conflict check was written for the message axis - correctly, because a dialect stating its tools on the
 /// carrier another rule reads as a conversation is two true statements. But it was written for that axis
-/// *alone*, so Codex's pair below compiled: two rules reading one carrier and both emitting tool definitions.
+/// *alone*, so the pair below compiled: two rules reading one carrier and both emitting tool definitions.
 /// The metadata path then did no claiming, so both survived and their rank became precedence somewhere
 /// downstream - which is a rule id deciding an answer.
 #[test]
@@ -7335,7 +7335,7 @@ fn metadata_contends_on_the_axis_it_emits_on() {
         )]))
     };
 
-    // Codex's case: same carrier, same axis, unconditional both.
+    // Both unconditional rules use the same carrier and axis.
     assert!(
         asset(
             r#"[{"id":"t.raw","read":{"attribute":"tools"},"parse":"json","emit":"tool_definitions",
@@ -7523,7 +7523,7 @@ fn a_singular_path_takes_the_first_match_and_says_when_there_were_more() {
     )]))
     .expect("the probe compiles");
 
-    // Codex's shape: two arrays under one object, and `$.*` matches both.
+    // Two arrays sit under one object, and `$.*` matches both.
     let attrs = std::collections::HashMap::from([(
         "x".to_string(),
         r#"{"a":[{"event.name":"first"}],"b":[{"event.name":"second"}]}"#.to_string(),
@@ -7569,7 +7569,7 @@ fn a_singular_path_takes_the_first_match_and_says_when_there_were_more() {
 /// | an explicitly empty group places no condition | `json_expr_of` returns `None` for a set with no predicates, and `predicates_hold` answers `true` for `None` | `langchain.json` ships an explicit `"all": []` beside a non-empty `any` |
 ///
 /// So `Truth::Unknown` occurs *internally* - `JsonAtom::Some` answers it for an empty selection - and never
-/// reaches a decision the shipped rules make. Codex's ruling: do not close this. Completing it needs direct
+/// reaches a decision the shipped rules make. This remains open because completing it needs direct
 /// `Expr` syntax at these fields, Logfire stating the absence it means explicitly, the bare-`none_of` branch
 /// removed, and an explicitly empty group refused - which needs the schema to distinguish "declared empty" from
 /// "not declared", and today it cannot.
@@ -7643,7 +7643,7 @@ fn the_predicate_semantics_have_not_migrated_and_here_is_what_still_answers_the_
 ///
 /// A wrapper member is a list of declarations, so `{"function_declarations": {"name": "weather"}}` has not
 /// declared its contents - and treating that as the member being *absent* sent it to the element fallback, which
-/// emits the whole wrapper as a tool definition. Codex's ruling: keep the recovery, because the enclosing object
+/// emits the whole wrapper as a tool definition. Keep the recovery because the enclosing object
 /// independently describes a valid bare tool, and **report** the malformed member rather than pretending nobody
 /// wrote it. So the two situations get separate answers.
 ///
@@ -7778,7 +7778,7 @@ fn a_role_a_rule_states_must_be_a_role() {
         )]))
     };
 
-    // Codex's typo, and the shape the corpus had.
+    // Preserve the misspelling found in the captured corpus.
     for (what, wrap) in [
         (
             "a misspelled mapped role",
@@ -7844,7 +7844,7 @@ fn a_role_a_rule_states_must_be_a_role() {
 ///
 /// Closedness is enforced - an unlisted value is discarded, which is the point - but with no literal fallback the
 /// message is emitted with **no role**, and normalisation then infers one from unrelated payload members:
-/// Assistant if the message happens to carry tool calls, User otherwise. Codex's case: a speaker called
+/// Assistant if the message happens to carry tool calls, User otherwise. Counterexample: a speaker called
 /// `"planner"` against `role_map: {"user": "user"}` means whatever the rest of the turn happens to contain.
 ///
 /// Every shipped closed map declares the fallback, so this is a gate rather than a migration.
@@ -7895,7 +7895,7 @@ fn a_closed_role_map_says_what_an_unmapped_value_means() {
     );
 
     // An **open** map needs no fallback: an unmapped value passes through as the producer wrote it, which is a
-    // different statement and a different defect (cycle 15's finding 3).
+    // different statement and a different defect.
     assert!(
         asset(r#"{"role_from":"$.speaker","role_map":{"user":"user"}}"#).is_ok(),
         "closedness is what creates the obligation"

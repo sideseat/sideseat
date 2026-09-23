@@ -3,9 +3,8 @@
 //! The previous timeline was one sort key whose anchor is a mutable per-response minimum. Because
 //! that anchor is computed *after* dedup, the order depends on which copy of a message survived, and
 //! two copies tie on quality routinely — so reading a carrier that was previously ignored silently
-//! reorders unrelated messages. Six scalar-anchor candidates were tried and rejected (see the plan);
-//! the conclusion, reviewed with Codex, is that ordering is a **partial order** and time is a
-//! *priority*, not a constraint.
+//! reorders unrelated messages. A scalar anchor cannot represent the required relations: ordering is
+//! a **partial order**, and time is a *priority*, not a constraint.
 //!
 //! This module builds that partial order and resolves it. Production runs
 //! [`Constraints::PRODUCTION`], which lists exactly which classes are enforced and what each one was
@@ -14,7 +13,7 @@
 //! (`the_neutral_resolver_reproduces_the_legacy_order`) as classes are promoted one at a time. Under
 //! [`Constraints::FULL`] it produces the redesign's intended answer, which tests compare against.
 //!
-//! # Model (Codex's framing)
+//! # Model
 //!
 //! Three levels, deliberately distinct:
 //!
@@ -973,7 +972,7 @@ pub(super) fn resolve(
 
     // Exact call -> result edges over units. A result's unit follows its call's unit, but only when
     // exactly one surviving call carries the id: a reused or regenerated id is ambiguous and adds no
-    // edge (Codex: do not treat "first call with this id" as a hard constraint).
+    // edge. Choosing the first call with that id would invent a hard constraint.
     let mut call_units: HashMap<&str, Vec<usize>> = HashMap::new();
     for (i, block) in survivors.iter().enumerate() {
         if block.entry_type == "tool_use"

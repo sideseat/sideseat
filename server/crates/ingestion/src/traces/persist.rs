@@ -617,17 +617,17 @@ pub(super) async fn persist_extracted_files(
         .map(|file| file.project_id.as_str())
         .collect::<HashSet<_>>();
 
-    // Phase 2: Decode, write, and record files
+    // Decode objects, write temporary content, and record trace associations.
     let (pending_finalizations, write_failures, created_associations) =
         write_and_record_files(&files, file_service).await;
     outcome.created_associations = created_associations;
 
-    // Phase 3: Finalize temp files to permanent storage
+    // Promote temporary objects only after their metadata is durable.
     let finalize_failures =
         finalize_pending_files(pending_finalizations, file_service, "batch").await;
     outcome.failed = write_failures + finalize_failures;
 
-    // Phase 4: Invalidate quota cache for affected projects
+    // Invalidate quota measurements for every project whose associations changed.
     let affected_projects: Vec<&str> = affected_projects.into_iter().collect();
     file_service
         .invalidate_quota_cache(&affected_projects)

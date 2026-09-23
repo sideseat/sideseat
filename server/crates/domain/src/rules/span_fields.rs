@@ -624,7 +624,7 @@ fn read_event_attribute(
             // cannot answer `Malformed`: `parse_string_array` falls back to splitting on commas, so every
             // string is *some* list. So a branch handling it would be unreachable, and dead code that looks
             // like a policy is worse than the policy's absence. When that reader gains a strict mode - the
-            // declared list encoding cycle 10 asks for - a malformed occurrence becomes expressible and
+            // declared list encoding requires: a malformed occurrence becomes expressible and
             // belongs here, deciding through `on_malformed` rather than shortening the list.
             let values: Vec<String> = readings
                 .iter()

@@ -747,7 +747,7 @@ mod tests {
 
     /// The argument-map converter keeps every constraint it is given, which the retired one did not.
     ///
-    /// Cycle 13's finding 8: only `type` and `description` survived, so the output said an argument was optional
+    /// Previously only `type` and `description` survived, so the output said an argument was optional
     /// where the producer said it was required, and discarded its default and its allowed values. `required`
     /// belongs at the schema level, which is where JSON Schema puts it.
     ///

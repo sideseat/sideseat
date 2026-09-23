@@ -77,7 +77,7 @@ use sideseat_ports::types::MessageCategory;
 /// - **Vercel AI SDK** (`toModelOutput`): Same `tool_use_id`, different content format.
 ///   Caught by `tool_use_id`-based identity here.
 /// - **Strands** (history re-sends): Same content, regenerated `tool_use_id`.
-///   Caught by `content_hash`-based Phase 7 in `history.rs` (independent signal).
+///   Caught by the independent content-hash deduplication in `history.rs`.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub(super) enum MessageIdentity {
     /// Regular message identified by trace, role, and content hash
@@ -120,7 +120,7 @@ impl MessageIdentity {
 
         // Tool result: identify by tool_use_id (primary) or content hash (fallback)
         // tool_use_id is stable across content transformations (Vercel toModelOutput).
-        // History re-sends with regenerated IDs are caught by Phase 7 (content_hash).
+        // History re-sends with regenerated IDs are caught by content-hash deduplication.
         if let ContentBlock::ToolResult {
             tool_use_id,
             name,
@@ -413,7 +413,7 @@ fn rank_scope<'a>(
     // shape once in each response and so looks exactly like two executions -
     // `a_resent_single_call_with_a_regenerated_id_is_still_one_call` reproduced the duplicate.
     //
-    // The fact is the carrier's, deliberately, not the block's `is_history` flag: phase 7's duplicate
+    // The fact is the carrier's, deliberately, not the block's `is_history` flag: duplicate
     // detection groups by these very ordinals, so a flag it sets cannot gate the rank that decides
     // whether it fires - the two executions this rank exists to keep (`agent-framework/tool_use` and
     // the five suites beside it) all report their calls through *emission* carriers, and a re-send by
@@ -1238,8 +1238,8 @@ impl BlockSortKey {
 ///
 /// Tool results use `tool_use_id` as identity when present, which naturally
 /// handles content transformations (e.g., Vercel AI SDK's `toModelOutput`).
-/// History re-sends with regenerated IDs are handled upstream by Phase 7
-/// in `history.rs` (content_hash-based duplicate detection).
+/// History re-sends with regenerated IDs are handled upstream by content-hash duplicate detection in
+/// `history.rs`.
 /// Map an *id-less* tool result onto the identity of the id-bearing result it is a copy of.
 ///
 /// Two signals both mean "the same result", and neither subsumes the other:

@@ -530,7 +530,7 @@ mod tests {
             .expect("the rule recognises the block")
         };
 
-        // Codex's case: the declaration says image, the reference says PDF.
+        // The declaration says image, while the stored reference identifies a PDF.
         let block = normalize("image/png", "#!B64!#application/pdf::abc123");
         assert_eq!(
             block["media_type"].as_str(),

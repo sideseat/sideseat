@@ -355,7 +355,7 @@ fn every_action_is_pinned_to_a_commit_and_every_image_to_a_tag() {
             let trimmed = line.trim().trim_start_matches("- ").trim();
             if let Some(rest) = trimmed.strip_prefix("uses:") {
                 let reference = rest.trim();
-                // A local action is this repository's own code, reviewed with it.
+                // A local action is maintained as part of this repository.
                 if reference.starts_with('.') {
                     continue;
                 }
@@ -1754,7 +1754,7 @@ fn every_uv_project_requires_the_same_resolver() {
 ///
 /// It appears in four places — the Makefile header, `make help`, the `setup` prerequisite check and
 /// `CONTRIBUTING.md` — and each time it changed, one of them was missed: `make help` said "20+" for a whole
-/// review cycle after the others were corrected, and a *fifth* place (the JavaScript samples) said "20+" for
+/// pass after the others were corrected, and a *fifth* place (the JavaScript samples) said "20+" for
 /// two. A prerequisite that is wrong in one place is worse than one that is absent, because the reader who
 /// finds it stops looking.
 ///

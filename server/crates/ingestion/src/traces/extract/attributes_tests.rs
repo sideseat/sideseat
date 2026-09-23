@@ -2654,7 +2654,7 @@ fn the_declared_finish_reason_chain_reproduces_the_retired_blocks() {
 /// necessarily ran *after* resolution. That made the event last, which is a precedence **no producer states**:
 /// it came from where the code could put it, not from what the telemetry means.
 ///
-/// Cycle 9 added `event_attribute` to `FieldSource`, so the source is declared like every other and sits where
+/// `event_attribute` makes the source declarative like every other field source and keeps it where
 /// the retired order had it - first. A reader who believes the intermediate order would expect `length` here.
 ///
 /// Still end to end through `extract_attributes_batch`, because that is what supplies the events.
@@ -2798,7 +2798,7 @@ fn every_target_writes_what_its_declared_type_produces() {
 
     for target in FieldTarget::ALL {
         // A value of the target's own type that is inside whatever range it admits, so this measures the sink and
-        // not the bound cycle 19 added.
+        // not the configured bound.
         let reading = match target.field_type() {
             FieldType::Text => Reading::Text("probe".to_string()),
             FieldType::Integer => Reading::Integer(1),

@@ -3702,7 +3702,7 @@ mod renderable_block_tests {
     /// Two positions collapse only when one source **envelopes** the other.
     ///
     /// The test used to be "the sources differ", and that does not hold: two *genuine* occurrences can be written
-    /// differently. Codex's case is `[{"text":"retry"}, {"type":"text","text":"retry"}]` - two positions a
+    /// differently. `[{"text":"retry"}, {"type":"text","text":"retry"}]` contains two positions a
     /// producer wrote, where the second was discarded because its JSON did not match the first's. Different
     /// encodings are not evidence of one datum.
     ///
@@ -3718,7 +3718,7 @@ mod renderable_block_tests {
                 .map_or(0, Vec::len)
         };
 
-        // Codex's case: two encodings, two positions, both kept.
+        // Two encodings in two positions are both retained.
         assert_eq!(
             parts(json!([{"text": "retry"}, {"type": "text", "text": "retry"}])),
             2,

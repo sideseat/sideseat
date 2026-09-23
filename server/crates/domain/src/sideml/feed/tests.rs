@@ -2705,9 +2705,7 @@ fn test_tool_result_text_vs_array_normalization() {
     );
 }
 
-// ============================================================================
-// PHASE 3 HISTORY DETECTION REGRESSION TESTS
-// ============================================================================
+// History detection for input events on non-generation spans.
 // Tests for GenAI input events from non-generation spans being marked as history.
 // This catches cross-trace session history that Strands includes in event loop spans.
 
@@ -3381,7 +3379,7 @@ fn test_regression_gen_ai_choice_never_history() {
         &messages.to_string(),
         t0,
         Some(t_end),
-        "span", // Non-generation span type that normally triggers Phase 3
+        "span", // Non-generation span type subject to accumulator-history filtering.
     )];
 
     let options = FeedOptions::default();
@@ -6572,7 +6570,7 @@ fn test_regression_different_tool_use_ids_preserved() {
 // PR 1: WITHIN-TRACE ADK SUPPORT TESTS
 // ============================================================================
 
-/// ADK multi-span trace: Phase 4b marks assistant from input, output-source survives.
+/// In an ADK multi-span trace, assistant input is history and output-source content survives.
 ///
 /// Agent root + 2 generation children.
 /// span1 input (llm_request): [sys, userA, asstB_old, userC]
@@ -6580,10 +6578,10 @@ fn test_regression_different_tool_use_ids_preserved() {
 /// span2 input (llm_request): [sys, userA, asstB_old, userC, toolD, resultE]
 /// span2 output (gen_ai.choice): [asstG(stop)]
 ///
-/// Key assertion: Phase 4b marks asstB_old (input-source, assistant) as history.
+/// Key assertion: input-source `asstB_old` is history.
 /// Protected gen_ai.choice output (toolD, asstG) survives.
 #[test]
-fn test_adk_multi_span_phase4b_and_dedup() {
+fn adk_multi_span_filters_input_assistant_and_deduplicates() {
     let t0 = fixed_time();
     let dur = chrono::Duration::seconds;
 
@@ -6685,13 +6683,13 @@ fn test_adk_multi_span_phase4b_and_dedup() {
     let options = FeedOptions::default();
     let result = process_spans(rows, &options);
 
-    // "Previous answer from history" should be filtered by Phase 4b
+    // The assistant response re-sent through the request is history.
     let has_old_assistant = result.messages.iter().any(|m| {
         matches!(&m.content, ContentBlock::Text { text } if text == "Previous answer from history")
     });
     assert!(
         !has_old_assistant,
-        "Phase 4b should mark input-source assistant as history"
+        "input-source assistant should be marked as history"
     );
 
     // toolD should survive (from span1 output via gen_ai.choice, protected)
@@ -6717,10 +6715,10 @@ fn test_adk_multi_span_phase4b_and_dedup() {
     );
 }
 
-/// Phase 4b does not affect event-based frameworks (Strands).
+/// Input-attribute history detection does not affect event-based frameworks such as Strands.
 /// Events have their own protection mechanism (gen_ai.choice is protected).
 #[test]
-fn test_phase4b_no_effect_on_strands_events() {
+fn input_attribute_history_does_not_affect_strands_events() {
     let t0 = fixed_time();
     let dur = chrono::Duration::seconds;
 
@@ -6764,7 +6762,7 @@ fn test_phase4b_no_effect_on_strands_events() {
     let options = FeedOptions::default();
     let result = process_spans(rows, &options);
 
-    // gen_ai.choice assistant text is protected — Phase 4b should NOT touch it
+    // gen_ai.choice assistant text is protected and remains current.
     let assistant_blocks: Vec<_> = result
         .messages
         .iter()
@@ -6778,7 +6776,7 @@ fn test_phase4b_no_effect_on_strands_events() {
 }
 
 /// Output-source assistant from llm_response survives while input-source
-/// assistant from llm_request is marked as history by Phase 4b.
+/// assistant from llm_request is marked as input history.
 #[test]
 fn test_output_source_assistant_survives_input_source_marked() {
     let t0 = fixed_time();
@@ -6828,7 +6826,7 @@ fn test_output_source_assistant_survives_input_source_marked() {
     let options = FeedOptions::default();
     let result = process_spans(rows, &options);
 
-    // "Old response" should be gone (Phase 4b: input-source, assistant, non-root gen)
+    // The old response is input-source assistant content on a non-root generation span.
     let old = result.messages.iter().any(|m| {
         matches!(&m.content, ContentBlock::Text { text } if text == "Old response from history")
     });
@@ -6847,7 +6845,7 @@ fn test_output_source_assistant_survives_input_source_marked() {
     );
 }
 
-/// Phase 4b marks tool_use from input source as history, output-source tool_use wins dedup.
+/// An input-source tool call is history, so the output-source copy wins deduplication.
 #[test]
 fn test_tool_use_input_vs_output_source_quality() {
     let t0 = fixed_time();
@@ -7098,12 +7096,12 @@ fn test_cross_trace_accumulated_history() {
     let options = FeedOptions::default();
     let result = process_spans(vec![row1, row2, row3], &options);
 
-    // Within-trace: Phase 4b filters assistant blocks from llm_request (input-source).
+    // Within each trace, assistant blocks from llm_request are input history.
     // Cross-trace prefix strip: removes user/tool blocks already seen in prior traces.
     // Trace 1: user("NYC") + asst("NYC sunny") from llm_response = 2
-    // Trace 2: prefix [user("NYC")] stripped, asst("NYC sunny") filtered by 4b
+    // Trace 2: prefix [user("NYC")] stripped, asst("NYC sunny") filtered as input history
     //   → user("London") + asst("London rain") = 2
-    // Trace 3: prefix [user("NYC"), user("London")] stripped, assts filtered by 4b
+    // Trace 3: prefix [user("NYC"), user("London")] stripped, assistants filtered as input history
     //   → user("Tokyo") + asst("Tokyo cloudy") = 2
     // Total: 6
     let texts: Vec<&str> = result
@@ -7117,7 +7115,7 @@ fn test_cross_trace_accumulated_history() {
     assert_eq!(
         result.messages.len(),
         6,
-        "Expected 6 blocks (2 per trace after prefix strip + 4b). Got {} blocks: {:?}",
+        "Expected 6 blocks (2 per trace after prefix and input-history filtering). Got {} blocks: {:?}",
         result.messages.len(),
         texts
     );
@@ -7195,7 +7193,7 @@ fn test_cross_trace_no_overlap() {
 //
 // Strands JS uses @opentelemetry/instrumentation-aws-sdk, which bundles all
 // messages into a single gen_ai.input.messages event (shared timestamp). This
-// means timestamp-based Phase 2 can't detect cross-trace history. The cross-
+// means timestamp comparison cannot detect cross-trace history. The cross-
 // trace prefix mechanism must handle it instead.
 
 #[test]
@@ -7225,7 +7223,7 @@ fn test_cross_trace_strands_js_bundled_messages_deduped() {
     let trace2_msgs = json!([
         {
             // gen_ai.input.messages: includes full history from trace 1 + new user message
-            // All share the SAME event timestamp (t1), so Phase 2 timestamp check won't help
+            // All share the same event timestamp, so timestamp comparison cannot help.
             "source": {"event": {"name": "gen_ai.input.messages", "time": t1.to_rfc3339()}},
             "content": [
                 {"role": "user", "content": "What is 2+2?"},                  // replayed from trace 1
@@ -7490,7 +7488,7 @@ fn test_cross_trace_system_per_trace() {
 
     // Trace1: system + user + asst = 3
     // Trace2: system (preserved) + user("Thanks") + asst("Welcome") = 3
-    // Phase 4b marks assistant from input-source as history within trace2,
+    // Input-source assistant content is marked as history within trace2,
     // so "Hi" from llm_request is already filtered by within-trace pipeline
     let system_count = result
         .messages
@@ -7518,7 +7516,7 @@ fn test_cross_trace_system_per_trace() {
 }
 
 // ----------------------------------------------------------------------------
-// Test: ADK multi-span trace in session + Phase 4b
+// ADK multi-span trace in a session
 // ----------------------------------------------------------------------------
 
 #[test]
@@ -10096,7 +10094,7 @@ fn prior_state(
 
 /// Two interchangeable results, and the choice between them decides whether the rest strips.
 ///
-/// The shape Codex found in the greedy matcher, and the reason the matcher searches. Two unordered
+/// A counterexample to greedy replay matching, and the reason the matcher searches. Two unordered
 /// branches give `callA -> resultA` and `callB -> resultB`, and both results carry the *same* identity -
 /// two tools that each answered `"ok"`, which is ordinary. Replayed as `callB, resultB, callA, resultA`,
 /// a valid linear extension, taking the first permitted candidate for `resultB` claims `resultA`; that
@@ -10167,7 +10165,7 @@ fn a_replay_that_contradicts_the_order_is_not_stripped() {
 /// requiring each to match in full and injectively.
 ///
 /// Identities repeat by design: interchangeable candidates are what make the choice non-obvious, and
-/// both defects found here were about them. Choosing greedily among them fails Codex's four-block
+/// both defects found here were about them. Choosing greedily among them fails the four-block
 /// counterexample; choosing in stored order fails his ten-branch one, which
 /// `ten_interchangeable_branches_replayed_in_reverse_are_fully_stripped` covers at a size this
 /// enumeration cannot reach.
@@ -10266,7 +10264,7 @@ fn every_linear_extension_of_every_small_relation_is_fully_stripped() {
 
 /// Ten interchangeable results, replayed in reverse: the shape that exhausts a naive search.
 ///
-/// Codex's second counterexample, and it is about the *budget* rather than about the rule. Ten
+/// A counterexample about the *budget* rather than the matching rule. Ten
 /// independent branches `call_i -> result_i` where every result carries the same identity - ten tools
 /// that each answered `"ok"` - replayed branch by branch in reverse order. Every step then offers ten
 /// permitted candidates that differ only in which call they answer, so a search that tries them in
@@ -10317,7 +10315,7 @@ fn ten_interchangeable_branches_replayed_in_reverse_are_fully_stripped() {
 
 /// Nine identical calls with distinct results, replayed in reverse: the budget's counterexample.
 ///
-/// Codex's second shape, and it is the mirror of the first. A tool call's identity deliberately excludes
+/// The mirror counterexample. A tool call's identity deliberately excludes
 /// the provider's call id, so nine calls of the same tool with the same input are *one* identity - which
 /// is what a model retrying the same call produces. Their results differ. Replayed branch by branch in
 /// reverse, every step offers nine permitted candidates for the call, and "fewest unmatched ancestors"
@@ -10363,7 +10361,7 @@ fn nine_identical_calls_with_distinct_results_are_fully_stripped() {
 
 /// How far the bounded search reaches on the three-level shape, reported rather than assumed.
 ///
-/// Codex's harder construction: identical roots, identical middles, unique leaves, `root_i -> middle_i ->
+/// A construction with identical roots, identical middles, and unique leaves: `root_i -> middle_i ->
 /// leaf_i`, replayed branch by branch in reverse. Two levels of interchangeable blocks rather than one.
 #[test]
 #[ignore]

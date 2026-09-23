@@ -9763,7 +9763,7 @@ fn a_message_rule_may_also_emit_tool_definitions() {
 
 /// The tools-only claim must not swallow a conversation that sits beside the tools.
 ///
-/// Codex's case: `{tools: [...], messages: [...]}`. The tool parser reads the list on the metadata axis,
+/// For `{tools: [...], messages: [...]}`, the tool parser reads the list on the metadata axis,
 /// but the carrier also holds a real conversation, so claiming it as "mine and empty" loses the turn.
 /// Excluding only `context` did not establish "holds only tools" - `messages` is a conversation too.
 #[test]
@@ -11834,7 +11834,7 @@ fn the_declared_members_reproduce_the_lists_they_replaced() {
 /// `raw: "replace"` says the event's own body is not a message, because its attributes are. Applied on the
 /// declaration alone, a container whose declared reads all *fail* produced no messages **and** suppressed the
 /// raw form - so the event vanished, indistinguishable on the ingest path from one never emitted, with nothing
-/// recorded anywhere. Codex's input: `gen_ai.input.messages = "{"` on the inference-details event.
+/// recorded anywhere. The counterexample is `gen_ai.input.messages = "{"` on the inference-details event.
 ///
 /// Replacement now depends on something having read the event, and the raw form is kept when a declared carrier
 /// was **present** and yielded nothing. Present, not merely unread: a container carrying nothing a rule names
@@ -11857,7 +11857,7 @@ fn an_unreadable_container_event_keeps_its_raw_form() {
         )
     };
 
-    // Codex's case: the declared carrier is there and does not parse.
+    // The declared carrier exists but does not parse.
     let unreadable = container(vec![make_kv("gen_ai.input.messages", "{")]);
     assert_eq!(
         unreadable.len(),
