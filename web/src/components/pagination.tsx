@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ChangeEvent, type KeyboardEvent } from "react";
+import { useMemo, type ChangeEvent, type FocusEvent, type KeyboardEvent } from "react";
 import { ChevronFirst, ChevronLast, ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -57,12 +57,6 @@ export function Pagination({
     return undefined;
   }, [totalItems, totalPages, pageSize]);
 
-  const [pageInput, setPageInput] = useState(String(currentPage));
-
-  useEffect(() => {
-    setPageInput(String(currentPage));
-  }, [currentPage]);
-
   const isDisabled = disabled || isLoading;
   const canGoPrevious = currentPage > 1;
   const canGoNext = derivedTotalPages ? currentPage < derivedTotalPages : true;
@@ -74,29 +68,29 @@ export function Pagination({
   };
 
   const handlePageInputChange = (e: ChangeEvent<HTMLInputElement>) => {
-    setPageInput(e.target.value.replace(/[^\d]/g, ""));
+    e.currentTarget.value = e.currentTarget.value.replace(/[^\d]/g, "");
   };
 
-  const commitPageInput = () => {
-    const parsed = parseInt(pageInput, 10);
+  const commitPageInput = (input: HTMLInputElement) => {
+    const parsed = parseInt(input.value, 10);
     if (!isNaN(parsed) && parsed >= 1) {
       onPageChange(clampPage(parsed));
     } else {
-      setPageInput(String(currentPage));
+      input.value = String(currentPage);
     }
   };
 
   const handlePageInputKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter") {
-      commitPageInput();
+      commitPageInput(e.currentTarget);
     } else if (e.key === "Escape") {
-      setPageInput(String(currentPage));
-      (e.target as HTMLInputElement).blur();
+      e.currentTarget.value = String(currentPage);
+      e.currentTarget.blur();
     }
   };
 
-  const handlePageInputBlur = () => {
-    commitPageInput();
+  const handlePageInputBlur = (e: FocusEvent<HTMLInputElement>) => {
+    commitPageInput(e.currentTarget);
   };
 
   const handlePageSizeChange = (value: string) => {
@@ -174,10 +168,11 @@ export function Pagination({
             Page
           </span>
           <Input
+            key={currentPage}
             type="text"
             inputMode="numeric"
             name="current-page"
-            value={pageInput}
+            defaultValue={currentPage}
             onChange={handlePageInputChange}
             onKeyDown={handlePageInputKeyDown}
             onBlur={handlePageInputBlur}
