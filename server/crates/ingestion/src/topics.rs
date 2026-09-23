@@ -12,10 +12,7 @@ use sideseat_ports::queue::{
 };
 
 /// A typed message carried by a queue or broadcast topic.
-#[allow(clippy::len_without_is_empty)]
 pub trait TopicMessage: Clone + Send + Sync + 'static {
-    fn size_bytes(&self) -> usize;
-
     fn partition_key(&self) -> String {
         String::new()
     }
@@ -298,10 +295,6 @@ impl TopicMessage for StagedPayloadRef {
     fn partition_key(&self) -> String {
         self.partition_key.clone()
     }
-
-    fn size_bytes(&self) -> usize {
-        self.encoded_len()
-    }
 }
 
 impl TopicMessage for ExportTraceServiceRequest {
@@ -313,10 +306,6 @@ impl TopicMessage for ExportTraceServiceRequest {
             .next()
             .map(|span| hex::encode(&span.trace_id))
             .unwrap_or_default()
-    }
-
-    fn size_bytes(&self) -> usize {
-        self.encoded_len()
     }
 }
 
@@ -341,10 +330,6 @@ impl TopicMessage for ExportMetricsServiceRequest {
             })
             .unwrap_or_default()
     }
-
-    fn size_bytes(&self) -> usize {
-        self.encoded_len()
-    }
 }
 
 impl TopicMessage for ExportLogsServiceRequest {
@@ -365,20 +350,8 @@ impl TopicMessage for ExportLogsServiceRequest {
         }
         String::new()
     }
-
-    fn size_bytes(&self) -> usize {
-        self.encoded_len()
-    }
 }
 
-impl TopicMessage for PresenceEvent {
-    fn size_bytes(&self) -> usize {
-        1024
-    }
-}
+impl TopicMessage for PresenceEvent {}
 
-impl TopicMessage for ConnectionControl {
-    fn size_bytes(&self) -> usize {
-        256
-    }
-}
+impl TopicMessage for ConnectionControl {}

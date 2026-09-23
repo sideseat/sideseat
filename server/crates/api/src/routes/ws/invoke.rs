@@ -32,17 +32,7 @@ pub enum InvokeReply {
     },
 }
 
-impl TopicMessage for InvokeReply {
-    fn size_bytes(&self) -> usize {
-        // Event payloads are bounded by the WS frame cap. Cheap upper-bound
-        // is fine — the topic backend uses this only for backpressure.
-        match self {
-            Self::Event(v) => v.to_string().len(),
-            Self::Complete => 32,
-            Self::Error { message, .. } => 64 + message.len(),
-        }
-    }
-}
+impl TopicMessage for InvokeReply {}
 
 pub fn invoke_topic_name(request_id: &str) -> String {
     format!("agent_request:{}", request_id)

@@ -69,16 +69,7 @@ impl From<&NormalizedSpan> for SseSpanEvent {
     }
 }
 
-impl TopicMessage for SseSpanEvent {
-    fn size_bytes(&self) -> usize {
-        std::mem::size_of::<Self>()
-            + self.project_id.as_ref().map_or(0, |s| s.len())
-            + self.trace_id.len()
-            + self.span_id.len()
-            + self.session_id.as_ref().map_or(0, |s| s.len())
-            + self.user_id.as_ref().map_or(0, |s| s.len())
-    }
-}
+impl TopicMessage for SseSpanEvent {}
 
 // ============================================================================
 // BATCH PERSISTENCE
