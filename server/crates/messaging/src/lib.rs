@@ -48,7 +48,7 @@ impl TopicService {
     #[must_use]
     pub fn broadcast_topic<T>(&self, name: &str) -> BroadcastTopic<T>
     where
-        T: Clone + Send + Sync + Serialize + DeserializeOwned + 'static,
+        T: Send + Sync + Serialize + DeserializeOwned + 'static,
     {
         BroadcastTopic {
             name: name.to_string(),
@@ -228,7 +228,7 @@ impl StreamClaimer {
 
 pub struct BroadcastTopic<T>
 where
-    T: Clone + Send + Sync + Serialize + DeserializeOwned + 'static,
+    T: Send + Sync + Serialize + DeserializeOwned + 'static,
 {
     name: String,
     backend: Arc<dyn TopicBackend>,
@@ -237,7 +237,7 @@ where
 
 impl<T> BroadcastTopic<T>
 where
-    T: Clone + Send + Sync + Serialize + DeserializeOwned + 'static,
+    T: Send + Sync + Serialize + DeserializeOwned + 'static,
 {
     pub async fn publish(&self, message: &T) -> Result<(), TopicError> {
         let payload = serde_json::to_vec(message)
@@ -260,7 +260,7 @@ where
 
 pub struct BroadcastTopicSubscriber<T>
 where
-    T: Clone + Send + Sync + Serialize + DeserializeOwned + 'static,
+    T: Send + Sync + Serialize + DeserializeOwned + 'static,
 {
     subscription: BroadcastSubscription,
     marker: PhantomData<T>,
@@ -268,7 +268,7 @@ where
 
 impl<T> BroadcastTopicSubscriber<T>
 where
-    T: Clone + Send + Sync + Serialize + DeserializeOwned + 'static,
+    T: Send + Sync + Serialize + DeserializeOwned + 'static,
 {
     pub async fn recv(&mut self) -> Result<T, TopicError> {
         let Some(payload) = self.subscription.receiver.next().await else {
@@ -276,5 +276,24 @@ where
         };
         serde_json::from_slice(&payload?)
             .map_err(|error| TopicError::Serialization(error.to_string()))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use serde::Deserialize;
+
+    use super::*;
+
+    #[derive(Serialize, Deserialize)]
+    struct NonCloneMessage;
+
+    #[test]
+    fn broadcast_messages_do_not_need_to_be_cloneable() {
+        fn accepts_non_clone_message(service: &TopicService) {
+            let _ = service.broadcast_topic::<NonCloneMessage>("compile-check");
+        }
+
+        let _: fn(&TopicService) = accepts_non_clone_message;
     }
 }
