@@ -50,10 +50,10 @@ export function SpanDetailPanel({ projectId, traceId }: SpanDetailPanelProps) {
     { enabled: !!selectedNode },
   );
 
-  // Transform messages for DataInspector (must be before early return)
+  const messages = messagesData?.messages;
   const messagesForInspector = useMemo(
-    () => (messagesData?.messages ? transformBlocksToData(messagesData.messages) : {}),
-    [messagesData?.messages],
+    () => (messages ? transformBlocksToData(messages) : {}),
+    [messages],
   );
 
   if (!selectedNode) {
