@@ -3,11 +3,15 @@
 //! Uses the sideseat SDK to verify API credentials by attempting a
 //! lightweight API call (list_models, then fallback to complete with max_tokens=1).
 
+mod azure;
+
 use std::time::Instant;
 
 use async_trait::async_trait;
 
 use sideseat_domain::providers::{CredentialConnectionTester, ResolvedCredential, TestResult};
+
+use self::azure::{get_managed_identity_token, resolve_base_url};
 
 pub struct SdkCredentialConnectionTester;
 
@@ -168,15 +172,14 @@ async fn attempt_test(
 
             // Normalise whatever endpoint format the user stored into the base
             // URL that OpenAIChatProvider::with_api_base() expects.
-            let base = resolve_azure_base_url(raw_ep, deployment, api_variant)?;
+            let base = resolve_base_url(raw_ep, deployment, api_variant);
             let model = deployment.unwrap_or(test_models::OPENAI).to_string();
 
             let p: Box<dyn ChatProvider + Send> = match auth_mode {
                 "managed_identity" => {
-                    let token =
-                        get_azure_managed_identity_token("https://cognitiveservices.azure.com")
-                            .await
-                            .map_err(|e| format!("Azure Managed Identity failed: {e}"))?;
+                    let token = get_managed_identity_token("https://cognitiveservices.azure.com")
+                        .await
+                        .map_err(|e| format!("Azure Managed Identity failed: {e}"))?;
                     Box::new(OpenAIChatProvider::new(&token).with_api_base(&base))
                 }
                 _ => Box::new(OpenAIChatProvider::new(api_key).with_api_base(&base)),
@@ -371,117 +374,6 @@ async fn attempt_test(
         }
         unknown => Err(format!("Unknown provider: {}", unknown)),
     }
-}
-
-/// Normalise an Azure AI Foundry endpoint URL into the base URL that
-/// `OpenAIChatProvider::with_api_base()` expects.
-///
-/// `with_api_base(base)` constructs `{base}/chat/completions`, so this
-/// function must return everything *before* `/chat/completions`.
-///
-/// Accepted input forms:
-///
-/// | Stored `endpoint_url`                                              | Resource era    |
-/// |--------------------------------------------------------------------|-----------------|
-/// | `https://name.openai.azure.com/openai/deployments/d`              | Legacy          |
-/// | `https://name.openai.azure.com/openai/deployments/d/chat/compl…`  | Legacy (full)   |
-/// | `https://name.openai.azure.com/openai/v1`                         | Modern          |
-/// | `https://name.services.ai.azure.com/openai/v1`                    | Modern Foundry  |
-/// | `https://name.openai.azure.com`                                    | Root (any era)  |
-/// | `https://name.services.ai.azure.com`                              | Root Foundry    |
-fn resolve_azure_base_url(
-    raw_endpoint: &str,
-    deployment: Option<&str>,
-    api_variant: &str,
-) -> Result<String, String> {
-    let ep = raw_endpoint.trim_end_matches('/');
-
-    // Full chat completions URL — strip the suffix so with_api_base doesn't double it.
-    if let Some(base) = ep.strip_suffix("/chat/completions") {
-        return Ok(base.to_string());
-    }
-
-    // Already contains a recognized sub-path — pass through unchanged.
-    if ep.contains("/openai/v1") || ep.contains("/openai/deployments/") {
-        return Ok(ep.to_string());
-    }
-
-    // Resource root URL — build the correct sub-path.
-    match api_variant {
-        "v1" => Ok(format!("{ep}/openai/v1")),
-        _ => match deployment {
-            // Standard/legacy: deployment name in URL.
-            Some(name) => Ok(format!("{ep}/openai/deployments/{name}")),
-            // No deployment name available (ambient credential) — fall back to /v1/ path.
-            // The model field in the request body carries the deployment name instead.
-            None => Ok(format!("{ep}/openai/v1")),
-        },
-    }
-}
-
-/// Fetch an Azure OAuth2 token via Managed Identity.
-///
-/// Tries AKS workload identity federation first (via env vars), then falls
-/// back to the Azure IMDS endpoint (Azure VMs / Container Apps).
-async fn get_azure_managed_identity_token(resource: &str) -> Result<String, String> {
-    let client = reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(2))
-        .build()
-        .map_err(|e| format!("HTTP client error: {e}"))?;
-
-    // Path 1: AKS Workload Identity Federation
-    if let (Ok(token_file), Ok(tenant_id), Ok(client_id)) = (
-        std::env::var("AZURE_FEDERATED_TOKEN_FILE"),
-        std::env::var("AZURE_TENANT_ID"),
-        std::env::var("AZURE_CLIENT_ID"),
-    ) {
-        let assertion = tokio::fs::read_to_string(&token_file)
-            .await
-            .map_err(|e| format!("Cannot read AZURE_FEDERATED_TOKEN_FILE: {e}"))?;
-        let authority = std::env::var("AZURE_AUTHORITY_HOST")
-            .unwrap_or_else(|_| "https://login.microsoftonline.com".to_string());
-        let resp: serde_json::Value = client
-            .post(format!("{authority}/{tenant_id}/oauth2/v2.0/token"))
-            .form(&[
-                ("grant_type", "client_credentials"),
-                ("client_id", &client_id),
-                (
-                    "client_assertion_type",
-                    "urn:ietf:params:oauth:client-assertion-type:jwt-bearer",
-                ),
-                ("client_assertion", &assertion),
-                ("scope", &format!("{resource}/.default")),
-            ])
-            .send()
-            .await
-            .map_err(|e| format!("Workload identity request failed: {e}"))?
-            .json()
-            .await
-            .map_err(|e| format!("Workload identity response parse error: {e}"))?;
-        return resp
-            .get("access_token")
-            .and_then(|v| v.as_str())
-            .map(ToString::to_string)
-            .ok_or_else(|| format!("Workload identity response missing access_token: {resp}"));
-    }
-
-    // Path 2: IMDS (Azure VM / Container Apps / Functions)
-    let resp: serde_json::Value = client
-        .get(format!(
-            "http://169.254.169.254/metadata/identity/oauth2/token\
-             ?api-version=2018-02-01&resource={resource}"
-        ))
-        .header("Metadata", "true")
-        .send()
-        .await
-        .map_err(|e| format!("IMDS request failed (not an Azure host?): {e}"))?
-        .json()
-        .await
-        .map_err(|e| format!("IMDS response parse error: {e}"))?;
-    resp.get("access_token")
-        .and_then(|v| v.as_str())
-        .map(ToString::to_string)
-        .ok_or_else(|| format!("IMDS response missing access_token: {resp}"))
 }
 
 /// Try list_models first; fall back to complete with max_tokens=1.
