@@ -62,7 +62,8 @@ manifest, and `make update-python-deps` is the one command meant to do that.
 ```bash
 make release TYPE=patch  # check, bump, commit, tag, push
 make build-cli           # cross-compile all platforms
-make build-release       # create archives + notarize + checksums
+make sign-release SIGN_IDENTITY="Developer ID Application: Name (TEAMID)"
+make build-release       # create archives, optionally notarize, and checksum
 make build-docker        # build Docker image for current platform
 make publish-cli         # publish platform packages + main package to npm
 make publish-sdk-js      # publish JS SDK to npm

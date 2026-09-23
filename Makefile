@@ -33,6 +33,7 @@ BREW_TAP_REPO ?= sideseat/homebrew-tap
 
 # Release archives
 RELEASE_DIR     := release
+SIGN_IDENTITY   ?=
 NOTARY_PROFILE  ?= sideseat-notarize
 SHA256CMD       := $(if $(filter Darwin,$(UNAME_S)),shasum -a 256,sha256sum)
 
@@ -43,7 +44,8 @@ DISK_BUDGET_MB ?= 12000
 # Platform Config (single source of truth)
 # =============================================================================
 
-PLATFORMS := darwin-arm64 darwin-x64 linux-x64 linux-arm64 win32-x64
+PLATFORMS        := darwin-arm64 darwin-x64 linux-x64 linux-arm64 win32-x64
+DARWIN_PLATFORMS := darwin-arm64 darwin-x64
 
 RUST_TARGET_darwin-arm64 := aarch64-apple-darwin
 BUILD_CMD_darwin-arm64   := cargo build
@@ -505,18 +507,6 @@ build-sdk-rust: ## Build the Rust SDK
 # Build -- CLI (cross-compile all platforms)
 # =============================================================================
 
-# Platforms that require code signing
-DARWIN_PLATFORMS := darwin-arm64 darwin-x64
-SIGN_IDENTITY ?= Developer ID Application: Sergey Pugachev (KJ994CNGPG)
-
-# Sign a single binary if it's a darwin platform
-define sign-if-darwin
-$(if $(filter $(DARWIN_PLATFORMS),$(1)),\
-	codesign --force --options runtime --sign "$(SIGN_IDENTITY)" --entitlements packaging/macos/entitlements.plist $$(call cli-bin,$(1)) || \
-		{ echo "Error: failed to sign $$(call cli-bin,$(1))"; exit 1; }; \
-	echo "[build-cli] Signed $$(call cli-bin,$(1))";)
-endef
-
 # Per-platform targets (generated)
 define MAKE_CLI_TARGET
 build-cli-$(1): build-web
@@ -524,7 +514,6 @@ build-cli-$(1): build-web
 	@cd $$(SERVER_DIR) && $(BUILD_CMD_$(1)) --locked --release --target $(RUST_TARGET_$(1))
 	@cp target/$(RUST_TARGET_$(1))/release/$(BIN_NAME_$(1)) $$(call cli-bin,$(1))
 	@chmod +x $$(call cli-bin,$(1)) 2>/dev/null || true
-	@$(call sign-if-darwin,$(1))
 endef
 $(foreach p,$(PLATFORMS),$(eval $(call MAKE_CLI_TARGET,$(p))))
 
@@ -552,7 +541,7 @@ build-cli-summary:
 	@echo "[build-cli] Platform binaries:"
 	@$(foreach p,$(PLATFORMS),SIZE=$$(ls -lh "$(call cli-bin,$(p))" | awk '{print $$5}') && \
 		echo "  @sideseat/platform-$(p)  $$SIZE";)
-	@echo "[build-cli] All platform packages ready for npm publish"
+	@echo "[build-cli] All platform binaries built"
 
 # Orchestrator: preflight -> build all -> summary
 build-cli: build-cli-preflight ## Build CLI packages for all platforms
@@ -837,7 +826,7 @@ build-release: ## Create release archives and checksums
 		{ echo "Error: Missing binary for $(p): $(call cli-bin,$(p)). Run 'make build-cli' first."; exit 1; } &&) \
 	echo "[build-release] Verifying darwin code signatures..." && \
 	$(foreach p,$(DARWIN_PLATFORMS),codesign --verify --strict "$(call cli-bin,$(p))" 2>/dev/null || \
-		{ echo "Error: $(call cli-bin,$(p)) is not signed. Run 'make build-cli' first."; exit 1; } &&) \
+		{ echo "Error: $(call cli-bin,$(p)) is not signed. Run 'make sign-release' first."; exit 1; } &&) \
 	rm -rf "$$OUTDIR" && mkdir -p "$$OUTDIR" && \
 	for plat in $(PLATFORMS); do \
 		case $$plat in \

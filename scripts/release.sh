@@ -74,4 +74,4 @@ git push --atomic origin \
   "HEAD:refs/heads/$branch" \
   "refs/tags/$tag:refs/tags/$tag"
 
-echo "[release] Published $tag. Run 'make build-cli && make build-release && make publish-release' to publish artifacts."
+echo "[release] Published $tag. Build with 'make build-cli', sign with 'make sign-release SIGN_IDENTITY=\"Developer ID Application: Name (TEAMID)\"', then run 'make build-release && make publish-release'."
