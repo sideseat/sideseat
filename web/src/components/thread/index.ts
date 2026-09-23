@@ -2,12 +2,7 @@ export { ThreadView } from "./thread-view";
 export { getBlockKey, getBlockPreview, getBlockCopyText, renderBlockContent } from "./thread-utils";
 export { ThreadHeader } from "./thread-header";
 export { TimelineRow } from "./timeline-row";
-export {
-  ImageGalleryProvider,
-  MediaGalleryProvider,
-  useImageGallery,
-  useMediaGallery,
-} from "./image-gallery-context";
+export { MediaGalleryProvider, useMediaGallery } from "./image-gallery-context";
 
 // Content renderers
 export {

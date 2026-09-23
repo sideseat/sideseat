@@ -48,9 +48,6 @@ export function useMediaGallery(): MediaGalleryContextValue {
   return context;
 }
 
-// Backward compatible alias
-export const useImageGallery = useMediaGallery;
-
 function getDownloadFilename(type: "image" | "pdf", mediaType?: string): string {
   const ext = getExtensionForMediaType(mediaType);
   return type === "pdf" ? `document.${ext}` : `image.${ext}`;
@@ -277,13 +274,6 @@ function ImageLightboxContent({
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
 
-  // Reset state when src changes
-  useEffect(() => {
-    setZoom(1);
-    setRotation(0);
-    setPosition({ x: 0, y: 0 });
-  }, [src]);
-
   // Load image metadata
   useEffect(() => {
     const img = new window.Image();
@@ -473,6 +463,12 @@ function ImageLightboxContent({
 }
 
 /** Shared media lightbox wrapper with navigation and controls */
+function embeddedFileSize(src: string): number | null {
+  if (!src.startsWith("data:")) return null;
+  const base64 = src.split(",", 2)[1];
+  return base64 ? Math.floor(base64.length * 0.75) : null;
+}
+
 function MediaLightbox({
   entry,
   onClose,
@@ -494,30 +490,19 @@ function MediaLightbox({
 }) {
   const [showControls, setShowControls] = useState(true);
   const [headerInfo, setHeaderInfo] = useState<string>("");
-  const [fileSize, setFileSize] = useState<number | null>(null);
-
-  // Reset header info when entry changes
-  useEffect(() => {
-    setHeaderInfo("");
-    setFileSize(null);
-  }, [entry.src]);
+  const [fileSize, setFileSize] = useState<number | null>(() => embeddedFileSize(entry.src));
 
   // Get file size
   useEffect(() => {
+    if (entry.src.startsWith("data:")) return;
+
     const controller = new AbortController();
-    if (entry.src.startsWith("data:")) {
-      const base64Part = entry.src.split(",")[1];
-      if (base64Part) {
-        setFileSize(Math.floor(base64Part.length * 0.75));
-      }
-    } else {
-      fetch(entry.src, { method: "HEAD", credentials: "include", signal: controller.signal })
-        .then((res) => {
-          const len = res.headers.get("content-length");
-          if (len) setFileSize(parseInt(len, 10));
-        })
-        .catch(() => {});
-    }
+    fetch(entry.src, { method: "HEAD", credentials: "include", signal: controller.signal })
+      .then((res) => {
+        const len = res.headers.get("content-length");
+        if (len) setFileSize(parseInt(len, 10));
+      })
+      .catch(() => {});
     return () => controller.abort();
   }, [entry.src]);
 
@@ -734,6 +719,7 @@ export function MediaGalleryProvider({ children, blocks, projectId }: MediaGalle
         currentEntry &&
         createPortal(
           <MediaLightbox
+            key={currentEntry.src}
             entry={currentEntry}
             onClose={close}
             onNext={goToNext}
@@ -748,6 +734,3 @@ export function MediaGalleryProvider({ children, blocks, projectId }: MediaGalle
     </MediaGalleryContext.Provider>
   );
 }
-
-// Backward compatible alias
-export const ImageGalleryProvider = MediaGalleryProvider;

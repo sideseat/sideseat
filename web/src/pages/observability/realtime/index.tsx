@@ -31,7 +31,7 @@ import {
   getBlockPreview,
   getBlockCopyText,
   renderBlockContent,
-  ImageGalleryProvider,
+  MediaGalleryProvider,
 } from "@/components/thread";
 import { JsonContent } from "@/components/thread/content";
 import { useQueryClient } from "@tanstack/react-query";
@@ -1024,7 +1024,7 @@ export default function RealtimePage() {
               />
             </div>
           ) : activeTab === "messages" ? (
-            <ImageGalleryProvider blocks={displayBlocks} projectId={projectId}>
+            <MediaGalleryProvider blocks={displayBlocks} projectId={projectId}>
               <div
                 ref={messagesScrollRef}
                 className="h-full overflow-auto"
@@ -1088,7 +1088,7 @@ export default function RealtimePage() {
                   })}
                 </div>
               </div>
-            </ImageGalleryProvider>
+            </MediaGalleryProvider>
           ) : (
             <div
               ref={spansScrollRef}

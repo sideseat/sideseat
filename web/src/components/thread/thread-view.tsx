@@ -16,7 +16,7 @@ import { ThreadHeader } from "./thread-header";
 import { TimelineRow } from "./timeline-row";
 import { JsonContent } from "./content";
 import { getBlockKey, getBlockPreview, getBlockCopyText, renderBlockContent } from "./thread-utils";
-import { ImageGalleryProvider } from "./image-gallery-context";
+import { MediaGalleryProvider } from "./image-gallery-context";
 import { useForcedOpenState } from "./use-forced-open-state";
 import { ModelLink } from "@/components/model-link";
 import type { ThreadViewProps, ThreadTab } from "./types";
@@ -288,7 +288,7 @@ export function ThreadView({
       )}
 
       {activeTab === "messages" ? (
-        <ImageGalleryProvider blocks={blocks} projectId={projectId}>
+        <MediaGalleryProvider blocks={blocks} projectId={projectId}>
           <div ref={scrollContainerRef} className="flex-1 min-h-0 overflow-auto">
             <div className="space-y-3 p-4">
               {/* Framework/Model info */}
@@ -334,7 +334,7 @@ export function ThreadView({
               ))}
             </div>
           </div>
-        </ImageGalleryProvider>
+        </MediaGalleryProvider>
       ) : (
         <div ref={scrollContainerRef} className="flex-1 min-h-0 overflow-auto">
           {toolDefinitions && toolDefinitions.length > 0 ? (
