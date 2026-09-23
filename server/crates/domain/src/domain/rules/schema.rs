@@ -1,20 +1,13 @@
-//! Rule asset format, discovery, ordering, and digesting.
+//! Rule asset format and digesting.
 //!
-//! Assets are embedded from `server/assets/rules/` as a *directory*, deliberately: adding a framework must be
-//! adding a file, with no Rust change. A hand-maintained `include_str!` list would mean the binary
-//! still knows which frameworks exist, which is the thing the mandate forbids.
+//! `sideseat-rule-assets` embeds `server/assets/rules/` as a directory, so adding a framework remains
+//! a data-only change.
 
 use std::collections::BTreeMap;
 
-use rust_embed::RustEmbed;
 use serde::Deserialize;
 use serde_json::Value as JsonValue;
 pub use serde_json_path::JsonPath;
-
-/// The embedded rule assets.
-#[derive(RustEmbed)]
-#[folder = "../../assets/rules/"]
-struct RuleAssets;
 
 /// One rule file's parsed contents.
 ///
@@ -1223,17 +1216,12 @@ pub struct Facts {
     pub carrier_holds_expandable_message_array: Option<bool>,
 }
 
-/// Every embedded asset, keyed by path so the order is deterministic.
+/// Every rule asset, keyed by path so compilation order is deterministic.
 ///
-/// A `BTreeMap` rather than the embed crate's iteration order: the compile walks these, and a
-/// collision diagnostic that named a different pair of files per build would be untraceable.
+/// The compiler walks this map, and a collision diagnostic that named a different pair of files per
+/// build would be untraceable.
 pub fn embedded_sources() -> BTreeMap<String, Vec<u8>> {
-    RuleAssets::iter()
-        .filter(|path| path.ends_with(".json"))
-        .filter_map(|path| {
-            RuleAssets::get(&path).map(|file| (path.to_string(), file.data.into_owned()))
-        })
-        .collect()
+    sideseat_rule_assets::sources()
 }
 
 /// BLAKE3 over the asset paths and bytes, hex-encoded.

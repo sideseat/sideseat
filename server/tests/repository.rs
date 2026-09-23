@@ -3155,6 +3155,22 @@ fn pricing_http_is_owned_by_an_adapter() {
     );
 }
 
+#[test]
+fn rule_embedding_is_owned_by_the_asset_crate() {
+    let repo = repo_root();
+    let domain_manifest = std::fs::read_to_string(repo.join("server/crates/domain/Cargo.toml"))
+        .expect("domain manifest");
+    let assets_manifest =
+        std::fs::read_to_string(repo.join("server/crates/rule-assets/Cargo.toml"))
+            .expect("rule-assets manifest");
+    assert!(
+        !domain_manifest.contains("rust-embed")
+            && domain_manifest.contains("sideseat-rule-assets")
+            && assets_manifest.contains("rust-embed"),
+        "rule asset embedding must live in rule-assets, outside the domain"
+    );
+}
+
 /// Does this manifest line declare `driver`, under its own name or a rename?
 ///
 /// Extracted so it can be tested on input the workspace does not contain. A live mutation is not available:

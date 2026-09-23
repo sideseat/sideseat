@@ -5804,7 +5804,6 @@ dependencies = [
  "proptest",
  "prost",
  "regex",
- "rust-embed",
  "serde",
  "serde_json",
  "serde_json_path",
@@ -5816,6 +5815,7 @@ dependencies = [
  "sideseat-adapter-topics",
  "sideseat-core",
  "sideseat-ports",
+ "sideseat-rule-assets",
  "tempfile",
  "thiserror 2.0.20",
  "tokio",
@@ -5847,6 +5847,13 @@ dependencies = [
  "chrono",
  "sideseat-core",
  "sideseat-ports",
+]
+
+[[package]]
+name = "sideseat-rule-assets"
+version = "1.0.13"
+dependencies = [
+ "rust-embed",
 ]
 
 [[package]]

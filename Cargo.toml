@@ -15,6 +15,7 @@ members = [
   "server/crates/domain",
   "server/crates/ports",
   "server/crates/query-sql",
+  "server/crates/rule-assets",
   "server",
   "sdk/rust",
 ]
