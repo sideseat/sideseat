@@ -2999,6 +2999,29 @@ fn http_benchmark_bounds_requests_and_shutdown() {
     }
 }
 
+#[test]
+fn stale_cleanup_discovers_every_incremental_directory() {
+    let script = std::fs::read_to_string(repo_root().join("scripts/clean-stale.sh"))
+        .expect("cleanup script");
+    for required in [
+        "cargo metadata --locked --no-deps",
+        "metadata.target_directory",
+        "find \"$target_dir\" -type d -name incremental",
+        "cargo sweep --installed",
+        "cargo sweep --time 3",
+    ] {
+        assert!(
+            script.contains(required),
+            "stale cleanup must contain `{required}`"
+        );
+    }
+    assert!(
+        !script.contains("cargo sweep --installed >/dev/null 2>&1 || true")
+            && !script.contains("cargo sweep --time 3 >/dev/null 2>&1 || true"),
+        "cargo-sweep failures must not be reported as successful cleanup"
+    );
+}
+
 /// Does this manifest line declare `driver`, under its own name or a rename?
 ///
 /// Extracted so it can be tested on input the workspace does not contain. A live mutation is not available:

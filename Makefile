@@ -1302,19 +1302,9 @@ download-prices:
 	fi
 	@echo "[download-prices] Saved to $(PRICES_FILE)"
 
-# Reclaim without a full rebuild.
-#
-# `clean` removes `target` entirely, which costs a cold compile of everything. Most of the growth is not the
-# *current* build: it is stale test binaries from earlier runs, which cargo never collects, and incremental
-# caches. This target takes those and leaves the artifacts a rebuild would reuse - which is what makes it
-# something you can run habitually rather than only when the disk is full.
-#
-# Measured on this repo: `target` reached 64 GB across a long session, of which the current build was a few
-# GB. `cargo sweep` is used when installed because it knows which artifacts belong to the current toolchain;
-# without it the fallback is deliberately conservative - only whole directories cargo rebuilds cheaply.
+# Reclaim stale and incremental Cargo artifacts without removing the current build.
 clean-stale:
-	@echo "[clean-stale] Reclaiming stale build artifacts (keeping the current build)..."
-	@before=$$(du -sk target 2>/dev/null | cut -f1 || echo 0); 	if command -v cargo-sweep >/dev/null 2>&1; then 		cargo sweep --installed >/dev/null 2>&1 || true; 		cargo sweep --time 3 >/dev/null 2>&1 || true; 	else 		echo "[clean-stale] cargo-sweep not installed; removing incremental caches only."; 		echo "[clean-stale] For a deeper reclaim: cargo install cargo-sweep"; 	fi; 	rm -rf target/debug/incremental target/release/incremental; 	after=$$(du -sk target 2>/dev/null | cut -f1 || echo 0); 	echo "[clean-stale] target: $$((before / 1024)) MB -> $$((after / 1024)) MB"
+	@./scripts/clean-stale.sh
 
 # Docker resources created by test and benchmark targets. Keep this list explicit:
 # machine-wide prune commands can remove caches or anonymous volumes owned by other projects.
