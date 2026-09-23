@@ -13,6 +13,3 @@ pub mod repositories {
 pub mod schema {
     pub use sideseat_adapter_postgres::schema::*;
 }
-
-#[cfg(test)]
-mod parity_tests;

@@ -6,7 +6,7 @@
 //! v3 regression depending on a v4 column passes while a real upgrade fails. The subtract-from-current shape is
 //! this repository's recurring defect and it had survived here.
 //!
-//! Extracted once from `git show v1.0.13:server/src/data/clickhouse/schema.rs`. A **fact about a released
+//! Extracted once from `git show v1.0.13:server/crates/adapter-clickhouse/src/schema.rs`. A **fact about a released
 //! artefact**, so it is frozen: no later schema may change it.
 //!
 //! **Types, not only names.** Comparing names alone let the reconstructed database differ in type, nullability

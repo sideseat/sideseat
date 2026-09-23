@@ -1522,8 +1522,8 @@ through the real pipeline, checking message count, content, ordering and duplica
 is itself mutation-verified — dropping one message, swapping two or duplicating one each fail four of its tests.
 If a refactor is meant to be answer-preserving, this is what proves it.
 
-**Adding a parity case** (the other oracle): `server/src/data/clickhouse/parity_tests.rs` and
-`server/src/data/postgres/parity_tests.rs`. Write one dataset, call the same read on both backends, `assert_eq!`
+**Adding a parity case** (the other oracle): `server/tests/clickhouse_parity.rs` and
+`server/tests/postgres_parity.rs`. Write one dataset, call the same read on both backends, `assert_eq!`
 the rows. DuckDB and SQLite are the reference. A case
 that passes because neither backend was asked the hard question is the failure mode this repository has been
 bitten by twice — make sure the fixture actually contains the shape you are testing for.

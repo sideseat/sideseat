@@ -13,9 +13,3 @@ pub mod repositories {
 pub mod schema {
     pub use sideseat_adapter_clickhouse::schema::*;
 }
-
-#[cfg(test)]
-mod released_v2;
-
-#[cfg(test)]
-mod parity_tests;

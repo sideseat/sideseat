@@ -55,10 +55,10 @@ use sideseat_ports::traits::{
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use crate::data::TransactionalService;
-use crate::data::postgres::PostgresService;
-use crate::data::sqlite::SqliteService;
+use sideseat_adapter_postgres::PostgresService;
+use sideseat_adapter_sqlite::SqliteService;
 use sideseat_core::config::PostgresConfig;
+use sideseat_server::app::storage::TransactionalService;
 
 use sideseat_ports::types::{LastOwnerResult, ProjectId};
 
@@ -120,7 +120,7 @@ impl Transcript {
 /// Both services, or `None` when no PostgreSQL URL is configured.
 async fn pair() -> Option<(
     Arc<SqliteService>,
-    crate::data::postgres::PostgresRepository,
+    sideseat_adapter_postgres::PostgresRepository,
 )> {
     let url = match std::env::var(URL_ENV) {
         Ok(url) if !url.is_empty() => url,
@@ -139,13 +139,13 @@ async fn pair() -> Option<(
         .expect("in-memory SQLite");
     // `raw_sql`, not `query`: the schema is a multi-statement script, and `query` prepares a single
     // statement - so it stops at the first `;`, including one inside a `--` comment.
-    sqlx::raw_sql(crate::data::sqlite::schema::SCHEMA)
+    sqlx::raw_sql(sideseat_adapter_sqlite::schema::SCHEMA)
         .execute(&sqlite_pool)
         .await
         .expect("SQLite schema");
     let sqlite = Arc::new(SqliteService::from_pool(
         sqlite_pool,
-        Arc::new(crate::runtime::clock::SystemClock),
+        Arc::new(sideseat_server::runtime::clock::SystemClock),
     ));
 
     // Defaults, except the URL: the point is to run the same pool the server runs.
@@ -159,19 +159,25 @@ async fn pair() -> Option<(
         statement_timeout_secs: 30,
     };
     let postgres = Arc::new(
-        PostgresService::init(&config, Arc::new(crate::runtime::clock::SystemClock))
-            .await
-            .expect("PostgreSQL connection (is the container up?)"),
+        PostgresService::init(
+            &config,
+            Arc::new(sideseat_server::runtime::clock::SystemClock),
+        )
+        .await
+        .expect("PostgreSQL connection (is the container up?)"),
     );
     reset_postgres(&postgres).await;
 
-    Some((sqlite, crate::data::postgres::PostgresRepository(postgres)))
+    Some((
+        sqlite,
+        sideseat_adapter_postgres::PostgresRepository(postgres),
+    ))
 }
 
 /// The two repositories behind the shared trait, in reference-then-candidate order.
 fn repositories(
     sqlite: Arc<SqliteService>,
-    postgres: crate::data::postgres::PostgresRepository,
+    postgres: sideseat_adapter_postgres::PostgresRepository,
 ) -> [Box<dyn TransactionalRepository + Send + Sync>; 2] {
     [
         TransactionalService::Sqlite(sqlite).repository(),
@@ -207,7 +213,7 @@ async fn reset_postgres(service: &PostgresService) {
         .execute(service.pool())
         .await
         .unwrap_or_else(|e| panic!("truncate {targets:?}: {e}"));
-    sqlx::raw_sql(crate::data::postgres::schema::DEFAULT_DATA)
+    sqlx::raw_sql(sideseat_adapter_postgres::schema::DEFAULT_DATA)
         .execute(service.pool())
         .await
         .unwrap_or_else(|e| panic!("reseed: {e}"));
@@ -248,13 +254,13 @@ async fn postgres_rls_is_forced_fail_closed_and_bound_per_transaction() {
            AND c.relname = ANY($1::text[])
          ORDER BY c.relname",
     )
-    .bind(crate::data::postgres::schema::TENANT_RLS_TABLES)
+    .bind(sideseat_adapter_postgres::schema::TENANT_RLS_TABLES)
     .fetch_all(postgres.pool())
     .await
     .expect("inspect RLS flags");
     assert_eq!(
         policy_tables.len(),
-        crate::data::postgres::schema::TENANT_RLS_TABLES.len()
+        sideseat_adapter_postgres::schema::TENANT_RLS_TABLES.len()
     );
     assert!(
         policy_tables
@@ -271,7 +277,7 @@ async fn postgres_rls_is_forced_fail_closed_and_bound_per_transaction() {
            AND c.relname = ANY($1::text[])
          ORDER BY c.relname",
     )
-    .bind(crate::data::postgres::schema::TENANT_RLS_TABLES)
+    .bind(sideseat_adapter_postgres::schema::TENANT_RLS_TABLES)
     .fetch_all(postgres.runtime_pool())
     .await
     .expect("inspect table owners");
@@ -526,9 +532,12 @@ DELETE FROM schema_migrations WHERE version > 2;
         "the fixture must not already have the v3 table, or this test cannot fail"
     );
 
-    crate::data::postgres::migrations::run_migrations(pool, &crate::runtime::clock::SystemClock)
-        .await
-        .expect("a v2 database must upgrade");
+    sideseat_adapter_postgres::migrations::run_migrations(
+        pool,
+        &sideseat_server::runtime::clock::SystemClock,
+    )
+    .await
+    .expect("a v2 database must upgrade");
 
     assert!(
         present(pool.clone()).await,

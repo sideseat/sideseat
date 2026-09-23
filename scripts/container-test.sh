@@ -125,7 +125,7 @@ case "$scenario" in
     SIDESEAT_TEST_CLICKHOUSE_URL="http://127.0.0.1:$CH_TEST_PORT" \
       SIDESEAT_TEST_CLICKHOUSE_USER=sideseat \
       SIDESEAT_TEST_CLICKHOUSE_PASSWORD=sideseat \
-      cargo test --locked -p sideseat-server clickhouse -- --test-threads=1
+      cargo test --locked -p sideseat-server --test clickhouse_parity -- --test-threads=1
     ;;
 
   clickhouse-replicated)
@@ -145,7 +145,7 @@ case "$scenario" in
     SIDESEAT_TEST_CLICKHOUSE_REPLICATED_URL="http://127.0.0.1:$CH_REPL_PORT" \
       SIDESEAT_TEST_CLICKHOUSE_USER=sideseat \
       SIDESEAT_TEST_CLICKHOUSE_PASSWORD=sideseat \
-      cargo test --locked -p sideseat-server replicated -- --test-threads=1
+      cargo test --locked -p sideseat-server --test clickhouse_parity replicated -- --test-threads=1
     ;;
 
   clickhouse-two-shard)
@@ -187,7 +187,7 @@ case "$scenario" in
     SIDESEAT_TEST_CLICKHOUSE_TWO_SHARD_URL="http://127.0.0.1:$CH_SHARD_PORT_1" \
       SIDESEAT_TEST_CLICKHOUSE_USER=sideseat \
       SIDESEAT_TEST_CLICKHOUSE_PASSWORD=sideseat \
-      cargo test --locked -p sideseat-server two_shard -- --test-threads=1 --nocapture
+      cargo test --locked -p sideseat-server --test clickhouse_parity two_shard -- --test-threads=1 --nocapture
     ;;
 
   postgres)
@@ -215,7 +215,7 @@ case "$scenario" in
     fi
 
     SIDESEAT_TEST_POSTGRES_URL="postgres://sideseat:sideseat@127.0.0.1:$PG_TEST_PORT/sideseat" \
-      cargo test --locked -p sideseat-server parity_tests -- --test-threads=1
+      cargo test --locked -p sideseat-server --test postgres_parity -- --test-threads=1
     ;;
 
   redis)

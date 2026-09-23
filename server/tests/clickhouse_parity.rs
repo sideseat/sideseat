@@ -40,6 +40,9 @@
 //! make test-clickhouse     # starts a container, runs this, removes it
 //! ```
 
+#[path = "clickhouse_parity/released_v2.rs"]
+mod released_v2;
+
 use sideseat_ports::traits::{
     AnalyticsMaintenance, AnalyticsRepository, EntityQuery, LogStore, MessageStore, MetricStore,
     SearchIndex, SpanStore, SurvivorReferences,
@@ -48,8 +51,8 @@ use std::sync::Arc;
 
 use chrono::{DateTime, Datelike, TimeZone, Utc};
 
-use crate::data::clickhouse::ClickhouseService;
-use crate::data::duckdb::DuckdbService;
+use sideseat_adapter_clickhouse::ClickhouseService;
+use sideseat_adapter_duckdb::DuckdbService;
 use sideseat_core::config::ClickhouseConfig;
 use sideseat_core::storage::AppStorage;
 use sideseat_ports::filters::{DatetimeOp, Filter, NullOp, NumberOp, OptionsOp, StringOp};
@@ -535,7 +538,7 @@ fn describe_message_row(r: &MessageSpanRow) -> String {
 // Harness
 // ============================================================================
 
-async fn duckdb_backend() -> (tempfile::TempDir, crate::data::duckdb::DuckdbRepository) {
+async fn duckdb_backend() -> (tempfile::TempDir, sideseat_adapter_duckdb::DuckdbRepository) {
     let temp = tempfile::TempDir::new().expect("temp dir");
     tokio::fs::create_dir_all(temp.path().join("duckdb"))
         .await
@@ -543,13 +546,13 @@ async fn duckdb_backend() -> (tempfile::TempDir, crate::data::duckdb::DuckdbRepo
     let storage = AppStorage::init_for_test(temp.path().to_path_buf());
     let service = DuckdbService::init(
         &storage,
-        std::sync::Arc::new(crate::runtime::clock::SystemClock),
+        std::sync::Arc::new(sideseat_server::runtime::clock::SystemClock),
     )
     .await
     .expect("duckdb init");
     (
         temp,
-        crate::data::duckdb::DuckdbRepository(Arc::new(service)),
+        sideseat_adapter_duckdb::DuckdbRepository(Arc::new(service)),
     )
 }
 
@@ -572,7 +575,7 @@ fn raw_client(url: &str, database: &str) -> clickhouse::Client {
 async fn clickhouse_backend(
     url: &str,
     database: &str,
-) -> crate::data::clickhouse::ClickhouseRepository {
+) -> sideseat_adapter_clickhouse::ClickhouseRepository {
     let user = std::env::var(USER_ENV).ok();
     let password = std::env::var(PASSWORD_ENV).ok();
 
@@ -609,10 +612,10 @@ async fn clickhouse_backend(
         distributed: false,
         insert_quorum: 0,
     };
-    crate::data::clickhouse::ClickhouseRepository(Arc::new(
+    sideseat_adapter_clickhouse::ClickhouseRepository(Arc::new(
         ClickhouseService::init(
             &config,
-            std::sync::Arc::new(crate::runtime::clock::SystemClock),
+            std::sync::Arc::new(sideseat_server::runtime::clock::SystemClock),
         )
         .await
         .expect("clickhouse init"),
@@ -627,7 +630,7 @@ async fn clickhouse_backend(
 async fn replicated_backend(
     url: &str,
     database: &str,
-) -> crate::data::clickhouse::ClickhouseRepository {
+) -> sideseat_adapter_clickhouse::ClickhouseRepository {
     replicated_backend_at(url, database).await
 }
 
@@ -635,7 +638,7 @@ async fn replicated_backend(
 async fn replicated_backend_at(
     url: &str,
     database: &str,
-) -> crate::data::clickhouse::ClickhouseRepository {
+) -> sideseat_adapter_clickhouse::ClickhouseRepository {
     let user = std::env::var(USER_ENV).ok();
     let password = std::env::var(PASSWORD_ENV).ok();
 
@@ -670,10 +673,10 @@ async fn replicated_backend_at(
         // legitimate deployment the startup warning exists for rather than refuses.
         insert_quorum: 0,
     };
-    crate::data::clickhouse::ClickhouseRepository(Arc::new(
+    sideseat_adapter_clickhouse::ClickhouseRepository(Arc::new(
         ClickhouseService::init(
             &config,
-            std::sync::Arc::new(crate::runtime::clock::SystemClock),
+            std::sync::Arc::new(sideseat_server::runtime::clock::SystemClock),
         )
         .await
         .expect("clickhouse init in distributed mode"),
@@ -710,7 +713,7 @@ async fn clickhouse_row_policies_are_per_query_and_fail_closed() {
     let _repository = clickhouse_backend(&url, "sideseat_parity_row_policy").await;
     let raw = raw_client(&url, "sideseat_parity_row_policy");
     let maintenance = raw.clone().with_option(
-        crate::data::clickhouse::schema::TENANT_MAINTENANCE_SETTING,
+        sideseat_adapter_clickhouse::schema::TENANT_MAINTENANCE_SETTING,
         "1",
     );
 
@@ -748,7 +751,7 @@ async fn clickhouse_row_policies_are_per_query_and_fail_closed() {
     );
 
     let tenant = raw.clone().with_option(
-        crate::data::clickhouse::schema::TENANT_PROJECT_SETTING,
+        sideseat_adapter_clickhouse::schema::TENANT_PROJECT_SETTING,
         "tenant-a",
     );
     let observed_project: String = tenant
@@ -3473,9 +3476,9 @@ async fn distinct_metric_series_survive_and_a_redelivery_does_not_duplicate() {
             ..Default::default()
         };
         // Stamped as the extractor does, from the OTLP material rather than the JSON rendering.
-        metric.datapoint_id = crate::domain::metrics::datapoint_id(
+        metric.datapoint_id = sideseat_domain::metrics::datapoint_id(
             &metric,
-            &crate::domain::metrics::IdentityInputs {
+            &sideseat_domain::metrics::IdentityInputs {
                 attributes: &[opentelemetry_proto::tonic::common::v1::KeyValue {
                     key: "http.response.status_code".to_string(),
                     value: Some(opentelemetry_proto::tonic::common::v1::AnyValue {
@@ -3618,7 +3621,10 @@ fn every_clickhouse_delete_waits_for_its_mutation() {
             env!("CARGO_MANIFEST_DIR"),
             "/crates/adapter-clickhouse/src/repositories/query.rs"
         )),
-        include_str!("mod.rs"),
+        include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/crates/adapter-clickhouse/src/lib.rs"
+        )),
     ];
     for source in sources {
         for (line_number, line) in source.lines().enumerate() {
@@ -4561,7 +4567,7 @@ async fn a_released_metric_row_and_its_correction_both_survive() {
     let database = "sideseat_parity_legacymetric";
     let service = clickhouse_backend(&url, database).await;
     let client = raw_client(&url, database).with_option(
-        crate::data::clickhouse::schema::TENANT_MAINTENANCE_SETTING,
+        sideseat_adapter_clickhouse::schema::TENANT_MAINTENANCE_SETTING,
         "1",
     );
 
@@ -4655,7 +4661,7 @@ async fn every_clickhouse_migration_applies_to_the_state_it_upgrades() {
     let database = "sideseat_parity_migrations";
     let service = clickhouse_backend(&url, database).await;
     let client = raw_client(&url, database).with_option(
-        crate::data::clickhouse::schema::TENANT_MAINTENANCE_SETTING,
+        sideseat_adapter_clickhouse::schema::TENANT_MAINTENANCE_SETTING,
         "1",
     );
 
@@ -4812,7 +4818,7 @@ async fn every_clickhouse_migration_applies_to_the_state_it_upgrades() {
         ),
     ];
 
-    for migration in crate::data::clickhouse::schema::MIGRATIONS {
+    for migration in sideseat_adapter_clickhouse::schema::MIGRATIONS {
         let version = migration.version;
         let (_, revert) = undo
             .iter()
@@ -4838,8 +4844,8 @@ async fn every_clickhouse_migration_applies_to_the_state_it_upgrades() {
         // recorded fact about v1.0.13 is what makes the fixture's claim checkable rather than assumed.
         if version == 3 {
             for (table, expected) in [
-                ("otel_spans", super::released_v2::RELEASED_V2_SPANS),
-                ("otel_metrics", super::released_v2::RELEASED_V2_METRICS),
+                ("otel_spans", released_v2::RELEASED_V2_SPANS),
+                ("otel_metrics", released_v2::RELEASED_V2_METRICS),
             ] {
                 // Names **and types**: comparing names alone let the reconstructed database differ in type,
                 // nullability or width while passing, and a migration applied to a source whose types are wrong
@@ -5370,7 +5376,7 @@ async fn a_two_shard_cluster_reports_anomalies_and_legacy_rows_from_every_shard(
     );
 
     let tenant_client = client.clone().with_option(
-        crate::data::clickhouse::schema::TENANT_PROJECT_SETTING,
+        sideseat_adapter_clickhouse::schema::TENANT_PROJECT_SETTING,
         &near,
     );
     let tenant_rows: Vec<String> = tenant_client
@@ -5397,7 +5403,7 @@ async fn a_two_shard_cluster_reports_anomalies_and_legacy_rows_from_every_shard(
     let maintenance_rows: Vec<String> = client
         .clone()
         .with_option(
-            crate::data::clickhouse::schema::TENANT_MAINTENANCE_SETTING,
+            sideseat_adapter_clickhouse::schema::TENANT_MAINTENANCE_SETTING,
             "1",
         )
         .query("SELECT DISTINCT project_id FROM otel_spans ORDER BY project_id")
@@ -5571,7 +5577,7 @@ async fn the_migration_applies_to_a_replicated_database() {
     let user = std::env::var(USER_ENV).ok();
     let password = std::env::var(PASSWORD_ENV).ok();
     let client = raw_client_at(&url, database, &user, &password).with_option(
-        crate::data::clickhouse::schema::TENANT_MAINTENANCE_SETTING,
+        sideseat_adapter_clickhouse::schema::TENANT_MAINTENANCE_SETTING,
         "1",
     );
 
@@ -5762,7 +5768,7 @@ async fn an_interrupted_replicated_migration_resumes() {
     let user = std::env::var(USER_ENV).ok();
     let password = std::env::var(PASSWORD_ENV).ok();
     let client = raw_client_at(&url, database, &user, &password).with_option(
-        crate::data::clickhouse::schema::TENANT_MAINTENANCE_SETTING,
+        sideseat_adapter_clickhouse::schema::TENANT_MAINTENANCE_SETTING,
         "1",
     );
     let cluster = REPLICATED_CLUSTER;
