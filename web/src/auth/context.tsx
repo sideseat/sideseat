@@ -5,10 +5,12 @@ import {
   useState,
   useCallback,
   useMemo,
+  useRef,
   type ReactNode,
 } from "react";
 import { toast } from "sonner";
 import { apiClient } from "@/api/api-client";
+import type { AuthStatusResult } from "@/api/auth-client";
 import type { AuthUser } from "@/api/types";
 
 interface AuthState {
@@ -28,31 +30,65 @@ interface AuthContextValue extends AuthState {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
-export function AuthProvider({ children }: { children: ReactNode }) {
-  const [state, setState] = useState<AuthState>({
-    authenticated: false,
-    loading: true,
-  });
+interface AuthSnapshot {
+  state: AuthState;
+  error?: string;
+}
 
-  const checkAuth = useCallback(async () => {
-    const result = await apiClient.auth.getStatus();
-
-    if (result.status === "authenticated") {
-      setState({
+function snapshotFrom(result: AuthStatusResult): AuthSnapshot {
+  if (result.status === "authenticated") {
+    return {
+      state: {
         authenticated: result.data.authenticated,
         loading: false,
         version: result.data.version,
         authMethod: result.data.auth_method,
         expiresAt: result.data.expires_at ? new Date(result.data.expires_at) : undefined,
         user: result.data.user,
-      });
-    } else if (result.status === "unauthenticated") {
-      setState({ authenticated: false, loading: false });
-    } else {
-      toast.error("Failed to check authentication status");
-      setState({ authenticated: false, loading: false });
+      },
+    };
+  }
+
+  if (result.status === "unauthenticated") {
+    return { state: { authenticated: false, loading: false } };
+  }
+
+  return {
+    state: { authenticated: false, loading: false },
+    error: "Failed to check authentication status",
+  };
+}
+
+async function loadAuthSnapshot(): Promise<AuthSnapshot> {
+  return snapshotFrom(await apiClient.auth.getStatus());
+}
+
+export function AuthProvider({ children }: { children: ReactNode }) {
+  const [state, setState] = useState<AuthState>({
+    authenticated: false,
+    loading: true,
+  });
+  const authRequestVersion = useRef(0);
+
+  const applySnapshot = useCallback((version: number, snapshot: AuthSnapshot) => {
+    if (version !== authRequestVersion.current) {
+      return;
     }
+
+    if (snapshot.error) {
+      toast.error(snapshot.error);
+    }
+    setState(snapshot.state);
   }, []);
+
+  const invalidateAuthRequests = useCallback(() => {
+    ++authRequestVersion.current;
+  }, []);
+
+  const checkAuth = useCallback(async () => {
+    const version = ++authRequestVersion.current;
+    applySnapshot(version, await loadAuthSnapshot());
+  }, [applySnapshot]);
 
   const login = useCallback(
     async (token: string): Promise<boolean> => {
@@ -74,26 +110,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 
   const logout = useCallback(async () => {
+    invalidateAuthRequests();
     await apiClient.auth.logout();
     setState({ authenticated: false, loading: false });
-  }, []);
+  }, [invalidateAuthRequests]);
 
   useEffect(() => {
-    checkAuth();
+    const version = ++authRequestVersion.current;
+    void loadAuthSnapshot().then((snapshot) => applySnapshot(version, snapshot));
 
-    const handleFocus = () => checkAuth();
+    const handleFocus = () => void checkAuth();
     window.addEventListener("focus", handleFocus);
-    return () => window.removeEventListener("focus", handleFocus);
-  }, [checkAuth]);
+    return () => {
+      invalidateAuthRequests();
+      window.removeEventListener("focus", handleFocus);
+    };
+  }, [applySnapshot, checkAuth, invalidateAuthRequests]);
 
   useEffect(() => {
     const handleAuthRequired = () => {
-      setState((prev) => ({ ...prev, authenticated: false }));
+      invalidateAuthRequests();
+      setState({ authenticated: false, loading: false });
     };
 
     window.addEventListener("auth:required", handleAuthRequired);
     return () => window.removeEventListener("auth:required", handleAuthRequired);
-  }, []);
+  }, [invalidateAuthRequests]);
 
   const value = useMemo<AuthContextValue>(
     () => ({ ...state, login, logout, checkAuth }),
