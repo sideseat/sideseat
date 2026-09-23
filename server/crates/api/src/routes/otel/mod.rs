@@ -18,6 +18,10 @@ pub mod types;
 use std::sync::Arc;
 
 use axum::Router;
+use axum::extract::Request;
+use axum::http::{HeaderMap, HeaderValue, header};
+use axum::middleware::{self, Next};
+use axum::response::Response;
 use axum::routing::get;
 use tokio::sync::watch;
 
@@ -136,7 +140,20 @@ pub fn routes(
         // Feed (project-wide message/span activity)
         .route("/feed/messages", get(feed::get_feed_messages))
         .route("/feed/spans", get(feed::get_feed_spans))
+        .layer(middleware::from_fn(default_no_store))
         .with_state(state)
+}
+
+async fn default_no_store(request: Request, next: Next) -> Response {
+    let mut response = next.run(request).await;
+    apply_default_cache_control(response.headers_mut());
+    response
+}
+
+fn apply_default_cache_control(headers: &mut HeaderMap) {
+    if !headers.contains_key(header::CACHE_CONTROL) {
+        headers.insert(header::CACHE_CONTROL, HeaderValue::from_static("no-store"));
+    }
 }
 
 async fn acquire_deletion_fence(
@@ -182,4 +199,30 @@ async fn reserve_deletion_journal(
         .await
         .map(|_| ())
         .map_err(|error| ApiError::conflict("MAINTENANCE_RESERVE_EXHAUSTED", error.to_string()))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn otel_responses_default_to_no_store_without_overriding_explicit_policies() {
+        let mut defaulted = HeaderMap::new();
+        apply_default_cache_control(&mut defaulted);
+        assert_eq!(
+            defaulted.get(header::CACHE_CONTROL),
+            Some(&HeaderValue::from_static("no-store"))
+        );
+
+        let mut explicit = HeaderMap::new();
+        explicit.insert(
+            header::CACHE_CONTROL,
+            HeaderValue::from_static("private, max-age=30"),
+        );
+        apply_default_cache_control(&mut explicit);
+        assert_eq!(
+            explicit.get(header::CACHE_CONTROL),
+            Some(&HeaderValue::from_static("private, max-age=30"))
+        );
+    }
 }
