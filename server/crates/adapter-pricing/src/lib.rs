@@ -7,6 +7,7 @@ use sideseat_ports::pricing::{PricingCatalogueError, PricingCatalogueSource};
 
 const LITELLM_PRICING_URL: &str =
     "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json";
+const USER_AGENT: &str = concat!("SideSeat/", env!("CARGO_PKG_VERSION"));
 
 pub struct LiteLlmPricingSource {
     client: reqwest::Client,
@@ -17,7 +18,7 @@ impl LiteLlmPricingSource {
     pub fn new() -> Result<Self, PricingCatalogueError> {
         let client = reqwest::Client::builder()
             .timeout(Duration::from_secs(30))
-            .user_agent("SideSeat/1.0")
+            .user_agent(USER_AGENT)
             .build()
             .map_err(|error| PricingCatalogueError::new(error.to_string()))?;
 
@@ -55,5 +56,9 @@ mod tests {
     fn default_source_targets_the_litellm_catalogue() {
         let source = LiteLlmPricingSource::new().expect("HTTP client");
         assert_eq!(source.url, LITELLM_PRICING_URL);
+        assert_eq!(
+            USER_AGENT,
+            format!("SideSeat/{}", env!("CARGO_PKG_VERSION"))
+        );
     }
 }
