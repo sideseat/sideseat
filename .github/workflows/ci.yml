@@ -566,18 +566,17 @@ jobs:
         with:
           toolchain: stable
 
-      - name: Install cargo-audit and cargo-deny
-        # Versions pinned, not merely `--locked`: that pins each tool's *dependencies*, so an unchanged
-        # commit still ran whatever crates.io publishes today - and for a gate, the tool deciding the
-        # verdict is part of the input.
-        run: cargo install cargo-audit@0.22.2 cargo-deny@0.20.2 --locked
+      - name: Install Rust supply-chain tools
+        # Pin the tools as well as their dependency graphs.
+        run: cargo install cargo-audit@0.22.2 cargo-deny@0.20.2 cargo-machete@0.9.2 --locked
 
-      # **Blocking**, and this is the change: `cargo-deny` was never installed here and `make harden-supply`
-      # skips when it is absent, so advisories, licences, bans and sources were gated by nothing - fourteen
-      # advisories had accumulated unnoticed, all of them cleared by a dependency update. `deny.toml` is where
-      # an accepted advisory is recorded, with the reason, rather than as an `--ignore` on a command line.
+      # Blocking policy for advisories, licences, bans and dependency sources. Accepted advisories belong in
+      # deny.toml with their rationale.
       - name: Run cargo deny
         run: cargo deny check
+
+      - name: Reject unused Rust dependencies
+        run: cargo machete
 
       # Advisory-only, deliberately: `cargo audit` has no per-advisory rationale file, so a finding it reports
       # and `cargo deny` does not is information rather than a verdict. The gate above is the verdict.

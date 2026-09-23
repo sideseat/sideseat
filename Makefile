@@ -548,7 +548,7 @@ harden-supply:
 	@if command -v cargo-machete >/dev/null 2>&1; then \
 		cargo machete; \
 	else \
-		echo "  SKIPPED: cargo-machete not installed (cargo install cargo-machete)"; \
+		echo "  SKIPPED locally: cargo-machete not installed (cargo install cargo-machete). CI runs it blocking."; \
 	fi
 
 # Model-checks **every** spec in specs. Each one's invariants correspond to properties stated in prose

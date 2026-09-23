@@ -2969,6 +2969,18 @@ fn pre_commit_routes_root_rust_changes_to_the_workspace_suite() {
     );
 }
 
+#[test]
+fn ci_rejects_unused_rust_dependencies() {
+    let workflow =
+        std::fs::read_to_string(repo_root().join(".github/workflows/ci.yml")).expect("CI workflow");
+    assert!(
+        workflow.contains("cargo-machete@0.9.2")
+            && workflow.contains("run: cargo machete")
+            && !workflow.contains("continue-on-error: true\n        run: cargo machete"),
+        "CI must install a pinned cargo-machete and run it as a blocking gate"
+    );
+}
+
 /// Does this manifest line declare `driver`, under its own name or a rename?
 ///
 /// Extracted so it can be tested on input the workspace does not contain. A live mutation is not available:
