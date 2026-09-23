@@ -13,7 +13,7 @@ import {
   Wrench,
   type LucideIcon,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -143,7 +143,16 @@ const CATEGORY_ORDER: EventCategory[] = [
 ];
 
 export function DebugPanel({ open, onOpenChange, state }: Props) {
-  const [filter, setFilter] = useState("");
+  const runNumber = useMemo(
+    () =>
+      state.messages.filter(
+        (message) => message.kind === "run_status" && message.phase === "started",
+      ).length,
+    [state.messages],
+  );
+  const [filterDraft, setFilterDraft] = useState({ runNumber, value: "" });
+  const filter = filterDraft.runNumber === runNumber ? filterDraft.value : "";
+  const setFilter = (value: string) => setFilterDraft({ runNumber, value });
   const [activeCats, setActiveCats] = useState<Set<EventCategory>>(() => new Set(CATEGORY_ORDER));
 
   // Counts per category for the chip filter row.
@@ -199,11 +208,6 @@ export function DebugPanel({ open, onOpenChange, state }: Props) {
   }, [groups, filter, activeCats]);
 
   const totalEvents = state.eventLog.length;
-
-  // Reset filter on each new run.
-  useEffect(() => {
-    if (state.runState === "running") setFilter("");
-  }, [state.runState]);
 
   const toggleCat = (cat: EventCategory) =>
     setActiveCats((prev) => {
