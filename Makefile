@@ -710,45 +710,23 @@ publish-docker: ## Publish the multi-platform Docker image
 # Documentation
 # =============================================================================
 
-#  The wire protocol is stated in `docs/engineering/protocol-ws-v1/schema.json`, and the Python SDK bundles a copy because it
-#  ships without the repository around it. One command keeps them identical, and
-#  `test_bundled_schema_is_the_protocol_schema` fails when they are not - previously the only check was that
-#  the copy parsed, so the canonical schema could gain a frame while the copy described the old protocol.
+# The Python SDK bundles the canonical WebSocket schema for standalone installs.
 sync-protocol-schema: ## Synchronize the WebSocket protocol schema
 	@cp docs/engineering/protocol-ws-v1/schema.json sdk/python/src/sideseat/runtime/_schema.json
 	@echo "[sync-protocol-schema] sdk/python now bundles docs/engineering/protocol-ws-v1/schema.json"
 
 docs-deps:
-	@#  `npm ci`, and keyed on the **lockfile being newer** than the install rather than on the directory
-	@#  existing. A presence check accepts a tree installed from an older lockfile, so the docs built here
-	@#  and the docs CI builds could come from different dependency versions - with nothing saying so.
+	@# Reinstall when the lockfile changes so local builds use the pinned dependency tree.
 	@if [ ! -d docs/node_modules ] || [ docs/package-lock.json -nt docs/node_modules ]; then \
 		echo "[docs-deps] Installing documentation dependencies..."; \
 		cd docs && npm ci; \
 	fi
-	@#  And the browser the Mermaid diagrams render in. `playwright install` is idempotent and answers from
-	@#  its cache in well under a second once present, so this is not a per-build download - but without it
-	@#  `make build-docs` fails in a fresh clone with an error about a missing executable, which is the same
-	@#  shape as the missing `web/dist` failure the API build script prevents.
-	@#  `--no-install`, so the *locked* playwright drives the download rather than whatever the registry
-	@#  currently publishes - and it runs after the `npm ci` above for the same reason. The command is
-	@#  idempotent: with the browser present it answers from its cache in well under a second, so this is not a
-	@#  per-build download. My first version piped its output away and retried in a `{ cd docs; ... }` block,
-	@#  which is a second `cd` inside a shell already in `docs/` - it would have looked for `docs/docs`.
+	@# Mermaid rendering uses the browser matched to the locked Playwright package.
 	@cd docs && npx --no-install playwright install chromium
-	@#  On Linux the browser also needs system libraries, and installing them needs root - so it is a separate,
-	@#  named target rather than something done to someone's machine silently. Previously only CI installed
-	@#  them, which left `make build-docs` on a fresh Linux host depending on whatever happened to be present
-	@#  while `docs/README.md` presented the target as self-contained. Playwright's own launch failure names
-	@#  the missing libraries precisely, so it is not probed for here - only pointed at.
 	@[ "$$(uname -s)" != "Linux" ] || echo "[docs-deps] On Linux, if the build cannot launch the browser: make docs-system-deps (needs sudo)"
 
 docs-system-deps: docs-deps ## Install Linux documentation system packages
-	@#  Depends on `docs-deps`, because it runs the **locked** playwright - and in a fresh clone there is no
-	@#  `docs/node_modules` for `--no-install` to find, so the one command the README names failed. CI hid
-	@#  that by running `make docs-deps` first, which is a dependency stated in the wrong place.
-	@#  Separate and explicit, because it installs distribution packages and needs root. `install-deps` is
-	@#  playwright's own list for the browser it just downloaded, so it stays correct across browser versions.
+	@# Kept explicit because Playwright may request elevated privileges for system packages.
 	@echo "[docs-system-deps] Installing the system libraries the diagram browser needs (sudo)..."
 	@cd docs && npx --no-install playwright install-deps chromium
 
