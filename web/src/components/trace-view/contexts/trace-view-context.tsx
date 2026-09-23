@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo, useEffect, type ReactNode } from "react";
+import { useState, useCallback, useMemo, type ReactNode } from "react";
 import type { SpanDetail } from "@/api/otel/types";
 import type { TreeNode, ViewMode } from "../lib/types";
 import { buildTree, filterTree, VIRTUAL_ROOT_ID } from "../lib/tree-builder";
@@ -18,6 +18,11 @@ function buildNodeMap(node: TreeNode, map: Map<string, TreeNode>): void {
   for (const child of node.children) {
     buildNodeMap(child, map);
   }
+}
+
+function firstSelectableNode(tree: TreeNode | null): TreeNode | null {
+  if (!tree) return null;
+  return tree.isVirtualRoot && tree.children.length > 0 ? tree.children[0] : tree;
 }
 
 export function TraceViewProvider({
@@ -70,55 +75,31 @@ export function TraceViewProvider({
     return map;
   }, [filteredTree]);
 
-  const [selectedSpanId, setSelectedSpanId] = useState<string | null>(null);
+  const [selectedSpanId, setSelectedSpanId] = useState<string | null>(
+    () => firstSelectableNode(filteredTree)?.id ?? null,
+  );
   const [collapsedNodes, setCollapsedNodes] = useState<Set<string>>(new Set());
   const [allExpanded, setAllExpanded] = useState(true);
-  const [viewMode, setViewModeInternal] = useState<ViewMode>(initialViewMode ?? "tree");
+  const [internalViewMode, setInternalViewMode] = useState<ViewMode>(initialViewMode ?? "tree");
+  const viewMode = initialViewMode ?? internalViewMode;
 
   const setViewMode = useCallback(
     (mode: ViewMode) => {
-      setViewModeInternal(mode);
+      setInternalViewMode(mode);
       onViewModeChange?.(mode);
     },
     [onViewModeChange],
   );
 
-  // Sync view mode when controlled prop changes (e.g., browser back/forward)
-  useEffect(() => {
-    if (initialViewMode !== undefined) {
-      setViewModeInternal(initialViewMode);
-    }
-  }, [initialViewMode]);
-
-  // Select root node by default when tree root changes
-  // For virtual roots (multi-trace), select the first actual root
-  useEffect(() => {
-    if (tree) {
-      const firstSelectableNode =
-        tree.isVirtualRoot && tree.children.length > 0 ? tree.children[0] : tree;
-      setSelectedSpanId(firstSelectableNode.id);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- only reset when root node id changes
-  }, [tree?.id]);
-
-  // Reset selection if selected span is no longer visible after filter change
-  // NOTE: We check filteredNodeMap.has() instead of isGenAiSpan() because
-  // a non-GenAI node can still be visible if it has GenAI descendants
-  useEffect(() => {
-    if (!showNonGenAiSpans && selectedSpanId) {
-      if (!filteredTree) {
-        // No visible spans at all, clear selection
-        setSelectedSpanId(null);
-      } else if (!filteredNodeMap.has(selectedSpanId)) {
-        // Selected span is hidden, select first actual root (skip virtual root)
-        const firstSelectableNode =
-          filteredTree.isVirtualRoot && filteredTree.children.length > 0
-            ? filteredTree.children[0]
-            : filteredTree;
-        setSelectedSpanId(firstSelectableNode.id);
-      }
-    }
-  }, [showNonGenAiSpans, selectedSpanId, filteredTree, filteredNodeMap]);
+  const selectableTree = showNonGenAiSpans ? tree : filteredTree;
+  const selectableNodes = showNonGenAiSpans ? nodeMap : filteredNodeMap;
+  const fallbackSpanId = firstSelectableNode(selectableTree)?.id ?? null;
+  if (
+    (selectedSpanId === null && fallbackSpanId !== null) ||
+    (selectedSpanId !== null && !selectableNodes.has(selectedSpanId))
+  ) {
+    setSelectedSpanId(fallbackSpanId);
+  }
 
   const selectedNode = useMemo(() => {
     if (!selectedSpanId) return null;
