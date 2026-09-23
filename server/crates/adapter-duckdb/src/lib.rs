@@ -4,7 +4,6 @@
 //! All schema definitions and migrations are managed here.
 
 pub mod error;
-pub mod filters;
 mod migrations;
 pub mod models;
 pub mod repositories;
