@@ -9,7 +9,7 @@
 
 use duckdb::Connection;
 
-use crate::DuckdbError;
+use crate::error::DuckdbError;
 use sideseat_core::utils::time::micros_to_datetime;
 use sideseat_ports::types::{
     FeedMessagesParams, MessageQueryParams, MessageQueryResult, MessageSpanRow,
@@ -116,8 +116,9 @@ fn parse_span_row(row: &duckdb::Row) -> Result<MessageSpanRow, duckdb::Error> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::DuckdbService;
+    use crate::models::NormalizedSpan;
     use crate::repositories::span::insert_batch;
-    use crate::{DuckdbService, NormalizedSpan};
     use chrono::{Duration, Utc};
     use sideseat_core::storage::AppStorage;
     use sideseat_ports::types::ProjectId;

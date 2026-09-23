@@ -6,8 +6,10 @@ use duckdb::Connection;
 use duckdb::params;
 use std::collections::HashMap;
 
+use crate::error::DuckdbError;
+use crate::in_transaction;
+use crate::models::NormalizedMetric;
 use crate::sql_types::{SqlOptTimestamp, SqlTimestamp};
-use crate::{DuckdbError, NormalizedMetric, in_transaction};
 use sideseat_core::utils::json::json_to_opt_string;
 use sideseat_core::utils::time::micros_to_datetime;
 use sideseat_ports::traits::FilterOptionRow;
@@ -449,7 +451,8 @@ fn string_query_value(value: &QueryValue) -> &str {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{DuckdbService, MetricType};
+    use crate::DuckdbService;
+    use crate::models::MetricType;
     use chrono::{DateTime, Utc};
     use sideseat_core::storage::AppStorage;
     use tempfile::TempDir;

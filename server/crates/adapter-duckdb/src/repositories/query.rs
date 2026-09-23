@@ -1039,9 +1039,9 @@ mod tests {
     // Integration tests for leaf generation span filtering (cost deduplication)
     // ============================================================================
 
-    use crate::models::ObservationType;
+    use crate::DuckdbService;
+    use crate::models::{NormalizedSpan, ObservationType};
     use crate::repositories::span::insert_batch;
-    use crate::{DuckdbService, NormalizedSpan};
     use sideseat_core::storage::AppStorage;
     use tempfile::TempDir;
 

@@ -6,7 +6,7 @@ use sideseat_ports::types::{
 };
 use sideseat_query_sql::{Backend, analytics::QueryValue, search as search_sql};
 
-use crate::DuckdbError;
+use crate::error::DuckdbError;
 struct SpanCandidate {
     trace_id: String,
     span_id: String,

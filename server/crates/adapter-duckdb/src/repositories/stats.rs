@@ -11,7 +11,7 @@ use sideseat_query_sql::Backend;
 use sideseat_query_sql::analytics::{ParameterizedQuery, QueryValue};
 use sideseat_query_sql::stats::{self, BucketWindow};
 
-use crate::DuckdbError;
+use crate::error::DuckdbError;
 
 /// Get project stats for the given time range.
 pub fn get_project_stats(

@@ -5,8 +5,10 @@
 use duckdb::Connection;
 use duckdb::params;
 
+use crate::error::DuckdbError;
+use crate::in_transaction;
+use crate::models::NormalizedSpan;
 use crate::sql_types::{SqlOptTimestamp, SqlTimestamp, SqlVec};
-use crate::{DuckdbError, NormalizedSpan, in_transaction};
 use sideseat_query_sql::{Backend, dml};
 
 pub fn insert_batch(conn: &Connection, spans: &[NormalizedSpan]) -> Result<(), DuckdbError> {

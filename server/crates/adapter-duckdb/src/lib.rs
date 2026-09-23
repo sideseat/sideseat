@@ -13,17 +13,11 @@ mod retention;
 pub mod schema;
 pub mod sql_types;
 
-pub use models::{
-    AggregationTemporality, MessageCategory, MessageSourceType, MetricType, NormalizedMetric,
-    NormalizedSpan, ObservationType, SpanCategory,
-};
-
-pub use error::DuckdbError;
-
 use std::sync::Arc;
 use std::time::Duration;
 
 use duckdb::Connection;
+use error::DuckdbError;
 use parking_lot::{Mutex, MutexGuard};
 use sideseat_ports::blobs::RetentionFileReconciler;
 use sideseat_ports::clock::Clock;
