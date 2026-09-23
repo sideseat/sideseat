@@ -104,6 +104,8 @@ impl McpServer {
         Parameters(input): Parameters<ListTracesInput>,
     ) -> Result<CallToolResult, McpError> {
         let repo = self.analytics.as_ref();
+        let from_timestamp = parse_optional_ts("from_timestamp", input.from_timestamp)?;
+        let to_timestamp = parse_optional_ts("to_timestamp", input.to_timestamp)?;
         let params = ListTracesParams {
             project_id: self.project_id.clone(),
             page: clamp_page(input.page),
@@ -114,8 +116,8 @@ impl McpServer {
             }),
             session_id: input.session_id,
             environment: input.environment.map(|e| vec![e]),
-            from_timestamp: parse_opt_ts(input.from_timestamp),
-            to_timestamp: parse_opt_ts(input.to_timestamp),
+            from_timestamp,
+            to_timestamp,
             ..Default::default()
         };
         let (rows, total) = repo.list_traces(&params).await.map_err(mcp_err)?;
@@ -282,6 +284,8 @@ impl McpServer {
         Parameters(input): Parameters<ListSpansInput>,
     ) -> Result<CallToolResult, McpError> {
         let repo = self.analytics.as_ref();
+        let from_timestamp = parse_optional_ts("from_timestamp", input.from_timestamp)?;
+        let to_timestamp = parse_optional_ts("to_timestamp", input.to_timestamp)?;
         let params = ListSpansParams {
             project_id: self.project_id.clone(),
             page: clamp_page(input.page),
@@ -296,8 +300,8 @@ impl McpServer {
             framework: input.framework,
             gen_ai_request_model: input.model,
             status_code: input.status_code,
-            from_timestamp: parse_opt_ts(input.from_timestamp),
-            to_timestamp: parse_opt_ts(input.to_timestamp),
+            from_timestamp,
+            to_timestamp,
             ..Default::default()
         };
         let (rows, total) = repo.list_spans(&params).await.map_err(mcp_err)?;
@@ -333,6 +337,8 @@ impl McpServer {
         Parameters(input): Parameters<ListSessionsInput>,
     ) -> Result<CallToolResult, McpError> {
         let repo = self.analytics.as_ref();
+        let from_timestamp = parse_optional_ts("from_timestamp", input.from_timestamp)?;
+        let to_timestamp = parse_optional_ts("to_timestamp", input.to_timestamp)?;
         let params = ListSessionsParams {
             project_id: self.project_id.clone(),
             page: clamp_page(input.page),
@@ -343,8 +349,8 @@ impl McpServer {
             }),
             user_id: input.user_id,
             environment: input.environment.map(|e| vec![e]),
-            from_timestamp: parse_opt_ts(input.from_timestamp),
-            to_timestamp: parse_opt_ts(input.to_timestamp),
+            from_timestamp,
+            to_timestamp,
             ..Default::default()
         };
         let (rows, total) = repo.list_sessions(&params).await.map_err(mcp_err)?;
@@ -360,10 +366,8 @@ impl McpServer {
         &self,
         Parameters(input): Parameters<GetStatsInput>,
     ) -> Result<CallToolResult, McpError> {
-        let from_ts = parse_ts(&input.from_timestamp)
-            .ok_or_else(|| McpError::invalid_params("invalid from_timestamp", None))?;
-        let to_ts = parse_ts(&input.to_timestamp)
-            .ok_or_else(|| McpError::invalid_params("invalid to_timestamp", None))?;
+        let from_ts = parse_ts("from_timestamp", &input.from_timestamp)?;
+        let to_ts = parse_ts("to_timestamp", &input.to_timestamp)?;
 
         validate_stats_time_range(from_ts, to_ts).map_err(|error| {
             let message = match error {
@@ -911,12 +915,22 @@ fn clamp_limit(limit: Option<u32>) -> u32 {
     limit.unwrap_or(20).clamp(1, MAX_PAGE_LIMIT)
 }
 
-fn parse_opt_ts(s: Option<String>) -> Option<DateTime<Utc>> {
-    crate::types::parse_timestamp_param(&s).ok().flatten()
+fn parse_optional_ts(
+    parameter: &str,
+    value: Option<String>,
+) -> Result<Option<DateTime<Utc>>, McpError> {
+    value.map(|value| parse_ts(parameter, &value)).transpose()
 }
 
-fn parse_ts(s: &str) -> Option<DateTime<Utc>> {
-    parse_opt_ts(Some(s.to_string()))
+fn parse_ts(parameter: &str, value: &str) -> Result<DateTime<Utc>, McpError> {
+    DateTime::parse_from_rfc3339(value)
+        .map(|timestamp| timestamp.with_timezone(&Utc))
+        .map_err(|_| {
+            McpError::invalid_params(
+                format!("invalid {parameter}: use an ISO 8601 timestamp"),
+                None,
+            )
+        })
 }
 
 /// True when a request names a span but not the trace it belongs to.
@@ -1630,30 +1644,30 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_opt_ts_valid_iso8601() {
-        let result = parse_opt_ts(Some("2025-01-15T12:00:00Z".to_string()));
-        assert!(result.is_some());
+    fn optional_timestamp_parses_a_supplied_iso8601_value() {
+        let result =
+            parse_optional_ts("from_timestamp", Some("2025-01-15T12:00:00Z".to_string())).unwrap();
         assert_eq!(result.unwrap().timestamp(), 1736942400);
     }
 
     #[test]
-    fn test_parse_opt_ts_none() {
-        assert!(parse_opt_ts(None).is_none());
+    fn optional_timestamp_preserves_an_absent_filter() {
+        assert_eq!(parse_optional_ts("from_timestamp", None).unwrap(), None);
     }
 
     #[test]
-    fn test_parse_opt_ts_invalid() {
-        assert!(parse_opt_ts(Some("not-a-date".to_string())).is_none());
+    fn optional_timestamp_rejects_an_invalid_supplied_filter() {
+        assert!(parse_optional_ts("from_timestamp", Some("not-a-date".to_string())).is_err());
     }
 
     #[test]
-    fn test_parse_ts_valid() {
-        assert!(parse_ts("2025-01-15T12:00:00Z").is_some());
+    fn required_timestamp_parses_iso8601() {
+        assert!(parse_ts("from_timestamp", "2025-01-15T12:00:00Z").is_ok());
     }
 
     #[test]
-    fn test_parse_ts_invalid() {
-        assert!(parse_ts("garbage").is_none());
+    fn required_timestamp_rejects_invalid_input() {
+        assert!(parse_ts("from_timestamp", "garbage").is_err());
     }
 
     #[test]
