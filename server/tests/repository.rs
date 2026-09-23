@@ -3139,6 +3139,22 @@ fn domain_owns_no_openapi_schema_dependency() {
     );
 }
 
+#[test]
+fn pricing_http_is_owned_by_an_adapter() {
+    let repo = repo_root();
+    let domain_manifest = std::fs::read_to_string(repo.join("server/crates/domain/Cargo.toml"))
+        .expect("domain manifest");
+    let adapter_manifest =
+        std::fs::read_to_string(repo.join("server/crates/adapter-pricing/Cargo.toml"))
+            .expect("pricing adapter manifest");
+    assert!(
+        !domain_manifest.contains("reqwest")
+            && adapter_manifest.contains("reqwest")
+            && adapter_manifest.contains("sideseat-ports"),
+        "pricing HTTP must implement a port in adapter-pricing, outside the domain"
+    );
+}
+
 /// Does this manifest line declare `driver`, under its own name or a rename?
 ///
 /// Extracted so it can be tested on input the workspace does not contain. A live mutation is not available:

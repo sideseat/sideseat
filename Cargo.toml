@@ -5,6 +5,7 @@ members = [
   "server/crates/adapter-clickhouse",
   "server/crates/adapter-duckdb",
   "server/crates/adapter-postgres",
+  "server/crates/adapter-pricing",
   "server/crates/adapter-registrations-memory",
   "server/crates/adapter-secrets",
   "server/crates/adapter-sqlite",

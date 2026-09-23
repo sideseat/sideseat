@@ -5639,6 +5639,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "sideseat-adapter-pricing"
+version = "1.0.13"
+dependencies = [
+ "async-trait",
+ "reqwest 0.13.5",
+ "sideseat-ports",
+]
+
+[[package]]
 name = "sideseat-adapter-registrations-memory"
 version = "1.0.13"
 dependencies = [
@@ -5795,7 +5804,6 @@ dependencies = [
  "proptest",
  "prost",
  "regex",
- "reqwest 0.13.5",
  "rust-embed",
  "serde",
  "serde_json",
@@ -5868,6 +5876,7 @@ dependencies = [
  "sideseat-adapter-clickhouse",
  "sideseat-adapter-duckdb",
  "sideseat-adapter-postgres",
+ "sideseat-adapter-pricing",
  "sideseat-adapter-registrations-memory",
  "sideseat-adapter-secrets",
  "sideseat-adapter-sqlite",

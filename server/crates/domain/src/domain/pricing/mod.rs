@@ -20,6 +20,7 @@ use tokio::task::JoinHandle;
 
 use sideseat_core::core::storage::AppStorage;
 use sideseat_ports::clock::Clock;
+use sideseat_ports::pricing::PricingCatalogueSource;
 
 // ============================================================================
 // CONSTANTS
@@ -81,10 +82,6 @@ fn embedded_digest() -> &'static str {
 /// is refused.
 const MIN_PLAUSIBLE_MODEL_COUNT: usize = 100;
 
-/// GitHub raw URL for LiteLLM pricing data
-const PRICING_SYNC_URL: &str =
-    "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json";
-
 /// Minimum sync interval (1 hour) to avoid rate limiting
 const MIN_SYNC_HOURS: u64 = 1;
 
@@ -98,8 +95,6 @@ pub enum PricingError {
     ParseError(String),
     #[error("IO error: {0}")]
     Io(#[from] std::io::Error),
-    #[error("HTTP error: {0}")]
-    Http(#[from] reqwest::Error),
 }
 
 // ============================================================================
@@ -993,8 +988,7 @@ pub struct PricingService {
     /// Path to local pricing file in data directory
     local_path: PathBuf,
 
-    /// Reusable HTTP client for sync
-    http_client: reqwest::Client,
+    catalogue_source: Option<Arc<dyn PricingCatalogueSource>>,
     clock: Arc<dyn Clock>,
 }
 
@@ -1006,37 +1000,22 @@ impl PricingService {
     /// 2. If local valid and has >= models than embedded, use it
     /// 3. Otherwise, use embedded data and save to disk
     ///
-    /// If sync_hours > 0, spawns background fetch from GitHub after init.
+    /// An optional catalogue source is retained for a runtime-owned background sync task.
     pub async fn init(
         storage: &AppStorage,
-        sync_hours: u64,
         clock: Arc<dyn Clock>,
+        catalogue_source: Option<Arc<dyn PricingCatalogueSource>>,
     ) -> Result<Arc<Self>, PricingError> {
         let local_path = storage.data_dir().join(PRICING_FILE_NAME);
 
         let data = Self::load_pricing_data(&local_path, clock.as_ref()).await?;
 
-        let http_client = reqwest::Client::builder()
-            .timeout(Duration::from_secs(30))
-            .user_agent("SideSeat/1.0")
-            .build()
-            .map_err(PricingError::Http)?;
-
-        let service = Arc::new(Self {
+        Ok(Arc::new(Self {
             data: RwLock::new(data),
             local_path,
-            http_client,
+            catalogue_source,
             clock,
-        });
-
-        if sync_hours > 0 {
-            let service_clone = Arc::clone(&service);
-            tokio::spawn(async move {
-                service_clone.sync().await;
-            });
-        }
-
-        Ok(service)
+        }))
     }
 
     /// Load pricing data: the local file when it is the better catalogue, else this build's embedded one.
@@ -1155,7 +1134,7 @@ impl PricingService {
         Ok(Self {
             data: RwLock::new(data),
             local_path: std::env::temp_dir().join("sideseat_test_pricing.json"),
-            http_client: reqwest::Client::new(),
+            catalogue_source: None,
             clock: Arc::new(TestClock),
         })
     }
@@ -1326,19 +1305,13 @@ impl PricingService {
 
     /// Sync pricing data from GitHub
     async fn sync(&self) {
-        let request = self.http_client.get(PRICING_SYNC_URL);
+        let Some(source) = &self.catalogue_source else {
+            return;
+        };
 
-        match request.send().await {
-            Ok(resp) if resp.status().is_success() => match resp.text().await {
-                Ok(text) => self.apply_sync_data(&text).await,
-                Err(e) => tracing::warn!(error = %e, "Failed to read pricing response"),
-            },
-            Ok(resp) => {
-                tracing::warn!(status = %resp.status(), "Pricing sync HTTP error");
-            }
-            Err(e) => {
-                tracing::warn!(error = %e, "Pricing sync request failed");
-            }
+        match source.fetch_catalogue().await {
+            Ok(text) => self.apply_sync_data(&text).await,
+            Err(error) => tracing::warn!(%error, "Pricing catalogue sync failed"),
         }
     }
 
@@ -1424,7 +1397,7 @@ impl PricingService {
         sync_hours: u64,
         mut shutdown_rx: watch::Receiver<bool>,
     ) -> Option<JoinHandle<()>> {
-        if sync_hours == 0 {
+        if sync_hours == 0 || self.catalogue_source.is_none() {
             return None;
         }
 
@@ -1435,7 +1408,6 @@ impl PricingService {
 
         Some(tokio::spawn(async move {
             let mut timer = tokio::time::interval(interval);
-            timer.tick().await; // Skip immediate first tick
 
             loop {
                 tokio::select! {
@@ -1461,6 +1433,25 @@ impl PricingService {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    struct CountingSource {
+        calls: Arc<AtomicUsize>,
+        called: Arc<tokio::sync::Notify>,
+    }
+
+    #[async_trait::async_trait]
+    impl PricingCatalogueSource for CountingSource {
+        async fn fetch_catalogue(
+            &self,
+        ) -> Result<String, sideseat_ports::pricing::PricingCatalogueError> {
+            self.calls.fetch_add(1, Ordering::SeqCst);
+            self.called.notify_one();
+            Err(sideseat_ports::pricing::PricingCatalogueError::new(
+                "expected test failure",
+            ))
+        }
+    }
 
     /// Test helper: Map system to provider string with lowercasing for unknown providers
     fn map_system_to_provider_string(system: &str) -> String {
@@ -1476,6 +1467,34 @@ mod tests {
     fn test_parse_pricing_data() {
         let data = PricingData::from_json_str(EMBEDDED_PRICING_JSON).unwrap();
         assert!(data.model_count > 1000, "Should have 1000+ models");
+    }
+
+    #[tokio::test]
+    async fn sync_starts_immediately_and_remains_shutdown_owned() {
+        let calls = Arc::new(AtomicUsize::new(0));
+        let called = Arc::new(tokio::sync::Notify::new());
+        let source = Arc::new(CountingSource {
+            calls: Arc::clone(&calls),
+            called: Arc::clone(&called),
+        });
+        let service = Arc::new(PricingService {
+            data: RwLock::new(PricingData::from_json_str(EMBEDDED_PRICING_JSON).unwrap()),
+            local_path: std::env::temp_dir().join("sideseat_test_pricing.json"),
+            catalogue_source: Some(source),
+            clock: Arc::new(TestClock),
+        });
+        let (shutdown_tx, shutdown_rx) = watch::channel(false);
+        let handle = service
+            .start_sync_task(1, shutdown_rx)
+            .expect("enabled sync task");
+
+        tokio::time::timeout(Duration::from_secs(1), called.notified())
+            .await
+            .expect("the first sync should not wait for the hourly interval");
+        assert_eq!(calls.load(Ordering::SeqCst), 1);
+
+        shutdown_tx.send(true).unwrap();
+        handle.await.unwrap();
     }
 
     #[test]
@@ -2018,16 +2037,12 @@ mod tests {
         );
     }
 
-    // Initial sync behavior tests
     #[tokio::test]
-    async fn test_init_with_sync_disabled_no_network() {
-        // When sync_hours = 0, init should not spawn any background tasks
-        // This is verified by checking that no HTTP requests are made
+    async fn init_without_catalogue_source_is_offline() {
         let storage = AppStorage::init_for_test(std::env::temp_dir());
-        let service = PricingService::init(&storage, 0, Arc::new(TestClock))
+        let service = PricingService::init(&storage, Arc::new(TestClock), None)
             .await
             .unwrap();
-        // If we got here without network, sync was disabled correctly
         assert!(service.data.read().model_count > 0);
     }
 

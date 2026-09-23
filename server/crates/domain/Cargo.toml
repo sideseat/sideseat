@@ -28,7 +28,6 @@ opentelemetry-proto = { workspace = true }
 parking_lot = { workspace = true }
 prost = { workspace = true }
 regex = { workspace = true }
-reqwest = { workspace = true }
 rust-embed = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }

@@ -9,6 +9,7 @@ pub mod cache_key;
 pub mod clock;
 pub mod error;
 pub mod filters;
+pub mod pricing;
 pub mod queue;
 pub mod registrations;
 pub mod secrets;

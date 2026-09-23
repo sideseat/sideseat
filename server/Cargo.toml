@@ -24,6 +24,7 @@ sideseat-adapter-cache = { path = "crates/adapter-cache" }
 sideseat-adapter-clickhouse = { path = "crates/adapter-clickhouse" }
 sideseat-adapter-duckdb = { path = "crates/adapter-duckdb" }
 sideseat-adapter-postgres = { path = "crates/adapter-postgres" }
+sideseat-adapter-pricing = { path = "crates/adapter-pricing" }
 sideseat-adapter-registrations-memory = { path = "crates/adapter-registrations-memory" }
 sideseat-adapter-secrets = { path = "crates/adapter-secrets" }
 sideseat-adapter-sqlite = { path = "crates/adapter-sqlite" }

@@ -18,6 +18,7 @@ use self::storage::{AnalyticsService, TransactionalService};
 use crate::runtime::clock::SystemClock;
 use crate::runtime::shutdown::ShutdownService;
 use sideseat_adapter_cache::CacheService;
+use sideseat_adapter_pricing::LiteLlmPricingSource;
 use sideseat_adapter_secrets::SecretManager;
 use sideseat_core::core::banner;
 use sideseat_core::core::cli::{self, CliConfig, Commands, SystemCommands};
@@ -39,6 +40,7 @@ use sideseat_domain::storage_governance::{RestoreQuotaRepairReport, StorageGover
 use sideseat_domain::topics::TopicService;
 use sideseat_ports::cache::CacheStore;
 use sideseat_ports::clock::Clock;
+use sideseat_ports::pricing::PricingCatalogueSource;
 use sideseat_ports::registrations::RegistrationStore;
 use sideseat_ports::traits::{AnalyticsRepository, TransactionalRepository};
 
@@ -170,7 +172,13 @@ impl CoreApp {
         let governance_port = Arc::from(database.governance_repository());
         let analytics_port = Arc::from(analytics.repository());
         let cache_port: Arc<dyn CacheStore> = cache.clone();
-        let pricing = PricingService::init(&storage, config.pricing.sync_hours, Arc::clone(&clock))
+        let pricing_source: Option<Arc<dyn PricingCatalogueSource>> = (config.pricing.sync_hours
+            > 0)
+        .then(LiteLlmPricingSource::new)
+        .transpose()
+        .map_err(|e| anyhow::anyhow!("Failed to initialize pricing sync: {}", e))?
+        .map(|source| Arc::new(source) as Arc<dyn PricingCatalogueSource>);
+        let pricing = PricingService::init(&storage, Arc::clone(&clock), pricing_source)
             .await
             .map_err(|e| anyhow::anyhow!("Failed to initialize pricing service: {}", e))?;
         let auth = Arc::new(AuthManager::new(
