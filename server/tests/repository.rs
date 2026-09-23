@@ -3144,6 +3144,20 @@ fn core_crate_has_a_flat_module_root() {
 }
 
 #[test]
+fn adapter_crates_do_not_repeat_their_names_under_src() {
+    let repo = repo_root();
+    for path in [
+        "server/crates/adapter-cache/src/cache",
+        "server/crates/adapter-secrets/src/secrets",
+    ] {
+        assert!(
+            !repo.join(path).exists(),
+            "adapter modules must be exposed directly from src/: {path}"
+        );
+    }
+}
+
+#[test]
 fn domain_owns_no_openapi_schema_dependency() {
     let repo = repo_root();
     let domain_manifest = std::fs::read_to_string(repo.join("server/crates/domain/Cargo.toml"))
@@ -3580,7 +3594,7 @@ fn migrated_clock_consumers_cannot_read_the_system_clock() {
         );
     }
 
-    let secrets = repo.join("server/crates/adapter-secrets/src/secrets");
+    let secrets = repo.join("server/crates/adapter-secrets/src");
     let mut stack = vec![secrets];
     let mut secret_sources = 0usize;
     while let Some(dir) = stack.pop() {

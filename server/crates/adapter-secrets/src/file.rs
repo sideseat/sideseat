@@ -135,7 +135,7 @@ impl SecretProvider for FileProvider {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::secrets::{test_clock, test_clock_at, test_secret};
+    use crate::{test_clock, test_clock_at, test_secret};
 
     #[tokio::test]
     async fn test_file_provider_roundtrip() {

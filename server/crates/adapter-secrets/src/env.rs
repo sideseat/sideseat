@@ -104,7 +104,7 @@ mod tests {
     #![allow(unsafe_code)]
 
     use super::*;
-    use crate::secrets::{test_clock, test_secret};
+    use crate::{test_clock, test_secret};
 
     #[test]
     fn test_key_to_env_var() {

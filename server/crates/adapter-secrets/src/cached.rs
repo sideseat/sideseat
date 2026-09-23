@@ -98,8 +98,8 @@ impl SecretProvider for CachedProvider {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::secrets::file::FileProvider;
-    use crate::secrets::{test_clock, test_secret};
+    use crate::file::FileProvider;
+    use crate::{test_clock, test_secret};
 
     async fn make_cached(dir: &std::path::Path) -> CachedProvider {
         let inner = FileProvider::init(dir, test_clock()).await.unwrap();
