@@ -122,11 +122,10 @@ pub trait TopicBackend: Send + Sync {
     ///
     /// Returns the message ID. Messages persist until acknowledged.
     ///
-    /// **The key is not optional and not a hint.** Kafka and RedPanda serialise only *within* a partition, so
-    /// which key a record carries decides what order anything downstream can rely on - and `stream_publish` had
-    /// no key at all, which meant a Kafka adapter could not even be expressed without inventing one per call.
+    /// The key is part of the delivery contract. Partitioned brokers preserve order only within one
+    /// partition, so records that require relative ordering must use the same stable key.
     ///
-    /// It is a **per-signal contract**, declared by the caller, because no single rule fits all three signals:
+    /// The caller selects a domain-specific key:
     ///
     /// | Signal | Key |
     /// | --- | --- |
@@ -134,19 +133,8 @@ pub trait TopicBackend: Send + Sync {
     /// | Metrics | `(project, instrument)` |
     /// | Logs | the trace id when present, else `(project, resource, scope)` |
     ///
-    /// Spans key on the **trace id and nothing else**, and the reason is that every weaker rule reintroduces the
-    /// split it exists to prevent. "Session id when the batch carries one, else trace id" is not stable: a
-    /// session id lives on the span that knows it, usually the root, so a child-only batch keys on the trace
-    /// while a later batch carrying the root keys on the session - the same trace in two partitions, mid
-    /// conversation. A trace id is total, immutable, and knowable from the span alone.
-    ///
-    /// What that gives up is conversation-level serialisation, which is harmless here: ingestion is idempotent by
-    /// span id and conversations are reconstructed at query time. A consumer that needs per-conversation order
-    /// keys at its own level.
-    ///
-    /// The in-process backend ignores the key - it has one partition by construction - but takes it, so the
-    /// callers are already correct when a partitioned adapter arrives. That is the point of putting it in the
-    /// contract now rather than with the adapter.
+    /// A trace id is immutable and available on every span, unlike a session id that may appear only on
+    /// the root. The in-process backend has one partition and may ignore the key.
     async fn stream_publish(
         &self,
         topic: &str,
@@ -175,15 +163,9 @@ pub trait TopicBackend: Send + Sync {
     /// Removes the message from the pending list. Must be called after
     /// successful processing to prevent re-delivery.
     ///
-    /// **By id, which a partitioned broker cannot do.** Redis's `XACK` removes exactly the entry named; Kafka and
-    /// RedPanda commit an *offset*, and committing offset N asserts that everything below N is done. So an adapter
-    /// that passes this straight through acknowledges an **earlier failure** the moment a later record succeeds,
-    /// and that record is never redelivered - accepted data lost after a 200, invisibly. That is the same shape as
-    /// the `MAXLEN` trim already removed from the Redis publisher.
-    ///
-    /// Such an adapter must therefore track completed offsets and commit only the highest contiguous prefix:
-    /// [`crate::ack_window::AckWindow`] is that, written and tested ahead of the adapter because the
-    /// property belongs to the contract rather than to any client library.
+    /// Brokers with entry IDs may acknowledge that exact entry. Offset-based brokers must not commit past
+    /// an earlier unfinished record: they track completed offsets and advance only the highest contiguous
+    /// prefix. Otherwise a later success can prevent an earlier failure from being redelivered.
     async fn stream_ack(&self, topic: &str, group: &str, id: &str) -> Result<(), TopicError>;
 
     /// Acknowledge multiple messages in a single call
