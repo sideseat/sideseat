@@ -85,14 +85,16 @@ flowchart TB
     otlp["OTLP export<br/>HTTP or gRPC"] --> auth["require_auth<br/>verify_project_access"]
     auth --> fence1{"project_accepts_writes?"}
     fence1 -- "no" --> gone["404 Gone"]
-    fence1 -- "yes" --> storable["strip_unstorable_spans<br/>settled at the edge"]
-    storable --> durable{"topic backend<br/>durable?"}
+    fence1 -- "yes" --> storable["remove unstorable records"]
+    storable --> admit["storage-governance admission"]
+    admit --> stage["stage payload bytes + record identities<br/>blob first, registry row second"]
+    stage --> strategy{"LifecycleStrategy"}
 
-    durable -- "Redis" --> publish["XADD + WAITAOF<br/>min_replica_acks"]
-    publish --> ack200a["200 — entry is fsynced<br/>and replicated"]
-    publish --> consume["consumer group"]
+    strategy -- "DurableQueue<br/>(traces with durable backend)" --> publish["publish StagedPayloadRef<br/>durability requirement succeeds"]
+    publish --> ack200a["200 — staged bytes are discoverable<br/>and the queue reference is durable"]
+    publish --> consume["consumer group loads staged payload"]
 
-    durable -- "in-memory<br/>(default)" --> now["ingest_now<br/>writes inside the request"]
+    strategy -- "PersistBeforeAck<br/>(metrics, logs, local traces)" --> now["persist inside the request"]
 
     consume --> batch
     now --> batch
@@ -113,12 +115,19 @@ flowchart TB
     rows --> fence3["collect_spans_written_for_deleted_traces<br/>compensate a deletion in the window"]
     fence3 --> confirm["confirm_associations<br/>durable = true"]
     confirm --> sse["SSE published — only surviving spans"]
-    sse --> ack200b["200"]
+    sse --> settle["strictly confirm stored producer content<br/>release staged payload"]
+    settle --> finish{"execution path"}
+    finish -- "request" --> ack200b["200 — persistence confirmed"]
+    finish -- "consumer" --> ackqueue["ack queue reference"]
 ```
 
-The ordering of the two writes is deliberate and is the whole reason the fences look like this: **files
-before the rows that name them**, so the surviving failure is a reclaimable orphan rather than a row
-promising bytes that are not there.
+The queue never owns the only copy of accepted telemetry: it carries a compact staged reference. The
+staging record remains until strict producer-content confirmation proves that every record was stored or
+deliberately absent.
+
+The ordering of the file and analytics writes is deliberate and is the whole reason the fences look like
+this: **files before the rows that name them**, so the surviving failure is a reclaimable orphan rather than
+a row promising bytes that are not there.
 
 ## 3. How a message rule claims a carrier
 
