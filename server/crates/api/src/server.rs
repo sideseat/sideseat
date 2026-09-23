@@ -468,19 +468,8 @@ impl ApiServer {
             None
         };
 
-        // Build SDK WebSocket + registrations listing (no auth in v1).
-        //
-        // The registration *directory* is per-process while everything built on it is cluster-aware: an
-        // entry carries `owning_instance_id` and the AG-UI invoke publishes to
-        // `connection_control:{instance_id}` over the configured topic backend. So the control plane spans
-        // instances and the directory does not - an SDK whose socket landed on another instance is
-        // `registration_not_found` here, and `GET /registrations` shows each instance its own subset.
-        //
-        // Warned rather than refused, and keyed on the *deployment shape* rather than the cache backend: a
-        // shared transactional store is what says "more than one instance is expected" (the same signal
-        // `validate_store_sharing` uses), and the SDK runtime channel is an optional feature many such
-        // deployments never touch - so refusing to start would block them over something they do not use.
-        // The invoke route's own error says the same thing at the point someone hits it.
+        // Registration state is process-local, so multi-instance deployments need
+        // sticky routing for SDK runtime features.
         if app.config.database.transactional.sharing() == sideseat_core::config::Sharing::Shared {
             tracing::warn!(
                 "ws: the SDK registration directory is per-process while its AG-UI routing is \
@@ -521,17 +510,8 @@ impl ApiServer {
                 credentials_routes,
             )
             .nest("/api/v1/project/{project_id}/files", api_files_routes)
-            // Authenticated, like the MCP endpoint and every other route that touches project data.
-            //
-            // Mounted with no auth "in v1", these are the SDK runtime channel: `GET /registrations` lists
-            // agent manifests (system prompts included), the WebSocket *registers* an agent under a project -
-            // so a caller could take over a name its owner holds - and the AG-UI route invokes one. All three
-            // derive the project from the request, so an unauthenticated mount let any reachable caller
-            // enumerate, replace and invoke another organisation's agents.
-            //
-            // `require_auth` passes through when auth is disabled, so `--no-auth` development and the SDK
-            // samples are unaffected; with auth on, a credential is required and the handlers' own project
-            // checks scope it to the caller's organisation.
+            // SDK runtime routes carry agent manifests and control messages, so
+            // they share the authenticated project boundary.
             .nest(
                 "/api/v1",
                 ws_routes.layer(axum::middleware::from_fn_with_state(

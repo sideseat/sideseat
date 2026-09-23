@@ -13,56 +13,24 @@
 use std::convert::Infallible;
 use std::time::Duration;
 
-use axum::extract::{Path, State};
+use axum::extract::State;
 use axum::response::sse::{Event, KeepAlive, Sse};
 use futures::stream::Stream;
 
-use crate::extractors::is_valid_project_id;
+use crate::auth::ProjectRead;
 use crate::types::ApiError;
 use sideseat_ports::queue::TopicError;
 use sideseat_ports::registrations::PresenceEvent;
 
-use super::listing::{ListingResponse, ProjectPath};
+use super::listing::ListingResponse;
 use super::presence::presence_topic_name;
 use super::state::WsState;
 
 pub async fn stream_presence(
     State(state): State<WsState>,
-    Path(ProjectPath { project_id }): Path<ProjectPath>,
-    auth: Option<axum::Extension<crate::auth::AuthContext>>,
-    auth_service: Option<axum::Extension<std::sync::Arc<crate::auth::AuthService>>>,
+    access: ProjectRead,
 ) -> Result<Sse<impl Stream<Item = Result<Event, Infallible>>>, ApiError> {
-    if !is_valid_project_id(&project_id) {
-        return Err(ApiError::bad_request(
-            "invalid_project_id",
-            "project_id has invalid characters or length",
-        ));
-    }
-
-    // Valid **for this project** - see the AG-UI route. Presence names which agents a project is running.
-    if let (Some(axum::Extension(auth)), Some(axum::Extension(service))) = (auth, auth_service) {
-        if service
-            .verify_project_access(&auth, &project_id, sideseat_ports::types::ApiKeyScope::Read)
-            .await
-            .is_err()
-        {
-            return Err(ApiError::forbidden(
-                "PROJECT_ACCESS_DENIED",
-                "not authorised for this project",
-            ));
-        }
-    } else {
-        tracing::error!(
-            project_id,
-            "A presence stream request arrived with no authentication context; refusing it."
-        );
-        return Err(ApiError::forbidden(
-            "AUTH_CONTEXT_MISSING",
-            "authentication context missing",
-        ));
-    }
-
-    let project_id = sideseat_ports::types::ProjectId::from(project_id);
+    let project_id = access.project_id;
     let topic = state
         .topics
         .broadcast_topic::<PresenceEvent>(&presence_topic_name(&project_id));

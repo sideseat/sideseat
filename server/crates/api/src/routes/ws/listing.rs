@@ -2,19 +2,14 @@
 //! `GET /api/v1/project/{project_id}/registrations`.
 
 use axum::Json;
-use axum::extract::{Path, State};
-use serde::{Deserialize, Serialize};
+use axum::extract::State;
+use serde::Serialize;
 
-use crate::extractors::is_valid_project_id;
+use crate::auth::ProjectRead;
 use crate::types::ApiError;
 use sideseat_ports::registrations::{RegistrationEntry, RegistrationKind};
 
 use super::state::WsState;
-
-#[derive(Debug, Deserialize)]
-pub struct ProjectPath {
-    pub project_id: String,
-}
 
 #[derive(Debug, Serialize)]
 pub struct ListingResponse {
@@ -58,44 +53,11 @@ impl ListingResponse {
 
 pub async fn list_registrations(
     State(state): State<WsState>,
-    Path(ProjectPath { project_id }): Path<ProjectPath>,
-    auth: Option<axum::Extension<crate::auth::AuthContext>>,
-    auth_service: Option<axum::Extension<std::sync::Arc<crate::auth::AuthService>>>,
+    access: ProjectRead,
 ) -> Result<Json<ListingResponse>, ApiError> {
-    if !is_valid_project_id(&project_id) {
-        return Err(ApiError::bad_request(
-            "invalid_project_id",
-            "project_id has invalid characters or length",
-        ));
-    }
-    // Valid **for this project**, not merely valid - see the AG-UI route. A key from another organisation is
-    // otherwise a perfectly good key, and this endpoint lists agent manifests, system prompts included. `--no-auth` yields `LocalDefault`, admitted.
-    if let (Some(axum::Extension(auth)), Some(axum::Extension(service))) = (auth, auth_service) {
-        if service
-            .verify_project_access(&auth, &project_id, sideseat_ports::types::ApiKeyScope::Read)
-            .await
-            .is_err()
-        {
-            return Err(ApiError::forbidden(
-                "PROJECT_ACCESS_DENIED",
-                "not authorised for this project",
-            ));
-        }
-    } else {
-        tracing::error!(
-            project_id,
-            "A registrations listing request arrived with no authentication context; refusing it."
-        );
-        return Err(ApiError::forbidden(
-            "PROJECT_ACCESS_DENIED",
-            "not authorised for this project",
-        ));
-    }
-
-    let project_id = sideseat_ports::types::ProjectId::from(project_id);
     let entries = state
         .registrations
-        .list(&project_id)
+        .list(&access.project_id)
         .await
         .map_err(|e| ApiError::internal(e.to_string()))?;
 
