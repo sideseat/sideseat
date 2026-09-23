@@ -871,7 +871,7 @@ can).
 copied count:
 
 ```bash
-grep -rc 'Utc::now()' server/src crates --include='*.rs' | awk -F: '{s+=$2} END {print s}'
+grep -rc 'Utc::now()' server/src server/crates --include='*.rs' | awk -F: '{s+=$2} END {print s}'
 grep -c 'project_id: &str' server/crates/ports/src/traits.rs
 grep -c '?;' server/crates/adapter-topics/src/redis.rs   # the map_err cost of moving TopicError: 54, still exact
 ```

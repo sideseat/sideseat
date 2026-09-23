@@ -774,6 +774,41 @@ fn no_tracked_file_carries_the_capturing_users_name() {
     );
 }
 
+/// A Rust source file cannot be hidden by a broad ignore rule.
+///
+/// Cargo can compile an ignored module from a developer's working tree even though the file will be absent
+/// from a clean checkout. This is especially easy with ordinary domain names such as `logs/`, which also
+/// occur in generic Node ignore templates.
+#[test]
+fn no_rust_source_file_is_ignored() {
+    let output = Command::new("git")
+        .args([
+            "ls-files",
+            "--others",
+            "--ignored",
+            "--exclude-standard",
+            "server",
+        ])
+        .current_dir(repo_root())
+        .output()
+        .expect("git is available in a git checkout");
+    assert!(
+        output.status.success(),
+        "git could not enumerate ignored server files: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let ignored: Vec<&str> = stdout
+        .lines()
+        .filter(|path| path.ends_with(".rs"))
+        .collect();
+    assert!(
+        ignored.is_empty(),
+        "ignored Rust source file(s) compile locally but disappear from a clean checkout:\n  {}",
+        ignored.join("\n  ")
+    );
+}
+
 /// Every tree diagram in the repository's documentation names things that exist.
 ///
 /// A diagram is a map handed to whoever arrives, and both maps had drifted: each still named a `topic.rs`
