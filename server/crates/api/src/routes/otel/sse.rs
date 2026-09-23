@@ -14,7 +14,7 @@ use serde::Deserialize;
 use super::OtelApiState;
 use crate::auth::ProjectRead;
 use crate::types::ApiError;
-use sideseat_domain::traces::SseSpanEvent;
+use sideseat_ingestion::traces::SseSpanEvent;
 use sideseat_ports::queue::TopicError;
 
 /// Maximum events per second per SSE connection (backpressure)

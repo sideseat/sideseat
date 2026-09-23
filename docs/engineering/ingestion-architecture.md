@@ -13,7 +13,8 @@ The backend is a Cargo workspace rooted at the repository root. Every backend cr
 | --- | --- |
 | `sideseat-core` | Configuration, constants, storage paths, migrations, and generic utilities |
 | `sideseat-ports` | Repository, queue, cache, clock, blob, pricing, registration, and secret contracts |
-| `sideseat-domain` | Signal lifecycle, normalization, storage governance, staging, and message reconstruction |
+| `sideseat-domain` | SideML, rules, files, pricing, search, storage governance, and restore workflows |
+| `sideseat-ingestion` | OTLP decoding, normalization, identity, staging, durability, and persistence orchestration |
 | `sideseat-query-sql` | Shared SQL query vocabulary and rendering |
 | `sideseat-api` | HTTP/gRPC decoding, authentication, status mapping, and API schemas |
 | `sideseat-adapter-*` | Concrete databases, queues, caches, blob stores, pricing, secrets, and registrations |
@@ -22,8 +23,9 @@ The backend is a Cargo workspace rooted at the repository root. Every backend cr
 Dependency direction is inward:
 
 ```text
-server -> api/domain/adapters -> ports/core
-api -> domain/ports/core
+server -> api/ingestion/domain/adapters -> ports/core
+api -> ingestion/domain/ports/core
+ingestion -> domain/ports/core
 domain -> ports/core
 adapters -> ports/core
 ```
@@ -43,7 +45,8 @@ The transport layer owns:
 - conversion of lifecycle outcomes into protocol responses.
 
 After decoding, both transports call the same signal implementation in
-`sideseat_domain::signals::export_signal`. HTTP and gRPC must not implement separate ingestion decisions.
+`sideseat_ingestion::signals::export_signal`. HTTP and gRPC must not implement separate ingestion
+decisions.
 
 The registered signals are traces, metrics, and logs. Each declares:
 
@@ -289,9 +292,3 @@ When adding a signal or producer:
 7. add captured fixtures or a source-program oracle;
 8. extend both HTTP and gRPC registration checks;
 9. document any acknowledgement or retention change here.
-
-## Known boundary debt
-
-`sideseat-domain` currently owns generated OTLP request types and the application orchestration that converts
-them into normalized records. This is the remaining major layering issue: the pure domain model and OTLP
-ingestion application logic should become separate crates while preserving the lifecycle and tests above.

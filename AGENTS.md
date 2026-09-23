@@ -18,8 +18,10 @@ The Rust workspace follows ports and adapters:
   must not depend on SideSeat crates or infrastructure drivers.
 - `server/crates/ports`: storage and service traits plus shared DTOs. It contains no
   adapter implementations or SQL.
-- `server/crates/domain`: ingestion, SideML, rules, retention, search, files, storage
-  governance, staging, and restore workflows.
+- `server/crates/domain`: SideML, rules, retention, search, files, storage governance,
+  and restore workflows.
+- `server/crates/ingestion`: OTLP decoding, normalization, signal identity, staging,
+  durability, queue coordination, and persistence orchestration.
 - `server/crates/query-sql`: typed analytical queries and backend-specific lowering.
 - `server/crates/api`: HTTP, gRPC, MCP, SSE, and WebSocket transport code.
 - `server/crates/adapter-*`: implementations for databases, blobs, cache, secrets,
@@ -27,9 +29,9 @@ The Rust workspace follows ports and adapters:
 - `server`: the composition root. It selects adapters, wires services, starts
   background work, and owns process lifecycle.
 
-Dependencies point inward. Domain code talks to ports, never directly to an
-adapter. Adapters do not import sibling adapters. The server may depend on all
-layers because it assembles the application.
+Dependencies point inward. Ingestion depends on domain and ports; domain talks
+to ports, never directly to an adapter. Adapters do not import sibling adapters.
+The server may depend on all layers because it assembles the application.
 
 Detailed architecture belongs in `docs/engineering/`. User-facing behavior
 belongs in `docs/src/`. Do not turn agent instructions into a second

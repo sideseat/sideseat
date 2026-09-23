@@ -33,9 +33,9 @@ use sideseat_domain::restore::{
     AssociationRepairReport, JournalReplayReport, reconcile_restored_associations,
     replay_deletion_journal,
 };
-use sideseat_domain::staging::{StagedPayloadRef, StagingService};
 use sideseat_domain::storage_governance::{RestoreQuotaRepairReport, StorageGovernanceService};
-use sideseat_domain::topics::TopicService;
+use sideseat_ingestion::staging::{StagedPayloadRef, StagingService};
+use sideseat_ingestion::topics::TopicService;
 use sideseat_ports::cache::CacheStore;
 use sideseat_ports::clock::Clock;
 use sideseat_ports::pricing::PricingCatalogueSource;
@@ -463,7 +463,7 @@ impl CoreApp {
                     // the request too, as the HTTP one does.
                     trace_pipeline: (!app.topics.is_durable()).then(|| {
                         Arc::new(
-                            sideseat_domain::traces::TracePipeline::new(
+                            sideseat_ingestion::traces::TracePipeline::new(
                                 Arc::clone(&app.analytics_port),
                                 app.pricing.clone(),
                                 app.topics.clone(),
@@ -624,7 +624,7 @@ impl CoreApp {
         let traces_topic = self.topics.stream_topic::<StagedPayloadRef>(TOPIC_TRACES);
 
         let pipeline = Arc::new(
-            sideseat_domain::traces::TracePipeline::new(
+            sideseat_ingestion::traces::TracePipeline::new(
                 Arc::from(self.analytics.repository()),
                 self.pricing.clone(),
                 self.topics.clone(),
@@ -638,7 +638,7 @@ impl CoreApp {
             .register(Arc::clone(&pipeline).start(traces_topic, self.shutdown.subscribe()))
             .await;
         self.shutdown
-            .register(sideseat_domain::staging::start_staging_sweep(
+            .register(sideseat_ingestion::staging::start_staging_sweep(
                 Arc::clone(&self.staging),
                 pipeline,
                 self.shutdown.subscribe(),

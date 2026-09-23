@@ -14,13 +14,13 @@ use std::sync::Arc;
 use axum::Router;
 use axum::routing::post;
 use sideseat_core::constants::TOPIC_TRACES;
-pub use sideseat_domain::otlp::{
+use sideseat_domain::storage_governance::StorageGovernanceService;
+pub use sideseat_ingestion::otlp::{
     inject_project_id_logs, inject_project_id_metrics, inject_project_id_traces,
 };
-use sideseat_domain::signals::{LogSignal, MetricsSignal, TraceSignal};
-use sideseat_domain::staging::{StagedPayloadRef, StagingService};
-use sideseat_domain::storage_governance::StorageGovernanceService;
-use sideseat_domain::topics::TopicService;
+use sideseat_ingestion::signals::{LogSignal, MetricsSignal, TraceSignal};
+use sideseat_ingestion::staging::{StagedPayloadRef, StagingService};
+use sideseat_ingestion::topics::TopicService;
 use sideseat_ports::clock::Clock;
 
 #[derive(Clone)]
@@ -72,7 +72,7 @@ pub fn routes(
     clock: Arc<dyn Clock>,
     staging: Arc<StagingService>,
     storage_governance: Arc<StorageGovernanceService>,
-    trace_pipeline: Option<Arc<sideseat_domain::traces::TracePipeline>>,
+    trace_pipeline: Option<Arc<sideseat_ingestion::traces::TracePipeline>>,
 ) -> Router {
     // Use stream topic for traces (at-least-once delivery)
     let trace_topic = Arc::new(topics.stream_topic::<StagedPayloadRef>(TOPIC_TRACES));

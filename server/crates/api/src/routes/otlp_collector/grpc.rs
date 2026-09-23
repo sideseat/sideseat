@@ -28,12 +28,12 @@ use crate::extractors::is_valid_project_id;
 use sideseat_core::config::OtelConfig;
 use sideseat_core::constants::{OTLP_BODY_LIMIT, TOPIC_TRACES};
 use sideseat_core::storage::{AppStorage, DataSubdir};
-use sideseat_domain::signals::{
+use sideseat_domain::storage_governance::StorageGovernanceService;
+use sideseat_ingestion::signals::{
     LogSignal, MetricsSignal, SignalContext, SignalExportError, TraceSignal, export_signal,
 };
-use sideseat_domain::staging::{StagedPayloadRef, StagingService};
-use sideseat_domain::storage_governance::StorageGovernanceService;
-use sideseat_domain::topics::TopicService;
+use sideseat_ingestion::staging::{StagedPayloadRef, StagingService};
+use sideseat_ingestion::topics::TopicService;
 use sideseat_ports::clock::Clock;
 
 const PROJECT_ID_HEADER: &str = "x-sideseat-project-id";
@@ -327,7 +327,7 @@ pub struct IngestStores {
     pub analytics: Arc<crate::dependencies::AnalyticsStore>,
     pub database: Arc<crate::dependencies::TransactionalStore>,
     /// Present exactly when the queue is not durable, in which case traces are written in the request.
-    pub trace_pipeline: Option<Arc<sideseat_domain::traces::TracePipeline>>,
+    pub trace_pipeline: Option<Arc<sideseat_ingestion::traces::TracePipeline>>,
     pub clock: Arc<dyn Clock>,
     pub staging: Arc<StagingService>,
     pub storage_governance: Arc<StorageGovernanceService>,

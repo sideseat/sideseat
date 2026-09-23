@@ -429,7 +429,7 @@ async fn run_connection(
 }
 
 async fn recv_control(
-    sub: &mut Option<sideseat_domain::topics::BroadcastTopicSubscriber<ConnectionControl>>,
+    sub: &mut Option<sideseat_ingestion::topics::BroadcastTopicSubscriber<ConnectionControl>>,
 ) -> Option<ConnectionControl> {
     if let Some(s) = sub.as_mut() {
         s.recv().await.ok()
@@ -751,7 +751,7 @@ mod control_routing_tests {
     fn state() -> WsState {
         let (_tx, rx) = tokio::sync::watch::channel(false);
         WsState::new(
-            Arc::new(sideseat_domain::topics::TopicService::new(
+            Arc::new(sideseat_ingestion::topics::TopicService::new(
                 sideseat_adapter_topics::memory_backend(),
             )),
             Arc::new(MemoryRegistrationStore::new()),

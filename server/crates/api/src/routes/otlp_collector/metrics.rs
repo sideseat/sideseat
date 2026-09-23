@@ -10,7 +10,7 @@ use super::OtlpState;
 use super::encoding::{OtlpContentType, decode_request, success_response};
 use crate::extractors::is_valid_project_id;
 use sideseat_core::constants::BACKPRESSURE_RETRY_AFTER_SECS;
-use sideseat_domain::signals::{SignalContext, SignalExportError, export_signal};
+use sideseat_ingestion::signals::{SignalContext, SignalExportError, export_signal};
 
 pub async fn export(
     State(state): State<OtlpState>,

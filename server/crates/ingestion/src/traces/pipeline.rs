@@ -1,4 +1,4 @@
-//! Trace Processing Pipeline
+//! Trace ingestion pipeline.
 //!
 //! Orchestrates the 5-stage trace processing pipeline:
 //!
@@ -12,7 +12,7 @@
 //! │  │          │   │          │   │         │   │        │   │          │           │
 //! │  │ Protobuf │   │ Events   │   │ Raw →   │   │ Costs  │   │ Raw JSON │           │
 //! │  │ GenAI    │   │ Attrs    │   │ SideML  │   │Previews│   │ SSE pub  │           │
-//! │  │ Classify │   │ Extract  │   │ msgs    │   │        │   │ DuckDB   │           │
+//! │  │ Classify │   │ Extract  │   │ msgs    │   │        │   │ Storage  │           │
 //! │  └──────────┘   └──────────┘   └─────────┘   └────────┘   └──────────┘           │
 //! │                                                                                  │
 //! └──────────────────────────────────────────────────────────────────────────────────┘
@@ -46,15 +46,15 @@ use super::persist::{
     persist_extracted_files, prepare_batch, publish_sse_events, reconcile_incoming_references,
     write_to_duckdb,
 };
-use crate::content_bodies::ContentBodyService;
-use crate::files::FileService;
-use crate::pricing::PricingService;
-use crate::sideml::to_sideml_batch;
 use crate::staging::{StagedPayloadRef, StagingDisposition, StagingService};
-use crate::storage_governance::StorageGovernanceService;
 use crate::topics::{StreamTopic, TopicService};
 use sideseat_core::constants::{DEFAULT_PROJECT_ID, PIPELINE_CPU_PHASE_MAX_INFLIGHT_BYTES};
 use sideseat_core::utils::time::is_storable;
+use sideseat_domain::content_bodies::ContentBodyService;
+use sideseat_domain::files::FileService;
+use sideseat_domain::pricing::PricingService;
+use sideseat_domain::sideml::to_sideml_batch;
+use sideseat_domain::storage_governance::StorageGovernanceService;
 use sideseat_ports::queue::TopicError;
 use sideseat_ports::traits::AnalyticsRepository;
 use sideseat_ports::types::{NormalizedSpan, ProjectId, StagedPayload, StagedSignal};
@@ -1084,7 +1084,7 @@ impl TracePipeline {
                 return true;
             }
         }
-        crate::search::index_spans(&mut all_db_spans);
+        sideseat_domain::search::index_spans(&mut all_db_spans);
 
         // Transitional dual-write: inline analytics columns remain populated and are the read fallback.
         // This branch is therefore allowed to fail without refusing an otherwise durable OTLP write, but
@@ -2498,7 +2498,7 @@ impl TracePipeline {
                     };
                 }
             }
-            crate::search::index_spans(&mut db_spans);
+            sideseat_domain::search::index_spans(&mut db_spans);
 
             let mut staged_bodies = match self
                 .content_bodies
@@ -2933,7 +2933,6 @@ mod session_fence_tests {
         Arc<dyn sideseat_ports::traits::TransactionalRepository + Send + Sync>,
         TracePipeline,
     ) {
-        use crate::pricing::PricingService;
         use crate::topics::TopicService;
         use chrono::{TimeZone, Utc};
         use sideseat_adapter_blob_storage::FilesystemStorage;
@@ -2944,6 +2943,7 @@ mod session_fence_tests {
             CacheBackendType, CacheConfig, EvictionPolicy, FilesConfig, StorageBackend,
         };
         use sideseat_core::storage::AppStorage;
+        use sideseat_domain::pricing::PricingService;
         use sideseat_ports::clock::Clock;
         use sideseat_ports::traits::TransactionalRepository;
 

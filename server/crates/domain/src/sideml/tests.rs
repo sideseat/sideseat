@@ -4,7 +4,7 @@ use super::*;
 use chrono::{TimeZone, Utc};
 use serde_json::json;
 
-use crate::traces::{MessageSource, RawMessage};
+use crate::observations::{MessageSource, RawMessage};
 use normalize::categorize_tool_message;
 use sideseat_ports::types::{MessageCategory, MessageSourceType};
 
@@ -2162,7 +2162,7 @@ fn test_role_from_event_name_unknown() {
 
 #[test]
 fn test_bundled_tool_results_are_split_into_separate_messages() {
-    use crate::traces::{MessageSource, RawMessage};
+    use crate::observations::{MessageSource, RawMessage};
 
     // Strands/Bedrock format: multiple toolResult objects in one message
     let bundled_message = RawMessage {
@@ -2199,7 +2199,7 @@ fn test_bundled_tool_results_are_split_into_separate_messages() {
 
 #[test]
 fn test_single_tool_result_not_split() {
-    use crate::traces::{MessageSource, RawMessage};
+    use crate::observations::{MessageSource, RawMessage};
 
     // Single toolResult should not be modified
     let single_message = RawMessage {
@@ -2227,7 +2227,7 @@ fn test_single_tool_result_not_split() {
 
 #[test]
 fn test_non_tool_messages_not_affected_by_bundling_logic() {
-    use crate::traces::{MessageSource, RawMessage};
+    use crate::observations::{MessageSource, RawMessage};
 
     // User message should pass through unchanged
     let user_message = RawMessage {
@@ -2251,7 +2251,7 @@ fn test_non_tool_messages_not_affected_by_bundling_logic() {
 
 #[test]
 fn test_special_role_tool_call_preserved() {
-    use crate::traces::{MessageSource, RawMessage};
+    use crate::observations::{MessageSource, RawMessage};
 
     // tool_call is a special role that should NOT be overridden by event-derived role
     let raw_message = RawMessage {
@@ -2276,7 +2276,7 @@ fn test_special_role_tool_call_preserved() {
 
 #[test]
 fn test_special_role_tools_preserved() {
-    use crate::traces::{MessageSource, RawMessage};
+    use crate::observations::{MessageSource, RawMessage};
 
     // tools role for tool definitions should be preserved
     let raw_message = RawMessage {
@@ -2299,7 +2299,7 @@ fn test_special_role_tools_preserved() {
 
 #[test]
 fn test_special_role_data_preserved() {
-    use crate::traces::{MessageSource, RawMessage};
+    use crate::observations::{MessageSource, RawMessage};
 
     // data role for conversation history should be preserved
     let raw_message = RawMessage {
@@ -2322,7 +2322,7 @@ fn test_special_role_data_preserved() {
 
 #[test]
 fn test_special_role_context_preserved() {
-    use crate::traces::{MessageSource, RawMessage};
+    use crate::observations::{MessageSource, RawMessage};
 
     // context role should be preserved
     let raw_message = RawMessage {
@@ -2345,7 +2345,7 @@ fn test_special_role_context_preserved() {
 
 #[test]
 fn test_standard_role_overridden_by_event() {
-    use crate::traces::{MessageSource, RawMessage};
+    use crate::observations::{MessageSource, RawMessage};
 
     // Standard roles (user, assistant, tool, system) should be overridden by event-derived role
     let raw_message = RawMessage {
@@ -2370,8 +2370,8 @@ fn test_standard_role_overridden_by_event() {
 
 #[test]
 fn test_tool_result_gets_name_from_matching_tool_use() {
+    use crate::observations::{MessageSource, RawMessage};
     use crate::sideml::to_sideml_with_context;
-    use crate::traces::{MessageSource, RawMessage};
 
     // Tool call with name
     let tool_call = RawMessage {
@@ -2413,7 +2413,7 @@ fn test_tool_result_gets_name_from_matching_tool_use() {
 
 #[test]
 fn test_tool_result_no_name_when_no_matching_tool_use() {
-    use crate::traces::{MessageSource, RawMessage};
+    use crate::observations::{MessageSource, RawMessage};
 
     // Tool result with no matching tool call
     let tool_result = RawMessage {
@@ -2439,8 +2439,8 @@ fn test_tool_result_no_name_when_no_matching_tool_use() {
 
 #[test]
 fn test_gen_ai_choice_in_tool_span_becomes_tool_role() {
+    use crate::observations::{MessageSource, RawMessage};
     use crate::sideml::to_sideml_with_context;
-    use crate::traces::{MessageSource, RawMessage};
 
     let message = RawMessage {
         source: MessageSource::Event {
@@ -2465,8 +2465,8 @@ fn test_gen_ai_choice_in_tool_span_becomes_tool_role() {
 
 #[test]
 fn test_gen_ai_choice_in_chat_span_becomes_assistant_role() {
+    use crate::observations::{MessageSource, RawMessage};
     use crate::sideml::to_sideml_with_context;
-    use crate::traces::{MessageSource, RawMessage};
 
     let message = RawMessage {
         source: MessageSource::Event {
@@ -2491,8 +2491,8 @@ fn test_gen_ai_choice_in_chat_span_becomes_assistant_role() {
 
 #[test]
 fn test_gen_ai_tool_message_in_chat_span_becomes_tool_role() {
+    use crate::observations::{MessageSource, RawMessage};
     use crate::sideml::to_sideml_with_context;
-    use crate::traces::{MessageSource, RawMessage};
 
     let message = RawMessage {
         source: MessageSource::Event {
@@ -2561,7 +2561,7 @@ fn test_normalize_message_with_message_string() {
 
 #[test]
 fn test_to_sideml_derives_assistant_role_from_choice_event() {
-    use crate::traces::{MessageSource, RawMessage};
+    use crate::observations::{MessageSource, RawMessage};
 
     let raw_message = RawMessage {
         source: MessageSource::Event {
@@ -2586,7 +2586,7 @@ fn test_to_sideml_derives_assistant_role_from_choice_event() {
 
 #[test]
 fn test_to_sideml_derives_user_role_from_user_message_event() {
-    use crate::traces::{MessageSource, RawMessage};
+    use crate::observations::{MessageSource, RawMessage};
 
     let raw_message = RawMessage {
         source: MessageSource::Event {
@@ -2606,7 +2606,7 @@ fn test_to_sideml_derives_user_role_from_user_message_event() {
 
 #[test]
 fn test_to_sideml_derives_tool_role_from_tool_message_event() {
-    use crate::traces::{MessageSource, RawMessage};
+    use crate::observations::{MessageSource, RawMessage};
 
     let raw_message = RawMessage {
         source: MessageSource::Event {
@@ -2627,7 +2627,7 @@ fn test_to_sideml_derives_tool_role_from_tool_message_event() {
 
 #[test]
 fn test_to_sideml_event_derived_role_takes_precedence() {
-    use crate::traces::{MessageSource, RawMessage};
+    use crate::observations::{MessageSource, RawMessage};
 
     // Event-derived role takes precedence over explicit role in content
     // (except for special roles like tool_call, tools, data, context)
@@ -2655,7 +2655,7 @@ fn test_to_sideml_event_derived_role_takes_precedence() {
 
 #[test]
 fn test_unflatten_tool_calls_from_openinference() {
-    use crate::traces::{MessageSource, RawMessage};
+    use crate::observations::{MessageSource, RawMessage};
 
     // OpenInference stores tool calls as flattened attributes
     let raw_message = RawMessage {
@@ -2692,7 +2692,7 @@ fn test_unflatten_tool_calls_from_openinference() {
 
 #[test]
 fn test_unflatten_multiple_tool_calls() {
-    use crate::traces::{MessageSource, RawMessage};
+    use crate::observations::{MessageSource, RawMessage};
 
     let raw_message = RawMessage {
         source: MessageSource::Attribute {
@@ -2741,7 +2741,7 @@ fn test_unflatten_multiple_tool_calls() {
 
 #[test]
 fn test_unflatten_no_dotted_keys_unchanged() {
-    use crate::traces::{MessageSource, RawMessage};
+    use crate::observations::{MessageSource, RawMessage};
 
     // Message without dotted keys should pass through unchanged
     let raw_message = RawMessage {
@@ -2768,7 +2768,7 @@ fn test_unflatten_no_dotted_keys_unchanged() {
 
 #[test]
 fn test_unflatten_nested_object_path() {
-    use crate::traces::{MessageSource, RawMessage};
+    use crate::observations::{MessageSource, RawMessage};
 
     // Test deeply nested path without array indices
     let raw_message = RawMessage {
@@ -2970,7 +2970,7 @@ fn test_normalize_data_role_message() {
 
 #[test]
 fn test_category_from_data_role() {
-    use crate::traces::{MessageSource, RawMessage};
+    use crate::observations::{MessageSource, RawMessage};
 
     let raw_message = RawMessage {
         source: MessageSource::Attribute {
@@ -3034,7 +3034,7 @@ fn test_context_type_inferred_from_context_role() {
 
 #[test]
 fn test_category_from_tool_call_role() {
-    use crate::traces::{MessageSource, RawMessage};
+    use crate::observations::{MessageSource, RawMessage};
 
     let raw_message = RawMessage {
         source: MessageSource::Attribute {
@@ -3057,7 +3057,7 @@ fn test_category_from_tool_call_role() {
 #[test]
 fn test_tool_call_role_from_event_gets_tool_input_category() {
     // Event source with role="tool_call" (from tool span extraction) should get GenAIToolInput
-    use crate::traces::{MessageSource, RawMessage};
+    use crate::observations::{MessageSource, RawMessage};
 
     let raw_message = RawMessage {
         source: MessageSource::Event {
@@ -3084,7 +3084,7 @@ fn test_tool_call_role_from_event_gets_tool_input_category() {
 
 #[test]
 fn test_category_from_tools_role() {
-    use crate::traces::{MessageSource, RawMessage};
+    use crate::observations::{MessageSource, RawMessage};
 
     let raw_message = RawMessage {
         source: MessageSource::Attribute {
@@ -4825,7 +4825,7 @@ fn test_chat_span_role_derivation_with_gen_ai_choice() {
 
 #[test]
 fn test_documents_role_is_preserved_in_special_roles() {
-    use crate::traces::{MessageSource, RawMessage};
+    use crate::observations::{MessageSource, RawMessage};
 
     // OpenInference retrieval documents have role="documents"
     let raw_messages = vec![RawMessage {
@@ -4861,7 +4861,7 @@ fn test_documents_role_is_preserved_in_special_roles() {
 
 #[test]
 fn test_documents_role_from_attribute_source() {
-    use crate::traces::{MessageSource, RawMessage};
+    use crate::observations::{MessageSource, RawMessage};
 
     // Documents from attribute source (e.g., retrieval.documents)
     let raw_messages = vec![RawMessage {
@@ -4889,7 +4889,7 @@ fn test_documents_role_from_attribute_source() {
 
 #[test]
 fn test_message_array_expanded_from_ai_prompt_messages() {
-    use crate::traces::{MessageSource, RawMessage};
+    use crate::observations::{MessageSource, RawMessage};
 
     // Vercel AI SDK format: ai.prompt.messages contains array
     let raw_messages = vec![RawMessage {
@@ -4916,7 +4916,7 @@ fn test_message_array_expanded_from_ai_prompt_messages() {
 
 #[test]
 fn test_message_array_expanded_from_mlflow_span_inputs() {
-    use crate::traces::{MessageSource, RawMessage};
+    use crate::observations::{MessageSource, RawMessage};
 
     // MLflow format: mlflow.spanInputs contains messages
     let raw_messages = vec![RawMessage {
@@ -4943,7 +4943,7 @@ fn test_message_array_expanded_from_mlflow_span_inputs() {
 
 #[test]
 fn test_message_array_not_expanded_from_unknown_source() {
-    use crate::traces::{MessageSource, RawMessage};
+    use crate::observations::{MessageSource, RawMessage};
 
     // Unknown source should NOT be expanded (could be intentionally bundled)
     let raw_messages = vec![RawMessage {
@@ -4972,7 +4972,7 @@ fn test_message_array_not_expanded_from_unknown_source() {
 
 #[test]
 fn test_tool_message_in_tool_span_without_extraction_role() {
-    use crate::traces::{MessageSource, RawMessage};
+    use crate::observations::{MessageSource, RawMessage};
 
     // Edge case: gen_ai.tool.message in tool span WITHOUT role set during extraction
     // In tool spans, gen_ai.tool.message is tool INPUT (invocation args)
@@ -5002,7 +5002,7 @@ fn test_tool_message_in_tool_span_without_extraction_role() {
 
 #[test]
 fn test_tool_call_role_preserved_in_tool_span() {
-    use crate::traces::{MessageSource, RawMessage};
+    use crate::observations::{MessageSource, RawMessage};
 
     // Normal case: gen_ai.tool.message in tool span WITH tool_call role from extraction
     // "tool_call" represents the assistant invoking a tool, so it becomes a ToolUse block
@@ -5046,7 +5046,7 @@ fn test_tool_call_role_preserved_in_tool_span() {
 
 #[test]
 fn test_gen_ai_tool_result_role_derivation() {
-    use crate::traces::{MessageSource, RawMessage};
+    use crate::observations::{MessageSource, RawMessage};
 
     // gen_ai.tool.result event should always derive Tool role
     let raw_messages = vec![RawMessage {
@@ -5071,7 +5071,7 @@ fn test_gen_ai_tool_result_role_derivation() {
 
 #[test]
 fn test_special_roles_categorization() {
-    use crate::traces::{MessageSource, RawMessage};
+    use crate::observations::{MessageSource, RawMessage};
 
     let test_cases = vec![
         ("tool_call", MessageCategory::GenAIToolInput),
@@ -5145,7 +5145,7 @@ fn test_gemini_synthetic_id_is_deterministic() {
 
 #[test]
 fn test_special_roles_case_insensitive() {
-    use crate::traces::{MessageSource, RawMessage};
+    use crate::observations::{MessageSource, RawMessage};
 
     // Test that SPECIAL_ROLES check is case-insensitive
     let test_cases = vec![
@@ -5184,7 +5184,7 @@ fn test_special_roles_case_insensitive() {
 
 #[test]
 fn test_bundled_tool_results_snake_case_format() {
-    use crate::traces::{MessageSource, RawMessage};
+    use crate::observations::{MessageSource, RawMessage};
 
     // Test snake_case variant: tool_result instead of toolResult
     let bundled_message = RawMessage {
@@ -5212,7 +5212,7 @@ fn test_bundled_tool_results_snake_case_format() {
 
 #[test]
 fn test_bundled_tool_results_direct_array() {
-    use crate::traces::{MessageSource, RawMessage};
+    use crate::observations::{MessageSource, RawMessage};
 
     // Test direct array format (content is top-level array, not nested)
     let bundled_message = RawMessage {
@@ -5295,7 +5295,7 @@ fn test_content_extraction_from_arguments_field() {
 
 #[test]
 fn test_message_array_expanded_from_messages_field() {
-    use crate::traces::{MessageSource, RawMessage};
+    use crate::observations::{MessageSource, RawMessage};
 
     // Test "messages" field expansion (common in many frameworks)
     let raw_messages = vec![RawMessage {
@@ -5324,7 +5324,7 @@ fn test_message_array_expanded_from_messages_field() {
 
 #[test]
 fn test_message_array_expansion_with_gemini_parts() {
-    use crate::traces::{MessageSource, RawMessage};
+    use crate::observations::{MessageSource, RawMessage};
 
     // Test that Gemini format with "parts" is recognized as message-like
     let raw_messages = vec![RawMessage {
@@ -5348,7 +5348,7 @@ fn test_message_array_expansion_with_gemini_parts() {
 
 #[test]
 fn test_message_array_expansion_with_bedrock_text() {
-    use crate::traces::{MessageSource, RawMessage};
+    use crate::observations::{MessageSource, RawMessage};
 
     // Test that Bedrock format with "text" is recognized as message-like
     let raw_messages = vec![RawMessage {

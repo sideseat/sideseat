@@ -17,7 +17,7 @@ use axum::Router;
 use axum::routing::get;
 use tokio::sync::watch;
 
-use sideseat_domain::topics::TopicService;
+use sideseat_ingestion::topics::TopicService;
 use sideseat_ports::clock::Clock;
 use sideseat_ports::registrations::RegistrationStore;
 

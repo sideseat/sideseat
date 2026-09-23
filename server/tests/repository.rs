@@ -3188,6 +3188,43 @@ fn domain_owns_no_openapi_schema_dependency() {
 }
 
 #[test]
+fn domain_owns_no_otlp_transport_types() {
+    let repo = repo_root();
+    let manifest = std::fs::read_to_string(repo.join("server/crates/domain/Cargo.toml"))
+        .expect("domain manifest");
+    for dependency in ["opentelemetry-proto", "prost", "tonic"] {
+        assert!(
+            !manifest.lines().any(|line| {
+                let line = line.trim();
+                !line.starts_with('#')
+                    && line
+                        .split_once(['=', ' '])
+                        .is_some_and(|(name, _)| name.trim() == dependency)
+            }),
+            "generated OTLP transport dependency `{dependency}` belongs in sideseat-ingestion"
+        );
+    }
+
+    let source_root = repo.join("server/crates/domain/src");
+    let mut pending = vec![source_root];
+    while let Some(directory) = pending.pop() {
+        for entry in std::fs::read_dir(&directory).expect("domain source directory is readable") {
+            let path = entry.expect("domain source entry is readable").path();
+            if path.is_dir() {
+                pending.push(path);
+            } else if path.extension().and_then(|extension| extension.to_str()) == Some("rs") {
+                let source = std::fs::read_to_string(&path).expect("domain source is readable");
+                assert!(
+                    !source.contains("opentelemetry_proto") && !source.contains("prost::"),
+                    "{} imports generated OTLP transport types",
+                    path.strip_prefix(repo).unwrap_or(&path).display()
+                );
+            }
+        }
+    }
+}
+
+#[test]
 fn pricing_http_is_owned_by_an_adapter() {
     let repo = repo_root();
     let domain_manifest = std::fs::read_to_string(repo.join("server/crates/domain/Cargo.toml"))
@@ -3370,7 +3407,12 @@ fn the_api_crate_names_only_inward_workspace_crates() {
         .collect();
     assert_eq!(
         workspace_dependencies,
-        BTreeSet::from(["sideseat-core", "sideseat-domain", "sideseat-ports"]),
+        BTreeSet::from([
+            "sideseat-core",
+            "sideseat-domain",
+            "sideseat-ingestion",
+            "sideseat-ports",
+        ]),
         "the API transport may depend only on inward-facing SideSeat crates"
     );
 }
@@ -3741,7 +3783,7 @@ fn every_registered_signal_uses_the_shared_lifecycle_on_both_transports() {
         std::fs::read_to_string(repo.join("server/crates/api/src/routes/otlp_collector/grpc.rs"))
             .expect("OTLP gRPC services are readable");
 
-    for signal in sideseat_domain::signals::REGISTERED_SIGNAL_NAMES {
+    for signal in sideseat_ingestion::signals::REGISTERED_SIGNAL_NAMES {
         let http_path = repo.join(format!(
             "server/crates/api/src/routes/otlp_collector/{signal}.rs"
         ));

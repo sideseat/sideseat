@@ -50,7 +50,7 @@ use sideseat_domain::sideml::feed::{
     FeedOptions, extract_tools_from_rows, legacy_and_neutral_order, presented_and_unconstrained,
     process_feed, process_spans, shadow_resolved_order,
 };
-use sideseat_domain::traces::extract::ExtractionMode;
+use sideseat_ingestion::traces::extract::ExtractionMode;
 use sideseat_ports::types::{MessageSpanRow, ObservationType, ProjectId};
 
 #[path = "message_goldens/source_program.rs"]
@@ -71,7 +71,7 @@ fn normalize_for_test_with_mode(
     mode: ExtractionMode,
 ) -> Vec<(String, MessageSpanRow)> {
     let Some(spans) =
-        sideseat_domain::traces::process_request_for_test_with_mode(request, pricing, mode)
+        sideseat_ingestion::traces::process_request_for_test_with_mode(request, pricing, mode)
     else {
         return Vec::new();
     };
@@ -3153,7 +3153,7 @@ fn a_barrier_orders_exactly_as_pairwise_edges_do() {
 async fn bench_ingestion_end_to_end() {
     use sideseat_core::config::{FilesConfig, StorageBackend};
     use sideseat_core::storage::AppStorage;
-    use sideseat_domain::traces::TracePipeline;
+    use sideseat_ingestion::traces::TracePipeline;
     use sideseat_server::app::files::create_file_service;
     use sideseat_server::app::storage::{AnalyticsService, TransactionalService};
     use std::sync::Arc;
@@ -3258,11 +3258,11 @@ async fn bench_ingestion_end_to_end() {
         let pipeline = TracePipeline::new(
             Arc::clone(&analytics_port),
             Arc::new(PricingService::init_for_test().expect("offline pricing service")),
-            Arc::new(sideseat_domain::topics::TopicService::new(
+            Arc::new(sideseat_ingestion::topics::TopicService::new(
                 sideseat_adapter_topics::memory_backend(),
             )),
             Arc::clone(&files),
-            Arc::new(sideseat_domain::staging::StagingService::new(
+            Arc::new(sideseat_ingestion::staging::StagingService::new(
                 Arc::clone(files.storage()),
                 database_port,
                 analytics_port,
@@ -3880,9 +3880,9 @@ fn clause_paths(emission: &sideseat_domain::rules::message_rules::Emission<'_>) 
 }
 
 fn rules_that_emit() -> BTreeSet<String> {
-    use sideseat_domain::otlp::extract_attributes;
     use sideseat_domain::rules::MessageContext;
     use sideseat_domain::rules::message_rules::OwnedCarrier;
+    use sideseat_ingestion::otlp::extract_attributes;
 
     let plan = &sideseat_domain::rules::ruleset().messages;
     let mut fired = BTreeSet::new();
@@ -3904,7 +3904,7 @@ fn rules_that_emit() -> BTreeSet<String> {
                             std::collections::HashSet::new();
                         // The sources the dialects produced, in the form the answer-recovery test reads.
                         let mut dialect_output: Vec<
-                            sideseat_domain::traces::extract::MessageSource,
+                            sideseat_ingestion::traces::extract::MessageSource,
                         > = Vec::new();
                         for emission in plan.run(&ctx) {
                             fired.insert(emission.rule_id.to_string());
@@ -3921,12 +3921,12 @@ fn rules_that_emit() -> BTreeSet<String> {
                             let time = chrono::Utc::now();
                             let name = emission.carrier.name().to_string();
                             dialect_output.push(if emission.carrier.is_event() {
-                                sideseat_domain::traces::extract::MessageSource::Event {
+                                sideseat_ingestion::traces::extract::MessageSource::Event {
                                     name,
                                     time,
                                 }
                             } else {
-                                sideseat_domain::traces::extract::MessageSource::Attribute {
+                                sideseat_ingestion::traces::extract::MessageSource::Attribute {
                                     key: name,
                                     time,
                                 }
@@ -3943,7 +3943,7 @@ fn rules_that_emit() -> BTreeSet<String> {
                         // a genuinely dead one.
                         if !is_tool {
                             let observation =
-                                sideseat_domain::traces::extract::attributes::detect_observation_type(
+                                sideseat_ingestion::traces::extract::attributes::detect_observation_type(
                                     &span.name, &attrs,
                                 );
                             let generation = observation == ObservationType::Generation;
@@ -3954,7 +3954,7 @@ fn rules_that_emit() -> BTreeSet<String> {
                                     fired.insert(emission.rule_id.to_string());
                                 }
                             } else if generation && !dialect_output.iter().any(|source| {
-                                sideseat_domain::traces::extract::messages::carrier_holds_span_output(
+                                sideseat_ingestion::traces::extract::messages::carrier_holds_span_output(
                                     source,
                                     &span.name,
                                     observation,
@@ -4196,8 +4196,8 @@ fn no_declared_rule_is_dead_across_the_corpus() {
 /// rule that no captured span reaches is visible rather than assumed exercised.
 #[test]
 fn the_declared_classification_matches_the_sweep_across_the_corpus() {
-    use sideseat_domain::otlp::extract_attributes;
-    use sideseat_domain::traces::extract::attributes::{
+    use sideseat_ingestion::otlp::extract_attributes;
+    use sideseat_ingestion::traces::extract::attributes::{
         categorize_span_legacy, detect_observation_type_legacy,
     };
     use sideseat_ports::types::{ObservationType, SpanCategory};
@@ -4574,8 +4574,8 @@ fn no_declared_subdivision_is_dead_across_the_corpus() {
 /// so the finding is a number rather than an argument - and pins it, so a later repair has a baseline.
 #[test]
 fn a_persisted_tool_set_reports_what_its_provenance_would_have_said() {
-    use sideseat_domain::otlp::extract_attributes;
     use sideseat_domain::rules::MessageContext;
+    use sideseat_ingestion::otlp::extract_attributes;
     use std::collections::{BTreeMap, BTreeSet};
 
     let plan = &sideseat_domain::rules::ruleset().messages;
@@ -4764,8 +4764,8 @@ fn contradiction_among(forms: &std::collections::BTreeSet<String>) -> Option<Str
 /// what a reader is shown rather than a re-implementation of it.
 #[cfg(test)]
 fn surviving_definitions(sample: &str, tool: &str) -> usize {
-    use sideseat_domain::otlp::extract_attributes;
     use sideseat_domain::rules::MessageContext;
+    use sideseat_ingestion::otlp::extract_attributes;
 
     let mut declared: Vec<serde_json::Value> = Vec::new();
     for (found, paths) in discover_fixtures() {
@@ -4821,7 +4821,7 @@ fn surviving_definitions(sample: &str, tool: &str) -> usize {
 /// intersection, and the pairs that matter are the ones a real producer writes.
 #[test]
 fn no_span_is_classified_as_two_incompatible_things() {
-    use sideseat_domain::otlp::extract_attributes;
+    use sideseat_ingestion::otlp::extract_attributes;
     use std::collections::BTreeMap;
     // The six observation types that name the same operation a category names. `span`, `guardrail` and
     // `evaluator` leave the category free - a transport call is a plain observation with an HTTP category, and

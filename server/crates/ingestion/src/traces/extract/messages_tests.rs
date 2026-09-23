@@ -6631,8 +6631,8 @@ fn semconv_tool_attributes_become_a_named_correlated_pair() {
 // MESSAGE-RULE EQUIVALENCE: the declared rules against the extractors they replaced
 // ============================================================================
 
-use crate::rules::message_rules::compile;
-use crate::rules::{MessageContext, ruleset, schema};
+use sideseat_domain::rules::message_rules::compile;
+use sideseat_domain::rules::{MessageContext, ruleset, schema};
 
 fn rule_attrs(pairs: &[(&str, &str)]) -> HashMap<String, String> {
     pairs
@@ -8115,10 +8115,10 @@ fn the_rules_reproduce_the_extractors_they_replaced() {
         // The metadata axis, which production reads on every span through `extract_tool_definitions`. The
         // retired extractors pushed tool definitions into the same vector, so both axes are collected here
         // or a declaration that moved to the always-on path would look like a loss.
-        for emission in crate::rules::ruleset().messages.tool_definitions(
-            &crate::rules::MessageContext::for_span("", case, is_tool_span),
+        for emission in sideseat_domain::rules::ruleset().messages.tool_definitions(
+            &sideseat_domain::rules::MessageContext::for_span("", case, is_tool_span),
         ) {
-            if emission.target == crate::rules::schema::EmitTarget::ToolDefinitions {
+            if emission.target == sideseat_domain::rules::schema::EmitTarget::ToolDefinitions {
                 rule_tools.push(RawToolDefinition::from_attr(
                     emission.carrier.name(),
                     time,
@@ -8308,7 +8308,7 @@ fn two_rules_reading_one_carrier_are_refused() {
     let sources = std::collections::BTreeMap::from([("t.json".to_string(), contested.to_vec())]);
     assert!(matches!(
         compile(&sources),
-        Err(crate::rules::message_rules::MessageCompileError::ContestedCarrier { .. })
+        Err(sideseat_domain::rules::message_rules::MessageCompileError::ContestedCarrier { .. })
     ));
 }
 
@@ -8491,7 +8491,9 @@ fn carrier_ownership_conflicts_are_refused() {
         assert!(
             matches!(
                 compile(&sources),
-                Err(crate::rules::message_rules::MessageCompileError::ContestedCarrier { .. })
+                Err(
+                    sideseat_domain::rules::message_rules::MessageCompileError::ContestedCarrier { .. }
+                )
             ),
             "should have been refused: {what}"
         );
@@ -8951,8 +8953,8 @@ fn a_leaf_runs_under_both_gates() {
 /// produce the outcome, which is exactly the shape the next slice adds.
 #[test]
 fn an_unreadable_source_stops_a_chain_and_not_a_merge() {
-    use crate::rules::schema::FieldTarget;
-    use crate::rules::span_fields::{Reading, compile};
+    use sideseat_domain::rules::schema::FieldTarget;
+    use sideseat_domain::rules::span_fields::{Reading, compile};
 
     let asset = br#"{"id":"t","doc":"d","span_fields":[
         {"id":"merged","doc":"d","target":"tags","combine":"merge_all","sources":[
@@ -8996,7 +8998,10 @@ fn an_unreadable_source_stops_a_chain_and_not_a_merge() {
             .refused
             .iter()
             .any(|r| r.carrier == "http.status_code"
-                && matches!(r.cause, crate::rules::refusal::Unusable::Malformed { .. })),
+                && matches!(
+                    r.cause,
+                    sideseat_domain::rules::refusal::Unusable::Malformed { .. }
+                )),
         "the refusal names the source and why: {:?}",
         status.refused
     );
@@ -9039,10 +9044,10 @@ fn an_unreadable_source_stops_a_chain_and_not_a_merge() {
         "an overflowing sum fills nothing rather than reporting a believable maximum"
     );
     assert!(
-        summed
-            .refused
-            .iter()
-            .any(|r| matches!(r.cause, crate::rules::refusal::Unusable::Malformed { .. })),
+        summed.refused.iter().any(|r| matches!(
+            r.cause,
+            sideseat_domain::rules::refusal::Unusable::Malformed { .. }
+        )),
         "and the refusal says why: {:?}",
         summed.refused
     );
@@ -9155,7 +9160,7 @@ fn a_field_source_may_not_declare_a_gate_that_never_holds() {
         let sources =
             std::collections::BTreeMap::from([("t.json".to_string(), asset.as_bytes().to_vec())]);
         assert!(
-            crate::rules::span_fields::compile(&sources).is_err(),
+            sideseat_domain::rules::span_fields::compile(&sources).is_err(),
             "should have been refused: {what}"
         );
     }
@@ -9172,9 +9177,9 @@ fn a_field_source_may_not_declare_a_gate_that_never_holds() {
     let sources =
         std::collections::BTreeMap::from([("t.json".to_string(), ok.as_bytes().to_vec())]);
     assert!(
-        crate::rules::span_fields::compile(&sources).is_ok(),
+        sideseat_domain::rules::span_fields::compile(&sources).is_ok(),
         "a gate naming a real signal must compile: {:?}",
-        crate::rules::span_fields::compile(&sources).err()
+        sideseat_domain::rules::span_fields::compile(&sources).err()
     );
 }
 
@@ -9997,10 +10002,10 @@ fn try_raw_io(
     span_name: &str,
     timestamp: DateTime<Utc>,
 ) -> bool {
-    let produced: Vec<RawMessage> = crate::rules::ruleset()
+    let produced: Vec<RawMessage> = sideseat_domain::rules::ruleset()
         .messages
         .fallback(
-            &crate::rules::MessageContext::for_span(
+            &sideseat_domain::rules::MessageContext::for_span(
                 span_name,
                 attrs,
                 is_tool_execution_span(attrs),
@@ -10065,7 +10070,7 @@ fn the_fallback_inherits_what_the_dialect_stage_read() {
         "output.value",
         r#"{"role":"assistant","content":"the answer"}"#,
     )]);
-    let ctx = crate::rules::MessageContext::for_span("call_llm", &attrs, false);
+    let ctx = sideseat_domain::rules::MessageContext::for_span("call_llm", &attrs, false);
     let plan = &ruleset().messages;
 
     let read_afresh = plan.fallback(&ctx, &std::collections::HashSet::new());
@@ -10078,7 +10083,7 @@ fn the_fallback_inherits_what_the_dialect_stage_read() {
 
     let inherited = plan.fallback(
         &ctx,
-        &std::collections::HashSet::from([crate::rules::message_rules::OwnedCarrier {
+        &std::collections::HashSet::from([sideseat_domain::rules::message_rules::OwnedCarrier {
             is_event: false,
             name: "output.value".to_string(),
         }]),
@@ -10202,7 +10207,7 @@ fn the_single_tool_triple_is_read_last() {
         ("gen_ai.tool.description", "from the triple"),
     ]);
     let (defs, _) = extract_tool_definitions("", &same_name, Utc::now());
-    let merged = crate::sideml::tools::normalize_tools(&JsonValue::Array(
+    let merged = sideseat_domain::sideml::tools::normalize_tools(&JsonValue::Array(
         defs.iter()
             .flat_map(|d| d.content.as_array().cloned().unwrap_or_default())
             .collect(),
@@ -11413,7 +11418,7 @@ fn the_declared_classification_matches_the_sweep_it_shadows() {
         ),
     ];
 
-    let plan = &crate::rules::ruleset().observation_types;
+    let plan = &sideseat_domain::rules::ruleset().observation_types;
     for (what, span_name, attrs) in cases {
         let declared = plan
             .observation_type(span_name, &attrs)
@@ -11611,7 +11616,7 @@ fn the_declared_category_matches_the_sweep_it_shadows() {
         ),
     ];
 
-    let plan = &crate::rules::ruleset().observation_types;
+    let plan = &sideseat_domain::rules::ruleset().observation_types;
     for (what, span_name, attrs) in cases {
         let declared = plan
             .span_category(span_name, &attrs)
@@ -11672,9 +11677,9 @@ fn the_usage_details_are_what_no_declared_counter_reads() {
 /// holds a value's content (ordered), which mean it is message-shaped, and which mean it is a content block.
 #[test]
 fn the_declared_members_reproduce_the_lists_they_replaced() {
-    use crate::sideml::{is_plain_data_value, is_plain_data_value_legacy};
+    use sideseat_domain::sideml::{is_plain_data_value, is_plain_data_value_legacy};
 
-    let plan = &crate::rules::ruleset().message_members;
+    let plan = &sideseat_domain::rules::ruleset().message_members;
 
     // The ordered content chain: the first member the value *has*, not the first holding something.
     let chain: Vec<&str> = plan.content_in_order().collect();
@@ -11746,7 +11751,7 @@ fn the_declared_members_reproduce_the_lists_they_replaced() {
     // message with no blocks. Comparing only the *predicate* over chosen shapes cannot see a member neither
     // shape carries.
     let mut retired_shape: std::collections::BTreeSet<&str> =
-        crate::sideml::message_structure_keys_legacy()
+        sideseat_domain::sideml::test_support::message_structure_keys_legacy()
             .iter()
             .copied()
             .collect();
@@ -11772,7 +11777,7 @@ fn the_declared_members_reproduce_the_lists_they_replaced() {
     // meant, since a member missing from it turns a malformed block into plain structured output and one added
     // to it turns plain data into an unknown block.
     let retired: std::collections::BTreeSet<&str> =
-        crate::sideml::content::provider_content_fields_legacy()
+        sideseat_domain::sideml::test_support::provider_content_fields_legacy()
             .iter()
             .copied()
             .collect();
@@ -11784,7 +11789,7 @@ fn the_declared_members_reproduce_the_lists_they_replaced() {
     }
     // And nothing beyond it, checked from the other side: every declared member that means "content block" is
     // in the retired list.
-    for member in crate::rules::ruleset()
+    for member in sideseat_domain::rules::ruleset()
         .message_members
         .content_block_members()
     {
@@ -11814,7 +11819,7 @@ fn the_declared_members_reproduce_the_lists_they_replaced() {
             "json",
         ),
     ] {
-        let out = crate::sideml::content::normalize_content_block(&block)
+        let out = sideseat_domain::sideml::test_support::normalize_content_block(&block)
             .unwrap_or_else(|| panic!("{what}: nothing normalised {block}"));
         assert_eq!(
             out.get("type").and_then(|t| t.as_str()),

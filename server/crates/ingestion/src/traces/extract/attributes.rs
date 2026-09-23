@@ -13,12 +13,12 @@ use serde_json::{Value as JsonValue, json};
 use sideseat_core::constants;
 use sideseat_ports::types::{ObservationType, SpanCategory};
 // Only the equivalence oracle names the enum now: detection produces a label from the assets.
-use crate::pricing;
 #[cfg(test)]
 use crate::traces::extract::framework_oracle::Framework;
 #[cfg(test)]
 use sideseat_core::utils::string::parse_string_array;
 use sideseat_core::utils::time::nanos_to_datetime;
+use sideseat_domain::pricing;
 
 use super::truncate_bytes;
 
@@ -568,8 +568,8 @@ const REASONING_TOKENS: TokenConfig = TokenConfig::new(
 /// the hole this engine exists to close, and adding a spelling to a counter would otherwise silently change
 /// what the details object contains - the same value counted twice, once as a counter and once as a detail.
 fn counters_already_read() -> std::collections::BTreeSet<&'static str> {
-    use crate::rules::schema::FieldTarget::*;
-    crate::rules::ruleset()
+    use sideseat_domain::rules::schema::FieldTarget::*;
+    sideseat_domain::rules::ruleset()
         .span_fields
         .attributes_read(&[
             UsageInputTokens,
@@ -910,12 +910,12 @@ pub(crate) fn detect_framework(
     span_attrs: &HashMap<String, String>,
     resource_attrs: &HashMap<String, String>,
 ) -> String {
-    let ctx = crate::rules::DetectContext {
+    let ctx = sideseat_domain::rules::DetectContext {
         span_name,
         span_attrs,
         resource_attrs,
     };
-    let plan = &crate::rules::ruleset().detect;
+    let plan = &sideseat_domain::rules::ruleset().detect;
     if let Some(rule) = plan.resolve(&ctx) {
         return rule.label.clone();
     }
@@ -938,7 +938,7 @@ pub(crate) fn detect_framework(
         }
     }
     declared
-        .unwrap_or(crate::rules::UNCLAIMED_LABEL)
+        .unwrap_or(sideseat_domain::rules::UNCLAIMED_LABEL)
         .to_string()
 }
 
@@ -1056,7 +1056,7 @@ impl SemanticKind {
 #[doc(hidden)]
 pub fn categorize_span(span_name: &str, attrs: &HashMap<String, String>) -> SpanCategory {
     // The verdict's label; the evidence is what a diagnostic reads, and the enum is what is stored.
-    let verdict = crate::rules::ruleset()
+    let verdict = sideseat_domain::rules::ruleset()
         .observation_types
         .span_category(span_name, attrs);
     match verdict.as_ref().map(|verdict| verdict.value) {
@@ -1175,7 +1175,7 @@ pub fn detect_observation_type(
     span_name: &str,
     attrs: &HashMap<String, String>,
 ) -> ObservationType {
-    let verdict = crate::rules::ruleset()
+    let verdict = sideseat_domain::rules::ruleset()
         .observation_types
         .observation_type(span_name, attrs);
     match verdict.as_ref().map(|verdict| verdict.value) {
@@ -1375,7 +1375,7 @@ pub(crate) fn apply_span_fields(
     span: &mut SpanData,
     span_name: &str,
     attrs: &HashMap<String, String>,
-    events: &[crate::rules::span_fields::SpanEvent],
+    events: &[sideseat_domain::rules::span_fields::SpanEvent],
 ) -> TokenReadings {
     // Its own step, not a subroutine of either legacy function. Resolution is over *every* declared rule, so
     // calling it from two entry points wrote the same answers twice and made "which entry point owns a target"
@@ -1385,7 +1385,7 @@ pub(crate) fn apply_span_fields(
     // The **real** span name, because a source may read it and a gate may ask about it. Passed as `""` this
     // was the same defect the message path had: such a declaration compiles and can never hold.
     let mut tokens = TokenReadings::default();
-    for resolved in crate::rules::ruleset()
+    for resolved in sideseat_domain::rules::ruleset()
         .span_fields
         .resolve(span_name, attrs, events)
     {
@@ -1422,7 +1422,7 @@ pub(crate) fn apply_span_fields(
 #[cfg(test)]
 pub(super) fn apply_field_for_test(
     span: &mut SpanData,
-    resolved: &crate::rules::span_fields::Resolved,
+    resolved: &sideseat_domain::rules::span_fields::Resolved,
     tokens: &mut TokenReadings,
 ) {
     apply_field(span, resolved, tokens);
@@ -1430,11 +1430,11 @@ pub(super) fn apply_field_for_test(
 
 fn apply_field(
     span: &mut SpanData,
-    resolved: &crate::rules::span_fields::Resolved,
+    resolved: &sideseat_domain::rules::span_fields::Resolved,
     tokens: &mut TokenReadings,
 ) {
-    use crate::rules::schema::FieldTarget as T;
-    use crate::rules::span_fields::Reading;
+    use sideseat_domain::rules::schema::FieldTarget as T;
+    use sideseat_domain::rules::span_fields::Reading;
 
     let text = || match &resolved.reading {
         Reading::Text(value) => Some(value.clone()),

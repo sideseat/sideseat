@@ -6,10 +6,10 @@
 //!
 //! Returns enrichment data separately; persist stage applies it to DB records.
 
-use crate::pricing::{self, PricingService, SpanCostInput};
-use crate::sideml::{ChatMessage, SideMLMessage};
 use crate::traces::SpanData;
 use sideseat_core::utils::string::{PREVIEW_MAX_LENGTH, truncate_preview};
+use sideseat_domain::pricing::{self, PricingService, SpanCostInput};
+use sideseat_domain::sideml::{ChatMessage, SideMLMessage};
 use sideseat_ports::types::MessageCategory;
 
 // ============================================================================
@@ -267,7 +267,7 @@ fn extract_io_preview(messages: &[SideMLMessage]) -> (Option<String>, Option<Str
 /// Iterates through strongly-typed content blocks and extracts the first text.
 /// When `include_tools` is false, ToolUse and ToolResult blocks are skipped.
 fn extract_content_preview(msg: &ChatMessage, max_len: usize, include_tools: bool) -> String {
-    use crate::sideml::ContentBlock;
+    use sideseat_domain::sideml::ContentBlock;
 
     for block in &msg.content {
         match block {
@@ -305,9 +305,9 @@ fn extract_content_preview(msg: &ChatMessage, max_len: usize, include_tools: boo
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::sideml::ChatRole;
-    use crate::sideml::provenance::PositionPath;
     use crate::traces::MessageSource;
+    use sideseat_domain::sideml::ChatRole;
+    use sideseat_domain::sideml::test_support::PositionPath;
     use sideseat_ports::types::MessageSourceType;
 
     fn make_span() -> SpanData {
@@ -322,7 +322,7 @@ mod tests {
     }
 
     fn make_message(category: MessageCategory, role: ChatRole, content: &str) -> SideMLMessage {
-        use crate::sideml::ContentBlock;
+        use sideseat_domain::sideml::ContentBlock;
         SideMLMessage {
             position: PositionPath::default(),
             source: MessageSource::Attribute {
@@ -459,7 +459,7 @@ mod tests {
 
     #[test]
     fn test_extract_content_preview_string() {
-        use crate::sideml::ContentBlock;
+        use sideseat_domain::sideml::ContentBlock;
         let msg = ChatMessage {
             role: ChatRole::User,
             content: vec![ContentBlock::Text {
@@ -475,7 +475,7 @@ mod tests {
 
     #[test]
     fn test_extract_content_preview_multimodal() {
-        use crate::sideml::ContentBlock;
+        use sideseat_domain::sideml::ContentBlock;
         let msg = ChatMessage {
             role: ChatRole::User,
             content: vec![
@@ -501,7 +501,7 @@ mod tests {
 
     #[test]
     fn test_extract_content_preview_json() {
-        use crate::sideml::ContentBlock;
+        use sideseat_domain::sideml::ContentBlock;
         let msg = ChatMessage {
             role: ChatRole::Assistant,
             content: vec![ContentBlock::Json {
@@ -519,7 +519,7 @@ mod tests {
 
     #[test]
     fn test_extract_content_preview_tool_use() {
-        use crate::sideml::ContentBlock;
+        use sideseat_domain::sideml::ContentBlock;
         let msg = ChatMessage {
             role: ChatRole::Assistant,
             content: vec![ContentBlock::ToolUse {
@@ -542,7 +542,7 @@ mod tests {
 
     #[test]
     fn test_extract_content_preview_tool_result() {
-        use crate::sideml::ContentBlock;
+        use sideseat_domain::sideml::ContentBlock;
         let msg = ChatMessage {
             role: ChatRole::Tool,
             content: vec![ContentBlock::ToolResult {
@@ -562,7 +562,7 @@ mod tests {
 
     #[test]
     fn test_extract_content_preview_json_only_no_text() {
-        use crate::sideml::ContentBlock;
+        use sideseat_domain::sideml::ContentBlock;
         // Structured output with no text block
         let msg = ChatMessage {
             role: ChatRole::Assistant,
@@ -580,7 +580,7 @@ mod tests {
 
     #[test]
     fn test_extract_io_preview_structured_output() {
-        use crate::sideml::ContentBlock;
+        use sideseat_domain::sideml::ContentBlock;
         // Strands structured_output pattern: output is Json, not Text
         let messages = vec![
             make_message(
@@ -644,7 +644,7 @@ mod tests {
         name: &str,
         input: serde_json::Value,
     ) -> SideMLMessage {
-        use crate::sideml::ContentBlock;
+        use sideseat_domain::sideml::ContentBlock;
         SideMLMessage {
             position: PositionPath::default(),
             source: MessageSource::Attribute {
@@ -820,7 +820,7 @@ mod tests {
 
     #[test]
     fn test_extract_content_preview_skip_tools() {
-        use crate::sideml::ContentBlock;
+        use sideseat_domain::sideml::ContentBlock;
         let msg = ChatMessage {
             role: ChatRole::Assistant,
             content: vec![ContentBlock::ToolUse {

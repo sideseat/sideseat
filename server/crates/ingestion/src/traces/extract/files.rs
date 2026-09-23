@@ -30,8 +30,6 @@ use serde_json::Value as JsonValue;
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
 
-#[cfg(test)]
-use crate::files::collect_file_references_in_str;
 use sideseat_core::constants::{
     FILE_EXTRACTION_CACHE_IDLE_SECS, FILE_EXTRACTION_CACHE_MAX_ENTRIES, FILES_MAX_SIZE_BYTES,
     FILES_MIN_SIZE_BYTES,
@@ -41,6 +39,8 @@ use sideseat_core::utils::file_uri::FILE_URI_PREFIX;
 use sideseat_core::utils::file_uri::{build_file_uri, is_file_uri};
 use sideseat_core::utils::mime::{detect_mime_type, is_valid_mime_type};
 use sideseat_core::utils::string::is_placeholder_value;
+#[cfg(test)]
+use sideseat_domain::files::collect_file_references_in_str;
 
 // ============================================================================
 // FILE EXTRACTION CACHE

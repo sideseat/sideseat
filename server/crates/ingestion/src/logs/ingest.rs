@@ -13,7 +13,7 @@ use sideseat_ports::traits::{AnalyticsRepository, TransactionalRepository};
 use sideseat_ports::types::ProjectId;
 
 use super::extract::extract_logs_batch;
-use crate::storage_governance::StorageGovernanceService;
+use sideseat_domain::storage_governance::StorageGovernanceService;
 
 pub struct Stored {
     pub stored: usize,
@@ -85,7 +85,7 @@ async fn ingest_inner(
     let unstorable = before - logs.len();
 
     if !logs.is_empty() {
-        crate::search::index_logs(&mut logs);
+        sideseat_domain::search::index_logs(&mut logs);
         if let Some(governance) = governance {
             governance
                 .stamp_logs(&mut logs)

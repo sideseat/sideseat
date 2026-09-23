@@ -2331,7 +2331,7 @@ fn the_rules_reproduce_the_legacy_detection() {
 #[test]
 fn a_span_nothing_claims_is_labelled_unclaimed() {
     let (legacy, rules) = both("plain", &detect_attrs(&[]), &detect_attrs(&[]));
-    assert_eq!(rules, crate::rules::UNCLAIMED_LABEL);
+    assert_eq!(rules, sideseat_domain::rules::UNCLAIMED_LABEL);
     assert_eq!(legacy, rules);
 }
 
@@ -2343,7 +2343,7 @@ fn a_span_nothing_claims_is_labelled_unclaimed() {
 /// asserted to be zero: making it zero means narrowing predicates, which is its own reviewed change.
 #[test]
 fn detection_overlaps_are_reported() {
-    let plan = &crate::rules::ruleset().detect;
+    let plan = &sideseat_domain::rules::ruleset().detect;
     let empty = HashMap::new();
 
     // Shapes that really co-occur: a framework riding OpenInference, and any framework using the SDK
@@ -2383,7 +2383,7 @@ fn detection_overlaps_are_reported() {
 
     let mut overlaps = Vec::new();
     for (span_name, span_attrs, resource_attrs) in &probes {
-        let ctx = crate::rules::DetectContext {
+        let ctx = sideseat_domain::rules::DetectContext {
             span_name,
             span_attrs,
             resource_attrs,
@@ -2426,7 +2426,7 @@ fn detection_overlaps_are_reported() {
 ///   was ignored; collected as a string *list* it contributed two reasons the producer never stated.
 #[test]
 fn the_declared_finish_reason_chain_reproduces_the_retired_blocks() {
-    use crate::rules::ruleset;
+    use sideseat_domain::rules::ruleset;
     use std::collections::HashMap;
 
     let resolve = |attrs: &HashMap<String, String>| -> Vec<String> {
@@ -2437,12 +2437,12 @@ fn the_declared_finish_reason_chain_reproduces_the_retired_blocks() {
             .find(|r| {
                 matches!(
                     r.target,
-                    crate::rules::schema::FieldTarget::GenAiFinishReasons
+                    sideseat_domain::rules::schema::FieldTarget::GenAiFinishReasons
                 )
             })
             .and_then(|r| match r.reading {
-                crate::rules::span_fields::Reading::StringList(items) => Some(items),
-                crate::rules::span_fields::Reading::Text(text) => Some(vec![text]),
+                sideseat_domain::rules::span_fields::Reading::StringList(items) => Some(items),
+                sideseat_domain::rules::span_fields::Reading::Text(text) => Some(vec![text]),
                 _ => None,
             })
             .unwrap_or_default()
@@ -2744,7 +2744,10 @@ fn the_choice_event_is_the_first_finish_reason_source() {
 /// be complete or they check a subset while claiming to check the ontology.
 #[test]
 fn every_field_target_is_listed() {
-    let source = include_str!("../../rules/schema.rs");
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../domain/src/rules/schema.rs"
+    ));
     let start = source
         .find("pub enum FieldTarget {")
         .expect("the enum is declared here");
@@ -2771,10 +2774,10 @@ fn every_field_target_is_listed() {
         })
         .count();
     assert_eq!(
-        crate::rules::schema::FieldTarget::ALL.len(),
+        sideseat_domain::rules::schema::FieldTarget::ALL.len(),
         declared,
         "`FieldTarget::ALL` lists {} of the {declared} declared variants",
-        crate::rules::schema::FieldTarget::ALL.len()
+        sideseat_domain::rules::schema::FieldTarget::ALL.len()
     );
 }
 
@@ -2790,8 +2793,8 @@ fn every_field_target_is_listed() {
 /// either sink - the counters go to `TokenReadings` rather than to a column.
 #[test]
 fn every_target_writes_what_its_declared_type_produces() {
-    use crate::rules::schema::{FieldTarget, FieldType};
-    use crate::rules::span_fields::{Reading, Resolved};
+    use sideseat_domain::rules::schema::{FieldTarget, FieldType};
+    use sideseat_domain::rules::span_fields::{Reading, Resolved};
 
     for target in FieldTarget::ALL {
         // A value of the target's own type that is inside whatever range it admits, so this measures the sink and
@@ -2834,7 +2837,7 @@ fn every_target_writes_what_its_declared_type_produces() {
 /// quietly stop testing it.
 #[test]
 fn every_span_field_refusal_fires() {
-    use crate::rules::span_fields::{FieldCompileError as E, compile};
+    use sideseat_domain::rules::span_fields::{FieldCompileError as E, compile};
 
     let compiled = |asset: &str| {
         compile(&std::collections::BTreeMap::from([(

@@ -87,6 +87,23 @@ pub use tools::extract_tool_name;
 
 pub use normalize::{SideMLMessage, to_sideml, to_sideml_batch, to_sideml_with_context};
 
+#[cfg(any(test, feature = "test-support"))]
+pub mod test_support {
+    pub use super::provenance::PositionPath;
+
+    pub fn message_structure_keys_legacy() -> &'static [&'static str] {
+        super::message_structure_keys_legacy()
+    }
+
+    pub fn provider_content_fields_legacy() -> &'static [&'static str] {
+        super::content::provider_content_fields_legacy()
+    }
+
+    pub fn normalize_content_block(block: &serde_json::Value) -> Option<serde_json::Value> {
+        super::content::normalize_content_block(block)
+    }
+}
+
 // ============================================================================
 // PUBLIC API - Normalization Functions
 // ============================================================================

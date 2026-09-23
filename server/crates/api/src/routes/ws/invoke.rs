@@ -9,7 +9,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use sideseat_domain::topics::TopicMessage;
+use sideseat_ingestion::topics::TopicMessage;
 
 use super::protocol::ErrorCode;
 use super::state::WsState;

@@ -1,13 +1,13 @@
-//! Trace persistence (Stage 4)
+//! Trace persistence.
 //!
-//! Handles SSE publishing and DuckDB writes with retry logic.
+//! Handles analytics writes, file associations, and SSE publication.
 //! Stores raw messages (not normalized) for data preservation.
 //! SideML conversion happens at query time in feed pipeline (process_spans).
 //! Builds raw span JSON from original OTLP request (deferred for performance).
 //!
 //! ## File Extraction
 //!
-//! Before persisting to DuckDB, base64 data >= 1KB is extracted from messages
+//! Before persisting analytics rows, eligible base64 data is extracted from messages
 //! and replaced with `#!B64!#[mime]::hash` URIs. Files are stored separately
 //! with reference counting for cleanup.
 
@@ -28,9 +28,7 @@ use super::extract::files::{
     ExtractedFile, FileExtractionCache, extract_and_replace_files, extract_and_replace_files_cached,
 };
 use super::extract::{RawMessage, RawToolDefinition, RawToolNames, SpanData};
-// The **port**, not the service enum: a domain function taking `AnalyticsService` names every backend that
-// exists, which is what keeps the domain and the adapters in one crate.
-use crate::files::{FileService, collect_file_references_in_str};
+// The analytics port keeps ingestion independent of concrete adapters.
 use crate::otlp::{build_attributes_json, extract_attributes};
 use crate::topics::{TopicMessage, TopicService};
 use sideseat_core::constants::{
@@ -40,6 +38,7 @@ use sideseat_core::utils::retry::{
     DEFAULT_BASE_DELAY_MS, DEFAULT_MAX_ATTEMPTS, retry_with_backoff_async,
 };
 use sideseat_core::utils::time::nanos_to_iso;
+use sideseat_domain::files::{FileService, collect_file_references_in_str};
 use sideseat_ports::traits::AnalyticsRepository;
 use sideseat_ports::types::ProjectId;
 use sideseat_ports::types::{NormalizedSpan, json_to_pre_serialized};

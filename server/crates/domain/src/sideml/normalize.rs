@@ -1643,7 +1643,7 @@ mod tests {
     fn test_flattened_tool_results_get_name_enriched() {
         // Regression test: name enrichment must happen AFTER flattening,
         // otherwise flattened tool results won't get their tool names.
-        use crate::traces::RawMessage;
+        use crate::observations::RawMessage;
 
         // Create a tool use message and a bundled tool result message
         let tool_use_msg = RawMessage {

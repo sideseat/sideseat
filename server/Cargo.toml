@@ -19,6 +19,7 @@ workspace = true
 sideseat-core = { path = "crates/core" }
 sideseat-api = { path = "crates/api" }
 sideseat-domain = { path = "crates/domain" }
+sideseat-ingestion = { path = "crates/ingestion" }
 sideseat-adapter-blob-storage = { path = "crates/adapter-blob-storage" }
 sideseat-adapter-cache = { path = "crates/adapter-cache" }
 sideseat-adapter-clickhouse = { path = "crates/adapter-clickhouse" }
@@ -76,13 +77,8 @@ tikv-jemallocator = "0.7.0"
 
 [dev-dependencies]
 sideseat-domain = { path = "crates/domain", features = ["test-support"] }
+sideseat-ingestion = { path = "crates/ingestion", features = ["test-support"] }
 tempfile = "3"
-proptest = "1"
-# A real tokeniser for the structural sweeps, which read this crate's own source. `span-locations` is what lets
-# a finding name a line. Line matching was a class of bypass rather than one: a brace inside a string literal
-# sent the `#[cfg(test)]` stripper hunting for a close brace and it consumed the production items after it, and a
-# name written as `concat!("lang",\n "graph")` was invisible because the pieces sit on different lines.
-proc-macro2 = { version = "1", features = ["span-locations"] }
 # So the privacy sweep can read a compressed replay archive. Shelling out to `gzip -dc` would make the check
 # depend on a tool Windows does not ship, and a sweep that skips where the tool is missing is the shape this
 # whole file exists to remove.

@@ -117,7 +117,7 @@ impl ApiServer {
             // answers. Its own extraction cache is a memo, so a second instance costs nothing but a map.
             (!app.topics.is_durable()).then(|| {
                 Arc::new(
-                    sideseat_domain::traces::TracePipeline::new(
+                    sideseat_ingestion::traces::TracePipeline::new(
                         app.analytics.clone(),
                         app.pricing.clone(),
                         app.topics.clone(),

@@ -12,6 +12,7 @@ workspace = true
 [dependencies]
 sideseat-core = { path = "../core" }
 sideseat-domain = { path = "../domain" }
+sideseat-ingestion = { path = "../ingestion" }
 sideseat-ports = { path = "../ports" }
 anyhow = { workspace = true }
 async-stream = { workspace = true }

@@ -13,11 +13,11 @@ use opentelemetry_proto::tonic::trace::v1::Span;
 use opentelemetry_proto::tonic::trace::v1::span::Event;
 use serde_json::{Value as JsonValue, json};
 
-pub use crate::observations::{
-    MessageSource, RawMessage, RawToolDefinition, RawToolNames, ToolDefinitionSource,
-};
 use crate::otlp::extract_attributes;
 use sideseat_core::utils::time::nanos_to_datetime;
+pub use sideseat_domain::observations::{
+    MessageSource, RawMessage, RawToolDefinition, RawToolNames, ToolDefinitionSource,
+};
 use sideseat_ports::types::ObservationType;
 
 #[cfg(test)]
@@ -72,7 +72,7 @@ fn truncate_for_log(s: &str, max_len: usize) -> String {
 /// of fact as which attributes it writes them on. As a Rust list it also made a new `when_event` rule a
 /// valid but *dead* declaration - the rule compiled, and the event was rejected before the plan was asked.
 fn is_message_event(event_name: &str) -> bool {
-    crate::rules::ruleset()
+    sideseat_domain::rules::ruleset()
         .message_events
         .contains_key(event_name)
 }
@@ -118,7 +118,7 @@ pub(crate) fn extract_message_from_event(
     // event's raw form is a message as well: a container event's attributes *are* the messages inside it, so
     // emitting the container too would report the conversation twice, while an event carrying a reply and a
     // bundled tool result wants both.
-    let reading = crate::rules::ruleset().messages.from_event(
+    let reading = sideseat_domain::rules::ruleset().messages.from_event(
         &event.name,
         &attrs,
         span_name,
@@ -195,17 +195,17 @@ pub(crate) fn try_declared_rules(
     attrs: &HashMap<String, String>,
     span_name: &str,
     timestamp: DateTime<Utc>,
-    claims: &mut std::collections::HashSet<crate::rules::message_rules::OwnedCarrier>,
+    claims: &mut std::collections::HashSet<sideseat_domain::rules::message_rules::OwnedCarrier>,
 ) -> bool {
-    let emissions = crate::rules::ruleset()
-        .messages
-        .run(&crate::rules::MessageContext::for_span(
+    let emissions = sideseat_domain::rules::ruleset().messages.run(
+        &sideseat_domain::rules::MessageContext::for_span(
             span_name,
             attrs,
             // Asked here rather than threaded through the extractor signature: it is a pure function
             // of the span, and a rule declares whether it may read such a span.
             is_tool_execution_span(attrs),
-        ));
+        ),
+    );
     // "Was the message payload handled?" - which is what the caller does with this answer, since it uses it
     // to decide whether the generic reader still needs to run.
     //
@@ -217,44 +217,46 @@ pub(crate) fn try_declared_rules(
     // What each retained observation *owns* - the carrier it read. Taken from the emission rather than
     // derived from a message's source, because a `tag_as` rule reports under a name it never read, so
     // reconstructing ownership from the report leaves the key it actually read unclaimed.
-    let mut owned: std::collections::HashSet<crate::rules::message_rules::OwnedCarrier> =
+    let mut owned: std::collections::HashSet<sideseat_domain::rules::message_rules::OwnedCarrier> =
         std::collections::HashSet::new();
     let found = emissions.iter().any(|emission| {
         matches!(
             emission.target,
-            crate::rules::schema::EmitTarget::Message | crate::rules::schema::EmitTarget::Claim
+            sideseat_domain::rules::schema::EmitTarget::Message
+                | sideseat_domain::rules::schema::EmitTarget::Claim
         )
     });
     for emission in emissions {
         let key = emission.carrier.name();
         if matches!(
             emission.target,
-            crate::rules::schema::EmitTarget::Message | crate::rules::schema::EmitTarget::Claim
+            sideseat_domain::rules::schema::EmitTarget::Message
+                | sideseat_domain::rules::schema::EmitTarget::Claim
         ) {
             owned.extend(emission.owns.iter().cloned());
         }
         match emission.target {
             // An event carrier is recorded as one: carrier semantics are looked up by kind, so reporting
             // an event as an attribute would change what the pipeline reads it as evidence of.
-            crate::rules::schema::EmitTarget::Message if emission.carrier.is_event() => {
+            sideseat_domain::rules::schema::EmitTarget::Message if emission.carrier.is_event() => {
                 messages.push(RawMessage::from_event(key, timestamp, emission.value));
             }
-            crate::rules::schema::EmitTarget::Message => {
+            sideseat_domain::rules::schema::EmitTarget::Message => {
                 messages.push(RawMessage::from_attr(key, timestamp, emission.value));
             }
-            crate::rules::schema::EmitTarget::ToolDefinitions => {
+            sideseat_domain::rules::schema::EmitTarget::ToolDefinitions => {
                 tool_definitions.push(RawToolDefinition::from_attr(key, timestamp, emission.value));
             }
             // Read on the metadata path, which is where a rule targeting names is evaluated. Reaching here
             // means a *message* rule named this target on one of its readings, which is not a shape any
             // asset declares; the emission is dropped rather than filed as something it is not.
-            crate::rules::schema::EmitTarget::ToolNames => {}
+            sideseat_domain::rules::schema::EmitTarget::ToolNames => {}
             // The claim itself is the whole effect: the carrier is this dialect's and holds no message. It
             // is *reported* so the fallback stage can inherit it - a claimed carrier has been read, and the
             // fallback reading it again would present the payload a dialect said holds nothing.
             // The claim itself is the whole effect: the carrier is this dialect's and holds no message.
             // What it *owns* is recorded above, so the fallback stage inherits it.
-            crate::rules::schema::EmitTarget::Claim => {}
+            sideseat_domain::rules::schema::EmitTarget::Claim => {}
         }
     }
     claims.extend(owned);
@@ -345,7 +347,7 @@ fn extract_per_carrier(
     // What the dialect stage owns, typed and taken from the emissions themselves - which is what the
     // fallback stage inherits when answer recovery reaches it.
     let mut owned_by_dialects: std::collections::HashSet<
-        crate::rules::message_rules::OwnedCarrier,
+        sideseat_domain::rules::message_rules::OwnedCarrier,
     > = std::collections::HashSet::new();
     let mut any_specific = false;
     let observation_type = super::attributes::detect_observation_type(span_name, attrs);
@@ -450,14 +452,16 @@ pub fn carrier_holds_span_output(
         MessageSource::Event { name, .. } => (Some(name.as_str()), None),
         MessageSource::Attribute { key, .. } => (None, Some(key.as_str())),
     };
-    crate::sideml::carrier::semantics_for_context(&crate::rules::CarrierContext {
-        event,
-        attribute,
-        observation_type: Some(observation_type.as_str()),
-        span_name: Some(span_name),
-        scope_name: None,
-        scope_version: None,
-    })
+    sideseat_domain::sideml::carrier::semantics_for_context(
+        &sideseat_domain::rules::CarrierContext {
+            event,
+            attribute,
+            observation_type: Some(observation_type.as_str()),
+            span_name: Some(span_name),
+            scope_name: None,
+            scope_version: None,
+        },
+    )
     .carrier_holds_span_output
 }
 
@@ -485,20 +489,18 @@ pub(crate) fn extract_tool_definitions(
     // Declared `repr` grammars. Every span, like the rest of this function: a tool definition is not a
     // message, so carrier claiming does not apply - a framework may state its tools on a carrier another
     // rule reads as a conversation, and both statements are true.
-    for emission in
-        crate::rules::ruleset()
-            .messages
-            .tool_definitions(&crate::rules::MessageContext::for_span(
-                span_name,
-                attrs,
-                is_tool_execution_span(attrs),
-            ))
-    {
+    for emission in sideseat_domain::rules::ruleset().messages.tool_definitions(
+        &sideseat_domain::rules::MessageContext::for_span(
+            span_name,
+            attrs,
+            is_tool_execution_span(attrs),
+        ),
+    ) {
         let key = emission.carrier.name();
         match emission.target {
             // A list of names is not a list of definitions, and filing one as the other reports tools whose
             // parameters are absent rather than unstated.
-            crate::rules::schema::EmitTarget::ToolNames => {
+            sideseat_domain::rules::schema::EmitTarget::ToolNames => {
                 tool_names.push(RawToolNames::from_attr(key, timestamp, emission.value));
             }
             _ => {
@@ -518,9 +520,10 @@ pub(crate) fn extract_tool_definitions(
 /// pair of attributes that appear together only on a call being run - and which dialect supplied the
 /// answer is not something a reader of it should have to know.
 pub(crate) fn is_tool_execution_span(attrs: &HashMap<String, String>) -> bool {
-    crate::rules::ruleset()
-        .span_facts
-        .holds(crate::rules::schema::SpanFact::ToolExecution, attrs)
+    sideseat_domain::rules::ruleset().span_facts.holds(
+        sideseat_domain::rules::schema::SpanFact::ToolExecution,
+        attrs,
+    )
 }
 
 // ============================================================================
@@ -3037,12 +3040,12 @@ fn fallback_messages(
     attrs: &HashMap<String, String>,
     span_name: &str,
     timestamp: DateTime<Utc>,
-    already_read: &std::collections::HashSet<crate::rules::message_rules::OwnedCarrier>,
+    already_read: &std::collections::HashSet<sideseat_domain::rules::message_rules::OwnedCarrier>,
 ) -> Vec<RawMessage> {
-    crate::rules::ruleset()
+    sideseat_domain::rules::ruleset()
         .messages
         .fallback(
-            &crate::rules::MessageContext::for_span(
+            &sideseat_domain::rules::MessageContext::for_span(
                 span_name,
                 attrs,
                 is_tool_execution_span(attrs),
@@ -3050,7 +3053,12 @@ fn fallback_messages(
             already_read,
         )
         .into_iter()
-        .filter(|emission| matches!(emission.target, crate::rules::schema::EmitTarget::Message))
+        .filter(|emission| {
+            matches!(
+                emission.target,
+                sideseat_domain::rules::schema::EmitTarget::Message
+            )
+        })
         .map(|emission| RawMessage::from_attr(emission.carrier.name(), timestamp, emission.value))
         .collect()
 }

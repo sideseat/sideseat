@@ -773,10 +773,19 @@ fn message_extraction_names_no_framework() {
     // Both extraction files. `attributes.rs` reached zero the same way `messages.rs` did - every chain, table
     // and sweep moved to an asset - and a *measured* zero decays, so it is gated by the same instrument.
     const SOURCES: &[(&str, &str)] = &[
-        ("messages.rs", include_str!("../traces/extract/messages.rs")),
+        (
+            "messages.rs",
+            include_str!(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/../ingestion/src/traces/extract/messages.rs"
+            )),
+        ),
         (
             "attributes.rs",
-            include_str!("../traces/extract/attributes.rs"),
+            include_str!(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/../ingestion/src/traces/extract/attributes.rs"
+            )),
         ),
     ];
 
@@ -1627,7 +1636,7 @@ fn no_production_module_names_a_framework() {
     /// calling that data would be dishonest.
     const EXEMPT: &[(&str, Allowed, &str)] = &[
         (
-            "server/crates/domain/src/traces/extract/framework_oracle.rs",
+            "server/crates/ingestion/src/traces/extract/framework_oracle.rs",
             Allowed::EveryFramework,
             "*is* the equivalence oracle: a test-only enum of framework names, kept so each retired detection \
              table can be compared against something independent of the assets. Naming them is the whole \
@@ -8408,11 +8417,17 @@ fn every_declared_refusal_is_exercised_by_a_test() {
         ),
         (
             "attributes_tests.rs",
-            include_str!("../traces/extract/attributes_tests.rs"),
+            include_str!(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/../ingestion/src/traces/extract/attributes_tests.rs"
+            )),
         ),
         (
             "messages_tests.rs",
-            include_str!("../traces/extract/messages_tests.rs"),
+            include_str!(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/../ingestion/src/traces/extract/messages_tests.rs"
+            )),
         ),
     ];
 

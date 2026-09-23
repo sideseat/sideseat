@@ -23,11 +23,9 @@ use opentelemetry_proto::tonic::collector::metrics::v1::ExportMetricsServiceRequ
 
 use super::extract::extract_metrics_batch;
 use super::persist::persist_batch;
-// The **ports**, not the service enums: see `persist.rs` for why a domain function must not name an enum over
-// the concrete adapters.
-use crate::storage_governance::StorageGovernanceService;
 use sideseat_core::constants::DEFAULT_PROJECT_ID;
 use sideseat_core::utils::time::is_storable;
+use sideseat_domain::storage_governance::StorageGovernanceService;
 use sideseat_ports::traits::{AnalyticsRepository, TransactionalRepository};
 use sideseat_ports::types::ProjectId;
 

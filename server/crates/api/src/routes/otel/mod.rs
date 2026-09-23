@@ -24,7 +24,7 @@ use tokio::sync::watch;
 use sideseat_domain::content_bodies::ContentBodyService;
 use sideseat_domain::files::FileService;
 use sideseat_domain::storage_governance::StorageGovernanceService;
-use sideseat_domain::topics::TopicService;
+use sideseat_ingestion::topics::TopicService;
 use sideseat_ports::clock::Clock;
 use sideseat_ports::types::ProjectId;
 

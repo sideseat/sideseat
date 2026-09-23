@@ -13,6 +13,7 @@ members = [
   "server/crates/api",
   "server/crates/core",
   "server/crates/domain",
+  "server/crates/ingestion",
   "server/crates/ports",
   "server/crates/query-sql",
   "server/crates/rule-assets",

@@ -8,7 +8,7 @@ use tokio::task::JoinHandle;
 
 use crate::app::storage::{AnalyticsService, TransactionalService};
 use sideseat_core::constants::SHUTDOWN_TIMEOUT_SECS;
-use sideseat_domain::topics::TopicService;
+use sideseat_ingestion::topics::TopicService;
 
 /// Centralized shutdown service for coordinating graceful shutdown
 #[derive(Clone)]

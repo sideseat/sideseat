@@ -3476,9 +3476,9 @@ async fn distinct_metric_series_survive_and_a_redelivery_does_not_duplicate() {
             ..Default::default()
         };
         // Stamped as the extractor does, from the OTLP material rather than the JSON rendering.
-        metric.datapoint_id = sideseat_domain::metrics::datapoint_id(
+        metric.datapoint_id = sideseat_ingestion::metrics::datapoint_id(
             &metric,
-            &sideseat_domain::metrics::IdentityInputs {
+            &sideseat_ingestion::metrics::IdentityInputs {
                 attributes: &[opentelemetry_proto::tonic::common::v1::KeyValue {
                     key: "http.response.status_code".to_string(),
                     value: Some(opentelemetry_proto::tonic::common::v1::AnyValue {

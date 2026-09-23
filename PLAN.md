@@ -966,7 +966,7 @@ the gate measures nothing.
 
 ### 6.5 Step 6 in detail — the six handlers, and the predicate that is easy to get wrong
 
-**Current result.** `server/crates/domain/src/signals.rs` declares the common signal descriptor and lifecycle for spans,
+**Current result.** `server/crates/ingestion/src/signals.rs` declares the common signal descriptor and lifecycle for spans,
 metrics and logs; HTTP and gRPC use the same signal-owned extraction, project injection, queue key, partial-success
 shape and durability decision. The compiler owns the shape and source tests prevent either transport from growing
 a second decision tree.

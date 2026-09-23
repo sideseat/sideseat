@@ -216,7 +216,7 @@ weakening the check for everyone.
 
 Hand-written, not captured: shapes no captured sample produces, plus a Strands-shaped tool-use
 conversation that exercises the harness itself. Event shapes are taken from the assertions in
-`server/crates/domain/src/traces/extract/messages_tests.rs` rather than invented — an unrealistic fixture
+`server/crates/ingestion/src/traces/extract/messages_tests.rs` rather than invented — an unrealistic fixture
 would produce confident but meaningless results.
 
 Real captures are preferred for every framework, and these are not a substitute for one: each exists

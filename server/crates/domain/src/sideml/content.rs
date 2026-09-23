@@ -1267,12 +1267,12 @@ fn infer_source_type(data: &str) -> &'static str {
 /// a Bedrock text block with extra fields - better to flag as unknown than assume
 /// it's structured output.
 /// The retired list, for the equivalence oracle: the declared vocabulary must mean this and no more.
-#[cfg(test)]
+#[cfg(any(test, feature = "test-support"))]
 pub(crate) fn provider_content_fields_legacy() -> &'static [&'static str] {
     PROVIDER_CONTENT_FIELDS
 }
 
-#[cfg(test)]
+#[cfg(any(test, feature = "test-support"))]
 const PROVIDER_CONTENT_FIELDS: &[&str] = &[
     // Bedrock/Strands
     "text",
