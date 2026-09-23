@@ -3,6 +3,7 @@
 pub mod files;
 pub mod providers;
 pub mod storage;
+mod update;
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -25,7 +26,6 @@ use sideseat_core::core::constants::{
     APP_NAME_LOWER, ENV_LOG, RESTORE_PENDING_MARKER, TOPIC_TRACES,
 };
 use sideseat_core::core::storage::AppStorage;
-use sideseat_core::core::update;
 use sideseat_domain::files::FileService;
 use sideseat_domain::pricing::PricingService;
 use sideseat_domain::providers::CredentialService;

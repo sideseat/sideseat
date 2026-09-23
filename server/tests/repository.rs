@@ -3100,6 +3100,22 @@ fn frontend_build_script_belongs_to_the_embedding_crate() {
     );
 }
 
+#[test]
+fn update_networking_belongs_to_the_composition_root() {
+    let repo = repo_root();
+    let core_manifest =
+        std::fs::read_to_string(repo.join("server/crates/core/Cargo.toml")).expect("core manifest");
+    assert!(
+        !core_manifest.contains("reqwest") && !core_manifest.contains("semver"),
+        "the innermost crate must not own update-check networking"
+    );
+    assert!(
+        repo.join("server/src/app/update.rs").exists()
+            && !repo.join("server/crates/core/src/core/update.rs").exists(),
+        "the executable composition root must own its update check"
+    );
+}
+
 /// Does this manifest line declare `driver`, under its own name or a rename?
 ///
 /// Extracted so it can be tested on input the workspace does not contain. A live mutation is not available:

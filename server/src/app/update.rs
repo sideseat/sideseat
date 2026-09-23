@@ -1,18 +1,15 @@
-//! NPM version update checker
+//! Background npm version check for the executable.
 
 use std::time::Duration;
 
-use crate::core::constants::{
+use sideseat_core::core::constants::{
     NPM_REGISTRY_URL, UPDATE_CHECK_RETRIES, UPDATE_CHECK_RETRY_DELAY_MS, UPDATE_CHECK_TIMEOUT_SECS,
 };
 
 const CURRENT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
-/// Check npm registry for newer version.
-/// Returns Some(version) if update available, None otherwise.
-/// All errors logged at debug level - never fails.
+/// Return the latest stable npm version when it is newer than this executable.
 pub async fn check_for_update() -> Option<String> {
-    // Parse current version first - if this fails, it's a bug
     let current = match semver::Version::parse(CURRENT_VERSION) {
         Ok(v) => v,
         Err(e) => {
@@ -25,10 +22,8 @@ pub async fn check_for_update() -> Option<String> {
         }
     };
 
-    // Fetch with retry
     let npm_version = fetch_npm_version_with_retry().await?;
 
-    // Parse npm version
     let npm = match semver::Version::parse(&npm_version) {
         Ok(v) => v,
         Err(e) => {
@@ -41,13 +36,11 @@ pub async fn check_for_update() -> Option<String> {
         }
     };
 
-    // Skip prereleases (e.g., 1.0.5-beta)
     if !npm.pre.is_empty() {
         tracing::debug!(version = %npm_version, "Skipping prerelease");
         return None;
     }
 
-    // Compare
     if npm > current {
         tracing::debug!(current = %current, npm = %npm, "Update available");
         Some(npm_version)
@@ -102,7 +95,6 @@ async fn fetch_npm_version(client: &reqwest::Client) -> Result<String, String> {
     Ok(pkg.version)
 }
 
-/// Get the current version string
 pub fn current_version() -> &'static str {
     CURRENT_VERSION
 }
@@ -158,7 +150,6 @@ mod tests {
 
     #[test]
     fn test_current_version_parses() {
-        // Ensures Cargo.toml version is valid semver
         assert!(semver::Version::parse(CURRENT_VERSION).is_ok());
     }
 
