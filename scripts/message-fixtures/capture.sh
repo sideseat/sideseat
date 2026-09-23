@@ -73,6 +73,8 @@ recorder_pid=""
 ENV_FILE="examples/.env"
 ENV_BACKUP="$(mktemp -t sideseat-env-backup)"
 env_redirected=0
+RUN_DIR="$(mktemp -d "${TMPDIR:-/tmp}/sideseat-capture.XXXXXX")"
+RECORDER_PID_FILE="$RUN_DIR/recorder.pid"
 
 # The sample CLIs call load_dotenv(..., override=True), so examples/.env wins over anything
 # exported here. Point its endpoint at the recorder for the duration of the capture and put
@@ -104,24 +106,39 @@ restore_env() {
 }
 
 cleanup() {
-  if [[ -n "$recorder_pid" ]] && kill -0 "$recorder_pid" 2>/dev/null; then
-    kill "$recorder_pid" 2>/dev/null
-    wait "$recorder_pid" 2>/dev/null
+  local pid=""
+  local attempt
+
+  if [[ -f "$RECORDER_PID_FILE" ]]; then
+    read -r pid <"$RECORDER_PID_FILE"
   fi
+  if [[ "$pid" =~ ^[0-9]+$ ]] && kill -0 "$pid" 2>/dev/null; then
+    kill -TERM "$pid" 2>/dev/null || true
+    for ((attempt = 0; attempt < 50; attempt++)); do
+      kill -0 "$pid" 2>/dev/null || break
+      sleep 0.1
+    done
+    if kill -0 "$pid" 2>/dev/null; then
+      kill -KILL "$pid" 2>/dev/null || true
+    fi
+    wait "$pid" 2>/dev/null || true
+  fi
+  rm -f "$RECORDER_PID_FILE"
+  recorder_pid=""
 }
 
 cleanup_all() {
   cleanup
   restore_env
+  rm -rf "${RUN_DIR:?}"
 }
-trap cleanup_all EXIT INT TERM
+trap cleanup_all EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
-# A stale recorder from an interrupted run keeps the port bound. The readiness probe below
-# would then connect to *it* and every capture would land under its old label, silently, so
-# clear our own strays and refuse to continue if anything else still holds the port.
-pkill -f "record-otlp.py --label" 2>/dev/null && sleep 1
+# Never terminate recorders owned by another checkout or capture run.
 if lsof -nP -iTCP:"$PORT" -sTCP:LISTEN >/dev/null 2>&1; then
-  echo "[capture] port $PORT is already in use by another process; set RECORD_PORT to a free port" >&2
+  echo "[capture] port $PORT is already in use; set RECORD_PORT to a free port" >&2
   exit 1
 fi
 
@@ -164,9 +181,10 @@ for entry in "${SUITES[@]}"; do
 
     rm -rf "${FIXTURES:?}/${label}"
 
-    recorder_log="/tmp/recorder-$$-${suite}-${sample}.log"
+    recorder_log="$RUN_DIR/recorder-${suite}-${sample}.log"
     python3 scripts/message-fixtures/record-otlp.py --label "$label" --port "$PORT" >"$recorder_log" 2>&1 &
     recorder_pid=$!
+    printf '%s\n' "$recorder_pid" >"$RECORDER_PID_FILE"
     # Wait for OUR recorder to report it is listening. An open port is not enough: a stray
     # listener would satisfy a bare connect() while writing fixtures somewhere else.
     ready=0
@@ -185,7 +203,7 @@ for entry in "${SUITES[@]}"; do
     fi
 
     cmd="${runner//\{S\}/$sample}"
-    sample_log="/tmp/sample-$$-${suite}-${sample}.log"
+    sample_log="$RUN_DIR/sample-${suite}-${sample}.log"
     if OTEL_EXPORTER_OTLP_ENDPOINT="$RECORD_ENDPOINT" \
        SIDESEAT_ENDPOINT="http://127.0.0.1:${PORT}" \
        timeout 600 bash -c "$cmd" >"$sample_log" 2>&1; then

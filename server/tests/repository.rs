@@ -2889,6 +2889,28 @@ fn maintenance_loops_fail_fast_and_hook_setup_supports_worktrees() {
     );
 }
 
+#[test]
+fn fixture_capture_only_stops_its_own_recorder() {
+    let script = std::fs::read_to_string(repo_root().join("scripts/message-fixtures/capture.sh"))
+        .expect("fixture capture script");
+
+    assert!(
+        !script.contains("pkill"),
+        "fixture capture must not terminate recorders by global process matching"
+    );
+    for required in [
+        "RECORDER_PID_FILE=",
+        "printf '%s\\n' \"$recorder_pid\" >\"$RECORDER_PID_FILE\"",
+        "read -r pid <\"$RECORDER_PID_FILE\"",
+        "kill -TERM \"$pid\"",
+    ] {
+        assert!(
+            script.contains(required),
+            "fixture capture must contain `{required}`"
+        );
+    }
+}
+
 /// Does this manifest line declare `driver`, under its own name or a rename?
 ///
 /// Extracted so it can be tested on input the workspace does not contain. A live mutation is not available:
