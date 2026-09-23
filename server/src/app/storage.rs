@@ -21,11 +21,7 @@ use sideseat_core::config::{
 };
 use sideseat_core::storage::AppStorage;
 
-/// Transactional database service enum
-///
-/// Wraps the underlying backend-specific service (SQLite or PostgreSQL).
-/// Provides a unified interface for all transactional operations.
-/// Services are stored as Arc to enable safe extraction.
+/// Lifecycle facade over the configured transactional backend.
 pub enum TransactionalService {
     /// SQLite backend (default, embedded)
     Sqlite(Arc<SqliteService>),
@@ -34,16 +30,7 @@ pub enum TransactionalService {
 }
 
 impl TransactionalService {
-    /// Initialize the transactional service based on configuration
-    ///
-    /// For SQLite backend, uses the storage path.
-    /// For PostgreSQL backend, requires a PostgresConfig.
-    /// `cache` is held by the service rather than passed to every port method.
-    ///
-    /// 29 of `TransactionalRepository`'s 95 methods took `cache: Option<&CacheService>`, so an adapter type
-    /// sat in the port's own signature - which is what stops the trait moving into a crate that knows
-    /// nothing about caching. Which methods actually cache is now stated once, in each backend's `impl`,
-    /// instead of being decided independently at 36 call sites.
+    /// Initialize the selected backend and attach its shared cache.
     pub async fn init(
         backend: TransactionalBackend,
         storage: &AppStorage,
@@ -73,8 +60,7 @@ impl TransactionalService {
         match self {
             Self::Sqlite(s) => s.checkpoint().await.map_err(Into::into),
             Self::Postgres(_) => {
-                // PostgreSQL manages its own maintenance via autovacuum
-                // No explicit checkpoint needed
+                // PostgreSQL owns maintenance through autovacuum.
                 Ok(())
             }
         }
@@ -97,18 +83,7 @@ impl TransactionalService {
         }
     }
 
-    /// Get the backend type
-    pub fn backend(&self) -> TransactionalBackend {
-        match self {
-            Self::Sqlite(_) => TransactionalBackend::Sqlite,
-            Self::Postgres(_) => TransactionalBackend::Postgres,
-        }
-    }
-
-    /// Get the repository trait object for data operations
-    ///
-    /// This returns a boxed trait object, allowing backend-agnostic
-    /// data operations through the TransactionalRepository interface.
+    /// Expose backend-agnostic transactional operations.
     pub fn repository(&self) -> Box<dyn TransactionalRepository + Send + Sync> {
         match self {
             Self::Sqlite(s) => Box::new(SqliteRepository(Arc::clone(s))),
@@ -124,11 +99,7 @@ impl TransactionalService {
     }
 }
 
-/// Analytics database service enum
-///
-/// Wraps the underlying backend-specific service (DuckDB or ClickHouse).
-/// Provides a unified interface for all analytics operations.
-/// Services are stored as Arc to enable safe extraction.
+/// Lifecycle facade over the configured analytics backend.
 pub enum AnalyticsService {
     /// DuckDB backend (default, embedded)
     Duckdb(Arc<DuckdbService>),
@@ -137,10 +108,7 @@ pub enum AnalyticsService {
 }
 
 impl AnalyticsService {
-    /// Initialize the analytics service based on configuration
-    ///
-    /// For DuckDB backend, uses the storage path.
-    /// For ClickHouse backend, requires a ClickhouseConfig.
+    /// Initialize the selected analytics backend.
     pub async fn init(
         backend: AnalyticsBackend,
         storage: &AppStorage,
@@ -159,13 +127,6 @@ impl AnalyticsService {
                 let service = ClickhouseService::init(config, clock).await?;
                 Ok(Self::Clickhouse(Arc::new(service)))
             }
-        }
-    }
-
-    pub fn clock(&self) -> &dyn Clock {
-        match self {
-            Self::Duckdb(service) => service.clock(),
-            Self::Clickhouse(service) => service.clock(),
         }
     }
 
@@ -199,13 +160,7 @@ impl AnalyticsService {
         }
     }
 
-    /// Start the cross-partition consistency check, where the backend can have that defect.
-    ///
-    /// `None` on DuckDB, and structurally rather than as a gap: the residual being detected is two revisions of
-    /// one identity in different **partitions**, and DuckDB has no partitions - its reads go through
-    /// `DEDUP_SPANS`, a window function over the whole table, which picks one winner per identity whatever the
-    /// physical layout. So there is nothing there for such a check to find, and returning `None` says that
-    /// rather than scheduling a task that would always report clean.
+    /// Start the cross-partition consistency check when the backend is partitioned.
     pub fn start_consistency_check_task(
         &self,
         shutdown_rx: watch::Receiver<bool>,
@@ -282,19 +237,7 @@ impl AnalyticsService {
         }
     }
 
-    /// Get the backend type
-    pub fn backend(&self) -> AnalyticsBackend {
-        match self {
-            Self::Duckdb(_) => AnalyticsBackend::Duckdb,
-            Self::Clickhouse(_) => AnalyticsBackend::Clickhouse,
-        }
-    }
-
-    /// Get the repository trait object for data operations
-    ///
-    /// Returns a DedupAnalyticsRepository wrapper that deduplicates SpanRow
-    /// and MessageSpanRow results in Rust, while aggregation queries use
-    /// SQL-level dedup directly.
+    /// Expose analytics operations with row-level deduplication.
     pub fn repository(&self) -> Box<dyn AnalyticsRepository + Send + Sync> {
         let inner: Box<dyn AnalyticsRepository + Send + Sync> = match self {
             Self::Duckdb(d) => Box::new(DuckdbRepository(Arc::clone(d))),
