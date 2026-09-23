@@ -2,7 +2,7 @@
 //!
 //! Every fact about a *specific* framework or provider lives in a rule asset under `server/assets/rules/`,
 //! not in this module. The engine knows how to match and how to compose; it knows no producer names,
-//! carrier keys, tags or type mappings. The design and its acceptance are recorded in
+//! carrier keys, tags or type mappings. The current architecture and its limits are recorded in
 //! `docs/engineering/framework-rules-engine.md`.
 //!
 //! Two properties make that checkable rather than merely intended:
