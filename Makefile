@@ -352,18 +352,9 @@ help:
 # Setup
 # =============================================================================
 
-#  Every `uv` invocation below passes `--locked`: `uv sync` and `uv run` **re-lock by default**, so a stale
-#  `pyproject.toml` would be repaired silently and `make check` would pass on a lockfile nobody committed. The
-#  escape hatch is deliberate and separate - `make update-python-deps` re-locks on purpose, so the refusal you
-#  get from a stale manifest names the command that resolves it.
+# Normal uv commands use committed lockfiles. This target is the explicit upgrade path.
 update-python-deps:
-	@#  The only place that re-locks. Everything else refuses a stale lockfile rather than rewriting it, which is
-	@#  what makes a green `make check` a statement about the dependencies that are committed.
-	@#  **Derived from the tree.** The list used to be written out, and it named `examples/python`, which is not
-	@#  a uv project: it holds thirteen, each with its own lockfile, and `cd examples/python && uv lock` resolves
-	@#  the *repository root* project instead. So thirteen sample lockfiles were never updated by anything while
-	@#  this target looked complete, and the root's was re-locked twice.
-	@for manifest in $$(git ls-files '*pyproject.toml'); do \
+	@set -e; for manifest in $$(git ls-files '*pyproject.toml'); do \
 		project=$$(dirname "$$manifest"); \
 		echo "[update-python-deps] $$project"; \
 		(cd "$$project" && uv lock --upgrade); \
@@ -408,9 +399,12 @@ setup:
 	@echo "[setup] Done. Run 'make dev' to start."
 
 setup-hooks:
-	@[ -d .git ] || { echo "Error: Not a git repository"; exit 1; }
-	@git config core.hooksPath .githooks || { echo "Error: git config failed"; exit 1; }
-	@chmod +x .githooks/* 2>/dev/null || true
+	@git rev-parse --git-dir >/dev/null 2>&1 || { echo "Error: Not a git repository"; exit 1; }
+	@for hook in .githooks/pre-commit .githooks/pre-push; do \
+		[ -f "$$hook" ] || { echo "Error: Missing $$hook"; exit 1; }; \
+		chmod +x "$$hook"; \
+	done
+	@git config --local core.hooksPath .githooks
 	@echo "[setup-hooks] Git hooks installed"
 
 # =============================================================================

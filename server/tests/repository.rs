@@ -2865,6 +2865,30 @@ fn development_processes_are_scoped_and_environment_is_explicit() {
     );
 }
 
+#[test]
+fn maintenance_loops_fail_fast_and_hook_setup_supports_worktrees() {
+    let makefile = std::fs::read_to_string(repo_root().join("Makefile")).expect("Makefile");
+    assert!(
+        makefile.contains(
+            "update-python-deps:\n\t@set -e; for manifest in $$(git ls-files '*pyproject.toml')"
+        ),
+        "dependency updates must stop at the first failed project"
+    );
+
+    let hooks_start = makefile.find("setup-hooks:").expect("setup-hooks target");
+    let hooks_end = makefile[hooks_start..]
+        .find("# Development")
+        .map(|offset| hooks_start + offset)
+        .expect("development section");
+    let hooks = &makefile[hooks_start..hooks_end];
+    assert!(
+        hooks.contains("git rev-parse --git-dir")
+            && !hooks.contains("[ -d .git ]")
+            && !hooks.contains("|| true"),
+        "hook setup must accept linked worktrees and report installation failures"
+    );
+}
+
 /// Does this manifest line declare `driver`, under its own name or a rename?
 ///
 /// Extracted so it can be tested on input the workspace does not contain. A live mutation is not available:
