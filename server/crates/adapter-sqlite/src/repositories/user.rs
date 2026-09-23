@@ -8,7 +8,7 @@ use std::time::Duration;
 use sqlx::SqlitePool;
 
 use crate::SqliteError;
-use sideseat_core::constants::{CACHE_TTL_NEGATIVE, CACHE_TTL_USER, DEFAULT_USER_ID};
+use sideseat_core::constants::{CACHE_TTL_NEGATIVE, CACHE_TTL_USER};
 use sideseat_ports::cache::{CacheKey, CacheStore, TypedCache};
 use sideseat_ports::types::UserRow;
 
@@ -257,75 +257,6 @@ pub async fn update_user(
     get_user_from_db(pool, id).await
 }
 
-/// Delete a user by ID
-pub async fn delete_user(
-    pool: &SqlitePool,
-    cache: Option<&dyn CacheStore>,
-    id: &str,
-) -> Result<bool, SqliteError> {
-    // Get old user for email invalidation
-    let old_user = get_user_from_db(pool, id).await?;
-
-    let result = sqlx::query("DELETE FROM users WHERE id = ?")
-        .bind(id)
-        .execute(pool)
-        .await?;
-
-    let deleted = result.rows_affected() > 0;
-
-    // Invalidate cache entries AFTER successful write
-    if deleted && let Some(cache) = cache {
-        if let Err(e) = cache.delete(&CacheKey::user(id)).await {
-            tracing::warn!(%id, error = %e, "Cache invalidation error");
-        }
-        if let Err(e) = cache.delete(&CacheKey::user_negative(id)).await {
-            tracing::warn!(%id, error = %e, "Cache invalidation error");
-        }
-
-        // Invalidate email lookup if user had email
-        if let Some(ref old) = old_user
-            && let Some(ref email) = old.email
-            && let Err(e) = cache.delete(&CacheKey::user_by_email(email)).await
-        {
-            tracing::warn!(%email, error = %e, "Cache invalidation error");
-        }
-    }
-
-    Ok(deleted)
-}
-
-/// Check if user is the last owner of any organization
-pub async fn is_last_owner_of_any_org(
-    pool: &SqlitePool,
-    user_id: &str,
-) -> Result<bool, SqliteError> {
-    // Find orgs where this user is the only owner
-    let count: (i64,) = sqlx::query_as(
-        r#"
-        SELECT COUNT(*)
-        FROM organization_members om1
-        WHERE om1.user_id = ? AND om1.role = 'owner'
-        AND NOT EXISTS (
-            SELECT 1 FROM organization_members om2
-            WHERE om2.organization_id = om1.organization_id
-            AND om2.role = 'owner'
-            AND om2.user_id != ?
-        )
-        "#,
-    )
-    .bind(user_id)
-    .bind(user_id)
-    .fetch_one(pool)
-    .await?;
-
-    Ok(count.0 > 0)
-}
-
-/// Check if user is the default user (cannot be deleted)
-pub fn is_default_user(id: &str) -> bool {
-    id == DEFAULT_USER_ID
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -435,45 +366,10 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_delete_user() {
-        let pool = setup_test_pool().await;
-        let user = create_user(&pool, None, None, None, TEST_NOW)
-            .await
-            .unwrap();
-
-        let deleted = delete_user(&pool, None, &user.id).await.unwrap();
-        assert!(deleted);
-
-        let fetched = get_user(&pool, None, &user.id).await.unwrap();
-        assert!(fetched.is_none());
-    }
-
-    #[tokio::test]
     async fn test_default_user_exists() {
         let pool = setup_test_pool().await;
         let user = get_user(&pool, None, "local").await.unwrap();
         assert!(user.is_some());
         assert_eq!(user.unwrap().display_name, Some("Local User".to_string()));
-    }
-
-    #[tokio::test]
-    async fn test_is_last_owner_of_any_org() {
-        let pool = setup_test_pool().await;
-
-        // Local user is owner of default org and only owner
-        let is_last = is_last_owner_of_any_org(&pool, "local").await.unwrap();
-        assert!(is_last);
-
-        // Non-existent user is not owner of anything
-        let is_last = is_last_owner_of_any_org(&pool, "nonexistent")
-            .await
-            .unwrap();
-        assert!(!is_last);
-    }
-
-    #[tokio::test]
-    async fn test_is_default_user() {
-        assert!(is_default_user("local"));
-        assert!(!is_default_user("other"));
     }
 }

@@ -8,46 +8,11 @@ use std::time::Duration;
 use sqlx::SqlitePool;
 
 use crate::SqliteError;
-use sideseat_core::constants::{CACHE_TTL_ORG, CACHE_TTL_ORG_LIST, DEFAULT_ORG_ID, RESERVED_SLUGS};
+use sideseat_core::constants::{CACHE_TTL_ORG, CACHE_TTL_ORG_LIST};
 use sideseat_ports::cache::{CacheKey, CacheStore, TypedCache};
 use sideseat_ports::types::{OrgWithRole, OrganizationRow};
 
 use super::membership::list_member_user_ids;
-
-/// Create a new organization with a generated CUID2 ID
-pub async fn create_organization(
-    pool: &SqlitePool,
-    cache: Option<&dyn CacheStore>,
-    name: &str,
-    slug: &str,
-    now: i64,
-) -> Result<OrganizationRow, SqliteError> {
-    let id = cuid2::create_id();
-
-    sqlx::query(
-        "INSERT INTO organizations (id, name, slug, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
-    )
-    .bind(&id)
-    .bind(name)
-    .bind(slug)
-    .bind(now)
-    .bind(now)
-    .execute(pool)
-    .await?;
-
-    // Invalidate slug lookup cache (new slug now exists)
-    if let Some(cache) = cache {
-        cache.invalidate_key(&CacheKey::org_by_slug(slug)).await;
-    }
-
-    Ok(OrganizationRow {
-        id,
-        name: name.to_string(),
-        slug: slug.to_string(),
-        created_at: now,
-        updated_at: now,
-    })
-}
 
 /// Create a new organization with owner membership atomically
 /// This ensures no orphan orgs if the membership insert fails
@@ -353,16 +318,6 @@ pub async fn list_project_ids(pool: &SqlitePool, org_id: &str) -> Result<Vec<Str
     Ok(rows.into_iter().map(|(id,)| id).collect())
 }
 
-/// Check if a slug is reserved
-pub fn is_reserved_slug(slug: &str) -> bool {
-    RESERVED_SLUGS.contains(&slug)
-}
-
-/// Check if organization is the default (cannot be deleted)
-pub fn is_default_org(id: &str) -> bool {
-    id == DEFAULT_ORG_ID
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -381,9 +336,10 @@ mod tests {
     #[tokio::test]
     async fn test_create_organization() {
         let pool = setup_test_pool().await;
-        let org = create_organization(&pool, None, "Test Org", "test-org", TEST_NOW)
-            .await
-            .unwrap();
+        let org =
+            create_organization_with_owner(&pool, None, "Test Org", "test-org", "local", TEST_NOW)
+                .await
+                .unwrap();
 
         assert!(!org.id.is_empty());
         assert_eq!(org.name, "Test Org");
@@ -395,9 +351,10 @@ mod tests {
     #[tokio::test]
     async fn test_get_organization() {
         let pool = setup_test_pool().await;
-        let created = create_organization(&pool, None, "Test Org", "test-org", TEST_NOW)
-            .await
-            .unwrap();
+        let created =
+            create_organization_with_owner(&pool, None, "Test Org", "test-org", "local", TEST_NOW)
+                .await
+                .unwrap();
 
         let fetched = get_organization(&pool, None, &created.id).await.unwrap();
         assert!(fetched.is_some());
@@ -422,9 +379,10 @@ mod tests {
     #[tokio::test]
     async fn test_update_organization() {
         let pool = setup_test_pool().await;
-        let org = create_organization(&pool, None, "Test Org", "test-org", TEST_NOW)
-            .await
-            .unwrap();
+        let org =
+            create_organization_with_owner(&pool, None, "Test Org", "test-org", "local", TEST_NOW)
+                .await
+                .unwrap();
 
         let updated = update_organization(&pool, None, &org.id, "Updated Name", TEST_NOW + 1)
             .await
@@ -440,9 +398,10 @@ mod tests {
     #[tokio::test]
     async fn test_delete_organization() {
         let pool = setup_test_pool().await;
-        let org = create_organization(&pool, None, "Test Org", "test-org", TEST_NOW)
-            .await
-            .unwrap();
+        let org =
+            create_organization_with_owner(&pool, None, "Test Org", "test-org", "local", TEST_NOW)
+                .await
+                .unwrap();
 
         let deleted = delete_organization(&pool, None, &org.id).await.unwrap();
         assert!(deleted);
@@ -457,20 +416,6 @@ mod tests {
         let org = get_organization(&pool, None, "default").await.unwrap();
         assert!(org.is_some());
         assert_eq!(org.unwrap().name, "Default Organization");
-    }
-
-    #[tokio::test]
-    async fn test_is_reserved_slug() {
-        assert!(is_reserved_slug("default"));
-        assert!(is_reserved_slug("api"));
-        assert!(is_reserved_slug("admin"));
-        assert!(!is_reserved_slug("my-org"));
-    }
-
-    #[tokio::test]
-    async fn test_is_default_org() {
-        assert!(is_default_org("default"));
-        assert!(!is_default_org("other"));
     }
 
     #[tokio::test]

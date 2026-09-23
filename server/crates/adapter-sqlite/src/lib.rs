@@ -9,14 +9,14 @@
 //! For scalable multi-tenant SaaS deployments, use PostgreSQL instead.
 //! All schema definitions and migrations are managed here.
 
-pub mod error;
-pub mod migrations;
-pub mod repositories;
+mod error;
+mod migrations;
+mod repositories;
 mod repository_impl;
+pub use error::SqliteError;
 pub use repository_impl::SqliteRepository;
 pub mod schema;
 
-use error::SqliteError;
 use sqlx::SqlitePool;
 
 #[cfg(test)]
