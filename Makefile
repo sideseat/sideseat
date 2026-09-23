@@ -418,32 +418,10 @@ setup-hooks:
 # =============================================================================
 
 dev:
-	@echo "[dev] Starting server (port 5388) and web (port 5389)..."
-	@trap 'kill 0' EXIT && \
-	$(MAKE) dev-server & \
-	sleep 2 && \
-	$(MAKE) dev-web & \
-	wait
+	@./scripts/dev.sh $(ARGS)
 
 dev-server:
-	@_args=$$(echo "$(ARGS)" | sed "s|--config[= ] *\([^/~ ][^ ]*\)|--config $$(pwd)/\1|"); \
-	_secrets_env=""; \
-	if [ -n "$${SIDESEAT_SECRETS_BACKEND}" ]; then \
-		_secrets_env="SIDESEAT_SECRETS_BACKEND=$${SIDESEAT_SECRETS_BACKEND}"; \
-	elif ! echo "$$_args" | grep -q -- '--config'; then \
-		_secrets_env="SIDESEAT_SECRETS_BACKEND=file"; \
-	fi; \
-	if command -v watchexec >/dev/null 2>&1; then \
-		cd $(SERVER_DIR) && watchexec -r -e rs,toml -- \
-			"SIDESEAT_LOG=debug SIDESEAT_DATA_DIR=../.sideseat $$_secrets_env cargo run --locked -- $$_args"; \
-	elif command -v cargo-watch >/dev/null 2>&1; then \
-		cd $(SERVER_DIR) && SIDESEAT_LOG=debug SIDESEAT_DATA_DIR=../.sideseat $$_secrets_env \
-			cargo watch -x "run --locked -- $$_args"; \
-	else \
-		echo "No watch tool found. Install: brew install watchexec"; \
-		cd $(SERVER_DIR) && SIDESEAT_LOG=debug SIDESEAT_DATA_DIR=../.sideseat $$_secrets_env \
-			cargo run --locked -- $$_args; \
-	fi
+	@./scripts/dev-server.sh $(ARGS)
 
 dev-web:
 	@cd $(WEB_DIR) && npm run dev

@@ -2839,6 +2839,32 @@ fn release_stages_only_version_files_and_pushes_atomically() {
     );
 }
 
+#[test]
+fn development_processes_are_scoped_and_environment_is_explicit() {
+    let dev = std::fs::read_to_string(repo_root().join("scripts/dev.sh")).expect("dev script");
+    assert!(
+        !dev.contains("kill 0"),
+        "development cleanup must not signal the caller's process group"
+    );
+    assert!(
+        dev.contains("kill -TERM \"$pid\"") && dev.contains("kill -KILL \"$pid\""),
+        "development cleanup must target only its tracked child processes"
+    );
+    assert!(
+        dev.contains("child_status=1"),
+        "an unexpected clean child exit must still fail the development supervisor"
+    );
+
+    let server = std::fs::read_to_string(repo_root().join("scripts/dev-server.sh"))
+        .expect("dev-server script");
+    assert!(
+        server.contains("server_env=(")
+            && server.contains("exec env \"${server_env[@]}\"")
+            && server.contains("\"SIDESEAT_SECRETS_BACKEND=file\""),
+        "server environment must be passed as an env array, not expanded as command words"
+    );
+}
+
 /// Does this manifest line declare `driver`, under its own name or a rename?
 ///
 /// Extracted so it can be tested on input the workspace does not contain. A live mutation is not available:
