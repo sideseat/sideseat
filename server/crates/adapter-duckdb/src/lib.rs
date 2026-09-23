@@ -13,12 +13,6 @@ mod retention;
 pub mod schema;
 pub mod sql_types;
 
-// Re-export repositories for convenient access
-pub use repositories::metric as metric_repository;
-pub use repositories::query as query_repository;
-pub use repositories::span as span_repository;
-pub use repositories::stats as stats_repository;
-
 pub use models::{
     AggregationTemporality, MessageCategory, MessageSourceType, MetricType, NormalizedMetric,
     NormalizedSpan, ObservationType, SpanCategory,
