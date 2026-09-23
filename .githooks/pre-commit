@@ -1,12 +1,7 @@
 #!/usr/bin/env bash
 #
-# Delegates to the Makefile rather than restating its commands. The previous version inlined
-# per-area checks, which drifted from `make` and covered neither examples/javascript nor
-# examples/python.
-#
-# Scoped by staged area on purpose: this runs on every commit, so it does the cheap checks
-# (format, lint) plus the tests for the areas actually touched. `make check` in the pre-push
-# hook is the complete gate.
+# Delegates to Make targets and scopes tests to the staged areas. The pre-push hook runs the
+# complete gate.
 set -euo pipefail
 
 REPO_ROOT="$(git rev-parse --show-toplevel)"
@@ -19,13 +14,15 @@ staged() { git diff --cached --name-only -- "$@" | grep -qc . 2>/dev/null; }
 # place to stop it, so it runs first and unconditionally.
 make secret-scan-staged
 
-RUST=0; WEB=0; JS_SDK=0; PY=0
-staged 'server/' 'sdk/rust/' && RUST=1
-staged 'web/'                && WEB=1
-staged 'sdk/js/'             && JS_SDK=1
+RUST_SERVER=0; RUST_WORKSPACE=0; WEB=0; JS_SDK=0; PY=0
+staged 'server/' && RUST_SERVER=1
+staged 'sdk/rust/' 'Cargo.toml' 'Cargo.lock' 'deny.toml' 'rustfmt.toml' 'clippy.toml' \
+    'rust-toolchain' 'rust-toolchain.toml' '.cargo/' && RUST_WORKSPACE=1
+staged 'web/' && WEB=1
+staged 'sdk/js/' && JS_SDK=1
 staged 'sdk/python/' 'examples/python/' 'scripts/' 'tools/' && PY=1
 
-if [ "$RUST$WEB$JS_SDK$PY" = "0000" ]; then
+if [ "$RUST_SERVER$RUST_WORKSPACE$WEB$JS_SDK$PY" = "00000" ]; then
     echo "[pre-commit] No code staged, skipping build checks"
     echo "[pre-commit] All checks passed"
     exit 0
@@ -36,8 +33,15 @@ echo "[pre-commit] Format + lint..."
 make fmt-check
 make lint
 
-# Tests only for the areas touched: the full suite belongs in pre-push.
-[ "$RUST" = 1 ]   && { echo "[pre-commit] Rust tests...";       make test-server; }
+# Root Rust configuration and SDK changes affect the whole workspace. Server-only changes keep
+# the faster package-level loop.
+if [ "$RUST_WORKSPACE" = 1 ]; then
+    echo "[pre-commit] Rust workspace tests..."
+    make test-rust
+elif [ "$RUST_SERVER" = 1 ]; then
+    echo "[pre-commit] Server tests..."
+    make test-server
+fi
 [ "$WEB" = 1 ]    && { echo "[pre-commit] Web tests...";        make test-web; }
 [ "$JS_SDK" = 1 ] && { echo "[pre-commit] JS SDK tests...";     make test-sdk-js; }
 [ "$PY" = 1 ]     && { echo "[pre-commit] Python SDK tests..."; make test-sdk-python; }

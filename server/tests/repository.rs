@@ -2945,6 +2945,30 @@ fn container_tests_share_trapped_cleanup() {
     }
 }
 
+#[test]
+fn pre_commit_routes_root_rust_changes_to_the_workspace_suite() {
+    let hook =
+        std::fs::read_to_string(repo_root().join(".githooks/pre-commit")).expect("pre-commit hook");
+    for root_input in [
+        "'Cargo.toml'",
+        "'Cargo.lock'",
+        "'deny.toml'",
+        "'rustfmt.toml'",
+        "'clippy.toml'",
+        "'rust-toolchain.toml'",
+        "'.cargo/'",
+    ] {
+        assert!(
+            hook.contains(root_input),
+            "pre-commit Rust detection must include {root_input}"
+        );
+    }
+    assert!(
+        hook.contains("staged 'sdk/rust/'") && hook.contains("make test-rust"),
+        "Rust SDK and root configuration changes must run workspace tests"
+    );
+}
+
 /// Does this manifest line declare `driver`, under its own name or a rename?
 ///
 /// Extracted so it can be tested on input the workspace does not contain. A live mutation is not available:
