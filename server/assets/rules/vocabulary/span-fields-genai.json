@@ -292,7 +292,7 @@
     {
       "id": "span-fields.gen_ai_finish_reasons",
       "target": "gen_ai_finish_reasons",
-      "doc": "Every source a finish reason can come from, in the order the retired chain tried them - including the conventions' `gen_ai.choice` **event**, which stayed in Rust until cycle 9 because `FieldSource` could not name an event. It is declared **first**, which is where the retired chain had it: reading it after the attributes was a precedence no producer states, introduced only because the hand-written scan had to run after resolution.",
+      "doc": "Every source a finish reason can come from, in the order the retired chain tried them - including the conventions' `gen_ai.choice` **event**. It is declared **first**, which is where the retired chain had it: reading it after the attributes was a precedence no producer states, introduced only because the hand-written scan had to run after resolution.",
       "sources": [
         {
           "id": "choice_event_finish_reason",
