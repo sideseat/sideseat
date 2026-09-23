@@ -1,19 +1,12 @@
-/**
- * Files API Client
- *
- * Client for retrieving files stored with content-addressed storage.
- * Files are identified by their SHA-256 hash.
- */
-
 import { API_BASE_URL } from "../api-client";
+import { FILE_URI_PREFIX, parseFileUri } from "../../lib/file-uri";
 
-/** URI prefix for file references */
-export const FILE_URI_PREFIX = "#!B64!#";
+export { FILE_URI_PREFIX };
 
 /**
  * FilesClient provides methods for working with stored files.
  *
- * Files are stored with content-addressed storage using SHA-256 hashes.
+ * Files are stored with content-addressed storage using BLAKE3 hashes.
  * The #!B64!# prefix is used to reference files in message content.
  */
 export class FilesClient {
@@ -25,10 +18,10 @@ export class FilesClient {
 
   /**
    * Check if a data string is a sideseat file reference.
-   * Format: `#!B64!#[mime/type]::hash`
+   * Format: `#!B64!#[mime/type]::<64-character BLAKE3 hash>`
    */
   isFileUri(data: string): boolean {
-    return data.startsWith(FILE_URI_PREFIX) && data.includes("::");
+    return parseFileUri(data) !== null;
   }
 
   /**
@@ -36,13 +29,7 @@ export class FilesClient {
    * Returns null if the URI is not a valid file reference.
    */
   extractHash(uri: string): string | null {
-    if (!this.isFileUri(uri)) {
-      return null;
-    }
-    const rest = uri.slice(FILE_URI_PREFIX.length);
-    const sepIdx = rest.indexOf("::");
-    if (sepIdx === -1) return null;
-    return rest.slice(sepIdx + 2);
+    return parseFileUri(uri)?.hash ?? null;
   }
 
   /**
@@ -50,21 +37,14 @@ export class FilesClient {
    * Returns undefined if the URI has no embedded MIME type.
    */
   extractMediaType(uri: string): string | undefined {
-    if (!this.isFileUri(uri)) {
-      return undefined;
-    }
-    const rest = uri.slice(FILE_URI_PREFIX.length);
-    const sepIdx = rest.indexOf("::");
-    if (sepIdx === -1) return undefined;
-    const mimePart = rest.slice(0, sepIdx);
-    return mimePart.length > 0 ? mimePart : undefined;
+    return parseFileUri(uri)?.mediaType;
   }
 
   /**
    * Build the API URL for a file
    */
   getFileUrl(projectId: string, hash: string): string {
-    return `${this.baseUrl}/project/${projectId}/files/${hash}`;
+    return `${this.baseUrl}/project/${encodeURIComponent(projectId)}/files/${encodeURIComponent(hash)}`;
   }
 
   /**
@@ -96,8 +76,6 @@ export class FilesClient {
     data: string,
     mediaType?: string,
   ): string {
-    // Check if data is a #!B64!# URI regardless of declared source
-    // This handles cases where source is still "base64" but data was replaced
     if (this.isFileUri(data)) {
       return this.resolveUri(projectId, data);
     }
@@ -106,15 +84,12 @@ export class FilesClient {
       case "url":
         return data;
       case "base64": {
-        // Construct data URL from base64
         const mime = mediaType || "application/octet-stream";
         return `data:${mime};base64,${data}`;
       }
       case "file":
-        // Should have been caught by isFileUri check above
         return this.resolveUri(projectId, data);
       default:
-        // Unknown source, return data as-is
         return data;
     }
   }

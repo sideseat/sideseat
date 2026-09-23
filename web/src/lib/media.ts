@@ -2,8 +2,7 @@
  * Media detection utilities for embedded content in tool results.
  */
 
-/** File reference marker used by SideSeat */
-const FILE_REF_MARKER = "#!B64!#";
+import { parseFileUri } from "./file-uri";
 
 /** Field names that typically contain media/MIME types */
 const MEDIA_TYPE_FIELDS = new Set([
@@ -59,7 +58,7 @@ function inferTypeFromMime(mimeType: string | undefined): MediaType {
  * Infer the source type from data format.
  */
 export function inferSource(data: string): SourceType {
-  if (data.startsWith(FILE_REF_MARKER) && data.includes("::")) return "file";
+  if (parseFileUri(data)) return "file";
   if (data.startsWith("data:")) return "url";
   return "base64";
 }
@@ -69,12 +68,7 @@ export function inferSource(data: string): SourceType {
  * Returns undefined if no MIME is present or not a file ref.
  */
 function extractMimeFromFileRef(data: string): string | undefined {
-  if (!data.startsWith(FILE_REF_MARKER)) return undefined;
-  const rest = data.slice(FILE_REF_MARKER.length);
-  const sepIdx = rest.indexOf("::");
-  if (sepIdx === -1) return undefined;
-  const mimePart = rest.slice(0, sepIdx);
-  return mimePart.length > 0 ? mimePart : undefined;
+  return parseFileUri(data)?.mediaType;
 }
 
 /**
@@ -117,7 +111,7 @@ export function findEmbeddedMedia(obj: Record<string, unknown>): EmbeddedMedia |
     if (typeof value !== "string") continue;
 
     // Priority 1: File reference marker (immediate match)
-    if (value.startsWith(FILE_REF_MARKER) && value.includes("::")) {
+    if (parseFileUri(value)) {
       dataKey = key;
       data = value;
       // Don't break - continue to find mediaType/name
