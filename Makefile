@@ -36,6 +36,9 @@ RELEASE_DIR     := release
 NOTARY_PROFILE  ?= sideseat-notarize
 SHA256CMD       := $(if $(filter Darwin,$(UNAME_S)),shasum -a 256,sha256sum)
 
+# Local build storage
+DISK_BUDGET_MB ?= 12000
+
 # =============================================================================
 # Platform Config (single source of truth)
 # =============================================================================
@@ -366,26 +369,13 @@ test-backup-restore: disk-guard ## Verify embedded backup and restore
 	@SIDESEAT_RUN_BACKUP_RESTORE_TEST=1 \
 		cargo test --locked -p sideseat-server --test backup_restore -- --nocapture
 
-# ClickHouse read-path parity against DuckDB. Not part of `test`/`check`: it needs a container,
-# and a laptop without Docker would fail the gate for a reason unrelated to the change. The test
-# itself skips with a message when SIDESEAT_TEST_CLICKHOUSE_URL is unset, so `make test` stays
-# meaningful; this target is how the ClickHouse SQL actually gets executed.
-# The ceiling `make disk` enforces and `disk-guard` reclaims toward, in MB. See DISK BUDGET at the top.
-DISK_BUDGET_MB ?= 12000
-
 # Docker names include a stable checkout-specific suffix. Two worktrees can therefore run or clean
 # integration fixtures independently without deleting each other's containers.
 DOCKER_SCOPE := $(shell printf '%s' '$(CURDIR)' | cksum | awk '{print $$1}')
 CH_TEST_CONTAINER := sideseat-clickhouse-test-$(DOCKER_SCOPE)
 CH_TEST_PORT ?= 8124
-# Pinned: `latest` moving under CI turns an upstream release into a failure on an
-# unrelated PR. Override to try a newer server.
-# Pinned to a **patch** tag, not the rolling `25.8`, because that one is broken on arm64: its
-# `/entrypoint.sh` is 0 bytes, so every container exits with `exec format error` and the parity suite
-# cannot run at all on an Apple Silicon machine. Measured across tags - 25.8 ships an empty entrypoint
-# while supported stable tags ship a real one - so this is an upstream defect in one tag rather
-# than anything about this host. Search text indexes require the 26.4 line, and this exact patch is shared
-# by local, CI, Compose and benchmark runs so they exercise the same server.
+# Search text indexes require ClickHouse 26.4; pin the patch for reproducible
+# local and CI runs. Override the variable to test another release.
 CH_TEST_IMAGE ?= clickhouse/clickhouse-server:26.4.3.37
 
 test-clickhouse: ## Test ClickHouse parity in Docker
@@ -395,18 +385,8 @@ test-clickhouse: ## Test ClickHouse parity in Docker
 CH_REPL_CONTAINER := sideseat-clickhouse-replicated-test-$(DOCKER_SCOPE)
 CH_REPL_PORT ?= 8299
 
-# The migration path a single server cannot reach.
-#
-# `test-clickhouse` starts a plain server and the parity helper sets `distributed: false`, so four things
-# specific to a production cluster are untested there: the `distributed_statements` catch-up ALTERs (a
-# `Distributed` front end is created `AS <local>` once and does not follow later changes, so a column added
-# to the local table is missing from the front end and the first insert through it fails), `{uuid}` Keeper
-# paths, `EXCHANGE TABLES ... ON CLUSTER`, and the `Replicated*` engine argument. A cluster migration could
-# fail with the whole suite green.
-#
-# One shard, one replica, with Keeper embedded in the same container - enough for everything structurally
-# different about distributed mode, and deliberately not enough for cross-replica convergence, which needs a
-# second node and is the stated remaining gap.
+# Covers clustered migrations, Keeper paths, replicated engines, and
+# Distributed-table schema catch-up. One replica does not test convergence.
 test-clickhouse-replicated: ## Test replicated ClickHouse migrations
 	@CH_REPL_CONTAINER="$(CH_REPL_CONTAINER)" CH_REPL_PORT="$(CH_REPL_PORT)" \
 		CH_TEST_IMAGE="$(CH_TEST_IMAGE)" ./scripts/container-test.sh clickhouse-replicated
@@ -417,46 +397,26 @@ CH_SHARD_2_CONTAINER := sideseat-ch-shard2-$(DOCKER_SCOPE)
 CH_SHARD_PORT_1 ?= 8420
 CH_SHARD_PORT_2 ?= 8430
 
-# Two shards, which is the only way several fixes are falsifiable at all.
-#
-# On one shard a read against `otel_spans_local` and a read against the `Distributed` front end return the same
-# rows, so the two fixes that changed `_local` to the front end pass either way, as does an anomaly table with
-# no front end. The shard count *is* the fixture.
-#
-# **Deliberately not part of `make check` or CI, and slow: expect ~15 minutes.** Every `ON CLUSTER` statement
-# takes ~90 seconds against this fixture, and the schema plus the database setup is nine of them. The cause is
-# understood and unfixed: each server registers an ephemeral node in the distributed-DDL replica registry, a
-# third entry named `localhost:9000` exists alongside the two correct `ch-shardN:9000` ones, and the node that
-# does not own it waits the hardcoded 90 seconds in `markReplicasActive` before every task
-# ("Ephemeral node /clickhouse/task_queue/replicas/localhost:9000/active still exists after 90s"). Setting
-# `interserver_http_host` and the container hostname made the two real names correct without removing the third,
-# and it survives restarting either node - so it is not simply a stale session. Anyone picking this up starts
-# there.
-#
-# Slow and real beats fast and unfalsifiable, so it ships as an opt-in target rather than being dropped.
+# Distinguishes local tables from Distributed front ends and validates
+# cross-shard behavior. Opt-in because distributed DDL makes this run slow.
 test-clickhouse-two-shard: ## Test two-shard ClickHouse behavior
 	@CH_NET="$(CH_NET)" CH_SHARD_1_CONTAINER="$(CH_SHARD_1_CONTAINER)" \
 		CH_SHARD_2_CONTAINER="$(CH_SHARD_2_CONTAINER)" CH_SHARD_PORT_1="$(CH_SHARD_PORT_1)" \
 		CH_SHARD_PORT_2="$(CH_SHARD_PORT_2)" CH_TEST_IMAGE="$(CH_TEST_IMAGE)" \
 		./scripts/container-test.sh clickhouse-two-shard
 
-# PostgreSQL/SQLite transactional parity. Same reasoning as test-clickhouse: the PostgreSQL SQL is
-# hand-written in a second dialect and, until this target existed, had never run against a server.
+# PostgreSQL-specific transactional SQL and SQLite parity.
 PG_TEST_CONTAINER := sideseat-postgres-test-$(DOCKER_SCOPE)
 PG_TEST_PORT ?= 5433
-# Pinned, so an upstream release cannot turn into a failure on an unrelated PR.
 PG_TEST_IMAGE ?= postgres:17-alpine
 
 test-postgres: ## Test PostgreSQL parity in Docker
 	@PG_TEST_CONTAINER="$(PG_TEST_CONTAINER)" PG_TEST_PORT="$(PG_TEST_PORT)" \
 		PG_TEST_IMAGE="$(PG_TEST_IMAGE)" ./scripts/container-test.sh postgres
 
-# The durable ingestion queue, against a real Redis. Same reasoning as the two parity targets: the
-# consumer-group semantics that make an asynchronous 200 honest had never run against a Redis, and what
-# that missed was `XADD ... MAXLEN`, which trims by length and so deleted payloads nobody had read.
+# Durable consumer-group ingestion against append-only Redis.
 REDIS_TEST_CONTAINER := sideseat-redis-test-$(DOCKER_SCOPE)
 REDIS_TEST_PORT ?= 6399
-# Pinned, so an upstream release cannot turn into a failure on an unrelated PR.
 REDIS_TEST_IMAGE ?= redis:7.4-alpine
 
 test-redis: ## Test Redis-backed ingestion
@@ -472,24 +432,18 @@ test-redpanda: ## Test Redpanda-backed ingestion
 	@REDPANDA_TEST_CONTAINER="$(REDPANDA_TEST_CONTAINER)" REDPANDA_TEST_PORT="$(REDPANDA_TEST_PORT)" \
 		REDPANDA_TEST_IMAGE="$(REDPANDA_TEST_IMAGE)" ./scripts/container-test.sh redpanda
 
-# End-to-end HTTP latency, which is what a client actually experiences. The in-process benches measure the
-# stages inside a request; these measure the request. The numbers in CLAUDE.md come from here.
+# End-to-end HTTP latency for embedded and distributed deployments.
 bench-http: disk-guard ## Benchmark embedded HTTP latency
 	@scripts/bench-http-latency.sh embedded
 
 bench-http-distributed: disk-guard ## Benchmark distributed HTTP latency
 	@scripts/bench-http-latency.sh distributed
 
-# The four footprint ceilings, enforced. Two are resident-memory figures against a running server and two are
-# live-allocation measurements in process - the split is in `runtime/allocation.rs`, and the short version is
-# that both glibc and jemalloc retain freed pages, so a "returns to baseline" gate written on RSS fails correct
-# code. Release build throughout: a debug build's footprint describes the debug build.
+# RSS gates run against the release server; in-process gates use allocation
+# counters because system allocators may retain freed pages.
 footprint: disk-guard ## Enforce memory footprint ceilings
 	@scripts/footprint-gates.sh
-	@# `--test-threads=1`, and it is correctness rather than tidiness: both measurements read a *process-global*
-	@# allocation counter, so run concurrently the queue test's live bytes are inside the session test's
-	@# baseline-to-residue window. Freed before the session's final snapshot, they mask a genuine leak of their
-	@# own size - a 52 MB regression reported as 48 MB and passing.
+	@# Allocation counters are process-global, so serialize these tests.
 	@cd $(SERVER_DIR) && cargo test --locked --release --test footprint -- --ignored --nocapture --test-threads=1
 
 test-web: ## Run web tests
