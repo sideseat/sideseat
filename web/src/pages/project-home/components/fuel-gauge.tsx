@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Check, X, Pencil, Trash2 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -44,14 +44,9 @@ function saveBudget(projectId: string, budget: number | null): void {
 }
 
 export function FuelGauge({ projectId, timeRange, costs, isLoading }: FuelGaugeProps) {
-  const [budget, setBudget] = useState<number | null>(null);
+  const [budget, setBudget] = useState<number | null>(() => loadBudget(projectId));
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState("");
-
-  // Load budget from localStorage on mount
-  useEffect(() => {
-    setBudget(loadBudget(projectId));
-  }, [projectId]);
 
   const handleSetBudget = () => {
     // Default to $50 for new budgets as a reasonable starting suggestion
