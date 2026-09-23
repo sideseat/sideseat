@@ -38,7 +38,18 @@ NOTARY_PROFILE  ?= sideseat-notarize
 SHA256CMD       := $(if $(filter Darwin,$(UNAME_S)),shasum -a 256,sha256sum)
 
 # Local build storage
-DISK_BUDGET_MB ?= 12000
+DISK_BUDGET_MB   ?= 12000
+DISK_FREE_MIN_MB ?= 10000
+
+# Run finite commands that can grow target/ with checks before and after them.
+define run-with-disk-guard
+@$(MAKE) --no-print-directory disk-guard
+@command_status=0; guard_status=0; \
+	$(1) || command_status=$$?; \
+	$(MAKE) --no-print-directory disk-guard || guard_status=$$?; \
+	[ "$$command_status" -eq 0 ] || exit "$$command_status"; \
+	exit "$$guard_status"
+endef
 
 # =============================================================================
 # Platform Config (single source of truth)
@@ -190,7 +201,7 @@ fmt-check: ## Check source formatting
 
 lint: ## Run all linters
 	@echo "[lint] Running linters..."
-	@cargo clippy --locked --all-targets -- -D warnings
+	$(call run-with-disk-guard,cargo clippy --locked --all-targets -- -D warnings)
 	@cd $(WEB_DIR) && npm run lint
 	@cd sdk/js && npm run lint
 	@cd examples/javascript && npm run lint
@@ -204,7 +215,7 @@ lint: ## Run all linters
 # gate CI on it. Keep this list identical to the advisory block in Cargo.toml.
 lint-advisory: ## Run informational Clippy lints
 	@echo "[lint-advisory] Advisory clippy lints (informational, does not fail)..."
-	@cargo clippy --locked --all-targets -- \
+	$(call run-with-disk-guard,cargo clippy --locked --all-targets -- \
 		-W clippy::redundant_clone \
 		-W clippy::needless_collect \
 		-W clippy::or_fun_call \
@@ -215,7 +226,7 @@ lint-advisory: ## Run informational Clippy lints
 		-W clippy::trait_duplication_in_bounds \
 		-W clippy::single_option_map \
 		-W clippy::future_not_send \
-		2>&1 | grep -E '^(warning|  -->)' | head -60 || true
+		2>&1 | grep -E '^(warning|  -->)' | head -60 || true)
 
 # ---------------------------------------------------------------------------
 # Secret scanning
@@ -250,7 +261,7 @@ secret-scan-range:
 		echo "  SKIPPED: gitleaks not installed (brew install gitleaks)"; \
 	fi
 
-check: disk-guard fmt-check lint test ## Run formatting, lint, and test gates
+check: fmt-check lint test ## Run formatting, lint, and test gates
 	@echo "[check] All checks passed"
 
 # =============================================================================
@@ -355,21 +366,21 @@ harden-spec: ## Model-check every TLA+ specification
 test: test-rust test-web test-sdk-js test-sdk-python ## Run all regular test suites
 
 # Complete workspace, including the Rust SDK.
-test-rust: disk-guard ## Test the complete Rust workspace
+test-rust: ## Test the complete Rust workspace
 	@echo "[test-rust] Running Rust tests (workspace)..."
-	@cargo test --locked --workspace
+	$(call run-with-disk-guard,cargo test --locked --workspace)
 
 # Server package only, for the inner loop.
 test-server: ## Test the server package
 	@echo "[test-server] Running server tests..."
-	@cargo test --locked -p sideseat-server
+	$(call run-with-disk-guard,cargo test --locked -p sideseat-server)
 
 # Destructive restore proof, isolated in a temporary directory. It is kept out of `make check` because it
 # builds and launches the release-facing binary twice and deliberately destroys its fixture between phases.
-test-backup-restore: disk-guard ## Verify embedded backup and restore
+test-backup-restore: ## Verify embedded backup and restore
 	@echo "[test-backup-restore] checkpointing, destroying, restoring, and repairing embedded stores..."
-	@SIDESEAT_RUN_BACKUP_RESTORE_TEST=1 \
-		cargo test --locked -p sideseat-server --test backup_restore -- --nocapture
+	$(call run-with-disk-guard,SIDESEAT_RUN_BACKUP_RESTORE_TEST=1 \
+		cargo test --locked -p sideseat-server --test backup_restore -- --nocapture)
 
 # Docker names include a stable checkout-specific suffix. Two worktrees can therefore run or clean
 # integration fixtures independently without deleting each other's containers.
@@ -381,8 +392,8 @@ CH_TEST_PORT ?= 8124
 CH_TEST_IMAGE ?= clickhouse/clickhouse-server:26.4.3.37
 
 test-clickhouse: ## Test ClickHouse parity in Docker
-	@CH_TEST_CONTAINER="$(CH_TEST_CONTAINER)" CH_TEST_PORT="$(CH_TEST_PORT)" \
-		CH_TEST_IMAGE="$(CH_TEST_IMAGE)" ./scripts/container-test.sh clickhouse
+	$(call run-with-disk-guard,CH_TEST_CONTAINER="$(CH_TEST_CONTAINER)" CH_TEST_PORT="$(CH_TEST_PORT)" \
+		CH_TEST_IMAGE="$(CH_TEST_IMAGE)" ./scripts/container-test.sh clickhouse)
 
 CH_REPL_CONTAINER := sideseat-clickhouse-replicated-test-$(DOCKER_SCOPE)
 CH_REPL_PORT ?= 8299
@@ -390,8 +401,8 @@ CH_REPL_PORT ?= 8299
 # Covers clustered migrations, Keeper paths, replicated engines, and
 # Distributed-table schema catch-up. One replica does not test convergence.
 test-clickhouse-replicated: ## Test replicated ClickHouse migrations
-	@CH_REPL_CONTAINER="$(CH_REPL_CONTAINER)" CH_REPL_PORT="$(CH_REPL_PORT)" \
-		CH_TEST_IMAGE="$(CH_TEST_IMAGE)" ./scripts/container-test.sh clickhouse-replicated
+	$(call run-with-disk-guard,CH_REPL_CONTAINER="$(CH_REPL_CONTAINER)" CH_REPL_PORT="$(CH_REPL_PORT)" \
+		CH_TEST_IMAGE="$(CH_TEST_IMAGE)" ./scripts/container-test.sh clickhouse-replicated)
 
 CH_NET := sideseat-ch-net-$(DOCKER_SCOPE)
 CH_SHARD_1_CONTAINER := sideseat-ch-shard1-$(DOCKER_SCOPE)
@@ -402,10 +413,10 @@ CH_SHARD_PORT_2 ?= 8430
 # Distinguishes local tables from Distributed front ends and validates
 # cross-shard behavior. Opt-in because distributed DDL makes this run slow.
 test-clickhouse-two-shard: ## Test two-shard ClickHouse behavior
-	@CH_NET="$(CH_NET)" CH_SHARD_1_CONTAINER="$(CH_SHARD_1_CONTAINER)" \
+	$(call run-with-disk-guard,CH_NET="$(CH_NET)" CH_SHARD_1_CONTAINER="$(CH_SHARD_1_CONTAINER)" \
 		CH_SHARD_2_CONTAINER="$(CH_SHARD_2_CONTAINER)" CH_SHARD_PORT_1="$(CH_SHARD_PORT_1)" \
 		CH_SHARD_PORT_2="$(CH_SHARD_PORT_2)" CH_TEST_IMAGE="$(CH_TEST_IMAGE)" \
-		./scripts/container-test.sh clickhouse-two-shard
+		./scripts/container-test.sh clickhouse-two-shard)
 
 # PostgreSQL-specific transactional SQL and SQLite parity.
 PG_TEST_CONTAINER := sideseat-postgres-test-$(DOCKER_SCOPE)
@@ -413,8 +424,8 @@ PG_TEST_PORT ?= 5433
 PG_TEST_IMAGE ?= postgres:17-alpine
 
 test-postgres: ## Test PostgreSQL parity in Docker
-	@PG_TEST_CONTAINER="$(PG_TEST_CONTAINER)" PG_TEST_PORT="$(PG_TEST_PORT)" \
-		PG_TEST_IMAGE="$(PG_TEST_IMAGE)" ./scripts/container-test.sh postgres
+	$(call run-with-disk-guard,PG_TEST_CONTAINER="$(PG_TEST_CONTAINER)" PG_TEST_PORT="$(PG_TEST_PORT)" \
+		PG_TEST_IMAGE="$(PG_TEST_IMAGE)" ./scripts/container-test.sh postgres)
 
 # Durable consumer-group ingestion against append-only Redis.
 REDIS_TEST_CONTAINER := sideseat-redis-test-$(DOCKER_SCOPE)
@@ -422,8 +433,8 @@ REDIS_TEST_PORT ?= 6399
 REDIS_TEST_IMAGE ?= redis:7.4-alpine
 
 test-redis: ## Test Redis-backed ingestion
-	@REDIS_TEST_CONTAINER="$(REDIS_TEST_CONTAINER)" REDIS_TEST_PORT="$(REDIS_TEST_PORT)" \
-		REDIS_TEST_IMAGE="$(REDIS_TEST_IMAGE)" ./scripts/container-test.sh redis
+	$(call run-with-disk-guard,REDIS_TEST_CONTAINER="$(REDIS_TEST_CONTAINER)" REDIS_TEST_PORT="$(REDIS_TEST_PORT)" \
+		REDIS_TEST_IMAGE="$(REDIS_TEST_IMAGE)" ./scripts/container-test.sh redis)
 
 REDPANDA_TEST_CONTAINER := sideseat-redpanda-test-$(DOCKER_SCOPE)
 REDPANDA_TEST_PORT ?= 19092
@@ -431,22 +442,22 @@ REDPANDA_TEST_PORT ?= 19092
 REDPANDA_TEST_IMAGE ?= docker.redpanda.com/redpandadata/redpanda:v26.2.3
 
 test-redpanda: ## Test Redpanda-backed ingestion
-	@REDPANDA_TEST_CONTAINER="$(REDPANDA_TEST_CONTAINER)" REDPANDA_TEST_PORT="$(REDPANDA_TEST_PORT)" \
-		REDPANDA_TEST_IMAGE="$(REDPANDA_TEST_IMAGE)" ./scripts/container-test.sh redpanda
+	$(call run-with-disk-guard,REDPANDA_TEST_CONTAINER="$(REDPANDA_TEST_CONTAINER)" REDPANDA_TEST_PORT="$(REDPANDA_TEST_PORT)" \
+		REDPANDA_TEST_IMAGE="$(REDPANDA_TEST_IMAGE)" ./scripts/container-test.sh redpanda)
 
 # End-to-end HTTP latency for embedded and distributed deployments.
-bench-http: disk-guard ## Benchmark embedded HTTP latency
-	@scripts/bench-http-latency.sh embedded
+bench-http: ## Benchmark embedded HTTP latency
+	$(call run-with-disk-guard,scripts/bench-http-latency.sh embedded)
 
-bench-http-distributed: disk-guard ## Benchmark distributed HTTP latency
-	@scripts/bench-http-latency.sh distributed
+bench-http-distributed: ## Benchmark distributed HTTP latency
+	$(call run-with-disk-guard,scripts/bench-http-latency.sh distributed)
 
 # RSS gates run against the release server; in-process gates use allocation
 # counters because system allocators may retain freed pages.
-footprint: disk-guard ## Enforce memory footprint ceilings
-	@scripts/footprint-gates.sh
+footprint: ## Enforce memory footprint ceilings
+	$(call run-with-disk-guard,scripts/footprint-gates.sh)
 	@# Allocation counters are process-global, so serialize these tests.
-	@cd $(SERVER_DIR) && cargo test --locked --release --test footprint -- --ignored --nocapture --test-threads=1
+	$(call run-with-disk-guard,cd $(SERVER_DIR) && cargo test --locked --release --test footprint -- --ignored --nocapture --test-threads=1)
 
 test-web: ## Run web tests
 	@echo "[test-web] Running web tests..."
@@ -464,7 +475,7 @@ coverage: ## Generate test coverage reports
 	@echo "[coverage] Running tests with coverage..."
 	@command -v cargo-tarpaulin >/dev/null 2>&1 || { echo "Error: cargo-tarpaulin not installed. Install with: cargo install cargo-tarpaulin"; exit 1; }
 	@echo "[coverage] Rust coverage..."
-	@cd $(SERVER_DIR) && cargo tarpaulin --locked --out Html --output-dir ../coverage
+	$(call run-with-disk-guard,cd $(SERVER_DIR) && cargo tarpaulin --locked --out Html --output-dir ../coverage)
 	@echo "[coverage] Rust report: coverage/tarpaulin-report.html"
 	@echo "[coverage] Web coverage..."
 	@cd $(WEB_DIR) && npm run test:coverage -- --run
@@ -482,7 +493,7 @@ build-web: ## Build the web application
 
 build-server: build-web ## Build the server
 	@echo "[build-server] Building backend..."
-	@cd $(SERVER_DIR) && cargo build --locked --release
+	$(call run-with-disk-guard,cd $(SERVER_DIR) && cargo build --locked --release)
 	@echo "[build-server] Binary: target/release/sideseat"
 
 # =============================================================================
@@ -501,7 +512,7 @@ build-sdk-python: ## Build the Python SDK
 
 build-sdk-rust: ## Build the Rust SDK
 	@echo "[build-sdk-rust] Building Rust SDK..."
-	@cargo build --locked -p sideseat
+	$(call run-with-disk-guard,cargo build --locked -p sideseat)
 
 # =============================================================================
 # Build -- CLI (cross-compile all platforms)
@@ -511,7 +522,7 @@ build-sdk-rust: ## Build the Rust SDK
 define MAKE_CLI_TARGET
 build-cli-$(1): build-web
 	@echo "[build-cli] $(1) ($(BUILD_CMD_$(1)))..."
-	@cd $$(SERVER_DIR) && $(BUILD_CMD_$(1)) --locked --release --target $(RUST_TARGET_$(1))
+	$$(call run-with-disk-guard,cd $$(SERVER_DIR) && $(BUILD_CMD_$(1)) --locked --release --target $(RUST_TARGET_$(1)))
 	@cp target/$(RUST_TARGET_$(1))/release/$(BIN_NAME_$(1)) $$(call cli-bin,$(1))
 	@chmod +x $$(call cli-bin,$(1)) 2>/dev/null || true
 endef
@@ -964,8 +975,7 @@ clean-docker: ## Remove this checkout's test containers
 		docker network rm "$(CH_NET)" >/dev/null; \
 	fi
 
-# What is using space, and **whether it is within budget** - which is the difference between a report and a
-# gate. Exits non-zero over the ceiling, the way a missed latency ceiling fails `make bench-http`.
+# Report local storage and fail when the Cargo cache or free-space reserve is unhealthy.
 disk: ## Report and enforce the local disk budget
 	@echo "[disk] Free space:"
 	@df -h . | tail -1
@@ -992,37 +1002,46 @@ disk: ## Report and enforce the local disk budget
 		echo "[disk] Active runtime: $$(docker context show 2>/dev/null)"; \
 		echo "[disk] An inactive runtime's disk is dead weight - reclaiming it means deleting that VM."; \
 	} || true
-	@used=$$(du -sm target 2>/dev/null | cut -f1 || echo 0); \
+	@used=$$(du -sm target 2>/dev/null | awk '{print $$1}'); \
+	used=$${used:-0}; \
+	available=$$(df -Pm . | awk 'NR == 2 {print $$4}'); \
+	failed=0; \
 	if [ "$$used" -gt "$(DISK_BUDGET_MB)" ]; then \
 		echo "[disk] OVER BUDGET: target/ is $$used MB against a ceiling of $(DISK_BUDGET_MB) MB"; \
 		echo "[disk] Reclaim: make clean-stale (keeps the current build) or make clean (cold rebuild)"; \
-		exit 1; \
+		failed=1; \
 	else \
 		echo "[disk] target/ is $$used MB, within the $(DISK_BUDGET_MB) MB budget"; \
-	fi
+	fi; \
+	if [ "$$available" -lt "$(DISK_FREE_MIN_MB)" ]; then \
+		echo "[disk] LOW SPACE: $$available MB free; reserve is $(DISK_FREE_MIN_MB) MB"; \
+		failed=1; \
+	else \
+		echo "[disk] $$available MB free, above the $(DISK_FREE_MIN_MB) MB reserve"; \
+	fi; \
+	exit "$$failed"
 
-# The cheap enforcement, wired into the targets that cause the growth.
-#
-# A `du` on target/ costs 0.3s, so this can run habitually - which is the point: the manual targets existed
-# and the disk still filled twice, because nothing ran them. Over budget it reclaims exactly what a rebuild
-# regenerates cheaply and says what it took; the current build is never touched.
-#
-# It does **not** fail the build. Disk usage is not a correctness property, and aborting someone's test run
-# over it would be the wrong trade - `make disk` is the gate that fails, this is the thing that keeps the
-# number from getting there. If a reclaim cannot bring it under, it says so and carries on, because the
-# alternative is a cold rebuild nobody asked for mid-session.
+# Finite Rust build and test recipes run this before and after their main command.
 disk-guard:
-	@used=$$(du -sm target 2>/dev/null | cut -f1 || echo 0); \
-	if [ "$$used" -gt "$(DISK_BUDGET_MB)" ]; then \
-		echo "[disk-guard] target/ is $$used MB, over the $(DISK_BUDGET_MB) MB budget - reclaiming"; \
+	@used=$$(du -sm target 2>/dev/null | awk '{print $$1}'); \
+	used=$${used:-0}; \
+	available=$$(df -Pm . | awk 'NR == 2 {print $$4}'); \
+	if [ "$$used" -gt "$(DISK_BUDGET_MB)" ] || [ "$$available" -lt "$(DISK_FREE_MIN_MB)" ]; then \
+		echo "[disk-guard] target=$$used MB, free=$$available MB; reclaiming stale artifacts"; \
 		$(MAKE) --no-print-directory clean-stale; \
-		after=$$(du -sm target 2>/dev/null | cut -f1 || echo 0); \
-		if [ "$$after" -gt "$(DISK_BUDGET_MB)" ]; then \
-			echo "[disk-guard] still $$after MB: the current build itself exceeds the budget."; \
-			echo "[disk-guard] Either raise DISK_BUDGET_MB or run make clean for a cold rebuild."; \
-			command -v cargo-sweep >/dev/null 2>&1 || \
-				echo "[disk-guard] cargo-sweep is not installed, so stale artifacts of older builds were kept: cargo install cargo-sweep"; \
-		fi; \
+	fi; \
+	used=$$(du -sm target 2>/dev/null | awk '{print $$1}'); \
+	used=$${used:-0}; \
+	available=$$(df -Pm . | awk 'NR == 2 {print $$4}'); \
+	if [ "$$used" -gt "$(DISK_BUDGET_MB)" ]; then \
+		echo "[disk-guard] target/ remains $$used MB; limit is $(DISK_BUDGET_MB) MB"; \
+		echo "[disk-guard] Run 'make clean' or raise DISK_BUDGET_MB."; \
+		exit 1; \
+	fi; \
+	if [ "$$available" -lt "$(DISK_FREE_MIN_MB)" ]; then \
+		echo "[disk-guard] only $$available MB free; reserve is $(DISK_FREE_MIN_MB) MB"; \
+		echo "[disk-guard] Free space before continuing or lower DISK_FREE_MIN_MB."; \
+		exit 1; \
 	fi
 
 clean: ## Remove all generated build artifacts

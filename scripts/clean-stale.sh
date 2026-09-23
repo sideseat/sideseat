@@ -16,6 +16,10 @@ if [[ -z "$target_dir" || "$target_dir" == "/" ]]; then
   echo "[clean-stale] refusing unsafe Cargo target directory: $target_dir" >&2
   exit 1
 fi
+if [[ ! -d "$target_dir" ]]; then
+  echo "[clean-stale] target directory does not exist; nothing to remove"
+  exit 0
+fi
 
 before="$(du -sk "$target_dir" 2>/dev/null | awk '{print $1}')"
 before="${before:-0}"
