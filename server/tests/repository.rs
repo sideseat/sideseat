@@ -3081,6 +3081,25 @@ fn dependency_report_discovers_every_project_manifest() {
     );
 }
 
+#[test]
+fn frontend_build_script_belongs_to_the_embedding_crate() {
+    let repo = repo_root();
+    assert!(
+        !repo.join("server/build.rs").exists(),
+        "the composition root must not own another crate's build inputs"
+    );
+
+    let build_script =
+        std::fs::read_to_string(repo.join("server/crates/api/build.rs")).expect("API build script");
+    let embed = std::fs::read_to_string(repo.join("server/crates/api/src/embedded.rs"))
+        .expect("frontend embed");
+    assert!(
+        build_script.contains("cargo::rerun-if-changed=../../../web/dist")
+            && embed.contains("#[folder = \"../../../web/dist\"]"),
+        "the crate that embeds web/dist must also own its Cargo invalidation"
+    );
+}
+
 /// Does this manifest line declare `driver`, under its own name or a rename?
 ///
 /// Extracted so it can be tested on input the workspace does not contain. A live mutation is not available:

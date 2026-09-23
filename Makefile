@@ -820,7 +820,7 @@ docs-deps:
 	@#  And the browser the Mermaid diagrams render in. `playwright install` is idempotent and answers from
 	@#  its cache in well under a second once present, so this is not a per-build download - but without it
 	@#  `make build-docs` fails in a fresh clone with an error about a missing executable, which is the same
-	@#  shape as the `web/dist` failure `server/build.rs` exists to prevent.
+	@#  shape as the missing `web/dist` failure the API build script prevents.
 	@#  `--no-install`, so the *locked* playwright drives the download rather than whatever the registry
 	@#  currently publishes - and it runs after the `npm ci` above for the same reason. The command is
 	@#  idempotent: with the browser present it answers from its cache in well under a second, so this is not a
@@ -1145,7 +1145,7 @@ clean: ## Remove all generated build artifacts
 	@echo "[clean] Removing build artifacts..."
 	@rm -rf target
 	@#  `dist` is simply removed. The server *embeds* it, so it has to exist to compile - and that is
-	@#  `server/build.rs`'s job, on the next build. Writing a placeholder here as well gave the same
+	@#  the API crate build script's job, on the next build. Writing a placeholder here as well gave the same
 	@#  artifact two owners with different content, and since the build script preserves any existing
 	@#  `index.html`, whichever ran last decided what a UI-less binary served.
 	@rm -rf $(WEB_DIR)/dist
@@ -1156,7 +1156,7 @@ clean: ## Remove all generated build artifacts
 	@rm -rf sdk/python/dist
 	@rm -rf $(RELEASE_DIR)
 	@echo "[clean] Done. target/ and web/dist are gone; the next Rust build is cold."
-	@echo "[clean] server/build.rs recreates web/dist as a placeholder on the next build - run make build-web for the real UI."
+	@echo "[clean] The API crate recreates web/dist as a placeholder on the next build - run make build-web for the real UI."
 
 # Aliases
 run: dev ## Alias for dev

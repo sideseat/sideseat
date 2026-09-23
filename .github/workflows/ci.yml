@@ -68,7 +68,7 @@ jobs:
           workspaces: server
           key: msrv
 
-      # No web-dist step: `cargo check` runs build scripts, and `server/build.rs` creates the placeholder the
+      # No web-dist step: `cargo check` runs build scripts, and the API crate creates the placeholder the
       # asset embedding needs.
       - name: Check the whole workspace
         run: cargo check --locked --workspace --all-targets

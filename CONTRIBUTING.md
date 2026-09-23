@@ -24,7 +24,7 @@ Dev server runs at http://localhost:5389 (UI) and http://localhost:5388 (API).
 server/crates/       Layer crates whose manifests enforce compile-time boundaries
               domain depends only inward; adapters implement ports; API names only inward crates.
               A forbidden dependency does not compile
-server/       Rust backend (Axum): Cargo.toml, build.rs, crates/, src/, tests/, assets/, proptest-regressions/
+server/       Rust backend (Axum): Cargo.toml, crates/, src/, tests/, assets/, proptest-regressions/
 web/          React frontend (Vite)
 cli/          npm distribution wrapper
 sdk/          Client SDKs: python/ js/ rust/ dotnet/
