@@ -83,7 +83,7 @@ cli-bin = $(CLI_DIR)/platforms/platform-$(1)/$(BIN_NAME_$(1))
 .PHONY: secret-scan-tree secret-scan-staged secret-scan-range
 .PHONY: test test-rust test-server test-clickhouse test-clickhouse-replicated test-clickhouse-two-shard test-postgres test-redis test-redpanda test-backup-restore bench-http bench-http-distributed footprint test-web test-sdk-js test-sdk-python coverage
 .PHONY: build build-web build-server
-.PHONY: build-sdk build-sdk-js build-sdk-python
+.PHONY: build-sdk build-sdk-js build-sdk-python build-sdk-rust
 .PHONY: build-cli build-cli-preflight build-cli-summary $(CLI_BUILD_TARGETS)
 .PHONY: version version-check bump sync-version
 .PHONY: publish publish-cli publish-sdk-js publish-sdk-python
@@ -487,7 +487,7 @@ build-server: build-web ## Build the server
 # Build -- SDKs
 # =============================================================================
 
-build-sdk: build-sdk-js build-sdk-python ## Build all SDKs
+build-sdk: build-sdk-js build-sdk-python build-sdk-rust ## Build implemented SDKs
 
 build-sdk-js: ## Build the JavaScript SDK
 	@echo "[build-sdk-js] Building JS SDK..."
@@ -496,6 +496,10 @@ build-sdk-js: ## Build the JavaScript SDK
 build-sdk-python: ## Build the Python SDK
 	@echo "[build-sdk-python] Building Python SDK..."
 	@cd sdk/python && uv build
+
+build-sdk-rust: ## Build the Rust SDK
+	@echo "[build-sdk-rust] Building Rust SDK..."
+	@cargo build --locked -p sideseat
 
 # =============================================================================
 # Build -- CLI (cross-compile all platforms)
