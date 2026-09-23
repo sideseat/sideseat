@@ -2,7 +2,7 @@
 
 mod background_tasks;
 pub mod files;
-pub mod providers;
+mod providers;
 pub mod storage;
 mod system_commands;
 mod update;
@@ -45,25 +45,24 @@ enum InitMode {
 }
 
 pub struct CoreApp {
-    pub shutdown: ShutdownService,
-    pub config: AppConfig,
-    pub storage: AppStorage,
-    pub secrets: SecretManager,
-    pub database: Arc<TransactionalService>,
-    pub database_port: Arc<dyn TransactionalRepository + Send + Sync>,
-    pub analytics: Arc<AnalyticsService>,
-    pub analytics_port: Arc<dyn AnalyticsRepository + Send + Sync>,
-    pub pricing: Arc<PricingService>,
-    pub auth: Arc<AuthManager>,
-    pub topics: Arc<TopicService>,
-    pub files: Arc<FileService>,
-    pub staging: Arc<StagingService>,
-    pub storage_governance: Arc<StorageGovernanceService>,
-    pub cache: Arc<CacheService>,
-    pub cache_port: Arc<dyn CacheStore>,
-    pub rate_limiter: Arc<RateLimiter>,
-    pub credentials: Arc<CredentialService>,
-    pub clock: Arc<dyn Clock>,
+    shutdown: ShutdownService,
+    config: AppConfig,
+    storage: AppStorage,
+    secrets: SecretManager,
+    database: Arc<TransactionalService>,
+    database_port: Arc<dyn TransactionalRepository + Send + Sync>,
+    analytics: Arc<AnalyticsService>,
+    analytics_port: Arc<dyn AnalyticsRepository + Send + Sync>,
+    pricing: Arc<PricingService>,
+    auth: Arc<AuthManager>,
+    topics: Arc<TopicService>,
+    files: Arc<FileService>,
+    staging: Arc<StagingService>,
+    storage_governance: Arc<StorageGovernanceService>,
+    cache_port: Arc<dyn CacheStore>,
+    rate_limiter: Arc<RateLimiter>,
+    credentials: Arc<CredentialService>,
+    clock: Arc<dyn Clock>,
 }
 
 impl CoreApp {
@@ -236,7 +235,6 @@ impl CoreApp {
             files,
             staging,
             storage_governance,
-            cache,
             cache_port,
             rate_limiter,
             credentials,
