@@ -10,19 +10,15 @@ interface TimelineScaleProps {
 
 export function TimelineScale({ duration, scaleWidth, className }: TimelineScaleProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const [width, setWidth] = useState(scaleWidth ?? 0);
+  const [measuredWidth, setMeasuredWidth] = useState(0);
 
   useLayoutEffect(() => {
-    if (scaleWidth !== undefined) {
-      setWidth(scaleWidth);
-      return;
-    }
-
+    if (scaleWidth !== undefined) return;
     if (!containerRef.current) return;
 
     const observer = new ResizeObserver((entries) => {
       for (const entry of entries) {
-        setWidth(entry.contentRect.width);
+        setMeasuredWidth(entry.contentRect.width);
       }
     });
 
@@ -30,6 +26,7 @@ export function TimelineScale({ duration, scaleWidth, className }: TimelineScale
     return () => observer.disconnect();
   }, [scaleWidth]);
 
+  const width = scaleWidth ?? measuredWidth;
   const ticks = calculateTimeScale(duration, width);
 
   return (
