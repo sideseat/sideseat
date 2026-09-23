@@ -265,7 +265,7 @@ impl ContentBodyService {
                 ProjectId::from(
                     span.project_id
                         .as_deref()
-                        .unwrap_or(sideseat_core::core::constants::DEFAULT_PROJECT_ID),
+                        .unwrap_or(sideseat_core::constants::DEFAULT_PROJECT_ID),
                 )
             })
             .collect::<HashSet<_>>();
@@ -288,7 +288,7 @@ impl ContentBodyService {
                 (
                     span.project_id
                         .as_deref()
-                        .unwrap_or(sideseat_core::core::constants::DEFAULT_PROJECT_ID)
+                        .unwrap_or(sideseat_core::constants::DEFAULT_PROJECT_ID)
                         .to_string(),
                     span.trace_id.clone(),
                     span.span_id.clone(),
@@ -1080,7 +1080,7 @@ fn collect(spans: &[NormalizedSpan]) -> CollectedBodies {
         let project = span
             .project_id
             .as_deref()
-            .unwrap_or(sideseat_core::core::constants::DEFAULT_PROJECT_ID);
+            .unwrap_or(sideseat_core::constants::DEFAULT_PROJECT_ID);
         let project_id = ProjectId::from(project);
         let identity = (
             project.to_string(),
@@ -1193,7 +1193,7 @@ mod tests {
     use chrono::{TimeZone, Utc};
     use sideseat_adapter_blob_storage::FilesystemStorage;
     use sideseat_adapter_sqlite::{SqliteRepository, SqliteService};
-    use sideseat_core::core::storage::AppStorage;
+    use sideseat_core::storage::AppStorage;
     use sideseat_ports::clock::Clock;
     use std::path::Path;
     use std::sync::atomic::{AtomicUsize, Ordering};

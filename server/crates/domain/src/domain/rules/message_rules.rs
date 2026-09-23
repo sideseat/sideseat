@@ -4675,19 +4675,19 @@ fn emit_rule<'p>(rule: &'p CompiledMessageRule, ctx: &MessageContext<'_>) -> Vec
     // payload holding a hundred thousand elements is a hundred thousand messages from one span - which no
     // producer means and no reader can use. Server policy rather than a declaration, and reported so a truncated
     // answer is not mistaken for a complete one.
-    if readings.len() > sideseat_core::core::constants::RULE_MAX_EMISSIONS_PER_CARRIER {
+    if readings.len() > sideseat_core::constants::RULE_MAX_EMISSIONS_PER_CARRIER {
         tracing::warn!(
             target: "sideseat::rules",
             rule = %rule.rule_id,
             carrier = %attribute,
             found = readings.len(),
-            limit = sideseat_core::core::constants::RULE_MAX_EMISSIONS_PER_CARRIER,
+            limit = sideseat_core::constants::RULE_MAX_EMISSIONS_PER_CARRIER,
             "a carrier yielded more observations than this server reports from one; the rest are dropped"
         );
     }
     for (value, per_reading_target, clause) in readings
         .into_iter()
-        .take(sideseat_core::core::constants::RULE_MAX_EMISSIONS_PER_CARRIER)
+        .take(sideseat_core::constants::RULE_MAX_EMISSIONS_PER_CARRIER)
     {
         out.push(Emission {
             rule_id: &rule.rule_id,
@@ -5104,7 +5104,7 @@ fn walked_readings(
     let mut visited = 0usize;
     while let Some((node, depth)) = stack.pop() {
         visited += 1;
-        if visited > sideseat_core::core::constants::RULE_WALK_MAX_NODES {
+        if visited > sideseat_core::constants::RULE_WALK_MAX_NODES {
             // Reported and **stopped**, rather than returning whatever was gathered: a truncated walk is a
             // partial answer that looks like a complete one, which is the class of defect this review keeps
             // finding. What has been read is still returned, because discarding it would lose messages a
@@ -5112,7 +5112,7 @@ fn walked_readings(
             tracing::warn!(
                 target: "sideseat::rules",
                 rule = %rule.rule_id,
-                limit = sideseat_core::core::constants::RULE_WALK_MAX_NODES,
+                limit = sideseat_core::constants::RULE_WALK_MAX_NODES,
                 "a rule's walk reached this server's node ceiling; the rest of the payload was not visited"
             );
             break;

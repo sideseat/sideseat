@@ -11,13 +11,11 @@ use sideseat_adapter_blob_storage::FilesystemStorage;
 use sideseat_adapter_cache::CacheService;
 use sideseat_adapter_duckdb::{DuckdbRepository, DuckdbService};
 use sideseat_adapter_sqlite::{SqliteRepository, SqliteService};
-use sideseat_core::core::config::{
+use sideseat_core::config::{
     CacheBackendType, CacheConfig, EvictionPolicy, FilesConfig, StorageBackend,
 };
-use sideseat_core::core::constants::{
-    DUCKDB_DB_FILENAME, RESTORE_PENDING_MARKER, SQLITE_DB_FILENAME,
-};
-use sideseat_core::core::storage::{AppStorage, DataSubdir};
+use sideseat_core::constants::{DUCKDB_DB_FILENAME, RESTORE_PENDING_MARKER, SQLITE_DB_FILENAME};
+use sideseat_core::storage::{AppStorage, DataSubdir};
 use sideseat_domain::files::{FileService, FileServiceError};
 use sideseat_ports::blobs::FileStorage;
 use sideseat_ports::clock::Clock;

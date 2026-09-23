@@ -24,7 +24,7 @@ use parking_lot::RwLock;
 use tokio::sync::{Notify, broadcast};
 
 use crate::TopicError;
-use sideseat_core::core::constants::{
+use sideseat_core::constants::{
     STREAM_ENTRY_OVERHEAD_BYTES, STREAM_MAX_CONSUMER_GROUPS, STREAM_MAX_REMEMBERED_CONSUMERS,
     STREAM_MAX_RETAINED_BYTES, STREAM_PENDING_RECORD_OVERHEAD_BYTES,
 };

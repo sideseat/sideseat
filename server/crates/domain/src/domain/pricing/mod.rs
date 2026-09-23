@@ -18,7 +18,7 @@ use thiserror::Error;
 use tokio::sync::watch;
 use tokio::task::JoinHandle;
 
-use sideseat_core::core::storage::AppStorage;
+use sideseat_core::storage::AppStorage;
 use sideseat_ports::clock::Clock;
 use sideseat_ports::pricing::PricingCatalogueSource;
 

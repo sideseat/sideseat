@@ -53,7 +53,7 @@ use crate::files::FileService;
 use crate::staging::{StagedPayloadRef, StagingDisposition, StagingService};
 use crate::storage_governance::StorageGovernanceService;
 use crate::topics::{StreamTopic, TopicService};
-use sideseat_core::core::constants::{DEFAULT_PROJECT_ID, PIPELINE_CPU_PHASE_MAX_INFLIGHT_BYTES};
+use sideseat_core::constants::{DEFAULT_PROJECT_ID, PIPELINE_CPU_PHASE_MAX_INFLIGHT_BYTES};
 use sideseat_core::utils::time::is_storable;
 use sideseat_ports::queue::TopicError;
 use sideseat_ports::traits::AnalyticsRepository;
@@ -2940,10 +2940,10 @@ mod session_fence_tests {
         use sideseat_adapter_cache::CacheService;
         use sideseat_adapter_duckdb::{DuckdbRepository, DuckdbService};
         use sideseat_adapter_sqlite::{SqliteRepository, SqliteService};
-        use sideseat_core::core::config::{
+        use sideseat_core::config::{
             CacheBackendType, CacheConfig, EvictionPolicy, FilesConfig, StorageBackend,
         };
-        use sideseat_core::core::storage::AppStorage;
+        use sideseat_core::storage::AppStorage;
         use sideseat_ports::clock::Clock;
         use sideseat_ports::traits::TransactionalRepository;
 
@@ -2995,7 +2995,7 @@ mod session_fence_tests {
         let files = Arc::new(
             FileService::new(
                 file_config,
-                storage.subdir(sideseat_core::core::storage::DataSubdir::FilesTemp),
+                storage.subdir(sideseat_core::storage::DataSubdir::FilesTemp),
                 Arc::new(FilesystemStorage::new(temp.path().join("files"))),
                 Arc::clone(&database),
                 cache,
@@ -3013,7 +3013,7 @@ mod session_fence_tests {
                 Arc::clone(&database),
                 Arc::clone(&analytics),
                 Arc::new(TestClock),
-                sideseat_core::core::config::RetentionConfig::default(),
+                sideseat_core::config::RetentionConfig::default(),
                 5,
             )),
         );

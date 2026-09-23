@@ -58,7 +58,7 @@ use std::sync::Arc;
 use crate::data::TransactionalService;
 use crate::data::postgres::PostgresService;
 use crate::data::sqlite::SqliteService;
-use sideseat_core::core::config::PostgresConfig;
+use sideseat_core::config::PostgresConfig;
 
 use sideseat_ports::types::{LastOwnerResult, ProjectId};
 

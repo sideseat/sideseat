@@ -469,7 +469,7 @@ pub async fn get_stale_claimed_projects(
          ORDER BY deleting_at LIMIT $2",
     )
     .bind(cutoff)
-    .bind(sideseat_core::core::constants::STALE_CLEANUP_RESUME_BATCH)
+    .bind(sideseat_core::constants::STALE_CLEANUP_RESUME_BATCH)
     .fetch_all(pool)
     .await?;
     rows.sort_unstable_by(|left, right| left.0.cmp(&right.0));
@@ -723,7 +723,7 @@ pub async fn get_stale_claimed_organizations(
          ORDER BY deleting_at LIMIT $2",
     )
     .bind(cutoff)
-    .bind(sideseat_core::core::constants::STALE_CLEANUP_RESUME_BATCH)
+    .bind(sideseat_core::constants::STALE_CLEANUP_RESUME_BATCH)
     .fetch_all(pool)
     .await?;
     Ok(rows)

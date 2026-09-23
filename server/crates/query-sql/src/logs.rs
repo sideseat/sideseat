@@ -1,7 +1,7 @@
 //! Typed reads over OTLP log-record winners.
 
 use chrono::{DateTime, Utc};
-use sideseat_core::core::constants::QUERY_MAX_FILTER_SUGGESTIONS;
+use sideseat_core::constants::QUERY_MAX_FILTER_SUGGESTIONS;
 use sideseat_ports::types::ListLogsParams;
 
 use crate::Backend;

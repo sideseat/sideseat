@@ -13,9 +13,7 @@ use serde::Deserialize;
 use crate::auth::{Auth, OrgAdmin, OrgOwner, OrgRead};
 use crate::extractors::{ValidatedJson, ValidatedQuery};
 use crate::types::{ApiError, PaginatedResponse};
-use sideseat_core::core::constants::{
-    DEFAULT_ORG_ID, ORG_ROLE_ADMIN, ORG_ROLE_OWNER, RESERVED_SLUGS,
-};
+use sideseat_core::constants::{DEFAULT_ORG_ID, ORG_ROLE_ADMIN, ORG_ROLE_OWNER, RESERVED_SLUGS};
 use sideseat_domain::cleanup::cleanup_organization;
 use sideseat_domain::files::FileService;
 use sideseat_domain::storage_governance::StorageGovernanceService;

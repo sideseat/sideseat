@@ -5,7 +5,7 @@
 use sqlx::SqlitePool;
 
 use crate::SqliteError;
-use sideseat_core::core::constants::FILE_CLEANUP_BATCH_SIZE;
+use sideseat_core::constants::FILE_CLEANUP_BATCH_SIZE;
 use sideseat_ports::traits::retention_cleanup_logical_bytes;
 use sideseat_ports::types::FileRow;
 

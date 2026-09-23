@@ -14,7 +14,7 @@ use opentelemetry_proto::tonic::collector::{
     trace::v1::ExportTraceServiceRequest,
 };
 use prost::Message;
-use sideseat_core::core::config::RetentionConfig;
+use sideseat_core::config::RetentionConfig;
 use sideseat_ports::blobs::{FileStorage, FileStorageError};
 use sideseat_ports::clock::Clock;
 use sideseat_ports::traits::{AnalyticsRepository, DeletionScope, TransactionalRepository};
@@ -532,7 +532,7 @@ mod tests {
     use sideseat_adapter_blob_storage::FilesystemStorage;
     use sideseat_adapter_duckdb::{DuckdbRepository, DuckdbService};
     use sideseat_adapter_sqlite::{SqliteRepository, SqliteService};
-    use sideseat_core::core::storage::AppStorage;
+    use sideseat_core::storage::AppStorage;
     use sideseat_ports::types::NormalizedMetric;
 
     #[derive(Debug)]

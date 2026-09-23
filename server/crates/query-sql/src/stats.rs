@@ -4,7 +4,7 @@
 //! timezone-aware bucket boundaries. Analytical adapters only execute and decode these statements.
 
 use chrono::{DateTime, Duration, Utc};
-use sideseat_core::core::constants::QUERY_MAX_TOP_STATS;
+use sideseat_core::constants::QUERY_MAX_TOP_STATS;
 use sideseat_ports::types::StatsParams;
 
 use crate::Backend;

@@ -33,7 +33,7 @@ use sideseat_ports::types::ProjectId;
 use tokio::sync::watch;
 use tokio::task::JoinHandle;
 
-use sideseat_core::core::config::{ClickhouseConfig, RetentionConfig};
+use sideseat_core::config::{ClickhouseConfig, RetentionConfig};
 
 /// ClickHouse analytics service
 ///

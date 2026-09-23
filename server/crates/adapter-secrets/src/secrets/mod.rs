@@ -24,9 +24,9 @@ use anyhow::{Context, Result};
 use tokio::sync::watch;
 use tokio::task::JoinHandle;
 
-use sideseat_core::core::config::{SecretsBackend, SecretsConfig};
-use sideseat_core::core::constants::{SECRET_KEY_API_KEY, SECRET_KEY_JWT_SIGNING};
-use sideseat_core::core::storage::AppStorage;
+use sideseat_core::config::{SecretsBackend, SecretsConfig};
+use sideseat_core::constants::{SECRET_KEY_API_KEY, SECRET_KEY_JWT_SIGNING};
+use sideseat_core::storage::AppStorage;
 use sideseat_core::utils::crypto;
 use sideseat_ports::clock::Clock;
 
@@ -98,7 +98,7 @@ impl SecretManager {
                     .as_ref()
                     .map(|e| e.prefix.clone())
                     .unwrap_or_else(|| {
-                        sideseat_core::core::constants::SECRETS_DEFAULT_ENV_PREFIX.to_string()
+                        sideseat_core::constants::SECRETS_DEFAULT_ENV_PREFIX.to_string()
                     });
                 Arc::new(env::EnvProvider::new(prefix, Arc::clone(&clock)))
             }
@@ -455,7 +455,7 @@ impl sideseat_ports::secrets::CredentialSecretStore for SecretManager {
         let key = SecretKey::new(
             format!(
                 "{}{}",
-                sideseat_core::core::constants::CRED_SECRET_PREFIX,
+                sideseat_core::constants::CRED_SECRET_PREFIX,
                 credential_id
             ),
             SecretScope::org(organization_id),
@@ -475,7 +475,7 @@ impl sideseat_ports::secrets::CredentialSecretStore for SecretManager {
         let key = SecretKey::new(
             format!(
                 "{}{}",
-                sideseat_core::core::constants::CRED_SECRET_PREFIX,
+                sideseat_core::constants::CRED_SECRET_PREFIX,
                 credential_id
             ),
             SecretScope::org(organization_id),
@@ -493,7 +493,7 @@ impl sideseat_ports::secrets::CredentialSecretStore for SecretManager {
         let key = SecretKey::new(
             format!(
                 "{}{}",
-                sideseat_core::core::constants::CRED_SECRET_PREFIX,
+                sideseat_core::constants::CRED_SECRET_PREFIX,
                 credential_id
             ),
             SecretScope::org(organization_id),
@@ -507,7 +507,7 @@ impl sideseat_ports::secrets::CredentialSecretStore for SecretManager {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use sideseat_core::core::storage::AppStorage;
+    use sideseat_core::storage::AppStorage;
 
     use async_trait::async_trait;
     use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};

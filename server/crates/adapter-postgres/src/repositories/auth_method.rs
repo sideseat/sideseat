@@ -8,9 +8,7 @@ use std::time::Duration;
 use sqlx::PgPool;
 
 use crate::PostgresError;
-use sideseat_core::core::constants::{
-    AUTH_METHOD_BOOTSTRAP, AUTH_METHOD_OAUTH, CACHE_TTL_AUTH_METHOD,
-};
+use sideseat_core::constants::{AUTH_METHOD_BOOTSTRAP, AUTH_METHOD_OAUTH, CACHE_TTL_AUTH_METHOD};
 use sideseat_ports::cache::{CacheKey, CacheStore, TypedCache};
 use sideseat_ports::types::AuthMethodRow;
 

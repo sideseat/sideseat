@@ -15,7 +15,7 @@ mod redpanda_tests;
 
 use std::sync::Arc;
 
-use sideseat_core::core::config::{QueueBackendType, QueueConfig};
+use sideseat_core::config::{QueueBackendType, QueueConfig};
 pub use sideseat_ports::queue::{
     BroadcastSubscription, StreamMessage, StreamStats, StreamSubscription, TopicBackend, TopicError,
 };

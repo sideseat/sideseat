@@ -15,7 +15,7 @@ use crate::content_bodies::{
 };
 use crate::files::cleanup::{cleanup_orphan_temp_files, cleanup_zero_ref_files_governed};
 use crate::files::{FileRestoreRepairReport, FileService, FileServiceError, MissingFileReference};
-use sideseat_core::core::constants::FILE_DELETION_CLAIM_STALE_SECS;
+use sideseat_core::constants::FILE_DELETION_CLAIM_STALE_SECS;
 use sideseat_ports::error::DataError;
 use sideseat_ports::traits::{
     AnalyticsRepository, DeletionRecord, DeletionScope, TransactionalRepository,
@@ -310,10 +310,10 @@ mod tests {
     use sideseat_adapter_cache::CacheService;
     use sideseat_adapter_duckdb::{DuckdbRepository, DuckdbService};
     use sideseat_adapter_sqlite::{SqliteRepository, SqliteService};
-    use sideseat_core::core::config::{
+    use sideseat_core::config::{
         CacheBackendType, CacheConfig, EvictionPolicy, FilesConfig, StorageBackend,
     };
-    use sideseat_core::core::storage::{AppStorage, DataSubdir};
+    use sideseat_core::storage::{AppStorage, DataSubdir};
     use sideseat_ports::blobs::FileStorage;
     use sideseat_ports::clock::Clock;
     use sideseat_ports::types::{ContentBodyObject, NormalizedSpan, StagedPayload, StagedSignal};

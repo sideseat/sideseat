@@ -6,7 +6,7 @@ use utoipa::ToSchema;
 use validator::Validate;
 
 use crate::types::{default_limit, default_page, validate_limit, validate_page};
-use sideseat_core::core::constants::{
+use sideseat_core::constants::{
     ORG_ROLE_ADMIN, ORG_ROLE_MEMBER, ORG_ROLE_OWNER, ORG_ROLE_VIEWER, ORG_SLUG_MAX_LEN,
     ORG_SLUG_MIN_LEN,
 };

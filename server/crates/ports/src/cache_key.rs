@@ -1,6 +1,6 @@
 //! Type-safe cache key vocabulary shared by cache users and adapters.
 
-use sideseat_core::core::constants::CACHE_KEY_VERSION;
+use sideseat_core::constants::CACHE_KEY_VERSION;
 
 /// Type-safe cache key builder
 ///

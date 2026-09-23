@@ -4,7 +4,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use futures::StreamExt;
-use sideseat_core::core::config::RedpandaConfig;
+use sideseat_core::config::RedpandaConfig;
 use sideseat_ports::queue::TopicBackend;
 
 use super::redpanda::RedpandaTopicBackend;

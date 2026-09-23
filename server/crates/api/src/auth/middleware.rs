@@ -15,7 +15,7 @@ use super::context::{AuthContext, AuthService};
 use super::jwt::JwtError;
 use super::manager::AuthManager;
 use crate::middleware::AllowedOrigins;
-use sideseat_core::core::constants::{DEFAULT_USER_ID, SESSION_COOKIE_NAME};
+use sideseat_core::constants::{DEFAULT_USER_ID, SESSION_COOKIE_NAME};
 use sideseat_ports::clock::Clock;
 use sideseat_ports::types::ApiKeyScope;
 

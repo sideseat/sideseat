@@ -8,7 +8,7 @@ use rand::Rng;
 use rand::rngs::OsRng;
 use sha2::Sha256;
 
-use crate::core::constants::{API_KEY_PREFIX, API_KEY_PREFIX_DISPLAY_LEN, API_KEY_RANDOM_LENGTH};
+use crate::constants::{API_KEY_PREFIX, API_KEY_PREFIX_DISPLAY_LEN, API_KEY_RANDOM_LENGTH};
 
 type HmacSha256 = Hmac<Sha256>;
 

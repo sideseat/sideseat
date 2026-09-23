@@ -24,7 +24,7 @@
 #   * **A failed export is not load.** Every post checks its status and the run fails if the server stopped
 #     accepting, because a server refusing traffic has excellent memory usage.
 #
-# The ceilings are declared in `sideseat_core::core::constants` and repeated here as literals, since bash
+# The ceilings are declared in `sideseat_core::constants` and repeated here as literals, since bash
 # cannot read Rust. `the_footprint_script_enforces_the_declared_ceilings` compares the two, so a ceiling
 # loosened in one place fails the build.
 set -euo pipefail

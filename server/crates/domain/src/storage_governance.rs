@@ -723,7 +723,7 @@ mod tests {
     use chrono::TimeZone;
     use sideseat_adapter_duckdb::{DuckdbRepository, DuckdbService};
     use sideseat_adapter_sqlite::{SqliteRepository, SqliteService};
-    use sideseat_core::core::storage::AppStorage;
+    use sideseat_core::storage::AppStorage;
     use sideseat_ports::traits::StorageGovernance;
     use sideseat_ports::types::{MetricType, NormalizedLog, NormalizedMetric, NormalizedSpan};
     use tokio::sync::Barrier;

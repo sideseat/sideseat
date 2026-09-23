@@ -451,7 +451,7 @@ mod tests {
     use super::*;
     use crate::{DuckdbService, MetricType};
     use chrono::{DateTime, Utc};
-    use sideseat_core::core::storage::AppStorage;
+    use sideseat_core::storage::AppStorage;
     use tempfile::TempDir;
 
     fn test_now() -> DateTime<Utc> {

@@ -11,7 +11,7 @@
 //! - TTL for automatic data expiration
 //! - Projections for common aggregations
 
-use sideseat_core::core::config::ClickhouseConfig;
+use sideseat_core::config::ClickhouseConfig;
 
 /// Current schema version
 pub const SCHEMA_VERSION: i32 = 7;

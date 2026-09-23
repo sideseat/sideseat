@@ -30,8 +30,8 @@ use tokio::sync::watch;
 use tokio::task::JoinHandle;
 use tracing::log::LevelFilter;
 
-use sideseat_core::core::config::PostgresConfig;
-use sideseat_core::core::constants::{
+use sideseat_core::config::PostgresConfig;
+use sideseat_core::constants::{
     POSTGRES_DEFAULT_ACQUIRE_TIMEOUT_SECS, POSTGRES_DEFAULT_IDLE_TIMEOUT_SECS,
     POSTGRES_DEFAULT_MAX_CONNECTIONS, POSTGRES_DEFAULT_MAX_LIFETIME_SECS,
     POSTGRES_DEFAULT_MIN_CONNECTIONS, POSTGRES_DEFAULT_STATEMENT_TIMEOUT_SECS,

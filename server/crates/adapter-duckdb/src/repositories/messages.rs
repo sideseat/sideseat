@@ -119,7 +119,7 @@ mod tests {
     use crate::repositories::span::insert_batch;
     use crate::{DuckdbService, NormalizedSpan};
     use chrono::{Duration, Utc};
-    use sideseat_core::core::storage::AppStorage;
+    use sideseat_core::storage::AppStorage;
     use sideseat_ports::types::ProjectId;
     use tempfile::TempDir;
 

@@ -3075,8 +3075,8 @@ async fn bench_ingestion_end_to_end() {
     use crate::app::files::create_file_service;
     use crate::data::{AnalyticsService, TransactionalService};
     use crate::domain::traces::TracePipeline;
-    use sideseat_core::core::config::{FilesConfig, StorageBackend};
-    use sideseat_core::core::storage::AppStorage;
+    use sideseat_core::config::{FilesConfig, StorageBackend};
+    use sideseat_core::storage::AppStorage;
     use std::sync::Arc;
 
     let want = std::env::var("BENCH").unwrap_or_else(|_| "langgraph/swarm".to_string());
@@ -3157,14 +3157,12 @@ async fn bench_ingestion_end_to_end() {
                 &storage,
                 Arc::clone(&database),
                 Arc::new(
-                    crate::data::cache::CacheService::new(
-                        &sideseat_core::core::config::CacheConfig {
-                            backend: sideseat_core::core::config::CacheBackendType::Memory,
-                            max_entries: 1000,
-                            eviction_policy: sideseat_core::core::config::EvictionPolicy::TinyLfu,
-                            redis_url: None,
-                        },
-                    )
+                    crate::data::cache::CacheService::new(&sideseat_core::config::CacheConfig {
+                        backend: sideseat_core::config::CacheBackendType::Memory,
+                        max_entries: 1000,
+                        eviction_policy: sideseat_core::config::EvictionPolicy::TinyLfu,
+                        redis_url: None,
+                    })
                     .await
                     .expect("memory cache"),
                 ),
@@ -3188,7 +3186,7 @@ async fn bench_ingestion_end_to_end() {
                 database_port,
                 analytics_port,
                 Arc::new(crate::runtime::clock::SystemClock),
-                sideseat_core::core::config::RetentionConfig::default(),
+                sideseat_core::config::RetentionConfig::default(),
                 5,
             )),
         );

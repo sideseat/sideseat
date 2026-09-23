@@ -12,7 +12,7 @@ use axum::{Json, Router};
 use crate::auth::{Auth, AuthContext, AuthService, ProjectFull, ProjectRead, ProjectWrite};
 use crate::extractors::{ValidatedJson, ValidatedQuery};
 use crate::types::{ApiError, PaginatedResponse};
-use sideseat_core::core::constants::{DEFAULT_PROJECT_ID, ORG_ROLE_ADMIN, ORG_ROLE_MEMBER};
+use sideseat_core::constants::{DEFAULT_PROJECT_ID, ORG_ROLE_ADMIN, ORG_ROLE_MEMBER};
 use sideseat_domain::cleanup::cleanup_project;
 use sideseat_domain::files::FileService;
 use sideseat_domain::storage_governance::StorageGovernanceService;

@@ -9,8 +9,8 @@ use sideseat_ports::blobs::{FileStorage, FileStorageError};
 
 use super::storage::TransactionalService;
 use sideseat_adapter_cache::CacheService;
-use sideseat_core::core::config::{FilesConfig, StorageBackend};
-use sideseat_core::core::storage::{AppStorage, DataSubdir};
+use sideseat_core::config::{FilesConfig, StorageBackend};
+use sideseat_core::storage::{AppStorage, DataSubdir};
 
 pub async fn create_file_service(
     config: FilesConfig,

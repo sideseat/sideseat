@@ -7,7 +7,7 @@ use tokio::sync::{Mutex, watch};
 use tokio::task::JoinHandle;
 
 use crate::app::storage::{AnalyticsService, TransactionalService};
-use sideseat_core::core::constants::SHUTDOWN_TIMEOUT_SECS;
+use sideseat_core::constants::SHUTDOWN_TIMEOUT_SECS;
 use sideseat_domain::topics::TopicService;
 
 /// Centralized shutdown service for coordinating graceful shutdown
@@ -163,10 +163,10 @@ impl ShutdownService {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use sideseat_core::core::storage::AppStorage;
+    use sideseat_core::storage::AppStorage;
 
     async fn make_shutdown() -> ShutdownService {
-        use sideseat_core::core::config::{AnalyticsBackend, TransactionalBackend};
+        use sideseat_core::config::{AnalyticsBackend, TransactionalBackend};
 
         let temp_dir = tempfile::tempdir().unwrap();
         let data_dir = temp_dir.keep();

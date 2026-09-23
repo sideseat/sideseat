@@ -2,7 +2,7 @@
 
 use std::time::Duration;
 
-use sideseat_core::core::constants::{
+use sideseat_core::constants::{
     NPM_REGISTRY_URL, UPDATE_CHECK_RETRIES, UPDATE_CHECK_RETRY_DELAY_MS, UPDATE_CHECK_TIMEOUT_SECS,
 };
 

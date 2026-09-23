@@ -13,7 +13,7 @@ use moka::future::Cache;
 
 use super::backend::CacheBackend;
 use super::error::CacheError;
-use sideseat_core::core::config::{CacheConfig, EvictionPolicy};
+use sideseat_core::config::{CacheConfig, EvictionPolicy};
 
 /// Cache entry with data and metadata
 #[derive(Clone)]
@@ -296,7 +296,7 @@ mod tests {
 
     fn test_config() -> CacheConfig {
         CacheConfig {
-            backend: sideseat_core::core::config::CacheBackendType::Memory,
+            backend: sideseat_core::config::CacheBackendType::Memory,
             max_entries: 1000,
             eviction_policy: EvictionPolicy::TinyLfu,
             redis_url: None,

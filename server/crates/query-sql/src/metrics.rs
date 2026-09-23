@@ -1,7 +1,7 @@
 //! Typed reads over metric datapoint winners.
 
 use chrono::{DateTime, Utc};
-use sideseat_core::core::constants::QUERY_MAX_FILTER_SUGGESTIONS;
+use sideseat_core::constants::QUERY_MAX_FILTER_SUGGESTIONS;
 use sideseat_ports::types::{ListMetricsParams, OrderDirection};
 
 use crate::Backend;

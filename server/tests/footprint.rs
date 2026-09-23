@@ -24,7 +24,7 @@
 //! `MEASUREMENT_LOCK` instead, so the correctness is in the file that needs it. The Makefile still passes the
 //! flag, because a serialised gate that also does not interleave its *output* is easier to read.
 
-use sideseat_core::core::constants::{
+use sideseat_core::constants::{
     FOOTPRINT_IDLE_RSS_MAX_BYTES, FOOTPRINT_INGEST_RSS_MAX_BYTES, FOOTPRINT_QUEUED_SPAN_MAX_RATIO,
     FOOTPRINT_SESSION_READ_GROWTH_MAX_BYTES, FOOTPRINT_SESSION_READ_TURNS,
 };
@@ -314,7 +314,7 @@ fn search_term_write_amplification_preserves_the_recall_floor() {
     async fn write(spans: Vec<NormalizedSpan>) -> Measurement {
         let directory = tempfile::TempDir::new().unwrap();
         let storage =
-            sideseat_core::core::storage::AppStorage::init_for_test(directory.path().to_path_buf());
+            sideseat_core::storage::AppStorage::init_for_test(directory.path().to_path_buf());
         let service = std::sync::Arc::new(
             sideseat_adapter_duckdb::DuckdbService::init(
                 &storage,
@@ -341,8 +341,8 @@ fn search_term_write_amplification_preserves_the_recall_floor() {
         service.checkpoint().await.unwrap();
         let bytes = std::fs::metadata(
             storage
-                .subdir(sideseat_core::core::storage::DataSubdir::Duckdb)
-                .join(sideseat_core::core::constants::DUCKDB_DB_FILENAME),
+                .subdir(sideseat_core::storage::DataSubdir::Duckdb)
+                .join(sideseat_core::constants::DUCKDB_DB_FILENAME),
         )
         .unwrap()
         .len();
@@ -405,7 +405,7 @@ fn the_footprint_script_enforces_the_declared_ceilings() {
                 |line| line.trim_start().starts_with(&wanted) && line.trim() == wanted.as_str()
             ),
             "scripts/footprint-gates.sh must set `{wanted}`, matching \
-             sideseat_core::core::constants; found:\n{}",
+             sideseat_core::constants; found:\n{}",
             script
                 .lines()
                 .filter(|l| l.contains(name))

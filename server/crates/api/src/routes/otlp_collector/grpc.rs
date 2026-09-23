@@ -25,9 +25,9 @@ use opentelemetry_proto::tonic::collector::{
 };
 
 use crate::extractors::is_valid_project_id;
-use sideseat_core::core::config::OtelConfig;
-use sideseat_core::core::constants::{OTLP_BODY_LIMIT, TOPIC_TRACES};
-use sideseat_core::core::storage::{AppStorage, DataSubdir};
+use sideseat_core::config::OtelConfig;
+use sideseat_core::constants::{OTLP_BODY_LIMIT, TOPIC_TRACES};
+use sideseat_core::storage::{AppStorage, DataSubdir};
 use sideseat_domain::signals::{
     LogSignal, MetricsSignal, SignalContext, SignalExportError, TraceSignal, export_signal,
 };
@@ -150,7 +150,7 @@ impl GrpcIngestAuth {
         );
         if let (Some(limiter), Some(ip)) = (&self.rate_limiter, &client_ip) {
             let bucket = sideseat_domain::rate_limit::RateLimitBucket::grpc_auth_failures(
-                sideseat_core::core::constants::DEFAULT_RATE_LIMIT_AUTH_FAILURES_RPM,
+                sideseat_core::constants::DEFAULT_RATE_LIMIT_AUTH_FAILURES_RPM,
             );
             if limiter.is_blocked(&bucket, ip).await {
                 tracing::warn!(ip = %ip, "gRPC OTLP auth blocked due to too many failures");
@@ -188,7 +188,7 @@ impl GrpcIngestAuth {
             && let (Some(limiter), Some(ip)) = (&self.rate_limiter, &client_ip)
         {
             let bucket = sideseat_domain::rate_limit::RateLimitBucket::grpc_auth_failures(
-                sideseat_core::core::constants::DEFAULT_RATE_LIMIT_AUTH_FAILURES_RPM,
+                sideseat_core::constants::DEFAULT_RATE_LIMIT_AUTH_FAILURES_RPM,
             );
             let _ = limiter.check(&bucket, ip).await;
         }

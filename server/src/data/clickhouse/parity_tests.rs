@@ -50,8 +50,8 @@ use chrono::{DateTime, Datelike, TimeZone, Utc};
 
 use crate::data::clickhouse::ClickhouseService;
 use crate::data::duckdb::DuckdbService;
-use sideseat_core::core::config::ClickhouseConfig;
-use sideseat_core::core::storage::AppStorage;
+use sideseat_core::config::ClickhouseConfig;
+use sideseat_core::storage::AppStorage;
 use sideseat_ports::filters::{DatetimeOp, Filter, NullOp, NumberOp, OptionsOp, StringOp};
 
 use sideseat_ports::types::{

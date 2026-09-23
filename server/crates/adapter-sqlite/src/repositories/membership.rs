@@ -8,7 +8,7 @@ use std::time::Duration;
 use sqlx::SqlitePool;
 
 use crate::SqliteError;
-use sideseat_core::core::constants::{
+use sideseat_core::constants::{
     CACHE_TTL_MEMBERSHIP, ORG_ROLE_ADMIN, ORG_ROLE_MEMBER, ORG_ROLE_OWNER, ORG_ROLE_VIEWER,
 };
 use sideseat_ports::cache::{CacheKey, CacheStore, TypedCache};

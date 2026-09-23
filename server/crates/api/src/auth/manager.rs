@@ -4,7 +4,7 @@ use anyhow::Result;
 use std::sync::Arc;
 
 use super::jwt::{JwtError, SessionClaims, create_session_token, validate_session_token};
-use sideseat_core::core::constants::DEFAULT_USER_ID;
+use sideseat_core::constants::DEFAULT_USER_ID;
 use sideseat_core::utils::crypto;
 use sideseat_ports::clock::Clock;
 

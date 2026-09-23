@@ -28,7 +28,7 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use sideseat_core::core::constants::DEFAULT_RATE_LIMIT_WINDOW_SECS;
+use sideseat_core::constants::DEFAULT_RATE_LIMIT_WINDOW_SECS;
 use sideseat_ports::cache::{CacheKey, CacheStore};
 use sideseat_ports::clock::Clock;
 
@@ -231,7 +231,7 @@ impl RateLimiter {
 mod tests {
     use super::*;
     use sideseat_adapter_cache::CacheService;
-    use sideseat_core::core::config::{CacheBackendType, CacheConfig, EvictionPolicy};
+    use sideseat_core::config::{CacheBackendType, CacheConfig, EvictionPolicy};
 
     #[derive(Debug)]
     struct FixedClock;

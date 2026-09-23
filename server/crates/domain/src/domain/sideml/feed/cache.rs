@@ -30,7 +30,7 @@ use std::time::{Duration, Instant};
 use parking_lot::Mutex;
 
 use super::types::FeedResult;
-use sideseat_core::core::constants::{
+use sideseat_core::constants::{
     RECONSTRUCTION_CACHE_ENTRY_OVERHEAD_BYTES, RECONSTRUCTION_CACHE_IDLE_SECS,
     RECONSTRUCTION_CACHE_MAX_BYTES,
 };

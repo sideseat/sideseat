@@ -38,12 +38,12 @@ use sideseat_ports::types::ProjectId;
 use tokio::sync::watch;
 use tokio::task::JoinHandle;
 
-use sideseat_core::core::config::RetentionConfig;
-use sideseat_core::core::constants::{
+use sideseat_core::config::RetentionConfig;
+use sideseat_core::constants::{
     DUCKDB_CHECKPOINT_INTERVAL_SECS, DUCKDB_DB_FILENAME, DUCKDB_MEMORY_LIMIT_BYTES,
     DUCKDB_QUERY_TIMEOUT_SECS, DUCKDB_RETENTION_INTERVAL_SECS,
 };
-use sideseat_core::core::storage::{AppStorage, DataSubdir};
+use sideseat_core::storage::{AppStorage, DataSubdir};
 
 #[cfg(test)]
 #[derive(Debug)]

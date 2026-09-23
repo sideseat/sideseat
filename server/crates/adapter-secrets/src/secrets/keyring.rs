@@ -5,8 +5,8 @@ use async_trait::async_trait;
 use keyring::Entry;
 use tokio::sync::RwLock;
 
-use sideseat_core::core::config::SecretsBackend;
-use sideseat_core::core::constants::{SECRET_SERVICE_NAME, SECRETS_LOAD_TIMEOUT_SECS};
+use sideseat_core::config::SecretsBackend;
+use sideseat_core::constants::{SECRET_SERVICE_NAME, SECRETS_LOAD_TIMEOUT_SECS};
 use sideseat_ports::clock::Clock;
 
 use super::error::SecretError;

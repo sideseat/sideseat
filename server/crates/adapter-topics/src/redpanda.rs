@@ -23,7 +23,7 @@ use rdkafka::producer::{FutureProducer, FutureRecord, Producer};
 use rdkafka::topic_partition_list::{Offset, TopicPartitionList};
 use rdkafka::util::Timeout;
 use serde::Serialize;
-use sideseat_core::core::config::RedpandaConfig;
+use sideseat_core::config::RedpandaConfig;
 use sideseat_ports::queue::{
     BroadcastSubscription, StreamMessage, StreamStats, StreamSubscription, TopicBackend, TopicError,
 };

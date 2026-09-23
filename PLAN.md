@@ -612,7 +612,7 @@ list here. The *reason* is what does not survive summarising, so it is kept.
 
 ### 5.1 Step 2 — the memory harness (`5a43a546`)
 
-Four ceilings, declared once in `server/crates/core/src/core/constants.rs`:
+Four ceilings, declared once in `server/crates/core/src/constants.rs`:
 
 | Ceiling | Constant | Measured on |
 | --- | --- | --- |

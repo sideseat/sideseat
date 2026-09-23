@@ -16,7 +16,7 @@ use tokio::sync::mpsc;
 use uuid::Uuid;
 
 use crate::extractors::is_valid_project_id;
-use sideseat_core::core::constants::{
+use sideseat_core::constants::{
     WS_FRAME_RATE_LIMIT_COUNT, WS_FRAME_RATE_LIMIT_WINDOW_SECS, WS_HEARTBEAT_INTERVAL_SECS,
     WS_HELLO_TIMEOUT_SECS, WS_MAX_MESSAGE_BYTES, WS_PONG_GRACE_SECS,
 };

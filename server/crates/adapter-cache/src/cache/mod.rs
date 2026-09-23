@@ -59,8 +59,8 @@ pub async fn invalidate_membership_caches(cache: &CacheService, org_id: &str, us
 
 use memory::InMemoryCache;
 
-use sideseat_core::core::config::{CacheBackendType, CacheConfig};
-use sideseat_core::core::constants::LOCAL_CACHE_MAX_ENTRIES;
+use sideseat_core::config::{CacheBackendType, CacheConfig};
+use sideseat_core::constants::LOCAL_CACHE_MAX_ENTRIES;
 
 /// Cache service providing typed access to a primary cache backend plus a
 /// process-local in-memory cache for sensitive data.
@@ -401,7 +401,7 @@ impl sideseat_ports::cache::LocalCacheStore for CacheService {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use sideseat_core::core::config::EvictionPolicy;
+    use sideseat_core::config::EvictionPolicy;
 
     fn test_config() -> CacheConfig {
         CacheConfig {

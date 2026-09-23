@@ -4,7 +4,7 @@
 //! place where DuckDB's window deduplication and ClickHouse's `FINAL` relation are selected.
 
 use crate::Backend;
-use sideseat_core::core::constants::{QUERY_MAX_FILTER_SUGGESTIONS, QUERY_MAX_SPANS_PER_TRACE};
+use sideseat_core::constants::{QUERY_MAX_FILTER_SUGGESTIONS, QUERY_MAX_SPANS_PER_TRACE};
 use sideseat_core::utils::sql::{escape_like_pattern, is_plain_identifier};
 use sideseat_ports::filters::{
     BooleanOp, DatetimeOp, Filter, NullOp, NumberOp, OptionsOp, StringOp, columns,

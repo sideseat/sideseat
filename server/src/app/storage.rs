@@ -16,10 +16,10 @@ use sideseat_ports::clock::Clock;
 use tokio::sync::watch;
 use tokio::task::JoinHandle;
 
-use sideseat_core::core::config::{
+use sideseat_core::config::{
     AnalyticsBackend, ClickhouseConfig, PostgresConfig, RetentionConfig, TransactionalBackend,
 };
-use sideseat_core::core::storage::AppStorage;
+use sideseat_core::storage::AppStorage;
 
 /// Transactional database service enum
 ///
@@ -309,7 +309,7 @@ mod tests {
     use super::*;
     use chrono::{TimeDelta, TimeZone, Utc};
     use sideseat_adapter_cache::CacheService;
-    use sideseat_core::core::config::{
+    use sideseat_core::config::{
         CacheBackendType, CacheConfig, EvictionPolicy, FilesConfig, StorageBackend,
     };
     use sideseat_domain::storage_governance::StorageGovernanceService;

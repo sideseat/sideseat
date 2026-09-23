@@ -25,7 +25,7 @@ use super::routes::{
     api_keys, auth, credentials, favorites, health, organizations, otel, otlp_collector, pricing,
     projects, users, ws,
 };
-use sideseat_core::core::constants::{AUTH_BODY_LIMIT, DEFAULT_BODY_LIMIT, OTLP_BODY_LIMIT};
+use sideseat_core::constants::{AUTH_BODY_LIMIT, DEFAULT_BODY_LIMIT, OTLP_BODY_LIMIT};
 use sideseat_domain::files::FileService;
 use sideseat_domain::rate_limit::RateLimitBucket;
 
@@ -67,7 +67,7 @@ impl ApiServer {
         let debug_path = if app.config.debug {
             Some(
                 app.storage
-                    .subdir(sideseat_core::core::storage::DataSubdir::Debug),
+                    .subdir(sideseat_core::storage::DataSubdir::Debug),
             )
         } else {
             None
@@ -481,9 +481,7 @@ impl ApiServer {
         // `validate_store_sharing` uses), and the SDK runtime channel is an optional feature many such
         // deployments never touch - so refusing to start would block them over something they do not use.
         // The invoke route's own error says the same thing at the point someone hits it.
-        if app.config.database.transactional.sharing()
-            == sideseat_core::core::config::Sharing::Shared
-        {
+        if app.config.database.transactional.sharing() == sideseat_core::config::Sharing::Shared {
             tracing::warn!(
                 "ws: the SDK registration directory is per-process while its AG-UI routing is \
                  cross-instance, so presence and agent invocation are single-instance features. With a \

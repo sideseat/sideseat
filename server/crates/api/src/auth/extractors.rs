@@ -31,7 +31,7 @@ use serde::Deserialize;
 use super::context::{AuthContext, AuthService};
 use crate::extractors::{ValidationRejection, is_valid_id, is_valid_project_id};
 use crate::types::ApiError;
-use sideseat_core::core::constants::{ORG_ROLE_ADMIN, ORG_ROLE_OWNER};
+use sideseat_core::constants::{ORG_ROLE_ADMIN, ORG_ROLE_OWNER};
 use sideseat_ports::types::{ApiKeyScope, ProjectId};
 
 // ============================================================================

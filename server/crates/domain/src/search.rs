@@ -808,7 +808,7 @@ mod tests {
 
     use chrono::{DateTime, Utc};
     use sideseat_adapter_duckdb::{DuckdbRepository, DuckdbService};
-    use sideseat_core::core::storage::AppStorage;
+    use sideseat_core::storage::AppStorage;
     use sideseat_ports::clock::Clock;
     use sideseat_ports::traits::SpanStore;
     use sideseat_ports::types::{ProjectId, SearchQuery, SearchSignal};

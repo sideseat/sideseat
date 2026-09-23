@@ -51,7 +51,7 @@ async fn attempt_test(
     use sideseat::test_models;
 
     let timeout =
-        tokio::time::Duration::from_secs(sideseat_core::core::constants::CRED_TEST_TIMEOUT_SECS);
+        tokio::time::Duration::from_secs(sideseat_core::constants::CRED_TEST_TIMEOUT_SECS);
     let extra = resolved.extra_config.as_ref();
     let api_key = secret.unwrap_or("");
     let endpoint = resolved.endpoint_url.as_deref();

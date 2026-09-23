@@ -3111,7 +3111,7 @@ fn update_networking_belongs_to_the_composition_root() {
     );
     assert!(
         repo.join("server/src/app/update.rs").exists()
-            && !repo.join("server/crates/core/src/core/update.rs").exists(),
+            && !repo.join("server/crates/core/src/update.rs").exists(),
         "the executable composition root must own its update check"
     );
 }
@@ -3125,6 +3125,21 @@ fn core_owns_no_otlp_transport_types() {
         !core_manifest.contains("opentelemetry-proto")
             && !repo.join("server/crates/core/src/utils/otlp.rs").exists(),
         "the innermost crate must not depend on generated OTLP transport types"
+    );
+}
+
+#[test]
+fn core_crate_has_a_flat_module_root() {
+    let repo = repo_root();
+    let nested_root = repo.join("server/crates/core/src/core");
+    let crate_root = std::fs::read_to_string(repo.join("server/crates/core/src/lib.rs"))
+        .expect("core crate root");
+    assert!(
+        !nested_root.exists()
+            && !crate_root
+                .lines()
+                .any(|line| line.trim() == "pub mod core;"),
+        "the core crate must expose its modules directly from src/"
     );
 }
 

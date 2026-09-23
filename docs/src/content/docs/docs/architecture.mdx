@@ -207,10 +207,11 @@ and nothing of SideSeat's own, which is what makes the direction a fact rather t
 
 ```
 server/crates/core/src/
-├── core/
-│   ├── config.rs       # Configuration loading
-│   ├── cli.rs          # CLI argument parsing
-│   └── constants.rs    # All constants
+├── config.rs           # Configuration loading
+├── cli.rs              # CLI argument parsing
+├── constants.rs        # Shared limits and defaults
+├── storage.rs          # Storage layout
+└── utils/              # Pure utilities
 ```
 
 ```

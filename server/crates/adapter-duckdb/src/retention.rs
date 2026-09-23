@@ -9,7 +9,7 @@ use chrono::{TimeDelta, Utc};
 use duckdb::Connection;
 
 use super::{DuckdbError, in_transaction};
-use sideseat_core::core::config::RetentionConfig;
+use sideseat_core::config::RetentionConfig;
 use sideseat_query_sql::analytics::QueryValue;
 use sideseat_query_sql::dml::{self, DmlStatement};
 
@@ -880,7 +880,7 @@ mod tests {
     use crate::DuckdbService;
     use crate::repositories::query::DEDUP_SPANS;
     use chrono::{DateTime, Utc};
-    use sideseat_core::core::storage::AppStorage;
+    use sideseat_core::storage::AppStorage;
     use tempfile::TempDir;
 
     fn test_now() -> DateTime<Utc> {

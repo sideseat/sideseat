@@ -28,7 +28,7 @@ use serde::Deserialize;
 use uuid::Uuid;
 
 use crate::extractors::is_valid_project_id;
-use sideseat_core::core::constants::{INVOKE_TIMEOUT_MS, WS_MAX_MESSAGE_BYTES};
+use sideseat_core::constants::{INVOKE_TIMEOUT_MS, WS_MAX_MESSAGE_BYTES};
 use sideseat_ports::queue::TopicError;
 use sideseat_ports::registrations::ConnectionControl;
 use sideseat_ports::types::ProjectId;

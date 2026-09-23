@@ -511,8 +511,8 @@ mod tests {
     use sideseat_adapter_blob_storage::FilesystemStorage;
     use sideseat_adapter_duckdb::{DuckdbRepository, DuckdbService};
     use sideseat_adapter_sqlite::{SqliteRepository, SqliteService};
-    use sideseat_core::core::constants::FILE_DELETION_CLAIM_STALE_SECS;
-    use sideseat_core::core::storage::AppStorage;
+    use sideseat_core::constants::FILE_DELETION_CLAIM_STALE_SECS;
+    use sideseat_core::storage::AppStorage;
     use sideseat_ports::clock::Clock;
     use sideseat_ports::traits::{AnalyticsRepository, StorageGovernance};
     use tempfile::TempDir;

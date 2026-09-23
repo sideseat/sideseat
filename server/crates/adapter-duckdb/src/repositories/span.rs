@@ -146,7 +146,7 @@ mod tests {
     use super::*;
     use crate::DuckdbService;
     use chrono::Utc;
-    use sideseat_core::core::storage::AppStorage;
+    use sideseat_core::storage::AppStorage;
     use tempfile::TempDir;
 
     async fn create_test_service() -> (TempDir, DuckdbService) {

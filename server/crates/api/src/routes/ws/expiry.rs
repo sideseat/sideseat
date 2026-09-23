@@ -12,7 +12,7 @@
 
 use std::time::Duration;
 
-use sideseat_core::core::constants::REGISTRATION_TTL_SECS;
+use sideseat_core::constants::REGISTRATION_TTL_SECS;
 use sideseat_ports::registrations::{DisplacedOwner, PresenceEvent};
 
 use super::presence;

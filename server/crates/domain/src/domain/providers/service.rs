@@ -12,7 +12,7 @@ use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-use sideseat_core::core::constants::{CACHE_TTL_CRED_LIST, CACHE_TTL_CRED_SECRET};
+use sideseat_core::constants::{CACHE_TTL_CRED_LIST, CACHE_TTL_CRED_SECRET};
 use sideseat_ports::cache::{CacheKey, LocalCacheStore, TypedLocalCache};
 use sideseat_ports::error::DataError;
 use sideseat_ports::secrets::CredentialSecretStore;

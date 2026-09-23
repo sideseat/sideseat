@@ -45,8 +45,8 @@ use std::time::Duration;
 
 use crate::domain::traces::extract::files::collect_file_references_in_str;
 use serde::Serialize;
-use sideseat_core::core::config::FilesConfig;
-use sideseat_core::core::constants::CACHE_TTL_FILE_QUOTA;
+use sideseat_core::config::FilesConfig;
+use sideseat_core::constants::CACHE_TTL_FILE_QUOTA;
 use sideseat_core::utils::file_uri::parse_file_uri;
 use sideseat_ports::cache::CacheKey;
 
@@ -199,7 +199,7 @@ impl FileService {
         if let Err(error) = cleanup::cleanup_zero_ref_files_governed(
             &self.storage,
             &self.database,
-            sideseat_core::core::constants::FILE_DELETION_CLAIM_STALE_SECS,
+            sideseat_core::constants::FILE_DELETION_CLAIM_STALE_SECS,
             self.governance.as_ref(),
         )
         .await
@@ -893,7 +893,7 @@ mod tests {
     use sideseat_adapter_cache::CacheService;
     use sideseat_adapter_duckdb::{DuckdbRepository, DuckdbService};
     use sideseat_adapter_sqlite::{SqliteRepository, SqliteService};
-    use sideseat_core::core::storage::AppStorage;
+    use sideseat_core::storage::AppStorage;
     use sideseat_ports::clock::Clock;
     use sideseat_ports::traits::{EntityQuery, SpanStore};
     use tempfile::TempDir;
@@ -925,10 +925,10 @@ mod tests {
         let database: Arc<dyn TransactionalRepository + Send + Sync> =
             Arc::new(SqliteRepository(Arc::new(sqlite_service)));
 
-        let cache_config = sideseat_core::core::config::CacheConfig {
-            backend: sideseat_core::core::config::CacheBackendType::Memory,
+        let cache_config = sideseat_core::config::CacheConfig {
+            backend: sideseat_core::config::CacheBackendType::Memory,
             max_entries: 1000,
-            eviction_policy: sideseat_core::core::config::EvictionPolicy::TinyLfu,
+            eviction_policy: sideseat_core::config::EvictionPolicy::TinyLfu,
             redis_url: None,
         };
         let cache = Arc::new(CacheService::new(&cache_config).await.unwrap());
@@ -946,10 +946,10 @@ mod tests {
             .filesystem_path
             .as_ref()
             .map(|path| sideseat_core::utils::file::expand_path(path))
-            .unwrap_or_else(|| app_storage.subdir(sideseat_core::core::storage::DataSubdir::Files));
+            .unwrap_or_else(|| app_storage.subdir(sideseat_core::storage::DataSubdir::Files));
         FileService::new(
             config,
-            app_storage.subdir(sideseat_core::core::storage::DataSubdir::FilesTemp),
+            app_storage.subdir(sideseat_core::storage::DataSubdir::FilesTemp),
             Arc::new(FilesystemStorage::new(files_path)),
             database,
             cache,
@@ -963,7 +963,7 @@ mod tests {
 
         let config = FilesConfig {
             enabled: false,
-            storage: sideseat_core::core::config::StorageBackend::Filesystem,
+            storage: sideseat_core::config::StorageBackend::Filesystem,
             quota_bytes: 1024 * 1024,
             filesystem_path: Some(temp_dir.path().join("files").to_string_lossy().to_string()),
             s3: None,
@@ -988,7 +988,7 @@ mod tests {
 
         let config = FilesConfig {
             enabled: true,
-            storage: sideseat_core::core::config::StorageBackend::Filesystem,
+            storage: sideseat_core::config::StorageBackend::Filesystem,
             quota_bytes: 1024 * 1024,
             filesystem_path: Some(temp_dir.path().join("files").to_string_lossy().to_string()),
             s3: None,
@@ -1034,7 +1034,7 @@ mod tests {
         let service = create_file_service(
             FilesConfig {
                 enabled: true,
-                storage: sideseat_core::core::config::StorageBackend::Filesystem,
+                storage: sideseat_core::config::StorageBackend::Filesystem,
                 quota_bytes: 1024 * 1024,
                 filesystem_path: Some(temp_dir.path().join("files").to_string_lossy().to_string()),
                 s3: None,
@@ -1078,7 +1078,7 @@ mod tests {
         let service = create_file_service(
             FilesConfig {
                 enabled: true,
-                storage: sideseat_core::core::config::StorageBackend::Filesystem,
+                storage: sideseat_core::config::StorageBackend::Filesystem,
                 quota_bytes: 1024 * 1024,
                 filesystem_path: Some(temp_dir.path().join("files").to_string_lossy().to_string()),
                 s3: None,
@@ -1159,7 +1159,7 @@ mod tests {
         let deleted = cleanup::cleanup_zero_ref_files(
             service.storage(),
             service.database(),
-            sideseat_core::core::constants::FILE_DELETION_CLAIM_STALE_SECS,
+            sideseat_core::constants::FILE_DELETION_CLAIM_STALE_SECS,
         )
         .await
         .expect("orphan GC");
@@ -1186,7 +1186,7 @@ mod tests {
         let files = create_file_service(
             FilesConfig {
                 enabled: true,
-                storage: sideseat_core::core::config::StorageBackend::Filesystem,
+                storage: sideseat_core::config::StorageBackend::Filesystem,
                 quota_bytes: 1024 * 1024,
                 filesystem_path: Some(temp_dir.path().join("files").to_string_lossy().to_string()),
                 s3: None,
@@ -1349,7 +1349,7 @@ mod tests {
 
         let config = FilesConfig {
             enabled: true,
-            storage: sideseat_core::core::config::StorageBackend::Filesystem,
+            storage: sideseat_core::config::StorageBackend::Filesystem,
             quota_bytes: 1024 * 1024,
             filesystem_path: Some(temp_dir.path().join("files").to_string_lossy().to_string()),
             s3: None,
@@ -1457,7 +1457,7 @@ mod tests {
 
         let config = FilesConfig {
             enabled: true,
-            storage: sideseat_core::core::config::StorageBackend::Filesystem,
+            storage: sideseat_core::config::StorageBackend::Filesystem,
             quota_bytes: 1024 * 1024,
             filesystem_path: Some(temp_dir.path().join("files").to_string_lossy().to_string()),
             s3: None,
@@ -1553,7 +1553,7 @@ mod tests {
 
         let config = FilesConfig {
             enabled: true,
-            storage: sideseat_core::core::config::StorageBackend::Filesystem,
+            storage: sideseat_core::config::StorageBackend::Filesystem,
             quota_bytes: 1024 * 1024,
             filesystem_path: Some(temp_dir.path().join("files").to_string_lossy().to_string()),
             s3: None,
@@ -1633,7 +1633,7 @@ mod tests {
 
         let config = FilesConfig {
             enabled: true,
-            storage: sideseat_core::core::config::StorageBackend::Filesystem,
+            storage: sideseat_core::config::StorageBackend::Filesystem,
             quota_bytes: 1024 * 1024,
             filesystem_path: Some(temp_dir.path().join("files").to_string_lossy().to_string()),
             s3: None,

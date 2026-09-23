@@ -41,11 +41,11 @@ use tokio::sync::watch;
 use tokio::task::JoinHandle;
 use tracing::log::LevelFilter;
 
-use sideseat_core::core::constants::{
+use sideseat_core::constants::{
     SQLITE_BUSY_TIMEOUT_SECS, SQLITE_CACHE_SIZE, SQLITE_CHECKPOINT_INTERVAL_SECS,
     SQLITE_DB_FILENAME, SQLITE_MAX_CONNECTIONS, SQLITE_WAL_AUTOCHECKPOINT,
 };
-use sideseat_core::core::storage::{AppStorage, DataSubdir};
+use sideseat_core::storage::{AppStorage, DataSubdir};
 use sideseat_ports::clock::Clock;
 
 /// SQLite database service

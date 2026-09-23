@@ -8,7 +8,7 @@ use std::time::Duration;
 use sqlx::PgPool;
 
 use crate::PostgresError;
-use sideseat_core::core::constants::{CACHE_TTL_NEGATIVE, CACHE_TTL_USER, DEFAULT_USER_ID};
+use sideseat_core::constants::{CACHE_TTL_NEGATIVE, CACHE_TTL_USER, DEFAULT_USER_ID};
 use sideseat_ports::cache::{CacheKey, CacheStore, TypedCache};
 use sideseat_ports::types::UserRow;
 

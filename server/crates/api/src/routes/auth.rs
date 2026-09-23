@@ -17,9 +17,7 @@ use validator::Validate;
 use crate::auth::AuthManager;
 use crate::extractors::ValidatedJson;
 use crate::middleware::AllowedOrigins;
-use sideseat_core::core::constants::{
-    DEFAULT_SESSION_TTL_DAYS, DEFAULT_USER_ID, SESSION_COOKIE_NAME,
-};
+use sideseat_core::constants::{DEFAULT_SESSION_TTL_DAYS, DEFAULT_USER_ID, SESSION_COOKIE_NAME};
 
 #[derive(Debug, Deserialize, Validate, ToSchema)]
 pub struct ExchangeRequest {

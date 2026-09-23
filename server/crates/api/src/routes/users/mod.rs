@@ -11,7 +11,7 @@ use axum::{Json, Router};
 use crate::auth::Auth;
 use crate::extractors::ValidatedJson;
 use crate::types::ApiError;
-use sideseat_core::core::constants::MAX_USER_ORGS;
+use sideseat_core::constants::MAX_USER_ORGS;
 use sideseat_ports::types::ApiKeyScope;
 
 use types::{UpdateUserRequest, UserDto, UserOrgDto, UserProfileResponse};

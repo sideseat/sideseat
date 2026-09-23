@@ -30,7 +30,7 @@ use serde_json::Value as JsonValue;
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
 
-use sideseat_core::core::constants::{
+use sideseat_core::constants::{
     FILE_EXTRACTION_CACHE_IDLE_SECS, FILE_EXTRACTION_CACHE_MAX_ENTRIES, FILES_MAX_SIZE_BYTES,
     FILES_MIN_SIZE_BYTES,
 };

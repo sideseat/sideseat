@@ -5,7 +5,7 @@ use std::sync::Arc;
 use anyhow::{Context, Result, anyhow};
 
 use crate::files::FileService;
-use sideseat_core::core::constants::{
+use sideseat_core::constants::{
     CLAIM_RECOVERY_INTERVAL_SECS, DELETED_PROJECT_CHECK_BASE_SECS, DELETED_PROJECT_CHECK_BATCH,
     DELETED_PROJECT_CHECK_LEASE_SECS, DELETED_PROJECT_CHECK_MAX_SECS,
     DELETED_TRACE_CHECK_BASE_SECS, DELETED_TRACE_CHECK_BATCH, DELETED_TRACE_CHECK_LEASE_SECS,

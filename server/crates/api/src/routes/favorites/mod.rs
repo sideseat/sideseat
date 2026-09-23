@@ -17,7 +17,7 @@ use types::{
 use crate::auth::{ProjectRead, ProjectWrite};
 use crate::extractors::is_valid_id;
 use crate::types::ApiError;
-use sideseat_core::core::constants::MAX_FAVORITES_PER_PROJECT;
+use sideseat_core::constants::MAX_FAVORITES_PER_PROJECT;
 
 /// Shared state for Favorites API endpoints
 #[derive(Clone)]

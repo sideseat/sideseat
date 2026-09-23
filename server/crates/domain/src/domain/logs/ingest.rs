@@ -4,7 +4,7 @@ use std::collections::HashSet;
 
 use chrono::{DateTime, Utc};
 use opentelemetry_proto::tonic::collector::logs::v1::ExportLogsServiceRequest;
-use sideseat_core::core::constants::DEFAULT_PROJECT_ID;
+use sideseat_core::constants::DEFAULT_PROJECT_ID;
 use sideseat_core::utils::retry::{
     DEFAULT_BASE_DELAY_MS, DEFAULT_MAX_ATTEMPTS, retry_with_backoff_async,
 };

@@ -15,7 +15,7 @@ use super::types::{
 };
 use crate::auth::ProjectRead;
 use crate::types::{ApiError, parse_timestamp_param};
-use sideseat_core::core::constants::CACHE_TTL_STATS;
+use sideseat_core::constants::CACHE_TTL_STATS;
 use sideseat_ports::cache::{CacheKey, TypedCache};
 use sideseat_ports::types::{ProjectStatsResult, StatsParams};
 

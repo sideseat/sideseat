@@ -14,9 +14,7 @@ use axum::middleware::Next;
 use axum::response::{IntoResponse, Response};
 use serde_json::json;
 
-use sideseat_core::core::constants::{
-    API_KEY_TOUCH_DEBOUNCE_SECS, DEFAULT_RATE_LIMIT_AUTH_FAILURES_RPM,
-};
+use sideseat_core::constants::{API_KEY_TOUCH_DEBOUNCE_SECS, DEFAULT_RATE_LIMIT_AUTH_FAILURES_RPM};
 use sideseat_core::utils::api_key::{extract_key_from_header, hash_api_key, is_valid_api_key};
 use sideseat_domain::rate_limit::{RateLimitBucket, RateLimiter};
 use sideseat_ports::clock::Clock;

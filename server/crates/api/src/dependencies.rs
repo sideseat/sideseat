@@ -2,8 +2,8 @@
 
 use std::sync::Arc;
 
-use sideseat_core::core::config::AppConfig;
-use sideseat_core::core::storage::AppStorage;
+use sideseat_core::config::AppConfig;
+use sideseat_core::storage::AppStorage;
 use sideseat_domain::files::FileService;
 use sideseat_domain::pricing::PricingService;
 use sideseat_domain::providers::{CredentialConnectionTester, CredentialService};

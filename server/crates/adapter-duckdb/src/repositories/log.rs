@@ -194,7 +194,7 @@ fn query_values(values: &[QueryValue]) -> Vec<&dyn duckdb::ToSql> {
 mod tests {
     use super::*;
     use chrono::DateTime;
-    use sideseat_core::core::storage::AppStorage;
+    use sideseat_core::storage::AppStorage;
     use tempfile::TempDir;
 
     async fn service() -> (TempDir, crate::DuckdbService) {

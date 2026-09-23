@@ -10,7 +10,7 @@ use chrono::{DateTime, Utc};
 use opentelemetry_proto::tonic::trace::v1::Span;
 use serde_json::{Value as JsonValue, json};
 
-use sideseat_core::core::constants;
+use sideseat_core::constants;
 use sideseat_ports::types::{ObservationType, SpanCategory};
 // Only the equivalence oracle names the enum now: detection produces a label from the assets.
 use crate::domain::pricing;

@@ -2201,7 +2201,7 @@ mod config_surface_tests {
     #[test]
     fn every_file_config_field_is_merged_and_in_the_schema() {
         const SOURCE: &str = include_str!("config.rs");
-        const SCHEMA: &str = include_str!("../../../../../config/sideseat.schema.json");
+        const SCHEMA: &str = include_str!("../../../../config/sideseat.schema.json");
 
         /// The field names a `pub struct <name> {` block declares.
         fn fields_of(source: &str, struct_name: &str) -> Vec<String> {

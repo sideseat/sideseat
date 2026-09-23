@@ -34,7 +34,7 @@ use super::extract::{RawMessage, RawToolDefinition, RawToolNames, SpanData};
 use crate::files::FileService;
 use crate::otlp::{build_attributes_json, extract_attributes};
 use crate::topics::{TopicMessage, TopicService};
-use sideseat_core::core::constants::{
+use sideseat_core::constants::{
     DEFAULT_PROJECT_ID, FILE_HASH_ALGORITHM, FILES_MAX_CONCURRENT_FINALIZATION,
 };
 use sideseat_core::utils::retry::{
