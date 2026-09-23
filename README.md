@@ -206,10 +206,10 @@ This mounts a local `./data` directory into the container at `/data` to persist 
 ## Repository map
 
 ```
-server/       Rust backend (Axum) — src/ tests/ assets/
+server/       Rust backend (Axum) — crates/ src/ tests/ assets/
 web/          React frontend (Vite)
 cli/          npm distribution wrapper
-sdk/          Client SDKs: python/ js/ rust/ (dotnet/ reserves the NuGet name; no implementation)
+sdk/          Client SDKs: python/ js/ rust/ dotnet/
 examples/     Runnable samples per framework, with their inputs
 config/       Configuration schema and examples
 docs/         Documentation site, plus docs/engineering/ for internals and the ws-v1 wire protocol

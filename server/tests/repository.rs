@@ -2187,13 +2187,13 @@ fn every_module_path_cited_anywhere_resolves() {
 ///
 /// Three real violations existed when this was written, and each was a different shape:
 ///
-/// * `crates/adapter-duckdb/src/repositories/query.rs` imported `crate::api::routes::otel::filters` - a module that is
+/// * `server/crates/adapter-duckdb/src/repositories/query.rs` imported `crate::api::routes::otel::filters` - a module that is
 ///   eight lines of `pub use sideseat_ports::filters::…`. So the analytics adapter reached *through* the HTTP
 ///   routing layer to borrow types the data layer already owned.
 /// * `data/duckdb/filters/{types,parser}.rs` returned `ApiError` from filter parsing and validation, which
 ///   made the adapter manufacture HTTP responses. They return `FilterError` now and `api::types` converts
 ///   at the boundary, so the routes still just use `?`.
-/// * `crates/ports/src/types/analytics.rs` imported `OrderBy`, a column plus a direction, from `api::types` - while
+/// * `server/crates/ports/src/types/analytics.rs` imported `OrderBy`, a column plus a direction, from `api::types` - while
 ///   three of its own DTOs carried it as a field. The type and its SQL moved to `data::types::order`;
 ///   parsing a `?order_by=` parameter, which is where the 400 belongs, stayed in `api`.
 ///
@@ -2293,7 +2293,7 @@ fn no_adapter_imports_a_sibling_adapter() {
     let mut roots_checked = 0usize;
 
     for adapter in ADAPTERS {
-        let dir = repo.join(format!("crates/adapter-{adapter}/src"));
+        let dir = repo.join(format!("server/crates/adapter-{adapter}/src"));
         assert!(dir.is_dir(), "{} is an adapter source root", dir.display());
         roots_checked += 1;
         let mut stack = vec![dir];
@@ -2396,7 +2396,7 @@ fn the_ports_crate_emits_no_sql() {
     let repo = repo_root();
     let mut offenders: Vec<String> = Vec::new();
     let mut checked = 0usize;
-    let mut stack = vec![repo.join("crates/ports/src")];
+    let mut stack = vec![repo.join("server/crates/ports/src")];
     while let Some(dir) = stack.pop() {
         for entry in std::fs::read_dir(&dir).expect("readable directory") {
             let path = entry.expect("readable entry").path();
@@ -2426,7 +2426,7 @@ fn the_ports_crate_emits_no_sql() {
 
     assert!(
         checked > 5,
-        "scanned {checked} files under crates/ports/src - the walk is wrong, not the crate"
+        "scanned {checked} files under server/crates/ports/src - the walk is wrong, not the crate"
     );
     assert!(
         offenders.is_empty(),
@@ -2444,8 +2444,11 @@ fn the_ports_crate_emits_no_sql() {
 #[test]
 fn migrated_analytics_operations_hold_no_adapter_sql_literal() {
     const ADAPTERS: &[(&str, &str)] = &[
-        ("DuckDB", "crates/adapter-duckdb/src/repositories"),
-        ("ClickHouse", "crates/adapter-clickhouse/src/repositories"),
+        ("DuckDB", "server/crates/adapter-duckdb/src/repositories"),
+        (
+            "ClickHouse",
+            "server/crates/adapter-clickhouse/src/repositories",
+        ),
     ];
     const SQL_MARKERS: &[&str] = &[
         "SELECT ",
@@ -2520,10 +2523,10 @@ fn migrated_analytics_operations_hold_no_adapter_sql_literal() {
 #[test]
 fn every_database_adapter_uses_the_shared_migration_runner() {
     let files = [
-        "crates/adapter-duckdb/src/migrations.rs",
-        "crates/adapter-sqlite/src/migrations.rs",
-        "crates/adapter-postgres/src/migrations.rs",
-        "crates/adapter-clickhouse/src/lib.rs",
+        "server/crates/adapter-duckdb/src/migrations.rs",
+        "server/crates/adapter-sqlite/src/migrations.rs",
+        "server/crates/adapter-postgres/src/migrations.rs",
+        "server/crates/adapter-clickhouse/src/lib.rs",
     ];
 
     for relative in files {
@@ -2698,7 +2701,7 @@ fn no_layer_crate_depends_on_a_driver() {
 
     let repo = repo_root();
 
-    // **Workspace members, resolved from the manifest** - not the children of `crates/`. Reading the directory
+    // **Workspace members, resolved from the manifest** - not the children of `server/crates/`. Reading the directory
     // was a claim the test could not keep: a layer crate placed anywhere else, or one removed from the members
     // list, was silently unscanned, and `checked > 0` could not tell the difference.
     let root = std::fs::read_to_string(repo.join("Cargo.toml")).expect("workspace manifest");
@@ -2711,10 +2714,10 @@ fn no_layer_crate_depends_on_a_driver() {
         .collect();
     let layer_crates: Vec<&String> = members
         .iter()
-        // Adapter crates are the one place a driver belongs. Every other crate under `crates/` is an
+        // Adapter crates are the one place a driver belongs. Every other crate under `server/crates/` is an
         // inward-facing layer and must stay unable to import one. The prefix is part of the workspace's
         // target graph (`sideseat-adapter-*`), so a newly extracted adapter is classified immediately.
-        .filter(|m| m.starts_with("crates/") && !m.starts_with("crates/adapter-"))
+        .filter(|m| m.starts_with("server/crates/") && !m.starts_with("server/crates/adapter-"))
         .collect();
 
     let mut checked = 0usize;
@@ -2730,7 +2733,7 @@ fn no_layer_crate_depends_on_a_driver() {
             for driver in DRIVERS {
                 // The API is the transport layer, so Axum and Tonic are its own tools rather than an
                 // outward dependency. Storage, cache and queue drivers remain forbidden there.
-                if member.as_str() == "crates/api" && matches!(*driver, "axum" | "tonic") {
+                if member.as_str() == "server/crates/api" && matches!(*driver, "axum" | "tonic") {
                     continue;
                 }
                 if declares_driver(trimmed, driver) {
@@ -2755,8 +2758,8 @@ fn no_layer_crate_depends_on_a_driver() {
 
 #[test]
 fn the_api_crate_names_only_inward_workspace_crates() {
-    let manifest =
-        std::fs::read_to_string(repo_root().join("crates/api/Cargo.toml")).expect("API manifest");
+    let manifest = std::fs::read_to_string(repo_root().join("server/crates/api/Cargo.toml"))
+        .expect("API manifest");
     let dependencies = manifest
         .split("[dependencies]")
         .nth(1)
@@ -2806,24 +2809,24 @@ fn every_detector_is_actually_started_in_production() {
              would never be reported despite being documented as detected",
         ),
         (
-            "crates/adapter-duckdb/src/lib.rs",
+            "server/crates/adapter-duckdb/src/lib.rs",
             "reconcile_trace_survivors",
             "retention would go back to the trace-wide file cleanup, reclaiming the files of spans that are \
              still live - and both behavioural tests call the reconciliation directly, so neither would notice",
         ),
         (
-            "crates/adapter-duckdb/src/lib.rs",
+            "server/crates/adapter-duckdb/src/lib.rs",
             "record_retention_cleanup",
             "retention would delete spans without recording that their cleanup is owed, so a crash before the \
              cleanup orphans their files and favourites with nothing able to rediscover them",
         ),
         (
-            "crates/adapter-duckdb/src/lib.rs",
+            "server/crates/adapter-duckdb/src/lib.rs",
             "traces_without_spans",
             "a favourited trace with one expired span would lose its favourite while still being visible",
         ),
         (
-            "crates/adapter-clickhouse/src/lib.rs",
+            "server/crates/adapter-clickhouse/src/lib.rs",
             "report_unidentified_metric_rows",
             "an upgrade would not report pre-identity metric rows, so an operator would have no way to learn \
              that a released row and its correction are both being served",
@@ -2852,7 +2855,7 @@ fn the_storage_layer_does_not_import_the_http_layer() {
     let mut offenders: Vec<String> = Vec::new();
     let mut scanned = 0usize;
     let mut roots = vec![repo.join("server/src/data")];
-    for entry in std::fs::read_dir(repo.join("crates")).expect("read crates dir") {
+    for entry in std::fs::read_dir(repo.join("server/crates")).expect("read crates dir") {
         let path = entry.expect("crate entry").path();
         if path
             .file_name()
@@ -2924,14 +2927,14 @@ fn raw_project_query_scope(source: &str) -> bool {
 fn every_tenant_scoped_port_uses_project_id() {
     let repo = repo_root();
     let method_sources = [
-        "crates/ports/src/blobs.rs",
-        "crates/ports/src/registrations.rs",
-        "crates/ports/src/traits.rs",
+        "server/crates/ports/src/blobs.rs",
+        "server/crates/ports/src/registrations.rs",
+        "server/crates/ports/src/traits.rs",
     ];
     let query_sources = [
-        "crates/ports/src/types/analytics.rs",
-        "crates/ports/src/types/messages.rs",
-        "crates/ports/src/types/stats.rs",
+        "server/crates/ports/src/types/analytics.rs",
+        "server/crates/ports/src/types/messages.rs",
+        "server/crates/ports/src/types/stats.rs",
     ];
 
     let mut typed_scopes = 0usize;
@@ -2991,19 +2994,19 @@ fn the_project_id_gate_rejects_each_raw_shape() {
 fn migrated_clock_consumers_cannot_read_the_system_clock() {
     let repo = repo_root();
     for file in [
-        "crates/core/src/utils/debug.rs",
-        "crates/api/src/auth/api_key.rs",
-        "crates/api/src/auth/jwt.rs",
-        "crates/api/src/auth/manager.rs",
-        "crates/api/src/routes/otel/messages.rs",
-        "crates/api/src/routes/otlp_collector/mod.rs",
-        "crates/api/src/routes/otlp_collector/traces.rs",
-        "crates/api/src/routes/otlp_collector/metrics.rs",
-        "crates/api/src/routes/otlp_collector/logs.rs",
-        "crates/api/src/routes/otlp_collector/grpc.rs",
-        "crates/api/src/routes/otel/stats.rs",
-        "crates/domain/src/domain/pricing/mod.rs",
-        "crates/domain/src/rate_limit.rs",
+        "server/crates/core/src/utils/debug.rs",
+        "server/crates/api/src/auth/api_key.rs",
+        "server/crates/api/src/auth/jwt.rs",
+        "server/crates/api/src/auth/manager.rs",
+        "server/crates/api/src/routes/otel/messages.rs",
+        "server/crates/api/src/routes/otlp_collector/mod.rs",
+        "server/crates/api/src/routes/otlp_collector/traces.rs",
+        "server/crates/api/src/routes/otlp_collector/metrics.rs",
+        "server/crates/api/src/routes/otlp_collector/logs.rs",
+        "server/crates/api/src/routes/otlp_collector/grpc.rs",
+        "server/crates/api/src/routes/otel/stats.rs",
+        "server/crates/domain/src/domain/pricing/mod.rs",
+        "server/crates/domain/src/rate_limit.rs",
     ] {
         let source = std::fs::read_to_string(repo.join(file))
             .unwrap_or_else(|e| panic!("{file} is readable: {e}"));
@@ -3013,7 +3016,7 @@ fn migrated_clock_consumers_cannot_read_the_system_clock() {
         );
     }
 
-    let secrets = repo.join("crates/adapter-secrets/src/secrets");
+    let secrets = repo.join("server/crates/adapter-secrets/src/secrets");
     let mut stack = vec![secrets];
     let mut secret_sources = 0usize;
     while let Some(dir) = stack.pop() {
@@ -3042,8 +3045,8 @@ fn migrated_clock_consumers_cannot_read_the_system_clock() {
 
     let mut transactional_sources = 0usize;
     for relative in [
-        "crates/adapter-sqlite/src/repositories",
-        "crates/adapter-postgres/src/repositories",
+        "server/crates/adapter-sqlite/src/repositories",
+        "server/crates/adapter-postgres/src/repositories",
     ] {
         let mut stack = vec![repo.join(relative)];
         while let Some(dir) = stack.pop() {
@@ -3068,8 +3071,8 @@ fn migrated_clock_consumers_cannot_read_the_system_clock() {
         }
     }
     for relative in [
-        "crates/adapter-sqlite/src/migrations.rs",
-        "crates/adapter-postgres/src/migrations.rs",
+        "server/crates/adapter-sqlite/src/migrations.rs",
+        "server/crates/adapter-postgres/src/migrations.rs",
     ] {
         transactional_sources += 1;
         let source = std::fs::read_to_string(repo.join(relative))
@@ -3085,18 +3088,18 @@ fn migrated_clock_consumers_cannot_read_the_system_clock() {
     );
 
     for relative in [
-        "crates/adapter-duckdb/src/lib.rs",
-        "crates/adapter-duckdb/src/migrations.rs",
-        "crates/adapter-duckdb/src/retention.rs",
-        "crates/adapter-duckdb/src/repository_impl.rs",
-        "crates/adapter-duckdb/src/repositories/metric.rs",
-        "crates/adapter-duckdb/src/repositories/span.rs",
-        "crates/adapter-duckdb/src/repositories/stats.rs",
-        "crates/adapter-clickhouse/src/lib.rs",
-        "crates/adapter-clickhouse/src/repository_impl.rs",
-        "crates/adapter-clickhouse/src/repositories/metric.rs",
-        "crates/adapter-clickhouse/src/repositories/span.rs",
-        "crates/adapter-clickhouse/src/repositories/stats.rs",
+        "server/crates/adapter-duckdb/src/lib.rs",
+        "server/crates/adapter-duckdb/src/migrations.rs",
+        "server/crates/adapter-duckdb/src/retention.rs",
+        "server/crates/adapter-duckdb/src/repository_impl.rs",
+        "server/crates/adapter-duckdb/src/repositories/metric.rs",
+        "server/crates/adapter-duckdb/src/repositories/span.rs",
+        "server/crates/adapter-duckdb/src/repositories/stats.rs",
+        "server/crates/adapter-clickhouse/src/lib.rs",
+        "server/crates/adapter-clickhouse/src/repository_impl.rs",
+        "server/crates/adapter-clickhouse/src/repositories/metric.rs",
+        "server/crates/adapter-clickhouse/src/repositories/span.rs",
+        "server/crates/adapter-clickhouse/src/repositories/stats.rs",
     ] {
         let source = std::fs::read_to_string(repo.join(relative))
             .unwrap_or_else(|e| panic!("{relative} is readable: {e}"));
@@ -3123,8 +3126,8 @@ fn migrated_clock_consumers_cannot_read_the_system_clock() {
         "the composition root stopped sharing its clock with consumers"
     );
 
-    let server =
-        std::fs::read_to_string(repo.join("crates/api/src/server.rs")).expect("server is readable");
+    let server = std::fs::read_to_string(repo.join("server/crates/api/src/server.rs"))
+        .expect("server is readable");
     assert!(
         server.matches("clock: app.clock.clone()").count() >= 10,
         "one or more HTTP auth/router states no longer receive the shared clock"
@@ -3134,13 +3137,17 @@ fn migrated_clock_consumers_cannot_read_the_system_clock() {
 #[test]
 fn every_registered_signal_uses_the_shared_lifecycle_on_both_transports() {
     let repo = repo_root();
-    let routes = std::fs::read_to_string(repo.join("crates/api/src/routes/otlp_collector/mod.rs"))
-        .expect("OTLP route registry is readable");
-    let grpc = std::fs::read_to_string(repo.join("crates/api/src/routes/otlp_collector/grpc.rs"))
-        .expect("OTLP gRPC services are readable");
+    let routes =
+        std::fs::read_to_string(repo.join("server/crates/api/src/routes/otlp_collector/mod.rs"))
+            .expect("OTLP route registry is readable");
+    let grpc =
+        std::fs::read_to_string(repo.join("server/crates/api/src/routes/otlp_collector/grpc.rs"))
+            .expect("OTLP gRPC services are readable");
 
     for signal in sideseat_domain::signals::REGISTERED_SIGNAL_NAMES {
-        let http_path = repo.join(format!("crates/api/src/routes/otlp_collector/{signal}.rs"));
+        let http_path = repo.join(format!(
+            "server/crates/api/src/routes/otlp_collector/{signal}.rs"
+        ));
         let http = std::fs::read_to_string(&http_path)
             .unwrap_or_else(|error| panic!("{} is readable: {error}", http_path.display()));
         assert!(

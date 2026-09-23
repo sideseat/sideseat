@@ -202,11 +202,11 @@ let port = cli.port
 
 ## Directory Structure
 
-The layers are **separate crates**, so a forbidden dependency does not compile: `crates/core` names no driver
+The layers are **separate crates**, so a forbidden dependency does not compile: `server/crates/core` names no driver
 and nothing of SideSeat's own, which is what makes the direction a fact rather than a convention.
 
 ```
-crates/core/src/
+server/crates/core/src/
 ├── core/
 │   ├── config.rs       # Configuration loading
 │   ├── cli.rs          # CLI argument parsing
@@ -214,7 +214,7 @@ crates/core/src/
 ```
 
 ```
-crates/ports/src/
+server/crates/ports/src/
 ├── traits.rs           # Repository interfaces - no implementation may be named here
 ├── error.rs            # DataError, carrying each driver's message rather than its error type
 ├── filters/            # The filter vocabulary, shared by both analytics adapters
@@ -222,7 +222,7 @@ crates/ports/src/
 ```
 
 ```
-crates/
+server/crates/
 ├── core/                         # Configuration, constants, storage layout, pure utilities
 ├── ports/                        # Traits, DTOs, filters, and shared errors
 ├── domain/                       # Signal pipelines, reconstruction, governance, search

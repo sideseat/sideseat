@@ -100,7 +100,7 @@ export interface SpanSummary {
 export type SpanDetail = SpanSummary;
 
 /**
- * Message categories matching crates/ports/src/types/enums.rs
+ * Message categories matching server/crates/ports/src/types/enums.rs
  * Used for semantic filtering of messages
  */
 export type MessageCategory =
@@ -119,7 +119,7 @@ export type MessageCategory =
   | "Other";
 
 /**
- * ContentBlock types matching crates/domain/src/domain/sideml/types.rs
+ * ContentBlock types matching server/crates/domain/src/domain/sideml/types.rs
  * All 15 content block types for multimodal messages
  */
 export type ContentBlock =

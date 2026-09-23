@@ -94,12 +94,12 @@ You will not get far in the code or in this document without these.
 ### 0.2 Repository layout
 
 ```
-crates/core/          sideseat-core: constants, config, CLI, storage paths, utils. Names no driver.
-crates/ports/         sideseat-ports: the traits the domain talks through, plus DTOs. No implementations.
-crates/domain/        sideseat-domain: ingestion, cleanup, pricing, rules, SideML and trace/metric workflows.
-crates/api/           sideseat-api: Axum/gRPC/MCP/WebSocket transport boundary.
-crates/adapter-*/     physical storage, queue, cache, secrets, blob and registration implementations.
-crates/query-sql/     typed analytics query/DML statements and backend capability lowering.
+server/crates/core/          sideseat-core: constants, config, CLI, storage paths, utils. Names no driver.
+server/crates/ports/         sideseat-ports: the traits the domain talks through, plus DTOs. No implementations.
+server/crates/domain/        sideseat-domain: ingestion, cleanup, pricing, rules, SideML and trace/metric workflows.
+server/crates/api/           sideseat-api: Axum/gRPC/MCP/WebSocket transport boundary.
+server/crates/adapter-*/     physical storage, queue, cache, secrets, blob and registration implementations.
+server/crates/query-sql/     typed analytics query/DML statements and backend capability lowering.
 server/src/
   app.rs, app/        composition root: startup, backend construction, wiring, command dispatch
   runtime/            allocation.rs (the counting allocator), shutdown.rs
@@ -279,7 +279,7 @@ graph TD
     app --> db
 ```
 
-`crates/core`, `crates/ports`, `crates/domain`, `crates/api`, all four database adapters, registration storage,
+`server/crates/core`, `server/crates/ports`, `server/crates/domain`, `server/crates/api`, all four database adapters, registration storage,
 secrets, cache, filesystem/S3 blobs, and the memory/Redis topic backend are real crates. File coordination,
 cross-store deletion cleanup, rate limiting and the typed topic runtime live in `sideseat-domain`.
 `sideseat-server` is now the composition package: its production modules contain startup/runtime wiring,
@@ -297,7 +297,7 @@ above it; `AppConfig::validate` called into the domain; `DataError` embedded fou
 
 ### 1.2 The ports
 
-`crates/ports/src/traits.rs`, 14 traits:
+`server/crates/ports/src/traits.rs`, 14 traits:
 
 | Traits | Replaces | Note |
 | --- | --- | --- |
@@ -455,7 +455,7 @@ file nothing holds, which is the dangling reference the write-files-before-rows 
 
 ### 2.4 The span row
 
-`NormalizedSpan` (`crates/ports/src/types/normalized.rs`) is the row every step from 7 to 10 has to extend, so its field groups
+`NormalizedSpan` (`server/crates/ports/src/types/normalized.rs`) is the row every step from 7 to 10 has to extend, so its field groups
 are worth knowing:
 
 ```
@@ -491,7 +491,7 @@ invites re-opening them:
 | `otel_metrics` was `ReplacingMergeTree()` with **no version column**, so the survivor was insert-block order, while DuckDB's replace was commit-last-wins. Two rules for one question | `ingested_at` as the version on both |
 
 The **cross-month residual is stated and detected, not fixed**: a correction moving a span's `timestamp_start`
-across a month boundary puts its revisions in different partitions, and `crates/adapter-clickhouse/src/consistency.rs` reports those
+across a month boundary puts its revisions in different partitions, and `server/crates/adapter-clickhouse/src/consistency.rs` reports those
 identities rather than the read being silently wrong.
 
 ---
@@ -612,7 +612,7 @@ list here. The *reason* is what does not survive summarising, so it is kept.
 
 ### 5.1 Step 2 — the memory harness (`5a43a546`)
 
-Four ceilings, declared once in `crates/core/src/core/constants.rs`:
+Four ceilings, declared once in `server/crates/core/src/core/constants.rs`:
 
 | Ceiling | Constant | Measured on |
 | --- | --- | --- |
@@ -799,7 +799,7 @@ settled before any row is written under it.
 | `c73b6b27` | god-traits split into eleven ports; SQL taken out of `ports` |
 | `d60d2bb1` | a partition key on publish, declared per signal. **Spans key on trace id and nothing else** — a session id lives on the span that knows it, so "session else trace" splits one conversation across two partitions mid-conversation |
 | `9bfc26dc` | blob store, cache invalidation, secret writing as ports |
-| `fedcafc3` | contiguous-offset acknowledgement (`crates/adapter-topics/src/ack_window.rs`). Kafka commits **offsets, not ids**: committing offset N asserts everything below N is done |
+| `fedcafc3` | contiguous-offset acknowledgement (`server/crates/adapter-topics/src/ack_window.rs`). Kafka commits **offsets, not ids**: committing offset N asserts everything below N is done |
 
 ### 5.8 Steps 1 and 5–12 — the completed foundation (`93dc9a6b` through `cdec7ae0`)
 
@@ -872,8 +872,8 @@ copied count:
 
 ```bash
 grep -rc 'Utc::now()' server/src crates --include='*.rs' | awk -F: '{s+=$2} END {print s}'
-grep -c 'project_id: &str' crates/ports/src/traits.rs
-grep -c '?;' crates/adapter-topics/src/redis.rs   # the map_err cost of moving TopicError: 54, still exact
+grep -c 'project_id: &str' server/crates/ports/src/traits.rs
+grep -c '?;' server/crates/adapter-topics/src/redis.rs   # the map_err cost of moving TopicError: 54, still exact
 ```
 
 
@@ -966,7 +966,7 @@ the gate measures nothing.
 
 ### 6.5 Step 6 in detail — the six handlers, and the predicate that is easy to get wrong
 
-**Current result.** `crates/domain/src/signals.rs` declares the common signal descriptor and lifecycle for spans,
+**Current result.** `server/crates/domain/src/signals.rs` declares the common signal descriptor and lifecycle for spans,
 metrics and logs; HTTP and gRPC use the same signal-owned extraction, project injection, queue key, partial-success
 shape and durability decision. The compiler owns the shape and source tests prevent either transport from growing
 a second decision tree.
@@ -1512,7 +1512,7 @@ including one that had never been applied to the file at all.
   to `/tmp` at the moment of mutation.
 - **Never commit `CLAUDE*.md`**, never delete them. No secrets in the repository, ever.
 - **`cargo fmt --all`**, not `-p sideseat-server` — a partial format let an unformatted signature in
-  `crates/ports` through until `make check` refused it.
+  `server/crates/ports` through until `make check` refused it.
 - ClickHouse has a long list of specific traps — correlated subqueries silently wrong, `Decimal64(6)` mapping to
   `i64`, SELECT aliases visible in `WHERE`, aggregate nullability. Enumerated in `CLAUDE.md` under "Common
   Gotchas"; each has cost a debugging session.
@@ -1576,10 +1576,10 @@ you owe.
 | A rewrite is answer-preserving | the goldens **plus** an equivalence oracle over generated inputs where the interesting cases are ones no framework produces | `order_within_unit_equivalence`, and 17 retired SQL tables kept under `#[cfg(test)]` |
 | Memory ceilings | `make footprint` — two RSS gates against a running server, two live-allocation gates in process | `footprint.rs`, `footprint-gates.sh` |
 | Latency ceilings | `make bench-http` and `make bench-http-distributed` — **enforce**, exit non-zero on a miss | `bench-http-latency.sh` |
-| The queue loses nothing | six tests, each mutation-verified; `make test-redis` for the durable backend | `crates/adapter-topics/src/memory.rs`, `crates/adapter-topics/src/redis_stream_tests.rs` |
+| The queue loses nothing | six tests, each mutation-verified; `make test-redis` for the durable backend | `server/crates/adapter-topics/src/memory.rs`, `server/crates/adapter-topics/src/redis_stream_tests.rs` |
 | Schema upgrades reach every database | populated-upgrade tests per backend, comparing a walked-forward v-old database against a fresh one — including **column order** on DuckDB, because its writer is a positional `Appender` | `migrations.rs`, `parity_tests.rs` |
 | Tenant isolation | colliding trace/session/content ids across two projects; PostgreSQL valid-context and unset-context RLS tests; ClickHouse per-query policy and maintenance-bypass tests | domain file tests, PostgreSQL and ClickHouse parity suites |
-| Restore repair | destructive embedded backup/destroy/restore; journal replay; retention completion; association rebuild before GC; missing-content report; missing-project analytics/staging/blob removal; second-pass fixed point | `server/tests/backup_restore.rs`, `crates/domain/src/restore.rs` |
+| Restore repair | destructive embedded backup/destroy/restore; journal replay; retention completion; association rebuild before GC; missing-content report; missing-project analytics/staging/blob removal; second-pass fixed point | `server/tests/backup_restore.rs`, `server/crates/domain/src/restore.rs` |
 | Documentation does not rot | `every_module_path_cited_anywhere_resolves`, `every_tree_diagram_names_things_that_exist`, `the_documented_project_structure_matches_the_tree`, `every_resolving_command_is_locked`, `every_relative_schema_reference_resolves` — **this file is subject to all of them** | `tests/repository.rs` |
 | Supply chain | `every_action_is_pinned_to_a_commit_and_every_image_to_a_tag`, `the_image_gate_reads_the_shapes_that_defeated_it`, `every_lockfile_carries_its_manifests_engines`, `dependabot_covers_every_manifest_in_the_tree`, `every_workspace_crate_takes_the_one_version` | `tests/repository.rs` |
 | A background worker is actually started | `every_detector_is_actually_started_in_production` — a sweep that exists and is never spawned is the failure it prevents | `tests/repository.rs` |
@@ -1608,7 +1608,7 @@ or just open the UI against an empty project if not. Seeing a trace render makes
 1. `CLAUDE.md` — long, and the only place several of these mechanisms are explained at all. Skim the headings,
    read "Common Gotchas" properly.
 2. This file's §1.3 (the constraint), §2 (the data model), §3 and §4 (the two paths).
-3. `crates/ports/src/traits.rs` — the whole seam in one file. If a method looks odd, its doc comment says why.
+3. `server/crates/ports/src/traits.rs` — the whole seam in one file. If a method looks odd, its doc comment says why.
 4. `domain/sideml/feed/mod.rs` — the pipeline's nine stages. The comments there record decisions that were made
    and reverted, which is the fastest way to learn what does not work.
 5. One parity test and one golden test, run individually, to see what an oracle looks like here.
@@ -1721,8 +1721,8 @@ the *command* beside the figure so a reader can re-derive rather than trust:
 # counts this file asserts
 git log --oneline 4a9c30c9..HEAD -- ':!PLAN.md' | wc -l    # the code commits (45)
 git ls-files 'server/tests/fixtures/messages/*/*/expected.json' | wc -l   # committed goldens (121)
-grep -c '^pub trait' crates/ports/src/traits.rs            # ports (20)
-grep -n 'pub const SCHEMA_VERSION' crates/adapter-duckdb/src/schema.rs crates/adapter-clickhouse/src/schema.rs crates/adapter-sqlite/src/schema.rs crates/adapter-postgres/src/schema.rs   # 6,7,9,10
+grep -c '^pub trait' server/crates/ports/src/traits.rs            # ports (20)
+grep -n 'pub const SCHEMA_VERSION' server/crates/adapter-duckdb/src/schema.rs server/crates/adapter-clickhouse/src/schema.rs server/crates/adapter-sqlite/src/schema.rs server/crates/adapter-postgres/src/schema.rs   # 6,7,9,10
 cargo test --locked -q -p sideseat-server --lib 2>&1 | tail -2   # 89 passed, 4 ignored
 ```
 

@@ -1,0 +1,3169 @@
+//! Rule asset format, discovery, ordering, and digesting.
+//!
+//! Assets are embedded from `server/assets/rules/` as a *directory*, deliberately: adding a framework must be
+//! adding a file, with no Rust change. A hand-maintained `include_str!` list would mean the binary
+//! still knows which frameworks exist, which is the thing the mandate forbids.
+
+use std::collections::BTreeMap;
+
+use rust_embed::RustEmbed;
+use serde::Deserialize;
+use serde_json::Value as JsonValue;
+pub use serde_json_path::JsonPath;
+
+/// The embedded rule assets.
+#[derive(RustEmbed)]
+#[folder = "../../assets/rules/"]
+struct RuleAssets;
+
+/// One rule file's parsed contents.
+///
+/// Every section is optional: a framework that only needs to declare its carriers says nothing about
+/// messages, and a shared dialect fragment may declare carriers alone.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct RuleFile {
+    /// Stable id for diagnostics and explain traces. Not a framework identity anything branches on.
+    pub id: String,
+    /// What this file is for, in prose. Surfaced by the explain trace, which is why documentation is a
+    /// field rather than a comment.
+    #[serde(default)]
+    pub doc: Option<String>,
+    /// Carrier semantics declarations.
+    #[serde(default)]
+    pub carriers: Vec<CarrierRule>,
+    /// Detection signals. Produce a **label** and nothing else: no behaviour reads it.
+    #[serde(default)]
+    pub detect: Vec<DetectRule>,
+    /// Which carriers an ingestion reads on this dialect's spans, and how each is parsed.
+    #[serde(default)]
+    pub messages: Vec<MessageRule>,
+    /// The events this dialect writes messages on.
+    ///
+    /// Recognition, not reading: an event named here is read, and one not named by any asset is ignored
+    /// entirely. Declared because it is the same kind of fact as a carrier - which key a producer writes -
+    /// and as a Rust list it meant a new `when_event` rule was a valid but *dead* declaration until
+    /// somebody also edited the list.
+    #[serde(default)]
+    pub message_events: Vec<MessageEvent>,
+    /// How a provider writes a tool *definition*, so the canonical shape is reached by declaration.
+    #[serde(default)]
+    pub tool_shapes: Vec<ToolShapeRule>,
+    /// Attribute namespaces the **conventions** own, as opposed to a producer's own.
+    ///
+    /// Declared by the conventions' asset and nowhere else, which is **refused** rather than assumed: a
+    /// declaration elsewhere is ignored, and a dialect could otherwise state that its own namespace is a
+    /// convention and read as having done so. A key's first segment says who coined it, and the
+    /// structural sweep that forbids a producer's key in production Rust needs to know which segments are not
+    /// a producer's - `session.id` and `enduser.id` are OTel's and appear only in a shared fallback chain,
+    /// exactly where `ai.usage.promptTokens` appears. Inferring it from *absence* - no dialect file mentions
+    /// the namespace - was tried and is not evidence: a producer key declared only in a shared chain under a
+    /// namespace nothing else names would be excused by it.
+    #[serde(default)]
+    pub convention_namespaces: Vec<String>,
+    /// What role a message's source name implies, where the name decides it.
+    #[serde(default)]
+    pub event_roles: Vec<EventRole>,
+    /// Which role spellings outrank the name a reading was found under. This engine's own vocabulary.
+    #[serde(default)]
+    pub role_authority: Vec<RoleAuthority>,
+    /// Content-block shapes this dialect writes.
+    #[serde(default)]
+    pub content_blocks: Vec<ContentBlockRule>,
+    /// A value a producer writes in `gen_ai.system` that names a **provider** the catalogue knows.
+    ///
+    /// Only the ones that are a *framework's* own name: a framework is not a provider, but one of them names
+    /// itself in that attribute while its models are served by a provider the catalogue prices. Provider
+    /// spellings proper (`azure_openai`, `amazon-bedrock`) stay in Rust, because those are the catalogue's
+    /// vocabulary rather than any framework's - and this table is consulted before them, so a framework's claim
+    /// about itself never has to be spelled as if it were a provider's.
+    #[serde(default)]
+    pub provider_aliases: Vec<ProviderAlias>,
+    /// Member names a producer uses, and what each one's presence means.
+    ///
+    /// Three questions about one vocabulary, which is why they are one section: which member holds a message's
+    /// content (ordered - the first present one wins), which members mean a value is *message-shaped* rather
+    /// than bare data, and which mean it is a content **block**. A member usually answers more than one, and as
+    /// three lists in Rust they drifted: `contents` held content and said "message-shaped", while `toolCallId`
+    /// said "content block" only.
+    #[serde(default)]
+    pub message_members: Vec<MessageMemberRule>,
+    /// Which broad category a span falls in, as ordered first-match rules.
+    ///
+    /// A separate question from the observation type and with its own precedence: a transport call is an HTTP
+    /// span *and* a plain observation, and one dialect's operation names name an agent here where the
+    /// conventions leave them unclassified there.
+    #[serde(default)]
+    pub span_categories: Vec<ClassifyRule>,
+    /// What kind of observation a span is, as ordered first-match rules.
+    ///
+    /// Ordered because the answer is a *precedence*, not a set of independent facts: a transport attribute
+    /// makes a span a plain span whatever else it carries, and a conventional operation name outranks a
+    /// dialect's own span-kind attribute. The rank is the whole of that knowledge, so it is data.
+    #[serde(default)]
+    pub observation_types: Vec<ClassifyRule>,
+    /// Facts about a *span* this dialect can establish, as opposed to about a carrier.
+    ///
+    /// "Is this a tool execution" is one question with several answers - an operation name, a span-kind
+    /// attribute, a pair of attributes that only appear together - and each dialect knows its own. The
+    /// union answers it, so a dialect declares its signal rather than the code carrying a list of them.
+    #[serde(default)]
+    pub span_facts: Vec<SpanFactRule>,
+    /// Named reading tables other rules may apply.
+    ///
+    /// One dialect's message shapes are recognised at four different selection points - the node itself, a
+    /// `messages` list, every member of a state object, and a nested state object - and a table repeated
+    /// per point is four places to fix a shape. Referenced as `<file id>.<name>`, resolved at compile time
+    /// by inlining, and a fragment's own cases may **not** reference a fragment: one level, no recursion,
+    /// nothing to bound at runtime.
+    #[serde(default)]
+    pub fragments: BTreeMap<String, Fragment>,
+    /// The slugs an SDK may write into `sideseat.framework` for this framework, and the label they
+    /// resolve to.
+    ///
+    /// Separate from `detect` because a declaration is evidence about the *process*, not about a span,
+    /// and is consulted only after every signal has failed. Provider slugs (`bedrock`, `openai`) belong
+    /// to no framework file, which is how they keep resolving to nothing.
+    #[serde(default)]
+    pub sdk_slugs: Vec<SdkSlug>,
+    /// Which keys carry a *span field* - a scalar or list on the stored span, as opposed to a message.
+    ///
+    /// The same kind of fact as a carrier, at a different granularity: `gen_ai.usage.input_tokens`,
+    /// `ai.usage.promptTokens` and a bare `input_tokens` are three spellings of one number, and as an
+    /// ordered `&[&str]` in Rust they were a list of frameworks the code had to know.
+    #[serde(default)]
+    pub span_fields: Vec<SpanFieldRule>,
+}
+
+/// One stored field, and every key a producer might carry it under.
+///
+/// Ordered: the **first source that yields a value of the target's type** wins, which is what a fallback
+/// chain means. Not claimed, unlike a message carrier - a key naming a model is evidence about the model
+/// whoever else reads it, and two fields legitimately read one key (`gen_ai.request.model` answers both the
+/// request model and, for a provider that never states a response model, nothing else).
+#[derive(Debug, Deserialize, Clone)]
+#[serde(deny_unknown_fields)]
+pub struct SpanFieldRule {
+    pub id: String,
+    #[serde(default)]
+    pub doc: Option<String>,
+    /// The stored field this resolves. This engine's own vocabulary, not any producer's.
+    pub target: FieldTarget,
+    /// How several yielding sources combine.
+    #[serde(default)]
+    pub combine: FieldCombine,
+    /// The sources, in the order they are consulted.
+    pub sources: Vec<FieldSource>,
+}
+
+/// A stored field a rule may resolve.
+///
+/// An enum rather than a free string: a typo in an asset would otherwise be a field that is silently never
+/// filled, and the sink has to know each field's *type* - the outcome of reading `http.status_code` is an
+/// integer or a malformed value, and "the string 200" is not an answer this can store.
+#[derive(Debug, Deserialize, Clone, Copy, PartialEq, Eq, Hash)]
+#[serde(rename_all = "snake_case")]
+pub enum FieldTarget {
+    /// Usage **candidates**: what one dialect's embedded object states, resolved whatever the counter chains
+    /// answered.
+    ///
+    /// Separate targets rather than further sources on the counters, because the decision that reads them is
+    /// not "which source wins": that dialect's embedded *total* is usable only when the parts actually stored
+    /// are the parts it describes, so the test needs its candidate values even where a flat attribute won.
+    /// Ordinary resolution would have hidden them. The paths and the gate are data; the agreement test is
+    /// arithmetic about our own accounting and stays code.
+    UsageCandidateInput,
+    UsageCandidateOutput,
+    UsageCandidateCacheRead,
+    UsageCandidateTotal,
+    /// Usage a dialect records **per message**, summed. Candidates rather than counter sources, because the
+    /// decision reading them is a *pair*: that dialect fills both sides together when either summed to
+    /// anything, so one side's silence is not the same fact as the pair being absent. The paths are data; the
+    /// pairing is arithmetic and stays code.
+    UsageSummedInput,
+    UsageSummedOutput,
+    /// Token counters. These do **not** reach the stored span through `apply_field`: the columns are `i64` and
+    /// never null, so writing one there would lose the difference between a counter nothing carried and a
+    /// genuine `0` - which every framework fallback downstream needs, and which no arithmetic can recover.
+    UsageInputTokens,
+    UsageOutputTokens,
+    UsageTotalTokensReported,
+    UsageCacheReadTokens,
+    UsageCacheWriteTokens,
+    UsageReasoningTokens,
+    /// The name a reader sees. **Not** the raw span name, which everything behavioural keys on: detection,
+    /// token scoping, classification and every rule are given the producer's own name, and this is a
+    /// presentation value stored beside it.
+    DisplaySpanName,
+    SessionId,
+    GenAiSystem,
+    GenAiOperationName,
+    GenAiRequestModel,
+    GenAiResponseModel,
+    GenAiResponseId,
+    GenAiTemperature,
+    GenAiTopP,
+    GenAiTopK,
+    GenAiMaxTokens,
+    GenAiFrequencyPenalty,
+    GenAiPresencePenalty,
+    GenAiStopSequences,
+    GenAiFinishReasons,
+    GenAiAgentId,
+    GenAiAgentName,
+    GenAiToolName,
+    GenAiToolCallId,
+    GenAiServerTtftMs,
+    GenAiServerRequestDurationMs,
+    UserId,
+    HttpMethod,
+    HttpUrl,
+    HttpStatusCode,
+    DbSystem,
+    DbName,
+    DbOperation,
+    DbStatement,
+    StorageSystem,
+    StorageBucket,
+    StorageObject,
+    MessagingSystem,
+    MessagingDestination,
+    Tags,
+}
+
+impl FieldTarget {
+    /// Every target, so a test can put each one to the sink that writes it.
+    ///
+    /// A hand-written list, and `every_field_target_is_listed` compares its length against the variants in this
+    /// file's own enum body - so a variant added without a line here fails the build's test run rather than
+    /// quietly escaping the correspondence check below it.
+    pub const ALL: &'static [Self] = &[
+        Self::UsageCandidateInput,
+        Self::UsageCandidateOutput,
+        Self::UsageCandidateCacheRead,
+        Self::UsageCandidateTotal,
+        Self::UsageSummedInput,
+        Self::UsageSummedOutput,
+        Self::UsageInputTokens,
+        Self::UsageOutputTokens,
+        Self::UsageTotalTokensReported,
+        Self::UsageCacheReadTokens,
+        Self::UsageCacheWriteTokens,
+        Self::UsageReasoningTokens,
+        Self::DisplaySpanName,
+        Self::SessionId,
+        Self::GenAiSystem,
+        Self::GenAiOperationName,
+        Self::GenAiRequestModel,
+        Self::GenAiResponseModel,
+        Self::GenAiResponseId,
+        Self::GenAiTemperature,
+        Self::GenAiTopP,
+        Self::GenAiTopK,
+        Self::GenAiMaxTokens,
+        Self::GenAiFrequencyPenalty,
+        Self::GenAiPresencePenalty,
+        Self::GenAiStopSequences,
+        Self::GenAiFinishReasons,
+        Self::GenAiAgentId,
+        Self::GenAiAgentName,
+        Self::GenAiToolName,
+        Self::GenAiToolCallId,
+        Self::GenAiServerTtftMs,
+        Self::GenAiServerRequestDurationMs,
+        Self::UserId,
+        Self::HttpMethod,
+        Self::HttpUrl,
+        Self::HttpStatusCode,
+        Self::DbSystem,
+        Self::DbName,
+        Self::DbOperation,
+        Self::DbStatement,
+        Self::StorageSystem,
+        Self::StorageBucket,
+        Self::StorageObject,
+        Self::MessagingSystem,
+        Self::MessagingDestination,
+        Self::Tags,
+    ];
+
+    /// What a source must produce to fill this field.
+    pub fn field_type(self) -> FieldType {
+        match self {
+            Self::HttpStatusCode
+            | Self::GenAiTopK
+            | Self::GenAiMaxTokens
+            | Self::GenAiServerTtftMs
+            | Self::GenAiServerRequestDurationMs
+            | Self::UsageInputTokens
+            | Self::UsageOutputTokens
+            | Self::UsageTotalTokensReported
+            | Self::UsageCacheReadTokens
+            | Self::UsageCacheWriteTokens
+            | Self::UsageReasoningTokens
+            | Self::UsageCandidateInput
+            | Self::UsageCandidateOutput
+            | Self::UsageCandidateCacheRead
+            | Self::UsageCandidateTotal
+            | Self::UsageSummedInput
+            | Self::UsageSummedOutput => FieldType::Integer,
+            Self::GenAiTemperature
+            | Self::GenAiTopP
+            | Self::GenAiFrequencyPenalty
+            | Self::GenAiPresencePenalty => FieldType::Float,
+            Self::Tags | Self::GenAiStopSequences | Self::GenAiFinishReasons => {
+                FieldType::StringList
+            }
+            Self::SessionId
+            | Self::UserId
+            | Self::HttpMethod
+            | Self::HttpUrl
+            | Self::DbSystem
+            | Self::DbName
+            | Self::DbOperation
+            | Self::DbStatement
+            | Self::StorageSystem
+            | Self::StorageBucket
+            | Self::StorageObject
+            | Self::MessagingSystem
+            | Self::MessagingDestination
+            | Self::GenAiSystem
+            | Self::GenAiOperationName
+            | Self::GenAiRequestModel
+            | Self::GenAiResponseModel
+            | Self::GenAiResponseId
+            | Self::GenAiAgentId
+            | Self::GenAiAgentName
+            | Self::GenAiToolName
+            | Self::GenAiToolCallId
+            | Self::DisplaySpanName => FieldType::Text,
+        }
+    }
+
+    /// The values this field can hold, where the *quantity* bounds them.
+    ///
+    /// **Ours, not any producer's** - the same reason `field_type` lives here. A count, a duration, a limit and a
+    /// probability have ranges that follow from what they measure, and a value outside one is not a small
+    /// measurement, it is not a measurement. Nothing checked, so `-5` parsed as an `i64` and became a real token
+    /// count: it summed into the trace total, priced at a negative cost, and could cancel a genuine counter.
+    /// Producer values are unavailable at compile time, so this is a *reading* refusal - the value is present and
+    /// unusable, which is what `Malformed` already means, and the chain's own `on_malformed` policy then decides
+    /// whether to step over it or stop.
+    ///
+    /// Deliberately narrow. `frequency_penalty` and `presence_penalty` are legitimately negative and get no
+    /// bound; temperature gets a floor and no ceiling, because providers disagree about the ceiling; `top_p` gets
+    /// both, because it is a probability mass. A bound this is not certain of would refuse a producer's honest
+    /// value, which is worse than storing an implausible one.
+    pub fn admissible(self) -> Option<(f64, f64)> {
+        match self {
+            // Counts, durations, limits and a status code. None of them can be negative.
+            Self::HttpStatusCode
+            | Self::GenAiTopK
+            | Self::GenAiMaxTokens
+            | Self::GenAiServerTtftMs
+            | Self::GenAiServerRequestDurationMs
+            | Self::UsageInputTokens
+            | Self::UsageOutputTokens
+            | Self::UsageTotalTokensReported
+            | Self::UsageCacheReadTokens
+            | Self::UsageCacheWriteTokens
+            | Self::UsageReasoningTokens
+            | Self::UsageCandidateInput
+            | Self::UsageCandidateOutput
+            | Self::UsageCandidateCacheRead
+            | Self::UsageCandidateTotal
+            | Self::UsageSummedInput
+            | Self::UsageSummedOutput => Some((0.0, f64::INFINITY)),
+            Self::GenAiTemperature => Some((0.0, f64::INFINITY)),
+            Self::GenAiTopP => Some((0.0, 1.0)),
+            // **Exhaustive, with no catch-all**, and that is the point rather than verbosity. Written as
+            // `_ => None` this compiled for every future target and left each one silently unbounded - the same
+            // shape as the defect it was added to fix, one level up: a check that passes while seeing less than it
+            // claims. `field_type` has always been exhaustive for the same reason, and a new variant must now
+            // state its range policy in both places or the build fails.
+            //
+            // Legitimately unbounded: two penalties a producer may write negative, every text field, and every
+            // list.
+            Self::GenAiFrequencyPenalty
+            | Self::GenAiPresencePenalty
+            | Self::Tags
+            | Self::GenAiStopSequences
+            | Self::GenAiFinishReasons
+            | Self::SessionId
+            | Self::UserId
+            | Self::HttpMethod
+            | Self::HttpUrl
+            | Self::DbSystem
+            | Self::DbName
+            | Self::DbOperation
+            | Self::DbStatement
+            | Self::StorageSystem
+            | Self::StorageBucket
+            | Self::StorageObject
+            | Self::MessagingSystem
+            | Self::MessagingDestination
+            | Self::GenAiSystem
+            | Self::GenAiOperationName
+            | Self::GenAiRequestModel
+            | Self::GenAiResponseModel
+            | Self::GenAiResponseId
+            | Self::GenAiAgentId
+            | Self::GenAiAgentName
+            | Self::GenAiToolName
+            | Self::GenAiToolCallId
+            | Self::DisplaySpanName => None,
+        }
+    }
+}
+
+/// The shape a field holds, which decides what counts as a source yielding.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FieldType {
+    Text,
+    Integer,
+    Float,
+    StringList,
+}
+
+/// What happens when more than one source yields.
+#[derive(Debug, Deserialize, Clone, Copy, Default, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum FieldCombine {
+    /// The first yielding source answers and the rest are not consulted.
+    #[default]
+    FirstWins,
+    /// Every source contributes, in order, duplicates dropped. Only a list field may say this.
+    MergeAll,
+}
+
+/// One place a field's value may be written.
+#[derive(Debug, Deserialize, Clone)]
+#[serde(deny_unknown_fields)]
+pub struct FieldSource {
+    /// This clause's own name, unique within the rule or fragment that holds it.
+    ///
+    /// Required, because an emission has to be able to say **which** clause answered. Before this, a rule with
+    /// four readings reported only the rule's id: a direct shape and a shape reached through a fragment were
+    /// indistinguishable in a diagnostic, and `doc` was being used as a stand-in for an identity.
+    ///
+    /// Required rather than optional-with-a-derived-fallback, which was considered and is the worst of the
+    /// three: adding an id later would *change* the clause's identity, a positional edit would change every
+    /// identity after it, and nothing could safely reference one.
+    pub id: String,
+    #[serde(default)]
+    pub doc: Option<String>,
+    /// What a **present but unreadable** value means for the rest of the chain.
+    #[serde(default)]
+    pub on_malformed: MalformedPolicy,
+    /// Whether an **empty** value from this source is an answer rather than something to step over.
+    ///
+    /// A chain steps over an empty value, which is what a chain is for. A field with one source is not a
+    /// chain: `db.system = ""` is what the producer wrote, and reporting it absent is a different statement
+    /// about the span.
+    #[serde(default)]
+    pub accept_empty: bool,
+    /// A flat span attribute holding the value directly.
+    #[serde(default)]
+    pub attribute: Option<String>,
+    /// Several attribute spellings of one value, where the **first present** one is the answer.
+    ///
+    /// The flat counterpart of `JsonFieldSource::first_present_of`, and needed for the same reason: as separate
+    /// sources an empty primary would be stepped over and a later alias would answer, while the retired chain
+    /// selected the primary by presence and then converted - so an empty one ended the flat chain and an
+    /// *embedded* carrier answered instead. Which is a different producer's statement, not a later spelling of
+    /// the same one.
+    #[serde(default)]
+    pub attribute_first_present_of: Vec<String>,
+    /// A member of a JSON-valued attribute, reached by RFC 9535 JSONPath.
+    #[serde(default)]
+    pub json: Option<JsonFieldSource>,
+    /// An attribute of one of the span's **events**.
+    ///
+    /// The primitive `FieldSource` was missing, and its absence is why one reader stayed in Rust: field
+    /// resolution was handed a span's attributes and not its events, so `gen_ai.choice`'s `finish_reason` -
+    /// the conventions' own spelling, not any dialect's - was scanned for by hand in `extract/mod.rs` *after*
+    /// every declared source, a precedence no producer states.
+    #[serde(default)]
+    pub event_attribute: Option<EventAttributeSource>,
+    /// The span's own name, exactly as the producer wrote it.
+    ///
+    /// A source rather than an implicit default, so a display name states where it comes from - and the
+    /// resolver has the raw name whatever the target is.
+    #[serde(default)]
+    pub raw_span_name: bool,
+    /// Fold the answer to lower case.
+    ///
+    /// For a field whose values are a **case-insensitive enum** and are stored lower case. One dialect writes
+    /// `STOP` where the conventions write `stop`, and both mean the same thing - so the alternative is a
+    /// stored value whose case depends on which producer wrote the span, which every reader then has to fold
+    /// again. Generic: it says the producer's casing is not information, and any source may say so.
+    #[serde(default)]
+    pub lowercase: bool,
+    /// The span's own name, with this prefix stripped.
+    ///
+    /// A name rather than an attribute, because the conventions prescribe `execute_tool {name}` - the tool's
+    /// name is stated *in* the span rather than beside it. Generic: the prefix is the asset's.
+    #[serde(default)]
+    pub span_name_strip_prefix: Option<String>,
+    /// A JSON member whose *presence* admits this source, whatever it holds.
+    ///
+    /// Distinct from `when`, which asks about the span. A substring search over a serialised payload is not a
+    /// test for a **top-level member**: a request naming a tool `system` contains `"system"` and has no
+    /// `system` member, and the retired code asked `req.get("system").is_some()`. Read through the same parse
+    /// cache as a `json` source, so witnessing a payload costs nothing extra.
+    #[serde(default)]
+    pub when_json: Option<JsonFieldSource>,
+    /// A literal this engine states because a *shape* implies it.
+    ///
+    /// The one thing a key cannot carry: a dialect that names no provider still says which one it is by the
+    /// shape of its request. The literal and the shape that identifies it are both the asset's; the engine
+    /// knows only "this typed literal, where the gate holds".
+    #[serde(default)]
+    pub value: Option<String>,
+    /// Consulted only when this holds of the span. Signals are ORed, as everywhere else.
+    #[serde(default)]
+    pub when: Option<DetectMatch>,
+    /// Skipped when this holds of the span.
+    #[serde(default)]
+    pub unless: Option<DetectMatch>,
+}
+
+/// How several matches of one path become one value.
+#[derive(Debug, Deserialize, Clone, Copy, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum Reduction {
+    /// Add them. A non-numeric match contributes nothing, as the retired reduction's `unwrap_or(0)` did.
+    Sum,
+    /// Keep every match, in the order the path found them.
+    ///
+    /// For a list-valued field only. Without it a plural path takes the *first match that yields*, which is
+    /// right for "the model sits on whichever agent declared it" and wrong for a field that genuinely is a
+    /// list: a completion with two choices has two finish reasons, and reporting one of them is a statement
+    /// the producer did not make. Duplicates are kept, because two choices that ended the same way are two.
+    CollectAll,
+}
+
+/// What a source does when the value it names is present and cannot be read as the field's type.
+///
+/// Declared per source because the retired chains disagreed, and each disagreement was deliberate. A status
+/// code written as a phrase means the producer's own status attribute is wrong, and answering from a *second*
+/// key reports another attribute's number as this call's. A request parameter written badly is different: the
+/// flat attribute is one of several places a framework may state it, and the retired code fell through to the
+/// serialised parameter object - which is the same value from the same producer, not a different call's.
+#[derive(Debug, Deserialize, Clone, Copy, Default, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum MalformedPolicy {
+    /// The field is not filled, and the source that stopped it is named in the diagnosis.
+    #[default]
+    Stop,
+    /// Step over it and keep looking, as a chain does for an empty value.
+    Continue,
+}
+
+/// A value inside a JSON-valued attribute.
+#[derive(Debug, Deserialize, Clone)]
+#[serde(deny_unknown_fields)]
+pub struct JsonFieldSource {
+    /// The attribute whose text is parsed. Parsed once per span however many sources name it.
+    pub attribute: String,
+    /// Where in it the value sits.
+    #[serde(default)]
+    pub path: Option<JsonPath>,
+    /// Combine every match of a plural path into one value, rather than taking one of them.
+    ///
+    /// A generic reduction, and the only one: a dialect that records usage per message states the call's usage
+    /// as the total across them, which is a statement no single match carries. Yields nothing where the path
+    /// matches nothing, so "no such shape" stays distinguishable from a genuine zero.
+    #[serde(default)]
+    pub reduce: Option<Reduction>,
+    /// Each match must be a **scalar string**; an array at the match is malformed here.
+    ///
+    /// For a list-valued field whose *sources* are single values. `gen_ai.response.finish_reasons` genuinely
+    /// holds a list, so the field's type has to accept one - but a producer writing one reason per message
+    /// writes a string, and the retired readers took `as_str()`, so a member holding `["stop"]` was **ignored**
+    /// and the chain moved to the next producer. Read as a list it answered instead, with a different
+    /// producer's value: not a formatting difference but a different statement about why the model stopped.
+    #[serde(default)]
+    pub scalar_only: bool,
+    /// Several spellings of one member, where the **first present** one is the answer.
+    ///
+    /// Not the same as listing them as separate sources, and the difference is load-bearing: separate sources
+    /// select the first that *converts*, so a badly written `max_tokens` beside a good `max_completion_tokens`
+    /// would answer from the second - while the retired `or_else` selected by presence and then converted, so
+    /// the badly written one ended this carrier's contribution and the *next carrier* answered. Two aliases in
+    /// one object are one statement by one producer; two carriers are two.
+    #[serde(default)]
+    pub first_present_of: Vec<JsonPath>,
+}
+
+/// One `gen_ai.system` value, and the catalogue provider it means.
+#[derive(Debug, Deserialize, Clone)]
+#[serde(deny_unknown_fields)]
+pub struct ProviderAlias {
+    #[serde(default)]
+    pub doc: Option<String>,
+    /// The value as the producer writes it, **after** separator and case normalisation - which stays in Rust,
+    /// since it is about spelling rather than about who wrote it.
+    pub system: String,
+    /// The provider in the catalogue's own vocabulary.
+    pub provider: String,
+}
+
+/// One member name, and what its presence means.
+#[derive(Debug, Deserialize, Clone)]
+#[serde(deny_unknown_fields)]
+pub struct MessageMemberRule {
+    pub id: String,
+    #[serde(default)]
+    pub doc: Option<String>,
+    /// The member, in every spelling producers write it - **one declaration, one flag vector**.
+    ///
+    /// A list rather than one name because a spelling is not a fact about meaning, and as separate declarations
+    /// the aliases drifted despite being colocated: `functionCall` was message-shaped *and* a content block while
+    /// `function_call` was a content block only, which is a difference nothing recorded and nothing could
+    /// enforce. Two spellings that genuinely mean different things stay separate declarations, where the
+    /// difference is at least visible.
+    pub members: Vec<String>,
+    /// Where this sits among the members that hold content. Required when `holds_content` is set, and refused
+    /// otherwise: a rank that orders nothing is a statement the engine does not read.
+    #[serde(default)]
+    pub rank: Option<i32>,
+    /// This member holds a message's content, at the rank above.
+    #[serde(default)]
+    pub holds_content: bool,
+    /// Its presence means the value is message-shaped, so it is not bare structured output to be wrapped.
+    #[serde(default)]
+    pub means_message_shaped: bool,
+    /// Its presence means the value is a content **block** - so a block carrying it that no case recognised is
+    /// a *malformed* block rather than plain data, and is reported as unknown instead of as JSON.
+    #[serde(default)]
+    pub means_content_block: bool,
+}
+
+/// What authority a **stated role** carries, as two independent facts.
+///
+/// They were fused, differently on each path: whether a stated role survives event-name derivation was a
+/// hardcoded Rust list, and whether it outranks a *tagged attribute name* was that list **or** whatever the role
+/// alias table happened to fold. The alias table's job is folding spellings onto four canonical roles, which is
+/// not a statement about authority - so adding an alias silently granted it authority over a declared tag.
+#[derive(Debug, Deserialize, Clone)]
+#[serde(deny_unknown_fields)]
+pub struct RoleAuthority {
+    pub id: String,
+    #[serde(default)]
+    pub doc: Option<String>,
+    /// The spelling, as a payload states it. Matched case-insensitively, so it is declared in lower case.
+    pub role: String,
+    /// A stated role of this spelling is **not** replaced by the role an event name declares.
+    ///
+    /// For roles nothing derives from a name: a tool invocation, a tool-definitions message, framework state.
+    /// Deriving would overwrite the more specific fact with a guess.
+    #[serde(default)]
+    pub survives_event_derivation: bool,
+    /// A stated role of this spelling outranks the name a *tagged attribute* reading was found under.
+    ///
+    /// Separate from the above because the questions differ: `tool` is authoritative over a tag and must **not**
+    /// survive event derivation, since an event name is real evidence of it.
+    #[serde(default)]
+    pub outranks_a_tag: bool,
+}
+
+/// One classification rule: the conditions a span must satisfy, and what it is then.
+#[derive(Debug, Deserialize, Clone)]
+#[serde(deny_unknown_fields)]
+pub struct ClassifyRule {
+    pub id: String,
+    #[serde(default)]
+    pub doc: Option<String>,
+    /// Where this sits in the ordered sweep. The first rule that holds answers.
+    pub rank: i32,
+    /// **Every** one of these must hold, while each is internally a disjunction of signals.
+    ///
+    /// Conjunction is what a single signal set cannot express, and three of these rules need it: an operation
+    /// name *and* a model whose name says it is an embedding, an operation name *and* the system that gives it
+    /// a different meaning, a dialect's model attribute *and* an operation id that says which call it was.
+    pub all_of: Vec<DetectMatch>,
+    /// What the span is, in the stored vocabulary. Mapped to the enum by the caller, which is the one thing
+    /// about this that is not a producer's business.
+    pub result: String,
+}
+
+/// One detection rule: signals that identify a producer, and the label they yield.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct DetectRule {
+    pub id: String,
+    #[serde(default)]
+    pub doc: Option<String>,
+    /// The label written to the span's `framework` column. A display and filtering value.
+    pub label: String,
+    /// Where this rule sits in the ordered sweep - a **migration bridge**, not the target design.
+    ///
+    /// The accepted design is order-independent: each rule states sufficient conditions, a unique
+    /// sufficient candidate wins, and a declared `supersedes` resolves a known overlap. Today's rules do
+    /// not state sufficient conditions - they were transcribed from a first-match table whose order is
+    /// load-bearing, because the SideSeat SDK defaults `service.name` to one framework's name, so a
+    /// service-name signal evaluated early claims every span of every framework using the SDK.
+    ///
+    /// So the rank reproduces that answer while the overlaps are *collected and reported* rather than
+    /// silently resolved (`overlapping_candidates`). It goes when the predicates are narrow enough that
+    /// no span has two candidates - and until then, naming it `legacy_rank` is the honest description of
+    /// what it is.
+    #[serde(rename = "legacy_rank")]
+    pub legacy_rank: i32,
+    /// Rule ids this rule beats where both match. Declared, so a genuine overlap is owned rather than
+    /// resolved by a number.
+    ///
+    /// It **orders**, ahead of `legacy_rank`, which is what that field's own doc says the accepted design is. It
+    /// used to waive only the overlap *report* while rank decided the winner regardless - so the field documented
+    /// an ordering it took no part in, and every shipped edge could have been deleted without changing a single
+    /// attribution. Transitive, since it is a DAG; a cycle is refused.
+    ///
+    /// This is what lets a rule beat one ranked ahead of it **without** moving its own weaker signals up too -
+    /// the same problem `alternatives` solves within a rule, here between two.
+    #[serde(default)]
+    pub supersedes: Vec<String>,
+    #[serde(rename = "match")]
+    pub match_spec: DetectMatch,
+    /// Further evidence for the same label, each at its **own** rank.
+    ///
+    /// The predicates inside one `match` are independently sufficient, so a rule whose signals differ in
+    /// *strength* cannot be ordered by one number. Strands states `gen_ai.system: "strands-agents"` - a producer
+    /// naming itself, the strongest evidence there is - beside a `service.name` the SDK defaults and a phrase in
+    /// a span name. One rank for all three has to be placed for the weakest, which put the self-identification
+    /// behind `openinference.`: a Strands span carrying any OpenInference attribute was labelled OpenInference,
+    /// and moving the whole rule earlier would instead let its defaulted service name claim every framework using
+    /// the SDK.
+    ///
+    /// Each alternative is compiled into its own ordered rule with the same label, so resolution is unchanged -
+    /// what changes is that a rule can place its strong evidence and its weak evidence separately. An explicit
+    /// `id` per alternative rather than one synthesized from the rule's, for the reason every other clause here
+    /// has one: a synthesized id is not an identity a declaration can be held to.
+    #[serde(default)]
+    pub alternatives: Vec<DetectAlternative>,
+}
+
+/// One further body of evidence for a rule's label, at its own rank.
+#[derive(Debug, Deserialize, Clone)]
+#[serde(deny_unknown_fields)]
+pub struct DetectAlternative {
+    pub id: String,
+    #[serde(default)]
+    pub doc: Option<String>,
+    #[serde(rename = "legacy_rank")]
+    pub legacy_rank: i32,
+    #[serde(rename = "match")]
+    pub match_spec: DetectMatch,
+}
+
+/// One SDK-declared slug and the label it resolves to.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct SdkSlug {
+    pub slug: String,
+    pub label: String,
+}
+
+/// A pair of strings - an attribute key and the value or substring it must hold.
+///
+/// Strict, like every other type here. It was the one predicate type without it, so
+/// `{"key": …, "value": …, "ignore_case": true}` parsed and the flag was **discarded** - a comparison an
+/// author had asked to be case-insensitive stayed case-sensitive, silently. Case folding is a *separate
+/// dimension* (`attr_equals_ignore_case`), which is exactly the mistake this made easy to write.
+#[derive(PartialEq, Eq, Debug, Deserialize, Clone)]
+#[serde(deny_unknown_fields)]
+pub struct KeyValue {
+    pub key: String,
+    pub value: String,
+}
+
+/// A case-insensitive text search over named sources.
+///
+/// The one signal that is neither a prefix nor an equality: a framework whose spans are identified by a
+/// phrase appearing somewhere in a name, in any of several spellings.
+#[derive(PartialEq, Eq, Debug, Deserialize, Clone)]
+#[serde(deny_unknown_fields)]
+pub struct TextContains {
+    /// `span_name`, or `attr:<key>`.
+    pub sources: Vec<String>,
+    /// Any of these, matched case-insensitively.
+    pub needles: Vec<String>,
+    /// Search only the **first source that has a value**, rather than all of them.
+    ///
+    /// The difference is a decision, not a nicety. Two attributes may hold two answers to one question - a
+    /// request model and a response model - and searching both asks "does *either* say so" where the question
+    /// was "does the one that applies say so". A request for `gpt-4o` answered by `text-embedding-3-small` is
+    /// a chat completion whose response model is mislabelled, not an embedding call.
+    #[serde(default)]
+    pub first_present_source: bool,
+}
+
+/// The signals a detection rule may use. **Any** satisfied signal matches the rule.
+///
+/// Disjunctive, which is the existing behaviour and worth naming: each dimension is independently
+/// sufficient. That is why a rule listing a broad `service_name` beside a narrow `attr_prefix` is not
+/// "narrow" at all, and why rank matters.
+#[derive(PartialEq, Eq, Debug, Default, Deserialize, Clone)]
+#[serde(deny_unknown_fields)]
+pub struct DetectMatch {
+    /// Span name **starts with** any of these.
+    ///
+    /// Prefix only. It used to mean "equals *or* starts with", which is not two operators - a prefix subsumes its
+    /// own equality, so the equality arm could never be the reason a rule matched, and a literal that only differs
+    /// by a separator was dead beside the bare one. Every asset already spells the separator it means
+    /// (`autogen.`, `claude_code.`, `vertexai.`), which is what says this dimension is a prefix; the one that did
+    /// not is the one whose second literal was dead.
+    #[serde(default)]
+    pub span_name: Vec<String>,
+    /// Span name **is** any of these, exactly.
+    ///
+    /// Its own dimension, because a prefix cannot express it: a producer that names one span for its whole graph
+    /// and its steps `Graph.step` needs "exactly `Graph`" and "under `Graph.`" as two statements. Folded into the
+    /// prefix list, the bare name subsumed the separator form *and* claimed every unrelated span that merely
+    /// starts with those letters.
+    #[serde(default)]
+    pub span_name_exact: Vec<String>,
+    /// Any span attribute key starts with any of these.
+    #[serde(default)]
+    pub attr_prefix: Vec<String>,
+    /// A span attribute equals this value exactly.
+    #[serde(default)]
+    pub attr_equals: Vec<KeyValue>,
+    /// A span attribute equals this value, whatever its case.
+    ///
+    /// Its own dimension rather than a flag on `attr_equals`, because a flag that changes another field's
+    /// meaning is dead where that field is absent - and this engine refuses dead declarations. One producer
+    /// writes its span kind in capitals and another in mixed case, and both mean the same kind.
+    #[serde(default)]
+    pub attr_equals_ignore_case: Vec<KeyValue>,
+    /// Any of these span attribute keys exists.
+    #[serde(default)]
+    pub attr_exists: Vec<String>,
+    /// The resource's `service.name` **contains** any of these.
+    ///
+    /// A substring test, which is why no rule may identify a framework by a short common word: `agno` would also
+    /// match a service called `diagnostics`.
+    ///
+    /// It read `equals || contains`, and the equality arm was dead - a substring match subsumes its own equality.
+    /// Narrowing the whole dimension to equality was tried and is **wrong**: the breadth is deliberate. A user
+    /// names their own service, and `my-app-openai-agents-v1` identifies the SDK inside it
+    /// (`test_openai_agents_framework_detection_from_service_name_contains`). Every `service.name` in the captured
+    /// corpus that matches a declared literal happens to match it exactly, so the corpus cannot see this - which
+    /// is what makes those two unit tests the evidence.
+    ///
+    /// The cost is real and accepted: a service called `my-strands-agents-proxy` is attributed to Strands. Telling
+    /// that from `my-app-openai-agents-v1` needs evidence a resource attribute does not carry.
+    #[serde(default)]
+    pub service_name: Vec<String>,
+    /// A *span* attribute contains this substring.
+    ///
+    /// Generic on purpose. This replaced a `metadata_contains` dimension whose key the engine supplied,
+    /// which made one framework's attribute name look like part of OpenTelemetry: only one rule ever used
+    /// it. `service.name` stays a structural dimension because it really is OTel's own resource
+    /// attribute; `metadata` is a framework's, so the key belongs in the asset beside the value.
+    #[serde(default)]
+    pub span_attr_contains: Vec<KeyValue>,
+    /// A resource attribute contains this substring - how an instrumentation library identifies itself
+    /// through `telemetry.sdk.name`.
+    #[serde(default)]
+    pub resource_attr_contains: Vec<KeyValue>,
+    /// A case-insensitive phrase search over the span name or a named attribute.
+    #[serde(default)]
+    pub text_contains: Option<TextContains>,
+}
+
+/// One carrier declaration: what to match, and what the matched carrier is evidence of.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct CarrierRule {
+    /// Stable clause id, reported by the explain trace.
+    pub id: String,
+    #[serde(default)]
+    pub doc: Option<String>,
+    #[serde(rename = "match")]
+    pub match_spec: MatchSpec,
+    /// The preset this clause resolves to, optionally with named overrides.
+    pub facts: Facts,
+    /// The ordering family this carrier belongs to, when it is a *fragmented ordered input*: several
+    /// attribute keys that are one array (`llm.input_messages.0.message` and `.1.message`).
+    ///
+    /// The seventh carrier fact. It was hardcoded in the order resolver, which is exactly the shape of
+    /// defect this engine exists to remove: a semantic fact about one framework's carrier, written in
+    /// Rust, that no rule file could state.
+    #[serde(default)]
+    pub ordering_family: Option<String>,
+}
+
+/// What an observation must look like for a clause to apply. Every field is optional and all present
+/// fields must hold, so a clause constraining more dimensions is strictly more specific.
+///
+/// The dimensions are a fixed, finite set of orthogonal scalar constraints - which is what makes
+/// specificity well-defined here, unlike the tree-shape predicates of the content chain, where
+/// ordering has to be declared by name instead.
+#[derive(Debug, Default, Deserialize, PartialEq, Eq, Clone)]
+#[serde(deny_unknown_fields)]
+pub struct MatchSpec {
+    /// Exact OTel event name the observation was read from.
+    #[serde(default)]
+    pub event: Option<String>,
+    /// Exact attribute key.
+    #[serde(default)]
+    pub attribute: Option<String>,
+    /// Attribute key prefix, for indexed families (`llm.input_messages.0.message`).
+    #[serde(default)]
+    pub attribute_prefix: Option<String>,
+    /// A dotted attribute **family**: the root itself and every key below it.
+    ///
+    /// Separate from `attribute_prefix`, which is raw text. Every undelimited prefix in the assets was really
+    /// a family root, and the raw reading selected keys that are not in the family:
+    /// `attribute_prefix: "ai.response"` matched `ai.responses`, and `gen_ai.output.messages` matched
+    /// `gen_ai.output.messages_extra`. A prefix ending in `.` is genuinely raw and stays one.
+    #[serde(default)]
+    pub attribute_family: Option<String>,
+    /// Any of these observation types. This is the dimension the span-blind lookup lacked: the same
+    /// carrier name means different things on a generation span and on an aggregator.
+    ///
+    /// `Option`, not `Vec`, because an explicitly empty `observation_type: []` was silently the same as
+    /// omitting the qualifier - so a clause that reads as narrow held for every span. Omission is `None` and
+    /// means no restriction; `Some([])` states nothing and is refused. A `Vec` cannot tell those apart, which
+    /// is why the first attempt at this refusal was dead code.
+    #[serde(default)]
+    pub observation_type: Option<Vec<String>>,
+    /// Instrumentation scope name substring.
+    ///
+    /// Narrowing evidence only, never an exclusive key: historical rows may carry no scope, several
+    /// frameworks share instrumentation packages, and versions are not reliably semantic.
+    #[serde(default)]
+    pub scope_name_contains: Option<String>,
+    /// Instrumentation scope *version* prefix.
+    ///
+    /// A prefix rather than a comparison, deliberately: versions here are not reliably semantic, so
+    /// `>=` would have to invent an ordering for strings that have none. A prefix states exactly what it
+    /// checks. Present because a producer can change a carrier's meaning between releases, which is the
+    /// one thing no other dimension can express.
+    #[serde(default)]
+    pub scope_version_prefix: Option<String>,
+}
+
+impl MatchSpec {
+    /// How many of the three carrier fields this clause names. Exactly one is required: a clause naming
+    /// none would match every observation of a span, and one naming several was silently reduced to
+    /// whichever the indexer looked at first, quietly ignoring the rest.
+    pub fn primary_key_count(&self) -> usize {
+        usize::from(self.event.is_some())
+            + usize::from(self.attribute.is_some())
+            + usize::from(self.attribute_prefix.is_some())
+            + usize::from(self.attribute_family.is_some())
+    }
+
+    /// The carrier this clause keys on, for indexing.
+    pub fn primary_key(&self) -> Option<PrimaryKey<'_>> {
+        if let Some(event) = &self.event {
+            return Some(PrimaryKey::Event(event));
+        }
+        if let Some(attribute) = &self.attribute {
+            return Some(PrimaryKey::Attribute(attribute));
+        }
+        if let Some(prefix) = &self.attribute_prefix {
+            return Some(PrimaryKey::AttributePrefix(prefix));
+        }
+        self.attribute_family
+            .as_deref()
+            .map(PrimaryKey::AttributeFamily)
+    }
+
+    /// Does this clause's match language *contain* the other's - is the other at least as specific?
+    ///
+    /// Subsumption, not a score. A numeric score imposes an order on predicates that have none:
+    /// `observation_type = agent` and `span_name_prefix = invoke_` constrain different things and
+    /// neither implies the other, so any number assigned to them is arbitrary and decides real cases by
+    /// arithmetic. Specificity is only meaningful where one clause's language is a strict subset of the
+    /// other's, and where it is not, the ruleset is ambiguous and must say which wins.
+    ///
+    /// Returns true when every observation matching `other` also matches `self`.
+    pub fn contains_language_of(&self, other: &Self) -> bool {
+        // Carrier: an exact name is inside a prefix that covers it; a longer prefix is inside a shorter.
+        let carrier_contains = match (self.primary_key(), other.primary_key()) {
+            (Some(PrimaryKey::Event(a)), Some(PrimaryKey::Event(b))) => a == b,
+            (Some(PrimaryKey::Attribute(a)), Some(PrimaryKey::Attribute(b))) => a == b,
+            (Some(PrimaryKey::AttributePrefix(p)), Some(PrimaryKey::Attribute(a))) => {
+                a.starts_with(p)
+            }
+            (Some(PrimaryKey::AttributePrefix(a)), Some(PrimaryKey::AttributePrefix(b))) => {
+                b.starts_with(a)
+            }
+            // A family's members all start with its root, so a raw prefix that is a prefix *of the root*
+            // covers every one of them.
+            (Some(PrimaryKey::AttributePrefix(p)), Some(PrimaryKey::AttributeFamily(root))) => {
+                root.starts_with(p)
+            }
+            (Some(PrimaryKey::AttributeFamily(root)), Some(PrimaryKey::Attribute(a))) => {
+                in_family(a, root)
+            }
+            // A raw prefix is inside a family only when it is *below* the root. `prefix("ai.response")` is
+            // **not**, because it also selects `ai.responses`, which the family excludes - the same distinction
+            // that made this variant necessary.
+            (Some(PrimaryKey::AttributeFamily(root)), Some(PrimaryKey::AttributePrefix(p))) => p
+                .strip_prefix(root)
+                .is_some_and(|rest| rest.starts_with('.')),
+            (Some(PrimaryKey::AttributeFamily(a)), Some(PrimaryKey::AttributeFamily(b))) => {
+                b == a || b.strip_prefix(a).is_some_and(|rest| rest.starts_with('.'))
+            }
+            _ => false,
+        };
+        if !carrier_contains {
+            return false;
+        }
+        // Qualifiers: an unconstrained dimension contains any constraint on it.
+        // An unconstrained dimension contains any constraint on it, so `None` here contains everything.
+        let types = match (&self.observation_type, &other.observation_type) {
+            (None, _) => true,
+            (Some(_), None) => false,
+            (Some(mine), Some(theirs)) => theirs.iter().all(|t| mine.contains(t)),
+        };
+        // A longer needle is the more specific claim only when it *contains* the shorter one: a scope
+        // holding `foo` is not necessarily one holding `bar`, but one holding `foobar` does hold `oob`.
+        let scopes = match (&self.scope_name_contains, &other.scope_name_contains) {
+            (None, _) => true,
+            (Some(_), None) => false,
+            (Some(a), Some(b)) => b.contains(a.as_str()),
+        };
+        let versions = match (&self.scope_version_prefix, &other.scope_version_prefix) {
+            (None, _) => true,
+            (Some(_), None) => false,
+            (Some(a), Some(b)) => b.starts_with(a.as_str()),
+        };
+        types && scopes && versions
+    }
+
+    /// Could one observation satisfy both clauses?
+    ///
+    /// Deliberately conservative: where it cannot be shown that no observation satisfies both, this says
+    /// they overlap, so the compiler asks for an explicit ordering rather than assuming independence.
+    /// Two `scope_name_contains` needles are the case that matters - a scope name can hold both `foo`
+    /// and `bar`, so treating unequal needles as disjoint let two clauses both match with nothing
+    /// choosing between them.
+    pub fn can_both_match(&self, other: &Self) -> bool {
+        let carriers_overlap = match (self.primary_key(), other.primary_key()) {
+            (Some(PrimaryKey::Event(a)), Some(PrimaryKey::Event(b))) => a == b,
+            (Some(PrimaryKey::Attribute(a)), Some(PrimaryKey::Attribute(b))) => a == b,
+            (Some(PrimaryKey::Attribute(a)), Some(PrimaryKey::AttributePrefix(p)))
+            | (Some(PrimaryKey::AttributePrefix(p)), Some(PrimaryKey::Attribute(a))) => {
+                a.starts_with(p)
+            }
+            (Some(PrimaryKey::AttributePrefix(a)), Some(PrimaryKey::AttributePrefix(b))) => {
+                // Either can extend the other, and some key beginning with the longer satisfies both.
+                a.starts_with(b) || b.starts_with(a)
+            }
+            _ => false,
+        };
+        if !carriers_overlap {
+            return false;
+        }
+        // Jointly satisfiable unless both constrain the dimension and share no value.
+        let types = match (&self.observation_type, &other.observation_type) {
+            (Some(mine), Some(theirs)) => mine.iter().any(|t| theirs.contains(t)),
+            _ => true,
+        };
+        // Two substrings are always jointly satisfiable: concatenate them.
+        let versions = match (&self.scope_version_prefix, &other.scope_version_prefix) {
+            (Some(a), Some(b)) => a.starts_with(b.as_str()) || b.starts_with(a.as_str()),
+            _ => true,
+        };
+        types && versions
+    }
+}
+
+/// What a clause keys on, for the lookup index.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum PrimaryKey<'a> {
+    Event(&'a str),
+    Attribute(&'a str),
+    /// A **raw textual** prefix: every key beginning with these characters.
+    AttributePrefix(&'a str),
+    /// A dotted **family**: the root itself, and every key below it.
+    ///
+    /// Distinct from a raw prefix because a raw one does not respect the separator, and every undelimited
+    /// prefix in the assets was in fact a family root: `attribute_prefix: "ai.response"` matched
+    /// `ai.responses`, which is a different attribute, and `gen_ai.output.messages` matched
+    /// `gen_ai.output.messages_extra`. A prefix ending in `.` is still genuinely raw and stays one - as a
+    /// family root it would ask for `ai..something`.
+    AttributeFamily(&'a str),
+}
+
+impl PrimaryKey<'_> {
+    /// Whether this source selects the given attribute key.
+    pub fn selects_attribute(&self, key: &str) -> bool {
+        match self {
+            Self::Event(_) => false,
+            Self::Attribute(name) => key == *name,
+            Self::AttributePrefix(prefix) => key.starts_with(prefix),
+            Self::AttributeFamily(root) => in_family(key, root),
+        }
+    }
+}
+
+/// Whether a key is the root of a dotted family or sits below it.
+///
+/// `key == root || key.starts_with(root.)` - the separator is the whole point, and its absence is what made
+/// `ai.responses` a member of `ai.response`.
+pub fn in_family(key: &str, root: &str) -> bool {
+    key == root
+        || key
+            .strip_prefix(root)
+            .is_some_and(|rest| rest.starts_with('.'))
+}
+
+/// One shape a provider writes a tool definition in, and how to read it as the canonical one.
+///
+/// The canonical form - `{"type":"function","function":{"name","description","parameters"}}` - is **ours**, and
+/// stays in Rust. Every path into a producer's own shape is the asset's, which is the split `as_tool_definition`
+/// already follows. Before this, five readers named `openai`, `anthropic`, `bedrock`, `gemini` and `cohere` in
+/// production Rust and an unrecognised shape was passed through unchanged, then discarded because no name could
+/// be extracted from it - so a producer's shape was not addable as data.
+///
+/// Worth stating why the framework sweep never caught them: markers are derived from *asset ids*, and those five
+/// are **providers**, which the sweep excludes by design because the pricing catalogue is entitled to their
+/// names. A fourth blind spot beside the three its own doc records.
+#[derive(Debug, Deserialize, Clone)]
+#[serde(deny_unknown_fields)]
+pub struct ToolShapeRule {
+    pub id: String,
+    pub doc: Option<String>,
+    /// Ordered, first match wins, and a shared rank is refused - two shapes that both recognise a payload must
+    /// not be separated by which asset loaded first.
+    pub legacy_rank: i32,
+    /// What makes a payload this shape. Read on the tool value itself.
+    #[serde(default)]
+    pub require: PredicateSet,
+    /// Where the definitions are, when one payload holds several. Empty means the payload is one definition.
+    ///
+    /// Ordered, and the first path that **resolves** supplies them - the same rule as `ParametersSpec::from`,
+    /// for the same reason: one producer writes `functionDeclarations` and another writes
+    /// `function_declarations`, and those are two spellings of one shape rather than two shapes. Spelling them
+    /// as two clauses would duplicate every other member of the rule and give the pair a rank order that means
+    /// nothing.
+    #[serde(default)]
+    pub each: Vec<JsonPath>,
+    /// The whole canonical `function` object, for a producer that already writes it.
+    ///
+    /// Exclusive with the three members below: a shape either hands over a canonical object or states where each
+    /// part is, and declaring both would be two answers about one output.
+    #[serde(default)]
+    pub function: Option<JsonPath>,
+    /// Members of the payload copied onto the canonical wrapper beside `function` - one producer carries
+    /// `strict` there, and dropping it changes what the tool permits.
+    #[serde(default)]
+    pub carry: Vec<String>,
+    #[serde(default)]
+    pub name: Option<JsonPath>,
+    #[serde(default)]
+    pub description: Option<JsonPath>,
+    #[serde(default)]
+    pub parameters: Option<ParametersSpec>,
+}
+
+/// Where a tool's parameters are and how they are encoded.
+#[derive(Debug, Deserialize, Clone)]
+#[serde(deny_unknown_fields)]
+pub struct ParametersSpec {
+    pub doc: Option<String>,
+    /// Ordered: the first path that resolves is the parameters. One producer writes
+    /// `inputSchema.json` and the same producer sometimes writes `inputSchema` directly.
+    pub from: Vec<JsonPath>,
+    /// **Declared**, not guessed from the content. It was guessed: a member named `type` inside an argument map
+    /// made the map look like a finished JSON Schema, so `{"type":"str","query":"str"}` was emitted as a schema
+    /// whose type is `str`. The argument named `type` decided how the whole representation was read.
+    pub encoding: ParametersEncoding,
+}
+
+/// How a producer encodes a tool's parameters.
+#[derive(Debug, Deserialize, Clone, Copy, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum ParametersEncoding {
+    /// Already a JSON Schema object: taken as it stands.
+    JsonSchema,
+    /// A map from argument name to its facts - `{"city": {"type": "string", "required": true}}` - which becomes
+    /// a JSON Schema object. Every supported constraint is kept: a converter that dropped `required` said an
+    /// argument was optional when the producer said it was not.
+    ArgumentMap,
+}
+
+/// The **eight** carrier facts, named by preset with optional per-field overrides.
+///
+/// A preset is a constructor, not a category: `snapshot` and `accumulated_state` differ in one bit, so two
+/// declarations that read as different kinds of thing can be the same eight facts - and the name does not
+/// survive compilation. 37 of the 55 shipped clauses override something, and nearly all of those overrides are
+/// compensating for direction or encoding being bundled into a preset that is otherwise about *reconstruction*.
+///
+/// A preset plus overrides rather than six booleans spelled out per clause: the presets are the
+/// vocabulary the model is stated in, and a clause that writes them all out invites one being wrong in
+/// a way no reader notices.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Facts {
+    /// `emission`, `snapshot` or `accumulated_state`.
+    pub preset: String,
+    #[serde(default)]
+    pub position_proves_distinct_occurrence: Option<bool>,
+    #[serde(default)]
+    pub position_provides_sequence_order: Option<bool>,
+    #[serde(default)]
+    pub carrier_is_atomic_emission: Option<bool>,
+    #[serde(default)]
+    pub may_restate_prior_observations: Option<bool>,
+    pub may_contain_framework_state: Option<bool>,
+    #[serde(default)]
+    pub carrier_holds_span_output: Option<bool>,
+    #[serde(default)]
+    pub carrier_is_detached_request_frame: Option<bool>,
+    #[serde(default)]
+    pub carrier_holds_span_input: Option<bool>,
+    #[serde(default)]
+    pub carrier_holds_expandable_message_array: Option<bool>,
+}
+
+/// Every embedded asset, keyed by path so the order is deterministic.
+///
+/// A `BTreeMap` rather than the embed crate's iteration order: the compile walks these, and a
+/// collision diagnostic that named a different pair of files per build would be untraceable.
+pub fn embedded_sources() -> BTreeMap<String, Vec<u8>> {
+    RuleAssets::iter()
+        .filter(|path| path.ends_with(".json"))
+        .filter_map(|path| {
+            RuleAssets::get(&path).map(|file| (path.to_string(), file.data.into_owned()))
+        })
+        .collect()
+}
+
+/// BLAKE3 over the asset paths and bytes, hex-encoded.
+///
+/// Paths are hashed too, and length-prefixed, so moving a declaration between files changes the digest
+/// and two files cannot be concatenated into the same hash as one.
+pub fn digest_of(sources: &BTreeMap<String, Vec<u8>>) -> String {
+    let mut hasher = blake3::Hasher::new();
+    for (path, bytes) in sources {
+        hasher.update(&(path.len() as u64).to_le_bytes());
+        hasher.update(path.as_bytes());
+        hasher.update(&(bytes.len() as u64).to_le_bytes());
+        hasher.update(bytes);
+    }
+    hasher.finalize().to_hex().to_string()
+}
+
+/// One message-extraction rule: a carrier to read, how to parse it, and what to emit.
+///
+/// **No longer small, and that is the finding.** It began as "read a carrier, parse it, emit it" and each
+/// dialect added a generic field that prevented a measured defect. Every one is still declarative and
+/// non-Turing-complete, but selection, projection, predicates and object construction have been built by
+/// hand here - which is what an expression language already standardises, and a hand-built path resolver
+/// is where a real bug lived (a literal dotted key read as a nested path).
+///
+/// So the shaping half of this type moved to a published selection language with a parser and quoted
+/// identifiers. **RFC 9535 JSONPath**, not JMESPath: JMESPath was implemented first and reverted, because
+/// every result comes back through its crate's sorted-map value tree, which alphabetises a selected payload's
+/// members - and this repository treats serialised member order as observable. `message_rules.rs` records the
+/// measurement. What stays here is the structural half - which carrier, who claims it, in what order, what it
+/// emits - because that is ownership and policy rather than a transform.
+#[derive(Debug, Deserialize, Clone)]
+#[serde(deny_unknown_fields)]
+pub struct MessageRule {
+    pub id: String,
+    #[serde(default)]
+    pub doc: Option<String>,
+    /// The *events* this rule applies to. Non-empty makes it an event rule: its reads resolve against the
+    /// event's own attributes rather than the span's, and its observations are tagged as events.
+    ///
+    /// **Where** this rule reads: a span's attributes at some stage, or a named event's.
+    ///
+    /// One discriminated member, because `when_event` and `stage` were an *implicit sum* and an unsound one.
+    /// The two entry points disagreed about which fields they honour: `from_event` selects on the event name
+    /// and ignores `stage` entirely, while the span path selects on `stage` and requires no event. So two
+    /// event rules declaring different stages were treated by the compiler as separate ordering arenas -
+    /// where a shared rank is legal - and then both run by the event path, with ownership decided by
+    /// comparing their *ids*. And `when_event: []` silently became an ordinary span rule.
+    ///
+    /// Absent means `{"span": {}}`, the ordinary case: read with the dialects on a span's attributes.
+    #[serde(default)]
+    pub source: Option<MessageSource>,
+
+    /// The carrier to read. Absent for a `compose` rule, which has many sources rather than one.
+    #[serde(default)]
+    pub read: ReadSpec,
+    /// Assemble one message from several attributes, rather than wrapping one read value.
+    ///
+    /// The dual of `wrap`, and needed because a dialect writes one response across many keys - the text
+    /// here, the tool calls there, a structured object beside them, and any other member of the same
+    /// family swept up. There is no single carrier to read, so there is no single value to wrap.
+    #[serde(default)]
+    pub compose: Option<ComposeSpec>,
+    #[serde(default)]
+    pub tool_repr: Option<ToolReprSpec>,
+    /// How to turn its raw string into a value. Absent for an indexed family, which has no single
+    /// string to parse - each member is read on its own.
+    #[serde(default)]
+    pub parse: Option<ParseMode>,
+    /// Wrap the parsed value in a message envelope with this role.
+    ///
+    /// Some carriers hold a bare payload rather than a message - a tool's arguments, say - and the role
+    /// that payload represents is a fact about the carrier, so it is declared beside it.
+    #[serde(default)]
+    pub wrap: Option<WrapSpec>,
+    /// Whether the observation is a message or a tool definition.
+    ///
+    /// Defaults to a message, and a branch set's parent declares none: its sub-readings each say what they
+    /// emit, so a value here would be unused.
+    #[serde(default)]
+    pub emit: Option<EmitTarget>,
+    /// Emit one observation whose value is the array of everything read, rather than one per reading.
+    ///
+    /// Tool definitions arrive as a set rather than a sequence of messages, so a dialect's whole tool list
+    /// is one observation - emitting one per tool would make each look like a separate declaration.
+    #[serde(default)]
+    pub aggregate_into_array: Option<bool>,
+    /// A gate on the span, in the detection vocabulary: the rule is consulted only where this holds.
+    ///
+    /// Several extractors refuse to read a carrier whose name they share with other dialects unless the
+    /// span also carries their own marker - `gen_ai.prompt` is the generic conventions' key and also
+    /// where one exporter writes a whole request, so reading it unconditionally would claim another
+    /// dialect's payload.
+    #[serde(default)]
+    pub when: Option<DetectMatch>,
+    /// Ordered readings of the parsed value, tried until one yields an observation.
+    ///
+    /// An ordered coalesce, not a program: a payload has more than one documented shape and the rule
+    /// says which to try first. Empty means "emit the parsed value as it stands", which is what the
+    /// three dialects migrated first needed.
+    #[serde(default)]
+    pub alternatives: Vec<Alternative>,
+    /// Readings that all contribute, rather than the first that yields.
+    ///
+    /// A different relation from `alternatives`, and mixing them up loses messages: one dialect writes a
+    /// turn's history under one member and *the answer itself* under another, so reading them as
+    /// alternatives dropped the assistant output of every run that carried history.
+    ///
+    /// **May be declared beside `alternatives`**, and one dialect does. They were refused together at first,
+    /// on the reading that "first wins" and "all contribute" cannot both be true of one list - but they are
+    /// two lists, and a carrier can hold both a shape to choose among *and* a member to read as well. The
+    /// refusal pushed that carrier into two rules, which the ownership check then rejected for contending over
+    /// one attribute.
+    #[serde(default)]
+    pub also: Vec<Alternative>,
+    /// A reading used only when nothing else in this rule emitted anything.
+    ///
+    /// Keeps a span from being silently empty: where a payload matches no documented shape, it is better
+    /// to keep it whole than to return nothing and leave no trace that it arrived.
+    #[serde(default)]
+    pub fallback: Vec<Alternative>,
+    /// Tag the observation with this carrier, whatever alternative was read.
+    ///
+    /// Normally the key found is the tag, so two spellings of a payload stay distinguishable. One dialect
+    /// deliberately does the opposite: it reads a renamed key but reports the canonical one, so every
+    /// span's prompt is tagged alike whichever spelling it used. Declared, because it is the *reverse* of
+    /// the default and a reader would otherwise assume the default.
+    #[serde(default)]
+    pub tag_as: Option<String>,
+    /// May this rule read a *tool execution* span?
+    ///
+    /// A tool span reads the conventions and nothing else. The reason is that a tool span carries the
+    /// call and its result under the conventions' own keys, while a dialect's broader carriers on the same
+    /// span hold the enclosing agent's state - read there they duplicate the turn. That was a hardcoded
+    /// exemption for one extractor by name; it is a property of a rule now.
+    #[serde(default)]
+    pub reads_tool_spans: Option<bool>,
+    /// Several carrier readings with a *local* order between them.
+    ///
+    /// One dialect reads a carrier only when nothing else supplied the conversation - a condition about
+    /// what *else* was found. Expressing that with rule ids would make ids into control-flow targets and
+    /// the interpreter's execution history into something a rule can observe; keeping the readings inside
+    /// one rule keeps it a pure function of the span, with no global state and no cycles to worry about.
+    #[serde(default)]
+    pub branch_set: Option<BranchSet>,
+    /// Read an array-valued carrier element by element, in declared passes.
+    ///
+    /// Passes rather than per-element routing, because the order is observable: one dialect emits every
+    /// recognised event *before* any grouped block, so a single interleaved scan would return a different
+    /// conversation. Declaring passes makes that ordering a statement rather than an artefact of how the
+    /// code happened to loop.
+    #[serde(default)]
+    pub elements: Option<ElementsSpec>,
+    /// Apply this rule's readings at every node of a bounded tree walk.
+    ///
+    /// One dialect's carrier is a *state object* its nodes write into, so a conversation can sit at the top
+    /// level, under one member, or nested a level or two down. Bounded on purpose - an explicit depth, and
+    /// members already read at each node are pruned - because the point is to find a state member, not to
+    /// trawl a payload for anything message-shaped.
+    #[serde(default)]
+    pub walk: Option<WalkSpec>,
+    /// Split a text carrier into tagged sections and route each by its tag.
+    ///
+    /// A general text-carrier capability, and one dialect needs it: a single attribute holds either side
+    /// of a conversation, distinguished by a bracketed tag, and several sections joined by a separator -
+    /// one per parallel tool call. Each is read on its own so every result keeps its own id.
+    #[serde(default)]
+    pub sections: Option<SectionsSpec>,
+    /// Reject a carrier whose value is blank once trimmed.
+    ///
+    /// Distinct from `require_non_empty`, which rejects only the empty string: one dialect treats
+    /// whitespace as absence and another does not, and collapsing the two would change both.
+    #[serde(default)]
+    pub require_non_blank: Option<bool>,
+    /// Skip a carrier whose value is empty.
+    ///
+    /// An attribute present and empty is not evidence of a message, and wrapping it produces a turn with
+    /// nothing in it - which the no-empty-content invariant then rejects downstream.
+    #[serde(default)]
+    pub require_non_empty: Option<bool>,
+    /// A negative gate: the rule is skipped where this holds.
+    ///
+    /// Symmetric to `when`, and needed for a genuine either/or - a response is read from its text when it
+    /// has text, and from its tool calls only when it does not, or one response would be emitted twice.
+    #[serde(default)]
+    pub unless: Option<DetectMatch>,
+    /// What an indexed entry must carry to count as one.
+    ///
+    /// An index exists as soon as *any* key mentions it, and a family legitimately holds keys that are not
+    /// messages - so without this a request's settings each become a turn.
+    ///
+    /// Each member declares how its presence is decided, because the dialects genuinely differ and the
+    /// difference is observable: one writes `content` directly *and* `content.0.text`, so either proves it,
+    /// while another writes `contents.0.type` and never a bare `contents`, so only a nested key does. A
+    /// single rule for all of them would either miss entries or invent them.
+    #[serde(default)]
+    pub require_members: Option<MemberRequirements>,
+    /// Position in the consulted order. See `MessagePlan` for why it is `legacy_`.
+    ///
+    /// Required at the top level and **forbidden** inside a branch set: there the local order decides, so a
+    /// rank would be a number that looks like it means something and does not.
+    #[serde(rename = "legacy_rank", default)]
+    pub legacy_rank: Option<i32>,
+}
+
+/// The carrier a message rule reads: exactly one form, checked at compile time.
+///
+/// Optional fields rather than a tagged enum, for the same reason the carrier match spec uses them: an
+/// externally-tagged enum needs `{"attribute": {"attribute": "k"}}` in JSON, which is the shape nobody writes
+/// and serde rejects silently at the file level. Requiring exactly one is the check that makes this equivalent
+/// while staying readable.
+///
+/// There is deliberately **no `event` form**. One existed, was accepted by this schema, and was refused
+/// unconditionally by the compiler as unimplemented - so the format advertised four read forms and could
+/// execute three. An author reading the schema as the format's reference was being told something untrue,
+/// which is worse than the missing capability: a span's *events* are routed to `MessagePlan::from_event`,
+/// where `when_event` selects the rule and the event's attributes are read exactly as a span's are. If a rule
+/// ever needs to read one event while running over a span, that is a new construct to design rather than a
+/// field to un-refuse.
+#[derive(Debug, Deserialize, Clone, Default)]
+#[serde(deny_unknown_fields)]
+pub struct ReadSpec {
+    #[serde(default)]
+    pub attribute: Option<String>,
+    /// Ordered carrier alternatives: **the first** of these the span carries is read, and the observation
+    /// is tagged with that key.
+    ///
+    /// A dialect that renamed a key keeps accepting the old one, and the tag has to be the key actually
+    /// found or two spans carrying different spellings would be indistinguishable downstream.
+    ///
+    /// Spelled `first_present` rather than `attribute_any_of` because that name did not say **how many** of
+    /// the listed keys are read, and the answer depended on a *sibling* member: with `tool_repr` beside it,
+    /// every present key was read; without, only the first. So one syntax meant two things - for CrewAI's
+    /// `["crew_agents", "crew_tasks"]`, both or just the first - and which was decided somewhere else in the
+    /// rule.
+    #[serde(default)]
+    pub first_present: Vec<String>,
+    /// **Every** one of these keys the span carries is read, each as its own observation.
+    ///
+    /// The other half of the split above. A framework may write the same tools under several keys at
+    /// different richness, and each is its own observation - so all are read and the best copy per name wins
+    /// downstream, rather than the richest hiding behind whichever key was declared first.
+    ///
+    /// Honoured by `tool_repr` alone today, and a rule declaring it with any other body is **refused**
+    /// rather than silently read as `first_present`. Generalising it - every body iterating its carriers -
+    /// is the natural extension and is not what the corpus needs yet.
+    #[serde(default)]
+    pub each: Vec<String>,
+    /// An *indexed attribute family*: `<prefix>.0.role`, `<prefix>.0.content`, `<prefix>.1.role`, ...
+    ///
+    /// One entry per index, each assembled from every key under it with the prefix stripped. This is an
+    /// OpenTelemetry encoding - a list of objects flattened into dotted keys because attributes are a
+    /// flat map - so reading it is a generic capability, not a producer's policy. The carrier each entry
+    /// is tagged with is `<prefix>.<index>`, which is what makes two turns of one family distinguishable
+    /// downstream.
+    #[serde(default)]
+    pub indexed_family: Option<String>,
+    /// A **named** attribute family: every key under a root, each key's value one observation.
+    ///
+    /// `indexed_family`'s counterpart for a family whose members are *names* rather than indices -
+    /// `acme.messages.a`, `acme.messages.b`. That was inexpressible: `indexed_family` requires a numeric
+    /// component and skips anything else, while `carriers` has had `attribute_family` all along, so the two
+    /// halves of the format disagreed about whether such a family exists.
+    ///
+    /// The **order is declared**, and required, because there is no order to discover: extraction puts a
+    /// span's attributes in a `HashMap`, so producer order is gone by the time a rule reads them. An
+    /// undeclared order would be the iteration order of a hash map - different per run, and the one thing a
+    /// message sequence must not be.
+    #[serde(default)]
+    pub attribute_family: Option<AttributeFamilySource>,
+    /// A sub-level of each indexed entry whose members are read at the top of the object.
+    ///
+    /// One dialect nests the message inside the entry - `<prefix>.0.message.role` - while also putting
+    /// entry-level members beside it. Both are collected, the sub-level's names unprefixed and the rest as
+    /// they stand, and the observation is tagged with `<prefix>.<index>.<member>` because that is the
+    /// payload it came from.
+    #[serde(default)]
+    pub entry_member: Option<String>,
+    /// Entry members to read as a number where the text is one.
+    ///
+    /// OTel attributes are strings, so a relevance score arrives as `"0.9"` - and a score is a number.
+    /// Named rather than sniffed, because a version, an id or a postcode is text that happens to parse.
+    #[serde(default)]
+    pub numeric_members: Vec<String>,
+    /// Read one *value* out of each indexed entry, rather than the entry's assembled members.
+    ///
+    /// A family whose entries each hold a single serialised payload - one tool's JSON schema at
+    /// `<prefix>.<n>.tool.json_schema` - is a list of those payloads, not a list of objects with a member
+    /// called `tool`. The projection says which leaf is the datum.
+    #[serde(default)]
+    pub entry_value: Option<JsonPath>,
+    /// How the projected value is read. `json` **drops** an entry whose payload does not parse, which is
+    /// what a schema that failed to parse always meant - an indexed member is otherwise sniffed, and a
+    /// malformed schema would be emitted as the string it is, reported as a tool definition.
+    #[serde(default)]
+    pub entry_value_parse: Option<ParseMode>,
+    /// A richer copy of these same messages, held by another carrier and matched by position.
+    #[serde(default)]
+    pub overlay: Option<OverlaySpec>,
+}
+
+/// One dialect's evidence for a fact about a span.
+#[derive(Debug, Deserialize, Clone)]
+#[serde(deny_unknown_fields)]
+pub struct SpanFactRule {
+    pub id: String,
+    pub doc: Option<String>,
+    /// The fact this is evidence of.
+    pub fact: SpanFact,
+    /// Any one of these establishes it.
+    pub signals: Vec<SpanSignal>,
+}
+
+/// A fact about a span that rules and readers ask about by name.
+#[derive(Debug, Deserialize, Clone, Copy, PartialEq, Eq, Hash)]
+#[serde(rename_all = "snake_case")]
+pub enum SpanFact {
+    /// The span *is a tool running*, so its messages are that tool's input and result rather than a
+    /// model's turn. Rules that must not read such a span are gated on it (`reads_tool_spans`).
+    ToolExecution,
+}
+
+/// One piece of evidence. At least one form, and both together read as a conjunction.
+#[derive(Debug, Deserialize, Clone)]
+#[serde(deny_unknown_fields)]
+pub struct SpanSignal {
+    /// This clause's own name, unique within the rule or fragment that holds it.
+    ///
+    /// Required, because an emission has to be able to say **which** clause answered. Before this, a rule with
+    /// four readings reported only the rule's id: a direct shape and a shape reached through a fragment were
+    /// indistinguishable in a diagnostic, and `doc` was being used as a stand-in for an identity.
+    ///
+    /// Required rather than optional-with-a-derived-fallback, which was considered and is the worst of the
+    /// three: adding an id later would *change* the clause's identity, a positional edit would change every
+    /// identity after it, and nothing could safely reference one.
+    pub id: String,
+    pub doc: Option<String>,
+    /// An attribute with this value.
+    #[serde(default)]
+    pub attr_equals: Option<KeyValue>,
+    /// Compare that value case-insensitively. One convention writes its span kind in capitals.
+    #[serde(default)]
+    pub ignore_case: bool,
+    /// **Every** one of these attributes is present. A conjunction, not a choice: a tool name alone sits on
+    /// a model span that merely mentions a tool, while the name *and* a call id together are a call
+    /// being run.
+    #[serde(default)]
+    pub attrs_present: Vec<String>,
+}
+
+/// Tool definitions a carrier holds as a language's `repr` rather than as JSON.
+///
+/// The grammar is sealed in `rules::tool_repr` because it is a property of the *language*. Everything a
+/// particular framework calls its own - which member holds the tools, which repr fields name them, which
+/// labels its embedded documentation uses, how its type names map to JSON Schema's - is here, because
+/// that is its vocabulary and not a fact about Python.
+#[derive(Debug, Deserialize, Clone)]
+#[serde(deny_unknown_fields)]
+pub struct ToolReprSpec {
+    pub doc: Option<String>,
+    /// The carrier's entries. One entry at a time, so two entries each holding a list interleave as the
+    /// payload has them rather than by path - which is what keeps the reported order the framework's own.
+    pub entries: JsonPath,
+    /// Where an entry holds tools, in order. Each resolved value is tried as a tool definition.
+    pub candidates: Vec<JsonPath>,
+    /// The repr fields naming a tool and its documentation - `name='search'`.
+    pub name_field: String,
+    pub description_field: String,
+    /// The labels the embedded documentation uses.
+    pub name_label: String,
+    pub description_label: String,
+    pub arguments_label: String,
+    /// What makes a string a `repr` rather than a bare tool name. Without these a name containing a space
+    /// would be parsed as a repr and yield nothing.
+    pub repr_markers: Vec<String>,
+    /// Where a tool object states its parameters, in order.
+    pub parameter_members: Vec<String>,
+    /// The repr fields that may follow a loosely-quoted one. Their appearance is where that value ends.
+    ///
+    /// A single-quoted value holding a dict repr contains unescaped single quotes, so its closing quote
+    /// cannot be found by scanning - the value runs either to the `')` that closes the constructor or to
+    /// the next field. Which fields those are is the framework's vocabulary, not the language's.
+    #[serde(default)]
+    pub field_terminators: Vec<String>,
+    /// The language's type names, mapped to JSON Schema's. Compared case-insensitively, and ordered
+    /// because the first match wins.
+    pub type_map: Vec<(String, String)>,
+    /// What an argument whose type name the map does not hold becomes.
+    ///
+    /// A tool whose argument type is unrecognised is still a tool, so the definition is reported rather than
+    /// dropped - but *how* it is reported was described as "the widest type" and was `"string"`, which is the
+    /// opposite: a schema saying `type: string` **rejects** a number. An unconstrained schema has no `type` at
+    /// all, and `Unconstrained` is that.
+    pub type_default: UnknownType,
+}
+
+/// What an argument type the map does not name becomes.
+#[derive(Debug, Deserialize, Clone, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum UnknownType {
+    /// No `type` member at all, which is what "the widest type" means in JSON Schema - it constrains nothing.
+    Unconstrained,
+    /// A named JSON Schema primitive, for a producer whose unrecognised names really are one kind of thing.
+    /// Validated against the primitives, so a typo is not a schema every reader ignores.
+    MapTo(String),
+}
+
+impl UnknownType {
+    /// The JSON Schema primitives. A target outside these is a member no validator acts on, so a mapping to
+    /// one is a declaration that does nothing.
+    pub const PRIMITIVES: &'static [&'static str] = &[
+        "array", "boolean", "integer", "null", "number", "object", "string",
+    ];
+}
+
+/// Another carrier of the same span describing the same messages at higher fidelity.
+///
+/// Not an enrichment of what some other reader produced - both carriers are attributes of one span, and
+/// the join is positional: entry *n* of the family and member *n* of the other carrier's list are the
+/// same message. A flattened family loses whole content blocks and redacts urls, while the serialised copy
+/// beside it keeps them, so where both describe one message the richer one is preferred.
+#[derive(Debug, Deserialize, Clone)]
+#[serde(deny_unknown_fields)]
+pub struct OverlaySpec {
+    pub doc: Option<String>,
+    /// The attribute holding the richer copy.
+    pub from: String,
+    #[serde(default)]
+    pub parse: Option<ParseMode>,
+    /// Ordered paths to the counterpart list; the first that resolves to an array is used.
+    pub select_any_of: Vec<JsonPath>,
+    /// Unwrap a list of exactly one list. A serialiser that accepts a batch of conversations writes one
+    /// conversation as a batch of one, and the members of *that* are the messages.
+    ///
+    /// Exactly one, deliberately: a batch of two is two conversations, and joining a family by position
+    /// against the first of them would attribute one conversation's content to another's messages.
+    #[serde(default)]
+    pub unwrap_single_element_list: bool,
+    /// What the list must look like to be this dialect's own serialisation. Without it, any array of
+    /// objects at that path would be treated as the same messages.
+    #[serde(default)]
+    pub witness: PredicateSet,
+    /// Only entries carrying members under this prefix are overlaid - the flattened form of the content
+    /// that is known to be lossy.
+    pub when_member_prefix: String,
+    /// Ordered paths to the counterpart's content.
+    pub content_any_of: Vec<JsonPath>,
+    /// What that content must be for the overlay to be an improvement.
+    #[serde(default)]
+    pub require: PredicateSet,
+    /// The member the content becomes, replacing every member under `when_member_prefix`.
+    pub as_member: String,
+}
+
+impl ReadSpec {
+    /// How many carriers this names. Exactly one is required.
+    pub fn named_count(&self) -> usize {
+        usize::from(self.attribute.is_some())
+            + usize::from(self.indexed_family.is_some())
+            + usize::from(!self.first_present.is_empty())
+            + usize::from(!self.each.is_empty())
+            + usize::from(self.attribute_family.is_some())
+    }
+}
+
+/// An attribute of one of a span's events.
+#[derive(Debug, Deserialize, Clone)]
+#[serde(deny_unknown_fields)]
+pub struct EventAttributeSource {
+    /// The event whose attributes are read.
+    pub event: String,
+    /// The attribute on that event.
+    pub attribute: String,
+    /// Which occurrence answers, when a span carries the event more than once.
+    ///
+    /// Explicit because there is no defensible default: a span with two `gen_ai.choice` events has two
+    /// answers, and taking the first silently is what the retired hand-written loop did with a `break`.
+    #[serde(default)]
+    pub occurrence: EventOccurrence,
+}
+
+/// Which occurrence of a repeated event supplies the value.
+#[derive(Debug, Deserialize, Clone, Copy, PartialEq, Eq, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum EventOccurrence {
+    /// The first occurrence that holds the attribute at all. What the retired reader did.
+    #[default]
+    FirstYielding,
+    /// Every occurrence that holds it, in the order the span carries them. For a list-valued target, where
+    /// two events genuinely mean two values.
+    Every,
+}
+
+/// A family of attributes under one root, read as one observation per member.
+#[derive(Debug, Deserialize, Clone)]
+#[serde(deny_unknown_fields)]
+pub struct AttributeFamilySource {
+    /// The root. A key belongs to the family when it is `root` followed by `.` and a member name - the same
+    /// rule `carriers`' `attribute_family` uses, so `acme.messages` does not claim `acme.messages_extra`.
+    pub root: String,
+    /// The order the members are read in.
+    pub order: AttributeFamilyOrder,
+}
+
+/// The order a named family's members are read in.
+///
+/// One variant, and required rather than defaulted: the point of the member is that the order is a *statement*.
+/// A default would be the thing a reader assumes and the format would say nothing about it, which is how the
+/// answer becomes a hash map's iteration order.
+#[derive(Debug, Deserialize, Clone, Copy, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum AttributeFamilyOrder {
+    /// Lexicographic by the member name. Deterministic, and the only order available - producer order is lost
+    /// when the attributes become a map.
+    MemberName,
+}
+
+/// How a raw attribute string becomes a value.
+#[derive(Debug, Deserialize, Clone, Copy, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum ParseMode {
+    /// Parse as JSON; skip the carrier entirely if it does not parse.
+    Json,
+    /// Parse as JSON, keeping the raw text as a string if it does not parse.
+    JsonOrString,
+    /// Parse as JSON, then parse any *string* member of the resulting array as JSON too.
+    ///
+    /// An OTLP array attribute whose elements are each a serialised object arrives as an array of strings,
+    /// because the attribute type has no nesting. Generic: the encoding is OTLP's, not a producer's.
+    StringifiedArray,
+    /// Keep the raw text. Some carriers hold prose, and parsing it would turn a bare word into a
+    /// non-string or an accidental number into a number.
+    Text,
+}
+
+/// The envelope a bare payload is wrapped in.
+///
+/// Some carriers hold a payload rather than a message - a tool's arguments, an instruction, a response's
+/// text - and what that payload *is* is a fact about the carrier, so the envelope is declared beside it.
+#[derive(Debug, Deserialize, Clone)]
+#[serde(deny_unknown_fields)]
+pub struct WrapSpec {
+    /// A literal role. One of this and `role_from` is required.
+    #[serde(default)]
+    pub role: Option<String>,
+    /// A JSONPath whose value is the role, relative to the reading being wrapped.
+    ///
+    /// Several dialects put the role *in* the payload - Gemini's `{parts, role}` is the clearest case - so
+    /// a literal here would either be wrong or need one rule per role.
+    #[serde(default)]
+    pub role_from: Option<JsonPath>,
+    /// Rename a role the payload supplied.
+    ///
+    /// A provider's own vocabulary: one calls the assistant `model`, and normalising that here keeps the
+    /// alias beside the dialect that uses it rather than in a shared table nothing points at.
+    #[serde(default)]
+    pub role_map: BTreeMap<String, String>,
+    /// Treat `role_map` as the complete list: a value not in it falls back to `role` rather than being used
+    /// as a role itself.
+    ///
+    /// One dialect names the *speaker* where another names the role - `source: "planner"` means an
+    /// assistant, not a role called `planner` - so which of the two a member is has to be declared.
+    #[serde(default)]
+    pub role_map_is_closed: bool,
+    /// Ordered paths for the content; the first that resolves wins.
+    ///
+    /// One dialect serialises a message three ways depending on how it was constructed, and the content sits
+    /// in a different member each time - so a single path reads two of the three as empty.
+    ///
+    /// **One list, not a singular member beside it.** `content_from` was a second spelling of exactly this
+    /// question - the runtime simply prepended it to this list - so a rule could state its content source
+    /// twice, in two members, with the ordering between them implicit in the code rather than in the
+    /// declaration. The 16 singular uses are now one-element lists.
+    #[serde(default)]
+    pub content_from_any_of: Vec<JsonPath>,
+    /// The content when none of the paths above resolve. Absent means the reading is not this shape.
+    ///
+    /// An explicit `null` is a default of JSON null, not the absence of one: a dialect reports a tool that
+    /// returned nothing that way, and the two readings differ.
+    #[serde(default, deserialize_with = "explicit_value")]
+    pub content_default: Option<JsonValue>,
+    /// The member the read value becomes. Defaults to `content`.
+    ///
+    /// Not always content: a response carrying only tool calls has no content, and putting the calls
+    /// under `content` would render them as the assistant's prose.
+    #[serde(default)]
+    pub content_as: Option<String>,
+    /// Literal members added to the envelope.
+    #[serde(default)]
+    pub members: BTreeMap<String, JsonValue>,
+    /// Members taken from *other* attributes of the same span.
+    ///
+    /// A dialect writes one logical message across several attributes - the arguments here, the tool's
+    /// name and call id there - and which attribute holds which part is exactly the knowledge that
+    /// belongs in an asset.
+    #[serde(default)]
+    pub attach: Vec<AttachSpec>,
+    /// Build a block from another member and put it **before** the content.
+    ///
+    /// One dialect reports a model's reasoning in a sibling member of its reply, and the canonical form is a
+    /// thinking block ahead of the text - so the two become one content list rather than two messages.
+    #[serde(default)]
+    pub prepend_block: Option<PrependSpec>,
+    /// Build the canonical tool-call list from an array of the dialect's own calls.
+    ///
+    /// A *typed* constructor for a canonical target, not a general object builder: the shape is
+    /// `{id, type: "function", function: {name, arguments}}` and only the sources are rule data. Arguments
+    /// arrive as a serialised JSON string as often as an object, so parsing them is declared here rather
+    /// than left to whoever reads the payload later.
+    #[serde(default)]
+    pub tool_calls_from: Option<ToolCallsSpec>,
+    /// Build a **single** tool call at a named member, as `{name, arguments}`.
+    ///
+    /// The normaliser already unwraps a `tool_call` member (`sideml/tools.rs`), so this is a canonical
+    /// target like the list above rather than a general object builder.
+    #[serde(default)]
+    pub tool_call_from: Option<SingleToolCallSpec>,
+    /// A condition on the **constructed** message, checked after the envelope is built.
+    ///
+    /// Some shapes can only be judged once assembled: one dialect's tool result is worth keeping if it
+    /// ended up with a name, a call id or content, and the call id may have come from the element or from
+    /// its parent - so the question cannot be asked of either alone.
+    #[serde(default)]
+    pub require_after: PredicateSet,
+    /// Wrap only where the value is not already message-shaped.
+    ///
+    /// A generic carrier holds either a message or bare data: `output.value = "the answer"` is the answer,
+    /// and `output.value = {"role": …}` is already a message. Wrapping the second buries the conversation a
+    /// level down; not wrapping the first loses it entirely, because normalisation looks for `role` on a
+    /// string and finds nothing.
+    #[serde(default)]
+    pub only_plain_data: bool,
+    /// Wrap the value in a *content block* first, and make that block the message's only content.
+    ///
+    /// A tool call is not a bare object under a role: it is a `tool_use` block, and the block shape is
+    /// what carries the name and the id through normalisation. Emitting the arguments without them
+    /// produced a nameless call the pipeline then discarded - extracted and *then* dropped, which is
+    /// worse than not reading it, because every layer looked fine.
+    #[serde(default)]
+    pub block: Option<BlockSpec>,
+}
+
+/// A content block built around the read value.
+#[derive(Debug, Deserialize, Clone)]
+#[serde(deny_unknown_fields)]
+pub struct BlockSpec {
+    /// The block's `type` member - `tool_use`, `tool_result`.
+    #[serde(rename = "type")]
+    pub block_type: String,
+    /// The member the read value becomes inside the block. Defaults to `content`.
+    #[serde(default)]
+    pub content_as: Option<String>,
+    /// Members taken from sibling attributes, as on the envelope.
+    #[serde(default)]
+    pub attach: Vec<AttachSpec>,
+}
+
+/// One member taken from a sibling attribute.
+#[derive(Debug, Deserialize, Clone)]
+#[serde(deny_unknown_fields)]
+pub struct AttachSpec {
+    /// Why this member is taken from where it is, where that is not obvious. A field rather than a comment,
+    /// as everywhere else here, because the explain trace surfaces it.
+    #[serde(default)]
+    pub doc: Option<String>,
+    /// The attribute to read. One of this and `from_path` is required.
+    #[serde(default)]
+    pub from: Option<String>,
+    /// Ordered paths into the value being wrapped; the first that resolves wins.
+    ///
+    /// The same serialisation variance as the content: a member may sit at the top level or under the
+    /// wrapper a serialiser added.
+    #[serde(default)]
+    pub from_value_any_of: Vec<JsonPath>,
+    /// The attached value must satisfy this, or the member is left off.
+    ///
+    /// An empty list is not a set of tool calls, and attaching one makes a plain reply look like a call.
+    #[serde(default)]
+    pub require: PredicateSet,
+    /// A path into the rule's *own parsed payload*, rather than a sibling attribute.
+    ///
+    /// Relative to the whole payload, deliberately: a dialect reports why a turn stopped beside the
+    /// content rather than inside it, so the member being attached sits outside the part being wrapped.
+    #[serde(default)]
+    pub from_path: Option<JsonPath>,
+    /// Lower-case the attached string.
+    ///
+    /// A provider writes finish reasons in upper case and the canonical form is lower; declared because
+    /// lower-casing a payload that is meant to be verbatim would change it.
+    #[serde(default)]
+    pub lowercase: bool,
+    /// The member it becomes.
+    #[serde(rename = "as")]
+    pub as_member: String,
+    /// How to read it. Defaults to text.
+    #[serde(default)]
+    pub parse: Option<ParseMode>,
+    /// Attach only when the source attribute equals this exactly.
+    ///
+    /// How a boolean flag arrives: an attribute whose string is `"true"`. Without the comparison the
+    /// literal `"false"` would attach as a truthy value.
+    #[serde(default)]
+    pub when_equals: Option<String>,
+    /// The literal to attach instead of the attribute's value, for a flag - or on its own, for a member
+    /// that is part of the shape rather than something read.
+    ///
+    /// An explicit `null` is a value: a content block declares an unsigned signature that way, and the
+    /// member has to be present rather than omitted.
+    #[serde(default, deserialize_with = "explicit_value")]
+    pub value: Option<JsonValue>,
+    /// Treat a blank value as absent, so the fallbacks below apply.
+    #[serde(default)]
+    pub blank_is_absent: bool,
+    /// Remove a leading `[TAG]\n` marker before parsing.
+    ///
+    /// One dialect tags a structured payload with the tool it belongs to and then writes the JSON beneath
+    /// it; parsing without stripping fails, and the member would silently fall back to its default.
+    #[serde(default)]
+    pub strip_bracket_tag: bool,
+    /// Fall back to the span name with this prefix removed, trimmed, when the attribute is absent.
+    ///
+    /// The conventions prescribe `execute_tool {name}` as a tool span's name, so a producer that omits
+    /// the attribute still names the tool - and an unnamed call is unusable downstream.
+    #[serde(default)]
+    pub or_span_name_after: Option<String>,
+    /// Attach this literal when nothing else supplied a value.
+    ///
+    /// Distinct from omitting the member: a block whose shape *requires* a name carries an empty one
+    /// rather than none, and the two are different values to anything hashing the payload.
+    #[serde(default)]
+    pub default: Option<JsonValue>,
+    /// Place this member *after* the content member rather than before it.
+    ///
+    /// Member order is declared because it is *observable*: this map preserves insertion order and the
+    /// message is stored as serialised JSON, so moving a member changes the persisted bytes and with them
+    /// the reconstruction cache digest. It does **not** change the normalised content hash - the feed sorts
+    /// object keys before hashing - so this is about reproducing what was stored, not about identity. The
+    /// orders here are what the extractors emitted, which is why they are stated rather than chosen.
+    #[serde(default)]
+    pub after_content: bool,
+}
+
+/// What an emitted observation is.
+#[derive(Debug, Deserialize, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[serde(rename_all = "snake_case")]
+pub enum EmitTarget {
+    #[default]
+    Message,
+    ToolDefinitions,
+    /// A list of tool *names*, as opposed to their definitions. A framework that reports only the names
+    /// has said which tools were available, not what they take.
+    ToolNames,
+    /// The carrier is claimed and nothing is read from it.
+    ///
+    /// A real shape, not a loophole: one dialect's agent spans aggregate what their children already
+    /// reported, and their `input.value` is a Python `repr` of framework internals. Claiming says "this is
+    /// mine and holds no message", which stops a generic reader from presenting that text as a
+    /// conversation - and saying it in a rule is what keeps the decision out of the code.
+    Claim,
+}
+
+/// One documented shape of a payload: where to look, what to require, and what to carry down.
+#[derive(Debug, Deserialize, Clone, Default)]
+#[serde(deny_unknown_fields)]
+pub struct Alternative {
+    /// This clause's own name, unique within the rule or fragment that holds it.
+    ///
+    /// Required, because an emission has to be able to say **which** clause answered. Before this, a rule with
+    /// four readings reported only the rule's id: a direct shape and a shape reached through a fragment were
+    /// indistinguishable in a diagnostic, and `doc` was being used as a stand-in for an identity.
+    ///
+    /// Required rather than optional-with-a-derived-fallback, which was considered and is the worst of the
+    /// three: adding an id later would *change* the clause's identity, a positional edit would change every
+    /// identity after it, and nothing could safely reference one.
+    pub id: String,
+    #[serde(default)]
+    pub doc: Option<String>,
+    /// An RFC 9535 JSONPath into the parsed value. Absent means the value itself.
+    ///
+    /// A standard query rather than a hand-rolled path syntax - `$.tasks_output[*].messages[*]` reads every
+    /// turn of every task, and `$['event.name']` reads a member whose name contains a dot, which is where
+    /// the hand-built resolver had a bug. Compiled when the asset loads, so a malformed path is a startup
+    /// error naming its file rather than a query that silently finds nothing.
+    #[serde(default)]
+    pub select: Option<JsonPath>,
+    /// Treat the selected value as a list and read each element.
+    #[serde(default)]
+    pub each: bool,
+    /// After selecting an element, descend to this member - `choices[].message`.
+    #[serde(default)]
+    pub descend: Option<String>,
+    /// Members copied into the value being emitted, from the element or from the value it was selected out of.
+    ///
+    /// **One primitive with a declared conflict policy**, where there were two members with opposite and
+    /// unstated ones: `lift` overwrote the target's member and `lift_from_parent` preserved it, and neither the
+    /// names nor `lift`'s own documentation said so. A payload carrying `finish_reason` outside a message *and*
+    /// inside it therefore got the outer value under one member name and the inner under the other, decided by
+    /// which member an asset happened to use.
+    ///
+    /// The source is a real distinction and stays: `element` is the value the selection landed on, `parent` the
+    /// value it came out of. The policy is now a statement rather than a consequence of that choice.
+    #[serde(default)]
+    pub lift: Vec<LiftSpec>,
+    /// A condition on the value this selection came from, rather than on the selected element.
+    ///
+    /// What a batch of tool results *is* is stated on the message enclosing them - its type - while the
+    /// reading is one message per element, so the discriminator and the selection sit at different levels.
+    #[serde(default)]
+    pub require_parent: PredicateSet,
+    /// The shape an observation must have to be emitted.
+    ///
+    /// A predicate set, so "has a role and content", "is an object" and "is a non-empty string" are one
+    /// vocabulary rather than three fields that grew one at a time.
+    #[serde(default)]
+    pub require: PredicateSet,
+    /// An envelope for *this* reading only.
+    ///
+    /// One reading of a payload may be a bare value needing a role while its siblings are already
+    /// messages - a dialect's answer sits in a string member beside a list of turns. Overrides the rule's
+    /// own `wrap` where present.
+    #[serde(default)]
+    pub wrap: Option<WrapSpec>,
+    /// Trim a string before testing and emitting it.
+    ///
+    /// Declared rather than always-on: trimming a payload that is meant to be verbatim would change it.
+    #[serde(default)]
+    pub trim: bool,
+    /// Apply this named fragment's cases to each selected element.
+    ///
+    /// The fragment decides what the element *is*; this reading decides *where to look*. Splitting them is
+    /// the point: one dialect's state object holds its messages in four places and recognises them one way.
+    #[serde(default)]
+    pub then_fragment: Option<String>,
+    /// What this reading is, where it differs from the rule's own target.
+    ///
+    /// A logged model call carries its conversation and the tools it was offered in one carrier, and they
+    /// are not the same kind of thing - so the target belongs to the reading, not only to the rule.
+    #[serde(default)]
+    pub emit: Option<EmitTarget>,
+    /// Shapes recognised at *this* selection point only, tried after the shared fragment's own cases.
+    ///
+    /// A shared table says what a message looks like in a dialect; a particular place that dialect writes
+    /// messages may accept one shape more loosely than the rest - a bare `{content}` passed through where
+    /// the table would refuse it. Putting that in the table would loosen every other point that reads it.
+    #[serde(default)]
+    pub extra_cases: Vec<Alternative>,
+    /// For each selected element, the first of these paths that resolves.
+    ///
+    /// Per *element*, which is the point: one dialect's tool groups each either wrap their declarations
+    /// under one of two spellings or are a declaration themselves, and deciding once for the whole array
+    /// would drop the odd group out.
+    #[serde(default)]
+    pub then_any_of: Vec<JsonPath>,
+    /// Like `then_any_of`, but chosen by the member being **present** rather than by its yielding anything.
+    ///
+    /// The difference is load-bearing where a wrapper may legitimately be empty: a dialect that writes
+    /// `function_declarations: []` has declared no tools, and picking "the first path that yielded
+    /// something" skips the present-but-empty member and falls through to emitting the wrapper itself as a
+    /// tool. Presence also settles which of two spellings wins when both appear.
+    #[serde(default)]
+    pub then_present_any_of: Vec<JsonPath>,
+    /// Fall back to the element itself when none of `then_any_of` resolved.
+    ///
+    /// One answer for two different situations, which is what `on_absent` / `on_malformed` replace for the
+    /// *presence* coalesce: a member that is absent and a member that is present and wrong-typed both fell here.
+    /// Kept for `then_any_of`, whose coalesce is by yielding and has no third state to tell apart.
+    #[serde(default)]
+    pub else_element: bool,
+    /// What a **presence** coalesce does when none of its paths named anything.
+    ///
+    /// Only meaningful beside `then_present_any_of`, and refused elsewhere: a yielding coalesce has one
+    /// not-found state, so `else_element` says everything there is to say about it.
+    #[serde(default)]
+    pub on_absent: Option<PresenceFallback>,
+    /// What it does when a path named something **present and of the wrong shape**.
+    ///
+    /// The case `else_element` could not express. A wrapper member is a list of declarations, so
+    /// `{"function_declarations": {"name": "weather"}}` has not declared its contents - and treating that as the
+    /// member being *absent* sent it to the element fallback, which emits the whole wrapper as a tool
+    /// definition. Codex's ruling: keep the recovery, because the enclosing object independently describes a
+    /// valid bare tool, and **report** the malformed member rather than pretending nobody wrote it.
+    ///
+    /// Also: once presence has selected a representation, a *later* spelling is not tried. Presence chose;
+    /// falling through to the next path would answer from a representation the producer did not use.
+    #[serde(default)]
+    pub on_malformed: Option<PresenceFallback>,
+}
+
+/// What a presence coalesce falls back to.
+#[derive(Debug, Deserialize, Clone, Copy, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum PresenceFallback {
+    /// The element itself is the contents.
+    Element,
+    /// Nothing: this element is not the shape, and the reading moves on.
+    Nothing,
+}
+
+/// Which members an indexed entry must carry.
+#[derive(Debug, Deserialize, Clone, Default)]
+#[serde(deny_unknown_fields)]
+pub struct MemberRequirements {
+    /// Every one of these must be present.
+    #[serde(default)]
+    pub all_of: Vec<MemberRequirement>,
+    /// At least one of these must be present.
+    #[serde(default)]
+    pub any_of: Vec<MemberRequirement>,
+}
+
+/// One member, and how its presence is decided.
+#[derive(Debug, Deserialize, Clone)]
+#[serde(deny_unknown_fields)]
+pub struct MemberRequirement {
+    pub name: String,
+    #[serde(default)]
+    pub presence: MemberPresence,
+}
+
+/// How a member's presence is established.
+#[derive(Debug, Deserialize, Clone, Copy, Default, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum MemberPresence {
+    /// The member's own key exists.
+    #[default]
+    Exact,
+    /// Some key nested under it exists - the member is an array or object flattened into dotted keys.
+    Nested,
+    /// Either.
+    Either,
+}
+
+/// A message assembled from several attributes of one span.
+#[derive(Debug, Deserialize, Clone)]
+#[serde(deny_unknown_fields)]
+pub struct ComposeSpec {
+    /// The carrier the assembled message is tagged with.
+    pub tag: String,
+    /// The members, in the order they are inserted - which is observable, since content identity is
+    /// hashed from the payload.
+    pub members: Vec<ComposeMember>,
+    /// A condition on the **assembled** object, checked before it is emitted.
+    ///
+    /// The mirror of `require_after` on an envelope, and needed for the same reason: some shapes can only be
+    /// judged once the members are together - whether the name a dialect reported is a tool anyone could
+    /// call, for instance.
+    #[serde(default)]
+    pub require: PredicateSet,
+    /// Emit the assembled object as a canonical **tool definition** rather than as a message.
+    ///
+    /// A dialect that reports one tool per span writes its name, documentation and parameter schema as
+    /// three separate attributes. Assembling them is what `compose` does; the shape they become -
+    /// `[{type: "function", function: {…}}]` - is a canonical target, so it lives here and only the sources
+    /// are rule data.
+    #[serde(default)]
+    pub as_tool_definition: bool,
+    /// Literal members added *after* every source member.
+    ///
+    /// Position matters and this is why it is a separate field: the code being replaced inserts the role
+    /// last, after everything it collected, so a payload built role-first would be stored with different
+    /// bytes - which changes the reconstruction cache digest, though not the normalised content hash.
+    #[serde(default)]
+    pub trailing: BTreeMap<String, JsonValue>,
+}
+
+/// One member of a composed message: a named source, or a sweep of a prefix.
+#[derive(Debug, Deserialize, Clone)]
+#[serde(deny_unknown_fields)]
+pub struct ComposeMember {
+    /// The member's name. Absent for a sweep, which takes its names from the keys it finds.
+    #[serde(rename = "as", default)]
+    pub as_member: Option<String>,
+    /// Ordered sources; the first the span carries wins.
+    #[serde(default)]
+    pub from_any_of: Vec<String>,
+    /// How to read it. Defaults to text.
+    #[serde(default)]
+    pub parse: Option<ParseMode>,
+    /// A last-resort source, used only where the gate holds.
+    ///
+    /// Separate from `from_any_of` because it is *conditional*: this key is not the dialect's own, so
+    /// reading it unguarded would claim a generic carrier that belongs to whatever wrote it.
+    #[serde(default)]
+    pub fallback: Option<ComposeFallback>,
+    /// Collect every attribute under this prefix, keyed by the remainder.
+    #[serde(default)]
+    pub sweep_prefix: Option<String>,
+    /// Names the sweep skips, because a named member above already read them.
+    #[serde(default)]
+    pub except: Vec<String>,
+}
+
+/// A conditional last-resort source.
+#[derive(Debug, Deserialize, Clone)]
+#[serde(deny_unknown_fields)]
+pub struct ComposeFallback {
+    pub from: String,
+    /// The evidence required before the fallback is read.
+    pub when: DetectMatch,
+    #[serde(default)]
+    pub parse: Option<ParseMode>,
+}
+
+/// A text carrier read as tagged sections.
+#[derive(Debug, Deserialize, Clone)]
+#[serde(deny_unknown_fields)]
+pub struct SectionsSpec {
+    /// The separator between sections.
+    pub split_on: String,
+    /// Routes, tried in order; the first whose tag matches wins, and a route with no `tag_prefix` is the
+    /// default.
+    pub routes: Vec<SectionRoute>,
+}
+
+/// What to do with a section whose tag matches.
+#[derive(Debug, Deserialize, Clone)]
+#[serde(deny_unknown_fields)]
+pub struct SectionRoute {
+    /// This clause's own name, unique within the rule or fragment that holds it.
+    ///
+    /// Required, because an emission has to be able to say **which** clause answered. Before this, a rule with
+    /// four readings reported only the rule's id: a direct shape and a shape reached through a fragment were
+    /// indistinguishable in a diagnostic, and `doc` was being used as a stand-in for an identity.
+    ///
+    /// Required rather than optional-with-a-derived-fallback, which was considered and is the worst of the
+    /// three: adding an id later would *change* the clause's identity, a positional edit would change every
+    /// identity after it, and nothing could safely reference one.
+    pub id: String,
+    #[serde(default)]
+    pub doc: Option<String>,
+    /// The tag prefix this route claims. Absent means "any section not claimed above".
+    #[serde(default)]
+    pub tag_prefix: Option<String>,
+    /// The role the emitted message carries.
+    pub role: String,
+    /// Build a content block instead of putting the body under `content`.
+    #[serde(default)]
+    pub block: Option<SectionBlock>,
+    /// Drop the section entirely when every one of these holds, tested against
+    /// `{"capture": <tag remainder>, "body": <section body>}`.
+    ///
+    /// Predicates rather than a fused pair. It was `capture_lacks_prefix` **and** `body_starts_with`,
+    /// which is one producer's policy in the shape of a field - the weakest feature in the vocabulary by
+    /// its own test. What it expresses is unchanged and still narrow on purpose: a dialect writes each
+    /// tool result twice, once as the text the model saw tagged with the call id and once as raw
+    /// structured telemetry tagged with the tool's name, and emitting both shows every result twice. The
+    /// conditions stay conjunctive so that if the id prefix ever changes, an unrecognised section reaches
+    /// the feed unlinked rather than vanishing from it.
+    #[serde(default)]
+    pub skip_when: PredicateSet,
+}
+
+/// A block built from a section, carrying what the tag captured.
+#[derive(Debug, Deserialize, Clone)]
+#[serde(deny_unknown_fields)]
+pub struct SectionBlock {
+    #[serde(rename = "type")]
+    pub block_type: String,
+    /// The member the tag's remainder becomes - an id that pairs this section with a call.
+    #[serde(default)]
+    pub capture_as: Option<String>,
+    /// The member the body becomes. Defaults to `content`.
+    #[serde(default)]
+    pub content_as: Option<String>,
+}
+
+// ============================================================================
+// VALUE PREDICATES
+// ============================================================================
+
+/// A condition on a JSON value, or on a member of it.
+///
+/// One vocabulary for every question the rules ask *about a value*: whether an alternative's shape holds,
+/// whether a source is eligible, whether a section is dropped. Before this there were three bespoke
+/// spellings - a member-name list, an `is_object` flag, and a fused "capture lacks prefix and body starts
+/// with" pair - and a fourth was about to be added for a dialect that needs "this member is an object, or
+/// that one is a non-empty string". Three narrow predicates are harder to reason about than one, and the
+/// fused pair was producer policy wearing a generic name.
+///
+/// Deliberately *not* used for attribute-key presence (`MemberRequirements`): that asks about a flat map of
+/// dotted keys, where "nested" means "some other key starts with this one". Same word, different domain -
+/// and one type spanning both would have to mean different things depending on where it was used.
+#[derive(Debug, Deserialize, Clone, Default)]
+#[serde(deny_unknown_fields)]
+pub struct ValuePredicate {
+    /// Why this condition is the right one, where that is not obvious from the condition. A field rather
+    /// than a comment, as everywhere else here, because the explain trace surfaces it.
+    #[serde(default)]
+    pub doc: Option<String>,
+    /// A JSONPath to the value under test. Absent means the value itself.
+    #[serde(default)]
+    pub path: Option<JsonPath>,
+    /// The member must be present. Implied when the predicate names nothing else.
+    #[serde(default)]
+    pub exists: Option<bool>,
+    /// The value's JSON kind.
+    #[serde(default)]
+    pub kind: Option<ValueKind>,
+    /// A string, array or object must not be empty. Meaningless for other kinds, and refused there.
+    #[serde(default)]
+    pub non_empty: Option<bool>,
+    /// The value begins like an identifier - a letter, a digit or an underscore.
+    ///
+    /// Generic in form, and declared per rule rather than folded into the tool-definition constructor: one
+    /// dialect reports a synthetic aggregate under a name in parentheses, which is not a tool anyone can
+    /// call, while another dialect's carriers have never needed the test. Making it canonical would change
+    /// what every other carrier accepts, silently.
+    #[serde(default)]
+    pub identifier_like: Option<bool>,
+    /// The value is not JSON null. Distinct from `exists`, which a null member satisfies, and from
+    /// `non_empty`, which is about a string, array or object having contents.
+    #[serde(default)]
+    pub not_null: Option<bool>,
+    /// A string must start with this.
+    #[serde(default)]
+    pub starts_with: Option<String>,
+    /// A string must *not* start with this.
+    #[serde(default)]
+    pub lacks_prefix: Option<String>,
+    /// The value must be one of these strings. An absent member satisfies nothing.
+    #[serde(default)]
+    pub one_of: Vec<String>,
+    /// The value must not be any of these strings.
+    ///
+    /// An **absent** member satisfies this: "its value is not one of these" is true when there is no value,
+    /// which is how a dialect's unnamed events fall through to the reading that handles them.
+    #[serde(default)]
+    pub none_of: Vec<String>,
+}
+
+/// A JSON kind, for `ValuePredicate::kind`.
+#[derive(Debug, Deserialize, Clone, Copy, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum ValueKind {
+    Object,
+    Array,
+    String,
+    Number,
+    Bool,
+    Null,
+}
+
+/// A set of value predicates, combined.
+///
+/// `all` and `any` both, because the dialects need both and the difference is real: a request's message
+/// needs a role *and* content, while a response may carry either a structured message *or* streamed text.
+#[derive(Debug, Deserialize, Default)]
+#[serde(deny_unknown_fields)]
+pub struct PredicateSet {
+    #[serde(default)]
+    pub all: Vec<ValuePredicate>,
+    #[serde(default)]
+    pub any: Vec<ValuePredicate>,
+    /// The boolean-grammar form of this set, built once.
+    ///
+    /// Evaluation goes through the grammar, so there is one evaluator rather than two and the retired shell is
+    /// a `#[cfg(test)]` oracle. Note what that does **not** yet buy: two compatibility translations keep the
+    /// pre-grammar answers, so `Truth::Unknown` still never reaches a decision the shipped rules make - see
+    /// `the_predicate_semantics_have_not_migrated_and_here_is_what_still_answers_the_old_way`.
+    ///
+    /// Built **once per set** rather than per evaluation because translating an expression per element per
+    /// reading is work with no purpose. It is *not* a measured speedup: interleaved against the pre-migration
+    /// build on `bench_ingestion` (`langgraph/swarm`), 76.95 ms became 77.02 ms - within noise either way. A
+    /// separate-run comparison suggested 9%, which was this host's load rather than the change, which is why
+    /// the convention here is to interleave.
+    ///
+    /// A `OnceLock` rather than a compile-time field, because a `PredicateSet` is reached through ten different
+    /// spec structures and threading a compiled twin through each would put the same fact in two places. `Sync`,
+    /// because the compiled plan is shared across request threads.
+    #[serde(skip)]
+    compiled: std::sync::OnceLock<Option<super::expr::JsonExpr>>,
+}
+
+/// Cloned **without** the cached expression: a clone recomputes it, which is correct because the cache is a
+/// memo over the set's own contents and a `OnceLock` cannot be copied.
+impl Clone for PredicateSet {
+    fn clone(&self) -> Self {
+        Self {
+            all: self.all.clone(),
+            any: self.any.clone(),
+            compiled: std::sync::OnceLock::new(),
+        }
+    }
+}
+
+impl PredicateSet {
+    /// Nothing to check.
+    pub fn is_empty(&self) -> bool {
+        self.all.is_empty() && self.any.is_empty()
+    }
+
+    /// The grammar form, built on first use.
+    ///
+    /// `None` where the set declares nothing, which is a different answer from an expression that is false: a
+    /// set with no predicates places no condition, so it holds.
+    pub fn expression(&self) -> Option<&super::expr::JsonExpr> {
+        self.compiled
+            .get_or_init(|| super::expr::json_expr_of(self))
+            .as_ref()
+    }
+}
+
+/// An array-valued carrier read element by element.
+#[derive(Debug, Deserialize, Clone)]
+#[serde(deny_unknown_fields)]
+pub struct ElementsSpec {
+    /// The emitted carriers are *events*, not attributes.
+    ///
+    /// A real distinction, not bookkeeping: carrier semantics are declared per carrier and looked up by
+    /// which kind it is, so an event reported as an attribute gets a different reading of what it is
+    /// evidence of. These elements *are* events - the dialect packs them into one attribute because
+    /// attributes are all it has.
+    #[serde(default)]
+    pub tags_are_events: bool,
+    /// A JSONPath to the array. Absent means the parsed value itself.
+    #[serde(default)]
+    pub select: Option<JsonPath>,
+    /// Passes over the elements, in order. Each scans every element.
+    pub passes: Vec<ElementPass>,
+}
+
+/// One pass over the elements.
+#[derive(Debug, Deserialize, Clone)]
+#[serde(deny_unknown_fields)]
+pub struct ElementPass {
+    /// This clause's own name, unique within the rule or fragment that holds it.
+    ///
+    /// Required, because an emission has to be able to say **which** clause answered. Before this, a rule with
+    /// four readings reported only the rule's id: a direct shape and a shape reached through a fragment were
+    /// indistinguishable in a diagnostic, and `doc` was being used as a stand-in for an identity.
+    ///
+    /// Required rather than optional-with-a-derived-fallback, which was considered and is the worst of the
+    /// three: adding an id later would *change* the clause's identity, a positional edit would change every
+    /// identity after it, and nothing could safely reference one.
+    pub id: String,
+    #[serde(default)]
+    pub doc: Option<String>,
+    /// Which elements this pass reads.
+    #[serde(default)]
+    pub when: PredicateSet,
+    /// Emit the element itself, tagged with the value at this path.
+    ///
+    /// A carrier named by the *data* rather than by the rule: these elements are events, and an event's
+    /// name is what downstream keys role derivation and ordering on, so tagging them all alike would erase
+    /// the distinction the payload carries.
+    #[serde(default)]
+    pub tag_from: Option<JsonPath>,
+    /// Instead of emitting each element, group runs of them and emit one message per run.
+    #[serde(default)]
+    pub group: Option<GroupSpec>,
+}
+
+/// Runs of consecutive elements collapsed into one message.
+///
+/// Bounded: one pass, no recursion, and a run ends as soon as the derived key changes.
+#[derive(Debug, Deserialize, Clone)]
+#[serde(deny_unknown_fields)]
+pub struct GroupSpec {
+    /// A decision table deriving the run key from an element - the first matching case wins, and an element
+    /// matching none is skipped.
+    pub by: Vec<DerivedCase>,
+    /// The part of each element collected into the message's content.
+    ///
+    /// One dialect's blocks carry the real content in a member and a human-readable summary beside it, so
+    /// which part is collected is a fact about the payload rather than a default.
+    pub collect: JsonPath,
+    /// The member the derived key becomes on the emitted message.
+    pub key_as: String,
+    /// The carrier each derived key is tagged with.
+    pub tag_by_key: BTreeMap<String, String>,
+}
+
+/// One case of a decision table: a condition, and the value it yields.
+#[derive(Debug, Deserialize, Clone)]
+#[serde(deny_unknown_fields)]
+pub struct DerivedCase {
+    /// This clause's own name, unique within the rule or fragment that holds it.
+    ///
+    /// Required, because an emission has to be able to say **which** clause answered. Before this, a rule with
+    /// four readings reported only the rule's id: a direct shape and a shape reached through a fragment were
+    /// indistinguishable in a diagnostic, and `doc` was being used as a stand-in for an identity.
+    ///
+    /// Required rather than optional-with-a-derived-fallback, which was considered and is the worst of the
+    /// three: adding an id later would *change* the clause's identity, a positional edit would change every
+    /// identity after it, and nothing could safely reference one.
+    pub id: String,
+    #[serde(default)]
+    pub doc: Option<String>,
+    pub when: PredicateSet,
+    pub value: String,
+}
+
+/// Several readings of one span with a local order between them.
+///
+/// Evaluated as: every `primary`; then, only if those produced nothing, every
+/// `fallback_if_primary_empty`; then every `always`, whatever happened. Nesting is refused - a branch set
+/// inside a branch set would be a control structure rather than a declaration.
+#[derive(Debug, Deserialize, Clone)]
+#[serde(deny_unknown_fields)]
+pub struct BranchSet {
+    #[serde(default)]
+    pub doc: Option<String>,
+    /// The readings that normally supply the conversation.
+    pub primary: Vec<MessageRule>,
+    /// Read only when every `primary` reading came up empty.
+    #[serde(default)]
+    pub fallback_if_primary_empty: Vec<MessageRule>,
+    /// Read whatever the others did.
+    ///
+    /// The asymmetry is deliberate for at least one dialect: its *answer* must be read even when the
+    /// request side was already found, because one gate covering both is what dropped the answer.
+    #[serde(default)]
+    pub always: Vec<MessageRule>,
+}
+
+/// A named table of readings, applied wherever a rule references it.
+#[derive(Debug, Deserialize, Clone)]
+#[serde(deny_unknown_fields)]
+pub struct Fragment {
+    #[serde(default)]
+    pub doc: Option<String>,
+    /// The cases, tried in order; the first that yields wins.
+    pub cases: Vec<Alternative>,
+}
+
+/// A bounded walk over a state object.
+#[derive(Debug, Deserialize, Clone)]
+#[serde(deny_unknown_fields)]
+pub struct WalkSpec {
+    /// How many levels below the carrier to descend. Zero means the carrier itself only.
+    pub max_depth: usize,
+    /// Members not descended into, **because a named clause took them here**.
+    ///
+    /// This was a list of member *names*, pruned globally and unconditionally - and the justification for that
+    /// (the readings already took the member) is a statement about a node where a reading actually fired. Where
+    /// none did, the name alone stopped the traversal: `{"messages": {"nested": {"deeper": <a message>}}}` lost
+    /// the nested message because the key is called `messages`, not because anything read it.
+    ///
+    /// So each entry names the clause whose recognition justifies the prune. Conditional rather than an honest
+    /// unconditional `skip_members`, because for the shipped walks the condition is the true statement: descend
+    /// unless the member was consumed.
+    #[serde(default)]
+    pub prune: Vec<PruneSpec>,
+    /// Stop descending below a node **one of these clauses recognised**, naming them by id.
+    ///
+    /// A message's own members are its content, not more state, so descending into one would read its parts as
+    /// though they were turns. But "was this node a message" is a question about *which* clause answered, and
+    /// the boolean this replaces asked a wider one: "did anything get selected here". LangGraph's `also_3`
+    /// selects every state member, so at a node holding `{"direct": <a message>, "nested": {"messages": […]}}`
+    /// the root counted as matched and the walk stopped - losing `nested`'s messages. The root was not a
+    /// message; one of its children was.
+    ///
+    /// Ids rather than a predicate, deliberately: a predicate here would restate the clause's own recognition
+    /// logic, and then two declarations would decide one question.
+    ///
+    /// **The shipped LangGraph walks name every clause**, which is what the boolean meant, and narrowing them to
+    /// the one clause that reads a node as a single message is the semantic fix - deferred, and this is why: it
+    /// makes the walk descend where it used to stop, and the blocks it then finds trip the carrier-subsequence
+    /// invariant on `langgraph/image_gen`. Traversal positions are assigned *after* extraction, in emission
+    /// order, so a walk's discovery order and the payload's member order are reconciled nowhere. Naming the
+    /// clauses is worth landing on its own: the format now states what the walk stops on rather than implying
+    /// "anything", which is what made the wider reading invisible.
+    #[serde(default)]
+    pub stop_on: Vec<String>,
+}
+
+/// Members copied into an emitted value, and what happens where the target already has one.
+#[derive(Debug, Deserialize, Clone)]
+#[serde(deny_unknown_fields)]
+pub struct LiftSpec {
+    pub doc: Option<String>,
+    /// Where the members are read from.
+    pub from: LiftSource,
+    pub members: Vec<String>,
+    /// What to do where the target already carries the member. Required: this was the difference between the
+    /// two members that preceded it, and it was stated nowhere.
+    pub on_conflict: LiftConflict,
+}
+
+/// Which value a lift reads from.
+#[derive(Debug, Deserialize, Clone, Copy, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum LiftSource {
+    /// The value the selection landed on - used with `descend`, where the members sit beside the message.
+    Element,
+    /// The value the selection came out of, for a fact stated once for a batch.
+    Parent,
+}
+
+/// What a lift does where the target already carries the member.
+#[derive(Debug, Deserialize, Clone, Copy, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum LiftConflict {
+    /// The target's own value wins: the lifted one is a fallback.
+    KeepTarget,
+    /// The lifted value wins.
+    ReplaceTarget,
+}
+
+/// A member the walk does not descend into, and the clause whose reading justifies that.
+#[derive(Debug, Deserialize, Clone)]
+#[serde(deny_unknown_fields)]
+pub struct PruneSpec {
+    pub doc: Option<String>,
+    /// The member name.
+    pub member: String,
+    /// The clause that consumes it. The member is skipped only at a node where that clause recognised
+    /// something - elsewhere its contents have been read by nothing and are still worth visiting.
+    pub taken_by: String,
+}
+
+/// One tool call at a named member, as the normaliser's `{name, arguments}` convention.
+#[derive(Debug, Deserialize, Clone)]
+#[serde(deny_unknown_fields)]
+pub struct SingleToolCallSpec {
+    pub name: JsonPath,
+    /// The name used when the path resolves to nothing. A call this dialect logged without one still
+    /// happened, so it is reported rather than dropped.
+    #[serde(default)]
+    pub name_default: Option<JsonValue>,
+    pub arguments: JsonPath,
+    /// The member the call becomes. Defaults to `tool_call`.
+    #[serde(default)]
+    pub as_member: Option<String>,
+    /// The value used when `arguments` resolves to nothing.
+    #[serde(default)]
+    pub arguments_default: Option<JsonValue>,
+}
+
+/// A block built from another member of the same value, placed before the content.
+#[derive(Debug, Deserialize, Clone)]
+#[serde(deny_unknown_fields)]
+pub struct PrependSpec {
+    /// Where the block's content is, relative to the value being wrapped. Absent means no block is added,
+    /// which is the ordinary case for a dialect that reports reasoning only sometimes.
+    pub from: JsonPath,
+    /// A condition on the value found there. A dialect writes this member as `null` when there was no
+    /// reasoning, and a null is not a thought.
+    #[serde(default)]
+    pub require: PredicateSet,
+    #[serde(flatten)]
+    pub block: BlockSpec,
+}
+
+/// The canonical tool-call list, built from a dialect's own array of calls.
+#[derive(Debug, Deserialize, Clone)]
+#[serde(deny_unknown_fields)]
+pub struct ToolCallsSpec {
+    /// The array of calls, relative to the value being wrapped.
+    pub select: JsonPath,
+    /// Where each call's id, name and arguments are.
+    pub id: JsonPath,
+    pub name: JsonPath,
+    pub arguments: JsonPath,
+    /// What to do with a call that has no id or no name.
+    ///
+    /// **Required**, because it was hardcoded twice over - "an id is mandatory" and "skip the invalid item" -
+    /// and neither is right for every producer. AutoGen's rule admits a list where *at least one* member has an
+    /// id and a name; the constructor then dropped the others silently, so a response that called two tools
+    /// showed one. Skipping may be right for a producer that logs partial calls; failing the message is right
+    /// for one where a dropped call means the answer is not what the model did.
+    pub on_invalid_item: InvalidItem,
+    /// The member the list becomes. Defaults to `tool_calls`.
+    #[serde(default)]
+    pub as_member: Option<String>,
+}
+
+/// What a tool-call list does with a member it cannot build.
+#[derive(Debug, Deserialize, Clone, Copy, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum InvalidItem {
+    /// Leave it out and keep the rest. Reported either way - a dropped call is a producer defect, not a
+    /// detail of the loop that read it.
+    Skip,
+    /// The whole construction is malformed, so the coalesce moves on to the next shape and the rule's
+    /// `fallback` gets its turn. Right where a missing call means the message misdescribes what happened.
+    FailMessage,
+}
+
+/// A default whose declared value may itself be `null`.
+///
+/// `Option<JsonValue>` would read an explicit `null` as "no default declared", which is a different
+/// statement from "the default is null".
+fn explicit_value<'de, D>(deserializer: D) -> Result<Option<JsonValue>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    JsonValue::deserialize(deserializer).map(Some)
+}
+
+/// One content-block shape, and the canonical block it becomes.
+///
+/// Exactly one target form per rule, checked at compile time. The forms are the canonical SideML blocks,
+/// so this is not a general object builder: a rule says *where* a call's name is, never what a tool_use
+/// block looks like.
+#[derive(Debug, Deserialize, Clone)]
+#[serde(deny_unknown_fields)]
+pub struct ContentBlockRule {
+    pub id: String,
+    pub doc: Option<String>,
+    /// Where in the normalisation chain this case is tried. Declared, because the chain's order decides
+    /// which dialect answers for a shape more than one of them recognises.
+    pub at: ChainPosition,
+    /// Position among the cases at that point.
+    pub legacy_rank: i32,
+    /// The shape this case recognises.
+    #[serde(default)]
+    pub require: PredicateSet,
+    #[serde(default)]
+    pub tool_use: Option<ToolUseBlock>,
+    #[serde(default)]
+    pub tool_result: Option<ToolResultBlock>,
+    #[serde(default)]
+    pub json: Option<JsonDataBlock>,
+    #[serde(default)]
+    pub text: Option<TextBlock>,
+    #[serde(default)]
+    pub media: Option<MediaBlock>,
+    #[serde(default)]
+    pub thinking: Option<ThinkingBlock>,
+    #[serde(default)]
+    pub unwrap: Option<UnwrapSpec>,
+}
+
+/// Where a content-block case sits relative to the provider wire formats.
+#[derive(Debug, Deserialize, Clone, Copy, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum ChainPosition {
+    /// Before any provider format, and **only when normalising a message's own content block**.
+    ///
+    /// The nested chain - a tool's returned value - deliberately does not consult this position. An envelope
+    /// around a message's content is not something a tool's *result* carries, and reading it there changes what
+    /// a result means: one dialect writes `{"type": "json", "value": …}` for structured output, and a wrapper
+    /// case looking at `value` would unwrap it instead of letting the dialect's own case read it.
+    MessageEnvelope,
+    /// Tried before any provider format. For a dialect whose own spelling a provider format would
+    /// otherwise claim.
+    BeforeProviderFormats,
+    /// Tried after them, which is where a dialect's additions to a provider's vocabulary belong.
+    AfterProviderFormats,
+}
+
+/// A model asking for a tool to be run.
+#[derive(Debug, Deserialize, Clone)]
+#[serde(deny_unknown_fields)]
+pub struct ToolUseBlock {
+    /// Ordered; absent is reported as null, because a provider that omits an id has still made the call.
+    #[serde(default)]
+    pub id: Vec<JsonPath>,
+    /// Required: a nameless call names nothing to run, so the case does not recognise the block.
+    pub name: Vec<JsonPath>,
+    /// Ordered, and an **empty object counts as absent** - a dialect that renamed this member leaves the
+    /// unused one present as `{}`, so "the first that resolves" would always pick the empty one.
+    #[serde(default)]
+    pub input: Vec<JsonPath>,
+}
+
+/// What a tool returned.
+#[derive(Debug, Deserialize, Clone)]
+#[serde(deny_unknown_fields)]
+pub struct ToolResultBlock {
+    #[serde(default)]
+    pub tool_use_id: Vec<JsonPath>,
+    #[serde(default)]
+    pub content: Vec<JsonPath>,
+    #[serde(default)]
+    pub is_error: Vec<JsonPath>,
+}
+
+/// Structured data that is not prose.
+#[derive(Debug, Deserialize, Clone)]
+#[serde(deny_unknown_fields)]
+pub struct JsonDataBlock {
+    #[serde(default)]
+    pub data: Vec<JsonPath>,
+}
+
+/// Prose. Only a string is text.
+#[derive(Debug, Deserialize, Clone)]
+#[serde(deny_unknown_fields)]
+pub struct TextBlock {
+    pub text: Vec<JsonPath>,
+}
+
+/// A model's own reasoning.
+///
+/// `text` is **not** required: a producer that wraps its reasoning in a member holding no text has still said
+/// the block is reasoning, and the retired reader emitted an empty one rather than falling through - which is
+/// what stops a signature-only block from being read as something else.
+#[derive(Debug, Deserialize, Clone)]
+#[serde(deny_unknown_fields)]
+pub struct ThinkingBlock {
+    #[serde(default)]
+    pub text: Vec<JsonPath>,
+    #[serde(default)]
+    pub signature: Vec<JsonPath>,
+}
+
+/// A wrapper: the block's content is *inside* a member, and the member is normalised in its place.
+///
+/// The one form that does not build a block. Several dialects wrap a content block in a member of their own -
+/// a serialisation envelope, a constructor's keyword arguments - and what is inside is an ordinary block of
+/// whatever shape. So the case selects it and the chain starts again from the top with that value.
+///
+/// A case whose member does not normalise answers nothing, which leaves the **original** block to the rest of
+/// the chain: that is what the retired readers did, and it is why an unwrap is not a claim.
+#[derive(Debug, Deserialize, Clone)]
+#[serde(deny_unknown_fields)]
+pub struct UnwrapSpec {
+    /// Ordered; the first member that is present is unwrapped, whether or not it normalises.
+    pub from: Vec<JsonPath>,
+}
+
+/// Bytes, or a reference to them. The block's kind and whether it is a reference are both *derived*.
+#[derive(Debug, Deserialize, Clone)]
+#[serde(deny_unknown_fields)]
+pub struct MediaBlock {
+    pub media_type: Vec<JsonPath>,
+    pub data: Vec<JsonPath>,
+}
+
+/// Where a message rule reads from.
+///
+/// Exactly one variant, so a rule cannot half-declare both: an event rule has no stage (the event path runs
+/// every rule that names the event, in rank order) and a span rule has no event names.
+#[derive(Debug, Deserialize, Clone, PartialEq, Eq)]
+#[serde(deny_unknown_fields, rename_all = "snake_case")]
+pub enum MessageSource {
+    /// A span's attributes, at the named stage.
+    Span(SpanSource),
+    /// The attributes of any of the named events.
+    Event(EventSource),
+}
+
+#[derive(Debug, Deserialize, Clone, PartialEq, Eq, Default)]
+#[serde(deny_unknown_fields)]
+pub struct SpanSource {
+    /// With the dialects, or only if none of them produced anything.
+    #[serde(default)]
+    pub stage: MessageStage,
+}
+
+#[derive(Debug, Deserialize, Clone, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct EventSource {
+    /// The events this rule reads. An empty list is refused: it names nothing, and under the previous
+    /// spelling it silently made the rule an ordinary span rule instead.
+    pub names: Vec<String>,
+}
+
+#[derive(Debug, Deserialize, Clone, Copy, PartialEq, Eq, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum MessageStage {
+    /// With the dialects, in rank order. The ordinary case.
+    #[default]
+    Dialect,
+    /// Only if no dialect-stage rule produced a message or a claim.
+    Fallback,
+}
+
+/// One event that carries messages.
+#[derive(Debug, Deserialize, Clone)]
+#[serde(deny_unknown_fields)]
+pub struct MessageEvent {
+    /// This declaration's identity, required like every other clause's.
+    ///
+    /// It had none, and the entries were collapsed into a `HashSet<String>` of names - so "which asset says
+    /// this event carries messages" had no answer, and two assets declaring the same event left one witness
+    /// silently discarded. Both agreeing witnesses are kept now, because the point of provenance is that an
+    /// answer names the declarations that produced it.
+    pub id: String,
+    pub name: String,
+    /// What the event's **raw form** is: an ordinary message, or a container its readings replace.
+    ///
+    /// A fact about the *event*, which is why it lives here rather than on each reading. It was
+    /// `replaces_raw_event` on a `MessageRule`, repeated on both readings of the one container event, ORed at
+    /// runtime - so a `true` beside a `false` compiled and `true` silently won, and the policy was stated
+    /// twice with nothing keeping the two statements consistent.
+    #[serde(default)]
+    pub raw: Option<RawEventForm>,
+    pub doc: Option<String>,
+}
+
+/// What an event's own attributes are, once its readings have run.
+#[derive(Debug, Deserialize, Clone, Copy, PartialEq, Eq, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum RawEventForm {
+    /// The event body is itself a message. The default, and the case for all but one declared event.
+    #[default]
+    Message,
+    /// The event is a *container*: its own attributes are the messages, so emitting the container as well
+    /// would report the conversation twice.
+    Replace,
+}
+
+/// What role a message's **source name** implies, where the name itself decides it.
+///
+/// Its own section rather than a member of `message_events`, because the two lists are not the same
+/// vocabulary. `message_events` says which *OTLP events* carry messages; this says what a **source name**
+/// means, and a source name may also be one a rule assigned with `tag_as` - `gen_ai.tool.result` is exactly
+/// that, a tag no producer emits. Putting the role on the event entry would have made declaring the role of
+/// a tag impossible without also claiming a producer emits it.
+#[derive(Debug, Deserialize, Clone)]
+#[serde(deny_unknown_fields)]
+pub struct EventRole {
+    /// This declaration's identity, required like every other clause's. The compiled form used to
+    /// *synthesize* one from the asset and the event name, which is not an identity a declaration can be
+    /// held to: two assets agreeing about a role produced one witness and the other's provenance was lost.
+    pub id: String,
+    /// The source name: an event a producer emits, or a name a rule assigns with `tag_as`.
+    pub name: String,
+    /// The role on an ordinary span. Absent leaves the role to the content, which is a statement rather
+    /// than an omission - most events say nothing about the role.
+    #[serde(default)]
+    pub role: Option<String>,
+    /// The role instead, on a **tool execution** span.
+    ///
+    /// Two names mean the opposite thing there. On a chat span `gen_ai.tool.message` is a tool's *output*
+    /// and `gen_ai.choice` is the assistant's reply; on a tool span the first is the arguments the
+    /// assistant passed and the second is what the tool returned. So the span's kind is part of the
+    /// question, and one role per name could not express it.
+    ///
+    /// **Absent means "the same as `role`"**, and that is now the only way to say it: a value *equal* to `role`
+    /// is refused. It used to be legal, so one shipped declaration spelled it out while seven omitted it for the
+    /// identical fact - two spellings of one statement, in a section whose whole purpose is that a name's role is
+    /// declared rather than inferred.
+    #[serde(default)]
+    pub role_in_tool_span: Option<String>,
+    /// This name says **nothing** about the role on a tool execution span, so it is derived from the content
+    /// there - even though it does declare one elsewhere.
+    ///
+    /// The third state, which absence could not express: absence is read as "the same as `role`", so a name that
+    /// speaks only for ordinary spans had no spelling at all. A separate flag rather than a sentinel string,
+    /// because `role_in_tool_span` holds a role from a closed vocabulary and a magic value in it would be exactly
+    /// the guessing this section exists to remove. Refused beside a `role_in_tool_span`, which would be two
+    /// answers.
+    #[serde(default)]
+    pub silent_in_tool_span: bool,
+    pub doc: Option<String>,
+}
+
+impl RuleFile {
+    /// Why this file's clause declarations could not mean what they say.
+    ///
+    /// **Production validation**, not a repository test. The six clause types are compiled by three different
+    /// modules, and the uniqueness rule is one property about all of them - so it lived in a test over the
+    /// embedded corpus, and the generic compiler accepted two clauses sharing an id. That is fine while the
+    /// only assets are the ones in this tree and a test guards them, and it is a hole the moment anything else
+    /// loads a file: two clauses with the same provenance path, which is precisely what the ids exist to
+    /// prevent. The test now calls this rather than restating it.
+    ///
+    /// Two rules, and both are about a declaration that cannot take effect:
+    ///
+    /// - a clause id must be non-empty and unique **within its owner** - a top-level rule, or a named fragment;
+    /// - `convention_namespaces` may only be declared by the conventions' own asset, since it decides which
+    ///   telemetry namespaces are not any producer's. Elsewhere it parsed and was ignored, so a dialect could
+    ///   state that its own namespace is a convention and read as having done so.
+    pub fn declaration_defect(&self) -> Option<String> {
+        // The same rule as `convention_namespaces`, one section over: role authority is *this engine's* vocabulary
+        // - which spellings outrank the name a reading was found under - and it compiles into one global plan. So
+        // a producer's asset could add an authoritative spelling and change role resolution for every unrelated
+        // producer, which is not a statement that asset is entitled to make.
+        if !self.role_authority.is_empty() && self.id != ROLE_AUTHORITY_ASSET {
+            return Some(format!(
+                "`{}` declares `role_authority`, which only `{ROLE_AUTHORITY_ASSET}` may do - it decides which \
+                 stated roles outrank the name a reading was found under, for every producer, and a producer's \
+                 asset is not entitled to change that for the others",
+                self.id
+            ));
+        }
+        if !self.convention_namespaces.is_empty() && self.id != CONVENTIONS_ASSET {
+            return Some(format!(
+                "`{}` declares `convention_namespaces`, which only `{CONVENTIONS_ASSET}` may do - it decides \
+                 which namespaces are no producer's, and elsewhere the declaration is read by nothing",
+                self.id
+            ));
+        }
+        for (owner, clauses) in self.clause_ids() {
+            let mut seen: std::collections::BTreeSet<&str> = std::collections::BTreeSet::new();
+            for id in &clauses {
+                if id.is_empty() {
+                    return Some(format!(
+                        "`{}`: a clause of `{owner}` declares an empty id, which names nothing",
+                        self.id
+                    ));
+                }
+                if !seen.insert(id.as_str()) {
+                    return Some(format!(
+                        "`{}`: two clauses of `{owner}` share the id `{id}`, so a diagnostic naming it is \
+                         ambiguous exactly where it is read",
+                        self.id
+                    ));
+                }
+            }
+        }
+        None
+    }
+
+    /// Every clause id, grouped by the owner whose id space it belongs to.
+    ///
+    /// Walked over the typed tree, so a clause type that gains a nesting is covered by construction rather
+    /// than by remembering to extend a list of member names.
+    pub fn clause_ids(&self) -> Vec<(String, Vec<String>)> {
+        // **Exhaustiveness, and nothing else.** The walk below names the sections whose clauses carry ids this
+        // rule covers; a section added to `RuleFile` was under no obligation to appear in it, so a new
+        // clause-bearing section would deserialize and compile with no empty-or-duplicate id check at all. This
+        // destructure has no `..`, so adding a field fails to compile here until its author decides. Every binding
+        // is discarded - the walk reads `self`.
+        {
+            let Self {
+                id: _,
+                doc: _,
+                carriers: _,
+                detect: _,
+                messages: _,
+                message_events: _,
+                tool_shapes: _,
+                convention_namespaces: _,
+                event_roles: _,
+                role_authority: _,
+                content_blocks: _,
+                provider_aliases: _,
+                message_members: _,
+                span_categories: _,
+                observation_types: _,
+                span_facts: _,
+                fragments: _,
+                sdk_slugs: _,
+                span_fields: _,
+            } = self;
+        }
+        fn from_alternatives(alternatives: &[Alternative], out: &mut Vec<String>) {
+            for alternative in alternatives {
+                out.push(alternative.id.clone());
+                from_alternatives(&alternative.extra_cases, out);
+            }
+        }
+        fn from_message(rule: &MessageRule, out: &mut Vec<String>) {
+            from_alternatives(&rule.alternatives, out);
+            from_alternatives(&rule.also, out);
+            from_alternatives(&rule.fallback, out);
+            if let Some(elements) = &rule.elements {
+                for pass in &elements.passes {
+                    out.push(pass.id.clone());
+                    if let Some(group) = &pass.group {
+                        for case in &group.by {
+                            out.push(case.id.clone());
+                        }
+                    }
+                }
+            }
+            if let Some(sections) = &rule.sections {
+                for route in &sections.routes {
+                    out.push(route.id.clone());
+                }
+            }
+            if let Some(branches) = &rule.branch_set {
+                for leaf in branches
+                    .primary
+                    .iter()
+                    .chain(&branches.fallback_if_primary_empty)
+                    .chain(&branches.always)
+                {
+                    // A branch leaf is a rule of its own, so its clauses belong to *its* id space.
+                    from_message(leaf, out);
+                }
+            }
+        }
+
+        let mut out: Vec<(String, Vec<String>)> = Vec::new();
+        for rule in &self.messages {
+            let mut ids = Vec::new();
+            from_message(rule, &mut ids);
+            out.push((rule.id.clone(), ids));
+        }
+        for (name, fragment) in &self.fragments {
+            let mut ids = Vec::new();
+            from_alternatives(&fragment.cases, &mut ids);
+            out.push((name.clone(), ids));
+        }
+        for rule in &self.span_fields {
+            out.push((
+                rule.id.clone(),
+                rule.sources
+                    .iter()
+                    .map(|source| source.id.clone())
+                    .collect(),
+            ));
+        }
+        // Both event registries, whose entries are clauses like any other: each answers a runtime
+        // question, so each needs an identity a diagnostic can name. They are their own id spaces because
+        // the two lists are different vocabularies - `message_events` says which OTLP events carry
+        // messages, `event_roles` says what a *source name* implies, and a name may be in one and not the
+        // other.
+        out.push((
+            "message_events".to_string(),
+            self.message_events
+                .iter()
+                .map(|event| event.id.clone())
+                .collect(),
+        ));
+        out.push((
+            "event_roles".to_string(),
+            self.event_roles
+                .iter()
+                .map(|role| role.id.clone())
+                .collect(),
+        ));
+        out.push((
+            "role_authority".to_string(),
+            self.role_authority
+                .iter()
+                .map(|entry| entry.id.clone())
+                .collect(),
+        ));
+        for rule in &self.span_facts {
+            out.push((
+                rule.id.clone(),
+                rule.signals
+                    .iter()
+                    .map(|signal| signal.id.clone())
+                    .collect(),
+            ));
+        }
+        out
+    }
+}
+
+/// The asset that owns the conventions' own vocabulary.
+pub const CONVENTIONS_ASSET: &str = "semconv";
+
+/// The one asset entitled to declare role authority: it is the engine's own vocabulary, not any producer's.
+pub const ROLE_AUTHORITY_ASSET: &str = "role-authority";

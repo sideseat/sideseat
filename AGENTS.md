@@ -14,15 +14,15 @@ application.
 
 The Rust workspace follows ports and adapters:
 
-- `crates/core`: configuration, constants, CLI types, and shared utilities. It
+- `server/crates/core`: configuration, constants, CLI types, and shared utilities. It
   must not depend on SideSeat crates or infrastructure drivers.
-- `crates/ports`: storage and service traits plus shared DTOs. It contains no
+- `server/crates/ports`: storage and service traits plus shared DTOs. It contains no
   adapter implementations or SQL.
-- `crates/domain`: ingestion, SideML, rules, retention, search, files, storage
+- `server/crates/domain`: ingestion, SideML, rules, retention, search, files, storage
   governance, staging, and restore workflows.
-- `crates/query-sql`: typed analytical queries and backend-specific lowering.
-- `crates/api`: HTTP, gRPC, MCP, SSE, and WebSocket transport code.
-- `crates/adapter-*`: implementations for databases, blobs, cache, secrets,
+- `server/crates/query-sql`: typed analytical queries and backend-specific lowering.
+- `server/crates/api`: HTTP, gRPC, MCP, SSE, and WebSocket transport code.
+- `server/crates/adapter-*`: implementations for databases, blobs, cache, secrets,
   registrations, and queues.
 - `server`: the composition root. It selects adapters, wires services, starts
   background work, and owns process lifecycle.

@@ -16,21 +16,21 @@ workspace = true
 [dependencies]
 # The innermost layer, and the first compiler-enforced boundary: its manifest names no driver and
 # nothing of SideSeat's own, so a violation does not compile rather than being caught by review.
-sideseat-core = { path = "../crates/core" }
-sideseat-api = { path = "../crates/api" }
-sideseat-domain = { path = "../crates/domain" }
-sideseat-adapter-blob-storage = { path = "../crates/adapter-blob-storage" }
-sideseat-adapter-cache = { path = "../crates/adapter-cache" }
-sideseat-adapter-clickhouse = { path = "../crates/adapter-clickhouse" }
-sideseat-adapter-duckdb = { path = "../crates/adapter-duckdb" }
-sideseat-adapter-postgres = { path = "../crates/adapter-postgres" }
-sideseat-adapter-registrations-memory = { path = "../crates/adapter-registrations-memory" }
-sideseat-adapter-secrets = { path = "../crates/adapter-secrets" }
-sideseat-adapter-sqlite = { path = "../crates/adapter-sqlite" }
-sideseat-adapter-topics = { path = "../crates/adapter-topics" }
+sideseat-core = { path = "crates/core" }
+sideseat-api = { path = "crates/api" }
+sideseat-domain = { path = "crates/domain" }
+sideseat-adapter-blob-storage = { path = "crates/adapter-blob-storage" }
+sideseat-adapter-cache = { path = "crates/adapter-cache" }
+sideseat-adapter-clickhouse = { path = "crates/adapter-clickhouse" }
+sideseat-adapter-duckdb = { path = "crates/adapter-duckdb" }
+sideseat-adapter-postgres = { path = "crates/adapter-postgres" }
+sideseat-adapter-registrations-memory = { path = "crates/adapter-registrations-memory" }
+sideseat-adapter-secrets = { path = "crates/adapter-secrets" }
+sideseat-adapter-sqlite = { path = "crates/adapter-sqlite" }
+sideseat-adapter-topics = { path = "crates/adapter-topics" }
 # The ports: traits, DTOs, the filter vocabulary and the error type. Names no adapter and no driver.
-sideseat-ports = { path = "../crates/ports" }
-sideseat-query-sql = { path = "../crates/query-sql" }
+sideseat-ports = { path = "crates/ports" }
+sideseat-query-sql = { path = "crates/query-sql" }
 axum = { workspace = true }
 tokio = { workspace = true }
 tower = { workspace = true }
@@ -112,7 +112,7 @@ default = []
 tikv-jemallocator = "0.7.0"
 
 [dev-dependencies]
-sideseat-domain = { path = "../crates/domain", features = ["test-support"] }
+sideseat-domain = { path = "crates/domain", features = ["test-support"] }
 tempfile = "3"
 proptest = "1"
 # A real tokeniser for the structural sweeps, which read this crate's own source. `span-locations` is what lets

@@ -3616,7 +3616,7 @@ fn every_clickhouse_delete_waits_for_its_mutation() {
     let sources = [
         include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),
-            "/../crates/adapter-clickhouse/src/repositories/query.rs"
+            "/crates/adapter-clickhouse/src/repositories/query.rs"
         )),
         include_str!("mod.rs"),
     ];

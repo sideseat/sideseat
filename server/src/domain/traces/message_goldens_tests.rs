@@ -443,7 +443,7 @@ struct Built {
 }
 
 /// The content filter every trace/session message query applies
-/// (`MESSAGE_CONTENT_FILTER` in crates/adapter-duckdb/src/repositories/messages.rs). Rows with no messages,
+/// (`MESSAGE_CONTENT_FILTER` in server/crates/adapter-duckdb/src/repositories/messages.rs). Rows with no messages,
 /// no tools and no error are never returned, so feeding them to the pipeline tests an input
 /// the pipeline never sees. Including them made whole sessions come back empty.
 fn passes_content_filter(row: &MessageSpanRow) -> bool {

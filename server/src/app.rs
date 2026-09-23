@@ -576,7 +576,7 @@ impl CoreApp {
             .await;
 
         // The cross-month duplicate residual is *reported* rather than repaired (see
-        // `crates/adapter-clickhouse/src/consistency.rs`), and a report only exists if something runs. `None` on DuckDB, which
+        // `server/crates/adapter-clickhouse/src/consistency.rs`), and a report only exists if something runs. `None` on DuckDB, which
         // has no partitions and therefore no such residual.
         if let Some(h) = self
             .analytics

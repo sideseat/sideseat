@@ -7,7 +7,7 @@
 (* state, a later span re-sends it as history. Dedup collapses observations *)
 (* to one surviving block each; ordering then has to place those survivors. *)
 (*                                                                         *)
-(* This specifies crates/domain/src/domain/sideml/feed/order_graph.rs. It exists *)
+(* This specifies server/crates/domain/src/domain/sideml/feed/order_graph.rs. It exists *)
 (* because the ordering rules interact: six candidate scalar-anchor designs *)
 (* were each rejected after breaking a different framework, and every       *)
 (* failure was found only by diffing 111 golden fixtures. Here the rules    *)

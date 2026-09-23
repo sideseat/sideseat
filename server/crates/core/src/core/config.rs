@@ -1,0 +1,3253 @@
+use std::fmt;
+use std::fs;
+use std::path::{Path, PathBuf};
+
+use anyhow::{Context, Result};
+use serde::{Deserialize, Serialize};
+
+use crate::utils::file::expand_path;
+
+use super::cli::CliConfig;
+use super::constants::{
+    APP_DOT_FOLDER, CONFIG_FILE_NAME, DEFAULT_CACHE_MAX_ENTRIES, DEFAULT_HOST,
+    DEFAULT_OTEL_GRPC_PORT, DEFAULT_OTEL_RETENTION_MAX_SPANS, DEFAULT_OTEL_STAGING_REDRIVE_CAP,
+    DEFAULT_PORT, DEFAULT_RATE_LIMIT_API_RPM, DEFAULT_RATE_LIMIT_AUTH_RPM,
+    DEFAULT_RATE_LIMIT_FILES_RPM, DEFAULT_RATE_LIMIT_INGESTION_RPM, DEFAULT_REDPANDA_BROKERS,
+    DEFAULT_REDPANDA_PARTITIONS, DEFAULT_REDPANDA_REPLICATION_FACTOR,
+    DEFAULT_REDPANDA_RETENTION_MS, DEFAULT_REDPANDA_RETENTION_WARNING_MS, ENV_SECRETS_AWS_PREFIX,
+    ENV_SECRETS_AWS_REGION, ENV_SECRETS_ENV_PREFIX, ENV_SECRETS_VAULT_ADDR,
+    ENV_SECRETS_VAULT_MOUNT, ENV_SECRETS_VAULT_PREFIX, ENV_SECRETS_VAULT_TOKEN,
+    FILES_DEFAULT_QUOTA_BYTES, FILES_DEFAULT_S3_PREFIX, POSTGRES_DEFAULT_ACQUIRE_TIMEOUT_SECS,
+    POSTGRES_DEFAULT_IDLE_TIMEOUT_SECS, POSTGRES_DEFAULT_MAX_CONNECTIONS,
+    POSTGRES_DEFAULT_MAX_LIFETIME_SECS, POSTGRES_DEFAULT_MIN_CONNECTIONS,
+    POSTGRES_DEFAULT_STATEMENT_TIMEOUT_SECS, PRICING_SYNC_INTERVAL_SECS,
+    SECRETS_DEFAULT_AWS_PREFIX, SECRETS_DEFAULT_ENV_PREFIX, SECRETS_DEFAULT_VAULT_MOUNT,
+    SECRETS_DEFAULT_VAULT_PREFIX,
+};
+
+// =============================================================================
+// Storage Backend Enum
+// =============================================================================
+
+/// Storage backend type for file storage
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum StorageBackend {
+    #[default]
+    Filesystem,
+    S3,
+}
+
+impl fmt::Display for StorageBackend {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            StorageBackend::Filesystem => write!(f, "filesystem"),
+            StorageBackend::S3 => write!(f, "s3"),
+        }
+    }
+}
+
+// =============================================================================
+// Transactional Backend Enum (SQLite or PostgreSQL)
+// =============================================================================
+
+/// Transactional database backend for metadata storage
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum TransactionalBackend {
+    #[default]
+    Sqlite,
+    Postgres,
+}
+
+impl fmt::Display for TransactionalBackend {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            TransactionalBackend::Sqlite => write!(f, "sqlite"),
+            TransactionalBackend::Postgres => write!(f, "postgres"),
+        }
+    }
+}
+
+// =============================================================================
+// Analytics Backend Enum (DuckDB or ClickHouse)
+// =============================================================================
+
+/// Analytics database backend for OTEL data (high-throughput writes)
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum AnalyticsBackend {
+    #[default]
+    Duckdb,
+    Clickhouse,
+}
+
+impl fmt::Display for AnalyticsBackend {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            AnalyticsBackend::Duckdb => write!(f, "duckdb"),
+            AnalyticsBackend::Clickhouse => write!(f, "clickhouse"),
+        }
+    }
+}
+
+// =============================================================================
+// Cache Backend Enum
+// =============================================================================
+
+/// Cache backend type
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum CacheBackendType {
+    #[default]
+    Memory,
+    Redis,
+}
+
+impl fmt::Display for CacheBackendType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            CacheBackendType::Memory => write!(f, "memory"),
+            CacheBackendType::Redis => write!(f, "redis"),
+        }
+    }
+}
+
+/// Durable queue backend type.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum QueueBackendType {
+    #[default]
+    Memory,
+    Redis,
+    Redpanda,
+}
+
+impl fmt::Display for QueueBackendType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Memory => write!(f, "memory"),
+            Self::Redis => write!(f, "redis"),
+            Self::Redpanda => write!(f, "redpanda"),
+        }
+    }
+}
+
+// =============================================================================
+// Eviction Policy Enum
+// =============================================================================
+
+/// Cache eviction policy
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum EvictionPolicy {
+    /// TinyLFU - LRU eviction + LFU admission (near-optimal hit ratio)
+    #[default]
+    TinyLfu,
+    /// Simple LRU (better for recency-biased workloads)
+    Lru,
+}
+
+impl fmt::Display for EvictionPolicy {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            EvictionPolicy::TinyLfu => write!(f, "tinylfu"),
+            EvictionPolicy::Lru => write!(f, "lru"),
+        }
+    }
+}
+
+// =============================================================================
+// Secrets Backend Enum
+// =============================================================================
+
+/// Secrets storage backend type
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum SecretsBackend {
+    Keychain,
+    CredentialManager,
+    SecretService,
+    Keyutils,
+    File,
+    Env,
+    Aws,
+    Vault,
+}
+
+impl SecretsBackend {
+    /// Auto-detect best available backend for the current platform.
+    pub fn detect() -> Self {
+        #[cfg(target_os = "macos")]
+        {
+            Self::Keychain
+        }
+        #[cfg(target_os = "windows")]
+        {
+            Self::CredentialManager
+        }
+        #[cfg(target_os = "linux")]
+        {
+            Self::SecretService
+        }
+        #[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "linux")))]
+        {
+            Self::File
+        }
+    }
+
+    /// Whether this backend uses vault-blob storage (keychain/file variants)
+    pub fn is_vault_based(&self) -> bool {
+        matches!(
+            self,
+            Self::Keychain
+                | Self::CredentialManager
+                | Self::SecretService
+                | Self::Keyutils
+                | Self::File
+        )
+    }
+
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Keychain => "keychain",
+            Self::CredentialManager => "credential-manager",
+            Self::SecretService => "secret-service",
+            Self::Keyutils => "keyutils",
+            Self::File => "file",
+            Self::Env => "env",
+            Self::Aws => "aws",
+            Self::Vault => "vault",
+        }
+    }
+}
+
+impl fmt::Display for SecretsBackend {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.as_str())
+    }
+}
+
+// =============================================================================
+// File Config Structs (JSON deserialization)
+// =============================================================================
+
+/// Server configuration section
+#[derive(Debug, Default, Clone, Deserialize)]
+pub struct ServerFileConfig {
+    pub host: Option<String>,
+    pub port: Option<u16>,
+    pub mcp: Option<McpFileConfig>,
+}
+
+/// Authentication configuration section
+#[derive(Debug, Default, Clone, Deserialize)]
+pub struct AuthFileConfig {
+    pub enabled: Option<bool>,
+}
+
+/// gRPC configuration (nested under otel)
+#[derive(Debug, Default, Clone, Deserialize)]
+pub struct GrpcFileConfig {
+    pub enabled: Option<bool>,
+    pub port: Option<u16>,
+}
+
+/// Retention configuration (nested under otel)
+#[derive(Debug, Default, Clone, Deserialize)]
+pub struct RetentionFileConfig {
+    pub max_age_minutes: Option<u64>,
+    pub max_spans: Option<u64>,
+}
+
+/// OTEL auth configuration (nested under otel)
+#[derive(Debug, Default, Clone, Deserialize)]
+pub struct OtelAuthFileConfig {
+    /// Require API key for OTEL ingestion
+    pub required: Option<bool>,
+}
+
+/// OpenTelemetry configuration section
+#[derive(Debug, Default, Clone, Deserialize)]
+pub struct OtelFileConfig {
+    pub grpc: Option<GrpcFileConfig>,
+    pub retention: Option<RetentionFileConfig>,
+    pub auth: Option<OtelAuthFileConfig>,
+    pub staging_redrive_cap: Option<u32>,
+}
+
+/// Pricing configuration section (from JSON config file)
+#[derive(Debug, Default, Clone, Deserialize)]
+pub struct PricingFileConfig {
+    pub sync_hours: Option<u64>,
+}
+
+/// Update check configuration section (from JSON config file)
+#[derive(Debug, Default, Clone, Deserialize)]
+pub struct UpdateFileConfig {
+    pub enabled: Option<bool>,
+}
+
+/// MCP server configuration section (from JSON config file)
+#[derive(Debug, Default, Clone, Deserialize)]
+pub struct McpFileConfig {
+    pub enabled: Option<bool>,
+}
+
+/// Filesystem storage configuration
+#[derive(Debug, Default, Clone, Deserialize)]
+pub struct FilesFilesystemFileConfig {
+    pub path: Option<String>,
+}
+
+/// S3 storage configuration
+#[derive(Debug, Default, Clone, Deserialize)]
+pub struct FilesS3FileConfig {
+    pub bucket: Option<String>,
+    pub prefix: Option<String>,
+    pub region: Option<String>,
+    pub endpoint: Option<String>,
+}
+
+/// File storage configuration section (from JSON config file)
+#[derive(Debug, Default, Clone, Deserialize)]
+pub struct FilesFileConfig {
+    pub enabled: Option<bool>,
+    pub storage: Option<StorageBackend>,
+    pub quota_bytes: Option<u64>,
+    pub filesystem: Option<FilesFilesystemFileConfig>,
+    pub s3: Option<FilesS3FileConfig>,
+}
+
+/// Redis cache configuration section (from JSON config file)
+#[derive(Debug, Default, Clone, Deserialize)]
+pub struct RedisFileConfig {
+    /// Connection URL for Redis-compatible backends
+    pub url: Option<String>,
+    /// How many replicas must acknowledge a queued trace before the export is answered.
+    pub min_replica_acks: Option<u32>,
+}
+
+/// RedPanda queue configuration section (from JSON config file).
+#[derive(Debug, Default, Clone, Deserialize)]
+pub struct RedpandaFileConfig {
+    pub brokers: Option<String>,
+    pub partitions: Option<i32>,
+    pub replication_factor: Option<i32>,
+    pub retention_ms: Option<u64>,
+    pub retention_warning_ms: Option<u64>,
+}
+
+/// Memory cache configuration section (from JSON config file)
+#[derive(Debug, Default, Clone, Deserialize)]
+pub struct MemoryCacheFileConfig {
+    /// Maximum number of cache entries
+    pub max_entries: Option<u64>,
+    /// Cache eviction policy
+    pub eviction_policy: Option<EvictionPolicy>,
+}
+
+/// Rate limit configuration section (from JSON config file)
+#[derive(Debug, Default, Clone, Deserialize)]
+pub struct RateLimitFileConfig {
+    pub enabled: Option<bool>,
+    /// Enable per-IP rate limiting (for API, auth endpoints). Disabled by default.
+    pub per_ip: Option<bool>,
+    pub api_rpm: Option<u32>,
+    pub ingestion_rpm: Option<u32>,
+    pub auth_rpm: Option<u32>,
+    pub files_rpm: Option<u32>,
+    pub bypass_header: Option<String>,
+    /// See `RateLimitConfig::trusted_proxies`.
+    pub trusted_proxies: Option<Vec<String>>,
+}
+
+/// PostgreSQL configuration section (from JSON config file)
+///
+/// Optimized for scalable SaaS deployments with connection pooling,
+/// idle timeout, and query protection settings.
+#[derive(Debug, Default, Clone, Deserialize)]
+pub struct PostgresFileConfig {
+    /// PostgreSQL connection URL (or use SIDESEAT_POSTGRES_URL env var)
+    pub url: Option<String>,
+    /// Maximum number of connections in the pool (default: 20)
+    pub max_connections: Option<u32>,
+    /// Minimum number of connections to keep warm (default: 2)
+    pub min_connections: Option<u32>,
+    /// Connection acquire timeout in seconds (default: 30)
+    pub acquire_timeout_secs: Option<u64>,
+    /// Idle connection timeout in seconds (default: 600)
+    pub idle_timeout_secs: Option<u64>,
+    /// Max connection lifetime in seconds (default: 1800)
+    pub max_lifetime_secs: Option<u64>,
+    /// Statement timeout in seconds, 0 to disable (default: 60)
+    pub statement_timeout_secs: Option<u64>,
+}
+
+/// ClickHouse configuration section (from JSON config file)
+#[derive(Debug, Default, Clone, Deserialize)]
+pub struct ClickhouseFileConfig {
+    /// How many replicas of a shard must confirm an insert - see [`ClickhouseConfig::insert_quorum`].
+    pub insert_quorum: Option<u32>,
+    /// ClickHouse connection URL (or use SIDESEAT_CLICKHOUSE_URL env var)
+    pub url: Option<String>,
+    /// Database name (default: "sideseat")
+    pub database: Option<String>,
+    /// Username for authentication
+    pub user: Option<String>,
+    /// Password for authentication
+    pub password: Option<String>,
+    /// Query timeout in seconds
+    pub timeout_secs: Option<u64>,
+    /// Enable LZ4 compression (default: true)
+    pub compression: Option<bool>,
+    /// Enable async inserts for high-throughput (default: true)
+    pub async_insert: Option<bool>,
+    /// Wait for async insert completion (default: false for max throughput)
+    pub wait_for_async_insert: Option<bool>,
+    /// Cluster name for distributed tables (enables sharding)
+    pub cluster: Option<String>,
+    /// Enable distributed/sharded tables (requires cluster to be set)
+    pub distributed: Option<bool>,
+}
+
+/// Database configuration section (from JSON config file)
+#[derive(Debug, Default, Clone, Deserialize)]
+pub struct DatabaseFileConfig {
+    /// Transactional backend: sqlite (default) or postgres
+    pub transactional: Option<TransactionalBackend>,
+    /// Analytics backend: duckdb (default) or clickhouse
+    pub analytics: Option<AnalyticsBackend>,
+    /// Cache backend: memory (default) or redis
+    pub cache: Option<CacheBackendType>,
+    /// Queue backend: memory, redis, or redpanda.
+    pub queue: Option<QueueBackendType>,
+    /// PostgreSQL-specific configuration
+    pub postgres: Option<PostgresFileConfig>,
+    /// ClickHouse-specific configuration
+    pub clickhouse: Option<ClickhouseFileConfig>,
+    /// Redis cache configuration
+    pub redis: Option<RedisFileConfig>,
+    /// RedPanda queue configuration.
+    pub redpanda: Option<RedpandaFileConfig>,
+    /// Memory cache configuration
+    pub memory_cache: Option<MemoryCacheFileConfig>,
+}
+
+/// Secrets env backend configuration section (from JSON config file)
+#[derive(Debug, Default, Clone, Deserialize)]
+pub struct SecretsEnvFileConfig {
+    pub prefix: Option<String>,
+}
+
+/// Secrets AWS backend configuration section (from JSON config file)
+#[derive(Debug, Default, Clone, Deserialize)]
+pub struct SecretsAwsFileConfig {
+    pub region: Option<String>,
+    pub prefix: Option<String>,
+    pub recovery_window_days: Option<u32>,
+}
+
+/// Secrets Vault backend configuration section (from JSON config file)
+#[derive(Debug, Default, Clone, Deserialize)]
+pub struct SecretsVaultFileConfig {
+    pub address: Option<String>,
+    pub mount: Option<String>,
+    pub prefix: Option<String>,
+    pub token: Option<String>,
+}
+
+/// Secrets configuration section (from JSON config file)
+#[derive(Debug, Default, Clone, Deserialize)]
+pub struct SecretsFileConfig {
+    pub backend: Option<SecretsBackend>,
+    pub env: Option<SecretsEnvFileConfig>,
+    pub aws: Option<SecretsAwsFileConfig>,
+    pub vault: Option<SecretsVaultFileConfig>,
+}
+
+/// Credentials file configuration
+#[derive(Debug, Default, Deserialize)]
+pub struct CredentialsFileConfig {
+    pub scan_env: Option<bool>,
+}
+
+/// File-based configuration (JSON)
+#[derive(Debug, Default, Deserialize)]
+pub struct FileConfig {
+    pub server: Option<ServerFileConfig>,
+    pub auth: Option<AuthFileConfig>,
+    pub otel: Option<OtelFileConfig>,
+    pub pricing: Option<PricingFileConfig>,
+    pub files: Option<FilesFileConfig>,
+    pub rate_limit: Option<RateLimitFileConfig>,
+    pub update: Option<UpdateFileConfig>,
+    pub database: Option<DatabaseFileConfig>,
+    pub secrets: Option<SecretsFileConfig>,
+    pub credentials: Option<CredentialsFileConfig>,
+    pub debug: Option<bool>,
+    #[serde(flatten)]
+    pub extra: serde_json::Value,
+}
+
+impl FileConfig {
+    /// Load configuration from a JSON file
+    fn load_from_file(path: &Path) -> Result<Self> {
+        tracing::debug!(path = %path.display(), "Loading config file");
+        let content = fs::read_to_string(path)
+            .with_context(|| format!("Failed to read config file: {}", path.display()))?;
+        let config: Self = serde_json::from_str(&content)
+            .with_context(|| format!("Failed to parse config file: {}", path.display()))?;
+        tracing::trace!(config = ?config, "Parsed config file");
+        Ok(config)
+    }
+
+    /// Warn about unknown fields in the config
+    fn warn_unknown_fields(&self) {
+        if let serde_json::Value::Object(map) = &self.extra
+            && !map.is_empty()
+        {
+            let keys_str: String = map
+                .keys()
+                .map(|k| k.as_str())
+                .collect::<Vec<_>>()
+                .join(", ");
+            tracing::warn!(
+                fields = %keys_str,
+                "Unknown fields in config file (possible typos)"
+            );
+        }
+    }
+
+    /// Merge another FileConfig into this one (other takes precedence)
+    fn merge(&mut self, other: FileConfig) {
+        // Server
+        if let Some(server) = other.server {
+            let current = self.server.get_or_insert_with(ServerFileConfig::default);
+            if server.host.is_some() {
+                tracing::trace!(host = ?server.host, "Merging server.host");
+                current.host = server.host;
+            }
+            if server.port.is_some() {
+                tracing::trace!(port = ?server.port, "Merging server.port");
+                current.port = server.port;
+            }
+            if let Some(mcp) = server.mcp {
+                let current_mcp = current.mcp.get_or_insert_with(McpFileConfig::default);
+                if mcp.enabled.is_some() {
+                    tracing::trace!(enabled = ?mcp.enabled, "Merging server.mcp.enabled");
+                    current_mcp.enabled = mcp.enabled;
+                }
+            }
+        }
+
+        // Auth
+        if let Some(auth) = other.auth {
+            let current = self.auth.get_or_insert_with(AuthFileConfig::default);
+            if auth.enabled.is_some() {
+                tracing::trace!(enabled = ?auth.enabled, "Merging auth.enabled");
+                current.enabled = auth.enabled;
+            }
+        }
+
+        // Otel (with nested grpc and retention)
+        if let Some(otel) = other.otel {
+            let current = self.otel.get_or_insert_with(OtelFileConfig::default);
+
+            if let Some(grpc) = otel.grpc {
+                let current_grpc = current.grpc.get_or_insert_with(GrpcFileConfig::default);
+                if grpc.enabled.is_some() {
+                    tracing::trace!(enabled = ?grpc.enabled, "Merging otel.grpc.enabled");
+                    current_grpc.enabled = grpc.enabled;
+                }
+                if grpc.port.is_some() {
+                    tracing::trace!(port = ?grpc.port, "Merging otel.grpc.port");
+                    current_grpc.port = grpc.port;
+                }
+            }
+
+            if let Some(retention) = otel.retention {
+                let current_retention = current
+                    .retention
+                    .get_or_insert_with(RetentionFileConfig::default);
+                if retention.max_age_minutes.is_some() {
+                    tracing::trace!(max_age_minutes = ?retention.max_age_minutes, "Merging otel.retention.max_age_minutes");
+                    current_retention.max_age_minutes = retention.max_age_minutes;
+                }
+                if retention.max_spans.is_some() {
+                    tracing::trace!(max_spans = ?retention.max_spans, "Merging otel.retention.max_spans");
+                    current_retention.max_spans = retention.max_spans;
+                }
+            }
+
+            if let Some(auth) = otel.auth {
+                let current_auth = current.auth.get_or_insert_with(OtelAuthFileConfig::default);
+                if auth.required.is_some() {
+                    tracing::trace!(required = ?auth.required, "Merging otel.auth.required");
+                    current_auth.required = auth.required;
+                }
+            }
+
+            if otel.staging_redrive_cap.is_some() {
+                tracing::trace!(
+                    staging_redrive_cap = ?otel.staging_redrive_cap,
+                    "Merging otel.staging_redrive_cap"
+                );
+                current.staging_redrive_cap = otel.staging_redrive_cap;
+            }
+        }
+
+        // Pricing
+        if let Some(pricing) = other.pricing {
+            let current = self.pricing.get_or_insert_with(PricingFileConfig::default);
+            if pricing.sync_hours.is_some() {
+                tracing::trace!(sync_hours = ?pricing.sync_hours, "Merging pricing.sync_hours");
+                current.sync_hours = pricing.sync_hours;
+            }
+        }
+
+        // Files
+        if let Some(files) = other.files {
+            let current = self.files.get_or_insert_with(FilesFileConfig::default);
+            if files.enabled.is_some() {
+                tracing::trace!(enabled = ?files.enabled, "Merging files.enabled");
+                current.enabled = files.enabled;
+            }
+            if files.storage.is_some() {
+                tracing::trace!(storage = ?files.storage, "Merging files.storage");
+                current.storage = files.storage;
+            }
+            if files.quota_bytes.is_some() {
+                tracing::trace!(quota_bytes = ?files.quota_bytes, "Merging files.quota_bytes");
+                current.quota_bytes = files.quota_bytes;
+            }
+            if let Some(fs) = files.filesystem {
+                let current_fs = current
+                    .filesystem
+                    .get_or_insert_with(FilesFilesystemFileConfig::default);
+                if fs.path.is_some() {
+                    tracing::trace!(path = ?fs.path, "Merging files.filesystem.path");
+                    current_fs.path = fs.path;
+                }
+            }
+            if let Some(s3) = files.s3 {
+                let current_s3 = current.s3.get_or_insert_with(FilesS3FileConfig::default);
+                if s3.bucket.is_some() {
+                    tracing::trace!(bucket = ?s3.bucket, "Merging files.s3.bucket");
+                    current_s3.bucket = s3.bucket;
+                }
+                if s3.prefix.is_some() {
+                    tracing::trace!(prefix = ?s3.prefix, "Merging files.s3.prefix");
+                    current_s3.prefix = s3.prefix;
+                }
+                if s3.region.is_some() {
+                    tracing::trace!(region = ?s3.region, "Merging files.s3.region");
+                    current_s3.region = s3.region;
+                }
+                if s3.endpoint.is_some() {
+                    tracing::trace!(endpoint = ?s3.endpoint, "Merging files.s3.endpoint");
+                    current_s3.endpoint = s3.endpoint;
+                }
+            }
+        }
+
+        // Rate Limit
+        if let Some(rate_limit) = other.rate_limit {
+            let current = self
+                .rate_limit
+                .get_or_insert_with(RateLimitFileConfig::default);
+            if rate_limit.enabled.is_some() {
+                tracing::trace!(enabled = ?rate_limit.enabled, "Merging rate_limit.enabled");
+                current.enabled = rate_limit.enabled;
+            }
+            if rate_limit.per_ip.is_some() {
+                tracing::trace!(per_ip = ?rate_limit.per_ip, "Merging rate_limit.per_ip");
+                current.per_ip = rate_limit.per_ip;
+            }
+            if rate_limit.api_rpm.is_some() {
+                tracing::trace!(api_rpm = ?rate_limit.api_rpm, "Merging rate_limit.api_rpm");
+                current.api_rpm = rate_limit.api_rpm;
+            }
+            if rate_limit.ingestion_rpm.is_some() {
+                tracing::trace!(ingestion_rpm = ?rate_limit.ingestion_rpm, "Merging rate_limit.ingestion_rpm");
+                current.ingestion_rpm = rate_limit.ingestion_rpm;
+            }
+            if rate_limit.auth_rpm.is_some() {
+                tracing::trace!(auth_rpm = ?rate_limit.auth_rpm, "Merging rate_limit.auth_rpm");
+                current.auth_rpm = rate_limit.auth_rpm;
+            }
+            if rate_limit.files_rpm.is_some() {
+                tracing::trace!(files_rpm = ?rate_limit.files_rpm, "Merging rate_limit.files_rpm");
+                current.files_rpm = rate_limit.files_rpm;
+            }
+            if rate_limit.bypass_header.is_some() {
+                tracing::trace!(bypass_header = "***", "Merging rate_limit.bypass_header");
+                current.bypass_header = rate_limit.bypass_header;
+            }
+            if rate_limit.trusted_proxies.is_some() {
+                tracing::trace!(
+                    trusted_proxies = ?rate_limit.trusted_proxies,
+                    "Merging rate_limit.trusted_proxies"
+                );
+                current.trusted_proxies = rate_limit.trusted_proxies;
+            }
+        }
+
+        // Update
+        if let Some(update) = other.update {
+            let current = self.update.get_or_insert_with(UpdateFileConfig::default);
+            if update.enabled.is_some() {
+                tracing::trace!(enabled = ?update.enabled, "Merging update.enabled");
+                current.enabled = update.enabled;
+            }
+        }
+
+        // Database
+        if let Some(database) = other.database {
+            let current = self
+                .database
+                .get_or_insert_with(DatabaseFileConfig::default);
+            if database.transactional.is_some() {
+                tracing::trace!(transactional = ?database.transactional, "Merging database.transactional");
+                current.transactional = database.transactional;
+            }
+            if database.analytics.is_some() {
+                tracing::trace!(analytics = ?database.analytics, "Merging database.analytics");
+                current.analytics = database.analytics;
+            }
+            if let Some(postgres) = database.postgres {
+                let current_pg = current
+                    .postgres
+                    .get_or_insert_with(PostgresFileConfig::default);
+                if postgres.url.is_some() {
+                    tracing::trace!(url = "***", "Merging database.postgres.url");
+                    current_pg.url = postgres.url;
+                }
+                if postgres.max_connections.is_some() {
+                    tracing::trace!(max_connections = ?postgres.max_connections, "Merging database.postgres.max_connections");
+                    current_pg.max_connections = postgres.max_connections;
+                }
+                if postgres.acquire_timeout_secs.is_some() {
+                    tracing::trace!(acquire_timeout_secs = ?postgres.acquire_timeout_secs, "Merging database.postgres.acquire_timeout_secs");
+                    current_pg.acquire_timeout_secs = postgres.acquire_timeout_secs;
+                }
+                if postgres.min_connections.is_some() {
+                    tracing::trace!(min_connections = ?postgres.min_connections, "Merging database.postgres.min_connections");
+                    current_pg.min_connections = postgres.min_connections;
+                }
+                if postgres.idle_timeout_secs.is_some() {
+                    tracing::trace!(idle_timeout_secs = ?postgres.idle_timeout_secs, "Merging database.postgres.idle_timeout_secs");
+                    current_pg.idle_timeout_secs = postgres.idle_timeout_secs;
+                }
+                if postgres.max_lifetime_secs.is_some() {
+                    tracing::trace!(max_lifetime_secs = ?postgres.max_lifetime_secs, "Merging database.postgres.max_lifetime_secs");
+                    current_pg.max_lifetime_secs = postgres.max_lifetime_secs;
+                }
+                if postgres.statement_timeout_secs.is_some() {
+                    tracing::trace!(statement_timeout_secs = ?postgres.statement_timeout_secs, "Merging database.postgres.statement_timeout_secs");
+                    current_pg.statement_timeout_secs = postgres.statement_timeout_secs;
+                }
+            }
+            if let Some(clickhouse) = database.clickhouse {
+                let current_ch = current
+                    .clickhouse
+                    .get_or_insert_with(ClickhouseFileConfig::default);
+                if clickhouse.url.is_some() {
+                    tracing::trace!(url = "***", "Merging database.clickhouse.url");
+                    current_ch.url = clickhouse.url;
+                }
+                if clickhouse.database.is_some() {
+                    tracing::trace!(database = ?clickhouse.database, "Merging database.clickhouse.database");
+                    current_ch.database = clickhouse.database;
+                }
+                if clickhouse.user.is_some() {
+                    tracing::trace!(user = "***", "Merging database.clickhouse.user");
+                    current_ch.user = clickhouse.user;
+                }
+                if clickhouse.password.is_some() {
+                    tracing::trace!(password = "***", "Merging database.clickhouse.password");
+                    current_ch.password = clickhouse.password;
+                }
+                if clickhouse.timeout_secs.is_some() {
+                    tracing::trace!(timeout_secs = ?clickhouse.timeout_secs, "Merging database.clickhouse.timeout_secs");
+                    current_ch.timeout_secs = clickhouse.timeout_secs;
+                }
+                if clickhouse.compression.is_some() {
+                    tracing::trace!(compression = ?clickhouse.compression, "Merging database.clickhouse.compression");
+                    current_ch.compression = clickhouse.compression;
+                }
+                if clickhouse.async_insert.is_some() {
+                    tracing::trace!(async_insert = ?clickhouse.async_insert, "Merging database.clickhouse.async_insert");
+                    current_ch.async_insert = clickhouse.async_insert;
+                }
+                if clickhouse.wait_for_async_insert.is_some() {
+                    tracing::trace!(wait_for_async_insert = ?clickhouse.wait_for_async_insert, "Merging database.clickhouse.wait_for_async_insert");
+                    current_ch.wait_for_async_insert = clickhouse.wait_for_async_insert;
+                }
+                if clickhouse.cluster.is_some() {
+                    tracing::trace!(cluster = ?clickhouse.cluster, "Merging database.clickhouse.cluster");
+                    current_ch.cluster = clickhouse.cluster;
+                }
+                if clickhouse.insert_quorum.is_some() {
+                    tracing::trace!(insert_quorum = ?clickhouse.insert_quorum, "Merging database.clickhouse.insert_quorum");
+                    current_ch.insert_quorum = clickhouse.insert_quorum;
+                }
+                if clickhouse.distributed.is_some() {
+                    tracing::trace!(distributed = ?clickhouse.distributed, "Merging database.clickhouse.distributed");
+                    current_ch.distributed = clickhouse.distributed;
+                }
+            }
+            if database.cache.is_some() {
+                tracing::trace!(cache = ?database.cache, "Merging database.cache");
+                current.cache = database.cache;
+            }
+            if database.queue.is_some() {
+                tracing::trace!(queue = ?database.queue, "Merging database.queue");
+                current.queue = database.queue;
+            }
+            if let Some(redis) = database.redis {
+                let current_redis = current.redis.get_or_insert_with(RedisFileConfig::default);
+                if redis.url.is_some() {
+                    tracing::trace!(url = "***", "Merging database.redis.url");
+                    current_redis.url = redis.url;
+                }
+                if redis.min_replica_acks.is_some() {
+                    tracing::trace!(min_replica_acks = ?redis.min_replica_acks, "Merging database.redis.min_replica_acks");
+                    current_redis.min_replica_acks = redis.min_replica_acks;
+                }
+            }
+            if let Some(redpanda) = database.redpanda {
+                let current_redpanda = current
+                    .redpanda
+                    .get_or_insert_with(RedpandaFileConfig::default);
+                if redpanda.brokers.is_some() {
+                    tracing::trace!(brokers = "***", "Merging database.redpanda.brokers");
+                    current_redpanda.brokers = redpanda.brokers;
+                }
+                if redpanda.partitions.is_some() {
+                    tracing::trace!(partitions = ?redpanda.partitions, "Merging database.redpanda.partitions");
+                    current_redpanda.partitions = redpanda.partitions;
+                }
+                if redpanda.replication_factor.is_some() {
+                    tracing::trace!(
+                        replication_factor = ?redpanda.replication_factor,
+                        "Merging database.redpanda.replication_factor"
+                    );
+                    current_redpanda.replication_factor = redpanda.replication_factor;
+                }
+                if redpanda.retention_ms.is_some() {
+                    tracing::trace!(retention_ms = ?redpanda.retention_ms, "Merging database.redpanda.retention_ms");
+                    current_redpanda.retention_ms = redpanda.retention_ms;
+                }
+                if redpanda.retention_warning_ms.is_some() {
+                    tracing::trace!(
+                        retention_warning_ms = ?redpanda.retention_warning_ms,
+                        "Merging database.redpanda.retention_warning_ms"
+                    );
+                    current_redpanda.retention_warning_ms = redpanda.retention_warning_ms;
+                }
+            }
+            if let Some(memory_cache) = database.memory_cache {
+                let current_mc = current
+                    .memory_cache
+                    .get_or_insert_with(MemoryCacheFileConfig::default);
+                if memory_cache.max_entries.is_some() {
+                    tracing::trace!(max_entries = ?memory_cache.max_entries, "Merging database.memory_cache.max_entries");
+                    current_mc.max_entries = memory_cache.max_entries;
+                }
+                if memory_cache.eviction_policy.is_some() {
+                    tracing::trace!(eviction_policy = ?memory_cache.eviction_policy, "Merging database.memory_cache.eviction_policy");
+                    current_mc.eviction_policy = memory_cache.eviction_policy;
+                }
+            }
+        }
+
+        // Secrets
+        if let Some(secrets) = other.secrets {
+            let current = self.secrets.get_or_insert_with(SecretsFileConfig::default);
+            if secrets.backend.is_some() {
+                tracing::trace!(backend = ?secrets.backend, "Merging secrets.backend");
+                current.backend = secrets.backend;
+            }
+            if let Some(env_cfg) = secrets.env {
+                let ce = current
+                    .env
+                    .get_or_insert_with(SecretsEnvFileConfig::default);
+                if env_cfg.prefix.is_some() {
+                    tracing::trace!(prefix = ?env_cfg.prefix, "Merging secrets.env.prefix");
+                    ce.prefix = env_cfg.prefix;
+                }
+            }
+            if let Some(aws_cfg) = secrets.aws {
+                let ca = current
+                    .aws
+                    .get_or_insert_with(SecretsAwsFileConfig::default);
+                if aws_cfg.region.is_some() {
+                    tracing::trace!(region = ?aws_cfg.region, "Merging secrets.aws.region");
+                    ca.region = aws_cfg.region;
+                }
+                if aws_cfg.prefix.is_some() {
+                    tracing::trace!(prefix = ?aws_cfg.prefix, "Merging secrets.aws.prefix");
+                    ca.prefix = aws_cfg.prefix;
+                }
+                if aws_cfg.recovery_window_days.is_some() {
+                    tracing::trace!(days = ?aws_cfg.recovery_window_days, "Merging secrets.aws.recovery_window_days");
+                    ca.recovery_window_days = aws_cfg.recovery_window_days;
+                }
+            }
+            if let Some(vault_cfg) = secrets.vault {
+                let cv = current
+                    .vault
+                    .get_or_insert_with(SecretsVaultFileConfig::default);
+                if vault_cfg.address.is_some() {
+                    tracing::trace!(address = "***", "Merging secrets.vault.address");
+                    cv.address = vault_cfg.address;
+                }
+                if vault_cfg.mount.is_some() {
+                    tracing::trace!(mount = ?vault_cfg.mount, "Merging secrets.vault.mount");
+                    cv.mount = vault_cfg.mount;
+                }
+                if vault_cfg.prefix.is_some() {
+                    tracing::trace!(prefix = ?vault_cfg.prefix, "Merging secrets.vault.prefix");
+                    cv.prefix = vault_cfg.prefix;
+                }
+                if vault_cfg.token.is_some() {
+                    tracing::trace!(token = "***", "Merging secrets.vault.token");
+                    cv.token = vault_cfg.token;
+                }
+            }
+        }
+
+        // Credentials
+        if let Some(credentials) = other.credentials {
+            let current = self
+                .credentials
+                .get_or_insert_with(CredentialsFileConfig::default);
+            if credentials.scan_env.is_some() {
+                tracing::trace!(scan_env = ?credentials.scan_env, "Merging credentials.scan_env");
+                current.scan_env = credentials.scan_env;
+            }
+        }
+
+        // Debug
+        if other.debug.is_some() {
+            tracing::trace!(debug = ?other.debug, "Merging debug");
+            self.debug = other.debug;
+        }
+    }
+}
+
+// =============================================================================
+// Runtime Config Structs (final merged configuration)
+// =============================================================================
+
+/// Server configuration
+#[derive(Debug, Clone)]
+pub struct ServerConfig {
+    pub host: String,
+    pub port: u16,
+}
+
+/// Authentication configuration
+#[derive(Debug, Clone)]
+pub struct AuthConfig {
+    pub enabled: bool,
+}
+
+/// OpenTelemetry configuration (includes retention)
+#[derive(Debug, Clone)]
+pub struct OtelConfig {
+    pub grpc_enabled: bool,
+    pub grpc_port: u16,
+    pub retention: RetentionConfig,
+    pub staging_redrive_cap: u32,
+    /// Require API key for OTEL ingestion
+    pub auth_required: bool,
+}
+
+/// Retention configuration
+#[derive(Debug, Clone, Default)]
+pub struct RetentionConfig {
+    pub max_age_minutes: Option<u64>,
+    pub max_spans: Option<u64>,
+}
+
+/// Pricing configuration (final/runtime)
+#[derive(Debug, Clone)]
+pub struct PricingConfig {
+    pub sync_hours: u64,
+}
+
+/// S3 configuration (final/runtime)
+#[derive(Debug, Clone)]
+pub struct S3Config {
+    pub bucket: String,
+    pub prefix: String,
+    pub region: Option<String>,
+    pub endpoint: Option<String>,
+}
+
+/// File storage configuration (final/runtime)
+#[derive(Debug, Clone)]
+pub struct FilesConfig {
+    pub enabled: bool,
+    pub storage: StorageBackend,
+    pub quota_bytes: u64,
+    pub filesystem_path: Option<String>,
+    pub s3: Option<S3Config>,
+}
+
+/// Update check configuration (final/runtime)
+#[derive(Debug, Clone)]
+pub struct UpdateConfig {
+    pub enabled: bool,
+}
+
+/// MCP server configuration (final/runtime)
+#[derive(Debug, Clone)]
+pub struct McpConfig {
+    pub enabled: bool,
+}
+
+/// Credentials configuration (final/runtime)
+#[derive(Debug, Clone)]
+pub struct CredentialsConfig {
+    /// Scan environment variables for provider API keys
+    pub scan_env: bool,
+}
+
+/// Redis cache configuration (final/runtime)
+#[derive(Debug, Clone)]
+pub struct RedisConfig {
+    /// Connection URL for Redis-compatible backends
+    pub url: String,
+    /// How many replicas must acknowledge a queued trace before the export is answered.
+    ///
+    /// `appendfsync always` makes an acknowledged entry survive the loss of *that host*. It says nothing
+    /// about a failover: a replica promoted before it received the entry serves a keyspace without it, and
+    /// the exporter has long since moved on. `WAIT` is what closes that, at the cost of a round trip to
+    /// each replica per publish.
+    ///
+    /// Zero (the default) means a single-instance Redis, where there is nothing to fail over to. Startup
+    /// logs a warning when the server *has* replicas and this is still zero, because that is the
+    /// configuration where the gap exists and is invisible.
+    pub min_replica_acks: u32,
+}
+
+/// Memory cache configuration (final/runtime)
+#[derive(Debug, Clone)]
+pub struct MemoryCacheConfig {
+    /// Maximum number of cache entries
+    pub max_entries: u64,
+    /// Cache eviction policy
+    pub eviction_policy: EvictionPolicy,
+}
+
+/// Cache configuration (used internally by CacheService)
+#[derive(Debug, Clone)]
+pub struct CacheConfig {
+    /// Cache backend type
+    pub backend: CacheBackendType,
+    /// Maximum entries (memory backend)
+    pub max_entries: u64,
+    /// Eviction policy (memory backend)
+    pub eviction_policy: EvictionPolicy,
+    /// Redis URL (redis backend)
+    pub redis_url: Option<String>,
+}
+
+/// RedPanda queue configuration (final/runtime).
+#[derive(Debug, Clone)]
+pub struct RedpandaConfig {
+    pub brokers: String,
+    pub partitions: i32,
+    pub replication_factor: i32,
+    pub retention_ms: u64,
+    pub retention_warning_ms: u64,
+}
+
+/// Queue configuration, deliberately independent from [`CacheConfig`].
+#[derive(Debug, Clone)]
+pub struct QueueConfig {
+    pub backend: QueueBackendType,
+    pub redis_url: Option<String>,
+    pub redis_min_replica_acks: u32,
+    pub redpanda: Option<RedpandaConfig>,
+}
+
+/// Rate limit configuration (final/runtime)
+#[derive(Debug, Clone)]
+pub struct RateLimitConfig {
+    /// Enable rate limiting (per-project by default)
+    pub enabled: bool,
+    /// Enable per-IP rate limiting (API, auth endpoints). Disabled by default.
+    pub per_ip: bool,
+    pub api_rpm: u32,
+    pub ingestion_rpm: u32,
+    pub auth_rpm: u32,
+    pub files_rpm: u32,
+    pub bypass_header: Option<String>,
+    /// Addresses or CIDR blocks whose forwarded-for header may be believed.
+    ///
+    /// Empty by default, which means only the immediate peer is ever attributed. That is what makes an
+    /// IP-keyed limiter safe in both deployments, and neither alternative is: trusting a forwarded header
+    /// unconditionally lets a direct attacker rotate it and never exhaust a bucket, while attributing
+    /// everything to the peer lets one attacker behind a proxy exhaust the bucket every other client shares -
+    /// an unauthenticated denial of service. Whether the header can be believed is a property of the
+    /// deployment, so only the deployment can say. See `utils::client_ip`.
+    pub trusted_proxies: Vec<String>,
+}
+
+/// PostgreSQL configuration (final/runtime)
+#[derive(Debug, Clone)]
+pub struct PostgresConfig {
+    /// PostgreSQL connection URL
+    pub url: String,
+    /// Maximum number of connections in the pool
+    pub max_connections: u32,
+    /// Minimum number of connections to keep warm
+    pub min_connections: u32,
+    /// Connection acquire timeout in seconds
+    pub acquire_timeout_secs: u64,
+    /// Idle connection timeout in seconds
+    pub idle_timeout_secs: u64,
+    /// Max connection lifetime in seconds
+    pub max_lifetime_secs: u64,
+    /// Statement timeout in seconds (0 = disabled)
+    pub statement_timeout_secs: u64,
+}
+
+/// ClickHouse configuration (final/runtime)
+#[derive(Debug, Clone)]
+pub struct ClickhouseConfig {
+    /// ClickHouse connection URL
+    pub url: String,
+    /// Database name
+    pub database: String,
+    /// Username for authentication
+    pub user: Option<String>,
+    /// Password for authentication
+    pub password: Option<String>,
+    /// Query timeout in seconds
+    pub timeout_secs: u64,
+    /// Enable LZ4 compression for requests/responses
+    pub compression: bool,
+    /// Enable async inserts for high-throughput ingestion
+    pub async_insert: bool,
+    /// Wait for async insert to complete (false = fire-and-forget for max throughput)
+    pub wait_for_async_insert: bool,
+    /// Cluster name for distributed tables (None = single-node mode)
+    pub cluster: Option<String>,
+    /// Enable distributed/sharded tables (requires cluster to be set)
+    pub distributed: bool,
+    /// How many replicas of a shard must confirm an insert before it is reported stored.
+    ///
+    /// `insert_distributed_sync = 1` makes the insert reach *a* shard rather than a spool file on the
+    /// initiating node. It says nothing about that shard's replicas: the node holding the rows can fail
+    /// before replication, and the rows go with it - after the exporter was told 200. `insert_quorum` is
+    /// ClickHouse's answer, and `2` is the smallest value that survives losing one replica.
+    ///
+    /// Zero (the default) means an unreplicated table, where there is nothing to lose it to.
+    pub insert_quorum: u32,
+}
+
+/// Database configuration (final/runtime)
+#[derive(Debug, Clone)]
+pub struct DatabaseConfig {
+    /// Transactional backend: sqlite (default) or postgres
+    pub transactional: TransactionalBackend,
+    /// Analytics backend: duckdb (default) or clickhouse
+    pub analytics: AnalyticsBackend,
+    /// Cache backend: memory (default) or redis
+    pub cache: CacheBackendType,
+    /// Queue backend, independently selectable from the cache.
+    pub queue: QueueBackendType,
+    /// PostgreSQL-specific configuration (only used if transactional = postgres)
+    pub postgres: Option<PostgresConfig>,
+    /// ClickHouse-specific configuration (only used if analytics = clickhouse)
+    pub clickhouse: Option<ClickhouseConfig>,
+    /// Redis cache configuration (only used if cache = redis)
+    pub redis: Option<RedisConfig>,
+    /// RedPanda queue configuration (only used if queue = redpanda).
+    pub redpanda: Option<RedpandaConfig>,
+    /// Memory cache configuration
+    pub memory_cache: MemoryCacheConfig,
+}
+
+// =============================================================================
+// Secrets Runtime Config
+// =============================================================================
+
+/// Secrets env backend configuration (final/runtime)
+#[derive(Debug, Clone)]
+pub struct SecretsEnvConfig {
+    pub prefix: String,
+}
+
+/// Secrets AWS backend configuration (final/runtime)
+#[derive(Debug, Clone)]
+pub struct SecretsAwsConfig {
+    pub region: Option<String>,
+    pub prefix: String,
+    pub recovery_window_days: Option<u32>,
+}
+
+/// Secrets Vault backend configuration (final/runtime)
+#[derive(Debug, Clone)]
+pub struct SecretsVaultConfig {
+    pub address: String,
+    pub mount: String,
+    pub prefix: String,
+    pub token: String,
+}
+
+/// Secrets configuration (final/runtime)
+#[derive(Debug, Clone)]
+pub struct SecretsConfig {
+    pub backend: SecretsBackend,
+    pub env: Option<SecretsEnvConfig>,
+    pub aws: Option<SecretsAwsConfig>,
+    pub vault: Option<SecretsVaultConfig>,
+}
+
+impl DatabaseConfig {
+    /// Build a CacheConfig for use by CacheService
+    pub fn cache_config(&self) -> CacheConfig {
+        CacheConfig {
+            backend: self.cache,
+            max_entries: self.memory_cache.max_entries,
+            eviction_policy: self.memory_cache.eviction_policy,
+            redis_url: self.redis.as_ref().map(|r| r.url.clone()),
+        }
+    }
+
+    /// Build queue configuration independently from the cache selection.
+    pub fn queue_config(&self) -> QueueConfig {
+        QueueConfig {
+            backend: self.queue,
+            redis_url: self.redis.as_ref().map(|r| r.url.clone()),
+            redis_min_replica_acks: self.redis.as_ref().map_or(0, |r| r.min_replica_acks),
+            redpanda: self.redpanda.clone(),
+        }
+    }
+}
+
+/// Final merged application configuration
+#[derive(Debug, Clone)]
+pub struct AppConfig {
+    pub server: ServerConfig,
+    pub auth: AuthConfig,
+    pub otel: OtelConfig,
+    pub pricing: PricingConfig,
+    pub files: FilesConfig,
+    pub rate_limit: RateLimitConfig,
+    pub update: UpdateConfig,
+    pub mcp: McpConfig,
+    pub credentials: CredentialsConfig,
+    pub database: DatabaseConfig,
+    pub secrets: SecretsConfig,
+    pub debug: bool,
+}
+
+impl AppConfig {
+    /// Load configuration from all sources
+    ///
+    /// Priority (lowest to highest):
+    /// 1. Defaults
+    /// 2. Profile directory config (~/.sideseat/sideseat.json)
+    /// 3. Local directory config OR CLI-specified config path
+    /// 4. CLI arguments (which include env var fallbacks via clap)
+    pub fn load(cli: &CliConfig) -> Result<Self> {
+        tracing::debug!("Loading application configuration");
+        tracing::trace!(cli = ?cli, "CLI config");
+
+        let mut file_config = FileConfig::default();
+        let mut found_configs: Vec<String> = Vec::new();
+
+        // 1. Load from profile dir (~/.sideseat/sideseat.json) - skip if not exists
+        if let Some(profile_path) = get_profile_config_path()
+            && profile_path.exists()
+        {
+            let profile_config = FileConfig::load_from_file(&profile_path)?;
+            profile_config.warn_unknown_fields();
+            file_config.merge(profile_config);
+            found_configs.push(profile_path.display().to_string());
+        }
+
+        // 2. Load from CLI-specified path OR local directory
+        let overlay_path = if let Some(ref path) = cli.config {
+            let expanded = expand_path(&path.to_string_lossy());
+            if !expanded.exists() {
+                anyhow::bail!("Config file not found: {}", expanded.display());
+            }
+            Some(expanded)
+        } else {
+            let local = PathBuf::from(CONFIG_FILE_NAME);
+            if local.exists() { Some(local) } else { None }
+        };
+
+        if let Some(path) = overlay_path {
+            let overlay_config = FileConfig::load_from_file(&path)?;
+            overlay_config.warn_unknown_fields();
+            file_config.merge(overlay_config);
+            found_configs.push(path.display().to_string());
+        }
+
+        tracing::debug!(configs = ?found_configs, "Config files loaded");
+
+        // 3. Extract file config values with defaults
+        let file_server = file_config.server.unwrap_or_default();
+        let file_auth = file_config.auth.unwrap_or_default();
+        let file_otel = file_config.otel.unwrap_or_default();
+        let file_grpc = file_otel.grpc.unwrap_or_default();
+        let file_retention = file_otel.retention.unwrap_or_default();
+        let file_otel_auth = file_otel.auth.unwrap_or_default();
+        let file_pricing = file_config.pricing.unwrap_or_default();
+        let file_files = file_config.files.unwrap_or_default();
+        let file_rate_limit = file_config.rate_limit.unwrap_or_default();
+        let file_update = file_config.update.unwrap_or_default();
+        let file_mcp = file_server.mcp.unwrap_or_default();
+        let file_credentials = file_config.credentials.unwrap_or_default();
+        let file_database = file_config.database.unwrap_or_default();
+
+        // 4. Layer configs: defaults -> file config -> CLI/env overrides
+        let host = cli
+            .host
+            .clone()
+            .or(file_server.host)
+            .unwrap_or_else(|| DEFAULT_HOST.to_string());
+
+        let port = cli.port.or(file_server.port).unwrap_or(DEFAULT_PORT);
+
+        // auth.enabled: file config sets default, --no-auth CLI flag disables
+        let auth_enabled = if cli.no_auth {
+            false
+        } else {
+            file_auth.enabled.unwrap_or(true)
+        };
+
+        // otel.grpc config: CLI/env overrides file config
+        let otel_grpc_enabled = cli.otel_grpc.or(file_grpc.enabled).unwrap_or(true);
+        let otel_grpc_port = cli
+            .otel_grpc_port
+            .or(file_grpc.port)
+            .unwrap_or(DEFAULT_OTEL_GRPC_PORT);
+
+        // retention config: CLI/env overrides file config
+        let retention = RetentionConfig {
+            max_age_minutes: cli
+                .otel_retention_max_age
+                .or(file_retention.max_age_minutes),
+            max_spans: cli
+                .otel_retention_max_spans
+                .or(file_retention.max_spans)
+                .or(Some(DEFAULT_OTEL_RETENTION_MAX_SPANS)),
+        };
+
+        // otel.auth.required: CLI/env overrides file config, default false
+        let otel_auth_required = cli
+            .otel_auth_required
+            .or(file_otel_auth.required)
+            .unwrap_or(false);
+        let staging_redrive_cap = file_otel
+            .staging_redrive_cap
+            .unwrap_or(DEFAULT_OTEL_STAGING_REDRIVE_CAP);
+
+        // debug: CLI/env flag takes precedence, then file config, default false
+        let debug = cli.debug || file_config.debug.unwrap_or(false);
+
+        // pricing config: CLI/env overrides file config
+        let default_sync_hours = PRICING_SYNC_INTERVAL_SECS / 3600;
+        let pricing_sync_hours = cli
+            .pricing_sync_hours
+            .or(file_pricing.sync_hours)
+            .unwrap_or(default_sync_hours);
+
+        // files config: CLI/env overrides file config
+        let storage_backend = cli.files_storage.or(file_files.storage).unwrap_or_default();
+
+        let files_enabled = cli.files_enabled.or(file_files.enabled).unwrap_or(true);
+        let files_quota_bytes = cli
+            .files_quota_bytes
+            .or(file_files.quota_bytes)
+            .unwrap_or(FILES_DEFAULT_QUOTA_BYTES);
+
+        // Parse S3 config if storage type is s3
+        // CLI/env vars override config file values
+        let s3_config = if storage_backend == StorageBackend::S3 {
+            let file_s3 = file_files.s3.as_ref();
+            let bucket = cli
+                .files_s3_bucket
+                .clone()
+                .or_else(|| file_s3.and_then(|s| s.bucket.clone()));
+            let prefix = cli
+                .files_s3_prefix
+                .clone()
+                .or_else(|| file_s3.and_then(|s| s.prefix.clone()));
+            let region = cli
+                .files_s3_region
+                .clone()
+                .or_else(|| file_s3.and_then(|s| s.region.clone()));
+            let endpoint = cli
+                .files_s3_endpoint
+                .clone()
+                .or_else(|| file_s3.and_then(|s| s.endpoint.clone()));
+
+            bucket.filter(|b| !b.is_empty()).map(|bucket| S3Config {
+                bucket,
+                prefix: prefix.unwrap_or_else(|| FILES_DEFAULT_S3_PREFIX.to_string()),
+                region,
+                endpoint,
+            })
+        } else {
+            None
+        };
+
+        let files = FilesConfig {
+            enabled: files_enabled,
+            storage: storage_backend,
+            quota_bytes: files_quota_bytes,
+            filesystem_path: file_files.filesystem.and_then(|fs| fs.path),
+            s3: s3_config,
+        };
+
+        // update config: CLI flag overrides file config, default enabled
+        let update_enabled = if cli.no_update_check {
+            false
+        } else {
+            file_update.enabled.unwrap_or(true)
+        };
+
+        // mcp config: CLI/env overrides file config, enabled by default
+        let mcp_enabled = cli.mcp.or(file_mcp.enabled).unwrap_or(true);
+
+        // credentials config: CLI/env overrides file config, scan_env enabled by default
+        let credentials_scan_env = cli
+            .credentials_scan_env
+            .or(file_credentials.scan_env)
+            .unwrap_or(true);
+
+        // cache config: CLI/env overrides file config
+        let cache_backend = cli
+            .cache_backend
+            .or(file_database.cache)
+            .unwrap_or_default();
+        // Preserve the old implicit coupling when no queue setting is present, while allowing either
+        // side to be overridden independently.
+        let queue_backend =
+            cli.queue_backend
+                .or(file_database.queue)
+                .unwrap_or(match cache_backend {
+                    CacheBackendType::Memory => QueueBackendType::Memory,
+                    CacheBackendType::Redis => QueueBackendType::Redis,
+                });
+
+        // Memory cache config
+        let file_memory_cache = file_database.memory_cache.unwrap_or_default();
+        let cache_max_entries = cli
+            .cache_max_entries
+            .or(file_memory_cache.max_entries)
+            .unwrap_or(DEFAULT_CACHE_MAX_ENTRIES);
+        let cache_eviction_policy = cli
+            .cache_eviction_policy
+            .or(file_memory_cache.eviction_policy)
+            .unwrap_or_default();
+        let memory_cache_config = MemoryCacheConfig {
+            max_entries: cache_max_entries,
+            eviction_policy: cache_eviction_policy,
+        };
+
+        // Redis config (only populated if using redis backend)
+        let redis_config = if cache_backend == CacheBackendType::Redis
+            || queue_backend == QueueBackendType::Redis
+        {
+            let file_redis = file_database.redis.unwrap_or_default();
+            let url = cli
+                .cache_redis_url
+                .clone()
+                .or(file_redis.url)
+                .unwrap_or_default();
+            Some(RedisConfig {
+                url,
+                min_replica_acks: file_redis.min_replica_acks.unwrap_or(0),
+            })
+        } else {
+            None
+        };
+
+        let redpanda_config = if queue_backend == QueueBackendType::Redpanda {
+            let file_redpanda = file_database.redpanda.unwrap_or_default();
+            Some(RedpandaConfig {
+                brokers: cli
+                    .redpanda_brokers
+                    .clone()
+                    .or(file_redpanda.brokers)
+                    .unwrap_or_else(|| DEFAULT_REDPANDA_BROKERS.to_string()),
+                partitions: file_redpanda
+                    .partitions
+                    .unwrap_or(DEFAULT_REDPANDA_PARTITIONS),
+                replication_factor: file_redpanda
+                    .replication_factor
+                    .unwrap_or(DEFAULT_REDPANDA_REPLICATION_FACTOR),
+                retention_ms: file_redpanda
+                    .retention_ms
+                    .unwrap_or(DEFAULT_REDPANDA_RETENTION_MS),
+                retention_warning_ms: file_redpanda
+                    .retention_warning_ms
+                    .unwrap_or(DEFAULT_REDPANDA_RETENTION_WARNING_MS),
+            })
+        } else {
+            None
+        };
+
+        // rate_limit config: CLI/env overrides file config
+        let rate_limit_enabled = cli
+            .rate_limit_enabled
+            .or(file_rate_limit.enabled)
+            .unwrap_or(true); // Enabled by default (per-project rate limiting)
+        let rate_limit_per_ip = cli
+            .rate_limit_per_ip
+            .or(file_rate_limit.per_ip)
+            .unwrap_or(false); // Per-IP rate limiting disabled by default
+        let rate_limit_api_rpm = cli
+            .rate_limit_api_rpm
+            .or(file_rate_limit.api_rpm)
+            .unwrap_or(DEFAULT_RATE_LIMIT_API_RPM);
+        let rate_limit_ingestion_rpm = cli
+            .rate_limit_ingestion_rpm
+            .or(file_rate_limit.ingestion_rpm)
+            .unwrap_or(DEFAULT_RATE_LIMIT_INGESTION_RPM);
+        let rate_limit_auth_rpm = cli
+            .rate_limit_auth_rpm
+            .or(file_rate_limit.auth_rpm)
+            .unwrap_or(DEFAULT_RATE_LIMIT_AUTH_RPM);
+        let rate_limit_files_rpm = cli
+            .rate_limit_files_rpm
+            .or(file_rate_limit.files_rpm)
+            .unwrap_or(DEFAULT_RATE_LIMIT_FILES_RPM);
+        let rate_limit_bypass_header = cli
+            .rate_limit_bypass_header
+            .clone()
+            .or(file_rate_limit.bypass_header);
+
+        let rate_limit = RateLimitConfig {
+            enabled: rate_limit_enabled,
+            per_ip: rate_limit_per_ip,
+            api_rpm: rate_limit_api_rpm,
+            ingestion_rpm: rate_limit_ingestion_rpm,
+            auth_rpm: rate_limit_auth_rpm,
+            files_rpm: rate_limit_files_rpm,
+            bypass_header: rate_limit_bypass_header,
+            trusted_proxies: file_rate_limit.trusted_proxies.clone().unwrap_or_default(),
+        };
+
+        // database config: file config with env var overrides for sensitive values
+        let transactional_backend = cli
+            .transactional_backend
+            .or(file_database.transactional)
+            .unwrap_or_default();
+        let analytics_backend = cli
+            .analytics_backend
+            .or(file_database.analytics)
+            .unwrap_or_default();
+
+        // PostgreSQL config (only populated if using postgres backend)
+        // Optimized for scalable SaaS with connection pooling and query protection
+        let postgres_config = if transactional_backend == TransactionalBackend::Postgres {
+            let file_pg = file_database.postgres.unwrap_or_default();
+            let url = cli
+                .postgres_url
+                .clone()
+                .or_else(|| std::env::var("SIDESEAT_POSTGRES_URL").ok())
+                .or(file_pg.url)
+                .unwrap_or_default();
+            Some(PostgresConfig {
+                url,
+                max_connections: file_pg
+                    .max_connections
+                    .unwrap_or(POSTGRES_DEFAULT_MAX_CONNECTIONS),
+                min_connections: file_pg
+                    .min_connections
+                    .unwrap_or(POSTGRES_DEFAULT_MIN_CONNECTIONS),
+                acquire_timeout_secs: file_pg
+                    .acquire_timeout_secs
+                    .unwrap_or(POSTGRES_DEFAULT_ACQUIRE_TIMEOUT_SECS),
+                idle_timeout_secs: file_pg
+                    .idle_timeout_secs
+                    .unwrap_or(POSTGRES_DEFAULT_IDLE_TIMEOUT_SECS),
+                max_lifetime_secs: file_pg
+                    .max_lifetime_secs
+                    .unwrap_or(POSTGRES_DEFAULT_MAX_LIFETIME_SECS),
+                statement_timeout_secs: file_pg
+                    .statement_timeout_secs
+                    .unwrap_or(POSTGRES_DEFAULT_STATEMENT_TIMEOUT_SECS),
+            })
+        } else {
+            None
+        };
+
+        // ClickHouse config (only populated if using clickhouse backend)
+        let clickhouse_config = if analytics_backend == AnalyticsBackend::Clickhouse {
+            let file_ch = file_database.clickhouse.unwrap_or_default();
+            let url = cli
+                .clickhouse_url
+                .clone()
+                .or_else(|| std::env::var("SIDESEAT_CLICKHOUSE_URL").ok())
+                .or(file_ch.url)
+                .unwrap_or_default();
+            let database = file_ch.database.unwrap_or_else(|| "sideseat".to_string());
+            let user = file_ch.user;
+            let password = file_ch.password;
+            let timeout_secs = file_ch.timeout_secs.unwrap_or(30);
+            let compression = file_ch.compression.unwrap_or(true);
+            // Direct inserts by default, measured rather than assumed.
+            //
+            // The rule is that an acknowledgement means the data is stored, so `wait_for_async_insert = 0`
+            // is out: it returns once ClickHouse has buffered, and a restart or a failed async insert
+            // empties that buffer. That leaves waiting - and waiting on an *async* insert pays
+            // ClickHouse's flush timer for nothing, because the caller is blocked anyway. Measured on
+            // local containers: `async_insert=1, wait=1` costs 118.6 ms at p50 per trace export against
+            // 59.2 ms for a direct insert. Half the latency, same durability.
+            //
+            // Server-side batching is not what makes this affordable either - the pipeline already batches
+            // requests before it writes, so parts are not tiny. `async_insert` remains configurable for a
+            // deployment whose writers bypass that batching; turning it on then also means waiting.
+            let async_insert = file_ch.async_insert.unwrap_or(false);
+            let wait_for_async_insert = file_ch.wait_for_async_insert.unwrap_or(true);
+            let cluster = file_ch.cluster;
+            // Kept as requested, not silently corrected. Folding `&& cluster.is_some()` in here
+            // turned `distributed: true` with no cluster into single-node mode before validation
+            // ran, so the error that exists for exactly that mistake was unreachable and a
+            // deployment meant to be sharded came up on one node without saying so.
+            let distributed = file_ch.distributed.unwrap_or(false);
+            Some(ClickhouseConfig {
+                url,
+                database,
+                user,
+                password,
+                timeout_secs,
+                compression,
+                async_insert,
+                wait_for_async_insert,
+                cluster,
+                distributed,
+                insert_quorum: file_ch.insert_quorum.unwrap_or(0),
+            })
+        } else {
+            None
+        };
+
+        let database = DatabaseConfig {
+            transactional: transactional_backend,
+            analytics: analytics_backend,
+            cache: cache_backend,
+            queue: queue_backend,
+            postgres: postgres_config,
+            clickhouse: clickhouse_config,
+            redis: redis_config,
+            redpanda: redpanda_config,
+            memory_cache: memory_cache_config,
+        };
+
+        // Secrets config: CLI > file > platform auto-detect
+        let file_secrets = file_config.secrets.unwrap_or_default();
+
+        let secrets_backend = cli
+            .secrets_backend
+            .or(file_secrets.backend)
+            .unwrap_or_else(SecretsBackend::detect);
+
+        let secrets_env = if secrets_backend == SecretsBackend::Env {
+            let file_env = file_secrets.env.unwrap_or_default();
+            Some(SecretsEnvConfig {
+                prefix: std::env::var(ENV_SECRETS_ENV_PREFIX)
+                    .ok()
+                    .or(file_env.prefix)
+                    .unwrap_or_else(|| SECRETS_DEFAULT_ENV_PREFIX.to_string()),
+            })
+        } else {
+            None
+        };
+
+        let secrets_aws = if secrets_backend == SecretsBackend::Aws {
+            let file_aws = file_secrets.aws.unwrap_or_default();
+            Some(SecretsAwsConfig {
+                region: std::env::var(ENV_SECRETS_AWS_REGION)
+                    .ok()
+                    .or(file_aws.region),
+                prefix: std::env::var(ENV_SECRETS_AWS_PREFIX)
+                    .ok()
+                    .or(file_aws.prefix)
+                    .unwrap_or_else(|| SECRETS_DEFAULT_AWS_PREFIX.to_string()),
+                recovery_window_days: file_aws.recovery_window_days,
+            })
+        } else {
+            None
+        };
+
+        let secrets_vault = if secrets_backend == SecretsBackend::Vault {
+            let file_vault = file_secrets.vault.unwrap_or_default();
+            Some(SecretsVaultConfig {
+                address: std::env::var(ENV_SECRETS_VAULT_ADDR)
+                    .ok()
+                    .or(file_vault.address)
+                    .unwrap_or_default()
+                    .trim_end_matches('/')
+                    .to_string(),
+                mount: std::env::var(ENV_SECRETS_VAULT_MOUNT)
+                    .ok()
+                    .or(file_vault.mount)
+                    .unwrap_or_else(|| SECRETS_DEFAULT_VAULT_MOUNT.to_string()),
+                prefix: std::env::var(ENV_SECRETS_VAULT_PREFIX)
+                    .ok()
+                    .or(file_vault.prefix)
+                    .unwrap_or_else(|| SECRETS_DEFAULT_VAULT_PREFIX.to_string()),
+                token: std::env::var(ENV_SECRETS_VAULT_TOKEN)
+                    .ok()
+                    .or_else(|| std::env::var("VAULT_TOKEN").ok())
+                    .or(file_vault.token)
+                    .unwrap_or_default(),
+            })
+        } else {
+            None
+        };
+
+        let secrets = SecretsConfig {
+            backend: secrets_backend,
+            env: secrets_env,
+            aws: secrets_aws,
+            vault: secrets_vault,
+        };
+
+        let config = Self {
+            server: ServerConfig { host, port },
+            auth: AuthConfig {
+                enabled: auth_enabled,
+            },
+            otel: OtelConfig {
+                grpc_enabled: otel_grpc_enabled,
+                grpc_port: otel_grpc_port,
+                retention,
+                staging_redrive_cap,
+                auth_required: otel_auth_required,
+            },
+            pricing: PricingConfig {
+                sync_hours: pricing_sync_hours,
+            },
+            files,
+            rate_limit,
+            update: UpdateConfig {
+                enabled: update_enabled,
+            },
+            mcp: McpConfig {
+                enabled: mcp_enabled,
+            },
+            credentials: CredentialsConfig {
+                scan_env: credentials_scan_env,
+            },
+            database,
+            secrets,
+            debug,
+        };
+
+        // Validate configuration
+        config.validate()?;
+
+        tracing::debug!(
+            host = %config.server.host,
+            port = config.server.port,
+            auth_enabled = config.auth.enabled,
+            debug = config.debug,
+            otel_grpc_enabled = config.otel.grpc_enabled,
+            otel_grpc_port = config.otel.grpc_port,
+            retention_max_age_minutes = ?config.otel.retention.max_age_minutes,
+            retention_max_spans = ?config.otel.retention.max_spans,
+            staging_redrive_cap = config.otel.staging_redrive_cap,
+            otel_auth_required = config.otel.auth_required,
+            pricing_sync_hours = config.pricing.sync_hours,
+            files_enabled = config.files.enabled,
+            files_storage = %config.files.storage,
+            files_quota_bytes = config.files.quota_bytes,
+            cache_backend = %config.database.cache,
+            cache_max_entries = config.database.memory_cache.max_entries,
+            rate_limit_enabled = config.rate_limit.enabled,
+            update_enabled = config.update.enabled,
+            mcp_enabled = config.mcp.enabled,
+            credentials_scan_env = config.credentials.scan_env,
+            transactional_backend = %config.database.transactional,
+            analytics_backend = %config.database.analytics,
+            "Configuration loaded"
+        );
+
+        Ok(config)
+    }
+
+    /// Validate the configuration for consistency and correctness
+    fn validate(&self) -> Result<()> {
+        // Host must not be empty
+        if self.server.host.is_empty() {
+            anyhow::bail!("Configuration error: server.host must not be empty");
+        }
+
+        // Port must be non-zero (port 0 would cause bind failure)
+        if self.server.port == 0 {
+            anyhow::bail!("Configuration error: server.port must be greater than 0");
+        }
+        if self.otel.grpc_enabled && self.otel.grpc_port == 0 {
+            anyhow::bail!("Configuration error: otel.grpc.port must be greater than 0");
+        }
+        if self.otel.staging_redrive_cap == 0 {
+            anyhow::bail!("Configuration error: otel.staging_redrive_cap must be greater than 0");
+        }
+
+        // Port collision check (only if both are enabled)
+        if self.otel.grpc_enabled && self.server.port == self.otel.grpc_port {
+            anyhow::bail!(
+                "Configuration error: server.port ({}) and otel.grpc.port ({}) cannot be the same",
+                self.server.port,
+                self.otel.grpc_port
+            );
+        }
+
+        // S3 bucket required when using S3 storage
+        if self.files.storage == StorageBackend::S3 && self.files.s3.is_none() {
+            anyhow::bail!(
+                "Configuration error: files.s3.bucket is required (and non-empty) when files.storage is 's3'"
+            );
+        }
+
+        // Redis URL required when using Redis cache backend
+        if self.database.cache == CacheBackendType::Redis
+            && self
+                .database
+                .redis
+                .as_ref()
+                .is_none_or(|r| r.url.is_empty())
+        {
+            anyhow::bail!(
+                "Configuration error: database.redis.url is required when database.cache is 'redis'"
+            );
+        }
+        if self.database.queue == QueueBackendType::Redis
+            && self
+                .database
+                .redis
+                .as_ref()
+                .is_none_or(|r| r.url.is_empty())
+        {
+            anyhow::bail!(
+                "Configuration error: database.redis.url is required when database.queue is 'redis'"
+            );
+        }
+        if self.database.queue == QueueBackendType::Redpanda {
+            let Some(redpanda) = self.database.redpanda.as_ref() else {
+                anyhow::bail!(
+                    "Configuration error: RedPanda configuration missing when database.queue is 'redpanda'"
+                );
+            };
+            if redpanda.brokers.trim().is_empty() {
+                anyhow::bail!(
+                    "Configuration error: database.redpanda.brokers is required when database.queue is 'redpanda'"
+                );
+            }
+            if redpanda.partitions <= 0 || redpanda.replication_factor <= 0 {
+                anyhow::bail!(
+                    "Configuration error: RedPanda partitions and replication_factor must be greater than 0"
+                );
+            }
+            if redpanda.retention_warning_ms >= redpanda.retention_ms {
+                anyhow::bail!(
+                    "Configuration error: RedPanda retention_warning_ms must be less than retention_ms"
+                );
+            }
+            if redpanda.replication_factor == 1 {
+                tracing::warn!(
+                    "Redpanda queue topics have one replica; recoverable production requires tested Tiered Storage or a replication factor greater than one"
+                );
+            }
+        }
+
+        // Warn about rate limiting enabled with 0 RPM
+        if self.rate_limit.enabled && self.rate_limit.api_rpm == 0 {
+            tracing::warn!("rate_limit.api_rpm is 0, all API requests will be blocked");
+        }
+
+        // Warn about potentially dangerous retention settings
+        if let Some(max_age) = self.otel.retention.max_age_minutes {
+            if max_age == 0 {
+                tracing::warn!(
+                    "otel.retention.max_age_minutes is 0, which will delete all trace data immediately"
+                );
+            } else if max_age < 5 {
+                tracing::warn!(
+                    max_age_minutes = max_age,
+                    "otel.retention.max_age_minutes is very low, data may be deleted quickly"
+                );
+            }
+        }
+
+        // This legacy-named setting is the unified project budget even when blob persistence is disabled.
+        if self.files.quota_bytes < 32 * 1024 * 1024 {
+            tracing::warn!(
+                quota_bytes = self.files.quota_bytes,
+                "files.quota_bytes is below the maintenance reserve; ordinary telemetry writes may be refused"
+            );
+        }
+
+        // Security warning: auth disabled while binding to all interfaces
+        if !self.auth.enabled && is_all_interfaces(&self.server.host) {
+            tracing::warn!(
+                host = %self.server.host,
+                "Authentication is disabled while binding to all network interfaces. \
+                 This exposes an unauthenticated server to your network."
+            );
+        }
+
+        // PostgreSQL URL required when using Postgres backend
+        if self.database.transactional == TransactionalBackend::Postgres {
+            if let Some(ref pg) = self.database.postgres {
+                if pg.url.is_empty() {
+                    anyhow::bail!(
+                        "Configuration error: database.postgres.url is required when database.transactional is 'postgres'. \
+                         Set via SIDESEAT_POSTGRES_URL env var or database.postgres.url in config file."
+                    );
+                }
+            } else {
+                anyhow::bail!(
+                    "Configuration error: PostgreSQL configuration missing when database.transactional is 'postgres'"
+                );
+            }
+        }
+
+        // A store holding bytes must be at least as reachable as the rows naming them. The pepper is
+        // needed whenever *any* auth path is enabled, not just the console one: `otel.auth.required`
+        // ingests through the same API-key hash, so a browser session and an ingestion key both fail on
+        // whichever replica the balancer picked.
+        validate_store_sharing(
+            self.database.transactional,
+            self.database.analytics,
+            self.files.storage,
+            self.secrets.backend,
+            self.auth.enabled || self.otel.auth_required,
+        )?;
+
+        // ClickHouse URL required when using ClickHouse backend
+        if self.database.analytics == AnalyticsBackend::Clickhouse {
+            if let Some(ref ch) = self.database.clickhouse {
+                validate_clickhouse(ch)?;
+            } else {
+                anyhow::bail!(
+                    "Configuration error: ClickHouse configuration missing when database.analytics is 'clickhouse'"
+                );
+            }
+        }
+
+        // AWS recovery_window_days must be 7-30 if set
+        if let Some(ref aws) = self.secrets.aws
+            && let Some(d) = aws.recovery_window_days
+            && !(7..=30).contains(&d)
+        {
+            anyhow::bail!(
+                "Configuration error: secrets.aws.recovery_window_days must be between 7 and 30 (got {})",
+                d
+            );
+        }
+
+        // Vault address and token required when using Vault secrets backend
+        if self.secrets.backend == SecretsBackend::Vault {
+            if let Some(ref v) = self.secrets.vault {
+                if v.address.is_empty() {
+                    anyhow::bail!(
+                        "Configuration error: secrets.vault.address is required when secrets.backend is 'vault'. \
+                         Set via {} env var or secrets.vault.address in config file.",
+                        ENV_SECRETS_VAULT_ADDR
+                    );
+                }
+                if !v.address.starts_with("http://") && !v.address.starts_with("https://") {
+                    anyhow::bail!(
+                        "Configuration error: secrets.vault.address must start with http:// or https://. Got: {}",
+                        v.address
+                    );
+                }
+                if v.token.is_empty() {
+                    anyhow::bail!(
+                        "Configuration error: Vault token required when secrets.backend is 'vault'. \
+                         Set via VAULT_TOKEN, {} env var, or secrets.vault.token in config file.",
+                        ENV_SECRETS_VAULT_TOKEN
+                    );
+                }
+            } else {
+                anyhow::bail!(
+                    "Configuration error: Vault configuration missing when secrets.backend is 'vault'"
+                );
+            }
+        }
+
+        Ok(())
+    }
+}
+
+/// Get the profile config path (~/.sideseat/sideseat.json)
+fn get_profile_config_path() -> Option<PathBuf> {
+    dirs::home_dir().map(|h| h.join(APP_DOT_FOLDER).join(CONFIG_FILE_NAME))
+}
+
+/// Check if host binds to all network interfaces
+pub fn is_all_interfaces(host: &str) -> bool {
+    matches!(host, "0.0.0.0" | "::" | "[::]")
+}
+
+/// Whether a store is visible to every instance of the server, or only to the one that wrote to it.
+///
+/// # Why one word for three unrelated subsystems
+///
+/// SideSeat keeps a datum's *bytes* and the *record naming them* in different stores, and three times
+/// over: a file's metadata is a row while its content is on disk or in S3; an API key's row holds
+/// `HMAC(key, pepper)` while the pepper lives in a secrets backend; a session is a row while the key that
+/// signs its token lives there too. Each pair works if - and only if - the store holding the bytes is at
+/// least as reachable as the store holding the record.
+///
+/// That single rule explains three otherwise unrelated failures, each silent:
+///
+/// * PostgreSQL with filesystem storage: replica A writes the bytes to its own disk and the row to the
+///   shared database, so B finds the row, cannot serve the content, and cannot clean it up either. A
+///   restart onto a fresh host loses it outright, with the row still promising it.
+/// * PostgreSQL with a keychain or file secrets backend: an API key created on A hashes under A's pepper.
+///   B looks the key up *by hash*, finds nothing, and answers a plain 401 - indistinguishable from a
+///   forged key - so authenticated ingestion fails on whichever replica the balancer happened to pick.
+/// * The same for the JWT key, where the symptom is a browser being signed out at random.
+///
+/// So it is checked once, as a comparison, rather than three times as special cases - and stated as a
+/// property of each backend, so a new backend has to declare which kind it is.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Sharing {
+    /// Every instance sees the same contents.
+    Shared,
+    /// Only the instance that wrote it, and only until its disk goes away.
+    PerInstance,
+}
+
+impl TransactionalBackend {
+    pub fn sharing(&self) -> Sharing {
+        match self {
+            // A file on the instance's own disk.
+            Self::Sqlite => Sharing::PerInstance,
+            Self::Postgres => Sharing::Shared,
+        }
+    }
+}
+
+impl StorageBackend {
+    pub fn sharing(&self) -> Sharing {
+        match self {
+            Self::Filesystem => Sharing::PerInstance,
+            Self::S3 => Sharing::Shared,
+        }
+    }
+}
+
+impl AnalyticsBackend {
+    pub fn sharing(&self) -> Sharing {
+        match self {
+            // An embedded file on the instance's own disk, and DuckDB holds a process-wide lock on it
+            // while running - so two replicas cannot share one file even if they could see it.
+            Self::Duckdb => Sharing::PerInstance,
+            Self::Clickhouse => Sharing::Shared,
+        }
+    }
+}
+
+impl SecretsBackend {
+    pub fn sharing(&self) -> Sharing {
+        match self {
+            // An OS credential store, or a file beside the database. Even mounted on shared storage the
+            // file backend has no compare-and-set, so two instances provisioning at once is last-writer
+            // -wins - which is the same loss by a different route.
+            Self::Keychain
+            | Self::CredentialManager
+            | Self::SecretService
+            | Self::Keyutils
+            | Self::File => Sharing::PerInstance,
+            // Read from the environment, so whatever provisions the instances decides; the point is that
+            // it *can* be the same value everywhere, which a generated keychain entry cannot.
+            Self::Env => Sharing::Shared,
+            Self::Aws | Self::Vault => Sharing::Shared,
+        }
+    }
+}
+
+/// A store holding bytes must be at least as reachable as the rows that name them.
+///
+/// The transactional store is the reference because that is where the naming rows live. When it is
+/// per-instance the whole deployment is one instance by construction and everything matches; when it is
+/// shared, anything holding bytes it points at has to be shared too.
+///
+/// Refused at startup rather than warned about, because every symptom is silent and looks like something
+/// else: a missing attachment reads as a producer that never sent one, and a rejected API key reads as a
+/// bad key. Both send the operator looking in the wrong place.
+fn validate_store_sharing(
+    transactional: TransactionalBackend,
+    analytics: AnalyticsBackend,
+    storage: StorageBackend,
+    secrets: SecretsBackend,
+    auth_enabled: bool,
+) -> Result<()> {
+    if transactional.sharing() == Sharing::PerInstance {
+        return Ok(());
+    }
+
+    if analytics.sharing() == Sharing::PerInstance {
+        anyhow::bail!(
+            "Configuration error: database.transactional is '{transactional}', which every instance \
+             shares, but database.analytics is '{analytics}', which is a file each instance holds \
+             separately. Telemetry would be partitioned across replicas - a trace ingested on one is \
+             absent from the others' reads, and its files are visible everywhere via the shared \
+             transactional store. Set database.analytics to 'clickhouse', or database.transactional to \
+             'sqlite' for a single-instance deployment."
+        );
+    }
+
+    if storage.sharing() == Sharing::PerInstance {
+        anyhow::bail!(
+            "Configuration error: database.transactional is '{transactional}', which every instance \
+             shares, but files.storage is '{storage}', which is local to one instance. A file's metadata \
+             would be visible everywhere while its content existed on a single machine's disk - so \
+             another instance finds the row, cannot serve the content and cannot clean it up, and \
+             replacing that instance loses the content with the row still promising it. Set \
+             files.storage to 's3', or database.transactional to 'sqlite' for a single-instance \
+             deployment."
+        );
+    }
+
+    // Only when auth is on: with `--no-auth` there are no API keys and no sessions, so nothing depends
+    // on a pepper being the same everywhere.
+    if auth_enabled && secrets.sharing() == Sharing::PerInstance {
+        anyhow::bail!(
+            "Configuration error: database.transactional is '{transactional}', which every instance \
+             shares, but secrets.backend is '{secrets}', which is local to one instance. An API key row \
+             holds HMAC(key, secret) and is looked up by that hash, so a key created on one instance is \
+             not merely unknown on another - it is unverifiable there, and the answer is an ordinary 401. \
+             Authenticated ingestion would fail depending on which instance a request reached. Set \
+             secrets.backend to 'env', 'aws' or 'vault' so every instance reads the same secret."
+        );
+    }
+
+    Ok(())
+}
+
+/// Check a ClickHouse configuration for combinations that cannot work.
+///
+/// Extracted so it can be tested: the surrounding `validate` runs inside `AppConfig::load`, which
+/// reads the real config files and environment. This rule in particular was unreachable for a
+/// while - `distributed` was being folded to false when no cluster was named, before validation
+/// saw it - so a deployment meant to be sharded came up single-node in silence.
+fn validate_clickhouse(ch: &ClickhouseConfig) -> Result<()> {
+    if ch.url.is_empty() {
+        anyhow::bail!(
+            "Configuration error: database.clickhouse.url is required when database.analytics is 'clickhouse'. \
+             Set via SIDESEAT_CLICKHOUSE_URL env var or database.clickhouse.url in config file."
+        );
+    }
+    if ch.distributed && ch.cluster.as_ref().is_none_or(|c| c.is_empty()) {
+        anyhow::bail!(
+            "Configuration error: database.clickhouse.cluster is required when database.clickhouse.distributed is true. \
+             Specify the ClickHouse cluster name for distributed table creation."
+        );
+    }
+    // Fire-and-forget insertion contradicts what a 200 means here.
+    //
+    // With `async_insert` on and `wait_for_async_insert` off, `INSERT` returns as soon as ClickHouse has
+    // buffered the rows in memory. The write path treats that return as durability: an HTTP export is
+    // answered 200 and a Redis stream message is acknowledged, both on the strength of a buffer that a
+    // restart discards. The whole point of acknowledging only what is durable is lost, and nothing
+    // downstream can tell - the rows simply are not there later.
+    //
+    // Refused at startup rather than warned about, because a configuration that silently loses accepted
+    // data is not a performance trade an operator can make knowingly through one boolean. The measured
+    // cost of getting it right is in CLAUDE.md: waiting is *faster* here than the async path anyway.
+    // A quorum of one is not a quorum; it is the default with extra latency and a false sense of safety.
+    if ch.insert_quorum == 1 {
+        anyhow::bail!(
+            "Configuration error: database.clickhouse.insert_quorum of 1 means the initiating replica \
+             alone, which is what happens with no quorum at all. Use 0 for an unreplicated table, or at \
+             least 2 so an insert survives losing one replica."
+        );
+    }
+    if ch.async_insert && !ch.wait_for_async_insert {
+        anyhow::bail!(
+            "Configuration error: database.clickhouse.wait_for_async_insert must be true when \
+             async_insert is true. With both set this way an INSERT returns once ClickHouse has \
+             buffered the rows in memory, and SideSeat answers the exporter 200 - and acknowledges the \
+             ingestion queue - for data a restart would discard. Set wait_for_async_insert to true, or \
+             async_insert to false."
+        );
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod config_surface_tests {
+    /// Every field of a file-config section is carried by `merge` and described by the JSON schema.
+    ///
+    /// Two silent failures, one test. A field added to a `*FileConfig` struct but forgotten in `merge` is
+    /// *dead*: the operator sets it, the file parses, and the value never reaches the runtime config - which
+    /// is what happened to `insert_quorum` and `min_replica_acks`, so an entire replication-acknowledgement
+    /// feature was inert. A field missing from the schema is worse than dead: `additionalProperties: false`
+    /// makes the whole config file *invalid*, so setting it correctly is what breaks startup.
+    ///
+    /// Checked by reading this file's own source and the schema rather than by reflection, because neither
+    /// `merge` nor serde exposes the field list at runtime. Structural, and it fails on the next addition
+    /// rather than at a user's first attempt to use it.
+    #[test]
+    fn every_file_config_field_is_merged_and_in_the_schema() {
+        const SOURCE: &str = include_str!("config.rs");
+        const SCHEMA: &str = include_str!("../../../../../config/sideseat.schema.json");
+
+        /// The field names a `pub struct <name> {` block declares.
+        fn fields_of(source: &str, struct_name: &str) -> Vec<String> {
+            let start = source
+                .find(&format!("pub struct {struct_name} {{"))
+                .unwrap_or_else(|| panic!("{struct_name} not found"));
+            let body_start = source[start..].find('{').expect("brace") + start + 1;
+            let body_end = source[body_start..].find("\n}").expect("close") + body_start;
+            source[body_start..body_end]
+                .lines()
+                .map(str::trim)
+                .filter(|line| {
+                    !line.is_empty() && !line.starts_with("//") && !line.starts_with("#[")
+                })
+                .filter_map(|line| line.strip_prefix("pub "))
+                .filter_map(|line| line.split(':').next())
+                .map(str::to_string)
+                .collect()
+        }
+
+        // Each section: its file-config struct, the `merge` marker that proves it is carried, and the JSON
+        // path the schema describes it under.
+        for (struct_name, merge_prefix, schema_parent) in [
+            ("ClickhouseFileConfig", "database.clickhouse", "clickhouse"),
+            ("RedisFileConfig", "database.redis", "redis"),
+            ("PostgresFileConfig", "database.postgres", "postgres"),
+        ] {
+            for field in fields_of(SOURCE, struct_name) {
+                // `merge` logs each field it carries with a `Merging <section>.<field>` trace, which makes
+                // the carrying observable without reflection - and a field carried without that line is one
+                // an operator cannot see being applied either.
+                let marker = format!("\"Merging {merge_prefix}.{field}\"");
+                assert!(
+                    SOURCE.contains(&marker),
+                    "{struct_name}.{field} is not carried by `merge`: an operator could set it and it would \
+                     never reach the runtime config. Add the branch, with its {marker} trace."
+                );
+                // And the schema has to describe it, or `additionalProperties: false` rejects the file.
+                let quoted = format!("\"{field}\"");
+                let section = SCHEMA
+                    .find(&format!("\"{schema_parent}\""))
+                    .map(|i| &SCHEMA[i..])
+                    .unwrap_or(SCHEMA);
+                assert!(
+                    section.contains(&quoted),
+                    "{struct_name}.{field} is missing from sideseat.schema.json under `{schema_parent}`, so \
+                     a config file that sets it is rejected outright"
+                );
+            }
+        }
+
+        // And **every** `*FileConfig` struct, at its exact schema path - both derived, neither listed. The
+        // three above are pinned by hand because their `merge` markers are; this pass walks the struct graph
+        // from `FileConfig` down, building the JSON path from the field names that nest them, and asks the
+        // schema for exactly that path.
+        //
+        // A weaker version was written first: "does the field name appear anywhere in the schema text". It
+        // passed while `otel.auth` was missing, because `"required"` is also a JSON Schema keyword and appears
+        // all over the file - the same "a check that sees less than it claims" defect this test exists to
+        // prevent, reintroduced inside the fix for it. The path form has no such collision.
+        let schema: serde_json::Value = serde_json::from_str(SCHEMA).expect("the schema is JSON");
+        // struct name -> [(field, type)]
+        let mut declared: std::collections::BTreeMap<String, Vec<(String, String)>> =
+            std::collections::BTreeMap::new();
+        for (at, _) in SOURCE.match_indices("pub struct ") {
+            let name: String = SOURCE[at + "pub struct ".len()..]
+                .chars()
+                .take_while(|c| c.is_alphanumeric() || *c == '_')
+                .collect();
+            if !name.ends_with("FileConfig") {
+                continue;
+            }
+            let body_start = SOURCE[at..].find('{').expect("brace") + at + 1;
+            let body_end = SOURCE[body_start..].find("\n}").expect("close") + body_start;
+            let mut fields = Vec::new();
+            let mut flatten_next = false;
+            for line in SOURCE[body_start..body_end].lines() {
+                let line = line.trim();
+                if line.contains("serde(flatten)") {
+                    flatten_next = true;
+                    continue;
+                }
+                let Some(rest) = line.strip_prefix("pub ") else {
+                    continue;
+                };
+                let Some((field, ty)) = rest.split_once(':') else {
+                    continue;
+                };
+                // A flattened field is where unknown keys go, not a key of its own.
+                if std::mem::take(&mut flatten_next) {
+                    continue;
+                }
+                fields.push((
+                    field.trim().to_string(),
+                    ty.trim().trim_end_matches(',').to_string(),
+                ));
+            }
+            declared.insert(name, fields);
+        }
+
+        let mut missing: Vec<String> = Vec::new();
+        let mut unmerged: Vec<String> = Vec::new();
+        let mut walk: Vec<(String, Vec<String>)> = vec![("FileConfig".to_string(), Vec::new())];
+        let mut checked = 0usize;
+        let structs = declared.len();
+        while let Some((name, path)) = walk.pop() {
+            let Some(fields) = declared.get(&name) else {
+                continue;
+            };
+            for (field, ty) in fields {
+                let mut here = path.clone();
+                here.push(field.clone());
+                // A nested section: recurse, and check the section itself exists on the way. The type's own
+                // identifier, not a substring search - `Option<SecretsFileConfig>` contains `FileConfig`, so
+                // a `contains` match resolved every section to the *root* struct and walked in circles.
+                let inner = ty
+                    .trim_start_matches("Option<")
+                    .split(['<', '>', ',', ' '])
+                    .find(|part| part.ends_with("FileConfig"))
+                    .unwrap_or_default();
+                let nested = declared.get_key_value(inner).map(|(name, _)| name);
+                checked += 1;
+                let mut node = &schema;
+                let mut resolved = true;
+                for segment in &here {
+                    match node.get("properties").and_then(|p| p.get(segment)) {
+                        Some(next) => node = next,
+                        None => {
+                            resolved = false;
+                            break;
+                        }
+                    }
+                }
+                if !resolved {
+                    missing.push(format!("{name}.{field} -> {}", here.join(".")));
+                    continue;
+                }
+                if let Some(nested) = nested {
+                    walk.push((nested.clone(), here));
+                    continue;
+                }
+                // A leaf has to be **carried by `merge`** as well as described by the schema, or an operator
+                // sets it in `./sideseat.json` and it is silently discarded when the files are combined. The
+                // merge half of this test was hand-listed to three database structs while the schema half
+                // walked everything, and `otel.auth.required` was exactly that gap: schema-valid, read
+                // downstream, dropped by `merge`. The marker is `merge`'s own trace line, which makes the
+                // carrying observable to an operator rather than only to a test.
+                let marker = format!("\"Merging {}\"", here.join("."));
+                if !SOURCE.contains(&marker) {
+                    unmerged.push(format!("{name}.{field} -> {}", here.join(".")));
+                }
+            }
+        }
+        assert!(
+            unmerged.is_empty(),
+            "{} config field(s) `merge` does not announce with a `Merging <path>` trace. From outside, a field \
+             that is carried silently and one that is not carried at all look identical - which is how \
+             `otel.auth.required` went unnoticed while being read downstream. Add the trace, or the branch \
+             and the trace:\n  {}",
+            unmerged.len(),
+            unmerged.join("\n  ")
+        );
+        assert!(
+            missing.is_empty(),
+            "{} config field(s) that sideseat.schema.json does not describe at the path they are read from, \
+             so a config file setting one is rejected by `additionalProperties: false`:\n  {}",
+            missing.len(),
+            missing.join("\n  ")
+        );
+        assert!(
+            structs >= 20 && checked >= 60,
+            "found {structs} config structs and {checked} fields - the scan is wrong, not the schema"
+        );
+    }
+}
+
+#[cfg(test)]
+mod clickhouse_config_tests {
+    use super::*;
+
+    fn config(distributed: bool, cluster: Option<&str>) -> ClickhouseConfig {
+        ClickhouseConfig {
+            url: "http://localhost:8123".to_string(),
+            database: "sideseat".to_string(),
+            user: None,
+            password: None,
+            timeout_secs: 30,
+            compression: true,
+            async_insert: false,
+            wait_for_async_insert: true,
+            cluster: cluster.map(str::to_owned),
+            distributed,
+            insert_quorum: 0,
+        }
+    }
+
+    #[test]
+    fn distributed_without_a_cluster_is_rejected() {
+        let err = validate_clickhouse(&config(true, None))
+            .expect_err("distributed with no cluster must not be accepted");
+        assert!(
+            err.to_string().contains("cluster is required"),
+            "unexpected error: {err}"
+        );
+
+        let err = validate_clickhouse(&config(true, Some("")))
+            .expect_err("an empty cluster name is not a cluster name");
+        assert!(err.to_string().contains("cluster is required"));
+
+        validate_clickhouse(&config(true, Some("sideseat_cluster")))
+            .expect("distributed with a cluster is the supported combination");
+        validate_clickhouse(&config(false, None)).expect("single node needs no cluster");
+    }
+
+    /// A 200 must not be answerable from a memory buffer.
+    ///
+    /// `async_insert` with `wait_for_async_insert` off returns from an INSERT once ClickHouse has the
+    /// rows in RAM. The ingestion path reads that as durability - it answers the exporter and
+    /// acknowledges the queue message - so a restart loses data that was reported as stored.
+    #[test]
+    fn fire_and_forget_insertion_is_rejected() {
+        let mut ch = config(false, None);
+        ch.async_insert = true;
+        ch.wait_for_async_insert = false;
+        let err = validate_clickhouse(&ch).expect_err(
+            "acknowledging data held only in a server-side buffer must not be a setting",
+        );
+        assert!(
+            err.to_string()
+                .contains("wait_for_async_insert must be true"),
+            "unexpected error: {err}"
+        );
+
+        ch.wait_for_async_insert = true;
+        validate_clickhouse(&ch).expect("async batching that waits for the flush is durable");
+
+        // The default: no async batching at all, so the wait flag decides nothing.
+        ch.async_insert = false;
+        ch.wait_for_async_insert = false;
+        validate_clickhouse(&ch)
+            .expect("a synchronous insert is durable whatever the async wait flag says");
+    }
+
+    /// A shared database with per-instance byte storage is refused, and matched pairs are accepted.
+    ///
+    /// Three silent failures share this root cause, so one comparison catches all three: PostgreSQL plus
+    /// filesystem storage means a row every instance can see naming content only one machine holds;
+    /// PostgreSQL plus a keychain means an API key that verifies on one instance and reads as forged on
+    /// the next; the same for the JWT key, where a browser is signed out at random.
+    #[test]
+    fn byte_storage_must_be_at_least_as_shared_as_the_rows_naming_it() {
+        use AnalyticsBackend as An;
+        use SecretsBackend as Sec;
+        use StorageBackend as Store;
+        use TransactionalBackend as Tx;
+
+        // The self-consistent single-instance default: everything per-instance, nothing to complain about.
+        validate_store_sharing(
+            Tx::Sqlite,
+            An::Duckdb,
+            Store::Filesystem,
+            Sec::Keychain,
+            true,
+        )
+        .expect("SQLite with local files and a local keychain is one instance by construction");
+
+        // A shared database is the signal, because that is where the naming rows live.
+        let err = validate_store_sharing(
+            Tx::Postgres,
+            An::Clickhouse,
+            Store::Filesystem,
+            Sec::Aws,
+            true,
+        )
+        .expect_err("a shared database naming local files must be refused");
+        assert!(
+            err.to_string().contains("files.storage"),
+            "unexpected error: {err}"
+        );
+
+        let err =
+            validate_store_sharing(Tx::Postgres, An::Clickhouse, Store::S3, Sec::Keychain, true)
+                .expect_err("a shared database with a per-instance pepper must be refused");
+        assert!(
+            err.to_string().contains("secrets.backend"),
+            "unexpected error: {err}"
+        );
+        for local in [
+            Sec::File,
+            Sec::CredentialManager,
+            Sec::SecretService,
+            Sec::Keyutils,
+        ] {
+            validate_store_sharing(Tx::Postgres, An::Clickhouse, Store::S3, local, true)
+                .expect_err("every per-instance secrets backend is refused, not just the keychain");
+        }
+
+        // With auth off there are no API keys and no sessions, so nothing reads the pepper.
+        validate_store_sharing(
+            Tx::Postgres,
+            An::Clickhouse,
+            Store::S3,
+            Sec::Keychain,
+            false,
+        )
+        .expect("a per-instance secret matters only when something is authenticated with it");
+
+        // Analytics is byte storage too, and DuckDB is a per-instance file.
+        let err = validate_store_sharing(Tx::Postgres, An::Duckdb, Store::S3, Sec::Aws, true)
+            .expect_err("PostgreSQL + DuckDB partitions telemetry across replicas");
+        assert!(
+            err.to_string().contains("database.analytics"),
+            "unexpected error: {err}"
+        );
+
+        // And the combinations that hold up.
+        for shared in [Sec::Env, Sec::Aws, Sec::Vault] {
+            validate_store_sharing(Tx::Postgres, An::Clickhouse, Store::S3, shared, true)
+                .expect("shared rows, shared bytes, shared secret");
+        }
+    }
+
+    /// A quorum of one is refused, because it is no quorum with extra latency.
+    ///
+    /// `insert_quorum = 1` is satisfied by the initiating replica alone - exactly what happens with no
+    /// quorum - so accepting it would let an operator believe an insert survives losing a replica when it
+    /// does not. Zero says "unreplicated"; two is the smallest number that means anything.
+    #[test]
+    fn an_insert_quorum_of_one_is_rejected() {
+        let mut ch = config(false, None);
+        ch.insert_quorum = 1;
+        let err = validate_clickhouse(&ch).expect_err("a quorum of one must not be accepted");
+        assert!(
+            err.to_string().contains("insert_quorum of 1"),
+            "unexpected error: {err}"
+        );
+
+        ch.insert_quorum = 0;
+        validate_clickhouse(&ch).expect("zero means an unreplicated table");
+        ch.insert_quorum = 2;
+        validate_clickhouse(&ch).expect("two survives losing one replica");
+    }
+
+    #[test]
+    fn an_empty_url_is_rejected() {
+        let mut ch = config(false, None);
+        ch.url = String::new();
+        let err = validate_clickhouse(&ch).expect_err("no url means nothing to connect to");
+        assert!(err.to_string().contains("url is required"));
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_storage_backend_serde() {
+        let json = r#""filesystem""#;
+        let backend: StorageBackend = serde_json::from_str(json).unwrap();
+        assert_eq!(backend, StorageBackend::Filesystem);
+
+        let json = r#""s3""#;
+        let backend: StorageBackend = serde_json::from_str(json).unwrap();
+        assert_eq!(backend, StorageBackend::S3);
+    }
+
+    #[test]
+    fn test_storage_backend_display() {
+        assert_eq!(StorageBackend::Filesystem.to_string(), "filesystem");
+        assert_eq!(StorageBackend::S3.to_string(), "s3");
+    }
+
+    #[test]
+    fn test_file_config_parse_full() {
+        let json = r#"{
+            "server": { "host": "0.0.0.0", "port": 8080 },
+            "auth": { "enabled": false }
+        }"#;
+        let config: FileConfig = serde_json::from_str(json).unwrap();
+
+        assert_eq!(
+            config.server.as_ref().unwrap().host,
+            Some("0.0.0.0".to_string())
+        );
+        assert_eq!(config.server.as_ref().unwrap().port, Some(8080));
+        assert_eq!(config.auth.as_ref().unwrap().enabled, Some(false));
+    }
+
+    #[test]
+    fn test_file_config_parse_nested_otel() {
+        let json = r#"{
+            "otel": {
+                "grpc": { "enabled": false, "port": 4318 },
+                "retention": { "max_age_minutes": 120, "max_spans": 1000000 }
+            }
+        }"#;
+        let config: FileConfig = serde_json::from_str(json).unwrap();
+
+        let otel = config.otel.as_ref().unwrap();
+        let grpc = otel.grpc.as_ref().unwrap();
+        let retention = otel.retention.as_ref().unwrap();
+
+        assert_eq!(grpc.enabled, Some(false));
+        assert_eq!(grpc.port, Some(4318));
+        assert_eq!(retention.max_age_minutes, Some(120));
+        assert_eq!(retention.max_spans, Some(1_000_000));
+    }
+
+    #[test]
+    fn test_file_config_parse_partial() {
+        let json = r#"{ "server": { "port": 9000 } }"#;
+        let config: FileConfig = serde_json::from_str(json).unwrap();
+
+        assert!(config.server.as_ref().unwrap().host.is_none());
+        assert_eq!(config.server.as_ref().unwrap().port, Some(9000));
+        assert!(config.auth.is_none());
+    }
+
+    #[test]
+    fn test_file_config_parse_empty() {
+        let json = "{}";
+        let config: FileConfig = serde_json::from_str(json).unwrap();
+
+        assert!(config.server.is_none());
+        assert!(config.auth.is_none());
+    }
+
+    #[test]
+    fn test_file_config_parse_extra_fields() {
+        let json = r#"{ "server": { "host": "localhost" }, "unknown_field": 123 }"#;
+        let config: FileConfig = serde_json::from_str(json).unwrap();
+
+        assert_eq!(
+            config.server.as_ref().unwrap().host,
+            Some("localhost".to_string())
+        );
+        assert_eq!(config.extra.get("unknown_field").unwrap(), 123);
+    }
+
+    #[test]
+    fn test_file_config_parse_storage_backend() {
+        let json = r#"{ "files": { "storage": "s3", "enabled": true } }"#;
+        let config: FileConfig = serde_json::from_str(json).unwrap();
+
+        assert_eq!(
+            config.files.as_ref().unwrap().storage,
+            Some(StorageBackend::S3)
+        );
+        assert_eq!(config.files.as_ref().unwrap().enabled, Some(true));
+    }
+
+    #[test]
+    fn test_file_config_merge() {
+        let mut base = FileConfig {
+            server: Some(ServerFileConfig {
+                host: Some("base.host".to_string()),
+                port: Some(1000),
+                mcp: None,
+            }),
+            auth: Some(AuthFileConfig {
+                enabled: Some(true),
+            }),
+            otel: Some(OtelFileConfig {
+                grpc: Some(GrpcFileConfig {
+                    enabled: Some(true),
+                    port: Some(4317),
+                }),
+                retention: Some(RetentionFileConfig {
+                    max_age_minutes: Some(60),
+                    max_spans: None,
+                }),
+                auth: None,
+                staging_redrive_cap: None,
+            }),
+            pricing: Some(PricingFileConfig {
+                sync_hours: Some(4),
+            }),
+            files: None,
+            rate_limit: None,
+            update: None,
+            database: None,
+            secrets: None,
+            credentials: None,
+            debug: Some(false),
+            extra: serde_json::Value::Null,
+        };
+
+        let overlay = FileConfig {
+            server: Some(ServerFileConfig {
+                host: None,
+                port: Some(2000),
+                mcp: None,
+            }),
+            auth: Some(AuthFileConfig {
+                enabled: Some(false),
+            }),
+            otel: Some(OtelFileConfig {
+                grpc: Some(GrpcFileConfig {
+                    enabled: Some(false),
+                    port: None,
+                }),
+                retention: Some(RetentionFileConfig {
+                    max_age_minutes: None,
+                    max_spans: Some(1_000_000),
+                }),
+                auth: None,
+                staging_redrive_cap: None,
+            }),
+            pricing: Some(PricingFileConfig {
+                sync_hours: Some(8),
+            }),
+            files: None,
+            rate_limit: None,
+            update: None,
+            database: None,
+            secrets: None,
+            credentials: None,
+            debug: Some(true),
+            extra: serde_json::Value::Null,
+        };
+
+        base.merge(overlay);
+
+        assert_eq!(
+            base.server.as_ref().unwrap().host,
+            Some("base.host".to_string())
+        );
+        assert_eq!(base.server.as_ref().unwrap().port, Some(2000));
+        assert_eq!(base.auth.as_ref().unwrap().enabled, Some(false));
+
+        let otel = base.otel.as_ref().unwrap();
+        assert_eq!(otel.grpc.as_ref().unwrap().enabled, Some(false));
+        assert_eq!(otel.grpc.as_ref().unwrap().port, Some(4317));
+        assert_eq!(otel.retention.as_ref().unwrap().max_age_minutes, Some(60));
+        assert_eq!(otel.retention.as_ref().unwrap().max_spans, Some(1_000_000));
+
+        assert_eq!(base.pricing.as_ref().unwrap().sync_hours, Some(8));
+        assert_eq!(base.debug, Some(true));
+    }
+
+    #[test]
+    fn test_app_config_defaults() {
+        let cli = CliConfig::default();
+        let config = AppConfig::load(&cli).unwrap();
+
+        assert_eq!(config.server.host, DEFAULT_HOST);
+        assert_eq!(config.server.port, DEFAULT_PORT);
+        assert!(config.auth.enabled);
+        assert!(!config.debug);
+        assert_eq!(config.files.storage, StorageBackend::Filesystem);
+        assert_eq!(config.database.queue, QueueBackendType::Memory);
+    }
+
+    #[test]
+    fn queue_backend_is_independent_from_cache_backend() {
+        let cli = CliConfig {
+            cache_backend: Some(CacheBackendType::Redis),
+            cache_redis_url: Some("redis://127.0.0.1:6379".to_string()),
+            queue_backend: Some(QueueBackendType::Redpanda),
+            redpanda_brokers: Some("redpanda.internal:9092".to_string()),
+            ..CliConfig::default()
+        };
+
+        let config = AppConfig::load(&cli).unwrap();
+
+        assert_eq!(config.database.cache, CacheBackendType::Redis);
+        assert_eq!(config.database.queue, QueueBackendType::Redpanda);
+        assert_eq!(
+            config.database.redpanda.as_ref().unwrap().brokers,
+            "redpanda.internal:9092"
+        );
+        assert_eq!(
+            config.database.cache_config().backend,
+            CacheBackendType::Redis
+        );
+        assert_eq!(
+            config.database.queue_config().backend,
+            QueueBackendType::Redpanda
+        );
+    }
+
+    #[test]
+    fn test_app_config_cli_override() {
+        let cli = CliConfig {
+            host: Some("cli.host".to_string()),
+            port: Some(3000),
+            no_auth: true,
+            debug: true,
+            config: None,
+            otel_grpc: Some(false),
+            otel_grpc_port: Some(4318),
+            otel_retention_max_age: Some(120),
+            otel_retention_max_spans: Some(1_000_000),
+            otel_auth_required: None,
+            pricing_sync_hours: Some(12),
+            no_update_check: true,
+            files_enabled: Some(false),
+            files_storage: None,
+            files_quota_bytes: Some(500_000_000),
+            files_s3_bucket: None,
+            files_s3_prefix: None,
+            files_s3_region: None,
+            files_s3_endpoint: None,
+            cache_backend: None,
+            cache_max_entries: None,
+            cache_eviction_policy: None,
+            cache_redis_url: None,
+            queue_backend: None,
+            redpanda_brokers: None,
+            rate_limit_enabled: None,
+            rate_limit_per_ip: None,
+            rate_limit_api_rpm: None,
+            rate_limit_ingestion_rpm: None,
+            rate_limit_auth_rpm: None,
+            rate_limit_files_rpm: None,
+            rate_limit_bypass_header: None,
+            secrets_backend: None,
+            mcp: None,
+            transactional_backend: None,
+            analytics_backend: None,
+            postgres_url: None,
+            clickhouse_url: None,
+            credentials_scan_env: None,
+        };
+        let config = AppConfig::load(&cli).unwrap();
+
+        assert_eq!(config.server.host, "cli.host");
+        assert_eq!(config.server.port, 3000);
+        assert!(!config.auth.enabled);
+        assert!(config.debug);
+        assert!(!config.otel.grpc_enabled);
+        assert_eq!(config.otel.grpc_port, 4318);
+        assert_eq!(config.otel.retention.max_age_minutes, Some(120));
+        assert_eq!(config.otel.retention.max_spans, Some(1_000_000));
+        assert_eq!(config.pricing.sync_hours, 12);
+        assert!(!config.files.enabled);
+        assert_eq!(config.files.quota_bytes, 500_000_000);
+    }
+
+    #[test]
+    fn test_file_config_parse_pricing() {
+        let json = r#"{ "pricing": { "sync_hours": 12 } }"#;
+        let config: FileConfig = serde_json::from_str(json).unwrap();
+        assert_eq!(config.pricing.as_ref().unwrap().sync_hours, Some(12));
+    }
+
+    #[test]
+    fn test_app_config_pricing_defaults() {
+        let cli = CliConfig::default();
+        let config = AppConfig::load(&cli).unwrap();
+        assert_eq!(config.pricing.sync_hours, PRICING_SYNC_INTERVAL_SECS / 3600);
+    }
+
+    #[test]
+    fn test_app_config_pricing_disabled() {
+        let cli = CliConfig {
+            pricing_sync_hours: Some(0),
+            ..Default::default()
+        };
+        let config = AppConfig::load(&cli).unwrap();
+        assert_eq!(config.pricing.sync_hours, 0);
+    }
+
+    #[test]
+    fn test_file_config_parse_update() {
+        let json = r#"{ "update": { "enabled": false } }"#;
+        let config: FileConfig = serde_json::from_str(json).unwrap();
+        assert_eq!(config.update.as_ref().unwrap().enabled, Some(false));
+    }
+
+    #[test]
+    fn test_app_config_update_defaults() {
+        let cli = CliConfig::default();
+        let config = AppConfig::load(&cli).unwrap();
+        assert!(config.update.enabled);
+    }
+
+    #[test]
+    fn test_app_config_update_cli_override() {
+        let cli = CliConfig {
+            no_update_check: true,
+            ..Default::default()
+        };
+        let config = AppConfig::load(&cli).unwrap();
+        assert!(!config.update.enabled);
+    }
+
+    #[test]
+    fn test_app_config_validation_port_collision() {
+        let cli = CliConfig {
+            port: Some(4317),
+            otel_grpc_port: Some(4317),
+            ..Default::default()
+        };
+        let result = AppConfig::load(&cli);
+        assert!(result.is_err());
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("cannot be the same")
+        );
+    }
+
+    #[test]
+    fn test_app_config_validation_s3_bucket_required() {
+        let cli = CliConfig {
+            files_storage: Some(StorageBackend::S3),
+            ..Default::default()
+        };
+        let result = AppConfig::load(&cli);
+        assert!(result.is_err());
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("files.s3.bucket is required")
+        );
+    }
+
+    #[test]
+    fn test_app_config_validation_port_collision_disabled_grpc() {
+        // Should NOT error if gRPC is disabled
+        let cli = CliConfig {
+            port: Some(4317),
+            otel_grpc: Some(false),
+            otel_grpc_port: Some(4317),
+            ..Default::default()
+        };
+        let result = AppConfig::load(&cli);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_app_config_validation_server_port_zero() {
+        let cli = CliConfig {
+            port: Some(0),
+            ..Default::default()
+        };
+        let result = AppConfig::load(&cli);
+        assert!(result.is_err());
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("server.port must be greater than 0")
+        );
+    }
+
+    #[test]
+    fn test_app_config_validation_grpc_port_zero() {
+        let cli = CliConfig {
+            otel_grpc: Some(true),
+            otel_grpc_port: Some(0),
+            ..Default::default()
+        };
+        let result = AppConfig::load(&cli);
+        assert!(result.is_err());
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("otel.grpc.port must be greater than 0")
+        );
+    }
+
+    #[test]
+    fn test_app_config_validation_grpc_port_zero_disabled() {
+        // Port 0 should be OK if gRPC is disabled
+        let cli = CliConfig {
+            otel_grpc: Some(false),
+            otel_grpc_port: Some(0),
+            ..Default::default()
+        };
+        let result = AppConfig::load(&cli);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_app_config_validation_empty_host() {
+        let cli = CliConfig {
+            host: Some(String::new()),
+            ..Default::default()
+        };
+        let result = AppConfig::load(&cli);
+        assert!(result.is_err());
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("server.host must not be empty")
+        );
+    }
+
+    #[test]
+    fn test_app_config_s3_empty_bucket_rejected() {
+        // Test that empty bucket string in config file is rejected
+        use std::io::Write;
+
+        let json = r#"{
+            "files": {
+                "storage": "s3",
+                "s3": { "bucket": "" }
+            }
+        }"#;
+
+        // Create temp config file
+        let mut temp_file = tempfile::NamedTempFile::new().unwrap();
+        temp_file.write_all(json.as_bytes()).unwrap();
+
+        // Load config pointing to temp file
+        let cli = CliConfig {
+            config: Some(temp_file.path().to_path_buf()),
+            ..Default::default()
+        };
+
+        let result = AppConfig::load(&cli);
+        assert!(result.is_err());
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("files.s3.bucket is required")
+        );
+    }
+
+    #[test]
+    fn test_is_all_interfaces() {
+        // Should match all-interfaces bindings
+        assert!(is_all_interfaces("0.0.0.0"));
+        assert!(is_all_interfaces("::"));
+        assert!(is_all_interfaces("[::]"));
+
+        // Should not match localhost or specific IPs
+        assert!(!is_all_interfaces("127.0.0.1"));
+        assert!(!is_all_interfaces("localhost"));
+        assert!(!is_all_interfaces("::1"));
+        assert!(!is_all_interfaces("192.168.1.1"));
+    }
+
+    #[test]
+    fn test_app_config_s3_valid_bucket() {
+        // Test that valid S3 config with non-empty bucket loads successfully
+        use std::io::Write;
+
+        let json = r#"{
+            "files": {
+                "storage": "s3",
+                "s3": {
+                    "bucket": "my-bucket",
+                    "prefix": "custom/prefix",
+                    "region": "us-west-2"
+                }
+            }
+        }"#;
+
+        let mut temp_file = tempfile::NamedTempFile::new().unwrap();
+        temp_file.write_all(json.as_bytes()).unwrap();
+
+        let cli = CliConfig {
+            config: Some(temp_file.path().to_path_buf()),
+            ..Default::default()
+        };
+
+        let config = AppConfig::load(&cli).unwrap();
+        assert_eq!(config.files.storage, StorageBackend::S3);
+        assert!(config.files.s3.is_some());
+
+        let s3 = config.files.s3.unwrap();
+        assert_eq!(s3.bucket, "my-bucket");
+        assert_eq!(s3.prefix, "custom/prefix");
+        assert_eq!(s3.region, Some("us-west-2".to_string()));
+        assert!(s3.endpoint.is_none());
+    }
+
+    #[test]
+    fn test_file_config_parse_mcp_under_server() {
+        let json = r#"{ "server": { "host": "0.0.0.0", "mcp": { "enabled": false } } }"#;
+        let config: FileConfig = serde_json::from_str(json).unwrap();
+        let server = config.server.unwrap();
+        assert_eq!(server.host, Some("0.0.0.0".to_string()));
+        assert_eq!(server.mcp.unwrap().enabled, Some(false));
+    }
+
+    #[test]
+    fn test_file_config_parse_mcp_absent() {
+        let json = r#"{ "server": { "port": 9000 } }"#;
+        let config: FileConfig = serde_json::from_str(json).unwrap();
+        assert!(config.server.unwrap().mcp.is_none());
+    }
+
+    #[test]
+    fn test_file_config_merge_mcp() {
+        let mut base = FileConfig {
+            server: Some(ServerFileConfig {
+                host: Some("localhost".to_string()),
+                port: None,
+                mcp: Some(McpFileConfig {
+                    enabled: Some(true),
+                }),
+            }),
+            ..Default::default()
+        };
+        let overlay = FileConfig {
+            server: Some(ServerFileConfig {
+                host: None,
+                port: None,
+                mcp: Some(McpFileConfig {
+                    enabled: Some(false),
+                }),
+            }),
+            ..Default::default()
+        };
+        base.merge(overlay);
+        let mcp = base.server.unwrap().mcp.unwrap();
+        assert_eq!(mcp.enabled, Some(false));
+    }
+
+    #[test]
+    fn test_file_config_merge_mcp_partial() {
+        let mut base = FileConfig {
+            server: Some(ServerFileConfig {
+                host: None,
+                port: None,
+                mcp: Some(McpFileConfig {
+                    enabled: Some(true),
+                }),
+            }),
+            ..Default::default()
+        };
+        // Overlay has server but no mcp — base mcp preserved
+        let overlay = FileConfig {
+            server: Some(ServerFileConfig {
+                host: Some("new-host".to_string()),
+                port: None,
+                mcp: None,
+            }),
+            ..Default::default()
+        };
+        base.merge(overlay);
+        let server = base.server.unwrap();
+        assert_eq!(server.host, Some("new-host".to_string()));
+        assert_eq!(server.mcp.unwrap().enabled, Some(true));
+    }
+
+    #[test]
+    fn test_app_config_mcp_enabled_by_default() {
+        let cli = CliConfig::default();
+        let config = AppConfig::load(&cli).unwrap();
+        assert!(config.mcp.enabled);
+    }
+
+    #[test]
+    fn test_app_config_mcp_cli_override() {
+        let cli = CliConfig {
+            mcp: Some(false),
+            ..Default::default()
+        };
+        let config = AppConfig::load(&cli).unwrap();
+        assert!(!config.mcp.enabled);
+    }
+
+    #[test]
+    fn test_app_config_mcp_file_override() {
+        use std::io::Write;
+        let json = r#"{ "server": { "mcp": { "enabled": false } } }"#;
+        let mut temp_file = tempfile::NamedTempFile::new().unwrap();
+        temp_file.write_all(json.as_bytes()).unwrap();
+        let cli = CliConfig {
+            config: Some(temp_file.path().to_path_buf()),
+            ..Default::default()
+        };
+        let config = AppConfig::load(&cli).unwrap();
+        assert!(!config.mcp.enabled);
+    }
+
+    #[test]
+    fn test_secrets_aws_recovery_window_days_from_json() {
+        let json = r#"{ "secrets": { "backend": "aws", "aws": { "recovery_window_days": 14 } } }"#;
+        let config: FileConfig = serde_json::from_str(json).unwrap();
+        let aws = config.secrets.unwrap().aws.unwrap();
+        assert_eq!(aws.recovery_window_days, Some(14));
+    }
+
+    #[test]
+    fn test_secrets_aws_recovery_window_days_validation_too_low() {
+        use std::io::Write;
+        let json = r#"{ "secrets": { "backend": "aws", "aws": { "recovery_window_days": 5 } } }"#;
+        let mut temp_file = tempfile::NamedTempFile::new().unwrap();
+        temp_file.write_all(json.as_bytes()).unwrap();
+        let cli = CliConfig {
+            config: Some(temp_file.path().to_path_buf()),
+            secrets_backend: Some(SecretsBackend::Aws),
+            ..Default::default()
+        };
+        let result = AppConfig::load(&cli);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("between 7 and 30"));
+    }
+
+    #[test]
+    fn test_secrets_aws_recovery_window_days_validation_too_high() {
+        use std::io::Write;
+        let json = r#"{ "secrets": { "backend": "aws", "aws": { "recovery_window_days": 50 } } }"#;
+        let mut temp_file = tempfile::NamedTempFile::new().unwrap();
+        temp_file.write_all(json.as_bytes()).unwrap();
+        let cli = CliConfig {
+            config: Some(temp_file.path().to_path_buf()),
+            secrets_backend: Some(SecretsBackend::Aws),
+            ..Default::default()
+        };
+        let result = AppConfig::load(&cli);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("between 7 and 30"));
+    }
+
+    #[test]
+    fn test_secrets_aws_recovery_window_days_valid() {
+        use std::io::Write;
+        let json = r#"{ "secrets": { "backend": "aws", "aws": { "recovery_window_days": 7 } } }"#;
+        let mut temp_file = tempfile::NamedTempFile::new().unwrap();
+        temp_file.write_all(json.as_bytes()).unwrap();
+        let cli = CliConfig {
+            config: Some(temp_file.path().to_path_buf()),
+            secrets_backend: Some(SecretsBackend::Aws),
+            ..Default::default()
+        };
+        let config = AppConfig::load(&cli).unwrap();
+        let aws = config.secrets.aws.unwrap();
+        assert_eq!(aws.recovery_window_days, Some(7));
+    }
+
+    #[test]
+    fn test_secrets_aws_recovery_window_days_omitted() {
+        use std::io::Write;
+        let json = r#"{ "secrets": { "backend": "aws", "aws": { "region": "us-east-1" } } }"#;
+        let mut temp_file = tempfile::NamedTempFile::new().unwrap();
+        temp_file.write_all(json.as_bytes()).unwrap();
+        let cli = CliConfig {
+            config: Some(temp_file.path().to_path_buf()),
+            secrets_backend: Some(SecretsBackend::Aws),
+            ..Default::default()
+        };
+        let config = AppConfig::load(&cli).unwrap();
+        let aws = config.secrets.aws.unwrap();
+        assert!(aws.recovery_window_days.is_none());
+    }
+}

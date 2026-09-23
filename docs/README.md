@@ -43,7 +43,7 @@ all four:
 | Framework page | `src/content/docs/docs/integrations/frameworks/<framework>.mdx` |
 | Homepage tabs | `src/content/docs/docs/index.mdx` (SDK tab and Direct OTLP tab) |
 | Telemetry config UI | `../web/src/pages/configuration/telemetry-frameworks.ts` |
-| MCP `setup_guide` | `../crates/api/src/mcp/tools.rs` |
+| MCP `setup_guide` | `../server/crates/api/src/mcp/tools.rs` |
 
 The web snippets are checked by `web/src/pages/configuration/__tests__/telemetry-snippets.test.ts`,
 which parses every Python snippet with a real interpreter, and the MCP snippets by tests in
