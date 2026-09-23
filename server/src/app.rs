@@ -1,5 +1,6 @@
 //! Application composition root and lifecycle orchestration.
 
+mod background_tasks;
 pub mod files;
 pub mod providers;
 pub mod storage;
@@ -22,14 +23,14 @@ use sideseat_adapter_secrets::SecretManager;
 use sideseat_core::banner;
 use sideseat_core::cli::{self, CliConfig, Commands, SystemCommands};
 use sideseat_core::config::AppConfig;
-use sideseat_core::constants::{APP_NAME_LOWER, ENV_LOG, TOPIC_TRACES};
+use sideseat_core::constants::{APP_NAME_LOWER, ENV_LOG};
 use sideseat_core::storage::AppStorage;
 use sideseat_domain::files::FileService;
 use sideseat_domain::pricing::PricingService;
 use sideseat_domain::providers::CredentialService;
 use sideseat_domain::rate_limit::RateLimiter;
 use sideseat_domain::storage_governance::StorageGovernanceService;
-use sideseat_ingestion::staging::{StagedPayloadRef, StagingService};
+use sideseat_ingestion::staging::StagingService;
 use sideseat_messaging::TopicService;
 use sideseat_ports::cache::CacheStore;
 use sideseat_ports::clock::Clock;
@@ -383,114 +384,6 @@ impl CoreApp {
         server.start().await?;
         shutdown.shutdown().await;
 
-        Ok(())
-    }
-
-    pub async fn start_background_tasks(&self) -> Result<()> {
-        self.shutdown
-            .register(
-                self.secrets
-                    .start_health_check_task(self.shutdown.subscribe()),
-            )
-            .await;
-
-        self.shutdown
-            .register(
-                self.database
-                    .start_checkpoint_task(self.shutdown.subscribe()),
-            )
-            .await;
-
-        self.shutdown
-            .register(
-                self.analytics
-                    .start_checkpoint_task(self.shutdown.subscribe()),
-            )
-            .await;
-
-        // ClickHouse reports cross-month duplicate residuals; DuckDB has no partition check.
-        if let Some(h) = self
-            .analytics
-            .start_consistency_check_task(self.shutdown.subscribe())
-        {
-            self.shutdown.register(h).await;
-        }
-
-        if let Some(h) = self.analytics.start_retention_task(
-            self.config.otel.retention.clone(),
-            self.config.files.quota_bytes,
-            self.shutdown.subscribe(),
-            Some(Arc::clone(&self.files)),
-            Arc::clone(&self.database),
-            Arc::from(self.database.governance_repository()),
-        ) {
-            self.shutdown.register(h).await;
-        }
-
-        if let Some(h) = self
-            .pricing
-            .start_sync_task(self.config.pricing.sync_hours, self.shutdown.subscribe())
-        {
-            self.shutdown.register(h).await;
-        }
-
-        // Recover deletion claims abandoned by a crashed worker.
-        self.shutdown
-            .register(sideseat_domain::cleanup::start_claim_recovery_task(
-                Arc::clone(&self.database_port),
-                Arc::clone(&self.analytics_port),
-                Arc::clone(&self.files),
-                self.shutdown.subscribe(),
-            ))
-            .await;
-
-        let traces_topic = self
-            .topics
-            .stream_topic::<StagedPayloadRef>(TOPIC_TRACES, StagedPayloadRef::partition_key);
-
-        let pipeline = Arc::new(
-            sideseat_ingestion::traces::TracePipeline::new(
-                Arc::from(self.analytics.repository()),
-                self.pricing.clone(),
-                self.topics.clone(),
-                self.files.clone(),
-                Arc::clone(&self.staging),
-            )
-            .with_storage_governance(Arc::clone(&self.storage_governance)),
-        );
-
-        self.shutdown
-            .register(Arc::clone(&pipeline).start(traces_topic, self.shutdown.subscribe()))
-            .await;
-        self.shutdown
-            .register(sideseat_ingestion::staging::start_staging_sweep(
-                Arc::clone(&self.staging),
-                pipeline,
-                self.shutdown.subscribe(),
-            ))
-            .await;
-        self.shutdown
-            .register(Arc::clone(&self.storage_governance).start(self.shutdown.subscribe()))
-            .await;
-        self.shutdown
-            .register(
-                Arc::new(
-                    sideseat_domain::content_bodies::ContentBodyService::from_file_service(
-                        &self.files,
-                    ),
-                )
-                .start_backfill_task(
-                    Arc::clone(&self.analytics_port),
-                    Arc::clone(&self.clock),
-                    self.shutdown.subscribe(),
-                ),
-            )
-            .await;
-
-        // No metrics pipeline: metrics are written inside their request, so a 200 means they are stored.
-        // See `domain::metrics::ingest` for why traces keep a queue and metrics do not.
-
-        tracing::debug!("Background tasks started");
         Ok(())
     }
 }
