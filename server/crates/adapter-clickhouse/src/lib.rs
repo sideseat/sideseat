@@ -16,7 +16,7 @@ mod retention;
 pub use repository_impl::ClickhouseRepository;
 pub mod schema;
 
-pub use error::ClickhouseError;
+use error::ClickhouseError;
 
 use std::sync::Arc;
 use std::time::Duration;

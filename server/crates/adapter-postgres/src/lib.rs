@@ -16,8 +16,8 @@ mod repository_impl;
 pub use repository_impl::PostgresRepository;
 pub mod schema;
 
-pub use error::PostgresError;
-pub use sqlx::PgPool;
+use error::PostgresError;
+use sqlx::PgPool;
 
 use std::sync::Arc;
 

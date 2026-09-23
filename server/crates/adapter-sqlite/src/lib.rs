@@ -16,8 +16,8 @@ mod repository_impl;
 pub use repository_impl::SqliteRepository;
 pub mod schema;
 
-pub use error::SqliteError;
-pub use sqlx::SqlitePool;
+use error::SqliteError;
+use sqlx::SqlitePool;
 
 #[cfg(test)]
 #[derive(Debug)]
