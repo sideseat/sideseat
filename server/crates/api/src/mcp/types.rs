@@ -5,7 +5,7 @@ use serde::Deserialize;
 pub struct ListTracesInput {
     /// Max results (default: 20, max: 500)
     pub limit: Option<u32>,
-    /// Page number (default: 1)
+    /// Page number (default: 1, max: 100)
     pub page: Option<u32>,
     /// Filter by session ID
     pub session_id: Option<String>,
@@ -38,6 +38,7 @@ pub struct GetMessagesInput {
 #[derive(Deserialize, JsonSchema)]
 pub struct ListSpansInput {
     pub limit: Option<u32>,
+    /// Page number (default: 1, max: 100)
     pub page: Option<u32>,
     pub trace_id: Option<String>,
     pub session_id: Option<String>,
@@ -60,6 +61,7 @@ pub struct GetRawSpanInput {
 #[derive(Deserialize, JsonSchema)]
 pub struct ListSessionsInput {
     pub limit: Option<u32>,
+    /// Page number (default: 1, max: 100)
     pub page: Option<u32>,
     pub user_id: Option<String>,
     pub environment: Option<String>,

@@ -19,7 +19,7 @@ use crate::routes::otel::types::SpanEnvelopeDto;
 use crate::routes::otel::types::{
     SessionSummaryDto, SpanDetailDto, SpanSummaryDto, TraceDetailDto, TraceSummaryDto,
 };
-use crate::types::{MAX_PAGE_LIMIT, OrderBy, OrderDirection};
+use crate::types::{MAX_PAGE, MAX_PAGE_LIMIT, OrderBy, OrderDirection};
 use sideseat_domain::sideml::{FeedOptions, extract_tools_from_rows, process_spans};
 use sideseat_ports::clock::Clock;
 use sideseat_ports::traits::AnalyticsRepository;
@@ -908,7 +908,7 @@ fn mcp_err(e: impl std::fmt::Display) -> McpError {
 }
 
 fn clamp_page(page: Option<u32>) -> u32 {
-    page.unwrap_or(1).max(1)
+    page.unwrap_or(1).clamp(1, MAX_PAGE)
 }
 
 fn clamp_limit(limit: Option<u32>) -> u32 {
@@ -1685,6 +1685,7 @@ mod tests {
         assert_eq!(clamp_page(Some(0)), 1);
         assert_eq!(clamp_page(Some(1)), 1);
         assert_eq!(clamp_page(Some(5)), 5);
+        assert_eq!(clamp_page(Some(u32::MAX)), MAX_PAGE);
     }
 
     #[test]
