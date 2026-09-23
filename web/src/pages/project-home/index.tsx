@@ -27,11 +27,13 @@ const SSE_REFETCH_DEBOUNCE_MS = 2000;
 
 export default function ProjectHomePage() {
   const { projectId = "default" } = useParams<{ projectId: string }>();
+  return <ProjectHome key={projectId} projectId={projectId} />;
+}
+
+function ProjectHome({ projectId }: { projectId: string }) {
   const refetchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Time range state (persisted in localStorage, reset on project change)
   const [timeRange, setTimeRange] = useState<TimeRange>(() => loadTimeRange(projectId));
-  useEffect(() => setTimeRange(loadTimeRange(projectId)), [projectId]);
 
   // Incrementing forces fresh timestamps in stats query while keeping stable cache keys
   const [refreshTrigger, setRefreshTrigger] = useState(0);
