@@ -10,6 +10,7 @@ import {
   isPlaceholderData,
   getMediaTypeLabel,
 } from "@/lib/utils";
+import { getDataUrlByteLength } from "@/lib/media";
 import { useMediaGallery } from "../image-gallery-context";
 
 interface BaseMediaProps {
@@ -130,16 +131,9 @@ function ImageViewer({
   const { openMedia } = useMediaGallery();
   const [isLoaded, setIsLoaded] = useState(false);
   const [dimensions, setDimensions] = useState<{ w: number; h: number } | null>(null);
-  const [fileSize, setFileSize] = useState<number | null>(null);
+  const [fileSize, setFileSize] = useState<number | null>(() => getDataUrlByteLength(src));
 
   const typeLabel = getMediaTypeLabel(mediaType);
-
-  // Reset state when src changes
-  useEffect(() => {
-    setIsLoaded(false);
-    setDimensions(null);
-    setFileSize(null);
-  }, [src]);
 
   const handleLoad = useCallback((e: React.SyntheticEvent<HTMLImageElement>) => {
     const img = e.currentTarget;
@@ -149,13 +143,7 @@ function ImageViewer({
 
   // Get file size
   useEffect(() => {
-    if (src.startsWith("data:")) {
-      const base64Part = src.split(",")[1];
-      if (base64Part) {
-        setFileSize(Math.floor(base64Part.length * 0.75));
-      }
-      return;
-    }
+    if (src.startsWith("data:")) return;
 
     const controller = new AbortController();
     fetch(src, { method: "HEAD", signal: controller.signal, credentials: "include" })
@@ -246,7 +234,7 @@ export function MediaContent(props: MediaContentProps) {
   const config = getMediaConfig(props);
   const Icon = config.icon;
   const filesClient = useFilesClient();
-  const [loadError, setLoadError] = useState(false);
+  const [failedUrl, setFailedUrl] = useState<string | null>(null);
   const { openMedia } = useMediaGallery();
 
   // Check if data is a placeholder (not actual content)
@@ -276,12 +264,19 @@ export function MediaContent(props: MediaContentProps) {
   }, [resolvedUrl, isPdf, openMedia]);
 
   const canRenderMedia =
-    resolvedUrl && !loadError && (type === "image" || type === "audio" || type === "video");
+    resolvedUrl &&
+    failedUrl !== resolvedUrl &&
+    (type === "image" || type === "audio" || type === "video");
 
   if (canRenderMedia) {
     if (type === "image") {
       return (
-        <ImageViewer src={resolvedUrl} mediaType={mediaType} onError={() => setLoadError(true)} />
+        <ImageViewer
+          key={resolvedUrl}
+          src={resolvedUrl}
+          mediaType={mediaType}
+          onError={() => setFailedUrl(resolvedUrl)}
+        />
       );
     }
 
@@ -293,7 +288,7 @@ export function MediaContent(props: MediaContentProps) {
               controls
               crossOrigin="use-credentials"
               className="w-full max-w-md"
-              onError={() => setLoadError(true)}
+              onError={() => setFailedUrl(resolvedUrl)}
             >
               <source src={resolvedUrl} type={mediaType || "audio/mpeg"} />
               Your browser does not support the audio element.
@@ -327,7 +322,7 @@ export function MediaContent(props: MediaContentProps) {
             controls
             crossOrigin="use-credentials"
             className="max-w-full max-h-96"
-            onError={() => setLoadError(true)}
+            onError={() => setFailedUrl(resolvedUrl)}
           >
             <source src={resolvedUrl} type={mediaType || "video/mp4"} />
             Your browser does not support the video element.

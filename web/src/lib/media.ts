@@ -63,6 +63,21 @@ export function inferSource(data: string): SourceType {
   return "base64";
 }
 
+export function getDataUrlByteLength(dataUrl: string): number | null {
+  const separatorIndex = dataUrl.indexOf(",");
+  if (
+    separatorIndex === -1 ||
+    !dataUrl.startsWith("data:") ||
+    !dataUrl.slice(0, separatorIndex).endsWith(";base64")
+  ) {
+    return null;
+  }
+
+  const encoded = dataUrl.slice(separatorIndex + 1).replace(/\s/g, "");
+  const padding = encoded.endsWith("==") ? 2 : encoded.endsWith("=") ? 1 : 0;
+  return Math.max(0, Math.floor((encoded.length * 3) / 4) - padding);
+}
+
 /**
  * Extract MIME type embedded in a file reference URI.
  * Returns undefined if no MIME is present or not a file ref.

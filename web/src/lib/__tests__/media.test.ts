@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { inferSource, findEmbeddedMedia } from "../media";
+import { findEmbeddedMedia, getDataUrlByteLength, inferSource } from "../media";
 
 const hash = "a".repeat(64);
 
@@ -26,6 +26,19 @@ describe("inferSource", () => {
 
   it("does not treat malformed hashes as stored files", () => {
     expect(inferSource("#!B64!#image/png::hash")).toBe("base64");
+  });
+});
+
+describe("getDataUrlByteLength", () => {
+  it("accounts for base64 padding", () => {
+    expect(getDataUrlByteLength("data:text/plain;base64,TQ==")).toBe(1);
+    expect(getDataUrlByteLength("data:text/plain;base64,TWE=")).toBe(2);
+    expect(getDataUrlByteLength("data:text/plain;base64,TWFu")).toBe(3);
+  });
+
+  it("rejects non-base64 data URLs", () => {
+    expect(getDataUrlByteLength("data:text/plain,hello")).toBeNull();
+    expect(getDataUrlByteLength("https://example.com/file")).toBeNull();
   });
 });
 

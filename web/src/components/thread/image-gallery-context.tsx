@@ -20,6 +20,7 @@ import {
   isPlaceholderData,
   getMediaTypeLabel,
 } from "@/lib/utils";
+import { getDataUrlByteLength } from "@/lib/media";
 import { useFilesClient } from "@/lib/app-context";
 import type { FilesClient } from "@/api/files/client";
 import type { Block, ContentBlock } from "@/api/otel/types";
@@ -463,12 +464,6 @@ function ImageLightboxContent({
 }
 
 /** Shared media lightbox wrapper with navigation and controls */
-function embeddedFileSize(src: string): number | null {
-  if (!src.startsWith("data:")) return null;
-  const base64 = src.split(",", 2)[1];
-  return base64 ? Math.floor(base64.length * 0.75) : null;
-}
-
 function MediaLightbox({
   entry,
   onClose,
@@ -490,7 +485,7 @@ function MediaLightbox({
 }) {
   const [showControls, setShowControls] = useState(true);
   const [headerInfo, setHeaderInfo] = useState<string>("");
-  const [fileSize, setFileSize] = useState<number | null>(() => embeddedFileSize(entry.src));
+  const [fileSize, setFileSize] = useState<number | null>(() => getDataUrlByteLength(entry.src));
 
   // Get file size
   useEffect(() => {
