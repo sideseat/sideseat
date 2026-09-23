@@ -481,9 +481,6 @@ pub const CACHE_TTL_PROJECT: u64 = 300;
 /// Cache TTL for projects list (2 min)
 pub const CACHE_TTL_PROJECT_LIST: u64 = 120;
 
-/// Cache TTL for membership/permissions (1 min - critical)
-pub const CACHE_TTL_MEMBERSHIP: u64 = 60;
-
 /// Cache TTL for auth methods (10 min)
 pub const CACHE_TTL_AUTH_METHOD: u64 = 600;
 

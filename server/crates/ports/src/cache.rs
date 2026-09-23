@@ -72,13 +72,7 @@ pub trait TypedCache: CacheStore {
 
 impl<T> TypedCache for T where T: CacheStore + ?Sized {}
 
-pub async fn invalidate_membership_caches(cache: &dyn CacheStore, org_id: &str, user_id: &str) {
-    cache
-        .invalidate_key(&CacheKey::membership(org_id, user_id))
-        .await;
-    cache
-        .invalidate_key(&CacheKey::user_org_member(user_id, org_id))
-        .await;
+pub async fn invalidate_user_org_lists(cache: &dyn CacheStore, user_id: &str) {
     cache
         .invalidate_key(&CacheKey::orgs_for_user(user_id))
         .await;

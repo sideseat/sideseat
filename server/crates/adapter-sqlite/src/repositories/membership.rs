@@ -1,15 +1,9 @@
 //! Organization membership repository for SQLite operations.
 //!
-//! All read operations support optional caching. Pass `Some(cache)` to enable caching,
-//! or `None` to bypass cache. Mutations automatically invalidate relevant cache keys.
-
-use std::time::Duration;
-
 use sqlx::SqlitePool;
 
 use crate::SqliteError;
-use sideseat_core::constants::{CACHE_TTL_MEMBERSHIP, ORG_ROLE_OWNER};
-use sideseat_ports::cache::{CacheKey, CacheStore, TypedCache};
+use sideseat_core::constants::ORG_ROLE_OWNER;
 use sideseat_ports::types::{LastOwnerResult, MemberWithUser, MembershipRow};
 
 /// Add a member to an organization (upsert: updates role if exists)
@@ -34,7 +28,6 @@ async fn organization_is_live(
 
 pub async fn add_member(
     pool: &SqlitePool,
-    cache: Option<&dyn CacheStore>,
     org_id: &str,
     user_id: &str,
     role: &str,
@@ -67,11 +60,6 @@ pub async fn add_member(
     .await?;
     tx.commit().await?;
 
-    // Invalidate membership caches AFTER successful write
-    if let Some(cache) = cache {
-        sideseat_ports::cache::invalidate_membership_caches(cache, org_id, user_id).await;
-    }
-
     Ok(MembershipRow {
         organization_id: org_id.to_string(),
         user_id: user_id.to_string(),
@@ -81,42 +69,13 @@ pub async fn add_member(
     })
 }
 
-/// Get a specific membership (with optional caching)
+/// Get a specific membership.
 pub async fn get_membership(
     pool: &SqlitePool,
-    cache: Option<&dyn CacheStore>,
     org_id: &str,
     user_id: &str,
 ) -> Result<Option<MembershipRow>, SqliteError> {
-    if let Some(cache) = cache {
-        let key = CacheKey::membership(org_id, user_id);
-
-        // Try cache first
-        match cache.get::<MembershipRow>(&key).await {
-            Ok(Some(membership)) => {
-                tracing::trace!(%org_id, %user_id, "Membership cache hit");
-                return Ok(Some(membership));
-            }
-            Err(e) => tracing::warn!(%org_id, %user_id, error = %e, "Cache get error"),
-            Ok(None) => {}
-        }
-
-        // Cache miss - query DB
-        let result = get_membership_from_db(pool, org_id, user_id).await?;
-
-        // Store result in cache (short TTL for membership - 1 min)
-        if let Some(ref m) = result
-            && let Err(e) = cache
-                .set(&key, m, Some(Duration::from_secs(CACHE_TTL_MEMBERSHIP)))
-                .await
-        {
-            tracing::warn!(%org_id, %user_id, error = %e, "Cache set error");
-        }
-
-        Ok(result)
-    } else {
-        get_membership_from_db(pool, org_id, user_id).await
-    }
+    get_membership_from_db(pool, org_id, user_id).await
 }
 
 /// Get a specific membership directly from database (no caching)
@@ -244,7 +203,6 @@ pub async fn get_member_with_user(
 /// Returns LastOwnerResult to indicate if operation was blocked
 pub async fn remove_member_atomic(
     pool: &SqlitePool,
-    cache: Option<&dyn CacheStore>,
     org_id: &str,
     user_id: &str,
 ) -> Result<LastOwnerResult<()>, SqliteError> {
@@ -292,19 +250,6 @@ pub async fn remove_member_atomic(
 
     tx.commit().await?;
 
-    // Invalidate cache entries AFTER successful commit
-    if let Some(cache) = cache {
-        if let Err(e) = cache.delete(&CacheKey::membership(org_id, user_id)).await {
-            tracing::warn!(%org_id, %user_id, error = %e, "Cache invalidation error");
-        }
-        if let Err(e) = cache.delete(&CacheKey::orgs_for_user(user_id)).await {
-            tracing::warn!(%user_id, error = %e, "Cache invalidation error");
-        }
-        if let Err(e) = cache.delete(&CacheKey::projects_for_user(user_id)).await {
-            tracing::warn!(%user_id, error = %e, "Cache invalidation error");
-        }
-    }
-
     Ok(LastOwnerResult::Success(()))
 }
 
@@ -312,7 +257,6 @@ pub async fn remove_member_atomic(
 /// Prevents demoting the last owner
 pub async fn update_role_atomic(
     pool: &SqlitePool,
-    cache: Option<&dyn CacheStore>,
     org_id: &str,
     user_id: &str,
     new_role: &str,
@@ -366,18 +310,7 @@ pub async fn update_role_atomic(
 
     tx.commit().await?;
 
-    // Invalidate cache entries AFTER successful commit
-    if let Some(cache) = cache {
-        if let Err(e) = cache.delete(&CacheKey::membership(org_id, user_id)).await {
-            tracing::warn!(%org_id, %user_id, error = %e, "Cache invalidation error");
-        }
-        // Invalidate orgs_for_user since it includes role info
-        if let Err(e) = cache.delete(&CacheKey::orgs_for_user(user_id)).await {
-            tracing::warn!(%user_id, error = %e, "Cache invalidation error");
-        }
-    }
-
-    // Fetch updated membership (bypass cache to get fresh data)
+    // Fetch the updated membership.
     get_membership_from_db(pool, org_id, user_id)
         .await
         .map(|opt| opt.map_or(LastOwnerResult::NotFound, LastOwnerResult::Success))
@@ -391,12 +324,11 @@ mod tests {
 
     async fn add_member(
         pool: &SqlitePool,
-        cache: Option<&dyn CacheStore>,
         org_id: &str,
         user_id: &str,
         role: &str,
     ) -> Result<MembershipRow, SqliteError> {
-        super::add_member(pool, cache, org_id, user_id, role, TEST_NOW).await
+        super::add_member(pool, org_id, user_id, role, TEST_NOW).await
     }
 
     async fn setup_test_pool() -> SqlitePool {
@@ -418,7 +350,7 @@ mod tests {
             .await
             .unwrap();
 
-        let membership = add_member(&pool, None, "default", "user1", "member")
+        let membership = add_member(&pool, "default", "user1", "member")
             .await
             .unwrap();
 
@@ -434,16 +366,14 @@ mod tests {
         let pool = setup_test_pool().await;
 
         // Local user is already an owner of default org
-        let membership = add_member(&pool, None, "default", "local", "admin")
+        let membership = add_member(&pool, "default", "local", "admin")
             .await
             .unwrap();
 
         assert_eq!(membership.role, "admin");
 
         // Verify it was updated
-        let fetched = get_membership(&pool, None, "default", "local")
-            .await
-            .unwrap();
+        let fetched = get_membership(&pool, "default", "local").await.unwrap();
         assert_eq!(fetched.unwrap().role, "admin");
     }
 
@@ -456,18 +386,16 @@ mod tests {
             .execute(&pool)
             .await
             .unwrap();
-        add_member(&pool, None, "default", "user1", "member")
+        add_member(&pool, "default", "user1", "member")
             .await
             .unwrap();
 
-        let removed = remove_member_atomic(&pool, None, "default", "user1")
+        let removed = remove_member_atomic(&pool, "default", "user1")
             .await
             .unwrap();
         assert!(matches!(removed, LastOwnerResult::Success(())));
 
-        let fetched = get_membership(&pool, None, "default", "user1")
-            .await
-            .unwrap();
+        let fetched = get_membership(&pool, "default", "user1").await.unwrap();
         assert!(fetched.is_none());
     }
 
@@ -480,11 +408,11 @@ mod tests {
             .execute(&pool)
             .await
             .unwrap();
-        add_member(&pool, None, "default", "user1", "member")
+        add_member(&pool, "default", "user1", "member")
             .await
             .unwrap();
 
-        let updated = update_role_atomic(&pool, None, "default", "user1", "admin", TEST_NOW + 1)
+        let updated = update_role_atomic(&pool, "default", "user1", "admin", TEST_NOW + 1)
             .await
             .unwrap();
         let LastOwnerResult::Success(updated) = updated else {

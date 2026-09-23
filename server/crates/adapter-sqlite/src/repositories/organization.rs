@@ -58,7 +58,7 @@ pub async fn create_organization_with_owner(
     // Invalidate caches AFTER successful commit
     if let Some(cache) = cache {
         cache.invalidate_key(&CacheKey::org_by_slug(slug)).await;
-        sideseat_ports::cache::invalidate_membership_caches(cache, &id, owner_user_id).await;
+        sideseat_ports::cache::invalidate_user_org_lists(cache, owner_user_id).await;
     }
 
     Ok(OrganizationRow {
@@ -301,7 +301,7 @@ pub async fn delete_organization(
 
         // Invalidate caches for all affected members
         for user_id in &member_user_ids {
-            sideseat_ports::cache::invalidate_membership_caches(cache, id, user_id).await;
+            sideseat_ports::cache::invalidate_user_org_lists(cache, user_id).await;
         }
     }
 

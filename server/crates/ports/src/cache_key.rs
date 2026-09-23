@@ -79,16 +79,6 @@ impl CacheKey {
     // Memberships
     // =========================================================================
 
-    /// Cache key for membership (org + user)
-    pub fn membership(org_id: &str, user_id: &str) -> String {
-        format!("{}:membership:{}:{}", CACHE_KEY_VERSION, org_id, user_id)
-    }
-
-    /// Cache key for user org membership boolean (for auth checks)
-    pub fn user_org_member(user_id: &str, org_id: &str) -> String {
-        format!("{}:member:{}:{}", CACHE_KEY_VERSION, user_id, org_id)
-    }
-
     /// Cache key for project's organization ID (for auth checks)
     pub fn project_org(project_id: &str) -> String {
         format!("{}:projorg:{}", CACHE_KEY_VERSION, project_id)
@@ -211,14 +201,6 @@ mod tests {
         assert_eq!(CacheKey::project("p1"), "v1:project:p1");
         assert_eq!(CacheKey::projects_for_user("u1"), "v1:projects:user:u1");
         assert_eq!(CacheKey::projects_for_org("o1"), "v1:projects:org:o1");
-    }
-
-    #[test]
-    fn test_membership_key() {
-        assert_eq!(
-            CacheKey::membership("org1", "user1"),
-            "v1:membership:org1:user1"
-        );
     }
 
     #[test]

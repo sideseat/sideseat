@@ -169,7 +169,7 @@ impl IdentityStore for SqliteRepository {
         organization_id: &str,
         user_id: &str,
     ) -> Result<Option<MembershipRow>, DataError> {
-        membership::get_membership(self.0.pool(), None, organization_id, user_id)
+        membership::get_membership(self.0.pool(), organization_id, user_id)
             .await
             .map_err(Into::into)
     }
@@ -192,7 +192,6 @@ impl IdentityStore for SqliteRepository {
     ) -> Result<MembershipRow, DataError> {
         membership::add_member(
             self.0.pool(),
-            None,
             organization_id,
             user_id,
             role,
@@ -221,7 +220,6 @@ impl IdentityStore for SqliteRepository {
     ) -> Result<LastOwnerResult<MembershipRow>, DataError> {
         membership::update_role_atomic(
             self.0.pool(),
-            None,
             organization_id,
             user_id,
             new_role,
@@ -236,7 +234,7 @@ impl IdentityStore for SqliteRepository {
         organization_id: &str,
         user_id: &str,
     ) -> Result<LastOwnerResult<()>, DataError> {
-        membership::remove_member_atomic(self.0.pool(), None, organization_id, user_id)
+        membership::remove_member_atomic(self.0.pool(), organization_id, user_id)
             .await
             .map_err(Into::into)
     }
