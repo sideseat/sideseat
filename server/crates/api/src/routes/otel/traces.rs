@@ -63,7 +63,7 @@ pub async fn list_traces(
     State(state): State<OtelApiState>,
     auth: ProjectRead,
     ValidatedQuery(query): ValidatedQuery<ListTracesQuery>,
-) -> Result<(HeaderMap, Json<PaginatedResponse<TraceSummaryDto>>), ApiError> {
+) -> Result<Json<PaginatedResponse<TraceSummaryDto>>, ApiError> {
     // Parse order_by
     let order_by = if let Some(ref ob) = query.order_by {
         Some(parse_order_by(ob, columns::TRACE_SORTABLE)?)
@@ -104,13 +104,12 @@ pub async fn list_traces(
 
     let data: Vec<TraceSummaryDto> = rows.into_iter().map(trace_row_to_summary).collect();
 
-    let mut headers = HeaderMap::new();
-    headers.insert(header::CACHE_CONTROL, HeaderValue::from_static("no-store"));
-
-    Ok((
-        headers,
-        Json(PaginatedResponse::new(data, query.page, query.limit, total)),
-    ))
+    Ok(Json(PaginatedResponse::new(
+        data,
+        query.page,
+        query.limit,
+        total,
+    )))
 }
 
 /// Maximum spans to return in trace detail to prevent OOM
@@ -142,7 +141,7 @@ pub async fn get_trace(
     State(state): State<OtelApiState>,
     auth: TraceRead,
     Query(query): Query<TraceDetailQuery>,
-) -> Result<(HeaderMap, Json<TraceDetailDto>), ApiError> {
+) -> Result<Json<TraceDetailDto>, ApiError> {
     let project_id = &auth.project_id;
     let trace_id = &auth.trace_id;
 
@@ -205,17 +204,11 @@ pub async fn get_trace(
 
     let summary = trace_row_to_summary(trace);
 
-    let mut headers = HeaderMap::new();
-    headers.insert(header::CACHE_CONTROL, HeaderValue::from_static("no-store"));
-
-    Ok((
-        headers,
-        Json(TraceDetailDto {
-            summary,
-            spans: span_details,
-            spans_truncated,
-        }),
-    ))
+    Ok(Json(TraceDetailDto {
+        summary,
+        spans: span_details,
+        spans_truncated,
+    }))
 }
 
 pub(crate) fn trace_row_to_summary(row: TraceRow) -> TraceSummaryDto {

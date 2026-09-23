@@ -58,7 +58,7 @@ pub async fn list_sessions(
     State(state): State<OtelApiState>,
     auth: ProjectRead,
     ValidatedQuery(query): ValidatedQuery<ListSessionsQuery>,
-) -> Result<(HeaderMap, Json<PaginatedResponse<SessionSummaryDto>>), ApiError> {
+) -> Result<Json<PaginatedResponse<SessionSummaryDto>>, ApiError> {
     // Parse order_by
     let order_by = if let Some(ref ob) = query.order_by {
         Some(parse_order_by(ob, columns::SESSION_SORTABLE)?)
@@ -97,13 +97,12 @@ pub async fn list_sessions(
 
     let data: Vec<SessionSummaryDto> = rows.into_iter().map(session_row_to_summary).collect();
 
-    let mut headers = HeaderMap::new();
-    headers.insert(header::CACHE_CONTROL, HeaderValue::from_static("no-store"));
-
-    Ok((
-        headers,
-        Json(PaginatedResponse::new(data, query.page, query.limit, total)),
-    ))
+    Ok(Json(PaginatedResponse::new(
+        data,
+        query.page,
+        query.limit,
+        total,
+    )))
 }
 
 /// Get a single session with nested trace summaries

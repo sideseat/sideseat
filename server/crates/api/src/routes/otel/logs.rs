@@ -4,7 +4,6 @@ use std::collections::HashMap;
 
 use axum::Json;
 use axum::extract::State;
-use axum::http::{HeaderMap, HeaderValue, header};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
@@ -127,7 +126,7 @@ pub async fn list_logs(
     State(state): State<OtelApiState>,
     auth: ProjectRead,
     ValidatedQuery(query): ValidatedQuery<ListLogsQuery>,
-) -> Result<(HeaderMap, Json<PaginatedResponse<LogDto>>), ApiError> {
+) -> Result<Json<PaginatedResponse<LogDto>>, ApiError> {
     list(&state, &auth.project_id, None, None, query).await
 }
 
@@ -141,7 +140,7 @@ pub async fn list_trace_logs(
     State(state): State<OtelApiState>,
     auth: TraceRead,
     ValidatedQuery(query): ValidatedQuery<ListLogsQuery>,
-) -> Result<(HeaderMap, Json<PaginatedResponse<LogDto>>), ApiError> {
+) -> Result<Json<PaginatedResponse<LogDto>>, ApiError> {
     list(&state, &auth.project_id, Some(auth.trace_id), None, query).await
 }
 
@@ -155,7 +154,7 @@ pub async fn list_span_logs(
     State(state): State<OtelApiState>,
     auth: SpanRead,
     ValidatedQuery(query): ValidatedQuery<ListLogsQuery>,
-) -> Result<(HeaderMap, Json<PaginatedResponse<LogDto>>), ApiError> {
+) -> Result<Json<PaginatedResponse<LogDto>>, ApiError> {
     list(
         &state,
         &auth.project_id,
@@ -176,7 +175,7 @@ pub async fn get_log_filter_options(
     State(state): State<OtelApiState>,
     auth: ProjectRead,
     ValidatedQuery(query): ValidatedQuery<LogFilterOptionsQuery>,
-) -> Result<(HeaderMap, Json<FilterOptionsResponse>), ApiError> {
+) -> Result<Json<FilterOptionsResponse>, ApiError> {
     let columns: Vec<String> = query
         .columns
         .as_deref()
@@ -223,7 +222,7 @@ pub async fn get_log_filter_options(
             )
         })
         .collect();
-    Ok((no_store_headers(), Json(FilterOptionsResponse { options })))
+    Ok(Json(FilterOptionsResponse { options }))
 }
 
 async fn list(
@@ -232,7 +231,7 @@ async fn list(
     trace_id: Option<String>,
     span_id: Option<String>,
     query: ListLogsQuery,
-) -> Result<(HeaderMap, Json<PaginatedResponse<LogDto>>), ApiError> {
+) -> Result<Json<PaginatedResponse<LogDto>>, ApiError> {
     let params = ListLogsParams {
         project_id: project_id.clone(),
         page: query.page,
@@ -255,18 +254,14 @@ async fn list(
         .into_iter()
         .map(|row| LogDto::from_row(row, query.include_raw_log))
         .collect();
-    Ok((
-        no_store_headers(),
-        Json(PaginatedResponse::new(data, query.page, query.limit, total)),
-    ))
+    Ok(Json(PaginatedResponse::new(
+        data,
+        query.page,
+        query.limit,
+        total,
+    )))
 }
 
 fn parse_json(value: Option<String>) -> Option<serde_json::Value> {
     value.and_then(|value| serde_json::from_str(&value).ok())
-}
-
-fn no_store_headers() -> HeaderMap {
-    let mut headers = HeaderMap::new();
-    headers.insert(header::CACHE_CONTROL, HeaderValue::from_static("no-store"));
-    headers
 }

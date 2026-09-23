@@ -91,7 +91,7 @@ pub async fn list_spans(
     State(state): State<OtelApiState>,
     auth: ProjectRead,
     ValidatedQuery(query): ValidatedQuery<ListSpansQuery>,
-) -> Result<(HeaderMap, Json<PaginatedResponse<SpanSummaryDto>>), ApiError> {
+) -> Result<Json<PaginatedResponse<SpanSummaryDto>>, ApiError> {
     // Parse order_by
     let order_by = if let Some(ref ob) = query.order_by {
         Some(parse_order_by(ob, columns::SPAN_SORTABLE)?)
@@ -175,13 +175,12 @@ pub async fn list_spans(
         })
         .collect();
 
-    let mut headers = HeaderMap::new();
-    headers.insert(header::CACHE_CONTROL, HeaderValue::from_static("no-store"));
-
-    Ok((
-        headers,
-        Json(PaginatedResponse::new(data, query.page, query.limit, total)),
-    ))
+    Ok(Json(PaginatedResponse::new(
+        data,
+        query.page,
+        query.limit,
+        total,
+    )))
 }
 
 /// List spans for a specific trace

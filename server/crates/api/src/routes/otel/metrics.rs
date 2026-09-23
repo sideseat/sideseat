@@ -4,7 +4,6 @@ use std::collections::HashMap;
 
 use axum::Json;
 use axum::extract::{Path, State};
-use axum::http::{HeaderMap, HeaderValue, header};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
@@ -194,7 +193,7 @@ pub async fn list_metrics(
     State(state): State<OtelApiState>,
     auth: ProjectRead,
     ValidatedQuery(query): ValidatedQuery<ListMetricsQuery>,
-) -> Result<(HeaderMap, Json<PaginatedResponse<MetricDto>>), ApiError> {
+) -> Result<Json<PaginatedResponse<MetricDto>>, ApiError> {
     let params = metric_params(&auth.project_id, &query)?;
     let (rows, total) = state
         .analytics
@@ -205,10 +204,12 @@ pub async fn list_metrics(
         .into_iter()
         .map(|row| MetricDto::from_row(row, query.include_raw_metric))
         .collect();
-    Ok((
-        no_store_headers(),
-        Json(PaginatedResponse::new(data, query.page, query.limit, total)),
-    ))
+    Ok(Json(PaginatedResponse::new(
+        data,
+        query.page,
+        query.limit,
+        total,
+    )))
 }
 
 /// Read one metric datapoint by deterministic identity.
@@ -231,7 +232,7 @@ pub async fn get_metric(
     auth: ProjectRead,
     Path(datapoint_id): Path<String>,
     ValidatedQuery(query): ValidatedQuery<MetricDetailQuery>,
-) -> Result<(HeaderMap, Json<MetricDto>), ApiError> {
+) -> Result<Json<MetricDto>, ApiError> {
     let row = state
         .analytics
         .get_metric(&auth.project_id, &datapoint_id)
@@ -243,10 +244,7 @@ pub async fn get_metric(
                 format!("Metric datapoint not found: {datapoint_id}"),
             )
         })?;
-    Ok((
-        no_store_headers(),
-        Json(MetricDto::from_row(row, query.include_raw_metric)),
-    ))
+    Ok(Json(MetricDto::from_row(row, query.include_raw_metric)))
 }
 
 #[derive(Debug, Deserialize, Validate)]
@@ -266,7 +264,7 @@ pub async fn aggregate_metrics(
     State(state): State<OtelApiState>,
     auth: ProjectRead,
     ValidatedQuery(query): ValidatedQuery<ListMetricsQuery>,
-) -> Result<(HeaderMap, Json<MetricAggregatesResponse>), ApiError> {
+) -> Result<Json<MetricAggregatesResponse>, ApiError> {
     let params = metric_params(&auth.project_id, &query)?;
     let data = state
         .analytics
@@ -276,7 +274,7 @@ pub async fn aggregate_metrics(
         .into_iter()
         .map(Into::into)
         .collect();
-    Ok((no_store_headers(), Json(MetricAggregatesResponse { data })))
+    Ok(Json(MetricAggregatesResponse { data }))
 }
 
 /// Read filter options for metric dimensions.
@@ -290,7 +288,7 @@ pub async fn get_metric_filter_options(
     State(state): State<OtelApiState>,
     auth: ProjectRead,
     ValidatedQuery(query): ValidatedQuery<MetricFilterOptionsQuery>,
-) -> Result<(HeaderMap, Json<FilterOptionsResponse>), ApiError> {
+) -> Result<Json<FilterOptionsResponse>, ApiError> {
     let from_timestamp = parse_timestamp_param(&query.from_timestamp)?;
     let to_timestamp = parse_timestamp_param(&query.to_timestamp)?;
     let columns: Vec<String> = query
@@ -335,7 +333,7 @@ pub async fn get_metric_filter_options(
             )
         })
         .collect();
-    Ok((no_store_headers(), Json(FilterOptionsResponse { options })))
+    Ok(Json(FilterOptionsResponse { options }))
 }
 
 fn metric_params(
@@ -362,10 +360,4 @@ fn metric_params(
 
 fn parse_json(value: Option<String>) -> Option<serde_json::Value> {
     value.and_then(|value| serde_json::from_str(&value).ok())
-}
-
-fn no_store_headers() -> HeaderMap {
-    let mut headers = HeaderMap::new();
-    headers.insert(header::CACHE_CONTROL, HeaderValue::from_static("no-store"));
-    headers
 }
