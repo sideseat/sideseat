@@ -3,19 +3,16 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use axum::extract::Path;
 use axum::extract::State;
 use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
-use axum::http::StatusCode;
 use axum::response::Response;
 use futures::SinkExt;
 use futures::stream::StreamExt;
 use parking_lot::Mutex;
-use serde::Deserialize;
 use tokio::sync::mpsc;
 use uuid::Uuid;
 
-use crate::extractors::is_valid_project_id;
+use crate::auth::ProjectWrite;
 use sideseat_core::constants::{
     WS_FRAME_RATE_LIMIT_COUNT, WS_FRAME_RATE_LIMIT_WINDOW_SECS, WS_HEARTBEAT_INTERVAL_SECS,
     WS_HELLO_TIMEOUT_SECS, WS_MAX_MESSAGE_BYTES, WS_PONG_GRACE_SECS,
@@ -46,50 +43,16 @@ fn connection_control_topic(instance_id: &str) -> String {
     format!("connection_control:{}", instance_id)
 }
 
-#[derive(Debug, Deserialize)]
-pub struct ProjectPath {
-    pub project_id: String,
-}
-
 const SERVER_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 /// Axum handler.
 pub async fn ws_upgrade(
     State(state): State<WsState>,
-    Path(ProjectPath { project_id }): Path<ProjectPath>,
-    auth: Option<axum::Extension<crate::auth::AuthContext>>,
-    auth_service: Option<axum::Extension<std::sync::Arc<crate::auth::AuthService>>>,
+    access: ProjectWrite,
     ws: WebSocketUpgrade,
-) -> Result<Response, (StatusCode, String)> {
-    if !is_valid_project_id(&project_id) {
-        return Err((StatusCode::BAD_REQUEST, "invalid_project_id".into()));
-    }
-    // Valid **for this project**, not merely valid - see the AG-UI route. A key from another organisation is
-    // otherwise a perfectly good key, and this endpoint *registers* an agent under the project, so an outsider could take over a name its owner holds. `--no-auth` yields `LocalDefault`, admitted.
-    if let (Some(axum::Extension(auth)), Some(axum::Extension(service))) = (auth, auth_service) {
-        if service
-            // `Write`, not `Read`: this socket *registers* an agent under the project, which replaces whatever
-            // registration held that name. A query-only key must not be able to change what another SDK owns.
-            .verify_project_access(
-                &auth,
-                &project_id,
-                sideseat_ports::types::ApiKeyScope::Write,
-            )
-            .await
-            .is_err()
-        {
-            return Err((StatusCode::FORBIDDEN, "project_access_denied".to_string()));
-        }
-    } else {
-        tracing::error!(
-            project_id,
-            "A WebSocket upgrade request arrived with no authentication context; refusing it."
-        );
-        return Err((StatusCode::FORBIDDEN, "project_access_denied".to_string()));
-    }
-
+) -> Response {
     let configured = ws.max_message_size(WS_MAX_MESSAGE_BYTES);
-    Ok(configured.on_upgrade(move |socket| run_connection(socket, state, project_id.into())))
+    configured.on_upgrade(move |socket| run_connection(socket, state, access.project_id))
 }
 
 async fn run_connection(
