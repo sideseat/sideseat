@@ -74,13 +74,15 @@ impl SpanStore for ClickhouseRepository {
         &self,
         project_id: &ProjectId,
         trace_id: &str,
+        limit: usize,
     ) -> Result<Vec<SpanRow>, DataError> {
         tenant_query!(
             self,
             project_id,
             query::get_spans_for_trace,
             project_id,
-            trace_id
+            trace_id,
+            limit
         )
     }
 

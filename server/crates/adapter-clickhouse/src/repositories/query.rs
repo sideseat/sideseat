@@ -333,8 +333,9 @@ pub async fn get_spans_for_trace(
     client: &Client,
     project_id: &str,
     trace_id: &str,
+    limit: usize,
 ) -> Result<Vec<SpanRow>, ClickhouseError> {
-    let query = analytics::spans_for_trace(project_id, trace_id, Backend::Clickhouse);
+    let query = analytics::spans_for_trace(project_id, trace_id, limit, Backend::Clickhouse);
     let rows: Vec<ChSpanRow> = bind_analytics_values(client.query(query.sql()), query.params())
         .fetch_all()
         .await?;

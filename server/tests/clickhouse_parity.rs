@@ -1397,11 +1397,11 @@ async fn clickhouse_matches_duckdb_on_every_read() {
 
     for trace_id in ["trace-a", "trace-c"] {
         let d = duck
-            .get_spans_for_trace(&ProjectId::from(PROJECT), trace_id)
+            .get_spans_for_trace(&ProjectId::from(PROJECT), trace_id, 100)
             .await
             .expect("duckdb spans for trace");
         let c = ch
-            .get_spans_for_trace(&ProjectId::from(PROJECT), trace_id)
+            .get_spans_for_trace(&ProjectId::from(PROJECT), trace_id, 100)
             .await
             .expect("clickhouse spans for trace");
         assert_eq!(

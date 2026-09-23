@@ -43,8 +43,12 @@ impl SpanStore for DedupAnalyticsRepository {
         &self,
         project_id: &ProjectId,
         trace_id: &str,
+        limit: usize,
     ) -> Result<Vec<SpanRow>, DataError> {
-        let spans = self.inner.get_spans_for_trace(project_id, trace_id).await?;
+        let spans = self
+            .inner
+            .get_spans_for_trace(project_id, trace_id, limit)
+            .await?;
         Ok(deduplicate_by_span_identity(spans))
     }
 

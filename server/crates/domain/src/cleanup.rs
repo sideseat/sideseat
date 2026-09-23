@@ -523,7 +523,7 @@ pub async fn advance_pending_deletions(
                 // this - what decides it is whether anything is still readable, asked directly.
                 let still_there = analytics
                     .as_ref()
-                    .get_spans_for_trace(&project_id, &trace_id)
+                    .get_spans_for_trace(&project_id, &trace_id, 1)
                     .await;
                 // The files, but **only** once the rows are provably gone.
                 //

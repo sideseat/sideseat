@@ -62,6 +62,7 @@ pub struct TraceDetailDto {
     #[serde(flatten)]
     pub summary: TraceSummaryDto,
     pub spans: Vec<SpanDetailDto>,
+    pub spans_truncated: bool,
 }
 
 // --- Span DTOs ---

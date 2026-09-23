@@ -138,26 +138,24 @@ impl McpServer {
             .map_err(mcp_err)?
             .ok_or_else(|| McpError::invalid_params("trace not found", None))?;
 
-        let spans = repo
-            .get_spans_for_trace(&self.project_id, &input.trace_id)
+        let mut spans = repo
+            .get_spans_for_trace(&self.project_id, &input.trace_id, MAX_SPANS_PER_TRACE + 1)
             .await
             .map_err(mcp_err)?;
+        let spans_truncated = spans.len() > MAX_SPANS_PER_TRACE;
+        spans.truncate(MAX_SPANS_PER_TRACE);
 
-        let span_details: Vec<SpanDetailDto> = spans_to_dtos(
-            repo,
-            &self.project_id,
-            &spans[..spans.len().min(MAX_SPANS_PER_TRACE)],
-            false,
-        )
-        .await?
-        .into_iter()
-        .map(|summary| SpanDetailDto { summary })
-        .collect();
+        let span_details: Vec<SpanDetailDto> = spans_to_dtos(repo, &self.project_id, &spans, false)
+            .await?
+            .into_iter()
+            .map(|summary| SpanDetailDto { summary })
+            .collect();
 
         let summary = trace_row_to_summary(trace);
         ok_json(&TraceDetailDto {
             summary,
             spans: span_details,
+            spans_truncated,
         })
     }
 

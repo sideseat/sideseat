@@ -116,8 +116,9 @@ pub fn get_spans_for_trace(
     conn: &Connection,
     project_id: &str,
     trace_id: &str,
+    limit: usize,
 ) -> Result<Vec<SpanRow>, DuckdbError> {
-    let query = analytics::spans_for_trace(project_id, trace_id, Backend::Duckdb);
+    let query = analytics::spans_for_trace(project_id, trace_id, limit, Backend::Duckdb);
     execute_span_query_values(conn, &query)
 }
 
@@ -1171,9 +1172,14 @@ mod tests {
             ingested_at: Some(second_ingest),
             ..first.clone()
         };
+        let another = NormalizedSpan {
+            span_id: "another-span".to_string(),
+            timestamp_start: event_time + chrono::Duration::seconds(1),
+            ..first.clone()
+        };
 
         let conn = analytics.conn();
-        insert_batch(&conn, &[first, second]).expect("insert both deliveries");
+        insert_batch(&conn, &[first, second, another]).expect("insert deliveries");
         let row = get_span(&conn, "test-project", "trace-point-read", "span-point-read")
             .expect("point read")
             .expect("span exists");
@@ -1181,10 +1187,17 @@ mod tests {
         assert_eq!(row.span_name.as_deref(), Some("winning delivery"));
         assert_eq!(row.ingested_at, second_ingest);
 
-        let trace_rows =
-            get_spans_for_trace(&conn, "test-project", "trace-point-read").expect("trace spans");
-        assert_eq!(trace_rows.len(), 1, "one winning row per span identity");
+        let trace_rows = get_spans_for_trace(&conn, "test-project", "trace-point-read", 10)
+            .expect("trace spans");
+        assert_eq!(trace_rows.len(), 2, "one winning row per span identity");
         assert_eq!(trace_rows[0].span_name.as_deref(), Some("winning delivery"));
+        assert_eq!(
+            get_spans_for_trace(&conn, "test-project", "trace-point-read", 1)
+                .expect("bounded trace spans")
+                .len(),
+            1,
+            "the port limit must reach the database query"
+        );
     }
 
     #[tokio::test]

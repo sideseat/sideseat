@@ -72,13 +72,14 @@ impl SpanStore for DuckdbRepository {
         &self,
         project_id: &ProjectId,
         trace_id: &str,
+        limit: usize,
     ) -> Result<Vec<SpanRow>, DataError> {
         let db = Arc::clone(&self.0);
         let pid = project_id.to_string();
         let tid = trace_id.to_string();
         DuckdbService::run_query(move || {
             let conn = db.conn();
-            query::get_spans_for_trace(&conn, &pid, &tid)
+            query::get_spans_for_trace(&conn, &pid, &tid, limit)
         })
         .await
         .map_err(DataError::from)?

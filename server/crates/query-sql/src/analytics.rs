@@ -1410,19 +1410,26 @@ pub fn span_counts_by_project(
     })
 }
 
-/// Read all winning spans of one trace in event-time order.
-pub fn spans_for_trace(project_id: &str, trace_id: &str, backend: Backend) -> ParameterizedQuery {
+/// Read a bounded page of winning spans from one trace in event-time order.
+pub fn spans_for_trace(
+    project_id: &str,
+    trace_id: &str,
+    limit: usize,
+    backend: Backend,
+) -> ParameterizedQuery {
     let dialect = analytics_dialect(backend);
+    let limit = limit.clamp(1, QUERY_MAX_SPANS_PER_TRACE as usize);
     ParameterizedQuery {
         sql: format!(
             "SELECT\n{}\nFROM {}\nWHERE project_id = ? AND trace_id = ? \
-             ORDER BY timestamp_start LIMIT {QUERY_MAX_SPANS_PER_TRACE}",
+             ORDER BY timestamp_start LIMIT ?",
             dialect.span_detail_projection(),
             dialect.span_page_relation(),
         ),
         params: vec![
             QueryValue::String(project_id.to_string()),
             QueryValue::String(trace_id.to_string()),
+            QueryValue::Int64(i64::try_from(limit).unwrap_or(i64::MAX)),
         ],
     }
 }
@@ -4213,9 +4220,10 @@ mod tests {
     #[test]
     fn trace_span_detail_read_reuses_projection_and_winner_capabilities() {
         for backend in [Backend::Duckdb, Backend::Clickhouse] {
-            let query = spans_for_trace("tenant-'quoted", "trace-'quoted", backend);
-            assert_eq!(query.sql().matches('?').count(), 2);
-            assert_eq!(query.params().len(), 2);
+            let query = spans_for_trace("tenant-'quoted", "trace-'quoted", 73, backend);
+            assert_eq!(query.sql().matches('?').count(), 3);
+            assert_eq!(query.params().len(), 3);
+            assert_eq!(query.params()[2], QueryValue::Int64(73));
             assert!(!query.sql().contains("tenant-'quoted"));
             assert!(!query.sql().contains("trace-'quoted"));
             assert!(query.sql().contains("scope_name"));
@@ -4224,6 +4232,12 @@ mod tests {
                 Backend::Duckdb => assert!(query.sql().contains("QUALIFY ROW_NUMBER()")),
                 Backend::Clickhouse => assert!(query.sql().contains("FROM otel_spans FINAL")),
             }
+
+            let capped = spans_for_trace("tenant", "trace", usize::MAX, backend);
+            assert_eq!(
+                capped.params()[2],
+                QueryValue::Int64(i64::from(QUERY_MAX_SPANS_PER_TRACE))
+            );
         }
     }
 

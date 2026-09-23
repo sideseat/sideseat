@@ -164,11 +164,16 @@ pub async fn get_trace(
     let trace = repo
         .get_trace(project_id, trace_id)
         .await
-        .map_err(ApiError::from_data)?;
+        .map_err(ApiError::from_data)?
+        .ok_or_else(|| {
+            ApiError::not_found("TRACE_NOT_FOUND", format!("Trace not found: {}", trace_id))
+        })?;
     let mut spans = repo
-        .get_spans_for_trace(project_id, trace_id)
+        .get_spans_for_trace(project_id, trace_id, MAX_SPANS_PER_TRACE + 1)
         .await
         .map_err(ApiError::from_data)?;
+    let spans_truncated = spans.len() > MAX_SPANS_PER_TRACE;
+    spans.truncate(MAX_SPANS_PER_TRACE);
     if include_raw_span {
         state
             .content_bodies
@@ -186,25 +191,12 @@ pub async fn get_trace(
         .await
         .map_err(ApiError::from_data)?;
 
-    let trace = trace.ok_or_else(|| {
-        ApiError::not_found("TRACE_NOT_FOUND", format!("Trace not found: {}", trace_id))
-    })?;
-
     // Warn if trace has no root span (unusual structure)
     if !spans.is_empty() && find_root_span(&spans).is_none() {
         tracing::warn!(trace_id = %trace_id, span_count = spans.len(), "Trace has no root span (all spans have parent_span_id)");
     }
 
-    // Build span details with pagination guard
-    let span_count = spans.len();
-    let spans_truncated = span_count > MAX_SPANS_PER_TRACE;
-    let spans_to_process = if spans_truncated {
-        &spans[..MAX_SPANS_PER_TRACE]
-    } else {
-        &spans[..]
-    };
-
-    let span_details: Vec<SpanDetailDto> = spans_to_process
+    let span_details: Vec<SpanDetailDto> = spans
         .iter()
         .map(|span| {
             let key = (span.trace_id.clone(), span.span_id.clone());
@@ -219,7 +211,7 @@ pub async fn get_trace(
         .collect();
 
     if spans_truncated {
-        tracing::warn!(trace_id = %trace_id, total = span_count, returned = MAX_SPANS_PER_TRACE, "Trace response truncated");
+        tracing::warn!(trace_id = %trace_id, returned = MAX_SPANS_PER_TRACE, "Trace response truncated");
     }
 
     let summary = trace_row_to_summary(trace);
@@ -244,6 +236,7 @@ pub async fn get_trace(
         Json(TraceDetailDto {
             summary,
             spans: span_details,
+            spans_truncated,
         }),
     ))
 }

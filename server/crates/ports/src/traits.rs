@@ -115,11 +115,12 @@ pub trait SpanStore: Send + Sync {
     /// List spans with pagination and filters
     async fn list_spans(&self, params: &ListSpansParams) -> Result<(Vec<SpanRow>, u64), DataError>;
 
-    /// Get spans for a trace
+    /// Get at most `limit` spans for a trace.
     async fn get_spans_for_trace(
         &self,
         project_id: &ProjectId,
         trace_id: &str,
+        limit: usize,
     ) -> Result<Vec<SpanRow>, DataError>;
 
     /// Get a single span by ID
