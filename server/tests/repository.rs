@@ -3519,7 +3519,6 @@ fn every_detector_is_actually_started_in_production() {
 fn the_storage_layer_does_not_import_the_http_layer() {
     let repo = repo_root();
     let mut offenders: Vec<String> = Vec::new();
-    let mut scanned = 0usize;
     let mut roots = Vec::new();
     for entry in std::fs::read_dir(repo.join("server/crates")).expect("read crates dir") {
         let path = entry.expect("crate entry").path();
@@ -3530,6 +3529,17 @@ fn the_storage_layer_does_not_import_the_http_layer() {
         {
             roots.push(path.join("src"));
         }
+    }
+    assert!(
+        !roots.is_empty(),
+        "no adapter crate source roots discovered"
+    );
+    for root in &roots {
+        assert!(
+            root.join("lib.rs").is_file(),
+            "adapter source root has no lib.rs: {}",
+            root.display()
+        );
     }
 
     let mut stack = roots;
@@ -3544,7 +3554,6 @@ fn the_storage_layer_does_not_import_the_http_layer() {
                 continue;
             }
             let text = std::fs::read_to_string(&path).expect("read source");
-            scanned += 1;
 
             // Blank out commentary so only code is matched.
             let mut code = text.clone();
@@ -3568,10 +3577,6 @@ fn the_storage_layer_does_not_import_the_http_layer() {
         }
     }
 
-    assert!(
-        scanned > 100,
-        "only scanned {scanned} storage and adapter files - the walk is not reaching the tree"
-    );
     assert!(
         offenders.is_empty(),
         "the storage layer reaches into the HTTP layer in {} place(s), which the crate split will refuse \

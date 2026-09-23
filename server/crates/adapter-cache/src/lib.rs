@@ -22,7 +22,6 @@
 
 mod backend;
 mod error;
-mod key;
 mod memory;
 mod redis;
 
@@ -31,10 +30,10 @@ use std::time::Duration;
 
 use serde::Serialize;
 use serde::de::DeserializeOwned;
+use sideseat_ports::cache_key::CacheKey;
 
-pub use backend::CacheBackend;
+use backend::CacheBackend;
 pub use error::CacheError;
-pub use key::CacheKey;
 
 /// Invalidate all caches related to a user's membership in an organization.
 ///
