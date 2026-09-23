@@ -982,12 +982,7 @@ disk: ## Report and enforce the local disk budget
 	@echo "[disk] Largest local directories:"
 	@du -sh target $(WEB_DIR)/node_modules docs/node_modules .sideseat 2>/dev/null | sort -rh || true
 	@command -v docker >/dev/null 2>&1 && { echo "[disk] Docker:"; docker system df; } || true
-	@#  The container runtime's **VM disk images**, which is where this machine's space actually went and why
-	@#  it went unnoticed: 100 GB in a Colima data disk, 20 GB in its boot disk and 24 GB in a Docker Desktop
-	@#  image, against 4 GB of `target/`. They are *sparse*, so `du` reports the blocks in use and `ls`
-	@#  the provisioned size - and neither shrinks when images inside the VM are pruned. `docker system df`
-	@#  above reports what is reclaimable *inside* the VM, which is a different number from what the host
-	@#  gets back, and reading the first as the second is the mistake that let 144 GB hide.
+	@# VM images are sparse: du reports host blocks while ls reports virtual capacity.
 	@echo "[disk] Container VM disk images (sparse; pruning inside the VM does not shrink these):"
 	@for image in "$$HOME/.colima/_lima/_disks"/*/datadisk "$$HOME/.colima/_lima"/*/diffdisk \
 	              "$$HOME/.colima/_lima"/*/disk \
@@ -1002,6 +997,8 @@ disk: ## Report and enforce the local disk budget
 		echo "[disk] Active runtime: $$(docker context show 2>/dev/null)"; \
 		echo "[disk] An inactive runtime's disk is dead weight - reclaiming it means deleting that VM."; \
 	} || true
+	@command -v colima >/dev/null 2>&1 && [ "$$(docker context show 2>/dev/null)" = "colima" ] && \
+		echo "[disk] After pruning Colima, return sparse blocks to macOS: colima ssh -- sudo fstrim -av" || true
 	@used=$$(du -sm target 2>/dev/null | awk '{print $$1}'); \
 	used=$${used:-0}; \
 	available=$$(df -Pm . | awk 'NR == 2 {print $$4}'); \
