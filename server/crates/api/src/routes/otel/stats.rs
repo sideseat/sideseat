@@ -135,12 +135,7 @@ pub async fn get_project_stats(
         match cache.get::<ProjectStatsDto>(&cache_key).await {
             Ok(Some(cached_dto)) => {
                 tracing::trace!(%project_id, "Stats cache hit");
-                let mut headers = HeaderMap::new();
-                headers.insert(
-                    header::CACHE_CONTROL,
-                    HeaderValue::from_static("private, max-age=60"),
-                );
-                return Ok((headers, Json(cached_dto)));
+                return Ok((stats_cache_headers(true), Json(cached_dto)));
             }
             Err(e) => tracing::warn!(%project_id, error = %e, "Stats cache get error"),
             Ok(None) => {}
@@ -170,10 +165,18 @@ pub async fn get_project_stats(
         tracing::warn!(%project_id, error = %e, "Stats cache set error");
     }
 
-    let mut headers = HeaderMap::new();
-    headers.insert(header::CACHE_CONTROL, HeaderValue::from_static("no-store"));
+    Ok((stats_cache_headers(cache_ttl.is_some()), Json(dto)))
+}
 
-    Ok((headers, Json(dto)))
+fn stats_cache_headers(cacheable: bool) -> HeaderMap {
+    let mut headers = HeaderMap::new();
+    if cacheable {
+        headers.insert(
+            header::CACHE_CONTROL,
+            HeaderValue::from_static("private, max-age=60"),
+        );
+    }
+    headers
 }
 
 pub(crate) fn stats_result_to_dto(
@@ -251,9 +254,12 @@ pub(crate) fn stats_result_to_dto(
 
 #[cfg(test)]
 mod tests {
+    use axum::http::header;
     use chrono::{Duration, TimeZone, Utc};
 
-    use super::{StatsRangeError, normalize_timezone, validate_stats_time_range};
+    use super::{
+        StatsRangeError, normalize_timezone, stats_cache_headers, validate_stats_time_range,
+    };
 
     #[test]
     fn timezone_is_validated_and_canonicalized_before_caching() {
@@ -290,6 +296,21 @@ mod tests {
         assert_eq!(
             validate_stats_time_range(timestamp, timestamp - Duration::microseconds(1)),
             Err(StatsRangeError::InvalidOrder)
+        );
+    }
+
+    #[test]
+    fn client_cache_policy_depends_on_query_cacheability_not_cache_hits() {
+        assert_eq!(
+            stats_cache_headers(true)
+                .get(header::CACHE_CONTROL)
+                .and_then(|value| value.to_str().ok()),
+            Some("private, max-age=60")
+        );
+        assert!(
+            stats_cache_headers(false)
+                .get(header::CACHE_CONTROL)
+                .is_none()
         );
     }
 }
