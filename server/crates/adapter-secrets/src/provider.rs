@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 
 use super::error::SecretError;
-use super::types::{Secret, SecretKey, SecretScope};
+use super::types::{Secret, SecretKey};
 
 #[async_trait]
 pub trait SecretProvider: Send + Sync + std::fmt::Debug {
@@ -39,9 +39,6 @@ pub trait SecretProvider: Send + Sync + std::fmt::Debug {
 
     /// Delete a secret
     async fn delete(&self, key: &SecretKey) -> Result<(), SecretError>;
-
-    /// List all keys matching a scope
-    async fn list(&self, scope: &SecretScope) -> Result<Vec<SecretKey>, SecretError>;
 
     /// Check if a secret exists (default: delegate to get)
     async fn exists(&self, key: &SecretKey) -> Result<bool, SecretError> {

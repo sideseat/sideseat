@@ -9,7 +9,7 @@ use sideseat_ports::clock::Clock;
 
 use super::error::SecretError;
 use super::provider::SecretProvider;
-use super::types::{Secret, SecretKey, SecretScope, SecretVault};
+use super::types::{Secret, SecretKey, SecretVault};
 
 const FILE_SECRETS_FILENAME: &str = "secrets.json";
 
@@ -118,11 +118,6 @@ impl SecretProvider for FileProvider {
         self.save().await
     }
 
-    async fn list(&self, scope: &SecretScope) -> Result<Vec<SecretKey>, SecretError> {
-        let vault = self.vault.read().await;
-        Ok(vault.list_secrets(scope))
-    }
-
     fn name(&self) -> &'static str {
         "File (INSECURE - dev only)"
     }
@@ -135,6 +130,7 @@ impl SecretProvider for FileProvider {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::types::SecretScope;
     use crate::{test_clock, test_clock_at, test_secret};
 
     #[tokio::test]
@@ -151,10 +147,6 @@ mod tests {
         assert_eq!(got.value, "test_value");
 
         assert!(provider.exists(&key).await.unwrap());
-
-        let keys = provider.list(&SecretScope::global()).await.unwrap();
-        assert_eq!(keys.len(), 1);
-        assert_eq!(keys[0].to_string(), "global/test_key");
 
         provider.delete(&key).await.unwrap();
         assert!(provider.get(&key).await.unwrap().is_none());
@@ -213,12 +205,9 @@ mod tests {
         tokio::fs::create_dir_all(dir.path()).await.unwrap();
         tokio::fs::write(&path, "not-json{{{").await.unwrap();
 
-        let provider = FileProvider::init(dir.path(), test_clock_at(backup_time))
+        FileProvider::init(dir.path(), test_clock_at(backup_time))
             .await
             .unwrap();
-
-        let keys = provider.list(&SecretScope::global()).await.unwrap();
-        assert!(keys.is_empty());
 
         let entries: Vec<_> = std::fs::read_dir(dir.path())
             .unwrap()
@@ -249,16 +238,8 @@ mod tests {
         provider.set(&org, &test_secret("o")).await.unwrap();
         provider.set(&proj, &test_secret("p")).await.unwrap();
 
-        let global_keys = provider.list(&SecretScope::global()).await.unwrap();
-        assert_eq!(global_keys.len(), 1);
-
-        let org_keys = provider.list(&SecretScope::org("acme")).await.unwrap();
-        assert_eq!(org_keys.len(), 1);
-
-        let proj_keys = provider.list(&SecretScope::project("p1")).await.unwrap();
-        assert_eq!(proj_keys.len(), 1);
-
-        let empty = provider.list(&SecretScope::user("nobody")).await.unwrap();
-        assert!(empty.is_empty());
+        assert!(provider.get(&global).await.unwrap().is_some());
+        assert!(provider.get(&org).await.unwrap().is_some());
+        assert!(provider.get(&proj).await.unwrap().is_some());
     }
 }

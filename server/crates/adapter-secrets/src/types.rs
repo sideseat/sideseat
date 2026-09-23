@@ -66,12 +66,14 @@ impl SecretScope {
             id: Some(id.into()),
         }
     }
+    #[cfg(test)]
     pub fn project(id: impl Into<String>) -> Self {
         Self {
             kind: SecretScopeKind::Project,
             id: Some(id.into()),
         }
     }
+    #[cfg(test)]
     pub fn user(id: impl Into<String>) -> Self {
         Self {
             kind: SecretScopeKind::User,
@@ -251,18 +253,6 @@ impl SecretVault {
     /// Delete a secret, returns true if it existed
     pub(crate) fn delete_secret(&mut self, key: &SecretKey) -> bool {
         self.secrets.remove(&key.to_string()).is_some()
-    }
-
-    pub(crate) fn list_secrets(&self, scope: &SecretScope) -> Vec<SecretKey> {
-        let prefix = match &scope.id {
-            None => format!("{}/", scope.kind),
-            Some(id) => format!("{}/{}/", scope.kind, id),
-        };
-        self.secrets
-            .keys()
-            .filter(|k| k.starts_with(&prefix))
-            .filter_map(|k| k.parse().ok())
-            .collect()
     }
 }
 

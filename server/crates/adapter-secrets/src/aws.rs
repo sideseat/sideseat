@@ -3,7 +3,7 @@ use aws_sdk_secretsmanager::Client;
 
 use super::error::SecretError;
 use super::provider::SecretProvider;
-use super::types::{Secret, SecretKey, SecretScope};
+use super::types::{Secret, SecretKey};
 
 #[derive(Debug)]
 pub struct AwsProvider {
@@ -189,47 +189,6 @@ impl SecretProvider for AwsProvider {
                 }
             }
         }
-    }
-
-    async fn list(&self, scope: &SecretScope) -> Result<Vec<SecretKey>, SecretError> {
-        let prefix = match &scope.id {
-            None => format!("{}/{}/", self.prefix, scope.kind),
-            Some(id) => format!("{}/{}/{}/", self.prefix, scope.kind, id),
-        };
-        let mut keys = Vec::new();
-        let mut next_token: Option<String> = None;
-        let strip_prefix = format!("{}/", self.prefix);
-
-        loop {
-            let mut req = self.client.list_secrets().filters(
-                aws_sdk_secretsmanager::types::Filter::builder()
-                    .key(aws_sdk_secretsmanager::types::FilterNameStringType::Name)
-                    .values(&prefix)
-                    .build(),
-            );
-            if let Some(token) = next_token {
-                req = req.next_token(token);
-            }
-            let resp = req
-                .send()
-                .await
-                .map_err(|e| SecretError::backend("aws", e.to_string()))?;
-
-            for secret in resp.secret_list() {
-                if let Some(name) = secret.name()
-                    && let Some(key_str) = name.strip_prefix(&strip_prefix)
-                    && let Ok(key) = key_str.parse()
-                {
-                    keys.push(key);
-                }
-            }
-
-            next_token = resp.next_token().map(|s| s.to_string());
-            if next_token.is_none() {
-                break;
-            }
-        }
-        Ok(keys)
     }
 
     fn name(&self) -> &'static str {

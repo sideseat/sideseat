@@ -5,7 +5,8 @@ use sideseat_ports::clock::Clock;
 
 use super::error::SecretError;
 use super::provider::SecretProvider;
-use super::types::{Secret, SecretKey, SecretScope, SecretScopeKind};
+use super::types::Secret;
+use super::types::SecretKey;
 
 #[derive(Debug)]
 pub struct EnvProvider {
@@ -21,29 +22,6 @@ impl EnvProvider {
     fn key_to_env_var(&self, key: &SecretKey) -> String {
         let path = key.to_string().to_uppercase().replace(['/', '-'], "_");
         format!("{}{}", self.prefix, path)
-    }
-
-    fn env_var_to_key(&self, var: &str) -> Option<SecretKey> {
-        let stripped = var.strip_prefix(&self.prefix)?;
-        let lower = stripped.to_lowercase();
-        for scope_prefix in ["global_", "org_", "project_", "user_"] {
-            if let Some(rest) = lower.strip_prefix(scope_prefix) {
-                let kind_str = scope_prefix.trim_end_matches('_');
-                let kind: SecretScopeKind = kind_str.parse().ok()?;
-                if kind == SecretScopeKind::Global {
-                    return Some(SecretKey::new(rest, SecretScope::global()));
-                }
-                let (id, name) = rest.split_once('_')?;
-                return Some(SecretKey::new(
-                    name,
-                    SecretScope {
-                        kind,
-                        id: Some(id.to_string()),
-                    },
-                ));
-            }
-        }
-        None
     }
 }
 
@@ -69,23 +47,6 @@ impl SecretProvider for EnvProvider {
         Err(SecretError::ReadOnly { backend: "env" })
     }
 
-    async fn list(&self, scope: &SecretScope) -> Result<Vec<SecretKey>, SecretError> {
-        let prefix = match &scope.id {
-            None => format!("{}{}_", self.prefix, scope.kind.as_str().to_uppercase()),
-            Some(id) => format!(
-                "{}{}_{}_",
-                self.prefix,
-                scope.kind.as_str().to_uppercase(),
-                id.to_uppercase(),
-            ),
-        };
-        let keys = std::env::vars()
-            .filter(|(k, _)| k.starts_with(&prefix))
-            .filter_map(|(k, _)| self.env_var_to_key(&k))
-            .collect();
-        Ok(keys)
-    }
-
     fn name(&self) -> &'static str {
         "Environment Variables"
     }
@@ -104,6 +65,7 @@ mod tests {
     #![allow(unsafe_code)]
 
     use super::*;
+    use crate::types::SecretScope;
     use crate::{test_clock, test_secret};
 
     #[test]
@@ -125,28 +87,6 @@ mod tests {
         assert_eq!(
             provider.key_to_env_var(&SecretKey::new("pref", SecretScope::user("u1"))),
             "SIDESEAT_SECRET_USER_U1_PREF"
-        );
-    }
-
-    #[test]
-    fn test_env_var_to_key() {
-        let provider = EnvProvider::new("SIDESEAT_SECRET_".to_string(), test_clock());
-
-        let key = provider
-            .env_var_to_key("SIDESEAT_SECRET_GLOBAL_JWT_SIGNING_KEY")
-            .unwrap();
-        assert_eq!(key.to_string(), "global/jwt_signing_key");
-
-        let key = provider
-            .env_var_to_key("SIDESEAT_SECRET_ORG_ACME_API_KEY")
-            .unwrap();
-        assert_eq!(key.to_string(), "org/acme/api_key");
-
-        assert!(provider.env_var_to_key("UNRELATED_VAR").is_none());
-        assert!(
-            provider
-                .env_var_to_key("SIDESEAT_SECRET_UNKNOWN_FOO")
-                .is_none()
         );
     }
 

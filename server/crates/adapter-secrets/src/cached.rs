@@ -6,7 +6,7 @@ use moka::future::Cache;
 
 use super::error::SecretError;
 use super::provider::SecretProvider;
-use super::types::{Secret, SecretKey, SecretScope};
+use super::types::{Secret, SecretKey};
 
 const CACHE_TTL_SECS: u64 = 300;
 const CACHE_MAX_CAPACITY: u64 = 10_000;
@@ -72,10 +72,6 @@ impl SecretProvider for CachedProvider {
             .insert(key.to_string(), Some(winner.clone()))
             .await;
         Ok(winner)
-    }
-
-    async fn list(&self, scope: &SecretScope) -> Result<Vec<SecretKey>, SecretError> {
-        self.inner.list(scope).await
     }
 
     fn name(&self) -> &'static str {

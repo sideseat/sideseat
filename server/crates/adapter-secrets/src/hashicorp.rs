@@ -3,7 +3,7 @@ use reqwest::header::{HeaderMap, HeaderValue};
 
 use super::error::SecretError;
 use super::provider::SecretProvider;
-use super::types::{Secret, SecretKey, SecretScope};
+use super::types::{Secret, SecretKey};
 
 const VAULT_TIMEOUT_SECS: u64 = 30;
 
@@ -54,18 +54,6 @@ impl HashiVaultProvider {
         format!(
             "{}/v1/{}/data/{}/{}",
             self.address, self.mount, self.prefix, key
-        )
-    }
-
-    /// KV v2 metadata path for LIST
-    fn metadata_url(&self, scope: &SecretScope) -> String {
-        let scope_path = match &scope.id {
-            None => format!("{}", scope.kind),
-            Some(id) => format!("{}/{}", scope.kind, id),
-        };
-        format!(
-            "{}/v1/{}/metadata/{}/{}/",
-            self.address, self.mount, self.prefix, scope_path
         )
     }
 }
@@ -163,40 +151,6 @@ impl SecretProvider for HashiVaultProvider {
             ));
         }
         Ok(())
-    }
-
-    async fn list(&self, scope: &SecretScope) -> Result<Vec<SecretKey>, SecretError> {
-        // Use GET ?list=true (not custom LIST method) to avoid proxy/WAF issues
-        let url = format!("{}?list=true", self.metadata_url(scope));
-        let resp = self.client.get(&url).send().await?;
-
-        if resp.status() == reqwest::StatusCode::NOT_FOUND {
-            return Ok(Vec::new());
-        }
-        if !resp.status().is_success() {
-            return Err(SecretError::backend(
-                "vault",
-                format!("LIST {} returned {}", url, resp.status()),
-            ));
-        }
-
-        let body: serde_json::Value = resp.json().await?;
-        let empty = Vec::new();
-        let entries = body["data"]["keys"]
-            .as_array()
-            .unwrap_or(&empty)
-            .iter()
-            .filter_map(|v| v.as_str())
-            .filter(|s| !s.ends_with('/'))
-            .filter_map(|name| {
-                let full = match &scope.id {
-                    None => format!("{}/{}", scope.kind, name),
-                    Some(id) => format!("{}/{}/{}", scope.kind, id, name),
-                };
-                full.parse().ok()
-            })
-            .collect();
-        Ok(entries)
     }
 
     fn name(&self) -> &'static str {

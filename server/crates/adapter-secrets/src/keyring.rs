@@ -11,7 +11,7 @@ use sideseat_ports::clock::Clock;
 
 use super::error::SecretError;
 use super::provider::SecretProvider;
-use super::types::{Secret, SecretKey, SecretScope, SecretVault};
+use super::types::{Secret, SecretKey, SecretVault};
 
 const VAULT_KEY: &str = "vault";
 
@@ -168,11 +168,6 @@ impl SecretProvider for KeyringProvider {
             }
         }
         self.save().await
-    }
-
-    async fn list(&self, scope: &SecretScope) -> Result<Vec<SecretKey>, SecretError> {
-        let vault = self.vault.read().await;
-        Ok(vault.list_secrets(scope))
     }
 
     fn name(&self) -> &'static str {

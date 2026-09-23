@@ -13,9 +13,8 @@ mod keyring;
 mod provider;
 mod types;
 
-pub use types::{Secret, SecretKey, SecretScope};
-
 use provider::SecretProvider;
+use types::{Secret, SecretKey, SecretScope};
 
 use std::sync::Arc;
 
@@ -147,87 +146,28 @@ impl SecretManager {
 
     // -- Scoped API --
 
-    pub async fn get_scoped(&self, key: &SecretKey) -> Result<Option<Secret>> {
+    async fn get_scoped(&self, key: &SecretKey) -> Result<Option<Secret>> {
         self.provider.get(key).await.map_err(Into::into)
     }
 
-    pub async fn set_scoped(&self, key: &SecretKey, secret: Secret) -> Result<()> {
+    async fn set_scoped(&self, key: &SecretKey, secret: Secret) -> Result<()> {
         self.provider.set(key, &secret).await.map_err(Into::into)
     }
 
-    pub async fn set_scoped_value(&self, key: &SecretKey, value: impl Into<String>) -> Result<()> {
+    async fn set_scoped_value(&self, key: &SecretKey, value: impl Into<String>) -> Result<()> {
         self.set_scoped(key, Secret::new(value, self.clock.now()))
             .await
     }
 
-    pub async fn delete_scoped(&self, key: &SecretKey) -> Result<()> {
+    async fn delete_scoped(&self, key: &SecretKey) -> Result<()> {
         self.provider.delete(key).await.map_err(Into::into)
     }
 
-    /// Try scopes in order, return first match
-    pub async fn get_with_fallback(
-        &self,
-        name: &str,
-        scopes: &[SecretScope],
-    ) -> Result<Option<Secret>> {
-        for scope in scopes {
-            let key = SecretKey::new(name, scope.clone());
-            if let Some(secret) = self.get_scoped(&key).await? {
-                return Ok(Some(secret));
-            }
-        }
-        Ok(None)
-    }
-
-    // -- Global secret helpers --
-
-    pub async fn get(&self, name: &str) -> Result<Option<Secret>> {
-        self.get_scoped(&SecretKey::global(name)).await
-    }
-
-    pub async fn set(&self, name: &str, secret: Secret) -> Result<()> {
-        self.set_scoped(&SecretKey::global(name), secret).await
-    }
-
-    pub async fn get_value(&self, name: &str) -> Result<Option<String>> {
-        Ok(self.get(name).await?.map(|s| s.value))
-    }
-
-    pub async fn set_api_key(&self, name: &str, value: &str) -> Result<()> {
-        self.set_scoped_value(&SecretKey::global(name), value).await
-    }
-
-    pub async fn exists(&self, name: &str) -> bool {
-        self.provider
-            .exists(&SecretKey::global(name))
-            .await
-            .unwrap_or(false)
-    }
-
-    pub async fn delete(&self, name: &str) -> Result<()> {
-        self.delete_scoped(&SecretKey::global(name)).await
-    }
-
-    // -- Org-scoped secret operations --
-
-    pub async fn set_org_api_key(&self, org_id: &str, name: &str, value: &str) -> Result<()> {
-        let key = SecretKey::new(name, SecretScope::org(org_id));
-        self.set_scoped_value(&key, value).await
-    }
-
-    pub async fn get_org_api_key(&self, org_id: &str, name: &str) -> Result<Option<String>> {
-        let key = SecretKey::new(name, SecretScope::org(org_id));
-        Ok(self.get_scoped(&key).await?.map(|s| s.value))
-    }
-
-    pub async fn list_org_secrets(&self, org_id: &str) -> Result<Vec<SecretKey>> {
-        let scope = SecretScope::org(org_id);
-        self.provider.list(&scope).await.map_err(Into::into)
-    }
-
-    pub async fn delete_org_secret(&self, org_id: &str, name: &str) -> Result<()> {
-        let key = SecretKey::new(name, SecretScope::org(org_id));
-        self.delete_scoped(&key).await
+    async fn get_value(&self, name: &str) -> Result<Option<String>> {
+        Ok(self
+            .get_scoped(&SecretKey::global(name))
+            .await?
+            .map(|secret| secret.value))
     }
 
     // -- Internal secrets (global scope) --
@@ -542,9 +482,6 @@ mod tests {
             *self.stored.lock() = None;
             Ok(())
         }
-        async fn list(&self, _scope: &SecretScope) -> Result<Vec<SecretKey>, SecretError> {
-            Ok(Vec::new())
-        }
         fn name(&self) -> &'static str {
             "flaky"
         }
@@ -611,87 +548,23 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_global_convenience() {
-        let dir = tempfile::tempdir().unwrap();
-        let mgr = test_manager(&dir).await;
-
-        mgr.set("test_key", test_secret("val")).await.unwrap();
-        assert_eq!(mgr.get_value("test_key").await.unwrap().unwrap(), "val");
-        assert!(mgr.exists("test_key").await);
-
-        mgr.delete("test_key").await.unwrap();
-        assert!(!mgr.exists("test_key").await);
-    }
-
-    #[tokio::test]
-    async fn test_org_scoped_methods() {
-        let dir = tempfile::tempdir().unwrap();
-        let mgr = test_manager(&dir).await;
-
-        mgr.set_org_api_key("acme", "openai_key", "sk-123")
-            .await
-            .unwrap();
-        assert_eq!(
-            mgr.get_org_api_key("acme", "openai_key")
-                .await
-                .unwrap()
-                .unwrap(),
-            "sk-123"
-        );
-
-        let keys = mgr.list_org_secrets("acme").await.unwrap();
-        assert_eq!(keys.len(), 1);
-        assert_eq!(keys[0].to_string(), "org/acme/openai_key");
-
-        mgr.delete_org_secret("acme", "openai_key").await.unwrap();
-        assert!(
-            mgr.get_org_api_key("acme", "openai_key")
-                .await
-                .unwrap()
-                .is_none()
-        );
-    }
-
-    #[tokio::test]
-    async fn test_get_with_fallback() {
-        let dir = tempfile::tempdir().unwrap();
-        let mgr = test_manager(&dir).await;
-
-        // Set only at global scope
-        mgr.set("api_key", test_secret("global_val")).await.unwrap();
-
-        // Fallback: org first, then global
-        let result = mgr
-            .get_with_fallback(
-                "api_key",
-                &[SecretScope::org("acme"), SecretScope::global()],
-            )
-            .await
-            .unwrap();
-        assert_eq!(result.unwrap().value, "global_val");
-
-        // Set at org scope — should take priority
-        mgr.set_org_api_key("acme", "api_key", "org_val")
-            .await
-            .unwrap();
-        let result = mgr
-            .get_with_fallback(
-                "api_key",
-                &[SecretScope::org("acme"), SecretScope::global()],
-            )
-            .await
-            .unwrap();
-        assert_eq!(result.unwrap().value, "org_val");
-    }
-
-    #[tokio::test]
     async fn test_ensure_secrets_creates_missing() {
         let dir = tempfile::tempdir().unwrap();
         let mgr = test_manager(&dir).await;
 
         mgr.ensure_secrets().await.unwrap();
-        assert!(mgr.exists(SECRET_KEY_JWT_SIGNING).await);
-        assert!(mgr.exists(SECRET_KEY_API_KEY).await);
+        assert!(
+            mgr.get_scoped(&SecretKey::global(SECRET_KEY_JWT_SIGNING))
+                .await
+                .unwrap()
+                .is_some()
+        );
+        assert!(
+            mgr.get_scoped(&SecretKey::global(SECRET_KEY_API_KEY))
+                .await
+                .unwrap()
+                .is_some()
+        );
     }
 
     #[test]
