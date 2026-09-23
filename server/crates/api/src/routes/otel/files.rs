@@ -126,13 +126,10 @@ pub async fn get_file(
         content.data.len().to_string().parse().unwrap(),
     );
 
-    // Set Content-Disposition based on inline parameter
-    let disposition = if params.inline {
-        "inline"
-    } else {
-        "attachment"
-    };
-    headers.insert(header::CONTENT_DISPOSITION, disposition.parse().unwrap());
+    headers.insert(
+        header::CONTENT_DISPOSITION,
+        content_disposition(params.inline),
+    );
 
     Ok((headers, Body::from(content.data)).into_response())
 }
@@ -144,7 +141,8 @@ pub async fn get_file(
     tag = "files",
     params(
         ("project_id" = String, Path, description = "Project ID"),
-        ("hash" = String, Path, description = "File SHA-256 hash (64 hex chars)")
+        ("hash" = String, Path, description = "File SHA-256 hash (64 hex chars)"),
+        ("inline" = Option<bool>, Query, description = "Match the GET response disposition")
     ),
     responses(
         (status = 200, description = "File exists"),
@@ -156,6 +154,7 @@ pub async fn head_file(
     State(state): State<FilesApiState>,
     auth: ProjectRead,
     Path(path): Path<FilePathParams>,
+    Query(params): Query<FileQueryParams>,
 ) -> Result<Response, ApiError> {
     let project_id = &auth.project_id;
     let hash = &path.hash;
@@ -216,8 +215,16 @@ pub async fn head_file(
         header::CONTENT_LENGTH,
         metadata.size_bytes.to_string().parse().unwrap(),
     );
+    headers.insert(
+        header::CONTENT_DISPOSITION,
+        content_disposition(params.inline),
+    );
 
     Ok((headers, Body::empty()).into_response())
+}
+
+fn content_disposition(inline: bool) -> HeaderValue {
+    HeaderValue::from_static(if inline { "inline" } else { "attachment" })
 }
 
 #[cfg(test)]
@@ -230,5 +237,11 @@ mod tests {
             HeaderValue::from_static(FILE_CACHE_CONTROL),
             "private, max-age=31536000, immutable"
         );
+    }
+
+    #[test]
+    fn get_and_head_share_the_requested_content_disposition() {
+        assert_eq!(content_disposition(false), "attachment");
+        assert_eq!(content_disposition(true), "inline");
     }
 }
