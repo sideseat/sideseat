@@ -4,9 +4,7 @@ version = "0.2.0"
 edition = "2024"
 rust-version.workspace = true
 description = "AI Development Workbench — Debug, trace, and understand your AI agents"
-# MIT, matching this crate's own README and the other client SDKs. The server and CLI are Apache-2.0;
-# the client libraries are deliberately more permissive. The manifest said Apache-2.0 while the README
-# badged MIT - one package, two answers.
+# Published client SDKs use MIT; server and CLI artifacts use Apache-2.0.
 license = "MIT"
 repository = "https://github.com/sideseat/sideseat"
 homepage = "https://sideseat.ai"
@@ -16,52 +14,40 @@ categories = ["development-tools::debugging", "development-tools::profiling"]
 readme = "README.md"
 
 [dependencies]
-# From workspace
+# Runtime and serialization
 tokio = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
-reqwest = { workspace = true }
 async-trait = { workspace = true }
 async-stream = { workspace = true }
 futures = { workspace = true }
 thiserror = { workspace = true }
-base64 = { workspace = true }
-aws-config = { workspace = true }
 
-# AWS Bedrock
+# Model providers
+reqwest = { workspace = true }
+base64 = { workspace = true }
+eventsource-stream = "0.2"
+rand = { workspace = true }
+aws-config = { workspace = true }
 aws-sdk-bedrockruntime = { workspace = true }
 aws-sdk-bedrock = { workspace = true }
 aws-credential-types = { workspace = true }
 gcp_auth = { workspace = true }
 aws-smithy-types = "1"
-# event-stream gates the `event_stream` module used by the Bedrock streaming provider.
-# It was previously enabled only by feature unification from another crate in the
-# graph, so any dependency change could - and did - make the import vanish.
-# Must track the version aws-sdk-bedrockruntime resolves - **0.64** as of the dependency update that
-# cleared fourteen advisories. The requirement is not a preference: two aws-smithy-http versions in the
-# graph make `EventStreamSender` from one a different type from the other, and the streaming Bedrock call
-# stops compiling. It has now failed in both directions, 0.64 pinned against a 0.62 SDK and the reverse, so
-# the rule is to move this line whenever the SDK moves. The explicit event-stream feature stays - it was
-# previously satisfied only by unification from elsewhere in the graph, so an unrelated dependency change
-# could make the import vanish.
+# Bedrock streaming imports EventStreamSender directly. Keep this minor aligned
+# with aws-sdk-bedrockruntime and enable the module explicitly.
 aws-smithy-http = { version = "0.64", features = ["event-stream"] }
 
-# SSE streaming parser
-eventsource-stream = "0.2"
-
+# Telemetry
 tracing = { workspace = true }
 opentelemetry     = { workspace = true }
 opentelemetry_sdk = { workspace = true }
 opentelemetry-otlp = { workspace = true }
 
-# Pin utilities
-
-rand = { workspace = true }
+# Context and MCP
 parking_lot = { workspace = true }
 uuid = { version = "1.11", features = ["v7"] }
 yrs = "0.21"
-
-# MCP client integration
 rmcp = { workspace = true }
 
 [dev-dependencies]
