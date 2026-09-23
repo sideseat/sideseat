@@ -107,17 +107,6 @@ pub async fn list_traces(
     let mut headers = HeaderMap::new();
     headers.insert(header::CACHE_CONTROL, HeaderValue::from_static("no-store"));
 
-    // Compute Last-Modified from most recent trace (HTTP-date format per RFC 7231)
-    if let Some(latest) = data.first() {
-        let http_date = latest
-            .start_time
-            .format("%a, %d %b %Y %H:%M:%S GMT")
-            .to_string();
-        if let Ok(last_modified) = HeaderValue::from_str(&http_date) {
-            headers.insert(header::LAST_MODIFIED, last_modified);
-        }
-    }
-
     Ok((
         headers,
         Json(PaginatedResponse::new(data, query.page, query.limit, total)),

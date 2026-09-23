@@ -1,14 +1,4 @@
-//! Path and validation extractors for API routes
-//!
-//! ## HTTP Caching Strategy
-//!
-//! | Endpoint Type           | Cache-Control          | Additional      |
-//! |-------------------------|------------------------|-----------------|
-//! | OTEL list endpoints     | `no-store`             | Last-Modified   |
-//! | OTEL detail endpoints   | -                      | ETag (computed) |
-//! | Filter options          | `private, max-age=30`  | -               |
-//! | Resource APIs           | -                      | -               |
-//! | SSE                     | N/A                    | -               |
+//! Path and validation extractors for API routes.
 
 use std::ops::Deref;
 
