@@ -23,38 +23,22 @@ members = [
 ]
 resolver = "2"
 
-# The minimum Rust, **declared** so cargo refuses an older toolchain with a message naming the version,
-# instead of failing somewhere inside a dependency. It is measured, not chosen, and from two sources: the
-# highest `rust-version` in the resolved graph (**1.94.1**, the AWS SDK crates) and the code's own needs
-# (`sdk/rust` calls `ceil_char_boundary`, stable since 1.91). Declaring it is what found the second: clippy's
-# `incompatible_msrv` fires on any item newer than the stated floor, so the number is enforced against the
-# source and not only against the lockfile, and a CI job compiles the workspace on exactly this version -
-# `rust-version` refuses an older toolchain but proves nothing about building on this one. `CONTRIBUTING.md`
-# had said 1.85 with nothing able to notice, because every job used `stable`. Verified locally on 1.94.1.
-# Stated to the **patch**: `1.94` means 1.94.0, which the AWS crates' own `1.94.1` does not satisfy, and
-# the CI job asked for the `1.94` shorthand, which rustup resolves to the newest 1.94.x - so a floor that
-# was one patch release low would have looked verified.
-# Re-measure the dependency half after a bump with:
-#   cargo metadata --locked --format-version 1 --manifest-path server/Cargo.toml |
+# Keep the exact patch version: resolved AWS crates require 1.94.1. CI builds the
+# workspace on this floor, and Clippy checks source APIs against it. Re-measure
+# dependency requirements after lockfile updates with:
+#   cargo metadata --locked --format-version 1 |
 #     python3 -c 'import json,sys; print(max((p["rust_version"] for p in json.load(sys.stdin)["packages"] if p.get("rust_version")), key=lambda v: tuple(int(x) for x in v.split("."))))'
 [workspace.package]
-# **One version for every crate in the workspace**, and `make sync-version` edits it here.
-#
-# The layer split made this necessary rather than tidy. `banner.rs` and `update.rs` read
-# `env!("CARGO_PKG_VERSION")`, and once they moved into `sideseat-core` that macro resolved to *core's*
-# version - which `sync-version` did not touch, because it edited `server/Cargo.toml` alone. The next release
-# would have printed the old version in `--version` and in the banner, and the update checker would have
-# offered the running build to itself as an upgrade.
+# Every workspace crate inherits this version so binary metadata, the banner,
+# and update checks cannot drift. `make sync-version` updates it.
 version = "1.0.13"
 rust-version = "1.94.1"
 
 # ---------------------------------------------------------------------------
 # Lint gates
 #
-# Levels are hand-picked rather than family-wide: a gate is only useful if a green
-# result means something, and a family that fires 4000 times on style gets muted or
-# worked around instead of fixed. Each `deny` below is a bug class that is currently at
-# zero, so it can only be reintroduced deliberately. Each `allow` says why.
+# Selected bug classes are denied explicitly. Advisory and style lints remain
+# opt-in below so the blocking gate stays actionable.
 # ---------------------------------------------------------------------------
 [workspace.lints.rust]
 # Removes memory-unsafety as a class from shipped code. `deny` rather than `forbid`
@@ -84,15 +68,8 @@ derive_partial_eq_without_eq = "deny"
 unwrap_in_result = "deny"
 
 # --- advisory: real but non-blocking ---
-# `allow` here, not `warn`, because the gate is `clippy --all-targets -- -D warnings`:
-# a `warn` at workspace level becomes a hard error there, and these ~156 findings would
-# fail every `make lint` run. Run `make lint-advisory` to see them; it enables exactly
-# this list with `-W`, so the set stays in one place.
-#
-# Counts at the time of writing: significant_drop_tightening 95, redundant_clone 18,
-# needless_collect 15, or_fun_call 14, useless_let_if_seq 4, future_not_send 4,
-# trait_duplication_in_bounds 2, single_option_map 2, suboptimal_flops 1,
-# branches_sharing_code 1.
+# These are `allow`, not `warn`, because the blocking gate promotes every
+# warning to an error. `make lint-advisory` enables this same list explicitly.
 redundant_clone = "allow"
 needless_collect = "allow"
 or_fun_call = "allow"
@@ -102,17 +79,15 @@ branches_sharing_code = "allow"
 suboptimal_flops = "allow"
 trait_duplication_in_bounds = "allow"
 single_option_map = "allow"
-# 4 sites in the async cache/topics layer; making those futures Send is a design change,
-# not a lint fix.
+# Cache and topic abstractions permit non-Send futures by design.
 future_not_send = "allow"
 
 # --- style families deliberately not enabled ---
-# pedantic fires ~4100 times and nursery ~600 on this tree, almost entirely on style
-# (missing_const_for_fn, use_self, option_if_let_else, redundant_pub_crate). Turning
-# them on wholesale would bury the denies above in noise.
+# Pedantic and nursery remain opt-in because family-wide style findings would
+# obscure the bug-class gate.
 #
-# multiple_crate_versions (170) and cargo_common_metadata come from the transitive
-# dependency graph and cannot be resolved from this workspace.
+# Duplicate versions come from the resolved dependency graph; cargo metadata
+# requirements are not useful for unpublished workspace crates.
 multiple_crate_versions = "allow"
 cargo_common_metadata = "allow"
 # Braces in user-facing strings are literal - they document URL templates like
@@ -169,8 +144,8 @@ keyring = { version = "3.6", default-features = false, features = [
   "windows-native",
   "crypto-rust",
 ] }
-# Note: linux-native and sync-secret-service removed for cross-compilation.
-# Linux uses file-based secrets by default. Set SIDESEAT_SECRETS_BACKEND=file.
+# Native keyring integrations are limited to Apple and Windows so Linux remains
+# cross-compilable and defaults to file-backed secrets.
 local-ip-address = "0.6"
 supports-hyperlinks = "3"
 jsonwebtoken = "9"
@@ -201,10 +176,8 @@ regex = "1.11"
 fs2 = "0.4"
 sha2 = "0.10"
 blake3 = "1"
-# RFC 9535 JSONPath for the framework rules engine's selection and filtering. Chosen over JMESPath because
-# it returns *borrowed* references into the original `serde_json::Value`, so cloning a selected subtree
-# keeps the provider's member order - JMESPath re-materialises through its own sorted map, which
-# alphabetised a provider's payload. See `docs/engineering/framework-rules-engine.md`.
+# Borrowed RFC 9535 matches preserve provider member order during framework-rule
+# selection. See `docs/engineering/framework-rules-engine.md`.
 serde_json_path = "0.7"
 hmac = "0.12"
 dashmap = "6.1"
@@ -241,10 +214,8 @@ tokio-util = { version = "0.7", features = ["rt"] }
 security-framework = { version = "3", features = ["OSX_10_15"] }
 core-foundation = "0.10"
 
-# Debug builds carried full DWARF for the whole dependency graph, and target/debug reached 45GB -
-# 34GB of it in deps. Line tables keep panic messages and backtraces pointing at the right file and
-# line, which is what the test suite reports with; dependencies get none, since a backtrace through
-# tokio is not what anyone reads.
+# Keep source line tables for application backtraces while omitting dependency
+# DWARF to bound local build size.
 [profile.dev]
 debug = "line-tables-only"
 
@@ -256,6 +227,3 @@ opt-level = 3
 lto = true
 codegen-units = 1
 strip = true
-
-[profile.release.package."*"]
-opt-level = 3
