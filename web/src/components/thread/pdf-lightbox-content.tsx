@@ -65,15 +65,6 @@ export default function PdfLightboxContent({
   const containerRef = useRef<HTMLDivElement>(null);
   const pageRefs = useRef<Map<number, HTMLDivElement>>(new Map());
 
-  // Reset state when src changes
-  useEffect(() => {
-    setCurrentPage(1);
-    setScale(1);
-    setLoadError(null);
-    setNumPages(0);
-    pageRefs.current.clear();
-  }, [src]);
-
   // Update header info when page count or current page changes
   useEffect(() => {
     if (numPages > 0) {

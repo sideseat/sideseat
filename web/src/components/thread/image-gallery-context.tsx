@@ -662,6 +662,7 @@ function MediaLightbox({
       {entry.type === "pdf" ? (
         <Suspense fallback={<LoadingSpinner />}>
           <PdfLightboxContent
+            key={entry.src}
             src={entry.src}
             showControls={showControls}
             onDownload={handleDownload}
