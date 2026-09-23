@@ -2,7 +2,7 @@
 #
 # End-to-end HTTP latency for ingestion and reads, against either backend pair.
 #
-# The numbers in CLAUDE.md come from this script, so they can be re-taken rather than trusted. It measures
+# The documented latency numbers come from this script, so they can be re-taken rather than trusted. It measures
 # what a *client* sees - the whole request, including the write - because that is the only latency anyone
 # experiences; the in-process benches (`bench_ingestion_end_to_end`, `bench_session_scaling`) measure the
 # stages inside it.
@@ -46,9 +46,10 @@ MIN_P99_SAMPLES="${BENCH_MIN_P99_SAMPLES:-100}"
 GAP_MS="${BENCH_GAP_MS:-25}"
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 WORK="$(mktemp -d)"
-PG_NAME=sideseat-bench-pg
-CH_NAME=sideseat-bench-ch
-MINIO_NAME=sideseat-bench-minio
+DOCKER_SCOPE="$(printf '%s' "$ROOT" | cksum | awk '{print $1}')"
+PG_NAME="sideseat-bench-pg-$DOCKER_SCOPE"
+CH_NAME="sideseat-bench-ch-$DOCKER_SCOPE"
+MINIO_NAME="sideseat-bench-minio-$DOCKER_SCOPE"
 SERVER_PID=""
 
 cleanup() {

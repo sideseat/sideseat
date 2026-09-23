@@ -144,8 +144,8 @@
 #     clean-stale        Reclaim stale artifacts *without* a cold rebuild - run this habitually.
 #                        Most of target/ is not the current build: it is test binaries from earlier
 #                        runs, which cargo never collects. Measured at 64GB across one long session.
-#     clean-docker       Remove this repo's throwaway containers, dangling images and build cache.
-#                        Not a machine-wide volume prune - that would take other projects' data.
+#     clean-docker       Remove throwaway containers and networks owned by this checkout.
+#                        It never runs machine-wide image, cache, or volume pruning.
 #     clean              Remove *all* build artifacts (target, dist, sdk artifacts). Costs a cold
 #                        compile afterwards, so prefer clean-stale unless you want the whole lot.
 #     node-floor         Derive the Node versions the lockfiles accept (see the setup check)
@@ -681,7 +681,10 @@ test-backup-restore: disk-guard
 # The ceiling `make disk` enforces and `disk-guard` reclaims toward, in MB. See DISK BUDGET at the top.
 DISK_BUDGET_MB ?= 12000
 
-CH_TEST_CONTAINER := sideseat-clickhouse-test
+# Docker names include a stable checkout-specific suffix. Two worktrees can therefore run or clean
+# integration fixtures independently without deleting each other's containers.
+DOCKER_SCOPE := $(shell printf '%s' '$(CURDIR)' | cksum | awk '{print $$1}')
+CH_TEST_CONTAINER := sideseat-clickhouse-test-$(DOCKER_SCOPE)
 CH_TEST_PORT ?= 8124
 # Pinned: `latest` moving under CI turns an upstream release into a failure on an
 # unrelated PR. Override to try a newer server.
@@ -719,7 +722,7 @@ test-clickhouse:
 	docker rm -fv $(CH_TEST_CONTAINER) >/dev/null 2>&1; \
 	exit $$status
 
-CH_REPL_CONTAINER := sideseat-clickhouse-replicated-test
+CH_REPL_CONTAINER := sideseat-clickhouse-replicated-test-$(DOCKER_SCOPE)
 CH_REPL_PORT ?= 8299
 
 # The migration path a single server cannot reach.
@@ -762,7 +765,9 @@ test-clickhouse-replicated:
 	docker rm -fv $(CH_REPL_CONTAINER) >/dev/null 2>&1; \
 	exit $$status
 
-CH_NET := sideseat-ch-net
+CH_NET := sideseat-ch-net-$(DOCKER_SCOPE)
+CH_SHARD_1_CONTAINER := sideseat-ch-shard1-$(DOCKER_SCOPE)
+CH_SHARD_2_CONTAINER := sideseat-ch-shard2-$(DOCKER_SCOPE)
 CH_SHARD_PORT_1 ?= 8420
 CH_SHARD_PORT_2 ?= 8430
 
@@ -786,15 +791,16 @@ CH_SHARD_PORT_2 ?= 8430
 test-clickhouse-two-shard:
 	@command -v docker >/dev/null 2>&1 || { echo "[two-shard] docker is required"; exit 1; }
 	@echo "[two-shard] starting two $(CH_TEST_IMAGE) nodes - this takes ~15 minutes, see the Makefile comment"
-	@docker rm -fv ch-shard1 ch-shard2 >/dev/null 2>&1 || true
+	@docker rm -fv $(CH_SHARD_1_CONTAINER) $(CH_SHARD_2_CONTAINER) >/dev/null 2>&1 || true
 	@docker network create $(CH_NET) >/dev/null 2>&1 || true
 	@for n in 1 2; do \
 		port=$$(if [ "$$n" = "1" ]; then echo $(CH_SHARD_PORT_1); else echo $(CH_SHARD_PORT_2); fi); \
+		container=$$(if [ "$$n" = "1" ]; then echo $(CH_SHARD_1_CONTAINER); else echo $(CH_SHARD_2_CONTAINER); fi); \
 		keeper=""; \
 		if [ "$$n" = "1" ]; then \
 			keeper="-v $(CURDIR)/scripts/clickhouse-replicated/two-shard-keeper.xml:/etc/clickhouse-server/config.d/keeper.xml:ro"; \
 		fi; \
-		docker run -d --name ch-shard$$n --hostname ch-shard$$n \
+		docker run -d --name $$container --hostname ch-shard$$n \
 			--network $(CH_NET) --network-alias ch-shard$$n -p $$port:8123 \
 			-e CLICKHOUSE_USER=sideseat -e CLICKHOUSE_PASSWORD=sideseat \
 			-e CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT=1 \
@@ -809,7 +815,7 @@ test-clickhouse-two-shard:
 		done; \
 		curl -sf http://127.0.0.1:$$port/ping >/dev/null || { \
 			echo "[two-shard] node on $$port did not become ready"; \
-			docker rm -fv ch-shard1 ch-shard2 >/dev/null 2>&1; \
+			docker rm -fv $(CH_SHARD_1_CONTAINER) $(CH_SHARD_2_CONTAINER) >/dev/null 2>&1; \
 			exit 1; \
 		}; \
 	done
@@ -819,13 +825,13 @@ test-clickhouse-two-shard:
 	SIDESEAT_TEST_CLICKHOUSE_PASSWORD=sideseat \
 	cargo test --locked -p sideseat-server two_shard -- --test-threads=1 --nocapture; \
 	status=$$?; \
-	docker rm -fv ch-shard1 ch-shard2 >/dev/null 2>&1; \
+	docker rm -fv $(CH_SHARD_1_CONTAINER) $(CH_SHARD_2_CONTAINER) >/dev/null 2>&1; \
 	docker network rm $(CH_NET) >/dev/null 2>&1; \
 	exit $$status
 
 # PostgreSQL/SQLite transactional parity. Same reasoning as test-clickhouse: the PostgreSQL SQL is
 # hand-written in a second dialect and, until this target existed, had never run against a server.
-PG_TEST_CONTAINER := sideseat-postgres-test
+PG_TEST_CONTAINER := sideseat-postgres-test-$(DOCKER_SCOPE)
 PG_TEST_PORT ?= 5433
 # Pinned, so an upstream release cannot turn into a failure on an unrelated PR.
 PG_TEST_IMAGE ?= postgres:17-alpine
@@ -857,7 +863,7 @@ test-postgres:
 # The durable ingestion queue, against a real Redis. Same reasoning as the two parity targets: the
 # consumer-group semantics that make an asynchronous 200 honest had never run against a Redis, and what
 # that missed was `XADD ... MAXLEN`, which trims by length and so deleted payloads nobody had read.
-REDIS_TEST_CONTAINER := sideseat-redis-test
+REDIS_TEST_CONTAINER := sideseat-redis-test-$(DOCKER_SCOPE)
 REDIS_TEST_PORT ?= 6399
 # Pinned, so an upstream release cannot turn into a failure on an unrelated PR.
 REDIS_TEST_IMAGE ?= redis:7.4-alpine
@@ -886,7 +892,7 @@ test-redis:
 	docker rm -fv $(REDIS_TEST_CONTAINER) >/dev/null 2>&1; \
 	exit $$status
 
-REDPANDA_TEST_CONTAINER := sideseat-redpanda-test
+REDPANDA_TEST_CONTAINER := sideseat-redpanda-test-$(DOCKER_SCOPE)
 REDPANDA_TEST_PORT ?= 19092
 # Pinned to the current stable RedPanda patch used by the server-mode Compose stack.
 REDPANDA_TEST_IMAGE ?= docker.redpanda.com/redpandadata/redpanda:v26.2.3
@@ -1497,45 +1503,34 @@ clean-stale:
 	@echo "[clean-stale] Reclaiming stale build artifacts (keeping the current build)..."
 	@before=$$(du -sk target 2>/dev/null | cut -f1 || echo 0); 	if command -v cargo-sweep >/dev/null 2>&1; then 		cargo sweep --installed >/dev/null 2>&1 || true; 		cargo sweep --time 3 >/dev/null 2>&1 || true; 	else 		echo "[clean-stale] cargo-sweep not installed; removing incremental caches only."; 		echo "[clean-stale] For a deeper reclaim: cargo install cargo-sweep"; 	fi; 	rm -rf target/debug/incremental target/release/incremental; 	after=$$(du -sk target 2>/dev/null | cut -f1 || echo 0); 	echo "[clean-stale] target: $$((before / 1024)) MB -> $$((after / 1024)) MB"
 
-# Docker reclamation, scoped to what this repo creates.
-#
-# Deliberately *not* `docker volume prune`: that is machine-wide and would take volumes belonging to other
-# projects. The test targets now remove their containers with `-v`, so their anonymous volumes go with them
-# and nothing accumulates going forward. What is left to reclaim is the build cache and images nothing tags,
-# both of which are unambiguously this machine's own byproducts.
+# Docker resources created by test and benchmark targets. Keep this list explicit:
+# machine-wide prune commands can remove caches or anonymous volumes owned by other projects.
+SIDESEAT_TEST_CONTAINERS = \
+	$(CH_TEST_CONTAINER) \
+	$(CH_REPL_CONTAINER) \
+	$(CH_SHARD_1_CONTAINER) \
+	$(CH_SHARD_2_CONTAINER) \
+	$(PG_TEST_CONTAINER) \
+	$(REDIS_TEST_CONTAINER) \
+	$(REDPANDA_TEST_CONTAINER) \
+	sideseat-bench-pg-$(DOCKER_SCOPE) \
+	sideseat-bench-ch-$(DOCKER_SCOPE) \
+	sideseat-bench-minio-$(DOCKER_SCOPE)
+
 clean-docker:
 	@command -v docker >/dev/null 2>&1 || { echo "[clean-docker] docker not installed; nothing to do"; exit 0; }
+	@docker info >/dev/null 2>&1 || { echo "[clean-docker] Docker daemon is unavailable"; exit 1; }
 	@echo "[clean-docker] Removing this repo's throwaway containers..."
-	@docker rm -fv $(CH_TEST_CONTAINER) $(PG_TEST_CONTAINER) $(REDIS_TEST_CONTAINER) 		sideseat-bench-pg sideseat-bench-ch sideseat-bench-minio >/dev/null 2>&1 || true
-	@echo "[clean-docker] Pruning dangling images and the build cache..."
-	@docker image prune -f >/dev/null 2>&1 || true
-	@docker builder prune -f >/dev/null 2>&1 || true
-	@echo "[clean-docker] Pruning unused *anonymous* volumes..."
-	@#  Docker's own default for `volume prune` is anonymous-only; `-a` would add named ones and this
-	@#  deliberately does not pass it. A named volume is something someone chose to keep - possibly another
-	@#  project's database - while an anonymous one exists only because a container was removed without
-	@#  `-v`, which is the leak the test targets used to have: 246 of them, 5.2GB, from pinned postgres,
-	@#  clickhouse and minio images. Only volumes no container is using are eligible either way.
-	@docker volume prune -f >/dev/null 2>&1 || true
-	@#  **Return the freed blocks to the host.** Pruning happens inside the runtime's VM, whose disk is a
-	@#  sparse file: the space becomes free in there and the host file stays exactly as large, so a prune
-	@#  that reports tens of GB reclaimed can move the host's free space by nothing. That is the whole
-	@#  accumulation mechanism on this machine - measured, a prune of 73 GB inside the VM returned 2 GB to
-	@#  the host, and a TRIM afterwards returned 34 more. `fstrim` only discards blocks the guest filesystem
-	@#  already considers free, so it cannot lose data; it is the step that was missing, not a risk.
-	@if command -v colima >/dev/null 2>&1 && colima status >/dev/null 2>&1; then \
-		echo "[clean-docker] Returning freed blocks to the host (fstrim inside the VM)..."; \
-		before=$$(du -sm "$$HOME/.colima/_lima/_disks"/*/datadisk 2>/dev/null | cut -f1 | head -1); \
-		colima ssh -- sudo fstrim -a >/dev/null 2>&1 || echo "[clean-docker] fstrim unavailable in this VM"; \
-		after=$$(du -sm "$$HOME/.colima/_lima/_disks"/*/datadisk 2>/dev/null | cut -f1 | head -1); \
-		[ -n "$$before" ] && [ -n "$$after" ] && \
-			echo "[clean-docker] VM data disk: $$before MB -> $$after MB on the host"; \
-	else \
-		echo "[clean-docker] No Colima VM running; a Docker Desktop image is shrunk from its own settings."; \
+	@containers=$$(docker container ls -a --format '{{.Names}}') || exit 1; \
+	for container in $(SIDESEAT_TEST_CONTAINERS); do \
+		if printf '%s\n' "$$containers" | grep -Fqx "$$container"; then \
+			docker rm -fv "$$container" >/dev/null; \
+		fi; \
+	done
+	@networks=$$(docker network ls --format '{{.Name}}') || exit 1; \
+	if printf '%s\n' "$$networks" | grep -Fqx "$(CH_NET)"; then \
+		docker network rm "$(CH_NET)" >/dev/null; \
 	fi
-	@echo "[clean-docker] Pinned test images are kept (re-pulling them is slower than the space they use)."
-	@echo "[clean-docker] Named volumes are never touched: 'docker volume prune -a' if you want those too."
-	@docker system df 2>/dev/null || true
 
 # What is using space, and **whether it is within budget** - which is the difference between a report and a
 # gate. Exits non-zero over the ceiling, the way a missed latency ceiling fails `make bench-http`.
