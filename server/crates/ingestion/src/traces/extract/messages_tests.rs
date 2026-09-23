@@ -8038,8 +8038,8 @@ fn the_rules_reproduce_the_extractors_they_replaced() {
         // Without it the oracle compares at two different levels - the rules apply the gate internally
         // (it is a declared rule property now) while these functions expected their caller to.
         let is_tool_span = is_tool_execution_span(case);
-        // In rank order, which is the order the `EXTRACTORS` list had them - and **claiming per
-        // extractor**, exactly as `extract_per_carrier` does. Without the claiming this side reports
+        // Preserve the retired readers' rank order and claim each carrier per reader, exactly as the old
+        // dispatcher did. Without claiming, this side reports
         // duplicates production never produced: two dialects do read `message`, and the earlier extractor
         // owned it. The oracle was blind to that until consolidating the extractors made the two rules run
         // in one call, where nothing discarded the second.
@@ -8127,8 +8127,8 @@ fn the_rules_reproduce_the_extractors_they_replaced() {
             }
         }
 
-        // Compared as sets of serialised observations: the `EXTRACTORS` order decided which *extractor*
-        // claimed a carrier, never the order observations sit in the vector - `extract_per_carrier`
+        // Compared as sets of serialised observations: the retired dispatch order decided which reader
+        // claimed a carrier, never the order observations sit in the vector - the old dispatcher
         // claims by carrier name, and the pipeline sorts by provenance afterwards.
         // Compared with object keys sorted, deliberately.
         //
@@ -8259,10 +8259,9 @@ fn declared_message_rules_cover_what_they_claim() {
     assert_eq!(
         plan.rule_count(),
         71,
-        "the assets declare {} message rules. `EXTRACTORS` holds **one** entry where it held sixteen, and \
-         that entry is the generic declared-rules evaluator: even the last-resort carriers are declared \
-         now, with `stage: fallback`, so the fallback extractor is gone too. A dialect moves whole or not \
-         at all, so there are no part-migrated carriers to count.",
+        "the assets declare {} message rules. Production has no extractor registry: even last-resort \
+         carriers are declared with `stage: fallback`. A dialect moves whole or not at all, so there are \
+         no partially migrated carriers to count.",
         plan.rule_count()
     );
     for rule in plan.rules() {

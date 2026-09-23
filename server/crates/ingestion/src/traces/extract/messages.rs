@@ -180,15 +180,12 @@ pub(crate) fn extract_message_from_event(
 
 /// Run every **declared** message rule: the carriers an asset says to read, parsed as it says.
 ///
-/// One entry in `EXTRACTORS` for all of them, and it names no framework - which is the point. It
-/// replaced three functions that were each a list of "read this key, parse it as JSON, tag it with the
-/// key it came from", differing only in the keys. Those keys are now in `server/assets/rules/*.json`, so a
-/// dialect whose extraction is nothing but claims needs no code at all.
+/// This is the production entry point for message extraction. It names no framework and performs no
+/// producer dispatch: all producer keys, shapes, transforms, ownership, and fallback stages are compiled
+/// from `server/assets/rules/`.
 ///
-/// The extractors that genuinely *transform* are still Rust and still in this list. That boundary is
-/// counted rather than described: `declared_message_rules_cover_what_they_claim` names which carriers
-/// have moved, and the ones that have not are the ones whose transform the rule vocabulary cannot yet
-/// express.
+/// The producer-specific readers retained below are test-only equivalence oracles. Production does not
+/// register or call them.
 pub(crate) fn try_declared_rules(
     messages: &mut Vec<RawMessage>,
     tool_definitions: &mut Vec<RawToolDefinition>,
@@ -527,7 +524,7 @@ pub(crate) fn is_tool_execution_span(attrs: &HashMap<String, String>) -> bool {
 }
 
 // ============================================================================
-// FRAMEWORK-SPECIFIC EXTRACTORS
+// RETIRED EXTRACTION ORACLES
 // ============================================================================
 
 #[cfg(test)]
