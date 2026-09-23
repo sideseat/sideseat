@@ -13,7 +13,6 @@ mod keyring;
 mod provider;
 mod types;
 
-pub use error::SecretError;
 pub use types::{Secret, SecretKey, SecretScope};
 
 use provider::SecretProvider;
@@ -29,6 +28,9 @@ use sideseat_core::constants::{SECRET_KEY_API_KEY, SECRET_KEY_JWT_SIGNING};
 use sideseat_core::storage::AppStorage;
 use sideseat_core::utils::crypto;
 use sideseat_ports::clock::Clock;
+
+#[cfg(test)]
+use error::SecretError;
 
 #[cfg(test)]
 #[derive(Debug)]
