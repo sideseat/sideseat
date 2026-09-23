@@ -60,6 +60,10 @@ async fn attempt_test(
     let api_key = secret.unwrap_or("");
     let endpoint = resolved.endpoint_url.as_deref();
 
+    if let Some((provider, model)) = openai_compatible_provider(&resolved.provider_key, api_key) {
+        return try_test_provider(provider, model, timeout).await;
+    }
+
     match resolved.provider_key.as_str() {
         "anthropic" => {
             use sideseat::providers::AnthropicProvider;
@@ -103,16 +107,6 @@ async fn attempt_test(
             let p = CohereProvider::new(api_key);
             try_test_provider(Box::new(p), test_models::COHERE.to_string(), timeout).await
         }
-        "groq" => {
-            use sideseat::providers::OpenAIChatProvider;
-            let p = OpenAIChatProvider::for_groq(api_key);
-            try_test_provider(Box::new(p), test_models::GROQ.to_string(), timeout).await
-        }
-        "deepseek" => {
-            use sideseat::providers::OpenAIChatProvider;
-            let p = OpenAIChatProvider::for_deepseek(api_key);
-            try_test_provider(Box::new(p), test_models::DEEPSEEK.to_string(), timeout).await
-        }
         "xai" => {
             use sideseat::providers::XAIProvider;
             let p = XAIProvider::new(api_key);
@@ -122,31 +116,6 @@ async fn attempt_test(
             use sideseat::providers::MistralProvider;
             let p = MistralProvider::new(api_key);
             try_test_provider(Box::new(p), test_models::MISTRAL.to_string(), timeout).await
-        }
-        "together" => {
-            use sideseat::providers::OpenAIChatProvider;
-            let p = OpenAIChatProvider::for_together(api_key);
-            try_test_provider(Box::new(p), test_models::TOGETHER.to_string(), timeout).await
-        }
-        "fireworks" => {
-            use sideseat::providers::OpenAIChatProvider;
-            let p = OpenAIChatProvider::for_fireworks(api_key);
-            try_test_provider(Box::new(p), test_models::FIREWORKS.to_string(), timeout).await
-        }
-        "cerebras" => {
-            use sideseat::providers::OpenAIChatProvider;
-            let p = OpenAIChatProvider::for_cerebras(api_key);
-            try_test_provider(Box::new(p), test_models::CEREBRAS.to_string(), timeout).await
-        }
-        "perplexity" => {
-            use sideseat::providers::OpenAIChatProvider;
-            let p = OpenAIChatProvider::for_perplexity(api_key);
-            try_test_provider(Box::new(p), test_models::PERPLEXITY.to_string(), timeout).await
-        }
-        "openrouter" => {
-            use sideseat::providers::OpenAIChatProvider;
-            let p = OpenAIChatProvider::for_openrouter(api_key);
-            try_test_provider(Box::new(p), test_models::OPENROUTER.to_string(), timeout).await
         }
         "ollama" => {
             use sideseat::providers::OpenAIChatProvider;
@@ -376,6 +345,45 @@ async fn attempt_test(
     }
 }
 
+fn openai_compatible_provider(
+    provider_key: &str,
+    api_key: &str,
+) -> Option<(Box<dyn sideseat::provider::ChatProvider + Send>, String)> {
+    use sideseat::providers::OpenAIChatProvider;
+    use sideseat::test_models;
+
+    let (provider, model) = match provider_key {
+        "groq" => (OpenAIChatProvider::for_groq(api_key), test_models::GROQ),
+        "deepseek" => (
+            OpenAIChatProvider::for_deepseek(api_key),
+            test_models::DEEPSEEK,
+        ),
+        "together" => (
+            OpenAIChatProvider::for_together(api_key),
+            test_models::TOGETHER,
+        ),
+        "fireworks" => (
+            OpenAIChatProvider::for_fireworks(api_key),
+            test_models::FIREWORKS,
+        ),
+        "cerebras" => (
+            OpenAIChatProvider::for_cerebras(api_key),
+            test_models::CEREBRAS,
+        ),
+        "perplexity" => (
+            OpenAIChatProvider::for_perplexity(api_key),
+            test_models::PERPLEXITY,
+        ),
+        "openrouter" => (
+            OpenAIChatProvider::for_openrouter(api_key),
+            test_models::OPENROUTER,
+        ),
+        _ => return None,
+    };
+
+    Some((Box::new(provider), model.to_string()))
+}
+
 /// Try list_models first; fall back to complete with max_tokens=1.
 /// ModelNotFound from complete = success (auth worked).
 async fn try_test_provider(
@@ -419,5 +427,31 @@ async fn try_test_provider(
         Ok(Err(ProviderError::ModelNotFound { .. })) => Ok(None),
         Ok(Err(e)) => Err(e.to_string()),
         Err(_) => Err("Connection timed out".to_string()),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use sideseat::test_models;
+
+    use super::openai_compatible_provider;
+
+    #[test]
+    fn openai_compatible_registry_maps_every_supported_provider() {
+        let cases = [
+            ("groq", test_models::GROQ),
+            ("deepseek", test_models::DEEPSEEK),
+            ("together", test_models::TOGETHER),
+            ("fireworks", test_models::FIREWORKS),
+            ("cerebras", test_models::CEREBRAS),
+            ("perplexity", test_models::PERPLEXITY),
+            ("openrouter", test_models::OPENROUTER),
+        ];
+
+        for (provider_key, expected_model) in cases {
+            let (_, model) = openai_compatible_provider(provider_key, "test-key").unwrap();
+            assert_eq!(model, expected_model);
+        }
+        assert!(openai_compatible_provider("unknown", "test-key").is_none());
     }
 }
