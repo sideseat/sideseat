@@ -60,14 +60,7 @@ export function NavMain({ items }: { items: NavigationItem[] }) {
     settings.set(SIDEBAR_SECTIONS_KEY, newState);
   };
 
-  // Calculate overflow in collapsed mode
   useEffect(() => {
-    // In mobile mode OR expanded state, always show all items
-    if (isMobile || !isCollapsed) {
-      setVisibleCount(items.length);
-      return;
-    }
-
     const calculateOverflow = () => {
       const menu = containerRef.current;
       if (!menu) return;
@@ -133,7 +126,7 @@ export function NavMain({ items }: { items: NavigationItem[] }) {
       cancelAnimationFrame(rafId);
       resizeObserver.disconnect();
     };
-  }, [isCollapsed, items.length, isMobile]);
+  }, [items.length]);
 
   const visibleItems = isCollapsed ? items.slice(0, visibleCount) : items;
   const overflowItems = isCollapsed ? items.slice(visibleCount) : [];
