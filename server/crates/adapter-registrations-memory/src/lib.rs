@@ -38,9 +38,22 @@ impl MemoryRegistrationStore {
     }
 
     fn unindex(&self, key: &Key, previous: &RegistrationEntry) {
-        remove_index_entry(&self.by_project, &previous.project_id, key);
-        remove_index_entry(&self.by_client, &previous.owner_client_id, key);
-        remove_index_entry(&self.by_connection, &previous.owner_connection_id, key);
+        match self.entries.entry(key.clone()) {
+            dashmap::Entry::Occupied(current) => {
+                let current = current.get();
+                if current.owner_client_id != previous.owner_client_id {
+                    remove_index_entry(&self.by_client, &previous.owner_client_id, key);
+                }
+                if current.owner_connection_id != previous.owner_connection_id {
+                    remove_index_entry(&self.by_connection, &previous.owner_connection_id, key);
+                }
+            }
+            dashmap::Entry::Vacant(_entry_guard) => {
+                remove_index_entry(&self.by_project, &previous.project_id, key);
+                remove_index_entry(&self.by_client, &previous.owner_client_id, key);
+                remove_index_entry(&self.by_connection, &previous.owner_connection_id, key);
+            }
+        }
     }
 }
 
@@ -371,6 +384,40 @@ mod tests {
             .unwrap();
         assert_eq!(current.owner_client_id, "client-2");
         assert_eq!(current.last_heartbeat_secs, 100);
+    }
+
+    #[tokio::test]
+    async fn late_unindex_preserves_a_reinserted_registration() {
+        let store = MemoryRegistrationStore::new();
+        let previous = entry_on("p", "agent", "client-1", "connection-1", "instance-a");
+        store.upsert(previous.clone()).await.unwrap();
+
+        let key = (
+            ProjectId::from("p"),
+            RegistrationKind::Agent,
+            "agent".to_owned(),
+        );
+        store.entries.remove(&key);
+        store
+            .upsert(entry_on(
+                "p",
+                "agent",
+                "client-2",
+                "connection-2",
+                "instance-b",
+            ))
+            .await
+            .unwrap();
+
+        store.unindex(&key, &previous);
+
+        let listing = store.list(&ProjectId::from("p")).await.unwrap();
+        assert_eq!(listing.len(), 1);
+        assert_eq!(listing[0].owner_client_id, "client-2");
+        assert!(!store.by_client.contains_key("client-1"));
+        assert!(!store.by_connection.contains_key("connection-1"));
+        assert!(store.by_client.contains_key("client-2"));
+        assert!(store.by_connection.contains_key("connection-2"));
     }
 
     #[tokio::test]
