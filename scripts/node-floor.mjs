@@ -1,19 +1,5 @@
-// Derives the Node versions this repository can be built with, from what the lockfiles actually demand.
-//
-// The floor was got wrong three times by reasoning about it: "20+" admitted versions that fail, ">=22.12"
-// admitted all of 23, and both were written into four places. So it is derived here instead, and the answer
-// is printed as a range rather than as a yes/no about whichever Node happens to be running - a check of the
-// current version cannot tell you what the floor *is*, which was the defect in the previous recorded form.
-//
-// Two things this has to be careful about:
-//
-//   - **Platform-specific and optional packages are excluded.** `@img/sharp-win32-ia32` demands `^20.9.0`
-//     and `@napi-rs/lzma-linux-x64-gnu` demands `^22.20 || ^24.12 || >=25`; neither is ever installed here.
-//     Intersecting every range in the lockfiles therefore returns the empty set, which is how a naive
-//     measurement concludes the repository cannot be built at all.
-//   - **`semver` is resolved from an installed tree**, and if none is there the script says so and stops
-//     rather than guessing. It is a transitive dependency, not something this repository declares, so its
-//     absence is a real possibility and a silent skip would be worse than a refusal.
+// Derive the supported Node range from every tracked npm lockfile and verify documented claims.
+// Optional and platform-specific packages are excluded because they do not apply to every checkout.
 //
 // Usage: node scripts/node-floor.mjs [extra versions to test...]
 
@@ -25,46 +11,37 @@ import { fileURLToPath } from "node:url";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 
-// **Every tracked lockfile**, asked of git rather than listed here. The list was `["web", "sdk/js",
-// "examples/javascript", "docs"]` and it matched the tree only by being correct on the day it was written: a
-// fifth npm package, or a moved one, would have left the floor derived from fewer lockfiles than exist while
-// `--check` certified the stated requirement against that smaller evidence. The floor is what `make setup`
-// refuses builds on, so deriving it from a hand-kept list is the one place that inventory must not live.
-const packages = execFileSync("git", ["ls-files", "*package-lock.json"], { cwd: root, encoding: "utf8" })
+// Discover the inventory from Git so adding or moving an npm package cannot bypass the check.
+const packages = execFileSync("git", ["ls-files", "*package-lock.json"], {
+  cwd: root,
+  encoding: "utf8",
+})
   .split("\n")
-  .filter((line) => line.endsWith("package-lock.json") && !line.includes("/node_modules/"))
+  .filter(
+    (line) =>
+      line.endsWith("package-lock.json") && !line.includes("/node_modules/"),
+  )
   .map((line) => dirname(line));
 if (packages.length === 0) {
-  console.error("No tracked `package-lock.json` found. This script derives the floor from them and cannot guess.");
-  process.exit(1);
-}
-
-const require = createRequire(import.meta.url);
-let semver;
-for (const pkg of packages) {
-  const candidate = join(root, pkg, "node_modules", "semver");
-  if (!existsSync(candidate)) continue;
-  try {
-    semver = require(candidate);
-    break;
-  } catch {
-    // Try the next tree.
-  }
-}
-if (!semver) {
   console.error(
-    "No installed `semver` to compute with. Run `make setup` (or `cd docs && npm ci`) and retry.\n" +
-      "It is a transitive dependency rather than one this repository declares, so it is only present " +
-      "after an install.",
+    "No tracked `package-lock.json` found. This script derives the floor from them and cannot guess.",
   );
   process.exit(1);
 }
 
-// Candidates. A fixed list is not enough for `--check`: it ended at 25, so a claim of "24+" went unverified
-// for every later major, and an upper bound like `<26` appearing in some dependency would leave every
-// candidate's verdict unchanged while the claim quietly became false. So the probes are **derived from the
-// ranges themselves** below - every version any constraint mentions, its neighbours, and a far-future one -
-// with this list kept as a floor of familiar release lines.
+// The private web package owns repository-wide Node tooling such as Prettier and semver.
+const require = createRequire(join(root, "web", "package.json"));
+let semver;
+try {
+  semver = require("semver");
+} catch {
+  console.error(
+    "web/node_modules/semver is not installed. Run `make setup` and retry.",
+  );
+  process.exit(1);
+}
+
+// Seed familiar releases; constraint boundaries and a far-future version are added below.
 const seeded = [
   "20.18.0",
   "20.19.0",
@@ -85,33 +62,38 @@ const seeded = [
   ...process.argv.slice(2).filter((arg) => !arg.startsWith("-")),
 ];
 
-// Collect the constraints first, so the probes can be derived from what they actually say.
 const constraints = [];
 let read = 0;
 for (const pkg of packages) {
   const lock = join(root, pkg, "package-lock.json");
-  // Tracked but unreadable is a refusal, not a skip: git named it, so a missing file means the working tree
-  // and the index disagree, and a floor derived from the rest would be an answer about a different repository.
+  // A tracked but missing lockfile would make the result describe only part of the repository.
   if (!existsSync(lock)) {
-    console.error(`\ngit tracks ${pkg}/package-lock.json and it is not there. Restore it, or the floor below is measured against fewer packages than the repository has.`);
+    console.error(
+      `\ngit tracks ${pkg}/package-lock.json and it is not there. Restore it, or the floor below is measured against fewer packages than the repository has.`,
+    );
     process.exit(1);
   }
   read += 1;
-  const entries = Object.entries(JSON.parse(readFileSync(lock, "utf8")).packages ?? {});
+  const entries = Object.entries(
+    JSON.parse(readFileSync(lock, "utf8")).packages ?? {},
+  );
   for (const [name, meta] of entries) {
     const range = meta?.engines?.node;
     if (!range || meta.optional || meta.os || meta.cpu) continue;
-    constraints.push({ who: `${pkg}:${name.replace("node_modules/", "") || "(its own manifest)"}`, range });
+    constraints.push({
+      who: `${pkg}:${name.replace("node_modules/", "") || "(its own manifest)"}`,
+      range,
+    });
   }
 }
 const ranges = constraints.length;
 
-// Every boundary a constraint mentions becomes a probe, together with its immediate neighbours, so a bound
-// nobody thought to sample cannot hide. Plus a far-future version: without it, an upper bound in some
-// dependency would leave an open-ended claim like "24+" untested above the largest listed release.
+// Probe every declared boundary, its neighbours, and an open-ended future major.
 const probes = new Set([...seeded, "999.0.0"]);
 for (const { range } of constraints) {
-  for (const [, major, minor = "0", patch = "0"] of range.matchAll(/(\d+)(?:\.(\d+))?(?:\.(\d+))?/g)) {
+  for (const [, major, minor = "0", patch = "0"] of range.matchAll(
+    /(\d+)(?:\.(\d+))?(?:\.(\d+))?/g,
+  )) {
     const [M, m, p] = [Number(major), Number(minor), Number(patch)];
     for (const probe of [
       `${M}.${m}.${p}`,
@@ -141,7 +123,9 @@ for (const { who, range } of constraints) {
   }
 }
 
-console.log(`${ranges} engine range(s) from ${read} lockfile(s) (${packages.join(", ")}), optional and platform-specific excluded\n`);
+console.log(
+  `${ranges} engine range(s) from ${read} lockfile(s) (${packages.join(", ")}), optional and platform-specific excluded\n`,
+);
 const accepted = [];
 for (const version of candidates) {
   const refusals = blame.get(version);
@@ -149,16 +133,14 @@ for (const version of candidates) {
     accepted.push(version);
     console.log(`  ${version.padEnd(9)} accepted`);
   } else {
-    console.log(`  ${version.padEnd(9)} refused by ${refusals.length}, e.g. ${refusals[0]}`);
+    console.log(
+      `  ${version.padEnd(9)} refused by ${refusals.length}, e.g. ${refusals[0]}`,
+    );
   }
 }
 console.log(`\nAccepted: ${accepted.join(", ") || "none"}`);
 
-// `--check` closes the loop. Deriving the answer and printing it leaves the *statement* ungated: a dependency
-// bump can raise the floor while CI keeps pinning Node 24, every invariant stays green, and the four places
-// that state the requirement quietly become wrong. So the declaration is read back and tested against the
-// derivation. `CONTRIBUTING.md` is the declaration because it is what a contributor reads first, and
-// `the_node_requirement_is_stated_once` already holds the Makefile's copies identical to it.
+// `--check` verifies the contributor-facing declaration against the derived range.
 if (!process.argv.includes("--check")) {
   console.log(
     "State the resulting range in the same four places: the Makefile header, `make help`, the `setup` " +
@@ -182,7 +164,9 @@ const admits = (version) => {
   return major >= alsoMajor || (major === floorMajor && minor >= floorMinor);
 };
 
-const wrong = candidates.filter((v) => admits(v) !== (blame.get(v).length === 0));
+const wrong = candidates.filter(
+  (v) => admits(v) !== (blame.get(v).length === 0),
+);
 if (wrong.length > 0) {
   console.error(
     `\nCONTRIBUTING.md claims ${floorMajor}.${floorMinor}+ or ${alsoMajor}+, which the lockfiles contradict:\n` +
@@ -197,13 +181,11 @@ if (wrong.length > 0) {
   );
   process.exit(1);
 }
-console.log(`The stated requirement (${floorMajor}.${floorMinor}+ or ${alsoMajor}+) matches the lockfiles.`);
+console.log(
+  `The stated requirement (${floorMajor}.${floorMinor}+ or ${alsoMajor}+) matches the lockfiles.`,
+);
 
-// A **package-scoped** claim is checked against that package's own lockfile. `examples/javascript/README.md`
-// states a floor of its own - lower than the repository's, which is legitimate and useful - and nothing
-// verified it: a dependency bump in that one suite raised its floor while the repository-wide check stayed
-// green, because the repository floor is the union and the union did not move. A claim nobody checks is a
-// convention, which is the same argument that produced `--check` in the first place.
+// Package README claims may be lower than the repository floor, so validate each against its own constraints.
 const scopedProblems = [];
 for (const pkg of packages) {
   const readme = join(root, pkg, "README.md");
@@ -229,20 +211,28 @@ for (const pkg of packages) {
     if (admits(version) !== accepted) {
       const why = accepted
         ? "excluded by the claim but every range in this package accepts it"
-        : `admitted by the claim but refused by ${mine.find((c) => {
-            try {
-              return !semver.satisfies(version, c.range);
-            } catch {
-              return false;
-            }
-          })?.who}`;
-      scopedProblems.push(`  ${pkg}/README.md claims ${major}.${minor}+ or ${also}+: ${version} is ${why}`);
+        : `admitted by the claim but refused by ${
+            mine.find((c) => {
+              try {
+                return !semver.satisfies(version, c.range);
+              } catch {
+                return false;
+              }
+            })?.who
+          }`;
+      scopedProblems.push(
+        `  ${pkg}/README.md claims ${major}.${minor}+ or ${also}+: ${version} is ${why}`,
+      );
       break;
     }
   }
 }
 if (scopedProblems.length > 0) {
-  console.error(`\nA package states a floor its own lockfile contradicts:\n${scopedProblems.join("\n")}`);
+  console.error(
+    `\nA package states a floor its own lockfile contradicts:\n${scopedProblems.join("\n")}`,
+  );
   process.exit(1);
 }
-console.log(`${packages.length} package(s) checked for a scoped claim of their own.`);
+console.log(
+  `${packages.length} package(s) checked for a scoped claim of their own.`,
+);
