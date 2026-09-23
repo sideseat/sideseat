@@ -1,6 +1,6 @@
 //! PostgreSQL repositories.
 //!
-//! Types (UserRow, ProjectRow, etc.) should be imported from `crate::data::types`.
+//! Shared rows belong to `sideseat_ports::types`; this module contains PostgreSQL implementations.
 
 pub mod api_key;
 pub mod auth_method;

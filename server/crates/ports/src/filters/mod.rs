@@ -1,7 +1,7 @@
 //! The filter vocabulary: what a caller may ask for, independent of how any store answers it.
 //!
 //! **Both analytics adapters need this, so neither may own it.** It lived inside the DuckDB adapter with the
-//! ClickHouse one importing it (`crate::data::duckdb::filters`), which the plan names as a defect and is one: a
+//! ClickHouse implementation importing DuckDB rendering, which would couple sibling adapters: a
 //! shared type owned by one implementation, so the two adapters could not be separate crates and the
 //! dependency direction between them was backwards.
 //!

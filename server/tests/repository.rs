@@ -3447,7 +3447,7 @@ fn the_storage_layer_does_not_import_the_http_layer() {
     let repo = repo_root();
     let mut offenders: Vec<String> = Vec::new();
     let mut scanned = 0usize;
-    let mut roots = vec![repo.join("server/src/data")];
+    let mut roots = Vec::new();
     for entry in std::fs::read_dir(repo.join("server/crates")).expect("read crates dir") {
         let path = entry.expect("crate entry").path();
         if path

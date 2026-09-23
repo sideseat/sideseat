@@ -51,7 +51,7 @@ use crate::domain::sideml::feed::{
 };
 use crate::domain::traces::extract::ExtractionMode;
 use sideseat_api::routes::otel::messages::scope_feed_to_trace;
-use sideseat_ports::types::{MessageSpanRow, ProjectId};
+use sideseat_ports::types::{MessageSpanRow, ObservationType, ProjectId};
 
 // ============================================================================
 // Fixture discovery
@@ -1757,7 +1757,7 @@ fn invariant_checks_are_not_vacuous() {
 /// the Rust version tests.
 #[test]
 fn content_filter_matches_the_sql_predicate() {
-    use crate::data::sql::display::MESSAGE_CONTENT_FILTER;
+    use sideseat_query_sql::display::MESSAGE_CONTENT_FILTER;
 
     // The exact predicate, not a substring or clause count: checking only that the column names
     // appear left an inverted operator (`=` for `!=`) or a changed literal ('ERROR' -> 'error')
@@ -3073,7 +3073,7 @@ fn a_barrier_orders_exactly_as_pairwise_edges_do() {
 #[ignore]
 async fn bench_ingestion_end_to_end() {
     use crate::app::files::create_file_service;
-    use crate::data::{AnalyticsService, TransactionalService};
+    use crate::app::storage::{AnalyticsService, TransactionalService};
     use crate::domain::traces::TracePipeline;
     use sideseat_core::config::{FilesConfig, StorageBackend};
     use sideseat_core::storage::AppStorage;
@@ -3123,7 +3123,7 @@ async fn bench_ingestion_end_to_end() {
             .await
             .expect("files temp dir");
         let analytics = Arc::new(AnalyticsService::Duckdb(Arc::new(
-            crate::data::duckdb::DuckdbService::init(
+            sideseat_adapter_duckdb::DuckdbService::init(
                 &storage,
                 std::sync::Arc::new(crate::runtime::clock::SystemClock),
             )
@@ -3135,12 +3135,12 @@ async fn bench_ingestion_end_to_end() {
             .connect(":memory:")
             .await
             .expect("sqlite");
-        sqlx::raw_sql(crate::data::sqlite::schema::SCHEMA)
+        sqlx::raw_sql(sideseat_adapter_sqlite::schema::SCHEMA)
             .execute(&sqlite_pool)
             .await
             .expect("sqlite schema");
         let database = Arc::new(TransactionalService::Sqlite(Arc::new(
-            crate::data::sqlite::SqliteService::from_pool(
+            sideseat_adapter_sqlite::SqliteService::from_pool(
                 sqlite_pool,
                 Arc::new(crate::runtime::clock::SystemClock),
             ),
@@ -3157,12 +3157,14 @@ async fn bench_ingestion_end_to_end() {
                 &storage,
                 Arc::clone(&database),
                 Arc::new(
-                    crate::data::cache::CacheService::new(&sideseat_core::config::CacheConfig {
-                        backend: sideseat_core::config::CacheBackendType::Memory,
-                        max_entries: 1000,
-                        eviction_policy: sideseat_core::config::EvictionPolicy::TinyLfu,
-                        redis_url: None,
-                    })
+                    sideseat_adapter_cache::CacheService::new(
+                        &sideseat_core::config::CacheConfig {
+                            backend: sideseat_core::config::CacheBackendType::Memory,
+                            max_entries: 1000,
+                            eviction_policy: sideseat_core::config::EvictionPolicy::TinyLfu,
+                            redis_url: None,
+                        },
+                    )
                     .await
                     .expect("memory cache"),
                 ),
@@ -3860,8 +3862,7 @@ fn rules_that_emit() -> BTreeSet<String> {
                                 crate::domain::traces::extract::attributes::detect_observation_type(
                                     &span.name, &attrs,
                                 );
-                            let generation = observation
-                                == crate::data::duckdb::models::ObservationType::Generation;
+                            let generation = observation == ObservationType::Generation;
                             if read.is_empty() {
                                 for emission in
                                     plan.fallback(&ctx, &std::collections::HashSet::new())

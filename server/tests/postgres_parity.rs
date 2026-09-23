@@ -1,11 +1,8 @@
 //! PostgreSQL/SQLite transactional parity.
 //!
 //! The two transactional backends implement the same `TransactionalRepository` over hand-written SQL
-//! in two dialects, and until this file existed the PostgreSQL half had never run against a
-//! PostgreSQL server anywhere - `postgres/mod.rs` held an empty `mod tests` saying so. Every one of
-//! its seventy-five methods was kept correct by review alone, which is exactly the situation the
-//! ClickHouse parity suite was written for after review turned out not to catch a query that is
-//! merely *accepted* while answering differently.
+//! in two dialects. This suite executes both implementations and compares their observable behavior;
+//! compilation and review alone cannot catch a query that is accepted while returning different data.
 //!
 //! The failure modes are the same shape as ClickHouse's, and some are specific to this pair:
 //!
