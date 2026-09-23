@@ -14,5 +14,5 @@ if (!server) {
   process.exit(1);
 }
 
-process.stdout.write(`${server.version}\n`);
+process.stdout.write(server.version + "\n");
 '

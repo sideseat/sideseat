@@ -1188,23 +1188,7 @@ publish-sdk-python:
 # =============================================================================
 
 release:
-	@if [ "$(TYPE)" != "patch" ] && [ "$(TYPE)" != "minor" ] && [ "$(TYPE)" != "major" ]; then \
-		echo "Error: TYPE must be patch, minor, or major (got: $(TYPE))"; \
-		exit 1; \
-	fi
-	@echo "[release] Running pre-release checks..."
-	@$(MAKE) check
-	@echo "[release] Bumping $(TYPE) version..."
-	@$(MAKE) bump TYPE=$(TYPE)
-	@NEW_VERSION=$$(node -p "require('./cli/package.json').version") && \
-	echo "[release] Committing version $$NEW_VERSION..." && \
-	git add -A && \
-	git commit -m "Release v$$NEW_VERSION" && \
-	echo "[release] Creating tag v$$NEW_VERSION..." && \
-	git tag "v$$NEW_VERSION" && \
-	echo "[release] Pushing to remote..." && \
-	git push && git push --tags && \
-	echo "[release] Done. Run 'make build-cli && make build-release && make publish-release' to publish v$$NEW_VERSION"
+	@./scripts/release.sh "$(TYPE)"
 
 # =============================================================================
 # Docker

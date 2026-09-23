@@ -2800,6 +2800,45 @@ fn every_workspace_crate_takes_the_one_version() {
     );
 }
 
+#[test]
+fn release_stages_only_version_files_and_pushes_atomically() {
+    let script =
+        std::fs::read_to_string(repo_root().join("scripts/release.sh")).expect("release script");
+
+    for required in [
+        "git status --porcelain",
+        "make --no-print-directory version-check",
+        "git add -- \"${version_files[@]}\"",
+        "git diff --quiet",
+        "git ls-files --others --exclude-standard",
+        "git push --atomic origin",
+    ] {
+        assert!(
+            script.contains(required),
+            "release script must contain `{required}`"
+        );
+    }
+    for unsafe_command in ["git add -A", "git push --tags"] {
+        assert!(
+            !script.contains(unsafe_command),
+            "release script must not contain `{unsafe_command}`"
+        );
+    }
+
+    let bump = script.find("make --no-print-directory bump").expect("bump");
+    let verification = script
+        .find("make --no-print-directory version-check")
+        .expect("post-bump version check");
+    let checks: Vec<usize> = script
+        .match_indices("make --no-print-directory check")
+        .map(|(index, _)| index)
+        .collect();
+    assert!(
+        verification > bump && checks.iter().any(|index| *index > bump),
+        "release must verify versions and run checks after the bump"
+    );
+}
+
 /// Does this manifest line declare `driver`, under its own name or a rename?
 ///
 /// Extracted so it can be tested on input the workspace does not contain. A live mutation is not available:
