@@ -7,6 +7,7 @@ pub mod dedup;
 pub mod files;
 pub mod logs;
 pub mod metrics;
+pub mod observations;
 pub mod otlp;
 pub mod pricing;
 pub mod providers;

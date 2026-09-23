@@ -12,7 +12,7 @@ use serde_json::{Value as JsonValue, json};
 
 use super::provenance::PositionPath;
 use super::{ChatMessage, ChatRole, ContentBlock, normalize};
-use crate::traces::{MessageSource, RawMessage};
+use crate::observations::{MessageSource, RawMessage};
 use sideseat_ports::types::{MessageCategory, MessageSourceType};
 
 // ============================================================================

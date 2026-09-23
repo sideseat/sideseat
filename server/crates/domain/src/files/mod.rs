@@ -34,6 +34,7 @@
 
 pub mod cleanup;
 pub mod error;
+mod references;
 
 use sideseat_ports::blobs::{FileContent, FileStorage, FileStorageError};
 use sideseat_ports::cache::{CacheStore, TypedCache};
@@ -43,7 +44,6 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 
-use crate::traces::extract::files::collect_file_references_in_str;
 use serde::Serialize;
 use sideseat_core::config::FilesConfig;
 use sideseat_core::constants::CACHE_TTL_FILE_QUOTA;
@@ -51,6 +51,7 @@ use sideseat_core::utils::file_uri::parse_file_uri;
 use sideseat_ports::cache::CacheKey;
 
 pub use error::FileServiceError;
+pub use references::collect_file_references_in_str;
 
 /// File metadata without content
 #[derive(Debug, Clone)]

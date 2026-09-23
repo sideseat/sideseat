@@ -30,6 +30,8 @@ use serde_json::Value as JsonValue;
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
 
+#[cfg(test)]
+use crate::files::collect_file_references_in_str;
 use sideseat_core::constants::{
     FILE_EXTRACTION_CACHE_IDLE_SECS, FILE_EXTRACTION_CACHE_MAX_ENTRIES, FILES_MAX_SIZE_BYTES,
     FILES_MIN_SIZE_BYTES,
@@ -262,50 +264,6 @@ pub fn collect_file_references(json: &JsonValue, into: &mut Vec<String>) {
             }
         }
         _ => {}
-    }
-}
-
-/// Every `#!B64!#` reference in a string, including ones embedded in prose or JSON text.
-///
-/// Scanned, never matched whole: `parse_file_uri` takes everything after `::` as the hash - spaces
-/// included - so a string holding two references parsed as one reference with a very odd hash and both
-/// went unchecked. The end of each is found by walking the characters a hash can contain, because
-/// splitting on whitespace put a trailing full stop inside the hash and missed a quoted one entirely.
-pub fn collect_file_references_in_str(s: &str, into: &mut Vec<String>) {
-    {
-        {
-            if let Some(mut from) = s.find(sideseat_core::utils::file_uri::FILE_URI_PREFIX) {
-                // Embedded in surrounding text, as data URLs are. Split on whitespace missed a
-                // reference followed by punctuation - `...::abc123.` parses as a hash of `abc123.` and
-                // `...::abc123",` not at all - so the end is found by scanning for characters a hash
-                // cannot contain.
-                let prefix = sideseat_core::utils::file_uri::FILE_URI_PREFIX;
-                loop {
-                    // The scan starts *after* the prefix: `#!B64!#` is itself made of characters a hash
-                    // cannot contain, so scanning from the start truncates at once.
-                    let body = &s[from + prefix.len()..];
-                    let taken = body
-                        .find(|c: char| {
-                            !(c.is_ascii_alphanumeric()
-                                || matches!(c, '-' | '_' | '/' | '.' | ':' | '+'))
-                        })
-                        .unwrap_or(body.len());
-                    let mut candidate = &s[from..from + prefix.len() + taken];
-                    // A trailing `.` or `:` is sentence punctuation, never part of a hash.
-                    while candidate.ends_with(['.', ':']) {
-                        candidate = &candidate[..candidate.len() - 1];
-                    }
-                    if is_file_uri(candidate) {
-                        into.push(candidate.to_string());
-                    }
-                    let resume = from + prefix.len() + taken;
-                    match s[resume..].find(prefix) {
-                        Some(next) => from = resume + next,
-                        None => break,
-                    }
-                }
-            }
-        }
     }
 }
 

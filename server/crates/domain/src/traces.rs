@@ -3,7 +3,8 @@ pub mod extract;
 mod persist;
 mod pipeline;
 
-pub use extract::{MessageSource, RawMessage, SpanData};
+pub use crate::observations::{MessageSource, RawMessage};
+pub use extract::SpanData;
 pub use persist::SseSpanEvent;
 #[cfg(any(test, feature = "test-support"))]
 pub use pipeline::process_request_for_test_with_mode;

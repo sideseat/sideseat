@@ -25,13 +25,12 @@ use serde_json::{Value as JsonValue, json};
 
 use super::enrich::SpanEnrichment;
 use super::extract::files::{
-    ExtractedFile, FileExtractionCache, collect_file_references_in_str, extract_and_replace_files,
-    extract_and_replace_files_cached,
+    ExtractedFile, FileExtractionCache, extract_and_replace_files, extract_and_replace_files_cached,
 };
 use super::extract::{RawMessage, RawToolDefinition, RawToolNames, SpanData};
 // The **port**, not the service enum: a domain function taking `AnalyticsService` names every backend that
 // exists, which is what keeps the domain and the adapters in one crate.
-use crate::files::FileService;
+use crate::files::{FileService, collect_file_references_in_str};
 use crate::otlp::{build_attributes_json, extract_attributes};
 use crate::topics::{TopicMessage, TopicService};
 use sideseat_core::constants::{
