@@ -37,8 +37,10 @@ architecture manual.
 
 ## Domain invariants
 
-- Framework knowledge is data under `server/assets/rules/`, not Rust branches,
-  constants, or module names.
+- Framework-specific telemetry interpretation and SideML reconstruction
+  knowledge belongs in `server/assets/rules/`, not Rust branches or constants.
+  Product-facing integration catalogs may name supported frameworks, but must
+  not control extraction behavior.
 - Preserve raw telemetry during ingestion. SideML role derivation,
   normalization, history detection, and deduplication happen at read time.
 - Tenant-scoped APIs use `ProjectId`; client-provided trace and span IDs are not
@@ -131,4 +133,3 @@ The container-free aggregate does not substitute for live backend parity.
 - Add a regression test for every defect whose failure can be reproduced.
 - Before finishing, inspect the final diff, run applicable checks, and report
   remaining risks or intentionally unverified behavior.
-

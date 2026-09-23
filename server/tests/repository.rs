@@ -802,6 +802,126 @@ fn no_tracked_file_carries_the_capturing_users_name() {
 /// but the first fix asked the *filesystem*, and that directory does not exist in a clean checkout: the test
 /// passed only because this machine had built the samples once, and would have failed in CI on a green tree.
 /// A guard whose answer depends on local state is worse than none, because it teaches everyone to disbelieve it.
+#[derive(Debug, Eq, PartialEq)]
+struct DiagramEntry {
+    offset: usize,
+    path: String,
+    is_dir: bool,
+}
+
+fn parse_tree_block(
+    root: &str,
+    block: &[&str],
+    extensions: &BTreeSet<&str>,
+) -> (Vec<DiagramEntry>, Vec<(usize, String)>) {
+    let mut entries = Vec::new();
+    let mut errors = Vec::new();
+    let mut branch: Vec<String> = Vec::new();
+
+    for (offset, line) in block.iter().enumerate() {
+        let Some(connector) = line.find("├── ").or_else(|| line.find("└── ")) else {
+            continue;
+        };
+        let indent = line[..connector].chars().count();
+        if !indent.is_multiple_of(4) {
+            errors.push((
+                offset,
+                format!(
+                    "indented {indent} columns, which is not a whole number of levels - the parentage \
+                     cannot be read from it"
+                ),
+            ));
+            continue;
+        }
+        let depth = indent / 4;
+        if depth > branch.len() {
+            errors.push((
+                offset,
+                format!(
+                    "jumps from level {} to level {depth} - no entry states the level in between, so its \
+                     parentage is unreadable",
+                    branch.len()
+                ),
+            ));
+            continue;
+        }
+        let entry = line[connector + "├── ".len()..]
+            .split('#')
+            .next()
+            .unwrap_or_default()
+            .trim();
+        if entry.is_empty() {
+            continue;
+        }
+        branch.truncate(depth);
+
+        let is_dir = entry.ends_with('/');
+        let name = entry.trim_end_matches('/');
+        let path = format!("{root}/{}{name}", {
+            let prefix = branch.join("/");
+            if prefix.is_empty() {
+                String::new()
+            } else {
+                format!("{prefix}/")
+            }
+        });
+        if is_dir {
+            branch.push(name.to_string());
+        }
+
+        if !is_dir
+            && !name
+                .rsplit_once('.')
+                .is_some_and(|(_, extension)| extensions.contains(extension))
+        {
+            continue;
+        }
+        entries.push(DiagramEntry {
+            offset,
+            path,
+            is_dir,
+        });
+    }
+
+    (entries, errors)
+}
+
+#[test]
+fn the_tree_diagram_parser_preserves_parentage_and_rejects_ambiguous_indent() {
+    let extensions = BTreeSet::from(["rs", "toml"]);
+    let block = [
+        "├── src/",
+        "│   ├── lib.rs",
+        "│   └── nested/",
+        "│       └── mod.rs",
+        "└── Cargo.toml",
+    ];
+    let (entries, errors) = parse_tree_block("server/crates/example", &block, &extensions);
+    assert!(errors.is_empty(), "{errors:?}");
+    assert_eq!(
+        entries
+            .iter()
+            .map(|entry| entry.path.as_str())
+            .collect::<Vec<_>>(),
+        [
+            "server/crates/example/src",
+            "server/crates/example/src/lib.rs",
+            "server/crates/example/src/nested",
+            "server/crates/example/src/nested/mod.rs",
+            "server/crates/example/Cargo.toml",
+        ]
+    );
+
+    let (_, errors) = parse_tree_block(
+        "server/crates/example",
+        &["  └── bad.rs", "        └── jump.rs"],
+        &extensions,
+    );
+    assert_eq!(errors.len(), 2);
+    assert!(errors[0].1.contains("not a whole number of levels"));
+    assert!(errors[1].1.contains("jumps from level"));
+}
+
 #[test]
 fn every_tree_diagram_names_things_that_exist() {
     let repo = repo_root();
@@ -827,8 +947,8 @@ fn every_tree_diagram_names_things_that_exist() {
 
     let mut missing: Vec<String> = Vec::new();
     let mut unresolved_paths: Vec<(String, usize, String, bool)> = Vec::new();
-    let mut checked = 0usize;
     let mut diagrams = 0usize;
+    let mut uncovered_diagrams: Vec<String> = Vec::new();
     // Markdown, and unlike the extension allowlists this file has had to remove, this one was **measured**:
     // six Rust files draw box-drawing diagrams in doc comments and not one of them is a directory tree of this
     // repository - a call-dispatch sketch, three boxed tables, a data-flow arrow, and the *runtime* storage
@@ -899,76 +1019,28 @@ fn every_tree_diagram_names_things_that_exist() {
                 .filter_map(|f| f.rsplit_once('.').map(|(_, ext)| ext))
                 .collect();
 
-            // One entry per line, at the depth its indentation states.
-            let mut branch: Vec<String> = Vec::new();
-            for (offset, line) in block.iter().enumerate() {
-                let Some(connector) = line.find("├── ").or_else(|| line.find("└── "))
-                else {
-                    continue;
-                };
-                let indent = line[..connector].chars().count();
-                if !indent.is_multiple_of(4) {
-                    missing.push(format!(
-                        "{doc}:{}: indented {indent} columns, which is not a whole number of levels - the \
-                         parentage cannot be read from it",
-                        start + offset + 1
-                    ));
-                    continue;
-                }
-                let depth = indent / 4;
-                // A jump past the next level is not a deeper entry, it is an unreadable one: nothing states
-                // what the skipped level was, and truncating to a shorter branch would resolve the entry as
-                // though it sat one level up - a confident answer to a question the diagram did not ask.
-                if depth > branch.len() {
-                    missing.push(format!(
-                        "{doc}:{}: jumps from level {} to level {depth} - no entry states the level in \
-                         between, so its parentage is unreadable",
-                        start + offset + 1,
-                        branch.len()
-                    ));
-                    continue;
-                }
-                let entry = line[connector + "├── ".len()..]
-                    .split('#')
-                    .next()
-                    .unwrap_or_default()
-                    .trim();
-                if entry.is_empty() {
-                    continue;
-                }
-                branch.truncate(depth);
-
-                let is_dir = entry.ends_with('/');
-                let name = entry.trim_end_matches('/');
-                let named = format!("{root}/{}{name}", {
-                    let prefix = branch.join("/");
-                    if prefix.is_empty() {
-                        String::new()
-                    } else {
-                        format!("{prefix}/")
-                    }
-                });
-                if is_dir {
-                    branch.push(name.to_string());
-                }
-
-                // A file is only checkable when the root's own vocabulary says it is one; anything else in a
-                // map is prose.
-                if !is_dir
-                    && !name
-                        .rsplit_once('.')
-                        .is_some_and(|(_, e)| extensions.contains(e))
-                {
-                    continue;
-                }
-                checked += 1;
-                let exists = if is_dir {
-                    tracked.iter().any(|f| f.starts_with(&format!("{named}/")))
+            let (entries, errors) = parse_tree_block(&root, block, &extensions);
+            for (offset, error) in errors {
+                missing.push(format!("{doc}:{}: {error}", start + offset + 1));
+            }
+            if entries.is_empty() {
+                uncovered_diagrams.push(format!("{doc}:{}", open + 1));
+            }
+            for entry in entries {
+                let exists = if entry.is_dir {
+                    tracked
+                        .iter()
+                        .any(|file| file.starts_with(&format!("{}/", entry.path)))
                 } else {
-                    tracked.iter().any(|f| **f == named)
+                    tracked.iter().any(|file| **file == entry.path)
                 };
                 if !exists {
-                    unresolved_paths.push((doc.clone(), start + offset + 1, named, is_dir));
+                    unresolved_paths.push((
+                        doc.clone(),
+                        start + entry.offset + 1,
+                        entry.path,
+                        entry.is_dir,
+                    ));
                 }
             }
         }
@@ -1039,8 +1111,10 @@ fn every_tree_diagram_names_things_that_exist() {
 
     assert!(diagrams >= 2, "only found {diagrams} tree diagram(s)");
     assert!(
-        checked >= diagrams,
-        "checked {checked} paths across {diagrams} diagrams; at least one path per diagram is required"
+        uncovered_diagrams.is_empty(),
+        "{} qualified tree diagram(s) yielded no checkable path:\n  {}",
+        uncovered_diagrams.len(),
+        uncovered_diagrams.join("\n  ")
     );
     assert!(
         missing.is_empty(),
