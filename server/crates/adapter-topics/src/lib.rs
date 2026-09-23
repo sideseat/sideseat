@@ -1,7 +1,8 @@
 //! Queue backend adapters.
 //!
-//! The transport-neutral queue contract lives in `sideseat-ports`; typed protobuf/MessagePack
-//! wrappers live in `sideseat-domain`. This crate owns only the in-process and Redis implementations.
+//! The transport-neutral contract lives in `sideseat-ports`, and typed codecs live in
+//! `sideseat-messaging`. This crate implements the contract for in-process, Redis, and Redpanda
+//! backends.
 
 pub mod ack_window;
 pub mod memory;
