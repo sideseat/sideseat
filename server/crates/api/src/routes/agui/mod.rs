@@ -27,7 +27,7 @@ use axum::routing::post;
 use serde::Deserialize;
 use uuid::Uuid;
 
-use crate::extractors::is_valid_project_id;
+use crate::auth::ProjectWrite;
 use sideseat_core::constants::{INVOKE_TIMEOUT_MS, WS_MAX_MESSAGE_BYTES};
 use sideseat_ports::queue::TopicError;
 use sideseat_ports::registrations::ConnectionControl;
@@ -46,7 +46,6 @@ use super::ws::protocol::ErrorCode;
 
 #[derive(Debug, Deserialize)]
 pub struct RunPath {
-    pub project_id: String,
     pub name: String,
 }
 
@@ -117,47 +116,17 @@ impl Drop for InvokeCancelGuard {
 #[tracing::instrument(skip_all, fields(project_id, agent = %name, request_id))]
 async fn run_agent(
     State(state): State<WsState>,
-    Path(RunPath { project_id, name }): Path<RunPath>,
-    auth: Option<axum::Extension<crate::auth::AuthContext>>,
-    auth_service: Option<axum::Extension<std::sync::Arc<crate::auth::AuthService>>>,
+    access: ProjectWrite,
+    Path(RunPath { name }): Path<RunPath>,
     Json(run_input): Json<serde_json::Value>,
 ) -> Result<impl IntoResponse, ErrorResponse> {
+    let project_id = access.project_id;
     tracing::Span::current().record("project_id", tracing::field::display(&project_id));
-    if !is_valid_project_id(&project_id) {
-        return Err(ErrorResponse::bad_request("invalid_project_id"));
-    }
-
-    // The credential has to be valid **for this project**, not merely valid. `require_auth` establishes who
-    // is asking; a key from another organisation is otherwise a perfectly good key, and this route *invokes*
-    // an agent - so without the check one organisation could run another's agents. With `--no-auth` the
-    // context is `LocalDefault`, which this admits, so development is unchanged.
-    if let (Some(axum::Extension(auth)), Some(axum::Extension(service))) = (auth, auth_service) {
-        if service
-            // `Write`, not `Read`: this *runs* an agent, whose side effects are external - it calls models and
-            // tools, and it costs money. A query-only key must not be able to trigger that.
-            .verify_project_access(
-                &auth,
-                &project_id,
-                sideseat_ports::types::ApiKeyScope::Write,
-            )
-            .await
-            .is_err()
-        {
-            return Err(ErrorResponse::forbidden("project_access_denied"));
-        }
-    } else {
-        tracing::error!(
-            project_id,
-            "An AG-UI invoke arrived with no authentication context; refusing it."
-        );
-        return Err(ErrorResponse::forbidden("auth_context_missing"));
-    }
     if !run_input.is_object() {
         return Err(ErrorResponse::bad_request(
             "run_input must be a JSON object (RunAgentInput)",
         ));
     }
-    let project_id = ProjectId::from(project_id);
 
     // 1. Find the live registration. Resolves any invokable kind
     //    (agent → graph → swarm) by name; mcp is skipped server-side.
@@ -365,10 +334,6 @@ fn synth_run_finished() -> Event {
     Event::default().data(payload.to_string())
 }
 
-// ============================================================================
-// Error response shape
-// ============================================================================
-
 pub struct ErrorResponse {
     status: StatusCode,
     code: String,
@@ -383,16 +348,6 @@ impl ErrorResponse {
             message: message.into(),
         }
     }
-    /// The caller is authenticated but not for this project - distinct from `not_found`, which would tell an
-    /// outsider whether the agent exists.
-    fn forbidden(code: impl Into<String>) -> Self {
-        Self {
-            status: StatusCode::FORBIDDEN,
-            code: code.into(),
-            message: "not authorised for this project".into(),
-        }
-    }
-
     fn not_found(code: impl Into<String>) -> Self {
         Self {
             status: StatusCode::NOT_FOUND,
