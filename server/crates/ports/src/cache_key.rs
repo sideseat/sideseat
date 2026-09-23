@@ -99,11 +99,11 @@ impl CacheKey {
     /// Cache key for project stats
     ///
     /// Uses an 8-char hash of timezone to keep keys short
-    pub fn stats(project_id: &str, from: i64, to: i64, tz: &str) -> String {
+    pub fn stats(project_id: &str, from_micros: i64, to_micros: i64, tz: &str) -> String {
         let tz_hash = &format!("{:x}", md5::compute(tz))[..8];
         format!(
             "{}:stats:{}:{}:{}:{}",
-            CACHE_KEY_VERSION, project_id, from, to, tz_hash
+            CACHE_KEY_VERSION, project_id, from_micros, to_micros, tz_hash
         )
     }
 
@@ -208,6 +208,11 @@ mod tests {
         let key = CacheKey::stats("proj1", 1000, 2000, "America/New_York");
         assert!(key.starts_with("v1:stats:proj1:1000:2000:"));
         assert_eq!(key.len(), "v1:stats:proj1:1000:2000:".len() + 8);
+
+        assert_ne!(
+            CacheKey::stats("proj1", 1_000_000, 2_000_000, "UTC"),
+            CacheKey::stats("proj1", 1_000_001, 2_000_000, "UTC"),
+        );
     }
 
     #[test]

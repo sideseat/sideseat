@@ -100,8 +100,8 @@ pub async fn get_project_stats(
     // Generate cache key
     let cache_key = CacheKey::stats(
         &project_id,
-        from_timestamp.timestamp(),
-        to_timestamp.timestamp(),
+        from_timestamp.timestamp_micros(),
+        to_timestamp.timestamp_micros(),
         timezone.as_deref().unwrap_or("UTC"),
     );
 
