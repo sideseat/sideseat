@@ -69,20 +69,6 @@ impl AckWindow {
             _ => Some(self.next),
         }
     }
-
-    /// How many completed offsets are waiting on a gap below them.
-    ///
-    /// Exposed because it is the signal that something is stuck: a window that keeps growing means a record is
-    /// failing repeatedly and everything behind it is un-committable. That is a condition to report, not to
-    /// resolve by committing past it.
-    pub fn held(&self) -> usize {
-        self.completed.len()
-    }
-
-    /// The lowest offset not yet complete - the one holding the window open.
-    pub fn blocked_on(&self) -> u64 {
-        self.next
-    }
 }
 
 #[cfg(test)]
@@ -103,7 +89,7 @@ mod tests {
         assert_eq!(w.committable(Some(10)), Some(11));
         w.complete(11);
         assert_eq!(w.committable(Some(11)), Some(12));
-        assert_eq!(w.held(), 0);
+        assert!(w.completed.is_empty());
     }
 
     /// **The property this type exists for**: a later record completing does not acknowledge an earlier failure.
@@ -121,13 +107,17 @@ mod tests {
             "committing anything above 0 would tell the broker that 0 is done, and it is not - that record is \
              then never redelivered and its data is gone after a 200"
         );
-        assert_eq!(w.held(), 3, "three successes are waiting on the gap at 0");
-        assert_eq!(w.blocked_on(), 0);
+        assert_eq!(
+            w.completed.len(),
+            3,
+            "three successes are waiting on the gap at 0"
+        );
+        assert_eq!(w.next, 0);
 
         // Once 0 finishes, the whole run becomes committable at once.
         w.complete(0);
         assert_eq!(w.committable(None), Some(4));
-        assert_eq!(w.held(), 0);
+        assert!(w.completed.is_empty());
     }
 
     /// A gap in the middle holds only what is above it.
@@ -138,7 +128,7 @@ mod tests {
             w.complete(offset);
         }
         assert_eq!(w.committable(None), Some(2), "0 and 1 are done; 2 is not");
-        assert_eq!(w.held(), 2, "3 and 4 wait");
+        assert_eq!(w.completed.len(), 2, "3 and 4 wait");
         w.complete(2);
         assert_eq!(w.committable(None), Some(5));
     }
@@ -156,7 +146,7 @@ mod tests {
             Some(2),
             "at-least-once means this happens; it must not rewind"
         );
-        assert_eq!(w.held(), 0);
+        assert!(w.completed.is_empty());
     }
 
     /// Nothing to commit when the broker already has the prefix.

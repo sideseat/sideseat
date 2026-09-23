@@ -4,24 +4,23 @@
 //! `sideseat-messaging`. This crate implements the contract for in-process, Redis, and Redpanda
 //! backends.
 
-pub mod ack_window;
-pub mod memory;
-pub mod pubsub;
-pub mod redis;
+mod ack_window;
+mod memory;
+mod pubsub;
+mod redis;
 #[cfg(test)]
 mod redis_stream_tests;
-pub mod redpanda;
+mod redpanda;
 #[cfg(test)]
 mod redpanda_tests;
 
 use std::sync::Arc;
 
+use memory::MemoryTopicBackend;
+use redis::RedisTopicBackend;
+use redpanda::RedpandaTopicBackend;
 use sideseat_core::config::{QueueBackendType, QueueConfig};
 use sideseat_ports::queue::{TopicBackend, TopicError};
-
-pub use memory::MemoryTopicBackend;
-pub use redis::RedisTopicBackend;
-pub use redpanda::RedpandaTopicBackend;
 
 /// Number of logical partitions exposed by single-log queue backends.
 ///

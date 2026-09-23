@@ -127,11 +127,6 @@ impl PubSubManager {
         }
     }
 
-    /// Get a bridge if it exists (for publishing)
-    pub fn get_bridge(&self, topic: &str) -> Option<Arc<PubSubBridge>> {
-        self.bridges.read().get(topic).cloned()
-    }
-
     /// Shutdown all bridges gracefully
     pub async fn shutdown(&self) {
         // Signal all bridges to stop
@@ -152,11 +147,6 @@ impl PubSubManager {
         self.bridges.write().clear();
 
         tracing::debug!("PubSubManager shutdown complete");
-    }
-
-    /// Get the shutdown receiver for bridge tasks
-    pub fn shutdown_rx(&self) -> watch::Receiver<bool> {
-        self.shutdown_rx.clone()
     }
 }
 
@@ -363,7 +353,7 @@ mod tests {
         let sub = ManagedSubscription::new(receiver, bridge, Arc::clone(&manager));
 
         // Verify bridge exists
-        assert!(manager.get_bridge("test").is_some());
+        assert!(manager.bridges.read().contains_key("test"));
 
         // Drop subscription
         drop(sub);
@@ -372,7 +362,7 @@ mod tests {
         tokio::time::sleep(std::time::Duration::from_millis(150)).await;
 
         // Bridge should be removed
-        assert!(manager.get_bridge("test").is_none());
+        assert!(!manager.bridges.read().contains_key("test"));
     }
 
     #[tokio::test]
@@ -389,7 +379,7 @@ mod tests {
         manager.shutdown().await;
 
         // Bridges should be cleared
-        assert!(manager.get_bridge("topic1").is_none());
-        assert!(manager.get_bridge("topic2").is_none());
+        assert!(!manager.bridges.read().contains_key("topic1"));
+        assert!(!manager.bridges.read().contains_key("topic2"));
     }
 }
