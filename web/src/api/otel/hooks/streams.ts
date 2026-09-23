@@ -33,7 +33,6 @@ export function useSpanStream({
   // Serialize params to prevent stale closure issues
   const paramsJson = useMemo(() => JSON.stringify(params ?? {}), [params]);
 
-  // Subscribe function matches useEventStream's expected signature
   const subscribe = useCallback(
     (
       onEvent: (event: SseSpanEvent) => void,
@@ -50,18 +49,12 @@ export function useSpanStream({
     [otelClient, projectId, paramsJson],
   );
 
-  // Memoize invalidateKeys to prevent infinite loop
-  // Includes stats for dashboard widgets (TokenTrend, TraceLatency, QuickStats, etc.)
-  const invalidateKeys = useMemo(
-    () =>
-      [
-        [...otelKeys.traces.lists(projectId)],
-        [...otelKeys.spans.lists(projectId)],
-        [...otelKeys.sessions.lists(projectId)],
-        [...otelKeys.stats.all(projectId)],
-      ] as unknown[][],
-    [projectId],
-  );
+  const invalidateKeys = [
+    otelKeys.traces.lists(projectId),
+    otelKeys.spans.lists(projectId),
+    otelKeys.sessions.lists(projectId),
+    otelKeys.stats.all(projectId),
+  ];
 
   return useEventStream({
     subscribe,

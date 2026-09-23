@@ -12,7 +12,7 @@ export interface EventStreamOptions<TEvent> {
   /** Identity of the remote subscription. Changing it reconnects the stream. */
   subscribeKey?: string;
   /** Query keys invalidated after incoming events. */
-  invalidateKeys: readonly unknown[][];
+  invalidateKeys: readonly (readonly unknown[])[];
   debounceMs?: number;
   enabled?: boolean;
   onEvent?: (event: TEvent) => void;

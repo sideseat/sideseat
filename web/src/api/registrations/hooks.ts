@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from "react";
+import { useCallback } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEventStream } from "@/hooks/use-event-stream";
 import { useRegistrationsClient } from "@/lib/app-context";
@@ -47,12 +47,10 @@ export function usePresenceStream(projectId: string) {
     [c, projectId],
   );
 
-  const invalidateKeys = useMemo(() => [] as readonly unknown[][], []);
-
   return useEventStream<PresenceUpdate>({
     subscribe,
     subscribeKey: projectId,
-    invalidateKeys,
+    invalidateKeys: [],
     debounceMs: 0,
     enabled: !!projectId,
     onEvent: (u) => {

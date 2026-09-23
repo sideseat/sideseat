@@ -10,7 +10,7 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
-    "lint": "eslint . --ext ts,tsx",
+    "lint": "eslint . --ext ts,tsx --max-warnings 0",
     "fmt": "prettier --write \"src/**/*.{ts,tsx,css,json}\"",
     "test": "vitest",
     "test:coverage": "vitest --coverage"
