@@ -14,7 +14,7 @@ use std::sync::Arc;
 use axum::Router;
 use axum::routing::post;
 use sideseat_core::core::constants::TOPIC_TRACES;
-pub use sideseat_core::utils::otlp::{
+pub use sideseat_domain::otlp::{
     inject_project_id_logs, inject_project_id_metrics, inject_project_id_traces,
 };
 use sideseat_domain::signals::{LogSignal, MetricsSignal, TraceSignal};

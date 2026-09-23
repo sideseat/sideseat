@@ -21,15 +21,15 @@ use opentelemetry_proto::tonic::metrics::v1::metric;
 use prost::Message;
 use serde::Serialize;
 
+use crate::otlp::{
+    PROJECT_ID_ATTR, inject_project_id_logs, inject_project_id_metrics, inject_project_id_traces,
+};
 use crate::staging::{StagedPayloadRef, StagingDisposition, StagingService};
 use crate::storage_governance::{GovernanceError, StorageGovernanceService};
 use crate::topics::{StreamTopic, TopicMessage};
 use crate::traces::{DropReason, IngestOutcome, TracePipeline, strip_unstorable_spans};
 use sideseat_core::core::constants::{TOPIC_LOGS, TOPIC_METRICS, TOPIC_TRACES};
 use sideseat_core::utils::debug::write_debug;
-use sideseat_core::utils::otlp::{
-    PROJECT_ID_ATTR, inject_project_id_logs, inject_project_id_metrics, inject_project_id_traces,
-};
 use sideseat_ports::clock::Clock;
 use sideseat_ports::traits::{AnalyticsRepository, TransactionalRepository};
 use sideseat_ports::types::{StagedRecord, StagedSignal};

@@ -32,11 +32,11 @@ use super::extract::{RawMessage, RawToolDefinition, RawToolNames, SpanData};
 // The **port**, not the service enum: a domain function taking `AnalyticsService` names every backend that
 // exists, which is what keeps the domain and the adapters in one crate.
 use crate::files::FileService;
+use crate::otlp::{build_attributes_json, extract_attributes};
 use crate::topics::{TopicMessage, TopicService};
 use sideseat_core::core::constants::{
     DEFAULT_PROJECT_ID, FILE_HASH_ALGORITHM, FILES_MAX_CONCURRENT_FINALIZATION,
 };
-use sideseat_core::utils::otlp::{build_attributes_json, extract_attributes};
 use sideseat_core::utils::retry::{
     DEFAULT_BASE_DELAY_MS, DEFAULT_MAX_ATTEMPTS, retry_with_backoff_async,
 };
@@ -1179,7 +1179,7 @@ pub(crate) fn span_content_digest(
     if let Some(resource) = &mut resource {
         resource
             .attributes
-            .retain(|attribute| attribute.key != sideseat_core::utils::otlp::PROJECT_ID_ATTR);
+            .retain(|attribute| attribute.key != crate::otlp::PROJECT_ID_ATTR);
     }
 
     let mut hasher = blake3::Hasher::new();

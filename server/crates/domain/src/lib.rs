@@ -5,6 +5,7 @@ pub mod content_bodies;
 pub mod dedup;
 pub mod domain;
 pub mod files;
+pub mod otlp;
 pub mod rate_limit;
 pub mod restore;
 pub mod search;

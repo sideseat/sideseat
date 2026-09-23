@@ -2,13 +2,13 @@
 
 use std::collections::HashMap;
 
-use chrono::{DateTime, Utc};
-use opentelemetry_proto::tonic::collector::logs::v1::ExportLogsServiceRequest;
-use opentelemetry_proto::tonic::common::v1::AnyValue;
-use sideseat_core::utils::otlp::{
+use crate::otlp::{
     PROJECT_ID_ATTR, any_value_to_json, any_value_to_string, attrs_to_typed_json,
     extract_attributes, get_environment, get_session_id, get_user_id, keys,
 };
+use chrono::{DateTime, Utc};
+use opentelemetry_proto::tonic::collector::logs::v1::ExportLogsServiceRequest;
+use opentelemetry_proto::tonic::common::v1::AnyValue;
 use sideseat_core::utils::time::nanos_to_datetime;
 use sideseat_ports::types::NormalizedLog;
 

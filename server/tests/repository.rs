@@ -3116,6 +3116,18 @@ fn update_networking_belongs_to_the_composition_root() {
     );
 }
 
+#[test]
+fn core_owns_no_otlp_transport_types() {
+    let repo = repo_root();
+    let core_manifest =
+        std::fs::read_to_string(repo.join("server/crates/core/Cargo.toml")).expect("core manifest");
+    assert!(
+        !core_manifest.contains("opentelemetry-proto")
+            && !repo.join("server/crates/core/src/utils/otlp.rs").exists(),
+        "the innermost crate must not depend on generated OTLP transport types"
+    );
+}
+
 /// Does this manifest line declare `driver`, under its own name or a rename?
 ///
 /// Extracted so it can be tested on input the workspace does not contain. A live mutation is not available:

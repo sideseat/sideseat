@@ -9,7 +9,6 @@ pub mod file;
 pub mod file_uri;
 pub mod json;
 pub mod mime;
-pub mod otlp;
 pub mod retry;
 pub mod serde;
 pub mod sql;

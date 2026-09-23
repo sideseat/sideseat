@@ -29,7 +29,6 @@ hex = { workspace = true }
 hmac = { workspace = true }
 ipnet = "2.12.1"
 local-ip-address = { workspace = true }
-opentelemetry-proto = { workspace = true }
 rand = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }

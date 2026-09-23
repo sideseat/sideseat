@@ -4967,7 +4967,7 @@ fn test_extract_messages_for_span_vercel_ai_sdk() {
     };
 
     // Extract attributes like the pipeline does
-    let span_attrs = sideseat_core::utils::otlp::extract_attributes(&otlp_span.attributes);
+    let span_attrs = crate::otlp::extract_attributes(&otlp_span.attributes);
 
     // Verify span_attrs contains the ai.prompt.messages attribute
     assert!(
@@ -5071,7 +5071,7 @@ fn test_extract_messages_for_span_crewai() {
     };
 
     // Extract attributes like the pipeline does
-    let span_attrs = sideseat_core::utils::otlp::extract_attributes(&otlp_span.attributes);
+    let span_attrs = crate::otlp::extract_attributes(&otlp_span.attributes);
 
     // Verify CrewAI detection attributes are present
     assert!(span_attrs.contains_key("crew_key"), "Should have crew_key");
@@ -6181,7 +6181,7 @@ fn test_autogen_tool_execution_event_via_extract_messages_for_span() {
         ..Default::default()
     };
 
-    let span_attrs = sideseat_core::utils::otlp::extract_attributes(&otlp_span.attributes);
+    let span_attrs = crate::otlp::extract_attributes(&otlp_span.attributes);
     let (messages, _tool_defs, _tool_names) = extract_messages_for_span(
         &otlp_span,
         &span_attrs,

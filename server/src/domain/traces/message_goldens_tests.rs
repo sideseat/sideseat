@@ -3803,7 +3803,7 @@ fn clause_paths(emission: &crate::domain::rules::message_rules::Emission<'_>) ->
 fn rules_that_emit() -> BTreeSet<String> {
     use crate::domain::rules::MessageContext;
     use crate::domain::rules::message_rules::OwnedCarrier;
-    use sideseat_core::utils::otlp::extract_attributes;
+    use sideseat_domain::otlp::extract_attributes;
 
     let plan = &crate::domain::rules::ruleset().messages;
     let mut fired = BTreeSet::new();
@@ -4116,7 +4116,7 @@ fn the_declared_classification_matches_the_sweep_across_the_corpus() {
     use crate::domain::traces::extract::attributes::{
         categorize_span_legacy, detect_observation_type_legacy,
     };
-    use sideseat_core::utils::otlp::extract_attributes;
+    use sideseat_domain::otlp::extract_attributes;
     use sideseat_ports::types::{ObservationType, SpanCategory};
 
     let plan = &crate::domain::rules::ruleset().observation_types;
@@ -4492,7 +4492,7 @@ fn no_declared_subdivision_is_dead_across_the_corpus() {
 #[test]
 fn a_persisted_tool_set_reports_what_its_provenance_would_have_said() {
     use crate::domain::rules::MessageContext;
-    use sideseat_core::utils::otlp::extract_attributes;
+    use sideseat_domain::otlp::extract_attributes;
     use std::collections::{BTreeMap, BTreeSet};
 
     let plan = &crate::domain::rules::ruleset().messages;
@@ -4682,7 +4682,7 @@ fn contradiction_among(forms: &std::collections::BTreeSet<String>) -> Option<Str
 #[cfg(test)]
 fn surviving_definitions(sample: &str, tool: &str) -> usize {
     use crate::domain::rules::MessageContext;
-    use sideseat_core::utils::otlp::extract_attributes;
+    use sideseat_domain::otlp::extract_attributes;
 
     let mut declared: Vec<serde_json::Value> = Vec::new();
     for (found, paths) in discover_fixtures() {
@@ -4738,7 +4738,7 @@ fn surviving_definitions(sample: &str, tool: &str) -> usize {
 /// intersection, and the pairs that matter are the ones a real producer writes.
 #[test]
 fn no_span_is_classified_as_two_incompatible_things() {
-    use sideseat_core::utils::otlp::extract_attributes;
+    use sideseat_domain::otlp::extract_attributes;
     use std::collections::BTreeMap;
     // The six observation types that name the same operation a category names. `span`, `guardrail` and
     // `evaluator` leave the category free - a transport call is a plain observation with an HTTP category, and

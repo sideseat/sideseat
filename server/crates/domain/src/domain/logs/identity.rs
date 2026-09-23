@@ -5,7 +5,7 @@ use opentelemetry_proto::tonic::common::v1::{AnyValue, KeyValue, any_value};
 use opentelemetry_proto::tonic::logs::v1::LogRecord;
 use opentelemetry_proto::tonic::resource::v1::Resource;
 
-use sideseat_core::utils::otlp::PROJECT_ID_ATTR;
+use crate::otlp::PROJECT_ID_ATTR;
 
 /// Digest every producer-supplied field that can distinguish one log record from another.
 pub fn log_digest(
