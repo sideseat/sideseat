@@ -75,8 +75,8 @@ You will not get far in the code or in this document without these.
 
 | Term | Meaning |
 | --- | --- |
-| **SideML** | SideSeat's universal message format. `ChatMessage` with a `Vec<ContentBlock>`; `domain/sideml/types.rs` |
-| **Feed** | the reconstruction pipeline (`domain/sideml/feed/`) that turns span rows into an ordered, deduplicated conversation |
+| **SideML** | SideSeat's universal message format. `ChatMessage` with a `Vec<ContentBlock>`; `server/crates/domain/src/sideml/types.rs` |
+| **Feed** | the reconstruction pipeline (`server/crates/domain/src/sideml/feed/`) that turns span rows into an ordered, deduplicated conversation |
 | **Block / `BlockEntry`** | one `ContentBlock` with its metadata — the unit the feed sorts and deduplicates |
 | **Carrier** | the telemetry construct a message arrived in (an OTel event, or a framework's attribute like `output.value`). Its *structure* says what it is evidence of — `sideml/carrier.rs` |
 | **History** | a message a framework re-sent as context rather than produced now. Eight detection phases; history blocks are filtered from the answer |
@@ -1609,7 +1609,7 @@ or just open the UI against an empty project if not. Seeing a trace render makes
    read "Common Gotchas" properly.
 2. This file's §1.3 (the constraint), §2 (the data model), §3 and §4 (the two paths).
 3. `server/crates/ports/src/traits.rs` — the whole seam in one file. If a method looks odd, its doc comment says why.
-4. `domain/sideml/feed/mod.rs` — the pipeline's nine stages. The comments there record decisions that were made
+4. `server/crates/domain/src/sideml/feed/mod.rs` — the pipeline's nine stages. The comments there record decisions that were made
    and reverted, which is the fastest way to learn what does not work.
 5. One parity test and one golden test, run individually, to see what an oracle looks like here.
 

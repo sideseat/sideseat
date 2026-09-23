@@ -3144,6 +3144,21 @@ fn core_crate_has_a_flat_module_root() {
 }
 
 #[test]
+fn domain_crate_has_a_flat_module_root() {
+    let repo = repo_root();
+    let nested_root = repo.join("server/crates/domain/src/domain");
+    let crate_root = std::fs::read_to_string(repo.join("server/crates/domain/src/lib.rs"))
+        .expect("domain crate root");
+    assert!(
+        !nested_root.exists()
+            && !crate_root
+                .lines()
+                .any(|line| line.trim() == "pub mod domain;"),
+        "the domain crate must expose its modules directly from src/"
+    );
+}
+
+#[test]
 fn adapter_crates_do_not_repeat_their_names_under_src() {
     let repo = repo_root();
     for path in [
@@ -3583,7 +3598,7 @@ fn migrated_clock_consumers_cannot_read_the_system_clock() {
         "server/crates/api/src/routes/otlp_collector/logs.rs",
         "server/crates/api/src/routes/otlp_collector/grpc.rs",
         "server/crates/api/src/routes/otel/stats.rs",
-        "server/crates/domain/src/domain/pricing/mod.rs",
+        "server/crates/domain/src/pricing/mod.rs",
         "server/crates/domain/src/rate_limit.rs",
     ] {
         let source = std::fs::read_to_string(repo.join(file))

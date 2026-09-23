@@ -119,7 +119,7 @@ export type MessageCategory =
   | "Other";
 
 /**
- * ContentBlock types matching server/crates/domain/src/domain/sideml/types.rs
+ * ContentBlock types matching server/crates/domain/src/sideml/types.rs
  * All 15 content block types for multimodal messages
  */
 export type ContentBlock =

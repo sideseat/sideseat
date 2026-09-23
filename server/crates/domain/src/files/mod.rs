@@ -43,7 +43,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 
-use crate::domain::traces::extract::files::collect_file_references_in_str;
+use crate::traces::extract::files::collect_file_references_in_str;
 use serde::Serialize;
 use sideseat_core::config::FilesConfig;
 use sideseat_core::constants::CACHE_TTL_FILE_QUOTA;

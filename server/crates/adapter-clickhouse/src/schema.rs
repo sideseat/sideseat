@@ -100,7 +100,7 @@ pub struct Migration {
 /// Reproduced against 25.8: one released row of 1, one correction of 2, `FINAL` gives two rows summing to 3.
 ///
 /// It cannot be backfilled. The id is a digest over OTLP attribute values **with their protobuf variants
-/// preserved** (`domain/metrics/identity.rs`) - which is the whole reason it is not forgeable - and no SQL
+/// preserved** (`server/crates/domain/src/metrics/identity.rs`) - which is the whole reason it is not forgeable - and no SQL
 /// expression reproduces that from stored columns. The three alternatives are worse: deleting the released rows
 /// is data loss the operator has not asked for; leaving `toDate(timestamp)`-style keys is the labelled-metric
 /// collapse this migration exists to fix; and hiding an empty-id row whenever an identified one appears for the
