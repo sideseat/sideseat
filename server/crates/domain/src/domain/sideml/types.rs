@@ -5,14 +5,13 @@
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
-use utoipa::ToSchema;
 
 // ============================================================================
 // STRONGLY TYPED ENUMS
 // ============================================================================
 
 /// Standard chat roles
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default, ToSchema)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum ChatRole {
     System,
@@ -103,7 +102,7 @@ impl std::fmt::Display for ChatRole {
 }
 
 /// Normalized finish reasons across all providers
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum FinishReason {
     /// Normal completion (stop, end_turn, eos, complete, stop_sequence)
@@ -153,7 +152,7 @@ impl std::fmt::Display for FinishReason {
 }
 
 /// Tool choice setting for controlling tool calling behavior
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, ToSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum ToolChoice {
     /// Model decides whether to call tools
@@ -167,7 +166,7 @@ pub enum ToolChoice {
 }
 
 /// JSON schema details for structured output
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct JsonSchemaDetails {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
@@ -178,7 +177,7 @@ pub struct JsonSchemaDetails {
 }
 
 /// Response format for structured outputs
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum ResponseFormat {
     /// Plain text response (default)
@@ -190,7 +189,7 @@ pub enum ResponseFormat {
 }
 
 /// Cache control settings (Anthropic prompt caching)
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, ToSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct CacheControl {
     /// Cache type, typically "ephemeral"
     #[serde(rename = "type")]
@@ -202,7 +201,7 @@ pub struct CacheControl {
 /// Uses custom deserialization to preserve unknown content block types.
 /// Known types are deserialized normally; unknown types are captured in
 /// `Unknown { raw }` to prevent data loss.
-#[derive(Debug, Clone, Serialize, ToSchema)]
+#[derive(Debug, Clone, Serialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum ContentBlock {
     /// Plain text content
@@ -646,7 +645,7 @@ pub enum ContentCategory {
 }
 
 /// Complete chat message with all normalized fields (SideML format)
-#[derive(Debug, Clone, Serialize, Deserialize, Default, ToSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct ChatMessage {
     pub role: ChatRole,
 

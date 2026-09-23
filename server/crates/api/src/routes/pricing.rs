@@ -11,7 +11,9 @@ use validator::Validate;
 
 use crate::extractors::ValidatedJson;
 use crate::types::ApiError;
-use sideseat_domain::pricing::{MatchType, ModelPricing, PricingService, SpanCostInput};
+use sideseat_domain::pricing::{
+    MatchType as DomainMatchType, ModelPricing, PricingService, SpanCostInput,
+};
 
 // ============================================================================
 // State
@@ -41,6 +43,30 @@ pub struct CalculateCostRequest {
     pub cache_write_tokens: i64,
     #[serde(default)]
     pub reasoning_tokens: i64,
+}
+
+#[derive(Debug, Serialize, ToSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum MatchType {
+    Exact,
+    ProviderQualified,
+    ProviderInferred,
+    Alias,
+    Family,
+    NotFound,
+}
+
+impl From<DomainMatchType> for MatchType {
+    fn from(value: DomainMatchType) -> Self {
+        match value {
+            DomainMatchType::Exact => Self::Exact,
+            DomainMatchType::ProviderQualified => Self::ProviderQualified,
+            DomainMatchType::ProviderInferred => Self::ProviderInferred,
+            DomainMatchType::Alias => Self::Alias,
+            DomainMatchType::Family => Self::Family,
+            DomainMatchType::NotFound => Self::NotFound,
+        }
+    }
 }
 
 #[derive(Debug, Serialize, ToSchema)]
@@ -81,7 +107,7 @@ impl ModelPricingResponse {
         model: String,
         provider: Option<String>,
         pricing: ModelPricing,
-        match_type: MatchType,
+        match_type: DomainMatchType,
     ) -> Self {
         Self {
             model,
@@ -92,7 +118,7 @@ impl ModelPricingResponse {
             cache_creation_input_token_cost: pricing.cache_creation_input_token_cost,
             output_cost_per_reasoning_token: pricing.output_cost_per_reasoning_token,
             mode: pricing.mode,
-            match_type,
+            match_type: match_type.into(),
             confidence: match_type.confidence(),
         }
     }
@@ -148,7 +174,7 @@ pub async fn calculate_cost(
         cache_write_cost: output.cache_write_cost,
         reasoning_cost: output.reasoning_cost,
         total_cost: output.total_cost,
-        match_type: output.match_type.unwrap_or_default(),
+        match_type: output.match_type.unwrap_or_default().into(),
         confidence: output.confidence(),
     }))
 }

@@ -7,11 +7,8 @@ use utoipa::OpenApi;
 use crate::routes::{
     api_keys, auth, favorites, health, organizations, otel, pricing, projects, users,
 };
+use crate::schemas::sideml::{ChatRole, ContentBlock, FinishReason};
 use crate::types::{OrderDirection, PaginationMeta};
-use sideseat_domain::sideml::{
-    CacheControl, ChatMessage, ChatRole, ContentBlock, FinishReason, JsonSchemaDetails,
-    ResponseFormat, ToolChoice,
-};
 use sideseat_ports::types::ApiKeyScope;
 
 #[derive(OpenApi)]
@@ -210,7 +207,7 @@ use sideseat_ports::types::ApiKeyScope;
         pricing::CalculateCostResponse,
         pricing::ModelPricingRequest,
         pricing::ModelPricingResponse,
-        sideseat_domain::pricing::MatchType,
+        pricing::MatchType,
         // API Keys types
         ApiKeyScope,
         api_keys::types::CreateApiKeyRequest,
@@ -220,11 +217,6 @@ use sideseat_ports::types::ApiKeyScope;
         ChatRole,
         ContentBlock,
         FinishReason,
-        ToolChoice,
-        ResponseFormat,
-        JsonSchemaDetails,
-        CacheControl,
-        ChatMessage,
     ))
 )]
 pub struct ApiDoc;
@@ -277,3 +269,18 @@ const SWAGGER_UI_HTML: &str = r#"<!DOCTYPE html>
     </script>
 </body>
 </html>"#;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn domain_values_are_described_by_transport_owned_schemas() {
+        let document = ApiDoc::openapi();
+        let schemas = &document.components.expect("OpenAPI components").schemas;
+
+        for name in ["ChatRole", "ContentBlock", "FinishReason", "MatchType"] {
+            assert!(schemas.contains_key(name), "missing OpenAPI schema {name}");
+        }
+    }
+}

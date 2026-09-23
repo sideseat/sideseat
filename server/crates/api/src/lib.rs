@@ -9,6 +9,7 @@ pub mod middleware;
 pub mod openapi;
 pub mod rate_limit;
 pub mod routes;
+pub mod schemas;
 mod server;
 pub mod types;
 

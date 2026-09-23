@@ -226,7 +226,9 @@ pub struct TraceInSessionDto {
 pub struct BlockDto {
     // Content
     pub entry_type: String,
+    #[schema(value_type = crate::schemas::sideml::ContentBlock)]
     pub content: ContentBlock,
+    #[schema(value_type = crate::schemas::sideml::ChatRole)]
     pub role: ChatRole,
 
     // Position
@@ -259,6 +261,7 @@ pub struct BlockDto {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    #[schema(value_type = Option<crate::schemas::sideml::FinishReason>)]
     pub finish_reason: Option<FinishReason>,
 
     // Tool context

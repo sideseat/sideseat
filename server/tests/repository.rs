@@ -3128,6 +3128,17 @@ fn core_owns_no_otlp_transport_types() {
     );
 }
 
+#[test]
+fn domain_owns_no_openapi_schema_dependency() {
+    let repo = repo_root();
+    let domain_manifest = std::fs::read_to_string(repo.join("server/crates/domain/Cargo.toml"))
+        .expect("domain manifest");
+    assert!(
+        !domain_manifest.contains("utoipa"),
+        "OpenAPI schemas belong to the API transport crate, not the domain"
+    );
+}
+
 /// Does this manifest line declare `driver`, under its own name or a rename?
 ///
 /// Extracted so it can be tested on input the workspace does not contain. A live mutation is not available:

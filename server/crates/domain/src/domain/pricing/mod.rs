@@ -17,7 +17,6 @@ use serde::Serialize;
 use thiserror::Error;
 use tokio::sync::watch;
 use tokio::task::JoinHandle;
-use utoipa::ToSchema;
 
 use sideseat_core::core::storage::AppStorage;
 use sideseat_ports::clock::Clock;
@@ -133,7 +132,7 @@ pub struct ModelPricing {
 ///
 /// Exposed in SpanCostOutput to indicate how the model was matched.
 /// Higher confidence = more accurate cost.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, ToSchema)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum MatchType {
     /// The model key matched as given (confidence: 100%)
