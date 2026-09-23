@@ -1,4 +1,4 @@
-//! In-memory and Redis cache adapters with a cache-backed rate limiter.
+//! In-memory and Redis cache adapters.
 //!
 //! Provides caching infrastructure with pluggable backends:
 //! - In-memory (default) - uses moka + dashmap
@@ -19,8 +19,6 @@
 //! Call sites choose which store to use explicitly:
 //! - `get` / `set` / `delete` — primary backend (may be Redis)
 //! - `get_local` / `set_local` / `delete_local` — always in-process memory
-//!
-//! Also provides rate limiting using the primary cache backend.
 
 mod backend;
 mod error;
