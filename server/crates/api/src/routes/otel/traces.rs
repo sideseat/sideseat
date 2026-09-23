@@ -216,20 +216,8 @@ pub async fn get_trace(
 
     let summary = trace_row_to_summary(trace);
 
-    // Compute ETag from span_count and end_time
-    let end_time_str = summary
-        .end_time
-        .map(|dt| dt.timestamp_millis().to_string())
-        .unwrap_or_else(|| "none".to_string());
-    let etag_value = format!(
-        "W/\"{}-{}-{}\"",
-        summary.span_count, end_time_str, spans_truncated
-    );
-
     let mut headers = HeaderMap::new();
-    if let Ok(etag) = HeaderValue::from_str(&etag_value) {
-        headers.insert(header::ETAG, etag);
-    }
+    headers.insert(header::CACHE_CONTROL, HeaderValue::from_static("no-store"));
 
     Ok((
         headers,
