@@ -2394,18 +2394,29 @@ fn the_image_gate_reads_the_shapes_that_defeated_it() {
 /// production code.
 #[test]
 fn no_adapter_imports_a_sibling_adapter() {
-    const ADAPTERS: &[&str] = &["duckdb", "clickhouse", "sqlite", "postgres"];
-
     let repo = repo_root();
-    let mut violations: Vec<String> = Vec::new();
-    let mut checked = 0usize;
-    let mut roots_checked = 0usize;
+    let mut adapters: Vec<String> = std::fs::read_dir(repo.join("server/crates"))
+        .expect("crates directory is readable")
+        .filter_map(Result::ok)
+        .filter(|entry| entry.path().join("Cargo.toml").is_file())
+        .filter_map(|entry| entry.file_name().into_string().ok())
+        .filter_map(|name| name.strip_prefix("adapter-").map(str::to_string))
+        .collect();
+    adapters.sort();
+    assert!(
+        adapters.len() >= 9,
+        "found only {} adapter crates: {adapters:?}",
+        adapters.len()
+    );
 
-    for adapter in ADAPTERS {
+    let mut violations: Vec<String> = Vec::new();
+    let mut empty_roots: Vec<String> = Vec::new();
+
+    for adapter in &adapters {
         let dir = repo.join(format!("server/crates/adapter-{adapter}/src"));
         assert!(dir.is_dir(), "{} is an adapter source root", dir.display());
-        roots_checked += 1;
         let mut stack = vec![dir];
+        let mut checked = 0usize;
         while let Some(current) = stack.pop() {
             for entry in std::fs::read_dir(&current).expect("readable directory") {
                 let path = entry.expect("readable entry").path();
@@ -2431,7 +2442,7 @@ fn no_adapter_imports_a_sibling_adapter() {
                     }
                 }
                 checked += 1;
-                for sibling in ADAPTERS {
+                for sibling in &adapters {
                     if sibling == adapter {
                         continue;
                     }
@@ -2451,23 +2462,46 @@ fn no_adapter_imports_a_sibling_adapter() {
                         violations.push(format!("{relative} imports crate::data::{sibling}"));
                     }
 
-                    let package = format!("sideseat_adapter_{sibling}");
+                    let package = format!("sideseat_adapter_{}", sibling.replace('-', "_"));
                     if code.contains(&package) {
                         violations.push(format!("{relative} imports {package}"));
                     }
                 }
             }
         }
+        if checked == 0 {
+            empty_roots.push(format!("adapter-{adapter}"));
+        }
+
+        let manifest = std::fs::read_to_string(
+            repo.join(format!("server/crates/adapter-{adapter}/Cargo.toml")),
+        )
+        .expect("adapter manifest is readable");
+        let dependencies = manifest
+            .split("[dependencies]")
+            .nth(1)
+            .and_then(|rest| rest.split("\n[").next())
+            .unwrap_or_default();
+        for sibling in &adapters {
+            if sibling == adapter {
+                continue;
+            }
+            let package = format!("sideseat-adapter-{sibling}");
+            if dependencies
+                .lines()
+                .any(|line| declares_driver(line, &package))
+            {
+                violations.push(format!(
+                    "server/crates/adapter-{adapter}/Cargo.toml depends on `{package}`"
+                ));
+            }
+        }
     }
 
-    assert_eq!(
-        roots_checked,
-        ADAPTERS.len(),
-        "every adapter root was scanned"
-    );
     assert!(
-        checked >= 60,
-        "only scanned {checked} adapter files - the walk is wrong, not the tree"
+        empty_roots.is_empty(),
+        "adapter source root(s) contained no Rust files: {}",
+        empty_roots.join(", ")
     );
     assert!(
         violations.is_empty(),
@@ -2658,6 +2692,41 @@ fn every_database_adapter_uses_the_shared_migration_runner() {
             "{relative} has reintroduced a local migration-version loop"
         );
     }
+}
+
+/// Every crate physically placed under `server/crates/` is a workspace member, and vice versa.
+///
+/// A crate omitted from `members` is invisible to workspace checks, so deriving later architecture gates only
+/// from the manifest would let a relocated or newly added crate escape all of them.
+#[test]
+fn every_server_crate_is_a_workspace_member() {
+    let repo = repo_root();
+    let root = std::fs::read_to_string(repo.join("Cargo.toml")).expect("workspace manifest");
+    let start = root.find("members = [").expect("members list");
+    let end = root[start..].find(']').expect("members list ends") + start;
+    let declared: BTreeSet<String> = root[start..end]
+        .split('"')
+        .filter(|member| member.starts_with("server/crates/"))
+        .map(str::to_string)
+        .collect();
+
+    let actual: BTreeSet<String> = std::fs::read_dir(repo.join("server/crates"))
+        .expect("crates directory is readable")
+        .filter_map(Result::ok)
+        .filter(|entry| entry.path().join("Cargo.toml").is_file())
+        .filter_map(|entry| entry.file_name().into_string().ok())
+        .map(|name| format!("server/crates/{name}"))
+        .collect();
+
+    assert!(
+        actual.len() >= 14,
+        "found only {} crate manifests under server/crates: {actual:?}",
+        actual.len()
+    );
+    assert_eq!(
+        declared, actual,
+        "Cargo workspace members and server/crates/*/Cargo.toml must match in both directions"
+    );
 }
 
 /// Every workspace crate reports the same version, and takes it from one place.
