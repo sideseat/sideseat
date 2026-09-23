@@ -1059,16 +1059,16 @@ build-cli: build-cli-preflight
 
 version:
 	@echo "CLI:       $$(node -p "require('./cli/package.json').version")"
-	@echo "Server:    $$(grep '^version = ' server/Cargo.toml | head -1 | sed 's/.*\"\(.*\)\".*/\1/')"
+	@echo "Server:    $$(./scripts/workspace-version.sh)"
 	@echo "SDK (JS):  $$(node -p "require('./sdk/js/package.json').version")"
 	@echo "SDK (Py):  $$(grep '__version__' sdk/python/src/sideseat/_version.py | sed 's/.*\"\(.*\)\".*/\1/')"
 
 version-check:
 	@CLI_VERSION=$$(node -p "require('./cli/package.json').version") && \
-	SERVER_VERSION=$$(grep '^version = ' server/Cargo.toml | head -1 | sed 's/.*"\(.*\)".*/\1/') && \
+	SERVER_VERSION=$$(./scripts/workspace-version.sh) && \
 	MISMATCHED="" && \
 	if [ "$$CLI_VERSION" != "$$SERVER_VERSION" ]; then \
-		MISMATCHED="$$MISMATCHED\n  server/Cargo.toml: $$SERVER_VERSION"; \
+		MISMATCHED="$$MISMATCHED\n  Rust workspace: $$SERVER_VERSION"; \
 	fi && \
 	for pkg in $(PLATFORMS); do \
 		PKG_VERSION=$$(node -p "require('./cli/platforms/platform-'+'$$pkg'+'/package.json').version") && \
@@ -1103,12 +1103,12 @@ sync-version:
 	TEMP_FILE=$$(mktemp) && \
 	sed "s/^version = \".*\"/version = \"$$NEW_VERSION\"/" Cargo.toml > "$$TEMP_FILE" && \
 	mv "$$TEMP_FILE" Cargo.toml && \
-	CARGO_VERSION=$$(grep '^version = ' Cargo.toml | head -1 | sed 's/.*"\(.*\)".*/\1/') && \
+	cargo update --workspace --quiet && \
+	CARGO_VERSION=$$(./scripts/workspace-version.sh) && \
 	if [ "$$NEW_VERSION" != "$$CARGO_VERSION" ]; then \
 		echo "Error: Version sync failed. Expected $$NEW_VERSION, got $$CARGO_VERSION"; \
 		exit 1; \
 	fi && \
-	cargo update --workspace --quiet && \
 	for pkg in $(PLATFORMS); do \
 		node -e "const p=require('./cli/platforms/platform-'+'$$pkg'+'/package.json'); p.version='$$NEW_VERSION'; require('fs').writeFileSync('./cli/platforms/platform-'+'$$pkg'+'/package.json', JSON.stringify(p, null, 2)+'\n')"; \
 	done && \
