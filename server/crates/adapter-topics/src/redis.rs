@@ -49,7 +49,7 @@ use futures::StreamExt;
 use std::fmt;
 
 use super::pubsub::{ManagedSubscription, PubSubManager};
-use crate::TopicError;
+use sideseat_ports::queue::TopicError;
 use sideseat_ports::queue::{
     BroadcastSubscription, StreamMessage, StreamStats, StreamSubscription, TopicBackend,
 };
