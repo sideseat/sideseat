@@ -1,4 +1,4 @@
-import { lazy, Suspense, useState, useEffect, useCallback } from "react";
+import { lazy, Suspense, useState, useCallback } from "react";
 import { AlertCircle, RefreshCw } from "lucide-react";
 import { settings, getTraceViewLayoutKey } from "@/lib/settings";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -107,6 +107,12 @@ function getDefaultLayout(viewMode: ViewMode): LayoutDirection {
   return viewMode === "tree" ? "horizontal" : "vertical";
 }
 
+function getLayout(viewMode: ViewMode): LayoutDirection {
+  return (
+    settings.get<LayoutDirection>(getTraceViewLayoutKey(viewMode)) ?? getDefaultLayout(viewMode)
+  );
+}
+
 function TraceViewContent({
   projectId,
   traceId,
@@ -132,22 +138,18 @@ function TraceViewContent({
     setShowNonGenAiSpans,
   } = useTraceView();
 
-  // Load persisted layout for current view mode, fallback to default
-  const [layoutDirection, setLayoutDirection] = useState<LayoutDirection>(() => {
-    const saved = settings.get<LayoutDirection>(getTraceViewLayoutKey(viewMode));
-    return saved ?? getDefaultLayout(viewMode);
-  });
+  const [layout, setLayout] = useState(() => ({
+    viewMode,
+    direction: getLayout(viewMode),
+  }));
+  if (layout.viewMode !== viewMode) {
+    setLayout({ viewMode, direction: getLayout(viewMode) });
+  }
+  const layoutDirection = layout.viewMode === viewMode ? layout.direction : getLayout(viewMode);
 
-  // Update layout when view mode changes - load saved preference or use default
-  useEffect(() => {
-    const saved = settings.get<LayoutDirection>(getTraceViewLayoutKey(viewMode));
-    setLayoutDirection(saved ?? getDefaultLayout(viewMode));
-  }, [viewMode]);
-
-  // Persist layout when user changes it
   const handleLayoutDirectionChange = useCallback(
     (direction: LayoutDirection) => {
-      setLayoutDirection(direction);
+      setLayout({ viewMode, direction });
       settings.set(getTraceViewLayoutKey(viewMode), direction);
     },
     [viewMode],
