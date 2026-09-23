@@ -20,13 +20,23 @@ type AuthFormInput = z.input<typeof authSchema>;
 type AuthFormOutput = z.output<typeof authSchema>;
 
 export default function AuthPage() {
-  const { login, authenticated, loading } = useAuth();
-  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-
   const redirectUri = searchParams.get("redirect_uri") || "/";
   const tokenFromUrl = searchParams.get("token");
+  const pageKey = JSON.stringify([tokenFromUrl, redirectUri]);
 
+  return <AuthForm key={pageKey} redirectUri={redirectUri} tokenFromUrl={tokenFromUrl} />;
+}
+
+function AuthForm({
+  redirectUri,
+  tokenFromUrl,
+}: {
+  redirectUri: string;
+  tokenFromUrl: string | null;
+}) {
+  const { login, authenticated, loading } = useAuth();
+  const navigate = useNavigate();
   const [isUrlTokenLoading, setIsUrlTokenLoading] = useState(!!tokenFromUrl);
 
   const {
@@ -65,11 +75,9 @@ export default function AuthPage() {
     [login, navigate, redirectUri, setError, reset],
   );
 
-  // Auto-exchange token from URL (always try, even if already authenticated)
   useEffect(() => {
     if (tokenFromUrl && !loading) {
-      setIsUrlTokenLoading(true);
-      handleLogin(tokenFromUrl).finally(() => setIsUrlTokenLoading(false));
+      void handleLogin(tokenFromUrl).finally(() => setIsUrlTokenLoading(false));
     }
   }, [tokenFromUrl, loading, handleLogin]);
 
