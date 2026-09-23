@@ -277,7 +277,13 @@ interface SpanDetailProps {
   onRefreshChange?: (refetch: (() => void) | null, isRefreshing: boolean) => void;
 }
 
-export function SpanDetail({
+export function SpanDetail({ traceId, spanId, ...props }: SpanDetailProps) {
+  return (
+    <SpanDetailContent key={`${traceId}:${spanId}`} traceId={traceId} spanId={spanId} {...props} />
+  );
+}
+
+function SpanDetailContent({
   traceId,
   spanId,
   projectId,
@@ -290,11 +296,6 @@ export function SpanDetail({
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [rawSpanExpanded, setRawSpanExpanded] = useState(false);
-
-  // Reset expanded state when span changes
-  useEffect(() => {
-    setRawSpanExpanded(false);
-  }, [spanId]);
 
   const {
     data: spanData,
@@ -385,10 +386,10 @@ export function SpanDetail({
     };
   }, [spanData]);
 
-  // Transform messages for DataInspector (for overview tab)
+  const messages = messagesData?.messages;
   const messagesForInspector = useMemo(
-    () => (messagesData?.messages ? transformBlocksToData(messagesData.messages) : {}),
-    [messagesData?.messages],
+    () => (messages ? transformBlocksToData(messages) : {}),
+    [messages],
   );
 
   // Memoize overview data to prevent unnecessary re-renders
