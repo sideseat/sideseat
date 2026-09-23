@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { ChevronDown, X } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Button } from "@/components/ui/button";
@@ -93,7 +93,12 @@ export function FilterSection({
           />
         )}
         {config.type === "number" && (
-          <NumberFilter config={config} filters={filters} onChange={onChange} />
+          <NumberFilter
+            key={JSON.stringify(filters)}
+            config={config}
+            filters={filters}
+            onChange={onChange}
+          />
         )}
       </CollapsibleContent>
     </Collapsible>
@@ -335,15 +340,6 @@ function NumberFilter({ config, filters, onChange }: NumberFilterProps) {
 
   const [minValue, setMinValue] = useState<string>(minFilter?.value?.toString() ?? "");
   const [maxValue, setMaxValue] = useState<string>(maxFilter?.value?.toString() ?? "");
-
-  // Sync local state when filters change externally (e.g., "Clear all")
-  useEffect(() => {
-    setMinValue(minFilter?.value?.toString() ?? "");
-  }, [minFilter?.value]);
-
-  useEffect(() => {
-    setMaxValue(maxFilter?.value?.toString() ?? "");
-  }, [maxFilter?.value]);
 
   const handleApply = () => {
     const newFilters: Filter[] = [];
