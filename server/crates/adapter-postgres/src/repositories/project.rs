@@ -372,12 +372,7 @@ pub async fn update_project(
     get_project_from_db(pool, id).await
 }
 
-/// Drop every cached fact about a project.
-///
-/// One list, because the caches expire in five minutes and a project that has just stopped being live
-/// must not stay readable for that long. `project_org` is the one that was never invalidated anywhere:
-/// it is written by the auth path and read on every request, so a deleted project's organization
-/// mapping outlived the project itself and the fence could not be seen at all through it.
+/// Drop cached project views after the project changes lifecycle state.
 async fn invalidate_project_caches(
     pool: &PgPool,
     cache: Option<&dyn CacheStore>,
@@ -387,10 +382,8 @@ async fn invalidate_project_caches(
     let Some(cache) = cache else {
         return;
     };
-    for key in [CacheKey::project(id), CacheKey::project_org(id)] {
-        if let Err(e) = cache.delete(&key).await {
-            tracing::warn!(%id, error = %e, "Cache invalidation error");
-        }
+    if let Err(e) = cache.delete(&CacheKey::project(id)).await {
+        tracing::warn!(%id, error = %e, "Cache invalidation error");
     }
     let Some(org_id) = organization_id else {
         return;

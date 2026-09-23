@@ -79,11 +79,6 @@ impl CacheKey {
     // Memberships
     // =========================================================================
 
-    /// Cache key for project's organization ID (for auth checks)
-    pub fn project_org(project_id: &str) -> String {
-        format!("{}:projorg:{}", CACHE_KEY_VERSION, project_id)
-    }
-
     // =========================================================================
     // Auth Methods
     // =========================================================================

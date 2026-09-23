@@ -321,17 +321,12 @@ pub async fn finish_project_deletion(
         .await
         .context("Failed to record a project cleanup sweep")?;
     if removed {
-        // The caches the row's disappearance invalidates. `delete_project` did this; the delete is inside
-        // the sweep statement now, so it is done here.
-        if let Some(cache) = cache {
-            for key in [
-                CacheKey::project(project_id),
-                CacheKey::project_org(project_id),
-            ] {
-                if let Err(e) = cache.delete(&key).await {
-                    tracing::warn!(project_id = %project_id, error = %e, "Cache invalidation error");
-                }
-            }
+        // The sweep removes the project row directly, so it also owns cache
+        // invalidation for that row.
+        if let Some(cache) = cache
+            && let Err(e) = cache.delete(&CacheKey::project(project_id)).await
+        {
+            tracing::warn!(project_id = %project_id, error = %e, "Cache invalidation error");
         }
         tracing::debug!(project_id = %project_id, "Project tombstone removed");
     } else {
