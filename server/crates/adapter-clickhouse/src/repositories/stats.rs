@@ -81,7 +81,7 @@ pub async fn get_project_stats(
     let buckets = calculate_bucket_windows(
         params.from_timestamp,
         params.to_timestamp,
-        parse_timezone(params.timezone.as_deref()),
+        params.timezone,
         daily,
     );
     let plan = stats::project_stats(params, now, &buckets, Backend::Clickhouse);
@@ -194,12 +194,6 @@ fn datetime_from_micros(value: i64) -> DateTime<Utc> {
     DateTime::from_timestamp_micros(value).unwrap_or(DateTime::UNIX_EPOCH)
 }
 
-fn parse_timezone(timezone: Option<&str>) -> Tz {
-    timezone
-        .and_then(|value| value.parse::<Tz>().ok())
-        .unwrap_or(chrono_tz::UTC)
-}
-
 fn calculate_bucket_windows(
     from: DateTime<Utc>,
     to: DateTime<Utc>,
@@ -245,15 +239,4 @@ fn calculate_bucket_windows(
             end: boundaries.get(index + 1).copied().unwrap_or(*start + step),
         })
         .collect()
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn invalid_timezone_defaults_to_utc() {
-        assert_eq!(parse_timezone(None), chrono_tz::UTC);
-        assert_eq!(parse_timezone(Some("Invalid/Zone")), chrono_tz::UTC);
-    }
 }

@@ -3799,7 +3799,7 @@ mod tests {
                 project_id: ProjectId::from(project),
                 from_timestamp: t0 - chrono::Duration::seconds(10),
                 to_timestamp: t0 + chrono::Duration::seconds(600),
-                timezone: None,
+                timezone: "UTC".parse().unwrap(),
             },
             t0 + chrono::Duration::seconds(600),
         )

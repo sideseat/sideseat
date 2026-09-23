@@ -6,6 +6,7 @@ use axum::Json;
 use axum::extract::{Query, State};
 use axum::http::{HeaderMap, HeaderValue, header};
 use chrono::{DateTime, Utc};
+use chrono_tz::Tz;
 use serde::Deserialize;
 
 use super::OtelApiState;
@@ -42,15 +43,10 @@ pub(crate) enum StatsRangeError {
     TooLarge,
 }
 
-pub(crate) fn normalize_timezone(timezone: Option<String>) -> Result<Option<String>, &'static str> {
-    timezone
-        .map(|value| {
-            value
-                .parse::<chrono_tz::Tz>()
-                .map(|timezone| timezone.to_string())
-                .map_err(|_| INVALID_TIMEZONE_MESSAGE)
-        })
-        .transpose()
+pub(crate) fn normalize_timezone(timezone: Option<String>) -> Result<Tz, &'static str> {
+    timezone.map_or(Ok(chrono_tz::UTC), |value| {
+        value.parse().map_err(|_| INVALID_TIMEZONE_MESSAGE)
+    })
 }
 
 pub(crate) fn validate_stats_time_range(
@@ -131,7 +127,7 @@ pub async fn get_project_stats(
         &project_id,
         from_timestamp.timestamp_micros(),
         to_timestamp.timestamp_micros(),
-        timezone.as_deref().unwrap_or("UTC"),
+        timezone.name(),
     );
 
     // Try cache first (only if cacheable)
@@ -261,10 +257,10 @@ mod tests {
 
     #[test]
     fn timezone_is_validated_and_canonicalized_before_caching() {
-        assert_eq!(normalize_timezone(None), Ok(None));
+        assert_eq!(normalize_timezone(None), Ok(chrono_tz::UTC));
         assert_eq!(
             normalize_timezone(Some("Europe/London".into())),
-            Ok(Some("Europe/London".into()))
+            Ok(chrono_tz::Europe::London)
         );
         assert!(normalize_timezone(Some("not/a-timezone".into())).is_err());
     }

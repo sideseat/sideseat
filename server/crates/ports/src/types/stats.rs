@@ -3,6 +3,7 @@
 //! This module contains stats query result types and parameters.
 
 use chrono::{DateTime, Utc};
+use chrono_tz::Tz;
 
 use super::ProjectId;
 
@@ -90,8 +91,7 @@ pub struct StatsParams {
     pub project_id: ProjectId,
     pub from_timestamp: DateTime<Utc>,
     pub to_timestamp: DateTime<Utc>,
-    /// IANA timezone (e.g., "America/New_York") for bucketing. Defaults to UTC.
-    pub timezone: Option<String>,
+    pub timezone: Tz,
 }
 
 #[cfg(test)]
@@ -104,7 +104,7 @@ mod tests {
             project_id: ProjectId::from("test"),
             from_timestamp: chrono::Utc::now() - chrono::Duration::hours(24),
             to_timestamp: chrono::Utc::now(),
-            timezone: None,
+            timezone: chrono_tz::UTC,
         };
         assert_eq!(params.project_id, "test");
     }

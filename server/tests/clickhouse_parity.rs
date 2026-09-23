@@ -3024,7 +3024,7 @@ async fn clickhouse_matches_duckdb_on_every_read() {
         project_id: ProjectId::from(PROJECT),
         from_timestamp: ts(-3600),
         to_timestamp: ts(3600),
-        timezone: None,
+        timezone: "UTC".parse().unwrap(),
     };
     let d = duck
         .get_project_stats(&stats_params)

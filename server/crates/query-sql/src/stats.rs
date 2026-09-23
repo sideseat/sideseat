@@ -711,7 +711,7 @@ mod tests {
             to_timestamp: DateTime::parse_from_rfc3339("2024-01-17T13:45:00Z")
                 .unwrap()
                 .with_timezone(&Utc),
-            timezone: Some("Europe/London".to_string()),
+            timezone: "Europe/London".parse().unwrap(),
         }
     }
 

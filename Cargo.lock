@@ -5863,6 +5863,7 @@ version = "1.0.13"
 dependencies = [
  "async-trait",
  "chrono",
+ "chrono-tz",
  "futures",
  "rmp-serde",
  "rustc-hash",
