@@ -5,7 +5,6 @@ SHELL := /bin/bash
 
 # OS/arch detection
 UNAME_S := $(shell uname -s 2>/dev/null || echo Windows)
-UNAME_M := $(shell uname -m)
 
 # =============================================================================
 # Variables
@@ -18,11 +17,7 @@ SERVER_DIR := server
 WEB_DIR := web
 CLI_DIR := cli
 
-#  Prettier from web/'s own node_modules, never a bare `npx` from the root. There is no root package, so
-#  `npx prettier` downloads whatever is newest or reuses an unpinned cache - which made root formatting a
-#  function of one machine's network and cache, and disagreed with CI, which runs prettier *inside* each
-#  package. All three packages pin the same version for the same reason: web's was a minor behind, so the
-#  root check and CI's per-package check could reach different verdicts about the same file.
+# Use the repository-pinned formatter; there is no root Node package.
 PRETTIER := $(WEB_DIR)/node_modules/.bin/prettier
 
 # Pricing data
@@ -123,13 +118,8 @@ update-python-deps: ## Upgrade every Python lockfile
 setup: ## Install development dependencies and hooks
 	@echo "[setup] Checking prerequisites..."
 	@command -v node >/dev/null 2>&1 || { echo "Error: node not found. Install Node.js 22.22+ or 24+"; exit 1; }
-	@#  The floor is checked, not merely stated, and it is **derived** rather than reasoned about - three
-	@#  attempts at reasoning produced three wrong answers, each written into four places. The derivation is
-	@#  `make node-floor` (scripts/node-floor.mjs), which reads every lockfile and prints which versions every
-	@#  installed `engines.node` range accepts. Today that is 22.22+ or 24+: 23.x is excluded by the
-	@#  `^20.19 || ^22.12 || >=24` idiom dozens of packages use, and 20.19 by `react-router`. Re-run it after a
-	@#  dependency bump; the failure it prevents surfaces as a module error from inside a dependency, naming
-	@#  neither node nor its version.
+	@# Bootstrap check before npm dependencies exist; `make node-floor` validates
+	@# this declared range against every lockfile after setup.
 	@node -e 'var v=process.versions.node.split(".").map(Number), ok=(v[0]===22 && v[1]>=22) || v[0]>=24; if (!ok) { console.error("Error: Node " + process.versions.node + " cannot build this repository. It needs 22.22+ or 24+ (CI uses 24)."); process.exit(1); }'
 	@command -v cargo >/dev/null 2>&1 || { echo "Error: cargo not found. Install Rust"; exit 1; }
 	@command -v uv >/dev/null 2>&1 || { echo "Error: uv not found. Install with: curl -LsSf https://astral.sh/uv/install.sh | sh"; exit 1; }
@@ -138,19 +128,13 @@ setup: ## Install development dependencies and hooks
 	@echo "[setup] Fetching Rust dependencies..."
 	@cargo fetch --locked
 	@echo "[setup] Installing JS dependencies..."
-	@#  `npm ci`, not `npm install`: setup exists to *reproduce* the locked tree, and `npm install` may
-	@#  rewrite the lockfile to resolve an inconsistency - so the environment a contributor gets could differ
-	@#  from CI's with nothing saying so. Adding a dependency is a deliberate `npm install` in that package.
+	@# Reproduce committed lockfiles; dependency updates are explicit package-local operations.
 	@cd $(WEB_DIR) && npm ci
 	@cd sdk/js && npm ci
 	@cd examples/javascript && npm ci
 	@echo "[setup] Installing Python dependencies..."
 	@cd sdk/python && uv sync --locked --extra dev
-	@#  `common`, which holds the helpers the suites share, and the rest on first `uv run` - a suite pulls a
-	@#  framework's whole dependency tree, so installing thirteen of them at setup would cost minutes for
-	@#  frameworks a contributor may never run. Before this the line read `cd examples/python && uv sync`, and
-	@#  there is no project *there*: it silently synced the repository root, so thirteen suites looked installed
-	@#  and were not.
+	@# Install shared example helpers; framework suites sync lazily when invoked.
 	@cd examples/python/common && uv sync --locked
 	@echo "[setup] Installing cargo-tarpaulin..."
 	@cargo install cargo-tarpaulin --quiet
