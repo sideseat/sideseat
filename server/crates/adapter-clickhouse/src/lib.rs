@@ -8,15 +8,15 @@
 //! - Async inserts for high-throughput ingestion
 //! - HTTP keep-alive for connection reuse
 
-pub mod consistency;
-pub mod error;
-pub mod repositories;
+mod consistency;
+mod error;
+mod repositories;
 mod repository_impl;
 mod retention;
+pub use consistency::{CheckOutcome, PartitionAnomaly};
+pub use error::ClickhouseError;
 pub use repository_impl::ClickhouseRepository;
 pub mod schema;
-
-use error::ClickhouseError;
 
 use std::sync::Arc;
 use std::time::Duration;
