@@ -9,14 +9,14 @@
 //!
 //! All schema definitions and migrations are managed here.
 
-pub mod error;
+mod error;
 pub mod migrations;
-pub mod repositories;
+mod repositories;
 mod repository_impl;
+pub use error::PostgresError;
 pub use repository_impl::PostgresRepository;
 pub mod schema;
 
-use error::PostgresError;
 use sqlx::PgPool;
 
 use std::sync::Arc;

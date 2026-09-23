@@ -8,27 +8,9 @@ use std::time::Duration;
 use sqlx::PgPool;
 
 use crate::PostgresError;
-use sideseat_core::constants::{
-    CACHE_TTL_MEMBERSHIP, ORG_ROLE_ADMIN, ORG_ROLE_MEMBER, ORG_ROLE_OWNER, ORG_ROLE_VIEWER,
-};
+use sideseat_core::constants::{CACHE_TTL_MEMBERSHIP, ORG_ROLE_OWNER};
 use sideseat_ports::cache::{CacheKey, CacheStore, TypedCache};
 use sideseat_ports::types::{LastOwnerResult, MemberWithUser, MembershipRow};
-
-/// Role level for hierarchy checks
-fn role_level(role: &str) -> u8 {
-    match role {
-        ORG_ROLE_VIEWER => 1,
-        ORG_ROLE_MEMBER => 2,
-        ORG_ROLE_ADMIN => 3,
-        ORG_ROLE_OWNER => 4,
-        _ => 0,
-    }
-}
-
-/// Check if a role has at least the minimum required level
-pub fn has_min_role_level(user_role: &str, min_role: &str) -> bool {
-    role_level(user_role) >= role_level(min_role)
-}
 
 /// Add a member to an organization (upsert: updates role if exists)
 /// Whether this organization is live - exists and is not being deleted - asked *inside* the caller's
@@ -97,67 +79,6 @@ pub async fn add_member(
         created_at: now,
         updated_at: now,
     })
-}
-
-/// Remove a member from an organization
-pub async fn remove_member(
-    pool: &PgPool,
-    cache: Option<&dyn CacheStore>,
-    org_id: &str,
-    user_id: &str,
-) -> Result<bool, PostgresError> {
-    let result =
-        sqlx::query("DELETE FROM organization_members WHERE organization_id = $1 AND user_id = $2")
-            .bind(org_id)
-            .bind(user_id)
-            .execute(pool)
-            .await?;
-
-    let removed = result.rows_affected() > 0;
-
-    // Invalidate membership caches AFTER successful delete
-    if removed && let Some(cache) = cache {
-        sideseat_ports::cache::invalidate_membership_caches(cache, org_id, user_id).await;
-    }
-
-    Ok(removed)
-}
-
-/// Update a member's role
-pub async fn update_role(
-    pool: &PgPool,
-    cache: Option<&dyn CacheStore>,
-    org_id: &str,
-    user_id: &str,
-    role: &str,
-    now: i64,
-) -> Result<Option<MembershipRow>, PostgresError> {
-    let result = sqlx::query(
-        "UPDATE organization_members SET role = $1, updated_at = $2 WHERE organization_id = $3 AND user_id = $4",
-    )
-    .bind(role)
-    .bind(now)
-    .bind(org_id)
-    .bind(user_id)
-    .execute(pool)
-    .await?;
-
-    if result.rows_affected() == 0 {
-        return Ok(None);
-    }
-
-    // Invalidate cache entries AFTER successful write
-    if let Some(cache) = cache {
-        if let Err(e) = cache.delete(&CacheKey::membership(org_id, user_id)).await {
-            tracing::warn!(%org_id, %user_id, error = %e, "Cache invalidation error");
-        }
-        // Invalidate orgs_for_user since it includes role info
-        if let Err(e) = cache.delete(&CacheKey::orgs_for_user(user_id)).await {
-            tracing::warn!(%user_id, error = %e, "Cache invalidation error");
-        }
-    }
-
-    get_membership_from_db(pool, org_id, user_id).await
 }
 
 /// Get a specific membership (with optional caching)
@@ -317,47 +238,6 @@ pub async fn get_member_with_user(
             joined_at,
         },
     ))
-}
-
-/// Check if user has at least the minimum role in an organization (with optional caching)
-pub async fn has_min_role(
-    pool: &PgPool,
-    cache: Option<&dyn CacheStore>,
-    org_id: &str,
-    user_id: &str,
-    min_role: &str,
-) -> Result<bool, PostgresError> {
-    let membership = get_membership(pool, cache, org_id, user_id).await?;
-    Ok(membership.is_some_and(|m| has_min_role_level(&m.role, min_role)))
-}
-
-/// Count owners in an organization (for last-owner protection)
-pub async fn count_owners(pool: &PgPool, org_id: &str) -> Result<u64, PostgresError> {
-    let count: (i64,) = sqlx::query_as(
-        "SELECT COUNT(*) FROM organization_members WHERE organization_id = $1 AND role = $2",
-    )
-    .bind(org_id)
-    .bind(ORG_ROLE_OWNER)
-    .fetch_one(pool)
-    .await?;
-
-    Ok(count.0 as u64)
-}
-
-/// Check if user is the last owner of the organization (with optional caching)
-pub async fn is_last_owner(
-    pool: &PgPool,
-    cache: Option<&dyn CacheStore>,
-    org_id: &str,
-    user_id: &str,
-) -> Result<bool, PostgresError> {
-    let membership = get_membership(pool, cache, org_id, user_id).await?;
-    if membership.is_none_or(|m| m.role != ORG_ROLE_OWNER) {
-        return Ok(false);
-    }
-
-    let owner_count = count_owners(pool, org_id).await?;
-    Ok(owner_count == 1)
 }
 
 /// Remove a member with atomic last-owner protection (transactional)

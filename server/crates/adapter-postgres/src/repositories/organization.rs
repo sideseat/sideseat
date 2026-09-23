@@ -8,46 +8,11 @@ use std::time::Duration;
 use sqlx::PgPool;
 
 use crate::PostgresError;
-use sideseat_core::constants::{CACHE_TTL_ORG, CACHE_TTL_ORG_LIST, DEFAULT_ORG_ID, RESERVED_SLUGS};
+use sideseat_core::constants::{CACHE_TTL_ORG, CACHE_TTL_ORG_LIST};
 use sideseat_ports::cache::{CacheKey, CacheStore, TypedCache};
 use sideseat_ports::types::{OrgWithRole, OrganizationRow};
 
 use super::membership::list_member_user_ids;
-
-/// Create a new organization with a generated CUID2 ID
-pub async fn create_organization(
-    pool: &PgPool,
-    cache: Option<&dyn CacheStore>,
-    name: &str,
-    slug: &str,
-    now: i64,
-) -> Result<OrganizationRow, PostgresError> {
-    let id = cuid2::create_id();
-
-    sqlx::query(
-        "INSERT INTO organizations (id, name, slug, created_at, updated_at) VALUES ($1, $2, $3, $4, $5)",
-    )
-    .bind(&id)
-    .bind(name)
-    .bind(slug)
-    .bind(now)
-    .bind(now)
-    .execute(pool)
-    .await?;
-
-    // Invalidate slug lookup cache (new slug now exists)
-    if let Some(cache) = cache {
-        cache.invalidate_key(&CacheKey::org_by_slug(slug)).await;
-    }
-
-    Ok(OrganizationRow {
-        id,
-        name: name.to_string(),
-        slug: slug.to_string(),
-        created_at: now,
-        updated_at: now,
-    })
-}
 
 /// Create a new organization with owner membership atomically
 /// This ensures no orphan orgs if the membership insert fails
@@ -351,14 +316,4 @@ pub async fn list_project_ids(pool: &PgPool, org_id: &str) -> Result<Vec<String>
         .await?;
 
     Ok(rows.into_iter().map(|(id,)| id).collect())
-}
-
-/// Check if a slug is reserved
-pub fn is_reserved_slug(slug: &str) -> bool {
-    RESERVED_SLUGS.contains(&slug)
-}
-
-/// Check if organization is the default (cannot be deleted)
-pub fn is_default_org(id: &str) -> bool {
-    id == DEFAULT_ORG_ID
 }
