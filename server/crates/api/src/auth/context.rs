@@ -1,25 +1,12 @@
 //! Unified authentication context and authorization service
 //!
-//! Provides a single `AuthContext` type that represents all authentication methods
-//! and an `AuthService` with cached authorization checks.
+//! Provides a single `AuthContext` type for all authentication methods and an
+//! `AuthService` for current project and organization access checks.
 
 use std::sync::Arc;
-use std::time::Duration;
 
 use crate::types::ApiError;
-use sideseat_ports::cache::{CacheKey, TypedCache};
 use sideseat_ports::types::ApiKeyScope;
-
-// ============================================================================
-// Cache TTLs
-// ============================================================================
-
-/// TTL for user->org membership (can change, but not frequently)
-const CACHE_TTL_USER_ORG_MEMBER: Duration = Duration::from_secs(60); // 1 minute
-
-// ============================================================================
-// AuthContext
-// ============================================================================
 
 /// Unified authentication context for all auth methods
 ///
@@ -79,28 +66,16 @@ impl AuthContext {
     }
 }
 
-// ============================================================================
-// AuthService
-// ============================================================================
-
-/// Authorization service with cached lookups
-///
-/// Provides efficient authorization checks with caching for:
-/// - Project to organization mapping
-/// - User organization membership
+/// Authorization service for project and organization access checks.
 #[derive(Clone)]
 pub struct AuthService {
     database: Arc<crate::dependencies::TransactionalStore>,
-    cache: Arc<crate::dependencies::SharedCache>,
 }
 
 impl AuthService {
     /// Create a new AuthService
-    pub fn new(
-        database: Arc<crate::dependencies::TransactionalStore>,
-        cache: Arc<crate::dependencies::SharedCache>,
-    ) -> Self {
-        Self { database, cache }
+    pub fn new(database: Arc<crate::dependencies::TransactionalStore>) -> Self {
+        Self { database }
     }
 
     /// Check if API key's org matches the target org.
@@ -145,35 +120,17 @@ impl AuthService {
         Ok(project.organization_id)
     }
 
-    /// Check if user is a member of organization (cached)
+    /// Check current organization membership.
+    ///
+    /// Authorization reads bypass caches so revocation takes effect on the
+    /// next request, including in multi-instance deployments.
     async fn is_user_org_member(&self, user_id: &str, org_id: &str) -> Result<bool, ApiError> {
-        let cache_key = CacheKey::user_org_member(user_id, org_id);
-
-        // Try cache first
-        if let Ok(Some(is_member)) = self.cache.get::<bool>(&cache_key).await {
-            return Ok(is_member);
-        }
-
-        // Query database using get_membership (returns Option<MembershipRow>)
-        let membership = self
-            .database
+        self.database
             .as_ref()
             .get_membership(org_id, user_id)
             .await
-            .map_err(ApiError::from_data)?;
-
-        let is_member = membership.is_some();
-
-        // Cache the result
-        if let Err(e) = self
-            .cache
-            .set(&cache_key, &is_member, Some(CACHE_TTL_USER_ORG_MEMBER))
-            .await
-        {
-            tracing::warn!(user_id = %user_id, org_id = %org_id, error = %e, "Failed to cache org membership");
-        }
-
-        Ok(is_member)
+            .map(|membership| membership.is_some())
+            .map_err(ApiError::from_data)
     }
 
     /// Verify access to a project and return its org_id.
@@ -192,7 +149,7 @@ impl AuthService {
         // Check scope first (fast, no DB)
         auth.require_scope(required_scope)?;
 
-        // Get project's org (cached)
+        // Resolve the current project owner.
         let project_org_id = self.get_project_org_id(project_id).await?;
 
         // Verify access based on auth type

@@ -15,6 +15,22 @@ fn repo_root() -> &'static Path {
         .expect("the crate sits in the repository")
 }
 
+#[test]
+fn authorization_membership_checks_are_not_cached() {
+    let source = std::fs::read_to_string(repo_root().join("server/crates/api/src/auth/context.rs"))
+        .expect("auth context is readable");
+
+    assert!(
+        source.contains(".get_membership(org_id, user_id)"),
+        "authorization must read current membership"
+    );
+    assert!(
+        !source.contains("CacheKey::user_org_member")
+            && !source.contains("CACHE_TTL_USER_ORG_MEMBER"),
+        "membership revocation must take effect on the next request"
+    );
+}
+
 /// Whether a tracked file is text, so a scan over "every file" can mean it.
 ///
 /// A NUL byte is the test git itself uses. Cheaper than an extension list and, unlike one, it cannot omit the

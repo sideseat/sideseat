@@ -102,8 +102,6 @@ pub struct AuthState {
     pub allowed_origins: AllowedOrigins,
     /// Database service for API key validation
     pub database: Arc<crate::dependencies::TransactionalStore>,
-    /// Cache service for API key validation
-    pub cache: Arc<crate::dependencies::SharedCache>,
     /// API key HMAC secret
     pub api_key_secret: Vec<u8>,
     pub clock: Arc<dyn Clock>,
@@ -116,18 +114,14 @@ pub struct AuthState {
 ///
 /// Injects into request extensions:
 /// - `AuthContext` - unified auth context for all auth methods
-/// - `Arc<AuthService>` - cached authorization service
+/// - `Arc<AuthService>` - authorization service
 pub async fn require_auth(
     State(state): State<AuthState>,
     jar: CookieJar,
     mut request: Request,
     next: Next,
 ) -> Result<Response, AuthError> {
-    // Create AuthService for authorization checks (injected for extractors)
-    let auth_service = Arc::new(AuthService::new(
-        state.database.clone(),
-        state.cache.clone(),
-    ));
+    let auth_service = Arc::new(AuthService::new(state.database.clone()));
     request.extensions_mut().insert(auth_service);
 
     // ========== API KEY CHECK (runs regardless of auth mode) ==========
