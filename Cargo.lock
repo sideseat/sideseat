@@ -4024,36 +4024,48 @@ dependencies = [
 ]
 
 [[package]]
-name = "opentelemetry-http"
-version = "0.28.0"
+name = "opentelemetry"
+version = "0.33.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a8863faf2910030d139fb48715ad5ff2f35029fc5f244f6d5f689ddcf4d26253"
+checksum = "6cdb0b1b267eb9db3331b434ed9ddab10d50e280a9adf9d13e5233e2002b61b5"
 dependencies = [
- "async-trait",
- "bytes",
- "http 1.5.0",
- "opentelemetry",
- "reqwest 0.12.28",
+ "futures-core",
+ "futures-sink",
+ "js-sys",
+ "pin-project-lite",
+ "thiserror 2.0.20",
  "tracing",
 ]
 
 [[package]]
-name = "opentelemetry-otlp"
-version = "0.28.0"
+name = "opentelemetry-http"
+version = "0.33.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5bef114c6d41bea83d6dc60eb41720eedd0261a67af57b66dd2b84ac46c01d91"
+checksum = "ee2c3625b8aa04209f7e01e513bc8044da9687fa38a9eacf59628ca5f3b87300"
 dependencies = [
  "async-trait",
- "futures-core",
+ "bytes",
  "http 1.5.0",
- "opentelemetry",
+ "opentelemetry 0.33.0",
+ "reqwest",
+]
+
+[[package]]
+name = "opentelemetry-otlp"
+version = "0.33.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "699a67345e21962a231955b9059a157e428b219fa5df8efe11f08346fb23a344"
+dependencies = [
+ "http 1.5.0",
+ "httpdate",
+ "opentelemetry 0.33.0",
  "opentelemetry-http",
- "opentelemetry-proto",
- "opentelemetry_sdk",
- "prost",
- "reqwest 0.12.28",
+ "opentelemetry-proto 0.33.0",
+ "opentelemetry_sdk 0.33.0",
+ "prost 0.14.4",
+ "reqwest",
  "thiserror 2.0.20",
- "tracing",
+ "tokio",
 ]
 
 [[package]]
@@ -4064,12 +4076,23 @@ checksum = "56f8870d3024727e99212eb3bb1762ec16e255e3e6f58eeb3dc8db1aa226746d"
 dependencies = [
  "base64 0.22.1",
  "hex",
- "opentelemetry",
- "opentelemetry_sdk",
- "prost",
+ "opentelemetry 0.28.0",
+ "opentelemetry_sdk 0.28.0",
+ "prost 0.13.5",
  "serde",
  "tonic",
  "tracing",
+]
+
+[[package]]
+name = "opentelemetry-proto"
+version = "0.33.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "25da1ac11a0aeccf38d7f77ee0348715adaf8340f65ad46c94a02c6b20e2f65d"
+dependencies = [
+ "opentelemetry 0.33.0",
+ "opentelemetry_sdk 0.33.0",
+ "prost 0.14.4",
 ]
 
 [[package]]
@@ -4083,7 +4106,7 @@ dependencies = [
  "futures-executor",
  "futures-util",
  "glob",
- "opentelemetry",
+ "opentelemetry 0.28.0",
  "percent-encoding",
  "rand 0.8.8",
  "serde_json",
@@ -4091,6 +4114,22 @@ dependencies = [
  "tokio",
  "tokio-stream",
  "tracing",
+]
+
+[[package]]
+name = "opentelemetry_sdk"
+version = "0.33.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cb39533d9d1c912123efd7d41d7e0c29d16917b60ce15b4c8d87cb1af7f67520"
+dependencies = [
+ "futures-channel",
+ "futures-executor",
+ "futures-util",
+ "opentelemetry 0.33.0",
+ "percent-encoding",
+ "portable-atomic",
+ "rand 0.9.5",
+ "thiserror 2.0.20",
 ]
 
 [[package]]
@@ -4425,7 +4464,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2796faa41db3ec313a31f7624d9286acf277b52de526150b7e69f3debf891ee5"
 dependencies = [
  "bytes",
- "prost-derive",
+ "prost-derive 0.13.5",
+]
+
+[[package]]
+name = "prost"
+version = "0.14.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "528ac67416ff8646872a3c02cad9cc4ee5dc9f9540c9b10771855c95cb2e5ae1"
+dependencies = [
+ "bytes",
+ "prost-derive 0.14.4",
 ]
 
 [[package]]
@@ -4433,6 +4482,19 @@ name = "prost-derive"
 version = "0.13.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8a56d757972c98b346a9b766e3f02746cde6dd1cd1d1d563472929fdd74bec4d"
+dependencies = [
+ "anyhow",
+ "itertools 0.14.0",
+ "proc-macro2",
+ "quote",
+ "syn 2.0.119",
+]
+
+[[package]]
+name = "prost-derive"
+version = "0.14.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b570b25f7617e43d59005d0990ccb79e950a423952cea19671b7a876da390adf"
 dependencies = [
  "anyhow",
  "itertools 0.14.0",
@@ -4758,46 +4820,13 @@ checksum = "d6f6ff9a378485b298a5286656da665ba74413d36db0979633275d2e708145d4"
 
 [[package]]
 name = "reqwest"
-version = "0.12.28"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "eddd3ca559203180a307f12d114c268abf583f59b03cb906fd0b3ff8646c1147"
-dependencies = [
- "base64 0.22.1",
- "bytes",
- "futures-channel",
- "futures-core",
- "futures-util",
- "http 1.5.0",
- "http-body 1.1.0",
- "http-body-util",
- "hyper 1.11.1",
- "hyper-util",
- "js-sys",
- "log",
- "percent-encoding",
- "pin-project-lite",
- "serde",
- "serde_json",
- "serde_urlencoded",
- "sync_wrapper",
- "tokio",
- "tower 0.5.3",
- "tower-http",
- "tower-service",
- "url",
- "wasm-bindgen",
- "wasm-bindgen-futures",
- "web-sys",
-]
-
-[[package]]
-name = "reqwest"
 version = "0.13.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "16a1cfa75cc186dd73d5818e510e042e40927bccc9c236b061cea97e1eb08029"
 dependencies = [
  "base64 0.23.1",
  "bytes",
+ "futures-channel",
  "futures-core",
  "futures-util",
  "http 1.5.0",
@@ -5529,12 +5558,12 @@ dependencies = [
  "futures",
  "gcp_auth",
  "httpmock",
- "opentelemetry",
+ "opentelemetry 0.28.0",
  "opentelemetry-otlp",
- "opentelemetry_sdk",
+ "opentelemetry_sdk 0.28.0",
  "parking_lot",
  "rand 0.8.8",
- "reqwest 0.13.5",
+ "reqwest",
  "rmcp",
  "serde",
  "serde_json",
@@ -5635,7 +5664,7 @@ name = "sideseat-adapter-pricing"
 version = "1.0.13"
 dependencies = [
  "async-trait",
- "reqwest 0.13.5",
+ "reqwest",
  "sideseat-ports",
 ]
 
@@ -5662,7 +5691,7 @@ dependencies = [
  "keyring",
  "moka",
  "parking_lot",
- "reqwest 0.13.5",
+ "reqwest",
  "serde",
  "serde_json",
  "sideseat-core",
@@ -5727,10 +5756,10 @@ dependencies = [
  "jsonwebtoken",
  "local-ip-address",
  "mime_guess",
- "opentelemetry-proto",
+ "opentelemetry-proto 0.28.0",
  "parking_lot",
- "prost",
- "reqwest 0.13.5",
+ "prost 0.13.5",
+ "reqwest",
  "rmcp",
  "rust-embed",
  "schemars",
@@ -5824,9 +5853,9 @@ dependencies = [
  "chrono",
  "futures",
  "hex",
- "opentelemetry-proto",
+ "opentelemetry-proto 0.28.0",
  "parking_lot",
- "prost",
+ "prost 0.13.5",
  "serde",
  "serde_json",
  "sideseat-adapter-blob-storage",
@@ -5850,7 +5879,7 @@ name = "sideseat-messaging"
 version = "1.0.13"
 dependencies = [
  "futures",
- "prost",
+ "prost 0.13.5",
  "serde",
  "serde_json",
  "sideseat-ports",
@@ -5902,9 +5931,9 @@ dependencies = [
  "futures",
  "gcp_auth",
  "memchr",
- "opentelemetry-proto",
- "prost",
- "reqwest 0.13.5",
+ "opentelemetry-proto 0.28.0",
+ "prost 0.13.5",
+ "reqwest",
  "semver",
  "serde",
  "serde_json",
@@ -6691,7 +6720,7 @@ dependencies = [
  "hyper-util",
  "percent-encoding",
  "pin-project",
- "prost",
+ "prost 0.13.5",
  "socket2 0.5.10",
  "tokio",
  "tokio-stream",
