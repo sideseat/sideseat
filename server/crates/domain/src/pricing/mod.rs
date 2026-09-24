@@ -1384,14 +1384,10 @@ impl PricingService {
         }
     }
 
-    /// Start background sync task
+    /// Start the background catalogue sync task.
     ///
-    /// # Arguments
-    /// * `sync_hours` - Sync interval in hours. 0 disables sync. Minimum 1 hour.
-    /// * `shutdown_rx` - Shutdown signal receiver
-    ///
-    /// # Returns
-    /// `Some(JoinHandle)` if sync is enabled, `None` if disabled
+    /// `sync_hours = 0` or an absent catalogue source disables the task. Enabled intervals are clamped to
+    /// [`MIN_SYNC_HOURS`], and the first sync starts immediately.
     pub fn start_sync_task(
         self: &Arc<Self>,
         sync_hours: u64,
@@ -1401,19 +1397,20 @@ impl PricingService {
             return None;
         }
 
-        // Enforce minimum interval and prevent overflow
         let sync_hours = sync_hours.max(MIN_SYNC_HOURS);
         let interval = Duration::from_secs(sync_hours.saturating_mul(3600));
         let service = Arc::clone(self);
 
         Some(tokio::spawn(async move {
             let mut timer = tokio::time::interval(interval);
+            // A fresh catalogue fetch supersedes missed intervals; catch-up bursts only duplicate traffic.
+            timer.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
 
             loop {
                 tokio::select! {
                     biased;
-                    _ = shutdown_rx.changed() => {
-                        if *shutdown_rx.borrow() {
+                    changed = shutdown_rx.changed() => {
+                        if changed.is_err() || *shutdown_rx.borrow() {
                             break;
                         }
                     }
@@ -1495,6 +1492,35 @@ mod tests {
 
         shutdown_tx.send(true).unwrap();
         handle.await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn sync_stops_when_the_shutdown_sender_is_dropped() {
+        let calls = Arc::new(AtomicUsize::new(0));
+        let called = Arc::new(tokio::sync::Notify::new());
+        let service = Arc::new(PricingService {
+            data: RwLock::new(PricingData::from_json_str(EMBEDDED_PRICING_JSON).unwrap()),
+            local_path: std::env::temp_dir().join("sideseat_test_pricing_drop.json"),
+            catalogue_source: Some(Arc::new(CountingSource {
+                calls,
+                called: Arc::clone(&called),
+            })),
+            clock: Arc::new(TestClock),
+        });
+        let (shutdown_tx, shutdown_rx) = watch::channel(false);
+        let handle = service
+            .start_sync_task(1, shutdown_rx)
+            .expect("enabled sync task");
+
+        tokio::time::timeout(Duration::from_secs(1), called.notified())
+            .await
+            .expect("the first sync should start");
+        drop(shutdown_tx);
+
+        tokio::time::timeout(Duration::from_secs(1), handle)
+            .await
+            .expect("a closed shutdown channel should stop the task")
+            .expect("sync task should exit cleanly");
     }
 
     #[test]
