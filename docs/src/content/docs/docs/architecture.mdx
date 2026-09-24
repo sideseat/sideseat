@@ -14,7 +14,7 @@ SideSeat runs as a single local binary that includes:
 - **HTTP Server** (Axum) - REST API, OTLP ingestion, static file serving
 - **gRPC Server** (Tonic) - Optional high-throughput OTLP ingestion
 - **Workbench UI** (React) - Embedded static files
-- **Storage** - DuckDB (analytics) + SQLite (transactional)
+- **Storage ports** - DuckDB + SQLite by default, or ClickHouse + PostgreSQL for distributed deployments
 
 ```mermaid
 graph TB
@@ -72,19 +72,10 @@ Protobuf messages are decoded into internal `SpanData` structures. The decoding 
 
 ### 3. Extract
 
-Framework detection and attribute extraction happens at ingestion time:
-
-```rust
-// Detect framework from span attributes
-let framework = detect_framework(&span.attributes);
-
-// Extract GenAI-specific fields
-let model = get_first(attrs, &[
-    "gen_ai.request.model",
-    "gen_ai.response.model",
-    "llm.model_name",
-]);
-```
+Framework detection and attribute extraction happen at ingestion time. Producer-specific knowledge is
+declared in JSON under `server/assets/rules/`; `sideseat-rule-assets` embeds it and `sideseat-domain`
+compiles it into typed plans consumed by ingestion. Adding a producer normally changes rules and fixtures,
+not framework-name branches in Rust.
 
 <Aside type="note">
   Message normalization (SideML) happens at **query time**, not ingestion. This
@@ -185,7 +176,9 @@ sequenceDiagram
     end
 ```
 
-The `Topic` is an in-memory pub/sub system that broadcasts events to all connected clients.
+`sideseat-messaging` is a typed facade over the queue port. The composition root selects an in-process,
+Redis, or Redpanda adapter; stream topics carry durable ingestion work when configured, while broadcast
+topics feed live SSE subscribers.
 
 ## Configuration System
 
@@ -244,7 +237,7 @@ server/crates/
 ├── adapter-postgres/             # Server transactional store
 ├── adapter-blob-storage/         # Filesystem and S3 blobs
 ├── adapter-cache/                # In-memory and Redis cache
-├── adapter-topics/               # In-memory and Redis queues
+├── adapter-topics/               # In-process, Redis, and Redpanda messaging
 ├── adapter-secrets/              # Credential secret providers
 ├── adapter-pricing/              # External pricing catalogue
 └── adapter-registrations-memory/ # Process-local agent registration
@@ -255,10 +248,17 @@ server/src/
 ├── main.rs                       # Process entry point
 ├── lib.rs                        # Testable server library boundary
 ├── app.rs                        # Composition root
-├── app/                          # Adapter selection and service construction
+├── app/                          # Adapter selection, lifecycle, and system workflows
+│   ├── background_tasks.rs
 │   ├── files.rs
 │   ├── providers.rs
-│   ├── storage.rs
+│   ├── providers/
+│   │   └── azure.rs
+│   ├── storage/
+│   │   ├── mod.rs
+│   │   ├── analytics.rs
+│   │   └── transactional.rs
+│   ├── system_commands.rs
 │   └── update.rs
 └── runtime/                      # Process lifecycle and allocator instrumentation
     ├── allocation.rs
