@@ -1,8 +1,8 @@
 //! The SQLite deletion journal: deletions a restore cannot recompute.
 //!
 //! See [`sideseat_ports::traits::DeletionJournal`] for what it is for and why it is permanent. This file is
-//! the SQLite half; `server/crates/adapter-postgres/src/repositories/journal.rs` is the other, and the two are compared by the
-//! PostgreSQL parity suite.
+//! the SQLite half; `server/crates/adapter-postgres/src/repositories/journal.rs` is the other, and the
+//! PostgreSQL parity suite compares their observable behaviour.
 
 use chrono::DateTime;
 use sqlx::{Row, SqlitePool};
@@ -224,9 +224,7 @@ mod tests {
 
     async fn setup_test_pool() -> SqlitePool {
         let pool = SqlitePool::connect(":memory:").await.unwrap();
-        // `raw_sql`, not a split on `;`. Splitting is what the schema's own comment warns about: a semicolon
-        // inside a `--` comment ends a "statement" mid-table and the fragment after it is a syntax error in a
-        // place nobody looks. Other test helpers in this crate still split; this one does not.
+        // Execute the schema as a script: semicolons inside SQL comments are not statement boundaries.
         sqlx::raw_sql(crate::schema::SCHEMA)
             .execute(&pool)
             .await
@@ -306,14 +304,12 @@ mod tests {
     /// An append is all or nothing.
     ///
     /// A partial append is a deletion with no record for some of its targets, which is the state the
-    /// append-before-delete ordering exists to make impossible. The violated `CHECK` stands in for any
-    /// mid-batch failure: what has to hold is that the earlier rows of the batch did not survive it.
+    /// append-before-delete ordering exists to make impossible. A violated `CHECK` forces a mid-batch failure;
+    /// the earlier row must roll back with it.
     #[tokio::test]
     async fn a_failed_append_leaves_nothing_behind() {
         let pool = setup_test_pool().await;
 
-        let mut bad = record(DeletionScope::Trace, "t-good");
-        bad.project_id = ProjectId::from("proj");
         // Written through raw SQL, because the typed API cannot express an invalid scope - which is the point:
         // the `CHECK` constraint is what makes this batch fail partway.
         let mut tx = pool.begin().await.unwrap();
@@ -372,7 +368,7 @@ mod tests {
                 .unwrap();
         assert_eq!(tombstoned, 2, "and one tombstone per trace");
 
-        // Now make the tombstone write fail, and require the journal to roll back with it.
+        // Dropping the tombstone table forces the second write to fail; the journal write must roll back.
         sqlx::raw_sql("DROP TABLE deleted_traces;")
             .execute(&pool)
             .await
@@ -397,9 +393,8 @@ mod tests {
 
     /// A claim that loses writes no journal entry.
     ///
-    /// Journalling before the claim wrote an entry for every losing caller - and an organization cleanup re-runs
-    /// while its projects' tombstones remain, so one deletion accumulated permanent, quota-counted records without
-    /// bound. Conditional on winning is only expressible inside the claim's own transaction.
+    /// The journal write is conditional on winning the claim and belongs to the same transaction. Repeated
+    /// callers therefore cannot accumulate permanent, quota-counted records for one deletion.
     #[tokio::test]
     async fn a_losing_claim_writes_no_journal_entry() {
         let pool = setup_test_pool().await;
@@ -448,10 +443,8 @@ mod tests {
 
     /// A page of rows this build cannot interpret does not read as the end of the journal.
     ///
-    /// Skipped rows used to leave the cursor where it was, so a page consisting entirely of them returned
-    /// nothing - indistinguishable from EOF against a cursor advanced by returned entries. A replay would stop
-    /// there and never reach the known deletions behind them, which is the resurrection the journal exists to
-    /// prevent, arrived at through the mechanism meant to prevent it.
+    /// The cursor advances across every examined row, including skipped rows. Otherwise an uninterpretable page
+    /// is indistinguishable from EOF and makes known deletions behind it unreachable.
     #[tokio::test]
     async fn a_page_of_uninterpretable_rows_still_advances_the_cursor() {
         let pool = setup_test_pool().await;
@@ -735,13 +728,10 @@ mod tests {
         )
         .execute(&pool)
         .await
-        .ok();
+        .expect("rewrite the row using a future scope");
 
-        let (read, _) = deletions_since(&pool, 0, 100).await.unwrap();
-        assert!(
-            read.iter().all(|(_, r)| r.target_id != "known")
-                || read.iter().any(|(_, r)| r.scope == DeletionScope::Trace),
-            "either the update was refused and the entry is intact, or it was applied and the entry is skipped"
-        );
+        let (read, examined) = deletions_since(&pool, 0, 100).await.unwrap();
+        assert!(read.is_empty(), "the unknown entry is not guessed at");
+        assert!(examined > 0, "the cursor advances across the skipped entry");
     }
 }
