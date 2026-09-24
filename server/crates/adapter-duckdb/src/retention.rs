@@ -195,12 +195,9 @@ const MAX_TIME_CLEANUP_BATCHES: usize = 10;
 /// Cap on trace IDs collected from one batch, as a guard against a pathological batch rather than a
 /// working limit.
 ///
-/// It must stay **at or above [`RETENTION_BATCH_SIZE`]**, because in the worst case every span in a
-/// batch belongs to its own trace. A lower value silently truncated the cleanup list: a batch could
-/// delete 100 000 spans while only 10 000 traces were handed to file and favourite cleanup, and the
-/// omitted traces never reappeared in a later pass - their spans were already gone - so their file
-/// associations, ref-counted bytes and favourites were orphaned permanently. The memory this bounds
-/// is a few megabytes at the full batch size, which is not the explosion the old value implied.
+/// It stays at or above [`RETENTION_BATCH_SIZE`] because every selected span may belong to a distinct trace.
+/// Cleanup must receive every trace whose rows are deleted; omitted identities cannot be rediscovered after
+/// deletion.
 const MAX_TRACE_IDS_PER_CYCLE: usize = RETENTION_BATCH_SIZE as usize;
 
 /// Execute retention based on time limit (delete spans older than N minutes)
@@ -652,21 +649,14 @@ fn delete_spans_with_query(
 
         let identities = execute_statement(conn, insert)?;
 
-        // Collected BEFORE the deletion: afterwards the rows naming these traces are gone.
+        // Collect every trace before deleting the rows that identify it.
         let trace_ids_by_project = collect_trace_ids_for_cleanup(conn)?;
 
-        // And **recorded** before the deletion, which is the ordering that makes the record useful. The
-        // cleanup runs after the delete commits, asynchronously, and a crash in between otherwise loses the
-        // only knowledge that it is owed - the spans are already gone, so nothing can rediscover the traces,
-        // and their associations, bytes and favourites are orphaned permanently.
+        // Record cleanup intent before deletion. The asynchronous cleanup can then resume after a crash
+        // without rediscovering traces from rows that no longer exist.
         //
-        // Recorded first, the two failure directions are not symmetric, which is the whole argument: if the
-        // record commits and the delete does not, the cleanup is a no-op (survivor reconciliation releases
-        // only what no surviving span references); if the record fails, this returns and nothing is deleted.
-        // Recording *after* the delete would leave the one case that loses data.
-        //
-        // No transaction spans the two stores - that is this system's standing constraint - so the choice is
-        // only which side of it to take.
+        // If intent commits but deletion does not, survivor reconciliation is a no-op. If intent recording
+        // fails, this transaction returns before deleting anything. No transaction spans both stores.
         if let Some(record_pressure) = record_pressure {
             for (project_id, spans) in collect_selected_spans(conn)? {
                 record_pressure(&project_id, &spans)?;
@@ -715,8 +705,8 @@ fn collect_selected_spans(
 
 /// Collect distinct `(project_id, trace_id)` pairs from the retention batch for file cleanup.
 ///
-/// Reads the batch directly - the project is a column there now, so the join back to `otel_spans`
-/// that previously recovered it is gone.
+/// Reads the project and trace directly from the materialised batch so collection does not depend on rows that
+/// the same transaction will delete.
 fn collect_trace_ids_for_cleanup(
     conn: &Connection,
 ) -> Result<HashMap<String, Vec<String>>, DuckdbError> {
@@ -1467,15 +1457,8 @@ mod tests {
 
     /// The cleanup intent is recorded **before** the spans are deleted, which is what survives a crash.
     ///
-    /// The cleanup runs after the delete commits, asynchronously, with failures only logged. A crash or a
-    /// transactional-store outage in between loses the only knowledge that the cleanup is owed - the spans are
-    /// gone, so nothing can rediscover the traces, and their file associations, ref-counted bytes and
-    /// favourites are orphaned permanently.
-    ///
-    /// Two assertions, and the ordering one is the point. A recorder that observes what it was handed *and*
-    /// what the store contains at that moment shows the record is durable while the spans are still there - so
-    /// a crash immediately after the delete leaves the record behind. Asserting only that the record exists
-    /// afterwards would pass just as well with the recording done last, which is the version that loses data.
+    /// The recorder observes both selected identities and the still-present source rows, proving the durable
+    /// recovery record precedes the destructive step.
     #[tokio::test]
     async fn the_cleanup_intent_is_recorded_before_the_spans_are_deleted() {
         let (_temp_dir, analytics) = create_test_service().await;
