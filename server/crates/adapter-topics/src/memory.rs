@@ -59,14 +59,9 @@ impl StreamEntry {
 struct ConsumerGroup {
     /// The highest id this **group** has handed to any of its consumers.
     ///
-    /// One cursor for the group, which is what a consumer group is - and what Redis's own
-    /// `last-delivered-id` is. It used to be a cursor *per consumer*, and that had two consequences. It made
-    /// "consumed" undefined, so nothing could decide which entries were safe to drop: a lagging consumer's
-    /// cursor said entries were still owed while the group had already handed them out and been acknowledged
-    /// for them. And it **delivered the same entry twice**: consumer A took entry 51 and acknowledged it,
-    /// which removed the pending record, so consumer B - whose own cursor was still at 50 - found 51
-    /// undelivered and processed it again. Ingestion is idempotent by span id, so that was bounded work rather
-    /// than corruption, but it is not what a consumer group means.
+    /// One cursor belongs to the group, matching Redis `last-delivered-id`. Per-consumer delivery state lives
+    /// only in `pending`; otherwise acknowledged entries could be handed to another consumer again and there
+    /// would be no group-wide consumed boundary.
     last_delivered_id: u64,
     /// Consumers seen in this group, and when each last took an entry. Kept for `StreamStats::consumers`.
     ///
@@ -229,17 +224,9 @@ impl MemoryTopicBackend {
 
     /// Drop the entries no consumer group still needs, and return how many went.
     ///
-    /// **This is the only way an entry leaves the stream**, and that is the whole point. What used to be here
-    /// trimmed by *length*: it popped the front until the deque was under a count bound and removed the
-    /// popped entry's pending record from every group - so a message that had been delivered and not yet
-    /// acknowledged was deleted, and the group's own record that it owed work went with it. Every one of those
-    /// entries had already been answered 200. That is the `MAXLEN` defect this repository removed from the
-    /// Redis backend, and it was still live here: a queue that discards accepted work is worse than no queue,
-    /// because the loss is silent and the exporter has already moved on.
-    ///
-    /// The boundary is the oldest entry any group still needs - its oldest pending entry if it has one, else
-    /// one past its last delivered id - which is exactly `stream_trim_consumed`'s rule on the Redis side. A
-    /// stream with **no** consumer group is never trimmed: nobody has read it, so everything is still needed.
+    /// This is the only path that removes stream entries. The boundary is the oldest entry any group still
+    /// needs: its oldest pending entry, or one past its last delivered id. A stream with no consumer group is
+    /// never trimmed because none of its entries has been consumed.
     fn trim_consumed(stream: &mut StreamState) -> u64 {
         if stream.groups.is_empty() {
             return 0;
@@ -778,13 +765,8 @@ mod tests {
 
 /// The admission budget and the consumed-only trim.
 ///
-/// These exist because the previous bound was on *length* and enforced by deletion: it popped the oldest
-/// entries until the deque fit a count, and removed their pending records from every group as it went. Every
-/// one of those entries had already been answered 200 by HTTP or gRPC, so the queue was discarding accepted
-/// work - the `MAXLEN` defect this repository removed from the Redis backend, still live in the default one.
-///
-/// Each test below fails if the trim goes back to being length-driven, which is what makes them a gate rather
-/// than a description.
+/// Admission refuses work beyond the byte budget; trimming removes only entries acknowledged by every group.
+/// The tests pin both halves so pressure cannot discard accepted work.
 #[cfg(test)]
 mod admission_tests {
     use super::*;
@@ -839,9 +821,6 @@ mod admission_tests {
     }
 
     /// A delivered-but-unacknowledged entry survives a full queue.
-    ///
-    /// This is the exact shape of the old defect: the entry the consumer is holding is the *oldest*, so a
-    /// length-driven trim takes it first, and takes the group's record that it owed the work with it.
     #[tokio::test]
     async fn an_unacknowledged_entry_is_never_dropped_to_make_room() {
         let payload = vec![b'y'; 512];
