@@ -74,7 +74,7 @@ impl CoreApp {
 
         let pipeline = Arc::new(
             sideseat_ingestion::traces::TracePipeline::new(
-                Arc::from(self.analytics.repository()),
+                Arc::clone(&self.analytics_port),
                 self.pricing.clone(),
                 self.topics.clone(),
                 self.files.clone(),
