@@ -2,11 +2,9 @@
 #
 # Run the Claude Code CLI with OpenTelemetry export to SideSeat.
 #
-# Claude Code does emit spans, contrary to what this script used to say - but only behind two
-# beta flags, and message content behind the second one. Configured for metrics and logs alone,
-# as it was, it sent SideSeat the two signals SideSeat accepts but does not persist, so nothing
-# appeared in the UI. The variables below are the same set the Claude Agent SDK sample suite
-# uses (examples/python/claude-agent-sdk/telemetry_setup.py); a test asserts they agree.
+# Claude Code emits spans only when both telemetry beta tiers are enabled; detailed message
+# content requires the second tier. The variables below match the Claude Agent SDK sample suite
+# in examples/python/claude-agent-sdk/telemetry_setup.py.
 #
 # Usage:
 #   ./run-claude.sh                    # Use defaults

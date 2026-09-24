@@ -12,14 +12,10 @@ uv sync --locked --directory examples/python/common
 ```
 
 `common` holds the helpers every Python suite imports. **The suites themselves install on first use**: each is
-its own uv project, and `uv run` creates its environment - so there is no list of thirteen `uv sync` lines to
-keep in step with the tree, and a framework you never run costs nothing. (The list that used to be here had
-gone stale.)
+its own uv project, and `uv run` creates its environment. Frameworks you do not run require no local setup.
 
 `--locked` throughout, here and in `run-all.sh`: a bare `uv run` rewrites a suite's lockfile to match a drifted
-manifest, and `make update-python-deps` is the one command meant to do that. Every sample lockfile pointed at
-`../../../../sdk/python` for a while - the path from before these directories were renamed - precisely because
-nothing refused a stale lock.
+manifest. `make update-python-deps` is the command that intentionally refreshes those lockfiles.
 
 OpenTelemetry versions differ between suites **on purpose**: google-adk 2.7 requires
 `opentelemetry-sdk >=1.39,<=1.42.1`, and crewai and agent-framework hold their own ceilings. Each suite is an

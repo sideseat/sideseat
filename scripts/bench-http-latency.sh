@@ -38,11 +38,8 @@ CURL_CONNECT_TIMEOUT="${BENCH_CURL_CONNECT_TIMEOUT:-2}"
 CURL_MAX_TIME="${BENCH_CURL_MAX_TIME:-30}"
 # A gap between sequential samples, so the numbers are service time rather than queueing delay.
 #
-# Without it, posting a 754 KB payload back to back measures saturation: each request waits for the
-# previous write, so the tail is queue depth and the whole distribution above the median moves run to run.
-# Measured across four runs it did exactly that - p95 43, 53, 56, 135 ms - which makes any ceiling on it a
-# coin flip. An OTLP exporter batches on a schedule (5 s by default) and never behaves this way. The
-# 8-concurrent read is the deliberate concurrency measurement, and it keeps no gap.
+# Back-to-back writes measure saturation and queue depth rather than isolated service time. The concurrent
+# read phase is the deliberate concurrency measurement and uses no gap.
 GAP_MS="${BENCH_GAP_MS:-25}"
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 CARGO_TARGET_DIR="$(bash "$ROOT/scripts/cargo-target-dir.sh")"
@@ -168,11 +165,6 @@ fi
 # second because the distributed mode's object storage needs them and the SDK reads them from the
 # environment.
 # `exec`, so the backgrounded subshell *becomes* the server and `$!` is the server's own pid.
-#
-# Without it the subshell forks `env`, which execs the binary, and `$!` names a shell that exits immediately -
-# so `cleanup` killed nothing and every aborted run left a server holding these ports. The next run then
-# failed to bind, exited, and its ingest returned 503, which reads exactly like an ingestion defect. It cost
-# two debugging detours before the cause was the harness.
 (cd "$WORK" && exec env -i \
   PATH="$PATH" HOME="$WORK" \
   ${AWS_ACCESS_KEY_ID:+AWS_ACCESS_KEY_ID="$AWS_ACCESS_KEY_ID"} \

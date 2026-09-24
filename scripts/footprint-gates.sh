@@ -55,9 +55,8 @@ FIXTURE_NAME="${FOOTPRINT_RATE_FIXTURE:-synthetic/minimal-500}"
 # Concurrent posters. One is not steady ingest: a single sequential poster idles between requests, and the
 # resident figure would then describe a server at a fraction of the target rate.
 LOADERS="${FOOTPRINT_LOADERS:-4}"
-# A per-request ceiling for the load generator. Without one a stalled response blocks its loader forever, and
-# waiting for that pid is the same hang a bare `wait` produced. Generous against the large-export p99 this
-# repository documents, so it fires on a stall rather than on a slow write.
+# A per-request ceiling keeps a stalled response from blocking its loader. It is generous relative to the
+# documented large-export p99, so it distinguishes a stall from a slow write.
 LOADER_TIMEOUT_SECS="${FOOTPRINT_LOADER_TIMEOUT_SECS:-30}"
 # The same ceiling for every other request the script makes. Short, because these are health checks and a single
 # fixture post rather than sustained load.
@@ -265,15 +264,8 @@ for loader in $(seq 1 "$LOADERS"); do
     while [ ! -f "$STOP_FILE" ]; do
       for f in "$FIXTURE"/*.pb; do
         [ -f "$STOP_FILE" ] && break
-        # `--max-time`, or a stalled response blocks this loader forever and the pid wait below never returns -
-        # the same hang the bare `wait` produced, reached from the other side.
-        #
-        # `|| true` on the assignment, and the curl exit status captured separately: without it a transport
-        # error (exit 7, 28, ...) trips `set -e` and kills this subshell *before* it records anything, so the
-        # verdict below reads a clean `post-errors` and reports a pass for a run whose load stopped early.
-        # Reset per iteration. `|| curl_status=$?` only assigns on failure, so without this a success carries
-        # the previous iteration's value - harmless today because the loop exits on the first failure, and one
-        # edit away from a loader that reports a stale error or hides a real one.
+        # Bound every request and record transport failures explicitly before this loader exits. Reset the curl
+        # status each iteration because the assignment runs only on failure.
         curl_status=0
         status="$(curl -s --max-time "$LOADER_TIMEOUT_SECS" -o /dev/null -w '%{http_code}' \
           -X POST --data-binary @"$f" -H 'Content-Type: application/x-protobuf' \
@@ -341,13 +333,10 @@ echo "[footprint] achieved ~$ACHIEVED spans/s from $POSTED requests across $LOAD
 # 50% floor was the same false pass in a smaller size.
 # `FOOTPRINT_MIN_RATE_FRACTION` is what an operator lowers deliberately, which leaves a record in the command
 # rather than in a note nobody reads.
-# The fraction is validated before it is used. `awk` happily emits `nan` for a non-numeric one, and the integer
-# comparison below then errors *inside* an `if`, where `set -e` does not terminate the script - so the gate would
-# be skipped rather than failed, which is the shape this whole file exists to remove.
+# Validate the fraction before passing it to `awk`; arithmetic errors inside a shell condition do not reliably
+# trigger `set -e`.
 RATE_FRACTION="${FOOTPRINT_MIN_RATE_FRACTION:-0.9}"
-# The pattern alone was not enough: `.` contains only permitted characters, and `awk` reads it as zero - so
-# `MIN_RATE` became 0 and every achieved rate passed a gate that says it enforces 90%. A validator that admits a
-# value which disables the thing it guards is the same defect as no validator.
+# Reject punctuation-only and multi-decimal values as well as non-numeric characters.
 case "$RATE_FRACTION" in
   ''|.|*[!0-9.]*|*.*.*) fail "FOOTPRINT_MIN_RATE_FRACTION must be a number, got '$RATE_FRACTION'" ;;
 esac
