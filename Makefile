@@ -861,13 +861,16 @@ publish-release: ## Upload archives to the GitHub release
 	echo "[publish-release] Verifying checksums..." && \
 	(cd "$$OUTDIR" && $(SHA256CMD) -c checksums-sha256.txt) || \
 		{ echo "Error: Checksum verification failed"; exit 1; } && \
-	if ! git rev-parse "v$$VERSION" >/dev/null 2>&1; then \
-		echo "[publish-release] Creating tag v$$VERSION..." && \
-		git tag "v$$VERSION" && \
-		git push origin "v$$VERSION"; \
-	fi && \
+	TAG="v$$VERSION" && \
+	TAG_COMMIT=$$(git rev-parse --verify "$$TAG^{commit}" 2>/dev/null) || \
+		{ echo "Error: tag v$$VERSION is missing. Run 'make release TYPE=...' first."; exit 1; } && \
+	HEAD_COMMIT=$$(git rev-parse HEAD) && \
+	[ "$$TAG_COMMIT" = "$$HEAD_COMMIT" ] || \
+		{ echo "Error: $$TAG points to $$TAG_COMMIT, but HEAD is $$HEAD_COMMIT. Build and publish from the release tag."; exit 1; } && \
+	git ls-remote --exit-code --tags origin "refs/tags/$$TAG" >/dev/null 2>&1 || \
+		{ echo "Error: $$TAG is not present on origin. Push it through 'make release TYPE=...'."; exit 1; } && \
 	echo "[publish-release] Creating GitHub release..." && \
-	gh release create "v$$VERSION" "$$OUTDIR"/* --generate-notes --title "v$$VERSION" && \
+	gh release create "$$TAG" "$$OUTDIR"/* --generate-notes --title "$$TAG" && \
 	echo "[publish-release] Done: https://github.com/$$(gh repo view --json nameWithOwner -q .nameWithOwner)/releases/tag/v$$VERSION" && \
 	echo "[publish-release] Next: make publish-brew"
 
