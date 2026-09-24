@@ -1048,6 +1048,7 @@ disk-guard:
 
 clean: ## Remove all generated build artifacts
 	@echo "[clean] Removing build artifacts..."
+	@bash scripts/cargo-target-dir.sh >/dev/null
 	@cargo clean
 	@# The API build script recreates a placeholder web/dist when the real UI is absent.
 	@rm -rf $(WEB_DIR)/dist

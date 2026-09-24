@@ -4,48 +4,10 @@ set -euo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$repo_root"
 
-target_dir="$(
-  cargo metadata --locked --no-deps --format-version 1 |
-    node -e '
-const fs = require("node:fs");
-const metadata = JSON.parse(fs.readFileSync(0, "utf8"));
-process.stdout.write(metadata.target_directory + "\n");
-'
-)"
-if [[ -z "$target_dir" ]]; then
-  echo "[clean-stale] refusing unsafe Cargo target directory: $target_dir" >&2
-  exit 1
-fi
+target_dir="$(bash scripts/cargo-target-dir.sh)"
 if [[ ! -d "$target_dir" ]]; then
   echo "[clean-stale] target directory does not exist; nothing to remove"
   exit 0
-fi
-if [[ -L "$target_dir" ]]; then
-  echo "[clean-stale] refusing symbolic-link Cargo target directory: $target_dir" >&2
-  exit 1
-fi
-
-target_dir="$(cd "$target_dir" && pwd -P)"
-repo_root="$(cd "$repo_root" && pwd -P)"
-
-contains_path() {
-  local parent="${1%/}"
-  local child="${2%/}"
-  [[ "$child" == "$parent" || "$child" == "$parent/"* ]]
-}
-
-if contains_path "$target_dir" "$repo_root"; then
-  echo "[clean-stale] refusing Cargo target that contains the repository: $target_dir" >&2
-  exit 1
-fi
-
-home_dir="${HOME:-}"
-if [[ -n "$home_dir" && -d "$home_dir" ]]; then
-  home_dir="$(cd "$home_dir" && pwd -P)"
-  if contains_path "$target_dir" "$home_dir"; then
-    echo "[clean-stale] refusing Cargo target that contains the home directory: $target_dir" >&2
-    exit 1
-  fi
 fi
 
 before="$(du -sk "$target_dir" 2>/dev/null | awk '{print $1}')"
