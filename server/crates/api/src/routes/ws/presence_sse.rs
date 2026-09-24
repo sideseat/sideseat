@@ -51,8 +51,8 @@ pub async fn stream_presence(
         loop {
             tokio::select! {
                 biased;
-                _ = shutdown_rx.changed() => {
-                    if *shutdown_rx.borrow() {
+                changed = shutdown_rx.changed() => {
+                    if changed.is_err() || *shutdown_rx.borrow() {
                         yield Ok::<Event, Infallible>(
                             Event::default().event("terminate").data("shutdown"),
                         );
