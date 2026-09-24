@@ -544,11 +544,12 @@ impl DuckdbService {
         Some(tokio::spawn(async move {
             let mut interval =
                 tokio::time::interval(Duration::from_secs(DUCKDB_RETENTION_INTERVAL_SECS));
+            interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
             loop {
                 tokio::select! {
                     biased;
-                    _ = shutdown_rx.changed() => {
-                        if *shutdown_rx.borrow() {
+                    changed = shutdown_rx.changed() => {
+                        if changed.is_err() || *shutdown_rx.borrow() {
                             tracing::debug!("Retention task shutting down");
                             break;
                         }
