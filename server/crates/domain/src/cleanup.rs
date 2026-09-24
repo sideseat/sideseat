@@ -132,18 +132,11 @@ pub async fn finish_organization_deletion(
     Ok(())
 }
 
-/// Delete a project: everything it owns, then the row that owns it.
+/// Fence a project, delete its owned data, and leave final row removal to the recovery sweep.
 ///
-/// # Why there is a fence at all
-///
-/// Deletion touches four stores with no transaction over them - analytics rows, file bytes, file rows,
-/// the project row - so there is no instant at which the project simply stops existing. It used to
-/// delete the *data* first and the row last, which meant the project was fully live for the whole of
-/// it: readable, and ingestible. A batch arriving in that window was written after its analytics rows
-/// had been deleted, survived the rest of the cleanup, and ended up attached to a project id that then
-/// had no row - invisible to every read path, counted against no quota, and inherited by the next
-/// project created with the same id. If a step *failed*, the row was deleted anyway, which turned a
-/// recoverable failure into data nothing could ever find again.
+/// Deletion crosses the transactional, analytics, and object stores, so no transaction can remove everything
+/// atomically. The project row therefore becomes a durable tombstone before cleanup starts. Reads and new writes
+/// reject a tombstoned project, while repeated sweeps remove writes that passed the fence before it was set.
 ///
 /// ```mermaid
 /// stateDiagram-v2
@@ -159,40 +152,21 @@ pub async fn finish_organization_deletion(
 ///     end note
 /// ```
 ///
-/// The claim is a **tombstone**: it outlives the data rather than the other way round. While it is set the
-/// project is not live, and it survives a restart, so a crash leaves the project fenced rather than
-/// half-deleted and live.
-///
-/// # What the barrier does and does not promise
-///
-/// The write path checks the fence and then writes, and the two cannot be one act: spans live in the
-/// analytics store and the fence in the transactional one, so no transaction spans them. A writer can
-/// therefore read "live", have the tombstone land underneath it, and commit afterwards - and *no elapsed
-/// time bounds that*. A blocking insert can outlive its statement timeout, an object store can retry, a
-/// container can be paused. A wall-clock grace period was a guess dressed as a guarantee, which is why
-/// there is not one.
-///
-/// What the tombstone does promise, and it is enough:
+/// The protocol provides three layers:
 ///
 /// 1. No **new** writer passes the fence, because every write path asks whether the project accepts
 ///    writes and a tombstoned - or absent - project does not.
 /// 2. Cleanup keeps running for as long as the row exists, so a late writer's spans are deleted by the
 ///    next sweep.
 /// 3. The row is removed only after [`PROJECT_TOMBSTONE_CLEAN_SWEEPS`] consecutive sweeps have found
-///    nothing, and a sweep that finds something starts that count over.
-///
-/// So a late write is *collected* rather than stranded, and the residual is stated rather than hidden: a
-/// writer whose first commit lands after that many consecutive quiet sweeps would leave rows nothing
-/// collects. That needs a writer stalled for ten minutes of wall clock while the request that started it
-/// is long gone.
+///    nothing, and that transaction creates a permanent `deleted_projects` residual. The residual continues
+///    collecting a writer that commits after the project row is gone.
 ///
 /// The consequence is that deletion is asynchronous. This returns once the data is deleted and the
 /// project is invisible to every read and every write; [`start_claim_recovery_task`] removes the row once
 /// it has watched it stay empty.
 ///
-/// It also needs nothing from the instance that started it, which is what makes it correct in a
-/// horizontally scaled deployment: the tombstone is a row, every instance's write path consults it, and
-/// every instance's sweep advances it. Concurrent sweeps duplicate work rather than corrupt state.
+/// The durable tombstone and residual make the protocol independent of the instance that started it.
 ///
 /// Returns `Ok(false)` when there was no live project to delete.
 pub async fn cleanup_project(
@@ -206,13 +180,8 @@ pub async fn cleanup_project(
     // The compare-and-set decides who owns this deletion. Losing it means the project was already
     // claimed or already gone - either way there is nothing for this caller to do.
     //
-    // The claim and its journal entry go in **one transaction**, and the entry only if this caller won.
-    //
-    // Neither ordering works on its own, which is why this is not an ordering. Journalling first leaves a
-    // permanent record for a deletion a failed claim never performed, and a restore replays it; journalling after
-    // leaves a fenced project a later sweep deletes anyway, with no record. Conditional on winning, because
-    // journalling before the claim wrote an entry for every losing caller - and an organization cleanup re-runs
-    // while its projects' tombstones remain, so one deletion accumulated records without bound.
+    // Claim and journal atomically. The journal row exists only when this caller wins the fence, so retries do
+    // not create duplicate permanent records and a successful claim can never lack restore evidence.
     if !repo
         .claim_project_for_deletion_journalled(project_id)
         .await
@@ -221,18 +190,15 @@ pub async fn cleanup_project(
         return Ok(false);
     }
 
-    // Not inside `finish_project_deletion`, which is deliberately re-runnable and is called again by the sweep
-    // for an abandoned claim: appending there would add an entry per resumption to a table that is never
-    // truncated and is counted against the project's quota, for a fact that does not change.
+    // The resumable phase never appends another project journal row.
     finish_project_deletion(database, analytics, file_service, project_id).await?;
     Ok(true)
 }
 
 /// The part of a project deletion that is safe to run again: everything after the claim.
 ///
-/// Every step is idempotent, which is what makes resumption possible rather than merely hopeful -
-/// deleting rows that are already deleted and bytes that are already gone are both no-ops. Called by
-/// [`cleanup_project`] once it holds the claim, and by the sweep for a claim whose owner died.
+/// Every step is idempotent. Called by [`cleanup_project`] after the claim and by the sweep when a claim lease
+/// expires.
 pub async fn finish_project_deletion(
     database: &Arc<TransactionalStore>,
     analytics: &Arc<AnalyticsStore>,
@@ -253,12 +219,8 @@ pub async fn finish_project_deletion(
         errors.push(format!("File delete failed: {}", e));
     }
 
-    // API keys are org-scoped, so there is nothing project-scoped to remove.
-
     if !errors.is_empty() {
-        // The row stays, claimed. That is the whole point: the project is already fenced, so nothing
-        // new can arrive, and the sweep will find the claim and try again. Deleting the row here would
-        // strand whatever survived with no project to find it by.
+        // Keep the project fenced so the sweep can retry whatever survived.
         return Err(anyhow!(
             "Project {} cleanup failed with {} errors, leaving it claimed for retry: {}",
             project_id,
@@ -288,23 +250,8 @@ pub async fn finish_project_deletion(
         );
     }
 
-    // The row goes on the strength of repeated observation, never on elapsed time.
-    //
-    // This is the barrier, and it is worth being precise about what it does and does not promise. It does
-    // not promise that no writer commits after the count above: the fence and the spans are in different
-    // stores, so a writer that read the fence before the tombstone can commit arbitrarily later - a
-    // blocking insert that outlived its statement timeout, an object store retrying, a container that was
-    // paused - and no elapsed time bounds that. A wall-clock grace period was therefore a guess dressed
-    // as a guarantee.
-    //
-    // What it does promise: while the tombstone exists, no *new* writer passes the fence, and every sweep
-    // deletes whatever has appeared. So a late write is collected by the next sweep, and the row is
-    // removed only after `PROJECT_TOMBSTONE_CLEAN_SWEEPS` consecutive sweeps have found nothing - a sweep
-    // that finds data resets the count and starts it over. The residual is stated rather than hidden: a
-    // writer that first commits after that many quiet sweeps leaves rows nothing collects, which needs a
-    // writer stalled for `CLAIM_RECOVERY_INTERVAL_SECS` times that many while its request is long gone.
-    // Counting, deciding and removing are one statement, so a decision cannot be acted on after another
-    // instance's sweep invalidated it - see `record_project_sweep`.
+    // Repeated clean observations remove the tombstone and create its permanent residual atomically. A sweep
+    // that finds data resets the evidence; the residual covers commits that arrive after row removal.
     let removed = repo
         .record_project_sweep(
             project_id,
