@@ -2737,6 +2737,39 @@ fn ci_rejects_unused_rust_dependencies() {
 }
 
 #[test]
+fn unsafe_code_is_confined_to_the_counting_allocator() {
+    let repo = repo_root();
+    let workspace = std::fs::read_to_string(repo.join("Cargo.toml")).expect("workspace manifest");
+    assert!(
+        workspace.contains("unsafe_code = \"deny\""),
+        "the workspace must deny unsafe code by default"
+    );
+
+    let listing = Command::new("git")
+        .args(["ls-files", "server", "sdk/rust"])
+        .current_dir(repo)
+        .output()
+        .expect("git is available in a git checkout");
+    let override_attribute = ["allow", "(unsafe_code)"].concat();
+    let mut overrides = Vec::new();
+    for file in String::from_utf8_lossy(&listing.stdout)
+        .lines()
+        .filter(|file| file.ends_with(".rs"))
+    {
+        let source = std::fs::read_to_string(repo.join(file)).expect("Rust source is readable");
+        if source.contains(&override_attribute) {
+            overrides.push(file.to_string());
+        }
+    }
+
+    assert_eq!(
+        overrides,
+        ["server/src/runtime/allocation.rs"],
+        "local unsafe-code overrides must remain confined to the counting allocator"
+    );
+}
+
+#[test]
 fn http_benchmark_bounds_requests_and_shutdown() {
     let script = std::fs::read_to_string(repo_root().join("scripts/bench-http-latency.sh"))
         .expect("HTTP benchmark script");

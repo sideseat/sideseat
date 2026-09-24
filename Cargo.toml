@@ -42,8 +42,8 @@ rust-version = "1.94.1"
 # ---------------------------------------------------------------------------
 [workspace.lints.rust]
 # Requires unsafe code to opt in at a documented module boundary. `deny` rather than
-# `forbid` permits the counting allocator's `GlobalAlloc` delegation and tests that must
-# mutate the process environment under Rust 2024. Unsafe code elsewhere fails the lint.
+# `forbid` permits the counting allocator's `GlobalAlloc` delegation. Unsafe code
+# elsewhere fails the lint.
 unsafe_code = "deny"
 dead_code = "deny"
 unused_imports = "deny"
