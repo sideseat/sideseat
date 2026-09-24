@@ -396,3 +396,46 @@ pub fn parse() -> (CliConfig, Option<Commands>) {
     };
     (config, cli.command)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn command_is_optional() {
+        let cli = Cli::try_parse_from(["sideseat"]).unwrap();
+        assert!(cli.command.is_none());
+    }
+
+    #[test]
+    fn global_options_are_accepted_after_a_nested_command() {
+        let cli = Cli::try_parse_from([
+            "sideseat",
+            "system",
+            "prune",
+            "--yes",
+            "--host",
+            "127.0.0.2",
+            "--port",
+            "8080",
+        ])
+        .unwrap();
+
+        assert_eq!(cli.host.as_deref(), Some("127.0.0.2"));
+        assert_eq!(cli.port, Some(8080));
+        assert!(matches!(
+            cli.command,
+            Some(Commands::System {
+                command: SystemCommands::Prune { yes: true }
+            })
+        ));
+    }
+
+    #[test]
+    fn invalid_backend_is_rejected() {
+        let error = Cli::try_parse_from(["sideseat", "--files-storage", "ftp"])
+            .err()
+            .expect("invalid backend must fail");
+        assert!(error.to_string().contains("filesystem, s3"));
+    }
+}
