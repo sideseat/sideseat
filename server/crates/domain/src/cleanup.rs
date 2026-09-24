@@ -502,15 +502,8 @@ pub async fn advance_pending_deletions(
         }
     }
 
-    // Projects whose rows are already gone, and this is the part that makes the guarantee hold for an
-    // *arbitrarily* delayed writer rather than for one that finishes within a few sweeps. The tombstone is
-    // removed on finite evidence; a writer that read the fence before it can still commit afterwards, and
-    // with the row gone nothing would know the project had existed. `deleted_projects` knows, so those
-    // rows are collected however late they appear - and the residual becomes the retention below rather
-    // than a handful of minutes.
-    // A leased, bounded, backed-off batch. The records are permanent, so what has to be bounded is the
-    // *rate*: one claim per id (no replica repeats another's work), a lease so a slow batch is not
-    // re-claimed while it runs, a geometric backoff per quiet check, and a cap per sweep.
+    // Permanent project residuals collect writes that commit after the project row is removed. Claims are
+    // exclusive, leased, backed off after quiet checks, and bounded per sweep.
     match repo
         .claim_deleted_projects_for_check(
             DELETED_PROJECT_CHECK_LEASE_SECS,
@@ -521,41 +514,39 @@ pub async fn advance_pending_deletions(
         Ok(deleted) => {
             for (project_id, claim_token) in deleted {
                 let project_id = ProjectId::from(project_id);
-                // Files, unconditionally. Gating this on the analytics count was wrong in the one
-                // direction that matters: a batch can pass the fence, pause, and then store file bytes and
-                // their `trace_files` associations while its spans are dropped by the check next to the
-                // write - so the analytics count is zero while bytes remain, unreachable and counted
-                // against the quota of a project that no longer exists.
-                let files = file_service.delete_project(&project_id).await;
-                if let Err(ref e) = files {
+                // File ownership is checked independently from analytics because a partially committed batch can
+                // leave bytes and associations without an analytical row.
+                let file_result = file_service.delete_project(&project_id).await;
+                if let Err(ref e) = file_result {
                     tracing::warn!(project_id = %project_id, error = %e, "Could not collect a deleted project's files");
                 }
-                let rows = analytics.as_ref().count_project_rows(&project_id).await;
-                if let Err(ref e) = rows {
+                let row_count_result = analytics.as_ref().count_project_rows(&project_id).await;
+                if let Err(ref e) = row_count_result {
                     tracing::warn!(project_id = %project_id, error = %e, "Could not check a deleted project");
                 }
 
-                if let Ok(count) = rows
-                    && count > 0
+                if let Ok(count) = row_count_result.as_ref()
+                    && *count > 0
                 {
                     tracing::warn!(
                         project_id = %project_id,
                         rows = count,
-                        "Collected rows that arrived for a project after its row was deleted"
+                        "Found rows that arrived after the project row was deleted"
                     );
                     if let Err(e) = analytics.as_ref().delete_project_data(&project_id).await {
                         tracing::warn!(project_id = %project_id, error = %e, "Could not collect them");
                     } else {
+                        tracing::debug!(
+                            project_id = %project_id,
+                            rows = count,
+                            "Collected rows for a deleted project"
+                        );
                         advanced += 1;
                     }
                 }
 
-                // Quiet means *nothing at all*: no files, no rows, and no error looking. Deciding it from
-                // the analytics count alone counted a sweep that had just deleted a late writer's files -
-                // or one whose storage delete failed - as evidence the project had gone quiet, and pushed
-                // the next look toward a day away. Anything found or any error keeps it at the base
-                // interval.
-                let was_quiet = matches!(files, Ok(0)) && matches!(rows, Ok(0));
+                // Back off only when both stores report no work and no error.
+                let was_quiet = matches!(file_result, Ok(0)) && matches!(row_count_result, Ok(0));
                 if let Err(e) = repo
                     .record_deleted_project_check(
                         &project_id,
@@ -573,14 +564,9 @@ pub async fn advance_pending_deletions(
         Err(e) => tracing::warn!(error = %e, "Could not claim deleted projects for checking"),
     }
 
-    // Nothing prunes `deleted_projects`, and that is the design rather than an omission.
-    //
-    // Any retention is a bound on how late a pre-tombstone writer may commit and still be collected, and
-    // there is no honest value for one: a stalled writer is not on a schedule. Keeping the record forever
-    // removes the bound - "no data outlives its project" stops being "for seven days". The cost is one
-    // narrow row per project ever deleted, and ids are cuid2, so a record is never ambiguous about which
-    // project it speaks for. `forget_deleted_projects` exists for an operator who wants them gone; the
-    // only thing deleting one loses is the collection of a write in flight since then.
+    // `deleted_projects` is permanent because any retention period would bound how late an in-flight writer can
+    // commit and still be collected. Operators may explicitly remove residuals through
+    // `forget_deleted_projects`.
 
     if advanced > 0 {
         // "Advanced", not "finished": most passes only add to the evidence a tombstone waits for, and a
