@@ -29,23 +29,11 @@ pub fn insert_batch(
     let target = dml::metric_write_target(Backend::Duckdb, None);
 
     in_transaction(conn, |conn| {
-        // A re-delivery *replaces* its datapoints rather than joining them, and **the higher
-        // `ingested_at` wins** - not whichever committed last.
+        // A re-delivery replaces its datapoints, and the higher `ingested_at` wins, matching ClickHouse.
         //
-        // The table is append-only, and counting distinct ids at read time hid the duplicates from the
-        // deletion check without removing them: two rows for one datapoint remained, holding two possibly
-        // different measurements of the same instant with nothing to say which is current, and the write
-        // amplification of a retrying exporter was unbounded. That is the same failure ClickHouse's
-        // `ReplacingMergeTree` avoids by construction, so DuckDB does it explicitly - deleting the ids
-        // about to be written, in the same transaction as the append, which is what makes it atomic.
-        //
-        // Comparing versions rather than always overwriting is what makes the two backends agree.
-        // ClickHouse keeps the row with the highest version, so an unconditional replace here meant a
-        // clock-regressed correction won on DuckDB and lost on ClickHouse: one corrected datapoint, two
-        // different measurements depending on which backend served the read.
-        //
-        // Spans already follow this rule: a re-delivered span id overwrites. `datapoint_id` is what lets
-        // metrics follow it - see `domain::metrics::identity`.
+        // `winning_indices` selects winners against both the batch and stored versions. Removing stored
+        // identities and appending replacements in this transaction keeps one physical row per known
+        // `datapoint_id`; see `domain::metrics::identity`.
         let winners = winning_indices(conn, metrics, batch_now)?;
         replace_existing(conn, metrics, &winners)?;
         insert_metrics(conn, target.table(), metrics, &winners, batch_now)?;
@@ -214,9 +202,8 @@ fn winning_indices(
     let version = |m: &NormalizedMetric| m.ingested_at.unwrap_or(batch_now);
     let mut keep = vec![true; metrics.len()];
 
-    // An *empty* id is "no identity known", never "the same datapoint" - legacy rows carry `''`, and so
-    // does anything written without passing through the extractor that stamps identities. Collapsing on
-    // it made every such datapoint one row.
+    // An empty id means "identity unknown", never "the same datapoint". Rows predating identity extraction
+    // and callers that bypass it therefore remain independent.
     let mut best: std::collections::HashMap<(&str, &str), usize> =
         std::collections::HashMap::with_capacity(metrics.len());
     for (index, m) in metrics.iter().enumerate() {
@@ -240,12 +227,9 @@ fn winning_indices(
         }
     }
 
-    // Now drop the batch's winners that lose to a stored row.
+    // Drop batch winners that lose to a stored row.
     //
-    // Read in **chunks**, one statement per chunk, not one per identity. A query per distinct datapoint
-    // meant a batch of ten thousand datapoints issued ten thousand round trips inside the write
-    // transaction - a throughput regression against the chunked delete this function sits in front of,
-    // and on the hot ingestion path.
+    // Probe in chunks so transaction round trips grow with chunks rather than distinct datapoints.
     //
     // Compared as epoch microseconds: `chrono::DateTime` is not `FromSql` here, and micros are the
     // column's own resolution, so nothing is lost by the conversion.
@@ -294,8 +278,7 @@ fn winning_indices(
 /// Delete any rows already stored for the datapoints about to be written.
 ///
 /// Chunked, because a batch can carry many datapoints and a parameter list has a practical limit. Rows
-/// written before the identity existed carry `''`, which never appears in this list - every datapoint that
-/// reaches here has a real id - so legacy rows are untouched.
+/// without an identity carry `''`, which never appears in this list, so they remain untouched.
 fn replace_existing(
     conn: &Connection,
     metrics: &[NormalizedMetric],
@@ -312,8 +295,7 @@ fn replace_existing(
             if !keep[offset + within] {
                 continue;
             }
-            // Empty means "no identity known" - legacy rows carry it, and deleting `datapoint_id = ''`
-            // would take every one of them on the first write after an upgrade.
+            // Empty means "identity unknown"; deleting that shared sentinel would remove unrelated rows.
             if m.datapoint_id.is_empty() {
                 continue;
             }
@@ -350,13 +332,10 @@ fn insert_metrics(
 
     let mut appender = conn.appender(table)?;
 
-    // Within one batch too, and **highest version wins**.
+    // Within one batch, the highest version wins.
     //
-    // `replace_existing` removes what is already *stored*, which leaves a batch that carries the same
-    // datapoint twice - a retrying exporter that re-sends part of a payload, or an SDK that flushes an
-    // overlapping window - appending both rows. The delete cannot catch that, because neither row existed
-    // when it ran. `winning_indices` resolves it before we get here, by the same rule the stored
-    // comparison uses, so one datapoint appears at most once whatever the batch contained.
+    // `replace_existing` handles stored rows; `winning_indices` separately collapses overlapping deliveries
+    // within this batch by the same version rule.
     for (index, m) in metrics.iter().enumerate() {
         if !keep[index] {
             continue;
@@ -519,10 +498,6 @@ mod tests {
     }
 
     /// A **clock-regressed** re-delivery must not overwrite a newer stored version.
-    ///
-    /// This is the case the whole `winning_indices` comparison exists for. DuckDB used to delete and
-    /// re-insert unconditionally, so whichever delivery committed last won - while ClickHouse keeps the
-    /// highest `ingested_at`. One corrected datapoint could therefore read differently per backend.
     #[tokio::test]
     async fn a_clock_regressed_redelivery_does_not_overwrite_a_newer_stored_version() {
         let (_temp_dir, analytics) = create_test_service().await;
@@ -539,7 +514,7 @@ mod tests {
         assert_eq!(
             stored_value(&conn, "dp1"),
             Some(2.0),
-            "the higher version must survive; an unconditional replace kept the regressed one"
+            "the higher version must survive a later clock-regressed delivery"
         );
     }
 
