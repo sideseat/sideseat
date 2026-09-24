@@ -350,14 +350,15 @@ impl ClickhouseService {
         let service = Arc::clone(self);
         tokio::spawn(async move {
             let mut interval = tokio::time::interval(CHECK_INTERVAL);
+            interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
             // The first tick fires immediately, and a pass at startup is not wanted: nothing has been ingested
             // yet, so it would read the whole overlap window for nothing on every new replica.
             interval.tick().await;
             loop {
                 tokio::select! {
                     biased;
-                    _ = shutdown_rx.changed() => {
-                        if *shutdown_rx.borrow() {
+                    changed = shutdown_rx.changed() => {
+                        if changed.is_err() || *shutdown_rx.borrow() {
                             tracing::debug!("ClickHouse consistency check task shutting down");
                             break;
                         }
