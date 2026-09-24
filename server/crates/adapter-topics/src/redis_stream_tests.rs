@@ -4,13 +4,8 @@
 //!
 //! The Redis stream backend is what makes an asynchronous 200 honest: a payload is acknowledged only
 //! after it has been written, and an unacknowledged one is redelivered. Every claim in that sentence is
-//! about Redis behaviour - consumer groups, pending entries, trimming - and none of it had ever run
-//! against a Redis. The unit tests covered key prefixes and URL redaction.
-//!
-//! What that missed was the defect this suite now pins: publishing used `XADD ... MAXLEN ~ 100000`.
-//! Redis trims by *length*, with no notion of whether an entry has been read, so any backlog past the
-//! bound deleted the oldest payloads - each already answered 200 by HTTP or gRPC. A queue that discards
-//! accepted work is worse than no queue, because the loss is silent.
+//! about Redis behaviour: consumer groups, pending entries, durability and consumed-only trimming. These
+//! integration tests exercise that contract against a real server.
 //!
 //! Skips with a message when `SIDESEAT_TEST_REDIS_URL` is unset, so `make check` stays green without
 //! Docker; `make test-redis` starts a pinned container and sets it.
@@ -43,11 +38,8 @@ async fn backend(topic: &str) -> Option<(Arc<RedisTopicBackend>, String)> {
 
 /// Nothing unread is ever deleted, and a backlog at the limit is refused instead.
 ///
-/// The old `MAXLEN ~ N` on `XADD` deleted the oldest entries to hold the length down. This drives the
-/// stream past a deliberately tiny limit and requires that (a) every payload published successfully is
-/// still readable afterwards, and (b) the publish that would have exceeded the limit failed, so the
-/// exporter still holds its data. Those two together are the property; either alone is passable by a
-/// backend that quietly drops.
+/// The test drives the stream past a deliberately tiny limit and requires both that accepted payloads remain
+/// readable and that excess publishes fail, leaving their data with the exporter.
 #[tokio::test]
 async fn a_full_backlog_is_refused_and_nothing_published_is_discarded() {
     let Some((backend, topic)) = backend("backlog").await else {
@@ -321,10 +313,8 @@ async fn the_slowest_group_decides_what_may_be_trimmed() {
 
 /// A Redis without persistence is refused at startup.
 ///
-/// The defect this pins: `is_durable()` returned true unconditionally, so any PINGable Redis was
-/// treated as a durable queue. In production that could be a cache-tier instance with AOF off and a
-/// keyspace-wide LRU, both of which lose data an OTLP export was answered 200 for. Refusing at
-/// startup means the operator learns the configuration is wrong before any exporter is fooled by it.
+/// A cache-tier instance with AOF disabled or keyspace-wide eviction cannot uphold the durable-queue
+/// acknowledgement contract, so startup must reject it.
 ///
 /// Skipped when Docker is unavailable; `make test-redis` sets its own AOF and eviction, so this test
 /// spins up a second container with them off.
@@ -350,9 +340,7 @@ async fn a_non_durable_redis_is_refused_at_startup() {
     impl Drop for Cleanup {
         fn drop(&mut self) {
             let _ = std::process::Command::new("docker")
-                // : the redis image declares a volume, so removing the container without it leaves an
-                // anonymous volume behind - which is how 246 of them accumulated before the make targets
-                // were fixed the same way.
+                // The Redis image declares a volume; `-v` removes the anonymous test volume with the container.
                 .args(["rm", "-fv", &self.0])
                 .output();
         }
@@ -411,14 +399,8 @@ async fn a_non_durable_redis_is_refused_at_startup() {
 
 /// An abandoned entry behind a wall of fresh ones is still reclaimed.
 ///
-/// `stream_claim` used to ask for the first `count` pending entries from the start of the list and then
-/// discard the ones that were not idle enough - so a group with more than `count` recently-delivered
-/// entries in front hid every abandoned entry behind them, and one at position `count + 1` was never
-/// examined however long its consumer had been dead. Filtering with `XPENDING ... IDLE` makes the window
-/// contain only eligible entries.
-///
-/// The test delivers a batch, acknowledges nothing, then asks for a claim window *smaller* than the
-/// backlog - which is the shape that produced the starvation.
+/// The test delivers a batch, acknowledges nothing, then asks for a claim window smaller than the pending
+/// backlog. Recovery must still reach an idle abandoned entry rather than letting fresh entries hide it.
 #[tokio::test]
 async fn an_abandoned_entry_behind_fresh_ones_is_still_reclaimed() {
     let Some((backend, topic)) = backend("starvation").await else {
@@ -449,8 +431,7 @@ async fn an_abandoned_entry_behind_fresh_ones_is_still_reclaimed() {
     .expect("ok");
     drop(doomed);
 
-    // Then a wall of entries delivered to a *live* consumer and left pending. Under the old window these
-    // would fill the first `count` slots and hide the abandoned one.
+    // Then a wall of entries delivered to a live consumer and left pending.
     for i in 0..10u32 {
         backend
             .stream_publish(&topic, "test-key", format!("fresh-{i}").as_bytes())
@@ -493,10 +474,8 @@ async fn an_abandoned_entry_behind_fresh_ones_is_still_reclaimed() {
 /// idle threshold and - being the oldest - refills the recovery window. With a window of N and N such
 /// entries, nothing behind them is ever examined.
 ///
-/// The fix must not be to acknowledge it. A delivery counter is evidence about the *system* that keeps
-/// failing to store the payload, not about the payload: ten failures is what a minute of analytics downtime
-/// looks like, and the payload was already answered 200. So this asserts both halves - the chronic entry
-/// survives every attempt, *and* the entry behind it is reached anyway.
+/// A delivery counter is evidence about the system, not grounds to discard an acknowledged payload. The test
+/// asserts both that the chronic entry survives and that rotation still reaches entries behind it.
 #[tokio::test]
 async fn a_chronically_failing_entry_never_starves_the_others_and_is_never_discarded() {
     let Some((backend, topic)) = backend("poison").await else {
@@ -673,8 +652,7 @@ async fn an_entry_beyond_one_scan_window_is_still_reached() {
 ///
 /// This one *is* evidence about the entry itself: nothing can ever process a payload that cannot be read, and
 /// leaving it pending holds the trim boundary forever, so it has to leave the main stream. It was also
-/// answered 200, so its bytes must survive somewhere an operator can find them - which is the difference
-/// between dead-lettering and the deletion this replaced.
+/// answered 200, so its bytes must survive somewhere an operator can find them.
 #[tokio::test]
 async fn an_unreadable_entry_is_preserved_before_it_is_acknowledged() {
     let Some((backend, topic)) = backend("deadletter").await else {
@@ -812,10 +790,7 @@ async fn a_decodable_but_invalid_payload_can_be_dead_lettered() {
 
 /// Rotation survives a process restart, because the cursor is in Redis rather than in the process.
 ///
-/// The ephemeral-instance case: as a process-local map the cursor reset to the front on every restart, so an
-/// instance replaced faster than a full rotation always re-scanned the same prefix and entries behind a
-/// chronically-failing run starved indefinitely. Replicas also each kept their own position, so there was no
-/// global rotation at all. A *fresh backend on the same Redis* stands in for a restarted instance here.
+/// A fresh backend on the same Redis stands in for a restarted instance and must resume the shared rotation.
 #[tokio::test]
 async fn the_scan_cursor_survives_a_restart() {
     let Some((backend, topic)) = backend("cursor-restart").await else {
@@ -887,11 +862,8 @@ async fn the_scan_cursor_survives_a_restart() {
 
 /// A stalled replica's cursor write is refused once another replica has moved it, so nothing is skipped.
 ///
-/// The interleaving a plain `SET` allowed: replica A claims a tail page and stalls before writing; replica B
-/// finds the list exhausted past its own position, wraps, claims the front and advances the cursor there;
-/// A's delayed write then jumps the cursor back out to its tail position, past the front entries B did not
-/// claim, and with sustained traffic beyond that point they starve. Conditioning the write on the value the
-/// scan read makes A's stale update a no-op - A loses only its own progress.
+/// Replica A reads and stalls; replica B advances the cursor; A's delayed write must become a no-op rather
+/// than overwrite B and skip entries between the two positions.
 ///
 /// Driven at the Redis level, because the race is in the cursor write rather than in the claim: two backends
 /// share one cursor key, so a write conditioned on a stale read must not land.
@@ -945,13 +917,11 @@ async fn a_stale_cursor_write_is_refused() {
 
 /// Rotation reaches later entries even while a peer keeps re-claiming the first one.
 ///
-/// The failure the per-entry hold produced, and the reason it was removed: holding the cursor at an entry that
-/// was scanned but not claimed lets a peer that repeatedly claims and abandons that entry keep it perpetually
-/// too fresh, and everything after it starves. Rotation over a fixed endpoint cannot be pinned that way - the
-/// sweep advances over everything it examines.
+/// A peer repeatedly makes the first entry too fresh for the rescuer. Fixed-endpoint rotation must continue
+/// across every examined entry instead of pinning the cursor there.
 ///
 /// The adversary is a **direct `XCLAIM` of the first id**, not another rotating claim: the rotating one would
-/// simply advance like any consumer, so the earlier version of this test staged no adversary at all.
+/// simply advance like any consumer.
 #[tokio::test]
 async fn rotation_reaches_later_entries_past_a_repeatedly_reclaimed_one() {
     let Some((backend, topic)) = backend("rotation-past").await else {
@@ -995,10 +965,7 @@ async fn rotation_reaches_later_entries_past_a_repeatedly_reclaimed_one() {
     const IDLE_THRESHOLD_MS: u64 = 400;
     tokio::time::sleep(std::time::Duration::from_millis(IDLE_THRESHOLD_MS + 200)).await;
 
-    // Each pass the peer re-claims the first entry, which resets its idle time to ~0 - below the rescuer's
-    // threshold, so it is genuinely **unclaimable** by the rescuer for the rest of that pass. That is what
-    // makes this a regression test for the removed hold: with `min_idle_ms = 0` the rescuer would simply take
-    // the entry the peer had just reset, and nothing would be unclaimed for a hold to pin.
+    // Each pass the peer re-claims the first entry, resetting its idle time below the rescuer's threshold.
     let mut saw_last = false;
     for _ in 0..12 {
         backend
@@ -1028,10 +995,8 @@ async fn rotation_reaches_later_entries_past_a_repeatedly_reclaimed_one() {
 
 /// A malformed cursor value is replaced, not treated as an immovable obstacle.
 ///
-/// The empty string was the sharp case: absence and "holds an empty value" were both encoded as the CAS
-/// absence sentinel, so a key holding `""` parsed as malformed (start a fresh rotation) but could never be
-/// written - the CAS demanded the key be absent, which it never was. Every pass then rescanned the first page
-/// and everything behind it starved. Absence is an explicit flag now.
+/// The empty string represents an existing malformed value, not absence. Compare-and-set must replace it so
+/// rotation can progress beyond the first page.
 #[tokio::test]
 async fn a_malformed_cursor_value_is_replaced() {
     let Some((backend, topic)) = backend("cursor-malformed").await else {
