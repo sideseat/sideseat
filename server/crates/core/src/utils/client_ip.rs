@@ -1,21 +1,9 @@
 //! Which address a rate limiter may attribute a request to.
 //!
-//! This is the third attempt at the question, and the two failures are the reason it is now one shared,
-//! tested function rather than a line at each call site:
-//!
-//! * **Peer address only.** Unspoofable, but behind a proxy the peer *is* the proxy - so a few dozen invalid
-//!   keys from one attacker exhausted the bucket every legitimate exporter shared, rejecting them all before
-//!   authentication. An unauthenticated denial of service, produced by a limiter that is only defence in
-//!   depth (the real protection is key entropy).
-//! * **Forwarded header, trusted unconditionally.** No DoS, but a direct attacker sets a fresh value per
-//!   request and never exhausts a bucket at all, so the limiter does nothing. Worse, where two transports
-//!   shared a bucket namespace, a spoofed value on one could exhaust a bucket belonging to a peer on the
-//!   other.
-//!
-//! Neither trade is acceptable, and no amount of care at the call site fixes it: *whether the forwarded
-//! address can be believed is a property of the deployment*, which only configuration can state. So a
-//! forwarded address counts only when the immediate peer is a configured trusted proxy, and the client is
-//! then the rightmost hop that is not itself trusted - the last address a trusted proxy vouched for.
+//! Forwarded addresses are trusted only when the immediate peer belongs to the configured proxy set. The
+//! attributable client is then the rightmost untrusted hop: the last address a trusted proxy vouched for.
+//! This gives clients behind a proxy independent buckets without letting direct clients rotate a spoofed
+//! header to evade limiting.
 //!
 //! With no trusted proxies configured (the default) the peer is always used, which is correct for a direct
 //! deployment and refuses to believe a header nobody vouched for.
@@ -34,11 +22,8 @@ pub struct TrustedProxies {
 impl TrustedProxies {
     /// Parse a configured list, **refusing** an entry that is not an address or CIDR block.
     ///
-    /// Skipping a bad entry was the first behaviour and it is wrong here, for the reason this whole module
-    /// exists: an unparsed proxy is an *untrusted* proxy, so every client behind it collapses into that one
-    /// address's bucket - the denial of service the trusted-proxy list was added to remove. The server starts,
-    /// nothing fails, and the limiter silently does the harmful thing. A typo in security-relevant
-    /// configuration has to be a refusal with the entry named, not a warning in a log nobody reads.
+    /// An unparsed proxy would be treated as untrusted and collapse every client behind it into the proxy's
+    /// bucket. Security-relevant configuration therefore fails closed and names the invalid entry.
     pub fn parse(entries: &[String]) -> Result<Self, String> {
         let mut nets = Vec::new();
         for entry in entries {
@@ -67,26 +52,15 @@ impl TrustedProxies {
     }
 
     fn contains(&self, addr: IpAddr) -> bool {
-        // Canonicalised first. A reverse proxy on a dual-stack socket connects as `::ffff:10.0.0.5`, and
-        // `IpNet::contains` compares address families - so an operator's `10.0.0.0/8` matched nothing, the
-        // proxy was treated as untrusted, and every forwarded client address was ignored. That silently
-        // turns per-client rate limiting into one bucket for the whole proxy.
+        // Canonicalise both configuration and peers so IPv4-mapped connections match IPv4 proxy ranges.
         let addr = canonical(addr);
         self.nets.iter().any(|net| net.contains(&addr))
     }
 }
 
-/// An IPv4-mapped IPv6 address as its IPv4 form; anything else unchanged.
-///
-/// `::ffff:10.0.0.5` and `10.0.0.5` are the same host, and every comparison here has to agree about that -
-/// otherwise whether a proxy is trusted depends on whether the listener happens to be dual-stack.
 /// A network written in IPv4-mapped IPv6 form as its IPv4 equivalent; anything else unchanged.
 ///
-/// Canonicalising only the *peer* was half a fix: an operator who writes the mapped form
-/// (`::ffff:10.0.0.5`, or `::ffff:10.0.0.0/104`) then had the peer converted to IPv4 while the configured
-/// network stayed IPv6, so it stopped matching - the same silent collapse into one rate-limit bucket, arrived
-/// at from the opposite side. Both sides are canonicalised, so the two forms are interchangeable in
-/// configuration.
+/// Configuration and peers use the same representation, so IPv4 and IPv4-mapped forms are interchangeable.
 fn canonical_net(net: IpNet) -> IpNet {
     match net {
         IpNet::V6(v6) if v6.prefix_len() >= 96 => match v6.addr().to_ipv4_mapped() {
@@ -99,6 +73,9 @@ fn canonical_net(net: IpNet) -> IpNet {
     }
 }
 
+/// An IPv4-mapped IPv6 address as its IPv4 form; anything else unchanged.
+///
+/// `::ffff:10.0.0.5` and `10.0.0.5` are the same host for trust checks and rate-limit bucket keys.
 fn canonical(addr: IpAddr) -> IpAddr {
     match addr {
         IpAddr::V6(v6) => match v6.to_ipv4_mapped() {
@@ -119,9 +96,7 @@ pub fn attributable_ip(
     trusted: &TrustedProxies,
 ) -> Option<String> {
     let peer = peer?;
-    // Canonical before it becomes a bucket key. `::ffff:203.0.113.9` and `203.0.113.9` are the same client,
-    // and returning whichever form the socket happened to produce gave that client *two* buckets on a
-    // dual-stack listener - twice the allowance, from nothing the client did.
+    // Canonicalise the bucket key so one client cannot receive separate IPv4 and mapped-IPv6 allowances.
     let key = |addr: IpAddr| Some(canonical(addr).to_string());
 
     // Nothing vouched for the header, so only the peer is a fact.
@@ -149,10 +124,8 @@ pub fn attributable_ip(
 
 /// One forwarded hop as an address, tolerating an attached port.
 ///
-/// The whole hop is tried **first**, because a bare IPv6 address is full of colons: stripping "the port" from
-/// `2001:db8::1` by splitting on the last colon yields `2001:db8:`, which parses as nothing - so the hop was
-/// discarded and attribution fell back to the proxy, putting every client behind it in one bucket again. Only
-/// once the hop is known not to be an address on its own is a port considered.
+/// Parse the whole hop first because a bare IPv6 address contains colons. A port is considered only after the
+/// complete value fails to parse as an address.
 fn parse_hop(hop: &str) -> Option<IpAddr> {
     if let Ok(addr) = IpAddr::from_str(hop) {
         return Some(addr);
@@ -182,9 +155,6 @@ mod tests {
     }
 
     /// With no trusted proxies, only the peer counts - a forwarded header nobody vouched for is ignored.
-    ///
-    /// This is what stops a direct attacker rotating the header to get a fresh bucket every request, which
-    /// made the limiter do nothing at all.
     #[test]
     fn an_unvouched_header_is_ignored() {
         let trusted = TrustedProxies::default();
@@ -195,8 +165,6 @@ mod tests {
     }
 
     /// A header from a trusted peer names the client, so each client gets its own bucket.
-    ///
-    /// This is what stops one attacker behind a proxy exhausting the bucket every other exporter shares.
     #[test]
     fn a_trusted_proxy_names_its_client() {
         let trusted = TrustedProxies::parse(&["10.0.0.0/8".to_string()]).unwrap();
@@ -232,10 +200,6 @@ mod tests {
     }
 
     /// A bare IPv6 hop is attributed to the client, not discarded.
-    ///
-    /// Splitting "the port" off `2001:db8::1` at the last colon produced `2001:db8:`, which parses as
-    /// nothing - so the hop was dropped and attribution fell back to the proxy, collapsing every client
-    /// behind it into one bucket. That is the denial of service the trusted-proxy work exists to remove.
     #[test]
     fn a_bare_ipv6_hop_is_attributed() {
         let trusted = TrustedProxies::parse(&["10.0.0.0/8".to_string()]).unwrap();
@@ -281,9 +245,7 @@ mod tests {
 
     /// An unparseable configuration entry is **refused**, naming itself.
     ///
-    /// Skipping it starts the server and silently collapses every client behind that proxy into one bucket -
-    /// the denial of service this list exists to prevent. A typo in security-relevant configuration is a
-    /// refusal, not a log line.
+    /// Skipping it would silently collapse every client behind that proxy into one bucket.
     #[test]
     fn an_unparseable_entry_is_refused() {
         let err = TrustedProxies::parse(&["nonsense".to_string(), "10.0.0.0/8".to_string()])
@@ -320,12 +282,6 @@ mod tests {
     }
 
     /// The two ways of writing the same host are interchangeable, on both sides of the comparison.
-    ///
-    /// A reverse proxy on a dual-stack socket connects as `::ffff:10.0.0.5`, and `IpNet::contains` compares
-    /// address families - so an operator's `10.0.0.0/8` matched nothing, the proxy was untrusted, every
-    /// forwarded client address was ignored, and per-client limiting became one bucket for the whole proxy.
-    /// Canonicalising only the peer left the mirror image: an operator writing the *mapped* form had it stop
-    /// matching an IPv4 peer.
     #[test]
     fn ipv4_mapped_and_plain_ipv4_are_the_same_host_either_way_round() {
         let plain = "10.0.0.5".parse::<IpAddr>().unwrap();
