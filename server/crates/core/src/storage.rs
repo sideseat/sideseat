@@ -1,4 +1,4 @@
-//! Platform-aware data storage directory management
+//! Platform-aware data storage directory management.
 //!
 //! ## Platform Paths
 //!
@@ -83,19 +83,21 @@ impl AppStorage {
         Ok(Self { data_dir })
     }
 
-    /// Resolve data directory from env var or platform default
+    /// Resolve the data directory from the environment or platform default.
     pub fn resolve_data_dir() -> PathBuf {
-        // Check env var override first
-        if let Ok(dir) = std::env::var(ENV_DATA_DIR) {
-            return expand_path(&dir);
+        let configured = std::env::var(ENV_DATA_DIR).ok();
+        Self::resolve_data_dir_with_override(configured.as_deref())
+    }
+
+    fn resolve_data_dir_with_override(configured: Option<&str>) -> PathBuf {
+        if let Some(dir) = configured {
+            return expand_path(dir);
         }
 
-        // Use platform-specific directory
         if let Some(proj_dirs) = ProjectDirs::from("", "", APP_NAME) {
             return proj_dirs.data_dir().to_path_buf();
         }
 
-        // Fallback to local .sideseat
         let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
         cwd.join(APP_DOT_FOLDER)
     }
@@ -169,23 +171,25 @@ impl AppStorage {
         self.data_dir.join(subdir.as_str()).join(filename)
     }
 
-    /// `AppStorage` rooted at a given directory, **with its subdirectory tree created**.
+    /// Construct test storage and create its baseline database directories.
     ///
-    /// **Not `#[cfg(test)]`**, because the tests that need it live in other crates and a `cfg(test)` item does not
-    /// exist for a dependent. The alternative is a `testing` feature, which project convention rules out - all
-    /// dependencies are always compiled here - so this is compiled unconditionally.
-    ///
-    /// **Which makes it production-callable, so it has to hold the same invariant as [`Self::init`]**: that the
-    /// subdirectories a component will write into exist. Before, it was a bare field assignment, so a caller
-    /// could hand a component storage rooted at a directory that was not there - and every such component
-    /// assumes otherwise. Creating the tree here removes the difference rather than documenting it.
-    ///
-    /// Synchronous, unlike `init`, because a test constructs this before it has a runtime to await on. The
-    /// directory set is the same one `DataSubdir::all()` drives.
+    /// Panics when the fixture directory cannot be created.
     pub fn init_for_test(data_dir: PathBuf) -> Self {
-        std::fs::create_dir_all(&data_dir).ok();
+        std::fs::create_dir_all(&data_dir).unwrap_or_else(|error| {
+            panic!(
+                "failed to create test data directory {}: {error}",
+                data_dir.display()
+            )
+        });
         for subdir in DataSubdir::all() {
-            std::fs::create_dir_all(data_dir.join(subdir.as_str())).ok();
+            let path = data_dir.join(subdir.as_str());
+            std::fs::create_dir_all(&path).unwrap_or_else(|error| {
+                panic!(
+                    "failed to create test {} directory {}: {error}",
+                    subdir.as_str(),
+                    path.display()
+                )
+            });
         }
         Self { data_dir }
     }
@@ -193,10 +197,6 @@ impl AppStorage {
 
 #[cfg(test)]
 mod tests {
-    // env::set_var/remove_var are unsafe as of Rust 2024 and have no safe
-    // equivalent. These tests are single-threaded and restore what they change.
-    #![allow(unsafe_code)]
-
     use super::*;
 
     #[test]
@@ -229,11 +229,24 @@ mod tests {
     }
 
     #[test]
-    fn test_resolve_data_dir_fallback() {
-        // Without env var set, should return a non-empty path
-        // SAFETY: Test runs single-threaded, no concurrent access to env var
-        unsafe { std::env::remove_var(ENV_DATA_DIR) };
-        let path = AppStorage::resolve_data_dir();
+    fn data_dir_fallback_is_non_empty() {
+        let path = AppStorage::resolve_data_dir_with_override(None);
         assert!(!path.as_os_str().is_empty());
+    }
+
+    #[test]
+    fn data_dir_override_is_expanded() {
+        let path = AppStorage::resolve_data_dir_with_override(Some("./sideseat-test-data"));
+        assert!(path.is_absolute());
+        assert!(path.ends_with("sideseat-test-data"));
+    }
+
+    #[test]
+    fn test_storage_fails_fast_when_root_cannot_be_created() {
+        let root = tempfile::tempdir().unwrap();
+        let file = root.path().join("not-a-directory");
+        std::fs::write(&file, b"occupied").unwrap();
+
+        assert!(std::panic::catch_unwind(|| AppStorage::init_for_test(file)).is_err());
     }
 }
