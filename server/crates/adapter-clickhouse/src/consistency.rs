@@ -84,7 +84,7 @@ const WINDOW_OVERLAP: TimeDelta = TimeDelta::minutes(10);
 /// that is described as bounding work and does not is worse than no cap at all.
 const MAX_CANDIDATES_PER_PASS: u64 = 10_000;
 
-/// The row key used to store the watermark, which is not an identity.
+/// Reserved row key for the watermark, which is not an identity.
 ///
 /// One table rather than two, because a watermark is only meaningful together with what was found beneath it:
 /// "clean through T" and the anomalies found up to T are one statement, and splitting them lets a restore

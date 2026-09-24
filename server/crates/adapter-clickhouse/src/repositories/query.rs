@@ -485,20 +485,10 @@ pub async fn get_traces_for_session(
 
 /// Which session each of the given traces belongs to; traces with none are absent.
 ///
-/// The DuckDB twin. `FINAL` for the same reason it deduplicates there, and `argMin` over
-/// `(timestamp_start, span_id)` so the session is the one on the trace's earliest span - which is what the
-/// trace and session views display. `min(session_id)` picked the lexicographically smallest instead, so a
-/// trace could be displayed under one session and grouped under another.
-/// The relation a membership query reads: deduplicated as of a watermark, or plain `FINAL`.
-///
-/// The three membership methods used to accept `as_of_us` and ignore it, on the grounds that "`FINAL` has no
-/// as-of form" - which stopped being true when `ch_dedup_spans_as_of_watermark` was written for the message
-/// rows. Ignoring it made a feed traversal read watermark-era *rows* and current *membership*: a trace
-/// re-delivered into another session mid-traversal was reconstructed as its old version while its session,
-/// and therefore the context loaded around it, came from the new one - so the traversal was not a view of one
-/// instant, which is the whole point of the watermark. The residual documented on
-/// `ch_dedup_spans_as_of_watermark` applies here too: exact only while the pre-watermark version has not been
-/// merged away.
+/// Membership is deduplicated at `as_of_us`, or with plain `FINAL` for a current read. The relation uses
+/// `argMin` over `(timestamp_start, span_id)` so grouping agrees with the earliest-span session shown by trace
+/// and session views. Watermarked reads share the residual documented by
+/// `ch_dedup_spans_as_of_watermark`: they are exact only while the pre-watermark revision remains unmerged.
 pub async fn get_trace_session_pairs(
     client: &Client,
     project_id: &str,
@@ -813,13 +803,7 @@ pub async fn delete_sessions(
         return Ok(vec![]);
     }
 
-    // Resolve the sessions to their traces and delete those, exactly as the DuckDB backend does.
-    //
-    // Deleting the rows that *name* a session leaves the rest of its spans behind: a session id is
-    // recorded on the spans that know it, often the root alone, so a root-only session lost its root
-    // and kept its children - and the call returned success. The orphaned spans then show up as a
-    // trace with no session and cannot be deleted by session again, because nothing names it any
-    // more. Every read path already resolves a session through its traces; deletion has to agree.
+    // Resolve sessions to complete trace sets because session ids commonly appear only on root spans.
     // No watermark: a deletion acts on what is stored *now*, not as of some past instant.
     let trace_ids = get_trace_ids_for_sessions(client, project_id, session_ids, None).await?;
     if trace_ids.is_empty() {
@@ -882,16 +866,8 @@ pub async fn delete_project_data(
     .execute()
     .await?;
 
-    // Metrics too, and a failure here is reported rather than swallowed.
-    //
-    // This used to log at debug and continue, on the reasoning that the table "may not exist in all
-    // deployments" - but the schema in this repository always creates it, so the only thing that
-    // rationale bought was hiding real failures. A project's metrics are not reachable through the
-    // project row either, so metrics left behind by a swallowed error are the same class of orphan as
-    // spans left behind, and the caller's verification would never look at them.
-    //
-    // The one case the old comment was right about is asked directly instead of inferred from an error:
-    // if the table is genuinely absent there is nothing to delete.
+    // Delete metrics when their table exists; query failures remain deletion failures rather than being
+    // mistaken for an absent optional table.
     let table_check = plan
         .metrics_table_exists
         .as_ref()
@@ -919,7 +895,6 @@ pub async fn delete_project_data(
     Ok(count)
 }
 
-/// Count spans grouped by project for a set of project IDs.
 /// Count every row a project still owns, spans and metrics together.
 ///
 /// `FINAL` on both, because a `ReplacingMergeTree` may still hold superseded parts - and because this is
@@ -1227,7 +1202,7 @@ pub async fn get_session_filter_options(
     Ok(results)
 }
 
-/// Repository-level regression tests.
+/// Repository contract tests.
 #[cfg(test)]
 mod tests {
     use super::*;

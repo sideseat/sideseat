@@ -585,11 +585,6 @@ impl EntityQuery for ClickhouseRepository {
         &self,
         project_id: &ProjectId,
         trace_ids: &[String],
-        // Honoured, through `ch_membership_source`. It used to be accepted and ignored on the grounds
-        // that `FINAL` has no "as of" form - which stopped being true when the message rows got one, and
-        // meanwhile a traversal read watermark-era rows with current membership, so it was not a view of
-        // one instant. The residual is the engine's: exact only while the pre-watermark version survives
-        // unmerged.
         as_of_us: Option<i64>,
     ) -> Result<Vec<(String, String)>, DataError> {
         tenant_query!(
@@ -606,11 +601,6 @@ impl EntityQuery for ClickhouseRepository {
         &self,
         project_id: &ProjectId,
         trace_ids: &[String],
-        // Honoured, through `ch_membership_source`. It used to be accepted and ignored on the grounds
-        // that `FINAL` has no "as of" form - which stopped being true when the message rows got one, and
-        // meanwhile a traversal read watermark-era rows with current membership, so it was not a view of
-        // one instant. The residual is the engine's: exact only while the pre-watermark version survives
-        // unmerged.
         as_of_us: Option<i64>,
     ) -> Result<Vec<String>, DataError> {
         tenant_query!(
@@ -627,11 +617,6 @@ impl EntityQuery for ClickhouseRepository {
         &self,
         project_id: &ProjectId,
         session_ids: &[String],
-        // Honoured, through `ch_membership_source`. It used to be accepted and ignored on the grounds
-        // that `FINAL` has no "as of" form - which stopped being true when the message rows got one, and
-        // meanwhile a traversal read watermark-era rows with current membership, so it was not a view of
-        // one instant. The residual is the engine's: exact only while the pre-watermark version survives
-        // unmerged.
         as_of_us: Option<i64>,
     ) -> Result<Vec<String>, DataError> {
         tenant_query!(
