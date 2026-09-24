@@ -36,9 +36,8 @@ pub const MIN_UPGRADABLE_FROM: i32 = 2;
 /// data (`_local` in distributed mode, nothing in single-node mode).
 ///
 /// A fresh database is created directly at [`SCHEMA_VERSION`] by the initial schema, so entries exist
-/// solely for databases written by older builds. `migrations_cover_every_version` fails the build if a
-/// version bump arrives without one, which is the guard that was missing: the mechanism compiled, had no
-/// entries, and would have refused to start every existing database the moment the version moved.
+/// solely for databases written by older builds. `migrations_cover_every_version` requires one entry for
+/// every supported upgrade step.
 pub struct Migration {
     pub version: i32,
     pub name: &'static str,
@@ -1286,18 +1285,9 @@ pub fn tenant_row_policies(config: &ClickhouseConfig) -> Vec<String> {
 
 /// The table to insert into: the `Distributed` front end, which is the only thing that shards.
 ///
-/// This used to append `_local` in distributed mode, for throughput. It made sharding a fiction. The
-/// distributed tables are declared `Distributed(cluster, db, table_local, sipHash64(project_id))`, so
-/// which shard a row belongs on is a function of its project - but a write aimed at `_local` lands on
-/// whichever node the connection happened to reach, and nothing corrects it afterwards.
-///
-/// Two failures follow, and both are silent. Behind a load balancer, one span delivered twice can land on
-/// two different shards; `FINAL` deduplicates *within* a shard, so the read returns it twice and every
-/// count is wrong. Behind a fixed endpoint the whole cluster's data goes to one node, which reads as a
-/// mysteriously slow cluster rather than as a misconfiguration.
-///
-/// Reads already go through the distributed table and deletes are `_local` with `ON CLUSTER`, which is
-/// correct - a mutation has to run where the parts are. Only the insert was wrong.
+/// Its sharding expression places every project consistently. Writing to `_local` would bypass routing,
+/// allowing duplicate revisions on different shards behind a load balancer or concentrating all data on one
+/// node behind a fixed endpoint. Reads use the distributed table; mutations use `_local` with `ON CLUSTER`.
 pub fn get_insert_table(_config: &ClickhouseConfig, base_name: &str) -> String {
     base_name.to_string()
 }
@@ -1620,13 +1610,10 @@ mod tests {
 
     /// Every placeholder a migration uses is one the runner substitutes.
     ///
-    /// A statement carrying an unknown `{...}` reaches ClickHouse verbatim and fails at a user's
-    /// upgrade, which is the least useful moment to learn about a typo.
+    /// Unknown placeholders would reach ClickHouse verbatim, so migration SQL is checked before deployment.
     #[test]
     fn migrations_use_only_known_placeholders() {
-        // Must match the substitutions `apply_versioned_migration` performs. A placeholder it does not
-        // know survives into the SQL as a literal brace, which ClickHouse then rejects at the point the
-        // migration runs - on a real database, not here.
+        // Must match the substitutions `apply_versioned_migration` performs.
         const KNOWN: [&str; 6] = [
             "{on_cluster}",
             "{local}",
