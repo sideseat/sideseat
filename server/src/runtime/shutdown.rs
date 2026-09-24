@@ -1,4 +1,4 @@
-//! Centralized shutdown management
+//! Centralized shutdown management.
 
 use std::sync::Arc;
 use std::time::Duration;
@@ -10,7 +10,7 @@ use crate::app::storage::{AnalyticsService, TransactionalService};
 use sideseat_core::constants::SHUTDOWN_TIMEOUT_SECS;
 use sideseat_messaging::TopicService;
 
-/// Centralized shutdown service for coordinating graceful shutdown
+/// Coordinates graceful shutdown across background tasks and storage backends.
 #[derive(Clone)]
 pub struct ShutdownService {
     tx: Arc<watch::Sender<bool>>,
@@ -38,27 +38,27 @@ impl ShutdownService {
         }
     }
 
-    /// Register a background task handle to be awaited during shutdown
+    /// Register a background task handle to be awaited during shutdown.
     pub async fn register(&self, handle: JoinHandle<()>) {
         self.handles.lock().await.push(handle);
     }
 
-    /// Subscribe to shutdown signal
+    /// Subscribe to the shutdown signal.
     pub fn subscribe(&self) -> watch::Receiver<bool> {
         self.rx.clone()
     }
 
-    /// Trigger shutdown
+    /// Trigger shutdown.
     pub fn trigger(&self) {
         let _ = self.tx.send(true);
     }
 
-    /// Check if shutdown was triggered
+    /// Check whether shutdown was triggered.
     pub fn is_triggered(&self) -> bool {
         *self.rx.borrow()
     }
 
-    /// Trigger shutdown and wait for all registered tasks to complete
+    /// Trigger shutdown and wait for all registered tasks to complete.
     ///
     /// Shutdown order (to prevent data loss):
     /// 1. Signal all tasks to stop accepting new work
@@ -77,18 +77,7 @@ impl ShutdownService {
             "Waiting for background tasks to finish..."
         );
 
-        let timeout = Duration::from_secs(SHUTDOWN_TIMEOUT_SECS);
-        match tokio::time::timeout(timeout, futures::future::join_all(handles)).await {
-            Ok(_) => {
-                tracing::debug!("All background tasks completed");
-            }
-            Err(_) => {
-                tracing::warn!(
-                    timeout_secs = timeout.as_secs(),
-                    "Timeout waiting for background tasks"
-                );
-            }
-        }
+        drain_background_tasks(handles, Duration::from_secs(SHUTDOWN_TIMEOUT_SECS)).await;
 
         // Shutdown topic dispatchers AFTER tasks have finished
         tracing::debug!("Shutting down topic dispatchers...");
@@ -120,8 +109,7 @@ impl ShutdownService {
         tracing::debug!("Shutdown complete");
     }
 
-    /// Wait for shutdown signal (for use with axum graceful shutdown)
-    /// Returns an owned future that can be passed to graceful_shutdown
+    /// Return an owned future that resolves when shutdown is triggered.
     pub fn wait(&self) -> impl std::future::Future<Output = ()> + Send + 'static {
         let mut rx = self.rx.clone();
         async move {
@@ -129,7 +117,7 @@ impl ShutdownService {
         }
     }
 
-    /// Install OS signal handlers and auto-trigger on Ctrl+C/SIGTERM
+    /// Install OS signal handlers and trigger on Ctrl+C or SIGTERM.
     pub fn install_signal_handlers(&self) {
         let service = self.clone();
         tokio::spawn(async move {
@@ -160,10 +148,32 @@ impl ShutdownService {
     }
 }
 
+async fn drain_background_tasks(mut handles: Vec<JoinHandle<()>>, timeout: Duration) {
+    match tokio::time::timeout(timeout, futures::future::join_all(&mut handles)).await {
+        Ok(results) => {
+            for error in results.into_iter().filter_map(Result::err) {
+                tracing::warn!(%error, "Background task exited abnormally");
+            }
+            tracing::debug!("All background tasks completed");
+        }
+        Err(_) => {
+            tracing::warn!(
+                timeout_secs = timeout.as_secs(),
+                "Timeout waiting for background tasks; aborting remaining tasks"
+            );
+            for handle in &handles {
+                handle.abort();
+            }
+            let _ = futures::future::join_all(handles).await;
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use sideseat_core::storage::AppStorage;
+    use std::sync::atomic::{AtomicBool, Ordering};
 
     async fn make_shutdown() -> ShutdownService {
         use sideseat_core::config::{AnalyticsBackend, TransactionalBackend};
@@ -237,5 +247,30 @@ mod tests {
         assert!(!*rx.borrow());
         shutdown.trigger();
         assert!(*rx.borrow());
+    }
+
+    #[tokio::test]
+    async fn timed_out_background_tasks_are_cancelled_before_returning() {
+        struct DropFlag(Arc<AtomicBool>);
+
+        impl Drop for DropFlag {
+            fn drop(&mut self) {
+                self.0.store(true, Ordering::SeqCst);
+            }
+        }
+
+        let dropped = Arc::new(AtomicBool::new(false));
+        let task_dropped = Arc::clone(&dropped);
+        let (started_tx, started_rx) = tokio::sync::oneshot::channel();
+        let handle = tokio::spawn(async move {
+            let _drop_flag = DropFlag(task_dropped);
+            started_tx.send(()).unwrap();
+            std::future::pending::<()>().await;
+        });
+        started_rx.await.unwrap();
+
+        drain_background_tasks(vec![handle], Duration::ZERO).await;
+
+        assert!(dropped.load(Ordering::SeqCst));
     }
 }
