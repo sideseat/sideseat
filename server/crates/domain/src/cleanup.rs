@@ -351,38 +351,10 @@ pub async fn advance_pending_deletions(
                             traces = ids.len(),
                             "Collected traces written for a session that had already been deleted"
                         );
-                        // Tombstone them *before* deleting, and the order is load-bearing, not tidy.
-                        //
-                        // The delete is gated on the tombstone succeeding. Deleting the analytics rows while
-                        // the tombstone write failed removes the data but leaves nothing that remembers the
-                        // trace should stay deleted - so a writer still holding these spans (the exact reason
-                        // this sweep exists) re-commits them, and this time no trace tombstone and no session
-                        // tombstone covers them: the resurrection is permanent. Skipping the delete instead
-                        // leaves the rows for the next sweep, which retries the whole step; the session
-                        // tombstone that brought us here is untouched, so nothing is lost.
-                        //
-                        // And the delete removes **exactly the tombstoned `ids`**, not the session's current
-                        // membership. `delete_sessions` re-resolves the session to its traces, so a late
-                        // trace B that committed between the resolution above and the delete would be deleted
-                        // without a tombstone - and a later child-only delivery for B (carrying no session
-                        // id) then passes every fence and resurrects a headless trace permanently. Deleting
-                        // the snapshot we tombstoned keeps delete and tombstone over the identical set; B is
-                        // simply collected by the next sweep, which re-resolves and tombstones it too.
-                        // Tombstone and journal in **one transaction**, then delete - the same shape the
-                        // deletion routes use, and for the same reason: an ordering leaves a window in whichever
-                        // direction it picks, and both rows live in this store.
-                        //
-                        // This sweep deletes traces the route never saw - they joined the session after its
-                        // resolution - so no journal entry names them, and the session's own entry covers them
-                        // only while the session is still resolvable from restored analytics rows. A restore that
-                        // brings back a trace's child spans without the root that carried the session id would
-                        // otherwise resurrect it with nothing able to explain the absence.
-                        //
-                        // A failure skips the whole step: the rows stay for the next sweep, which re-resolves and
-                        // retries, and the session tombstone that brought us here is untouched. Deleting the
-                        // analytics rows while this write failed would remove the data and leave nothing
-                        // remembering it should stay deleted - so a writer still holding these spans, which is
-                        // the exact reason this sweep exists, re-commits them permanently.
+                        // Journal and tombstone this exact snapshot before deleting it. Re-resolving the session
+                        // during deletion could include a newer trace that has no trace tombstone; deleting after
+                        // a failed transactional write would leave no durable evidence for any of these traces.
+                        // On failure the rows remain for the next session sweep.
                         match repo
                             .record_deleted_traces_journalled(&project_id, &ids)
                             .await
@@ -405,9 +377,8 @@ pub async fn advance_pending_deletions(
                                 );
                             }
                         }
-                        // Not quiet either way: on success something was found, on failure the work is still
-                        // pending - both mean look again at the base interval rather than backing off. The trace
-                        // records now carry the file reconciliation, which is why this does not do it here.
+                        // Finding rows or failing to record their deletion both keep the check at its base rate.
+                        // Trace residuals own subsequent file reconciliation.
                         false
                     }
                     Err(e) => {
@@ -749,23 +720,14 @@ async fn invalidate_org_api_key_caches(
 mod tombstone_ordering_tests {
     /// The late-session sweep must not delete analytics rows unless their trace tombstone was recorded.
     ///
-    /// The invariant, and why it cannot be a behavioural test here: `advance_pending_deletions` takes the
-    /// concrete service enums, not trait objects, so there is no seam to inject a failing
-    /// `record_deleted_traces` without standing up a fault-injecting database. What the test *can* pin is
-    /// the shape the correctness rests on - `delete_sessions` reachable only through the `Ok` arm of
-    /// `record_deleted_traces`. Move it out of that arm, and a tombstone-write failure deletes the data with
-    /// nothing left to remember it should stay gone; a writer still holding those spans then resurrects them
-    /// permanently, since neither a trace nor a session tombstone now covers them.
-    ///
-    /// Structural, by reading this file, because that regression compiles and passes every other test.
+    /// This source-shape guard pins `delete_traces` inside the successful
+    /// `record_deleted_traces_journalled` arm. The composite repository trait has no narrow fault-injection
+    /// implementation for this orchestration test, while moving the delete outside that arm still compiles.
     #[test]
     fn a_late_session_delete_is_gated_on_its_trace_tombstone() {
         let source = include_str!("cleanup.rs");
 
-        // The window starts at the **top of the late-session block**, not at the record call, and that
-        // distinction is the whole strength of this test. Anchored at the record call, a delete placed *before*
-        // it sat outside the window and was invisible - so an unconditional early delete passed, which is the
-        // exact regression. Verified by mutation: it did pass, until the window was widened.
+        // Start at the late-session branch so an unconditional delete before the journal call is visible.
         let block_start = source
             .find("\"Collected traces written for a session that had already been deleted\"")
             .expect("the late-session block's log line has moved; re-anchor this test");
@@ -789,9 +751,7 @@ mod tombstone_ordering_tests {
             .expect("the record match should have an Err arm that skips the delete");
         let needle = "delete_traces(&project_id, &ids)";
 
-        // Exactly one delete, not merely one inside the Ok arm: an *additional* unguarded delete after the
-        // match is the precise regression, and a test that only confirms a guarded one exists would pass
-        // beside it. Verified - the weaker form did.
+        // Exactly one delete prevents an additional unguarded call before or after the match.
         let deletes: Vec<usize> = window.match_indices(needle).map(|(i, _)| i).collect();
         assert_eq!(
             deletes.len(),
