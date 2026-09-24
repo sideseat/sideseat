@@ -773,6 +773,7 @@ impl ClickhouseService {
         Some(tokio::spawn(async move {
             // ClickHouse handles TTL natively, but we may want manual cleanup for count-based limits
             let mut interval = tokio::time::interval(Duration::from_secs(3600)); // hourly
+            interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
 
             // Pre-compute table name and ON CLUSTER clause for retention cleanup
             let delete_table = service.delete_table("otel_spans");
@@ -783,8 +784,8 @@ impl ClickhouseService {
             loop {
                 tokio::select! {
                     biased;
-                    _ = shutdown_rx.changed() => {
-                        if *shutdown_rx.borrow() {
+                    changed = shutdown_rx.changed() => {
+                        if changed.is_err() || *shutdown_rx.borrow() {
                             tracing::debug!("ClickHouse retention task shutting down");
                             break;
                         }
@@ -920,7 +921,9 @@ impl ClickhouseService {
                                     // so it participates in the same legal-hold fence as hold patching.
                                     let now = service.clock.now();
                                     let cutoff = now
-                                        - chrono::Duration::minutes(max_age_minutes as i64);
+                                        - chrono::Duration::minutes(
+                                            i64::try_from(max_age_minutes).unwrap_or(i64::MAX),
+                                        );
                                     let client = service.tenant_client(&project_id);
                                     if let Err(error) = retention::run_retention(
                                         &client,
