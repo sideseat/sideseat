@@ -97,6 +97,8 @@ cli-bin = $(CLI_DIR)/platforms/platform-$(1)/$(BIN_NAME_$(1))
 .PHONY: setup update-python-deps setup-hooks
 .PHONY: dev dev-server dev-web
 .PHONY: fmt fmt-check lint lint-advisory check
+.PHONY: fmt-check-python lint-python
+.PHONY: harden harden-supply harden-spec
 .PHONY: secret-scan-tree secret-scan-staged secret-scan-range
 .PHONY: test test-rust test-server test-clickhouse test-clickhouse-replicated test-clickhouse-two-shard test-postgres test-redis test-redpanda test-backup-restore bench-http bench-http-distributed footprint test-web test-sdk-js test-sdk-python coverage
 .PHONY: build build-web build-server
@@ -275,12 +277,8 @@ check: fmt-check lint test ## Run formatting, lint, and test gates
 # explicit skips; CI runs the blocking equivalents.
 # =============================================================================
 
-.PHONY: harden harden-supply harden-spec
-
 # Python source roots covered by the shared format and lint gates.
 PYTHON_CHECKED := sdk/python examples/python scripts tools
-
-.PHONY: fmt-check-python lint-python
 
 fmt-check-python:
 	@uv run --locked ruff format --check $(PYTHON_CHECKED)
