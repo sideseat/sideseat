@@ -2626,9 +2626,7 @@ pub fn process_request_for_test_with_mode(
 
 /// What became of one request in the CPU phase.
 ///
-/// `Option` conflated two outcomes that need opposite handling, and the conflation was live: a request
-/// with no spans is perfectly normal, and treating it as a panic made its batch refuse itself forever.
-/// A panic must refuse the batch; nothing to do must not.
+/// Distinguishes a normal empty request from a panic: only the panic makes the batch unsafe to acknowledge.
 enum Prepared {
     /// Spans ready to persist, with the files they reference and any references that arrived formed.
     Ready(
@@ -2644,18 +2642,13 @@ enum Prepared {
 
 /// Group requests into consecutive waves whose summed decoded size stays under the in-flight budget.
 ///
-/// Two bounds per wave, and both are needed. The **byte** bound is the point: peak CPU-phase memory used to be
-/// "one worker per core, each expanding its own request", so the host's core count decided the multiplier on
-/// the largest request in the batch, and a bound expressed in threads bounds nothing about memory. The
-/// **count** bound keeps a wave from exceeding the available parallelism, which would spawn threads with
-/// nothing to run on.
+/// The byte bound caps concurrent expansion independently of host CPU count. The count bound keeps a wave
+/// within the available parallelism.
 ///
 /// Order is preserved: waves are consecutive slices of `requests`, so the results concatenate in request
 /// order, which the cardinality check downstream relies on.
 ///
-/// A request larger than the whole budget forms a wave of one rather than being refused. Refusing here would
-/// discard a valid export that the byte-budgeted admission at the edge already accepted - and the alternative
-/// to processing it is losing it.
+/// A request larger than the whole budget forms a wave of one because edge admission already accepted it.
 fn byte_bounded_waves(
     requests: &[ExportTraceServiceRequest],
     max_per_wave: usize,
@@ -2669,8 +2662,7 @@ fn byte_bounded_waves(
         let size = request.encoded_len() as u64;
         let would_be = wave_bytes.saturating_add(size);
         let full_by_count = index - wave_start >= max_per_wave;
-        // `index > wave_start` guards the single-oversized-request case: with an empty wave there is nothing
-        // to flush, and closing it here would emit a zero-length slice and then never make progress.
+        // An oversized request starts a one-item wave; an empty wave is never emitted.
         let full_by_bytes = index > wave_start && would_be > PIPELINE_CPU_PHASE_MAX_INFLIGHT_BYTES;
 
         if full_by_count || full_by_bytes {
@@ -3657,8 +3649,7 @@ mod fan_out_tests {
 
     /// Large requests are split into waves regardless of how many workers are available.
     ///
-    /// Eight 12 MB requests against a 64 MB budget cannot all be in flight, however many cores the host has -
-    /// which is exactly what the old bound allowed.
+    /// Eight 12 MB requests against a 64 MB budget cannot all be in flight, regardless of host CPU count.
     #[test]
     fn large_requests_are_bounded_by_bytes_not_by_cores() {
         let requests: Vec<_> = (0..8).map(|_| request_of(12 * 1024 * 1024)).collect();
@@ -3678,9 +3669,7 @@ mod fan_out_tests {
 
     /// A request larger than the whole budget is processed alone, not refused and not skipped.
     ///
-    /// The case where a naive "flush when full" loop emits an empty wave and then stops making progress -
-    /// which would silently drop every request after the oversized one, and the batch's cardinality check
-    /// would report it as a panicked worker.
+    /// Oversized input must not create an empty wave or prevent later requests from being partitioned.
     #[test]
     fn a_single_oversized_request_forms_its_own_wave() {
         let oversized = (PIPELINE_CPU_PHASE_MAX_INFLIGHT_BYTES as usize) * 2;
@@ -3701,9 +3690,7 @@ mod fan_out_tests {
 
     /// Every request appears once, in order, for any batch shape and worker count.
     ///
-    /// The results are concatenated wave by wave and the batch checks its own cardinality, so a partitioner
-    /// that dropped, duplicated or reordered a request would surface as a refused batch rather than as an
-    /// obvious bug.
+    /// Results are concatenated wave by wave, so partition order is part of the batch contract.
     #[test]
     fn the_waves_partition_the_batch_in_order() {
         for count in [0usize, 1, 3, 8, 17] {
