@@ -1,4 +1,4 @@
-//! File utility functions
+//! File utility functions.
 
 use std::path::PathBuf;
 
@@ -39,7 +39,6 @@ pub fn expand_path(path: &str) -> PathBuf {
         return std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
     }
 
-    // Handle tilde expansion (Unix convention, also works on Windows with dirs crate)
     let expanded = if path == "~" {
         dirs::home_dir().unwrap_or_else(|| PathBuf::from(path))
     } else if let Some(rest) = path.strip_prefix("~/") {
@@ -52,8 +51,6 @@ pub fn expand_path(path: &str) -> PathBuf {
         PathBuf::from(path)
     };
 
-    // Convert relative paths to absolute using current working directory
-    // This handles: ".", "..", "./foo", "../foo", "foo" (bare name)
     if expanded.is_relative() {
         std::env::current_dir()
             .map(|cwd| cwd.join(&expanded))
@@ -67,160 +64,57 @@ pub fn expand_path(path: &str) -> PathBuf {
 mod tests {
     use super::*;
 
+    #[cfg(unix)]
     #[test]
-    fn test_expand_path_absolute_unix() {
-        // Absolute Unix paths should remain unchanged
-        let result = expand_path("/absolute/path");
-        assert_eq!(result, PathBuf::from("/absolute/path"));
+    fn absolute_unix_path_is_unchanged() {
+        assert_eq!(
+            expand_path("  /absolute/path  "),
+            PathBuf::from("/absolute/path")
+        );
     }
 
     #[cfg(windows)]
     #[test]
-    fn test_expand_path_absolute_windows() {
-        // Absolute Windows paths should remain unchanged
-        // The placeholder account name, not `test`: the privacy sweep reads every tracked file for the shape
-        // of a home directory, and it cannot tell an example apart from a capture.
-        let result = expand_path("C:\\Users\\sideseat");
-        assert_eq!(result, PathBuf::from("C:\\Users\\sideseat"));
-
-        let result = expand_path("D:\\data");
-        assert_eq!(result, PathBuf::from("D:\\data"));
-    }
-
-    #[test]
-    fn test_expand_path_relative_dot() {
-        // "." should expand to an absolute path containing current directory
-        let result = expand_path(".");
-        assert!(result.is_absolute(), ". should become absolute");
-        // Result should be cwd/. which is a valid absolute path
-        assert!(
-            result.to_string_lossy().ends_with("/.") || result.to_string_lossy().ends_with("\\."),
-            "Result should end with '/.' or '\\.': {:?}",
-            result
-        );
-    }
-
-    #[test]
-    fn test_expand_path_relative_dotdot() {
-        // ".." should expand to parent directory
-        let result = expand_path("..");
-        assert!(result.is_absolute(), ".. should become absolute");
-        let cwd = std::env::current_dir().unwrap();
-        assert_eq!(result, cwd.join(".."));
-    }
-
-    #[test]
-    fn test_expand_path_relative_dot_slash() {
-        // "./relative" should expand to current directory + relative
-        let result = expand_path("./relative");
-        assert!(result.is_absolute(), "./relative should become absolute");
-        assert!(result.ends_with("relative"));
-    }
-
-    #[test]
-    fn test_expand_path_relative_dotdot_slash() {
-        // "../config" should expand to parent directory + config
-        let result = expand_path("../config");
-        assert!(result.is_absolute(), "../config should become absolute");
-        assert!(result.to_string_lossy().contains("config"));
-    }
-
-    #[test]
-    fn test_expand_path_bare_name() {
-        // Bare name "mydata" should expand to current directory + mydata
-        let result = expand_path("mydata");
-        assert!(result.is_absolute(), "Bare name should become absolute");
-        assert!(result.ends_with("mydata"));
-    }
-
-    #[test]
-    fn test_expand_path_bare_name_with_extension() {
-        // Bare name with extension
-        let result = expand_path("data.db");
-        assert!(result.is_absolute());
-        assert!(result.ends_with("data.db"));
-    }
-
-    #[test]
-    fn test_expand_path_tilde() {
-        // "~/.sideseat" should expand to home directory
-        let result = expand_path("~/.sideseat");
-        assert!(result.is_absolute(), "Tilde path should become absolute");
-        assert!(
-            !result.to_string_lossy().contains('~'),
-            "Tilde should be expanded"
-        );
-        assert!(result.ends_with(".sideseat"));
-    }
-
-    #[test]
-    fn test_expand_path_tilde_only() {
-        // Just tilde should expand to home directory
-        let result = expand_path("~");
-        assert!(result.is_absolute());
-        assert!(!result.to_string_lossy().contains('~'));
-
-        // Should match home directory
-        if let Some(home) = dirs::home_dir() {
-            assert_eq!(result, home);
+    fn absolute_windows_paths_are_unchanged() {
+        for path in ["C:\\Users\\sideseat", "D:\\data"] {
+            assert_eq!(expand_path(path), PathBuf::from(path));
         }
     }
 
     #[test]
-    fn test_expand_path_tilde_nested() {
-        // Nested tilde path
-        let result = expand_path("~/path/to/data");
-        assert!(result.is_absolute());
-        assert!(result.ends_with("path/to/data") || result.ends_with("path\\to\\data"));
+    fn relative_paths_are_rooted_at_the_current_directory() {
+        let cwd = std::env::current_dir().unwrap();
+        for path in [
+            ".",
+            "..",
+            "./relative",
+            "../config",
+            "mydata",
+            "data.db",
+            "./foo/../bar/./baz",
+            "data/traces",
+        ] {
+            assert_eq!(expand_path(path), cwd.join(path), "{path}");
+        }
     }
 
     #[test]
-    fn test_expand_path_dot_sideseat() {
-        // Common use case: ./.sideseat should become absolute
-        let result = expand_path("./.sideseat");
-        assert!(result.is_absolute(), "./.sideseat should become absolute");
-        assert!(result.ends_with(".sideseat"));
+    fn tilde_paths_are_rooted_at_the_home_directory() {
+        if let Some(home) = dirs::home_dir() {
+            assert_eq!(expand_path("~"), home);
+            assert_eq!(expand_path("~/.sideseat"), home.join(".sideseat"));
+            assert_eq!(
+                expand_path("~/path/to/data"),
+                home.join("path").join("to").join("data")
+            );
+        }
     }
 
     #[test]
-    fn test_expand_path_trims_whitespace() {
-        // Whitespace should be trimmed
-        let result = expand_path("  /path/to/dir  ");
-        assert_eq!(result, PathBuf::from("/path/to/dir"));
-    }
-
-    #[test]
-    fn test_expand_path_empty_string() {
-        // Empty string should return current directory
-        let result = expand_path("");
-        assert!(result.is_absolute());
-        // Just verify it's a valid absolute path
-        assert!(!result.as_os_str().is_empty());
-    }
-
-    #[test]
-    fn test_expand_path_whitespace_only() {
-        // Whitespace-only should return current directory
-        let result = expand_path("   ");
-        assert!(result.is_absolute());
-        // Just verify it's a valid absolute path
-        assert!(!result.as_os_str().is_empty());
-    }
-
-    #[test]
-    fn test_expand_path_complex_relative() {
-        // Complex relative path
-        let result = expand_path("./foo/../bar/./baz");
-        assert!(result.is_absolute());
-        // The path components are preserved (not canonicalized)
-        assert!(result.to_string_lossy().contains("bar"));
-    }
-
-    #[test]
-    fn test_expand_path_preserves_structure() {
-        // Verify path structure is preserved for relative paths
-        let result = expand_path("data/traces");
-        assert!(result.is_absolute());
-        assert!(result.ends_with("data/traces") || result.ends_with("data\\traces"));
+    fn empty_and_whitespace_paths_resolve_to_the_current_directory() {
+        let cwd = std::env::current_dir().unwrap();
+        assert_eq!(expand_path(""), cwd);
+        assert_eq!(expand_path("   "), cwd);
+        assert_eq!(expand_path("  data  "), cwd.join("data"));
     }
 }
