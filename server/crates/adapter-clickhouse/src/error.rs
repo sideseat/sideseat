@@ -27,10 +27,8 @@ pub enum ClickhouseError {
 
 /// This adapter's error, as the port's error.
 ///
-/// **Here rather than beside `DataError`.** The conversion used to live in `data::error`, which made the port's
-/// error type name every adapter - the dependency exactly inverted, and enough on its own to stop `ports` being
-/// a crate. An adapter knows the port it implements; the port must not know its implementations. The orphan rule
-/// allows only these two homes, and this is the one that points the right way.
+/// The conversion belongs to the adapter: an adapter knows the port it implements, while the port must not
+/// depend on concrete implementations.
 impl From<ClickhouseError> for DataError {
     fn from(e: ClickhouseError) -> Self {
         match e {

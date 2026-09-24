@@ -24,10 +24,8 @@ pub enum SqliteError {
 
 /// This adapter's error, as the port's error.
 ///
-/// **Here rather than beside `DataError`.** The conversion used to live in `data::error`, which made the port's
-/// error type name every adapter - the dependency exactly inverted, and enough on its own to stop `ports` being
-/// a crate. An adapter knows the port it implements; the port must not know its implementations. The orphan rule
-/// allows only these two homes, and this is the one that points the right way.
+/// The conversion belongs to the adapter: an adapter knows the port it implements, while the port must not
+/// depend on concrete implementations.
 impl From<SqliteError> for DataError {
     fn from(e: SqliteError) -> Self {
         match e {
@@ -94,11 +92,6 @@ mod tests {
 }
 
 /// A pool failure is transient and a query failure is not, and the **source chain survives**.
-///
-/// Both halves were unguarded. The transience verdict moved out of `DataError` and into this adapter, so
-/// flipping it here would have changed retry behaviour with nothing failing; and the driver's error used to
-/// be reachable through `Error::source()` via `#[from]`, which a bare message would have severed - a
-/// reporter walking the chain silently getting `None`.
 #[cfg(test)]
 mod port_error_tests {
     use super::*;
