@@ -825,13 +825,16 @@ impl SideSeat {
     /// `SIDESEAT_ENDPOINT` (default: `http://localhost:5388`) and
     /// `SIDESEAT_PROJECT_ID` (default: `default`).
     pub fn new() -> Self {
+        Self::from_environment(crate::env::optional)
+    }
+
+    fn from_environment(mut read: impl FnMut(&str) -> Option<String>) -> Self {
         Self {
-            endpoint: crate::env::optional_or(
-                crate::env::keys::SIDESEAT_ENDPOINT,
-                "http://localhost:5388",
-            ),
-            project_id: crate::env::optional_or(crate::env::keys::SIDESEAT_PROJECT_ID, "default"),
-            api_key: crate::env::optional(crate::env::keys::SIDESEAT_API_KEY),
+            endpoint: read(crate::env::keys::SIDESEAT_ENDPOINT)
+                .unwrap_or_else(|| "http://localhost:5388".to_string()),
+            project_id: read(crate::env::keys::SIDESEAT_PROJECT_ID)
+                .unwrap_or_else(|| "default".to_string()),
+            api_key: read(crate::env::keys::SIDESEAT_API_KEY),
             capture_content: false,
         }
     }
@@ -961,5 +964,29 @@ impl Drop for SideSeatGuard {
         if let Err(e) = self.meter_provider.shutdown() {
             tracing::warn!("OTel meter provider shutdown failed: {e}");
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::SideSeat;
+    use crate::env::keys;
+
+    #[test]
+    fn sideseat_reads_defaults_and_environment_values() {
+        let defaults = SideSeat::from_environment(|_| None);
+        assert_eq!(defaults.endpoint, "http://localhost:5388");
+        assert_eq!(defaults.project_id, "default");
+        assert_eq!(defaults.api_key, None);
+
+        let configured = SideSeat::from_environment(|name| match name {
+            keys::SIDESEAT_ENDPOINT => Some("http://test:9999".to_string()),
+            keys::SIDESEAT_PROJECT_ID => Some("from-env".to_string()),
+            keys::SIDESEAT_API_KEY => Some("test-key".to_string()),
+            _ => None,
+        });
+        assert_eq!(configured.endpoint, "http://test:9999");
+        assert_eq!(configured.project_id, "from-env");
+        assert_eq!(configured.api_key.as_deref(), Some("test-key"));
     }
 }

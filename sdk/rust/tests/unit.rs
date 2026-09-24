@@ -1,7 +1,3 @@
-// env::set_var/remove_var are unsafe as of Rust 2024 and have no safe equivalent.
-// This is a single-threaded test binary and each test restores what it changes.
-#![allow(unsafe_code)]
-
 /// Unit tests — no API keys required. All tests use MockProvider.
 use std::collections::HashMap;
 
@@ -1366,38 +1362,6 @@ async fn instrumented_complete_propagates_error() {
         .await
         .unwrap_err();
     assert!(matches!(err, ProviderError::Auth(_)));
-}
-
-/// Defaults and env overrides, in one test on purpose.
-///
-/// These were two tests, each claiming in a comment that the binary is single-threaded. It is
-/// not: cargo's harness runs tests on a thread pool, so one test's `set_var` raced the other's
-/// `remove_var` and the defaults assertion failed intermittently. Process environment is global
-/// state, and the only way to assert on it without a lock is not to interleave.
-#[test]
-fn sideseat_reads_endpoint_and_project_from_env() {
-    // Safety: the only test that touches these variables, so no other thread reads or writes
-    // them concurrently.
-    unsafe {
-        std::env::remove_var("SIDESEAT_ENDPOINT");
-        std::env::remove_var("SIDESEAT_PROJECT_ID");
-    }
-    let s = SideSeat::new();
-    assert_eq!(s.endpoint, "http://localhost:5388");
-    assert_eq!(s.project_id, "default");
-
-    unsafe {
-        std::env::set_var("SIDESEAT_ENDPOINT", "http://test:9999");
-        std::env::set_var("SIDESEAT_PROJECT_ID", "from-env");
-    }
-    let s = SideSeat::new();
-    assert_eq!(s.endpoint, "http://test:9999");
-    assert_eq!(s.project_id, "from-env");
-
-    unsafe {
-        std::env::remove_var("SIDESEAT_ENDPOINT");
-        std::env::remove_var("SIDESEAT_PROJECT_ID");
-    }
 }
 
 #[test]
