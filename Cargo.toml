@@ -41,10 +41,9 @@ rust-version = "1.94.1"
 # opt-in below so the blocking gate stays actionable.
 # ---------------------------------------------------------------------------
 [workspace.lints.rust]
-# Removes memory-unsafety as a class from shipped code. `deny` rather than `forbid`
-# because the test modules need a documented, local override: Rust 2024 made
-# env::set_var/remove_var unsafe, and there is no safe equivalent for a test that has to
-# set an env var. Non-test code has zero unsafe blocks and this keeps it that way.
+# Requires unsafe code to opt in at a documented module boundary. `deny` rather than
+# `forbid` permits the counting allocator's `GlobalAlloc` delegation and tests that must
+# mutate the process environment under Rust 2024. Unsafe code elsewhere fails the lint.
 unsafe_code = "deny"
 dead_code = "deny"
 unused_imports = "deny"
