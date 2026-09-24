@@ -27,6 +27,8 @@ use sideseat_core::config::RedpandaConfig;
 use sideseat_ports::queue::{
     BroadcastSubscription, StreamMessage, StreamStats, StreamSubscription, TopicBackend, TopicError,
 };
+use tokio::sync::watch;
+use tokio::task::JoinHandle;
 
 use crate::ack_window::AckWindow;
 
@@ -70,6 +72,8 @@ pub struct RedpandaTopicBackend {
     pending_timestamps: Arc<DashMap<(PartitionKey, u64), i64>>,
     retention_risk: Arc<AtomicBool>,
     monitor_started: AtomicBool,
+    monitor_shutdown: watch::Sender<bool>,
+    monitor_handle: Mutex<Option<JoinHandle<()>>>,
 }
 
 impl RedpandaTopicBackend {
@@ -92,6 +96,7 @@ impl RedpandaTopicBackend {
             .client()
             .fetch_metadata(None, CLIENT_TIMEOUT)
             .map_err(|error| TopicError::Connection(error.to_string()))?;
+        let (monitor_shutdown, _) = watch::channel(false);
 
         Ok(Self {
             brokers: config.brokers.clone(),
@@ -107,6 +112,8 @@ impl RedpandaTopicBackend {
             pending_timestamps: Arc::new(DashMap::new()),
             retention_risk: Arc::new(AtomicBool::new(false)),
             monitor_started: AtomicBool::new(false),
+            monitor_shutdown,
+            monitor_handle: Mutex::new(None),
         })
     }
 
@@ -165,57 +172,80 @@ impl RedpandaTopicBackend {
         if self.monitor_started.swap(true, Ordering::AcqRel) {
             return;
         }
+        let mut monitor_handle = self.monitor_handle.lock();
         let pending = Arc::clone(&self.pending_timestamps);
         let consumers = Arc::clone(&self.consumers);
         let risk = Arc::clone(&self.retention_risk);
         let retention_ms = self.retention_ms;
         let warning_ms = self.retention_warning_ms;
-        tokio::spawn(async move {
+        let mut shutdown_rx = self.monitor_shutdown.subscribe();
+        let handle = tokio::spawn(async move {
+            if *shutdown_rx.borrow() {
+                return;
+            }
             let mut interval = tokio::time::interval(RETENTION_MONITOR_INTERVAL);
+            interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
             loop {
-                interval.tick().await;
-                let now = unix_millis();
-                let oldest_age = pending
-                    .iter()
-                    .map(|entry| now.saturating_sub(*entry.value()).max(0) as u64)
-                    .max()
-                    .unwrap_or(0);
-                let threshold_age = retention_ms.saturating_sub(warning_ms);
-                let consumer_snapshot: Vec<_> = consumers
-                    .iter()
-                    .map(|entry| {
-                        (
-                            entry.key().0.clone(),
-                            entry.key().1.clone(),
-                            Arc::clone(entry.value()),
-                        )
-                    })
-                    .collect();
-                let broker_risk = consumer_snapshot.iter().any(|(topic, group, consumer)| {
-                    match consumer_retention_risk(consumer, topic, threshold_age) {
-                        Ok(value) => value,
-                        Err(error) => {
-                            tracing::error!(
-                                topic,
-                                group,
-                                %error,
-                                "failed to measure RedPanda consumer lag against retention"
-                            );
-                            true
+                tokio::select! {
+                    biased;
+                    changed = shutdown_rx.changed() => {
+                        if changed.is_err() || *shutdown_rx.borrow() {
+                            break;
                         }
                     }
-                });
-                let at_risk = oldest_age >= threshold_age || broker_risk;
-                risk.store(at_risk, Ordering::Release);
-                if at_risk {
-                    tracing::error!(
-                        oldest_pending_ms = oldest_age,
-                        retention_ms,
-                        "RedPanda consumer lag is approaching topic retention"
-                    );
+                    _ = interval.tick() => {
+                        let now = unix_millis();
+                        let oldest_age = pending
+                            .iter()
+                            .map(|entry| now.saturating_sub(*entry.value()).max(0) as u64)
+                            .max()
+                            .unwrap_or(0);
+                        let threshold_age = retention_ms.saturating_sub(warning_ms);
+                        let consumer_snapshot: Vec<_> = consumers
+                            .iter()
+                            .map(|entry| {
+                                (
+                                    entry.key().0.clone(),
+                                    entry.key().1.clone(),
+                                    Arc::clone(entry.value()),
+                                )
+                            })
+                            .collect();
+                        let broker_risk = tokio::task::spawn_blocking(move || {
+                            consumer_snapshot.iter().any(|(topic, group, consumer)| {
+                                match consumer_retention_risk(consumer, topic, threshold_age) {
+                                    Ok(value) => value,
+                                    Err(error) => {
+                                        tracing::error!(
+                                            topic,
+                                            group,
+                                            %error,
+                                            "failed to measure RedPanda consumer lag against retention"
+                                        );
+                                        true
+                                    }
+                                }
+                            })
+                        })
+                        .await
+                        .unwrap_or_else(|error| {
+                            tracing::error!(%error, "RedPanda retention monitor worker failed");
+                            true
+                        });
+                        let at_risk = oldest_age >= threshold_age || broker_risk;
+                        risk.store(at_risk, Ordering::Release);
+                        if at_risk {
+                            tracing::error!(
+                                oldest_pending_ms = oldest_age,
+                                retention_ms,
+                                "RedPanda consumer lag is approaching topic retention"
+                            );
+                        }
+                    }
                 }
             }
         });
+        *monitor_handle = Some(handle);
     }
 
     async fn produce(&self, topic: &str, key: &str, payload: &[u8]) -> Result<String, TopicError> {
@@ -494,6 +524,16 @@ impl TopicBackend for RedpandaTopicBackend {
             ));
         }
         Ok(())
+    }
+
+    async fn shutdown(&self) {
+        let _ = self.monitor_shutdown.send(true);
+        let handle = self.monitor_handle.lock().take();
+        if let Some(handle) = handle
+            && let Err(error) = handle.await
+        {
+            tracing::warn!(%error, "RedPanda retention monitor stopped unexpectedly");
+        }
     }
 
     fn backend_name(&self) -> &'static str {
