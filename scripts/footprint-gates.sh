@@ -66,10 +66,7 @@ REQUEST_TIMEOUT_SECS="${FOOTPRINT_REQUEST_TIMEOUT_SECS:-30}"
 SHUTDOWN_GRACE_SECS="${FOOTPRINT_SHUTDOWN_GRACE_SECS:-15}"
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-CARGO_TARGET_DIR="${CARGO_TARGET_DIR:-$ROOT/target}"
-if [[ "$CARGO_TARGET_DIR" != /* ]]; then
-  CARGO_TARGET_DIR="$ROOT/$CARGO_TARGET_DIR"
-fi
+CARGO_TARGET_DIR="$(bash "$ROOT/scripts/cargo-target-dir.sh")"
 export CARGO_TARGET_DIR
 WORK="$(mktemp -d)"
 SERVER_PID=""

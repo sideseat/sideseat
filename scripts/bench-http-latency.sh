@@ -45,10 +45,7 @@ CURL_MAX_TIME="${BENCH_CURL_MAX_TIME:-30}"
 # 8-concurrent read is the deliberate concurrency measurement, and it keeps no gap.
 GAP_MS="${BENCH_GAP_MS:-25}"
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-CARGO_TARGET_DIR="${CARGO_TARGET_DIR:-$ROOT/target}"
-if [[ "$CARGO_TARGET_DIR" != /* ]]; then
-  CARGO_TARGET_DIR="$ROOT/$CARGO_TARGET_DIR"
-fi
+CARGO_TARGET_DIR="$(bash "$ROOT/scripts/cargo-target-dir.sh")"
 export CARGO_TARGET_DIR
 WORK="$(mktemp -d)"
 DOCKER_SCOPE="$(printf '%s' "$ROOT" | cksum | awk '{print $1}')"

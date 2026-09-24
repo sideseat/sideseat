@@ -20,6 +20,8 @@ docker info >/dev/null 2>&1 || {
 }
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+CARGO_TARGET_DIR="$(bash "$repo_root/scripts/cargo-target-dir.sh")"
+export CARGO_TARGET_DIR
 containers=()
 networks=()
 
