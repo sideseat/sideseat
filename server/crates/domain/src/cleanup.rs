@@ -601,8 +601,8 @@ pub fn start_claim_recovery_task(
         loop {
             tokio::select! {
                 biased;
-                _ = shutdown_rx.changed() => {
-                    if *shutdown_rx.borrow() {
+                changed = shutdown_rx.changed() => {
+                    if changed.is_err() || *shutdown_rx.borrow() {
                         tracing::debug!("Claim recovery task shutting down");
                         break;
                     }
