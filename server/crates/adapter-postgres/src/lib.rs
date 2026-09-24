@@ -318,7 +318,7 @@ impl PostgresService {
         tracing::debug!("PostgreSQL pool closed");
     }
 
-    /// Start a background health check task (optional for PostgreSQL)
+    /// Start the periodic PostgreSQL connection health check.
     pub fn start_health_check_task(
         self: &Arc<Self>,
         mut shutdown_rx: watch::Receiver<bool>,
@@ -326,11 +326,12 @@ impl PostgresService {
         let db = Arc::clone(self);
         tokio::spawn(async move {
             let mut interval = tokio::time::interval(Duration::from_secs(60));
+            interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
             loop {
                 tokio::select! {
                     biased;
-                    _ = shutdown_rx.changed() => {
-                        if *shutdown_rx.borrow() {
+                    changed = shutdown_rx.changed() => {
+                        if changed.is_err() || *shutdown_rx.borrow() {
                             tracing::debug!("PostgreSQL health check task shutting down");
                             break;
                         }
