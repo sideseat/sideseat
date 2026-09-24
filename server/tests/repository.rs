@@ -1627,14 +1627,8 @@ fn every_uv_project_requires_the_same_resolver() {
 
 /// The repository's Node requirement is stated identically everywhere it is stated.
 ///
-/// It appears in four places — the Makefile header, `make help`, the `setup` prerequisite check and
-/// `CONTRIBUTING.md` — and each time it changed, one of them was missed: `make help` said "20+" for a whole
-/// pass after the others were corrected, and a *fifth* place (the JavaScript samples) said "20+" for
-/// two. A prerequisite that is wrong in one place is worse than one that is absent, because the reader who
-/// finds it stops looking.
-///
-/// Scoped to the repository-wide floor: `examples/javascript` states its own, looser range on purpose, since
-/// that suite is installable on its own. What is pinned is that the repository's number has one value.
+/// The repository-wide floor may appear in tooling and contributor documentation, but every occurrence must
+/// carry one value. Independently installable examples may declare a looser package-specific range.
 #[test]
 fn the_node_requirement_is_stated_once() {
     let repo = repo_root();
@@ -1644,8 +1638,7 @@ fn the_node_requirement_is_stated_once() {
         .output()
         .expect("git is available in a git checkout");
     let mut stated: BTreeMap<String, Vec<String>> = BTreeMap::new();
-    // **Derived from the tree**, not the two files this started with. `examples/javascript/README.md` states
-    // the repository-wide floor as well - a fifth place, invisible to a two-name list, free to drift.
+    // Discover statements from tracked text rather than maintaining a filename list.
     for file in String::from_utf8_lossy(&listing.stdout)
         .lines()
         .filter(|f| !f.starts_with("server/tests/fixtures/"))
@@ -1673,11 +1666,7 @@ fn the_node_requirement_is_stated_once() {
                 let second_end = second
                     .find(|c: char| !c.is_ascii_digit() && c != '.' && c != '+')
                     .unwrap_or(second.len());
-                // A sentence's full stop is not part of the version. `.` has to be *inside* the scan, because
-                // the floor is written `22.22+`, so it is trimmed afterwards - and until it was, a statement
-                // ending in a full stop was invisible: the second version came out as `22+.`, failed the `+`
-                // test, and a whole contradicting claim went unseen. (Phrased without the two-version form on
-                // purpose: this file is scanned too, and an example of the shape would *be* a statement.)
+                // Keep dots inside semantic versions but exclude sentence punctuation.
                 let second = second[..second_end].trim_end_matches('.');
                 if !second.ends_with('+') {
                     continue;
@@ -1710,10 +1699,8 @@ fn the_node_requirement_is_stated_once() {
 
 /// Every relative `$schema` reference in a tracked JSON file resolves.
 ///
-/// The **sixth** instance of the relative-depth class, and the first that no earlier guard could see: nothing
-/// executes a `$schema`, so `deploy/local/sideseat.json` pointed at `../../../config/…` from two levels down
-/// and every check stayed green while an editor silently validated against nothing. A configuration file whose
-/// schema does not load is worse than one with no schema, because the absence of complaints reads as approval.
+/// Editors treat a declared schema as authoritative, so a relative reference must resolve from the JSON file
+/// that declares it.
 #[test]
 fn every_relative_schema_reference_resolves() {
     let repo = repo_root();
@@ -1765,15 +1752,8 @@ fn every_relative_schema_reference_resolves() {
 
 /// Every script that walks up to the repository root actually arrives there.
 ///
-/// This is the **fifth** instance of one class: a file moved to a purpose-named directory keeps counting the
-/// levels its old location had, and nothing fails at the moment of the move. The first four were caught by
-/// running the thing — an embedded asset folder, two `include_str!` paths, thirteen package manifests, the
-/// fixture scripts. The fifth was not: `scripts/bench-http-latency.sh` came from `misc/bench/`, kept `../..`, and
-/// resolved the root to the *parent of the repository* — so `make bench-http`, which is the latency gate,
-/// failed before building anything, and it stayed that way because a benchmark is not part of `make check`.
-///
-/// The claim is evaluated, not read: the level count in the expression is compared against the file's own
-/// depth in the tree. That is exactly the fact a move changes, and the only one a reviewer reliably misses.
+/// Root-walking expressions encode a directory depth that changes when a script moves. The stated level count
+/// is compared with the script's current depth.
 #[test]
 fn every_script_that_locates_the_repository_root_finds_it() {
     let repo = repo_root();
@@ -1791,30 +1771,21 @@ fn every_script_that_locates_the_repository_root_finds_it() {
     let mut wrong: Vec<String> = Vec::new();
     for file in tracked
         .iter()
-        // A **script**, asked of the file rather than of its name: a shebang or a script extension. The
-        // extension allowlist omitted `.githooks/pre-commit` and `.githooks/pre-push`, which are shell scripts
-        // with no extension at all - the same blindness that hid two unlocked commands in `every_resolving_
-        // command_is_locked`, still live in the third scanner after the other two were fixed. Rust is not a
-        // script and its tests legitimately write `let root = …`, so nothing here matches it.
+        // A script is identified by a supported extension or a shebang, which also covers extensionless hooks.
         .filter(|f| {
             [".sh", ".py", ".mjs", ".js", ".ts"]
                 .iter()
                 .any(|ext| f.ends_with(ext))
                 || std::fs::read_to_string(repo.join(f)).is_ok_and(|text| text.starts_with("#!"))
         })
-        // Only the vendored trees, not `examples/` wholesale: that blanket exclusion hid `examples/run-all.sh`,
-        // which resolves the root exactly as the benchmark did. The sample suites themselves resolve their own
-        // content and `.env` directories, not the root, and are named accordingly - so they are not skipped,
-        // they simply do not match.
+        // Exclude only vendored dependency trees; repository-owned examples remain in scope.
         .filter(|f| !f.contains("/.venv/") && !f.contains("/node_modules/"))
     {
         // The file's own depth: `scripts/bench-http-latency.sh` sits one directory below the root.
         let depth = file.matches('/').count();
         let text = std::fs::read_to_string(repo.join(file)).unwrap_or_default();
         for (number, line) in text.lines().enumerate() {
-            // Case-insensitively, and in every scripting language here. Restricted to shell and Python with
-            // an uppercase name, this could not see `scripts/node-floor.mjs` - a file added in the same
-            // commit as the guard, whose `const root = join(dirname(…), "..")` is the identical claim.
+            // Root variable spelling is matched case-insensitively across supported scripting languages.
             let lower = line.to_ascii_lowercase();
             let assigns_root = lower.contains("root=") || lower.contains("root =");
             if !assigns_root {
@@ -1861,14 +1832,8 @@ fn every_script_that_locates_the_repository_root_finds_it() {
 
 /// `CONTRIBUTING.md`'s project structure names every top-level directory, and only real ones.
 ///
-/// It is the first thing a contributor reads, and it is a plain list rather than a tree, so the diagram check
-/// does not see it — which is how it came to claim `server/` held "Cargo.toml, src/, tests/, assets/ — nothing
-/// else" while `proptest-regressions/` sat there tracked, and then a `build.rs` joined it.
-///
-/// **Both directions**, because they fail differently and only one of them is visible to a reader. A named
-/// directory that does not exist sends someone looking for it; an existing directory nobody named is a part of
-/// the repository the introduction denies, which is how a grab-bag starts. Hidden directories are excluded:
-/// `.github/` and `.githooks/` are conventions a contributor already knows, and listing them would say nothing.
+/// Both directions matter: imaginary entries misdirect readers, while omitted directories make the documented
+/// organization incomplete. Hidden convention directories are excluded.
 #[test]
 fn the_documented_project_structure_matches_the_tree() {
     let repo = repo_root();
@@ -1921,10 +1886,7 @@ fn the_documented_project_structure_matches_the_tree() {
         imaginary
     );
 
-    // A line that names any child of its directory has to name **all** of them, because that is what the
-    // reader takes from an enumeration. Comparing top-level names alone left the very claim that motivated
-    // this test unprotected: `server/`'s line inventories its children, and adding a seventh would have
-    // passed. Lines that describe a directory in prose enumerate nothing and so claim nothing.
+    // A line that enumerates any child must enumerate all children; prose-only descriptions claim no inventory.
     let mut inventories: Vec<String> = Vec::new();
     for entry in &documented {
         let Some(line) = block
@@ -1977,24 +1939,8 @@ fn the_documented_project_structure_matches_the_tree() {
 /// Every citation of a Rust module by directory and filename, anywhere in the repository, resolves to a real
 /// file — in prose and in source comments alike.
 ///
-/// The diagram check above covers a map's own drawing; this one covers every path named in **prose**, which no
-/// diagram contains. The two overlap nowhere: a citation is a claim made in a sentence, and there were three
-/// live stale ones — the module this pins is `normalize.rs`, whose former name still exists as a *different*
-/// file under `domain/traces/`, so any check asking only "does this filename exist" saw a match where the
-/// citation was wrong.
-///
-/// A cited path is position-bearing, so it can be checked without parsing any layout: root-anchored whole,
-/// doc-relative against the citing file's directory, otherwise as a **suffix** of a tracked path — where
-/// `sideml/normalize.rs` matches and the stale spelling matches nothing. **Assets as well as modules**: the
-/// rules regrouping moved 43 JSON files, and a check that watched only `.rs` had nothing to say about the
-/// nineteen citations left naming the flat path.
-///
-/// The documents are **derived from the tree**, not listed here, and that is the point rather than tidiness.
-/// The first version of this test named two files; the same stale path was live in the *public* architecture
-/// page and in a source comment, and a hand-kept inventory is exactly the shape that confirms only what its
-/// author already knew. Comments are included because a comment pointing at a moved module misleads the same
-/// way — one did. This file is scanned too: a check that must exempt itself is a hole, so the counter-example
-/// above is phrased not to be a citation.
+/// Citations resolve root-relative, relative to the citing document, or as a unique repository suffix. The
+/// scan is derived from tracked text and includes source comments and non-Rust assets.
 #[test]
 fn every_module_path_cited_anywhere_resolves() {
     let repo = repo_root();
@@ -2022,11 +1968,7 @@ fn every_module_path_cited_anywhere_resolves() {
     let citing: Vec<&String> = tracked
         .iter()
         .filter(|f| !f.starts_with("server/tests/fixtures/"))
-        // **Every tracked text file.** An extension allowlist came first and made the test's name ("anywhere")
-        // false twice over: it started at Markdown and Rust, grew to eleven extensions plus `Makefile` as each
-        // omission was found - `sdk/python`'s `protocol.py`, the TLA+ specifications, the Makefile's script
-        // paths - and still omitted `.json`, `.astro`, `.yaml` and the extensionless hooks. That is the
-        // hand-maintained inventory these invariants exist to remove, inside one of them.
+        // Text detection covers documentation, configuration, scripts, specifications, and extensionless hooks.
         .filter(|f| is_text(&repo.join(f)))
         .collect();
 
@@ -2090,10 +2032,7 @@ fn every_module_path_cited_anywhere_resolves() {
                 // citation of a position in that file, so it is stripped before resolving.
                 let cited = token.trim_end_matches(['.', ':']);
                 let cited = cited.split(':').next().unwrap_or(cited);
-                // A path with at least one directory, and not a glob or a path outside the tree: a glob names
-                // a set rather than a file, and `~/.sideseat/sideseat.json`, `./sideseat.json` and
-                // `/path/to/service-account.json` are runtime and example paths that the first version of this
-                // extension reported.
+                // Globs and absolute, home-relative, variable, or elided paths are not repository citations.
                 // `!` as well as `@` and `-`: a `.gitignore` negation is a claim about a path, and leaving
                 // the marker on made `!data/.gitkeep` unresolvable while the file was right there.
                 let cited = cited.trim_start_matches(['@', '-', '!']);
@@ -2112,23 +2051,9 @@ fn every_module_path_cited_anywhere_resolves() {
                 {
                     continue;
                 }
-                // **The question is whether this repository has that file somewhere else.** Requiring the
-                // citation's first segment to name a directory that exists was the previous rule and it had the
-                // defect exactly backwards: a citation left pointing at a *removed* directory - `protocol/`,
-                // `benchmarks/` - was skipped as "not a repository path", which is the one case that matters.
-                // A basename the tree does not hold at all is skipped, and that is a **stated limit** rather
-                // than an oversight: it covers a deleted file, an external path, and - the case worth naming -
-                // a citation of a file that was *renamed*, whose old basename is gone by definition. Catching
-                // that needs history, not the working tree. What is left covering it: a script path in a make
-                // recipe fails when the recipe runs, and `every_script_that_locates_the_repository_root_finds_it`
-                // checks the scripts themselves. A basename the tree holds at another path is always a defect.
-                //
-                // A **bare filename** with no directory is also skipped, and that too was measured rather than
-                // assumed: two stale ones had reached the fixtures README (a renamed capture script and a
-                // renamed review script), so resolving them looked worthwhile - but sweeping every
-                // `<name>.sh`/`<name>.py` token in the tree reports `astral.sh` (a domain), the halves of a
-                // wheel filename split at `py2.py3`, and every generic `app.py` in prose. The rule would
-                // accuse more than it caught, and a check a reader learns to disbelieve protects nothing.
+                // Require the basename to exist somewhere in the tree before treating the token as an intended
+                // repository citation. Deleted or external basenames and bare filenames are outside this
+                // working-tree-only check.
                 let basename = cited.rsplit('/').next().unwrap_or(cited);
                 let held_somewhere = tracked
                     .iter()
@@ -2158,30 +2083,10 @@ fn every_module_path_cited_anywhere_resolves() {
 
 /// The storage layer does not reach into the HTTP layer.
 ///
-/// This is the dependency the crate split turns into a compiler error: once `data` is
-/// `sideseat-adapter-*` and cannot name `sideseat-api` in its manifest, a violation stops compiling. Until
-/// then it is a test, because the compiler cannot see a layer that is only a directory.
-///
-/// Three real violations existed when this was written, and each was a different shape:
-///
-/// * `server/crates/adapter-duckdb/src/repositories/query.rs` imported `crate::api::routes::otel::filters` - a module that is
-///   eight lines of `pub use sideseat_ports::filters::…`. So the analytics adapter reached *through* the HTTP
-///   routing layer to borrow types the data layer already owned.
-/// * `data/duckdb/filters/{types,parser}.rs` returned `ApiError` from filter parsing and validation, which
-///   made the adapter manufacture HTTP responses. They return `FilterError` now and `api::types` converts
-///   at the boundary, so the routes still just use `?`.
-/// * `server/crates/ports/src/types/analytics.rs` imported `OrderBy`, a column plus a direction, from `api::types` - while
-///   three of its own DTOs carried it as a field. The type and its SQL moved to `data::types::order`;
-///   parsing a `?order_by=` parameter, which is where the 400 belongs, stayed in `api`.
-///
-/// Comments are stripped before matching, so prose about the API layer is not a violation - the same reason
-/// the framework sweeps tokenise rather than grep.
+/// Adapter crates cannot depend on `sideseat-api`; comments are stripped so only source dependencies count.
 /// Does this tracked path declare container images this repository does not control?
 ///
-/// Prefixes rather than exact names, and both prefixes were defects. `Dockerfile.dev` carries a base image.
-/// Compose reads `docker-compose.override.yml` as well as the four canonical spellings, and narrowing this to
-/// exact basenames was a **regression** on the `contains("docker-compose")` it replaced - an override file
-/// being precisely where a `latest` gets added.
+/// Prefix matching covers Dockerfile variants and Compose override files.
 fn declares_images(path: &str) -> bool {
     let name = path.rsplit('/').next().unwrap_or(path);
     path.starts_with(".github/workflows/")
@@ -2195,9 +2100,6 @@ fn declares_images(path: &str) -> bool {
 /// The image reference on a `FROM` or `image:` line, with flags and stage names stepped over.
 ///
 /// `FROM x AS stage` names a stage *after* the reference and `FROM --platform=... x` puts flags *before* it.
-/// Taking the first token blind read `--platform=$BUILDPLATFORM` as the image, saw the `$`, and skipped the
-/// line - so `FROM --platform=$BUILDPLATFORM debian:latest` passed the one gate that reads the published
-/// image.
 fn image_reference_in(rest: &str) -> &str {
     rest.trim()
         .trim_matches('"')
@@ -2208,9 +2110,7 @@ fn image_reference_in(rest: &str) -> &str {
 
 /// The two parsing decisions above, on input the tree does not contain.
 ///
-/// Both fixes were verified by hand-editing `deploy/Dockerfile` and staging an override file, which is not an
-/// enduring gate: with no tracked file carrying either shape, each fix could be reverted and the suite would
-/// stay green. These cases are the shapes themselves, so the parser is held to them permanently.
+/// Synthetic cases keep uncommon but valid Dockerfile and Compose shapes covered.
 #[test]
 fn the_image_gate_reads_the_shapes_that_defeated_it() {
     // A flag before the reference, which is ordinary in a multi-arch Dockerfile.
@@ -2252,14 +2152,8 @@ fn the_image_gate_reads_the_shapes_that_defeated_it() {
 
 /// No adapter reaches into a sibling adapter.
 ///
-/// The plan names this defect precisely: "`Filter` lives in one adapter and the other imports it". It did - the
-/// filter vocabulary, its operators and the column allowlists sat inside `data::duckdb::filters` while the
-/// ClickHouse adapter imported them, so a shared type was owned by one implementation and the two could never be
-/// separate crates. The vocabulary now lives in `data::filters` and each adapter keeps only its own rendering.
-///
-/// **Parity tests are exempt, and that is the point of them.** A test whose whole purpose is to require two
-/// backends to return identical rows must see both. The exemption is by path, so it cannot quietly cover
-/// production code.
+/// Shared vocabulary belongs in an inward-facing crate; concrete adapters keep only their own rendering.
+/// Cross-adapter parity tests are exempt by path because comparing implementations is their purpose.
 #[test]
 fn no_adapter_imports_a_sibling_adapter() {
     let repo = repo_root();
@@ -2596,13 +2490,8 @@ fn every_server_crate_is_a_workspace_member() {
 
 /// Every workspace crate reports the same version, and takes it from one place.
 ///
-/// `banner.rs` and `update.rs` read `env!("CARGO_PKG_VERSION")`, so which crate they live in decides which
-/// version the product *claims*. Moving them into `sideseat-core` therefore made `--version`, the banner and the
-/// update check report **core's** version - and `make sync-version` edited `server/Cargo.toml` alone, so the next
-/// release would have printed the previous version and offered the running build to itself as an upgrade.
-///
-/// The fix is one version in `[workspace.package]`. This is the guard: a crate that spells its own version, or a
-/// workspace that spells a different one, fails here rather than at a release.
+/// Product metadata reads `CARGO_PKG_VERSION` from whichever crate owns it, so server crates inherit the single
+/// `[workspace.package]` version. Independently released SDKs are excluded below.
 #[test]
 fn every_workspace_crate_takes_the_one_version() {
     let repo = repo_root();
