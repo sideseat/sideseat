@@ -1,6 +1,7 @@
-//! File repository for SQLite operations.
+//! SQLite file metadata, trace associations, deletion fencing, and retention cleanup.
 //!
-//! Manages file metadata and trace-file associations for the file storage system.
+//! Reference counts are derived from durable association rows. Deletion claims fence ingestion while object
+//! bytes are being removed, and compare-and-set recovery prevents stale workers from deleting live content.
 
 use sqlx::SqlitePool;
 
@@ -9,10 +10,20 @@ use sideseat_core::constants::FILE_CLEANUP_BATCH_SIZE;
 use sideseat_ports::traits::retention_cleanup_logical_bytes;
 use sideseat_ports::types::FileRow;
 
-/// Upsert a file record (insert or increment ref_count)
+#[cfg(test)]
+async fn setup_test_pool() -> SqlitePool {
+    let pool = SqlitePool::connect(":memory:").await.unwrap();
+    // Execute the schema as a script: semicolons inside SQL comments are not statement boundaries.
+    sqlx::raw_sql(crate::schema::SCHEMA)
+        .execute(&pool)
+        .await
+        .unwrap();
+    pool
+}
+
+/// Insert a file or increment its reference count atomically.
 ///
-/// Returns the new ref_count value.
-/// Uses RETURNING for atomic operation to avoid race conditions.
+/// Returns the resulting reference count.
 pub async fn upsert_file(
     pool: &SqlitePool,
     project_id: &str,
@@ -22,8 +33,6 @@ pub async fn upsert_file(
     hash_algo: &str,
     now: i64,
 ) -> Result<i64, SqliteError> {
-    // Use INSERT ... ON CONFLICT with RETURNING for atomic upsert
-    // If file exists, increment ref_count; otherwise insert with ref_count=1
     let result: (i64,) = sqlx::query_as(
         r#"
         INSERT INTO files (project_id, file_hash, media_type, size_bytes, hash_algo, ref_count, created_at, updated_at)
@@ -48,17 +57,15 @@ pub async fn upsert_file(
     Ok(result.0)
 }
 
-/// Decrement ref_count atomically and return the new value
+/// Decrement a positive reference count atomically.
 ///
-/// Returns None if file doesn't exist, Some(new_ref_count) otherwise.
-/// Caller should delete the file if ref_count reaches 0.
+/// Returns `None` when the file is absent or already has no references.
 pub async fn decrement_ref_count(
     pool: &SqlitePool,
     project_id: &str,
     file_hash: &str,
     now: i64,
 ) -> Result<Option<i64>, SqliteError> {
-    // Use RETURNING for atomic operation
     let result: Option<(i64,)> = sqlx::query_as(
         r#"
         UPDATE files
@@ -76,7 +83,7 @@ pub async fn decrement_ref_count(
     Ok(result.map(|(count,)| count))
 }
 
-/// Get a file by project and hash
+/// Get a file by project and hash.
 pub async fn get_file(
     pool: &SqlitePool,
     project_id: &str,
@@ -121,7 +128,7 @@ pub async fn get_file(
     ))
 }
 
-/// Check if a file exists
+/// Check whether a file exists.
 pub async fn file_exists(
     pool: &SqlitePool,
     project_id: &str,
@@ -137,7 +144,7 @@ pub async fn file_exists(
     Ok(result.0 > 0)
 }
 
-/// Delete a file metadata record
+/// Delete a file metadata record.
 pub async fn delete_file(
     pool: &SqlitePool,
     project_id: &str,
@@ -152,7 +159,7 @@ pub async fn delete_file(
     Ok(result.rows_affected() > 0)
 }
 
-/// Delete all file records for a project
+/// Delete all file records for a project.
 ///
 /// Returns the number of files deleted.
 pub async fn delete_project_files(pool: &SqlitePool, project_id: &str) -> Result<u64, SqliteError> {
@@ -258,8 +265,7 @@ pub async fn get_stale_claimed_files(
 ///
 /// The recovery path acts on a *snapshot*: between the scan and the byte deletion the row can be released
 /// (a worker whose object delete failed), or deleted and recreated by an ingestion that then associates the
-/// same content hash. Deleting the bytes on the strength of the stale reading removed content a committed
-/// span references - the code even logged that case, which is not the same as preventing it.
+/// same content hash. The stale reading must never authorize deletion of content referenced by a committed span.
 ///
 /// So the byte deletion is gated on this compare-and-set: the claim must still be exactly the one observed,
 /// and nothing may reference the file. Success also refreshes the claim, which re-leases it so a second
@@ -271,16 +277,9 @@ pub async fn reclaim_stale_file(
     observed_deleting_at: i64,
     now: i64,
 ) -> Result<bool, SqliteError> {
-    // The refresh must land **strictly above** the observed value, or the compare-and-set does not refuse a
-    // second attempt on the same reading. `deleting_at` is a second-resolution timestamp, so `now` equals the
-    // observed value whenever the claim and the reclaim happen in the same second - which is the ordinary case
-    // for a sweep, not an edge one - and the row then still matches, so the second reclaim succeeds. That made
-    // "a second worker holding the same reading is refused" false, intermittently, and it is what an unstable
-    // parity run was reporting for weeks of runs before anyone read the diff.
-    //
-    // `max(now, observed + 1)` keeps the column's meaning - the instant the claim was refreshed - while
-    // guaranteeing the value changes. In a burst it can run a few seconds ahead of the wall clock, which only
-    // makes the claim expire later, never sooner.
+    // The refreshed claim must be strictly newer than the observed value so the same snapshot authorizes at
+    // most one worker. Because timestamps have one-second resolution, `now` alone may equal the old claim.
+    // Advancing by one can delay expiry slightly but can never make it expire early.
     let now = now.max(observed_deleting_at + 1);
     let result = sqlx::query(
         r#"
@@ -730,7 +729,7 @@ pub async fn get_org_file_storage_bytes(
     Ok(result.0.unwrap_or(0))
 }
 
-/// Get total file storage used across all orgs a user belongs to
+/// Get total file storage used across all organizations a user belongs to.
 pub async fn get_user_file_storage_bytes(
     pool: &SqlitePool,
     user_id: &str,
@@ -751,9 +750,9 @@ pub async fn get_user_file_storage_bytes(
     Ok(result.0.unwrap_or(0))
 }
 
-/// Get all files with zero ref_count across all projects (for global cleanup)
+/// Get files with zero references across all projects for global cleanup.
 ///
-/// Returns (project_id, file_hash) pairs for orphaned files.
+/// Returns `(project_id, file_hash)` pairs for orphaned files.
 pub async fn get_orphan_files(pool: &SqlitePool) -> Result<Vec<(String, String)>, SqliteError> {
     let sql = format!(
         "SELECT project_id, file_hash FROM files WHERE ref_count = 0 ORDER BY created_at ASC LIMIT {}",
@@ -918,31 +917,14 @@ mod tests {
         .await
     }
 
-    async fn setup_test_pool() -> SqlitePool {
-        let pool = SqlitePool::connect(":memory:").await.unwrap();
-
-        // `raw_sql`, not a split on `;`. Splitting was the hazard the schema's own comment warns about, and
-        // it fired: a semicolon inside a `--` comment ends a "statement" mid-table, and the fragment after it
-        // is a syntax error in a place nobody looks. Adding one comment containing a semicolon to the schema
-        // broke twenty-one tests in this file and none of the failures named the schema.
-        sqlx::raw_sql(crate::schema::SCHEMA)
-            .execute(&pool)
-            .await
-            .unwrap();
-        pool
-    }
-
     fn test_hash() -> &'static str {
         "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2"
     }
 
     /// A file's association survives a peer batch failing, once any referencing batch has committed.
     ///
-    /// The orphan the two-fact model exists to prevent: two batches reference the same
-    /// `(project, trace, hash)`, one commits and one fails. Under the old boolean flag the failing batch's
-    /// release matched the still-provisional row and deleted it, orphaning the committed batch's file. Now a
-    /// release decrements a writer and deletes only a non-durable row with none left, and the commit made it
-    /// durable - so the row and its reference count survive.
+    /// Two batches reference the same `(project, trace, hash)`, one commits, and one fails. The commit makes the
+    /// association durable; the failed batch only decrements its writer count and cannot remove the durable row.
     #[tokio::test]
     async fn a_committed_association_survives_a_peer_batch_releasing_it() {
         let pool = setup_test_pool().await;
@@ -974,7 +956,7 @@ mod tests {
             "two referencing batches must count as two in-flight writers"
         );
 
-        // Batch A commits (confirm), batch B fails (release) - the interleaving that used to orphan the file.
+        // Batch A commits while batch B releases its provisional writer.
         confirm_trace_file_associations(
             &pool,
             &[(project.to_string(), trace.to_string(), hash.to_string())],
@@ -1458,9 +1440,8 @@ mod tests {
             "and the reclaim refreshed it, so the same reading cannot be acted on twice"
         );
 
-        // The interleaving the compare-and-set exists for, in full: a worker reads the stale claim, another
-        // releases it (its own object delete failed), an ingestion then associates the same content hash -
-        // and the first worker must not delete those bytes on the strength of its old reading.
+        // A stale snapshot cannot survive another worker releasing the claim and ingestion re-associating the
+        // same content hash.
         {
             let stale = get_stale_claimed_files(&pool, 0).await.unwrap();
             let observed = stale[0].2;
@@ -1834,28 +1815,13 @@ mod confirm_dedup_tests {
         .await
     }
 
-    async fn setup() -> SqlitePool {
-        let pool = SqlitePool::connect(":memory:").await.unwrap();
-        // `raw_sql`, not a split on `;`. Splitting was the hazard the schema's own comment warns about, and
-        // it fired: a semicolon inside a `--` comment ends a "statement" mid-table, and the fragment after it
-        // is a syntax error in a place nobody looks. Adding one comment containing a semicolon to the schema
-        // broke twenty-one tests in this file and none of the failures named the schema.
-        sqlx::raw_sql(crate::schema::SCHEMA)
-            .execute(&pool)
-            .await
-            .unwrap();
-        pool
-    }
-
     /// Confirming a duplicated tuple decrements `pending_writers` once, matching the PostgreSQL `UNNEST`.
     ///
-    /// A batch that referenced the same association through two URIs incremented `pending_writers` twice at
-    /// the pipeline, but that path now dedupes to one increment; the repo confirm must decrement to match.
-    /// The loop used to run per vector element, so a duplicated tuple decremented twice - dropping the count
-    /// below what PostgreSQL's set-based `IN (UNNEST(...))` produced. This pins the per-tuple-once behaviour.
+    /// Input is treated as a set of associations, so duplicate tuples cannot resolve more than one writer.
+    /// This matches PostgreSQL's set-based `IN (UNNEST(...))` behaviour.
     #[tokio::test]
     async fn confirm_with_a_duplicated_tuple_decrements_once() {
-        let pool = setup().await;
+        let pool = setup_test_pool().await;
         let (project, trace, hash) = ("default", "t1", "aa");
 
         // Two in-flight writers.
@@ -1865,7 +1831,7 @@ mod confirm_dedup_tests {
                 .unwrap();
         }
 
-        // Confirm with the tuple listed twice (the shape the un-deduped pipeline could pass).
+        // Confirm with the same tuple listed twice.
         let assoc = (project.to_string(), trace.to_string(), hash.to_string());
         confirm_trace_file_associations(&pool, &[assoc.clone(), assoc])
             .await
