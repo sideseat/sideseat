@@ -7,16 +7,10 @@
 //! `do_not_merge_across_partitions_select_final` (`mod.rs`) makes `FINAL` per-partition, so both survive and
 //! the span is returned twice.
 //!
-//! Three repairs were designed for that and all three were withdrawn, which is why this is a detector:
-//! explicit windowed version selection needs a stable tie-break for equal `ingested_at` and none exists here
-//! (`(_part, _part_offset)` is physical placement a merge changes, and no per-delivery discriminator is
-//! stored); an identity-scoped retention sweep replacing the TTLs produced more defects than the one it
-//! fixed; and turning the partition-isolation setting off was measured at 10-12x the read cost, trading a
-//! rare duplicate for a permanent regression on every query.
-//!
-//! So the residual is **reported rather than engineered around**. That is not a euphemism for ignored: a
-//! reported duplicate is one an operator can act on, and the alternative on offer was a subsystem whose own
-//! defects outnumbered the defect it addressed.
+//! The store has no stable tie-break for equal `ingested_at`: `(_part, _part_offset)` is physical placement
+//! that merges can change, and no per-delivery discriminator is stored. Cross-partition `FINAL` is also too
+//! expensive for every query. The residual is therefore detected and recorded for operators rather than
+//! resolved with a non-deterministic winner.
 //!
 //! # Why this is cheap enough to run continuously
 //!
@@ -37,11 +31,9 @@
 //!
 //! # This is a ClickHouse-only check, by construction
 //!
-//! DuckDB has no partitions, so it has no cross-partition residual — its reads go through `DEDUP_SPANS`, a
-//! window function over the whole table, which selects one winner per identity however the rows are laid out.
-//! The plan's sentence pairing the ClickHouse skip index with "and DuckDB an ART index" therefore names an
-//! index with nothing to serve on that side, and ART memory is non-evictable and counts against the idle
-//! footprint gate — so it is deliberately not added. The asymmetry is in the defect, not in the treatment.
+//! DuckDB has no partitions, so it has no cross-partition residual. Its reads go through `DEDUP_SPANS`, a
+//! window function over the whole table that selects one winner per identity. An additional DuckDB ART index
+//! would serve no detector query, while its non-evictable memory would count against the idle footprint gate.
 //!
 //! # Residuals of the detector itself
 //!
@@ -52,10 +44,8 @@
 //!   correction moves a span *backward* across a month, the newer revision expires first and the obsolete one
 //!   is left alone in its partition; a current-state query then sees one row per identity and reports clean,
 //!   having permanently served the wrong revision. The record in `span_partition_anomalies` survives that.
-//! - **The watermark comes from the store, never from the reader's clock.** `max(ingested_at)` over the rows
-//!   examined, so the window's two ends are stamped by the same clocks that wrote the data. A reader's
-//!   `Utc::now()` compared against stamps written by other instances is the mistake this codebase has made
-//!   more than once.
+//! - **The watermark comes from the store, never from the reader's clock.** It is
+//!   `max(ingested_at)` over the rows examined, so both ends of the window use writer timestamps.
 
 use std::sync::Arc;
 use std::time::Duration;
@@ -132,22 +122,14 @@ impl ClickhouseService {
     /// [`Self::partition_anomalies`], because the point of recording them is that they outlive the pass.
     pub async fn check_partition_consistency(&self) -> Result<CheckOutcome, ClickhouseError> {
         let client = self.maintenance_client();
-        // The **`Distributed` front end**, not `_local`. A first version read `_local` on the reasoning that
-        // a question about physical parts must be asked where the parts are - which is true of a *mutation*
-        // and backwards for a *read*: a `SELECT` against `_local` sees only the node the connection reached,
-        // so an anomaly on any other shard was reported as clean. The Distributed table fans the read out,
-        // which is what a report about the whole deployment needs.
+        // Read through the `Distributed` front end. `_local` would inspect only the node reached by this
+        // connection, while the report covers the whole deployment.
         //
         // Still no `FINAL`: the question is about physical revisions, and `FINAL` shows one per identity per
         // partition - it would hide exactly what is being looked for.
         let spans = self.insert_table("otel_spans");
-        // The overlap is subtracted **only when the previous pass finished its window**. Applied to a
-        // truncated pass it is a livelock: 20 000 identities arriving inside a minute means the first pass
-        // takes the earliest 10 000 and advances the watermark by seconds, and subtracting ten minutes then
-        // re-selects exactly those 10 000 - every pass, forever, with the second half never examined. The
-        // overlap exists to catch a clock-behind writer, which is a different concern from making progress, and
-        // when the detector is knowingly behind there is nothing for it to catch: everything below the
-        // watermark has just been read.
+        // Subtract the overlap only after a complete pass. A truncated pass must resume at its watermark;
+        // subtracting the overlap would repeatedly select the same ordered prefix and never reach the backlog.
         let (watermark, behind) = self.consistency_watermark().await?;
         let since = if behind {
             watermark
@@ -178,19 +160,9 @@ impl ClickhouseService {
         // on the initiator and ships the result, which is both permitted and what the semantics need: the
         // candidate set must be the same on every shard, not each shard's local view.
         //
-        // The inner selection **groups before it limits, and orders by the identity's own newest stamp**.
-        // Three defects in one line otherwise, and a first version had all three:
-        //
-        // - a bare `LIMIT` on rows caps *revisions*, not identities. Ten thousand revisions of one identity
-        //   filled the cap, grouped down to a single candidate, and the pass then looked unfinished-but-not-
-        //   truncated and advanced its watermark past every other identity in the window. Those were never
-        //   examined again, because the watermark only moves forward.
-        // - with no `ORDER BY`, a truncated pass takes an arbitrary subset, so there is no prefix to advance
-        //   the watermark to - and refusing to advance it at all means the next pass selects the same subset
-        //   forever. That is a livelock, not a backlog.
-        // - ordering by `max(ingested_at)` **ascending** makes a pass a prefix of the window, which is what
-        //   lets the watermark advance to what was examined and guarantees progress. The same reasoning as the
-        //   search cursor recording the last position *examined* rather than the last one returned.
+        // The inner selection groups before limiting so the cap counts identities rather than revisions.
+        // Ordering identities by their newest ingest stamp ascending makes a truncated pass a stable prefix,
+        // allowing the watermark to advance while preserving eventual progress through the backlog.
         let candidates: Vec<Candidate> = client
             .query(&format!(
                 "SELECT project_id, trace_id, span_id, \
@@ -221,13 +193,9 @@ impl ClickhouseService {
             .filter(|c| c.partitions.len() > 1)
             .collect();
 
-        // The watermark advances to what was **examined**, truncated or not, and that is sound only because
-        // the selection is an ordered prefix: every identity below this stamp has been looked at, so moving
-        // past it skips nothing. Refusing to advance on a truncated pass was the first version and is a
-        // livelock - the next pass re-selects the same prefix and never reaches the rest.
-        //
-        // From the rows, never from `Utc::now()`: `ingested_at` is written by other instances' clocks, and
-        // comparing a reader's clock against them is the mistake this codebase has made more than once.
+        // Advance to the newest stamp actually examined, even for a truncated pass. The ordered-prefix
+        // selection guarantees every identity below that stamp was considered. Use row timestamps rather than
+        // this reader's clock so the watermark stays in the writers' time domain.
         let reached = candidates.iter().map(|c| c.max_ingested).max();
 
         if !found.is_empty() {
