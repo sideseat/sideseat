@@ -524,11 +524,10 @@ export interface FeedMessagesMetadata {
   /** See {@link MessagesMetadata.replay_matching_complete}; omitted by the server when true. */
   replay_matching_complete?: boolean;
   /**
-   * Whether every span contributing to this page carried a session id, so the reconstruction could widen its
-   * context to whole sessions. The server states it rather than leaving it to assumption.
+   * Whether reconstruction saw every trace of every session touched by this page.
    *
-   * Not optional: the server always sends it. Typing it optional let a consumer skip the case silently, which
-   * is how the completeness metadata came to be dropped once already.
+   * Always true: the server resolves page traces to sessions and loads each session in full. A trace without
+   * a session has no wider context to load. The field is always present.
    */
   session_scoped: boolean;
   /**

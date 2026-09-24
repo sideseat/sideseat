@@ -346,9 +346,8 @@ pub struct MessagesMetadataDto {
     /// False when cross-trace replay matching hit its search budget, so this answer may repeat history it
     /// would otherwise have collapsed.
     ///
-    /// Absent when true, which is the ordinary case. It reaches the client because an incomplete result
-    /// that looks complete is the one outcome a caller cannot reason about - the pipeline knowing it was
-    /// cut short is no use if the answer does not say so.
+    /// Absent when true, which is the ordinary case. Callers can use an explicit false value to distinguish
+    /// a budget-limited result from an exhaustive reconstruction.
     #[serde(skip_serializing_if = "is_true")]
     pub replay_matching_complete: bool,
 }
@@ -366,19 +365,13 @@ pub struct MessagesResponseDto {
     pub tool_definitions: Vec<serde_json::Value>,
     /// Deduplicated tool names sorted alphabetically
     pub tool_names: Vec<String>,
-    /// One envelope per span in scope: the request's parameters, models, ids, usage and cost
-    /// breakdown, timing and exact error fields - the facts a debugging caller needs beside the
-    /// messages. Loaded in the same query as the messages, because a second span-sized request
-    /// doubles the measured p50 and introduces a snapshot-consistency problem between two reads;
-    /// sent once per span, never repeated per block. A span billed with nothing to show still has an
-    /// envelope, which is how "this cost something and said nothing" stops being invisible.
+    /// One envelope per span in scope, loaded in the same snapshot as the messages and emitted once per
+    /// span. Envelopes expose request parameters, models, ids, usage, cost, timing and exact error fields,
+    /// including billed spans that produced no message block.
     pub envelopes: Vec<SpanEnvelopeDto>,
 }
 
-/// The compact per-span envelope. Every field was already extracted and persisted; before this DTO,
-/// three of them (the token split, both span timestamps, the exact exception fields) were **loaded on
-/// every message read and unreachable by any caller**, and the rest needed a second request joined by
-/// hand.
+/// Compact debugging and billing context for one span.
 #[derive(Debug, Clone, Serialize, utoipa::ToSchema)]
 pub struct SpanEnvelopeDto {
     pub trace_id: String,
@@ -398,8 +391,7 @@ pub struct SpanEnvelopeDto {
     pub provider: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub framework: Option<String>,
-    /// Instrumentation scope: the library that produced the span, versioned. Absent on rows written
-    /// before the scope was captured.
+    /// Instrumentation scope: the versioned library that produced the span. Absent when unavailable.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub scope_name: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -594,13 +586,10 @@ pub struct FeedMessagesMetadata {
     pub total_tokens: i64,
     /// Total cost from contributing spans
     pub total_cost: f64,
-    /// Whether this page's reconstruction saw every trace of every session it touches.
+    /// Whether reconstruction saw every trace of every session touched by this page.
     ///
-    /// True is the normal case: the page's traces are resolved to their sessions and each session is loaded
-    /// in full, so a replay crossing traces within a session is recognised wherever the page boundary fell.
-    /// False means at least one contributing span carried no session id, so there was nothing wider to load
-    /// for it - which is fine, because a session-less trace cannot take part in a cross-trace replay, but a
-    /// caller reasoning about completeness should not have to guess which case it got.
+    /// Always true: page traces are resolved to their sessions and each session is loaded in full. A trace
+    /// without a session has no wider context to load.
     pub session_scoped: bool,
     /// Whether concatenating pages yields a globally ordered transcript. Always **false**, and stated
     /// rather than implied.
@@ -642,12 +631,7 @@ pub struct FeedSpansResponse {
 mod serialisation_tests {
     use super::*;
 
-    /// The incompleteness flag crosses the serialisation boundary, and is absent when ordinary.
-    ///
-    /// The pipeline knowing its search was cut short is no use if the DTO drops it - which is exactly what
-    /// happened: the flag existed internally and neither response type carried it, so a budget-exhausted
-    /// reconstruction returned duplicated history indistinguishable from a complete answer. Tested here
-    /// rather than only on the internal type, because the boundary is where it was lost.
+    /// The incompleteness flag crosses the serialisation boundary and is absent in the ordinary case.
     #[test]
     fn incompleteness_reaches_the_response_and_silence_means_complete() {
         let incomplete = MessagesMetadataDto {
@@ -688,8 +672,7 @@ mod serialisation_tests {
             json.contains("\"replay_matching_complete\":false"),
             "the feed page must report it too"
         );
-        // These two are always present, unlike `replay_matching_complete`: a caller cannot infer either
-        // from silence, and the whole point is that the contract is stated rather than assumed.
+        // These contract fields are always present, unlike `replay_matching_complete`.
         assert!(
             json.contains("\"session_scoped\":true"),
             "a caller must be told whether the page saw every trace of its sessions: {json}"
