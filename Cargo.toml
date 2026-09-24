@@ -100,7 +100,7 @@ needless_pass_by_ref_mut = "allow"
 axum = { version = "0.8", features = ["ws"] }
 tokio = { version = "1.49", features = ["full"] }
 tower = "0.5"
-tower-http = { version = "0.6", features = [
+tower-http = { version = "0.7", features = [
   "fs",
   "cors",
   "trace",
