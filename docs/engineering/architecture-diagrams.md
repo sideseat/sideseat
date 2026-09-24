@@ -9,7 +9,7 @@ test is for.
 
 ## 1. Where framework knowledge lives, and who reads it
 
-The question: *if the Rust knows nothing about frameworks, what does, and when is it consulted?*
+The question: _if the Rust knows nothing about frameworks, what does, and when is it consulted?_
 
 The answer is one compiled ruleset with two sets of readers, and the split is the reason a fix does or does
 not apply to stored data. Ingestion-side readers ran once, when the span arrived; query-side readers run on
@@ -63,12 +63,9 @@ flowchart TB
     compile -. "digest joins the key" .-> cache["sideml::feed::cache<br/>reconstruction memo"]
 ```
 
-Two things the diagram is making explicit because they are easy to get wrong — and the first is one I drew
-incorrectly first, which is why the arrow is annotated rather than plain.
-
 `carriers` is read on **both** sides, asymmetrically. The query side reads all eight facts and the ordering
 family, so a correction there reaches stored rows. Ingestion reads exactly one, `carrier_holds_span_output`,
-to decide which of a span's messages are its own output — and *that* answer is persisted, so correcting it
+to decide which of a span's messages are its own output — and _that_ answer is persisted, so correcting it
 does **not** reach spans already stored. "A fix applies to history" is therefore true of carrier semantics
 generally and false of that one fact, which is the kind of distinction a diagram either records or quietly
 misleads about.
@@ -78,7 +75,7 @@ function of the rows and the rules are part of the function.
 
 ## 2. Ingestion, and where a 200 becomes true
 
-The question: *at which point has the server promised the data is stored?*
+The question: _at which point has the server promised the data is stored?_
 
 ```mermaid
 flowchart TB
@@ -131,8 +128,8 @@ a row promising bytes that are not there.
 
 ## 3. How a message rule claims a carrier
 
-The question: *two dialects both describe `output.value` — which one reads it, and why is the answer not
-"whichever is first"?*
+The question: _two dialects both describe `output.value` — which one reads it, and why is the answer not
+"whichever is first"?_
 
 ```mermaid
 flowchart TB
@@ -165,12 +162,12 @@ flowchart TB
 
 `owns` is a **set of physical carriers**, not the emitted tag: a rule that composes three attributes into one
 observation owns all three, or the other two stay free for another dialect to read as a conversation. A
-*claim* emission owns without emitting, which is how a payload that is framework internals rather than a
+_claim_ emission owns without emitting, which is how a payload that is framework internals rather than a
 message is taken off the table.
 
 ## 4. Query-time reconstruction
 
-The question: *why can a span view hold more messages than its trace view?*
+The question: _why can a span view hold more messages than its trace view?_
 
 ```mermaid
 flowchart TB
@@ -205,8 +202,8 @@ where dedup collapses the same turn re-sent by every generation span.
 
 ## 5. How one ordered sweep answers, and what it refuses
 
-The question: *three sweeps are ordered first-match — what decides between two rules that both match, and
-what is refused rather than resolved?*
+The question: _three sweeps are ordered first-match — what decides between two rules that both match, and
+what is refused rather than resolved?_
 
 Framework detection, observation type and span category share this shape. Rank is the declared order; what
 sits above it is `supersedes`, which **orders** rather than annotating. Everything on the right is refused at
@@ -241,28 +238,24 @@ flowchart TB
     refused -.->|"the shape to use"| express
 ```
 
-Three things the diagram records because each was a defect.
-
-`supersedes` used to waive only an overlap *report* while rank decided the winner, so every shipped edge
-could have been deleted without changing an answer. The winner is now the matching rule **no** other matching
-rule beats — not "the first matching rule that beats the rank-winner", which in rank order is satisfied by
-the rank-winner itself and orders nothing.
+`supersedes` changes resolution, not only overlap validation. The winner is the matching rule **no** other
+matching rule beats. Selecting the first rule that beats the rank winner would select the rank winner itself
+and therefore would not impose the declared ordering.
 
 `ShadowedRule` and `supersedes` are the same fact from two directions, which is why the refusal exempts a
 rule that beats its shadower: without that exemption it rejected exactly the shape `supersedes` exists for.
 `RefusalIsSound` in `specs/OrderedResolution.tla` is that argument as a checked theorem.
 
 And `alternatives` exists because the conditions inside one rule are independently sufficient, so a single
-rank has to be placed for the *weakest* of them — which put one producer's own self-identification behind a
+rank has to be placed for the _weakest_ of them — which put one producer's own self-identification behind a
 convention namespace it merely also emits.
 
 ## 6. The ordering constraint graph
 
-The question: *the sort key was replaced by a partial order — what are the constraints, and what happens when
-they contradict?*
+The question: _what defines the partial order, and what happens when its constraints contradict?_
 
 Blocks are grouped into ordering **units** (an atomic emission is contracted into one), constraints become
-edges between units, and a deterministic Kahn resolves them. Credible time is a *priority*, never an edge:
+edges between units, and a deterministic Kahn resolves them. Credible time is a _priority_, never an edge:
 an anchor cannot make extraction monotonic, only edges can.
 
 ```mermaid
@@ -296,21 +289,18 @@ flowchart TB
     cycle --> order
 ```
 
-The dataflow box is the part that changed most recently and the reason is worth stating: "everything received
-precedes everything produced" is a *product*, and a span re-sending a long history has hundreds of inputs. A
-barrier expresses it in `inputs + outputs` edges — except where the two sets overlap, where a single barrier
-would assert `u → barrier → u`. That case kept the product, was documented as unreachable, and is taken by six
-corpus spans; worse, for two or more shared units the product contains `u → v` **and** `v → u`, so the
-resolver broke a cycle the code had manufactured. Two barriers express the consistent part linearly and omit
-only the shared-to-shared pairs, which is the honest reading: a unit a span both received and produced is a
-replay.
+The dataflow constraint "everything received precedes everything produced" is represented with barriers in
+`inputs + outputs` edges rather than as the full input × output product. When the sets overlap, two barriers
+preserve the consistent constraints without asserting `u → barrier → u` or contradictory shared-to-shared
+pairs. A unit that a span both received and produced is a replay, so it imposes no order against another
+shared unit.
 
 A cycle is never silent. It means two constraint classes disagree, which is a fact about the telemetry or
 about a class — so it is warned about in production and pinned per fixture in the suite, in both directions.
 
 ## 7. What keeps framework knowledge out of Rust
 
-The question: *the claim is enforced — by what, exactly, and what does each gate not see?*
+The question: _the claim is enforced — by what, exactly, and what does each gate not see?_
 
 ```mermaid
 flowchart LR
@@ -318,7 +308,7 @@ flowchart LR
         direction TB
         names["no_production_module_names_a_framework<br/>tokenised · markers derived from asset ids"]
         keys["no_production_module_carries_a_framework_telemetry_key<br/>every dotted string minus our own vocabulary"]
-        oracles["17 equivalence oracles<br/>declared vs the code it replaced"]
+        oracles["17 equivalence oracles<br/>declared vs current behavior"]
         goldens["120 committed goldens<br/>4 views · count · order · content · no duplicates"]
         compile2["compile refusals<br/>dead rule · shared rank · unknown result · unreachable declaration"]
     end
@@ -337,5 +327,5 @@ flowchart LR
     gates -.->|"limits, stated"| blind
 ```
 
-The two sweeps are enforcement of a *syntactic* invariant, not semantic proof — which is why the oracles
+The two sweeps are enforcement of a _syntactic_ invariant, not semantic proof — which is why the oracles
 matter more than the sweeps, and why the blind spots are enumerated rather than implied.
