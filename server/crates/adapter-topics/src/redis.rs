@@ -70,14 +70,8 @@ const PUBSUB_PREFIX: &str = "{sideseat}:pubsub:";
 
 /// How large an *unprocessed* backlog a stream may hold before publishing is refused.
 ///
-/// This is a backpressure threshold, not a trimming bound. The stream used to be published with
-/// `XADD ... MAXLEN ~ 100000`, which deletes the oldest entries to keep the length down - and Redis
-/// trims by length, with no idea whether an entry has been read. So a consumer outage, or any backlog
-/// past the bound, silently destroyed payloads that HTTP and gRPC had already answered 200. The
-/// promise that a 200 means "durably queued" was broken by the queue itself.
-///
-/// The bound now refuses new work instead of discarding accepted work: an exporter gets 503 with
-/// `Retry-After` and keeps the data, which is exactly what an OTLP exporter is built to handle.
+/// This is a backpressure threshold, not a trimming bound. Work beyond it is refused with
+/// `BufferFull`; accepted entries remain until every consumer group has passed them.
 const DEFAULT_STREAM_MAX_BACKLOG: u64 = 100_000;
 
 /// XREADGROUP block timeout in milliseconds
@@ -224,11 +218,8 @@ impl RedisTopicBackend {
 
     /// The Redis key holding a group's rotating scan cursor.
     ///
-    /// **In Redis, not in this process.** As a process-local map the rotation was lost on every restart, so
-    /// an ephemeral instance always resumed from the oldest pending entry: with a chronically-failing prefix
-    /// and instances replaced faster than `pending / count` passes, entries behind that prefix starved
-    /// indefinitely. Replicas also each kept their own cursor, so there was no global rotation guarantee at
-    /// all - the property the whole mechanism exists to provide.
+    /// Stored in Redis so restarts and multiple replicas share one rotation rather than repeatedly beginning
+    /// at the oldest pending entry.
     ///
     /// Stored under the stream's hash tag so it lives on the same Redis Cluster slot as the stream itself. No
     /// compare-and-set: a lost update between two replicas only means one pass re-scans a page it already
@@ -511,39 +502,26 @@ impl RedisTopicBackend {
     /// at or before `L` (otherwise it would not be visible to XPENDING here), and it is what is still owed.
     /// Choose which pending entries a recovery pass should claim.
     ///
-    /// # Why a retry counter was the wrong instrument
+    /// # Retry policy
     ///
     /// Claiming an entry resets its idle time, so an entry whose processing keeps failing becomes eligible
     /// again after `min_idle_ms` and - being among the oldest - refills a window that starts at the oldest
     /// pending entry. With a window of `count` and `count` such entries, nothing behind them is ever
-    /// examined, so an abandoned entry at position `count + 1` was never recovered at all. The first answer
-    /// was to acknowledge an entry after ten deliveries, which is data loss: ten failures is what a minute of
-    /// analytics downtime looks like, the payload was already answered 200, and a delivery counter says
-    /// nothing about the payload - only about the system that kept failing to store it.
+    /// examined. A delivery count is diagnostic rather than a deletion condition: repeated failures can
+    /// describe downstream downtime, and the payload has already been acknowledged to the exporter.
     ///
     /// # Rotation over a *generation*, which is what makes the bound real
     ///
-    /// The mechanism is a cursor that sweeps the pending list and wraps. Getting the wrap condition right is
-    /// the whole difficulty, and three earlier shapes failed:
-    ///
-    /// * Wrapping only on a **short page** never wraps at all when the list grows at the tail faster than the
-    ///   sweep advances - so entries behind the cursor were never revisited.
-    /// * **Holding** the cursor at an entry that was scanned but not claimed pins rotation: a peer that
-    ///   repeatedly claims and abandons that entry keeps it perpetually too fresh, and everything after it
-    ///   starves. Two holds merged by earliest only moves which entry does the pinning.
-    /// * Filtering the scan by `IDLE` means a too-fresh entry is *invisible* to the page, so a cursor
-    ///   position can be advanced past it - which is what made a hold seem necessary in the first place.
-    ///
-    /// So the cursor is paired with the id that ended the pending list **when this rotation began**, and the
+    /// The cursor is paired with the id that ended the pending list **when this rotation began**, and the
     /// two are stored together. A rotation examines every entry that existed at its start, exactly once,
     /// advancing unconditionally; entries that arrive during it are picked up by the next rotation. The wrap
-    /// is therefore driven by a fixed endpoint rather than by the list's current shape, so tail growth cannot
-    /// prevent it and no entry can pin it. Nothing is held, so nothing can starve behind a hold.
+    /// is driven by a fixed endpoint rather than the list's current shape, so tail growth cannot prevent it and
+    /// no entry can pin it.
     ///
     /// The page is **not** `IDLE`-filtered - eligibility is decided locally instead, and `XCLAIM` enforces it
     /// anyway. That keeps examination and claiming separate: the cursor advances over everything it looked at
     /// (which is what bounds the rotation), while only the entries idle enough are claimed. A pass that finds
-    /// nothing eligible still makes rotation progress, which is the property the earlier shapes lacked.
+    /// nothing eligible still makes rotation progress.
     ///
     /// A chronically-failing entry is therefore retried once per rotation and reported loudly, and never
     /// dropped. Returns the ids to claim and the cursor move the caller commits **after** the claim - see
@@ -656,12 +634,8 @@ impl RedisTopicBackend {
     /// and the only cost is that the next pass re-scans this page. Losing rotation progress is recoverable;
     /// failing the claim over it would not be.
     async fn apply_cursor(&self, conn: &mut deadpool_redis::Connection, action: CursorAction) {
-        // Absence is its own argument, not an empty string.
-        //
-        // Overloading `''` to mean "the key was absent" made a key that genuinely holds `""` unreplaceable:
-        // parsing treats it as malformed and starts a fresh rotation, but the CAS then demands the key be
-        // absent, which it never is - so with more entries than one page holds, every pass rescanned the first
-        // page and everything behind it starved. `ARGV[1]` is now an explicit flag.
+        // Absence is an explicit argument rather than an empty-string sentinel, because an existing key may
+        // legitimately contain an empty value.
         const CAS: &str = r#"
             local current = redis.call('GET', KEYS[1])
             local matches
@@ -1014,11 +988,8 @@ impl TopicBackend for RedisTopicBackend {
 
     /// Append to the stream, refusing rather than trimming when the backlog is too large.
     ///
-    /// Deliberately no `MAXLEN`: trimming is by length and blind to what has been consumed, so the old
-    /// form deleted entries that a consumer had never read and an exporter had already been told were
-    /// stored. Entries are instead removed by `stream_trim_consumed` once every group is past them, and
-    /// a backlog that outgrows [`DEFAULT_STREAM_MAX_BACKLOG`] turns into `BufferFull` - which the OTLP
-    /// routes answer with 503 and `Retry-After`, leaving the data with the exporter that still has it.
+    /// Deliberately no `MAXLEN`: length-based trimming cannot know what consumer groups still need. Entries
+    /// leave through `stream_trim_consumed`; excess backlog returns `BufferFull`.
     async fn stream_publish(
         &self,
         topic: &str,
@@ -1068,12 +1039,8 @@ impl TopicBackend for RedisTopicBackend {
             .arg(&key);
         let (id, length): (String, u64) = pipe.query_async(&mut conn).await.map_err(redis_error)?;
 
-        // Record the backlog now, from the length the XADD already returned - before the durability wait,
-        // which can fail. The entry is in the stream whether or not replicas confirm it (a failed wait is a
-        // 503 the exporter retries, and the retry appends again; idempotency is at the span level, on the
-        // analytics write). Recording it only after a successful wait meant a wait failure left the fast
-        // path reading a stale, lower backlog, so the refusal threshold undercounted exactly when the
-        // system was already struggling.
+        // Record the length returned by XADD before waiting for durability. The entry exists even if replica
+        // confirmation fails and the exporter retries it.
         let was_over = length >= self.max_backlog();
         self.observed_backlog.insert(key.clone(), length);
 
@@ -1364,14 +1331,8 @@ impl TopicBackend for RedisTopicBackend {
 
         let claimed: RedisValue = cmd.query_async(&mut conn).await.map_err(redis_error)?;
 
-        // Parse claimed messages. An entry whose payload cannot be read is *moved to the dead-letter
-        // stream* and then acknowledged - never simply deleted.
-        //
-        // Skipping it silently left it pending forever, and a pending entry is what holds the trim boundary,
-        // so one malformed entry stopped the stream from ever being trimmed and was re-examined by every
-        // sweep. It has to leave the main stream; it was also answered 200, so its bytes have to survive.
-        // `<stream>:dead` is where they go. Failing to preserve it means *not* acknowledging it: an entry
-        // that could be neither processed nor kept stays pending, which is the conservative end.
+        // Preserve unreadable payloads on `<stream>:dead` before acknowledging them. If preservation fails,
+        // leave the entry pending so acknowledged data is never discarded.
         let mut messages = Vec::new();
         // Which requested ids this pass actually took, so the cursor cannot step over one it did not.
         //
@@ -1457,10 +1418,8 @@ impl TopicBackend for RedisTopicBackend {
             }
         }
 
-        // No per-entry hold, and none is needed: an entry this pass did not take is examined again by the
-        // next rotation, which is bounded by a fixed endpoint. A hold was the previous design and it pinned
-        // rotation - a peer repeatedly claiming and abandoning the held entry kept it perpetually too fresh,
-        // starving everything after it. See `scan_pending`.
+        // An entry this pass did not claim is reconsidered by the next fixed-endpoint rotation; no per-entry
+        // hold can pin the cursor.
         let action = cursor_action;
         self.apply_cursor(&mut conn, action).await;
 
@@ -1784,14 +1743,9 @@ struct CursorAction {
     key: String,
     /// What the scan read there, so the write can be conditional on nothing having changed since.
     ///
-    /// A plain `SET` is **not** safe here, and "a lost update is only a re-scan" was wrong. The sequence:
-    /// replica A claims a tail page and stalls before writing; replica B finds the list exhausted past its
-    /// own position, wraps to the front, claims there and advances the cursor to the front; A's delayed write
-    /// then jumps the cursor back out to its tail position, *past* the front entries B did not claim. With
-    /// sustained traffic beyond A's position the scan never wraps again, and those entries starve - the exact
-    /// failure the rotation exists to prevent. Conditioning the write on the value the scan read makes A's
-    /// stale update a no-op instead: A loses its own progress, which costs one re-scan, and nothing is
-    /// skipped.
+    /// A plain `SET` can let a delayed tail-page writer overwrite a peer that already wrapped to the front,
+    /// skipping unclaimed entries. Compare-and-set turns that stale write into a no-op; one page is rescanned
+    /// and nothing is skipped.
     expected: Option<String>,
     /// The rotation to store, or `None` to clear it so the next pass starts a fresh one.
     next: Option<Rotation>,
@@ -1940,11 +1894,8 @@ async fn pending_summary_max(
 
 /// One page of a group's pending list, over the inclusive id range `[from, to]`.
 ///
-/// **Not** `IDLE`-filtered, deliberately. The filter makes a too-fresh entry invisible to the page, and a
-/// cursor that advances over what it saw would then step past it - which is what made a per-entry hold seem
-/// necessary, and a hold is what a peer repeatedly claiming and abandoning an entry can use to pin rotation.
-/// Examining every entry in the range and deciding eligibility locally keeps the sweep's bound independent of
-/// idle times; `XCLAIM` enforces `min_idle_ms` server-side regardless.
+/// **Not** `IDLE`-filtered. Examining every entry in the range and deciding eligibility locally keeps the
+/// sweep's bound independent of idle times; `XCLAIM` still enforces `min_idle_ms` server-side.
 async fn scan_pending_page(
     conn: &mut deadpool_redis::Connection,
     key: &str,
