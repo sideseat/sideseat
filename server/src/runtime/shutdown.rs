@@ -53,11 +53,6 @@ impl ShutdownService {
         let _ = self.tx.send(true);
     }
 
-    /// Check whether shutdown was triggered.
-    pub fn is_triggered(&self) -> bool {
-        *self.rx.borrow()
-    }
-
     /// Trigger shutdown and wait for all registered tasks to complete.
     ///
     /// Shutdown order (to prevent data loss):
@@ -107,14 +102,6 @@ impl ShutdownService {
         );
 
         tracing::debug!("Shutdown complete");
-    }
-
-    /// Return an owned future that resolves when shutdown is triggered.
-    pub fn wait(&self) -> impl std::future::Future<Output = ()> + Send + 'static {
-        let mut rx = self.rx.clone();
-        async move {
-            let _ = rx.wait_for(|&v| v).await;
-        }
     }
 
     /// Install OS signal handlers and trigger on Ctrl+C or SIGTERM.
@@ -210,37 +197,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_shutdown_not_triggered_initially() {
-        let shutdown = make_shutdown().await;
-        assert!(!shutdown.is_triggered());
-    }
-
-    #[tokio::test]
-    async fn test_shutdown_trigger() {
-        let shutdown = make_shutdown().await;
-        shutdown.trigger();
-        assert!(shutdown.is_triggered());
-    }
-
-    #[tokio::test]
-    async fn test_shutdown_wait_returns_after_trigger() {
-        let shutdown = make_shutdown().await;
-        let wait_future = shutdown.wait();
-
-        let handle = tokio::spawn(wait_future);
-
-        tokio::task::yield_now().await;
-
-        shutdown.trigger();
-
-        tokio::time::timeout(std::time::Duration::from_millis(100), handle)
-            .await
-            .unwrap()
-            .unwrap();
-    }
-
-    #[tokio::test]
-    async fn test_subscriber_receives_shutdown() {
+    async fn subscriber_receives_shutdown() {
         let shutdown = make_shutdown().await;
         let rx = shutdown.subscribe();
 
