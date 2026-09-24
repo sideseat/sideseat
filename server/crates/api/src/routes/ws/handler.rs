@@ -121,14 +121,15 @@ async fn run_connection(
     let hello_deadline = tokio::time::Instant::now() + Duration::from_secs(WS_HELLO_TIMEOUT_SECS);
     let mut heartbeat = tokio::time::interval(Duration::from_secs(WS_HEARTBEAT_INTERVAL_SECS));
     heartbeat.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+    heartbeat.tick().await;
     let mut last_pong = tokio::time::Instant::now();
 
     let close = Arc::clone(&handle.close);
     loop {
         tokio::select! {
             biased;
-            _ = shutdown_rx.changed() => {
-                if *shutdown_rx.borrow() {
+            changed = shutdown_rx.changed() => {
+                if changed.is_err() || *shutdown_rx.borrow() {
                     break;
                 }
             }
