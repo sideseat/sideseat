@@ -12,7 +12,7 @@ use sideseat_ports::types::{
 use sideseat_query_sql::confirmations;
 use sideseat_query_sql::{Backend, analytics, dml};
 
-/// Inline dedup subquery replacing the old `otel_spans_v` view.
+/// Inline winning-span relation used by repository contract tests.
 ///
 /// Used only where duplicates corrupt results:
 /// - SUM/COUNT(*) aggregation (inflated totals)
@@ -25,26 +25,13 @@ use sideseat_query_sql::{Backend, analytics, dml};
 /// - Point lookups by (trace_id, span_id) with DedupAnalyticsRepository
 /// - Single-span UNNEST (point-lookup dedup via ORDER BY ingested_at DESC LIMIT 1)
 ///
-/// **The latest delivery wins**, and that is not a free choice: ClickHouse stores spans in
-/// `ReplacingMergeTree(ingested_at)`, so its `FINAL` keeps the newest row and no query can ask it
-/// for the oldest. Keeping `MIN` here meant the same project reported different tokens depending on
-/// which backend served it, whenever an exporter re-sent a span with corrected usage - invisible to
-/// every test, because a retry normally carries an identical payload. A later delivery is also the
-/// better record: it is the one the exporter meant to leave behind.
+/// **The latest delivery wins**, matching ClickHouse's `ReplacingMergeTree(ingested_at)` semantics and the
+/// exporter's corrected replacement.
 ///
-/// `QUALIFY ROW_NUMBER()`, not a join on `MAX(ingested_at)`: the join returned **every** row tied at the
-/// maximum, so two deliveries of one span landing in the same stored microsecond both survived and the span
-/// appeared twice - a duplicate, which is the one thing the feed must never produce. `ROW_NUMBER() … = 1`
-/// keeps exactly one row per span.
+/// `QUALIFY ROW_NUMBER() = 1` keeps exactly one row when multiple deliveries share the maximum timestamp.
 ///
-/// The tiebreak is `rowid DESC`, so on an equal `ingested_at` the **later insert wins** - which is
-/// "latest delivery wins" for a same-microsecond re-delivery. `ingested_at` alone left the choice to the
-/// engine, and it could keep the older row, so a re-delivery correcting a span's tokens or messages was
-/// silently ignored. `rowid` is DuckDB's physical insert order on an append-only table, so a later delivery
-/// always has the higher one. (`ingested_at` is assigned per backend at write time, so a cross-backend tie
-/// does not arise in practice; ClickHouse breaks a same-microsecond tie by `ReplacingMergeTree` insert order,
-/// which is the same "later insert wins" intent - neither distinguishes sub-microsecond recency, an inherent
-/// limit of using a microsecond timestamp as the version.)
+/// `rowid DESC` breaks equal-microsecond ties by physical insert order. Neither backend distinguishes
+/// sub-microsecond recency because the version timestamp has microsecond precision.
 #[cfg(test)]
 pub(crate) const DEDUP_SPANS: &str = "(SELECT * FROM otel_spans \
      QUALIFY ROW_NUMBER() OVER (PARTITION BY project_id, trace_id, span_id \
@@ -510,10 +497,8 @@ pub fn traces_without_spans(
 /// The text of every field that can hold a `#!B64!#` reference, for the surviving winning spans of these
 /// traces.
 ///
-/// `DEDUP_SPANS`, not the raw table: an expired revision's text is not evidence that a *live* span still
-/// references a file, and `otel_spans` is append-only so the obsolete rows are still there. Reading raw would
-/// keep an association alive on the strength of a superseded revision - the mirror of the defect that made
-/// retention delete a current span because an old revision of it had expired.
+/// Reads `DEDUP_SPANS`, not the append-only table, because only the winning revision can keep a file
+/// association alive.
 pub fn file_reference_fields_for_traces(
     conn: &Connection,
     project_id: &str,
@@ -705,7 +690,6 @@ pub fn get_trace_ids_for_sessions(
     Ok(trace_ids)
 }
 
-/// Delete multiple sessions by deleting all traces with those session_ids
 /// Delete every trace of these sessions, returning the trace ids removed.
 ///
 /// The ids, not a row count: the caller tombstones and reclaims files for exactly this set, and it is a
@@ -800,13 +784,8 @@ pub fn delete_project_data(conn: &Connection, project_id: &str) -> Result<u64, D
 pub fn count_project_rows(conn: &Connection, project_id: &str) -> Result<u64, DuckdbError> {
     let plan = analytics::project_row_count(project_id, Backend::Duckdb, None);
     let spans = execute_count_values(conn, &plan.spans)?;
-    // Rows, plainly. The write path replaces a datapoint's row rather than appending a second one
-    // (`replace_existing`), so a row *is* a datapoint and this agrees with ClickHouse's `FINAL` count
-    // without having to compensate for duplicates at read time.
-    //
-    // It used to be `COUNT(DISTINCT datapoint_id)`, which hid physical duplicates instead of preventing
-    // them: two rows for one datapoint stayed, holding two possibly different measurements of the same
-    // instant with nothing to say which was current. Deduplicating a count is not storing correct data.
+    // The write path replaces each datapoint row, so physical row count is the integrity check and agrees
+    // with ClickHouse's `FINAL` count.
     let metrics = execute_count_values(conn, &plan.metrics)?;
     let logs = execute_count_values(conn, &plan.logs)?;
     Ok(spans + metrics + logs)
@@ -1030,7 +1009,7 @@ pub fn get_session_filter_options(
     Ok(results)
 }
 
-/// Repository-level regression tests.
+/// Repository contract tests.
 #[cfg(test)]
 mod tests {
     use super::*;
