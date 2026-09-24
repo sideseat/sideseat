@@ -346,8 +346,8 @@ impl TracePipeline {
                         );
                         tokio::select! {
                             biased;
-                            _ = shutdown_rx.changed() => {
-                                if *shutdown_rx.borrow() {
+                            changed = shutdown_rx.changed() => {
+                                if changed.is_err() || *shutdown_rx.borrow() {
                                     return;
                                 }
                             }
@@ -370,8 +370,9 @@ impl TracePipeline {
             // Create interval for periodic claim recovery
             let mut claim_interval =
                 tokio::time::interval(Duration::from_secs(CLAIM_INTERVAL_SECS));
-            // Don't count the initial tick
             claim_interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+            // Tokio's first tick is immediate; consume it so recovery starts after one full interval.
+            claim_interval.tick().await;
 
             let mut shutdown_requested = false;
             let mut buffered = WeightedFairQueue::new();
@@ -419,8 +420,8 @@ impl TracePipeline {
                 // tick still yields to shutdown, which is what `biased` earns its keep for.
                 let first = tokio::select! {
                     biased;
-                    _ = shutdown_rx.changed() => {
-                        if *shutdown_rx.borrow() {
+                    changed = shutdown_rx.changed() => {
+                        if changed.is_err() || *shutdown_rx.borrow() {
                             tracing::debug!("TracePipeline received shutdown, draining...");
                             shutdown_requested = true;
                         }
@@ -2892,7 +2893,7 @@ fn canonical_session_of_traces(spans: &[NormalizedSpan]) -> HashMap<(String, Str
 }
 
 #[cfg(test)]
-mod session_fence_tests {
+mod pipeline_tests {
     use super::*;
 
     fn span(project: &str, trace: &str, id: &str, session: Option<&str>) -> NormalizedSpan {
@@ -3010,6 +3011,23 @@ mod session_fence_tests {
             )),
         );
         (temp, analytics, database, pipeline)
+    }
+
+    #[tokio::test]
+    async fn pipeline_stops_when_the_shutdown_sender_is_dropped() {
+        let (_temp, _analytics, _database, pipeline) = pipeline_over_a_temp_store().await;
+        let topic = pipeline
+            .topics
+            .stream_topic::<StagedPayloadRef>("shutdown-test", StagedPayloadRef::partition_key);
+        let (shutdown_tx, shutdown_rx) = watch::channel(false);
+        let handle = Arc::new(pipeline).start(topic, shutdown_rx);
+
+        drop(shutdown_tx);
+
+        tokio::time::timeout(Duration::from_secs(1), handle)
+            .await
+            .expect("pipeline should stop when its shutdown channel closes")
+            .expect("pipeline task should not panic");
     }
 
     #[tokio::test]
