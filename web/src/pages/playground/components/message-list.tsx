@@ -53,10 +53,7 @@ export function MessageList({ state, isStreaming }: Props) {
         </section>
       ))}
       {live ? (
-        <ActivityIndicator
-          key={`${tail?.id ?? "__none__"}:${tailSignal}`}
-          tail={tail}
-        />
+        <ActivityIndicator key={`${tail?.id ?? "__none__"}:${tailSignal}`} tail={tail} />
       ) : null}
       <div className="h-6" />
     </div>
