@@ -23,6 +23,17 @@ branch="$(git symbolic-ref --quiet --short HEAD)" || {
   exit 1
 }
 git remote get-url origin >/dev/null
+git fetch --quiet --tags origin
+
+remote_branch="refs/remotes/origin/$branch"
+if ! git rev-parse --verify "$remote_branch" >/dev/null 2>&1; then
+  echo "Error: origin has no branch named $branch" >&2
+  exit 1
+fi
+if ! git merge-base --is-ancestor "$remote_branch" HEAD; then
+  echo "Error: $branch is behind or diverged from origin/$branch; update it before releasing" >&2
+  exit 1
+fi
 
 echo "[release] Running pre-release checks..."
 make --no-print-directory check
