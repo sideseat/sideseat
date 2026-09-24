@@ -130,7 +130,7 @@ pub(super) fn prune_data(skip_confirm: bool) -> Result<()> {
         return Ok(());
     }
 
-    let data_dir = data_dir.canonicalize().unwrap_or(data_dir);
+    let data_dir = validate_prune_target(&data_dir)?;
 
     println!("This will permanently delete the local data directory:");
     println!("  {}", data_dir.display());
@@ -157,4 +157,93 @@ pub(super) fn prune_data(skip_confirm: bool) -> Result<()> {
         .with_context(|| format!("Failed to delete data directory: {}", data_dir.display()))?;
     println!("Pruned: {}", data_dir.display());
     Ok(())
+}
+
+fn validate_prune_target(data_dir: &Path) -> Result<PathBuf> {
+    let metadata = std::fs::symlink_metadata(data_dir)
+        .with_context(|| format!("Failed to inspect data directory: {}", data_dir.display()))?;
+    if metadata.file_type().is_symlink() {
+        bail!(
+            "Refusing to prune symbolic-link data directory: {}",
+            data_dir.display()
+        );
+    }
+    if !metadata.is_dir() {
+        bail!(
+            "Refusing to prune data path that is not a directory: {}",
+            data_dir.display()
+        );
+    }
+
+    let target = data_dir
+        .canonicalize()
+        .with_context(|| format!("Failed to resolve data directory: {}", data_dir.display()))?;
+    if target.parent().is_none() {
+        bail!(
+            "Refusing to prune filesystem root configured as the data directory: {}",
+            target.display()
+        );
+    }
+
+    let current_dir = std::env::current_dir()
+        .context("Failed to resolve the current working directory")?
+        .canonicalize()
+        .context("Failed to canonicalize the current working directory")?;
+    if current_dir.starts_with(&target) {
+        bail!(
+            "Refusing to prune data directory containing the current working directory: {}",
+            target.display()
+        );
+    }
+
+    let home = std::env::var_os("HOME")
+        .or_else(|| std::env::var_os("USERPROFILE"))
+        .map(PathBuf::from)
+        .and_then(|path| path.canonicalize().ok());
+    if home.as_ref().is_some_and(|home| home.starts_with(&target)) {
+        bail!(
+            "Refusing to prune data directory containing the home directory: {}",
+            target.display()
+        );
+    }
+
+    Ok(target)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::validate_prune_target;
+
+    #[test]
+    fn prune_target_accepts_a_dedicated_directory() {
+        let root = tempfile::tempdir().unwrap();
+        let data = root.path().join("data");
+        std::fs::create_dir(&data).unwrap();
+
+        assert_eq!(
+            validate_prune_target(&data).unwrap(),
+            data.canonicalize().unwrap()
+        );
+    }
+
+    #[test]
+    fn prune_target_rejects_filesystem_root_and_working_directory() {
+        let current = std::env::current_dir().unwrap().canonicalize().unwrap();
+        let root = current.ancestors().last().unwrap();
+
+        assert!(validate_prune_target(root).is_err());
+        assert!(validate_prune_target(&current).is_err());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn prune_target_rejects_a_symbolic_link() {
+        let root = tempfile::tempdir().unwrap();
+        let data = root.path().join("data");
+        let link = root.path().join("data-link");
+        std::fs::create_dir(&data).unwrap();
+        std::os::unix::fs::symlink(&data, &link).unwrap();
+
+        assert!(validate_prune_target(&link).is_err());
+    }
 }
