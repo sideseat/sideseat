@@ -1,6 +1,7 @@
-//! PostgreSQL migration management.
+//! Versioned PostgreSQL schema migration registry.
 //!
-//! Handles schema initialization and versioned migrations.
+//! Fresh databases install the current schema directly. Existing databases hold a session-level advisory lock
+//! while applying every immutable migration after their recorded version.
 
 use sqlx::postgres::PgConnection;
 use sqlx::{Acquire, PgPool};
@@ -61,7 +62,6 @@ const MIGRATIONS: &[Migration] = &[
 /// for the entire migration process — advisory locks are session-level
 /// and must be acquired and released on the same connection.
 pub async fn run_migrations(pool: &PgPool, clock: &dyn Clock) -> Result<(), PostgresError> {
-    // Acquire advisory lock to prevent concurrent migrations.
     // Lock ID 0x5364_5365_6174 ("SdSeat" in hex) avoids collision with other apps.
     const MIGRATION_LOCK_ID: i64 = 0x5364_5365;
 
@@ -74,7 +74,7 @@ pub async fn run_migrations(pool: &PgPool, clock: &dyn Clock) -> Result<(), Post
 
     let result = run_migrations_inner(&mut conn, clock).await;
 
-    // Always release the advisory lock, even on error
+    // Advisory locks are session-scoped, so release through the same dedicated connection even after failure.
     let _ = sqlx::query("SELECT pg_advisory_unlock($1)")
         .bind(MIGRATION_LOCK_ID)
         .execute(&mut *conn)
@@ -87,7 +87,6 @@ async fn run_migrations_inner(
     conn: &mut PgConnection,
     clock: &dyn Clock,
 ) -> Result<(), PostgresError> {
-    // Check if schema_version table exists
     let table_exists: bool = sqlx::query_scalar(
         r#"
         SELECT EXISTS (
@@ -101,13 +100,11 @@ async fn run_migrations_inner(
     .await?;
 
     if !table_exists {
-        // Fresh database - apply initial schema
         tracing::debug!("Applying initial PostgreSQL schema v{}", SCHEMA_VERSION);
         apply_initial_schema(&mut *conn, clock).await?;
         return Ok(());
     }
 
-    // Get current version
     let current_version: Option<i32> =
         sqlx::query_scalar("SELECT version FROM schema_version WHERE id = 1")
             .fetch_optional(&mut *conn)
@@ -152,7 +149,7 @@ fn migration_run(current: Option<i32>) -> Result<MigrationRun, PostgresError> {
     })
 }
 
-/// Apply the initial schema
+/// Install the current schema and bootstrap data on a fresh database.
 async fn apply_initial_schema(
     conn: &mut PgConnection,
     clock: &dyn Clock,
@@ -161,18 +158,11 @@ async fn apply_initial_schema(
 
     let mut tx = conn.begin().await?;
 
-    // One script, not statements split on `;`.
-    //
-    // Splitting was silently fatal: a semicolon inside a `--` comment ended a "statement" mid-table, so
-    // PostgreSQL rejected the fragment with "syntax error at end of input" and *no* fresh PostgreSQL
-    // database could be created at all. A comment is not a place anyone looks for a syntax hazard, and
-    // the same trap is waiting in any string literal containing a semicolon. `raw_sql` sends the script
-    // as a simple query, which is what a script is.
+    // Execute each SQL document as a script so comments and literals retain normal SQL parsing.
     sqlx::raw_sql(SCHEMA).execute(&mut *tx).await?;
     sqlx::raw_sql(TENANT_RLS_SQL).execute(&mut *tx).await?;
     sqlx::raw_sql(DEFAULT_DATA).execute(&mut *tx).await?;
 
-    // Record schema version
     sqlx::query(
         "INSERT INTO schema_version (id, version, applied_at, description)
          VALUES (1, $1, $2, 'Initial schema')
@@ -189,10 +179,7 @@ async fn apply_initial_schema(
     Ok(())
 }
 
-/// Apply a specific versioned migration within a transaction.
-///
-/// PostgreSQL supports DDL inside transactions, so the entire migration
-/// (DDL + metadata update) is atomic. Uses IF NOT EXISTS for idempotency.
+/// Apply one versioned migration and its metadata update atomically.
 async fn apply_versioned_migration(
     conn: &mut PgConnection,
     version: i32,
@@ -200,10 +187,6 @@ async fn apply_versioned_migration(
 ) -> Result<(), PostgresError> {
     let start = std::time::Instant::now();
     let now = clock.now().timestamp();
-
-    // One migration, because no schema above v1 was ever released - see the SQLite twin for the full
-    // reasoning. This reaches the current schema directly rather than replaying fourteen steps, two of
-    // which rebuilt tables a v1 database does not have.
     let (name, sql): (&str, &str) = match version {
         2 => (
             "v1_to_current",
@@ -332,10 +315,7 @@ CREATE INDEX IF NOT EXISTS idx_deleted_sessions_due ON deleted_sessions(next_che
 
 "#,
         ),
-        // Its own version, because v2 *was* released: a database already on v2 never re-runs the v2 script, so
-        // a table appended there would reach only fresh installs - the permanently-skipped-migration trap that
-        // forced the ClickHouse v3 changes into one commit. Why the table exists, and why one state is enough,
-        // is documented on the fresh schema.
+        // Released migration scripts are immutable: databases already at v2 execute this step next.
         3 => (
             "retention_cleanup_intent",
             r#"
@@ -351,8 +331,7 @@ CREATE TABLE IF NOT EXISTS retention_cleanup (
 CREATE INDEX IF NOT EXISTS idx_retention_cleanup_due ON retention_cleanup(next_attempt_at);
 "#,
         ),
-        // Its own version, for the reason v3 records: a database already on v3 never re-runs the v3 script, so
-        // a table appended there would reach only fresh installs.
+        // Databases already at v3 execute this immutable step next.
         4 => (
             "deletion_journal",
             r#"
@@ -390,19 +369,13 @@ CREATE INDEX IF NOT EXISTS idx_deletion_journal_target
     ON deletion_journal(project_id, scope, target_id);
 "#,
         ),
-        // The span-id constraint, as its own version - see the SQLite twin. A database already marked v4 by the
-        // commit that introduced the table never re-runs the v4 script, so editing the constraint in there
-        // reached fresh installs and v3 upgrades only.
-        //
-        // Two things here are not the obvious spelling, and each was a defect in the obvious one.
-        //
-        // **The malformed shapes are handled differently, because a journal row is evidence.** A span-scoped row
+        // Existing malformed shapes are handled differently because a journal row is evidence. A span-scoped row
         // with no span id is inert - `deletion_is_journaled` matches on `span_id`, so it was never findable - and
         // is deleted. Any other scope carrying a stray `span_id` is read *correctly* today, so its column is
         // normalised and the row kept: deleting it would lose a real deletion record, and a restore predating
         // that deletion would bring its target back.
         //
-        // **`NOT VALID` with no `VALIDATE`, and that is deliberate rather than unfinished.** `ADD CONSTRAINT`
+        // `NOT VALID` deliberately omits `VALIDATE`. `ADD CONSTRAINT`
         // takes `ACCESS EXCLUSIVE`, and PostgreSQL holds it until the surrounding transaction commits - so
         // validating here would run its full scan under that lock and block every journal read and write, on the
         // one table designed to grow without bound. It does not need validating: the statements above make every
@@ -531,7 +504,7 @@ CREATE TABLE IF NOT EXISTS content_body_backfill (
 
     let mut tx = conn.begin().await?;
 
-    // As one script - see `apply_initial_schema` for why splitting on `;` is a trap.
+    // Execute the migration as a script so comments and literals retain normal SQL parsing.
     sqlx::raw_sql(sql)
         .execute(&mut *tx)
         .await
@@ -543,7 +516,6 @@ CREATE TABLE IF NOT EXISTS content_body_backfill (
 
     let elapsed = start.elapsed().as_millis() as i64;
 
-    // Record migration
     sqlx::query(
         "INSERT INTO schema_migrations (version, name, applied_at, checksum, execution_time_ms, success)
          VALUES ($1, $2, $3, $4, $5, TRUE)
@@ -557,7 +529,6 @@ CREATE TABLE IF NOT EXISTS content_body_backfill (
     .execute(&mut *tx)
     .await?;
 
-    // Update schema version
     sqlx::query("UPDATE schema_version SET version = $1, applied_at = $2 WHERE id = 1")
         .bind(version)
         .bind(now)
