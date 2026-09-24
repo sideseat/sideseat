@@ -60,14 +60,8 @@ fn join_relative(base: &str, relative: &str) -> Option<String> {
 
 /// The comment text of a Rust file, one entry per line that carries any, numbered from 1.
 ///
-/// **One lexical pass**, because two phases cannot agree about which construct encloses which. Blanking string
-/// literals first and then looking for comment openers was the previous shape, and it silently lost citations
-/// three ways: a comment that put its subject in double quotes had it blanked before the comment was even
-/// recognised (the example cannot be written literally here — this check reads its own file); a lifetime
-/// (`&'a str`) opened a character literal that never closed, blanking the rest of the line including any
-/// trailing comment; and an apostrophe in prose did the same. Handling comments and literals in one state
-/// machine is the only form where "inside a comment, a quote is inert" and "inside a string, `/*` is inert" are
-/// both true.
+/// Comments and literals are handled in one lexical pass so quotes inside comments and comment markers inside
+/// strings remain inert.
 ///
 /// A `'` is a character literal only when a closing one follows within an escape's reach; otherwise it is a
 /// lifetime or an apostrophe and is ordinary text. Raw strings carry their hash count, so `r#"…"#` ends where
@@ -315,11 +309,7 @@ fn rust_code_without_comments(text: &str) -> String {
 /// Every third-party action is pinned to a commit, and every container image to an explicit tag.
 ///
 /// A workflow's `uses:` is remote code executed with this repository's token. A tag or a branch there is
-/// mutable by whoever owns that repository, so `@v6` means "whatever they publish next" — the shape every
-/// supply-chain compromise of GitHub Actions has taken. Everything here *was* already pinned to a full SHA, and
-/// that is exactly why this exists: nothing enforced it, so the next step written as `@v6` would have passed
-/// every gate, and "we pin our actions" was a convention rather than a property. The same argument this file
-/// makes about lockfiles.
+/// mutable by whoever owns that repository, so only a full commit identifies reviewed code.
 ///
 /// The version is expected in a trailing comment, because a bare SHA is unreadable and Dependabot writes and
 /// updates that comment itself — an unreadable pin is one nobody dares bump.
@@ -330,15 +320,7 @@ fn rust_code_without_comments(text: &str) -> String {
 /// that holds a test database for ninety seconds.
 ///
 /// Derived from the tree: every tracked workflow, action definition, Compose file **and Dockerfile**, so a
-/// second workflow cannot be added outside the rule — one already exists (`docs.yml`, which deploys the public
-/// site).
-///
-/// **The Dockerfile selection is the part that was missing, and the `FROM` branch below was unreachable
-/// without it.** The comment beside that branch claimed a Dockerfile's base image is checked "in the other
-/// spelling", while the file filter named only workflows, action definitions and paths containing
-/// `docker-compose` — so `deploy/Dockerfile`, the one image that actually reaches a user, was never read and
-/// `FROM debian:latest` would have passed. A gate that sees less than it claims is this file's own recurring
-/// defect; both Compose spellings are matched for the same reason the Dependabot inventory matches both.
+/// new build or deployment file cannot be added outside the rule.
 #[test]
 fn every_action_is_pinned_to_a_commit_and_every_image_to_a_tag() {
     let repo = repo_root();
@@ -582,37 +564,13 @@ const HOME_PLACEHOLDERS: [&str; 3] = [
 
 /// No **tracked file** carries the capturing developer's account name — compressed archives included.
 ///
-/// A sample that reads a file records the absolute path it read, so a capture carries whoever ran it into a
-/// public repository: 918 occurrences across 48 fixtures before this existed, naming one maintainer's home
-/// directory. `record-otlp.py` substitutes a placeholder at capture time now, and this is what keeps the next
-/// capture from quietly reintroducing it — the script is the fix, and a fix nothing checks is a convention.
+/// Captured payloads can include absolute paths from the machine that produced them. The sweep reports Unix,
+/// macOS, and Windows home-directory shapes unless the account segment is one of [`HOME_PLACEHOLDERS`]. It
+/// reads every tracked file and decompresses gzip archives, where captured paths are common and difficult to
+/// notice. Archive counts ensure decoder failures cannot silently reduce coverage.
 ///
-/// The question is asked of the **shape of a home directory**, not of one account name. Matching `$USER` was
-/// the first form, and it is vacuous exactly where it matters most: in CI the account is `runner`, so the guard
-/// ran and could not have seen a contributor's own home directory in a fixture they captured. Every
-/// `…/Users/<name>/` and `…/home/<name>/` in a tracked file is reported unless the name is one of
-/// [`HOME_PLACEHOLDERS`] — which needs no list of forbidden names and does not depend on who runs it. Windows
-/// profile paths are matched in both slash spellings, since a capture can come from there.
-///
-/// **The account name itself is deliberately not searched for**, and that was measured rather than reasoned
-/// about. It used to be, as a supplement — "a name can reach a file by something other than a path: an author
-/// field, a hostname, a bucket name" — and once the scope became the whole repository it made the invariant
-/// unusable: with `USER=runner`, the account every GitHub Ubuntu job runs as, it reports **79 tracked files**,
-/// so `check-server` could never pass. Narrowing it does not rescue it either. `/runner/` occurs as a path
-/// segment in three lockfiles, and inside the captured payloads alone `user` occurs 7,094 times, `build` 1,479
-/// and `test` 826. A check that depends on the maintainer's account name being an unusual word is a check that
-/// fires for the wrong people, and its own note above already said the form was vacuous in CI. The residual is
-/// stated: an account name reaching a file somewhere other than a path — an author field, a hostname — is not
-/// caught here. What is caught is the shape that a capture actually records, which is an absolute path.
-///
-/// **Scope was the defect, twice over.** Restricted to `server/tests/fixtures`, this passed while
-/// `tools/otel-replay/fixtures/traces-crewai.jsonl.gz` carried 940 occurrences of a maintainer's home directory
-/// and a doc comment in `api/routes/agui/` cited a plan file in the same home directory. Five of the six replay
-/// archives *had* been scrubbed by hand, which is exactly what a guard that cannot see them produces: the work
-/// was done and one file was missed, with nothing to say so. So the sweep reads every tracked file, and a
-/// compressed one is **decompressed** rather than skipped — a `.gz` is where a capture's paths are most likely
-/// to be and least likely to be noticed. Compressed archives are counted against the number tracked, so a
-/// decoder that silently fails cannot leave the sweep quietly reading five files instead of six.
+/// The check intentionally targets path shapes rather than arbitrary account-name occurrences. Names in
+/// author fields, hostnames, or other non-path data are outside its scope.
 ///
 /// A prefix must sit at an **absolute-path boundary**: `@/pages/home/create-project-dialog` is a module import,
 /// not a home directory, and reporting it would teach a reader to disbelieve the finding.
@@ -620,10 +578,7 @@ const HOME_PLACEHOLDERS: [&str; 3] = [
 fn no_tracked_file_carries_the_capturing_users_name() {
     use std::io::Read;
 
-    // The prefixes a home directory is spelled with, on every platform a capture can come from - and in both
-    // encodings, because a fixture is JSON: a Windows path arrives with its separators doubled, so the literal
-    // single-backslash form never matches the bytes on disk. The first version had only that form, and the
-    // mutation that "verified" it used forward slashes, so the case it was written for was untested.
+    // A JSON fixture may carry Windows separators literally or escaped, so both byte forms are checked.
     let prefixes: [&[u8]; 5] = [
         b"/Users/",
         b"/home/",
@@ -631,10 +586,7 @@ fn no_tracked_file_carries_the_capturing_users_name() {
         br"C:\\Users\\",
         b"C:/Users/",
     ];
-    // **Tracked files only**, which is the property: the concern is what a public repository carries, and a
-    // local-only fixture directory is gitignored precisely because it is nobody else's. Scanning the working
-    // tree instead reported eight files in `vercel-ai-js/image-gen/`, which `.gitignore` excludes - a failure
-    // for something that is not published.
+    // Only tracked files can publish a captured account path; ignored local fixtures are outside this property.
     let repo = repo_root();
     let listing = std::process::Command::new("git")
         .args(["ls-files", "-z"])
@@ -669,11 +621,7 @@ fn no_tracked_file_carries_the_capturing_users_name() {
             continue;
         };
         let mut reader: Box<dyn Read> = if compressed {
-            // `MultiGzDecoder`, not `GzDecoder`: a gzip file may hold **several concatenated members** (which
-            // is how `cat a.gz b.gz` works, and what any appending producer writes), and the single-member
-            // decoder stops at the first one - so a second member carrying a home directory was invisible
-            // while the archive counter still recorded the file as read. Silent truncation of the input is
-            // the same defect as skipping the file, one layer down.
+            // Gzip files may contain concatenated members, so every member must be scanned.
             Box::new(flate2::read::MultiGzDecoder::new(file))
         } else {
             Box::new(file)
@@ -820,32 +768,16 @@ fn no_rust_source_file_is_ignored() {
 
 /// Every tree diagram in the repository's documentation names things that exist.
 ///
-/// A diagram is a map handed to whoever arrives, and both maps had drifted: each still named a `topic.rs`
-/// under `core/` after pub/sub moved to `data/topics/`, and `CLAUDE.md` named a `pipeline.rs` under `sideml/`
-/// after that file became `normalize.rs`. A map that names a file nobody can open costs more than no map,
-/// because it is trusted. Both names *and* their parentage are checked, so a directory drawn under the wrong
-/// branch is a failure — that is what "the map is right" means, and the first version accepted it.
+/// A block qualifies when its first line or nearest heading names a repository directory. Conceptual trees,
+/// span hierarchies, and runtime data directories are excluded. A repository-shaped root that resolves to
+/// nothing is an error rather than a skipped diagram.
 ///
-/// The diagrams are **found**, not listed: checking a named pair was the first version, and the day it passed,
-/// the public documentation's copy of the same map was stale in the same way. A block qualifies when its stated
-/// subject — its own first line, or the nearest heading naming a directory — resolves to a real directory of
-/// this repository. Box drawing alone does not qualify it: the integration pages draw **span hierarchies** with
-/// the same characters, the ingestion notes draw concepts, and the storage reference draws a runtime data
-/// directory that is not in the repository at all. A root that is spelled as a path and resolves to nothing is
-/// a failure rather than a skip, which is what catches a renamed root taking the whole check quiet with it.
-///
-/// Names are resolved as **whole paths**, reconstructed from the diagram's own indentation. A name-only version
-/// came first and was too weak in a way its wording concealed: it accepted `topics/` drawn under the wrong
-/// branch, and the citation check it deferred to cannot recover a hierarchy from a bare directory name, so
-/// between them the parentage went unchecked. Every map here indents in exact four-column steps, so the tree is
-/// recoverable — and a prefix that is not a multiple of four is reported rather than guessed at, since that is
-/// the only thing that would make the reconstruction unsound.
+/// Entries resolve as whole paths reconstructed from exact four-column indentation, so both names and
+/// parentage are checked. Invalid indentation is reported rather than guessed.
 ///
 /// A name that resolves to nothing tracked is accepted when **git ignores it**, which is committed information.
-/// The JavaScript examples' map documents its `output/` as gitignored, so refusing it would demand the map lie —
-/// but the first fix asked the *filesystem*, and that directory does not exist in a clean checkout: the test
-/// passed only because this machine had built the samples once, and would have failed in CI on a green tree.
-/// A guard whose answer depends on local state is worse than none, because it teaches everyone to disbelieve it.
+/// This permits diagrams to document generated directories without making the result depend on local build
+/// artifacts.
 #[derive(Debug, Eq, PartialEq)]
 struct DiagramEntry {
     offset: usize,
@@ -3010,9 +2942,10 @@ fn http_benchmark_bounds_requests_and_shutdown() {
 fn stale_cleanup_discovers_every_incremental_directory() {
     let script = std::fs::read_to_string(repo_root().join("scripts/clean-stale.sh"))
         .expect("cleanup script");
+    let target_resolver = std::fs::read_to_string(repo_root().join("scripts/cargo-target-dir.sh"))
+        .expect("Cargo target resolver");
     for required in [
-        "cargo metadata --locked --no-deps",
-        "metadata.target_directory",
+        "target_dir=\"$(bash scripts/cargo-target-dir.sh)\"",
         "find \"$target_dir\" -type d -name incremental",
         "cargo sweep --installed",
         "cargo sweep --time 3",
@@ -3020,6 +2953,18 @@ fn stale_cleanup_discovers_every_incremental_directory() {
         assert!(
             script.contains(required),
             "stale cleanup must contain `{required}`"
+        );
+    }
+    for required in [
+        "cargo metadata --locked --no-deps",
+        "metadata.target_directory",
+        "refusing symbolic-link Cargo target directory",
+        "refusing Cargo target that contains the repository",
+        "refusing Cargo target that contains the home directory",
+    ] {
+        assert!(
+            target_resolver.contains(required),
+            "Cargo target resolver must contain `{required}`"
         );
     }
     assert!(
@@ -3459,30 +3404,15 @@ fn messaging_stays_transport_neutral() {
 
 /// Production wiring that behavioural tests cannot see, because they call the underlying method directly.
 ///
-/// Two production call sites, each the *only* one, and each invisible to the behavioural tests because those
-/// call the underlying method directly:
-///
-/// - `start_consistency_check_task` in `app.rs` is what runs the cross-partition check. Every consistency test
-///   calls `check_partition_consistency()` itself, so deleting the scheduling left the suite green and the
-///   cross-month residual permanently unreported - which is worse than not having the detector, because the
-///   commit message says it is reported.
-/// - `report_unidentified_metric_rows` in the ClickHouse migration path is what tells an operator that
-///   pre-identity metric rows exist. The parity test invokes the method directly, so deleting the call left an
-///   upgrade silently exposed.
-///
-/// Structural because there is nothing else available: both are `tokio::spawn`-and-forget side effects on a
-/// path that needs a live ClickHouse and a full `AppState`, and asserting on log output is asserting on a
-/// string. What can be checked is that the call exists, which is exactly the property that was missing.
-///
-/// Commentary is stripped first, so a mention of either name in a doc comment does not satisfy it - the same
-/// discipline `the_storage_layer_does_not_import_the_http_layer` uses, and for the same reason: a gate that
-/// accepts prose is a gate that passes while seeing less than it claims.
+/// These calls schedule side effects around a live `AppState` or database migration, while behavioural tests
+/// exercise only the underlying operations. A structural assertion therefore verifies that production reaches
+/// each operation. Commentary is stripped so prose cannot satisfy the check.
 #[test]
 fn every_detector_is_actually_started_in_production() {
     let repo = repo_root();
     for (file, call, why) in [
         (
-            "server/src/app.rs",
+            "server/src/app/background_tasks.rs",
             "start_consistency_check_task",
             "nothing would run the cross-partition consistency check, so the cross-month duplicate residual \
              would never be reported despite being documented as detected",
