@@ -645,6 +645,8 @@ impl ContentBodyService {
         tokio::spawn(async move {
             let mut interval =
                 tokio::time::interval(std::time::Duration::from_secs(BACKFILL_INTERVAL_SECS));
+            // Checkpoints preserve pending work; replaying missed ticks only duplicates full-project scans.
+            interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
             loop {
                 tokio::select! {
                     biased;
