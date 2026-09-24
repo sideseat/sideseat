@@ -23,20 +23,28 @@ impl EnvProvider {
         let path = key.to_string().to_uppercase().replace(['/', '-'], "_");
         format!("{}{}", self.prefix, path)
     }
+
+    fn read_with(
+        &self,
+        key: &SecretKey,
+        read: impl FnOnce(&str) -> Result<String, std::env::VarError>,
+    ) -> Result<Option<Secret>, SecretError> {
+        let var = self.key_to_env_var(key);
+        match read(&var) {
+            Ok(value) => Ok(Some(Secret::new(value, self.clock.now()))),
+            Err(std::env::VarError::NotPresent) => Ok(None),
+            Err(e) => Err(SecretError::backend(
+                "env",
+                format!("failed to read {var}: {e}"),
+            )),
+        }
+    }
 }
 
 #[async_trait]
 impl SecretProvider for EnvProvider {
     async fn get(&self, key: &SecretKey) -> Result<Option<Secret>, SecretError> {
-        let var = self.key_to_env_var(key);
-        match std::env::var(&var) {
-            Ok(value) => Ok(Some(Secret::new(value, self.clock.now()))),
-            Err(std::env::VarError::NotPresent) => Ok(None),
-            Err(e) => Err(SecretError::backend(
-                "env",
-                format!("failed to read {}: {}", var, e),
-            )),
-        }
+        self.read_with(key, |name| std::env::var(name))
     }
 
     async fn set(&self, _key: &SecretKey, _secret: &Secret) -> Result<(), SecretError> {
@@ -60,10 +68,6 @@ impl SecretProvider for EnvProvider {
 
 #[cfg(test)]
 mod tests {
-    // env::set_var/remove_var are unsafe as of Rust 2024 and have no safe
-    // equivalent. These tests are single-threaded and restore what they change.
-    #![allow(unsafe_code)]
-
     use super::*;
     use crate::types::SecretScope;
     use crate::{test_clock, test_secret};
@@ -90,27 +94,30 @@ mod tests {
         );
     }
 
-    #[tokio::test]
-    async fn test_get_reads_env_var() {
+    #[test]
+    fn test_read_with_returns_secret() {
         let provider = EnvProvider::new("TEST_SECRET_".to_string(), test_clock());
         let key = SecretKey::global("test_key");
-        let env_var = provider.key_to_env_var(&key);
 
-        // SAFETY: test runs single-threaded; no other thread reads this var
-        unsafe { std::env::set_var(&env_var, "secret_value") };
-        let result = provider.get(&key).await.unwrap();
+        let result = provider
+            .read_with(&key, |name| {
+                assert_eq!(name, "TEST_SECRET_GLOBAL_TEST_KEY");
+                Ok("secret_value".to_string())
+            })
+            .unwrap();
         let secret = result.unwrap();
         assert_eq!(secret.value, "secret_value");
         assert_eq!(secret.metadata.created_at, chrono::DateTime::UNIX_EPOCH);
         assert_eq!(secret.metadata.updated_at, chrono::DateTime::UNIX_EPOCH);
-        unsafe { std::env::remove_var(&env_var) };
     }
 
-    #[tokio::test]
-    async fn test_get_missing_returns_none() {
+    #[test]
+    fn test_read_with_returns_none_for_missing_variable() {
         let provider = EnvProvider::new("TEST_MISSING_SECRET_".to_string(), test_clock());
         let key = SecretKey::global("nonexistent");
-        let result = provider.get(&key).await.unwrap();
+        let result = provider
+            .read_with(&key, |_| Err(std::env::VarError::NotPresent))
+            .unwrap();
         assert!(result.is_none());
     }
 
