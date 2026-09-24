@@ -46,12 +46,7 @@ pub struct OtlpGrpcServer {
     log_signal: Arc<LogSignal>,
     database: Arc<crate::dependencies::TransactionalStore>,
     debug_path: Option<PathBuf>,
-    /// What `otel.auth.required` demands of *this* transport.
-    ///
-    /// The setting used to apply to HTTP only: the gRPC server had no interceptor at all and took the
-    /// project id from an untrusted `x-sideseat-project-id` metadata entry, so with auth required an
-    /// unauthenticated client could still write traces or metrics into any existing project. A setting that
-    /// is enforced on one of two equivalent transports is not a setting.
+    /// gRPC and HTTP enforce the same authentication and ingestion-limit policy before decoding a payload.
     guards: GrpcIngestGuards,
     clock: Arc<dyn Clock>,
     staging: Arc<StagingService>,
@@ -64,11 +59,8 @@ pub struct GrpcIngestAuth {
     pub cache: Arc<crate::dependencies::SharedCache>,
     pub database: Arc<crate::dependencies::TransactionalStore>,
     pub api_key_secret: Arc<Vec<u8>>,
-    /// Present when per-IP limiting is on, so a brute force here costs what it costs over HTTP.
-    ///
-    /// Without it the two transports were asymmetric in the attacker's favour: invalid HTTP attempts are
-    /// counted and eventually answered 429, while unlimited gRPC attempts kept reaching key validation. The
-    /// bound on guessing has to be the same on both, or the weaker one is the only one that matters.
+    /// Present when per-IP limiting is on. HTTP and gRPC use equivalent authentication-failure bounds; the
+    /// weaker transport would define the effective guessing limit.
     pub rate_limiter: Option<Arc<sideseat_domain::rate_limit::RateLimiter>>,
     /// Whose forwarded-for metadata may be believed - shared with the HTTP transport.
     pub trusted_proxies: Arc<sideseat_core::utils::client_ip::TrustedProxies>,
@@ -77,10 +69,8 @@ pub struct GrpcIngestAuth {
 
 /// What every gRPC ingest call passes through before its payload is read.
 ///
-/// The two travel together because they are the same kind of thing - a gate the HTTP transport already has -
-/// and because each was added separately and the second one was missed: `otel.auth.required` applied to HTTP
-/// only until it was fixed, and then `rate_limit.ingestion_rpm` did. Grouping them means a third gate is one
-/// field on one struct rather than another parameter nobody threads through.
+/// Authentication and rate limiting travel together as transport-entry guards. Adding another ingest gate
+/// extends this structure rather than threading an independent parameter through every service.
 #[derive(Clone, Default)]
 pub struct GrpcIngestGuards {
     /// Set exactly when `otel.auth.required` is on.
@@ -90,10 +80,6 @@ pub struct GrpcIngestGuards {
 }
 
 /// The per-project ingestion limit, applied to gRPC exactly as the HTTP middleware applies it.
-///
-/// It was missing entirely: HTTP OTLP routes carry `RateLimitBucket::ingestion` keyed by project, while the
-/// gRPC server had only the auth-failure limiter - so `rate_limit.ingestion_rpm` was a setting enforced on
-/// one of two equivalent transports, and an exporter that got 429s over HTTP was unlimited over gRPC.
 ///
 /// **The same bucket as HTTP**, not a separate namespace. The auth-failure buckets are deliberately separate
 /// because their key is a spoofable address and one transport must not exhaust the other's counters; this
@@ -593,16 +579,8 @@ impl LogsService for OtlpLogsService {
 mod grpc_auth_tests {
     /// Every gRPC ingest service authorises before it reads its payload.
     ///
-    /// `otel.auth.required` used to apply to the HTTP transport only: this server had no interceptor at all
-    /// and took the project id from an untrusted `x-sideseat-project-id` metadata entry, so an
-    /// unauthenticated client could write traces, metrics or logs into any existing project while the
-    /// operator believed ingestion was locked down. A setting enforced on one of two equivalent transports is
-    /// not a setting.
-    ///
-    /// The compiler is the first guard: each service owns its own `auth` field, so deleting any one gate makes
-    /// that field dead and fails the build. This test covers what the compiler cannot - that the gate runs
-    /// *before* the payload is consumed, and that a fourth signal added later carries it too. The rule: each `extract_project_id` in an `export` handler is followed
-    /// by the authorisation call before anything else happens.
+    /// The compiler ensures each service carries the shared guards; this structural test verifies that every
+    /// export handler applies them after extracting the project and before consuming the payload.
     #[test]
     fn every_grpc_export_authorizes_before_reading_its_payload() {
         let whole = include_str!("grpc.rs");
@@ -634,8 +612,7 @@ mod grpc_auth_tests {
                 "a gRPC export reads its payload without authorising the project it names; \
                  otel.auth.required would then apply to HTTP only"
             );
-            // And the ingestion limit, for the same reason and in the same window: it was missing from this
-            // transport entirely, so `rate_limit.ingestion_rpm` bounded HTTP exporters and not gRPC ones.
+            // The ingestion limit belongs in the same pre-payload window.
             assert!(
                 window.contains("GrpcIngestLimit::check(self.guards.limit.as_ref(), &project_id)"),
                 "a gRPC export reads its payload without applying the project's ingestion limit; \
