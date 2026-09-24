@@ -313,10 +313,12 @@ pub async fn delete_api_key(
     Ok(deleted)
 }
 
-/// Update last_used_at (debounced, only if older than threshold)
+/// Update `last_used_at` after the debounce threshold and invalidate its positive auth cache entry.
 pub async fn touch_api_key(
     pool: &SqlitePool,
+    cache: Option<&dyn CacheStore>,
     id: &str,
+    key_hash: &str,
     threshold_secs: u64,
     now: i64,
 ) -> Result<bool, SqliteError> {
@@ -331,7 +333,14 @@ pub async fn touch_api_key(
     .execute(pool)
     .await?;
 
-    Ok(result.rows_affected() > 0)
+    let touched = result.rows_affected() > 0;
+    if touched
+        && let Some(cache) = cache
+        && let Err(e) = cache.delete(&CacheKey::api_key_by_hash(key_hash)).await
+    {
+        tracing::warn!(error = %e, "API key cache invalidation error after touch");
+    }
+    Ok(touched)
 }
 
 /// Delete all API keys for an organization
@@ -409,7 +418,7 @@ mod tests {
         id: &str,
         threshold_secs: u64,
     ) -> Result<bool, SqliteError> {
-        super::touch_api_key(pool, id, threshold_secs, TEST_NOW + 1).await
+        super::touch_api_key(pool, None, id, "hash123", threshold_secs, TEST_NOW + 1).await
     }
 
     async fn setup_test_pool() -> SqlitePool {

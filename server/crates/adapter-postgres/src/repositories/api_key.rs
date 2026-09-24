@@ -322,10 +322,12 @@ pub async fn delete_api_key(
     Ok(deleted)
 }
 
-/// Update last_used_at (debounced, only if older than threshold)
+/// Update `last_used_at` after the debounce threshold and invalidate its positive auth cache entry.
 pub async fn touch_api_key(
     pool: &PgPool,
+    cache: Option<&dyn CacheStore>,
     id: &str,
+    key_hash: &str,
     threshold_secs: u64,
     now: i64,
 ) -> Result<bool, PostgresError> {
@@ -340,7 +342,14 @@ pub async fn touch_api_key(
     .execute(pool)
     .await?;
 
-    Ok(result.rows_affected() > 0)
+    let touched = result.rows_affected() > 0;
+    if touched
+        && let Some(cache) = cache
+        && let Err(e) = cache.delete(&CacheKey::api_key_by_hash(key_hash)).await
+    {
+        tracing::warn!(error = %e, "API key cache invalidation error after touch");
+    }
+    Ok(touched)
 }
 
 /// Delete all API keys for an organization

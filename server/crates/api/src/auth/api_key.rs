@@ -94,7 +94,8 @@ pub async fn validate_api_key_for_project(
     required_scope: ApiKeyScope,
     clock: &dyn Clock,
 ) -> Result<ApiKeyValidation, ApiKeyAuthError> {
-    let validation = validate_api_key_core(database.as_ref(), api_key_secret, auth_header).await?;
+    let (validation, key_hash) =
+        validate_api_key_core(database.as_ref(), api_key_secret, auth_header).await?;
 
     // Verify project belongs to the key's org
     let project = database
@@ -114,7 +115,7 @@ pub async fn validate_api_key_for_project(
 
     let now = clock.now().timestamp();
     check_expiry_and_scope(&validation, required_scope, now)?;
-    touch_if_needed(database, &validation, now);
+    touch_if_needed(database, &validation, key_hash, now);
     Ok(validation)
 }
 
@@ -127,10 +128,11 @@ pub async fn validate_api_key_general(
     required_scope: ApiKeyScope,
     clock: &dyn Clock,
 ) -> Result<ApiKeyValidation, ApiKeyAuthError> {
-    let validation = validate_api_key_core(database.as_ref(), api_key_secret, auth_header).await?;
+    let (validation, key_hash) =
+        validate_api_key_core(database.as_ref(), api_key_secret, auth_header).await?;
     let now = clock.now().timestamp();
     check_expiry_and_scope(&validation, required_scope, now)?;
-    touch_if_needed(database, &validation, now);
+    touch_if_needed(database, &validation, key_hash, now);
     Ok(validation)
 }
 
@@ -139,7 +141,7 @@ async fn validate_api_key_core(
     database: &crate::dependencies::TransactionalStore,
     api_key_secret: &[u8],
     auth_header: &str,
-) -> Result<ApiKeyValidation, ApiKeyAuthError> {
+) -> Result<(ApiKeyValidation, String), ApiKeyAuthError> {
     let key = extract_key_from_header(auth_header).ok_or(ApiKeyAuthError::InvalidFormat)?;
 
     if !is_valid_api_key(&key) {
@@ -149,11 +151,12 @@ async fn validate_api_key_core(
     let key_hash = hash_api_key(&key, api_key_secret);
 
     // Repository handles caching (positive + negative)
-    database
+    let validation = database
         .get_api_key_by_hash(&key_hash)
         .await
         .map_err(|_| ApiKeyAuthError::InvalidKey)?
-        .ok_or(ApiKeyAuthError::InvalidKey)
+        .ok_or(ApiKeyAuthError::InvalidKey)?;
+    Ok((validation, key_hash))
 }
 
 /// Check if key is expired and has required scope
@@ -177,6 +180,7 @@ fn check_expiry_and_scope(
 pub(crate) fn touch_if_needed(
     database: Arc<crate::dependencies::TransactionalStore>,
     v: &ApiKeyValidation,
+    key_hash: String,
     now: i64,
 ) {
     let should_touch = v
@@ -189,7 +193,7 @@ pub(crate) fn touch_if_needed(
         tokio::spawn(async move {
             if let Err(e) = database
                 .as_ref()
-                .touch_api_key(&key_id, API_KEY_TOUCH_DEBOUNCE_SECS)
+                .touch_api_key(&key_id, &key_hash, API_KEY_TOUCH_DEBOUNCE_SECS)
                 .await
             {
                 tracing::warn!(key_id = %key_id, error = %e, "Failed to update API key last_used_at");

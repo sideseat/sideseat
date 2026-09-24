@@ -1313,10 +1313,17 @@ impl ApiKeyStore for PostgresRepository {
             .map_err(Into::into)
     }
 
-    async fn touch_api_key(&self, id: &str, threshold_secs: u64) -> Result<bool, DataError> {
+    async fn touch_api_key(
+        &self,
+        id: &str,
+        key_hash: &str,
+        threshold_secs: u64,
+    ) -> Result<bool, DataError> {
         api_key::touch_api_key(
             self.0.pool(),
+            self.0.cache(),
             id,
+            key_hash,
             threshold_secs,
             self.0.clock().now().timestamp(),
         )

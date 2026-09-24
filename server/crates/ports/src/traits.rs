@@ -1352,8 +1352,13 @@ pub trait ApiKeyStore: Send + Sync {
     /// Delete key by ID.
     async fn delete_api_key(&self, id: &str, org_id: &str) -> Result<bool, DataError>;
 
-    /// Update last_used_at (debounced, only if older than threshold).
-    async fn touch_api_key(&self, id: &str, threshold_secs: u64) -> Result<bool, DataError>;
+    /// Update `last_used_at` when the threshold elapsed and invalidate the matching auth cache entry.
+    async fn touch_api_key(
+        &self,
+        id: &str,
+        key_hash: &str,
+        threshold_secs: u64,
+    ) -> Result<bool, DataError>;
 
     /// Delete all keys for organization (for org deletion cleanup).
     async fn delete_api_keys_for_org(&self, org_id: &str) -> Result<u64, DataError>;
