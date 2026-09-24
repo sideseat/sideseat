@@ -1,36 +1,13 @@
-//! A pinned allocator that counts, so a footprint claim can be gated rather than asserted.
+//! Allocation counters used by the footprint gates.
 //!
-//! This lands *before* any footprint optimisation, deliberately: an optimisation whose effect nobody can
-//! measure is a change nobody can defend, and this repository's own latency table is gated precisely so it
-//! cannot drift while every run passes. The four ceilings it feeds are in `server/tests/footprint.rs` and
-//! `scripts/footprint-gates.sh`.
-//!
-//! Two decisions, each of which has a plausible-looking wrong answer.
-//!
-//! **Live allocations, not RSS**, for the gate that matters. `glibc` and `jemalloc` both retain freed pages
-//! rather than returning them to the kernel, so a "returns to baseline" gate written against RSS fails
-//! *correct* code, and fails it differently depending on timing and allocator version — which is worse than
-//! no gate, because it teaches people to rerun until it passes. What a reader actually wants to know is
-//! whether the program is still holding the memory, and that is `allocated - freed`. RSS stays reported
-//! beside it and ungated: it is what an operator's monitoring shows, and a large gap between the two is
-//! itself informative, since it means the allocator is holding pages the program has released.
-//!
-//! **The count is the program's, not the allocator's.** jemalloc publishes `stats.allocated`, which would
-//! have saved the `unsafe impl` below — and would have made the gate a statement about jemalloc rather than
-//! about SideSeat. Counting in the wrapper gives the same number on every platform whatever the backend is,
-//! which is what lets "a session read returns to its baseline" mean something about this code.
-//!
-//! Never feature-gated: project convention rules feature gates out, and a gate that only exists in a special
-//! build is a gate that rots. The cost is two relaxed atomics per allocation, on no path where that is
-//! measurable against a DuckDB write or an HTTP round trip.
+//! Growth gates use live allocations rather than RSS because allocators may retain pages after the program
+//! frees them. RSS remains useful operational context and is reported separately. Counting in this wrapper,
+//! rather than reading allocator-specific statistics, keeps live-byte measurements comparable across
+//! supported platforms and allocator backends.
 
 #![allow(unsafe_code)]
-// The workspace denies `unsafe_code` because production code has none, and this is the first exception.
-// `GlobalAlloc` cannot be implemented safely - the trait is unsafe by definition, since a wrong
-// implementation is memory unsafety - so there is no safe spelling of a counting allocator to prefer. The
-// two methods below delegate every pointer decision to the backend and touch nothing but two counters,
-// which is the smallest surface an accurate live-byte figure can have. The alternative was reading
-// jemalloc's own statistics, which needs no `unsafe` and measures the wrong thing (see the module docs).
+// `GlobalAlloc` is an unsafe trait. Every pointer operation is delegated unchanged to the backend; this
+// wrapper only updates counters after successful allocations and before valid deallocations.
 
 use std::alloc::{GlobalAlloc, Layout};
 use std::sync::atomic::{AtomicI64, AtomicU64, Ordering};
@@ -38,18 +15,10 @@ use std::sync::atomic::{AtomicI64, AtomicU64, Ordering};
 /// Bytes handed out by [`CountingAllocator`] since the process started. Monotone; the churn figure.
 static ALLOCATED: AtomicU64 = AtomicU64::new(0);
 
-/// Bytes allocated and not yet freed, as **one** atomic.
+/// Bytes allocated and not yet freed.
 ///
-/// Not derived from an `allocated` and a `freed` counter, and that was the first design's mistake. Two separate
-/// `Relaxed` atomics cannot be read consistently: statement order in the writer says nothing about the order a
-/// reader observes them in, so on weakly ordered hardware a reader can see the newer `freed` beside an older
-/// `allocated` and compute a live figure that was never true - understating by the size of whatever was in
-/// flight, which is the direction that lets a footprint gate pass during a regression. Reordering the two
-/// `fetch_add`s does not fix it; it only fixes the *source*, which was the gap the second attempt left open.
-///
-/// One counter removes the question. `i64` rather than `u64` because a `dealloc` may be observed before its
-/// `alloc` on another thread, so the value can dip below zero transiently - which is reported as zero rather
-/// than as a number near `u64::MAX`.
+/// A single atomic avoids inconsistent snapshots from separate allocated and freed counters. The signed
+/// representation tolerates transiently negative observations, which readers clamp to zero.
 static LIVE: AtomicI64 = AtomicI64::new(0);
 
 #[cfg(not(target_os = "windows"))]
@@ -109,18 +78,11 @@ unsafe impl<A: GlobalAlloc> GlobalAlloc for CountingAllocator<A> {
     }
 
     unsafe fn realloc(&self, ptr: *mut u8, layout: Layout, new_size: usize) -> *mut u8 {
-        // Delegated rather than left to the trait's default, which would decompose into `alloc` + `copy` +
-        // `dealloc` and throw away the backend's in-place growth - so the default would make every `Vec`
-        // push that could have extended in place copy instead. Counted as a free of the old size and an
-        // allocation of the new, which is what it is; on failure the old block is still live and neither
-        // counter moves.
+        // Preserve the backend's in-place growth support. A failed realloc leaves the old block live, so
+        // counters change only after success.
         let new_ptr = unsafe { self.backend.realloc(ptr, layout, new_size) };
         if !new_ptr.is_null() {
-            // The live delta as **one** atomic operation, which is why there is no ordering question here at
-            // all. Two updates - a free of the old size and an allocation of the new - leave a window in which
-            // a reader sees one and not the other, and no arrangement of two `Relaxed` atomics closes it: a
-            // 100 MiB block grown to 200 MiB could read as 100 MiB *less* live when it is 100 MiB more, and a
-            // gate reading that passes during exactly the regression it exists to catch.
+            // Apply the live-size delta atomically so readers cannot observe an intermediate free or alloc.
             ALLOCATED.fetch_add(new_size as u64, Ordering::Relaxed);
             LIVE.fetch_add(new_size as i64 - layout.size() as i64, Ordering::Relaxed);
         }
@@ -128,8 +90,7 @@ unsafe impl<A: GlobalAlloc> GlobalAlloc for CountingAllocator<A> {
     }
 
     unsafe fn alloc_zeroed(&self, layout: Layout) -> *mut u8 {
-        // Same reason as `realloc`: the default implementation would route through `alloc` and then zero the
-        // block itself, losing the backend's ability to hand back pages the kernel has already zeroed.
+        // Preserve the backend's optimized zeroed-allocation path.
         let ptr = unsafe { self.backend.alloc_zeroed(layout) };
         if !ptr.is_null() {
             ALLOCATED.fetch_add(layout.size() as u64, Ordering::Relaxed);
@@ -241,21 +202,10 @@ pub fn describe_footprint() -> String {
 mod tests {
     use super::*;
 
-    /// The allocator is wired to the counters, asserted on the one figure a concurrent test cannot perturb.
+    /// Churn is monotone, so concurrent frees cannot hide this test's allocation.
     ///
-    /// **`churn_since`, not `growth_since`, and this is the difference between a deterministic assertion and a
-    /// less-likely flake.** `live` is one process-global counter, so another test in this binary *freeing*
-    /// between the two snapshots subtracts from this thread's apparent growth - by *any* amount, including more
-    /// than this block. A bigger block lowers the probability and provides no floor; the first version of this
-    /// test asserted 8 MiB exactly and measured 8 388 274, 334 bytes short.
-    ///
-    /// `churn_since` reads `ALLOCATED` alone, which is **monotone**: every concurrent allocation adds to it and
-    /// nothing subtracts. So "at least this block's bytes passed through the allocator" is a statement no other
-    /// thread can falsify, which is exactly the property under test - that the wrapper is in force at all.
-    ///
-    /// Growth is measured and *reported*, not asserted. It is the interesting number and it is not a sound
-    /// assertion here; `server/tests/footprint.rs` is where growth is gated, under a mutex that serialises the
-    /// measurements precisely because this counter is global.
+    /// Live growth is only reported here because the counter is process-global. Footprint tests serialize
+    /// measurements before asserting growth.
     #[test]
     fn an_allocation_passes_through_the_counting_allocator() {
         const BLOCK: usize = 8 * 1024 * 1024;
@@ -278,17 +228,7 @@ mod tests {
         );
     }
 
-    /// The live figure comes from exactly one atomic, so no read of it can be torn.
-    ///
-    /// This replaces an ordering argument that did not hold. The first version derived `live` from an
-    /// `allocated` and a `freed` counter and claimed the *source order* of the two `fetch_add`s made a torn read
-    /// over-estimate - which is false: two `Relaxed` atomics may be observed in either order whatever the source
-    /// says, so a reader could see the newer free beside the older allocation and compute a figure that was
-    /// never true, understating by whatever was in flight. That is the direction that lets a gate pass during a
-    /// regression, and no arrangement of two counters closes it.
-    ///
-    /// Read as source text because the property is about which atomics exist, and a runtime test cannot
-    /// reliably produce the interleaving it would need to fail.
+    /// Source inspection enforces the single-atomic design and coverage of every allocation path.
     #[test]
     fn the_live_figure_is_a_single_atomic() {
         let source: String = include_str!("allocation.rs")
@@ -298,9 +238,7 @@ mod tests {
             .collect::<Vec<_>>()
             .join("\n");
 
-        // Needles assembled from pieces, because this test's own text is inside the source it reads: written
-        // literally, `contains("static FREED")` is satisfied by this very line and the assertion can never
-        // fail. It did exactly that on the first run.
+        // Assemble needles so this source-reading test does not match its own assertions.
         let freed_counter = concat!("static ", "FREED");
         let live_load = concat!("LIVE", ".load");
         assert!(
