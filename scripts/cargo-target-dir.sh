@@ -8,8 +8,9 @@ target_dir="$(
   cargo metadata --locked --no-deps --format-version 1 |
     node -e '
 const fs = require("node:fs");
+const path = require("node:path");
 const metadata = JSON.parse(fs.readFileSync(0, "utf8"));
-process.stdout.write(metadata.target_directory + "\n");
+process.stdout.write(path.resolve(metadata.target_directory) + "\n");
 '
 )"
 if [[ -z "$target_dir" ]]; then
