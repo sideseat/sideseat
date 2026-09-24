@@ -1960,7 +1960,15 @@ mod order_within_unit_equivalence {
     }
 
     proptest! {
-        #![proptest_config(ProptestConfig::with_cases(512))]
+        #![proptest_config(ProptestConfig {
+            cases: 512,
+            failure_persistence: Some(Box::new(
+                proptest::test_runner::FileFailurePersistence::Direct(
+                    "src/sideml/feed/order_graph.seeds",
+                ),
+            )),
+            ..ProptestConfig::default()
+        })]
 
         /// The two agree on every generated graph.
         ///

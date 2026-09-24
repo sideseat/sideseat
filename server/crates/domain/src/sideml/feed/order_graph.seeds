@@ -2,7 +2,7 @@
 # automatically read and these particular cases re-run before any
 # novel cases are generated.
 #
-# It is recommended to check this file in to source control so that
-# everyone who runs the test benefits from these saved cases.
+# Keep this file beside the property suite so test artifacts do not create
+# a separate proptest-regressions tree under the server composition root.
 cc 76935882b6f9c963fa048325764727f9e3956ec8163e205766988f8d22ebface # shrinks to size = 5, pairs = []
 cc 771796123e31e69f198067c612cd08055c211f1da596da78d2260bd870e9a52e # shrinks to members = {2, 6}, edges = []
