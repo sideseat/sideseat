@@ -8,8 +8,13 @@ use sideseat_core::constants::{
 
 const CURRENT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
+#[derive(serde::Deserialize)]
+struct NpmPackage {
+    version: String,
+}
+
 /// Return the latest stable npm version when it is newer than this executable.
-pub async fn check_for_update() -> Option<String> {
+pub(super) async fn check_for_update() -> Option<String> {
     let current = match semver::Version::parse(CURRENT_VERSION) {
         Ok(v) => v,
         Err(e) => {
@@ -41,13 +46,17 @@ pub async fn check_for_update() -> Option<String> {
         return None;
     }
 
-    if npm > current {
+    if update_is_available(&current, &npm) {
         tracing::debug!(current = %current, npm = %npm, "Update available");
         Some(npm_version)
     } else {
         tracing::debug!(current = %current, npm = %npm, "No update available");
         None
     }
+}
+
+fn update_is_available(current: &semver::Version, candidate: &semver::Version) -> bool {
+    candidate.pre.is_empty() && candidate > current
 }
 
 async fn fetch_npm_version_with_retry() -> Option<String> {
@@ -82,11 +91,6 @@ async fn fetch_npm_version(client: &reqwest::Client) -> Result<String, String> {
         return Err(format!("HTTP {}", resp.status()));
     }
 
-    #[derive(serde::Deserialize)]
-    struct NpmPackage {
-        version: String,
-    }
-
     let pkg: NpmPackage = resp
         .json()
         .await
@@ -95,7 +99,7 @@ async fn fetch_npm_version(client: &reqwest::Client) -> Result<String, String> {
     Ok(pkg.version)
 }
 
-pub fn current_version() -> &'static str {
+pub(super) fn current_version() -> &'static str {
     CURRENT_VERSION
 }
 
@@ -103,49 +107,23 @@ pub fn current_version() -> &'static str {
 mod tests {
     use super::*;
 
-    #[derive(serde::Deserialize)]
-    struct TestNpmPackage {
-        version: String,
-    }
-
     #[test]
-    fn test_version_comparison_newer() {
-        let current = semver::Version::parse("1.0.4").unwrap();
-        let npm = semver::Version::parse("1.0.5").unwrap();
-        assert!(npm > current);
-    }
-
-    #[test]
-    fn test_version_comparison_same() {
-        let current = semver::Version::parse("1.0.4").unwrap();
-        let npm = semver::Version::parse("1.0.4").unwrap();
-        assert!(npm <= current);
-    }
-
-    #[test]
-    fn test_version_comparison_older() {
-        let current = semver::Version::parse("1.0.4").unwrap();
-        let npm = semver::Version::parse("1.0.3").unwrap();
-        assert!(npm <= current);
-    }
-
-    #[test]
-    fn test_version_comparison_major() {
-        let current = semver::Version::parse("1.0.4").unwrap();
-        let npm = semver::Version::parse("2.0.0").unwrap();
-        assert!(npm > current);
-    }
-
-    #[test]
-    fn test_prerelease_detected() {
-        let npm = semver::Version::parse("1.0.5-beta").unwrap();
-        assert!(!npm.pre.is_empty());
-    }
-
-    #[test]
-    fn test_stable_no_prerelease() {
-        let npm = semver::Version::parse("1.0.5").unwrap();
-        assert!(npm.pre.is_empty());
+    fn update_policy_accepts_only_newer_stable_versions() {
+        for (current, candidate, expected) in [
+            ("1.0.4", "1.0.5", true),
+            ("1.0.4", "2.0.0", true),
+            ("1.0.4", "1.0.4", false),
+            ("1.0.4", "1.0.3", false),
+            ("1.0.4", "1.0.5-beta.1", false),
+        ] {
+            let current = semver::Version::parse(current).unwrap();
+            let candidate = semver::Version::parse(candidate).unwrap();
+            assert_eq!(
+                update_is_available(&current, &candidate),
+                expected,
+                "{current} -> {candidate}"
+            );
+        }
     }
 
     #[test]
@@ -154,22 +132,12 @@ mod tests {
     }
 
     #[test]
-    fn test_npm_response_parsing() {
-        let json = r#"{"version": "1.0.5"}"#;
-        let pkg: TestNpmPackage = serde_json::from_str(json).unwrap();
-        assert_eq!(pkg.version, "1.0.5");
-    }
-
-    #[test]
-    fn test_npm_response_extra_fields() {
+    fn npm_response_requires_a_version_and_ignores_extra_fields() {
         let json = r#"{"name": "sideseat", "version": "1.0.5", "main": "index.js"}"#;
-        let pkg: TestNpmPackage = serde_json::from_str(json).unwrap();
+        let pkg: NpmPackage = serde_json::from_str(json).unwrap();
         assert_eq!(pkg.version, "1.0.5");
-    }
 
-    #[test]
-    fn test_npm_response_missing_version() {
         let json = r#"{"name": "sideseat"}"#;
-        assert!(serde_json::from_str::<TestNpmPackage>(json).is_err());
+        assert!(serde_json::from_str::<NpmPackage>(json).is_err());
     }
 }
