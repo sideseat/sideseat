@@ -1040,10 +1040,8 @@ fn every_tree_diagram_names_things_that_exist() {
             })
             .collect::<Vec<_>>()
             .join("\n");
-        // `-v`, and the source is **verified to be a committed `.gitignore`**. Plain `check-ignore` also
-        // consults `.git/info/exclude` and the user's global excludes, so a name missing from the tree could
-        // have been accepted here because of one machine's configuration - the same class of defect as asking
-        // the filesystem, one step further out.
+        // `-v` identifies the matching ignore source; only committed `.gitignore` files may justify a
+        // generated path, never machine-local excludes.
         let ignored = Command::new("git")
             .args(["check-ignore", "-v", "--stdin"])
             .current_dir(repo)
@@ -1103,10 +1101,8 @@ fn every_tree_diagram_names_things_that_exist() {
 /// Each package's `engines` and its lockfile's copy of it agree.
 ///
 /// npm writes the root manifest's `engines` into `package-lock.json` and does not refresh it until an install
-/// runs, so editing one leaves the other stating the previous requirement. That is not cosmetic here:
-/// `make node-floor` derives the supported Node versions from the **lockfiles**, so a stale copy means the
-/// derivation silently omits the package's own declared constraint - which is exactly what happened when
-/// `examples/javascript` was corrected from `>=20.0.0` and only the manifest was touched.
+/// runs. `make node-floor` derives supported Node versions from the lockfiles, so the recorded constraint must
+/// match the manifest.
 ///
 /// The remedy is `npm install --package-lock-only` in that package.
 #[test]
@@ -1175,9 +1171,7 @@ fn every_lockfile_carries_its_manifests_engines() {
                 _ => None,
             };
             let Some(path) = path else { continue };
-            // A path that climbs past the repository root names something outside this tree, and a lockfile
-            // depending on a directory beside the checkout is a dependency nobody else can resolve. That was a
-            // silent `continue`, so it passed.
+            // A path that climbs above the repository root is a machine-local dependency.
             let Some(joined) = join_relative(dir, path) else {
                 disagree.push(format!(
                     "{lock_path} resolves `{key}` to `{path}`, which climbs above the repository root - a \
@@ -1236,10 +1230,8 @@ fn every_lockfile_carries_its_manifests_engines() {
 
 /// Every command that resolves dependencies passes `--locked`.
 ///
-/// Four separate reviews found one of these at a time - the audit steps, the Makefile's eleven uv calls, Cargo's
-/// nine, then `make setup`, `dev-server` and the benchmark - because each fix was an instance and the rule lived
-/// nowhere. This is the rule: a lockfile is a statement about what was reviewed, and a command that silently
-/// rewrites it makes every later `--locked` check a statement about a machine instead.
+/// A lockfile identifies the reviewed dependency graph. Commands that consume that graph must not silently
+/// rewrite it.
 ///
 /// **A line that could be pasted and run**, which is the distinction that makes this checkable: a command at the
 /// start of a line (after a make recipe's `@`, a `(cd … &&` prefix, or an `echo` that prints instructions) or
@@ -1249,12 +1241,6 @@ fn every_lockfile_carries_its_manifests_engines() {
 /// The exceptions are commands whose **purpose** is to write the lockfile, and they are named rather than
 /// pattern-matched: `uv lock`, `uv add`, `cargo update`, and the installers (`cargo install`, `npm install`),
 /// which resolve something other than this workspace.
-///
-/// `cargo fetch` was on that list and does not belong there: it resolves **this** workspace and writes
-/// `Cargo.lock` when the manifest has moved, so `make setup` — whose whole purpose is to reproduce the locked
-/// tree, and which argues exactly that three lines below about `npm ci` — could repair a stale lockfile before
-/// any later `--locked` gate looked at it. `cargo tarpaulin` was missing outright, which is the hand-maintained
-/// inventory this file exists to remove, in the invariant that removes it.
 #[test]
 fn every_resolving_command_is_locked() {
     let repo = repo_root();
@@ -1273,45 +1259,28 @@ fn every_resolving_command_is_locked() {
         "cargo zigbuild",
         "cargo tarpaulin",
         "cargo fetch",
-        // Resolves and writes the lockfile like any other read of the graph - the MSRV note in the root
-        // manifest documents one, and it was invisible while `#` comments were skipped wholesale.
+        // Metadata resolves the workspace graph and can update its lockfile.
         "cargo metadata",
         "uv sync",
         "uv run",
         "uv export",
     ];
-    // No exception list. There was one - `uv lock`, `uv add`, `cargo update`, `cargo install`, `npm install` -
-    // and emptying it changed no answer, because a segment is only examined when it *starts with* a resolving
-    // command and none of those is one. So it excused nothing while telling the next reader that exceptions
-    // were handled here. The deliberate writers are excluded by construction instead: they are absent from
-    // `RESOLVING`, which is the list that decides what is examined.
-
     let mut unlocked: Vec<String> = Vec::new();
     let mut checked = 0usize;
     for file in String::from_utf8_lossy(&listing.stdout)
         .lines()
-        // **Every tracked text file**, with no directory excluded either: the allowlist omitted the
-        // extensionless git hooks, `.py`, `.mjs`, `.js` and `package.json` scripts, and the exclusion of
-        // `server/tests/fixtures/` - written for captured payloads, which are data - also hid the fixtures
-        // README, whose two golden-regeneration commands were unlocked. A payload is excluded by being
-        // binary, which `is_text` already decides.
+        // Every tracked text file is eligible; binary payloads are excluded by `is_text`.
         .filter(|f| is_text(&repo.join(f)))
     {
         let text = std::fs::read_to_string(repo.join(file)).unwrap_or_default();
-        // Rust is read through its **commentary**, not skipped and not read whole. Skipped, it hid two
-        // pasteable commands in doc comments - the golden-regeneration line and a benchmark invocation, both
-        // inside ```bash fences that a reader copies. Read whole, every entry of this scanner's own tables
-        // would be a finding. A command *constructed* in code (`Command::new("cargo").args([…])`) is a third
-        // shape, and one this would not have matched in any case.
+        // Rust contributes pasteable commands from commentary, not command names constructed as code.
         let rust = file.ends_with(".rs");
         let commentary: Vec<(usize, String)>;
         let numbered: Vec<(usize, &str)> = if rust {
             commentary = rust_commentary(&text);
             commentary
                 .iter()
-                // The doc marker is part of the comment body once `//` is consumed, so `///` arrives as `/`
-                // and `//!` as `!`. Left on, the fence line `/// ```bash` does not start with a fence and
-                // every command inside one was invisible.
+                // Strip doc markers before detecting Markdown fences.
                 .map(|(number, line)| {
                     (number - 1, line.trim_start_matches(['/', '!']).trim_start())
                 })
@@ -1325,10 +1294,7 @@ fn every_resolving_command_is_locked() {
                 fenced = !fenced;
                 continue;
             }
-            // A `#` comment that is *nothing but* a command is a command - the root manifest documents how to
-            // re-measure the MSRV with one, and skipping every commented line hid it. A comment that quotes a
-            // command inside a sentence is still a reference, which is what the `starts_with` distinguishes:
-            // the same rule the fenced and backticked forms use, applied to the third kind of commentary.
+            // A shell comment containing only a command is pasteable; an inline command reference is not.
             let bare = line.trim().trim_start_matches(['@', '\t']).trim_start();
             let line = match bare.strip_prefix('#') {
                 Some(comment) if !fenced => {
@@ -1347,9 +1313,7 @@ fn every_resolving_command_is_locked() {
             for prefix in ['@', '-', '(', '\t'] {
                 runnable = runnable.trim_start_matches(prefix).trim_start();
             }
-            // A whole line that is one backticked command is a command. Mid-sentence, a backticked name is a
-            // reference and locking it would be noise - but a comment line consisting of nothing else is how
-            // every "run this to regenerate" line in this crate is written, and two of them were unlocked.
+            // A whole backticked line is pasteable, while a backticked name inside prose is only a reference.
             let mut whole_line_command = false;
             if let Some(inner) = runnable
                 .strip_prefix('`')
@@ -1359,17 +1323,12 @@ fn every_resolving_command_is_locked() {
                 runnable = inner.trim();
                 whole_line_command = true;
             }
-            // In Rust commentary, prose **wraps**, so a continuation line can begin with anything - including
-            // the tail of a quoted command, which is how this file's own explanation of the `&&` splitting
-            // reported itself three times. A comment line is a command only where it says so: inside a fenced
-            // block, or as a line that is nothing but one backticked command. Markdown keeps the looser rule,
-            // where a command at the start of a line is what a reader copies.
+            // Rust commentary counts commands only in fences or whole backticked lines; Markdown also permits
+            // a command at the start of a line.
             if rust && !fenced && !whole_line_command {
                 continue;
             }
-            // Leading environment assignments: `UPDATE_GOLDENS=1 cargo test …` is the documented way to
-            // regenerate the goldens, and testing what the segment *starts with* saw the assignment instead of
-            // the command - the same blindness as the `cargo watch` argument form.
+            // Remove leading environment assignments before identifying the command.
             while let Some((head, rest)) = runnable.split_once(' ') {
                 let assignment = head.split_once('=').is_some_and(|(name, _)| {
                     !name.is_empty()
@@ -1395,13 +1354,7 @@ fn every_resolving_command_is_locked() {
                     let _ = rest;
                 }
             }
-            // Each segment a shell would run, judged **on its own**: taking the first resolving segment and
-            // then testing the whole *line* let `cargo test --locked && cargo build` pass and
-            // `cargo fetch && cargo build` be exempt entirely.
-            // One normalisation for both, because the fenced branch used the *raw* line and so discarded every
-            // prefix strip above it: the documented `UPDATE_GOLDENS=1 cargo test …` sits inside a ```bash
-            // fence, and inside a fence the environment assignment was never removed, so the command behind it
-            // was never seen. A fence makes a line more pasteable, not less.
+            // Judge every shell segment independently after the same normalization.
             let candidate = runnable;
             for segment in candidate
                 .split("&&")
@@ -1409,9 +1362,7 @@ fn every_resolving_command_is_locked() {
                 .flat_map(|part| part.split("||"))
                 .map(str::trim)
             {
-                // `cargo watch -x "run -- …"` and `watchexec -- "… cargo run …"` carry the command inside an
-                // argument, so for those the segment is searched from any position - both `dev-server`
-                // branches were unlocked and invisible for exactly that reason.
+                // Watch runners carry the delegated Cargo command inside an argument.
                 let delegated =
                     segment.starts_with("cargo watch") || segment.starts_with("watchexec");
                 let Some(command) = RESOLVING.iter().find(|c| {
@@ -1448,14 +1399,8 @@ fn every_resolving_command_is_locked() {
 
 /// A sample suite that declares a collision-free alias is invoked by it everywhere.
 ///
-/// Five suites declare both `<name>` and `telemetry-<name>`, and the alias exists for a reason `run-all.sh`
-/// states: the framework's own package installs a CLI of that name and **wins**, so `uv run --directory
-/// examples/python/crewai crewai` runs CrewAI's CLI rather than the sample. Only `run-all.sh` used the alias;
-/// `capture.sh` and the README named the colliding form, which means the fixture-capture path for that suite was
-/// invoking the wrong program.
-///
-/// The rule is uniform rather than per-suite, deliberately: `langgraph` did not collide *today* only because
-/// `langgraph-cli` is not in that tree, and the alias costs nothing.
+/// Framework packages may install a CLI with the suite's short name. Suites that declare a
+/// `telemetry-<name>` alias must use it consistently so the sample entry point wins.
 #[test]
 fn every_aliased_sample_suite_is_invoked_by_its_alias() {
     let repo = repo_root();
@@ -1493,9 +1438,7 @@ fn every_aliased_sample_suite_is_invoked_by_its_alias() {
         aliased.len()
     );
 
-    // The callers are **discovered**, not listed: three filenames were hardcoded, so a new documentation page,
-    // Make target or script could invoke the colliding CLI while this stayed green - and one already did
-    // (`examples/python/README.md`, twenty-five times). Every tracked text file is a candidate.
+    // Discover callers across tracked text instead of maintaining a filename list.
     let all = Command::new("git")
         .args(["ls-files"])
         .current_dir(repo)
@@ -1504,15 +1447,9 @@ fn every_aliased_sample_suite_is_invoked_by_its_alias() {
     let mut colliding: Vec<String> = Vec::new();
     for caller in String::from_utf8_lossy(&all.stdout)
         .lines()
-        // **Every tracked text file**, not an extension allowlist: the allowlist omitted the extensionless git
-        // hooks, `.py`, `.mjs`, `.js` and `package.json` scripts - the hand-maintained inventory these
-        // invariants exist to remove, reintroduced inside one of them.
+        // Text detection also covers extensionless scripts and package-manager command fields.
         .filter(|f| !f.starts_with("server/tests/fixtures/"))
-        // Rust is excluded for a reason of its own, not the one the sibling scanner has (that comment was
-        // copied here and did not fit): **this file documents the pattern it looks for**, so reading Rust
-        // commentary would report its own explanation. The residual, stated: a Rust file that genuinely
-        // invoked a sample suite would be missed - and nothing in Rust runs them, since the capture path is
-        // `scripts/message-fixtures/capture.sh`.
+        // Rust commentary documents these patterns but does not invoke sample suites.
         .filter(|f| !f.ends_with(".rs"))
         .filter(|f| is_text(&repo.join(f)))
     {
@@ -1549,13 +1486,10 @@ fn every_aliased_sample_suite_is_invoked_by_its_alias() {
 /// Every uv project requires the same resolver, and CI installs exactly that one.
 ///
 /// `required-version` is what makes the pin real: uv refuses to run when it does not match, which no Makefile
-/// check can do for a `uv` invoked directly - and `make update-python-deps` is the one command that *writes*
-/// lockfiles, on a contributor's machine. Pinning `setup-uv`'s version input covered CI alone.
+/// check can do for a `uv` invoked directly.
 ///
-/// It has to be restated per project, and that is uv's rule rather than a choice: a project's own `[tool.uv]`
-/// **replaces** the `uv.toml` found above it instead of merging, so fourteen projects were exactly the ones a
-/// differently-versioned uv could still write lockfiles for. Verified by mutating one and watching uv refuse.
-/// This test is what keeps the fifteen declarations one value.
+/// Each project's `[tool.uv]` replaces rather than merges the `uv.toml` above it, so every project must restate
+/// the same requirement.
 #[test]
 fn every_uv_project_requires_the_same_resolver() {
     let repo = repo_root();
@@ -1569,16 +1503,11 @@ fn every_uv_project_requires_the_same_resolver() {
     let mut misplaced: Vec<String> = Vec::new();
     for file in String::from_utf8_lossy(&listing.stdout)
         .lines()
-        // The **root** `uv.toml`, by path: any tracked file of that name satisfied the count and section
-        // checks, so moving it under `config/` unchanged would have removed the pin from every project that
-        // inherits it while every assertion still passed.
+        // Only the root `uv.toml` supplies the repository-wide default.
         .filter(|f| f.ends_with("pyproject.toml") || *f == "uv.toml")
     {
         let text = std::fs::read_to_string(repo.join(file)).unwrap_or_default();
-        // The **section** matters, not only the line: uv reads `required-version` from `[tool.uv]` in a manifest
-        // and from the top level of a `uv.toml`, and ignores it silently anywhere else. The mutation test covered
-        // deletion and not misplacement, so a declaration moved into an unrelated table satisfied every
-        // assertion here while doing nothing at all.
+        // uv reads `required-version` from `[tool.uv]` in manifests and from the top level of `uv.toml`.
         let wanted = if file.ends_with("uv.toml") {
             ""
         } else {
@@ -1662,9 +1591,7 @@ fn every_uv_project_requires_the_same_resolver() {
         .filter(|f| f.ends_with("pyproject.toml"))
     {
         let text = std::fs::read_to_string(repo.join(file)).unwrap_or_default();
-        // The declaration, not the *word*: `contains` over the whole file counts a mention in a comment, so
-        // deleting the real line from a manifest whose comment explains it still passed - the exact defect this
-        // half is for. Asked of non-comment lines, like the value scan above.
+        // Require a declaration on a non-comment line, not merely the phrase in prose.
         let declares = text.lines().any(|line| {
             let trimmed = line.trim();
             !trimmed.starts_with('#') && trimmed.starts_with("required-version")
