@@ -407,12 +407,8 @@ pub async fn advance_pending_deletions(
 
     // Spans written for a trace that had already been deleted.
     //
-    // The write path checks the tombstone immediately before writing and re-checks immediately after, so
-    // this collects only what a *crash* between those two left behind - and that window is exactly why a
-    // pre-write check alone is not a guarantee: the tombstone is a row in this store and the spans go to
-    // the analytics store, so nothing makes the pair atomic. Leased, backed-off and batched for the same
-    // reason the deleted-project records are: the records are long-lived, so the *rate* is what must be
-    // bounded rather than the count.
+    // Reconcile permanent trace tombstones. Claims are leased, backed off, and batched because the records are
+    // long-lived while the work rate must remain bounded.
     match repo
         .claim_deleted_traces_for_check(DELETED_TRACE_CHECK_LEASE_SECS, DELETED_TRACE_CHECK_BATCH)
         .await
@@ -420,34 +416,23 @@ pub async fn advance_pending_deletions(
         Ok(claimed) => {
             for (project_id, trace_id, claim_token) in claimed {
                 let project_id = ProjectId::from(project_id);
-                let removed = analytics
+                let delete_result = analytics
                     .as_ref()
                     .delete_traces(&project_id, std::slice::from_ref(&trace_id))
                     .await;
-                // "Quiet" requires no error as well as nothing found: a failed delete is a reason to look
-                // again soon, not evidence the trace has gone quiet. DuckDB reports rows removed while
-                // ClickHouse can only report how many ids it was asked about, so a *count* cannot decide
-                // this - what decides it is whether anything is still readable, asked directly.
-                let still_there = analytics
+                // Backends expose different delete counts, so a direct read establishes whether rows remain.
+                let remaining_read = analytics
                     .as_ref()
                     .get_spans_for_trace(&project_id, &trace_id, 1)
                     .await;
-                // The files, but **only** once the rows are provably gone.
-                //
-                // Two mistakes are possible here and they pull in opposite directions. Repairing only the
-                // analytics store leaves a permanent leak: a crash after the analytics delete but before
-                // the association release leaves `ref_count` above zero, which the orphan sweeper cannot
-                // select, while this sweep reads analytics as quiet and backs off to a daily floor. But
-                // collecting the files *regardless* is worse - a transient delete failure then leaves
-                // readable rows pointing at bytes this sweep has taken, which is the dangling reference the
-                // whole write-files-before-rows ordering exists to prevent.
-                //
-                // So: rows first, files only if the delete succeeded and a direct read confirms nothing
-                // remains. A scheduling change (`was_quiet`) cannot undo a destructive cleanup, so the
-                // condition has to gate the cleanup rather than merely record its outcome.
-                let rows_gone = removed.is_ok()
-                    && matches!(still_there.as_ref().map(|spans| spans.is_empty()), Ok(true));
-                let files = if rows_gone {
+                // File associations are released only after a successful delete and an empty verification read;
+                // otherwise cleanup could leave readable rows pointing at missing bytes.
+                let rows_gone = delete_result.is_ok()
+                    && matches!(
+                        remaining_read.as_ref().map(|spans| spans.is_empty()),
+                        Ok(true)
+                    );
+                let files_reconciled = if rows_gone {
                     let outcome = file_service
                         .cleanup_traces(&project_id, std::slice::from_ref(&trace_id))
                         .await;
@@ -465,17 +450,15 @@ pub async fn advance_pending_deletions(
                     false
                 };
 
-                // "Quiet" requires *everything* to have come back clean: the rows gone and the files
-                // collected. Deciding it from the analytics store alone let a file leak sit behind a
-                // backed-off schedule.
-                let was_quiet = rows_gone && files;
-                if let Err(ref e) = removed {
+                // Back off only after both analytical rows and file associations are reconciled.
+                let was_quiet = rows_gone && files_reconciled;
+                if let Err(ref e) = delete_result {
                     tracing::warn!(project_id = %project_id, trace_id, error = %e, "Could not sweep a deleted trace");
                 } else if !was_quiet {
                     tracing::warn!(
                         project_id = %project_id,
                         trace_id,
-                        "Collected data written for a trace that had already been deleted"
+                        "Deleted trace is not quiet after cleanup; keeping it on the base schedule"
                     );
                 }
                 if let Err(e) = repo
