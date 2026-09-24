@@ -980,7 +980,7 @@ fn every_tree_diagram_names_things_that_exist() {
                 .filter(|f| f.starts_with(&format!("{root}/")))
                 .collect();
             if under.is_empty() {
-                // A multi-segment path is a claim about this repository, so failing to resolve is a defect - it
+                // A multi-segment path is a claim about this repository, so failing to resolve is an error - it
                 // is how a renamed root is caught. A bare name is more likely another kind of tree entirely.
                 if root.contains('/') {
                     missing.push(format!("{doc}:{}: root `{root}/` does not exist", open + 1));
@@ -3032,9 +3032,7 @@ fn rule_embedding_is_owned_by_the_asset_crate() {
 
 /// Does this manifest line declare `driver`, under its own name or a rename?
 ///
-/// Extracted so it can be tested on input the workspace does not contain. A live mutation is not available:
-/// adding an unresolvable dependency to a manifest fails the *build*, so the test never runs and proves nothing
-/// about its own logic.
+/// A pure predicate keeps renamed-dependency handling testable without adding a real driver to a layer crate.
 fn declares_driver(line: &str, driver: &str) -> bool {
     let trimmed = line.trim();
     // A driver named in a comment is how these manifests explain what they may not reach.
@@ -3045,14 +3043,13 @@ fn declares_driver(line: &str, driver: &str) -> bool {
         .split_once(['=', ' '])
         .map(|(key, _)| key.trim() == driver)
         .unwrap_or(false);
-    // `db = { package = "duckdb" }` followed by `use db::Connection` linked the driver under another name, and a
-    // key-only check saw nothing.
+    // Cargo dependencies may rename the package key while retaining the driver's package name.
     let renamed_to_driver =
         trimmed.contains("package") && trimmed.contains(&format!("\"{driver}\""));
     key_is_driver || renamed_to_driver
 }
 
-/// The predicate above, on the forms that defeated its first version.
+/// The driver predicate covers direct, renamed, commented, and prefix-adjacent declarations.
 #[test]
 fn the_driver_gate_reads_a_renamed_dependency() {
     assert!(declares_driver("duckdb = { workspace = true }", "duckdb"));
@@ -3109,9 +3106,7 @@ fn no_layer_crate_depends_on_a_driver() {
 
     let repo = repo_root();
 
-    // **Workspace members, resolved from the manifest** - not the children of `server/crates/`. Reading the directory
-    // was a claim the test could not keep: a layer crate placed anywhere else, or one removed from the members
-    // list, was silently unscanned, and `checked > 0` could not tell the difference.
+    // Resolve workspace members from the manifest so the gate follows the build graph.
     let root = std::fs::read_to_string(repo.join("Cargo.toml")).expect("workspace manifest");
     let start = root.find("members = [").expect("members list");
     let end = root[start..].find(']').expect("members list ends") + start;
@@ -3122,9 +3117,7 @@ fn no_layer_crate_depends_on_a_driver() {
         .collect();
     let layer_crates: Vec<&String> = members
         .iter()
-        // Adapter crates are the one place a driver belongs. Every other crate under `server/crates/` is an
-        // inward-facing layer and must stay unable to import one. The prefix is part of the workspace's
-        // target graph (`sideseat-adapter-*`), so a newly extracted adapter is classified immediately.
+        // Adapter crates own drivers; every other crate under `server/crates/` is an inward-facing layer.
         .filter(|m| m.starts_with("server/crates/") && !m.starts_with("server/crates/adapter-"))
         .collect();
 
@@ -3259,8 +3252,7 @@ fn every_detector_is_actually_started_in_production() {
     ] {
         let text = std::fs::read_to_string(repo.join(file))
             .unwrap_or_else(|e| panic!("{file} is readable: {e}"));
-        // `rust_commentary` returns the *comments*, so the code is what is left once they are removed - the
-        // same shape `the_storage_layer_does_not_import_the_http_layer` uses.
+        // Remove commentary so only executable references satisfy the wiring check.
         let mut code = text.clone();
         for (_, comment) in rust_commentary(&text) {
             if !comment.is_empty() {
@@ -3406,7 +3398,7 @@ fn the_project_id_gate_rejects_each_raw_shape() {
     ] {
         assert!(
             raw_project_method_scope(source),
-            "the tenant-scope gate missed its regression fixture: {source}"
+            "the tenant-scope gate missed a raw signature: {source}"
         );
     }
     assert!(raw_project_query_scope(
