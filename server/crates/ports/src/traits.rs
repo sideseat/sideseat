@@ -401,11 +401,9 @@ pub trait EntityQuery: Send + Sync {
     /// trace is in which*, which is what the feed needs to group traces into conversations so a replay
     /// crossing traces can be recognised.
     ///
-    /// It has to come from the store rather than from the rows the feed is handed: those rows have been
-    /// through `MESSAGE_CONTENT_FILTER`, and a framework records the session on the span that knows it -
-    /// usually a root that often carries no content and is therefore removed. Deriving the grouping from
-    /// the filtered rows made each trace its own conversation, so the cross-trace stripping never ran and
-    /// re-sent history came back as duplicates while the response still claimed `session_scoped`.
+    /// Membership comes from the store because `MESSAGE_CONTENT_FILTER` may remove the root span carrying
+    /// the session id. The returned mapping gives replay detection a complete conversation grouping even
+    /// when the supplied message rows are filtered.
     ///
     /// Traces with no session are simply absent from the result.
     async fn get_trace_session_pairs(
@@ -484,10 +482,8 @@ pub trait AnalyticsMaintenance: Send + Sync {
 
     /// The newest ingestion time the store has actually committed for a project, in microseconds.
     ///
-    /// The feed's traversal watermark. It used to be `Utc::now()`, which is a statement about *this
-    /// process's clock* rather than about the store: a clock ahead of the store's excluded rows that were
-    /// already committed, and one behind it admitted rows the next page would read again. Asking the store
-    /// removes that entirely - the value is one it has, by definition.
+    /// The feed uses this as its traversal watermark so page selection and committed data share the store's
+    /// time domain rather than depending on the reader's clock.
     ///
     /// The residual, stated because it is not zero: a write whose `ingested_at` was stamped before this read
     /// but which commits after it is below the watermark and appears on a later page. That window is the

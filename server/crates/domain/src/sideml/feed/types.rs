@@ -24,18 +24,10 @@ pub struct FeedOptions {
 
     /// Which session each trace belongs to, when the caller resolved it from the store.
     ///
-    /// The feed groups traces into conversations so a replay crossing traces can be recognised, and it
-    /// used to derive the grouping from the `session_id` on the rows it was handed. Those rows have been
-    /// through `MESSAGE_CONTENT_FILTER`, which removes any span carrying no messages, tools or error - and
-    /// a framework records the session on the span that knows it, usually a root that often carries no
-    /// content at all. When every row naming the session was filtered out, each trace became its own
-    /// conversation, the cross-trace stripping never ran, and the second trace's re-sent history came back
-    /// as duplicates - while the response still said `session_scoped`.
-    ///
-    /// The caller already has this from the store (it is what it used to widen the page to whole
-    /// sessions), so it passes the fact rather than leaving the pipeline to infer it from a filtered view.
-    /// Empty means "not supplied", and the row-derived grouping is used, which is right for callers that
-    /// hand over a complete row set.
+    /// Store-derived membership is required when `MESSAGE_CONTENT_FILTER` may remove the root span carrying
+    /// the session id. It lets replay detection group complete conversations without inferring membership
+    /// from a filtered row set. Empty means "not supplied"; callers providing complete rows may use the
+    /// row-derived grouping.
     pub session_of_trace: HashMap<String, String>,
 }
 
@@ -123,12 +115,9 @@ pub struct BlockEntry {
     pub timestamp: DateTime<Utc>,
     /// The time this block *sorts* at - its response's anchor, not its own occurrence.
     ///
-    /// Separate from `timestamp` because the two answer different questions, and one number doing
-    /// both is what made every attempt to change the ordering also change what the API reports.
-    /// They are equal today: `process_dedup` writes the response's anchor into both, and the
-    /// project feed reads the anchor back off `timestamp` for exactly that reason. Keeping the field
-    /// distinct is what lets the anchor become something better than a mutable minimum without the
-    /// displayed time moving with it.
+    /// Separate from `timestamp` because display time and ordering are independent contracts. They are
+    /// currently equal after `process_dedup`, but the ordering anchor can evolve without changing the time
+    /// exposed by the API.
     ///
     /// Before `process_dedup` has run this is the block's own timestamp: no response is known yet.
     #[serde(skip)]
@@ -183,26 +172,25 @@ pub struct BlockEntry {
     /// Event name if from event source (e.g., "gen_ai.user.message")
     #[serde(skip_serializing_if = "Option::is_none")]
     pub event_name: Option<String>,
-    /// Attribute key if from attribute source (e.g., "llm.output_messages", "input.value")
-    /// Used to determine if block is input TO or output FROM the span.
+    /// Attribute key if from attribute source (e.g., "llm.output_messages", "input.value").
+    /// Determines whether the block is input to or output from the span.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub source_attribute: Option<String>,
     /// Message category for semantic filtering
     pub category: MessageCategory,
 
-    // For future deduplication (hash as string for JSON safety)
+    // Deduplication identity (hash as a string for JSON safety)
     pub content_hash: String,
     pub is_semantic: bool,
 
     // Classification flags (computed during pipeline, not serialized)
     /// True if this block should use span_end for effective timestamp.
     ///
-    /// This determines TIMESTAMP STRATEGY, not protection from history marking.
+    /// This selects the timestamp strategy, not protection from history marking.
     /// - `true`: Use span_end (completion events like gen_ai.choice, tool results from tool spans)
     /// - `false`: Use event_time (intermediate events, input, tool_use)
     ///
-    /// NOTE: This is separate from `is_protected()` in history.rs which determines
-    /// whether a block can be marked as history.
+    /// This is separate from `is_protected()`, which determines whether a block may be marked as history.
     #[serde(skip_serializing)]
     pub uses_span_end: bool,
 
@@ -384,10 +372,8 @@ impl BlockEntry {
     /// - Input events (gen_ai.user.message, etc.)
     #[inline]
     pub fn is_input_source(&self) -> bool {
-        // Every carrier's direction is *declared*. The residue list this used to fall back to is gone:
-        // every key it named is in an asset, `carrier_semantics_are_declared` has an empty exemption list,
-        // and a list that outlived its entries is a second answer waiting to disagree with the first - which
-        // is exactly how Vercel's responses came to read as received when the SDK renamed `ai.result.*`.
+        // Carrier direction comes exclusively from rule assets. `carrier_semantics_are_declared` keeps the
+        // exemption list empty so code and assets cannot provide competing classifications.
         crate::sideml::carrier::declared_semantics_for_context(&self.carrier_context())
             .is_some_and(|declared| declared.carrier_holds_span_input)
             || self.is_input_event()
@@ -408,13 +394,9 @@ impl BlockEntry {
     /// - Output events (gen_ai.choice, etc.)
     #[inline]
     pub fn is_output_source(&self) -> bool {
-        // Declared, with no residue list behind it - see `is_input_source`.
-        //
-        // The promotion stays, because it is a fact about *this block* rather than about the carrier: a
-        // choiceless generation span carries its reply on `gen_ai.assistant.message`, which is a replay for
-        // every other framework, so the carrier reads as received and `classify_blocks` promotes the block.
-        // Read from its own field rather than inferred from the category it also sets, or the promotion is
-        // visible to the timestamp rules and invisible to the order resolver.
+        // Carrier direction comes from rule assets. `promoted_to_span_output` is a per-block override for a
+        // choiceless generation reply whose carrier otherwise represents received context. Reading the
+        // explicit field keeps timestamp and ordering logic on the same classification.
         if let Some(declared) =
             crate::sideml::carrier::declared_semantics_for_context(&self.carrier_context())
         {
@@ -481,10 +463,9 @@ pub struct FeedMetadata {
     /// False when a cross-trace replay match hit its search budget, so this answer may repeat history it
     /// would otherwise have collapsed.
     ///
-    /// Reported rather than hidden, because an incomplete result that looks complete is the one outcome a
-    /// caller cannot reason about. The search is exhaustive for every relation over four blocks and for
-    /// the adversarial shapes in the tests; where it is not, it *under*-strips - duplicated history rather
-    /// than missing messages - and says so here.
+    /// The search is exhaustive for every relation over four blocks and for the adversarial shapes in the
+    /// tests. When the budget is exhausted it under-strips, preserving messages at the cost of possible
+    /// duplicates, and exposes that state here.
     #[serde(skip_serializing_if = "is_true")]
     pub replay_matching_complete: bool,
 }
