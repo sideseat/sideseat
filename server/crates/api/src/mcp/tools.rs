@@ -45,9 +45,6 @@ impl McpServer {
         clock: Arc<dyn Clock>,
         project_id: String,
     ) -> Self {
-        // rmcp 3: #[tool_router] / #[prompt_router] generate associated functions that
-        // #[tool_handler] / #[prompt_handler] call themselves, so the routers are no
-        // longer stored on the struct.
         Self {
             analytics,
             clock,
@@ -60,8 +57,7 @@ impl McpServer {
 #[prompt_handler]
 impl ServerHandler for McpServer {
     fn get_info(&self) -> ServerInfo {
-        // rmcp 3 marks these #[non_exhaustive], so they are assembled through builders
-        // and field assignment rather than struct expressions.
+        // The protocol structs are non-exhaustive, so use their public builders and setters.
         let mut info = ServerInfo::default();
         info.instructions = Some(INSTRUCTIONS.to_string());
         info.capabilities = ServerCapabilities::builder()
@@ -169,13 +165,10 @@ impl McpServer {
         let repo = self.analytics.as_ref();
         let options = FeedOptions::new().with_role(input.role);
 
-        // Simple path: span or session scoped (no cross-trace dedup needed)
+        // Direct span/session path; session rows still receive the pipeline's cross-trace replay handling.
         if input.span_id.is_some() || input.session_id.is_some() {
-            // A span id is 8 bytes and unique only within a trace, so it needs its trace to identify
-            // a span at all. The HTTP route always carries both; a caller here could send the span
-            // alone, and the answer was then whatever spans in the project happened to share that id
-            // - two traces' messages merged into one conversation, with nothing saying so. Declining
-            // is better than answering a question that has more than one answer.
+            // A span id is 8 bytes and unique only within a trace, so the pair is required to identify one
+            // span. Returning a project-wide match for an unqualified span id would merge unrelated traces.
             if span_lacks_its_trace(input.span_id.as_deref(), input.trace_id.as_deref()) {
                 return Err(McpError::invalid_params(
                     "span_id identifies a span only within a trace, because a span id is 8 bytes \
@@ -199,11 +192,9 @@ impl McpServer {
             let envelopes: Vec<SpanEnvelopeDto> =
                 result.rows.iter().map(SpanEnvelopeDto::from_row).collect();
             let processed = process_spans(result.rows, &options);
-            // A session's totals come from the session, as the HTTP endpoint takes them: the
-            // pipeline only ever saw rows carrying messages, tools or an error, so a span billed
-            // with nothing to show counted as free, and nothing applied the parent/child billing
-            // dedup that keeps a nested generation from counting twice. A span view has one span,
-            // where neither applies.
+            // Session totals come from the session aggregate because message rows omit silent billed spans
+            // and do not apply the parent/child billing deduplication. A span view contains one span, where
+            // neither distinction applies.
             let session_totals = match &params.session_id {
                 Some(session_id) if params.span_id.is_none() => repo
                     .get_session(&self.project_id, session_id)
@@ -454,8 +445,7 @@ struct FrameworkSetup {
     no_sdk_extra_setup: &'static str,
 }
 
-/// Module scope rather than inside `get_framework` so tests can iterate the whole table.
-/// A hardcoded list in a test only covers the entries someone remembered to add to it.
+/// Module-scoped so validation tests iterate the same framework table used by the guide.
 const FRAMEWORKS: &[FrameworkSetup] = &[
     FrameworkSetup {
         display: "Strands Agents",
@@ -882,11 +872,9 @@ fn build_setup_guide_template(otlp_url: &str, framework: Option<&str>) -> String
              provider.add_span_processor(BatchSpanProcessor(OTLPSpanExporter(\n\
                  endpoint=\"{otlp}\"\n)))\n\
              trace.set_tracer_provider(provider)\n```\n\n\
-             Supported frameworks: {frameworks}",
+            Supported frameworks: {frameworks}",
             otlp = otlp_url,
-            // Listed from the table that answers the request, not from a second hand-written list: the
-            // hand-written one named fifteen of the frameworks `get_framework` accepts and omitted the
-            // rest, so a caller was told its framework was unsupported when the guide had an entry for it.
+            // Advertise directly from the table that resolves framework requests.
             frameworks = supported_framework_names().join(", "),
         ),
     }
@@ -1027,11 +1015,8 @@ mod tests {
 
     /// A framework's direct-OTLP instrumentation reads the same here as in the telemetry UI.
     ///
-    /// The two are written by hand in different languages and are the setup a user copies, so drift between
-    /// them is a false instruction rather than a cosmetic difference: AutoGen's UI snippet omitted
-    /// `skip_dep_check=True`, which the MCP guide and the framework page both pass, and without it the
-    /// instrumentor refuses versions that work. Compared per *instrumentor*, not as whole sets, because the
-    /// two surfaces deliberately cover different framework lists - the UI has entries with no MCP twin.
+    /// Compare per instrumentor because the two surfaces deliberately cover different framework sets.
+    /// Shared calls must still agree exactly so either copied setup behaves the same.
     #[test]
     fn a_shared_instrumentor_line_reads_the_same_in_the_telemetry_ui() {
         let ui = include_str!("../../../../../web/src/pages/configuration/telemetry-frameworks.ts");
@@ -1081,13 +1066,8 @@ mod tests {
         }
     }
 
-    /// The extra setup and the snippet are concatenated, so no line may appear in both.
-    ///
-    /// Vercel's entry declared `registerTelemetry` and `LegacyOpenTelemetry` in *both*, and the no-SDK
-    /// template emits `{extra_setup}{snippet}` - so the module it generated imported each twice and
-    /// registered telemetry twice, which does not compile. Nothing caught it: the guide is assembled from
-    /// strings, so a redeclaration is only visible to whoever pastes it. A line-level comparison is the
-    /// whole check that was missing.
+    /// The no-SDK template concatenates extra setup and the snippet, so no executable line may appear in
+    /// both fragments.
     #[test]
     fn the_extra_setup_never_repeats_a_line_of_the_snippet() {
         for fw in FRAMEWORKS {
@@ -1151,8 +1131,7 @@ mod tests {
 
     #[test]
     fn test_typescript_frameworks_emit_npm_instructions() {
-        // The guide used to be Python-only, so a TypeScript framework silently produced
-        // pip instructions. Both paths must be present and in the right ecosystem.
+        // Both setup paths must stay in the framework's ecosystem.
         for name in [
             "vercel-ai",
             "strands-typescript",
@@ -1205,10 +1184,8 @@ mod tests {
         }
     }
 
-    /// Every Python `sdk_snippet` must be self-contained: the guide template supplies only
-    /// the SideSeat/OTel imports, so a snippet that uses `Agent` without importing it
-    /// generates a NameError for the user. Eight frameworks shipped that way (Strands, Agno,
-    /// Smolagents, AG2, AgentScope, Haystack, browser-use, Azure OpenAI) before this test.
+    /// Every Python `sdk_snippet` is self-contained: the guide template supplies only SideSeat/OTel
+    /// imports, so every other name must be bound by the snippet.
     ///
     /// Checked structurally rather than by running Python, so it needs no interpreter: every
     /// capitalised name the snippet calls must be bound by an import or an assignment in the
@@ -1306,9 +1283,8 @@ mod tests {
     /// Every placeholder must be substituted, and the Claude Agent SDK guides must carry the
     /// exporter configuration in both languages.
     ///
-    /// The TypeScript snippet declared `options` but set only CLAUDE_CODE_ENABLE_TELEMETRY, so
-    /// it emitted no spans anywhere: the CLI subprocess needs the endpoint, the two beta tiers
-    /// and the content flags, exactly as the Python copy has.
+    /// The CLI subprocess requires the endpoint, both beta tiers and the content flags to emit useful
+    /// message telemetry.
     #[test]
     fn test_claude_guides_carry_the_exporter_configuration() {
         for name in ["claude-agent-sdk", "claude-agent-sdk-typescript"] {
@@ -1326,15 +1302,10 @@ mod tests {
         }
     }
 
-    /// This configuration is spelled out in seven places, and drift means a user copies a setup
-    /// that produces no telemetry.
+    /// Every maintained copy of the Claude telemetry configuration carries the required variables.
     ///
-    /// Two are executable (the Python and TypeScript sample suites, which are run), one is a
-    /// script, and four are copies handed to users: the MCP setup guide, the framework page, the
-    /// docs homepage and the telemetry configuration UI. Deriving the four from one source would
-    /// mean generating MDX and TypeScript from Rust; asserting they agree costs one test and
-    /// fails the moment they do not. A new copy has to be added here, which makes adding one a
-    /// decision rather than an accident.
+    /// The copies span executable examples, a script, docs, the UI and this guide, so the test names each
+    /// surface explicitly and checks it against one required-variable list.
     #[test]
     fn claude_configuration_agrees_everywhere_it_is_duplicated() {
         let repo = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -1367,10 +1338,6 @@ mod tests {
     }
 
     /// TypeScript snippets must declare every identifier they use, same as the Python ones.
-    ///
-    /// The Python check below never covered them, and two shipped broken: the Strands snippet
-    /// passed `{ model }` and the Claude Agent SDK snippet passed `options`, neither declared.
-    /// A user pasting either got a ReferenceError.
     #[test]
     fn test_typescript_snippets_declare_every_identifier() {
         for fw in FRAMEWORKS {
@@ -1525,9 +1492,9 @@ mod tests {
     }
 
     /// Lowercase names passed as keyword arguments must be bound in the snippet too.
-    /// `model=model`, `llm=llm`, `llm_config=llm_config` and `retriever` all shipped as
-    /// bare placeholders that read as if defined elsewhere, giving the user a NameError.
-    /// Unlike the check above this covers lowercase names, which are not constructor calls.
+    ///
+    /// This complements the constructor-name check above by covering lowercase placeholders such as
+    /// `model=model`, `llm=llm`, `llm_config=llm_config` and `retriever`.
     #[test]
     fn test_python_snippets_have_no_unbound_placeholders() {
         for fw in FRAMEWORKS {
