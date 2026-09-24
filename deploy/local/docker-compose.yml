@@ -56,7 +56,7 @@ services:
           memory: 768m
 
   clickhouse:
-    image: clickhouse/clickhouse-server:26.4.3.37
+    image: clickhouse/clickhouse-server:26.8.9.10
     container_name: sideseat_clickhouse
     restart: unless-stopped
     environment:
