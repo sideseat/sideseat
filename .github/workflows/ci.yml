@@ -348,7 +348,7 @@ jobs:
       # with `uvx pyflakes==3.4.0`. The job installed Node alone, so that check depended on the runner image
       # happening to carry uv - and its `the pyflakes probe is actually running` assertion is what would have
       # failed, which is a confusing way to be told a tool is missing.
-      - uses: astral-sh/setup-uv@6b9c6063abd6010835644d4c2e1bef4cf5cd0fca # v6.0.1
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
         with:
           version: '0.12.13'
 
@@ -417,7 +417,7 @@ jobs:
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-      - uses: astral-sh/setup-uv@6b9c6063abd6010835644d4c2e1bef4cf5cd0fca # v6.0.1
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
         with:
           # The **executable**, not only the action: with no version the action installs the latest, so an
           # unchanged commit could be resolved by a different resolver. Verified against every lockfile in the
@@ -475,7 +475,7 @@ jobs:
           cache: 'npm'
           cache-dependency-path: examples/javascript/package-lock.json
 
-      - uses: astral-sh/setup-uv@6b9c6063abd6010835644d4c2e1bef4cf5cd0fca # v6.0.1
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
         with:
           version: '0.12.13'
 
@@ -557,7 +557,7 @@ jobs:
 
       # The Python audits below call `uv`, and this job installed Node and Rust only - so they depended on
       # whatever the runner image happens to ship.
-      - uses: astral-sh/setup-uv@6b9c6063abd6010835644d4c2e1bef4cf5cd0fca # v6.0.1
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
         with:
           version: '0.12.13'
 
