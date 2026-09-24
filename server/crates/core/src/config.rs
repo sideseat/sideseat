@@ -1600,25 +1600,18 @@ impl AppConfig {
             let password = file_ch.password;
             let timeout_secs = file_ch.timeout_secs.unwrap_or(30);
             let compression = file_ch.compression.unwrap_or(true);
-            // Direct inserts by default, measured rather than assumed.
+            // Direct inserts are the default.
             //
-            // The rule is that an acknowledgement means the data is stored, so `wait_for_async_insert = 0`
-            // is out: it returns once ClickHouse has buffered, and a restart or a failed async insert
-            // empties that buffer. That leaves waiting - and waiting on an *async* insert pays
-            // ClickHouse's flush timer for nothing, because the caller is blocked anyway. Measured on
-            // local containers: `async_insert=1, wait=1` costs 118.6 ms at p50 per trace export against
-            // 59.2 ms for a direct insert. Half the latency, same durability.
+            // An acknowledgement means the data is durable, so asynchronous inserts must wait for their
+            // flush. Waiting also pays the server-side flush delay while the caller remains blocked; local
+            // measurements were 118.6 ms p50 per trace export versus 59.2 ms for direct inserts.
             //
-            // Server-side batching is not what makes this affordable either - the pipeline already batches
-            // requests before it writes, so parts are not tiny. `async_insert` remains configurable for a
-            // deployment whose writers bypass that batching; turning it on then also means waiting.
+            // The pipeline already batches ordinary writes. `async_insert` remains configurable for
+            // deployments with writers that bypass that batching, and validation still requires waiting.
             let async_insert = file_ch.async_insert.unwrap_or(false);
             let wait_for_async_insert = file_ch.wait_for_async_insert.unwrap_or(true);
             let cluster = file_ch.cluster;
-            // Kept as requested, not silently corrected. Folding `&& cluster.is_some()` in here
-            // turned `distributed: true` with no cluster into single-node mode before validation
-            // ran, so the error that exists for exactly that mistake was unreachable and a
-            // deployment meant to be sharded came up on one node without saying so.
+            // Preserve the requested value so validation can reject distributed mode without a cluster.
             let distributed = file_ch.distributed.unwrap_or(false);
             Some(ClickhouseConfig {
                 url,
@@ -1886,7 +1879,7 @@ impl AppConfig {
             }
         }
 
-        // This legacy-named setting is the unified project budget even when blob persistence is disabled.
+        // `files.quota_bytes` is the unified project budget even when blob persistence is disabled.
         if self.files.quota_bytes < 32 * 1024 * 1024 {
             tracing::warn!(
                 quota_bytes = self.files.quota_bytes,
@@ -2253,15 +2246,8 @@ mod config_surface_tests {
             }
         }
 
-        // And **every** `*FileConfig` struct, at its exact schema path - both derived, neither listed. The
-        // three above are pinned by hand because their `merge` markers are; this pass walks the struct graph
-        // from `FileConfig` down, building the JSON path from the field names that nest them, and asks the
-        // schema for exactly that path.
-        //
-        // A weaker version was written first: "does the field name appear anywhere in the schema text". It
-        // passed while `otel.auth` was missing, because `"required"` is also a JSON Schema keyword and appears
-        // all over the file - the same "a check that sees less than it claims" defect this test exists to
-        // prevent, reintroduced inside the fix for it. The path form has no such collision.
+        // Walk every `*FileConfig` from the root and verify each field at its exact schema path. Path-aware
+        // lookup avoids false matches with JSON Schema keywords or identically named fields elsewhere.
         let schema: serde_json::Value = serde_json::from_str(SCHEMA).expect("the schema is JSON");
         // struct name -> [(field, type)]
         let mut declared: std::collections::BTreeMap<String, Vec<(String, String)>> =
@@ -2343,12 +2329,8 @@ mod config_surface_tests {
                     walk.push((nested.clone(), here));
                     continue;
                 }
-                // A leaf has to be **carried by `merge`** as well as described by the schema, or an operator
-                // sets it in `./sideseat.json` and it is silently discarded when the files are combined. The
-                // merge half of this test was hand-listed to three database structs while the schema half
-                // walked everything, and `otel.auth.required` was exactly that gap: schema-valid, read
-                // downstream, dropped by `merge`. The marker is `merge`'s own trace line, which makes the
-                // carrying observable to an operator rather than only to a test.
+                // Every leaf must be carried by `merge` as well as described by the schema. The merge trace
+                // makes that observable to operators and gives this structural test one source of truth.
                 let marker = format!("\"Merging {}\"", here.join("."));
                 if !SOURCE.contains(&marker) {
                     unmerged.push(format!("{name}.{field} -> {}", here.join(".")));
@@ -2358,9 +2340,8 @@ mod config_surface_tests {
         assert!(
             unmerged.is_empty(),
             "{} config field(s) `merge` does not announce with a `Merging <path>` trace. From outside, a field \
-             that is carried silently and one that is not carried at all look identical - which is how \
-             `otel.auth.required` went unnoticed while being read downstream. Add the trace, or the branch \
-             and the trace:\n  {}",
+             that is carried silently and one that is not carried at all look identical. Add the trace, or \
+             the branch and the trace:\n  {}",
             unmerged.len(),
             unmerged.join("\n  ")
         );
