@@ -254,9 +254,14 @@ impl PubSubBridge {
     /// Wait for the bridge task to complete
     pub async fn wait_for_stop(&self) {
         let handle = self.task_handle.lock().take();
-        if let Some(h) = handle {
-            // Give it a chance to stop gracefully
-            let _ = tokio::time::timeout(std::time::Duration::from_secs(5), h).await;
+        if let Some(mut handle) = handle
+            && tokio::time::timeout(std::time::Duration::from_secs(5), &mut handle)
+                .await
+                .is_err()
+        {
+            tracing::warn!(topic = %self.topic, "Aborting a pub/sub bridge that did not stop in time");
+            handle.abort();
+            let _ = handle.await;
         }
     }
 }

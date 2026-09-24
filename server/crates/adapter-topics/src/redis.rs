@@ -856,16 +856,16 @@ impl RedisTopicBackend {
                     biased;
 
                     // Check for stop signal
-                    _ = stop_rx.changed() => {
-                        if *stop_rx.borrow() {
+                    changed = stop_rx.changed() => {
+                        if changed.is_err() || *stop_rx.borrow() {
                             tracing::debug!(channel = %channel, "Bridge task stopping (explicit stop)");
                             break 'outer;
                         }
                     }
 
                     // Check for shutdown signal
-                    _ = shutdown_rx.changed() => {
-                        if *shutdown_rx.borrow() {
+                    changed = shutdown_rx.changed() => {
+                        if changed.is_err() || *shutdown_rx.borrow() {
                             tracing::debug!(channel = %channel, "Bridge task stopping (shutdown)");
                             break 'outer;
                         }
