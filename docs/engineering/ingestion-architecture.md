@@ -6,8 +6,8 @@ not in this file.
 
 ## Responsibilities
 
-The backend is a Cargo workspace rooted at the repository root. Every backend crate lives under
-`server/crates/`; `server/` is the executable composition root.
+The backend is a Cargo workspace rooted at the repository root. Every backend library crate lives under
+`server/crates/`; the `sideseat-server` crate in `server/` is the executable composition root.
 
 | Layer                  | Responsibility                                                                             |
 | ---------------------- | ------------------------------------------------------------------------------------------ |
