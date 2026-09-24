@@ -1,3 +1,5 @@
+//! Command-line parsing and configuration overrides.
+
 use clap::{Parser, Subcommand};
 
 use std::path::PathBuf;
@@ -22,169 +24,169 @@ use super::constants::{
 #[derive(Parser)]
 #[command(name = "sideseat")]
 #[command(version, about = "AI Development Workbench", long_about = None)]
-pub struct Cli {
+struct Cli {
     #[command(subcommand)]
-    pub command: Option<Commands>,
+    command: Option<Commands>,
 
     /// Server host address
     #[arg(long, short = 'H', global = true, env = ENV_HOST)]
-    pub host: Option<String>,
+    host: Option<String>,
 
     /// Server port
     #[arg(long, short = 'p', global = true, env = ENV_PORT)]
-    pub port: Option<u16>,
+    port: Option<u16>,
 
     /// Disable authentication (for development)
     #[arg(long, global = true)]
-    pub no_auth: bool,
+    no_auth: bool,
 
     /// Enable debug mode (writes incoming OTLP data to debug folder)
     #[arg(long, global = true, env = ENV_DEBUG)]
-    pub debug: bool,
+    debug: bool,
 
     /// Path to config file
     #[arg(long, short = 'c', global = true, env = ENV_CONFIG)]
-    pub config: Option<PathBuf>,
+    config: Option<PathBuf>,
 
     /// Enable OTEL gRPC endpoint
     #[arg(long, global = true, env = ENV_OTEL_GRPC_ENABLED)]
-    pub otel_grpc: Option<bool>,
+    otel_grpc: Option<bool>,
 
     /// OTEL gRPC port
     #[arg(long, global = true, env = ENV_OTEL_GRPC_PORT)]
-    pub otel_grpc_port: Option<u16>,
+    otel_grpc_port: Option<u16>,
 
     /// OTEL retention max age in minutes (data older than this is deleted)
     #[arg(long, global = true, env = ENV_OTEL_RETENTION_MAX_AGE_MINUTES)]
-    pub otel_retention_max_age: Option<u64>,
+    otel_retention_max_age: Option<u64>,
 
     /// OTEL retention max spans limit
     #[arg(long, global = true, env = ENV_OTEL_RETENTION_MAX_SPANS)]
-    pub otel_retention_max_spans: Option<u64>,
+    otel_retention_max_spans: Option<u64>,
 
     /// Require API key for OTEL ingestion
     #[arg(long, global = true, env = ENV_OTEL_AUTH_REQUIRED)]
-    pub otel_auth_required: Option<bool>,
+    otel_auth_required: Option<bool>,
 
     /// Pricing sync interval in hours (0 = disabled)
     #[arg(long, global = true, env = ENV_PRICING_SYNC_HOURS)]
-    pub pricing_sync_hours: Option<u64>,
+    pricing_sync_hours: Option<u64>,
 
     /// Disable update check on startup
     #[arg(long, global = true, env = ENV_NO_UPDATE_CHECK)]
-    pub no_update_check: bool,
+    no_update_check: bool,
 
     /// Enable or disable file storage
     #[arg(long, global = true, env = ENV_FILES_ENABLED)]
-    pub files_enabled: Option<bool>,
+    files_enabled: Option<bool>,
 
     /// Enable or disable MCP server
     #[arg(long, global = true, env = ENV_MCP_ENABLED)]
-    pub mcp: Option<bool>,
+    mcp: Option<bool>,
 
     /// File storage backend (filesystem or s3)
     #[arg(long, global = true, env = ENV_FILES_STORAGE, value_parser = parse_storage_backend)]
-    pub files_storage: Option<StorageBackend>,
+    files_storage: Option<StorageBackend>,
 
     /// Unified telemetry, staging, journal and blob storage quota in bytes per project
     #[arg(long, global = true, env = ENV_FILES_QUOTA_BYTES)]
-    pub files_quota_bytes: Option<u64>,
+    files_quota_bytes: Option<u64>,
 
     /// S3 bucket name for file storage
     #[arg(long, global = true, env = ENV_FILES_S3_BUCKET)]
-    pub files_s3_bucket: Option<String>,
+    files_s3_bucket: Option<String>,
 
     /// S3 key prefix for file storage
     #[arg(long, global = true, env = ENV_FILES_S3_PREFIX)]
-    pub files_s3_prefix: Option<String>,
+    files_s3_prefix: Option<String>,
 
     /// S3 region for file storage
     #[arg(long, global = true, env = ENV_FILES_S3_REGION)]
-    pub files_s3_region: Option<String>,
+    files_s3_region: Option<String>,
 
     /// S3 endpoint URL for S3-compatible services (e.g. MinIO)
     #[arg(long, global = true, env = ENV_FILES_S3_ENDPOINT)]
-    pub files_s3_endpoint: Option<String>,
+    files_s3_endpoint: Option<String>,
 
     // Cache options
     /// Cache backend (memory or redis)
     #[arg(long, global = true, env = ENV_CACHE_BACKEND, value_parser = parse_cache_backend_type)]
-    pub cache_backend: Option<CacheBackendType>,
+    cache_backend: Option<CacheBackendType>,
 
     /// Maximum number of cache entries
     #[arg(long, global = true, env = ENV_CACHE_MAX_ENTRIES)]
-    pub cache_max_entries: Option<u64>,
+    cache_max_entries: Option<u64>,
 
     /// Cache eviction policy (tinylfu or lru)
     #[arg(long, global = true, env = ENV_CACHE_EVICTION_POLICY, value_parser = parse_eviction_policy)]
-    pub cache_eviction_policy: Option<EvictionPolicy>,
+    cache_eviction_policy: Option<EvictionPolicy>,
 
     /// Redis-compatible cache URL. Supports Redis, Sentinel, Valkey, Dragonfly.
     /// Formats: redis://host:port/db, redis+sentinel://s1:port,s2:port/master/db
     #[arg(long, global = true, env = ENV_CACHE_REDIS_URL)]
-    pub cache_redis_url: Option<String>,
+    cache_redis_url: Option<String>,
 
     /// Durable queue backend (memory, redis, or redpanda).
     #[arg(long, global = true, env = ENV_QUEUE_BACKEND, value_parser = parse_queue_backend_type)]
-    pub queue_backend: Option<QueueBackendType>,
+    queue_backend: Option<QueueBackendType>,
 
     /// RedPanda/Kafka bootstrap broker list.
     #[arg(long, global = true, env = ENV_REDPANDA_BROKERS)]
-    pub redpanda_brokers: Option<String>,
+    redpanda_brokers: Option<String>,
 
     // Rate limit options
     /// Enable or disable rate limiting
     #[arg(long, global = true, env = ENV_RATE_LIMIT_ENABLED)]
-    pub rate_limit_enabled: Option<bool>,
+    rate_limit_enabled: Option<bool>,
 
     /// Enable per-IP rate limiting (API, auth endpoints). Disabled by default.
     #[arg(long, global = true, env = ENV_RATE_LIMIT_PER_IP)]
-    pub rate_limit_per_ip: Option<bool>,
+    rate_limit_per_ip: Option<bool>,
 
     /// API rate limit (requests per minute)
     #[arg(long, global = true, env = ENV_RATE_LIMIT_API_RPM)]
-    pub rate_limit_api_rpm: Option<u32>,
+    rate_limit_api_rpm: Option<u32>,
 
     /// Ingestion rate limit (requests per minute)
     #[arg(long, global = true, env = ENV_RATE_LIMIT_INGESTION_RPM)]
-    pub rate_limit_ingestion_rpm: Option<u32>,
+    rate_limit_ingestion_rpm: Option<u32>,
 
     /// Auth rate limit (requests per minute)
     #[arg(long, global = true, env = ENV_RATE_LIMIT_AUTH_RPM)]
-    pub rate_limit_auth_rpm: Option<u32>,
+    rate_limit_auth_rpm: Option<u32>,
 
     /// Files rate limit (requests per minute)
     #[arg(long, global = true, env = ENV_RATE_LIMIT_FILES_RPM)]
-    pub rate_limit_files_rpm: Option<u32>,
+    rate_limit_files_rpm: Option<u32>,
 
     /// Rate limit bypass header secret
     #[arg(long, global = true, env = ENV_RATE_LIMIT_BYPASS_HEADER)]
-    pub rate_limit_bypass_header: Option<String>,
+    rate_limit_bypass_header: Option<String>,
 
     /// Secrets backend
     #[arg(long, global = true, env = ENV_SECRETS_BACKEND, value_parser = parse_secrets_backend)]
-    pub secrets_backend: Option<SecretsBackend>,
+    secrets_backend: Option<SecretsBackend>,
 
     // Database options
     /// Transactional database backend (sqlite or postgres)
     #[arg(long, global = true, env = ENV_TRANSACTIONAL_BACKEND, value_parser = parse_transactional_backend)]
-    pub transactional_backend: Option<TransactionalBackend>,
+    transactional_backend: Option<TransactionalBackend>,
 
     /// Analytics database backend (duckdb or clickhouse)
     #[arg(long, global = true, env = ENV_ANALYTICS_BACKEND, value_parser = parse_analytics_backend)]
-    pub analytics_backend: Option<AnalyticsBackend>,
+    analytics_backend: Option<AnalyticsBackend>,
 
     /// PostgreSQL connection URL (when using postgres backend)
     #[arg(long, global = true, env = ENV_POSTGRES_URL)]
-    pub postgres_url: Option<String>,
+    postgres_url: Option<String>,
 
     /// ClickHouse connection URL (when using clickhouse backend)
     #[arg(long, global = true, env = ENV_CLICKHOUSE_URL)]
-    pub clickhouse_url: Option<String>,
+    clickhouse_url: Option<String>,
 
     /// Scan environment variables for provider API keys (default: true)
     #[arg(long, global = true, env = ENV_CREDENTIALS_SCAN_ENV)]
-    pub credentials_scan_env: Option<bool>,
+    credentials_scan_env: Option<bool>,
 }
 
 /// Parse storage backend from CLI/env string
@@ -307,45 +309,45 @@ pub enum SystemCommands {
 /// Configuration derived from CLI arguments
 #[derive(Debug, Clone, Default)]
 pub struct CliConfig {
-    pub host: Option<String>,
-    pub port: Option<u16>,
-    pub no_auth: bool,
-    pub debug: bool,
-    pub config: Option<PathBuf>,
-    pub otel_grpc: Option<bool>,
-    pub otel_grpc_port: Option<u16>,
-    pub otel_retention_max_age: Option<u64>,
-    pub otel_retention_max_spans: Option<u64>,
-    pub otel_auth_required: Option<bool>,
-    pub pricing_sync_hours: Option<u64>,
-    pub no_update_check: bool,
-    pub files_enabled: Option<bool>,
-    pub mcp: Option<bool>,
-    pub files_storage: Option<StorageBackend>,
-    pub files_quota_bytes: Option<u64>,
-    pub files_s3_bucket: Option<String>,
-    pub files_s3_prefix: Option<String>,
-    pub files_s3_region: Option<String>,
-    pub files_s3_endpoint: Option<String>,
-    pub cache_backend: Option<CacheBackendType>,
-    pub cache_max_entries: Option<u64>,
-    pub cache_eviction_policy: Option<EvictionPolicy>,
-    pub cache_redis_url: Option<String>,
-    pub queue_backend: Option<QueueBackendType>,
-    pub redpanda_brokers: Option<String>,
-    pub rate_limit_enabled: Option<bool>,
-    pub rate_limit_per_ip: Option<bool>,
-    pub rate_limit_api_rpm: Option<u32>,
-    pub rate_limit_ingestion_rpm: Option<u32>,
-    pub rate_limit_auth_rpm: Option<u32>,
-    pub rate_limit_files_rpm: Option<u32>,
-    pub rate_limit_bypass_header: Option<String>,
-    pub secrets_backend: Option<SecretsBackend>,
-    pub transactional_backend: Option<TransactionalBackend>,
-    pub analytics_backend: Option<AnalyticsBackend>,
-    pub postgres_url: Option<String>,
-    pub clickhouse_url: Option<String>,
-    pub credentials_scan_env: Option<bool>,
+    pub(crate) host: Option<String>,
+    pub(crate) port: Option<u16>,
+    pub(crate) no_auth: bool,
+    pub(crate) debug: bool,
+    pub(crate) config: Option<PathBuf>,
+    pub(crate) otel_grpc: Option<bool>,
+    pub(crate) otel_grpc_port: Option<u16>,
+    pub(crate) otel_retention_max_age: Option<u64>,
+    pub(crate) otel_retention_max_spans: Option<u64>,
+    pub(crate) otel_auth_required: Option<bool>,
+    pub(crate) pricing_sync_hours: Option<u64>,
+    pub(crate) no_update_check: bool,
+    pub(crate) files_enabled: Option<bool>,
+    pub(crate) mcp: Option<bool>,
+    pub(crate) files_storage: Option<StorageBackend>,
+    pub(crate) files_quota_bytes: Option<u64>,
+    pub(crate) files_s3_bucket: Option<String>,
+    pub(crate) files_s3_prefix: Option<String>,
+    pub(crate) files_s3_region: Option<String>,
+    pub(crate) files_s3_endpoint: Option<String>,
+    pub(crate) cache_backend: Option<CacheBackendType>,
+    pub(crate) cache_max_entries: Option<u64>,
+    pub(crate) cache_eviction_policy: Option<EvictionPolicy>,
+    pub(crate) cache_redis_url: Option<String>,
+    pub(crate) queue_backend: Option<QueueBackendType>,
+    pub(crate) redpanda_brokers: Option<String>,
+    pub(crate) rate_limit_enabled: Option<bool>,
+    pub(crate) rate_limit_per_ip: Option<bool>,
+    pub(crate) rate_limit_api_rpm: Option<u32>,
+    pub(crate) rate_limit_ingestion_rpm: Option<u32>,
+    pub(crate) rate_limit_auth_rpm: Option<u32>,
+    pub(crate) rate_limit_files_rpm: Option<u32>,
+    pub(crate) rate_limit_bypass_header: Option<String>,
+    pub(crate) secrets_backend: Option<SecretsBackend>,
+    pub(crate) transactional_backend: Option<TransactionalBackend>,
+    pub(crate) analytics_backend: Option<AnalyticsBackend>,
+    pub(crate) postgres_url: Option<String>,
+    pub(crate) clickhouse_url: Option<String>,
+    pub(crate) credentials_scan_env: Option<bool>,
 }
 
 /// Parse CLI arguments and return config with command
