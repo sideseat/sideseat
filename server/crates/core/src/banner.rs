@@ -1,22 +1,36 @@
-//! Startup banner and URL display
+//! Startup banner and URL display.
+
+use std::path::Path;
 
 use super::config::is_all_interfaces;
 use super::constants::APP_NAME;
 use crate::utils::terminal::terminal_link;
 
-/// Print the startup banner with URLs
-#[allow(clippy::too_many_arguments)]
-pub fn print_banner(
-    host: &str,
-    port: u16,
-    auth_enabled: bool,
-    bootstrap_token: &str,
-    grpc_enabled: bool,
-    grpc_port: u16,
-    data_dir: &str,
-    mcp_enabled: bool,
-) {
-    // Use localhost for display when binding to all interfaces
+/// Values rendered in the startup banner.
+pub struct StartupBanner<'a> {
+    pub host: &'a str,
+    pub port: u16,
+    pub auth_enabled: bool,
+    pub bootstrap_token: &'a str,
+    pub grpc_enabled: bool,
+    pub grpc_port: u16,
+    pub data_dir: &'a Path,
+    pub mcp_enabled: bool,
+}
+
+/// Print the startup banner and service URLs.
+pub fn print_banner(banner: StartupBanner<'_>) {
+    let StartupBanner {
+        host,
+        port,
+        auth_enabled,
+        bootstrap_token,
+        grpc_enabled,
+        grpc_port,
+        data_dir,
+        mcp_enabled,
+    } = banner;
+
     let display_host = if is_all_interfaces(host) {
         "localhost"
     } else {
@@ -31,7 +45,6 @@ pub fn print_banner(
     );
     println!();
 
-    // Show local URL (with token if auth is enabled)
     let local_url = if auth_enabled {
         format!(
             "http://{}:{}/ui?token={}",
@@ -40,7 +53,7 @@ pub fn print_banner(
     } else {
         format!("http://{}:{}", display_host, port)
     };
-    // Label width: "OpenTelemetry HTTP:" is 19 chars, pad to 21 for alignment
+    // "OpenTelemetry HTTP:" is the longest label.
     const W: usize = 21;
 
     println!(
@@ -49,7 +62,6 @@ pub fn print_banner(
         terminal_link(&local_url)
     );
 
-    // Show OTLP endpoints (using "default" project)
     println!(
         "  \x1b[33m➜\x1b[0m  \x1b[1m{:<W$}\x1b[0m http://{}:{}/otel/default",
         "OpenTelemetry HTTP:", display_host, port
@@ -68,14 +80,12 @@ pub fn print_banner(
         );
     }
 
-    // Show network info based on bind address
     if host == "127.0.0.1" || host == "localhost" {
         println!(
             "  \x1b[90m➜  {:<W$} use --host 0.0.0.0 to expose\x1b[0m",
             "Network:"
         );
     } else if is_all_interfaces(host) {
-        // Enumerate LAN IPs when binding to all interfaces
         if let Ok(interfaces) = local_ip_address::list_afinet_netifas() {
             for (_, ip) in interfaces
                 .iter()
@@ -90,7 +100,6 @@ pub fn print_banner(
             }
         }
     } else {
-        // Binding to a specific IP — show it directly
         let network_url = format!("http://{}:{}", host, port);
         println!(
             "  \x1b[32m➜\x1b[0m  \x1b[1m{:<W$}\x1b[0m {}",
@@ -98,12 +107,12 @@ pub fn print_banner(
             terminal_link(&network_url)
         );
     }
-    println!("  \x1b[90m➜  {:<W$} {}\x1b[0m", "Data:", data_dir);
+    println!("  \x1b[90m➜  {:<W$} {}\x1b[0m", "Data:", data_dir.display());
 
     println!();
 }
 
-/// Print update notification after banner
+/// Print an update notification after the banner.
 pub fn print_update_available(current: &str, new_version: &str) {
     let npm_url = "https://www.npmjs.com/package/sideseat";
     println!(

@@ -344,16 +344,16 @@ impl CoreApp {
             app.shutdown.register(handle).await;
         }
 
-        banner::print_banner(
-            &app.config.server.host,
-            app.config.server.port,
-            app.auth.is_enabled(),
-            app.auth.bootstrap_token(),
-            app.config.otel.grpc_enabled,
-            app.config.otel.grpc_port,
-            &app.storage.data_dir().display().to_string(),
-            app.config.mcp.enabled,
-        );
+        banner::print_banner(banner::StartupBanner {
+            host: &app.config.server.host,
+            port: app.config.server.port,
+            auth_enabled: app.auth.is_enabled(),
+            bootstrap_token: app.auth.bootstrap_token(),
+            grpc_enabled: app.config.otel.grpc_enabled,
+            grpc_port: app.config.otel.grpc_port,
+            data_dir: app.storage.data_dir(),
+            mcp_enabled: app.config.mcp.enabled,
+        });
 
         let shutdown = app.shutdown.clone();
         let registrations: Arc<dyn RegistrationStore> =
