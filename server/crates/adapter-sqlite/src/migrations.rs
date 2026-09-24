@@ -1,7 +1,7 @@
-//! SQLite migration system.
+//! Versioned SQLite schema migration registry.
 //!
-//! Handles schema versioning and incremental migrations.
-//! Version 1 is the initial schema - future migrations will be added here.
+//! Fresh databases install [`SCHEMA`] directly. Existing databases apply every immutable migration after their
+//! recorded version, in order, and record the checksum and execution time of each step.
 
 use sqlx::SqlitePool;
 
@@ -11,9 +11,8 @@ use sideseat_core::migration::{MigrationRun, plan_migrations};
 use sideseat_core::utils::crypto::sha256_hex;
 use sideseat_ports::clock::Clock;
 
-/// Run all pending migrations
+/// Initialize a fresh database or apply all pending migrations.
 pub async fn run_migrations(pool: &SqlitePool, clock: &dyn Clock) -> Result<(), SqliteError> {
-    // Check if this is a fresh database
     let table_exists: bool = sqlx::query_scalar(
         "SELECT COUNT(*) > 0 FROM sqlite_master WHERE type='table' AND name='schema_version'",
     )
@@ -29,7 +28,6 @@ pub async fn run_migrations(pool: &SqlitePool, clock: &dyn Clock) -> Result<(), 
         return Ok(());
     }
 
-    // Get current version
     let current_version: Option<i32> =
         sqlx::query_scalar("SELECT version FROM schema_version WHERE id = 1")
             .fetch_optional(pool)
@@ -55,22 +53,15 @@ pub async fn run_migrations(pool: &SqlitePool, clock: &dyn Clock) -> Result<(), 
     Ok(())
 }
 
-/// Apply the initial schema (version 1)
+/// Install the current schema on a fresh database.
 async fn apply_initial_schema(pool: &SqlitePool, clock: &dyn Clock) -> Result<(), SqliteError> {
     let start = std::time::Instant::now();
 
     let mut tx = pool.begin().await?;
 
-    // As one script, not statements split on `;`.
-    //
-    // `sqlx::query` prepares a single statement, so a multi-statement schema reaches SQLite only as far
-    // as its first `;` - and worse, a semicolon inside a `--` comment ends a "statement" mid-table and
-    // the fragment after it is a syntax error. That has now cost a debugging session twice, once here and
-    // once in the PostgreSQL twin, and no comment is a place anyone looks for a syntax hazard. `raw_sql`
-    // sends the script as a simple query, which is what a script is.
+    // `raw_sql` executes the schema as one script and preserves SQL parsing across comments and literals.
     sqlx::raw_sql(SCHEMA).execute(&mut *tx).await?;
 
-    // Record version
     let now = clock.now().timestamp_nanos_opt().unwrap_or(0);
     sqlx::query(
         "INSERT INTO schema_version (id, version, applied_at, description) VALUES (1, ?, ?, 'Initial schema')",
@@ -80,7 +71,6 @@ async fn apply_initial_schema(pool: &SqlitePool, clock: &dyn Clock) -> Result<()
     .execute(&mut *tx)
     .await?;
 
-    // Record migration
     let checksum = sha256_hex(SCHEMA);
     let elapsed_ms = start.elapsed().as_millis() as i64;
     sqlx::query(
@@ -100,18 +90,10 @@ async fn apply_initial_schema(pool: &SqlitePool, clock: &dyn Clock) -> Result<()
     Ok(())
 }
 
-/// The one migration: a v1 database to the current schema.
+/// The consolidated v1 → v2 baseline migration.
 ///
-/// # Why there is only one
-///
-/// No schema above v1 was ever released, so no database exists at v2..v14 and the fourteen historical
-/// migrations that used to live here described upgrades nobody could need. Replaying them in sequence
-/// also meant replaying two table *rebuilds* that a v1 database does not need at all - it lacks the
-/// tables being rebuilt - so the sequence did strictly more work than the destination requires.
-///
-/// This reaches the destination directly: the columns a v1 database is missing, and the tables it never
-/// had, created in their final shape. What each piece is *for* is documented where it is used; the
-/// pointers below say which subsystem to look in.
+/// Version 1 predates every addition in this script, so the transition creates the released v2 shape directly.
+/// Later released schema changes remain separate immutable migrations below.
 const MIGRATION_V2: &str = r#"
 -- files: the content hash algorithm, and the deletion claim that lets cleanup and ingestion agree about
 -- a file that is mid-deletion (`claim_file_for_deletion`, `associate_file`).
@@ -247,10 +229,8 @@ CREATE INDEX IF NOT EXISTS idx_deleted_sessions_due ON deleted_sessions(next_che
 
 /// The v2 → v3 step: retention's cleanup intent.
 ///
-/// A table rather than a column, so it is `CREATE TABLE IF NOT EXISTS` and idempotent. Its own version because
-/// v2 *was* released: a database already on v2 never re-runs the v2 script, so a table appended there would
-/// reach only fresh installs - the permanently-skipped-migration trap that forced the ClickHouse v3 changes
-/// into one commit. Why the table exists, and why it needs only one state, is documented on the fresh schema.
+/// Released migration scripts are immutable: databases already at v2 only execute this step. The table is
+/// idempotent, and its runtime contract is documented in the fresh schema.
 const MIGRATION_V3: &str = r#"
 CREATE TABLE IF NOT EXISTS retention_cleanup (
     project_id      TEXT    NOT NULL,
@@ -266,9 +246,8 @@ CREATE INDEX IF NOT EXISTS idx_retention_cleanup_due ON retention_cleanup(next_a
 
 /// The deletion journal (schema v4).
 ///
-/// Its own version, for the reason `MIGRATION_V3` records: a database already on v3 never re-runs the v3
-/// script, so a table appended there would reach only fresh installs. `CREATE TABLE IF NOT EXISTS`, so it is
-/// idempotent. Why the table exists and why it is permanent is documented on the fresh schema.
+/// Databases already at v3 execute this immutable step. The table is idempotent; its permanent retention
+/// contract is documented in the fresh schema.
 const MIGRATION_V4: &str = r#"
 -- =============================================================================
 -- Deletion journal: the deletions a restore cannot recompute
@@ -315,14 +294,8 @@ CREATE INDEX IF NOT EXISTS idx_deletion_journal_target
 
 /// The span-id constraint on `deletion_journal` (schema v5).
 ///
-/// Its own version, and this is the trap `MIGRATION_V3` and `MIGRATION_V4` each record: the constraint was first
-/// edited into the v4 script, which reaches a fresh install and a v3 database and **never** a database already
-/// marked v4 - which is every database created by the commit that introduced the table. Those would keep
-/// accepting a span-scoped row with no span id, which `deletion_is_journaled` can never find.
-///
-/// SQLite cannot add a `CHECK` to an existing table, so the table is rebuilt and copied. The copy handles the two
-/// malformed shapes **differently**, and treating them alike was a defect: a journal row is evidence, and
-/// discarding evidence lets a restore resurrect what it recorded.
+/// SQLite cannot add a `CHECK` to an existing table, so the table is rebuilt and copied. The copy preserves
+/// usable deletion evidence while enforcing the final row shape:
 ///
 /// - `scope = 'span'` with a null `span_id` is genuinely **inert**: `deletion_is_journaled` matches on
 ///   `span_id`, so such a row has never been findable and has never explained anything. Dropped.
@@ -538,7 +511,7 @@ async fn apply_migration(
     }
 }
 
-/// Apply a versioned migration with tracking
+/// Apply one migration atomically and record its checksum and execution time.
 async fn apply_versioned_migration(
     pool: &SqlitePool,
     version: i32,
@@ -550,10 +523,7 @@ async fn apply_versioned_migration(
 
     let mut tx = pool.begin().await?;
 
-    // One script, not statements split on `;`. A semicolon inside a `--` comment or a string literal
-    // ends a "statement" mid-construct, and the fragment is then rejected as a syntax error - which is
-    // exactly what happened to the PostgreSQL twin's initial schema, where it meant no fresh database
-    // could be created at all.
+    // Execute the migration as a script so comments and literals retain normal SQL parsing.
     sqlx::raw_sql(sql)
         .execute(&mut *tx)
         .await
@@ -563,7 +533,6 @@ async fn apply_versioned_migration(
             error: e.to_string(),
         })?;
 
-    // Update version
     let now = clock.now().timestamp_nanos_opt().unwrap_or(0);
     sqlx::query(
         "UPDATE schema_version SET version = ?, applied_at = ?, description = ? WHERE id = 1",
@@ -574,7 +543,6 @@ async fn apply_versioned_migration(
     .execute(&mut *tx)
     .await?;
 
-    // Record migration
     let checksum = sha256_hex(sql);
     let elapsed_ms = start.elapsed().as_millis() as i64;
     sqlx::query(
@@ -628,7 +596,6 @@ mod tests {
                 .filter(|line| !line.is_empty() && !line.starts_with("--"))
                 .filter_map(|line| {
                     let name = line.split_whitespace().next()?;
-                    // Table-level constraints are not columns.
                     // Table constraints are not columns, and they are written both with and without a
                     // space before the parenthesis - `UNIQUE(a, b)` and `PRIMARY KEY (a)`.
                     let keyword = name.split('(').next().unwrap_or(name).to_ascii_uppercase();

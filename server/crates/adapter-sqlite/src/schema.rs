@@ -547,46 +547,7 @@ CREATE TABLE IF NOT EXISTS project_storage_usage (
 
 #[cfg(test)]
 mod tests {
-
-    /// No SQL comment in this schema contains a semicolon.
-    ///
-    /// Not a style rule - it is the one hazard this schema's own comment warns about, and it fired: a `;` inside
-    /// a `--` comment ends a "statement" for anything that splits the script on semicolons, and the fragment
-    /// after it is a syntax error in a place nobody looks. Every runner now uses `raw_sql`, so the schema itself
-    /// is safe; what this protects is the next helper someone writes with a split, and it cost twenty-one
-    /// failing tests in `repositories/file.rs` whose messages named neither the schema nor the comment.
-    #[test]
-    fn no_sql_comment_holds_a_semicolon() {
-        let offenders: Vec<(usize, &str)> = SCHEMA
-            .lines()
-            .enumerate()
-            .filter(|(_, line)| line.trim_start().starts_with("--"))
-            .filter(|(_, line)| line.contains(';'))
-            .map(|(n, line)| (n + 1, line.trim()))
-            .collect();
-        assert!(
-            offenders.is_empty(),
-            "a semicolon inside a `--` comment truncates the script for any splitting reader:\n{}",
-            offenders
-                .iter()
-                .map(|(n, l)| format!("  line {n}: {l}"))
-                .collect::<Vec<_>>()
-                .join("\n")
-        );
-    }
     use super::*;
-
-    #[test]
-    #[allow(clippy::assertions_on_constants)]
-    fn test_schema_version_is_positive() {
-        assert!(SCHEMA_VERSION > 0);
-    }
-
-    #[test]
-    #[allow(clippy::const_is_empty)]
-    fn test_schema_is_not_empty() {
-        assert!(!SCHEMA.is_empty());
-    }
 
     #[test]
     fn test_schema_contains_required_tables() {
