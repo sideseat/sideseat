@@ -583,14 +583,9 @@ pub async fn advance_pending_deletions(
 
 /// The timer that advances every pending deletion, and recovers any that was abandoned.
 ///
-/// Startup alone is not enough, and the gap is not hypothetical: a process that dies one second after
-/// claiming and restarts immediately leaves a claim the startup sweep reads as *fresh* - it is younger
-/// than the staleness threshold, which exists so a deletion in progress is never mistaken for an
-/// abandoned one. Nothing then looks again until the next restart, so the file stays unassociable and
-/// the project stays hidden for as long as the process happens to live.
-///
-/// Both kinds of claim are swept here rather than in two tasks: they are the same failure with two
-/// owners, and one timer is one thing to reason about.
+/// The recurring sweep is required because a claim can still be fresh during startup and become abandoned
+/// later. Project, organization, and file claims share one cadence because all are idempotent reconciliation
+/// work.
 pub fn start_claim_recovery_task(
     database: Arc<TransactionalStore>,
     analytics: Arc<AnalyticsStore>,
@@ -600,8 +595,9 @@ pub fn start_claim_recovery_task(
     tokio::spawn(async move {
         let mut ticker =
             tokio::time::interval(std::time::Duration::from_secs(CLAIM_RECOVERY_INTERVAL_SECS));
-        // The first tick fires immediately, and it is kept: nothing sweeps before this task now, because
-        // doing it inline made every new instance wait for work that is not urgent.
+        // One current-state reconciliation subsumes missed intervals; catch-up bursts only duplicate load.
+        ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+        // The immediate first tick performs startup reconciliation asynchronously.
         loop {
             tokio::select! {
                 biased;
