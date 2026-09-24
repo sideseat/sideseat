@@ -463,7 +463,7 @@ impl ApiServer {
                  instance if you use them."
             );
         }
-        let (ws_routes, ws_state) = ws::routes(
+        let (ws_routes, ws_state, ws_sweeper) = ws::routes(
             app.topics.clone(),
             app.registrations.clone(),
             app.shutdown_rx.clone(),
@@ -543,7 +543,7 @@ impl ApiServer {
             .layer(DefaultBodyLimit::max(DEFAULT_BODY_LIMIT));
 
         let listener = TcpListener::bind(addr).await?;
-        axum::serve(
+        let serve_result = axum::serve(
             listener,
             router.into_make_service_with_connect_info::<SocketAddr>(),
         )
@@ -551,7 +551,17 @@ impl ApiServer {
             let mut shutdown_rx = shutdown_rx;
             let _ = shutdown_rx.wait_for(|&triggered| triggered).await;
         })
-        .await?;
+        .await;
+
+        if serve_result.is_err() {
+            ws_sweeper.abort();
+        }
+        if let Err(error) = ws_sweeper.await
+            && !error.is_cancelled()
+        {
+            tracing::warn!(%error, "WebSocket registration sweeper stopped unexpectedly");
+        }
+        serve_result?;
 
         Ok(())
     }

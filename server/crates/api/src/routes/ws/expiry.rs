@@ -21,7 +21,7 @@ use super::state::WsState;
 /// Sweep interval — half the TTL keeps p50 detection ≤ TTL/2.
 const SWEEP_INTERVAL_SECS: u64 = REGISTRATION_TTL_SECS / 2;
 
-pub fn spawn_sweeper(state: WsState) {
+pub fn spawn_sweeper(state: WsState) -> tokio::task::JoinHandle<()> {
     let mut shutdown_rx = state.shutdown_rx.clone();
     tokio::spawn(async move {
         let mut tick = tokio::time::interval(Duration::from_secs(SWEEP_INTERVAL_SECS.max(1)));
@@ -32,8 +32,8 @@ pub fn spawn_sweeper(state: WsState) {
         loop {
             tokio::select! {
                 biased;
-                _ = shutdown_rx.changed() => {
-                    if *shutdown_rx.borrow() {
+                changed = shutdown_rx.changed() => {
+                    if changed.is_err() || *shutdown_rx.borrow() {
                         break;
                     }
                 }
@@ -68,5 +68,5 @@ pub fn spawn_sweeper(state: WsState) {
                 }
             }
         }
-    });
+    })
 }

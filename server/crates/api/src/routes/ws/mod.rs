@@ -32,9 +32,9 @@ pub fn routes(
     registrations: Arc<dyn RegistrationStore>,
     shutdown_rx: watch::Receiver<bool>,
     clock: Arc<dyn Clock>,
-) -> (Router<()>, WsState) {
+) -> (Router<()>, WsState, tokio::task::JoinHandle<()>) {
     let state = WsState::new(topics, registrations, shutdown_rx, clock);
-    expiry::spawn_sweeper(state.clone());
+    let sweeper = expiry::spawn_sweeper(state.clone());
     let router = Router::new()
         .route("/project/{project_id}/ws", get(handler::ws_upgrade))
         .route(
@@ -46,5 +46,5 @@ pub fn routes(
             get(presence_sse::stream_presence),
         )
         .with_state(state.clone());
-    (router, state)
+    (router, state, sweeper)
 }
