@@ -1,103 +1,19 @@
-//! Backend selection and lifecycle owned by the composition root.
-
 use std::sync::Arc;
 
 use sideseat_adapter_clickhouse::{ClickhouseRepository, ClickhouseService};
 use sideseat_adapter_duckdb::{DuckdbRepository, DuckdbService};
-use sideseat_adapter_postgres::{PostgresRepository, PostgresService};
-use sideseat_adapter_sqlite::{SqliteRepository, SqliteService};
 use sideseat_domain::dedup::DedupAnalyticsRepository;
+use sideseat_ports::blobs::RetentionFileReconciler;
+use sideseat_ports::clock::Clock;
 use sideseat_ports::error::DataError;
 use sideseat_ports::traits::{AnalyticsRepository, StorageGovernance, TransactionalRepository};
-
-use sideseat_ports::blobs::RetentionFileReconciler;
-use sideseat_ports::cache::CacheStore;
-use sideseat_ports::clock::Clock;
 use tokio::sync::watch;
 use tokio::task::JoinHandle;
 
-use sideseat_core::config::{
-    AnalyticsBackend, ClickhouseConfig, PostgresConfig, RetentionConfig, TransactionalBackend,
-};
+use sideseat_core::config::{AnalyticsBackend, ClickhouseConfig, RetentionConfig};
 use sideseat_core::storage::AppStorage;
 
-/// Lifecycle facade over the configured transactional backend.
-pub enum TransactionalService {
-    /// SQLite backend (default, embedded)
-    Sqlite(Arc<SqliteService>),
-    /// PostgreSQL backend (for distributed deployments)
-    Postgres(Arc<PostgresService>),
-}
-
-impl TransactionalService {
-    /// Initialize the selected backend and attach its shared cache.
-    pub async fn init(
-        backend: TransactionalBackend,
-        storage: &AppStorage,
-        postgres_config: Option<&PostgresConfig>,
-        cache: Option<Arc<dyn CacheStore>>,
-        clock: Arc<dyn Clock>,
-    ) -> Result<Self, DataError> {
-        match backend {
-            TransactionalBackend::Sqlite => {
-                let service = SqliteService::init(storage, clock).await?.with_cache(cache);
-                Ok(Self::Sqlite(Arc::new(service)))
-            }
-            TransactionalBackend::Postgres => {
-                let config = postgres_config.ok_or_else(|| {
-                    DataError::Config("PostgreSQL configuration required".to_string())
-                })?;
-                let service = PostgresService::init(config, clock)
-                    .await?
-                    .with_cache(cache);
-                Ok(Self::Postgres(Arc::new(service)))
-            }
-        }
-    }
-
-    /// Run a WAL checkpoint (SQLite) or equivalent maintenance task
-    pub async fn checkpoint(&self) -> Result<(), DataError> {
-        match self {
-            Self::Sqlite(s) => s.checkpoint().await.map_err(Into::into),
-            Self::Postgres(_) => {
-                // PostgreSQL owns maintenance through autovacuum.
-                Ok(())
-            }
-        }
-    }
-
-    /// Close the database connection gracefully
-    pub async fn close(&self) {
-        match self {
-            Self::Sqlite(s) => s.close().await,
-            Self::Postgres(p) => p.close().await,
-        }
-    }
-
-    /// Start the background checkpoint task (SQLite only)
-    /// For PostgreSQL, starts a health check task instead.
-    pub fn start_checkpoint_task(&self, shutdown_rx: watch::Receiver<bool>) -> JoinHandle<()> {
-        match self {
-            Self::Sqlite(s) => Arc::clone(s).start_checkpoint_task(shutdown_rx),
-            Self::Postgres(p) => Arc::clone(p).start_health_check_task(shutdown_rx),
-        }
-    }
-
-    /// Expose backend-agnostic transactional operations.
-    pub fn repository(&self) -> Box<dyn TransactionalRepository + Send + Sync> {
-        match self {
-            Self::Sqlite(s) => Box::new(SqliteRepository(Arc::clone(s))),
-            Self::Postgres(p) => Box::new(PostgresRepository(Arc::clone(p))),
-        }
-    }
-
-    pub fn governance_repository(&self) -> Box<dyn StorageGovernance + Send + Sync> {
-        match self {
-            Self::Sqlite(s) => Box::new(SqliteRepository(Arc::clone(s))),
-            Self::Postgres(p) => Box::new(PostgresRepository(Arc::clone(p))),
-        }
-    }
-}
+use super::transactional::TransactionalService;
 
 /// Lifecycle facade over the configured analytics backend.
 pub enum AnalyticsService {
@@ -254,6 +170,7 @@ mod tests {
     use sideseat_adapter_cache::CacheService;
     use sideseat_core::config::{
         CacheBackendType, CacheConfig, EvictionPolicy, FilesConfig, StorageBackend,
+        TransactionalBackend,
     };
     use sideseat_domain::storage_governance::StorageGovernanceService;
     use sideseat_ports::clock::Clock;
