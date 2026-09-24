@@ -57,15 +57,12 @@ pub async fn sse(
         loop {
             tokio::select! {
                 biased;
-                // Check for shutdown signal first
-                _ = shutdown_rx.changed() => {
-                    if *shutdown_rx.borrow() {
-                        // Notify client before closing so it can reconnect immediately
+                changed = shutdown_rx.changed() => {
+                    if changed.is_err() || *shutdown_rx.borrow() {
                         yield Ok(Event::default().event("terminate").data("shutdown"));
                         break;
                     }
                 }
-                // Process incoming messages
                 result = subscriber.recv() => {
                     match result {
                         Ok(event) => {
