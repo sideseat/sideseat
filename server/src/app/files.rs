@@ -3,15 +3,16 @@
 use std::sync::Arc;
 
 use sideseat_adapter_blob_storage::{FilesystemStorage, S3Storage};
+use sideseat_adapter_cache::CacheService;
+use sideseat_core::config::{FilesConfig, StorageBackend};
+use sideseat_core::storage::{AppStorage, DataSubdir};
 use sideseat_domain::files::{FileService, FileServiceError};
 use sideseat_domain::storage_governance::StorageGovernanceService;
 use sideseat_ports::blobs::{FileStorage, FileStorageError};
 
 use super::storage::TransactionalService;
-use sideseat_adapter_cache::CacheService;
-use sideseat_core::config::{FilesConfig, StorageBackend};
-use sideseat_core::storage::{AppStorage, DataSubdir};
 
+/// Build an ungoverned file service for standalone tools and benchmarks.
 pub async fn create_file_service(
     config: FilesConfig,
     app_storage: &AppStorage,
@@ -21,7 +22,7 @@ pub async fn create_file_service(
     create_file_service_inner(config, app_storage, database, cache, None, true).await
 }
 
-pub async fn create_governed_file_service(
+pub(super) async fn create_governed_file_service(
     config: FilesConfig,
     app_storage: &AppStorage,
     database: Arc<TransactionalService>,
@@ -31,7 +32,7 @@ pub async fn create_governed_file_service(
     create_file_service_inner(config, app_storage, database, cache, Some(governance), true).await
 }
 
-pub async fn create_governed_file_service_deferred_cleanup(
+pub(super) async fn create_governed_file_service_deferred_cleanup(
     config: FilesConfig,
     app_storage: &AppStorage,
     database: Arc<TransactionalService>,

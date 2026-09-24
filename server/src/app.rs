@@ -209,7 +209,6 @@ impl CoreApp {
             config.otel.retention.clone(),
             config.otel.staging_redrive_cap,
         ));
-        // Pending deletion cleanup runs in the background so readiness does not depend on a sweep.
 
         let shutdown = ShutdownService::new(topics.clone(), database.clone(), analytics.clone());
 
