@@ -982,6 +982,7 @@ clean-docker: ## Remove this checkout's test containers
 
 # Report local storage and fail when the Cargo cache or free-space reserve is unhealthy.
 disk: ## Report and enforce the local disk budget
+	@bash scripts/cargo-target-dir.sh >/dev/null
 	@echo "[disk] Free space:"
 	@df -h . | tail -1
 	@echo "[disk] Largest local directories:"
@@ -1025,6 +1026,7 @@ disk: ## Report and enforce the local disk budget
 
 # Finite Rust build and test recipes run this before and after their main command.
 disk-guard:
+	@bash scripts/cargo-target-dir.sh >/dev/null
 	@used=$$(du -sm "$(CARGO_TARGET_DIR)" 2>/dev/null | awk '{print $$1}'); \
 	used=$${used:-0}; \
 	available=$$(df -Pm . | awk 'NR == 2 {print $$4}'); \
