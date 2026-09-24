@@ -32,6 +32,7 @@ use sideseat_ports::types::{FeedMessagesParams, FeedSpansParams, MessageQueryPar
 
 const DEFAULT_FEED_LIMIT: u32 = 50;
 const MAX_FEED_LIMIT: u32 = 500;
+const FEED_CURSOR_VERSION: &str = "v1";
 
 // ============================================================================
 // Query parameters
@@ -41,7 +42,7 @@ const MAX_FEED_LIMIT: u32 = 500;
 pub struct FeedMessagesQuery {
     /// Maximum number of spans to return (default: 50, max: 500)
     pub limit: Option<u32>,
-    /// Cursor for pagination (base64 encoded: ingested_at_us:span_id)
+    /// Opaque URL-safe base64 pagination cursor
     pub cursor: Option<String>,
     /// Filter by event time >= start_time (ISO 8601)
     pub start_time: Option<String>,
@@ -55,7 +56,7 @@ pub struct FeedMessagesQuery {
 pub struct FeedSpansQuery {
     /// Maximum number of spans to return (default: 50, max: 500)
     pub limit: Option<u32>,
-    /// Cursor for pagination (base64 encoded: ingested_at_us:span_id)
+    /// Opaque URL-safe base64 pagination cursor
     pub cursor: Option<String>,
     /// Filter by event time >= start_time (ISO 8601)
     pub start_time: Option<String>,
@@ -71,13 +72,11 @@ pub struct FeedSpansQuery {
 // Cursor encoding/decoding
 // ============================================================================
 
-/// Encode cursor from (ingested_at, span_id)
 /// Encode a feed cursor.
 ///
-/// The trace id is part of it because a span id is unique only *within* a trace. Two traces can
-/// carry the same span id in the same ingestion microsecond, and a page boundary falling between
-/// them made the `< cursor` predicate skip the one that had not been returned - a message missing
-/// from the feed for good.
+/// The trace id disambiguates span ids, which are unique only within a trace. The complete ordering
+/// key prevents a page boundary from skipping one of two equal span ids ingested in the same
+/// microsecond.
 fn encode_cursor(
     watermark_us: i64,
     ingested_at: DateTime<Utc>,
@@ -91,7 +90,7 @@ fn encode_cursor(
     // Trace id before span id, because the span id goes last and is the only field allowed to
     // contain a colon - `test_decode_cursor_with_colon_in_span_id` pins that. A trace id is hex.
     let cursor_str = format!(
-        "{}:{}:{}:{}",
+        "{FEED_CURSOR_VERSION}:{}:{}:{}:{}",
         watermark_us,
         ingested_at.timestamp_micros(),
         trace_id,
@@ -104,17 +103,18 @@ fn encode_cursor(
 struct FeedCursor {
     /// The traversal watermark: rows ingested at or after this are invisible for the whole traversal.
     ///
-    /// `None` for a cursor issued before the watermark existed. Such a traversal keeps the old behaviour
-    /// rather than failing, which is what lets a page request in flight across an upgrade complete.
+    /// `None` for a legacy cursor without a watermark. Such a traversal remains unbounded so pagination
+    /// already in progress stays compatible across an upgrade.
     watermark_us: Option<i64>,
     position: (i64, String, String),
 }
 
 /// Decode a feed cursor, accepting every form this server has issued.
 ///
-/// Four parts is current. Three is a cursor from before the watermark, two from before the trace id was
-/// in the key - both accepted so a page request in flight across an upgrade does not fail. A missing
-/// trace id resolves to empty, which orders before every real one.
+/// Current cursors carry an explicit version. Legacy four-, three- and two-part cursors remain valid so
+/// pagination already in progress survives an upgrade. Trace-bearing legacy forms are recognised by their
+/// canonical 32-hex-character trace id; otherwise the complete suffix belongs to the two-part cursor's span
+/// id. This preserves colons in legacy span ids despite the old format's ambiguous delimiter.
 fn decode_cursor(cursor: &str) -> Result<FeedCursor, ApiError> {
     let decoded = URL_SAFE_NO_PAD
         .decode(cursor)
@@ -123,39 +123,53 @@ fn decode_cursor(cursor: &str) -> Result<FeedCursor, ApiError> {
     let cursor_str = String::from_utf8(decoded)
         .map_err(|_| ApiError::bad_request("INVALID_CURSOR", "Invalid cursor encoding"))?;
 
-    let parts: Vec<&str> = cursor_str.splitn(4, ':').collect();
-    if parts.len() < 2 {
-        return Err(ApiError::bad_request(
-            "INVALID_CURSOR",
-            "Invalid cursor format: expected watermark:timestamp:trace_id:span_id",
-        ));
-    }
-
+    let invalid_format = || ApiError::bad_request("INVALID_CURSOR", "Invalid cursor format");
     let invalid = || ApiError::bad_request("INVALID_CURSOR", "Invalid cursor timestamp");
 
-    // Four fields is the current form. Fewer is an older one, and which older one is decided by count -
-    // every field is numeric or hex, so there is nothing to disambiguate by shape.
-    if parts.len() == 4 {
-        let watermark_us = parts[0].parse::<i64>().map_err(|_| invalid())?;
-        let timestamp_us = parts[1].parse::<i64>().map_err(|_| invalid())?;
+    if let Some(versioned) = cursor_str.strip_prefix("v1:") {
+        let parts: Vec<&str> = versioned.splitn(4, ':').collect();
+        if parts.len() != 4 {
+            return Err(invalid_format());
+        }
         return Ok(FeedCursor {
-            watermark_us: Some(watermark_us),
-            position: (timestamp_us, parts[3].to_string(), parts[2].to_string()),
+            watermark_us: Some(parts[0].parse::<i64>().map_err(|_| invalid())?),
+            position: (
+                parts[1].parse::<i64>().map_err(|_| invalid())?,
+                parts[3].to_string(),
+                parts[2].to_string(),
+            ),
         });
     }
 
-    let timestamp_us = parts[0].parse::<i64>().map_err(|_| invalid())?;
-    let (trace_id, span_id) = match parts.len() {
-        2 => ("", parts[1]),
-        _ => (parts[1], parts[2]),
+    let (first, suffix) = cursor_str.split_once(':').ok_or_else(invalid_format)?;
+    let first_us = first.parse::<i64>().map_err(|_| invalid())?;
+
+    if let Some((second, legacy_suffix)) = suffix.split_once(':')
+        && let Ok(timestamp_us) = second.parse::<i64>()
+        && let Some((candidate, span_id)) = legacy_suffix.split_once(':')
+        && is_canonical_trace_id(candidate)
+    {
+        return Ok(FeedCursor {
+            watermark_us: Some(first_us),
+            position: (timestamp_us, span_id.to_string(), candidate.to_string()),
+        });
+    }
+
+    let (trace_id, span_id) = match suffix.split_once(':') {
+        Some((candidate, span_id)) if is_canonical_trace_id(candidate) => (candidate, span_id),
+        _ => ("", suffix),
     };
     Ok(FeedCursor {
         watermark_us: None,
-        position: (timestamp_us, span_id.to_string(), trace_id.to_string()),
+        position: (first_us, span_id.to_string(), trace_id.to_string()),
     })
 }
 
-/// Validate and clamp limit parameter
+fn is_canonical_trace_id(value: &str) -> bool {
+    value.len() == 32 && value.bytes().all(|byte| byte.is_ascii_hexdigit())
+}
+
+/// Validate and clamp the limit parameter.
 fn validate_limit(limit: Option<u32>) -> u32 {
     limit.unwrap_or(DEFAULT_FEED_LIMIT).clamp(1, MAX_FEED_LIMIT)
 }
@@ -212,21 +226,15 @@ pub async fn get_feed_messages(
     let start_time = parse_timestamp_param(&query.start_time)?;
     let end_time = parse_timestamp_param(&query.end_time)?;
 
-    // The traversal watermark: established on the first page and carried by every cursor after it.
+    // Establish one traversal watermark on the first page and carry it in every subsequent cursor.
     //
-    // A page is chosen by ingestion time, so without it a span ingested *during* the traversal appears on
-    // a later page - and may already have been read into an earlier page's reconstruction context, where
-    // it can win deduplication against a span still to be paged. That span is then suppressed as a
-    // duplicate and the winner scoped off the page it was not selected for, so neither is ever returned.
-    // One watermark, applied to both the page query and the context load, makes a traversal a view of one
-    // instant. A cursor from before the watermark existed carries none, and keeps the old behaviour rather
-    // than failing mid-traversal across an upgrade.
+    // Applying the same watermark to page selection and reconstruction context makes the traversal a view
+    // of one instant. Otherwise a row arriving between pages could participate in deduplication before it is
+    // selected and suppress both itself and the row it replaces. Legacy cursors carry no watermark and keep
+    // their unbounded traversal semantics.
     //
-    // Taken from the **store**, not from this process's clock. `Utc::now()` is a statement about the
-    // reader's clock: ahead of the store's it excluded rows already committed, behind it admitted rows the
-    // next page would read again. `max_ingested_at_us` is a value the store has by definition. The residual
-    // is stated on that method - a write stamped before the read but committing after it is below the
-    // watermark - and it is the duration of one write rather than an arbitrary clock difference.
+    // Derive the watermark from the **store**, not the reader's clock, so committed rows and page boundaries
+    // share one time domain. `max_ingested_at_us` documents the remaining write-commit race.
     let repo = state.analytics.as_ref();
     let watermark_us = match decoded.as_ref().and_then(|c| c.watermark_us) {
         Some(carried) => carried,
@@ -272,20 +280,11 @@ pub async fn get_feed_messages(
         .last()
         .map(|s| encode_cursor(watermark_us, s.ingested_at, &s.span_id, &s.trace_id));
 
-    // Reconstruct over whole traces, then narrow to the page.
+    // Reconstruct over complete sessions, then narrow the result to the selected page.
     //
-    // The page is chosen before the pipeline runs, so anything the pipeline decides by looking
-    // across spans - which copy of a re-sent turn survives, which call a result answers - used to be
-    // decided from a fragment. A trace split across two pages was reconstructed twice, from half its
-    // spans each time, and both halves could show the same turn.
-    //
-    // Loading each trace on the page in full removes that: the traces are already named by the rows
-    // just selected, so it is one further query bounded by the page, and the answer for a trace no
-    // longer depends on where the page boundary fell. Blocks are then kept only for the spans the
-    // page actually holds, the way the trace view scopes a session-loaded feed back to one trace.
-    //
-    // The context is widened to whole *sessions* below, not just whole traces, so a replay crossing traces
-    // within a session is recognised wherever the page boundary falls.
+    // Replay detection and tool-call matching depend on neighbouring spans and traces. Session-wide context
+    // makes those decisions independent of page boundaries; `scope_feed_to_page` then keeps only blocks
+    // owned by the page's spans.
     //
     // What remains, and cannot be otherwise on a cursor-paginated endpoint: pages are selected by
     // *ingestion* time while each page's messages are ordered by *message* time, because the ordering key
@@ -353,25 +352,12 @@ pub async fn get_feed_messages(
 
     // Whole *sessions*, not merely whole traces.
     //
-    // Loading each page trace in full stopped a trace split across two pages from being reconstructed
-    // twice. It did not stop a replay that crosses traces *within* a session: a later trace re-sending an
-    // earlier one's turn is recognised only when both are in the pipeline's input, so with the two on
-    // different pages both returned the turn. Resolving the page's traces to their sessions and loading
-    // every trace of those sessions is what the trace view already does, and for the same reason.
+    // Resolve sessions from the page's **traces**, not from session ids on the selected spans. Frameworks
+    // commonly attach the session only to a root span, while a page can begin or end on child spans.
     //
-    // The sessions are resolved from the page's **traces**, not from the session ids its spans happen to
-    // carry.
-    //
-    // A framework records the session on the span that knows it - usually the root alone - so a page made of
-    // child spans named no session, the context was never widened, and the cross-trace replay stripping this
-    // whole expansion exists for did not run. Which spans a cursor page holds is decided by ingestion time,
-    // so that is not an edge case: any page can begin or end mid-trace. Asking by trace is what makes the
-    // answer independent of which spans the page drew.
-    // Membership is resolved at the traversal's own instant, like the rows are. Against current data it
-    // disagreed with them: a trace re-delivered into another session mid-traversal is read with its old
-    // content but expanded under its new session, so the session it actually replays is never loaded and its
-    // replayed history has nothing to collapse against - duplicated turns across pages. DuckDB honours the
-    // bound; ClickHouse cannot express it, which is the same limit already stated for the page query.
+    // Resolve membership at the traversal watermark as well. This keeps the content and its session graph
+    // in the same snapshot when a trace is re-delivered into another session. DuckDB honours this bound;
+    // ClickHouse has the same current-snapshot limitation documented for the page query.
     let mut trace_ids: Vec<String> = spans.iter().map(|s| s.trace_id.clone()).collect();
     trace_ids.sort();
     trace_ids.dedup();
@@ -401,11 +387,9 @@ pub async fn get_feed_messages(
             ingested_before_us: Some(watermark_us),
             // Bounded above by the window the request asked for, and deliberately not below it.
             //
-            // Context is what came *before*, so the lower bound must not be applied here - that is
-            // the whole reason `apply_time_window` runs on the answer instead. But without the upper
-            // bound the reconstruction also read spans recorded *after* the window, which changes
-            // what history detection collapses: a page of yesterday's feed could come back different
-            // today because the same trace has since continued.
+            // Context is what came *before*, so the lower bound belongs on the reconstructed answer rather
+            // than this query. The upper bound keeps reconstruction deterministic as a trace continues after
+            // the requested window.
             to_timestamp: end_time,
             ..Default::default()
         })
@@ -418,11 +402,8 @@ pub async fn get_feed_messages(
 
     // Which trace is in which session, from the store rather than from the rows below.
     //
-    // The rows have been through `MESSAGE_CONTENT_FILTER`, and a framework records the session on the span
-    // that knows it - usually a root that often carries no content and is therefore removed. Left to derive
-    // the grouping from those rows, the pipeline made each trace its own conversation, so the cross-trace
-    // replay stripping that this whole expansion exists for did not run and the re-sent history came back as
-    // duplicates - while the response still said `session_scoped`.
+    // `MESSAGE_CONTENT_FILTER` may remove the root span that carries the session id. Store-derived membership
+    // therefore supplies the complete conversation grouping required for cross-trace replay detection.
     let session_of_trace: std::collections::HashMap<String, String> = repo
         .get_trace_session_pairs(&project_id, &context_trace_ids, Some(watermark_us))
         .await
@@ -436,15 +417,12 @@ pub async fn get_feed_messages(
 
     // The window is a filter on the answer, here as in the other three views.
     //
-    // The queries bound `timestamp_start`, and a completed response is timestamped at *span end* -
-    // so a span that started inside the window and finished after it returned a message dated past
-    // the window the request asked for. The upper bound on the context load does not cover that: it
-    // decides which spans are read, not what time their messages carry.
+    // Queries bound `timestamp_start`, while a completed response is timestamped at *span end*. Filtering
+    // reconstructed blocks enforces the requested window on message time rather than span-selection time.
     //
     // A page whose every block is filtered out still reports `has_more` and a cursor, because both
-    // are properties of the row page rather than of the answer. That is how the role filter has
-    // always behaved here, and it is what lets a client keep paging rather than stopping at the
-    // first page a filter empties.
+    // are properties of the row page rather than of the answer. Clients can therefore continue past
+    // a page emptied by a filter.
     let reconstructed = process_feed_cached(&state.reconstruction, context.rows, &options);
     let processed = apply_time_window(&reconstructed, start_time, end_time);
     // Cloned here rather than moved, because the source may be the shared memo: the page scoping consumes the
@@ -453,12 +431,9 @@ pub async fn get_feed_messages(
     let tool_definitions = page_tools.tool_definitions;
     let tool_names = page_tools.tool_names;
 
-    // The page's totals, computed from the page's rows above rather than from the pipeline's - the
-    // pipeline now sees whole traces, so its totals cover more than the page shows.
+    // The page's totals come from its selected rows rather than the session-wide reconstruction context.
     //
-    // Sums over spans, not over the blocks returned: summing blocks made a billed span contribute
-    // nothing whenever all of its messages were dropped as history or by the role filter, so the
-    // page's reported cost fell below what was actually spent.
+    // Sum over spans, not returned blocks, so replay and role filtering cannot remove billed usage.
     let metadata = FeedMessagesMetadata {
         // Carried from the pipeline: a page whose replay matching was cut short may repeat history, and
         // the caller has no other way to know.
@@ -467,13 +442,7 @@ pub async fn get_feed_messages(
         span_count: page_span_count,
         total_tokens: page_tokens,
         total_cost: page_cost,
-        // Now unconditionally true, because the expansion above is resolved from the page's traces.
-        //
-        // It used to be false whenever a contributing span carried no session id - but that was a property
-        // of *where the framework wrote the id*, not of what the reconstruction managed to see, so it
-        // reported incompleteness on pages that were complete and stayed silent about the real gap. Every
-        // page trace now contributes its session, and a trace belonging to no session has nothing wider to
-        // load, so both cases are covered.
+        // Every page trace contributes its resolved session; a trace without a session has no wider context.
         session_scoped: true,
         // Always false, and said out loud: pages are selected by ingestion time while their messages are
         // ordered by message time.
@@ -665,10 +634,11 @@ mod tests {
 
         let encoded = encode_cursor(1, timestamp, span_id, "trace123");
 
-        // Should be base64 URL-safe without padding
         assert!(!encoded.contains('='));
         assert!(!encoded.contains('+'));
         assert!(!encoded.contains('/'));
+        let wire = String::from_utf8(URL_SAFE_NO_PAD.decode(encoded).unwrap()).unwrap();
+        assert!(wire.starts_with("v1:"));
     }
 
     #[test]
@@ -684,11 +654,11 @@ mod tests {
         assert_eq!(decoded.position.2, "tracewithoutcolons");
     }
 
-    /// Cursors from before the trace id and from before the watermark must still parse.
+    /// Legacy cursors remain readable without weakening the current cursor's total ordering.
     ///
-    /// A traversal in flight across an upgrade must complete rather than fail on its next page. A legacy
-    /// cursor carries no watermark, so the traversal keeps the old unbounded behaviour - which is the
-    /// behaviour it started with, and therefore the consistent choice.
+    /// A two- or three-part cursor carries no watermark, so its traversal remains unbounded. The two-part
+    /// format keeps its complete span-id suffix, including colons; trace-bearing forms recognise a canonical
+    /// trace id.
     #[test]
     fn test_decode_legacy_cursors() {
         let two_part = URL_SAFE_NO_PAD.encode("1736937000000000:abc123");
@@ -701,15 +671,32 @@ mod tests {
             "an absent trace id must order before every real one, not become the span id"
         );
 
-        let three_part = URL_SAFE_NO_PAD.encode("1736937000000000:tracehex:abc123");
+        let two_part_with_colons = URL_SAFE_NO_PAD.encode("1736937000000000:123:with:colons");
+        let decoded =
+            decode_cursor(&two_part_with_colons).expect("legacy two-part cursor with colons");
+        assert_eq!(decoded.watermark_us, None);
+        assert_eq!(decoded.position.1, "123:with:colons");
+        assert_eq!(decoded.position.2, "");
+
+        let three_part = URL_SAFE_NO_PAD
+            .encode("1736937000000000:0123456789abcdef0123456789abcdef:span:with:colons");
         let decoded = decode_cursor(&three_part).expect("legacy three-part cursor");
         assert_eq!(
             decoded.watermark_us, None,
             "a pre-watermark cursor must not have its trace id read as a watermark"
         );
         assert_eq!(decoded.position.0, 1_736_937_000_000_000);
-        assert_eq!(decoded.position.1, "abc123");
-        assert_eq!(decoded.position.2, "tracehex");
+        assert_eq!(decoded.position.1, "span:with:colons");
+        assert_eq!(decoded.position.2, "0123456789abcdef0123456789abcdef");
+
+        let four_part = URL_SAFE_NO_PAD.encode(
+            "1700000000000000:1736937000000000:0123456789abcdef0123456789abcdef:span:with:colons",
+        );
+        let decoded = decode_cursor(&four_part).expect("legacy four-part cursor");
+        assert_eq!(decoded.watermark_us, Some(1_700_000_000_000_000));
+        assert_eq!(decoded.position.0, 1_736_937_000_000_000);
+        assert_eq!(decoded.position.1, "span:with:colons");
+        assert_eq!(decoded.position.2, "0123456789abcdef0123456789abcdef");
     }
 
     #[test]
