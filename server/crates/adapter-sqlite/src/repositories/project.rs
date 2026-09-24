@@ -1,23 +1,19 @@
-//! Project repository for SQLite operations.
+//! SQLite project lifecycle and deletion-journal repository.
 //!
-//! All read operations support optional caching. Pass `Some(cache)` to enable caching,
-//! or `None` to bypass cache. Mutations automatically invalidate relevant cache keys.
+//! Project rows are deletion fences and are therefore read directly from the database. Cleanup keeps durable
+//! residual records so arbitrarily late writers remain collectable after a project row is removed.
 
 use sqlx::SqlitePool;
 
 use crate::SqliteError;
-use sideseat_ports::cache::{CacheKey, CacheStore};
 use sideseat_ports::traits::{
     DeletionCause, DeletionRecord, DeletionScope, retention_cleanup_logical_bytes,
 };
 use sideseat_ports::types::{ProjectId, ProjectRow};
 
-use super::membership::list_member_user_ids;
-
-/// Create a new project with a generated CUID2 ID
+/// Create a new project with a generated CUID2 ID.
 pub async fn create_project(
     pool: &SqlitePool,
-    cache: Option<&dyn CacheStore>,
     organization_id: &str,
     name: &str,
     now: i64,
@@ -46,26 +42,6 @@ pub async fn create_project(
         )));
     }
 
-    // Invalidate list caches AFTER successful insert
-    if let Some(cache) = cache {
-        // Invalidate org's project list cache
-        if let Err(e) = cache
-            .delete(&CacheKey::projects_for_org(organization_id))
-            .await
-        {
-            tracing::warn!(%organization_id, error = %e, "Cache invalidation error");
-        }
-
-        // Invalidate projects_for_user for all org members
-        if let Ok(member_user_ids) = list_member_user_ids(pool, organization_id).await {
-            for user_id in &member_user_ids {
-                if let Err(e) = cache.delete(&CacheKey::projects_for_user(user_id)).await {
-                    tracing::warn!(%user_id, error = %e, "Cache invalidation error");
-                }
-            }
-        }
-    }
-
     Ok(ProjectRow {
         id,
         organization_id: organization_id.to_string(),
@@ -77,23 +53,9 @@ pub async fn create_project(
 
 /// Get a project by ID.
 ///
-/// # Why this is not cached
-///
-/// It was, and a cache is wrong for this question in a way a shorter TTL cannot fix. The project row is
-/// the deletion fence, and with a process-local cache one instance cannot invalidate another's: instance A
-/// caches a live project, instance B tombstones it and clears only B's memory, and A keeps answering from
-/// its hit - a deleted project readable and listable for the cache's lifetime, on that instance only.
-/// Re-reading the fence after a fill closes the *fill* race but not this one, because a hit never reaches
-/// the database at all.
-///
-/// The cost of not caching is a primary-key lookup, which is microseconds on both backends, against a
-/// question every read path asks before it trusts anything else. The parameter is kept so callers need not
-/// change and so the intent is visible where they pass one.
-pub async fn get_project(
-    pool: &SqlitePool,
-    _cache: Option<&dyn CacheStore>,
-    id: &str,
-) -> Result<Option<ProjectRow>, SqliteError> {
+/// The project row is the deletion fence, so this lookup always reads the database. A process-local cache
+/// cannot observe another instance claiming the project for deletion.
+pub async fn get_project(pool: &SqlitePool, id: &str) -> Result<Option<ProjectRow>, SqliteError> {
     get_project_from_db(pool, id).await
 }
 
@@ -121,8 +83,7 @@ async fn get_project_from_db(
     ))
 }
 
-/// List all projects with pagination, ordered by created_at DESC
-/// Note: This function doesn't cache as it's admin-only and pagination varies.
+/// List live projects with pagination, newest first.
 pub async fn list_projects(
     pool: &SqlitePool,
     page: u32,
@@ -185,18 +146,11 @@ pub async fn restore_project_ids(
     Ok(ids.into_iter().map(ProjectId::from).collect())
 }
 
-/// List projects for a user (across all their organizations) with optional caching
-///
-/// Note: Only caches first page with default limit for simplicity.
 /// Projects a user can see.
 ///
-/// Not cached. The first-page cache this used to have was already unreachable - every route passes `None` -
-/// and it could not have been kept: a list is only correct while its projects are live, and with a
-/// process-local cache one instance cannot invalidate another's, so a project another instance tombstoned
-/// would keep appearing in this instance's list. The query is a join over a handful of rows.
+/// This always reads the database because list membership depends on the deletion fence of every project.
 pub async fn list_for_user(
     pool: &SqlitePool,
-    _cache: Option<&dyn CacheStore>,
     user_id: &str,
     page: u32,
     limit: u32,
@@ -204,7 +158,7 @@ pub async fn list_for_user(
     list_for_user_from_db(pool, user_id, page, limit).await
 }
 
-/// List projects for a user directly from database (no caching)
+/// Query projects visible to a user.
 async fn list_for_user_from_db(
     pool: &SqlitePool,
     user_id: &str,
@@ -257,13 +211,9 @@ async fn list_for_user_from_db(
     Ok((projects, total.0 as u64))
 }
 
-/// List projects for a specific organization with optional caching
-///
-/// Note: Only caches first page with default limit for simplicity.
-/// Projects in an organization. Not cached, for the reason [`list_for_user`] gives.
+/// List live projects in an organization.
 pub async fn list_for_org(
     pool: &SqlitePool,
-    _cache: Option<&dyn CacheStore>,
     org_id: &str,
     page: u32,
     limit: u32,
@@ -271,7 +221,7 @@ pub async fn list_for_org(
     list_for_org_from_db(pool, org_id, page, limit).await
 }
 
-/// List projects for a specific organization directly from database (no caching)
+/// Query live projects in an organization.
 async fn list_for_org_from_db(
     pool: &SqlitePool,
     org_id: &str,
@@ -321,14 +271,10 @@ async fn list_for_org_from_db(
 /// Update a project's name by ID. Returns the updated project if found.
 pub async fn update_project(
     pool: &SqlitePool,
-    cache: Option<&dyn CacheStore>,
     id: &str,
     name: &str,
     now: i64,
 ) -> Result<Option<ProjectRow>, SqliteError> {
-    // Get old project for org_id to invalidate list cache
-    let old_project = get_project_from_db(pool, id).await?;
-
     let result = sqlx::query(
         "UPDATE projects SET name = ?, updated_at = ? WHERE id = ? AND deleting_at IS NULL",
     )
@@ -342,51 +288,7 @@ pub async fn update_project(
         return Ok(None);
     }
 
-    // Invalidate cache entries AFTER successful write
-    if let Some(cache) = cache {
-        if let Err(e) = cache.delete(&CacheKey::project(id)).await {
-            tracing::warn!(%id, error = %e, "Cache invalidation error");
-        }
-
-        // Invalidate org's project list cache if project existed
-        if let Some(ref old) = old_project
-            && let Err(e) = cache
-                .delete(&CacheKey::projects_for_org(&old.organization_id))
-                .await
-        {
-            tracing::warn!(org_id = %old.organization_id, error = %e, "Cache invalidation error");
-        }
-    }
-
     get_project_from_db(pool, id).await
-}
-
-/// Drop cached project views after the project changes lifecycle state.
-async fn invalidate_project_caches(
-    pool: &SqlitePool,
-    cache: Option<&dyn CacheStore>,
-    id: &str,
-    organization_id: Option<&str>,
-) {
-    let Some(cache) = cache else {
-        return;
-    };
-    if let Err(e) = cache.delete(&CacheKey::project(id)).await {
-        tracing::warn!(%id, error = %e, "Cache invalidation error");
-    }
-    let Some(org_id) = organization_id else {
-        return;
-    };
-    if let Err(e) = cache.delete(&CacheKey::projects_for_org(org_id)).await {
-        tracing::warn!(%org_id, error = %e, "Cache invalidation error");
-    }
-    if let Ok(member_user_ids) = list_member_user_ids(pool, org_id).await {
-        for user_id in &member_user_ids {
-            if let Err(e) = cache.delete(&CacheKey::projects_for_user(user_id)).await {
-                tracing::warn!(%user_id, error = %e, "Cache invalidation error");
-            }
-        }
-    }
 }
 
 /// Claim a project for deletion, if it exists and nobody else has claimed it.
@@ -398,7 +300,6 @@ async fn invalidate_project_caches(
 /// Returns false when the project does not exist or is already claimed.
 pub async fn claim_project_for_deletion(
     pool: &SqlitePool,
-    cache: Option<&dyn CacheStore>,
     id: &str,
     now: i64,
 ) -> Result<bool, SqliteError> {
@@ -408,14 +309,7 @@ pub async fn claim_project_for_deletion(
             .bind(id)
             .execute(pool)
             .await?;
-    let claimed = result.rows_affected() > 0;
-    if claimed {
-        // Immediately, not when the row goes. From here the project is not live, and every cached
-        // answer that says otherwise is wrong - `get_project` reads its cache before the fence.
-        let org = org_of_project_ignoring_fence(pool, id).await.ok().flatten();
-        invalidate_project_caches(pool, cache, id, org.as_deref()).await;
-    }
-    Ok(claimed)
+    Ok(result.rows_affected() > 0)
 }
 
 /// Whether this project currently accepts writes: a row exists and nothing has claimed it.
@@ -456,19 +350,6 @@ pub async fn get_stale_claimed_projects(
     .await?;
     rows.sort_unstable_by(|left, right| left.0.cmp(&right.0));
     Ok(rows)
-}
-
-/// The organization a project belongs to, whether or not it is claimed for deletion.
-async fn org_of_project_ignoring_fence(
-    pool: &SqlitePool,
-    id: &str,
-) -> Result<Option<String>, SqliteError> {
-    let row: Option<(String,)> =
-        sqlx::query_as("SELECT organization_id FROM projects WHERE id = ?")
-            .bind(id)
-            .fetch_optional(pool)
-            .await?;
-    Ok(row.map(|(org,)| org))
 }
 
 /// Record what a cleanup sweep observed and, if the evidence is now sufficient, remove the tombstone -
@@ -710,28 +591,13 @@ pub async fn count_projects_of_organization(
 }
 
 /// Delete a project by ID. Returns true if a project was deleted.
-pub async fn delete_project(
-    pool: &SqlitePool,
-    cache: Option<&dyn CacheStore>,
-    id: &str,
-) -> Result<bool, SqliteError> {
-    // Read through the fence: by the time deletion removes the row the project is claimed, so every
-    // ordinary read reports it absent - and the org id is still needed to invalidate that org's list.
-    let old_org = org_of_project_ignoring_fence(pool, id).await?;
-
+pub async fn delete_project(pool: &SqlitePool, id: &str) -> Result<bool, SqliteError> {
     let result = sqlx::query("DELETE FROM projects WHERE id = ?")
         .bind(id)
         .execute(pool)
         .await?;
 
-    let deleted = result.rows_affected() > 0;
-
-    // Invalidate cache entries AFTER successful delete
-    if deleted {
-        invalidate_project_caches(pool, cache, id, old_org.as_deref()).await;
-    }
-
-    Ok(deleted)
+    Ok(result.rows_affected() > 0)
 }
 
 /// Record that these traces were deleted, so a late ingest cannot resurrect them.
@@ -1241,7 +1107,6 @@ pub async fn record_pressure_eviction(
 /// remain - so one deletion accumulated permanent, quota-counted records without bound.
 pub async fn claim_project_for_deletion_journalled(
     pool: &SqlitePool,
-    cache: Option<&dyn CacheStore>,
     id: &str,
     now: chrono::DateTime<chrono::Utc>,
 ) -> Result<bool, SqliteError> {
@@ -1266,13 +1131,6 @@ pub async fn claim_project_for_deletion_journalled(
         .await?;
     }
     tx.commit().await?;
-
-    if claimed {
-        // After the commit, not inside it: a cache invalidation is not transactional, and doing it before the
-        // commit would clear the cache for a claim that then rolled back.
-        let org = org_of_project_ignoring_fence(pool, id).await.ok().flatten();
-        invalidate_project_caches(pool, cache, id, org.as_deref()).await;
-    }
     Ok(claimed)
 }
 
@@ -1315,28 +1173,22 @@ mod tests {
 
     async fn create_project(
         pool: &SqlitePool,
-        cache: Option<&dyn CacheStore>,
         organization_id: &str,
         name: &str,
     ) -> Result<ProjectRow, SqliteError> {
-        super::create_project(pool, cache, organization_id, name, TEST_NOW).await
+        super::create_project(pool, organization_id, name, TEST_NOW).await
     }
 
     async fn update_project(
         pool: &SqlitePool,
-        cache: Option<&dyn CacheStore>,
         id: &str,
         name: &str,
     ) -> Result<Option<ProjectRow>, SqliteError> {
-        super::update_project(pool, cache, id, name, TEST_NOW + 1).await
+        super::update_project(pool, id, name, TEST_NOW + 1).await
     }
 
-    async fn claim_project_for_deletion(
-        pool: &SqlitePool,
-        cache: Option<&dyn CacheStore>,
-        id: &str,
-    ) -> Result<bool, SqliteError> {
-        super::claim_project_for_deletion(pool, cache, id, TEST_NOW).await
+    async fn claim_project_for_deletion(pool: &SqlitePool, id: &str) -> Result<bool, SqliteError> {
+        super::claim_project_for_deletion(pool, id, TEST_NOW).await
     }
 
     async fn get_stale_claimed_projects(
@@ -1380,7 +1232,7 @@ mod tests {
     #[tokio::test]
     async fn test_create_project() {
         let pool = setup_test_pool().await;
-        let project = create_project(&pool, None, "default", "Test Project")
+        let project = create_project(&pool, "default", "Test Project")
             .await
             .unwrap();
 
@@ -1394,11 +1246,11 @@ mod tests {
     #[tokio::test]
     async fn test_get_project() {
         let pool = setup_test_pool().await;
-        let created = create_project(&pool, None, "default", "Test Project")
+        let created = create_project(&pool, "default", "Test Project")
             .await
             .unwrap();
 
-        let fetched = get_project(&pool, None, &created.id).await.unwrap();
+        let fetched = get_project(&pool, &created.id).await.unwrap();
         assert!(fetched.is_some());
         let fetched = fetched.unwrap();
         assert_eq!(fetched.id, created.id);
@@ -1409,7 +1261,7 @@ mod tests {
     #[tokio::test]
     async fn test_get_project_not_found() {
         let pool = setup_test_pool().await;
-        let result = get_project(&pool, None, "nonexistent").await.unwrap();
+        let result = get_project(&pool, "nonexistent").await.unwrap();
         assert!(result.is_none());
     }
 
@@ -1425,12 +1277,8 @@ mod tests {
         assert_eq!(projects[0].organization_id, "default");
 
         // Create more projects
-        create_project(&pool, None, "default", "Project 1")
-            .await
-            .unwrap();
-        create_project(&pool, None, "default", "Project 2")
-            .await
-            .unwrap();
+        create_project(&pool, "default", "Project 1").await.unwrap();
+        create_project(&pool, "default", "Project 2").await.unwrap();
 
         let (projects, total) = list_projects(&pool, 1, 10).await.unwrap();
         assert_eq!(total, 3);
@@ -1442,15 +1290,13 @@ mod tests {
         let pool = setup_test_pool().await;
 
         // Local user should see default project
-        let (projects, total) = list_for_user(&pool, None, "local", 1, 10).await.unwrap();
+        let (projects, total) = list_for_user(&pool, "local", 1, 10).await.unwrap();
         assert_eq!(total, 1);
         assert_eq!(projects.len(), 1);
         assert_eq!(projects[0].id, "default");
 
         // Non-member should see nothing
-        let (projects, total) = list_for_user(&pool, None, "nonexistent", 1, 10)
-            .await
-            .unwrap();
+        let (projects, total) = list_for_user(&pool, "nonexistent", 1, 10).await.unwrap();
         assert_eq!(total, 0);
         assert_eq!(projects.len(), 0);
     }
@@ -1460,23 +1306,19 @@ mod tests {
         let pool = setup_test_pool().await;
 
         // Default org has default project
-        let (projects, total) = list_for_org(&pool, None, "default", 1, 10).await.unwrap();
+        let (projects, total) = list_for_org(&pool, "default", 1, 10).await.unwrap();
         assert_eq!(total, 1);
         assert_eq!(projects.len(), 1);
 
         // Create another project in default org
-        create_project(&pool, None, "default", "Project 1")
-            .await
-            .unwrap();
+        create_project(&pool, "default", "Project 1").await.unwrap();
 
-        let (projects, total) = list_for_org(&pool, None, "default", 1, 10).await.unwrap();
+        let (projects, total) = list_for_org(&pool, "default", 1, 10).await.unwrap();
         assert_eq!(total, 2);
         assert_eq!(projects.len(), 2);
 
         // Non-existent org has no projects
-        let (projects, total) = list_for_org(&pool, None, "nonexistent", 1, 10)
-            .await
-            .unwrap();
+        let (projects, total) = list_for_org(&pool, "nonexistent", 1, 10).await.unwrap();
         assert_eq!(total, 0);
         assert_eq!(projects.len(), 0);
     }
@@ -1486,7 +1328,7 @@ mod tests {
         let pool = setup_test_pool().await;
 
         for i in 1..=5 {
-            create_project(&pool, None, "default", &format!("Project {}", i))
+            create_project(&pool, "default", &format!("Project {}", i))
                 .await
                 .unwrap();
         }
@@ -1512,11 +1354,11 @@ mod tests {
     #[tokio::test]
     async fn test_update_project() {
         let pool = setup_test_pool().await;
-        let project = create_project(&pool, None, "default", "Original Name")
+        let project = create_project(&pool, "default", "Original Name")
             .await
             .unwrap();
 
-        let updated = update_project(&pool, None, &project.id, "Updated Name")
+        let updated = update_project(&pool, &project.id, "Updated Name")
             .await
             .unwrap();
         assert!(updated.is_some());
@@ -1528,14 +1370,12 @@ mod tests {
     #[tokio::test]
     async fn test_delete_project() {
         let pool = setup_test_pool().await;
-        let project = create_project(&pool, None, "default", "To Delete")
-            .await
-            .unwrap();
+        let project = create_project(&pool, "default", "To Delete").await.unwrap();
 
-        let deleted = delete_project(&pool, None, &project.id).await.unwrap();
+        let deleted = delete_project(&pool, &project.id).await.unwrap();
         assert!(deleted);
 
-        let fetched = get_project(&pool, None, &project.id).await.unwrap();
+        let fetched = get_project(&pool, &project.id).await.unwrap();
         assert!(fetched.is_none());
     }
 
@@ -1548,21 +1388,18 @@ mod tests {
     #[tokio::test]
     async fn a_project_claimed_for_deletion_reads_as_absent() {
         let pool = setup_test_pool().await;
-        let project = create_project(&pool, None, "default", "Going Away")
+        let project = create_project(&pool, "default", "Going Away")
             .await
             .unwrap();
 
         assert!(
-            claim_project_for_deletion(&pool, None, &project.id)
+            claim_project_for_deletion(&pool, &project.id)
                 .await
                 .unwrap()
         );
 
         assert!(
-            get_project(&pool, None, &project.id)
-                .await
-                .unwrap()
-                .is_none(),
+            get_project(&pool, &project.id).await.unwrap().is_none(),
             "a claimed project is reported absent"
         );
         let (listed, total) = list_projects(&pool, 1, 100).await.unwrap();
@@ -1575,43 +1412,41 @@ mod tests {
             listed.len(),
             "the total must count what the page can show, or pagination reports a project nothing returns"
         );
-        let (for_org, org_total) = list_for_org(&pool, None, "default", 1, 100).await.unwrap();
+        let (for_org, org_total) = list_for_org(&pool, "default", 1, 100).await.unwrap();
         assert!(!for_org.iter().any(|p| p.id == project.id));
         assert_eq!(org_total as usize, for_org.len());
 
         // Renaming it is refused for the same reason: it is not there to rename.
         assert!(
-            update_project(&pool, None, &project.id, "New Name")
+            update_project(&pool, &project.id, "New Name")
                 .await
                 .unwrap()
                 .is_none()
         );
 
         // But deletion itself still reaches the row - it is the one thing that must.
-        assert!(delete_project(&pool, None, &project.id).await.unwrap());
+        assert!(delete_project(&pool, &project.id).await.unwrap());
     }
 
     /// Two deletions of one project: exactly one owns it.
     #[tokio::test]
     async fn only_one_claim_on_a_project_can_win() {
         let pool = setup_test_pool().await;
-        let project = create_project(&pool, None, "default", "Contested")
-            .await
-            .unwrap();
+        let project = create_project(&pool, "default", "Contested").await.unwrap();
 
         assert!(
-            claim_project_for_deletion(&pool, None, &project.id)
+            claim_project_for_deletion(&pool, &project.id)
                 .await
                 .unwrap()
         );
         assert!(
-            !claim_project_for_deletion(&pool, None, &project.id)
+            !claim_project_for_deletion(&pool, &project.id)
                 .await
                 .unwrap(),
             "the second caller must learn it does not own this deletion"
         );
         assert!(
-            !claim_project_for_deletion(&pool, None, "no-such-project")
+            !claim_project_for_deletion(&pool, "no-such-project")
                 .await
                 .unwrap(),
             "and a project that does not exist cannot be claimed"
@@ -1629,11 +1464,11 @@ mod tests {
     #[tokio::test]
     async fn an_abandoned_project_claim_is_found_by_age() {
         let pool = setup_test_pool().await;
-        let project = create_project(&pool, None, "default", "Half Deleted")
+        let project = create_project(&pool, "default", "Half Deleted")
             .await
             .unwrap();
         assert!(
-            claim_project_for_deletion(&pool, None, &project.id)
+            claim_project_for_deletion(&pool, &project.id)
                 .await
                 .unwrap()
         );
@@ -1683,7 +1518,7 @@ mod tests {
             "leasing must not lift the fence"
         );
 
-        delete_project(&pool, None, &project.id).await.unwrap();
+        delete_project(&pool, &project.id).await.unwrap();
         assert!(
             get_stale_claimed_projects(&pool, 0)
                 .await
@@ -1700,11 +1535,11 @@ mod tests {
     #[tokio::test]
     async fn a_tombstone_is_removed_by_repeated_evidence_and_a_late_write_resets_it() {
         let pool = setup_test_pool().await;
-        let project = create_project(&pool, None, "default", "Going Away")
+        let project = create_project(&pool, "default", "Going Away")
             .await
             .unwrap();
         assert!(
-            claim_project_for_deletion(&pool, None, &project.id)
+            claim_project_for_deletion(&pool, &project.id)
                 .await
                 .unwrap()
         );
@@ -1745,10 +1580,7 @@ mod tests {
             "five consecutive quiet sweeps is the evidence the row waits for"
         );
         assert!(
-            get_project(&pool, None, &project.id)
-                .await
-                .unwrap()
-                .is_none(),
+            get_project(&pool, &project.id).await.unwrap().is_none(),
             "and the row is gone with it"
         );
         assert!(
@@ -1769,10 +1601,10 @@ mod tests {
     #[tokio::test]
     async fn removing_a_tombstone_records_that_the_project_existed() {
         let pool = setup_test_pool().await;
-        let project = create_project(&pool, None, "default", "Remembered")
+        let project = create_project(&pool, "default", "Remembered")
             .await
             .unwrap();
-        claim_project_for_deletion(&pool, None, &project.id)
+        claim_project_for_deletion(&pool, &project.id)
             .await
             .unwrap();
 
@@ -1831,10 +1663,10 @@ mod tests {
     #[tokio::test]
     async fn a_deleted_project_is_claimed_for_checking_once_per_window() {
         let pool = setup_test_pool().await;
-        let project = create_project(&pool, None, "default", "Remembered")
+        let project = create_project(&pool, "default", "Remembered")
             .await
             .unwrap();
-        claim_project_for_deletion(&pool, None, &project.id)
+        claim_project_for_deletion(&pool, &project.id)
             .await
             .unwrap();
         record_project_sweep(&pool, &project.id, true, 1, 0)
@@ -1891,10 +1723,10 @@ mod tests {
     #[tokio::test]
     async fn a_stale_claim_cannot_overwrite_its_successor() {
         let pool = setup_test_pool().await;
-        let project = create_project(&pool, None, "default", "Slowly Swept")
+        let project = create_project(&pool, "default", "Slowly Swept")
             .await
             .unwrap();
-        claim_project_for_deletion(&pool, None, &project.id)
+        claim_project_for_deletion(&pool, &project.id)
             .await
             .unwrap();
         record_project_sweep(&pool, &project.id, true, 1, 0)
@@ -1956,10 +1788,10 @@ mod tests {
     async fn deleted_project_checks_are_batched_and_back_off() {
         let pool = setup_test_pool().await;
         for n in 0..5 {
-            let project = create_project(&pool, None, "default", &format!("Gone {n}"))
+            let project = create_project(&pool, "default", &format!("Gone {n}"))
                 .await
                 .unwrap();
-            claim_project_for_deletion(&pool, None, &project.id)
+            claim_project_for_deletion(&pool, &project.id)
                 .await
                 .unwrap();
             record_project_sweep(&pool, &project.id, true, 1, 0)
@@ -2030,10 +1862,10 @@ mod tests {
     #[tokio::test]
     async fn concurrent_sweeps_within_one_window_count_once() {
         let pool = setup_test_pool().await;
-        let project = create_project(&pool, None, "default", "Swept By Many")
+        let project = create_project(&pool, "default", "Swept By Many")
             .await
             .unwrap();
-        claim_project_for_deletion(&pool, None, &project.id)
+        claim_project_for_deletion(&pool, &project.id)
             .await
             .unwrap();
 
@@ -2075,9 +1907,7 @@ mod tests {
     #[tokio::test]
     async fn an_organization_tombstone_hides_it_and_its_row_waits_for_its_projects() {
         let pool = setup_test_pool().await;
-        let project = create_project(&pool, None, "default", "Owned")
-            .await
-            .unwrap();
+        let project = create_project(&pool, "default", "Owned").await.unwrap();
 
         assert!(
             claim_organization_for_deletion(&pool, "default")
@@ -2106,13 +1936,13 @@ mod tests {
         );
 
         // Tombstoned projects still count: their rows are what their own cleanups depend on.
-        claim_project_for_deletion(&pool, None, &project.id)
+        claim_project_for_deletion(&pool, &project.id)
             .await
             .unwrap();
         let before = count_projects_of_organization(&pool, "default")
             .await
             .unwrap();
-        delete_project(&pool, None, &project.id).await.unwrap();
+        delete_project(&pool, &project.id).await.unwrap();
         assert_eq!(
             count_projects_of_organization(&pool, "default")
                 .await
@@ -2125,14 +1955,14 @@ mod tests {
     #[tokio::test]
     async fn test_delete_project_not_found() {
         let pool = setup_test_pool().await;
-        let deleted = delete_project(&pool, None, "nonexistent").await.unwrap();
+        let deleted = delete_project(&pool, "nonexistent").await.unwrap();
         assert!(!deleted);
     }
 
     #[tokio::test]
     async fn test_default_project_exists() {
         let pool = setup_test_pool().await;
-        let project = get_project(&pool, None, "default").await.unwrap();
+        let project = get_project(&pool, "default").await.unwrap();
         assert!(project.is_some());
         let project = project.unwrap();
         assert_eq!(project.name, "Default Project");

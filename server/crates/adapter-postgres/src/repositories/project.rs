@@ -1,23 +1,19 @@
-//! Project repository for PostgreSQL operations.
+//! PostgreSQL project lifecycle and deletion-journal repository.
 //!
-//! All read operations support optional caching. Pass `Some(cache)` to enable caching,
-//! or `None` to bypass cache. Mutations automatically invalidate relevant cache keys.
+//! Project rows are deletion fences and are therefore read directly from the database. Cleanup keeps durable
+//! residual records so arbitrarily late writers remain collectable after a project row is removed.
 
 use sqlx::{PgConnection, PgPool};
 
 use crate::PostgresError;
-use sideseat_ports::cache::{CacheKey, CacheStore};
 use sideseat_ports::traits::{
     DeletionCause, DeletionRecord, DeletionScope, retention_cleanup_logical_bytes,
 };
 use sideseat_ports::types::{ProjectId, ProjectRow};
 
-use super::membership::list_member_user_ids;
-
-/// Create a new project with a generated CUID2 ID
+/// Create a new project with a generated CUID2 ID.
 pub async fn create_project(
     pool: &PgPool,
-    cache: Option<&dyn CacheStore>,
     organization_id: &str,
     name: &str,
     now: i64,
@@ -60,26 +56,6 @@ pub async fn create_project(
     .await?;
     tx.commit().await?;
 
-    // Invalidate list caches AFTER successful insert
-    if let Some(cache) = cache {
-        // Invalidate org's project list cache
-        if let Err(e) = cache
-            .delete(&CacheKey::projects_for_org(organization_id))
-            .await
-        {
-            tracing::warn!(%organization_id, error = %e, "Cache invalidation error");
-        }
-
-        // Invalidate projects_for_user for all org members
-        if let Ok(member_user_ids) = list_member_user_ids(pool, organization_id).await {
-            for user_id in &member_user_ids {
-                if let Err(e) = cache.delete(&CacheKey::projects_for_user(user_id)).await {
-                    tracing::warn!(%user_id, error = %e, "Cache invalidation error");
-                }
-            }
-        }
-    }
-
     Ok(ProjectRow {
         id,
         organization_id: organization_id.to_string(),
@@ -91,23 +67,9 @@ pub async fn create_project(
 
 /// Get a project by ID.
 ///
-/// # Why this is not cached
-///
-/// It was, and a cache is wrong for this question in a way a shorter TTL cannot fix. The project row is
-/// the deletion fence, and with a process-local cache one instance cannot invalidate another's: instance A
-/// caches a live project, instance B tombstones it and clears only B's memory, and A keeps answering from
-/// its hit - a deleted project readable and listable for the cache's lifetime, on that instance only.
-/// Re-reading the fence after a fill closes the *fill* race but not this one, because a hit never reaches
-/// the database at all.
-///
-/// The cost of not caching is a primary-key lookup, which is microseconds on both backends, against a
-/// question every read path asks before it trusts anything else. The parameter is kept so callers need not
-/// change and so the intent is visible where they pass one.
-pub async fn get_project(
-    pool: &PgPool,
-    _cache: Option<&dyn CacheStore>,
-    id: &str,
-) -> Result<Option<ProjectRow>, PostgresError> {
+/// The project row is the deletion fence, so this lookup always reads the database. A process-local cache
+/// cannot observe another instance claiming the project for deletion.
+pub async fn get_project(pool: &PgPool, id: &str) -> Result<Option<ProjectRow>, PostgresError> {
     get_project_from_db(pool, id).await
 }
 
@@ -132,8 +94,7 @@ async fn get_project_from_db(pool: &PgPool, id: &str) -> Result<Option<ProjectRo
     ))
 }
 
-/// List all projects with pagination, ordered by created_at DESC
-/// Note: This function doesn't cache as it's admin-only and pagination varies.
+/// List live projects with pagination, newest first.
 pub async fn list_projects(
     pool: &PgPool,
     page: u32,
@@ -196,18 +157,11 @@ pub async fn restore_project_ids(
     Ok(ids.into_iter().map(ProjectId::from).collect())
 }
 
-/// List projects for a user (across all their organizations) with optional caching
-///
-/// Note: Only caches first page with default limit for simplicity.
 /// Projects a user can see.
 ///
-/// Not cached. The first-page cache this used to have was already unreachable - every route passes `None` -
-/// and it could not have been kept: a list is only correct while its projects are live, and with a
-/// process-local cache one instance cannot invalidate another's, so a project another instance tombstoned
-/// would keep appearing in this instance's list. The query is a join over a handful of rows.
+/// This always reads the database because list membership depends on the deletion fence of every project.
 pub async fn list_for_user(
     pool: &PgPool,
-    _cache: Option<&dyn CacheStore>,
     user_id: &str,
     page: u32,
     limit: u32,
@@ -215,7 +169,7 @@ pub async fn list_for_user(
     list_for_user_from_db(pool, user_id, page, limit).await
 }
 
-/// List projects for a user directly from database (no caching)
+/// Query projects visible to a user.
 async fn list_for_user_from_db(
     pool: &PgPool,
     user_id: &str,
@@ -268,13 +222,9 @@ async fn list_for_user_from_db(
     Ok((projects, total.0 as u64))
 }
 
-/// List projects for a specific organization with optional caching
-///
-/// Note: Only caches first page with default limit for simplicity.
-/// Projects in an organization. Not cached, for the reason [`list_for_user`] gives.
+/// List live projects in an organization.
 pub async fn list_for_org(
     pool: &PgPool,
-    _cache: Option<&dyn CacheStore>,
     org_id: &str,
     page: u32,
     limit: u32,
@@ -282,7 +232,7 @@ pub async fn list_for_org(
     list_for_org_from_db(pool, org_id, page, limit).await
 }
 
-/// List projects for a specific organization directly from database (no caching)
+/// Query live projects in an organization.
 async fn list_for_org_from_db(
     pool: &PgPool,
     org_id: &str,
@@ -332,14 +282,10 @@ async fn list_for_org_from_db(
 /// Update a project's name by ID. Returns the updated project if found.
 pub async fn update_project(
     pool: &PgPool,
-    cache: Option<&dyn CacheStore>,
     id: &str,
     name: &str,
     now: i64,
 ) -> Result<Option<ProjectRow>, PostgresError> {
-    // Get old project for org_id to invalidate list cache
-    let old_project = get_project_from_db(pool, id).await?;
-
     let result = sqlx::query(
         "UPDATE projects SET name = $1, updated_at = $2 WHERE id = $3 AND deleting_at IS NULL",
     )
@@ -353,51 +299,7 @@ pub async fn update_project(
         return Ok(None);
     }
 
-    // Invalidate cache entries AFTER successful write
-    if let Some(cache) = cache {
-        if let Err(e) = cache.delete(&CacheKey::project(id)).await {
-            tracing::warn!(%id, error = %e, "Cache invalidation error");
-        }
-
-        // Invalidate org's project list cache if project existed
-        if let Some(ref old) = old_project
-            && let Err(e) = cache
-                .delete(&CacheKey::projects_for_org(&old.organization_id))
-                .await
-        {
-            tracing::warn!(org_id = %old.organization_id, error = %e, "Cache invalidation error");
-        }
-    }
-
     get_project_from_db(pool, id).await
-}
-
-/// Drop cached project views after the project changes lifecycle state.
-async fn invalidate_project_caches(
-    pool: &PgPool,
-    cache: Option<&dyn CacheStore>,
-    id: &str,
-    organization_id: Option<&str>,
-) {
-    let Some(cache) = cache else {
-        return;
-    };
-    if let Err(e) = cache.delete(&CacheKey::project(id)).await {
-        tracing::warn!(%id, error = %e, "Cache invalidation error");
-    }
-    let Some(org_id) = organization_id else {
-        return;
-    };
-    if let Err(e) = cache.delete(&CacheKey::projects_for_org(org_id)).await {
-        tracing::warn!(%org_id, error = %e, "Cache invalidation error");
-    }
-    if let Ok(member_user_ids) = list_member_user_ids(pool, org_id).await {
-        for user_id in &member_user_ids {
-            if let Err(e) = cache.delete(&CacheKey::projects_for_user(user_id)).await {
-                tracing::warn!(%user_id, error = %e, "Cache invalidation error");
-            }
-        }
-    }
 }
 
 /// Claim a project for deletion, if it exists and nobody else has claimed it.
@@ -409,7 +311,6 @@ async fn invalidate_project_caches(
 /// Returns false when the project does not exist or is already claimed.
 pub async fn claim_project_for_deletion(
     pool: &PgPool,
-    cache: Option<&dyn CacheStore>,
     id: &str,
     now: i64,
 ) -> Result<bool, PostgresError> {
@@ -419,14 +320,7 @@ pub async fn claim_project_for_deletion(
             .bind(id)
             .execute(pool)
             .await?;
-    let claimed = result.rows_affected() > 0;
-    if claimed {
-        // Immediately, not when the row goes. From here the project is not live, and every cached
-        // answer that says otherwise is wrong - `get_project` reads its cache before the fence.
-        let org = org_of_project_ignoring_fence(pool, id).await.ok().flatten();
-        invalidate_project_caches(pool, cache, id, org.as_deref()).await;
-    }
-    Ok(claimed)
+    Ok(result.rows_affected() > 0)
 }
 
 /// Whether this project currently accepts writes: a row exists and nothing has claimed it.
@@ -467,19 +361,6 @@ pub async fn get_stale_claimed_projects(
     .await?;
     rows.sort_unstable_by(|left, right| left.0.cmp(&right.0));
     Ok(rows)
-}
-
-/// The organization a project belongs to, whether or not it is claimed for deletion.
-async fn org_of_project_ignoring_fence(
-    pool: &PgPool,
-    id: &str,
-) -> Result<Option<String>, PostgresError> {
-    let row: Option<(String,)> =
-        sqlx::query_as("SELECT organization_id FROM projects WHERE id = $1")
-            .bind(id)
-            .fetch_optional(pool)
-            .await?;
-    Ok(row.map(|(org,)| org))
 }
 
 /// Record what a cleanup sweep observed and, if the evidence is now sufficient, remove the tombstone -
@@ -738,28 +619,13 @@ pub async fn count_projects_of_organization(
 }
 
 /// Delete a project by ID. Returns true if a project was deleted.
-pub async fn delete_project(
-    pool: &PgPool,
-    cache: Option<&dyn CacheStore>,
-    id: &str,
-) -> Result<bool, PostgresError> {
-    // Read through the fence: by the time deletion removes the row the project is claimed, so every
-    // ordinary read reports it absent - and the org id is still needed to invalidate that org's list.
-    let old_org = org_of_project_ignoring_fence(pool, id).await?;
-
+pub async fn delete_project(pool: &PgPool, id: &str) -> Result<bool, PostgresError> {
     let result = sqlx::query("DELETE FROM projects WHERE id = $1")
         .bind(id)
         .execute(pool)
         .await?;
 
-    let deleted = result.rows_affected() > 0;
-
-    // Invalidate cache entries AFTER successful delete
-    if deleted {
-        invalidate_project_caches(pool, cache, id, old_org.as_deref()).await;
-    }
-
-    Ok(deleted)
+    Ok(result.rows_affected() > 0)
 }
 
 /// Record that these traces were deleted, so a late ingest cannot resurrect them.
@@ -1313,16 +1179,6 @@ pub async fn claim_project_for_deletion_journalled(
         .await?;
     }
     Ok(claimed)
-}
-
-/// Invalidate project caches after a journalled claim transaction commits.
-pub async fn invalidate_claimed_project_caches(
-    pool: &PgPool,
-    cache: Option<&dyn CacheStore>,
-    id: &str,
-) {
-    let org = org_of_project_ignoring_fence(pool, id).await.ok().flatten();
-    invalidate_project_caches(pool, cache, id, org.as_deref()).await;
 }
 
 /// [`claim_organization_for_deletion`], with its journal entry. See the project twin.

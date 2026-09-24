@@ -60,7 +60,7 @@ pub async fn cleanup_organization(
         invalidate_org_api_key_caches(repo, cache, org_id).await;
     }
 
-    finish_organization_deletion(database, analytics, file_service, cache, org_id).await?;
+    finish_organization_deletion(database, analytics, file_service, org_id).await?;
     Ok(true)
 }
 
@@ -72,7 +72,6 @@ pub async fn finish_organization_deletion(
     database: &Arc<TransactionalStore>,
     analytics: &Arc<AnalyticsStore>,
     file_service: &Arc<FileService>,
-    cache: Option<&dyn CacheStore>,
     org_id: &str,
 ) -> Result<()> {
     let repo = database.as_ref();
@@ -97,7 +96,7 @@ pub async fn finish_organization_deletion(
             ));
         }
         if let Err(e) =
-            finish_project_deletion(database, analytics, file_service, cache, &project_id).await
+            finish_project_deletion(database, analytics, file_service, &project_id).await
         {
             errors.push(format!("project {}: {}", project_id, e));
         }
@@ -200,14 +199,12 @@ pub async fn cleanup_project(
     database: &Arc<TransactionalStore>,
     analytics: &Arc<AnalyticsStore>,
     file_service: &Arc<FileService>,
-    cache: Option<&dyn CacheStore>,
     project_id: &ProjectId,
 ) -> Result<bool> {
     let repo = database.as_ref();
 
     // The compare-and-set decides who owns this deletion. Losing it means the project was already
-    // claimed or already gone - either way there is nothing for this caller to do. The cache goes with
-    // it, so the project stops being readable at the same instant it stops being live.
+    // claimed or already gone - either way there is nothing for this caller to do.
     //
     // The claim and its journal entry go in **one transaction**, and the entry only if this caller won.
     //
@@ -227,7 +224,7 @@ pub async fn cleanup_project(
     // Not inside `finish_project_deletion`, which is deliberately re-runnable and is called again by the sweep
     // for an abandoned claim: appending there would add an entry per resumption to a table that is never
     // truncated and is counted against the project's quota, for a fact that does not change.
-    finish_project_deletion(database, analytics, file_service, cache, project_id).await?;
+    finish_project_deletion(database, analytics, file_service, project_id).await?;
     Ok(true)
 }
 
@@ -240,7 +237,6 @@ pub async fn finish_project_deletion(
     database: &Arc<TransactionalStore>,
     analytics: &Arc<AnalyticsStore>,
     file_service: &Arc<FileService>,
-    cache: Option<&dyn CacheStore>,
     project_id: &ProjectId,
 ) -> Result<()> {
     let repo = database.as_ref();
@@ -321,13 +317,6 @@ pub async fn finish_project_deletion(
         .await
         .context("Failed to record a project cleanup sweep")?;
     if removed {
-        // The sweep removes the project row directly, so it also owns cache
-        // invalidation for that row.
-        if let Some(cache) = cache
-            && let Err(e) = cache.delete(&CacheKey::project(project_id)).await
-        {
-            tracing::warn!(project_id = %project_id, error = %e, "Cache invalidation error");
-        }
         tracing::debug!(project_id = %project_id, "Project tombstone removed");
     } else {
         tracing::debug!(
@@ -375,7 +364,7 @@ pub async fn advance_pending_deletions(
                 continue;
             }
         }
-        match finish_project_deletion(database, analytics, file_service, None, &project_id).await {
+        match finish_project_deletion(database, analytics, file_service, &project_id).await {
             Ok(()) => advanced += 1,
             // Still tombstoned, so still fenced and still found next time.
             Err(e) => {
@@ -604,7 +593,7 @@ pub async fn advance_pending_deletions(
                 continue;
             }
         }
-        match finish_organization_deletion(database, analytics, file_service, None, org_id).await {
+        match finish_organization_deletion(database, analytics, file_service, org_id).await {
             Ok(()) => advanced += 1,
             Err(e) => {
                 tracing::warn!(org_id, error = %e, "Could not advance an organization deletion")

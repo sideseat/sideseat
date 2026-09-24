@@ -76,9 +76,6 @@ pub async fn invalidate_user_org_lists(cache: &dyn CacheStore, user_id: &str) {
     cache
         .invalidate_key(&CacheKey::orgs_for_user(user_id))
         .await;
-    cache
-        .invalidate_key(&CacheKey::projects_for_user(user_id))
-        .await;
 }
 
 /// Clearing a cached value in this process.

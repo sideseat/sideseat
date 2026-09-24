@@ -57,25 +57,6 @@ impl CacheKey {
     }
 
     // =========================================================================
-    // Projects
-    // =========================================================================
-
-    /// Cache key for project by ID
-    pub fn project(id: &str) -> String {
-        format!("{}:project:{}", CACHE_KEY_VERSION, id)
-    }
-
-    /// Cache key for projects list for a user
-    pub fn projects_for_user(user_id: &str) -> String {
-        format!("{}:projects:user:{}", CACHE_KEY_VERSION, user_id)
-    }
-
-    /// Cache key for projects list for an organization
-    pub fn projects_for_org(org_id: &str) -> String {
-        format!("{}:projects:org:{}", CACHE_KEY_VERSION, org_id)
-    }
-
-    // =========================================================================
     // Auth Methods
     // =========================================================================
 
@@ -184,13 +165,6 @@ mod tests {
         assert_eq!(CacheKey::organization("org1"), "v1:org:org1");
         assert_eq!(CacheKey::org_by_slug("my-org"), "v1:org:slug:my-org");
         assert_eq!(CacheKey::orgs_for_user("u1"), "v1:orgs:user:u1");
-    }
-
-    #[test]
-    fn test_project_keys() {
-        assert_eq!(CacheKey::project("p1"), "v1:project:p1");
-        assert_eq!(CacheKey::projects_for_user("u1"), "v1:projects:user:u1");
-        assert_eq!(CacheKey::projects_for_org("o1"), "v1:projects:org:o1");
     }
 
     #[test]

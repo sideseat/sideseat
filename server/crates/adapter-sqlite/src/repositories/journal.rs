@@ -410,7 +410,6 @@ mod tests {
 
         let won = crate::repositories::project::claim_project_for_deletion_journalled(
             &pool,
-            None,
             "proj",
             test_instant(),
         )
@@ -426,7 +425,6 @@ mod tests {
         for _ in 0..5 {
             let won = crate::repositories::project::claim_project_for_deletion_journalled(
                 &pool,
-                None,
                 "proj",
                 test_instant(),
             )

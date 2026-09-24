@@ -312,7 +312,6 @@ impl ProjectStore for SqliteRepository {
     ) -> Result<ProjectRow, DataError> {
         project::create_project(
             self.0.pool(),
-            None,
             organization_id,
             name,
             self.0.clock().now().timestamp(),
@@ -322,21 +321,15 @@ impl ProjectStore for SqliteRepository {
     }
 
     async fn get_project(&self, id: &str) -> Result<Option<ProjectRow>, DataError> {
-        project::get_project(self.0.pool(), None, id)
+        project::get_project(self.0.pool(), id)
             .await
             .map_err(Into::into)
     }
 
     async fn update_project(&self, id: &str, name: &str) -> Result<Option<ProjectRow>, DataError> {
-        project::update_project(
-            self.0.pool(),
-            None,
-            id,
-            name,
-            self.0.clock().now().timestamp(),
-        )
-        .await
-        .map_err(Into::into)
+        project::update_project(self.0.pool(), id, name, self.0.clock().now().timestamp())
+            .await
+            .map_err(Into::into)
     }
 
     async fn list_projects_for_org(
@@ -345,7 +338,7 @@ impl ProjectStore for SqliteRepository {
         page: u32,
         limit: u32,
     ) -> Result<(Vec<ProjectRow>, u64), DataError> {
-        project::list_for_org(self.0.pool(), None, organization_id, page, limit)
+        project::list_for_org(self.0.pool(), organization_id, page, limit)
             .await
             .map_err(Into::into)
     }
@@ -356,7 +349,7 @@ impl ProjectStore for SqliteRepository {
         page: u32,
         limit: u32,
     ) -> Result<(Vec<ProjectRow>, u64), DataError> {
-        project::list_for_user(self.0.pool(), None, user_id, page, limit)
+        project::list_for_user(self.0.pool(), user_id, page, limit)
             .await
             .map_err(Into::into)
     }
@@ -378,14 +371,9 @@ impl ProjectStore for SqliteRepository {
     }
 
     async fn claim_project_for_deletion(&self, id: &str) -> Result<bool, DataError> {
-        project::claim_project_for_deletion(
-            self.0.pool(),
-            self.0.cache(),
-            id,
-            self.0.clock().now().timestamp(),
-        )
-        .await
-        .map_err(Into::into)
+        project::claim_project_for_deletion(self.0.pool(), id, self.0.clock().now().timestamp())
+            .await
+            .map_err(Into::into)
     }
 
     async fn project_accepts_writes(&self, id: &str) -> Result<bool, DataError> {
@@ -629,7 +617,7 @@ impl ProjectStore for SqliteRepository {
     }
 
     async fn delete_project(&self, id: &str) -> Result<bool, DataError> {
-        project::delete_project(self.0.pool(), None, id)
+        project::delete_project(self.0.pool(), id)
             .await
             .map_err(Into::into)
     }
@@ -1570,14 +1558,9 @@ impl DeletionJournal for SqliteRepository {
     }
 
     async fn claim_project_for_deletion_journalled(&self, id: &str) -> Result<bool, DataError> {
-        project::claim_project_for_deletion_journalled(
-            self.0.pool(),
-            self.0.cache(),
-            id,
-            self.0.clock().now(),
-        )
-        .await
-        .map_err(Into::into)
+        project::claim_project_for_deletion_journalled(self.0.pool(), id, self.0.clock().now())
+            .await
+            .map_err(Into::into)
     }
 
     async fn claim_organization_for_deletion_journalled(

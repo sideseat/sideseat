@@ -463,7 +463,6 @@ pub async fn delete_project(
             &state.database,
             &state.analytics,
             &state.file_service,
-            Some(state.cache.as_ref()),
             &project.project_id,
         )
         .await
