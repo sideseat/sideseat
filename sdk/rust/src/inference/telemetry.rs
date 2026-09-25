@@ -1345,7 +1345,6 @@ fn signal_endpoint(
 mod tests {
     use std::sync::{Arc, Mutex};
 
-    use futures::future::BoxFuture;
     use opentelemetry::trace::{SpanId, TracerProvider as _};
     use opentelemetry_sdk::error::OTelSdkResult;
     use opentelemetry_sdk::metrics::SdkMeterProvider;
@@ -1369,15 +1368,15 @@ mod tests {
     }
 
     impl SpanExporter for TestExporter {
-        fn export(&mut self, batch: Vec<SpanData>) -> BoxFuture<'static, OTelSdkResult> {
+        fn export(&self, batch: Vec<SpanData>) -> impl Future<Output = OTelSdkResult> + Send {
             let spans = Arc::clone(&self.spans);
-            Box::pin(async move {
+            async move {
                 spans
                     .lock()
                     .expect("test exporter lock poisoned")
                     .extend(batch);
                 Ok(())
-            })
+            }
         }
     }
 

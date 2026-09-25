@@ -155,9 +155,9 @@ uuid = { version = "1.11", features = ["v4"] }
 time = "0.3"
 
 # OpenTelemetry dependencies
-opentelemetry        = { version = "0.28", features = ["trace"] }
-opentelemetry_sdk    = { version = "0.28", features = ["rt-tokio", "trace", "metrics"] }
-opentelemetry-otlp   = { version = "0.28", default-features = false, features = ["trace", "metrics", "http-proto", "reqwest-blocking-client"] }
+opentelemetry        = { version = "0.33", features = ["trace"] }
+opentelemetry_sdk    = { version = "0.33", features = ["rt-tokio", "trace", "metrics"] }
+opentelemetry-otlp   = { version = "0.33", default-features = false, features = ["trace", "metrics", "http-proto", "reqwest-blocking-client"] }
 opentelemetry-proto = { version = "0.28", features = [
   "trace",
   "metrics",
