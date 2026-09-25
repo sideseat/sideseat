@@ -11,6 +11,8 @@ dependencies = [
     "sideseat[autogen]",
     "autogen-agentchat>=0.7.5",
     "autogen-ext[openai,anthropic,mcp]>=0.7.5",
+    # AutoGen 0.7.5 imports RequestContext from mcp.shared.context, which MCP 2.x removed.
+    "mcp>=1.11,<2",
     "pymupdf>=1.25.0",
     "python-dotenv>=1.2.0",
 ]
