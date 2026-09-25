@@ -427,8 +427,7 @@ def test_all_framework_values_use_hyphens():
 
 
 def test_all_extra_is_complete():
-    """`sideseat[all]` is a promise. When a framework extra was added without updating
-    `all`, that framework silently went uninstrumented for everyone who installed `all`."""
+    """`sideseat[all]` contains every extra that can coexist in one environment."""
     from pathlib import Path
 
     import tomllib
@@ -440,14 +439,36 @@ def test_all_extra_is_complete():
         return {r.split(">=")[0].split("==")[0].split("[")[0].strip().lower() for r in reqs}
 
     all_names = names(extras["all"])
+    intentionally_separate = {"vertex-ai"}
     missing = {}
     for extra, reqs in extras.items():
-        if extra in ("all", "dev"):  # dev is tooling, deliberately not in `all`
+        if extra in ("all", "dev") or extra in intentionally_separate:
             continue
         gap = names(reqs) - all_names
         if gap:
             missing[extra] = sorted(gap)
     assert not missing, f"`all` is missing deps from these extras: {missing}"
+    assert intentionally_separate <= extras.keys()
+
+
+def test_vertex_ai_extra_installs_the_instrumented_sdk():
+    """The instrumentor imports ``vertexai`` eagerly, so publishing it without the provider
+    package makes ``sideseat[vertex-ai]`` fail before instrumentation can start."""
+    from pathlib import Path
+
+    import tomllib
+
+    pyproject = Path(__file__).resolve().parents[1] / "pyproject.toml"
+    extras = tomllib.loads(pyproject.read_text())["project"]["optional-dependencies"]
+    requirement_names = {
+        requirement.split(">=")[0].split("==")[0].split("[")[0].strip().lower()
+        for requirement in extras["vertex-ai"]
+    }
+
+    assert requirement_names == {
+        "google-cloud-aiplatform",
+        "opentelemetry-instrumentation-vertexai",
+    }
 
 
 def test_trace_starts_a_root_span_even_when_nested():

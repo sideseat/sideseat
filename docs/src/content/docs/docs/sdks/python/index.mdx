@@ -53,8 +53,12 @@ framework's instrumentor, which ships as an extra:
 ```bash
 pip install "sideseat[langchain]"
 pip install "sideseat[openai,anthropic]"   # combine freely
-pip install "sideseat[all]"                # every extra below
+pip install "sideseat[all]"                # every mutually compatible extra
 ```
+
+The current Vertex AI SDK requires protobuf 6+, while the current AutoGen instrumentor
+requires protobuf 5.29.x. Use `sideseat[vertex-ai]` in a separate Vertex environment rather
+than combining it with `sideseat[all]`.
 
 | Extra                                        | For                                        |
 | -------------------------------------------- | ------------------------------------------ |

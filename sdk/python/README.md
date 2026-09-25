@@ -114,10 +114,13 @@ pip install "sideseat[aws]" boto3      # + Amazon Bedrock (the extra adds wrapt;
 pip install "sideseat[google-genai]"    # + Google Gemini
 pip install "sideseat[vertex-ai]"       # + Google Vertex AI (native SDK)
 
-pip install "sideseat[all]"             # All frameworks + providers
+pip install "sideseat[all]"             # All mutually compatible integrations
 ```
 
 Strands Agents, Google ADK, and Microsoft Agent Framework require only the core SDK.
+Vertex AI is separate because its current SDK requires protobuf 6+, while the current AutoGen
+instrumentor requires protobuf 5.29.x. Install `sideseat[vertex-ai]` in a Vertex-specific
+environment; do not combine it with `sideseat[all]`.
 
 ## Framework Examples
 
