@@ -12,6 +12,11 @@ import {
   ForwardingSpanProcessor,
   resolveExportTimeoutMs,
 } from "../sideseat.js";
+import {
+  InMemorySpanExporter,
+  SimpleSpanProcessor,
+} from "@opentelemetry/sdk-trace-base";
+import { SpanKind } from "@opentelemetry/api";
 
 describe("SideSeat", () => {
   afterEach(async () => {
@@ -237,6 +242,80 @@ describe("SideSeat.create", () => {
       disabled: true,
     });
     expect(client).toBeInstanceOf(SideSeat);
+  });
+});
+
+describe("SideSeat trace correlation", () => {
+  it("creates a detached root and propagates session and user overrides", async () => {
+    const client = new SideSeat({
+      framework: "sdk-conformance",
+      serviceName: "sdk-conformance",
+      enableTraces: false,
+    });
+    const exporter = new InMemorySpanExporter();
+    client.addSpanProcessor(new SimpleSpanProcessor(exporter));
+
+    await client.span("ambient", async (ambient) => {
+      await client.trace(
+        "root",
+        async (root) => {
+          expect(root.spanContext().traceId).not.toBe(
+            ambient.spanContext().traceId,
+          );
+          await client.span("inherited", async () => {});
+          await client.span(
+            "override",
+            async () => {
+              client.spanSync("override-child", () => {}, {
+                kind: SpanKind.CLIENT,
+                attributes: { "test.attribute": "present" },
+              });
+            },
+            { sessionId: "session-inner", userId: "user-inner" },
+          );
+          await client.span("restored", async () => {});
+        },
+        { sessionId: "session-outer", userId: "user-outer" },
+      );
+    });
+
+    expect(await client.forceFlush()).toBe(true);
+    const spans = new Map(
+      exporter.getFinishedSpans().map((span) => [span.name, span]),
+    );
+    const root = spans.get("root");
+    const inherited = spans.get("inherited");
+    const override = spans.get("override");
+    const overrideChild = spans.get("override-child");
+    const restored = spans.get("restored");
+    expect(root).toBeDefined();
+    expect(inherited?.parentSpanContext?.spanId).toBe(
+      root?.spanContext().spanId,
+    );
+    expect(root?.attributes).toMatchObject({
+      "session.id": "session-outer",
+      "user.id": "user-outer",
+    });
+    expect(inherited?.attributes).toMatchObject({
+      "session.id": "session-outer",
+      "user.id": "user-outer",
+    });
+    expect(override?.attributes).toMatchObject({
+      "session.id": "session-inner",
+      "user.id": "user-inner",
+    });
+    expect(overrideChild?.attributes).toMatchObject({
+      "session.id": "session-inner",
+      "user.id": "user-inner",
+      "test.attribute": "present",
+    });
+    expect(overrideChild?.kind).toBe(SpanKind.CLIENT);
+    expect(restored?.attributes).toMatchObject({
+      "session.id": "session-outer",
+      "user.id": "user-outer",
+    });
+
+    expect(await client.shutdown()).toBe(true);
   });
 });
 

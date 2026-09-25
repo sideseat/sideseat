@@ -52,21 +52,17 @@ npm install ai @ai-sdk/otel @ai-sdk/amazon-bedrock @sideseat/sdk
 ```
 
 ```typescript
-import { init, Frameworks } from '@sideseat/sdk';
-import { generateText, registerTelemetry } from 'ai';
-import { LegacyOpenTelemetry } from '@ai-sdk/otel';
-import { bedrock } from '@ai-sdk/amazon-bedrock';
+import { init, Frameworks } from "@sideseat/sdk";
+import { generateText } from "ai";
+import { bedrock } from "@ai-sdk/amazon-bedrock";
 
-init({ framework: Frameworks.VercelAI });
-
-// AI SDK 7 emits spans only through a registered integration. Without this the per-call
-// experimental_telemetry flag produces nothing. Register after init(): the integration
-// captures a tracer in its constructor.
-registerTelemetry(new LegacyOpenTelemetry());
+// Await before the first model call. SideSeat registers AI SDK 7's current
+// OpenTelemetry integration automatically.
+await init({ framework: Frameworks.VercelAI });
 
 const { text } = await generateText({
-  model: bedrock('us.anthropic.claude-sonnet-4-5-20250929-v1:0'),
-  prompt: 'What is 2+2?',
+  model: bedrock("us.anthropic.claude-sonnet-4-5-20250929-v1:0"),
+  prompt: "What is 2+2?",
   experimental_telemetry: { isEnabled: true },
 });
 
@@ -92,68 +88,62 @@ npm install @strands-agents/sdk @sideseat/sdk
 ```
 
 ```typescript
-import { init, Frameworks } from '@sideseat/sdk';
-import { Agent } from '@strands-agents/sdk';
+import { init, Frameworks } from "@sideseat/sdk";
+import { Agent } from "@strands-agents/sdk";
 
-init({ framework: Frameworks.Strands });
+await init({ framework: Frameworks.Strands });
 
-const agent = new Agent({ model: 'global.anthropic.claude-haiku-4-5-20251001-v1:0' });
-const result = await agent.invoke('What is 2+2?');
+const agent = new Agent({
+  model: "global.anthropic.claude-haiku-4-5-20251001-v1:0",
+});
+const result = await agent.invoke("What is 2+2?");
 console.log(result.toString());
 ```
 
 ### Vercel AI SDK
 
 AI SDK 7 hands telemetry to registered integrations rather than emitting OpenTelemetry
-spans itself, so two things are needed: `registerTelemetry(new LegacyOpenTelemetry())`
-once at startup, and `experimental_telemetry: { isEnabled: true }` on each call. On AI
-SDK 6 the per-call flag alone was enough.
-
-Use `LegacyOpenTelemetry` rather than `OpenTelemetry` — SideSeat's framework detection
-keys on the `ai.generateText` / `ai.*.doGenerate` span shape it preserves.
+spans itself. Awaiting `init()` registers the current `@ai-sdk/otel` integration; each
+model call still needs `experimental_telemetry: { isEnabled: true }`.
 
 ```bash
 npm install @sideseat/sdk ai @ai-sdk/otel @ai-sdk/amazon-bedrock
 ```
 
 ```typescript
-import { init, shutdown, Frameworks } from '@sideseat/sdk';
-import { generateText, generateObject, tool, registerTelemetry } from 'ai';
-import { LegacyOpenTelemetry } from '@ai-sdk/otel';
-import { bedrock } from '@ai-sdk/amazon-bedrock';
-import { z } from 'zod';
+import { init, shutdown, Frameworks } from "@sideseat/sdk";
+import { generateText, generateObject, tool } from "ai";
+import { bedrock } from "@ai-sdk/amazon-bedrock";
+import { z } from "zod";
 
-init({ framework: Frameworks.VercelAI });
-
-// After init(): the integration captures a tracer in its constructor.
-registerTelemetry(new LegacyOpenTelemetry());
+await init({ framework: Frameworks.VercelAI });
 
 // Text generation
 const { text } = await generateText({
-  model: bedrock('us.anthropic.claude-sonnet-4-5-20250929-v1:0'),
-  prompt: 'What is the capital of France?',
+  model: bedrock("us.anthropic.claude-sonnet-4-5-20250929-v1:0"),
+  prompt: "What is the capital of France?",
   experimental_telemetry: { isEnabled: true },
 });
 
 // Structured output
 const { object } = await generateObject({
-  model: bedrock('us.anthropic.claude-sonnet-4-5-20250929-v1:0'),
+  model: bedrock("us.anthropic.claude-sonnet-4-5-20250929-v1:0"),
   schema: z.object({ name: z.string(), age: z.number() }),
-  prompt: 'Generate a person',
+  prompt: "Generate a person",
   experimental_telemetry: { isEnabled: true },
 });
 
 // Tool use
 const weatherTool = tool({
-  description: 'Get weather for a city',
+  description: "Get weather for a city",
   parameters: z.object({ city: z.string() }),
-  execute: async ({ city }) => ({ temp: 72, condition: 'sunny' }),
+  execute: async ({ city }) => ({ temp: 72, condition: "sunny" }),
 });
 
 const { text: weatherText } = await generateText({
-  model: bedrock('us.anthropic.claude-sonnet-4-5-20250929-v1:0'),
+  model: bedrock("us.anthropic.claude-sonnet-4-5-20250929-v1:0"),
   tools: { weather: weatherTool },
-  prompt: 'What is the weather in Paris?',
+  prompt: "What is the weather in Paris?",
   experimental_telemetry: { isEnabled: true },
 });
 
@@ -168,18 +158,18 @@ await shutdown();
 Manual OpenTelemetry setup for full control:
 
 ```typescript
-import { NodeSDK } from '@opentelemetry/sdk-node';
-import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http';
+import { NodeSDK } from "@opentelemetry/sdk-node";
+import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-http";
 
 const sdk = new NodeSDK({ traceExporter: new OTLPTraceExporter() });
 sdk.start();
 
-import { generateText } from 'ai';
-import { bedrock } from '@ai-sdk/amazon-bedrock';
+import { generateText } from "ai";
+import { bedrock } from "@ai-sdk/amazon-bedrock";
 
 const { text } = await generateText({
-  model: bedrock('us.anthropic.claude-sonnet-4-5-20250929-v1:0'),
-  prompt: 'What is 2+2?',
+  model: bedrock("us.anthropic.claude-sonnet-4-5-20250929-v1:0"),
+  prompt: "What is 2+2?",
   experimental_telemetry: { isEnabled: true },
 });
 
@@ -207,12 +197,12 @@ export OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:5388/otel/default
 
 Standard OpenTelemetry variables are also honoured:
 
-| Variable                       | Description                                              |
-| ------------------------------ | -------------------------------------------------------- |
-| `OTEL_SERVICE_NAME`            | Override service name                                    |
-| `OTEL_EXPORTER_OTLP_ENDPOINT`  | Endpoint fallback, after `SIDESEAT_ENDPOINT`              |
-| `OTEL_EXPORTER_OTLP_HEADERS`   | Extra headers, merged with the API-key header             |
-| `OTEL_EXPORTER_OTLP_TIMEOUT`   | Export timeout in **milliseconds** (default `30000`)      |
+| Variable                      | Description                                          |
+| ----------------------------- | ---------------------------------------------------- |
+| `OTEL_SERVICE_NAME`           | Override service name                                |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | Endpoint fallback, after `SIDESEAT_ENDPOINT`         |
+| `OTEL_EXPORTER_OTLP_HEADERS`  | Extra headers, merged with the API-key header        |
+| `OTEL_EXPORTER_OTLP_TIMEOUT`  | Export timeout in **milliseconds** (default `30000`) |
 
 > **Units:** OpenTelemetry JS reads `OTEL_EXPORTER_OTLP_TIMEOUT` as milliseconds, while
 > OpenTelemetry Python reads it as seconds. Both SDKs follow their own ecosystem's convention,
@@ -222,47 +212,45 @@ Standard OpenTelemetry variables are also honoured:
 ### Constructor Options
 
 ```typescript
-init({
-  endpoint: 'http://localhost:5388',
-  projectId: 'my-project',
-  apiKey: 'pk-...',
+await init({
+  endpoint: "http://localhost:5388",
+  projectId: "my-project",
+  apiKey: "pk-...",
   framework: Frameworks.VercelAI,
-  serviceName: 'my-app',
-  serviceVersion: '1.0.0',
+  serviceName: "my-app",
+  serviceVersion: "1.0.0",
   enableTraces: true,
-  logLevel: 'debug',
+  logLevel: "debug",
   disabled: false,
   debug: false,
 });
 ```
 
-| Parameter        | Type       | Default                 | Description                |
-| ---------------- | ---------- | ----------------------- | -------------------------- |
-| `endpoint`       | `string`   | `http://127.0.0.1:5388` | Server URL                 |
-| `projectId`      | `string`   | `default`               | Project identifier         |
-| `apiKey`         | `string`   | `undefined`             | Authentication key         |
+| Parameter        | Type       | Default                 | Description                         |
+| ---------------- | ---------- | ----------------------- | ----------------------------------- |
+| `endpoint`       | `string`   | `http://127.0.0.1:5388` | Server URL                          |
+| `projectId`      | `string`   | `default`               | Project identifier                  |
+| `apiKey`         | `string`   | `undefined`             | Authentication key                  |
 | `framework`      | `string`   | —                       | Framework identifier (**required**) |
-| `serviceName`    | `string`   | `npm_package_name`      | Application name in traces |
-| `serviceVersion` | `string`   | `npm_package_version`   | Application version        |
-| `enableTraces`   | `boolean`  | `true`                  | Export trace spans         |
-| `logLevel`       | `LogLevel` | `none`                  | OpenTelemetry log level    |
-| `disabled`       | `boolean`  | `false`                 | Disable all telemetry      |
-| `debug`          | `boolean`  | `false`                 | Enable verbose logging     |
+| `serviceName`    | `string`   | `npm_package_name`      | Application name in traces          |
+| `serviceVersion` | `string`   | `npm_package_version`   | Application version                 |
+| `enableTraces`   | `boolean`  | `true`                  | Export trace spans                  |
+| `logLevel`       | `LogLevel` | `none`                  | OpenTelemetry log level             |
+| `disabled`       | `boolean`  | `false`                 | Disable all telemetry               |
+| `debug`          | `boolean`  | `false`                 | Enable verbose logging              |
 
 **Resolution order:** Constructor → `SIDESEAT_*` env → `OTEL_*` env → defaults
 
 ## Advanced Usage
 
-### Async Initialization
-
-Use `createClient()` for async initialization with connection validation:
+### Initialization
 
 ```typescript
-import { createClient, Frameworks } from '@sideseat/sdk';
+import { init, Frameworks } from "@sideseat/sdk";
 
-const client = await createClient({
+const client = await init({
   framework: Frameworks.VercelAI,
-  projectId: 'my-project',
+  projectId: "my-project",
 });
 // Connection validated before returning
 ```
@@ -270,9 +258,15 @@ const client = await createClient({
 ### Global Instance
 
 ```typescript
-import { init, getClient, shutdown, isInitialized, Frameworks } from '@sideseat/sdk';
+import {
+  init,
+  getClient,
+  shutdown,
+  isInitialized,
+  Frameworks,
+} from "@sideseat/sdk";
 
-init({ framework: Frameworks.VercelAI, projectId: 'my-project' }); // Initialize once
+await init({ framework: Frameworks.VercelAI, projectId: "my-project" });
 const client = getClient(); // Access anywhere
 await shutdown(); // Clean up
 ```
@@ -280,34 +274,43 @@ await shutdown(); // Clean up
 ### Custom Spans
 
 ```typescript
-const client = init({ framework: Frameworks.VercelAI });
+const client = await init({ framework: Frameworks.VercelAI });
 
-// Async spans
-const result = await client.span('process-request', async (span) => {
-  span.setAttribute('user_id', '12345');
-  return await doWork();
-});
+const result = await client.trace(
+  "process-request",
+  async () => client.span("model-call", async () => doWork()),
+  { sessionId: "session-123", userId: "user-456" },
+);
 
 // Sync spans
-const value = client.spanSync('compute', (span) => {
-  span.setAttribute('input', 42);
-  return calculate();
-});
+const value = client.spanSync(
+  "compute",
+  (span) => {
+    span.setAttribute("input", 42);
+    return calculate();
+  },
+  { attributes: { "app.operation": "calculation" } },
+);
 // Exceptions recorded automatically with stack traces
 ```
+
+`trace()` always starts a new root trace. `span()` and `spanSync()` are children of the
+active span. `sessionId` and `userId` propagate to nested SideSeat spans; a nested option
+temporarily overrides the inherited value and restores it afterward. Standard
+`session.id` and `user.id` attributes are accepted too.
 
 ### Debug Exporters
 
 ```typescript
-const client = init({ framework: Frameworks.VercelAI });
+const client = await init({ framework: Frameworks.VercelAI });
 client.setupConsoleExporter(); // Print to stdout
-client.setupFileExporter('traces.jsonl'); // Write to file
+client.setupFileExporter("traces.jsonl"); // Write to file
 ```
 
 ### Disabled Mode
 
 ```typescript
-init({ framework: Frameworks.VercelAI, disabled: true }); // Or set SIDESEAT_DISABLED=true
+await init({ framework: Frameworks.VercelAI, disabled: true }); // Or set SIDESEAT_DISABLED=true
 ```
 
 ### Existing OpenTelemetry Setup
@@ -324,10 +327,16 @@ Initialize SideSeat first if you need those spans too.
 For multiple independent instances:
 
 ```typescript
-import { SideSeat, Frameworks } from '@sideseat/sdk';
+import { SideSeat, Frameworks } from "@sideseat/sdk";
 
-const client1 = new SideSeat({ framework: Frameworks.VercelAI, projectId: 'project-a' });
-const client2 = new SideSeat({ framework: Frameworks.Strands, projectId: 'project-b' });
+const client1 = new SideSeat({
+  framework: Frameworks.VercelAI,
+  projectId: "project-a",
+});
+const client2 = new SideSeat({
+  framework: Frameworks.Strands,
+  projectId: "project-b",
+});
 ```
 
 ## Upgrading to 2.0
@@ -340,7 +349,7 @@ stays on 1.x, so context propagation with other instrumentation is unaffected.
 - **`framework` is now required in the type.** It was already required at runtime — the
   constructor threw `SideSeatError` without it — but `SideSeatOptions.framework` was typed
   optional, so omitting it compiled and only failed when the process ran. `init()`,
-  `createClient()`, `new SideSeat()` and `Config.create()` now all require an options object
+  `init()`, `new SideSeat()` and `Config.create()` now all require an options object
   carrying `framework`. Plain-JavaScript callers still get the same runtime error.
 - **`client.addSpanProcessor(processor)` still works** and is the supported way to add
   exporters. OpenTelemetry 2.x removed `TracerProvider.addSpanProcessor`, so if you
@@ -352,7 +361,7 @@ stays on 1.x, so context propagation with other instrumentation is unaffected.
 - **If another library registered a global `TracerProvider` before SideSeat**, the OTel
   API refuses to hand the global over. SideSeat's own spans (`client.span`,
   `client.spanSync`, `client.getTracer`) are still exported — they go through SideSeat's
-  own provider. What is lost is spans created by *other* instrumentation via the global
+  own provider. What is lost is spans created by _other_ instrumentation via the global
   tracer: those keep going to whoever registered first. A warning is logged. Initialize
   SideSeat before that library if you need those spans too.
 
@@ -391,13 +400,12 @@ All data is sent to your self-hosted server. Nothing leaves your infrastructure.
 
 ### Module Functions
 
-| Function                 | Returns             | Description                    |
-| ------------------------ | ------------------- | ------------------------------ |
-| `init(options)`          | `SideSeat`          | Create global instance (sync)  |
-| `createClient(options)`  | `Promise<SideSeat>` | Create global instance (async) |
-| `getClient()`            | `SideSeat`          | Get global instance            |
-| `shutdown()`             | `Promise<boolean>`  | Shut down; `false` means spans were not exported |
-| `isInitialized()`        | `boolean`           | Check if initialized           |
+| Function          | Returns             | Description                                      |
+| ----------------- | ------------------- | ------------------------------------------------ |
+| `init(options)`   | `Promise<SideSeat>` | Initialize and validate the global instance      |
+| `getClient()`     | `SideSeat`          | Get global instance                              |
+| `shutdown()`      | `Promise<boolean>`  | Shut down; `false` means spans were not exported |
+| `isInitialized()` | `boolean`           | Check if initialized                             |
 
 ### SideSeat Class
 
@@ -407,63 +415,64 @@ const client = new SideSeat(options);
 
 **Properties:**
 
-| Name             | Type                 | Description                   |
-| ---------------- | -------------------- | ----------------------------- |
-| `config`         | `Config`             | Immutable configuration       |
+| Name             | Type                         | Description                                         |
+| ---------------- | ---------------------------- | --------------------------------------------------- |
+| `config`         | `Config`                     | Immutable configuration                             |
 | `tracerProvider` | `NodeTracerProvider \| null` | OpenTelemetry tracer provider; `null` when disabled |
-| `isDisabled`     | `boolean`            | Whether telemetry is disabled |
-| `isReady`        | `boolean`            | Whether client is ready       |
+| `isDisabled`     | `boolean`                    | Whether telemetry is disabled                       |
+| `isReady`        | `boolean`                    | Whether client is ready                             |
 
 **Methods:**
 
-| Name                             | Returns            | Description                       |
-| -------------------------------- | ------------------ | --------------------------------- |
-| `span(name, fn)`                 | `Promise<T>`       | Create an async span              |
-| `spanSync(name, fn)`             | `T`                | Create a sync span                |
-| `getTracer(name?, version?)`     | `Tracer`           | Get an OpenTelemetry tracer       |
-| `forceFlush(timeoutMs?)`         | `Promise<boolean>` | Export pending spans immediately  |
-| `validateConnection(timeoutMs?)` | `Promise<boolean>` | Test server connectivity          |
+| Name                             | Returns            | Description                                    |
+| -------------------------------- | ------------------ | ---------------------------------------------- |
+| `trace(name, fn, options?)`      | `Promise<T>`       | Run work in a detached root trace              |
+| `span(name, fn, options?)`       | `Promise<T>`       | Create an async child span                     |
+| `spanSync(name, fn, options?)`   | `T`                | Create a sync child span                       |
+| `getTracer(name?, version?)`     | `Tracer`           | Get an OpenTelemetry tracer                    |
+| `forceFlush(timeoutMs?)`         | `Promise<boolean>` | Export pending spans immediately               |
+| `validateConnection(timeoutMs?)` | `Promise<boolean>` | Test server connectivity                       |
 | `shutdown(timeoutMs?)`           | `Promise<boolean>` | Flush and shut down; `false` = not all flushed |
-| `setupConsoleExporter()`         | `this`             | Add console exporter              |
-| `setupFileExporter(path?)`       | `this`             | Add JSONL file exporter           |
-| `addSpanProcessor(processor)`    | `this`             | Add custom span processor         |
+| `setupConsoleExporter()`         | `this`             | Add console exporter                           |
+| `setupFileExporter(path?)`       | `this`             | Add JSONL file exporter                        |
+| `addSpanProcessor(processor)`    | `this`             | Add custom span processor                      |
 
 ### Frameworks
 
 Frameworks instrumented by this SDK:
 
 ```typescript
-Frameworks.Strands        // "strands"
-Frameworks.VercelAI       // "vercel-ai"
-Frameworks.ClaudeAgentSDK // "claude-agent-sdk"
+Frameworks.Strands; // "strands"
+Frameworks.VercelAI; // "vercel-ai"
+Frameworks.ClaudeAgentSDK; // "claude-agent-sdk"
 ```
 
 The remaining constants exist so a Node process can tag spans with the same identifier the
 Python SDK uses — useful in a polyglot system, but they do not add instrumentation here:
 
 ```typescript
-Frameworks.LangChain    // "langchain"
-Frameworks.LangGraph    // "langgraph"
-Frameworks.CrewAI       // "crewai"
-Frameworks.AutoGen      // "autogen"
-Frameworks.AG2          // "ag2"
-Frameworks.OpenAIAgents // "openai-agents"
-Frameworks.GoogleADK    // "google-adk"
-Frameworks.PydanticAI   // "pydantic-ai"
-Frameworks.AgentFramework // "agent-framework"
-Frameworks.Agno         // "agno"
-Frameworks.Smolagents   // "smolagents"
-Frameworks.AgentScope   // "agentscope"
-Frameworks.Langflow     // "langflow"
-Frameworks.Haystack     // "haystack"
-Frameworks.BrowserUse   // "browser-use"
+Frameworks.LangChain; // "langchain"
+Frameworks.LangGraph; // "langgraph"
+Frameworks.CrewAI; // "crewai"
+Frameworks.AutoGen; // "autogen"
+Frameworks.AG2; // "ag2"
+Frameworks.OpenAIAgents; // "openai-agents"
+Frameworks.GoogleADK; // "google-adk"
+Frameworks.PydanticAI; // "pydantic-ai"
+Frameworks.AgentFramework; // "agent-framework"
+Frameworks.Agno; // "agno"
+Frameworks.Smolagents; // "smolagents"
+Frameworks.AgentScope; // "agentscope"
+Frameworks.Langflow; // "langflow"
+Frameworks.Haystack; // "haystack"
+Frameworks.BrowserUse; // "browser-use"
 
 // Providers
-Frameworks.Bedrock      // "bedrock"
-Frameworks.Anthropic    // "anthropic"
-Frameworks.OpenAI       // "openai"
-Frameworks.GoogleGenAI  // "google-genai"
-Frameworks.VertexAI     // "vertex-ai"
+Frameworks.Bedrock; // "bedrock"
+Frameworks.Anthropic; // "anthropic"
+Frameworks.OpenAI; // "openai"
+Frameworks.GoogleGenAI; // "google-genai"
+Frameworks.VertexAI; // "vertex-ai"
 ```
 
 Any string is also accepted, so a framework absent from this list can still be named.

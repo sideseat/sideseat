@@ -49,7 +49,7 @@ export async function init(options: SideSeatOptions): Promise<SideSeat> {
 export function getClient(): SideSeat {
   if (_instance === null) {
     throw new SideSeatError(
-      "SideSeat not initialized. Call init() or createClient() first.",
+      "SideSeat not initialized. Call and await init() first.",
     );
   }
   return _instance;
@@ -99,5 +99,6 @@ export {
   DEFAULT_PROJECT_ID,
 } from "./config.js";
 export type { SideSeatOptions, LogLevel, Framework } from "./config.js";
+export type { SideSeatSpanOptions } from "./sideseat.js";
 export { JsonFileSpanExporter, spanToDict, encodeValue } from "./exporters.js";
 export { VERSION } from "./version.js";

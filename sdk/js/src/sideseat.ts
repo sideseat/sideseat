@@ -1,11 +1,21 @@
 import {
+  context,
+  createContextKey,
+  ROOT_CONTEXT,
   trace,
   diag,
   DiagConsoleLogger,
   DiagLogLevel,
+  SpanKind,
   SpanStatusCode,
 } from "@opentelemetry/api";
-import type { Span, Tracer } from "@opentelemetry/api";
+import type {
+  Attributes,
+  Context,
+  Span,
+  SpanOptions,
+  Tracer,
+} from "@opentelemetry/api";
 import type { SpanProcessor } from "@opentelemetry/sdk-trace-base";
 import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
 import {
@@ -130,6 +140,10 @@ function describeError(e: unknown): string {
   return e instanceof Error ? e.message : String(e);
 }
 
+function stringAttribute(value: unknown): string | undefined {
+  return typeof value === "string" && value.length > 0 ? value : undefined;
+}
+
 /**
  * Log every rejection and raise one error describing them all.
  *
@@ -158,6 +172,26 @@ function throwIfAnyRejected(
 }
 
 export const DEFAULT_EXPORT_TIMEOUT_MS = 30_000;
+
+export interface SideSeatSpanOptions {
+  /** OpenTelemetry span kind. Defaults to INTERNAL. */
+  kind?: SpanKind;
+  /** Attributes added when the span starts. */
+  attributes?: Attributes;
+  /** Correlates this span and its descendants with a SideSeat session. */
+  sessionId?: string;
+  /** Correlates this span and its descendants with an end user. */
+  userId?: string;
+}
+
+interface CorrelationContext {
+  sessionId?: string;
+  userId?: string;
+}
+
+const CORRELATION_CONTEXT_KEY = createContextKey(
+  "sideseat.session-user-correlation",
+);
 
 /**
  * Batch export timeout in milliseconds, from OTEL_EXPORTER_OTLP_TIMEOUT.
@@ -314,10 +348,72 @@ export class SideSeat {
     return this._provider.getTracer(name, version ?? VERSION);
   }
 
-  // Callback-based span with proper error handling (async)
-  async span<T>(name: string, fn: (span: Span) => T | Promise<T>): Promise<T> {
-    const tracer = this.getTracer();
-    return tracer.startActiveSpan(name, async (span) => {
+  /**
+   * Run asynchronous work in a child of the active span.
+   *
+   * Session and user identifiers inherit from the nearest SideSeat span. Supplying either
+   * option overrides it for this span and its descendants, then restores the outer value
+   * when the callback finishes.
+   */
+  async span<T>(
+    name: string,
+    fn: (span: Span) => T | Promise<T>,
+    options: SideSeatSpanOptions = {},
+  ): Promise<T> {
+    return this._startActiveSpan(
+      name,
+      context.active(),
+      options,
+      async (span) => {
+        try {
+          return await fn(span);
+        } catch (error) {
+          span.setStatus({
+            code: SpanStatusCode.ERROR,
+            message: String(error),
+          });
+          span.recordException(error as Error);
+          throw error;
+        } finally {
+          span.end();
+        }
+      },
+    );
+  }
+
+  /**
+   * Run synchronous work in a child of the active span.
+   */
+  spanSync<T>(
+    name: string,
+    fn: (span: Span) => T,
+    options: SideSeatSpanOptions = {},
+  ): T {
+    return this._startActiveSpan(name, context.active(), options, (span) => {
+      try {
+        return fn(span);
+      } catch (error) {
+        span.setStatus({ code: SpanStatusCode.ERROR, message: String(error) });
+        span.recordException(error as Error);
+        throw error;
+      } finally {
+        span.end();
+      }
+    });
+  }
+
+  /**
+   * Run asynchronous work in a new root trace.
+   *
+   * The trace is deliberately detached from any ambient OpenTelemetry span. Use {@link span}
+   * when the operation should be a child of the current trace.
+   */
+  async trace<T>(
+    name: string,
+    fn: (span: Span) => T | Promise<T>,
+    options: SideSeatSpanOptions = {},
+  ): Promise<T> {
+    return this._startActiveSpan(name, ROOT_CONTEXT, options, async (span) => {
       try {
         return await fn(span);
       } catch (error) {
@@ -330,20 +426,45 @@ export class SideSeat {
     });
   }
 
-  // Sync version for non-async callbacks (avoids Promise overhead)
-  spanSync<T>(name: string, fn: (span: Span) => T): T {
-    const tracer = this.getTracer();
-    return tracer.startActiveSpan(name, (span) => {
-      try {
-        return fn(span);
-      } catch (error) {
-        span.setStatus({ code: SpanStatusCode.ERROR, message: String(error) });
-        span.recordException(error as Error);
-        throw error;
-      } finally {
-        span.end();
-      }
-    });
+  private _startActiveSpan<T>(
+    name: string,
+    parentContext: Context,
+    options: SideSeatSpanOptions,
+    fn: (span: Span) => T,
+  ): T {
+    const inherited = parentContext.getValue(CORRELATION_CONTEXT_KEY) as
+      CorrelationContext | undefined;
+    const attributeSessionId = stringAttribute(
+      options.attributes?.["session.id"],
+    );
+    const attributeUserId = stringAttribute(options.attributes?.["user.id"]);
+    const correlation: CorrelationContext = {
+      sessionId:
+        options.sessionId ?? attributeSessionId ?? inherited?.sessionId,
+      userId: options.userId ?? attributeUserId ?? inherited?.userId,
+    };
+    const attributes: Attributes = { ...options.attributes };
+    if (correlation.sessionId !== undefined) {
+      attributes["session.id"] = correlation.sessionId;
+    }
+    if (correlation.userId !== undefined) {
+      attributes["user.id"] = correlation.userId;
+    }
+
+    const correlatedParent = parentContext.setValue(
+      CORRELATION_CONTEXT_KEY,
+      correlation,
+    );
+    const spanOptions: SpanOptions = {
+      attributes,
+      kind: options.kind,
+    };
+    return this.getTracer().startActiveSpan(
+      name,
+      spanOptions,
+      correlatedParent,
+      fn,
+    );
   }
 
   async validateConnection(timeoutMs = 5000): Promise<boolean> {
