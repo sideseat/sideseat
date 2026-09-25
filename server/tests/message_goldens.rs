@@ -110,11 +110,11 @@ fn normalize_for_test_with_mode(
                     .map(|value| value.as_str().to_string()),
                 session_id: span.session_id.clone(),
                 ingested_at: span.timestamp_start,
-                scope_name: None,
-                scope_version: None,
-                span_name: None,
-                framework: None,
-                response_model: None,
+                scope_name: span.scope_name.clone(),
+                scope_version: span.scope_version.clone(),
+                span_name: Some(span.span_name.clone()),
+                framework: span.framework.clone(),
+                response_model: span.gen_ai_response_model.clone(),
                 response_id: None,
                 temperature: None,
                 top_p: None,
@@ -1518,6 +1518,115 @@ fn sdk_and_plain_otel_conformance_are_identical() {
         compared,
         LANGUAGES.len(),
         "not every declared SDK language had a complete conformance pair"
+    );
+}
+
+/// A framework instrumented through SideSeat must expose the same conversation as its native
+/// instrumentation.
+///
+/// Framework pairs use `<framework>-native/<sample>` and `<framework>-sdk/<sample>`. Unlike the
+/// language conformance pairs above, their transport topology is not always byte-for-byte equal:
+/// Logfire 6 emits the streaming request wrapper and completed response as separate root traces,
+/// while SideSeat repairs the response's parent before export. The user-visible contract is still
+/// exact:
+///
+/// - every source span has the same message projection;
+/// - the same non-empty conversations exist as traces (so merging two calls still fails);
+/// - the same session conversations exist, independent of producer-side ID scrubbing;
+/// - the project feed is identical.
+///
+/// Empty transport-only traces are deliberately outside the trace multiset. Their spans remain in
+/// the span comparison and raw telemetry, but they are not conversations.
+#[test]
+fn framework_sdk_and_native_conversations_are_identical() {
+    let fixtures: BTreeMap<String, Vec<PathBuf>> = discover_fixtures().into_iter().collect();
+
+    let view_multiset = |views: &BTreeMap<String, GoldenView>, include_empty: bool| {
+        let mut comparable: Vec<String> = views
+            .values()
+            .filter(|view| include_empty || view.message_count > 0)
+            .map(|view| serde_json::to_string(view).expect("golden view is serializable"))
+            .collect();
+        comparable.sort();
+        comparable
+    };
+    let span_multiset = |views: &BTreeMap<String, GoldenView>| {
+        let mut comparable: Vec<(String, String)> = views
+            .iter()
+            .map(|(key, view)| {
+                let after_trace = key.split_once('/').map_or(key.as_str(), |(_, rest)| rest);
+                let span_name = after_trace
+                    .rsplit_once("/span-")
+                    .map_or(after_trace, |(name, _)| name);
+                (
+                    span_name.to_string(),
+                    serde_json::to_string(view).expect("golden view is serializable"),
+                )
+            })
+            .collect();
+        comparable.sort();
+        comparable
+    };
+
+    let native_labels: Vec<String> = fixtures
+        .keys()
+        .filter_map(|label| {
+            let (suite, _) = label.split_once('/')?;
+            suite.strip_suffix("-native")?;
+            Some(label.clone())
+        })
+        .collect();
+    assert!(
+        !native_labels.is_empty(),
+        "no framework native/SDK fixture pairs were discovered"
+    );
+
+    let mut compared = 0usize;
+    for native_label in native_labels {
+        let (native_suite, sample) = native_label
+            .split_once('/')
+            .expect("discovered labels have a sample");
+        let framework = native_suite
+            .strip_suffix("-native")
+            .expect("filtered native suite");
+        let sdk_label = format!("{framework}-sdk/{sample}");
+        let native_paths = &fixtures[&native_label];
+        let sdk_paths = fixtures
+            .get(&sdk_label)
+            .unwrap_or_else(|| panic!("missing SideSeat framework fixture {sdk_label}"));
+
+        let native = build_golden(&native_label, native_paths, &rows_for(native_paths)).golden;
+        let sdk = build_golden(&sdk_label, sdk_paths, &rows_for(sdk_paths)).golden;
+
+        assert_eq!(
+            sdk.span_count, native.span_count,
+            "{sdk_label}: SDK changed the number of framework spans"
+        );
+        assert_eq!(
+            span_multiset(&sdk.span_views),
+            span_multiset(&native.span_views),
+            "{sdk_label}: per-span message projections differ from native instrumentation"
+        );
+        assert_eq!(
+            view_multiset(&sdk.trace_views, false),
+            view_multiset(&native.trace_views, false),
+            "{sdk_label}: non-empty trace conversations differ from native instrumentation"
+        );
+        assert_eq!(
+            view_multiset(&sdk.session_views, true),
+            view_multiset(&native.session_views, true),
+            "{sdk_label}: session conversations differ from native instrumentation"
+        );
+        assert_eq!(
+            sdk.feed_view, native.feed_view,
+            "{sdk_label}: project feed differs from native instrumentation"
+        );
+        compared += 1;
+    }
+
+    assert!(
+        compared > 0,
+        "no framework native/SDK fixture pairs were compared"
     );
 }
 

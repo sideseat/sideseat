@@ -8953,6 +8953,80 @@ fn test_logfire_assistant_promoted_when_no_choice() {
     );
 }
 
+/// Logfire OpenAI 6.x emits an input-only lifetime span beside the completed streaming log.
+///
+/// That span is raw telemetry and remains stored, but it is not another conversation. The feed
+/// projection must withdraw it narrowly: older producer shapes and errors still expose their input.
+#[test]
+fn logfire_openai_streaming_transport_wrapper_is_not_a_conversation() {
+    let timestamp = fixed_time();
+    let input = json!([
+        {
+            "source": {
+                "attribute": {
+                    "key": "gen_ai.input.messages",
+                    "time": timestamp.to_rfc3339()
+                }
+            },
+            "content": [
+                {
+                    "role": "system",
+                    "parts": [{"type": "text", "content": "Answer briefly."}]
+                },
+                {
+                    "role": "user",
+                    "parts": [{"type": "text", "content": "What is boiling?"}]
+                }
+            ]
+        }
+    ])
+    .to_string();
+
+    let mut wrapper = make_span_row_with_timestamps(
+        "stream-trace",
+        "request-wrapper",
+        None,
+        &input,
+        timestamp,
+        Some(timestamp + chrono::Duration::seconds(1)),
+    );
+    wrapper.scope_name = Some("logfire.openai".to_string());
+    wrapper.scope_version = Some("6.0.0b7".to_string());
+    wrapper.span_name = Some("Chat Completion with 'gpt-5-nano'".to_string());
+
+    let raw_before = wrapper.messages_json.clone();
+    let result = process_spans(vec![wrapper.clone()], &FeedOptions::default());
+    assert!(
+        result.messages.is_empty(),
+        "the transport wrapper must not become an incomplete conversation"
+    );
+    assert_eq!(
+        wrapper.messages_json, raw_before,
+        "read-time suppression must not mutate stored telemetry"
+    );
+
+    wrapper.scope_version = Some("5.9.9".to_string());
+    let older = process_spans(vec![wrapper.clone()], &FeedOptions::default());
+    assert_eq!(
+        older.messages.len(),
+        2,
+        "an older input-only Logfire span is still a legitimate request view"
+    );
+
+    wrapper.scope_version = Some("6.0.0b7".to_string());
+    wrapper.status_code = Some(status::ERROR.to_string());
+    wrapper.exception_type = Some("openai.APIError".to_string());
+    wrapper.exception_message = Some("stream failed".to_string());
+    let failed = process_spans(vec![wrapper], &FeedOptions::default());
+    assert!(
+        failed
+            .messages
+            .iter()
+            .any(|message| message.role == ChatRole::User),
+        "a failed stream must retain its request context"
+    );
+}
+
 #[test]
 fn test_no_promotion_when_choice_exists() {
     // Verify promotion is suppressed when gen_ai.choice is present.

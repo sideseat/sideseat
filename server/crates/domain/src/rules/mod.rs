@@ -24,6 +24,7 @@ pub mod content_blocks;
 pub mod detect_rules;
 pub mod expr;
 pub mod members;
+pub mod message_projection;
 pub mod message_rules;
 pub mod refusal;
 pub mod schema;
@@ -180,6 +181,8 @@ pub struct Ruleset {
     pub detect: detect_rules::DetectPlan,
     /// Which carriers an ingestion reads, declaratively.
     pub messages: message_rules::MessagePlan,
+    /// Which stored producer bookkeeping rows are omitted from the read-time conversation.
+    pub message_projection: message_projection::MessageProjectionPlan,
     /// Which events carry messages, and what each event's own raw form is.
     ///
     /// A map from the event name to its declaration, not a `HashSet<String>` of names: the entries answer two
@@ -273,32 +276,32 @@ pub fn ruleset() -> &'static Ruleset {
             .unwrap_or_else(|e| panic!("embedded detection rules are malformed: {e}"));
         let messages = message_rules::compile(&sources)
             .unwrap_or_else(|e| panic!("embedded message rules are malformed: {e}"));
+        let files = parsed_files(&sources);
         Ruleset {
             carriers,
             detect,
             messages,
-            content_blocks: content_blocks::ContentBlockPlan::compile(&parsed_files(&sources)),
-            message_events: compile_message_events(&parsed_files(&sources))
+            message_projection: message_projection::MessageProjectionPlan::compile(&files)
+                .unwrap_or_else(|e| panic!("embedded message projection rules are malformed: {e}")),
+            content_blocks: content_blocks::ContentBlockPlan::compile(&files),
+            message_events: compile_message_events(&files)
                 .unwrap_or_else(|e| panic!("embedded message events are malformed: {e}")),
-            role_authority: compile_role_authority(&parsed_files(&sources)).unwrap_or_else(
-                |error| panic!("the embedded role-authority declarations are malformed: {error}"),
-            ),
-            event_roles: compile_event_roles(
-                &parsed_files(&sources),
-                &tag_names(&parsed_files(&sources)),
-            )
-            .unwrap_or_else(|e| panic!("embedded event roles are malformed: {e}")),
-            tagged_source_names: tag_names(&parsed_files(&sources)),
+            role_authority: compile_role_authority(&files).unwrap_or_else(|error| {
+                panic!("the embedded role-authority declarations are malformed: {error}")
+            }),
+            event_roles: compile_event_roles(&files, &tag_names(&files))
+                .unwrap_or_else(|e| panic!("embedded event roles are malformed: {e}")),
+            tagged_source_names: tag_names(&files),
             span_facts: SpanFactPlan::compile(&sources),
             span_fields: span_fields::compile(&sources)
                 .unwrap_or_else(|e| panic!("embedded span field rules are malformed: {e}")),
-            tool_shapes: tool_shapes::ToolShapePlan::compile(&parsed_files(&sources))
+            tool_shapes: tool_shapes::ToolShapePlan::compile(&files)
                 .unwrap_or_else(|e| panic!("embedded tool shapes are malformed: {e}")),
             observation_types: classify::compile(&sources)
                 .unwrap_or_else(|e| panic!("embedded classification rules are malformed: {e}")),
             message_members: members::compile(&sources)
                 .unwrap_or_else(|e| panic!("embedded member rules are malformed: {e}")),
-            provider_aliases: compile_provider_aliases(&parsed_files(&sources))
+            provider_aliases: compile_provider_aliases(&files)
                 .unwrap_or_else(|e| panic!("embedded provider aliases are malformed: {e}")),
             digest,
         }

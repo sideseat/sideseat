@@ -117,6 +117,66 @@ class TestLogfireStreamingProcessor:
         proc.on_end(non_streaming)
         assert _entry_count(proc) == 0
 
+    def test_logfire_6_non_streaming_output_is_not_a_stream_request(self) -> None:
+        """Logfire 6 writes normal output to gen_ai.output.messages, not response_data."""
+        proc = _LogfireStreamingProcessor()
+
+        non_streaming = _make_span(
+            trace_id=0xAABB,
+            span_id=0x1111,
+            attrs={
+                "logfire.span_type": "span",
+                "request_data": '{"model":"gpt-5-nano"}',
+                "gen_ai.input.messages": '[{"role":"user","content":"sync"}]',
+                "gen_ai.output.messages": '[{"role":"assistant","content":"done"}]',
+            },
+        )
+        proc.on_end(non_streaming)
+        assert _entry_count(proc) == 0
+
+    def test_logfire_6_matches_on_input_not_model_only_request_data(self) -> None:
+        """A stream must not be attached to an earlier call using the same model."""
+        proc = _LogfireStreamingProcessor()
+        request_data = '{"model":"gpt-5-nano"}'
+
+        sync_span = _make_span(
+            trace_id=0xAAAA,
+            span_id=0x1111,
+            attrs={
+                "logfire.span_type": "span",
+                "request_data": request_data,
+                "gen_ai.input.messages": '[{"role":"user","content":"sync"}]',
+                "gen_ai.output.messages": '[{"role":"assistant","content":"done"}]',
+            },
+        )
+        stream_request = _make_span(
+            trace_id=0xBBBB,
+            span_id=0x2222,
+            attrs={
+                "logfire.span_type": "span",
+                "request_data": request_data,
+                "gen_ai.input.messages": '[{"role":"user","content":"stream"}]',
+            },
+        )
+        proc.on_end(sync_span)
+        proc.on_end(stream_request)
+
+        response_log = _make_span(
+            trace_id=0xCCCC,
+            span_id=0x3333,
+            attrs={
+                "logfire.span_type": "log",
+                "request_data": request_data,
+                "gen_ai.input.messages": '[{"role":"user","content":"stream"}]',
+                "gen_ai.output.messages": '[{"role":"assistant","content":"chunks"}]',
+            },
+        )
+        proc.on_end(response_log)
+
+        assert response_log._context.trace_id == 0xBBBB
+        assert response_log._parent.span_id == 0x2222
+        assert _entry_count(proc) == 0
+
     def test_unmatched_response_log_unchanged(self) -> None:
         """Response log without matching request span is not modified."""
         proc = _LogfireStreamingProcessor()
@@ -134,8 +194,8 @@ class TestLogfireStreamingProcessor:
 
         assert response_log._context.trace_id == 0xCCDD
 
-    def test_same_trace_id_skipped(self) -> None:
-        """If trace_ids already match (parent span active), no modification."""
+    def test_already_correct_parent_is_unchanged(self) -> None:
+        """A response already parented to its request needs no mutation."""
         proc = _LogfireStreamingProcessor()
 
         request_span = _make_span(
@@ -156,6 +216,7 @@ class TestLogfireStreamingProcessor:
                 "request_data": REQUEST_DATA,
                 "response_data": '{"message": {"role": "assistant"}}',
             },
+            parent=request_span.context,
         )
         original_context = response_log._context
         proc.on_end(response_log)
@@ -291,8 +352,8 @@ class TestLogfireStreamingProcessor:
 
         # Manually backdate the entry to make it stale
         key = list(proc._pending.keys())[0]
-        trace_id, span_id, _ = proc._pending[key][0]
-        proc._pending[key] = [(trace_id, span_id, time.monotonic() - 120)]
+        context, _ = proc._pending[key][0]
+        proc._pending[key] = [(context, time.monotonic() - 120)]
 
         request_span2 = _make_span(
             trace_id=0xEEFF,
@@ -392,7 +453,7 @@ class TestLogfireStreamingProcessor:
 
         assert _entry_count(proc) == 5
         # Oldest entries (id=0, id=1) should have been evicted
-        remaining_trace_ids = {entries[0][0] for entries in proc._pending.values()}
+        remaining_trace_ids = {entries[0][0].trace_id for entries in proc._pending.values()}
         assert 0x1000 not in remaining_trace_ids  # id=0 evicted
         assert 0x1001 not in remaining_trace_ids  # id=1 evicted
 

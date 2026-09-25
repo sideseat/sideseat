@@ -80,6 +80,11 @@ case "$capture_mode" in
     ;;
 esac
 
+if [[ -n "${CAPTURE_MODEL:-}" && ! "$CAPTURE_MODEL" =~ ^[A-Za-z0-9._:/-]+$ ]]; then
+  echo "CAPTURE_MODEL contains unsupported characters" >&2
+  exit 2
+fi
+
 # Keep the two modes operationally isolated: each pass owns its recorder, temporary
 # directory and examples/.env backup. A failure in one mode still allows the other to
 # finish, and the combined invocation reports failure if either pass failed.
@@ -228,6 +233,9 @@ for entry in "${SUITES[@]}"; do
     fi
 
     cmd="${runner//\{S\}/$sample}"
+    if [[ -n "${CAPTURE_MODEL:-}" ]]; then
+      cmd="$cmd --model $CAPTURE_MODEL"
+    fi
     if [[ "$capture_mode" == "sdk" ]]; then
       cmd="$cmd --sideseat"
     fi

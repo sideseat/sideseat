@@ -31,6 +31,12 @@ pub struct RuleFile {
     /// Which carriers an ingestion reads on this dialect's spans, and how each is parsed.
     #[serde(default)]
     pub messages: Vec<MessageRule>,
+    /// Stored message rows that are producer bookkeeping rather than another conversation.
+    ///
+    /// Extraction remains lossless: these rules apply only when building the read-time SideML
+    /// projection, so the raw span and its extracted message payload stay queryable.
+    #[serde(default)]
+    pub message_projections: Vec<MessageProjectionRule>,
     /// The events this dialect writes messages on.
     ///
     /// Recognition, not reading: an event named here is read, and one not named by any asset is ignored
@@ -885,6 +891,41 @@ pub struct CarrierRule {
     /// Rust, that no rule file could state.
     #[serde(default)]
     pub ordering_family: Option<String>,
+}
+
+/// A read-time projection decision for one producer-owned span shape.
+#[derive(Debug, Deserialize, Clone)]
+#[serde(deny_unknown_fields)]
+pub struct MessageProjectionRule {
+    /// Stable clause id, reported by diagnostics.
+    pub id: String,
+    #[serde(default)]
+    pub doc: Option<String>,
+    #[serde(rename = "match")]
+    pub match_spec: MessageProjectionMatch,
+    pub action: MessageProjectionAction,
+}
+
+/// The stored row and extracted-message shape a projection rule recognises.
+///
+/// All dimensions are required so a producer rule cannot accidentally suppress a broad class of
+/// ordinary input-only spans. The source condition means every extracted message must come from the
+/// named attribute; an empty message list never matches.
+#[derive(Debug, Deserialize, Clone)]
+#[serde(deny_unknown_fields)]
+pub struct MessageProjectionMatch {
+    pub scope_name: String,
+    pub scope_version_major_at_least: u64,
+    pub span_name_prefix: String,
+    pub only_attribute_source: String,
+    pub successful_only: bool,
+}
+
+/// What a matching read-time projection rule does.
+#[derive(Debug, Deserialize, Clone, Copy, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum MessageProjectionAction {
+    SuppressMessages,
 }
 
 /// What an observation must look like for a clause to apply. Every field is optional and all present
@@ -3037,6 +3078,7 @@ impl RuleFile {
                 carriers: _,
                 detect: _,
                 messages: _,
+                message_projections: _,
                 message_events: _,
                 tool_shapes: _,
                 convention_namespaces: _,
@@ -3097,6 +3139,13 @@ impl RuleFile {
             from_message(rule, &mut ids);
             out.push((rule.id.clone(), ids));
         }
+        out.push((
+            "message_projections".to_string(),
+            self.message_projections
+                .iter()
+                .map(|rule| rule.id.clone())
+                .collect(),
+        ));
         for (name, fragment) in &self.fragments {
             let mut ids = Vec::new();
             from_alternatives(&fragment.cases, &mut ids);

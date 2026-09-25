@@ -5,6 +5,15 @@ All notable changes to the SideSeat Python SDK will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- Logfire 6 streaming responses are matched to their request by the bundled input messages, not
+  model-only `request_data`; completed non-streaming spans are no longer mistaken for pending streams
+- Streaming response logs are reparented to the exact request span while preserving that trace's flags
+  and state
+
 ## [1.0.8] - 2026-03-13
 
 ### Added

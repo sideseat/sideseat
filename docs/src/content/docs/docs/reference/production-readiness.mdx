@@ -26,7 +26,7 @@ misordered message.
 | Tool causality | Every identified result follows one matching call and is answered once |
 | No duplicates | Re-sent history, redundant carriers, and repeated delivery add no copy |
 | Determinism | Re-run, reversed arrival order, and cache hits produce the same result |
-| SDK parity | SideSeat SDK and plain OpenTelemetry pairs match in every query view |
+| SDK parity | Language SDK/OTel pairs match exactly; framework SDK/native pairs expose identical semantic conversations |
 
 The ordering tests also inject contradictions, repeated identical calls, redundant state
 snapshots, and reversed delivery. Property tests require the resolver to return a permutation
@@ -34,9 +34,11 @@ of the surviving messages rather than silently inventing or dropping content.
 
 ## Current checked-in boundary
 
-The current tracked corpus contains 22 suites, 129 samples, and 292 captured OTLP requests:
+The current tracked corpus contains 24 suites, 131 samples, and 295 captured OTLP requests:
 
 - SideSeat SDK versus plain OpenTelemetry pairs for Python, TypeScript/Node.js, .NET, and Rust;
+- a credential-free OpenAI 3.19.2 / Logfire 6.0.0b7 pair captured both natively and through
+  SideSeat Python 1.0.8, including sync, SSE streaming, and tool use;
 - current captures for Strands Python and TypeScript, Vercel AI SDK, Google ADK, LangGraph,
   OpenAI Agents SDK, Claude Agent SDK in Python and TypeScript, Microsoft Agent Framework,
   CrewAI, direct OpenAI, direct Anthropic, and Amazon Bedrock;
@@ -68,6 +70,13 @@ exporter endpoint mistakes, missing resource attributes, broken parenting, corre
 duplicate instrumentation, and message-order differences that a basic “request arrived”
 smoke test cannot detect.
 
+Framework pairs compare semantic output where an SDK deliberately repairs broken upstream
+topology. In the current Logfire 6 wire shape, the input-only streaming lifetime span and the
+completed streaming log are separate root traces. SideSeat reparents the log under its request
+span. Both modes must still agree on every span's message projection, every non-empty trace
+conversation, session content, and the project feed. The transport-only span remains in raw
+telemetry and contributes no fake incomplete conversation.
+
 ## Raw preservation and read-time parsing
 
 The server stores the original span events and attributes. Producer-specific message parsing,
@@ -98,3 +107,12 @@ cargo test --locked -p sideseat-server --test message_goldens
 Framework captures that call real models require the corresponding provider credentials. CI
 uses committed OTLP payloads, so verification remains deterministic and does not make paid or
 network-dependent model calls.
+
+The direct OpenAI parity fixture can also be recaptured offline:
+
+```bash
+scripts/message-fixtures/fake-openai.py --port 5401
+OPENAI_API_KEY=x OPENAI_BASE_URL=http://127.0.0.1:5401/v1 \
+  CAPTURE_MODEL=openai-gpt5nano \
+  scripts/message-fixtures/capture.sh openai chat_completions both
+```

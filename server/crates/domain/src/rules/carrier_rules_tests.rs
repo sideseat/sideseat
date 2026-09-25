@@ -529,6 +529,10 @@ fn the_engine_names_no_framework() {
         ("schema.rs", include_str!("schema.rs")),
         ("carrier_rules.rs", include_str!("carrier_rules.rs")),
         ("detect_rules.rs", include_str!("detect_rules.rs")),
+        (
+            "message_projection.rs",
+            include_str!("message_projection.rs"),
+        ),
         ("message_rules.rs", include_str!("message_rules.rs")),
         ("tool_repr.rs", include_str!("tool_repr.rs")),
         ("content_blocks.rs", include_str!("content_blocks.rs")),

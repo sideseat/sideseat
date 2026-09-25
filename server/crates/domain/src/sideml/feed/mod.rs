@@ -1573,6 +1573,27 @@ fn parse_span_rows(rows: &[MessageSpanRow]) -> Vec<ParsedMessage> {
         };
 
         if let Some(raw_msgs) = raw_msgs {
+            // Producer-owned projection rules may identify stored bookkeeping that is not another
+            // conversation. Extraction remains lossless: this only omits it from the SideML view.
+            let successful = row.status_code.as_deref() != Some(status::ERROR)
+                && row.exception_type.is_none()
+                && row.exception_message.is_none()
+                && row.exception_stacktrace.is_none();
+            if crate::rules::ruleset()
+                .message_projection
+                .suppresses_messages(
+                    &crate::rules::message_projection::MessageProjectionContext {
+                        scope_name: row.scope_name.as_deref(),
+                        scope_version: row.scope_version.as_deref(),
+                        span_name: row.span_name.as_deref(),
+                        successful,
+                        messages: &raw_msgs,
+                    },
+                )
+            {
+                continue;
+            }
+
             // Debug: Log raw message count
             tracing::trace!(
                 span_id = %row.span_id,
