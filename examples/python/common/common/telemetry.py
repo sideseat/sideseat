@@ -5,14 +5,15 @@ instrumentors. Supports both standard OpenTelemetry and SideSeat SDK modes.
 """
 
 import os
+from collections.abc import Callable
 from contextlib import AbstractContextManager
-from typing import Any, Callable
+from typing import Any
 
 from opentelemetry import trace
-from opentelemetry.trace import Span
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor, ConsoleSpanExporter
+from opentelemetry.trace import Span
 
 
 class NativeTraceClient:
@@ -48,17 +49,28 @@ def setup_logfire_telemetry(
 ) -> NativeTraceClient:
     """Configure a provider SDK through Logfire without using the SideSeat SDK."""
     import logfire
+    from sideseat.instrumentation import _suspend_otel_exporter_env
 
-    logfire.configure(
-        service_name=service_name,
-        send_to_logfire=False,
-        console=False,
-    )
+    # Logfire reads OTLP env during configure. Hide it until the native control
+    # path attaches its one explicit exporter, then restore the application env.
+    with _suspend_otel_exporter_env():
+        logfire.configure(
+            service_name=service_name,
+            send_to_logfire=False,
+            console=False,
+        )
     getattr(logfire, instrument_method)()
 
     provider = trace.get_tracer_provider()
     if not hasattr(provider, "add_span_processor"):
         raise RuntimeError("Logfire did not create a usable TracerProvider")
+
+    # Logfire exports a completed streaming response as a log span after its
+    # request span has ended. Reattach that response before either native OTLP
+    # exporter sees it, matching the topology SideSeat's SDK guarantees.
+    from sideseat.telemetry.processors import _LogfireStreamingProcessor
+
+    provider.add_span_processor(_LogfireStreamingProcessor())
     _add_standard_exporters(provider)
     return NativeTraceClient(provider, service_name)
 

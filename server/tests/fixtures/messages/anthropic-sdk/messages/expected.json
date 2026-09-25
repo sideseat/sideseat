@@ -1,11 +1,11 @@
 {
-  "label": "openai-native/chat_completions",
+  "label": "anthropic-sdk/messages",
   "request_count": 1,
   "span_count": 6,
   "trace_count": 3,
   "session_count": 1,
   "span_views": {
-    "trace-1/Chat Completion with 'gpt-5-nano-2025-08-07'/span-1": {
+    "trace-1/Message with 'claude-sonnet-4-6'/span-1": {
       "message_count": 3,
       "role_sequence": [
         "system",
@@ -42,14 +42,34 @@
         }
       ]
     },
-    "trace-2/Chat Completion with 'gpt-5-nano-2025-08-07'/span-1": {
-      "message_count": 0,
-      "role_sequence": [],
+    "trace-2/Message with 'claude-sonnet-4-6'/span-1": {
+      "message_count": 2,
+      "role_sequence": [
+        "system",
+        "user"
+      ],
       "tool_names": [],
       "tool_definition_count": 0,
-      "messages": []
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "Answer in one sentence.",
+          "content_digest": "eb0b73db0db1ed63",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is the boiling point of water?",
+          "content_digest": "30d19820dbb43177",
+          "observation_type": "generation"
+        }
+      ]
     },
-    "trace-2/streaming response from 'gpt-5-nano-2025-08-07' took 0.01s/span-2": {
+    "trace-2/streaming response from 'claude-sonnet-4-6' took 0.01s/span-2": {
       "message_count": 3,
       "role_sequence": [
         "system",
@@ -86,7 +106,7 @@
         }
       ]
     },
-    "trace-3/Chat Completion with 'gpt-5-nano-2025-08-07'/span-2": {
+    "trace-3/Message with 'claude-sonnet-4-6'/span-2": {
       "message_count": 3,
       "role_sequence": [
         "system",
@@ -116,15 +136,15 @@
           "index": 2,
           "role": "assistant",
           "entry_type": "tool_use",
-          "content": "{\"type\":\"tool_use\",\"id\":\"call-weather-1\",\"name\":\"get_weather\",\"input\":{\"location\":\"Paris\"}}",
-          "content_digest": "967db1cac316ab14",
+          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_weather_1\",\"name\":\"get_weather\",\"input\":{\"location\":\"Paris\"}}",
+          "content_digest": "e6e5130e396cb803",
           "tool_name": "get_weather",
           "finish_reason": "ToolUse",
           "observation_type": "generation"
         }
       ]
     },
-    "trace-3/Chat Completion with 'gpt-5-nano-2025-08-07'/span-3": {
+    "trace-3/Message with 'claude-sonnet-4-6'/span-3": {
       "message_count": 4,
       "role_sequence": [
         "system",
@@ -155,8 +175,8 @@
           "index": 2,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call-weather-1\",\"content\":[{\"type\":\"text\",\"text\":\"Sunny, 22C, light breeze\"}]}",
-          "content_digest": "17c4cb46106fd0d5",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_weather_1\",\"content\":[{\"type\":\"text\",\"text\":\"Sunny, 22C, light breeze\"}]}",
+          "content_digest": "3c484eae8ce86369",
           "observation_type": "generation"
         },
         {
@@ -170,7 +190,7 @@
         }
       ]
     },
-    "trace-3/completions-tool-use/span-1": {
+    "trace-3/messages-tool-use/span-1": {
       "message_count": 0,
       "role_sequence": [],
       "tool_names": [],
@@ -285,8 +305,8 @@
           "index": 2,
           "role": "assistant",
           "entry_type": "tool_use",
-          "content": "{\"type\":\"tool_use\",\"id\":\"call-weather-1\",\"name\":\"get_weather\",\"input\":{\"location\":\"Paris\"}}",
-          "content_digest": "967db1cac316ab14",
+          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_weather_1\",\"name\":\"get_weather\",\"input\":{\"location\":\"Paris\"}}",
+          "content_digest": "e6e5130e396cb803",
           "tool_name": "get_weather",
           "finish_reason": "ToolUse",
           "observation_type": "generation"
@@ -295,8 +315,8 @@
           "index": 3,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call-weather-1\",\"content\":[{\"type\":\"text\",\"text\":\"Sunny, 22C, light breeze\"}]}",
-          "content_digest": "17c4cb46106fd0d5",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_weather_1\",\"content\":[{\"type\":\"text\",\"text\":\"Sunny, 22C, light breeze\"}]}",
+          "content_digest": "3c484eae8ce86369",
           "observation_type": "generation"
         },
         {
@@ -312,7 +332,7 @@
     }
   },
   "session_views": {
-    "openai-chat_completions-3f13f253": {
+    "anthropic-messages-f9aa7d55": {
       "message_count": 5,
       "role_sequence": [
         "system",
@@ -344,8 +364,8 @@
           "index": 2,
           "role": "assistant",
           "entry_type": "tool_use",
-          "content": "{\"type\":\"tool_use\",\"id\":\"call-weather-1\",\"name\":\"get_weather\",\"input\":{\"location\":\"Paris\"}}",
-          "content_digest": "967db1cac316ab14",
+          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_weather_1\",\"name\":\"get_weather\",\"input\":{\"location\":\"Paris\"}}",
+          "content_digest": "e6e5130e396cb803",
           "tool_name": "get_weather",
           "finish_reason": "ToolUse",
           "observation_type": "generation"
@@ -354,8 +374,8 @@
           "index": 3,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call-weather-1\",\"content\":[{\"type\":\"text\",\"text\":\"Sunny, 22C, light breeze\"}]}",
-          "content_digest": "17c4cb46106fd0d5",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_weather_1\",\"content\":[{\"type\":\"text\",\"text\":\"Sunny, 22C, light breeze\"}]}",
+          "content_digest": "3c484eae8ce86369",
           "observation_type": "generation"
         },
         {
@@ -378,9 +398,9 @@
       "system",
       "user",
       "assistant",
+      "assistant",
       "system",
       "user",
-      "assistant",
       "assistant",
       "system",
       "user"
@@ -401,8 +421,8 @@
         "index": 1,
         "role": "tool",
         "entry_type": "tool_result",
-        "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call-weather-1\",\"content\":[{\"type\":\"text\",\"text\":\"Sunny, 22C, light breeze\"}]}",
-        "content_digest": "17c4cb46106fd0d5",
+        "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_weather_1\",\"content\":[{\"type\":\"text\",\"text\":\"Sunny, 22C, light breeze\"}]}",
+        "content_digest": "3c484eae8ce86369",
         "observation_type": "generation"
       },
       {
@@ -425,14 +445,23 @@
         "index": 4,
         "role": "assistant",
         "entry_type": "tool_use",
-        "content": "{\"type\":\"tool_use\",\"id\":\"call-weather-1\",\"name\":\"get_weather\",\"input\":{\"location\":\"Paris\"}}",
-        "content_digest": "967db1cac316ab14",
+        "content": "{\"type\":\"tool_use\",\"id\":\"toolu_weather_1\",\"name\":\"get_weather\",\"input\":{\"location\":\"Paris\"}}",
+        "content_digest": "e6e5130e396cb803",
         "tool_name": "get_weather",
         "finish_reason": "ToolUse",
         "observation_type": "generation"
       },
       {
         "index": 5,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "Water boils at 100°C at sea level.",
+        "content_digest": "bb1f388d59f64cf5",
+        "finish_reason": "Stop",
+        "observation_type": "generation"
+      },
+      {
+        "index": 6,
         "role": "system",
         "entry_type": "text",
         "content": "Answer in one sentence.",
@@ -440,20 +469,11 @@
         "observation_type": "generation"
       },
       {
-        "index": 6,
+        "index": 7,
         "role": "user",
         "entry_type": "text",
         "content": "What is the boiling point of water?",
         "content_digest": "30d19820dbb43177",
-        "observation_type": "generation"
-      },
-      {
-        "index": 7,
-        "role": "assistant",
-        "entry_type": "text",
-        "content": "Water boils at 100°C at sea level.",
-        "content_digest": "bb1f388d59f64cf5",
-        "finish_reason": "Stop",
         "observation_type": "generation"
       },
       {

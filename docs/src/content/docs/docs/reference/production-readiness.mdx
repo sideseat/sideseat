@@ -26,7 +26,7 @@ misordered message.
 | Tool causality | Every identified result follows one matching call and is answered once |
 | No duplicates | Re-sent history, redundant carriers, and repeated delivery add no copy |
 | Determinism | Re-run, reversed arrival order, and cache hits produce the same result |
-| SDK parity | Language SDK/OTel pairs match exactly; framework SDK/native pairs expose identical semantic conversations |
+| SDK parity | Language SDK/OTel and framework SDK/native pairs match requests, span projections, trace topology, sessions, and feed |
 
 The ordering tests also inject contradictions, repeated identical calls, redundant state
 snapshots, and reversed delivery. Property tests require the resolver to return a permutation
@@ -34,11 +34,13 @@ of the surviving messages rather than silently inventing or dropping content.
 
 ## Current checked-in boundary
 
-The current tracked corpus contains 24 suites, 131 samples, and 295 captured OTLP requests:
+The current tracked corpus contains 26 suites, 133 samples, and 296 captured OTLP requests:
 
 - SideSeat SDK versus plain OpenTelemetry pairs for Python, TypeScript/Node.js, .NET, and Rust;
 - a credential-free OpenAI 3.19.2 / Logfire 6.0.0b7 pair captured both natively and through
   SideSeat Python 1.0.8, including sync, SSE streaming, and tool use;
+- a credential-free Anthropic 1.8.0 / Logfire 6.0.0b7 pair with the same native/SideSeat,
+  sync/stream/tool-use coverage;
 - current captures for Strands Python and TypeScript, Vercel AI SDK, Google ADK, LangGraph,
   OpenAI Agents SDK, Claude Agent SDK in Python and TypeScript, Microsoft Agent Framework,
   CrewAI, direct OpenAI, direct Anthropic, and Amazon Bedrock;
@@ -70,12 +72,11 @@ exporter endpoint mistakes, missing resource attributes, broken parenting, corre
 duplicate instrumentation, and message-order differences that a basic “request arrived”
 smoke test cannot detect.
 
-Framework pairs compare semantic output where an SDK deliberately repairs broken upstream
-topology. In the current Logfire 6 wire shape, the input-only streaming lifetime span and the
-completed streaming log are separate root traces. SideSeat reparents the log under its request
-span. Both modes must still agree on every span's message projection, every non-empty trace
-conversation, session content, and the project feed. The transport-only span remains in raw
-telemetry and contributes no fake incomplete conversation.
+In the current Logfire 6 wire shape, the input-only streaming lifetime span and completed
+streaming log are emitted separately. Logfire's default context makes the response an unrelated
+root trace. Both the native control pipeline and SideSeat reparent it before OTLP export, because
+the server cannot safely infer that relationship later. Framework pairs must agree on request and
+span counts, complete trace topology, every span projection, session content, and the project feed.
 
 ## Raw preservation and read-time parsing
 
@@ -108,11 +109,16 @@ Framework captures that call real models require the corresponding provider cred
 uses committed OTLP payloads, so verification remains deterministic and does not make paid or
 network-dependent model calls.
 
-The direct OpenAI parity fixture can also be recaptured offline:
+The direct OpenAI and Anthropic parity fixtures can also be recaptured offline:
 
 ```bash
 scripts/message-fixtures/fake-openai.py --port 5401
 OPENAI_API_KEY=x OPENAI_BASE_URL=http://127.0.0.1:5401/v1 \
-  CAPTURE_MODEL=openai-gpt5nano \
+  CAPTURE_MODEL=gpt-5-nano-2025-08-07 \
   scripts/message-fixtures/capture.sh openai chat_completions both
+
+scripts/message-fixtures/fake-anthropic.py --port 5402
+ANTHROPIC_API_KEY=x ANTHROPIC_BASE_URL=http://127.0.0.1:5402 \
+  CAPTURE_MODEL=claude-sonnet-4-6 \
+  scripts/message-fixtures/capture.sh anthropic messages both
 ```

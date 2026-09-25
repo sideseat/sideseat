@@ -1,8 +1,11 @@
 """Framework instrumentation with guards and graceful fallbacks."""
 
 import functools
+import importlib
 import logging
 import threading
+from collections.abc import Iterator
+from contextlib import contextmanager
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
@@ -14,6 +17,12 @@ logger = logging.getLogger("sideseat.instrumentation")
 
 _instrumented: set[str] = set()
 _lock = threading.Lock()
+_OTEL_EXPORTER_ENV_KEYS = (
+    "OTEL_EXPORTER_OTLP_ENDPOINT",
+    "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT",
+    "OTEL_EXPORTER_OTLP_METRICS_ENDPOINT",
+    "OTEL_EXPORTER_OTLP_LOGS_ENDPOINT",
+)
 
 LOGFIRE_FRAMEWORKS = frozenset(
     {
@@ -201,29 +210,25 @@ def _instrument_logfire(
     service_version: str | None,
 ) -> None:
     """Logfire instrumentation (creates its own provider)."""
-    import os
-
     import logfire  # type: ignore[import-not-found]
 
-    # Clear OTLP env vars — SideSeat is the sole export pipeline owner.
+    # Hide OTLP env vars while Logfire configures — SideSeat is the sole export
+    # pipeline owner.
     # Prevents logfire.configure() from creating independent OTLP exporters
     # that bypass SideSeat's processors (including the streaming reparenter).
     # The base endpoint triggers exporters for ALL signals (traces, metrics,
-    # logs); signal-specific endpoints trigger their respective exporters.
-    for key in (
-        "OTEL_EXPORTER_OTLP_ENDPOINT",
-        "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT",
-        "OTEL_EXPORTER_OTLP_METRICS_ENDPOINT",
-        "OTEL_EXPORTER_OTLP_LOGS_ENDPOINT",
-    ):
-        os.environ.pop(key, None)
+    # logs); signal-specific endpoints trigger their respective exporters. The
+    # values are restored immediately so initializing SideSeat never mutates the
+    # application's lasting environment.
+    with _suspend_otel_exporter_env():
+        logfire.configure(
+            service_name=service_name or f"{method_suffix.replace('_', '-')}-app",
+            service_version=service_version or "0.0.0",
+            send_to_logfire=False,
+            console=False,
+        )
 
-    logfire.configure(
-        service_name=service_name or f"{method_suffix.replace('_', '-')}-app",
-        service_version=service_version or "0.0.0",
-        send_to_logfire=False,
-        console=False,
-    )
+    _apply_logfire_compatibility_patches(method_suffix)
 
     # Call the appropriate instrument method
     method = getattr(logfire, f"instrument_{method_suffix}")
@@ -231,6 +236,22 @@ def _instrument_logfire(
 
     # Resolve abstract method gaps caused by framework SDK / logfire version skew.
     _patch_logfire_wrappers(method_suffix)
+
+
+@contextmanager
+def _suspend_otel_exporter_env() -> Iterator[None]:
+    """Temporarily hide exporter env vars and restore their exact prior state."""
+    import os
+
+    saved = {key: os.environ[key] for key in _OTEL_EXPORTER_ENV_KEYS if key in os.environ}
+    for key in _OTEL_EXPORTER_ENV_KEYS:
+        os.environ.pop(key, None)
+    try:
+        yield
+    finally:
+        for key in _OTEL_EXPORTER_ENV_KEYS:
+            os.environ.pop(key, None)
+        os.environ.update(saved)
 
 
 def _make_property(name: str) -> property:
@@ -261,7 +282,6 @@ def _patch_logfire_wrappers(integration_module: str) -> None:
     classes are scanned in microseconds with no effect.
     """
     try:
-        import importlib
         import inspect
 
         mod = importlib.import_module(f"logfire._internal.integrations.{integration_module}")
@@ -299,6 +319,165 @@ def _patch_logfire_wrappers(integration_module: str) -> None:
             logger.debug("Patched %s: %s", cls_name, ", ".join(sorted(patched)))
 
 
+_OMITTED = object()
+
+
+def _strip_anthropic_omit(value: Any, omit_type: type[Any]) -> Any:
+    """Copy an Anthropic request value without ``Omit`` sentinels.
+
+    Anthropic 1.8 keeps ``Omit`` values in ``FinalRequestOptions.json_data`` until
+    the HTTP request is prepared. Logfire 6.0.0b7 observes the earlier structure,
+    attempts to JSON-encode fields such as ``stop_sequences``, and abandons the
+    whole span when it encounters the sentinel. The telemetry copy must mirror
+    what Anthropic will actually send without mutating the live request options.
+    """
+    if isinstance(value, omit_type):
+        return _OMITTED
+    if isinstance(value, dict):
+        dict_result: dict[Any, Any] = {}
+        changed = False
+        for key, item in value.items():
+            stripped = _strip_anthropic_omit(item, omit_type)
+            if stripped is _OMITTED:
+                changed = True
+                continue
+            dict_result[key] = stripped
+            changed = changed or stripped is not item
+        return dict_result if changed else value
+    if isinstance(value, list):
+        list_result: list[Any] = []
+        changed = False
+        for item in value:
+            stripped = _strip_anthropic_omit(item, omit_type)
+            if stripped is _OMITTED:
+                changed = True
+                continue
+            list_result.append(stripped)
+            changed = changed or stripped is not item
+        return list_result if changed else value
+    if isinstance(value, tuple):
+        tuple_result: list[Any] = []
+        changed = False
+        for item in value:
+            stripped = _strip_anthropic_omit(item, omit_type)
+            if stripped is _OMITTED:
+                changed = True
+                continue
+            tuple_result.append(stripped)
+            changed = changed or stripped is not item
+        return tuple(tuple_result) if changed else value
+    return value
+
+
+def _patch_logfire_anthropic_omit() -> bool:
+    """Make Logfire's Anthropic request reader compatible with Anthropic 1.8."""
+    try:
+        anthropic_types = importlib.import_module("anthropic._types")
+        integration = importlib.import_module(
+            "logfire._internal.integrations.llm_providers.anthropic"
+        )
+    except ImportError:
+        return False
+
+    omit_type = getattr(anthropic_types, "Omit", None)
+    original = getattr(integration, "get_endpoint_config", None)
+    if not isinstance(omit_type, type) or not callable(original):
+        return False
+    if getattr(original, "_sideseat_anthropic_omit_safe", False):
+        return False
+
+    @functools.wraps(original)
+    def get_endpoint_config(options: Any, *args: Any, **kwargs: Any) -> Any:
+        json_data = getattr(options, "json_data", None)
+        if isinstance(json_data, dict):
+            sanitized = _strip_anthropic_omit(json_data, omit_type)
+            if sanitized is not json_data:
+                model_copy = getattr(options, "model_copy", None)
+                if callable(model_copy):
+                    options = model_copy(update={"json_data": sanitized})
+                else:  # pragma: no cover - retained for older Pydantic-based clients
+                    import copy
+
+                    options = copy.copy(options)
+                    options.json_data = sanitized
+        return original(options, *args, **kwargs)
+
+    get_endpoint_config._sideseat_anthropic_omit_safe = True  # type: ignore[attr-defined]
+    integration.get_endpoint_config = get_endpoint_config  # type: ignore[attr-defined]
+    logger.debug("Patched Logfire Anthropic Omit handling")
+    return True
+
+
+def _patch_logfire_anthropic_streaming() -> bool:
+    """Adapt Logfire's stream accumulator to Anthropic 1.8's required state."""
+    try:
+        import inspect
+
+        integration = importlib.import_module(
+            "logfire._internal.integrations.llm_providers.anthropic"
+        )
+        messages = importlib.import_module("anthropic.lib.streaming._messages")
+        beta_messages = importlib.import_module("anthropic.lib.streaming._beta_messages")
+    except ImportError:
+        return False
+
+    state_cls = getattr(integration, "AnthropicMessageStreamState", None)
+    accumulate = getattr(messages, "accumulate_event", None)
+    beta_accumulate = getattr(beta_messages, "accumulate_event", None)
+    if not isinstance(state_cls, type) or not callable(accumulate) or not callable(beta_accumulate):
+        return False
+
+    original = getattr(state_cls, "record_chunk", None)
+    if not callable(original) or getattr(original, "_sideseat_anthropic_stream_safe", False):
+        return False
+
+    # Anthropic 1.8 added a persistent JSON buffer to both accumulators. A future
+    # Logfire that already carries it must keep its own implementation.
+    parameters = inspect.signature(accumulate).parameters
+    if "json_bufs" not in parameters:
+        return False
+    code = getattr(original, "__code__", None)
+    code_names = (*getattr(code, "co_names", ()), *getattr(code, "co_varnames", ()))
+    if any("json_buf" in name for name in code_names):
+        return False
+
+    accumulate_parameters = inspect.signature(accumulate).parameters
+    beta_parameters = inspect.signature(beta_accumulate).parameters
+
+    @functools.wraps(original)
+    def record_chunk(self: Any, chunk: Any) -> None:
+        json_bufs = self.__dict__.setdefault("_sideseat_anthropic_json_bufs", {})
+        is_beta = type(chunk).__module__.startswith("anthropic.types.beta")
+        accumulator = beta_accumulate if is_beta else accumulate
+        supported = beta_parameters if is_beta else accumulate_parameters
+        kwargs: dict[str, Any] = {
+            "event": chunk,
+            "current_snapshot": self._message,
+        }
+        if "json_bufs" in supported:
+            kwargs["json_bufs"] = json_bufs
+        if "request_headers" in supported:
+            # Logfire has no access to the high-level stream's request here. Its
+            # previous implementation also supplied an empty mapping.
+            kwargs["request_headers"] = {}
+        self._message = accumulator(**kwargs)
+
+        if getattr(getattr(chunk, "delta", None), "type", None) == "text_delta":
+            self._chunk_count += 1
+
+    record_chunk._sideseat_anthropic_stream_safe = True  # type: ignore[attr-defined]
+    state_cls.record_chunk = record_chunk  # type: ignore[attr-defined]
+    logger.debug("Patched Logfire Anthropic 1.8 stream accumulation")
+    return True
+
+
+def _apply_logfire_compatibility_patches(integration: str) -> None:
+    """Apply version-skew patches before Logfire captures integration callables."""
+    if integration == "anthropic":
+        _patch_logfire_anthropic_omit()
+        _patch_logfire_anthropic_streaming()
+
+
 def _wrap_logfire_instruments() -> None:
     """Wrap logfire.instrument_* to auto-apply abstract-method fixes.
 
@@ -327,6 +506,7 @@ def _wrap_logfire_instruments() -> None:
         def _make_wrapper(orig: Any, integ: str) -> Any:
             @functools.wraps(orig)
             def wrapper(*args: Any, **kwargs: Any) -> Any:
+                _apply_logfire_compatibility_patches(integ)
                 result = orig(*args, **kwargs)
                 _patch_logfire_wrappers(integ)
                 return result

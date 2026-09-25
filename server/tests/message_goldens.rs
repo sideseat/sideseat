@@ -1524,27 +1524,26 @@ fn sdk_and_plain_otel_conformance_are_identical() {
 /// A framework instrumented through SideSeat must expose the same conversation as its native
 /// instrumentation.
 ///
-/// Framework pairs use `<framework>-native/<sample>` and `<framework>-sdk/<sample>`. Unlike the
-/// language conformance pairs above, their transport topology is not always byte-for-byte equal:
-/// Logfire 6 emits the streaming request wrapper and completed response as separate root traces,
-/// while SideSeat repairs the response's parent before export. The user-visible contract is still
-/// exact:
+/// Framework pairs use `<framework>-native/<sample>` and `<framework>-sdk/<sample>`. Their resource
+/// attributes, span IDs, and measured duration embedded in Logfire's streaming span name can differ,
+/// but the transport and user-visible contract are exact:
 ///
+/// - both paths export the same number of OTLP batches and spans;
 /// - every source span has the same message projection;
-/// - the same non-empty conversations exist as traces (so merging two calls still fails);
+/// - the same conversations exist as traces, including empty transport-only traces;
 /// - the same session conversations exist, independent of producer-side ID scrubbing;
 /// - the project feed is identical.
 ///
-/// Empty transport-only traces are deliberately outside the trace multiset. Their spans remain in
-/// the span comparison and raw telemetry, but they are not conversations.
+/// The native Logfire control path installs the same streaming reparenter before its raw OTLP
+/// exporter. Without it, Logfire 6 closes the request span before consuming the stream and exports
+/// the completed response as an unrelated root trace — telemetry the server cannot safely reconnect.
 #[test]
 fn framework_sdk_and_native_conversations_are_identical() {
     let fixtures: BTreeMap<String, Vec<PathBuf>> = discover_fixtures().into_iter().collect();
 
-    let view_multiset = |views: &BTreeMap<String, GoldenView>, include_empty: bool| {
+    let view_multiset = |views: &BTreeMap<String, GoldenView>| {
         let mut comparable: Vec<String> = views
             .values()
-            .filter(|view| include_empty || view.message_count > 0)
             .map(|view| serde_json::to_string(view).expect("golden view is serializable"))
             .collect();
         comparable.sort();
@@ -1558,8 +1557,17 @@ fn framework_sdk_and_native_conversations_are_identical() {
                 let span_name = after_trace
                     .rsplit_once("/span-")
                     .map_or(after_trace, |(name, _)| name);
+                let stable_span_name = span_name
+                    .rsplit_once(" took ")
+                    .and_then(|(prefix, suffix)| {
+                        suffix
+                            .strip_suffix('s')
+                            .and_then(|seconds| seconds.parse::<f64>().ok())
+                            .map(|_| format!("{prefix} took <duration>s"))
+                    })
+                    .unwrap_or_else(|| span_name.to_string());
                 (
-                    span_name.to_string(),
+                    stable_span_name,
                     serde_json::to_string(view).expect("golden view is serializable"),
                 )
             })
@@ -1599,8 +1607,20 @@ fn framework_sdk_and_native_conversations_are_identical() {
         let sdk = build_golden(&sdk_label, sdk_paths, &rows_for(sdk_paths)).golden;
 
         assert_eq!(
+            sdk.request_count, native.request_count,
+            "{sdk_label}: SDK and native instrumentation exported a different number of requests"
+        );
+        assert_eq!(
             sdk.span_count, native.span_count,
             "{sdk_label}: SDK changed the number of framework spans"
+        );
+        assert_eq!(
+            sdk.trace_count, native.trace_count,
+            "{sdk_label}: SDK changed framework trace topology"
+        );
+        assert_eq!(
+            sdk.session_count, native.session_count,
+            "{sdk_label}: SDK changed framework session grouping"
         );
         assert_eq!(
             span_multiset(&sdk.span_views),
@@ -1608,13 +1628,13 @@ fn framework_sdk_and_native_conversations_are_identical() {
             "{sdk_label}: per-span message projections differ from native instrumentation"
         );
         assert_eq!(
-            view_multiset(&sdk.trace_views, false),
-            view_multiset(&native.trace_views, false),
-            "{sdk_label}: non-empty trace conversations differ from native instrumentation"
+            view_multiset(&sdk.trace_views),
+            view_multiset(&native.trace_views),
+            "{sdk_label}: trace conversations differ from native instrumentation"
         );
         assert_eq!(
-            view_multiset(&sdk.session_views, true),
-            view_multiset(&native.session_views, true),
+            view_multiset(&sdk.session_views),
+            view_multiset(&native.session_views),
             "{sdk_label}: session conversations differ from native instrumentation"
         );
         assert_eq!(

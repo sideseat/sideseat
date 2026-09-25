@@ -1,6 +1,10 @@
 """Tests for framework instrumentation."""
 
+import importlib
+import os
 import threading
+from types import SimpleNamespace
+from typing import Any
 
 import pytest
 
@@ -9,6 +13,10 @@ from sideseat.instrumentation import (
     LOGFIRE_FRAMEWORKS,
     _instrumented,
     _lock,
+    _patch_logfire_anthropic_omit,
+    _patch_logfire_anthropic_streaming,
+    _strip_anthropic_omit,
+    _suspend_otel_exporter_env,
     instrument,
     is_logfire_framework,
 )
@@ -131,3 +139,208 @@ class TestInstrument:
         # Only one thread should successfully instrument
         assert sum(results) == 1
         assert Frameworks.Strands in _instrumented
+
+
+class TestAnthropicCompatibility:
+    """Regression coverage for Anthropic request sentinels observed by Logfire."""
+
+    def test_strip_anthropic_omit_recursively(self) -> None:
+        class Omit:
+            pass
+
+        omit = Omit()
+        value = {
+            "model": "claude",
+            "stop_sequences": omit,
+            "messages": [
+                {"role": "user", "content": "hello", "cache_control": omit},
+                omit,
+            ],
+            "tools": ({"name": "weather", "extra": omit}, omit),
+        }
+
+        assert _strip_anthropic_omit(value, Omit) == {
+            "model": "claude",
+            "messages": [{"role": "user", "content": "hello"}],
+            "tools": ({"name": "weather"},),
+        }
+        assert value["stop_sequences"] is omit
+
+    def test_logfire_patch_sanitizes_copy_before_endpoint_reader(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        class Omit:
+            pass
+
+        omit = Omit()
+        observed: list[dict[str, Any]] = []
+
+        def original(options: Any, *, version: int = 2) -> tuple[dict[str, Any], int]:
+            observed.append(options.json_data)
+            return options.json_data, version
+
+        integration = SimpleNamespace(get_endpoint_config=original)
+        anthropic_types = SimpleNamespace(Omit=Omit)
+        real_import = importlib.import_module
+
+        def fake_import(name: str, package: str | None = None) -> Any:
+            if name == "anthropic._types":
+                return anthropic_types
+            if name == "logfire._internal.integrations.llm_providers.anthropic":
+                return integration
+            return real_import(name, package)
+
+        monkeypatch.setattr(importlib, "import_module", fake_import)
+
+        class Options:
+            def __init__(self, json_data: dict[str, Any]) -> None:
+                self.json_data = json_data
+
+            def model_copy(self, *, update: dict[str, Any]) -> "Options":
+                return Options(update["json_data"])
+
+        options = Options(
+            {
+                "model": "claude",
+                "stop_sequences": omit,
+                "messages": [{"role": "user", "content": "hello"}],
+            }
+        )
+
+        assert _patch_logfire_anthropic_omit() is True
+        assert integration.get_endpoint_config(options, version=2) == (
+            {
+                "model": "claude",
+                "messages": [{"role": "user", "content": "hello"}],
+            },
+            2,
+        )
+        assert observed == [
+            {
+                "model": "claude",
+                "messages": [{"role": "user", "content": "hello"}],
+            }
+        ]
+        assert options.json_data["stop_sequences"] is omit
+        assert _patch_logfire_anthropic_omit() is False
+
+    def test_logfire_patch_carries_anthropic_stream_accumulator_state(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        calls: list[tuple[str, dict[str, Any]]] = []
+
+        def accumulate_event(
+            *,
+            event: Any,
+            current_snapshot: Any,
+            json_bufs: dict[int, bytes],
+        ) -> str:
+            calls.append(
+                (
+                    "normal",
+                    {
+                        "event": event,
+                        "current_snapshot": current_snapshot,
+                        "json_bufs": json_bufs,
+                    },
+                )
+            )
+            json_bufs[0] = b"partial"
+            return "normal-snapshot"
+
+        def beta_accumulate_event(
+            *,
+            event: Any,
+            current_snapshot: Any,
+            json_bufs: dict[int, bytes],
+            request_headers: dict[str, str],
+        ) -> str:
+            calls.append(
+                (
+                    "beta",
+                    {
+                        "event": event,
+                        "current_snapshot": current_snapshot,
+                        "json_bufs": json_bufs,
+                        "request_headers": request_headers,
+                    },
+                )
+            )
+            return "beta-snapshot"
+
+        class State:
+            def __init__(self) -> None:
+                self._message: Any = None
+                self._chunk_count = 0
+
+            def record_chunk(self, chunk: Any) -> None:
+                raise TypeError("old Logfire omitted json_bufs")
+
+        integration = SimpleNamespace(AnthropicMessageStreamState=State)
+        messages = SimpleNamespace(accumulate_event=accumulate_event)
+        beta_messages = SimpleNamespace(accumulate_event=beta_accumulate_event)
+        real_import = importlib.import_module
+
+        def fake_import(name: str, package: str | None = None) -> Any:
+            modules = {
+                "logfire._internal.integrations.llm_providers.anthropic": integration,
+                "anthropic.lib.streaming._messages": messages,
+                "anthropic.lib.streaming._beta_messages": beta_messages,
+            }
+            if name in modules:
+                return modules[name]
+            return real_import(name, package)
+
+        monkeypatch.setattr(importlib, "import_module", fake_import)
+
+        NormalChunk = type(
+            "NormalChunk",
+            (),
+            {
+                "__module__": "anthropic.types.raw_content_block_delta_event",
+                "delta": SimpleNamespace(type="text_delta"),
+            },
+        )
+        BetaChunk = type(
+            "BetaChunk",
+            (),
+            {
+                "__module__": "anthropic.types.beta.beta_raw_message_delta_event",
+                "delta": SimpleNamespace(type="message_delta"),
+            },
+        )
+
+        assert _patch_logfire_anthropic_streaming() is True
+        state = State()
+        state.record_chunk(NormalChunk())
+        state.record_chunk(BetaChunk())
+
+        assert calls[0][0] == "normal"
+        assert calls[0][1]["current_snapshot"] is None
+        assert calls[1][0] == "beta"
+        assert calls[1][1]["current_snapshot"] == "normal-snapshot"
+        assert calls[1][1]["json_bufs"] is calls[0][1]["json_bufs"]
+        assert calls[1][1]["request_headers"] == {}
+        assert state._message == "beta-snapshot"
+        assert state._chunk_count == 1
+        assert _patch_logfire_anthropic_streaming() is False
+
+
+def test_suspend_otel_exporter_env_restores_exact_values(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "http://collector/base")
+    monkeypatch.setenv("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT", "http://collector/traces")
+    monkeypatch.delenv("OTEL_EXPORTER_OTLP_METRICS_ENDPOINT", raising=False)
+    monkeypatch.delenv("OTEL_EXPORTER_OTLP_LOGS_ENDPOINT", raising=False)
+
+    with _suspend_otel_exporter_env():
+        assert "OTEL_EXPORTER_OTLP_ENDPOINT" not in os.environ
+        assert "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT" not in os.environ
+        # A value introduced inside the guarded configure call must not leak.
+        monkeypatch.setenv("OTEL_EXPORTER_OTLP_LOGS_ENDPOINT", "http://unexpected/logs")
+
+    assert os.environ["OTEL_EXPORTER_OTLP_ENDPOINT"] == "http://collector/base"
+    assert os.environ["OTEL_EXPORTER_OTLP_TRACES_ENDPOINT"] == "http://collector/traces"
+    assert "OTEL_EXPORTER_OTLP_METRICS_ENDPOINT" not in os.environ
+    assert "OTEL_EXPORTER_OTLP_LOGS_ENDPOINT" not in os.environ

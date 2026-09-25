@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Anthropic 1.8 `Omit` sentinels are removed from Logfire's telemetry copy without mutating the
+  request, so sync, streaming, and tool-use calls emit spans again
+- Anthropic 1.8 streaming uses the SDK's new persistent JSON accumulator state, restoring complete
+  `gen_ai.output.messages` and usage on the response span
+- OTLP exporter environment variables are hidden only while Logfire configures and then restored;
+  SideSeat no longer mutates the application's environment or creates a duplicate exporter
 - Logfire 6 streaming responses are matched to their request by the bundled input messages, not
   model-only `request_data`; completed non-streaming spans are no longer mistaken for pending streams
 - Streaming response logs are reparented to the exact request span while preserving that trace's flags
