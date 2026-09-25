@@ -2,22 +2,14 @@ name: Build and Deploy Docs
 
 on:
   workflow_dispatch:
-  # Pull requests still build the site, while deployment from main is manual. Direct pushes do not start CI.
-  pull_request:
-    paths:
-      - 'docs/**'
-      - '.github/workflows/docs.yml'
-      - 'Makefile'
 
 permissions:
   contents: read
   pages: write
   id-token: write
 
-# Keyed by ref, so a new push to a pull request supersedes its own earlier run. The `pages` group belongs to
-# the deploy job alone: as a workflow-wide group it was shared by every pull-request build, so unrelated ones
-# cancelled each other and could displace a queued deployment of `main` - GitHub keeps only one pending run
-# per group. That only became reachable when pull requests started triggering this workflow.
+# Keyed by ref so manually restarted builds for the same branch supersede older runs. The `pages` group belongs
+# to the deploy job alone, keeping site builds independent from the deployment queue.
 concurrency:
   group: docs-${{ github.ref }}
   cancel-in-progress: true
@@ -61,7 +53,7 @@ jobs:
     needs: build-docs
     # Publishing is a manual action from main. `main` must be explicit because workflow_dispatch can target
     # any branch.
-    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     concurrency:
       group: pages
