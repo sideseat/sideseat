@@ -1,0 +1,195 @@
+---
+title: Rust SDK
+description: Export Rust traces, spans, sessions, and GenAI provider calls to SideSeat.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+The SideSeat Rust SDK (`sideseat`) configures OpenTelemetry export, creates correlated
+root traces and child spans, and instruments the model providers included in the crate.
+
+## Prerequisites
+
+- SideSeat running locally (`npx sideseat`)
+- Rust 1.94.1+
+
+## Installation
+
+```bash
+cargo add sideseat
+```
+
+## Quick start
+
+```rust
+use sideseat::{KeyValue, SideSeat, SideSeatSpanOptions, SpanKind};
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let telemetry = SideSeat::new()
+        .with_service_name("travel-agent")
+        .with_service_version(env!("CARGO_PKG_VERSION"))
+        .with_framework("custom-rust-agent")
+        .init()?;
+
+    telemetry
+        .trace(
+            "plan-trip",
+            SideSeatSpanOptions::new()
+                .with_session_id("conversation-42")
+                .with_user_id("user-7"),
+            |_trace| async {
+                telemetry
+                    .span(
+                        "retrieve-context",
+                        SideSeatSpanOptions::new()
+                            .with_kind(SpanKind::Client)
+                            .with_attribute(KeyValue::new("app.documents", 4_i64)),
+                        |_span| async { Ok::<_, std::io::Error>(()) },
+                    )
+                    .await
+            },
+        )
+        .await?;
+
+    telemetry.shutdown()?;
+    Ok(())
+}
+```
+
+`trace()` is always an independent root operation. `span()` is a child of the currently
+active span, or a root when no span is active. `session.id` and `user.id` propagate to nested
+SideSeat spans; a nested override remains scoped to that nested operation.
+
+Both methods end the span and mark the status automatically. An error returned by the
+callback is recorded as an OpenTelemetry exception and error status before being returned.
+
+## Manual span lifecycle
+
+Use `start_trace()` or `start_span()` when a callback does not fit:
+
+```rust
+use sideseat::{KeyValue, SideSeatSpanOptions};
+
+let span = telemetry.start_span(
+    "tool-call",
+    SideSeatSpanOptions::new()
+        .with_attribute(KeyValue::new("gen_ai.tool.name", "weather")),
+);
+span.add_event("tool.started", vec![]);
+
+// Run the operation.
+
+span.end();
+```
+
+A `SideSeatSpan` ends once. Calling `end()` repeatedly is safe, and dropping its final clone
+also ends it.
+
+<Aside type="caution">
+`start_span()` reads the current thread-local OpenTelemetry context at the instant it is
+called. For asynchronous work, prefer `trace()` and `span()`: they attach the right context
+on every future poll and do not hold a non-`Send` context guard across an `await`.
+</Aside>
+
+## Instrumenting SideSeat providers
+
+`InstrumentedProvider` wraps any provider implemented by the crate. It records model,
+operation, token usage, finish reason, latency, errors, and optionally message content.
+
+```rust
+use sideseat::{
+    ChatProvider, InstrumentedProvider, Message, ProviderConfig, SideSeat,
+    providers::AnthropicProvider,
+};
+
+let builder = SideSeat::new()
+    .with_service_name("support-agent")
+    .with_framework("sideseat-rust")
+    .with_capture_content(true);
+let provider = InstrumentedProvider::with_config(
+    AnthropicProvider::from_env()?,
+    builder.telemetry_config(),
+);
+let telemetry = builder.init()?;
+
+let response = provider
+    .complete(
+        vec![Message::user("How can I reset my password?")],
+        ProviderConfig::new("claude-sonnet-4-5"),
+    )
+    .await?;
+
+telemetry.shutdown()?;
+```
+
+<Aside type="note">
+External Rust frameworks remain responsible for their own OpenTelemetry instrumentation.
+Their standard spans can use the global provider installed by `SideSeat::init()` and appear
+alongside spans created by this SDK.
+</Aside>
+
+## Configuration
+
+| Builder | Environment fallback | Default |
+| --- | --- | --- |
+| `with_endpoint` | `SIDESEAT_ENDPOINT` | `http://localhost:5388` |
+| `with_project_id` | `SIDESEAT_PROJECT_ID` | `default` |
+| `with_api_key` | `SIDESEAT_API_KEY` | unset |
+| `with_service_name` | `OTEL_SERVICE_NAME` | `sideseat-rust` |
+| `with_service_version` | none | unset |
+| `with_framework` | none | unset |
+| `with_capture_content` | none | `false` |
+
+`with_framework()` writes the `sideseat.framework` resource attribute. Per-span framework
+evidence still takes precedence in the server, so nested instrumented libraries retain their
+own classification.
+
+### Endpoint routing
+
+The endpoint can be a SideSeat base URL, a project OTLP base URL, or a complete signal URL:
+
+```text
+http://localhost:5388
+  -> http://localhost:5388/otel/{project_id}/v1/traces
+
+http://collector:4318/otel/my-project
+  -> http://collector:4318/otel/my-project/v1/traces
+
+http://collector:4318/otel/my-project/v1/traces
+  -> unchanged
+```
+
+The metrics URL is derived from the same base. An API key is sent as an
+`Authorization: Bearer ...` header on both signals.
+
+## Content and privacy
+
+Message content is disabled by default:
+
+```rust
+let builder = SideSeat::new().with_capture_content(true);
+```
+
+Enabling it records prompts and responses as span events. Token counts, model identity,
+latency, and errors remain available without content capture.
+
+## Flush and shutdown
+
+Keep the returned `SideSeatGuard` alive while telemetry is produced.
+
+```rust
+telemetry.force_flush()?;
+telemetry.shutdown()?;
+```
+
+`force_flush()` exports queued traces and metrics without closing the providers.
+`shutdown()` flushes and closes them, returns exporter failures, and is idempotent. Dropping
+the guard also performs best-effort shutdown.
+
+## Verification
+
+The repository captures one canonical tool-using conversation through this SDK and through
+plain OpenTelemetry Rust. The production gate requires identical span, trace, session, and
+project-feed messages, including full content digests and tool-call ordering. See
+[Compatibility and verification](/docs/reference/production-readiness/).

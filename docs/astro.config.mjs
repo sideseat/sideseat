@@ -104,6 +104,10 @@ export default defineConfig({
               label: '.NET',
               items: [{ label: 'Overview', link: '/docs/sdks/dotnet/' }],
             },
+            {
+              label: 'Rust',
+              items: [{ label: 'Overview', link: '/docs/sdks/rust/' }],
+            },
           ],
         },
         {
@@ -123,6 +127,7 @@ export default defineConfig({
             { label: 'CLI Reference', slug: 'docs/reference/cli' },
             { label: 'Configuration Schema', slug: 'docs/reference/config' },
             { label: 'OpenTelemetry', slug: 'docs/reference/otel' },
+            { label: 'Compatibility and verification', slug: 'docs/reference/production-readiness' },
             { label: 'Authentication', slug: 'docs/reference/auth' },
             { label: 'Backup and Restore', slug: 'docs/reference/backup-restore' },
             { label: 'Storage Manager', slug: 'docs/reference/storage' },

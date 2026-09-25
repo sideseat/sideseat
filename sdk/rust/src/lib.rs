@@ -57,17 +57,44 @@
 //!
 //! ## Observability
 //!
-//! Wrap any provider with [`InstrumentedProvider`] to emit OpenTelemetry spans and metrics
-//! automatically. Use [`SideSeat::new()`] to initialize the OTel pipeline pointed at
-//! the SideSeat server:
+//! Use [`SideSeat::new()`] to initialize the OpenTelemetry pipeline, create independent root
+//! traces, and parent child spans correctly. Session and user correlation propagates through
+//! nested SideSeat operations:
 //!
 //! ```rust,no_run
-//! # use sideseat::{providers::AnthropicProvider, telemetry::{InstrumentedProvider, SideSeat}};
-//! # async fn example() {
-//! let _guard = SideSeat::new().init();
-//! let provider = InstrumentedProvider::new(AnthropicProvider::from_env().unwrap());
+//! use sideseat::{SideSeat, SideSeatSpanOptions};
+//!
+//! # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+//! let telemetry = SideSeat::new()
+//!     .with_service_name("my-agent")
+//!     .with_framework("custom-rust-agent")
+//!     .init()?;
+//!
+//! telemetry
+//!     .trace(
+//!         "agent-run",
+//!         SideSeatSpanOptions::new()
+//!             .with_session_id("session-123")
+//!             .with_user_id("user-456"),
+//!         |_trace| async {
+//!             telemetry
+//!                 .span(
+//!                     "retrieve-context",
+//!                     SideSeatSpanOptions::new(),
+//!                     |_span| async { Ok::<_, std::io::Error>(()) },
+//!                 )
+//!                 .await
+//!         },
+//!     )
+//!     .await?;
+//!
+//! telemetry.shutdown()?;
+//! # Ok(())
 //! # }
 //! ```
+//!
+//! Wrap any provider with [`InstrumentedProvider`] to emit GenAI semantic-convention spans and
+//! metrics automatically. Prompt and response content capture is opt-in.
 //!
 //! ## Quick Start
 //!

@@ -82,7 +82,7 @@ The CLI writes telemetry to stdout, and stdout is the Agent SDK's message channe
        import { query } from '@anthropic-ai/claude-agent-sdk';
        import { init, Frameworks } from '@sideseat/sdk';
 
-       init({ framework: Frameworks.ClaudeAgentSDK });
+       await init({ framework: Frameworks.ClaudeAgentSDK });
 
        // Passed to the CLI subprocess, which exports OTLP directly.
        const otelEnv = {

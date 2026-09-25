@@ -21,7 +21,8 @@ graph TB
     subgraph "Client Applications"
         A[Python App]
         B[Node.js App]
-        C[Browser]
+        C[Rust / .NET App]
+        W[Browser]
     end
 
     subgraph "SideSeat Server"
@@ -40,8 +41,9 @@ graph TB
 
     A -->|OTLP HTTP| D
     B -->|OTLP HTTP| D
+    C -->|OTLP HTTP| D
     A -->|OTLP gRPC| E
-    C -->|REST/SSE| D
+    W -->|REST/SSE| D
 
     D --> F
     D --> G
@@ -135,13 +137,18 @@ graph LR
     D --> E[Unified Messages]
 ```
 
-This happens at query time via `sideml/normalize.rs`:
+This happens at query time in `server/crates/domain/src/sideml/`:
 
 1. **Extract events** from span
 2. **Categorize** by role (system/user/assistant/tool)
 3. **Parse content** into blocks (text, tool_use, tool_result, etc.)
 4. **Deduplicate** using content hashing
-5. **Sort** by birth time
+5. **Resolve order** from source order, span ancestry, timestamps, and tool causality
+
+The resolver is deterministic under reversed delivery and cache hits. It handles repeated
+history, accumulated framework state, redundant parent snapshots, repeated identical calls,
+and contradictory timestamp evidence without changing which surviving messages appear. The
+full contract is in [Compatibility and verification](/docs/reference/production-readiness/).
 
 ### Query Endpoints
 

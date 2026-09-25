@@ -176,6 +176,32 @@ provider.addSpanProcessor(new BatchSpanProcessor(exporter));
 provider.register();
 ```
 
+### Rust with the SideSeat SDK
+
+```rust
+use sideseat::{SideSeat, SideSeatSpanOptions};
+
+let telemetry = SideSeat::new()
+    .with_service_name("my-agent")
+    .with_framework("custom-rust-agent")
+    .init()?;
+
+telemetry
+    .trace(
+        "agent-run",
+        SideSeatSpanOptions::new()
+            .with_session_id("session-123")
+            .with_user_id("user-456"),
+        |_span| async { Ok::<_, std::io::Error>(()) },
+    )
+    .await?;
+
+telemetry.shutdown()?;
+```
+
+See the [Rust SDK guide](/docs/sdks/rust/) for child spans, provider instrumentation,
+content capture, endpoint routing, and explicit flush behavior.
+
 ### Using gRPC
 
 For higher throughput, use the gRPC endpoint:
@@ -255,6 +281,11 @@ endpoints (`/traces/{id}/messages`, `/spans/{trace_id}/{span_id}/messages`) for
 normalized message content, or `?include_raw_span=true` for the untouched OTLP span
 with its events and attributes. Span records carry only the truncated `input_preview`
 and `output_preview` strings for list display.
+
+Message extraction, SideML conversion, deduplication, and ordering happen at read time.
+The raw OTLP span remains the source of truth, so parser fixes also apply to telemetry that
+was stored before the fix. The executable compatibility boundary and ordering rubric are
+documented in [Compatibility and verification](/docs/reference/production-readiness/).
 
 ## Storage
 

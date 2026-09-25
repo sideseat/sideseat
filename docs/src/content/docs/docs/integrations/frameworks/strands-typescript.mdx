@@ -28,7 +28,7 @@ import { Tabs, TabItem, Aside, Steps } from '@astrojs/starlight/components';
    import { init, Frameworks } from '@sideseat/sdk';
    import { Agent } from '@strands-agents/sdk';
 
-   init({ framework: Frameworks.Strands });
+   await init({ framework: Frameworks.Strands });
 
    const agent = new Agent({ model: 'global.anthropic.claude-haiku-4-5-20251001-v1:0' });
    const result = await agent.invoke('What is the capital of France?');
@@ -101,7 +101,7 @@ import { init, Frameworks } from '@sideseat/sdk';
 import { Agent, tool } from '@strands-agents/sdk';
 import { z } from 'zod';
 
-init({ framework: Frameworks.Strands });
+await init({ framework: Frameworks.Strands });
 
 const getWeather = tool({
   name: 'get_weather',

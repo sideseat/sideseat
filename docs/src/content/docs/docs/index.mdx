@@ -65,7 +65,7 @@ print(agent("What is 2+2?"))`,
        code: `import { init, Frameworks } from '@sideseat/sdk';
 import { Agent } from '@strands-agents/sdk';
 
-init({ framework: Frameworks.Strands });
+await init({ framework: Frameworks.Strands });
 
 const agent = new Agent({ model: 'global.anthropic.claude-haiku-4-5-20251001-v1:0' });
 const result = await agent.invoke('What is 2+2?');
@@ -228,7 +228,7 @@ asyncio.run(main())`,
        code: `import { query } from '@anthropic-ai/claude-agent-sdk';
 import { init, Frameworks } from '@sideseat/sdk';
 
-init({ framework: Frameworks.ClaudeAgentSDK });
+await init({ framework: Frameworks.ClaudeAgentSDK });
 
 const otelEnv = {
   CLAUDE_CODE_ENABLE_TELEMETRY: '1',
