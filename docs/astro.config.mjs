@@ -100,6 +100,10 @@ export default defineConfig({
                 { label: 'init() / createClient()', slug: 'docs/sdks/typescript/init' },
               ],
             },
+            {
+              label: '.NET',
+              items: [{ label: 'Overview', link: '/docs/sdks/dotnet/' }],
+            },
           ],
         },
         {

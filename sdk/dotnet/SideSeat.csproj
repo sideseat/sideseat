@@ -5,10 +5,13 @@
     <LangVersion>latest</LangVersion>
     <Nullable>enable</Nullable>
     <RootNamespace>SideSeat</RootNamespace>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+    <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
 
     <!-- NuGet package metadata -->
     <PackageId>SideSeat</PackageId>
-    <Version>0.1.0</Version>
+    <Version>0.2.0</Version>
     <Authors>SideSeat</Authors>
     <Description>AI Development Workbench — Debug, trace, and understand your AI agents</Description>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
@@ -22,6 +25,12 @@
   <ItemGroup>
     <None Include="README.md" Pack="true" PackagePath="" />
     <None Include="LICENSE" Pack="true" PackagePath="" />
+    <Compile Remove="tests/**/*.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="OpenTelemetry" Version="1.19.1" />
+    <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.19.1" />
   </ItemGroup>
 
 </Project>

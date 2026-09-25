@@ -16,6 +16,7 @@ NOTARIZE ?= 0
 SERVER_DIR := server
 WEB_DIR := web
 CLI_DIR := cli
+DOTNET ?= dotnet
 
 # Use the repository-pinned formatter; there is no root Node package.
 PRETTIER := $(WEB_DIR)/node_modules/.bin/prettier
@@ -100,12 +101,12 @@ cli-bin = $(CLI_DIR)/platforms/platform-$(1)/$(BIN_NAME_$(1))
 .PHONY: fmt-check-python lint-python
 .PHONY: harden harden-supply harden-spec
 .PHONY: secret-scan-tree secret-scan-staged secret-scan-range
-.PHONY: test test-rust test-server test-clickhouse test-clickhouse-replicated test-clickhouse-two-shard test-postgres test-redis test-redpanda test-backup-restore bench-http bench-http-distributed footprint test-web test-sdk-js test-sdk-python coverage
+.PHONY: test test-rust test-server test-clickhouse test-clickhouse-replicated test-clickhouse-two-shard test-postgres test-redis test-redpanda test-backup-restore bench-http bench-http-distributed footprint test-web test-sdk-js test-sdk-python test-sdk-dotnet coverage
 .PHONY: build build-web build-server
-.PHONY: build-sdk build-sdk-js build-sdk-python build-sdk-rust
+.PHONY: build-sdk build-sdk-js build-sdk-python build-sdk-rust build-sdk-dotnet
 .PHONY: build-cli build-cli-preflight build-cli-summary $(CLI_BUILD_TARGETS)
 .PHONY: version version-check bump sync-version
-.PHONY: publish publish-cli publish-sdk-js publish-sdk-python
+.PHONY: publish publish-cli publish-sdk-js publish-sdk-python publish-sdk-dotnet
 .PHONY: release
 .PHONY: sync-protocol-schema docs-deps docs-system-deps build-docs dev-docs preview-docs
 .PHONY: build-docker publish-docker
@@ -145,6 +146,7 @@ setup: ## Install development dependencies and hooks
 	@node -e 'var v=process.versions.node.split(".").map(Number), ok=(v[0]===22 && v[1]>=22) || v[0]>=24; if (!ok) { console.error("Error: Node " + process.versions.node + " cannot build this repository. It needs 22.22+ or 24+ (CI uses 24)."); process.exit(1); }'
 	@command -v cargo >/dev/null 2>&1 || { echo "Error: cargo not found. Install Rust"; exit 1; }
 	@command -v uv >/dev/null 2>&1 || { echo "Error: uv not found. Install with: curl -LsSf https://astral.sh/uv/install.sh | sh"; exit 1; }
+	@command -v $(DOTNET) >/dev/null 2>&1 || { echo "Error: dotnet not found. Install .NET 10 SDK"; exit 1; }
 	@echo "[setup] Installing workspace dev tools..."
 	@uv sync --locked --group dev
 	@echo "[setup] Fetching Rust dependencies..."
@@ -365,7 +367,7 @@ harden-spec: ## Model-check every TLA+ specification
 # Test
 # =============================================================================
 
-test: test-rust test-web test-sdk-js test-sdk-python ## Run all regular test suites
+test: test-rust test-web test-sdk-js test-sdk-python test-sdk-dotnet ## Run all regular test suites
 
 # Complete workspace, including the Rust SDK.
 test-rust: ## Test the complete Rust workspace
@@ -473,6 +475,10 @@ test-sdk-python: ## Run Python SDK tests
 	@echo "[test-sdk-python] Running Python SDK tests..."
 	@cd sdk/python && uv run --locked --extra dev pytest
 
+test-sdk-dotnet: ## Run non-vacuous .NET SDK tests
+	@echo "[test-sdk-dotnet] Running .NET SDK tests..."
+	@DOTNET_COMMAND="$(DOTNET)" ./scripts/test-dotnet-sdk.sh
+
 coverage: ## Generate test coverage reports
 	@echo "[coverage] Running tests with coverage..."
 	@command -v cargo-tarpaulin >/dev/null 2>&1 || { echo "Error: cargo-tarpaulin not installed. Install with: cargo install cargo-tarpaulin"; exit 1; }
@@ -502,7 +508,7 @@ build-server: build-web ## Build the server
 # Build -- SDKs
 # =============================================================================
 
-build-sdk: build-sdk-js build-sdk-python build-sdk-rust ## Build implemented SDKs
+build-sdk: build-sdk-js build-sdk-python build-sdk-rust build-sdk-dotnet ## Build implemented SDKs
 
 build-sdk-js: ## Build the JavaScript SDK
 	@echo "[build-sdk-js] Building JS SDK..."
@@ -515,6 +521,11 @@ build-sdk-python: ## Build the Python SDK
 build-sdk-rust: ## Build the Rust SDK
 	@echo "[build-sdk-rust] Building Rust SDK..."
 	$(call run-with-disk-guard,cargo build --locked -p sideseat)
+
+build-sdk-dotnet: ## Build the .NET SDK NuGet package
+	@echo "[build-sdk-dotnet] Building .NET SDK package..."
+	@$(DOTNET) restore sdk/dotnet/SideSeat.csproj --locked-mode
+	@$(DOTNET) pack sdk/dotnet/SideSeat.csproj --configuration Release --no-restore
 
 # =============================================================================
 # Build -- CLI (cross-compile all platforms)
@@ -572,7 +583,7 @@ version: ## Show package versions
 	@echo "SDK (JavaScript):   $$(node -p "require('./sdk/js/package.json').version")"
 	@echo "SDK (Python):       $$(grep '__version__' sdk/python/src/sideseat/_version.py | sed 's/.*\"\(.*\)\".*/\1/')"
 	@echo "SDK (Rust):         $$(sed -n 's/^version = \"\(.*\)\"/\1/p' sdk/rust/Cargo.toml | head -1)"
-	@echo "SDK (.NET, stub):   $$(sed -n 's:.*<Version>\(.*\)</Version>.*:\1:p' sdk/dotnet/SideSeat.csproj)"
+	@echo "SDK (.NET):         $$(sed -n 's:.*<Version>\(.*\)</Version>.*:\1:p' sdk/dotnet/SideSeat.csproj)"
 
 version-check: ## Verify coordinated package versions
 	@CLI_VERSION=$$(node -p "require('./cli/package.json').version") && \
@@ -630,7 +641,7 @@ sync-version: ## Synchronize server and CLI versions
 # Publish
 # =============================================================================
 
-publish: publish-cli publish-sdk-js publish-sdk-python publish-docker ## Publish CLI, SDKs, and Docker image
+publish: publish-cli publish-sdk-js publish-sdk-python publish-sdk-dotnet publish-docker ## Publish CLI, SDKs, and Docker image
 
 publish-cli: ## Publish CLI platform packages
 	@echo "[publish-cli] Verifying npm authentication..."
@@ -693,6 +704,17 @@ publish-sdk-python: ## Publish the Python SDK
 	@echo "[publish-sdk-python] Building and publishing..."
 	@cd sdk/python && uv build && uv publish
 	@echo "[publish-sdk-python] Published $$(grep '__version__' sdk/python/src/sideseat/_version.py | sed 's/.*\"\(.*\)\".*/\1/')"
+
+publish-sdk-dotnet: ## Publish the .NET SDK to NuGet
+	@test -n "$$NUGET_API_KEY" || { echo "Error: NUGET_API_KEY is required"; exit 1; }
+	@$(MAKE) --no-print-directory build-sdk-dotnet
+	@VERSION=$$(sed -n 's:.*<Version>\(.*\)</Version>.*:\1:p' sdk/dotnet/SideSeat.csproj); \
+	PACKAGE="sdk/dotnet/bin/Release/SideSeat.$$VERSION.nupkg"; \
+	test -f "$$PACKAGE" || { echo "Error: package not found: $$PACKAGE"; exit 1; }; \
+	$(DOTNET) nuget push "$$PACKAGE" \
+		--api-key "$$NUGET_API_KEY" \
+		--source "https://api.nuget.org/v3/index.json"
+	@echo "[publish-sdk-dotnet] Published $$(sed -n 's:.*<Version>\(.*\)</Version>.*:\1:p' sdk/dotnet/SideSeat.csproj)"
 
 # =============================================================================
 # Release

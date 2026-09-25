@@ -112,7 +112,7 @@ response = agent("What is 2+2?")
 print(response)
 ```
 
-SDKs: [Python (PyPI)](https://pypi.org/project/sideseat/) | [TypeScript (npm)](https://www.npmjs.com/package/@sideseat/sdk)
+SDKs: [Python (PyPI)](https://pypi.org/project/sideseat/) | [TypeScript (npm)](https://www.npmjs.com/package/@sideseat/sdk) | [.NET (NuGet)](https://www.nuget.org/packages/SideSeat)
 
 ## Features
 

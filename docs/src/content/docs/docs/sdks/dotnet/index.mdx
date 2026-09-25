@@ -1,0 +1,121 @@
+---
+title: .NET SDK
+description: Send correlated .NET traces and sessions to the SideSeat workbench.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+The SideSeat .NET SDK creates OpenTelemetry traces, propagates session and user correlation,
+and exports OTLP/HTTP protobuf to the local workbench. The package targets .NET Standard 2.0;
+the repository tests it on the current .NET 10 LTS SDK.
+
+## Installation
+
+```bash
+dotnet add package SideSeat
+```
+
+Start SideSeat:
+
+```bash
+npx sideseat
+```
+
+## Quick start
+
+```csharp
+using System.Diagnostics;
+using SideSeat;
+
+using var sideSeat = new SideSeatClient(new SideSeatOptions("semantic-kernel")
+{
+    ProjectId = "default",
+    ServiceName = "travel-agent",
+});
+
+using (var trace = sideSeat.StartTrace(
+    "plan-trip",
+    sessionId: "conversation-42",
+    userId: "user-7"))
+{
+    trace.SetAttribute("input.value", "Plan a weekend in Lisbon");
+
+    using var modelCall = sideSeat.StartSpan("chat", ActivityKind.Client);
+    modelCall
+        .SetAttribute("gen_ai.system", "openai")
+        .SetAttribute("gen_ai.request.model", "gpt-5");
+}
+
+sideSeat.ForceFlush();
+```
+
+`StartTrace` creates a root operation detached from any ambient `Activity`.
+`StartSpan` becomes a child of `Activity.Current`. A session or user ID supplied to either
+method propagates to nested SideSeat spans and is restored when the scope is disposed.
+
+<Aside type="note">
+The SDK provides explicit spans and OTLP export. Framework auto-instrumentation remains the
+framework's responsibility; SideSeat reads its standard OpenTelemetry spans alongside spans
+created through this client.
+</Aside>
+
+## Configuration
+
+| Option | Environment fallback | Default |
+|---|---|---|
+| `Endpoint` | `SIDESEAT_ENDPOINT`, `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT`, `OTEL_EXPORTER_OTLP_ENDPOINT` | `http://127.0.0.1:5388` |
+| `ProjectId` | `SIDESEAT_PROJECT_ID` | `default` |
+| `ApiKey` | `SIDESEAT_API_KEY` | unset |
+| `Disabled` | `SIDESEAT_DISABLED` | `false` |
+| `ServiceName` | none | framework name |
+| `ServiceVersion` | none | unset |
+
+The endpoint may be a SideSeat base URL, a project OTLP base URL, or a complete
+`/v1/traces` URL:
+
+```text
+http://localhost:5388
+  -> http://localhost:5388/otel/{projectId}/v1/traces
+
+http://collector:4318/otel/my-project
+  -> http://collector:4318/otel/my-project/v1/traces
+```
+
+When `ApiKey` is set, the exporter sends it as an `Authorization: Bearer ...` header.
+
+## Exceptions
+
+```csharp
+using var span = sideSeat.StartSpan("tool-call");
+try
+{
+    await CallToolAsync();
+}
+catch (Exception error)
+{
+    span.RecordException(error);
+    throw;
+}
+```
+
+`RecordException` sets error status and emits `exception.type`, `exception.message`, and
+`exception.stacktrace`.
+
+## Custom OpenTelemetry processing
+
+Disable the built-in exporter and add processors or exporters before the provider is built:
+
+```csharp
+var options = new SideSeatOptions("custom")
+{
+    ExportTraces = false,
+    ConfigureTracerProvider = builder =>
+    {
+        // builder.AddProcessor(...);
+    },
+};
+using var sideSeat = new SideSeatClient(options);
+```
+
+Dispose the client at shutdown. It flushes queued spans; `ForceFlush()` provides an explicit,
+synchronous flush for short-lived processes.

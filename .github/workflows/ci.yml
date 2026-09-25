@@ -407,6 +407,30 @@ jobs:
       - name: Build
         run: cd sdk/js && npm run build
 
+  check-sdk-dotnet:
+    name: .NET SDK (test, pack)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      # Exact current .NET 10 LTS SDK. The action and toolchain are both pinned so a rerun
+      # of an unchanged commit cannot silently compile against a different SDK.
+      - uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5.4.0
+        with:
+          dotnet-version: '10.0.401'
+          cache: true
+          cache-dependency-path: |
+            sdk/dotnet/packages.lock.json
+            sdk/dotnet/tests/packages.lock.json
+
+      # The wrapper reads the TRX counters and requires at least five executed tests.
+      # `dotnet test` alone exits successfully when no discoverer loads and zero tests run.
+      - name: Test
+        run: make test-sdk-dotnet
+
+      - name: Pack
+        run: make build-sdk-dotnet
+
   check-sdk-python:
     name: Python SDK (fmt, lint, test)
     runs-on: ubuntu-latest
