@@ -24,8 +24,10 @@ def print_available_options():
 
     print("Model Aliases:")
     print("-" * 50)
-    for alias, (provider, model_id) in MODEL_ALIASES.items():
-        print(f"  {alias:20} -> {provider}/{model_id}")
+    for alias, (_, model_id) in MODEL_ALIASES.items():
+        # CrewAI stores provider-qualified LiteLLM IDs (for example
+        # bedrock/global.anthropic...), so prefixing the provider again is misleading.
+        print(f"  {alias:20} -> {model_id}")
     print()
     print(f"Default: {DEFAULT_MODEL}")
 

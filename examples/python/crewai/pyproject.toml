@@ -7,7 +7,7 @@ dependencies = [
     "numpy>=1.26",
     "telemetry-common",
     "sideseat[crewai]",
-    "crewai>=1.10.1",
+    "crewai[anthropic]>=1.10.1",
     "crewai-tools[mcp]>=1.10.1",
     "pymupdf>=1.25.0",
     "boto3>=1.42.22",
