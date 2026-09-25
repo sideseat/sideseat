@@ -24,8 +24,10 @@ def print_available_options():
 
     print("Model Aliases:")
     print("-" * 50)
-    for alias, (provider, model_id) in MODEL_ALIASES.items():
-        print(f"  {alias:20} -> {provider}/{model_id}")
+    for alias, (_, model_id) in MODEL_ALIASES.items():
+        # ADK receives provider-qualified LiteLLM IDs, so the provider is already
+        # present in model_id and must not be prefixed a second time.
+        print(f"  {alias:20} -> {model_id}")
     print()
     print(f"Default: {DEFAULT_MODEL}")
 
