@@ -1371,10 +1371,10 @@ fn sideseat_fluent_builder() {
         .with_project_id("myproject")
         .with_api_key("sk-test")
         .with_capture_content(true);
-    assert_eq!(s.endpoint, "http://custom:1234");
-    assert_eq!(s.project_id, "myproject");
-    assert_eq!(s.api_key, Some("sk-test".to_string()));
-    assert!(s.capture_content);
+    assert_eq!(s.endpoint(), "http://custom:1234");
+    assert_eq!(s.project_id(), "myproject");
+    assert_eq!(s.api_key(), Some("sk-test"));
+    assert!(s.captures_content());
 }
 
 #[test]

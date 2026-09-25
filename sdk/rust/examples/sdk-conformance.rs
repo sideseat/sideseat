@@ -6,7 +6,7 @@ use opentelemetry::{Context, KeyValue};
 use opentelemetry_otlp::WithExportConfig as _;
 use opentelemetry_sdk::Resource;
 use opentelemetry_sdk::trace::{BatchSpanProcessor, SdkTracerProvider};
-use sideseat::telemetry::SideSeat;
+use sideseat::telemetry::{SideSeat, SideSeatSpanOptions};
 
 const SESSION_ID: &str = "sdk-conformance-session";
 const USER_ID: &str = "sdk-conformance-user";
@@ -19,7 +19,7 @@ const FINAL_OUTPUT: &str = r#"[{"role":"assistant","parts":[{"type":"text","cont
 async fn main() -> Result<(), Box<dyn Error>> {
     let mode = std::env::args().nth(1);
     match mode.as_deref() {
-        Some("sdk") => run_with_sideseat()?,
+        Some("sdk") => run_with_sideseat().await?,
         Some("otel") => run_with_opentelemetry()?,
         _ => {
             eprintln!("usage: cargo run -p sideseat --example sdk-conformance -- sdk|otel");
@@ -29,17 +29,55 @@ async fn main() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-fn run_with_sideseat() -> Result<(), Box<dyn Error>> {
+async fn run_with_sideseat() -> Result<(), Box<dyn Error>> {
     let endpoint =
         std::env::var("SIDESEAT_ENDPOINT").unwrap_or_else(|_| "http://127.0.0.1:5388".to_string());
     let project = std::env::var("SIDESEAT_PROJECT_ID").unwrap_or_else(|_| "default".to_string());
     let guard = SideSeat::new()
         .with_endpoint(endpoint)
         .with_project_id(project)
+        .with_service_name("rust-conformance")
+        .with_framework("rust-conformance")
         .init()?;
 
-    emit_conversation();
-    drop(guard);
+    guard
+        .trace(
+            "canonical-agent-run",
+            SideSeatSpanOptions::new()
+                .with_session_id(SESSION_ID)
+                .with_user_id(USER_ID),
+            |_root| async {
+                guard
+                    .span(
+                        "chat canonical-model",
+                        SideSeatSpanOptions::new()
+                            .with_kind(SpanKind::Client)
+                            .with_attributes(chat_attributes(INPUT_MESSAGES, FIRST_OUTPUT, 12, 6)),
+                        |_span| async { Ok::<_, std::io::Error>(()) },
+                    )
+                    .await?;
+
+                guard
+                    .span(
+                        "execute_tool get_weather",
+                        SideSeatSpanOptions::new().with_attributes(tool_attributes()),
+                        |_span| async { Ok::<_, std::io::Error>(()) },
+                    )
+                    .await?;
+
+                guard
+                    .span(
+                        "chat canonical-model",
+                        SideSeatSpanOptions::new()
+                            .with_kind(SpanKind::Client)
+                            .with_attributes(final_chat_attributes()),
+                        |_span| async { Ok::<_, std::io::Error>(()) },
+                    )
+                    .await
+            },
+        )
+        .await?;
+    guard.shutdown()?;
     Ok(())
 }
 
@@ -60,7 +98,7 @@ fn run_with_opentelemetry() -> Result<(), Box<dyn Error>> {
         .build();
     global::set_tracer_provider(provider.clone());
 
-    emit_conversation();
+    emit_raw_conversation();
     provider.force_flush()?;
     provider.shutdown()?;
     Ok(())
@@ -76,7 +114,7 @@ fn trace_endpoint() -> String {
     )
 }
 
-fn emit_conversation() {
+fn emit_raw_conversation() {
     let tracer = global::tracer("rust-conformance");
     let mut root = tracer
         .span_builder("canonical-agent-run")
@@ -88,48 +126,28 @@ fn emit_conversation() {
     let root_context = Context::new().with_span(root);
     let _root_guard = root_context.clone().attach();
 
-    emit_span("chat canonical-model", SpanKind::Client, |span| {
-        span.set_attribute(KeyValue::new("gen_ai.operation.name", "chat"));
-        span.set_attribute(KeyValue::new("gen_ai.provider.name", "conformance"));
-        span.set_attribute(KeyValue::new("gen_ai.request.model", "canonical-model"));
-        span.set_attribute(KeyValue::new("gen_ai.input.messages", INPUT_MESSAGES));
-        span.set_attribute(KeyValue::new("gen_ai.output.messages", FIRST_OUTPUT));
-        span.set_attribute(KeyValue::new("gen_ai.usage.input_tokens", 12_i64));
-        span.set_attribute(KeyValue::new("gen_ai.usage.output_tokens", 6_i64));
+    emit_raw_span("chat canonical-model", SpanKind::Client, |span| {
+        for attribute in chat_attributes(INPUT_MESSAGES, FIRST_OUTPUT, 12, 6) {
+            span.set_attribute(attribute);
+        }
     });
 
-    emit_span("execute_tool get_weather", SpanKind::Internal, |span| {
-        span.set_attribute(KeyValue::new("gen_ai.operation.name", "execute_tool"));
-        span.set_attribute(KeyValue::new("gen_ai.tool.name", "get_weather"));
-        span.set_attribute(KeyValue::new("gen_ai.tool.call.id", "call-weather-1"));
-        span.set_attribute(KeyValue::new("gen_ai.tool.type", "function"));
-        span.set_attribute(KeyValue::new(
-            "gen_ai.tool.call.arguments",
-            r#"{"city":"London"}"#,
-        ));
-        span.set_attribute(KeyValue::new(
-            "gen_ai.tool.call.result",
-            r#"{"temperature_c":18,"condition":"sunny"}"#,
-        ));
+    emit_raw_span("execute_tool get_weather", SpanKind::Internal, |span| {
+        for attribute in tool_attributes() {
+            span.set_attribute(attribute);
+        }
     });
 
-    emit_span("chat canonical-model", SpanKind::Client, |span| {
-        span.set_attribute(KeyValue::new("gen_ai.operation.name", "chat"));
-        span.set_attribute(KeyValue::new("gen_ai.provider.name", "conformance"));
-        span.set_attribute(KeyValue::new("gen_ai.request.model", "canonical-model"));
-        span.set_attribute(KeyValue::new("gen_ai.output.messages", FINAL_OUTPUT));
-        span.set_attribute(KeyValue::new(
-            "gen_ai.response.finish_reasons",
-            r#"["stop"]"#,
-        ));
-        span.set_attribute(KeyValue::new("gen_ai.usage.input_tokens", 24_i64));
-        span.set_attribute(KeyValue::new("gen_ai.usage.output_tokens", 10_i64));
+    emit_raw_span("chat canonical-model", SpanKind::Client, |span| {
+        for attribute in final_chat_attributes() {
+            span.set_attribute(attribute);
+        }
     });
 
     root_context.span().end();
 }
 
-fn emit_span(
+fn emit_raw_span(
     name: &'static str,
     kind: SpanKind,
     add_attributes: impl FnOnce(&mut opentelemetry::global::BoxedSpan),
@@ -139,6 +157,49 @@ fn emit_span(
     add_correlation(&mut span);
     add_attributes(&mut span);
     span.end();
+}
+
+fn chat_attributes(
+    input: &'static str,
+    output: &'static str,
+    input_tokens: i64,
+    output_tokens: i64,
+) -> Vec<KeyValue> {
+    vec![
+        KeyValue::new("gen_ai.operation.name", "chat"),
+        KeyValue::new("gen_ai.provider.name", "conformance"),
+        KeyValue::new("gen_ai.request.model", "canonical-model"),
+        KeyValue::new("gen_ai.input.messages", input),
+        KeyValue::new("gen_ai.output.messages", output),
+        KeyValue::new("gen_ai.usage.input_tokens", input_tokens),
+        KeyValue::new("gen_ai.usage.output_tokens", output_tokens),
+    ]
+}
+
+fn tool_attributes() -> Vec<KeyValue> {
+    vec![
+        KeyValue::new("gen_ai.operation.name", "execute_tool"),
+        KeyValue::new("gen_ai.tool.name", "get_weather"),
+        KeyValue::new("gen_ai.tool.call.id", "call-weather-1"),
+        KeyValue::new("gen_ai.tool.type", "function"),
+        KeyValue::new("gen_ai.tool.call.arguments", r#"{"city":"London"}"#),
+        KeyValue::new(
+            "gen_ai.tool.call.result",
+            r#"{"temperature_c":18,"condition":"sunny"}"#,
+        ),
+    ]
+}
+
+fn final_chat_attributes() -> Vec<KeyValue> {
+    vec![
+        KeyValue::new("gen_ai.operation.name", "chat"),
+        KeyValue::new("gen_ai.provider.name", "conformance"),
+        KeyValue::new("gen_ai.request.model", "canonical-model"),
+        KeyValue::new("gen_ai.output.messages", FINAL_OUTPUT),
+        KeyValue::new("gen_ai.response.finish_reasons", r#"["stop"]"#),
+        KeyValue::new("gen_ai.usage.input_tokens", 24_i64),
+        KeyValue::new("gen_ai.usage.output_tokens", 10_i64),
+    ]
 }
 
 fn add_correlation(span: &mut opentelemetry::global::BoxedSpan) {

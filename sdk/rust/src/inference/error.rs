@@ -37,6 +37,9 @@ pub enum ProviderError {
     #[error("Stream error: {0}")]
     Stream(String),
 
+    #[error("Telemetry error: {0}")]
+    Telemetry(String),
+
     #[error("Missing configuration: {0}")]
     MissingConfig(String),
 

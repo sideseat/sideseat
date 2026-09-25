@@ -120,7 +120,10 @@ pub use provider::{
 };
 pub use providers::GcpAdcTokenProvider;
 pub use registry::ProviderRegistry;
-pub use telemetry::{InstrumentedProvider, SideSeat, SideSeatGuard, TelemetryConfig};
+pub use telemetry::{
+    InstrumentedProvider, KeyValue, SideSeat, SideSeatGuard, SideSeatSpan, SideSeatSpanOptions,
+    SpanKind, Status, TelemetryConfig,
+};
 /// Convenience re-exports for glob imports: `use sideseat::prelude::*`.
 ///
 /// Includes the most frequently used traits, types, and builders. Import specific
