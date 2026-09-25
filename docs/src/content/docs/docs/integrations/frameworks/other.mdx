@@ -63,6 +63,11 @@ result = agent.run_sync('What is the capital of France?')
 print(result.output)
 ```
 
+The compatibility corpus exercises Pydantic AI 2.50.0 with and without the SideSeat SDK,
+including multi-turn history and tool use. `pydantic_ai.all_messages` is expanded into its
+individual turns at read time, so the history snapshot does not appear as an extra context
+message beside the model-call spans.
+
 ## LlamaIndex
 
 LlamaIndex does **not** emit OpenTelemetry itself — it has its own instrumentation dispatcher

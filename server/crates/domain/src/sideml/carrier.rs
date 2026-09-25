@@ -280,6 +280,7 @@ fn legacy_direction_facts(attribute: Option<&str>) -> (bool, bool) {
         "ai.prompt.messages",
         "mlflow.spanInputs",
         "mlflow.spanOutputs",
+        "pydantic_ai.all_messages",
         "request_data",
         "response_data",
     ];

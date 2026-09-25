@@ -10,7 +10,8 @@
       },
       "facts": {
         "preset": "snapshot",
-        "carrier_holds_span_input": true
+        "carrier_holds_span_input": true,
+        "carrier_holds_expandable_message_array": true
       }
     }
   ],

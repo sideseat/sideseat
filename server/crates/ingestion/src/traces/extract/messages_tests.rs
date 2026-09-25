@@ -2813,7 +2813,7 @@ fn test_pydantic_ai_all_messages_empty_array() {
 
 #[test]
 fn test_pydantic_ai_all_messages_full_conversation() {
-    // Full conversation history - wrapped as context message for proper normalization
+    // Full conversation history stays a literal message array for query-time expansion.
     let conversation = r#"[
         {"role":"user","parts":[{"type":"text","content":"What's the weather?"}]},
         {"role":"assistant","parts":[{"type":"tool_call","id":"tc1","name":"get_weather","arguments":{"city":"NYC"}}]},
@@ -2828,23 +2828,9 @@ fn test_pydantic_ai_all_messages_full_conversation() {
     assert!(found, "Should extract full conversation");
     assert_eq!(messages.len(), 1);
 
-    // Wrapped as context message with conversation_history type
     let msg = &messages[0].content;
-    assert!(msg.is_object(), "Should be wrapped as message object");
-    assert_eq!(msg["role"].as_str(), Some("context"));
-    assert_eq!(msg["type"].as_str(), Some("conversation_history"));
-
-    // The conversation array is in the content field
-    let content = &msg["content"];
-    assert!(
-        content.is_array(),
-        "Content should be the conversation array"
-    );
-    assert_eq!(
-        content.as_array().unwrap().len(),
-        4,
-        "Should have 4 messages"
-    );
+    assert!(msg.is_array(), "Should keep the conversation array");
+    assert_eq!(msg.as_array().unwrap().len(), 4, "Should have 4 messages");
 }
 
 #[test]

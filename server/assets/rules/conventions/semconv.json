@@ -300,17 +300,11 @@
     },
     {
       "id": "semconv.all_messages",
-      "doc": "A whole conversation reported on an agent-run span. Wrapped as context with a literal naming what it is, so the array normalises as history rather than as one turn's content.",
+      "doc": "A whole conversation reported on an agent-run span. Kept as its literal message array so query-time expansion produces the individual user, assistant, and tool turns; the snapshot carrier semantics then deduplicate those turns against model-call spans.",
       "read": {
         "attribute": "pydantic_ai.all_messages"
       },
       "parse": "json",
-      "wrap": {
-        "role": "context",
-        "members": {
-          "type": "conversation_history"
-        }
-      },
       "emit": "message",
       "legacy_rank": 150,
       "reads_tool_spans": true

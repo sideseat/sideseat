@@ -41,6 +41,7 @@ SUITES=(
   "openai|uv run --locked --directory examples/python/openai openai-provider {S}"
   "openai-agents|uv run --locked --directory examples/python/openai-agents telemetry-openai-agents {S}"
   "anthropic|uv run --locked --directory examples/python/anthropic anthropic-provider {S}"
+  "pydantic-ai|uv run --locked --directory examples/python/pydantic-ai telemetry-pydantic-ai {S}"
   "agent-framework|uv run --locked --directory examples/python/agent-framework telemetry-agent-framework {S}"
   "claude-agent-sdk|uv run --locked --directory examples/python/claude-agent-sdk claude-agent-sdk {S}"
   # Listed so the inventory is complete and its absence is visible rather than silent. Skipped

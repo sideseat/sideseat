@@ -34,13 +34,15 @@ of the surviving messages rather than silently inventing or dropping content.
 
 ## Current checked-in boundary
 
-The current tracked corpus contains 26 suites, 133 samples, and 296 captured OTLP requests:
+The current tracked corpus contains 28 suites, 135 samples, and 298 captured OTLP requests:
 
 - SideSeat SDK versus plain OpenTelemetry pairs for Python, TypeScript/Node.js, .NET, and Rust;
 - a credential-free OpenAI 3.19.2 / Logfire 6.0.0b7 pair captured both natively and through
   SideSeat Python 1.0.8, including sync, SSE streaming, and tool use;
 - a credential-free Anthropic 1.8.0 / Logfire 6.0.0b7 pair with the same native/SideSeat,
   sync/stream/tool-use coverage;
+- a credential-free Pydantic AI 2.50.0 / Logfire 6.0.0b7 pair covering a direct response,
+  multi-turn history, and a complete tool-call roundtrip;
 - current captures for Strands Python and TypeScript, Vercel AI SDK, Google ADK, LangGraph,
   OpenAI Agents SDK, Claude Agent SDK in Python and TypeScript, Microsoft Agent Framework,
   CrewAI, direct OpenAI, direct Anthropic, and Amazon Bedrock;
@@ -109,7 +111,7 @@ Framework captures that call real models require the corresponding provider cred
 uses committed OTLP payloads, so verification remains deterministic and does not make paid or
 network-dependent model calls.
 
-The direct OpenAI and Anthropic parity fixtures can also be recaptured offline:
+The direct OpenAI, Anthropic, and Pydantic AI parity fixtures can also be recaptured offline:
 
 ```bash
 scripts/message-fixtures/fake-openai.py --port 5401
@@ -121,4 +123,9 @@ scripts/message-fixtures/fake-anthropic.py --port 5402
 ANTHROPIC_API_KEY=x ANTHROPIC_BASE_URL=http://127.0.0.1:5402 \
   CAPTURE_MODEL=claude-sonnet-4-6 \
   scripts/message-fixtures/capture.sh anthropic messages both
+
+scripts/message-fixtures/capture.sh pydantic-ai agent both
 ```
+
+Pydantic AI uses a deterministic in-process `FunctionModel`; no provider credential or local
+HTTP fixture server is required.

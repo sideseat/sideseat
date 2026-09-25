@@ -604,18 +604,14 @@ pub(crate) fn try_otel_genai_messages(
         found = true;
     }
 
-    // pydantic_ai.all_messages - full conversation history on agent run spans
-    // Wrap as context message so it normalizes correctly (array in content field)
+    // pydantic_ai.all_messages - full conversation history on agent run spans.
+    // Keep the literal array: query-time carrier semantics expand it into turns
+    // and deduplicate those snapshots against the model-call spans.
     if let Some(parsed) = extract_json::<JsonValue>(attrs, keys::PYDANTIC_AI_ALL_MESSAGES) {
-        let msg = json!({
-            "role": "context",
-            "type": "conversation_history",
-            "content": parsed
-        });
         messages.push(RawMessage::from_attr(
             keys::PYDANTIC_AI_ALL_MESSAGES,
             timestamp,
-            msg,
+            parsed,
         ));
         found = true;
     }

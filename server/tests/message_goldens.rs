@@ -4346,15 +4346,11 @@ fn no_declared_rule_is_dead_across_the_corpus() {
         ),
         (
             "pydantic-ai.tool_arguments",
-            "no captured fixture for the suite",
+            "Pydantic AI 2.50 emits gen_ai.tool.call.arguments instead of this legacy key",
         ),
         (
             "pydantic-ai.tool_response",
-            "no captured fixture for the suite",
-        ),
-        (
-            "semconv.all_messages",
-            "no captured producer writes the whole conversation under one convention key",
+            "Pydantic AI 2.50 emits gen_ai.tool.call.result instead of this legacy key",
         ),
         (
             "semconv.indexed_completion",
