@@ -104,18 +104,57 @@ fn names_a_result_after_its_call() {
     assert_eq!(resolved_id(&blocks[1]).as_deref(), Some("call-1"));
 }
 
-/// Rule 1: a provider-supplied id is authoritative and must survive untouched.
+/// Rule 1: a provider-supplied id naming a visible call is authoritative.
 #[test]
 fn never_overwrites_a_real_id() {
     let mut blocks = vec![
         call("t1", Some("call-1"), "calc", json!({})),
-        result("t1", Some("provider-id"), Some("calc"), "42"),
+        result("t1", Some("call-1"), Some("calc"), "42"),
     ];
     correlate_tool_results(&mut blocks);
-    assert_eq!(resolved_id(&blocks[1]).as_deref(), Some("provider-id"));
+    assert_eq!(resolved_id(&blocks[1]).as_deref(), Some("call-1"));
 }
 
-/// Rule 2: correlation never crosses a trace boundary.
+/// Google GenAI 2.25 + its OTel instrumentor 1.2b0 preserves the real call id, but gives its
+/// automatically generated FunctionResponse an independent `<name>_<index>` fallback.
+#[test]
+fn repairs_google_genai_indexed_fallback_id() {
+    let mut blocks = vec![
+        call(
+            "t1",
+            Some("weather-call-1"),
+            "get_weather",
+            json!({"location": "Paris"}),
+        ),
+        result("t1", Some("get_weather_0"), None, "Sunny"),
+    ];
+
+    correlate_tool_results(&mut blocks);
+
+    assert_eq!(resolved_id(&blocks[1]).as_deref(), Some("weather-call-1"));
+    assert!(blocks[1].tool_use_id_correlated);
+    assert!(matches!(
+        &blocks[1].content,
+        ContentBlock::ToolResult { name: Some(name), .. } if name == "get_weather"
+    ));
+}
+
+/// An unknown provider id that is not the OTel utility's indexed fallback remains untouched: the
+/// referenced call may simply be outside a span-scoped view.
+#[test]
+fn preserves_an_arbitrary_unknown_provider_id() {
+    let mut blocks = vec![
+        call("t1", Some("call-1"), "calc", json!({})),
+        result("t1", Some("provider-id"), Some("calc"), "42"),
+    ];
+
+    correlate_tool_results(&mut blocks);
+
+    assert_eq!(resolved_id(&blocks[1]).as_deref(), Some("provider-id"));
+    assert!(!blocks[1].tool_use_id_correlated);
+}
+
+/// Rule 3: correlation never crosses a trace boundary.
 #[test]
 fn does_not_match_across_traces() {
     let mut blocks = vec![

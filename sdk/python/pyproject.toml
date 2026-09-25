@@ -52,7 +52,7 @@ openai = ["logfire>=4.29.0"]
 # library does not otherwise matter. Only the Anthropic integration needs this - the
 # openai one has no module-level httpx import.
 anthropic = ["logfire>=4.29.0", "httpx>=0.27"]
-google-genai = ["logfire>=4.29.0"]
+google-genai = ["logfire[google-genai]>=4.29.0"]
 vertex-ai = [
     "opentelemetry-instrumentation-vertexai>=0.62.3",
     "google-cloud-aiplatform>=2.2.0",
@@ -82,7 +82,7 @@ all = [
     "openinference-instrumentation-agno>=0.1.0",
     "openinference-instrumentation-smolagents>=0.1.0",
     "openinference-instrumentation-haystack>=0.1.0",
-    "logfire>=4.29.0",
+    "logfire[google-genai]>=4.29.0",
     "httpx>=0.27",
     "wrapt>=1.14.0",
     "websockets>=12",

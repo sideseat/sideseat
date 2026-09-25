@@ -471,6 +471,19 @@ def test_vertex_ai_extra_installs_the_instrumented_sdk():
     }
 
 
+def test_google_genai_extra_installs_logfires_instrumentor():
+    """Logfire keeps Google GenAI instrumentation behind its own extra."""
+    from pathlib import Path
+
+    import tomllib
+
+    pyproject = Path(__file__).resolve().parents[1] / "pyproject.toml"
+    extras = tomllib.loads(pyproject.read_text())["project"]["optional-dependencies"]
+
+    assert extras["google-genai"] == ["logfire[google-genai]>=4.29.0"]
+    assert "logfire[google-genai]>=4.29.0" in extras["all"]
+
+
 def test_trace_starts_a_root_span_even_when_nested():
     """`trace()` promises a root span. It used to delegate to `span()` verbatim, so nesting
     it inside an active span produced a child and the "groups child spans into a single

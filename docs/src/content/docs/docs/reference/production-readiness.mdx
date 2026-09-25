@@ -34,7 +34,7 @@ of the surviving messages rather than silently inventing or dropping content.
 
 ## Current checked-in boundary
 
-The current tracked corpus contains 28 suites, 135 samples, and 298 captured OTLP requests:
+The current tracked corpus contains 30 suites, 137 samples, and 300 captured OTLP requests:
 
 - SideSeat SDK versus plain OpenTelemetry pairs for Python, TypeScript/Node.js, .NET, and Rust;
 - a credential-free OpenAI 3.19.2 / Logfire 6.0.0b7 pair captured both natively and through
@@ -43,6 +43,8 @@ The current tracked corpus contains 28 suites, 135 samples, and 298 captured OTL
   sync/stream/tool-use coverage;
 - a credential-free Pydantic AI 2.50.0 / Logfire 6.0.0b7 pair covering a direct response,
   multi-turn history, and a complete tool-call roundtrip;
+- a credential-free Google GenAI 2.25.0 / Logfire 6.0.0b7 pair covering ordinary generation,
+  SSE streaming, and automatic Python function calling with exact native/SideSeat parity;
 - current captures for Strands Python and TypeScript, Vercel AI SDK, Google ADK, LangGraph,
   OpenAI Agents SDK, Claude Agent SDK in Python and TypeScript, Microsoft Agent Framework,
   CrewAI, direct OpenAI, direct Anthropic, and Amazon Bedrock;
@@ -111,7 +113,7 @@ Framework captures that call real models require the corresponding provider cred
 uses committed OTLP payloads, so verification remains deterministic and does not make paid or
 network-dependent model calls.
 
-The direct OpenAI, Anthropic, and Pydantic AI parity fixtures can also be recaptured offline:
+The direct OpenAI, Anthropic, Google GenAI, and Pydantic AI parity fixtures can also be recaptured offline:
 
 ```bash
 scripts/message-fixtures/fake-openai.py --port 5401
@@ -125,7 +127,12 @@ ANTHROPIC_API_KEY=x ANTHROPIC_BASE_URL=http://127.0.0.1:5402 \
   scripts/message-fixtures/capture.sh anthropic messages both
 
 scripts/message-fixtures/capture.sh pydantic-ai agent both
+
+scripts/message-fixtures/fake-google-genai.py --port 5404
+GOOGLE_GENAI_BASE_URL=http://127.0.0.1:5404 \
+  scripts/message-fixtures/capture.sh google-genai generate_content both
 ```
 
 Pydantic AI uses a deterministic in-process `FunctionModel`; no provider credential or local
-HTTP fixture server is required.
+HTTP fixture server is required. The Google endpoint is a deterministic Gemini-compatible wire
+fixture; the sample still runs the real Google GenAI client and OpenTelemetry instrumentor.

@@ -17,6 +17,15 @@ The [Google Gen AI SDK](https://github.com/googleapis/python-genai) is the unifi
 - Python SDK installed with the Google GenAI extra (`pip install "sideseat[google-genai]"`)
 - Google API key or Google Cloud credentials configured
 
+The `google-genai` extra includes Logfire's Google GenAI OpenTelemetry instrumentor; installing
+plain `sideseat` does not install that optional integration.
+
+<Aside type="note">
+The checked-in compatibility fixture uses Google GenAI 2.25.0, Logfire 6.0.0b7, the Google GenAI
+OpenTelemetry instrumentor 1.2b0, and OpenTelemetry Python 1.44.0. Native Logfire setup and
+SideSeat Python 1.0.8 produce identical requests, spans, traces, sessions, and project-feed output.
+</Aside>
+
 ## Gemini Developer API
 
 SideSeat instruments the Google Gen AI SDK automatically. Initialize SideSeat with the `GoogleGenAI` framework, then use the SDK as usual:
@@ -177,38 +186,38 @@ for chunk in gemini.models.generate_content_stream(
 
 ## Tool Use
 
-Tool definitions and function call results are captured:
+Tool definitions, automatic function calls, Python execution results, and the final model answer are
+captured as one causal conversation:
 
 ```python
 from sideseat import SideSeat, Frameworks
 from google import genai
-from google.genai.types import FunctionDeclaration, Tool
+from google.genai import types
 
 client = SideSeat(framework=Frameworks.GoogleGenAI)
 gemini = genai.Client(api_key="your-api-key")
 
-get_weather = FunctionDeclaration(
-    name="get_weather",
-    description="Get the current weather for a location.",
-    parameters={
-        "type": "object",
-        "properties": {
-            "location": {"type": "string", "description": "City name"}
-        },
-        "required": ["location"],
-    },
-)
+def get_weather(location: str) -> str:
+    """Get the current weather for a location."""
+    return f"Sunny, 22°C in {location}"
 
-tool = Tool(function_declarations=[get_weather])
-
-response = gemini.models.generate_content(
+chat = gemini.chats.create(
     model="gemini-2.5-flash",
-    contents="What's the weather in Paris?",
-    config={"tools": [tool]},
+    config=types.GenerateContentConfig(tools=[get_weather]),
 )
+response = chat.send_message("What's the weather in Paris?")
+print(response.text)
 ```
 
-SideSeat captures the tool definitions, function call requests, and function call results.
+With automatic function calling enabled by the Google SDK, the displayed order is:
+
+```text
+user → assistant tool_use → tool tool_result → assistant
+```
+
+The current Google OpenTelemetry utility can generate a response-side fallback id independently
+from the real function-call id. SideSeat correlates that known wire shape at read time, so the
+tool result links to the call without rewriting stored telemetry.
 
 ## Authentication
 

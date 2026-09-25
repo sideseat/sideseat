@@ -3,12 +3,12 @@ revision = 3
 requires-python = ">=3.10"
 resolution-markers = [
     "python_full_version >= '3.15' and extra != 'extra-8-sideseat-all' and extra != 'extra-8-sideseat-autogen' and extra == 'extra-8-sideseat-vertex-ai'",
+    "python_full_version >= '3.15' and extra == 'extra-8-sideseat-autogen' and extra != 'extra-8-sideseat-vertex-ai'",
+    "python_full_version >= '3.15' and extra != 'extra-8-sideseat-autogen' and extra != 'extra-8-sideseat-vertex-ai'",
     "python_full_version == '3.14.*' and extra != 'extra-8-sideseat-all' and extra != 'extra-8-sideseat-autogen' and extra == 'extra-8-sideseat-vertex-ai'",
     "python_full_version == '3.13.*' and extra != 'extra-8-sideseat-all' and extra != 'extra-8-sideseat-autogen' and extra == 'extra-8-sideseat-vertex-ai'",
     "python_full_version < '3.13' and extra != 'extra-8-sideseat-all' and extra != 'extra-8-sideseat-autogen' and extra == 'extra-8-sideseat-vertex-ai'",
-    "python_full_version >= '3.15' and extra == 'extra-8-sideseat-autogen' and extra != 'extra-8-sideseat-vertex-ai'",
     "python_full_version < '3.15' and extra == 'extra-8-sideseat-autogen' and extra != 'extra-8-sideseat-vertex-ai'",
-    "python_full_version >= '3.15' and extra != 'extra-8-sideseat-autogen' and extra != 'extra-8-sideseat-vertex-ai'",
     "python_full_version < '3.15' and extra != 'extra-8-sideseat-autogen' and extra != 'extra-8-sideseat-vertex-ai'",
 ]
 conflicts = [[
@@ -747,7 +747,7 @@ resolution-markers = [
     "python_full_version < '3.15'",
 ]
 dependencies = [
-    { name = "protobuf", version = "5.29.6", source = { registry = "https://pypi.org/simple" } },
+    { name = "protobuf", version = "5.29.6", source = { registry = "https://pypi.org/simple" }, marker = "extra == 'extra-8-sideseat-all' or extra == 'extra-8-sideseat-autogen' or extra != 'extra-8-sideseat-vertex-ai'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/b5/c8/f439cffde755cffa462bfbb156278fa6f9d09119719af9814b858fd4f81f/googleapis_common_protos-1.75.0.tar.gz", hash = "sha256:53a062ff3c32552fbd62c11fe23768b78e4ddf0494d5e5fd97d3f4689c75fbbd", size = 151035, upload-time = "2026-05-07T08:04:49.423Z" }
 wheels = [
@@ -1090,6 +1090,11 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/10/4e/714730339dfe5e5a517f2e8fc015a5137d9c147928eeda0d2a0524c2aa94/logfire-5.1.1-py3-none-any.whl", hash = "sha256:ee2e25b83830f52ea3d7a1b35cf6f783490b2ba349f0383ca8ae6f5ff2a4f7dd", size = 479430, upload-time = "2026-09-25T09:19:46.597Z" },
 ]
 
+[package.optional-dependencies]
+google-genai = [
+    { name = "opentelemetry-instrumentation-google-genai" },
+]
+
 [[package]]
 name = "markdown-it-py"
 version = "4.2.0"
@@ -1407,6 +1412,22 @@ wheels = [
 ]
 
 [[package]]
+name = "opentelemetry-instrumentation-google-genai"
+version = "1.2b0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "opentelemetry-api" },
+    { name = "opentelemetry-instrumentation" },
+    { name = "opentelemetry-semantic-conventions" },
+    { name = "opentelemetry-util-genai" },
+    { name = "wrapt" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/fe/b6/84a6d02b38368a96664f46be3bded882835a56c2ea11c9b947e21a7d3b1d/opentelemetry_instrumentation_google_genai-1.2b0.tar.gz", hash = "sha256:6bd5e0e7fde7aa75d2f2c5b821dc960d83d5c3a0466ffef4bda5568863436004", size = 154286, upload-time = "2026-09-24T16:36:53.324Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/1e/cf/0675887a311d14190c0b415c91815cc9f2a114aa1a691188b599a888d9e1/opentelemetry_instrumentation_google_genai-1.2b0-py3-none-any.whl", hash = "sha256:892e24b44698026201348de71c077c2f75c4f48c24ee5d9048b0c6793115e53c", size = 37445, upload-time = "2026-09-24T16:36:51.956Z" },
+]
+
+[[package]]
 name = "opentelemetry-instrumentation-vertexai"
 version = "0.62.3"
 source = { registry = "https://pypi.org/simple" }
@@ -1472,6 +1493,21 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/24/02/10aeacc37a38a3a8fa16ff67bec1ae3bf882539f6f9efb0f70acf802ca2d/opentelemetry_semantic_conventions_ai-0.5.1.tar.gz", hash = "sha256:153906200d8c1d2f8e09bd78dbef526916023de85ac3dab35912bfafb69ff04c", size = 26533, upload-time = "2026-03-26T14:20:38.73Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/55/22/41fb05f1dc5fda2c468e05a41814c20859016c85117b66c8a257cae814f6/opentelemetry_semantic_conventions_ai-0.5.1-py3-none-any.whl", hash = "sha256:25aeb22bd261543b4898a73824026d96770e5351209c7d07a0b1314762b1f6e4", size = 11250, upload-time = "2026-03-26T14:20:37.108Z" },
+]
+
+[[package]]
+name = "opentelemetry-util-genai"
+version = "1.2b0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "opentelemetry-api" },
+    { name = "opentelemetry-instrumentation" },
+    { name = "opentelemetry-semantic-conventions" },
+    { name = "wrapt" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/a2/57/6315b3fd34c4723e06769c60f7c956fe687e50201858ea91443b3ac84adb/opentelemetry_util_genai-1.2b0.tar.gz", hash = "sha256:1de6cadafc86f0c1a9c6d4495859d954652a5a48485e261a0506f15f9ede01a1", size = 95041, upload-time = "2026-09-24T16:38:06.17Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/ad/74/8f244eebabc40addd757bdccbc891f182bf70f9c6b24949e98f449a64363/opentelemetry_util_genai-1.2b0-py3-none-any.whl", hash = "sha256:2ac7ef06eb7f31396532cbdef7a53ee128b9fdf37f39098b8e2140bac31d9abb", size = 59187, upload-time = "2026-09-24T16:38:04.816Z" },
 ]
 
 [[package]]
@@ -1922,7 +1958,7 @@ agui = [
 all = [
     { name = "ag-ui-protocol" },
     { name = "httpx" },
-    { name = "logfire" },
+    { name = "logfire", extra = ["google-genai"], marker = "extra == 'extra-8-sideseat-all' or extra == 'extra-8-sideseat-autogen' or extra != 'extra-8-sideseat-vertex-ai'" },
     { name = "openinference-instrumentation-agno" },
     { name = "openinference-instrumentation-autogen" },
     { name = "openinference-instrumentation-autogen-agentchat" },
@@ -1953,7 +1989,7 @@ dev = [
     { name = "ruff" },
 ]
 google-genai = [
-    { name = "logfire" },
+    { name = "logfire", extra = ["google-genai"] },
 ]
 haystack = [
     { name = "openinference-instrumentation-haystack" },
@@ -1991,12 +2027,12 @@ requires-dist = [
     { name = "google-cloud-aiplatform", marker = "extra == 'vertex-ai'", specifier = ">=2.2.0" },
     { name = "httpx", marker = "extra == 'all'", specifier = ">=0.27" },
     { name = "httpx", marker = "extra == 'anthropic'", specifier = ">=0.27" },
-    { name = "logfire", marker = "extra == 'all'", specifier = ">=4.29.0" },
     { name = "logfire", marker = "extra == 'anthropic'", specifier = ">=4.29.0" },
-    { name = "logfire", marker = "extra == 'google-genai'", specifier = ">=4.29.0" },
     { name = "logfire", marker = "extra == 'openai'", specifier = ">=4.29.0" },
     { name = "logfire", marker = "extra == 'openai-agents'", specifier = ">=4.29.0" },
     { name = "logfire", marker = "extra == 'pydantic-ai'", specifier = ">=4.29.0" },
+    { name = "logfire", extras = ["google-genai"], marker = "extra == 'all'", specifier = ">=4.29.0" },
+    { name = "logfire", extras = ["google-genai"], marker = "extra == 'google-genai'", specifier = ">=4.29.0" },
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.13.0" },
     { name = "openinference-instrumentation-agno", marker = "extra == 'agno'", specifier = ">=0.1.0" },
     { name = "openinference-instrumentation-agno", marker = "extra == 'all'", specifier = ">=0.1.0" },

@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- The `google-genai` and `all` extras now install Logfire's required Google GenAI
+  OpenTelemetry instrumentor
 - Anthropic 1.8 `Omit` sentinels are removed from Logfire's telemetry copy without mutating the
   request, so sync, streaming, and tool-use calls emit spans again
 - Anthropic 1.8 streaming uses the SDK's new persistent JSON accumulator state, restoring complete

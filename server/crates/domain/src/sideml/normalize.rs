@@ -327,6 +327,30 @@ fn expand_message_array(result: &mut Vec<Observed>, raw: &RawMessage, path: &Pos
         }
     }
 
+    // `opentelemetry-util-genai` represents a streamed Gemini answer as one output message per
+    // chunk. That is transport framing, not a conversation with the assistant taking several
+    // turns. It is distinguishable from multiple candidates: every intermediate chunk is
+    // text-only and unfinished, while the final chunk alone carries a finish reason.
+    //
+    // Do this at query time so captures already stored with that shape are repaired too. Keep
+    // the first item's position because the combined observation starts where the stream starts.
+    let source_name = match &raw.source {
+        MessageSource::Event { name, .. } => name.as_str(),
+        MessageSource::Attribute { key, .. } => key.as_str(),
+    };
+    if source_name == "gen_ai.output.messages"
+        && let Some(combined) = coalesce_streamed_output_messages(arr)
+    {
+        result.push((
+            RawMessage {
+                source: raw.source.clone(),
+                content: combined,
+            },
+            array_path.child_index(0),
+        ));
+        return;
+    }
+
     // Expand array into individual messages
     let mut expanded_count = 0;
     let mut skipped_count = 0;
@@ -353,6 +377,53 @@ fn expand_message_array(result: &mut Vec<Observed>, raw: &RawMessage, path: &Pos
             "Expanded message array with some non-message items skipped"
         );
     }
+}
+
+/// Combine a text-only output stream into the single assistant turn it represents.
+///
+/// Returns `None` unless the shape proves this is chunk framing:
+/// - at least two assistant messages;
+/// - every part is text;
+/// - all but the final message are unfinished;
+/// - the final message has a non-empty finish reason.
+///
+/// Multiple candidates therefore stay separate, as does any multimodal or tool-call stream whose
+/// concatenation would require provider-specific semantics.
+fn coalesce_streamed_output_messages(messages: &[JsonValue]) -> Option<JsonValue> {
+    if messages.len() < 2 {
+        return None;
+    }
+
+    let mut text = String::new();
+    for (index, message) in messages.iter().enumerate() {
+        if message.get("role").and_then(JsonValue::as_str) != Some("assistant") {
+            return None;
+        }
+
+        let parts = message.get("parts").and_then(JsonValue::as_array)?;
+        if parts.is_empty() {
+            return None;
+        }
+        for part in parts {
+            if part.get("type").and_then(JsonValue::as_str) != Some("text") {
+                return None;
+            }
+            text.push_str(part.get("content").and_then(JsonValue::as_str)?);
+        }
+
+        let finish = message
+            .get("finish_reason")
+            .and_then(JsonValue::as_str)
+            .unwrap_or("");
+        let is_final = index + 1 == messages.len();
+        if (is_final && finish.is_empty()) || (!is_final && !finish.is_empty()) {
+            return None;
+        }
+    }
+
+    let mut combined = messages.last()?.clone();
+    combined["parts"] = json!([{"content": text, "type": "text"}]);
+    Some(combined)
 }
 
 /// Check if a JSON value looks like a message object.
@@ -1178,6 +1249,68 @@ mod tests {
         expand_message_array(&mut result, &raw, &PositionPath::root(0));
 
         assert_eq!(result.len(), 2, "Gemini format should be expanded");
+    }
+
+    #[test]
+    fn test_expand_message_array_coalesces_google_genai_stream_chunks() {
+        let raw = RawMessage {
+            source: MessageSource::Attribute {
+                key: "gen_ai.output.messages".to_string(),
+                time: Utc::now(),
+            },
+            content: json!([
+                {
+                    "role": "assistant",
+                    "parts": [{"content": "Water boils at 10", "type": "text"}],
+                    "finish_reason": ""
+                },
+                {
+                    "role": "assistant",
+                    "parts": [{"content": "0°C at sea level.", "type": "text"}],
+                    "finish_reason": "stop"
+                }
+            ]),
+        };
+
+        let mut result = Vec::new();
+        expand_message_array(&mut result, &raw, &PositionPath::root(0));
+
+        assert_eq!(result.len(), 1);
+        assert_eq!(
+            result[0].0.content,
+            json!({
+                "role": "assistant",
+                "parts": [{"content": "Water boils at 100°C at sea level.", "type": "text"}],
+                "finish_reason": "stop"
+            })
+        );
+    }
+
+    #[test]
+    fn test_expand_message_array_keeps_multiple_finished_candidates_separate() {
+        let raw = RawMessage {
+            source: MessageSource::Attribute {
+                key: "gen_ai.output.messages".to_string(),
+                time: Utc::now(),
+            },
+            content: json!([
+                {
+                    "role": "assistant",
+                    "parts": [{"content": "Candidate one", "type": "text"}],
+                    "finish_reason": "stop"
+                },
+                {
+                    "role": "assistant",
+                    "parts": [{"content": "Candidate two", "type": "text"}],
+                    "finish_reason": "stop"
+                }
+            ]),
+        };
+
+        let mut result = Vec::new();
+        expand_message_array(&mut result, &raw, &PositionPath::root(0));
+
+        assert_eq!(result.len(), 2);
     }
 
     #[test]
