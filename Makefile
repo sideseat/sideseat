@@ -108,7 +108,7 @@ cli-bin = $(CLI_DIR)/platforms/platform-$(1)/$(BIN_NAME_$(1))
 .PHONY: version version-check bump sync-version
 .PHONY: publish publish-cli publish-sdk-js publish-sdk-python publish-sdk-dotnet
 .PHONY: release
-.PHONY: sync-protocol-schema docs-deps docs-system-deps build-docs dev-docs preview-docs capture-sdk-conformance-dotnet capture-sdk-conformance-python capture-sdk-conformance-javascript
+.PHONY: sync-protocol-schema docs-deps docs-system-deps build-docs dev-docs preview-docs capture-sdk-conformance-dotnet capture-sdk-conformance-python capture-sdk-conformance-javascript capture-sdk-conformance-rust
 .PHONY: build-docker publish-docker
 .PHONY: sign-release sign-verify sign-notarize
 .PHONY: build-release publish-release publish-brew
@@ -496,6 +496,9 @@ capture-sdk-conformance-python: ## Capture Python SDK-on and raw-OTel message fi
 
 capture-sdk-conformance-javascript: ## Capture JavaScript SDK-on and raw-OTel message fixtures
 	@NPM_COMMAND=npm ./scripts/message-fixtures/capture-javascript-conformance.sh
+
+capture-sdk-conformance-rust: ## Capture Rust SDK-on and raw-OTel message fixtures
+	@CARGO_COMMAND=cargo ./scripts/message-fixtures/capture-rust-conformance.sh
 
 coverage: ## Generate test coverage reports
 	@echo "[coverage] Running tests with coverage..."

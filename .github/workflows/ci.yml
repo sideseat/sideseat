@@ -513,7 +513,7 @@ jobs:
         with:
           version: '0.12.13'
           enable-cache: true
-          cache-dependency-glob: examples/python/${{ matrix.suite }}/uv.lock
+          cache-dependency-glob: examples/python/${{matrix.suite}}/uv.lock
 
       # Import every declared sample and initialize telemetry in both modes.
       # This is credential-free: the unreachable endpoint catches accidental
