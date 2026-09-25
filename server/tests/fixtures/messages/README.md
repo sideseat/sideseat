@@ -120,10 +120,16 @@ make capture-sdk-conformance-python
 Needs working model credentials, since the samples call a real model.
 
 ```bash
-scripts/message-fixtures/capture.sh                    # every suite
-scripts/message-fixtures/capture.sh strands            # one suite
-scripts/message-fixtures/capture.sh strands tool_use   # one sample
+scripts/message-fixtures/capture.sh                         # every suite, native + SDK
+scripts/message-fixtures/capture.sh strands                 # one suite, native + SDK
+scripts/message-fixtures/capture.sh strands tool_use native # one native sample
+scripts/message-fixtures/capture.sh strands tool_use sdk    # the matching SDK sample
 ```
+
+New captures use `<suite>-native/<sample>` and `<suite>-sdk/<sample>` so the support
+matrix can prove framework-level parity instead of mixing instrumentation modes under one
+name. The historical unsuffixed corpus remains immutable evidence for the versions listed
+above; pass `legacy` explicitly only when reproducing one of those old captures.
 
 Then record the expectations, **read them**, and only then let them gate:
 

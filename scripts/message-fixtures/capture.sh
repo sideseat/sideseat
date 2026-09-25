@@ -9,12 +9,14 @@
 # Only Bedrock credentials are assumed; suites needing a first-party key are skipped.
 #
 # Usage:
-#   scripts/message-fixtures/capture.sh                 # every suite/sample below
-#   scripts/message-fixtures/capture.sh strands         # one suite
-#   scripts/message-fixtures/capture.sh strands tool_use  # one sample
+#   scripts/message-fixtures/capture.sh                       # every suite/sample, native + SDK
+#   scripts/message-fixtures/capture.sh strands               # one suite, native + SDK
+#   scripts/message-fixtures/capture.sh strands tool_use sdk  # one sample, SDK only
+#   scripts/message-fixtures/capture.sh strands tool_use native
 #
-# Re-running overwrites the fixture directory for the samples it covers and leaves the rest
-# alone, so a single flaky sample can be re-captured without touching the others.
+# Native and SDK captures are written to `<suite>-native/<sample>` and
+# `<suite>-sdk/<sample>`. `legacy` is available as the third argument only when an
+# old unsuffixed fixture must be reproduced.
 
 set -uo pipefail
 
@@ -68,6 +70,25 @@ discover_samples() {
 
 want_suite="${1:-}"
 want_sample="${2:-}"
+capture_mode="${3:-both}"
+
+case "$capture_mode" in
+  both|native|sdk|legacy) ;;
+  *)
+    echo "usage: $0 [suite] [sample] [both|native|sdk|legacy]" >&2
+    exit 2
+    ;;
+esac
+
+# Keep the two modes operationally isolated: each pass owns its recorder, temporary
+# directory and examples/.env backup. A failure in one mode still allows the other to
+# finish, and the combined invocation reports failure if either pass failed.
+if [[ "$capture_mode" == "both" ]]; then
+  status=0
+  "$REPO_ROOT/scripts/message-fixtures/capture.sh" "$want_suite" "$want_sample" native || status=1
+  "$REPO_ROOT/scripts/message-fixtures/capture.sh" "$want_suite" "$want_sample" sdk || status=1
+  exit "$status"
+fi
 
 recorder_pid=""
 ENV_FILE="examples/.env"
@@ -173,7 +194,11 @@ for entry in "${SUITES[@]}"; do
       continue
     fi
     total=$((total + 1))
-    label="${suite}/${sample}"
+    if [[ "$capture_mode" == "legacy" ]]; then
+      label="${suite}/${sample}"
+    else
+      label="${suite}-${capture_mode}/${sample}"
+    fi
     echo ""
     echo "=============================================================="
     echo "[capture] $label"
@@ -181,7 +206,7 @@ for entry in "${SUITES[@]}"; do
 
     rm -rf "${FIXTURES:?}/${label}"
 
-    recorder_log="$RUN_DIR/recorder-${suite}-${sample}.log"
+    recorder_log="$RUN_DIR/recorder-${suite}-${sample}-${capture_mode}.log"
     python3 scripts/message-fixtures/record-otlp.py --label "$label" --port "$PORT" >"$recorder_log" 2>&1 &
     recorder_pid=$!
     printf '%s\n' "$recorder_pid" >"$RECORDER_PID_FILE"
@@ -203,7 +228,10 @@ for entry in "${SUITES[@]}"; do
     fi
 
     cmd="${runner//\{S\}/$sample}"
-    sample_log="$RUN_DIR/sample-${suite}-${sample}.log"
+    if [[ "$capture_mode" == "sdk" ]]; then
+      cmd="$cmd --sideseat"
+    fi
+    sample_log="$RUN_DIR/sample-${suite}-${sample}-${capture_mode}.log"
     if OTEL_EXPORTER_OTLP_ENDPOINT="$RECORD_ENDPOINT" \
        SIDESEAT_ENDPOINT="http://127.0.0.1:${PORT}" \
        timeout 600 bash -c "$cmd" >"$sample_log" 2>&1; then
