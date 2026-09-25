@@ -13,6 +13,25 @@ the same sample names** — the provider suites have their own (`bedrock` has `c
 `invoke_model`, not `tool_use`). Run `--list` to see what a suite actually offers; that is also
 what `scripts/message-fixtures/capture.sh` does rather than assuming.
 
+Without `--sideseat`, each suite uses its framework's native instrumentation and a raw
+OpenTelemetry exporter. With `--sideseat`, the SideSeat SDK owns framework instrumentation
+and export. Run both forms when validating parser parity.
+
+Current lockfile baselines:
+
+| Suite | Framework/provider SDK |
+| --- | --- |
+| Strands | `strands-agents 1.57.0` |
+| LangGraph | `langgraph 1.2.12` |
+| CrewAI | `crewai 1.15.22` |
+| Google ADK | `google-adk 2.9.2` |
+| AutoGen | `autogen-agentchat 0.7.5` |
+| OpenAI Agents | `openai-agents 0.22.3` |
+| Microsoft Agent Framework | `agent-framework-core 1.19.0` |
+| Claude Agent SDK | `claude-agent-sdk 0.2.159` |
+| Anthropic provider | `anthropic 1.8.0` |
+| OpenAI provider | `openai 3.19.2` |
+
 ### Strands
 
 ```bash
@@ -85,7 +104,8 @@ uv run --locked --directory openai-agents telemetry-openai-agents tool_use      
 uv run --locked --directory openai-agents telemetry-openai-agents all                 # Run all samples
 ```
 
-Default model: `openai-gpt5nano` (OpenAI models only). Requires `OPENAI_API_KEY`.
+Default model: `bedrock-openai-luna`. It uses AWS credentials through Bedrock's
+OpenAI-compatible endpoint; direct `openai-*` aliases require `OPENAI_API_KEY`.
 
 ### Claude Agent SDK
 
@@ -138,9 +158,9 @@ uv run --locked --directory agent-framework telemetry-agent-framework error     
 uv run --locked --directory agent-framework telemetry-agent-framework all                # Run all samples
 ```
 
-Default model: `openai-gpt5nano`. The suite only implements the `openai` and `anthropic`
-providers, so it needs `OPENAI_API_KEY` or `ANTHROPIC_API_KEY` - it cannot run on Bedrock
-credentials alone.
+Default model: `bedrock-openai-luna`. The suite supports OpenAI and Anthropic APIs directly
+and routes `bedrock-*` aliases through Bedrock-compatible clients, so the default runs with
+AWS credentials alone.
 
 ### Anthropic Provider (raw SDK)
 
@@ -154,10 +174,11 @@ uv run --locked --directory anthropic anthropic-provider document     # PDF anal
 uv run --locked --directory anthropic anthropic-provider session      # Session with multiple traces
 uv run --locked --directory anthropic anthropic-provider error        # Error handling
 uv run --locked --directory anthropic anthropic-provider all          # Run all samples
+uv run --locked --directory anthropic anthropic-provider messages --sideseat  # SideSeat SDK mode
 ```
 
-Default model: `anthropic-haiku`. Requires `ANTHROPIC_API_KEY` - this suite exercises the
-first-party Anthropic API, not Bedrock.
+Default model: `bedrock-anthropic-sonnet5`, using AWS credentials through Bedrock's
+Anthropic-compatible endpoint. Direct `anthropic-*` aliases require `ANTHROPIC_API_KEY`.
 
 ### OpenAI Provider (raw SDK)
 
@@ -170,9 +191,11 @@ uv run --locked --directory openai openai-provider vision            # Image ana
 uv run --locked --directory openai openai-provider session           # Session with multiple traces
 uv run --locked --directory openai openai-provider error             # Error handling
 uv run --locked --directory openai openai-provider all               # Run all samples
+uv run --locked --directory openai openai-provider responses --sideseat  # SideSeat SDK mode
 ```
 
-Default model: `openai-gpt5nano` (OpenAI models only). Requires `OPENAI_API_KEY`.
+Default model: `bedrock-openai-luna`, using AWS credentials through Bedrock's
+OpenAI-compatible endpoint. Direct `openai-*` aliases require `OPENAI_API_KEY`.
 
 ### Bedrock (raw boto3 API)
 
@@ -185,6 +208,7 @@ uv run --locked --directory bedrock bedrock document                  # PDF + im
 uv run --locked --directory bedrock bedrock session                   # Session with multiple traces
 uv run --locked --directory bedrock bedrock error                     # Error handling
 uv run --locked --directory bedrock bedrock all                       # Run all samples
+uv run --locked --directory bedrock bedrock converse --sideseat       # SideSeat SDK mode
 ```
 
 Default model: `bedrock-haiku` (AWS Bedrock models only).

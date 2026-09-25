@@ -17,7 +17,7 @@ its own uv project, and `uv run` creates its environment. Frameworks you do not 
 `--locked` throughout, here and in `run-all.sh`: a bare `uv run` rewrites a suite's lockfile to match a drifted
 manifest. `make update-python-deps` is the command that intentionally refreshes those lockfiles.
 
-OpenTelemetry versions differ between suites **on purpose**: google-adk 2.7 requires
+OpenTelemetry versions differ between suites **on purpose**: google-adk 2.9 requires
 `opentelemetry-sdk >=1.39,<=1.42.1`, and crewai and agent-framework hold their own ceilings. Each suite is an
 isolated environment, so the split is harmless - forcing them onto one version makes the resolver refuse.
 
@@ -119,7 +119,9 @@ Framework samples (Strands, LangGraph, etc.):
 --list                    # List available samples and models
 ```
 
-Provider samples (OpenAI, Anthropic, Bedrock) always use SideSeat SDK — no `--sideseat` flag needed. They accept `--model` and `--list`.
+All provider and framework suites use native framework/OpenTelemetry instrumentation by
+default. Add `--sideseat` to run the same sample with SideSeat owning instrumentation and
+the OTLP pipeline. This makes each suite an SDK-vs-native conformance pair.
 
 ### Model Aliases
 
@@ -133,7 +135,10 @@ Provider samples (OpenAI, Anthropic, Bedrock) always use SideSeat SDK — no `--
 | `openai-gpt5nano`  | OpenAI GPT-5 Nano                  |
 | `gemini-flash`     | Google Gemini Flash                |
 
-Default model varies by sample: Strands/LangGraph/CrewAI/ADK/Bedrock use `bedrock-haiku`, AutoGen uses `anthropic-haiku`, OpenAI Agents/Microsoft Agent Framework/OpenAI provider use `openai-gpt5nano`, Anthropic provider uses `anthropic-haiku`.
+Default model varies by sample: Strands/LangGraph/CrewAI/ADK/Bedrock/Claude Agent SDK use
+`bedrock-haiku`; AutoGen uses `anthropic-haiku`; OpenAI Agents, Microsoft Agent Framework,
+and the OpenAI provider use `bedrock-openai-luna`; the Anthropic provider uses
+`bedrock-anthropic-sonnet5`.
 
 ### Load Testing
 
