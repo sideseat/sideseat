@@ -108,7 +108,7 @@ cli-bin = $(CLI_DIR)/platforms/platform-$(1)/$(BIN_NAME_$(1))
 .PHONY: version version-check bump sync-version
 .PHONY: publish publish-cli publish-sdk-js publish-sdk-python publish-sdk-dotnet
 .PHONY: release
-.PHONY: sync-protocol-schema docs-deps docs-system-deps build-docs dev-docs preview-docs
+.PHONY: sync-protocol-schema docs-deps docs-system-deps build-docs dev-docs preview-docs capture-sdk-conformance-dotnet
 .PHONY: build-docker publish-docker
 .PHONY: sign-release sign-verify sign-notarize
 .PHONY: build-release publish-release publish-brew
@@ -478,6 +478,9 @@ test-sdk-python: ## Run Python SDK tests
 test-sdk-dotnet: ## Run non-vacuous .NET SDK tests
 	@echo "[test-sdk-dotnet] Running .NET SDK tests..."
 	@DOTNET_COMMAND="$(DOTNET)" ./scripts/test-dotnet-sdk.sh
+
+capture-sdk-conformance-dotnet: ## Capture .NET SDK-on and raw-OTel message fixtures
+	@DOTNET_COMMAND="$(DOTNET)" ./scripts/message-fixtures/capture-dotnet-conformance.sh
 
 coverage: ## Generate test coverage reports
 	@echo "[coverage] Running tests with coverage..."

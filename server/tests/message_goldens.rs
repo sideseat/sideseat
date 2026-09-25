@@ -1425,6 +1425,78 @@ fn message_goldens() {
     eprintln!("message_goldens: {checked} fixture(s) matched");
 }
 
+/// SideSeat SDK setup must not change the conversation a user sees compared with a
+/// standards-only OpenTelemetry setup emitting the same spans.
+///
+/// Conformance fixtures use paired suite names: `<language>-otel/<sample>` and
+/// `<language>-sdk/<sample>`. Every view is compared, including span topology and session
+/// grouping, so parity cannot pass by checking only a flattened message feed.
+#[test]
+fn sdk_and_plain_otel_conformance_are_identical() {
+    let fixtures: BTreeMap<String, Vec<PathBuf>> = discover_fixtures().into_iter().collect();
+    let mut compared = 0usize;
+
+    // Explicit because framework suite names can themselves end in `-sdk`
+    // (`claude-agent-sdk`), which is not an SDK-vs-OTel conformance pair.
+    const LANGUAGES: &[&str] = &["dotnet"];
+    const SAMPLE: &str = "canonical";
+    for language in LANGUAGES {
+        let sdk_label = format!("{language}-sdk/{SAMPLE}");
+        let otel_label = format!("{language}-otel/{SAMPLE}");
+        let sdk_paths = fixtures
+            .get(&sdk_label)
+            .unwrap_or_else(|| panic!("missing SideSeat SDK conformance fixture {sdk_label}"));
+        let otel_paths = fixtures.get(&otel_label).unwrap_or_else(|| {
+            panic!("missing raw OpenTelemetry conformance fixture {otel_label}")
+        });
+
+        let sdk_rows = rows_for(sdk_paths);
+        let otel_rows = rows_for(otel_paths);
+        let sdk = build_golden(&sdk_label, sdk_paths, &sdk_rows).golden;
+        let otel = build_golden(&otel_label, otel_paths, &otel_rows).golden;
+
+        assert_eq!(
+            sdk.request_count, otel.request_count,
+            "{sdk_label}: SDK and raw OTel exported a different number of requests"
+        );
+        assert_eq!(
+            sdk.span_count, otel.span_count,
+            "{sdk_label}: SDK and raw OTel produced different span topology"
+        );
+        assert_eq!(
+            sdk.trace_count, otel.trace_count,
+            "{sdk_label}: trace count"
+        );
+        assert_eq!(
+            sdk.session_count, otel.session_count,
+            "{sdk_label}: session count"
+        );
+        assert_eq!(
+            sdk.span_views, otel.span_views,
+            "{sdk_label}: span message views differ from raw OTel"
+        );
+        assert_eq!(
+            sdk.trace_views, otel.trace_views,
+            "{sdk_label}: trace message views differ from raw OTel"
+        );
+        assert_eq!(
+            sdk.session_views, otel.session_views,
+            "{sdk_label}: session message views differ from raw OTel"
+        );
+        assert_eq!(
+            sdk.feed_view, otel.feed_view,
+            "{sdk_label}: project feed differs from raw OTel"
+        );
+        compared += 1;
+    }
+
+    assert_eq!(
+        compared,
+        LANGUAGES.len(),
+        "not every declared SDK language had a complete conformance pair"
+    );
+}
+
 /// Human-readable differences between one expected and one actual view.
 fn compare_view(name: &str, e: &GoldenView, a: &GoldenView) -> Vec<String> {
     let mut out = Vec::new();

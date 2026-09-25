@@ -4,6 +4,7 @@ set -euo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 dotnet_command="${DOTNET_COMMAND:-dotnet}"
 project="$repo_root/sdk/dotnet/tests/SideSeat.Tests.csproj"
+conformance_project="$repo_root/examples/dotnet/conformance/SideSeat.Conformance.csproj"
 results_dir="$(mktemp -d)"
 trx_file="$results_dir/sideseat.trx"
 
@@ -49,3 +50,9 @@ if executed < minimum:
     )
 print(f"[test-sdk-dotnet] verified {executed} executed test(s) from TRX")
 PY
+
+"$dotnet_command" restore "$conformance_project" --locked-mode
+"$dotnet_command" build "$conformance_project" \
+  --configuration Release \
+  --no-restore \
+  -warnaserror

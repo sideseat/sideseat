@@ -63,13 +63,15 @@ the corpus matches it.
 | `claude-agent-sdk` | claude-agent-sdk >=0.2.0 | 8 | 17 |
 | `claude-agent-sdk-js` | @anthropic-ai/claude-agent-sdk ^0.3.246 | 8 | 17 |
 | `crewai` | crewai >=1.10.1 | 9 | 33 |
+| `dotnet-otel` | OpenTelemetry .NET 1.19.1 on .NET SDK 10.0.401 | 1 | 1 |
+| `dotnet-sdk` | SideSeat .NET 0.2.0 / OpenTelemetry 1.19.1 on .NET SDK 10.0.401 | 1 | 1 |
 | `langgraph` | langgraph >=1.1.2 | 9 | 23 |
 | `openai` | openai >=1.80.0 | 6 | 8 |
 | `openai-agents` | openai-agents >=0.12.1 | 10 | 37 |
 | `strands` | strands-agents >=1.30.0 | 10 | 40 |
 | `strands-js` | @strands-agents/sdk ^1.14.0 | 7 | 12 |
 | `vercel-ai-js` | ai ^7.0.79 | 6 | 13 |
-| **14 suites** | | **120** | **283** |
+| **16 suites** | | **122** | **285** |
 
 Two further samples exist but are **not in the repository**: `strands-js/image-gen` and
 `vercel-ai-js/image-gen`, whose payloads are 15 MB and 7 MB of inlined base64 image data (the Python
@@ -77,6 +79,35 @@ Two further samples exist but are **not in the repository**: `strands-js/image-g
 gitignored and captured locally when working on image handling, so the counts above are what a checkout has.
 `local_only_samples_are_actually_gitignored` stops that exemption from excusing a sample somebody merely
 forgot to commit.
+
+## Production message rubric
+
+Each captured sample receives one binary score for every applicable criterion below. A sample is
+100% only when every criterion passes; averaging cannot hide a missing message behind unrelated
+passing checks. Any upstream capability exemption is named per fixture with a reason.
+
+| Criterion | Passing evidence |
+| --- | --- |
+| Wire fidelity | Fixture is the exact OTLP request emitted by the pinned SDK/framework version |
+| Span view | Every span returns only its own messages, in source order |
+| Trace view | Full conversation is complete, ordered, and scoped to one trace |
+| Session view | Traces partition one session exactly; no trace belongs to two sessions |
+| Project feed | Same messages appear once in documented feed order |
+| Content | Full canonical content digests match, not only previews or counts |
+| Tool causality | Every identified result follows one matching call and is answered once |
+| No duplicates | Re-sent history, redundant carriers, and repeated delivery add no copy |
+| Determinism | Re-run, reverse arrival order, and cache hit produce identical output |
+| SDK parity | `<language>-sdk` and `<language>-otel` pairs match in span, trace, session, and feed views |
+
+The rubric is enforced by `message_goldens`, its invariant tests, and
+`sdk_and_plain_otel_conformance_are_identical`. A support-matrix row is not considered SDK parity
+coverage until both paired suites are committed.
+
+The credential-free .NET pair is reproduced with:
+
+```bash
+make capture-sdk-conformance-dotnet
+```
 
 ## Capturing a suite
 
@@ -160,9 +191,10 @@ not hide the rest.
 
 ## What is and is not covered
 
-**121 expectation files: 104 captured in 13 suites, plus 17 synthetic.** A suite is not a framework:
+**123 tracked expectation files: 106 captured in 15 suites, plus 17 synthetic.** A suite is not a framework:
 `strands`/`strands-js` and `claude-agent-sdk`/`claude-agent-sdk-js` are one framework each in two
-languages, so the 13 captured suites cover **11 of the 32** frameworks SideSeat recognises. (32 is
+languages; the two .NET suites are SDK conformance rather than framework captures. The 13 framework
+suites cover **11 of the 32** frameworks SideSeat recognises. (32 is
 the union of the server's `Framework` classifier and the SDK's framework list, excluding `Unknown`:
 28 named server variants plus `anthropic`, `openai`, `google-genai` and `pydantic-ai`, which only the
 SDK names.) Every framework is not covered, and the gap is deliberate rather than hidden:
@@ -170,6 +202,7 @@ SDK names.) Every framework is not covered, and the gap is deliberate rather tha
 | Covered by fixtures (11) | strands, langgraph, crewai, google-adk, bedrock, openai, openai-agents, anthropic, agent-framework, claude-agent-sdk, vercel-ai — strands and claude-agent-sdk in both languages, vercel-ai in JS only |
 | ------------------- | --- |
 | Synthetic, not a framework | `_synthetic/*` — hand-written payloads for shapes no captured sample produces, counted in the file total and in neither the suites nor the frameworks. See below. |
+| SDK conformance, not a framework | `dotnet-otel/canonical` and `dotnet-sdk/canonical` — the same real four-span, five-message conversation exported without and with the SideSeat SDK |
 | Has samples, no fixtures | `autogen` — its runner has no Bedrock path, so capturing it needs a first-party key. Listed in the capture script and skipped with a message, so its absence is visible. |
 | Recognised, no fixtures (21) | ag2, agentscope, agno, autogen, azure-ai-foundry, azure-openai, browser-use, google-genai, haystack, langchain, langflow, livekit, llamaindex, logfire, mlflow, **openinference**, pydantic-ai, semantic-kernel, smolagents, traceloop, vertex-ai |
 
