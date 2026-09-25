@@ -33,7 +33,7 @@ def print_available_options():
 def create_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="anthropic-provider",
-        description="Run Anthropic API samples with SideSeat instrumentation",
+        description="Run Anthropic API samples with native or SideSeat telemetry",
     )
 
     parser.add_argument(
@@ -52,8 +52,7 @@ def create_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--sideseat",
         action="store_true",
-        help="No-op: these samples are always instrumented with the SideSeat SDK. "
-        "Accepted so the invocation matches the other sample suites.",
+        help="Use SideSeat SDK instead of native Logfire/OpenTelemetry",
     )
 
     parser.add_argument(

@@ -2,13 +2,17 @@
 
 from sideseat import Frameworks, SideSeat
 
+from common.telemetry import setup_logfire_telemetry
 
-def setup_telemetry():
+
+def setup_telemetry(use_sideseat: bool = False):
     """Initialize telemetry for Anthropic samples.
 
-    SideSeat uses logfire to capture Anthropic API calls
-    (messages, streaming) with full message events.
+    Native mode configures Logfire and a raw OTLP exporter. SideSeat mode delegates
+    provider instrumentation and export pipeline ownership to the SDK.
     """
-    client = SideSeat(framework=Frameworks.Anthropic)
-    client.telemetry.setup_console_exporter()
-    return client
+    if use_sideseat:
+        client = SideSeat(framework=Frameworks.Anthropic)
+        client.telemetry.setup_console_exporter()
+        return client
+    return setup_logfire_telemetry("instrument_anthropic", "anthropic-sample")

@@ -5,12 +5,75 @@ instrumentors. Supports both standard OpenTelemetry and SideSeat SDK modes.
 """
 
 import os
-from typing import Callable
+from contextlib import AbstractContextManager
+from typing import Any, Callable
 
 from opentelemetry import trace
+from opentelemetry.trace import Span
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor, ConsoleSpanExporter
+
+
+class NativeTraceClient:
+    """Minimal SideSeat-compatible trace owner backed by a native OTel provider."""
+
+    def __init__(self, provider: Any, instrumentation_scope: str) -> None:
+        self.tracer_provider = provider
+        self._tracer = provider.get_tracer(instrumentation_scope)
+
+    def trace(
+        self,
+        name: str,
+        *,
+        session_id: str | None = None,
+        user_id: str | None = None,
+    ) -> AbstractContextManager[Span]:
+        attributes = {}
+        if session_id is not None:
+            attributes["session.id"] = session_id
+        if user_id is not None:
+            attributes["user.id"] = user_id
+        return self._tracer.start_as_current_span(name, attributes=attributes)
+
+    def shutdown(self) -> None:
+        shutdown = getattr(self.tracer_provider, "shutdown", None)
+        if shutdown is not None:
+            shutdown()
+
+
+def setup_logfire_telemetry(
+    instrument_method: str,
+    service_name: str,
+) -> NativeTraceClient:
+    """Configure a provider SDK through Logfire without using the SideSeat SDK."""
+    import logfire
+
+    logfire.configure(
+        service_name=service_name,
+        send_to_logfire=False,
+        console=False,
+    )
+    getattr(logfire, instrument_method)()
+
+    provider = trace.get_tracer_provider()
+    if not hasattr(provider, "add_span_processor"):
+        raise RuntimeError("Logfire did not create a usable TracerProvider")
+    _add_standard_exporters(provider)
+    return NativeTraceClient(provider, service_name)
+
+
+def _add_standard_exporters(provider: Any) -> None:
+    """Attach the console and SideSeat OTLP exporters to an existing provider."""
+    provider.add_span_processor(BatchSpanProcessor(ConsoleSpanExporter()))
+    if os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT"):
+        provider.add_span_processor(BatchSpanProcessor(OTLPSpanExporter()))
+        return
+
+    sideseat_base = os.getenv("SIDESEAT_ENDPOINT", "http://127.0.0.1:5388").rstrip("/")
+    project_id = os.getenv("SIDESEAT_PROJECT_ID", "default")
+    endpoint = f"{sideseat_base}/otel/{project_id}/v1/traces"
+    provider.add_span_processor(BatchSpanProcessor(OTLPSpanExporter(endpoint=endpoint)))
 
 
 def setup_base_telemetry(
@@ -51,20 +114,7 @@ def setup_base_telemetry(
             provider = TracerProvider()
             trace.set_tracer_provider(provider)
 
-        provider.add_span_processor(BatchSpanProcessor(ConsoleSpanExporter()))
-
-        if os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT"):
-            # SDK reads the env var and appends /v1/traces automatically
-            provider.add_span_processor(BatchSpanProcessor(OTLPSpanExporter()))
-        else:
-            sideseat_base = os.getenv(
-                "SIDESEAT_ENDPOINT", "http://127.0.0.1:5388"
-            ).rstrip("/")
-            project_id = os.getenv("SIDESEAT_PROJECT_ID", "default")
-            endpoint = f"{sideseat_base}/otel/{project_id}/v1/traces"
-            provider.add_span_processor(
-                BatchSpanProcessor(OTLPSpanExporter(endpoint=endpoint))
-            )
+        _add_standard_exporters(provider)
 
         if instrumentor:
             instrumentor(provider)
