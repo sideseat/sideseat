@@ -10580,17 +10580,19 @@ fn an_idless_result_is_correlated_only_when_span_ids_order_its_call_first() {
     );
 }
 
-/// Equal sibling timestamps must not let random span ids scramble a complete tool turn.
+/// Millisecond-quantized sibling timestamps must not let random span ids scramble a tool turn.
 ///
 /// This is the shape emitted by a fast OpenTelemetry JavaScript request: the runtime gives the
-/// generation, tool and final-generation spans the same millisecond timestamp, while the database
-/// necessarily falls back to `span_id`. The ids below deliberately sort as tool, final, preamble.
-/// Payload causality is still sufficient to recover user -> preamble -> call -> result -> final.
+/// first generation one millisecond and the tool/final-generation spans the next, while the database
+/// necessarily falls back to `span_id` inside the tie. The ids below deliberately sort final before
+/// tool. Payload causality is still sufficient to recover
+/// user -> preamble -> call -> result -> final.
 #[test]
-fn an_unambiguous_equal_time_sibling_tool_turn_ignores_span_id_order() {
+fn an_unambiguous_quantized_sibling_tool_turn_ignores_span_id_order() {
     use super::order_graph::Constraints;
 
     let t = fixed_time();
+    let tied = t + chrono::Duration::milliseconds(1);
     let first_generation = json!([
         {
             "source": {"attribute": {"key": "gen_ai.input.messages", "time": t}},
@@ -10645,8 +10647,8 @@ fn an_unambiguous_equal_time_sibling_tool_turn_ignores_span_id_order() {
             "a-tool",
             Some("root"),
             &tool.to_string(),
-            t,
-            Some(t),
+            tied,
+            Some(tied),
             Some("tool"),
         ),
         make_span_row_full(
@@ -10654,8 +10656,8 @@ fn an_unambiguous_equal_time_sibling_tool_turn_ignores_span_id_order() {
             "b-final",
             Some("root"),
             &final_generation.to_string(),
-            t,
-            Some(t),
+            tied,
+            Some(tied),
             Some("generation"),
         ),
         make_span_row_full(
