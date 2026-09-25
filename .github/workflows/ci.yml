@@ -477,6 +477,57 @@ jobs:
       - name: Build
         run: make build-sdk-python
 
+  check-python-frameworks:
+    name: Python framework (${{ matrix.suite }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - suite: strands
+            python: '3.13'
+          - suite: langgraph
+            python: '3.13'
+          - suite: crewai
+            python: '3.13'
+          - suite: adk
+            python: '3.13'
+          - suite: autogen
+            python: '3.13'
+          - suite: openai-agents
+            python: '3.13'
+          - suite: agent-framework
+            python: '3.12'
+          - suite: claude-agent-sdk
+            python: '3.13'
+          - suite: anthropic
+            python: '3.13'
+          - suite: openai
+            python: '3.13'
+          - suite: bedrock
+            python: '3.13'
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - uses: astral-sh/setup-uv@6b9c6063abd6010835644d4c2e1bef4cf5cd0fca # v6.0.1
+        with:
+          version: '0.12.13'
+          enable-cache: true
+          cache-dependency-glob: examples/python/${{ matrix.suite }}/uv.lock
+
+      # Import every declared sample and initialize telemetry in both modes.
+      # This is credential-free: the unreachable endpoint catches accidental
+      # network dependence while still exercising provider construction.
+      - name: Native and SideSeat SDK smoke tests
+        env:
+          SIDESEAT_ENDPOINT: http://127.0.0.1:1
+        run: |
+          project="examples/python/${{ matrix.suite }}"
+          for mode in native sdk; do
+            uv run --locked --python "${{ matrix.python }}" --project "$project" \
+              python scripts/python-framework-smoke.py "$project" "$mode"
+          done
+
   check-versions:
     name: Version Check
     runs-on: ubuntu-latest

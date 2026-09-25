@@ -101,7 +101,7 @@ cli-bin = $(CLI_DIR)/platforms/platform-$(1)/$(BIN_NAME_$(1))
 .PHONY: fmt-check-python lint-python
 .PHONY: harden harden-supply harden-spec
 .PHONY: secret-scan-tree secret-scan-staged secret-scan-range
-.PHONY: test test-rust test-server test-clickhouse test-clickhouse-replicated test-clickhouse-two-shard test-postgres test-redis test-redpanda test-backup-restore bench-http bench-http-distributed footprint test-web test-sdk-js test-sdk-python test-sdk-dotnet coverage
+.PHONY: test test-rust test-server test-clickhouse test-clickhouse-replicated test-clickhouse-two-shard test-postgres test-redis test-redpanda test-backup-restore bench-http bench-http-distributed footprint test-web test-sdk-js test-sdk-python test-sdk-dotnet test-python-frameworks coverage
 .PHONY: build build-web build-server
 .PHONY: build-sdk build-sdk-js build-sdk-python build-sdk-rust build-sdk-dotnet
 .PHONY: build-cli build-cli-preflight build-cli-summary $(CLI_BUILD_TARGETS)
@@ -479,6 +479,10 @@ test-sdk-python: ## Run Python SDK tests
 	@cd examples/python/common && uv run --locked --extra dev pytest
 	@uv run --locked --project examples/python/sdk-conformance \
 		python examples/python/sdk-conformance/conformance.py --help >/dev/null
+
+test-python-frameworks: ## Import every Python framework suite in native and SideSeat modes
+	@echo "[test-python-frameworks] Running native/SDK framework smoke matrix..."
+	@./scripts/test-python-frameworks.sh
 
 test-sdk-dotnet: ## Run non-vacuous .NET SDK tests
 	@echo "[test-sdk-dotnet] Running .NET SDK tests..."
