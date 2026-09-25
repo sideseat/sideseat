@@ -2,18 +2,8 @@ name: Build and Deploy Docs
 
 on:
   workflow_dispatch:
-  # Built on pull requests too, and only *deployed* from main. Building after merge means a broken site is
-  # discovered on the branch that publishes it.
+  # Pull requests still build the site, while deployment from main is manual. Direct pushes do not start CI.
   pull_request:
-    # `Makefile` is in both lists because this workflow builds through `make build-docs`: a change there
-    # changes what it does, and both filters omitted it, so a Makefile-only regression to the docs build was
-    # built neither before nor after merge. Spelled twice because GitHub's parser has no YAML anchors.
-    paths:
-      - 'docs/**'
-      - '.github/workflows/docs.yml'
-      - 'Makefile'
-  push:
-    branches: [main]
     paths:
       - 'docs/**'
       - '.github/workflows/docs.yml'
@@ -69,9 +59,8 @@ jobs:
 
   deploy:
     needs: build-docs
-    # A pull request builds to prove the site still builds; publishing belongs to main alone - and `main` has
-    # to be *said*, because `workflow_dispatch` can be aimed at any branch, so excluding pull requests alone
-    # left a manual run from a branch able to publish it.
+    # Publishing is a manual action from main. `main` must be explicit because workflow_dispatch can target
+    # any branch.
     if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     concurrency:
