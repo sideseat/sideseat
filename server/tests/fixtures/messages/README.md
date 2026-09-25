@@ -68,10 +68,12 @@ the corpus matches it.
 | `langgraph` | langgraph >=1.1.2 | 9 | 23 |
 | `openai` | openai >=1.80.0 | 6 | 8 |
 | `openai-agents` | openai-agents >=0.12.1 | 10 | 37 |
+| `python-otel` | OpenTelemetry Python 1.44.0 on CPython 3.14.7 | 1 | 1 |
+| `python-sdk` | SideSeat Python 1.0.8 / OpenTelemetry 1.44.0 on CPython 3.14.7 | 1 | 1 |
 | `strands` | strands-agents >=1.30.0 | 10 | 40 |
 | `strands-js` | @strands-agents/sdk ^1.14.0 | 7 | 12 |
 | `vercel-ai-js` | ai ^7.0.79 | 6 | 13 |
-| **16 suites** | | **122** | **285** |
+| **18 suites** | | **124** | **287** |
 
 Two further samples exist but are **not in the repository**: `strands-js/image-gen` and
 `vercel-ai-js/image-gen`, whose payloads are 15 MB and 7 MB of inlined base64 image data (the Python
@@ -103,10 +105,11 @@ The rubric is enforced by `message_goldens`, its invariant tests, and
 `sdk_and_plain_otel_conformance_are_identical`. A support-matrix row is not considered SDK parity
 coverage until both paired suites are committed.
 
-The credential-free .NET pair is reproduced with:
+The credential-free SDK pairs are reproduced with:
 
 ```bash
 make capture-sdk-conformance-dotnet
+make capture-sdk-conformance-python
 ```
 
 ## Capturing a suite
@@ -191,9 +194,9 @@ not hide the rest.
 
 ## What is and is not covered
 
-**123 tracked expectation files: 106 captured in 15 suites, plus 17 synthetic.** A suite is not a framework:
+**125 tracked expectation files: 108 captured in 17 suites, plus 17 synthetic.** A suite is not a framework:
 `strands`/`strands-js` and `claude-agent-sdk`/`claude-agent-sdk-js` are one framework each in two
-languages; the two .NET suites are SDK conformance rather than framework captures. The 13 framework
+languages; the four .NET/Python suites are SDK conformance rather than framework captures. The 13 framework
 suites cover **11 of the 32** frameworks SideSeat recognises. (32 is
 the union of the server's `Framework` classifier and the SDK's framework list, excluding `Unknown`:
 28 named server variants plus `anthropic`, `openai`, `google-genai` and `pydantic-ai`, which only the
@@ -202,7 +205,7 @@ SDK names.) Every framework is not covered, and the gap is deliberate rather tha
 | Covered by fixtures (11) | strands, langgraph, crewai, google-adk, bedrock, openai, openai-agents, anthropic, agent-framework, claude-agent-sdk, vercel-ai — strands and claude-agent-sdk in both languages, vercel-ai in JS only |
 | ------------------- | --- |
 | Synthetic, not a framework | `_synthetic/*` — hand-written payloads for shapes no captured sample produces, counted in the file total and in neither the suites nor the frameworks. See below. |
-| SDK conformance, not a framework | `dotnet-otel/canonical` and `dotnet-sdk/canonical` — the same real four-span, five-message conversation exported without and with the SideSeat SDK |
+| SDK conformance, not a framework | The `dotnet-{otel,sdk}/canonical` and `python-{otel,sdk}/canonical` pairs — the same real four-span, five-message conversation exported without and with each SideSeat SDK |
 | Has samples, no fixtures | `autogen` — its runner has no Bedrock path, so capturing it needs a first-party key. Listed in the capture script and skipped with a message, so its absence is visible. |
 | Recognised, no fixtures (21) | ag2, agentscope, agno, autogen, azure-ai-foundry, azure-openai, browser-use, google-genai, haystack, langchain, langflow, livekit, llamaindex, logfire, mlflow, **openinference**, pydantic-ai, semantic-kernel, smolagents, traceloop, vertex-ai |
 

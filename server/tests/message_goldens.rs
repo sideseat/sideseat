@@ -1438,7 +1438,7 @@ fn sdk_and_plain_otel_conformance_are_identical() {
 
     // Explicit because framework suite names can themselves end in `-sdk`
     // (`claude-agent-sdk`), which is not an SDK-vs-OTel conformance pair.
-    const LANGUAGES: &[&str] = &["dotnet"];
+    const LANGUAGES: &[&str] = &["dotnet", "python"];
     const SAMPLE: &str = "canonical";
     for language in LANGUAGES {
         let sdk_label = format!("{language}-sdk/{SAMPLE}");

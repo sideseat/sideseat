@@ -444,7 +444,9 @@ jobs:
           # tree with `uv sync --locked` under exactly this version before pinning it.
           version: '0.12.13'
           enable-cache: true
-          cache-dependency-glob: sdk/python/uv.lock
+          cache-dependency-glob: |
+            sdk/python/uv.lock
+            examples/python/sdk-conformance/uv.lock
 
       - name: Install dependencies
         run: cd sdk/python && uv sync --locked --extra dev
@@ -462,7 +464,7 @@ jobs:
         run: cd sdk/python && uv run --locked --extra dev mypy src
 
       - name: Test
-        run: cd sdk/python && uv run --locked --extra dev pytest
+        run: make test-sdk-python
 
       # The **published artefacts**, which nothing built: an editable install proves the source imports, not
       # that the sdist and wheel assemble - and a packaging break first appears at `uv publish` otherwise, the
