@@ -17,15 +17,15 @@ def setup_telemetry(use_sideseat: bool = False):
 
     Also instruments boto3/botocore for AWS call tracing.
     """
-    BotocoreInstrumentor().instrument()
-
     if use_sideseat:
-        # SideSeat automatically sets up OTLP traces, metrics, and logs
-        client = SideSeat(framework=Frameworks.Strands)
+        # SideSeat owns both Strands and Bedrock instrumentation in SDK mode.
+        client = SideSeat(framework=[Frameworks.Strands, Frameworks.Bedrock])
         # client.telemetry.setup_file_exporter()
         client.telemetry.setup_console_exporter()
         return client
     else:
+        # The raw OpenTelemetry branch uses the upstream botocore instrumentor.
+        BotocoreInstrumentor().instrument()
         telemetry = StrandsTelemetry()
         telemetry.setup_console_exporter()
         telemetry.setup_otlp_exporter()
