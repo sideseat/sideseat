@@ -140,10 +140,10 @@ update-python-deps: ## Upgrade every Python lockfile
 
 setup: ## Install development dependencies and hooks
 	@echo "[setup] Checking prerequisites..."
-	@command -v node >/dev/null 2>&1 || { echo "Error: node not found. Install Node.js 22.22+ or 24+"; exit 1; }
+	@command -v node >/dev/null 2>&1 || { echo "Error: node not found. Install Node.js ^22.22.0 || ^24.0.0 || >=26.0.0"; exit 1; }
 	@# Bootstrap check before npm dependencies exist; `make node-floor` validates
 	@# this declared range against every lockfile after setup.
-	@node -e 'var v=process.versions.node.split(".").map(Number), ok=(v[0]===22 && v[1]>=22) || v[0]>=24; if (!ok) { console.error("Error: Node " + process.versions.node + " cannot build this repository. It needs 22.22+ or 24+ (CI uses 24)."); process.exit(1); }'
+	@node -e 'var v=process.versions.node.split(".").map(Number), ok=(v[0]===22 && v[1]>=22) || v[0]===24 || v[0]>=26; if (!ok) { console.error("Error: Node " + process.versions.node + " cannot build this repository. It needs ^22.22.0 || ^24.0.0 || >=26.0.0 (CI uses 24)."); process.exit(1); }'
 	@command -v cargo >/dev/null 2>&1 || { echo "Error: cargo not found. Install Rust"; exit 1; }
 	@command -v uv >/dev/null 2>&1 || { echo "Error: uv not found. Install with: curl -LsSf https://astral.sh/uv/install.sh | sh"; exit 1; }
 	@command -v $(DOTNET) >/dev/null 2>&1 || { echo "Error: dotnet not found. Install .NET 10 SDK"; exit 1; }

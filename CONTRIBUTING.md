@@ -3,7 +3,7 @@
 ## Prerequisites
 
 - Rust 1.94.1+ (declared in `Cargo.toml`; cargo, clippy and a CI job all hold it)
-- Node.js 22.22+ or 24+ (measured across the lockfiles; CI uses 24)
+- Node.js ^22.22.0 || ^24.0.0 || >=26.0.0 (measured across the lockfiles; CI uses 24)
 - [uv](https://docs.astral.sh/uv/)
 - Make
 

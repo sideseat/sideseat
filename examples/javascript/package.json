@@ -44,5 +44,5 @@
     "typescript": "^5.9.3"
   },
   "//opentelemetry": "exporter-trace-otlp-http is held at 0.219 because @strands-agents/sdk 1.19 still declares peerOptional ^0.219.0, and 0.x minors are breaking under semver so 0.222 does not satisfy it. sdk/js itself is on 0.222; npm nests the two. Revisit when Strands widens that peer range.",
-  "//typescript": "Held at 5.x to match sdk/js, which cannot move to TypeScript 7 until tsup's rollup-plugin-dts supports it."
+  "//typescript": "Held at 5.x to match sdk/js: typescript-eslint 8.70.1 supports TypeScript >=4.8.4 <6.1.0, so TypeScript 7 would leave the lint toolchain outside its supported peer range."
 }

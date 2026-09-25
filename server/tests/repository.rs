@@ -1627,7 +1627,7 @@ fn every_uv_project_requires_the_same_resolver() {
 
 /// The repository's Node requirement is stated identically everywhere it is stated.
 ///
-/// The repository-wide floor may appear in tooling and contributor documentation, but every occurrence must
+/// The repository-wide range may appear in tooling and contributor documentation, but every occurrence must
 /// carry one value. Independently installable examples may declare a looser package-specific range.
 #[test]
 fn the_node_requirement_is_stated_once() {
@@ -1642,37 +1642,38 @@ fn the_node_requirement_is_stated_once() {
     for file in String::from_utf8_lossy(&listing.stdout)
         .lines()
         .filter(|f| !f.starts_with("server/tests/fixtures/"))
+        .filter(|f| !f.ends_with("package-lock.json"))
         .filter(|f| is_text(&repo.join(f)))
     {
         let text = std::fs::read_to_string(repo.join(file)).unwrap_or_default();
         for (number, line) in text.lines().enumerate() {
-            // The shape the floor is written in: `22.22+ or 24+`.
-            for (at, c) in line.char_indices() {
-                if !c.is_ascii_digit() || (at > 0 && !line[..at].ends_with([' ', '(', '>'])) {
-                    continue;
-                }
-                let rest = &line[at..];
-                let end = match rest.find(|c: char| !c.is_ascii_digit() && c != '.' && c != '+') {
-                    Some(end) => end,
-                    None => continue,
+            // The exact SemVer shape used for the disjoint supported majors:
+            // `^22.22.0 || ^24.0.0 || >=26.0.0`.
+            let words: Vec<&str> = line.split_whitespace().collect();
+            for range in words.windows(5) {
+                let punctuation = |c: char| matches!(c, ',' | ';' | ')' | '.' | '"' | '\'');
+                let first = range[0].trim_end_matches(punctuation);
+                let second = range[2].trim_end_matches(punctuation);
+                let third = range[4].trim_end_matches(punctuation);
+                let is_version = |word: &str, prefix: &str| {
+                    word.strip_prefix(prefix).is_some_and(|version| {
+                        let parts: Vec<&str> = version.split('.').collect();
+                        parts.len() == 3
+                            && parts.iter().all(|part| {
+                                !part.is_empty() && part.chars().all(|c| c.is_ascii_digit())
+                            })
+                    })
                 };
-                let (first, tail) = (&rest[..end], &rest[end..]);
-                if !first.ends_with('+') || !first.contains('.') {
-                    continue;
-                }
-                let Some(second) = tail.strip_prefix(" or ") else {
-                    continue;
-                };
-                let second_end = second
-                    .find(|c: char| !c.is_ascii_digit() && c != '.' && c != '+')
-                    .unwrap_or(second.len());
-                // Keep dots inside semantic versions but exclude sentence punctuation.
-                let second = second[..second_end].trim_end_matches('.');
-                if !second.ends_with('+') {
+                if range[1] != "||"
+                    || range[3] != "||"
+                    || !is_version(first, "^")
+                    || !is_version(second, "^")
+                    || !is_version(third, ">=")
+                {
                     continue;
                 }
                 stated
-                    .entry(format!("{first} or {second}"))
+                    .entry(format!("{first} || {second} || {third}"))
                     .or_default()
                     .push(format!("{file}:{}", number + 1));
             }

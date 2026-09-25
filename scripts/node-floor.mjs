@@ -143,33 +143,33 @@ console.log(`\nAccepted: ${accepted.join(", ") || "none"}`);
 // `--check` verifies the contributor-facing declaration against the derived range.
 if (!process.argv.includes("--check")) {
   console.log(
-    "State the resulting range in the same four places: the Makefile header, `make help`, the `setup` " +
-      "prerequisite check, and CONTRIBUTING.md. `--check` verifies they still match.",
+    "State the resulting SemVer range everywhere the repository-wide Node requirement is shown. " +
+      "`--check` verifies it still matches.",
   );
   process.exit(0);
 }
 
 const contributing = readFileSync(join(root, "CONTRIBUTING.md"), "utf8");
-const claim = contributing.match(/Node\.js (\d+)\.(\d+)\+ or (\d+)\+/);
+const claim = contributing.match(
+  /Node\.js (\^\d+\.\d+\.\d+ \|\| \^\d+\.\d+\.\d+ \|\| >=\d+\.\d+\.\d+)/,
+);
 if (!claim) {
   console.error(
-    "\nCONTRIBUTING.md does not state a Node requirement in the form `Node.js <major>.<minor>+ or <major>+`, " +
+    "\nCONTRIBUTING.md does not state a Node requirement in the form " +
+      "`Node.js ^<version> || ^<version> || >=<version>`, " +
       "so there is nothing to check the derivation against.",
   );
   process.exit(1);
 }
-const [, floorMajor, floorMinor, alsoMajor] = claim.map(Number);
-const admits = (version) => {
-  const [major, minor] = version.split(".").map(Number);
-  return major >= alsoMajor || (major === floorMajor && minor >= floorMinor);
-};
+const statedRange = claim[1];
+const admits = (version) => semver.satisfies(version, statedRange);
 
 const wrong = candidates.filter(
   (v) => admits(v) !== (blame.get(v).length === 0),
 );
 if (wrong.length > 0) {
   console.error(
-    `\nCONTRIBUTING.md claims ${floorMajor}.${floorMinor}+ or ${alsoMajor}+, which the lockfiles contradict:\n` +
+    `\nCONTRIBUTING.md claims ${statedRange}, which the lockfiles contradict:\n` +
       wrong
         .map((v) =>
           admits(v)
@@ -181,9 +181,7 @@ if (wrong.length > 0) {
   );
   process.exit(1);
 }
-console.log(
-  `The stated requirement (${floorMajor}.${floorMinor}+ or ${alsoMajor}+) matches the lockfiles.`,
-);
+console.log(`The stated requirement (${statedRange}) matches the lockfiles.`);
 
 // Package README claims may be lower than the repository floor, so validate each against its own constraints.
 const scopedProblems = [];
