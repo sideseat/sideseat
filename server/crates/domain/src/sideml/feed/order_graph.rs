@@ -40,6 +40,7 @@ use chrono::{DateTime, Utc};
 
 use super::dedup::{SpanTimestamps, effective_timestamp};
 use super::types::BlockEntry;
+use crate::sideml::types::{ChatRole, FinishReason};
 
 /// A survivor's contribution to an emission instance: `(message_index, entry_index, survivor)`.
 /// The pair fixes the block's source order within the emission; the index points back at the
@@ -645,6 +646,19 @@ pub(super) struct Constraints {
     /// boundaries; `adk/image_gen` changes it mid-trace), and any wider scope is falsified by a
     /// committed fixture.
     pub request_framing_edges: bool,
+    /// Complete one unambiguous tool turn whose direct sibling spans share the same start time.
+    ///
+    /// OpenTelemetry JavaScript records start times at millisecond precision. A fast
+    /// `generation -> tool -> generation` turn can therefore give all three siblings the same
+    /// timestamp, after which the database's stable fallback is their random span ids. The payloads
+    /// still state the causal shape: one generation finished with `tool_use`, one or more tool spans
+    /// each carry an exact call/result pair, and one generation finished normally.
+    ///
+    /// This is deliberately narrower than a global role rule. It applies only when one sibling wave
+    /// has exactly two generation outputs (one tool-use preamble and one terminal answer), every
+    /// included tool edge has an exact id on one tool span, and the two generation spans differ.
+    /// Parallel generations, retries, abandoned calls and ambiguous ids add no edge.
+    pub sibling_tool_turn_edges: bool,
 }
 
 impl Constraints {
@@ -663,6 +677,7 @@ impl Constraints {
         carrier_sequence_edges: false,
         generation_dataflow_edges: false,
         request_framing_edges: false,
+        sibling_tool_turn_edges: false,
     };
 
     /// What production enforces today.
@@ -709,6 +724,15 @@ impl Constraints {
     ///   specialists' system prompts ahead of all three answers and interleaves each prompt with its own
     ///   agent's reply.
     ///
+    /// - **Equal-time sibling tool turns**: one complete, unambiguous sibling wave is ordered by its
+    ///   payload causality when every span start ties. OpenTelemetry JavaScript timestamps fast spans
+    ///   only to the millisecond; the database then falls back to random span ids and the same
+    ///   conversation changes order between captures. The promoted rule requires exactly one
+    ///   tool-use generation, one terminal generation, and exact call/result pairs carried by the same
+    ///   tool spans. It changed only the two JavaScript conformance views, making SDK and raw OTel both
+    ///   read `user, preamble, call, result, final`; all 125 pre-existing tracked expectations were
+    ///   byte-identical after regeneration.
+    ///
     /// Every class is now promoted. What remains is not a dial:
     ///
     /// - **The dataflow class no longer emits a product anywhere.** It used to, where a span's input and
@@ -745,6 +769,7 @@ impl Constraints {
         carrier_sequence_edges: true,
         generation_dataflow_edges: true,
         request_framing_edges: true,
+        sibling_tool_turn_edges: true,
     };
 
     /// Every constraint enforced - the redesign's intended answer.
@@ -758,6 +783,7 @@ impl Constraints {
         carrier_sequence_edges: true,
         generation_dataflow_edges: true,
         request_framing_edges: true,
+        sibling_tool_turn_edges: true,
     };
 }
 
@@ -1460,6 +1486,153 @@ pub(super) fn resolve(
                 }
             }
             already_seen.extend(inputs);
+        }
+    }
+
+    // Sibling tool turns: recover causal order when a runtime quantises every span in a fast turn to
+    // the same start timestamp.
+    //
+    // This is intentionally a shape proof, not a role heuristic. The relation is added only for one
+    // direct-sibling wave with exactly two generation outputs: one generation ends in ToolUse and
+    // another ends in Stop. Exact call/result ids must pair uniquely and live on the same tool span.
+    // That states:
+    //
+    //     tool-use preamble -> each call -> its result -> terminal answer
+    //
+    // Multiple tool spans are fine, but an extra generation output, duplicate id, split call/result
+    // pair, retry or parallel branch makes the wave ambiguous and therefore leaves it unconstrained.
+    if constraints.sibling_tool_turn_edges {
+        #[derive(Default)]
+        struct SiblingWave<'a> {
+            generation_output_spans: BTreeSet<&'a str>,
+            preamble_spans: BTreeSet<&'a str>,
+            preamble_units: BTreeSet<usize>,
+            terminal_spans: BTreeSet<&'a str>,
+            terminal_units: BTreeSet<usize>,
+            calls_by_id: HashMap<&'a str, Vec<(&'a str, usize)>>,
+            results_by_id: HashMap<&'a str, Vec<(&'a str, usize)>>,
+        }
+
+        type WaveKey<'a> = (&'a str, DateTime<Utc>);
+        let mut waves: HashMap<WaveKey<'_>, SiblingWave<'_>> = HashMap::new();
+        for (i, block) in survivors.iter().enumerate() {
+            let Some(parent) = block.parent_span_id.as_deref() else {
+                continue;
+            };
+            let Some(start) = span_timestamps
+                .get(&block.span_id)
+                .map(|timestamps| timestamps.span_start)
+            else {
+                continue;
+            };
+            let wave = waves.entry((parent, start)).or_default();
+            let unit = unit_of[i];
+
+            if block.is_generation_span() && block.is_output_source() {
+                wave.generation_output_spans.insert(&block.span_id);
+                if block.role == ChatRole::Assistant
+                    && block.entry_type == "text"
+                    && block.finish_reason == Some(FinishReason::ToolUse)
+                {
+                    wave.preamble_spans.insert(&block.span_id);
+                    wave.preamble_units.insert(unit);
+                }
+                if block.role == ChatRole::Assistant
+                    && block.entry_type == "text"
+                    && block.finish_reason == Some(FinishReason::Stop)
+                {
+                    wave.terminal_spans.insert(&block.span_id);
+                    wave.terminal_units.insert(unit);
+                }
+            }
+
+            if !block.is_tool_span() {
+                continue;
+            }
+            let Some(id) = block.tool_use_id.as_deref().filter(|id| !id.is_empty()) else {
+                continue;
+            };
+            if block.entry_type == "tool_use" {
+                wave.calls_by_id
+                    .entry(id)
+                    .or_default()
+                    .push((&block.span_id, unit));
+            } else if block.entry_type == "tool_result" {
+                wave.results_by_id
+                    .entry(id)
+                    .or_default()
+                    .push((&block.span_id, unit));
+            }
+        }
+
+        let mut wave_keys: Vec<WaveKey<'_>> = waves.keys().copied().collect();
+        wave_keys.sort();
+        for wave_key in wave_keys {
+            let wave = waves.remove(&wave_key).expect("wave key came from map");
+            if wave.generation_output_spans.len() != 2
+                || wave.preamble_spans.len() != 1
+                || wave.terminal_spans.len() != 1
+                || wave.preamble_spans == wave.terminal_spans
+                || wave.preamble_units.is_empty()
+                || wave.terminal_units.is_empty()
+            {
+                continue;
+            }
+
+            if wave.calls_by_id.is_empty()
+                || wave.calls_by_id.len() != wave.results_by_id.len()
+                || wave
+                    .results_by_id
+                    .keys()
+                    .any(|id| !wave.calls_by_id.contains_key(id))
+            {
+                continue;
+            }
+
+            let mut pairs: Vec<(usize, usize)> = Vec::new();
+            let mut ambiguous = false;
+            let mut ids: Vec<&str> = wave.calls_by_id.keys().copied().collect();
+            ids.sort();
+            for id in ids {
+                let calls = &wave.calls_by_id[id];
+                let Some(results) = wave.results_by_id.get(id) else {
+                    ambiguous = true;
+                    break;
+                };
+                if calls.len() != 1 || results.len() != 1 || calls[0].0 != results[0].0 {
+                    ambiguous = true;
+                    break;
+                }
+                pairs.push((calls[0].1, results[0].1));
+            }
+            if ambiguous || pairs.is_empty() {
+                continue;
+            }
+
+            for &(call, result) in &pairs {
+                for &preamble in &wave.preamble_units {
+                    add_edge(
+                        preamble,
+                        call,
+                        constraints,
+                        &unit_min_legacy,
+                        &mut successors,
+                        &mut indegree,
+                        &mut edges,
+                    );
+                }
+                for &terminal in &wave.terminal_units {
+                    add_edge(
+                        result,
+                        terminal,
+                        constraints,
+                        &unit_min_legacy,
+                        &mut successors,
+                        &mut indegree,
+                        &mut edges,
+                    );
+                }
+            }
         }
     }
 

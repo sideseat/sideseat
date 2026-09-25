@@ -10580,6 +10580,114 @@ fn an_idless_result_is_correlated_only_when_span_ids_order_its_call_first() {
     );
 }
 
+/// Equal sibling timestamps must not let random span ids scramble a complete tool turn.
+///
+/// This is the shape emitted by a fast OpenTelemetry JavaScript request: the runtime gives the
+/// generation, tool and final-generation spans the same millisecond timestamp, while the database
+/// necessarily falls back to `span_id`. The ids below deliberately sort as tool, final, preamble.
+/// Payload causality is still sufficient to recover user -> preamble -> call -> result -> final.
+#[test]
+fn an_unambiguous_equal_time_sibling_tool_turn_ignores_span_id_order() {
+    use super::order_graph::Constraints;
+
+    let t = fixed_time();
+    let first_generation = json!([
+        {
+            "source": {"attribute": {"key": "gen_ai.input.messages", "time": t}},
+            "content": {"role": "user", "content": "What is the weather?"}
+        },
+        {
+            "source": {"attribute": {"key": "gen_ai.output.messages", "time": t}},
+            "content": {
+                "role": "assistant",
+                "content": "I will check.",
+                "finish_reason": "tool_use"
+            }
+        }
+    ]);
+    let tool = json!([
+        {
+            "source": {"attribute": {"key": "gen_ai.tool.call.arguments", "time": t}},
+            "content": {
+                "role": "assistant",
+                "content": {
+                    "type": "tool_use",
+                    "id": "call-weather",
+                    "name": "get_weather",
+                    "input": {"city": "London"}
+                }
+            }
+        },
+        {
+            "source": {"attribute": {"key": "gen_ai.tool.call.result", "time": t}},
+            "content": {
+                "role": "tool",
+                "content": {
+                    "type": "tool_result",
+                    "tool_use_id": "call-weather",
+                    "content": "sunny"
+                }
+            }
+        }
+    ]);
+    let final_generation = json!([{
+        "source": {"attribute": {"key": "gen_ai.output.messages", "time": t}},
+        "content": {
+            "role": "assistant",
+            "content": "It is sunny.",
+            "finish_reason": "stop"
+        }
+    }]);
+
+    let mut rows = vec![
+        make_span_row_full(
+            "trace-equal-time",
+            "a-tool",
+            Some("root"),
+            &tool.to_string(),
+            t,
+            Some(t),
+            Some("tool"),
+        ),
+        make_span_row_full(
+            "trace-equal-time",
+            "b-final",
+            Some("root"),
+            &final_generation.to_string(),
+            t,
+            Some(t),
+            Some("generation"),
+        ),
+        make_span_row_full(
+            "trace-equal-time",
+            "z-preamble",
+            Some("root"),
+            &first_generation.to_string(),
+            t,
+            Some(t),
+            Some("generation"),
+        ),
+    ];
+    rows.sort_by(|a, b| a.span_id.cmp(&b.span_id));
+
+    let result = super::process_spans_unfiltered_with(rows, Constraints::PRODUCTION);
+    let shape: Vec<(ChatRole, &str)> = result
+        .messages
+        .iter()
+        .map(|block| (block.role, block.entry_type.as_str()))
+        .collect();
+    assert_eq!(
+        shape,
+        vec![
+            (ChatRole::User, "text"),
+            (ChatRole::Assistant, "text"),
+            (ChatRole::Assistant, "tool_use"),
+            (ChatRole::Tool, "tool_result"),
+            (ChatRole::Assistant, "text"),
+        ]
+    );
+}
+
 /// The feed is a projection of the resolved order, never a re-sort of it.
 ///
 /// This is what "the resolver is the ordering authority" means for the one non-chronological view:
