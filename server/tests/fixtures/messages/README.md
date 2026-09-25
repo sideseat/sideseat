@@ -70,14 +70,14 @@ the corpus matches it.
 | `langgraph` | langgraph >=1.1.2 | 9 | 23 |
 | `openai` | openai >=1.80.0 | 6 | 8 |
 | `openai-agents` | openai-agents >=0.12.1 | 10 | 37 |
-| `python-otel` | OpenTelemetry Python 1.44.0 on CPython 3.14.7 | 1 | 1 |
-| `python-sdk` | SideSeat Python 1.0.8 / OpenTelemetry 1.44.0 on CPython 3.14.7 | 1 | 1 |
-| `rust-otel` | OpenTelemetry Rust 0.28.0 on Rust 1.94.1 | 1 | 1 |
-| `rust-sdk` | SideSeat Rust 0.2.0 / OpenTelemetry Rust 0.28.0 on Rust 1.94.1 | 1 | 1 |
+| `python-otel` | OpenTelemetry Python 1.45.0 on CPython 3.14.7 | 1 | 1 |
+| `python-sdk` | SideSeat Python 1.0.8 / OpenTelemetry Python 1.45.0 on CPython 3.14.7 | 1 | 1 |
+| `rust-otel` | OpenTelemetry Rust 0.33.0 on Rust 1.94.1 | 1 | 1 |
+| `rust-sdk` | SideSeat Rust 0.2.0 / OpenTelemetry Rust 0.33.0 on Rust 1.94.1 | 1 | 1 |
 | `strands` | strands-agents >=1.30.0 | 10 | 40 |
 | `strands-js` | @strands-agents/sdk ^1.14.0 | 7 | 12 |
 | `vercel-ai-js` | ai ^7.0.79 | 6 | 13 |
-| **22 suites** | | **128** | **291** |
+| **22 suites** | | **129** | **292** |
 
 Two further samples exist but are **not in the repository**: `strands-js/image-gen` and
 `vercel-ai-js/image-gen`, whose payloads are 15 MB and 7 MB of inlined base64 image data (the Python
