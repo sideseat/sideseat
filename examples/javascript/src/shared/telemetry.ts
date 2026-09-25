@@ -62,6 +62,7 @@ export async function setupTelemetry(options: TelemetryOptions = {}): Promise<Si
       provider = new NodeTracerProvider({
         resource: resourceFromAttributes({
           [ATTR_SERVICE_NAME]: process.env.OTEL_SERVICE_NAME ?? 'js-samples',
+          'sideseat.framework': framework,
         }),
         spanProcessors: [
           new BatchSpanProcessor(

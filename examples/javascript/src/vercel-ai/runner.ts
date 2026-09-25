@@ -3,7 +3,7 @@
 import { DEFAULT_MODEL, MODEL_ALIASES } from '../shared/config.js';
 import { setupTelemetry, shutdownTelemetry, Frameworks } from '../shared/telemetry.js';
 import { registerTelemetry } from 'ai';
-import { LegacyOpenTelemetry } from '@ai-sdk/otel';
+import { OpenTelemetry } from '@ai-sdk/otel';
 import { createTraceAttributes } from '../shared/trace.js';
 
 type Sample = {
@@ -93,18 +93,12 @@ async function main() {
   // This ensures AWS SDK instrumentation captures all Bedrock calls
   await setupTelemetry({ useSideseat, framework: Frameworks.VercelAI });
 
-  // AI SDK 7 no longer emits OpenTelemetry spans from `telemetry: { isEnabled: true }`
-  // on its own: telemetry is delivered to registered integrations. Without this call the
-  // samples run normally and export nothing at all.
-  //
-  // LegacyOpenTelemetry, not OpenTelemetry: it keeps the `ai.generateText` /
-  // `ai.*.doGenerate` span shape that SideSeat's framework detection and attribute
-  // extraction key on. The newer integration emits a different shape that currently
-  // lands as framework "Unknown".
-  //
-  // Must come after setupTelemetry: the integration captures a tracer in its
-  // constructor, so registering the provider first is what stops it capturing a no-op.
-  registerTelemetry(new LegacyOpenTelemetry());
+  // AI SDK 7 sends telemetry only to registered integrations. SideSeat's async init
+  // registers the current integration itself; the standards-only path must do the same
+  // exactly once after its provider exists.
+  if (!useSideseat) {
+    registerTelemetry(new OpenTelemetry());
+  }
 
   // Now load samples (which will import Vercel AI SDK -> AWS SDK)
   await loadSamples();

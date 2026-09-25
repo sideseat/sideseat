@@ -88,10 +88,9 @@ async function runSample(
   // Wrap the run in a root span. The Agent SDK injects TRACEPARENT from the active
   // span, so the CLI's claude_code.* spans nest under this one. Without it every
   // run lands as a separate bare claude_code.interaction trace with no session.
-  await client.span(`claude-agent-${toKebabCase(name)}`, async (span) => {
-    span.setAttribute('session.id', traceAttrs['session.id']);
-    span.setAttribute('user.id', traceAttrs['user.id']);
-    await sample.run(modelId, env);
+  await client.trace(`claude-agent-${toKebabCase(name)}`, async () => sample.run(modelId, env), {
+    sessionId: traceAttrs['session.id'],
+    userId: traceAttrs['user.id'],
   });
   return true;
 }
