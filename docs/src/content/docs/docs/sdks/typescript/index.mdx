@@ -49,16 +49,12 @@ Add two lines at the top of your entry point:
 
 ```typescript
 import { init, Frameworks } from '@sideseat/sdk';
-import { generateText, registerTelemetry } from 'ai';
-import { LegacyOpenTelemetry } from '@ai-sdk/otel';
+import { generateText } from 'ai';
 import { bedrock } from '@ai-sdk/amazon-bedrock';
 
+// Await before the first model call. SideSeat registers AI SDK 7's current
+// OpenTelemetry integration automatically.
 await init({ framework: Frameworks.VercelAI });
-
-// AI SDK 7 hands telemetry to registered integrations rather than emitting spans itself, so
-// this is required as well as the per-call flag. Register after init(): the integration
-// captures a tracer in its constructor. Needs `npm install @ai-sdk/otel`.
-registerTelemetry(new LegacyOpenTelemetry());
 
 const { text } = await generateText({
   model: bedrock('us.anthropic.claude-sonnet-4-5-20250929-v1:0'),
@@ -91,6 +87,28 @@ Safe to call multiple times:
 await init({ framework: Frameworks.VercelAI });  // Initializes
 await init({ framework: Frameworks.VercelAI });  // No-op (already initialized)
 ```
+
+### Correlated Custom Traces
+
+```typescript
+const client = await init({ framework: Frameworks.VercelAI });
+
+await client.trace(
+  'chat-request',
+  async () => {
+    await client.span('retrieve-context', async (span) => {
+      span.setAttribute('app.documents', 4);
+    });
+    await callModel();
+  },
+  { sessionId: 'session-123', userId: 'user-456' },
+);
+```
+
+`trace()` starts a new root trace even when another OpenTelemetry span is active.
+`span()` and `spanSync()` create children of the active span. `sessionId` and `userId`
+propagate to nested SideSeat spans; a nested override is restored when its callback ends.
+The standard `session.id` and `user.id` attributes are accepted as alternatives.
 
 ### Environment Variable Support
 

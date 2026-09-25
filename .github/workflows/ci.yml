@@ -388,10 +388,14 @@ jobs:
         with:
           node-version: '24'
           cache: 'npm'
-          cache-dependency-path: sdk/js/package-lock.json
+          cache-dependency-path: |
+            sdk/js/package-lock.json
+            examples/javascript/sdk-conformance/package-lock.json
 
       - name: Install dependencies
-        run: cd sdk/js && npm ci
+        run: |
+          cd sdk/js && npm ci
+          cd "$GITHUB_WORKSPACE/examples/javascript/sdk-conformance" && npm ci
 
       - name: Format check
         run: cd sdk/js && npx prettier --check "src/**/*.ts"
@@ -400,7 +404,7 @@ jobs:
         run: cd sdk/js && npm run lint
 
       - name: Test
-        run: cd sdk/js && npm test
+        run: make test-sdk-js
 
       # tsup emits the declarations consumers type against, so a break here ships a package that cannot be
       # imported - and it was equally unbuilt by CI.

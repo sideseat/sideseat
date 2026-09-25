@@ -172,14 +172,10 @@ print(result.text)`,
        lang: "typescript",
        install: "npm install @sideseat/sdk ai @ai-sdk/otel @ai-sdk/amazon-bedrock",
        code: `import { init, Frameworks } from '@sideseat/sdk';
-import { generateText, registerTelemetry } from 'ai';
-import { LegacyOpenTelemetry } from '@ai-sdk/otel';
+import { generateText } from 'ai';
 import { bedrock } from '@ai-sdk/amazon-bedrock';
 
-init({ framework: Frameworks.VercelAI });
-
-// AI SDK 7 emits spans only through a registered integration.
-registerTelemetry(new LegacyOpenTelemetry());
+await init({ framework: Frameworks.VercelAI });
 
 const { text } = await generateText({
   model: bedrock('us.anthropic.claude-sonnet-4-5-20250929-v1:0'),
@@ -550,19 +546,23 @@ print(result.final_output)`,
        label: "Vercel AI SDK",
        group: "Frameworks",
        lang: "typescript",
-       install: "npm install ai @ai-sdk/otel @ai-sdk/amazon-bedrock @opentelemetry/sdk-node @opentelemetry/exporter-trace-otlp-http",
+       install: "npm install ai @ai-sdk/otel @ai-sdk/amazon-bedrock @opentelemetry/sdk-node @opentelemetry/exporter-trace-otlp-http @opentelemetry/resources",
        code: `import { NodeSDK } from '@opentelemetry/sdk-node';
 import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http';
-
-const sdk = new NodeSDK({ traceExporter: new OTLPTraceExporter() });
-sdk.start();
-
+import { resourceFromAttributes } from '@opentelemetry/resources';
 import { generateText, registerTelemetry } from 'ai';
-import { LegacyOpenTelemetry } from '@ai-sdk/otel';
+import { OpenTelemetry } from '@ai-sdk/otel';
 import { bedrock } from '@ai-sdk/amazon-bedrock';
 
-// AI SDK 7 emits spans only through a registered integration.
-registerTelemetry(new LegacyOpenTelemetry());
+const sdk = new NodeSDK({
+  traceExporter: new OTLPTraceExporter(),
+  resource: resourceFromAttributes({
+    'service.name': 'my-ai-app',
+    'sideseat.framework': 'vercel-ai',
+  }),
+});
+sdk.start();
+registerTelemetry(new OpenTelemetry());
 
 const { text } = await generateText({
   model: bedrock('us.anthropic.claude-sonnet-4-5-20250929-v1:0'),

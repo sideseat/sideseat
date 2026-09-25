@@ -1431,6 +1431,12 @@ fn message_goldens() {
 /// Conformance fixtures use paired suite names: `<language>-otel/<sample>` and
 /// `<language>-sdk/<sample>`. Every view is compared, including span topology and session
 /// grouping, so parity cannot pass by checking only a flattened message feed.
+///
+/// Span ids are regenerated on every run. The golden builder normally replaces them with
+/// timestamp-ordered `span-N` labels, but a runtime whose timestamps have only millisecond precision
+/// can give several siblings the same start. Their labels then inherit random id order. Parity strips
+/// only that final synthetic number and compares the resulting `(trace/name, view)` multiset; span
+/// names, counts, per-span messages, trace views and session views remain exact.
 #[test]
 fn sdk_and_plain_otel_conformance_are_identical() {
     let fixtures: BTreeMap<String, Vec<PathBuf>> = discover_fixtures().into_iter().collect();
@@ -1438,7 +1444,7 @@ fn sdk_and_plain_otel_conformance_are_identical() {
 
     // Explicit because framework suite names can themselves end in `-sdk`
     // (`claude-agent-sdk`), which is not an SDK-vs-OTel conformance pair.
-    const LANGUAGES: &[&str] = &["dotnet", "python"];
+    const LANGUAGES: &[&str] = &["dotnet", "javascript", "python"];
     const SAMPLE: &str = "canonical";
     for language in LANGUAGES {
         let sdk_label = format!("{language}-sdk/{SAMPLE}");
@@ -1471,8 +1477,26 @@ fn sdk_and_plain_otel_conformance_are_identical() {
             sdk.session_count, otel.session_count,
             "{sdk_label}: session count"
         );
+        let comparable_span_views =
+            |views: &BTreeMap<String, GoldenView>| -> Vec<(String, String)> {
+                let mut comparable: Vec<(String, String)> = views
+                    .iter()
+                    .map(|(key, view)| {
+                        let stable_key = key
+                            .rsplit_once("/span-")
+                            .map_or(key.as_str(), |(prefix, _)| prefix);
+                        (
+                            stable_key.to_string(),
+                            serde_json::to_string(view).expect("golden view is serializable"),
+                        )
+                    })
+                    .collect();
+                comparable.sort();
+                comparable
+            };
         assert_eq!(
-            sdk.span_views, otel.span_views,
+            comparable_span_views(&sdk.span_views),
+            comparable_span_views(&otel.span_views),
             "{sdk_label}: span message views differ from raw OTel"
         );
         assert_eq!(

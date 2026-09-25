@@ -160,12 +160,13 @@ Manual OpenTelemetry setup for full control:
 ```typescript
 import { NodeSDK } from "@opentelemetry/sdk-node";
 import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-http";
+import { generateText, registerTelemetry } from "ai";
+import { OpenTelemetry } from "@ai-sdk/otel";
+import { bedrock } from "@ai-sdk/amazon-bedrock";
 
 const sdk = new NodeSDK({ traceExporter: new OTLPTraceExporter() });
 sdk.start();
-
-import { generateText } from "ai";
-import { bedrock } from "@ai-sdk/amazon-bedrock";
+registerTelemetry(new OpenTelemetry());
 
 const { text } = await generateText({
   model: bedrock("us.anthropic.claude-sonnet-4-5-20250929-v1:0"),

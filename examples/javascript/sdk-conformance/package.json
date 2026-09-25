@@ -1,0 +1,30 @@
+{
+  "name": "sideseat-javascript-conformance",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Credential-free SideSeat JavaScript SDK OTLP conformance emitter",
+  "engines": {
+    "node": ">=22.13.1"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "format:check": "prettier --check .",
+    "conformance": "./node_modules/.bin/node ./node_modules/tsx/dist/cli.mjs conformance.ts"
+  },
+  "dependencies": {
+    "@opentelemetry/api": "1.9.1",
+    "@opentelemetry/exporter-trace-otlp-http": "0.222.0",
+    "@opentelemetry/resources": "2.11.0",
+    "@opentelemetry/sdk-trace-base": "2.11.0",
+    "@opentelemetry/sdk-trace-node": "2.11.0",
+    "@sideseat/sdk": "file:../../../sdk/js"
+  },
+  "devDependencies": {
+    "@types/node": "26.6.2",
+    "node": "26.9.0",
+    "prettier": "3.9.9",
+    "tsx": "4.23.15",
+    "typescript": "5.9.3"
+  }
+}

@@ -36,16 +36,11 @@ The Vercel AI SDK is TypeScript-only. For Python frameworks, see [Strands](/docs
 
    ```typescript
    import { init, Frameworks } from '@sideseat/sdk';
-   import { generateText, registerTelemetry } from 'ai';
-   import { LegacyOpenTelemetry } from '@ai-sdk/otel';
+   import { generateText } from 'ai';
    import { bedrock } from '@ai-sdk/amazon-bedrock';
 
-   init({ framework: Frameworks.VercelAI });
-
-   // AI SDK 7 delivers telemetry only to registered integrations - it no longer
-   // creates OpenTelemetry spans itself. Register after init(): the integration
-   // captures a tracer in its constructor.
-   registerTelemetry(new LegacyOpenTelemetry());
+   // SideSeat registers AI SDK 7's current OpenTelemetry integration.
+   await init({ framework: Frameworks.VercelAI });
 
    const { text } = await generateText({
      model: bedrock('us.anthropic.claude-sonnet-4-5-20250929-v1:0'),
@@ -62,18 +57,14 @@ The Vercel AI SDK is TypeScript-only. For Python frameworks, see [Strands](/docs
 </Steps>
 
 <Aside type="caution">
-Two things are required, and neither works without the other:
+Two things are required:
 
 1. `experimental_telemetry: { isEnabled: true }` on each `generateText` or `streamText` call.
-2. `registerTelemetry(new LegacyOpenTelemetry())` once at startup, after the tracer provider exists.
+2. `await init(...)` before the first model call.
 
 As of AI SDK 7 the `ai` package contains no OpenTelemetry code and emits nothing on its
-own; telemetry is handed to registered integrations. On AI SDK 6 step 1 alone was enough.
-
-Use `LegacyOpenTelemetry`, not `OpenTelemetry`: SideSeat's framework detection keys on the
-`ai.generateText` / `ai.*.doGenerate` span shape that the legacy integration preserves.
-The newer integration emits a different shape, which currently lands as framework
-`Unknown`.
+own; telemetry is handed to registered integrations. SideSeat loads and registers the
+current `OpenTelemetry` integration from `@ai-sdk/otel` during async initialization.
 </Aside>
 
 ## Without SideSeat SDK
@@ -94,7 +85,7 @@ The newer integration emits a different shape, which currently lands as framewor
 3. **Install dependencies**
 
    ```bash
-   npm install @opentelemetry/sdk-node @opentelemetry/exporter-trace-otlp-http ai @ai-sdk/otel @ai-sdk/amazon-bedrock
+   npm install @opentelemetry/sdk-node @opentelemetry/exporter-trace-otlp-http @opentelemetry/resources ai @ai-sdk/otel @ai-sdk/amazon-bedrock
    ```
 
 4. **Add telemetry**
@@ -102,16 +93,22 @@ The newer integration emits a different shape, which currently lands as framewor
    ```typescript
    import { NodeSDK } from '@opentelemetry/sdk-node';
    import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http';
+   import { resourceFromAttributes } from '@opentelemetry/resources';
    import { generateText, registerTelemetry } from 'ai';
-   import { LegacyOpenTelemetry } from '@ai-sdk/otel';
+   import { OpenTelemetry } from '@ai-sdk/otel';
    import { bedrock } from '@ai-sdk/amazon-bedrock';
 
-   const sdk = new NodeSDK({ traceExporter: new OTLPTraceExporter() });
+   const sdk = new NodeSDK({
+     traceExporter: new OTLPTraceExporter(),
+     resource: resourceFromAttributes({
+       'service.name': 'my-ai-app',
+       'sideseat.framework': 'vercel-ai',
+     }),
+   });
    sdk.start();
 
-   // Required on AI SDK 7: the ai package emits no spans itself. Must come after
-   // sdk.start(), since the integration captures a tracer in its constructor.
-   registerTelemetry(new LegacyOpenTelemetry());
+   // Construct after sdk.start(): the integration captures an OpenTelemetry tracer.
+   registerTelemetry(new OpenTelemetry());
 
    const { text } = await generateText({
      model: bedrock('us.anthropic.claude-sonnet-4-5-20250929-v1:0'),
@@ -133,15 +130,14 @@ SideSeat shows each `generateText`/`streamText` call with the model name, token 
 
 ## Streaming
 
-These snippets assume `registerTelemetry(new LegacyOpenTelemetry())` has already run
-once at startup, as in the Quick Start above. Without it `isEnabled: true` emits nothing.
+The SideSeat SDK registers the AI SDK integration during `await init(...)`.
 
 ```typescript
 import { init, Frameworks } from '@sideseat/sdk';
 import { streamText } from 'ai';
 import { bedrock } from '@ai-sdk/amazon-bedrock';
 
-init({ framework: Frameworks.VercelAI });
+await init({ framework: Frameworks.VercelAI });
 
 const result = streamText({
   model: bedrock('us.anthropic.claude-sonnet-4-5-20250929-v1:0'),
@@ -156,8 +152,7 @@ for await (const chunk of result.textStream) {
 
 ## Tool Calls
 
-These snippets assume `registerTelemetry(new LegacyOpenTelemetry())` has already run
-once at startup, as in the Quick Start above. Without it `isEnabled: true` emits nothing.
+The SideSeat SDK registers the AI SDK integration during `await init(...)`.
 
 ```typescript
 import { init, Frameworks } from '@sideseat/sdk';
@@ -165,7 +160,7 @@ import { generateText, tool } from 'ai';
 import { bedrock } from '@ai-sdk/amazon-bedrock';
 import { z } from 'zod';
 
-init({ framework: Frameworks.VercelAI });
+await init({ framework: Frameworks.VercelAI });
 
 const { text } = await generateText({
   model: bedrock('us.anthropic.claude-sonnet-4-5-20250929-v1:0'),

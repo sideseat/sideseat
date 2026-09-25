@@ -108,7 +108,7 @@ cli-bin = $(CLI_DIR)/platforms/platform-$(1)/$(BIN_NAME_$(1))
 .PHONY: version version-check bump sync-version
 .PHONY: publish publish-cli publish-sdk-js publish-sdk-python publish-sdk-dotnet
 .PHONY: release
-.PHONY: sync-protocol-schema docs-deps docs-system-deps build-docs dev-docs preview-docs capture-sdk-conformance-dotnet capture-sdk-conformance-python
+.PHONY: sync-protocol-schema docs-deps docs-system-deps build-docs dev-docs preview-docs capture-sdk-conformance-dotnet capture-sdk-conformance-python capture-sdk-conformance-javascript
 .PHONY: build-docker publish-docker
 .PHONY: sign-release sign-verify sign-notarize
 .PHONY: build-release publish-release publish-brew
@@ -470,6 +470,8 @@ test-web: ## Run web tests
 test-sdk-js: ## Run JavaScript SDK tests
 	@echo "[test-sdk-js] Running JS SDK tests..."
 	@cd sdk/js && npm test
+	@cd examples/javascript/sdk-conformance && \
+		npm run typecheck && npm run format:check && npm run conformance -- --help
 
 test-sdk-python: ## Run Python SDK tests
 	@echo "[test-sdk-python] Running Python SDK tests..."
@@ -486,6 +488,9 @@ capture-sdk-conformance-dotnet: ## Capture .NET SDK-on and raw-OTel message fixt
 
 capture-sdk-conformance-python: ## Capture Python SDK-on and raw-OTel message fixtures
 	@UV_COMMAND=uv ./scripts/message-fixtures/capture-python-conformance.sh
+
+capture-sdk-conformance-javascript: ## Capture JavaScript SDK-on and raw-OTel message fixtures
+	@NPM_COMMAND=npm ./scripts/message-fixtures/capture-javascript-conformance.sh
 
 coverage: ## Generate test coverage reports
 	@echo "[coverage] Running tests with coverage..."
