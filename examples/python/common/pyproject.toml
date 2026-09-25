@@ -23,6 +23,7 @@ bedrock-openai = ["openai>=2.0", "httpx2>=2.0"]
 bedrock-anthropic = ["anthropic>=1.0", "httpx2>=2.0"]
 # Convenience bundle for suites that use both.
 bedrock-compat = ["openai>=2.0", "anthropic>=1.0", "httpx2>=2.0"]
+dev = ["pytest>=8.0"]
 
 [tool.uv]
 # The resolver version this repository declares. Restated here because this project configures uv (the

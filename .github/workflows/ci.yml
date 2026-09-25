@@ -450,6 +450,7 @@ jobs:
           enable-cache: true
           cache-dependency-glob: |
             sdk/python/uv.lock
+            examples/python/common/uv.lock
             examples/python/sdk-conformance/uv.lock
 
       - name: Install dependencies

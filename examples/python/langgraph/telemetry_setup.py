@@ -25,5 +25,7 @@ def setup_telemetry(use_sideseat: bool = False):
     return setup_base_telemetry(
         instrumentor=instrumentor,
         use_sideseat=use_sideseat,
-        framework=Frameworks.LangGraph,
+        # SideSeat auto-instruments both LangGraph and the Bedrock provider. The native
+        # branch uses the callback above for equivalent LangChain + botocore coverage.
+        framework=[Frameworks.LangGraph, Frameworks.Bedrock],
     )

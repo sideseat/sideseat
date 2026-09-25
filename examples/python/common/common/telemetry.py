@@ -16,7 +16,7 @@ from opentelemetry.sdk.trace.export import BatchSpanProcessor, ConsoleSpanExport
 def setup_base_telemetry(
     instrumentor: Callable[[], None] | None = None,
     use_sideseat: bool = False,
-    framework: str | None = None,
+    framework: str | list[str] | None = None,
 ):
     """Initialize telemetry with standard configuration.
 
@@ -27,7 +27,8 @@ def setup_base_telemetry(
         instrumentor: Optional callable that instruments the framework.
                       Should be a function that calls framework's instrumentor.
         use_sideseat: Use SideSeat SDK instead of default OpenTelemetry setup.
-        framework: Framework name for SideSeat (e.g., Frameworks.AutoGen).
+        framework: Framework/provider names for SideSeat (e.g.,
+                   Frameworks.AutoGen or [Frameworks.LangGraph, Frameworks.Bedrock]).
 
     Returns:
         The telemetry provider/client instance.
@@ -39,9 +40,9 @@ def setup_base_telemetry(
         # client.telemetry.setup_file_exporter()
         client.telemetry.setup_console_exporter()
 
-        if instrumentor:
-            instrumentor()
-
+        # SideSeat owns framework instrumentation in this mode. Calling the sample's
+        # native instrumentor again would patch the same framework twice and can emit
+        # duplicate spans. The callback is only for the plain OpenTelemetry branch.
         return client
     else:
         provider = trace.get_tracer_provider()
