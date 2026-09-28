@@ -895,7 +895,7 @@ fn order_within_unit(members: &[usize], intra_edges: &[(usize, usize)]) -> Vec<u
 }
 
 #[cfg(test)]
-#[path = "order_graph/cycle_tests.rs"]
+#[path = "order_graph_cycle_tests.rs"]
 mod cycle_tests;
 
 /// The indexed member ordering against the implementation it replaced.
@@ -910,5 +910,5 @@ mod cycle_tests;
 /// pointing outside the member set, self-loops, and cycles - where both are required to fall back to source
 /// order rather than to *some* order.
 #[cfg(test)]
-#[path = "order_graph/order_within_unit_equivalence.rs"]
+#[path = "order_graph_order_within_unit_equivalence_tests.rs"]
 mod order_within_unit_equivalence;

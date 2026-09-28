@@ -29,7 +29,7 @@ use super::keys;
 
 mod classification;
 mod framework;
-mod token_usage;
+mod usage;
 
 #[cfg(test)]
 use classification::extract_autogen_tokens;
@@ -40,10 +40,10 @@ pub(crate) use framework::detect_framework;
 #[cfg(test)]
 pub(crate) use framework::legacy_detect_framework;
 #[cfg(test)]
-use token_usage::INPUT_TOKENS;
-use token_usage::counters_already_read;
+use usage::INPUT_TOKENS;
+use usage::counters_already_read;
 #[cfg(test)]
-pub(super) use token_usage::token_readings_legacy;
+pub(super) use usage::token_readings_legacy;
 
 // ============================================================================
 // SHARED HELPER FUNCTIONS
@@ -657,7 +657,7 @@ pub(crate) fn extract_genai(
     // the value replaced it with whatever this payload said, inflating both the total and the cache charge.
     // The same conflation the input and output sides had.
 
-    // CrewAI: tokens from output.value JSON (CrewOutput.token_usage)
+    // CrewAI: tokens from output.value JSON (CrewOutput.usage)
     // CrewAI embeds token usage in the serialized CrewOutput object, not as flat attributes.
     //
     // Gated on what was *supplied*, per side, rather than on the stored value being zero. A zero is two

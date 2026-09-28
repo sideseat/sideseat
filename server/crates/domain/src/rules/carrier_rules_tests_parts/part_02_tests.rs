@@ -159,7 +159,25 @@ fn message_extraction_names_no_framework() {
 /// structs declare a `require`, so matching on the name alone would accept a fourth without comment.
 #[test]
 fn every_predicate_set_in_the_schema_is_validated() {
-    const SCHEMA: &str = include_str!("../schema.rs");
+    fn append_rust_sources(directory: &std::path::Path, source: &mut String) {
+        let mut entries: Vec<std::path::PathBuf> = std::fs::read_dir(directory)
+            .expect("schema module directory")
+            .map(|entry| entry.expect("schema module entry").path())
+            .collect();
+        entries.sort();
+        for path in entries {
+            if path.is_dir() {
+                append_rust_sources(&path, source);
+            } else if path.extension().and_then(|extension| extension.to_str()) == Some("rs") {
+                source.push('\n');
+                source.push_str(&std::fs::read_to_string(path).expect("schema module source"));
+            }
+        }
+    }
+
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/rules/schema.rs");
+    let mut schema = std::fs::read_to_string(&root).expect("schema module root");
+    append_rust_sources(&root.with_extension(""), &mut schema);
 
     // `Struct::field` → where its validation lives. The first group is reached by
     // `message_rules::predicate_sets`; the rest are separate domains, named so an exemption is a statement.
@@ -196,7 +214,7 @@ fn every_predicate_set_in_the_schema_is_validated() {
 
     let mut declared: Vec<String> = Vec::new();
     let mut current = String::new();
-    for line in SCHEMA.lines() {
+    for line in schema.lines() {
         let trimmed = line.trim();
         if let Some(rest) = trimmed.strip_prefix("pub struct ") {
             current = rest

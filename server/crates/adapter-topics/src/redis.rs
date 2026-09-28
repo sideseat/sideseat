@@ -933,5 +933,5 @@ impl RedisTopicBackend {
 mod tests;
 
 #[cfg(test)]
-#[path = "redis/rotation_tests.rs"]
+#[path = "redis_rotation_tests.rs"]
 mod rotation_tests;
