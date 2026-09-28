@@ -29,6 +29,7 @@ config/       Product configuration: JSON schema and example files
 examples/     Runnable samples per framework, with their inputs
 tools/        Standalone developer utilities: otel-replay/ mcp-calculator/ audit/
 scripts/      Repository automation and performance measurement
+make/         Makefile fragments grouped by maintenance area
 packaging/    Release metadata: homebrew formula, macOS entitlements
 deploy/       Container image and a local compose stack
 specs/        TLA+ specifications, checked by `make harden-spec`
