@@ -1204,13 +1204,5 @@ pub async fn get_session_filter_options(
 
 /// Repository contract tests.
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_list_traces_params_default() {
-        let params = ListTracesParams::default();
-        assert_eq!(params.page, 0);
-        assert_eq!(params.limit, 0);
-    }
-}
+#[path = "query_tests.rs"]
+mod tests;

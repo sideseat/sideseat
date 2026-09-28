@@ -1104,12 +1104,5 @@ fn clickhouse_migration_run(current: Option<i32>) -> Result<MigrationRun, Clickh
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_clickhouse_error_types() {
-        let err = ClickhouseError::Connection("test".to_string());
-        assert!(err.to_string().contains("test"));
-    }
-}
+#[path = "lib_tests.rs"]
+mod tests;
