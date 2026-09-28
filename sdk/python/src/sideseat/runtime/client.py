@@ -9,17 +9,12 @@ from __future__ import annotations
 
 import atexit
 import logging
-import os
-import platform
 import random
 import signal
-import socket
 import threading
 import time
 import uuid
-from collections.abc import Iterator
-from contextlib import contextmanager, suppress
-from dataclasses import dataclass
+from contextlib import suppress
 from typing import Any
 from urllib.parse import urlparse, urlunparse
 
@@ -32,11 +27,18 @@ from sideseat.runtime.adapters import (
     classify,
     derive_default_name,
 )
+from sideseat.runtime.client_invoke import _InvocationMixin
+from sideseat.runtime.client_support import (
+    _capture_caller_var_names,
+    _Invocation,
+    _merge_default_metadata,
+    _payload_field,
+    _Registration,
+)
 from sideseat.runtime.protocol import (
     PROTOCOL_VERSION,
     Envelope,
     ErrorCode,
-    RegistrationManifest,
     make_envelope,
     parse_envelope,
 )
@@ -44,14 +46,6 @@ from sideseat.runtime.protocol import (
 logger = logging.getLogger("sideseat.runtime.client")
 
 _DEFAULT_HEARTBEAT_INTERVAL = 20
-
-# Chunk threshold + per-chunk size for `agent.event.chunk`. Mirrors the
-# server-side `AGUI_CHUNK_THRESHOLD_BYTES` / `AGUI_CHUNK_PAYLOAD_BYTES`
-# constants. AG-UI events whose serialised JSON exceeds the threshold are
-# split into N chunks so they fit under `WS_MAX_MESSAGE_BYTES` (4 MiB)
-# even after base64 expansion (~2.5 MiB raw → ~3.4 MiB base64).
-_AGUI_CHUNK_THRESHOLD_BYTES = 2_500 * 1024
-_AGUI_CHUNK_PAYLOAD_BYTES = _AGUI_CHUNK_THRESHOLD_BYTES
 _DEFAULT_PONG_GRACE = 10
 _RECONNECT_INITIAL = 0.25
 _RECONNECT_MAX = 5.0
@@ -59,86 +53,7 @@ _RECONNECT_FAILURES_LOG_THRESHOLD = 30
 _DEFAULT_MAX_MESSAGE_BYTES = 4 * 1024 * 1024
 
 
-def _iter_strands_agents(obj: Any) -> list[Any]:
-    """Return the Strands `Agent` instances reachable from `obj`.
-
-    For a single Agent: just `[obj]`. For a Graph/Swarm: walks `obj.nodes`
-    and yields each node's executor when it's an Agent. Recursive — nested
-    composites surface their inner agents too. Used to mute every Agent's
-    `callback_handler` for the duration of an invoke so Strands' default
-    per-agent prints don't interleave with the AG-UI renderer.
-    """
-    out: list[Any] = []
-    seen: set[int] = set()
-
-    def visit(node: Any) -> None:
-        if node is None or id(node) in seen:
-            return
-        seen.add(id(node))
-        cls_name = type(node).__name__
-        if cls_name == "Agent":
-            out.append(node)
-            return
-        nodes = getattr(node, "nodes", None)
-        if isinstance(nodes, dict):
-            for n in nodes.values():
-                visit(getattr(n, "executor", None))
-
-    visit(obj)
-    return out
-
-
-@contextmanager
-def _mute_strands_callbacks(obj: Any) -> Iterator[None]:
-    """Context manager that swaps every reachable Strands Agent's
-    `callback_handler` for `null_callback_handler` and restores the
-    originals on exit. Quietly no-ops if Strands isn't importable
-    (e.g. non-Strands agents)."""
-    try:
-        from strands.handlers.callback_handler import null_callback_handler
-    except Exception:  # pragma: no cover — Strands is the only supported backend today
-        yield
-        return
-
-    agents = _iter_strands_agents(obj)
-    originals: list[tuple[Any, Any]] = []
-    try:
-        for ag in agents:
-            originals.append((ag, getattr(ag, "callback_handler", None)))
-            try:
-                ag.callback_handler = null_callback_handler
-            except Exception:
-                pass
-        yield
-    finally:
-        for ag, original in originals:
-            try:
-                ag.callback_handler = original
-            except Exception:
-                pass
-
-
-@dataclass
-class _Registration:
-    kind: str  # "agent" | "mcp" | "swarm" | "graph"
-    name: str
-    manifest: RegistrationManifest
-    # Live runtime instance (e.g. strands.Agent). Held strongly so the
-    # invoke handler can call `stream_async()` on it. None for `mcp` /
-    # registrations that don't need invoke support.
-    live_instance: Any | None = None
-
-
-@dataclass
-class _Invocation:
-    request_id: str
-    agent_name: str
-    kind: str  # "agent" | "graph" | "swarm"
-    worker: Any  # threading.Thread; type-quoted to avoid forward-ref clutter
-    cancelled: bool = False
-
-
-class RuntimeClient:
+class RuntimeClient(_InvocationMixin):
     """Persistent WS client. Sync API; daemon thread does the I/O."""
 
     def __init__(self, *, endpoint: str, project_id: str, api_key: str | None = None) -> None:
@@ -760,326 +675,6 @@ class RuntimeClient:
         framed.append(bar)
         print("\n".join(framed), flush=True)
 
-    # ------------------------------------------------------------------
-    # AG-UI invoke flow (v2)
-    # ------------------------------------------------------------------
-
-    # Walk order matches the server-side `find_by_name` so a name resolves
-    # to the same kind on both sides. `mcp` is intentionally excluded — it's
-    # not invokable through AG-UI run-agent.
-    _INVOKABLE_KINDS = ("agent", "graph", "swarm")
-
-    def _resolve_invokable(self, name: str) -> tuple[str, _Registration] | None:
-        """Look up an invokable registration by name. Returns (kind, reg)
-        for the first match, or None. Used by both _handle_invoke and
-        _handle_cancel so the two paths can't drift."""
-        with self._registry_lock:
-            for kind in self._INVOKABLE_KINDS:
-                reg = self._registrations.get((kind, name))
-                if reg is not None:
-                    return kind, reg
-        return None
-
-    def _handle_invoke(
-        self,
-        *,
-        request_id: str,
-        agent_name: str,
-        run_input: Any,
-    ) -> None:
-        """Server pushed an invocation. Dispatch in a worker thread."""
-        if not request_id or not agent_name:
-            logger.warning("agent.invoke missing request_id or agent_name; dropping")
-            return
-
-        # 1. Gate on the optional [agui] extra. Renderer + ag_ui types are
-        #    needed; bail out cleanly if missing.
-        if not _module_available("ag_ui"):
-            self._send_invoke_error(
-                request_id,
-                "agui_extra_missing",
-                "install sideseat[agui] to accept invocations",
-            )
-            return
-
-        # 2. Resolve the live registration kind-agnostically (agent/graph/swarm).
-        resolved = self._resolve_invokable(agent_name)
-        if resolved is None:
-            # Distinguish "exists but not invokable" (mcp) from "not found".
-            with self._registry_lock:
-                exists_as_mcp = ("mcp", agent_name) in self._registrations
-            if exists_as_mcp:
-                self._send_invoke_error(
-                    request_id,
-                    "unsupported_backend",
-                    f"{agent_name!r} is registered as an mcp; not invokable via run-agent",
-                )
-            else:
-                self._send_invoke_error(
-                    request_id,
-                    "registration_not_found",
-                    f"no live registration named {agent_name!r}",
-                )
-            return
-        kind, reg = resolved
-        if reg.live_instance is None:
-            self._send_invoke_error(
-                request_id,
-                "registration_not_found",
-                f"registration {agent_name!r} has no live instance",
-            )
-            return
-
-        # 3. Reject non-inproc runtimes (v2 only supports in-process).
-        runtime = reg.manifest.runtime or {}
-        runtime_kind = runtime.get("kind") if isinstance(runtime, dict) else None
-        if runtime_kind not in (None, "inproc"):
-            self._send_invoke_error(
-                request_id,
-                "unsupported_runtime",
-                f"runtime kind {runtime_kind!r} not supported in v2",
-            )
-            return
-
-        # 4. Validate RunAgentInput shape via pydantic. Validate once, pass
-        #    the parsed model to the worker so we don't pay for it twice.
-        try:
-            from ag_ui.core import RunAgentInput
-
-            run_in = RunAgentInput.model_validate(run_input)
-        except Exception as exc:
-            self._send_invoke_error(request_id, "bad_run_input", str(exc))
-            return
-
-        # 5. Reject concurrent invokes of the same (kind, name). Different
-        #    (kind, name) pairs run concurrently — invoking a graph composite
-        #    while one of its inner agents runs directly is allowed.
-        slot = (kind, agent_name)
-        with self._invoke_lock:
-            if slot in self._busy_agents:
-                self._send_invoke_error(
-                    request_id, "agent_busy", "agent is already running an invocation"
-                )
-                return
-            self._busy_agents.add(slot)
-
-            worker = threading.Thread(
-                target=self._invoke_worker_entry,
-                name=f"sideseat-invoke-{agent_name}-{request_id[:8]}",
-                args=(request_id, agent_name, kind, reg.live_instance, run_in),
-                daemon=True,
-            )
-            self._invocations[request_id] = _Invocation(
-                request_id=request_id,
-                agent_name=agent_name,
-                kind=kind,
-                worker=worker,
-            )
-            worker.start()
-
-    def _handle_cancel(self, *, request_id: str) -> None:
-        """Server requested cancellation of a running invoke."""
-        if not request_id:
-            return
-        with self._invoke_lock:
-            inv = self._invocations.get(request_id)
-            if inv is None:
-                return
-            inv.cancelled = True
-            reg = self._registrations.get((inv.kind, inv.agent_name))
-        if reg is not None and reg.live_instance is not None:
-            cancel = getattr(reg.live_instance, "cancel", None)
-            if callable(cancel):
-                try:
-                    cancel()
-                except Exception:
-                    logger.debug("agent.cancel() raised", exc_info=True)
-
-    def _invoke_worker_entry(
-        self,
-        request_id: str,
-        agent_name: str,
-        kind: str,
-        live_instance: Any,
-        run_in: Any,  # validated ag_ui.core.RunAgentInput
-    ) -> None:
-        """Outer wrapper around `_run_invoke_async` so a panic before
-        `asyncio.run()` ever reaches the converter still cleans up."""
-        import asyncio
-
-        logger.info(
-            "invoke start kind=%s name=%s request_id=%s thread_id=%s run_id=%s",
-            kind,
-            agent_name,
-            request_id,
-            getattr(run_in, "thread_id", None),
-            getattr(run_in, "run_id", None),
-        )
-        try:
-            asyncio.run(self._run_invoke_async(request_id, agent_name, kind, live_instance, run_in))
-        except BaseException as exc:  # noqa: BLE001 — we genuinely catch all
-            logger.error("invoke worker crashed", exc_info=exc)
-            with suppress(Exception):
-                self._send_invoke_error(request_id, "internal", str(exc))
-        finally:
-            with self._invoke_lock:
-                self._invocations.pop(request_id, None)
-                self._busy_agents.discard((kind, agent_name))
-            logger.info(
-                "invoke end kind=%s name=%s request_id=%s",
-                kind,
-                agent_name,
-                request_id,
-            )
-
-    async def _run_invoke_async(
-        self,
-        request_id: str,
-        agent_name: str,
-        kind: str,
-        obj: Any,
-        run_in: Any,  # already-validated `ag_ui.core.RunAgentInput`
-    ) -> None:
-        from ag_ui.core import RunErrorEvent
-
-        from sideseat.runtime.agui import (
-            AgUiRenderer,
-            strands_multiagent_to_agui,
-            strands_run_to_agui,
-        )
-
-        renderer = AgUiRenderer(label=f"{agent_name}#{request_id[:8]}")
-
-        # Lifecycle invariant: the chosen converter is the single source of
-        # `RUN_STARTED` and the terminal `RUN_FINISHED`/`RUN_ERROR`. The
-        # agent path delegates to `ag_ui_strands.StrandsAgent.run` (which
-        # emits both); the multiagent path emits them itself. This loop
-        # forwards events verbatim — never prepends or appends lifecycle.
-
-        if kind == "agent":
-            stream = strands_run_to_agui(obj, run_in, name=agent_name)
-        elif kind in ("graph", "swarm"):
-            stream = strands_multiagent_to_agui(obj, run_in, name=agent_name)
-        else:
-            err = RunErrorEvent(
-                message=f"unsupported backend kind {kind!r}",
-                code="unsupported_backend",
-            )
-            with suppress(Exception):
-                self._send_agui_event(request_id, err, renderer)
-            self._send_invoke_error(
-                request_id, "unsupported_backend", f"kind {kind!r} not invokable"
-            )
-            try:
-                renderer.finish()
-            except Exception:
-                pass
-            return
-
-        # Mute Strands' default callback handlers across the composite so
-        # their per-node prints don't interleave with our renderer.
-        with _mute_strands_callbacks(obj):
-            try:
-                async for event in stream:
-                    if self._is_cancelled(request_id):
-                        cancel = getattr(obj, "cancel", None)
-                        if callable(cancel):
-                            with suppress(Exception):
-                                cancel()
-                        break
-                    self._send_agui_event(request_id, event, renderer)
-
-                if self._is_cancelled(request_id):
-                    err = RunErrorEvent(
-                        message="cancelled",
-                        code=ErrorCode.CANCELLED.value,
-                    )
-                    self._send_agui_event(request_id, err, renderer)
-                    self._send_invoke_error(request_id, "cancelled", "cancelled by server")
-                else:
-                    self._send_invoke_complete(request_id)
-            except Exception as exc:  # noqa: BLE001
-                err = RunErrorEvent(message=str(exc), code="internal")
-                with suppress(Exception):
-                    self._send_agui_event(request_id, err, renderer)
-                self._send_invoke_error(request_id, "internal", str(exc))
-            finally:
-                try:
-                    renderer.finish()
-                except Exception:
-                    pass
-
-    def _is_cancelled(self, request_id: str) -> bool:
-        with self._invoke_lock:
-            inv = self._invocations.get(request_id)
-            return bool(inv and inv.cancelled)
-
-    def _send_agui_event(self, request_id: str, event: Any, renderer: Any) -> None:
-        try:
-            payload = event.model_dump(mode="json", by_alias=True, exclude_none=True)
-        except Exception:
-            payload = _as_jsonable(event)
-        with suppress(Exception):
-            self._send_agui_event_payload(request_id, payload)
-        with suppress(Exception):
-            renderer.emit(event)
-
-    def _send_agui_event_payload(self, request_id: str, payload: Any) -> None:
-        """Send an AG-UI event payload to the server. Splits into
-        `agent.event.chunk` frames if the serialised JSON exceeds
-        :data:`_AGUI_CHUNK_THRESHOLD_BYTES` so we never trip the WS frame
-        cap.
-
-        Each chunk is sent through the regular `_send_envelope` path so
-        the send-lock is acquired and released **per chunk**. That keeps
-        heartbeat pongs and unrelated invocations on the same SDK
-        responsive while a multi-megabyte event ships. The server
-        reassembler keys partials by `(request_id, group_id)`, so any
-        interleaving of small frames between chunks of the same group
-        is reassembled correctly.
-        """
-        body = _json_dumps_compact(payload).encode("utf-8")
-        if len(body) <= _AGUI_CHUNK_THRESHOLD_BYTES:
-            self._send_envelope(
-                make_envelope("agent.event", {"request_id": request_id, "event": payload})
-            )
-            return
-
-        import base64
-        import math
-        import uuid as _uuid
-
-        chunk_size = _AGUI_CHUNK_PAYLOAD_BYTES
-        total = math.ceil(len(body) / chunk_size)
-        group_id = str(_uuid.uuid4())
-        for idx in range(total):
-            slice_ = body[idx * chunk_size : (idx + 1) * chunk_size]
-            self._send_envelope(
-                make_envelope(
-                    "agent.event.chunk",
-                    {
-                        "request_id": request_id,
-                        "group_id": group_id,
-                        "idx": idx,
-                        "total": total,
-                        "data_b64": base64.b64encode(slice_).decode("ascii"),
-                    },
-                )
-            )
-
-    def _send_invoke_complete(self, request_id: str) -> None:
-        with suppress(Exception):
-            self._send_envelope(make_envelope("agent.complete", {"request_id": request_id}))
-
-    def _send_invoke_error(self, request_id: str, code: str, message: str) -> None:
-        with suppress(Exception):
-            self._send_envelope(
-                make_envelope(
-                    "agent.error",
-                    {"request_id": request_id, "code": code, "message": message},
-                )
-            )
-
     def _install_signal_handlers(self) -> None:
         # `signal.signal()` only works on the main thread of the main
         # interpreter; bail out silently otherwise.
@@ -1098,101 +693,6 @@ class RuntimeClient:
             if current in (signal.SIG_DFL, None):
                 with suppress(ValueError, OSError):
                     signal.signal(sig, lambda *_a: self.disconnect())
-
-
-def _capture_caller_var_names(arg: Any) -> dict[int, str]:
-    """Walk up the call stack to find local variable names that point at any
-    of the objects we're about to register.
-
-    Returns a dict keyed by ``id(obj)`` so callers can look up the variable
-    name under which an object was passed to ``register()``. Empty dict when
-    the caller frame is not inspectable (e.g. C extensions, eval).
-    """
-    import sys
-
-    try:
-        # Skip our own frame and the caller of ``_capture_caller_var_names``.
-        outer = sys._getframe(2)  # type: ignore[attr-defined]
-    except (AttributeError, ValueError):
-        return {}
-
-    targets: list[Any] = list(arg) if isinstance(arg, (list, tuple)) else [arg]
-    target_ids = {id(t) for t in targets}
-    found: dict[int, str] = {}
-
-    # Names that aliased the targets inside our own machinery — they always
-    # point at the user's object via the caller's stack frame, but they're
-    # generic SDK parameter names that would mislead the UI ("objects"
-    # comes from `register(self, objects, ...)`). Skip them so the search
-    # falls through to the genuine user-side variable name.
-    _SKIP_VAR_NAMES = {
-        "self",
-        "obj",
-        "objects",
-        "arg",
-        "args",
-        "instance",
-        "fallback_name",
-        "var_names",
-    }
-
-    from types import FrameType
-
-    frame: FrameType | None = outer
-    seen_frames = 0
-    while frame is not None and seen_frames < 20 and target_ids:
-        for var_name, var_val in frame.f_locals.items():
-            if var_name in _SKIP_VAR_NAMES:
-                continue
-            vid = id(var_val)
-            if vid in target_ids and vid not in found:
-                found[vid] = var_name
-        target_ids -= set(found.keys())
-        frame = frame.f_back
-        seen_frames += 1
-    return found
-
-
-def _json_dumps_compact(payload: Any) -> str:
-    """Serialise a JSON-able payload with separator-compact form so the
-    encoded byte length matches what `make_envelope().to_json()` will end
-    up sending. We measure here to decide whether to chunk."""
-    import json
-
-    return json.dumps(payload, separators=(",", ":"))
-
-
-def _as_jsonable(value: Any) -> Any:
-    if hasattr(value, "model_dump"):
-        try:
-            return value.model_dump(mode="json", by_alias=True, exclude_none=True)
-        except Exception:
-            pass
-    if isinstance(value, (str, int, float, bool, type(None))):
-        return value
-    if isinstance(value, dict):
-        return {k: _as_jsonable(v) for k, v in value.items()}
-    if isinstance(value, (list, tuple)):
-        return [_as_jsonable(v) for v in value]
-    return repr(value)
-
-
-def _payload_field(env: Envelope, key: str) -> Any:
-    if isinstance(env.payload, dict):
-        return env.payload.get(key)
-    return None
-
-
-def _merge_default_metadata(extra: dict[str, Any] | None) -> dict[str, Any]:
-    base = {
-        "sdk_version": __version__,
-        "pid": os.getpid(),
-        "hostname": socket.gethostname(),
-        "python_version": platform.python_version(),
-    }
-    if extra:
-        base.update(extra)
-    return base
 
 
 __all__ = ["RuntimeClient", "PROTOCOL_VERSION"]
