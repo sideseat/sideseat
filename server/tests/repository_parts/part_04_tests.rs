@@ -736,11 +736,19 @@ fn raw_project_query_scope(source: &str) -> bool {
 #[test]
 fn every_tenant_scoped_port_uses_project_id() {
     let repo = repo_root();
-    let method_sources = [
-        "server/crates/ports/src/blobs.rs",
-        "server/crates/ports/src/registrations.rs",
-        "server/crates/ports/src/traits.rs",
+    let mut method_sources = vec![
+        repo.join("server/crates/ports/src/blobs.rs"),
+        repo.join("server/crates/ports/src/registrations.rs"),
+        repo.join("server/crates/ports/src/traits.rs"),
     ];
+    let traits_dir = repo.join("server/crates/ports/src/traits");
+    let mut trait_modules: Vec<_> = std::fs::read_dir(&traits_dir)
+        .unwrap_or_else(|e| panic!("{} is readable: {e}", traits_dir.display()))
+        .map(|entry| entry.expect("trait module directory entry").path())
+        .filter(|path| path.extension().is_some_and(|extension| extension == "rs"))
+        .collect();
+    trait_modules.sort();
+    method_sources.extend(trait_modules);
     let query_sources = [
         "server/crates/ports/src/types/analytics.rs",
         "server/crates/ports/src/types/messages.rs",
@@ -749,13 +757,18 @@ fn every_tenant_scoped_port_uses_project_id() {
 
     let mut typed_scopes = 0usize;
     let mut offenders = Vec::new();
-    for file in method_sources {
-        let source = std::fs::read_to_string(repo.join(file))
-            .unwrap_or_else(|e| panic!("{file} is readable: {e}"));
+    for path in method_sources {
+        let source = std::fs::read_to_string(&path)
+            .unwrap_or_else(|e| panic!("{} is readable: {e}", path.display()));
         typed_scopes += source.matches("project_id: &ProjectId").count();
         typed_scopes += source.matches("project_id: ProjectId").count();
         if raw_project_method_scope(&source) {
-            offenders.push(file);
+            offenders.push(
+                path.strip_prefix(repo)
+                    .unwrap_or(&path)
+                    .display()
+                    .to_string(),
+            );
         }
     }
     for file in query_sources {
@@ -763,7 +776,7 @@ fn every_tenant_scoped_port_uses_project_id() {
             .unwrap_or_else(|e| panic!("{file} is readable: {e}"));
         typed_scopes += source.matches("pub project_id: ProjectId").count();
         if raw_project_query_scope(&source) {
-            offenders.push(file);
+            offenders.push(file.to_string());
         }
     }
 
