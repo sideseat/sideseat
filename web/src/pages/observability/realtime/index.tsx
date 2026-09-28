@@ -1,19 +1,15 @@
-import { useState, useCallback, useMemo, useRef, useEffect, memo } from "react";
+import { useState, useCallback, useMemo, useRef, useEffect } from "react";
 import { useParams } from "react-router";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import {
-  MessageSquare,
   FileJson,
   FileText,
   Code,
-  Copy,
+  MessageSquare,
   RefreshCw,
   ChevronsUpDown,
   Check,
   ArrowDown,
-  GitBranch,
-  Layers,
-  Users,
   Trash2,
   AlertCircle,
 } from "lucide-react";
@@ -26,14 +22,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { WaitingIndicator } from "@/components/waiting-indicator";
-import {
-  TimelineRow,
-  getBlockPreview,
-  getBlockCopyText,
-  renderBlockContent,
-  MediaGalleryProvider,
-} from "@/components/thread";
-import { JsonContent } from "@/components/thread/content";
+import { MediaGalleryProvider } from "@/components/thread";
 import { useQueryClient } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
 import { settings, MARKDOWN_ENABLED_KEY } from "@/lib/settings";
@@ -43,279 +32,27 @@ import { useSseDetailRefresh } from "@/hooks/use-grid-helpers";
 import { TraceDetailSheet } from "../trace/trace-detail-sheet";
 import { SpanDetailSheet } from "../span/span-detail-sheet";
 import { SessionDetailSheet } from "../session/session-detail-sheet";
-import type {
-  Block,
-  SpanSummary,
-  TraceSummary,
-  SessionSummary,
-  SseSpanEvent,
-} from "@/api/otel/types";
-
-type RealtimeTab = "messages" | "raw";
+import type { SpanSummary, TraceSummary, SessionSummary, SseSpanEvent } from "@/api/otel/types";
+import { FeedBlockItem, FeedSpanItem } from "./realtime-items";
+import {
+  CONTAINER_PADDING,
+  DEBOUNCE_MS,
+  ESTIMATED_SPAN_HEIGHT,
+  ITEM_GAP,
+  LATE_MESSAGE_BUFFER_MS,
+  MAX_BUFFER_SIZE,
+  MIN_REFETCH_INTERVAL_MS,
+  REFETCH_LIMIT,
+  compareSpansDesc,
+  estimateBlockHeight,
+  tracesToDisplayBlocks,
+} from "./realtime-data";
+import type { RealtimeTab, TraceData } from "./realtime-data";
 
 const TABS: { value: RealtimeTab; label: string; icon: React.ReactNode }[] = [
   { value: "messages", label: "Messages", icon: <MessageSquare className="h-4 w-4" /> },
   { value: "raw", label: "Raw", icon: <FileJson className="h-4 w-4" /> },
 ];
-
-const MAX_BUFFER_SIZE = 1000;
-const DEBOUNCE_MS = 100;
-const MIN_REFETCH_INTERVAL_MS = 500; // Throttle: max 2 refetches per second
-const REFETCH_LIMIT = 100; // Increased for high-throughput scenarios
-const LATE_MESSAGE_BUFFER_MS = 30000; // 30s buffer for late-arriving spans (raw tab)
-const ITEM_GAP = 12; // gap-3 = 12px
-const CONTAINER_PADDING = 16; // p-4 = 16px
-
-// ============================================================================
-// TRACE-BASED BLOCK STORAGE
-// ============================================================================
-//
-// Blocks are stored grouped by trace_id to preserve backend ordering.
-// The backend's feed pipeline (sort_by_birth_time) handles all intra-trace
-// ordering: birth_time → message_index → entry_index.
-//
-// Frontend NEVER re-sorts within a trace - backend order is canonical.
-// We only sort traces relative to each other (by start time).
-//
-// This approach is robust because:
-// 1. Backend handles complex ordering (tool chains, history, dedup)
-// 2. Atomic trace replacement - no partial updates or merge corruption
-// 3. Simple inter-trace ordering - just timestamp comparison
-// ============================================================================
-
-/** Trace data: blocks in backend order + metadata for sorting */
-interface TraceData {
-  blocks: Block[];
-  startTime: string; // First message timestamp (for inter-trace ordering)
-}
-
-/** Convert trace map to flat display array (oldest trace first, backend order within) */
-function tracesToDisplayBlocks(traceMap: Map<string, TraceData>, maxBlocks: number): Block[] {
-  // Sort traces by start time ASC (oldest first for chat UI)
-  const sortedTraces = Array.from(traceMap.values()).sort((a, b) =>
-    a.startTime.localeCompare(b.startTime),
-  );
-
-  // Truncate by removing entire traces from the start (oldest) to stay under limit
-  // This preserves trace integrity - never show partial conversations
-  let totalBlocks = 0;
-  let startIndex = 0;
-
-  // Count total and find where to start to stay under limit
-  for (const trace of sortedTraces) {
-    totalBlocks += trace.blocks.length;
-  }
-
-  if (totalBlocks > maxBlocks) {
-    let blocksToRemove = totalBlocks - maxBlocks;
-    for (let i = 0; i < sortedTraces.length && blocksToRemove > 0; i++) {
-      const traceBlockCount = sortedTraces[i].blocks.length;
-      if (traceBlockCount <= blocksToRemove) {
-        blocksToRemove -= traceBlockCount;
-        startIndex = i + 1;
-      } else {
-        // Can't remove partial trace - stop here, slightly over limit is OK
-        break;
-      }
-    }
-  }
-
-  // Flatten from startIndex onwards (backend order preserved within each trace)
-  return sortedTraces.slice(startIndex).flatMap((trace) => trace.blocks);
-}
-
-// Sort spans: timestamp_start DESC, span_id ASC
-function compareSpansDesc(a: SpanSummary, b: SpanSummary): number {
-  const timeCompare = b.timestamp_start.localeCompare(a.timestamp_start);
-  if (timeCompare !== 0) return timeCompare;
-  return a.span_id.localeCompare(b.span_id);
-}
-
-// Estimate row height based on content type (includes gap)
-function estimateBlockHeight(block: Block): number {
-  let baseHeight: number;
-  const content = block.content;
-
-  if (content.type === "text") {
-    const lines = content.text.split("\n").length;
-    baseHeight = Math.max(80, Math.min(lines * 24 + 60, 400));
-  } else if (content.type === "tool_use" || content.type === "tool_result") {
-    baseHeight = 120;
-  } else if (content.type === "thinking") {
-    baseHeight = 100;
-  } else {
-    baseHeight = 80;
-  }
-
-  return baseHeight + ITEM_GAP;
-}
-
-// Rough estimate - actual height measured by virtualizer's measureElement
-// Using constant avoids expensive JSON.stringify on every estimation call
-const ESTIMATED_SPAN_HEIGHT = 52 + 300 + 32 + ITEM_GAP; // header + content + padding + gap
-
-// Breadcrumb path showing session → trace → span navigation
-// Only renders links for IDs that exist
-const MessageBreadcrumb = memo(function MessageBreadcrumb({
-  sessionId,
-  traceId,
-  spanId,
-  onOpenSession,
-  onOpenTrace,
-  onOpenSpan,
-}: {
-  sessionId?: string;
-  traceId?: string;
-  spanId?: string;
-  onOpenSession: (sessionId: string) => void;
-  onOpenTrace: (traceId: string) => void;
-  onOpenSpan: (traceId: string, spanId: string) => void;
-}) {
-  // Don't render breadcrumb if no IDs available
-  if (!sessionId && !traceId && !spanId) return null;
-
-  return (
-    <div className="flex items-center gap-1 font-mono text-[10px] text-muted-foreground/70 mb-1.5 select-none">
-      {sessionId && (
-        <>
-          <button
-            type="button"
-            onClick={() => onOpenSession(sessionId)}
-            className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded hover:bg-muted hover:text-foreground transition-colors"
-            title={`Session ${sessionId}`}
-          >
-            <Users className="h-3 w-3" />
-            <span className="tracking-tight">session:{sessionId.slice(0, 8)}</span>
-          </button>
-          {(traceId || spanId) && <span className="text-muted-foreground/40">/</span>}
-        </>
-      )}
-      {traceId && (
-        <>
-          <button
-            type="button"
-            onClick={() => onOpenTrace(traceId)}
-            className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded hover:bg-muted hover:text-foreground transition-colors"
-            title={`Trace ${traceId}`}
-          >
-            <GitBranch className="h-3 w-3" />
-            <span className="tracking-tight">trace:{traceId.slice(0, 8)}</span>
-          </button>
-          {spanId && <span className="text-muted-foreground/40">/</span>}
-        </>
-      )}
-      {spanId && traceId && (
-        <button
-          type="button"
-          onClick={() => onOpenSpan(traceId, spanId)}
-          className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded hover:bg-muted hover:text-foreground transition-colors"
-          title={`Span ${spanId}`}
-        >
-          <Layers className="h-3 w-3" />
-          <span className="tracking-tight">span:{spanId.slice(0, 8)}</span>
-        </button>
-      )}
-    </div>
-  );
-});
-
-// Block item component for virtualized list - renders single block directly
-const FeedBlockItem = memo(function FeedBlockItem({
-  block,
-  startTime,
-  markdownEnabled,
-  projectId,
-  onOpenSession,
-  onOpenTrace,
-  onOpenSpan,
-}: {
-  block: Block;
-  startTime?: string;
-  markdownEnabled: boolean;
-  projectId: string;
-  onOpenSession: (sessionId: string) => void;
-  onOpenTrace: (traceId: string) => void;
-  onOpenSpan: (traceId: string, spanId: string) => void;
-}) {
-  return (
-    <div>
-      <MessageBreadcrumb
-        sessionId={block.session_id}
-        traceId={block.trace_id}
-        spanId={block.span_id}
-        onOpenSession={onOpenSession}
-        onOpenTrace={onOpenTrace}
-        onOpenSpan={onOpenSpan}
-      />
-      <TimelineRow
-        block={block}
-        startTime={startTime}
-        preview={getBlockPreview(block)}
-        copyText={getBlockCopyText(block)}
-      >
-        {renderBlockContent(block, markdownEnabled, projectId)}
-      </TimelineRow>
-    </div>
-  );
-});
-
-// Raw span item component for virtualized list
-const FeedSpanItem = memo(function FeedSpanItem({ span }: { span: SpanSummary }) {
-  const [copied, setCopied] = useState(false);
-  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  // Cleanup timeout on unmount
-  useEffect(() => {
-    return () => {
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current);
-      }
-    };
-  }, []);
-
-  const handleCopy = useCallback(async () => {
-    try {
-      const text = JSON.stringify(span.raw_span ?? span, null, 2);
-      await navigator.clipboard.writeText(text);
-      setCopied(true);
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current);
-      }
-      timeoutRef.current = setTimeout(() => setCopied(false), 2000);
-    } catch {
-      // Clipboard API failed silently
-    }
-  }, [span]);
-
-  const displayData = span.raw_span ?? span;
-
-  return (
-    <div className="rounded-lg border bg-card">
-      <div className="flex items-center justify-between gap-1 border-b px-2 py-1.5 sm:gap-2 sm:px-3 sm:py-2">
-        <div className="min-w-0 flex-1">
-          <div className="truncate text-xs font-medium sm:text-sm">{span.span_name}</div>
-          <code className="block truncate text-xs text-muted-foreground">{span.span_id}</code>
-        </div>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={handleCopy}
-          className="h-6 w-6 shrink-0 p-0 sm:h-7 sm:w-7"
-          aria-label="Copy span"
-        >
-          {copied ? (
-            <Check className="h-3 w-3 text-green-600 sm:h-3.5 sm:w-3.5" />
-          ) : (
-            <Copy className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
-          )}
-        </Button>
-      </div>
-      <div className="overflow-x-auto p-2 sm:p-3">
-        <JsonContent data={displayData} disableCollapse />
-      </div>
-    </div>
-  );
-});
 
 export default function RealtimePage() {
   const { projectId = "default" } = useParams();
