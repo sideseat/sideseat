@@ -1,0 +1,453 @@
+{
+  "id": "autogen-runtime",
+  "doc": "Additional AutoGen message carriers that share the typed-message fragment declared by the main AutoGen asset.",
+  "carriers": [
+
+  ],
+  "messages": [
+    {
+      "id": "autogen.body",
+      "doc": "The dialect's own logging channel. One carrier holds a model call - the conversation it was given, its reply and the tools it was offered - or a single tool execution, so the readings are additive and each says what it is.",
+      "read": {
+        "attribute": "body"
+      },
+      "parse": "json",
+      "also": [
+        {
+          "id": "messages",
+          "require": {
+          },
+          "select": "$.messages",
+          "each": true,
+          "then_fragment": "autogen.message",
+          "extra_cases": [
+            {
+              "id": "role",
+              "doc": "A shape the table refused that carries a role or content.",
+              "require": {
+                "any": [
+                  {
+                    "path": "$.role",
+                    "exists": true
+                  },
+                  {
+                    "path": "$.content",
+                    "exists": true
+                  }
+                ]
+              }
+            }
+          ],
+          "require_parent": {
+            "all": [
+              {
+                "path": "$.type",
+                "one_of": [
+                  "LLMCall",
+                  "LLMStreamEnd"
+                ]
+              },
+              {
+                "path": "$.messages",
+                "exists": true
+              }
+            ]
+          }
+        },
+        {
+          "id": "response",
+          "require": {
+          },
+          "select": "$.response",
+          "wrap": {
+            "role": "assistant",
+            "content_from_any_of": [
+              "$.content",
+              "$.choices[0].message.content"
+            ],
+            "attach": [
+              {
+                "after_content": true,
+                "from_value_any_of": [
+                  "$.tool_calls",
+                  "$.choices[0].message.tool_calls"
+                ],
+                "require": {
+                  "all": [
+                    {
+                      "non_empty": true
+                    }
+                  ]
+                },
+                "as": "tool_calls"
+              }
+            ]
+          },
+          "require_parent": {
+            "all": [
+              {
+                "path": "$.type",
+                "one_of": [
+                  "LLMCall",
+                  "LLMStreamEnd"
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "id": "tools",
+          "require": {
+          },
+          "select": "$.tools",
+          "emit": "tool_definitions",
+          "doc": "The tools the call was offered. A set, not a sequence of turns.",
+          "require_parent": {
+            "all": [
+              {
+                "path": "$.type",
+                "one_of": [
+                  "LLMCall",
+                  "LLMStreamEnd"
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "id": "as_tool",
+          "require": {
+            "all": [
+              {
+                "path": "$.type",
+                "one_of": [
+                  "ToolCall"
+                ]
+              }
+            ]
+          },
+          "wrap": {
+            "role": "tool",
+            "content_default": null,
+            "attach": [
+              {
+                "from_value_any_of": [
+                  "$.tool_name"
+                ],
+                "default": "unknown",
+                "as": "name"
+              }
+            ],
+            "tool_call_from": {
+              "name": "$.tool_name",
+              "arguments": "$.arguments",
+              "arguments_default": {
+              },
+              "name_default": "unknown"
+            },
+            "content_from_any_of": [
+              "$.result"
+            ]
+          }
+        }
+      ],
+      "legacy_rank": 1620
+    },
+    {
+      "id": "autogen.log_body",
+      "doc": "The dialect's own logging channel. One carrier holds a model call - the conversation it was given, its reply and the tools it was offered - or a single tool execution, so the readings are additive and each says what it is.",
+      "read": {
+        "attribute": "log.body"
+      },
+      "parse": "json",
+      "also": [
+        {
+          "id": "messages",
+          "require": {
+          },
+          "select": "$.messages",
+          "each": true,
+          "then_fragment": "autogen.message",
+          "extra_cases": [
+            {
+              "id": "role",
+              "doc": "A shape the table refused that carries a role or content.",
+              "require": {
+                "any": [
+                  {
+                    "path": "$.role",
+                    "exists": true
+                  },
+                  {
+                    "path": "$.content",
+                    "exists": true
+                  }
+                ]
+              }
+            }
+          ],
+          "require_parent": {
+            "all": [
+              {
+                "path": "$.type",
+                "one_of": [
+                  "LLMCall",
+                  "LLMStreamEnd"
+                ]
+              },
+              {
+                "path": "$.messages",
+                "exists": true
+              }
+            ]
+          }
+        },
+        {
+          "id": "response",
+          "require": {
+          },
+          "select": "$.response",
+          "wrap": {
+            "role": "assistant",
+            "content_from_any_of": [
+              "$.content",
+              "$.choices[0].message.content"
+            ],
+            "attach": [
+              {
+                "after_content": true,
+                "from_value_any_of": [
+                  "$.tool_calls",
+                  "$.choices[0].message.tool_calls"
+                ],
+                "require": {
+                  "all": [
+                    {
+                      "non_empty": true
+                    }
+                  ]
+                },
+                "as": "tool_calls"
+              }
+            ]
+          },
+          "require_parent": {
+            "all": [
+              {
+                "path": "$.type",
+                "one_of": [
+                  "LLMCall",
+                  "LLMStreamEnd"
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "id": "tools",
+          "require": {
+          },
+          "select": "$.tools",
+          "emit": "tool_definitions",
+          "doc": "The tools the call was offered. A set, not a sequence of turns.",
+          "require_parent": {
+            "all": [
+              {
+                "path": "$.type",
+                "one_of": [
+                  "LLMCall",
+                  "LLMStreamEnd"
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "id": "as_tool",
+          "require": {
+            "all": [
+              {
+                "path": "$.type",
+                "one_of": [
+                  "ToolCall"
+                ]
+              }
+            ]
+          },
+          "wrap": {
+            "role": "tool",
+            "content_default": null,
+            "attach": [
+              {
+                "from_value_any_of": [
+                  "$.tool_name"
+                ],
+                "default": "unknown",
+                "as": "name"
+              }
+            ],
+            "tool_call_from": {
+              "name": "$.tool_name",
+              "arguments": "$.arguments",
+              "arguments_default": {
+              },
+              "name_default": "unknown"
+            },
+            "content_from_any_of": [
+              "$.result"
+            ]
+          }
+        }
+      ],
+      "legacy_rank": 1630
+    },
+    {
+      "id": "autogen.autogen_event",
+      "doc": "The dialect's own logging channel. One carrier holds a model call - the conversation it was given, its reply and the tools it was offered - or a single tool execution, so the readings are additive and each says what it is.",
+      "read": {
+        "attribute": "autogen.event"
+      },
+      "parse": "json",
+      "also": [
+        {
+          "id": "messages",
+          "require": {
+          },
+          "select": "$.messages",
+          "each": true,
+          "then_fragment": "autogen.message",
+          "extra_cases": [
+            {
+              "id": "role",
+              "doc": "A shape the table refused that carries a role or content.",
+              "require": {
+                "any": [
+                  {
+                    "path": "$.role",
+                    "exists": true
+                  },
+                  {
+                    "path": "$.content",
+                    "exists": true
+                  }
+                ]
+              }
+            }
+          ],
+          "require_parent": {
+            "all": [
+              {
+                "path": "$.type",
+                "one_of": [
+                  "LLMCall",
+                  "LLMStreamEnd"
+                ]
+              },
+              {
+                "path": "$.messages",
+                "exists": true
+              }
+            ]
+          }
+        },
+        {
+          "id": "response",
+          "require": {
+          },
+          "select": "$.response",
+          "wrap": {
+            "role": "assistant",
+            "content_from_any_of": [
+              "$.content",
+              "$.choices[0].message.content"
+            ],
+            "attach": [
+              {
+                "after_content": true,
+                "from_value_any_of": [
+                  "$.tool_calls",
+                  "$.choices[0].message.tool_calls"
+                ],
+                "require": {
+                  "all": [
+                    {
+                      "non_empty": true
+                    }
+                  ]
+                },
+                "as": "tool_calls"
+              }
+            ]
+          },
+          "require_parent": {
+            "all": [
+              {
+                "path": "$.type",
+                "one_of": [
+                  "LLMCall",
+                  "LLMStreamEnd"
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "id": "tools",
+          "require": {
+          },
+          "select": "$.tools",
+          "emit": "tool_definitions",
+          "doc": "The tools the call was offered. A set, not a sequence of turns.",
+          "require_parent": {
+            "all": [
+              {
+                "path": "$.type",
+                "one_of": [
+                  "LLMCall",
+                  "LLMStreamEnd"
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "id": "as_tool",
+          "require": {
+            "all": [
+              {
+                "path": "$.type",
+                "one_of": [
+                  "ToolCall"
+                ]
+              }
+            ]
+          },
+          "wrap": {
+            "role": "tool",
+            "content_default": null,
+            "attach": [
+              {
+                "from_value_any_of": [
+                  "$.tool_name"
+                ],
+                "default": "unknown",
+                "as": "name"
+              }
+            ],
+            "tool_call_from": {
+              "name": "$.tool_name",
+              "arguments": "$.arguments",
+              "arguments_default": {
+              },
+              "name_default": "unknown"
+            },
+            "content_from_any_of": [
+              "$.result"
+            ]
+          }
+        }
+      ],
+      "legacy_rank": 1640
+    }
+  ]
+}
