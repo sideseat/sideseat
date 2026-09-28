@@ -1,0 +1,345 @@
+
+/// The `gen_ai.choice` **event** is the *first* finish-reason source, which is where the retired chain had it.
+///
+/// This test asserted the opposite for one commit's worth of reasons, and both states were honest at the time.
+/// When the four attribute sources moved into the declared chain (`ff0d3cdf`) the event could not follow -
+/// `FieldSource` had no way to name an event - so it stayed as a hand-written scan in `extract/mod.rs` that
+/// necessarily ran *after* resolution. That made the event last, which is a precedence **no producer states**:
+/// it came from where the code could put it, not from what the telemetry means.
+///
+/// `event_attribute` makes the source declarative like every other field source and keeps it where
+/// the retired order had it - first. A reader who believes the intermediate order would expect `length` here.
+///
+/// Still end to end through `extract_attributes_batch`, because that is what supplies the events.
+#[test]
+fn the_choice_event_is_the_first_finish_reason_source() {
+    use opentelemetry_proto::tonic::collector::trace::v1::ExportTraceServiceRequest;
+    use opentelemetry_proto::tonic::common::v1::{AnyValue, KeyValue, any_value};
+    use opentelemetry_proto::tonic::trace::v1::{ResourceSpans, ScopeSpans, Span, span::Event};
+
+    let kv = |key: &str, value: &str| KeyValue {
+        key: key.to_string(),
+        value: Some(AnyValue {
+            value: Some(any_value::Value::StringValue(value.to_string())),
+        }),
+    };
+
+    let span_with = |attrs: Vec<KeyValue>, with_event: bool| {
+        let events = if with_event {
+            vec![Event {
+                time_unix_nano: 1_700_000_000_000_000_000,
+                name: "gen_ai.choice".to_string(),
+                attributes: vec![kv("finish_reason", "stop")],
+                dropped_attributes_count: 0,
+            }]
+        } else {
+            Vec::new()
+        };
+        let request = ExportTraceServiceRequest {
+            resource_spans: vec![ResourceSpans {
+                resource: None,
+                scope_spans: vec![ScopeSpans {
+                    scope: None,
+                    spans: vec![Span {
+                        trace_id: vec![1; 16],
+                        span_id: vec![2; 8],
+                        name: "chat".to_string(),
+                        kind: 1,
+                        start_time_unix_nano: 1_700_000_000_000_000_000,
+                        end_time_unix_nano: 1_700_000_000_100_000_000,
+                        attributes: attrs,
+                        events,
+                        ..Default::default()
+                    }],
+                    schema_url: String::new(),
+                }],
+                schema_url: String::new(),
+            }],
+        };
+        crate::traces::extract::extract_attributes_batch(&request)
+            .into_iter()
+            .next()
+            .expect("one span")
+            .gen_ai_finish_reasons
+    };
+
+    // An attribute source and the event disagreeing: the **event** wins, because it is the first declared
+    // source - the conventions' own spelling, ahead of four dialects' serialised payloads.
+    assert_eq!(
+        span_with(
+            vec![kv("response_data", r#"{"finish_reason":"length"}"#)],
+            true
+        ),
+        vec!["stop".to_string()],
+        "the event is declared first, so the conventions' own spelling answers"
+    );
+    // The event alone answers, and an attribute alone answers - so neither is dead.
+    assert_eq!(
+        span_with(Vec::new(), true),
+        vec!["stop".to_string()],
+        "with no attribute source the event must answer"
+    );
+    assert_eq!(
+        span_with(
+            vec![kv("response_data", r#"{"finish_reason":"length"}"#)],
+            false
+        ),
+        vec!["length".to_string()],
+        "with no event the attribute chain must answer"
+    );
+    // And neither: no reason at all, rather than an empty string.
+    assert!(span_with(Vec::new(), false).is_empty());
+}
+
+/// Every field target is listed in `FieldTarget::ALL`.
+///
+/// The list is hand-written, so it is the one thing a new variant can escape - and the two tests below need it to
+/// be complete or they check a subset while claiming to check the ontology.
+#[test]
+fn every_field_target_is_listed() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../domain/src/rules/schema.rs"
+    ));
+    let start = source
+        .find("pub enum FieldTarget {")
+        .expect("the enum is declared here");
+    let body = &source[start..];
+    let end = body.find("\n}\n").expect("the enum body ends");
+    let declared = body[..end]
+        .lines()
+        .filter(|line| {
+            let trimmed = line.trim_end();
+            trimmed.starts_with("    ")
+                && trimmed.ends_with(',')
+                && !trimmed.trim_start().starts_with("//")
+                && trimmed
+                    .trim_start()
+                    .trim_end_matches(',')
+                    .chars()
+                    .next()
+                    .is_some_and(char::is_uppercase)
+                && trimmed
+                    .trim_start()
+                    .trim_end_matches(',')
+                    .chars()
+                    .all(char::is_alphanumeric)
+        })
+        .count();
+    assert_eq!(
+        sideseat_domain::rules::schema::FieldTarget::ALL.len(),
+        declared,
+        "`FieldTarget::ALL` lists {} of the {declared} declared variants",
+        sideseat_domain::rules::schema::FieldTarget::ALL.len()
+    );
+}
+
+/// Every target's declared **type** reaches the sink that writes it.
+///
+/// `apply_field` chooses a setter per target - `text()`, `integer()`, `float()`, `list()` - and each returns
+/// `None`/empty when the reading is a different variant. So a target whose `field_type()` says `Float` while its
+/// arm calls `integer()` resolves perfectly, converts perfectly, and writes **nothing**: the column stays unset
+/// and no diagnostic says why. Nothing checked the correspondence, and it is exactly the kind of pair that drifts
+/// when a column's type changes.
+///
+/// Asked by feeding each target a reading of its own declared type and requiring the write to be observable, in
+/// either sink - the counters go to `TokenReadings` rather than to a column.
+#[test]
+fn every_target_writes_what_its_declared_type_produces() {
+    use sideseat_domain::rules::schema::{FieldTarget, FieldType};
+    use sideseat_domain::rules::span_fields::{Reading, Resolved};
+
+    for target in FieldTarget::ALL {
+        // A value of the target's own type that is inside whatever range it admits, so this measures the sink and
+        // not the configured bound.
+        let reading = match target.field_type() {
+            FieldType::Text => Reading::Text("probe".to_string()),
+            FieldType::Integer => Reading::Integer(1),
+            FieldType::Float => Reading::Float(0.5),
+            FieldType::StringList => Reading::StringList(vec!["probe".to_string()]),
+        };
+        let resolved = Resolved {
+            target: *target,
+            reading,
+            rule_id: "probe.rule".to_string(),
+            evidence: None,
+            refused: Vec::new(),
+        };
+        let mut span = SpanData::default();
+        let mut tokens = crate::traces::extract::attributes::TokenReadings::default();
+        let before = format!("{span:?}{tokens:?}");
+        crate::traces::extract::attributes::apply_field_for_test(&mut span, &resolved, &mut tokens);
+        assert_ne!(
+            format!("{span:?}{tokens:?}"),
+            before,
+            "`{target:?}` declares {:?} and its sink wrote nothing, so a value of its own type is silently lost",
+            target.field_type()
+        );
+    }
+}
+
+/// **Every** span-field refusal fires, because none of them did.
+///
+/// Seventeen refusals, each a statement about a declaration that cannot mean what it says, and not one was
+/// exercised anywhere - so each was a claim rather than a guard, and any of them could have been deleted or
+/// narrowed with the suite still green. Several are one edit from being unreachable: the exclusivity check *counts*
+/// the seven reader forms (it used to pattern-match a pair, which stopped covering the forms as they were added),
+/// and a count that drifted to six would silently admit the form it forgot.
+///
+/// One probe per refusal, matched on the variant rather than on the message, so rewording a diagnostic does not
+/// quietly stop testing it.
+#[test]
+fn every_span_field_refusal_fires() {
+    use sideseat_domain::rules::span_fields::{FieldCompileError as E, compile};
+
+    let compiled = |asset: &str| {
+        compile(&std::collections::BTreeMap::from([(
+            "t.json".to_string(),
+            asset.as_bytes().to_vec(),
+        )]))
+    };
+    /// A probe asset, and the refusal it must produce.
+    type Case = (&'static str, &'static str, fn(&E) -> bool);
+    let cases: Vec<Case> = vec![
+        ("not JSON at all", "{", |e| matches!(e, E::Parse { .. })),
+        (
+            "a rule with no source",
+            r#"{"id":"t","span_fields":[{"id":"f","target":"user_id","sources":[]}]}"#,
+            |e| matches!(e, E::NoSources { .. }),
+        ),
+        (
+            "a source naming nowhere to read from",
+            r#"{"id":"t","span_fields":[{"id":"f","target":"user_id","sources":[{"id":"s"}]}]}"#,
+            |e| matches!(e, E::SourceReadsNothing { .. }),
+        ),
+        (
+            "a source naming two places, where the reader's branch order would decide",
+            r#"{"id":"t","span_fields":[{"id":"f","target":"user_id",
+               "sources":[{"id":"s","attribute":"k","raw_span_name":true}]}]}"#,
+            |e| matches!(e, E::SourceReadsTwoThings { .. }),
+        ),
+        (
+            "a literal with no gate, which answers on every span",
+            r#"{"id":"t","span_fields":[{"id":"f","target":"user_id",
+               "sources":[{"id":"s","value":"x"}]}]}"#,
+            |e| matches!(e, E::UngatedLiteral { .. }),
+        ),
+        (
+            "a JSON source naming neither a path nor a first-present group",
+            r#"{"id":"t","span_fields":[{"id":"f","target":"user_id",
+               "sources":[{"id":"s","json":{"attribute":"a"}}]}]}"#,
+            |e| matches!(e, E::JsonNamesNoMember { .. }),
+        ),
+        (
+            "a sum into a field that holds text",
+            r#"{"id":"t","span_fields":[{"id":"f","target":"user_id",
+               "sources":[{"id":"s","json":{"attribute":"a","path":"$.n","reduce":"sum"}}]}]}"#,
+            |e| matches!(e, E::ReductionThatCannotYield { .. }),
+        ),
+        (
+            "a reduction over a first-present group, which selects one path rather than combining matches",
+            r#"{"id":"t","span_fields":[{"id":"f","target":"usage_input_tokens",
+               "sources":[{"id":"s","json":{"attribute":"a","first_present_of":["$.a","$.b"],"reduce":"sum"}}]}]}"#,
+            |e| matches!(e, E::ReductionWithoutAPath { .. }),
+        ),
+        (
+            "folding a field that holds no text",
+            r#"{"id":"t","span_fields":[{"id":"f","target":"usage_input_tokens",
+               "sources":[{"id":"s","attribute":"k","lowercase":true}]}]}"#,
+            |e| matches!(e, E::FoldWithoutText { .. }),
+        ),
+        (
+            "`scalar_only` where it cannot apply",
+            r#"{"id":"t","span_fields":[{"id":"f","target":"user_id",
+               "sources":[{"id":"s","json":{"attribute":"a","first_present_of":["$.a"],"scalar_only":true}}]}]}"#,
+            |e| matches!(e, E::ScalarOnlyWithoutAPath { .. }),
+        ),
+        (
+            "an empty attribute name",
+            r#"{"id":"t","span_fields":[{"id":"f","target":"user_id",
+               "sources":[{"id":"s","attribute":""}]}]}"#,
+            |e| matches!(e, E::EmptyAttribute { .. }),
+        ),
+        (
+            "every occurrence of an event attribute into a field holding one value",
+            r#"{"id":"t","span_fields":[{"id":"f","target":"user_id",
+               "sources":[{"id":"s","event_attribute":{"event":"e","attribute":"a","occurrence":"every"}}]}]}"#,
+            |e| matches!(e, E::EveryOccurrenceIntoOneValue { .. }),
+        ),
+        (
+            "a merge into a field that holds one value",
+            r#"{"id":"t","span_fields":[{"id":"f","target":"user_id","combine":"merge_all",
+               "sources":[{"id":"s","attribute":"k"}]}]}"#,
+            |e| matches!(e, E::MergeIntoScalar { .. }),
+        ),
+        (
+            "two rules resolving one target",
+            r#"{"id":"t","span_fields":[
+               {"id":"f","target":"user_id","sources":[{"id":"s","attribute":"k"}]},
+               {"id":"g","target":"user_id","sources":[{"id":"s","attribute":"j"}]}]}"#,
+            |e| matches!(e, E::DuplicateTarget { .. }),
+        ),
+        (
+            "two rules sharing an id",
+            r#"{"id":"t","span_fields":[
+               {"id":"f","target":"user_id","sources":[{"id":"s","attribute":"k"}]},
+               {"id":"f","target":"http_method","sources":[{"id":"s","attribute":"j"}]}]}"#,
+            |e| matches!(e, E::DuplicateId { .. }),
+        ),
+        (
+            // Two *sources* sharing an id is a different rule, and it was enforced only where the whole ruleset
+            // is built: `span_fields::compile` parsed the file itself and never asked `declaration_defect`, which
+            // is the hole that function's own doc names - "a hole the moment anything else loads a file".
+            "two sources of one rule sharing an id",
+            r#"{"id":"t","span_fields":[{"id":"f","target":"user_id",
+               "sources":[{"id":"s","attribute":"k"},{"id":"s","attribute":"j"}]}]}"#,
+            |e| matches!(e, E::Parse { .. }),
+        ),
+        (
+            "a gate that can never hold",
+            r#"{"id":"t","span_fields":[{"id":"f","target":"user_id",
+               "sources":[{"id":"s","attribute":"k","when":{"attr_prefix":[""]}}]}]}"#,
+            |e| matches!(e, E::DeadGate { .. }),
+        ),
+        (
+            // Each gate was validated on its own and neither validator asked about the other, so the pair
+            // compiled as a source that is simply never consulted - which reads as a narrowing somebody chose.
+            "a source admitted and skipped by the same condition",
+            r#"{"id":"t","span_fields":[{"id":"f","target":"user_id",
+               "sources":[{"id":"s","attribute":"k","when":{"attr_exists":["m"]},"unless":{"attr_exists":["m"]}}]}]}"#,
+            |e| matches!(e, E::DeadGate { .. }),
+        ),
+        (
+            "a gate naming a resource dimension field resolution is never given",
+            r#"{"id":"t","span_fields":[{"id":"f","target":"user_id",
+               "sources":[{"id":"s","attribute":"k","when":{"service_name":["x"]}}]}]}"#,
+            |e| matches!(e, E::UnavailableGate { .. }),
+        ),
+    ];
+
+    for (what, asset, expected) in cases {
+        let error = compiled(asset)
+            .err()
+            .unwrap_or_else(|| panic!("should have been refused: {what}"));
+        assert!(expected(&error), "wrong refusal for {what}: {error}");
+    }
+
+    // Two *different* gates on one source are fine - that is an admitted-unless pair, which several assets use.
+    assert!(
+        compiled(
+            r#"{"id":"t","span_fields":[{"id":"f","target":"user_id",
+               "sources":[{"id":"s","attribute":"k","when":{"attr_exists":["m"]},"unless":{"attr_exists":["n"]}}]}]}"#
+        )
+        .is_ok(),
+        "two different conditions are an ordinary admitted-unless pair"
+    );
+
+    // And a rule stating one reader with nothing dead about it compiles, or the refusals are simply a ban.
+    assert!(
+        compiled(
+            r#"{"id":"t","span_fields":[{"id":"f","target":"user_id",
+               "sources":[{"id":"s","attribute":"k"},{"id":"t","json":{"attribute":"a","path":"$.u"}}]}]}"#
+        )
+        .is_ok()
+    );
+}
