@@ -3,6 +3,19 @@
   "doc": "The OpenInference dialect. Its messages arrive as *indexed attribute families* - a list of objects flattened into dotted keys, because OTel attributes are a flat map - and its retrieval spans report documents the same way. The one thing that is not a plain read is the multimodal overlay: the dotted keys lose file blocks and redact URLs, while a serialised `input.value` on the same span holds the whole content, so the richer copy is joined on by position.",
   "carriers": [
     {
+      "id": "openinference.tool_output_value",
+      "doc": "On an OpenInference TOOL span, `output.value` is the result of this one execution rather than accumulated framework state. The observation-type qualifier makes this strictly narrower than the generic `output.value` carrier.",
+      "match": {
+        "attribute": "output.value",
+        "observation_type": [
+          "tool"
+        ]
+      },
+      "facts": {
+        "preset": "emission"
+      }
+    },
+    {
       "id": "openinference.output_messages",
       "doc": "What this span produced, as an indexed array.",
       "match": {
@@ -151,6 +164,44 @@
         ]
       },
       "legacy_rank": 210
+    },
+    {
+      "id": "openinference.tool_output",
+      "doc": "The return value of an OpenInference TOOL span. AutoGen 0.7.5 records the call id on its sibling semantic-convention span rather than this OpenInference span, so the result keeps the tool name and query-time correlation links it to the oldest unclaimed call of that name.",
+      "instrumentation_scope": {
+        "name": "openinference.instrumentation.autogen_agentchat"
+      },
+      "when": {
+        "attr_equals_ignore_case": [
+          {
+            "key": "openinference.span.kind",
+            "value": "tool"
+          }
+        ]
+      },
+      "read": {
+        "attribute": "output.value"
+      },
+      "parse": "json_or_string",
+      "wrap": {
+        "role": "tool",
+        "block": {
+          "type": "tool_result",
+          "attach": [
+            {
+              "from": "tool.name",
+              "as": "name"
+            },
+            {
+              "from": "gen_ai.tool.call.id",
+              "as": "tool_use_id"
+            }
+          ]
+        }
+      },
+      "emit": "message",
+      "legacy_rank": 215,
+      "reads_tool_spans": true
     },
     {
       "id": "openinference.retrieval",

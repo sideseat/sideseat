@@ -34,7 +34,7 @@ of the surviving messages rather than silently inventing or dropping content.
 
 ## Current checked-in boundary
 
-The current tracked corpus contains 30 suites, 137 samples, and 300 captured OTLP requests:
+The current tracked corpus contains 32 suites, 139 samples, and 302 captured OTLP requests:
 
 - SideSeat SDK versus plain OpenTelemetry pairs for Python, TypeScript/Node.js, .NET, and Rust;
 - a credential-free OpenAI 3.19.2 / Logfire 6.0.0b7 pair captured both natively and through
@@ -45,6 +45,8 @@ The current tracked corpus contains 30 suites, 137 samples, and 300 captured OTL
   multi-turn history, and a complete tool-call roundtrip;
 - a credential-free Google GenAI 2.25.0 / Logfire 6.0.0b7 pair covering ordinary generation,
   SSE streaming, and automatic Python function calling with exact native/SideSeat parity;
+- a credential-free AutoGen AgentChat 0.7.5 / OpenInference instrumentor 0.1.18 pair covering
+  direct responses, streaming, and automatic tool execution with exact native/SideSeat parity;
 - current captures for Strands Python and TypeScript, Vercel AI SDK, Google ADK, LangGraph,
   OpenAI Agents SDK, Claude Agent SDK in Python and TypeScript, Microsoft Agent Framework,
   CrewAI, direct OpenAI, direct Anthropic, and Amazon Bedrock;

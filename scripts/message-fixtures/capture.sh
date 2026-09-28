@@ -45,9 +45,8 @@ SUITES=(
   "google-genai|uv run --locked --directory examples/python/google-genai google-genai-provider {S}"
   "agent-framework|uv run --locked --directory examples/python/agent-framework telemetry-agent-framework {S}"
   "claude-agent-sdk|uv run --locked --directory examples/python/claude-agent-sdk claude-agent-sdk {S}"
-  # Listed so the inventory is complete and its absence is visible rather than silent. Skipped
-  # unless a first-party key is present: autogen's runner has no Bedrock path, so it cannot run
-  # on the AWS credentials every other suite uses.
+  # The `agent` sample can also run against scripts/message-fixtures/fake-openai.py through
+  # AUTOGEN_OPENAI_BASE_URL, so it needs no first-party credential.
   "autogen|uv run --locked --directory examples/python/autogen telemetry-autogen {S}"
   "vercel-ai-js|cd examples/javascript && npm run vercel-ai -- {S}"
   "strands-js|cd examples/javascript && npm run strands -- {S}"
@@ -180,10 +179,11 @@ for entry in "${SUITES[@]}"; do
   IFS='|' read -r suite runner <<<"$entry"
   [[ -n "$want_suite" && "$suite" != "$want_suite" ]] && continue
 
-  # Suites with no Bedrock path need a first-party key; skip rather than report a failure that
-  # is really a missing credential.
-  if [[ "$suite" == "autogen" && -z "${OPENAI_API_KEY:-}${ANTHROPIC_API_KEY:-}" ]]; then
-    echo "[capture] $suite: skipped - needs OPENAI_API_KEY or ANTHROPIC_API_KEY (no Bedrock path)"
+  # AutoGen has no Bedrock path. Its compact fixture may use the deterministic local endpoint;
+  # the larger historical sample catalogue still needs a first-party key.
+  if [[ "$suite" == "autogen" &&
+        -z "${OPENAI_API_KEY:-}${ANTHROPIC_API_KEY:-}${AUTOGEN_OPENAI_BASE_URL:-}" ]]; then
+    echo "[capture] $suite: skipped - needs a provider key or AUTOGEN_OPENAI_BASE_URL"
     continue
   fi
 

@@ -1,5 +1,7 @@
 """Sample runner with model and provider configuration."""
 
+import os
+
 from config import MODEL_ALIASES, REASONING_MODELS, SAMPLES
 from telemetry_setup import setup_telemetry
 from common.models import DEFAULT_THINKING_BUDGET
@@ -40,13 +42,21 @@ def get_model_client(model_alias: str, enable_thinking: bool = False):
     if provider == "openai":
         from autogen_ext.models.openai import OpenAIChatCompletionClient
 
+        client_kwargs = {}
+        if base_url := os.getenv("AUTOGEN_OPENAI_BASE_URL"):
+            # A dedicated variable wins over examples/.env and therefore makes
+            # deterministic fixture capture incapable of reaching a real API.
+            client_kwargs["base_url"] = base_url
+            client_kwargs["api_key"] = os.getenv("AUTOGEN_API_KEY", "sideseat-local")
+
         if use_thinking:
             print("  Extended thinking: enabled (reasoning_effort=medium)")
             return OpenAIChatCompletionClient(
                 model=model_id,
                 extra_create_args={"reasoning_effort": "medium"},
+                **client_kwargs,
             )
-        return OpenAIChatCompletionClient(model=model_id)
+        return OpenAIChatCompletionClient(model=model_id, **client_kwargs)
 
     elif provider == "anthropic":
         from autogen_core.models import ModelInfo

@@ -178,6 +178,38 @@ pub(crate) fn extract_message_from_event(
 // MESSAGE EXTRACTION FROM ATTRIBUTES
 // ============================================================================
 
+#[derive(Clone, Copy)]
+struct SpanExtraction<'a> {
+    name: &'a str,
+    attrs: &'a HashMap<String, String>,
+    scope_name: Option<&'a str>,
+    scope_version: Option<&'a str>,
+    is_tool_span: bool,
+}
+
+impl<'a> SpanExtraction<'a> {
+    #[cfg(test)]
+    fn unscoped(name: &'a str, attrs: &'a HashMap<String, String>, is_tool_span: bool) -> Self {
+        Self {
+            name,
+            attrs,
+            scope_name: None,
+            scope_version: None,
+            is_tool_span,
+        }
+    }
+
+    fn message_context(self) -> sideseat_domain::rules::MessageContext<'a> {
+        sideseat_domain::rules::MessageContext::for_scoped_span(
+            self.name,
+            self.scope_name,
+            self.scope_version,
+            self.attrs,
+            self.is_tool_span,
+        )
+    }
+}
+
 /// Run every **declared** message rule: the carriers an asset says to read, parsed as it says.
 ///
 /// This is the production entry point for message extraction. It names no framework and performs no
@@ -186,6 +218,7 @@ pub(crate) fn extract_message_from_event(
 ///
 /// The producer-specific readers retained below are test-only equivalence oracles. Production does not
 /// register or call them.
+#[cfg(test)]
 pub(crate) fn try_declared_rules(
     messages: &mut Vec<RawMessage>,
     tool_definitions: &mut Vec<RawToolDefinition>,
@@ -194,15 +227,25 @@ pub(crate) fn try_declared_rules(
     timestamp: DateTime<Utc>,
     claims: &mut std::collections::HashSet<sideseat_domain::rules::message_rules::OwnedCarrier>,
 ) -> bool {
-    let emissions = sideseat_domain::rules::ruleset().messages.run(
-        &sideseat_domain::rules::MessageContext::for_span(
-            span_name,
-            attrs,
-            // Asked here rather than threaded through the extractor signature: it is a pure function
-            // of the span, and a rule declares whether it may read such a span.
-            is_tool_execution_span(attrs),
-        ),
-    );
+    try_declared_rules_for_span(
+        messages,
+        tool_definitions,
+        SpanExtraction::unscoped(span_name, attrs, is_tool_execution_span(attrs)),
+        timestamp,
+        claims,
+    )
+}
+
+fn try_declared_rules_for_span(
+    messages: &mut Vec<RawMessage>,
+    tool_definitions: &mut Vec<RawToolDefinition>,
+    span: SpanExtraction<'_>,
+    timestamp: DateTime<Utc>,
+    claims: &mut std::collections::HashSet<sideseat_domain::rules::message_rules::OwnedCarrier>,
+) -> bool {
+    let emissions = sideseat_domain::rules::ruleset()
+        .messages
+        .run(&span.message_context());
     // "Was the message payload handled?" - which is what the caller does with this answer, since it uses it
     // to decide whether the generic reader still needs to run.
     //
@@ -279,6 +322,7 @@ pub enum ExtractionMode {
     PerCarrier,
 }
 
+#[cfg(test)]
 pub(crate) fn extract_messages_from_attrs(
     messages: &mut Vec<RawMessage>,
     tool_definitions: &mut Vec<RawToolDefinition>,
@@ -288,37 +332,38 @@ pub(crate) fn extract_messages_from_attrs(
     mode: ExtractionMode,
     is_tool_span: bool,
 ) {
+    extract_messages_from_context(
+        messages,
+        tool_definitions,
+        SpanExtraction::unscoped(span_name, attrs, is_tool_span),
+        timestamp,
+        mode,
+    );
+}
+
+fn extract_messages_from_context(
+    messages: &mut Vec<RawMessage>,
+    tool_definitions: &mut Vec<RawToolDefinition>,
+    span: SpanExtraction<'_>,
+    timestamp: DateTime<Utc>,
+    mode: ExtractionMode,
+) {
     if mode == ExtractionMode::PerCarrier {
-        extract_per_carrier(
-            messages,
-            tool_definitions,
-            attrs,
-            span_name,
-            timestamp,
-            is_tool_span,
-        );
+        extract_per_carrier(messages, tool_definitions, span, timestamp);
         return;
     }
 
     let mut claims = std::collections::HashSet::new();
-    if try_declared_rules(
-        messages,
-        tool_definitions,
-        attrs,
-        span_name,
-        timestamp,
-        &mut claims,
-    ) {
+    if try_declared_rules_for_span(messages, tool_definitions, span, timestamp, &mut claims) {
         return;
     }
     // The fallback stage, which this baseline used to lose entirely: a span carrying only the generic pair
     // produced no messages at all under it, which also made the metamorphic oracle's baseline smaller than
     // the thing it is a baseline for.
-    if !is_tool_span {
+    if !span.is_tool_span {
         // Nothing was produced, so nothing has been read.
         messages.extend(fallback_messages(
-            attrs,
-            span_name,
+            span,
             timestamp,
             &std::collections::HashSet::new(),
         ));
@@ -335,10 +380,8 @@ pub(crate) fn extract_messages_from_attrs(
 fn extract_per_carrier(
     messages: &mut Vec<RawMessage>,
     tool_definitions: &mut Vec<RawToolDefinition>,
-    attrs: &HashMap<String, String>,
-    span_name: &str,
+    span: SpanExtraction<'_>,
     timestamp: DateTime<Utc>,
-    is_tool_span: bool,
 ) {
     let mut claimed: HashSet<String> = messages.iter().map(|m| carrier_of(&m.source)).collect();
     // What the dialect stage owns, typed and taken from the emissions themselves - which is what the
@@ -347,18 +390,17 @@ fn extract_per_carrier(
         sideseat_domain::rules::message_rules::OwnedCarrier,
     > = std::collections::HashSet::new();
     let mut any_specific = false;
-    let observation_type = super::attributes::detect_observation_type(span_name, attrs);
+    let observation_type = super::attributes::detect_observation_type(span.name, span.attrs);
 
     // One evaluator, called directly: the table of framework extractors it replaced is gone, and with one
     // entry left the indirection only hid which code runs.
     {
         let mut produced = Vec::new();
         let mut claims = std::collections::HashSet::new();
-        if try_declared_rules(
+        if try_declared_rules_for_span(
             &mut produced,
             tool_definitions,
-            attrs,
-            span_name,
+            span,
             timestamp,
             &mut claims,
         ) {
@@ -383,14 +425,13 @@ fn extract_per_carrier(
         claimed.extend(newly_claimed);
     }
 
-    if is_tool_span {
+    if span.is_tool_span {
         return;
     }
 
     if !any_specific {
         messages.extend(fallback_messages(
-            attrs,
-            span_name,
+            span,
             timestamp,
             &std::collections::HashSet::new(),
         ));
@@ -411,7 +452,7 @@ fn extract_per_carrier(
     }
     if messages
         .iter()
-        .any(|m| carrier_holds_span_output(&m.source, span_name, observation_type))
+        .any(|m| carrier_holds_span_output(&m.source, span.name, observation_type))
     {
         return;
     }
@@ -419,9 +460,9 @@ fn extract_per_carrier(
     // What a dialect already read. Passed in, because this call happens *after* the dialect stage produced
     // something - the one case where the two stages meet, and where independent claim sets let one carrier be
     // read twice.
-    let produced = fallback_messages(attrs, span_name, timestamp, &owned_by_dialects);
+    let produced = fallback_messages(span, timestamp, &owned_by_dialects);
     for message in produced {
-        if !carrier_holds_span_output(&message.source, span_name, observation_type) {
+        if !carrier_holds_span_output(&message.source, span.name, observation_type) {
             continue;
         }
         let carrier = carrier_of(&message.source);
@@ -475,9 +516,20 @@ fn carrier_of(source: &MessageSource) -> String {
 /// This is separate from `try_otel_genai_messages` because tool definitions
 /// are metadata that should be extracted from tool execution spans too,
 /// not just chat spans.
+#[cfg(test)]
 pub(crate) fn extract_tool_definitions(
     span_name: &str,
     attrs: &HashMap<String, String>,
+    timestamp: DateTime<Utc>,
+) -> (Vec<RawToolDefinition>, Vec<RawToolNames>) {
+    extract_tool_definitions_for_span(
+        SpanExtraction::unscoped(span_name, attrs, is_tool_execution_span(attrs)),
+        timestamp,
+    )
+}
+
+fn extract_tool_definitions_for_span(
+    span: SpanExtraction<'_>,
     timestamp: DateTime<Utc>,
 ) -> (Vec<RawToolDefinition>, Vec<RawToolNames>) {
     let mut tool_definitions = Vec::new();
@@ -486,13 +538,10 @@ pub(crate) fn extract_tool_definitions(
     // Declared `repr` grammars. Every span, like the rest of this function: a tool definition is not a
     // message, so carrier claiming does not apply - a framework may state its tools on a carrier another
     // rule reads as a conversation, and both statements are true.
-    for emission in sideseat_domain::rules::ruleset().messages.tool_definitions(
-        &sideseat_domain::rules::MessageContext::for_span(
-            span_name,
-            attrs,
-            is_tool_execution_span(attrs),
-        ),
-    ) {
+    for emission in sideseat_domain::rules::ruleset()
+        .messages
+        .tool_definitions(&span.message_context())
+    {
         let key = emission.carrier.name();
         match emission.target {
             // A list of names is not a list of definitions, and filing one as the other reports tools whose
@@ -3030,21 +3079,13 @@ pub(crate) fn try_claude_code(
 /// Non-plain-data values (already message-shaped, arrays, strings) pass through unchanged.
 /// The fallback stage's messages: the declared last-resort carriers, read for this span.
 fn fallback_messages(
-    attrs: &HashMap<String, String>,
-    span_name: &str,
+    span: SpanExtraction<'_>,
     timestamp: DateTime<Utc>,
     already_read: &std::collections::HashSet<sideseat_domain::rules::message_rules::OwnedCarrier>,
 ) -> Vec<RawMessage> {
     sideseat_domain::rules::ruleset()
         .messages
-        .fallback(
-            &sideseat_domain::rules::MessageContext::for_span(
-                span_name,
-                attrs,
-                is_tool_execution_span(attrs),
-            ),
-            already_read,
-        )
+        .fallback(&span.message_context(), already_read)
         .into_iter()
         .filter(|emission| {
             matches!(
@@ -3264,13 +3305,32 @@ fn extract_openinference_documents(
 // ============================================================================
 
 /// Extract messages and tool definitions for a single span.
+#[cfg(test)]
 pub(super) fn extract_messages_for_span(
     otlp_span: &Span,
     span_attrs: &HashMap<String, String>,
     timestamp: DateTime<Utc>,
     mode: ExtractionMode,
 ) -> (Vec<RawMessage>, Vec<RawToolDefinition>, Vec<RawToolNames>) {
+    extract_messages_for_scoped_span(otlp_span, span_attrs, None, None, timestamp, mode)
+}
+
+pub(super) fn extract_messages_for_scoped_span(
+    otlp_span: &Span,
+    span_attrs: &HashMap<String, String>,
+    scope_name: Option<&str>,
+    scope_version: Option<&str>,
+    timestamp: DateTime<Utc>,
+    mode: ExtractionMode,
+) -> (Vec<RawMessage>, Vec<RawToolDefinition>, Vec<RawToolNames>) {
     let is_tool_span = is_tool_execution_span(span_attrs);
+    let span = SpanExtraction {
+        name: &otlp_span.name,
+        attrs: span_attrs,
+        scope_name,
+        scope_version,
+        is_tool_span,
+    };
 
     let mut raw_messages = Vec::new();
     let mut tool_definitions = Vec::new();
@@ -3357,7 +3417,7 @@ pub(super) fn extract_messages_for_span(
     // implementations *after* the suppression.
 
     // Always extract tool definitions and tool names from any span (they're metadata, not conversation)
-    let (defs, names) = extract_tool_definitions(&otlp_span.name, span_attrs, timestamp);
+    let (defs, names) = extract_tool_definitions_for_span(span, timestamp);
     tool_definitions.extend(defs);
     tool_names.extend(names);
 
@@ -3383,14 +3443,12 @@ pub(super) fn extract_messages_for_span(
     // overlap. Measured across all 111 fixtures and four views: removing the gate changed nothing.
 
     // Debug: Log extraction decision
-    extract_messages_from_attrs(
+    extract_messages_from_context(
         &mut raw_messages,
         &mut tool_definitions,
-        span_attrs,
-        &otlp_span.name,
+        span,
         timestamp,
         mode,
-        is_tool_span,
     );
 
     // Debug: Log final message count

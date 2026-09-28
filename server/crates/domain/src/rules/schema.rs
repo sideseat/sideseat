@@ -1358,6 +1358,13 @@ pub struct MessageRule {
     /// dialect's payload.
     #[serde(default)]
     pub when: Option<DetectMatch>,
+    /// Restrict this reading to one OpenTelemetry instrumentation scope.
+    ///
+    /// This is producer evidence carried by the telemetry itself, not a framework label inferred by
+    /// SideSeat. Exact scope names keep a carrier shared by several OpenInference integrations from being
+    /// interpreted as though every integration emitted the same payload shape.
+    #[serde(default)]
+    pub instrumentation_scope: Option<InstrumentationScopeMatch>,
     /// Ordered readings of the parsed value, tried until one yields an observation.
     ///
     /// An ordered coalesce, not a program: a payload has more than one documented shape and the rule
@@ -2859,6 +2866,17 @@ pub struct ThinkingBlock {
     pub text: Vec<JsonPath>,
     #[serde(default)]
     pub signature: Vec<JsonPath>,
+}
+
+/// One OpenTelemetry instrumentation scope accepted by a message rule.
+#[derive(Debug, Deserialize, Clone, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct InstrumentationScopeMatch {
+    /// Exact scope name. Empty names are refused when the rule is compiled.
+    pub name: String,
+    /// Optional version prefix for producer changes that preserve the scope name.
+    #[serde(default)]
+    pub version_prefix: Option<String>,
 }
 
 /// A wrapper: the block's content is *inside* a member, and the member is normalised in its place.

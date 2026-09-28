@@ -185,6 +185,29 @@ SideSeat shows a trace timeline with:
 - Code generation and execution spans with outputs
 - Error spans with exception details when failures occur
 
+## Verified compatibility
+
+The checked-in parity fixture uses AutoGen AgentChat 0.7.5, AutoGen Ext 0.7.5,
+OpenInference AutoGen instrumentation 0.1.18, OpenTelemetry Python 1.45.0, and
+SideSeat Python 1.0.8 on CPython 3.13.7. Native OpenTelemetry and SideSeat SDK
+captures produce the same span, trace, session, and feed conversations for direct
+responses, streaming responses, and automatic tool execution.
+
+The fixture can be reproduced without provider credentials:
+
+```bash
+scripts/message-fixtures/fake-openai.py --port 5401
+```
+
+In another shell:
+
+```bash
+AUTOGEN_OPENAI_BASE_URL=http://127.0.0.1:5401/v1 \
+AUTOGEN_API_KEY=x \
+CAPTURE_MODEL=gpt-4o-mini \
+  scripts/message-fixtures/capture.sh autogen agent both
+```
+
 ## Next Steps
 
 - [Python SDK](/docs/sdks/python/) — SDK reference

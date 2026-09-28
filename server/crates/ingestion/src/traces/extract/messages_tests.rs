@@ -9674,6 +9674,61 @@ fn declared_tool_definitions_survive_a_tool_execution_span() {
     );
 }
 
+#[test]
+fn openinference_tool_output_is_a_tool_result() {
+    let attrs = make_attrs(&[
+        ("openinference.span.kind", "TOOL"),
+        ("tool.name", "get_weather"),
+        ("tool.parameters", r#"{"location":"Paris"}"#),
+        ("input.value", r#"{"location":"Paris"}"#),
+        ("output.value", "Sunny, 22°C, light breeze in Paris."),
+        ("output.mime_type", "text/plain"),
+    ]);
+    assert!(
+        is_tool_execution_span(&attrs),
+        "the OpenInference span kind must establish the tool-execution gate"
+    );
+
+    let mut messages = Vec::new();
+    let mut tools = Vec::new();
+    extract_messages_from_context(
+        &mut messages,
+        &mut tools,
+        SpanExtraction {
+            name: "weather_assistant.get_weather",
+            attrs: &attrs,
+            scope_name: Some("openinference.instrumentation.autogen_agentchat"),
+            scope_version: Some("0.1.18"),
+            is_tool_span: true,
+        },
+        Utc::now(),
+        ExtractionMode::PerCarrier,
+    );
+
+    assert_eq!(
+        messages.len(),
+        1,
+        "the execution output must not be dropped"
+    );
+    assert!(matches!(
+        &messages[0].source,
+        MessageSource::Attribute { key, .. } if key == "output.value"
+    ));
+    assert_eq!(messages[0].content["role"].as_str(), Some("tool"));
+    assert_eq!(
+        messages[0].content["content"][0]["type"].as_str(),
+        Some("tool_result")
+    );
+    assert_eq!(
+        messages[0].content["content"][0]["name"].as_str(),
+        Some("get_weather")
+    );
+    assert_eq!(
+        messages[0].content["content"][0]["content"].as_str(),
+        Some("Sunny, 22°C, light breeze in Paris.")
+    );
+}
+
 /// A carrier whose whole content is a tool list is not also a conversation.
 ///
 /// The repr grammar runs on the metadata axis, outside claiming, which is right - a tool definition is not

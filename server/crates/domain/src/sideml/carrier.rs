@@ -435,6 +435,23 @@ mod tests {
     }
 
     #[test]
+    fn openinference_tool_output_is_one_execution_emission() {
+        let tool_output = semantics_for_context(&crate::rules::CarrierContext {
+            attribute: Some("output.value"),
+            observation_type: Some("tool"),
+            ..crate::rules::CarrierContext::default()
+        });
+        assert_eq!(tool_output, CarrierSemantics::EMISSION);
+
+        let unqualified = semantics_for(None, Some("output.value"));
+        assert_eq!(
+            unqualified,
+            CarrierSemantics::ACCUMULATED_STATE,
+            "ordinary output.value remains framework state; only a proven tool span narrows it"
+        );
+    }
+
+    #[test]
     fn an_unknown_carrier_takes_the_cautious_reading() {
         let unknown = semantics_for(None, Some("some.framework.newAttribute"));
         assert!(

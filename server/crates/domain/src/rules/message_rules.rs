@@ -92,6 +92,8 @@ struct Construction<'a> {
 #[derive(Debug, Clone, Copy)]
 pub struct MessageContext<'a> {
     pub span_name: &'a str,
+    pub scope_name: Option<&'a str>,
+    pub scope_version: Option<&'a str>,
     /// The map a rule's `read` draws from - a span's attributes, or an event's when reading one.
     pub span_attrs: &'a HashMap<String, String>,
     /// The map a rule's `when`/`unless` asks about, which is always the **span's**.
@@ -113,6 +115,26 @@ impl<'a> MessageContext<'a> {
     ) -> Self {
         Self {
             span_name,
+            scope_name: None,
+            scope_version: None,
+            span_attrs,
+            gate_attrs: span_attrs,
+            is_tool_span,
+        }
+    }
+
+    /// A span read with the instrumentation scope carried by its `ScopeSpans` envelope.
+    pub fn for_scoped_span(
+        span_name: &'a str,
+        scope_name: Option<&'a str>,
+        scope_version: Option<&'a str>,
+        span_attrs: &'a HashMap<String, String>,
+        is_tool_span: bool,
+    ) -> Self {
+        Self {
+            span_name,
+            scope_name,
+            scope_version,
             span_attrs,
             gate_attrs: span_attrs,
             is_tool_span,
@@ -128,6 +150,8 @@ impl<'a> MessageContext<'a> {
     ) -> Self {
         Self {
             span_name,
+            scope_name: None,
+            scope_version: None,
             span_attrs: event_attrs,
             gate_attrs: span_attrs,
             is_tool_span,
@@ -278,6 +302,7 @@ pub struct CompiledMessageRule {
     pub aggregate_into_array: bool,
     pub when: Option<CompiledDetect>,
     pub unless: Option<CompiledDetect>,
+    pub instrumentation_scope: Option<super::schema::InstrumentationScopeMatch>,
     pub require_non_empty: bool,
     pub require_non_blank: bool,
     pub branch_set: Option<CompiledBranchSet>,
@@ -448,6 +473,7 @@ fn compile_rule(
         tag_as,
         unless,
         when,
+        instrumentation_scope,
         legacy_rank,
     } = rule;
     // The values every check below reads, resolved once. The *declarations* above keep their presence, which
@@ -458,6 +484,15 @@ fn compile_rule(
     let non_empty = require_non_empty.unwrap_or(false);
     let non_blank = require_non_blank.unwrap_or(false);
     let tool_spans = reads_tool_spans.unwrap_or(false);
+    if instrumentation_scope.as_ref().is_some_and(|scope| {
+        scope.name.is_empty() || scope.version_prefix.as_ref().is_some_and(String::is_empty)
+    }) {
+        return Err(MessageCompileError::Inexpressible {
+            rule: id.clone(),
+            detail: "an instrumentation scope name or version prefix is empty, which would match no \
+                     meaningful producer scope",
+        });
+    }
     if compose.is_none() && branch_set.is_none() && read.named_count() != 1 {
         return Err(MessageCompileError::NotExactlyOneCarrier { rule: id.clone() });
     }
@@ -1316,6 +1351,7 @@ fn compile_rule(
         aggregate_into_array: aggregate,
         when: when.as_ref().map(super::detect_rules::compile_signals),
         unless: unless.as_ref().map(super::detect_rules::compile_signals),
+        instrumentation_scope: instrumentation_scope.clone(),
         require_non_empty: non_empty,
         require_non_blank: non_blank,
         branch_set: compiled_branch_set,
@@ -3751,6 +3787,18 @@ fn sniffed_value(raw: &str) -> JsonValue {
 
 /// Both gates, in one place so every read form is subject to them.
 fn gates_allow(rule: &CompiledMessageRule, ctx: &MessageContext<'_>) -> bool {
+    if let Some(scope) = &rule.instrumentation_scope {
+        if ctx.scope_name != Some(scope.name.as_str()) {
+            return false;
+        }
+        if let Some(prefix) = &scope.version_prefix
+            && !ctx
+                .scope_version
+                .is_some_and(|version| version.starts_with(prefix))
+        {
+            return false;
+        }
+    }
     if let Some(gate) = &rule.when
         && !super::detect_rules::compiled_signals_hold(gate, ctx.span_name, ctx.gate_attrs)
     {

@@ -4116,6 +4116,16 @@ fn rules_that_emit() -> BTreeSet<String> {
             let request = decode_request(path);
             for resource in &request.resource_spans {
                 for scope in &resource.scope_spans {
+                    let (scope_name, scope_version) = scope
+                        .scope
+                        .as_ref()
+                        .map(|scope| {
+                            (
+                                Some(scope.name.as_str()).filter(|name| !name.is_empty()),
+                                Some(scope.version.as_str()).filter(|version| !version.is_empty()),
+                            )
+                        })
+                        .unwrap_or((None, None));
                     for span in &scope.spans {
                         let attrs = extract_attributes(&span.attributes);
                         // The same declared fact the extractor asks, so this measures the plan as ingestion
@@ -4124,7 +4134,13 @@ fn rules_that_emit() -> BTreeSet<String> {
                             sideseat_domain::rules::schema::SpanFact::ToolExecution,
                             &attrs,
                         );
-                        let ctx = MessageContext::for_span(&span.name, &attrs, is_tool);
+                        let ctx = MessageContext::for_scoped_span(
+                            &span.name,
+                            scope_name,
+                            scope_version,
+                            &attrs,
+                            is_tool,
+                        );
                         let mut read: std::collections::HashSet<OwnedCarrier> =
                             std::collections::HashSet::new();
                         // The sources the dialects produced, in the form the answer-recovery test reads.
@@ -4235,24 +4251,20 @@ fn no_declared_rule_is_dead_across_the_corpus() {
     /// captured - and the rest are shapes the captured runs never produced.
     const UNREACHED: &[(&str, &str)] = &[
         (
-            "autogen.aggregate_input",
-            "no captured fixture: the suite needs a first-party API key, so nothing has been captured",
-        ),
-        (
             "autogen.autogen_event",
-            "no captured fixture: the suite needs a first-party API key, so nothing has been captured",
+            "the suite is captured through OpenInference; no fixture emits the legacy AutoGen event shape",
         ),
         (
             "autogen.body",
-            "no captured fixture: the suite needs a first-party API key, so nothing has been captured",
+            "the suite is captured through OpenInference; no fixture emits the legacy AutoGen body shape",
         ),
         (
             "autogen.log_body",
-            "no captured fixture: the suite needs a first-party API key, so nothing has been captured",
+            "the suite is captured through OpenInference; no fixture emits the legacy AutoGen log-body shape",
         ),
         (
             "autogen.message",
-            "no captured fixture: the suite needs a first-party API key, so nothing has been captured",
+            "the suite is captured through OpenInference; no fixture emits the legacy bare-message shape",
         ),
         (
             "crewai.aggregate_input",

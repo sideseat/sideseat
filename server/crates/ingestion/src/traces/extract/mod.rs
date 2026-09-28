@@ -643,9 +643,11 @@ pub fn extract_messages_batch(
                 span_idx += 1;
 
                 let (raw_messages, tool_definitions, tool_names) =
-                    messages::extract_messages_for_span(
+                    messages::extract_messages_for_scoped_span(
                         otlp_span,
                         &span_attrs,
+                        span.scope_name.as_deref(),
+                        span.scope_version.as_deref(),
                         span.timestamp_start,
                         mode,
                     );
