@@ -13,6 +13,9 @@ staged() { git diff --cached --name-only -- "$@" | grep -qc . 2>/dev/null; }
 # in reflogs, stashes and any clone, and removing it needs a history rewrite. Cheapest possible
 # place to stop it, so it runs first and unconditionally.
 make secret-scan-staged
+# Read blobs from the index, not the working tree: an unstaged shortening must not hide an oversized version
+# that is actually about to be committed.
+./scripts/check-file-lengths.sh --cached
 
 RUST_SERVER=0; RUST_WORKSPACE=0; WEB=0; JS_SDK=0; PY=0
 staged 'server/' && RUST_SERVER=1

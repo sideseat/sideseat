@@ -207,8 +207,12 @@ fmt-check: ## Check source formatting
 	@$(PRETTIER) --check "web/src/**/*.{ts,tsx,css,json}" "sdk/js/src/**/*.ts" "examples/javascript/src/**/*.ts"
 	@$(MAKE) --no-print-directory fmt-check-python
 
+file-length-check: ## Enforce the hard 1000-line source-file limit
+	@./scripts/check-file-lengths.sh
+
 lint: ## Run all linters
 	@echo "[lint] Running linters..."
+	@$(MAKE) --no-print-directory file-length-check
 	$(call run-with-disk-guard,cargo clippy --locked --all-targets -- -D warnings)
 	@cd $(WEB_DIR) && npm run lint
 	@cd sdk/js && npm run lint
