@@ -97,13 +97,28 @@ fn the_choice_event_is_the_first_finish_reason_source() {
 /// be complete or they check a subset while claiming to check the ontology.
 #[test]
 fn every_field_target_is_listed() {
-    let source = include_str!(concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/../domain/src/rules/schema.rs"
-    ));
+    let module_file = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../domain/src/rules/schema.rs");
+    let mut pending = vec![module_file.with_extension(""), module_file];
+    let mut source = String::new();
+    while let Some(path) = pending.pop() {
+        if path.is_dir() {
+            pending.extend(
+                std::fs::read_dir(&path)
+                    .unwrap_or_else(|error| panic!("read {}: {error}", path.display()))
+                    .map(|entry| entry.expect("schema module entry").path()),
+            );
+        } else if path.extension().is_some_and(|extension| extension == "rs") {
+            source.push_str(
+                &std::fs::read_to_string(&path)
+                    .unwrap_or_else(|error| panic!("read {}: {error}", path.display())),
+            );
+            source.push('\n');
+        }
+    }
     let start = source
         .find("pub enum FieldTarget {")
-        .expect("the enum is declared here");
+        .expect("the enum is declared in the schema module");
     let body = &source[start..];
     let end = body.find("\n}\n").expect("the enum body ends");
     let declared = body[..end]
