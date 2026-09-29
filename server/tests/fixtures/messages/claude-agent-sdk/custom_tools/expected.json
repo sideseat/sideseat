@@ -212,7 +212,7 @@
         }
       ]
     },
-    "trace-1/claude_code.tool.blocked_on_user/span-12": {
+    "trace-1/claude_code.tool.blocked_on_user/span-11": {
       "message_count": 0,
       "role_sequence": [],
       "tool_names": [],
@@ -226,7 +226,7 @@
       "tool_definition_count": 0,
       "messages": []
     },
-    "trace-1/claude_code.tool.blocked_on_user/span-20": {
+    "trace-1/claude_code.tool.blocked_on_user/span-21": {
       "message_count": 0,
       "role_sequence": [],
       "tool_names": [],
@@ -247,7 +247,7 @@
       "tool_definition_count": 0,
       "messages": []
     },
-    "trace-1/claude_code.tool.execution/span-11": {
+    "trace-1/claude_code.tool.execution/span-12": {
       "message_count": 0,
       "role_sequence": [],
       "tool_names": [],
@@ -275,7 +275,7 @@
       "tool_definition_count": 0,
       "messages": []
     },
-    "trace-1/claude_code.tool.execution/span-7": {
+    "trace-1/claude_code.tool.execution/span-9": {
       "message_count": 0,
       "role_sequence": [],
       "tool_names": [],
@@ -320,7 +320,7 @@
         }
       ]
     },
-    "trace-1/claude_code.tool/span-21": {
+    "trace-1/claude_code.tool/span-20": {
       "message_count": 1,
       "role_sequence": [
         "assistant"
@@ -358,7 +358,7 @@
         }
       ]
     },
-    "trace-1/claude_code.tool/span-9": {
+    "trace-1/claude_code.tool/span-7": {
       "message_count": 1,
       "role_sequence": [
         "assistant"

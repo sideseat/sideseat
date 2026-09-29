@@ -154,14 +154,14 @@
         }
       ]
     },
-    "trace-3/execute_agent_loop_cycle/span-2": {
+    "trace-3/execute_agent_loop_cycle/span-1": {
       "message_count": 0,
       "role_sequence": [],
       "tool_names": [],
       "tool_definition_count": 0,
       "messages": []
     },
-    "trace-3/invoke_agent Strands Agent/span-1": {
+    "trace-3/invoke_agent Strands Agent/span-2": {
       "message_count": 3,
       "role_sequence": [
         "system",
@@ -204,14 +204,7 @@
       "tool_definition_count": 0,
       "messages": []
     },
-    "trace-5/chat global.anthropic.claude-haiku-4-5-20251001-v1:0/span-1": {
-      "message_count": 0,
-      "role_sequence": [],
-      "tool_names": [],
-      "tool_definition_count": 0,
-      "messages": []
-    },
-    "trace-6/chat/span-2": {
+    "trace-5/chat/span-1": {
       "message_count": 9,
       "role_sequence": [
         "system",
@@ -301,14 +294,14 @@
         }
       ]
     },
-    "trace-6/execute_agent_loop_cycle/span-3": {
+    "trace-5/execute_agent_loop_cycle/span-2": {
       "message_count": 0,
       "role_sequence": [],
       "tool_names": [],
       "tool_definition_count": 0,
       "messages": []
     },
-    "trace-6/invoke_agent Strands Agent/span-1": {
+    "trace-5/invoke_agent Strands Agent/span-3": {
       "message_count": 3,
       "role_sequence": [
         "system",
@@ -343,6 +336,13 @@
           "observation_type": "agent"
         }
       ]
+    },
+    "trace-6/chat global.anthropic.claude-haiku-4-5-20251001-v1:0/span-1": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
     }
   },
   "trace_views": {
@@ -433,13 +433,6 @@
       "messages": []
     },
     "trace-5": {
-      "message_count": 0,
-      "role_sequence": [],
-      "tool_names": [],
-      "tool_definition_count": 0,
-      "messages": []
-    },
-    "trace-6": {
       "message_count": 3,
       "role_sequence": [
         "system",
@@ -474,6 +467,13 @@
           "observation_type": "generation"
         }
       ]
+    },
+    "trace-6": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
     }
   },
   "session_views": {},

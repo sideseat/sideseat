@@ -248,6 +248,13 @@
         }
       ]
     },
+    "trace-1/claude_code.tool.blocked_on_user/span-10": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
     "trace-1/claude_code.tool.blocked_on_user/span-16": {
       "message_count": 0,
       "role_sequence": [],
@@ -255,7 +262,7 @@
       "tool_definition_count": 0,
       "messages": []
     },
-    "trace-1/claude_code.tool.blocked_on_user/span-19": {
+    "trace-1/claude_code.tool.blocked_on_user/span-20": {
       "message_count": 0,
       "role_sequence": [],
       "tool_names": [],
@@ -263,13 +270,6 @@
       "messages": []
     },
     "trace-1/claude_code.tool.blocked_on_user/span-4": {
-      "message_count": 0,
-      "role_sequence": [],
-      "tool_names": [],
-      "tool_definition_count": 0,
-      "messages": []
-    },
-    "trace-1/claude_code.tool.blocked_on_user/span-9": {
       "message_count": 0,
       "role_sequence": [],
       "tool_names": [],
@@ -304,25 +304,6 @@
       "tool_definition_count": 0,
       "messages": []
     },
-    "trace-1/claude_code.tool/span-10": {
-      "message_count": 1,
-      "role_sequence": [
-        "assistant"
-      ],
-      "tool_names": [],
-      "tool_definition_count": 0,
-      "messages": [
-        {
-          "index": 0,
-          "role": "assistant",
-          "entry_type": "tool_use",
-          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01J2niEA3m76qvTpSaZ5pGbo\",\"name\":\"Read\",\"input\":{\"file_path\":\"/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/sideseat-tool-use-nUlFWT/config.ts\"}}",
-          "content_digest": "e255b01419df010d",
-          "tool_name": "Read",
-          "observation_type": "tool"
-        }
-      ]
-    },
     "trace-1/claude_code.tool/span-15": {
       "message_count": 1,
       "role_sequence": [
@@ -342,7 +323,7 @@
         }
       ]
     },
-    "trace-1/claude_code.tool/span-20": {
+    "trace-1/claude_code.tool/span-19": {
       "message_count": 1,
       "role_sequence": [
         "assistant"
@@ -376,6 +357,25 @@
           "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01RwW2LVzmufKkuUQGS3qg37\",\"name\":\"Glob\",\"input\":{\"pattern\":\"**/*.{ts,tsx}\"}}",
           "content_digest": "7ecd504a20a09474",
           "tool_name": "Glob",
+          "observation_type": "tool"
+        }
+      ]
+    },
+    "trace-1/claude_code.tool/span-9": {
+      "message_count": 1,
+      "role_sequence": [
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01J2niEA3m76qvTpSaZ5pGbo\",\"name\":\"Read\",\"input\":{\"file_path\":\"/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/sideseat-tool-use-nUlFWT/config.ts\"}}",
+          "content_digest": "e255b01419df010d",
+          "tool_name": "Read",
           "observation_type": "tool"
         }
       ]

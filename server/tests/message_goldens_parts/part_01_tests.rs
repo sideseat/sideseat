@@ -499,8 +499,27 @@ fn sorted_by_timestamp(mut rows: Vec<MessageSpanRow>) -> Vec<MessageSpanRow> {
     rows
 }
 
-/// Stable label for each trace: `trace-1`, `trace-2`, ... ordered by earliest span timestamp
-/// then id.
+/// A capture-stable description of one span's user-visible projection.
+///
+/// Span and trace ids are regenerated on every run. When a runtime rounds sibling start times to
+/// the same millisecond, ids therefore cannot break the tie without making golden keys flaky.
+fn stable_span_projection(span_name: &str, rows: &[MessageSpanRow]) -> String {
+    let (view, _) = build_view(sorted_by_timestamp(rows.to_vec()), View::Span);
+    format!(
+        "{span_name}\0{}",
+        serde_json::to_string(&view).expect("golden view is serializable")
+    )
+}
+
+type StableSpanOrderKey = (
+    chrono::DateTime<chrono::Utc>,
+    String,
+    String,
+    String,
+);
+
+/// Stable label for each trace: `trace-1`, `trace-2`, ... ordered by earliest span timestamp,
+/// then by its semantic span projections.
 ///
 /// The previous key was the first eight characters of the trace id, which silently collided:
 /// these ids are time-ordered (UUIDv7-style), so traces created moments apart share a long
@@ -508,22 +527,39 @@ fn sorted_by_timestamp(mut rows: Vec<MessageSpanRow>) -> Vec<MessageSpanRow> {
 /// trace_count 3 while comparing one. An index is also stable across re-captures, where a raw
 /// id changes every time.
 fn trace_labels(rows: &[(String, MessageSpanRow)]) -> BTreeMap<String, String> {
-    let mut first_seen: BTreeMap<String, (chrono::DateTime<chrono::Utc>, String)> = BTreeMap::new();
-    for (_, r) in rows {
-        let e = first_seen
-            .entry(r.trace_id.clone())
-            .or_insert((r.span_timestamp, r.trace_id.clone()));
-        if r.span_timestamp < e.0 {
-            e.0 = r.span_timestamp;
-        }
+    let mut traces: BTreeMap<
+        String,
+        BTreeMap<String, (String, Vec<MessageSpanRow>)>,
+    > = BTreeMap::new();
+    for (span_name, row) in rows {
+        traces
+            .entry(row.trace_id.clone())
+            .or_default()
+            .entry(row.span_id.clone())
+            .or_insert_with(|| (span_name.clone(), Vec::new()))
+            .1
+            .push(row.clone());
     }
-    let mut ordered: Vec<(chrono::DateTime<chrono::Utc>, String)> =
-        first_seen.into_values().collect();
+
+    let mut ordered = Vec::new();
+    for (trace_id, spans) in traces {
+        let first = spans
+            .values()
+            .flat_map(|(_, rows)| rows.iter().map(|row| row.span_timestamp))
+            .min()
+            .unwrap_or_default();
+        let mut projections: Vec<String> = spans
+            .values()
+            .map(|(name, rows)| stable_span_projection(name, rows))
+            .collect();
+        projections.sort();
+        ordered.push((first, projections.join("\u{1f}"), trace_id));
+    }
     ordered.sort();
     ordered
         .into_iter()
         .enumerate()
-        .map(|(i, (_, id))| (id, format!("trace-{}", i + 1)))
+        .map(|(i, (_, _, id))| (id, format!("trace-{}", i + 1)))
         .collect()
 }
 
@@ -607,6 +643,30 @@ fn build_golden(label: &str, paths: &[PathBuf], rows: &[(String, MessageSpanRow)
             .insert(trace_id.clone());
     }
 
+    let mut span_numbers = BTreeMap::new();
+    let mut spans_by_trace: BTreeMap<String, Vec<StableSpanOrderKey>> = BTreeMap::new();
+    for ((trace_id, span_id), (name, span_rows)) in &by_span {
+        let first = span_rows
+            .iter()
+            .map(|row| row.span_timestamp)
+            .min()
+            .unwrap_or_default();
+        spans_by_trace.entry(trace_id.clone()).or_default().push((
+            first,
+            name.clone(),
+            stable_span_projection(name, span_rows),
+            span_id.clone(),
+        ));
+    }
+    for (trace_id, mut spans) in spans_by_trace {
+        // The final id tie-breaker only distinguishes semantically identical spans. If those ids
+        // swap on a recapture, their views are identical, so the numbered golden map is unchanged.
+        spans.sort();
+        for (index, (_, _, _, span_id)) in spans.into_iter().enumerate() {
+            span_numbers.insert((trace_id.clone(), span_id), index + 1);
+        }
+    }
+
     // Rows a session query would return: every row of every trace in the session, content
     // filtered, timestamp ordered.
     let session_rows = |sid: &str| -> Vec<MessageSpanRow> {
@@ -624,37 +684,12 @@ fn build_golden(label: &str, paths: &[PathBuf], rows: &[(String, MessageSpanRow)
         // `<trace-N>/<span name>/<span-M>`: the span index disambiguates repeats of the same
         // name and, like the trace label, survives a re-capture.
         //
-        // Numbered by earliest timestamp, not by span-id order: ids change on every capture, so
-        // id order made span-N shuffle between captures and produced diff noise unrelated to any
-        // behaviour change.
-        // Ties broken by parent then id: six same-name span groups in the current fixtures share
-        // an identical start. Neither tiebreaker is capture-stable - both ids are regenerated
-        // every capture - so a tied group can still renumber; what this buys is a *total* order,
-        // which keeps numbering deterministic within a run so the same fixture always produces
-        // the same labels. Renumbering a tied group is diff noise in a re-capture, not a test
-        // failure, because the assertions compare the label set as a whole.
-        let mut siblings: Vec<(chrono::DateTime<chrono::Utc>, String, &String)> = by_span
-            .iter()
-            .filter(|((t, _), _)| t == trace_id)
-            .map(|((_, sp), (_, rows))| {
-                let first = rows
-                    .iter()
-                    .map(|r| r.span_timestamp)
-                    .min()
-                    .unwrap_or_default();
-                let parent = rows
-                    .first()
-                    .and_then(|r| r.parent_span_id.clone())
-                    .unwrap_or_default();
-                (first, parent, sp)
-            })
-            .collect();
-        siblings.sort();
-        let span_no = siblings
-            .iter()
-            .position(|(_, _, s)| *s == span_id)
-            .unwrap_or(0)
-            + 1;
+        // Numbered by timestamp, name, and semantic projection. Random ids participate only when
+        // two spans are indistinguishable to every golden view.
+        let span_no = span_numbers
+            .get(&(trace_id.clone(), span_id.clone()))
+            .copied()
+            .unwrap_or(0);
         let key = format!(
             "{}/{name}/span-{span_no}",
             labels

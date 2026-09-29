@@ -185,7 +185,7 @@
         }
       ]
     },
-    "trace-8/BedrockRuntime.InvokeModel/span-4": {
+    "trace-8/BedrockRuntime.InvokeModel/span-3": {
       "message_count": 0,
       "role_sequence": [],
       "tool_names": [],
@@ -294,7 +294,7 @@
         }
       ]
     },
-    "trace-8/ai.toolCall/span-3": {
+    "trace-8/ai.toolCall/span-4": {
       "message_count": 2,
       "role_sequence": [
         "assistant",

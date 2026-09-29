@@ -26,8 +26,8 @@
           "index": 1,
           "role": "assistant",
           "entry_type": "text",
-          "content": "the plain answer",
-          "content_digest": "44b90da219f342d8",
+          "content": "the array answer",
+          "content_digest": "59637c914b146d6b",
           "observation_type": "generation"
         }
       ]
@@ -53,8 +53,8 @@
           "index": 1,
           "role": "assistant",
           "entry_type": "text",
-          "content": "the array answer",
-          "content_digest": "59637c914b146d6b",
+          "content": "the plain answer",
+          "content_digest": "44b90da219f342d8",
           "observation_type": "generation"
         }
       ]
@@ -82,8 +82,8 @@
           "index": 1,
           "role": "assistant",
           "entry_type": "text",
-          "content": "the plain answer",
-          "content_digest": "44b90da219f342d8",
+          "content": "the array answer",
+          "content_digest": "59637c914b146d6b",
           "observation_type": "generation"
         }
       ]
@@ -109,8 +109,8 @@
           "index": 1,
           "role": "assistant",
           "entry_type": "text",
-          "content": "the array answer",
-          "content_digest": "59637c914b146d6b",
+          "content": "the plain answer",
+          "content_digest": "44b90da219f342d8",
           "observation_type": "generation"
         }
       ]

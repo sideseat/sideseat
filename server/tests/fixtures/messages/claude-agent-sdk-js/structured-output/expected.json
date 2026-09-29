@@ -57,14 +57,14 @@
       "tool_definition_count": 0,
       "messages": []
     },
-    "trace-1/claude_code.tool.execution/span-3": {
+    "trace-1/claude_code.tool.execution/span-5": {
       "message_count": 0,
       "role_sequence": [],
       "tool_names": [],
       "tool_definition_count": 0,
       "messages": []
     },
-    "trace-1/claude_code.tool/span-5": {
+    "trace-1/claude_code.tool/span-3": {
       "message_count": 1,
       "role_sequence": [
         "assistant"

@@ -50,7 +50,7 @@
         }
       ]
     },
-    "trace-1/claude_code.tool.blocked_on_user/span-3": {
+    "trace-1/claude_code.tool.blocked_on_user/span-4": {
       "message_count": 0,
       "role_sequence": [],
       "tool_names": [],
@@ -64,7 +64,7 @@
       "tool_definition_count": 0,
       "messages": []
     },
-    "trace-1/claude_code.tool/span-4": {
+    "trace-1/claude_code.tool/span-3": {
       "message_count": 1,
       "role_sequence": [
         "assistant"

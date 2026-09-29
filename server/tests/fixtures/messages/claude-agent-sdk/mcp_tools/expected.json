@@ -224,7 +224,7 @@
       "tool_definition_count": 0,
       "messages": []
     },
-    "trace-1/claude_code.tool.blocked_on_user/span-9": {
+    "trace-1/claude_code.tool.blocked_on_user/span-8": {
       "message_count": 0,
       "role_sequence": [],
       "tool_names": [],
@@ -252,7 +252,7 @@
       "tool_definition_count": 0,
       "messages": []
     },
-    "trace-1/claude_code.tool.execution/span-8": {
+    "trace-1/claude_code.tool.execution/span-9": {
       "message_count": 0,
       "role_sequence": [],
       "tool_names": [],

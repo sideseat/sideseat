@@ -52,7 +52,7 @@
         }
       ]
     },
-    "trace-1/chat/span-7": {
+    "trace-1/chat/span-6": {
       "message_count": 7,
       "role_sequence": [
         "system",
@@ -133,7 +133,7 @@
       "tool_definition_count": 0,
       "messages": []
     },
-    "trace-1/execute_agent_loop_cycle/span-6": {
+    "trace-1/execute_agent_loop_cycle/span-7": {
       "message_count": 2,
       "role_sequence": [
         "tool",
@@ -160,7 +160,7 @@
         }
       ]
     },
-    "trace-1/execute_tool precipitation_forecast/span-5": {
+    "trace-1/execute_tool precipitation_forecast/span-4": {
       "message_count": 1,
       "role_sequence": [
         "tool"
@@ -178,7 +178,7 @@
         }
       ]
     },
-    "trace-1/execute_tool temperature_forecast/span-4": {
+    "trace-1/execute_tool temperature_forecast/span-5": {
       "message_count": 1,
       "role_sequence": [
         "tool"
@@ -509,7 +509,7 @@
         }
       ]
     },
-    "trace-4/execute_agent_loop_cycle/span-6": {
+    "trace-4/execute_agent_loop_cycle/span-5": {
       "message_count": 4,
       "role_sequence": [
         "tool",
@@ -554,7 +554,7 @@
         }
       ]
     },
-    "trace-4/execute_tool precipitation_forecast/span-5": {
+    "trace-4/execute_tool precipitation_forecast/span-6": {
       "message_count": 1,
       "role_sequence": [
         "tool"
@@ -791,7 +791,7 @@
         }
       ]
     },
-    "trace-7/execute_agent_loop_cycle/span-2": {
+    "trace-7/execute_agent_loop_cycle/span-1": {
       "message_count": 4,
       "role_sequence": [
         "tool",
@@ -836,7 +836,7 @@
         }
       ]
     },
-    "trace-7/invoke_agent Strands Agent/span-1": {
+    "trace-7/invoke_agent Strands Agent/span-2": {
       "message_count": 3,
       "role_sequence": [
         "system",

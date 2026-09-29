@@ -260,6 +260,69 @@ fn invariant_checks_are_not_vacuous() {
     );
 }
 
+#[test]
+fn canonical_labels_ignore_regenerated_trace_and_span_ids() {
+    let (label, paths) = discover_fixtures()
+        .into_iter()
+        .find(|(label, _)| label == "javascript-sdk/canonical")
+        .expect("JavaScript SDK conformance fixture");
+    let rows = rows_for(&paths);
+    let expected = build_golden(&label, &paths, &rows).golden;
+
+    let trace_ids: Vec<String> = rows
+        .iter()
+        .map(|(_, row)| row.trace_id.clone())
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect();
+    let span_ids: Vec<String> = rows
+        .iter()
+        .map(|(_, row)| row.span_id.clone())
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect();
+    let trace_map: BTreeMap<String, String> = trace_ids
+        .iter()
+        .enumerate()
+        .map(|(index, id)| {
+            (
+                id.clone(),
+                format!("{:032x}", trace_ids.len().saturating_sub(index)),
+            )
+        })
+        .collect();
+    let span_map: BTreeMap<String, String> = span_ids
+        .iter()
+        .enumerate()
+        .map(|(index, id)| {
+            (
+                id.clone(),
+                format!("{:016x}", span_ids.len().saturating_sub(index)),
+            )
+        })
+        .collect();
+
+    let remapped: Vec<(String, MessageSpanRow)> = rows
+        .into_iter()
+        .map(|(name, mut row)| {
+            row.trace_id = trace_map[&row.trace_id].clone();
+            row.parent_span_id = row
+                .parent_span_id
+                .as_ref()
+                .and_then(|parent| span_map.get(parent))
+                .cloned();
+            row.span_id = span_map[&row.span_id].clone();
+            (name, row)
+        })
+        .collect();
+    let actual = build_golden(&label, &paths, &remapped).golden;
+
+    assert_eq!(
+        actual, expected,
+        "golden labels must not depend on regenerated trace or span ids"
+    );
+}
+
 /// `passes_content_filter` reimplements the SQL predicate in Rust, so the two can drift: adding
 /// a condition to the query would silently leave the harness feeding rows the API never
 /// returns. This pins the coupling by checking the constant still mentions exactly the columns

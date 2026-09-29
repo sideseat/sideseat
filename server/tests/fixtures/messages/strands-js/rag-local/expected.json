@@ -12,7 +12,7 @@
       "tool_definition_count": 0,
       "messages": []
     },
-    "trace-10/BedrockRuntime.InvokeModel/span-6": {
+    "trace-10/BedrockRuntime.InvokeModel/span-5": {
       "message_count": 0,
       "role_sequence": [],
       "tool_names": [],
@@ -26,7 +26,7 @@
       "tool_definition_count": 0,
       "messages": []
     },
-    "trace-10/chat/span-3": {
+    "trace-10/chat/span-1": {
       "message_count": 8,
       "role_sequence": [
         "system",
@@ -110,7 +110,7 @@
         }
       ]
     },
-    "trace-10/chat/span-9": {
+    "trace-10/chat/span-8": {
       "message_count": 11,
       "role_sequence": [
         "system",
@@ -239,7 +239,7 @@
         }
       ]
     },
-    "trace-10/execute_agent_loop_cycle/span-8": {
+    "trace-10/execute_agent_loop_cycle/span-9": {
       "message_count": 3,
       "role_sequence": [
         "tool",
@@ -293,7 +293,7 @@
         }
       ]
     },
-    "trace-10/execute_tool search_knowledge/span-5": {
+    "trace-10/execute_tool search_knowledge/span-6": {
       "message_count": 1,
       "role_sequence": [
         "tool"
@@ -311,7 +311,7 @@
         }
       ]
     },
-    "trace-10/invoke_agent Strands Agent/span-1": {
+    "trace-10/invoke_agent Strands Agent/span-3": {
       "message_count": 3,
       "role_sequence": [
         "system",
@@ -363,7 +363,7 @@
       "tool_definition_count": 0,
       "messages": []
     },
-    "trace-13/BedrockRuntime.InvokeModel/span-5": {
+    "trace-13/BedrockRuntime.InvokeModel/span-4": {
       "message_count": 0,
       "role_sequence": [],
       "tool_names": [],
@@ -729,7 +729,7 @@
         }
       ]
     },
-    "trace-13/execute_tool search_knowledge/span-4": {
+    "trace-13/execute_tool search_knowledge/span-5": {
       "message_count": 1,
       "role_sequence": [
         "tool"
@@ -933,7 +933,7 @@
         }
       ]
     },
-    "trace-7/execute_agent_loop_cycle/span-2": {
+    "trace-7/execute_agent_loop_cycle/span-1": {
       "message_count": 0,
       "role_sequence": [],
       "tool_names": [],
@@ -976,7 +976,7 @@
         }
       ]
     },
-    "trace-7/invoke_agent Strands Agent/span-1": {
+    "trace-7/invoke_agent Strands Agent/span-2": {
       "message_count": 3,
       "role_sequence": [
         "system",

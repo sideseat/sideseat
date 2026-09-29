@@ -521,11 +521,11 @@ fn message_goldens() {
 /// `<language>-sdk/<sample>`. Every view is compared, including span topology and session
 /// grouping, so parity cannot pass by checking only a flattened message feed.
 ///
-/// Span ids are regenerated on every run. The golden builder normally replaces them with
-/// timestamp-ordered `span-N` labels, but a runtime whose timestamps have only millisecond precision
-/// can give several siblings the same start. Their labels then inherit random id order. Parity strips
-/// only that final synthetic number and compares the resulting `(trace/name, view)` multiset; span
-/// names, counts, per-span messages, trace views and session views remain exact.
+/// Span ids are regenerated on every run. The golden builder replaces them with `span-N` labels
+/// ordered by timestamp, name, and user-visible projection; random ids only distinguish spans whose
+/// golden views are identical. Parity still strips that final synthetic number as defence in depth
+/// and compares the resulting `(trace/name, view)` multiset; span names, counts, per-span messages,
+/// trace views and session views remain exact.
 #[test]
 fn sdk_and_plain_otel_conformance_are_identical() {
     let fixtures: BTreeMap<String, Vec<PathBuf>> = discover_fixtures().into_iter().collect();
