@@ -4,7 +4,7 @@ use chrono::{DateTime, Utc};
 use rmcp::handler::server::wrapper::Parameters;
 use rmcp::model::{
     CallToolResult, ContentBlock, GetPromptResult, Implementation, PromptMessage, Role,
-    ServerCapabilities, ServerInfo,
+    ServerCapabilities, ServerConfig,
 };
 use rmcp::{ServerHandler, prompt, prompt_handler, prompt_router, tool, tool_handler, tool_router};
 
@@ -56,9 +56,9 @@ impl McpServer {
 #[tool_handler]
 #[prompt_handler]
 impl ServerHandler for McpServer {
-    fn get_info(&self) -> ServerInfo {
+    fn get_info(&self) -> ServerConfig {
         // The protocol structs are non-exhaustive, so use their public builders and setters.
-        let mut info = ServerInfo::default();
+        let mut info = ServerConfig::default();
         info.instructions = Some(INSTRUCTIONS.to_string());
         info.capabilities = ServerCapabilities::builder()
             .enable_tools()
