@@ -317,6 +317,21 @@ emits a subagent's tool executions without the matching `tool_use` block, so the
 callless upstream. A capability limit of a framework is recorded per fixture rather than
 weakening the check for everyone.
 
+`scripts/message-fixtures/review-goldens.py` also classifies the small set of source shapes
+that deliberately resemble parser defects. The declarations are per fixture, warning type,
+and exact occurrence count; a stale declaration or any additional warning is unresolved and
+makes the command fail. The accepted cases are:
+
+- schema-constrained JSON returned as assistant text or a canonical `json` block;
+- terminal schema pseudo-tools such as `StructuredOutput` and `Person`, which are outputs rather
+  than executions and therefore have no `tool_result`;
+- `_synthetic/text_split_by_parallel_calls`, whose purpose is to test splitting one response
+  around two calls and which intentionally contains no executions.
+
+Run `scripts/message-fixtures/review-goldens.py --suspicious` after regenerating expectations.
+Production-ready output is `0 unresolved`; intentional cases remain visible when reviewing their
+fixture directly.
+
 ## `_synthetic/`
 
 Hand-written, not captured: shapes no captured sample produces, plus a Strands-shaped tool-use

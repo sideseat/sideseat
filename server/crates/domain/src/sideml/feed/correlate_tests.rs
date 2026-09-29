@@ -219,6 +219,51 @@ fn pairs_concurrent_same_name_calls_in_call_order() {
     assert_eq!(resolved_id(&blocks[5]).as_deref(), Some("call-c"));
 }
 
+/// Correlation precedes dedup, so a retried OTLP batch must not make one physical result consume two calls.
+#[test]
+fn repeated_delivery_reuses_the_same_correlated_call() {
+    let mut first = result("t1", None, Some("lookup"), "answer-a");
+    first.span_id = "tool-span-a".to_string();
+    first.source_attribute = Some("output".to_string());
+    let mut duplicate = first.clone();
+    // A later export of the same evolving span may be flattened after additional observations, changing
+    // every transient list index. Its normalized content can differ too: the source output and a composed
+    // error are two representations of the same result when they retain the same carrier position.
+    duplicate.message_index = 10;
+    duplicate.entry_index = 4;
+    duplicate.content = ContentBlock::ToolResult {
+        tool_use_id: None,
+        name: Some("lookup".to_string()),
+        content: json!([{"type": "text", "text": "normalized answer-a"}]),
+        is_error: false,
+    };
+    let mut second = result("t1", None, Some("lookup"), "answer-b");
+    second.span_id = "tool-span-b".to_string();
+    second.source_attribute = Some("output".to_string());
+
+    let mut blocks = vec![
+        call("t1", Some("call-a"), "lookup", json!({"q": "a"})),
+        call("t1", Some("call-b"), "lookup", json!({"q": "b"})),
+        first,
+        duplicate,
+        second,
+    ];
+
+    correlate_tool_results(&mut blocks);
+
+    assert_eq!(resolved_id(&blocks[2]).as_deref(), Some("call-a"));
+    assert_eq!(
+        resolved_id(&blocks[3]).as_deref(),
+        Some("call-a"),
+        "the same source occurrence delivered twice is still one result"
+    );
+    assert_eq!(
+        resolved_id(&blocks[4]).as_deref(),
+        Some("call-b"),
+        "redelivery must leave the next call available for its own result"
+    );
+}
+
 /// A call is claimed by at most one result: the second result finds nothing rather than
 /// reusing an id already taken.
 #[test]

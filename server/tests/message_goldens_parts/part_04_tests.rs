@@ -448,15 +448,19 @@ fn probe_pre_dedup() {
             .iter()
             .enumerate()
     {
-        let c: String = format!("{:?}", b.content).chars().take(60).collect();
+        let c: String = format!("{:?}", b.content).chars().take(260).collect();
         eprintln!(
-            "{i:2} span={} {:9} {:11} out={} hist={} obs={:?} carrier={:?}/{:?} {c}",
+            "{i:2} span={} pos={} {:9} {:11} out={} hist={} correlated={} obs={:?} \
+             scope={:?} carrier={:?}/{:?} {c}",
             &b.span_id[..8],
+            b.position,
             b.role.as_str(),
             b.entry_type,
             b.is_output_source(),
             b.is_history,
+            b.tool_use_id_correlated,
             b.observation_type,
+            b.scope_name,
             b.event_name,
             b.source_attribute
         );
@@ -479,7 +483,14 @@ fn carrier_semantics_are_declared() {
     // The mlflow and traceloop entries this list used to carry were removed by the membership check
     // below: no fixture exercises those carriers, so the exemptions excused nothing - and if a capture
     // ever arrives, failing loudly with "undeclared" is the correct prompt to classify them.
-    const KNOWN_DEFAULTED: &[&str] = &[];
+    const KNOWN_DEFAULTED: &[&str] = &[
+        // OpenAI Agents currently uses these generic scalar names on local function spans. Their
+        // meaning cannot be declared globally without changing an unrelated producer that chooses
+        // the same name, and the carrier resolver cannot consume the identifying payload attributes.
+        // The cautious snapshot reading is exact for one scalar block and cannot invent a duplicate.
+        "attr:input",
+        "attr:output",
+    ];
 
     let mut seen: BTreeSet<String> = BTreeSet::new();
     for (_, paths) in discover_fixtures() {

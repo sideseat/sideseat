@@ -16,10 +16,76 @@ from __future__ import annotations
 
 import json
 import sys
+from collections import Counter
+from dataclasses import dataclass
 from pathlib import Path
 
 # Three levels up: message-fixtures/ -> scripts/ -> the repository root.
 ROOT = Path(__file__).resolve().parents[2] / "server/tests/fixtures/messages"
+
+
+@dataclass(frozen=True)
+class Warning:
+    code: str
+    message: str
+
+
+# Deliberate source semantics that resemble parser defects to the generic heuristics below.
+# Counts are exact across trace and session views: changing either the telemetry or the parser
+# makes the classification stale and returns the fixture to the unresolved review queue.
+INTENTIONAL_WARNINGS: dict[str, dict[str, tuple[int, str]]] = {
+    "_synthetic/text_split_by_parallel_calls": {
+        "unbalanced_tools": (
+            1,
+            "synthetic response intentionally contains calls but no executions",
+        ),
+    },
+    "adk/structured_output": {
+        "raw_json_text": (
+            2,
+            "provider returns schema-constrained JSON as assistant text",
+        ),
+    },
+    "agent-framework/structured_output": {
+        "raw_json_text": (
+            2,
+            "provider returns schema-constrained JSON as assistant text",
+        ),
+    },
+    "claude-agent-sdk/structured_output": {
+        "unbalanced_tools": (2, "StructuredOutput is a terminal schema pseudo-tool"),
+    },
+    "claude-agent-sdk-js/structured-output": {
+        "unbalanced_tools": (2, "StructuredOutput is a terminal schema pseudo-tool"),
+    },
+    "crewai/structured_output": {
+        "json_block": (
+            2,
+            "structured assistant output is canonically represented as JSON",
+        ),
+    },
+    "langgraph/structured_output": {
+        "unbalanced_tools": (1, "Person is a terminal schema pseudo-tool"),
+    },
+    "openai-agents/structured_output": {
+        "json_block": (
+            2,
+            "structured assistant output is canonically represented as JSON",
+        ),
+    },
+    "strands/structured_output": {
+        "json_block": (
+            1,
+            "structured assistant output is canonically represented as JSON",
+        ),
+    },
+    "vercel-ai-js/structured-output": {
+        "json_block": (
+            1,
+            "structured assistant output is canonically represented as JSON",
+        ),
+    },
+}
 
 
 def load() -> list[tuple[str, dict]]:
@@ -30,7 +96,7 @@ def load() -> list[tuple[str, dict]]:
     return out
 
 
-def warnings_for(label: str, g: dict) -> list[str]:
+def warnings_for(label: str, g: dict) -> list[Warning]:
     """Patterns that usually mean a parsing defect. Heuristics, not invariants: the test
     holds the hard guarantees, this is a reading aid that says where to look."""
     warns = []
@@ -39,7 +105,12 @@ def warnings_for(label: str, g: dict) -> list[str]:
     if g["session_views"] and not any(
         v["message_count"] for v in g["session_views"].values()
     ):
-        warns.append("the fixture has sessions but every session view is empty")
+        warns.append(
+            Warning(
+                "empty_sessions",
+                "the fixture has sessions but every session view is empty",
+            )
+        )
 
     views = [(f"session {k}", v) for k, v in g["session_views"].items()]
     views += [(f"trace {k}", v) for k, v in g["trace_views"].items()]
@@ -57,42 +128,87 @@ def warnings_for(label: str, g: dict) -> list[str]:
         # A conversation with no assistant output usually means the response was not parsed.
         if "assistant" not in roles:
             warns.append(
-                f"{name}: no assistant message ({len(roles)} msgs) - output not parsed?"
+                Warning(
+                    "missing_assistant",
+                    f"{name}: no assistant message ({len(roles)} msgs) - output not parsed?",
+                )
             )
 
         # A tool call with no result, or vice versa.
         n_use, n_res = kinds.count("tool_use"), kinds.count("tool_result")
         if n_use != n_res:
-            warns.append(f"{name}: {n_use} tool_use vs {n_res} tool_result")
+            warns.append(
+                Warning(
+                    "unbalanced_tools",
+                    f"{name}: {n_use} tool_use vs {n_res} tool_result",
+                )
+            )
 
         # Raw JSON leaking into a text position: the extractor did not unwrap the payload.
         for m in view["messages"]:
             c = m["content"]
             if m["entry_type"] in ("text", "thinking") and c.startswith(('{"', '[{"')):
                 warns.append(
-                    f"{name}: {m['entry_type']} at {m['index']} holds raw JSON - not unwrapped?"
+                    Warning(
+                        "raw_json_text",
+                        f"{name}: {m['entry_type']} at {m['index']} holds raw JSON - not unwrapped?",
+                    )
                 )
                 break
 
         # An entry_type of "json" in a conversation view is usually an unparsed message blob.
         if "json" in kinds:
             warns.append(
-                f"{name}: {kinds.count('json')} raw 'json' block(s) - message not parsed?"
+                Warning(
+                    "json_block",
+                    f"{name}: {kinds.count('json')} raw 'json' block(s) - message not parsed?",
+                )
             )
 
     return warns
 
 
+def classify_warnings(
+    label: str, warns: list[Warning]
+) -> tuple[list[tuple[Warning, str]], list[str]]:
+    expected = INTENTIONAL_WARNINGS.get(label, {})
+    counts = Counter(w.code for w in warns)
+    accepted: list[tuple[Warning, str]] = []
+    unresolved: list[str] = []
+
+    for code in sorted(set(counts) | set(expected)):
+        observed = counts.get(code, 0)
+        declaration = expected.get(code)
+        if declaration is None:
+            unresolved.extend(w.message for w in warns if w.code == code)
+            continue
+
+        expected_count, reason = declaration
+        if observed != expected_count:
+            unresolved.append(
+                f"{code}: intentional classification expected {expected_count}, observed {observed}"
+            )
+            unresolved.extend(w.message for w in warns if w.code == code)
+            continue
+
+        accepted.extend((w, reason) for w in warns if w.code == code)
+
+    return accepted, unresolved
+
+
 def render(label: str, g: dict, detail: bool) -> None:
     warns = warnings_for(label, g)
-    flag = "  [!]" if warns else ""
+    accepted, unresolved = classify_warnings(label, warns)
+    flag = "  [!]" if unresolved else ("  [i]" if accepted else "")
     print(
         f"\n{'=' * 78}\n{label}{flag}\n"
         f"  requests={g['request_count']} spans={g['span_count']} traces={g['trace_count']} "
         f"sessions={g.get('session_count', len(g['session_views']))}"
     )
-    for w in warns:
+    for w in unresolved:
         print(f"  [!] {w}")
+    for warning, reason in accepted:
+        print(f"  [i] {warning.message} — {reason}")
 
     if not detail:
         for key, view in g["trace_views"].items():
@@ -125,23 +241,27 @@ def main() -> int:
     detail = target is not None
 
     shown = 0
-    suspicious = 0
+    unresolved_count = 0
+    intentional_count = 0
     for label, g in fixtures:
         if target and not label.startswith(target):
             continue
         warns = warnings_for(label, g)
-        if warns:
-            suspicious += 1
-        if only_suspicious and not warns:
+        accepted, unresolved = classify_warnings(label, warns)
+        if unresolved:
+            unresolved_count += 1
+        elif accepted:
+            intentional_count += 1
+        if only_suspicious and not unresolved:
             continue
         render(label, g, detail)
         shown += 1
 
     print(
-        f"\n{'=' * 78}\n{shown} fixture(s) shown, {suspicious}/{len(fixtures)} "
-        f"carry warnings across {len(fixtures)} total"
+        f"\n{'=' * 78}\n{shown} fixture(s) shown, {unresolved_count} unresolved and "
+        f"{intentional_count} intentional warning fixture(s) across {len(fixtures)} total"
     )
-    return 0
+    return 1 if unresolved_count else 0
 
 
 if __name__ == "__main__":

@@ -20,18 +20,62 @@
       "messages": []
     },
     "trace-1/Function: web_search/span-11": {
-      "message_count": 0,
-      "role_sequence": [],
+      "message_count": 2,
+      "role_sequence": [
+        "assistant",
+        "tool"
+      ],
       "tool_names": [],
       "tool_definition_count": 0,
-      "messages": []
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"name\":\"web_search\",\"input\":{\"query\":\"Open-Meteo forecast API documentation geocoding API official\",\"max_results\":3}}",
+          "content_digest": "a7bd06946fb073f2",
+          "tool_name": "web_search",
+          "observation_type": "span"
+        },
+        {
+          "index": 1,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"name\":\"web_search\",\"content\":{\"status\":\"success\",\"content\":[{\"json\":{\"query\":\"Open-Meteo forecast API documentation geocoding API official\",\"results\":[{\"title\":\"Result 1 for 'Open-Meteo forecast API documentation geoc…[533 chars]",
+          "content_digest": "5d7e0ed91daa95ed",
+          "tool_name": "web_search",
+          "observation_type": "span"
+        }
+      ]
     },
     "trace-1/Function: web_search/span-12": {
-      "message_count": 0,
-      "role_sequence": [],
+      "message_count": 2,
+      "role_sequence": [
+        "assistant",
+        "tool"
+      ],
       "tool_names": [],
       "tool_definition_count": 0,
-      "messages": []
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"name\":\"web_search\",\"input\":{\"query\":\"MDN Fetch API official documentation localStorage official\",\"max_results\":3}}",
+          "content_digest": "547d0f2d4c5c97de",
+          "tool_name": "web_search",
+          "observation_type": "span"
+        },
+        {
+          "index": 1,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"name\":\"web_search\",\"content\":{\"status\":\"success\",\"content\":[{\"json\":{\"query\":\"MDN Fetch API official documentation localStorage official\",\"results\":[{\"title\":\"Result 1 for 'MDN Fetch API official documentation localSt…[525 chars]",
+          "content_digest": "e0c6c098bdfbcb84",
+          "tool_name": "web_search",
+          "observation_type": "span"
+        }
+      ]
     },
     "trace-1/Handoff: planner → researcher/span-7": {
       "message_count": 0,
@@ -370,17 +414,19 @@
           "index": 7,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_f7b176ff07da57218c5c1af3404c82ea\",\"content\":{\"status\":\"success\",\"content\":[{\"json\":{\"query\":\"Open-Meteo forecast API documentation geocoding API official\",\"results\":[{\"title\":\"Result 1 for 'Open-Met…[567 chars]",
-          "content_digest": "e9f32b1662c6f8d9",
-          "observation_type": "generation"
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_f7b176ff07da57218c5c1af3404c82ea\",\"name\":\"web_search\",\"content\":{\"status\":\"success\",\"content\":[{\"json\":{\"query\":\"Open-Meteo forecast API documentation geocoding API official\",\"results\":[{\"title\":\"Re…[587 chars]",
+          "content_digest": "375dafcb33a5ac0c",
+          "tool_name": "web_search",
+          "observation_type": "span"
         },
         {
           "index": 8,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_3dfd279b76b35b578d0c81f998e35812\",\"content\":{\"status\":\"success\",\"content\":[{\"json\":{\"query\":\"MDN Fetch API official documentation localStorage official\",\"results\":[{\"title\":\"Result 1 for 'MDN Fetch …[559 chars]",
-          "content_digest": "2dde569da0103116",
-          "observation_type": "generation"
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_3dfd279b76b35b578d0c81f998e35812\",\"name\":\"web_search\",\"content\":{\"status\":\"success\",\"content\":[{\"json\":{\"query\":\"MDN Fetch API official documentation localStorage official\",\"results\":[{\"title\":\"Resu…[579 chars]",
+          "content_digest": "5e5dda4e26c1916d",
+          "tool_name": "web_search",
+          "observation_type": "span"
         },
         {
           "index": 9,
@@ -483,17 +529,19 @@
           "index": 7,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_f7b176ff07da57218c5c1af3404c82ea\",\"content\":{\"status\":\"success\",\"content\":[{\"json\":{\"query\":\"Open-Meteo forecast API documentation geocoding API official\",\"results\":[{\"title\":\"Result 1 for 'Open-Met…[567 chars]",
-          "content_digest": "e9f32b1662c6f8d9",
-          "observation_type": "generation"
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_f7b176ff07da57218c5c1af3404c82ea\",\"name\":\"web_search\",\"content\":{\"status\":\"success\",\"content\":[{\"json\":{\"query\":\"Open-Meteo forecast API documentation geocoding API official\",\"results\":[{\"title\":\"Re…[587 chars]",
+          "content_digest": "375dafcb33a5ac0c",
+          "tool_name": "web_search",
+          "observation_type": "span"
         },
         {
           "index": 8,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_3dfd279b76b35b578d0c81f998e35812\",\"content\":{\"status\":\"success\",\"content\":[{\"json\":{\"query\":\"MDN Fetch API official documentation localStorage official\",\"results\":[{\"title\":\"Result 1 for 'MDN Fetch …[559 chars]",
-          "content_digest": "2dde569da0103116",
-          "observation_type": "generation"
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_3dfd279b76b35b578d0c81f998e35812\",\"name\":\"web_search\",\"content\":{\"status\":\"success\",\"content\":[{\"json\":{\"query\":\"MDN Fetch API official documentation localStorage official\",\"results\":[{\"title\":\"Resu…[579 chars]",
+          "content_digest": "5e5dda4e26c1916d",
+          "tool_name": "web_search",
+          "observation_type": "span"
         },
         {
           "index": 9,
@@ -552,17 +600,19 @@
         "index": 2,
         "role": "tool",
         "entry_type": "tool_result",
-        "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_f7b176ff07da57218c5c1af3404c82ea\",\"content\":{\"status\":\"success\",\"content\":[{\"json\":{\"query\":\"Open-Meteo forecast API documentation geocoding API official\",\"results\":[{\"title\":\"Result 1 for 'Open-Met…[567 chars]",
-        "content_digest": "e9f32b1662c6f8d9",
-        "observation_type": "generation"
+        "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_3dfd279b76b35b578d0c81f998e35812\",\"name\":\"web_search\",\"content\":{\"status\":\"success\",\"content\":[{\"json\":{\"query\":\"MDN Fetch API official documentation localStorage official\",\"results\":[{\"title\":\"Resu…[579 chars]",
+        "content_digest": "5e5dda4e26c1916d",
+        "tool_name": "web_search",
+        "observation_type": "span"
       },
       {
         "index": 3,
         "role": "tool",
         "entry_type": "tool_result",
-        "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_3dfd279b76b35b578d0c81f998e35812\",\"content\":{\"status\":\"success\",\"content\":[{\"json\":{\"query\":\"MDN Fetch API official documentation localStorage official\",\"results\":[{\"title\":\"Result 1 for 'MDN Fetch …[559 chars]",
-        "content_digest": "2dde569da0103116",
-        "observation_type": "generation"
+        "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_f7b176ff07da57218c5c1af3404c82ea\",\"name\":\"web_search\",\"content\":{\"status\":\"success\",\"content\":[{\"json\":{\"query\":\"Open-Meteo forecast API documentation geocoding API official\",\"results\":[{\"title\":\"Re…[587 chars]",
+        "content_digest": "375dafcb33a5ac0c",
+        "tool_name": "web_search",
+        "observation_type": "span"
       },
       {
         "index": 4,

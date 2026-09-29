@@ -220,3 +220,76 @@ fn an_unreadable_container_event_keeps_its_raw_form() {
          unrelated attributes"
     );
 }
+
+#[test]
+fn crewai_empty_agent_snapshot_is_not_a_user_message() {
+    let snapshot = r#"{
+        "agent":{"entity_type":"agent","role":"Assistant","goal":"Answer questions"},
+        "context":"",
+        "tools":[]
+    }"#;
+    let attrs = make_attrs(&[("crew_key", "crew-1"), ("input.value", snapshot)]);
+    let mut messages = Vec::new();
+    let mut definitions = Vec::new();
+
+    extract_messages_from_attrs(
+        &mut messages,
+        &mut definitions,
+        &attrs,
+        "Assistant._execute_core",
+        Utc::now(),
+        ExtractionMode::PerCarrier,
+        is_tool_execution_span(&attrs),
+    );
+
+    assert!(
+        messages.iter().all(
+            |message| !matches!(
+                &message.source,
+                MessageSource::Attribute { key, .. } if key == "input.value"
+            )
+        ),
+        "CrewAI's empty agent envelope is metadata, not a conversation: {messages:?}"
+    );
+}
+
+#[test]
+fn openai_agents_logfire_function_span_keeps_input_and_output() {
+    let attrs = make_attrs(&[
+        ("logfire.msg_template", "Function: {name}"),
+        ("name", "retrieve_user_preference"),
+        ("input", r#"{"preference_type":"favorite_number"}"#),
+        ("output", "7"),
+        ("gen_ai.system", "openai"),
+    ]);
+    assert!(
+        is_tool_execution_span(&attrs),
+        "the SDK's function span must be classified as a tool execution"
+    );
+
+    let mut messages = Vec::new();
+    let mut definitions = Vec::new();
+    extract_messages_from_attrs(
+        &mut messages,
+        &mut definitions,
+        &attrs,
+        "Function: retrieve_user_preference",
+        Utc::now(),
+        ExtractionMode::PerCarrier,
+        true,
+    );
+
+    assert_eq!(messages.len(), 2, "both sides of the function call are needed");
+    assert_eq!(messages[0].content["role"], "assistant");
+    assert_eq!(messages[0].content["content"][0]["type"], "tool_use");
+    assert_eq!(
+        messages[0].content["content"][0]["name"],
+        "retrieve_user_preference"
+    );
+    assert_eq!(messages[1].content["role"], "tool");
+    assert_eq!(messages[1].content["content"][0]["type"], "tool_result");
+    assert_eq!(
+        messages[1].content["content"][0]["name"],
+        "retrieve_user_preference"
+    );
+}

@@ -127,6 +127,22 @@ fn indexed_fallback_tool_name(id: &str) -> Option<&str> {
 /// in straight after flattening.
 pub fn correlate_tool_results(blocks: &mut [BlockEntry]) {
     let mut pending = Outstanding::default();
+    // OTLP exporters may retry the same span batch. Correlation runs before dedup because dedup needs the
+    // resolved id, so an id-less result from a repeated delivery would otherwise consume the *next* pending
+    // call of the same name. Remember the answer for one exact source occurrence and reuse it on redelivery.
+    // Attribute/event identity plus the position *inside that carrier* is stable across evolving exports,
+    // while flattened message and entry indices are not. Content is deliberately absent: one source result
+    // can be represented twice (for example a scrubbed raw output and its normalized error text), and those
+    // two representations must answer the same call. Distinct array results have distinct source positions.
+    let mut resolved_occurrences: std::collections::HashMap<
+        (
+            String,
+            String,
+            String,
+            crate::sideml::provenance::PositionPath,
+        ),
+        String,
+    > = std::collections::HashMap::new();
 
     // One forward pass. Blocks are in source order at this stage, so a call always precedes
     // the result it answers.
@@ -173,6 +189,34 @@ pub fn correlate_tool_results(blocks: &mut [BlockEntry]) {
                     // Rule 6: with no name there is nothing to match on.
                     continue;
                 };
+                let source_occurrence = block
+                    .source_attribute
+                    .as_ref()
+                    .map(|attribute| format!("attribute:{attribute}"))
+                    .or_else(|| {
+                        block
+                            .event_name
+                            .as_ref()
+                            .map(|event| format!("event:{event}"))
+                    });
+                let occurrence = source_occurrence.map(|source| {
+                    (
+                        trace.clone(),
+                        block.span_id.clone(),
+                        source,
+                        block.position.clone(),
+                    )
+                });
+                if let Some(resolved) = occurrence
+                    .as_ref()
+                    .and_then(|key| resolved_occurrences.get(key))
+                    .cloned()
+                {
+                    *tool_use_id = Some(resolved.clone());
+                    block.tool_use_id = Some(resolved);
+                    block.tool_use_id_correlated = true;
+                    continue;
+                }
                 // Rules 3-5: preceding unclaimed calls for the same name in this trace.
                 // Rule 5: the OLDEST untaken call with this name, not the nearest.
                 //
@@ -189,6 +233,9 @@ pub fn correlate_tool_results(blocks: &mut [BlockEntry]) {
                 // the second result arrives, so oldest-untaken is the second call.
                 if let Some(resolved) = pending.oldest_unclaimed(&trace, &result_name) {
                     pending.claim(&trace, &resolved);
+                    if let Some(occurrence) = occurrence {
+                        resolved_occurrences.insert(occurrence, resolved.clone());
+                    }
                     *tool_use_id = Some(resolved.clone());
                     // Recorded so history detection can tell a correlated id from a provider's
                     // own: the orphan-result phase reads an unknown id as proof the result is

@@ -27,6 +27,69 @@
   ],
   "messages": [
     {
+      "id": "openai-agents.function_input",
+      "doc": "The OpenAI Agents SDK records a local function execution as a Logfire span with the callable name and its JSON input. It carries no semantic-convention call id, so the name and arguments are retained and query-time correlation joins it to the oldest unmatched model call of that name.",
+      "read": {
+        "attribute": "input"
+      },
+      "parse": "json_or_string",
+      "wrap": {
+        "role": "assistant",
+        "block": {
+          "type": "tool_use",
+          "content_as": "input",
+          "attach": [
+            {
+              "from": "name",
+              "as": "name"
+            }
+          ]
+        }
+      },
+      "emit": "message",
+      "when": {
+        "attr_equals": [
+          {
+            "key": "logfire.msg_template",
+            "value": "Function: {name}"
+          }
+        ]
+      },
+      "legacy_rank": 1380,
+      "reads_tool_spans": true
+    },
+    {
+      "id": "openai-agents.function_output",
+      "doc": "The return value on the same local function span. Keeping the execution span's own result closes the tool call/result pair even though the next model request also replays that result as history.",
+      "read": {
+        "attribute": "output"
+      },
+      "parse": "json_or_string",
+      "wrap": {
+        "role": "tool",
+        "block": {
+          "type": "tool_result",
+          "attach": [
+            {
+              "from": "name",
+              "as": "name"
+            }
+          ]
+        }
+      },
+      "emit": "message",
+      "when": {
+        "attr_equals": [
+          {
+            "key": "logfire.msg_template",
+            "value": "Function: {name}"
+          }
+        ]
+      },
+      "legacy_rank": 1390,
+      "reads_tool_spans": true
+    },
+    {
       "id": "openai-agents.response_tools",
       "doc": "The whole API response is recorded, and the tools it was called with are inside it.",
       "read": {
@@ -52,6 +115,27 @@
         }
       ],
       "legacy_rank": 1350
+    }
+  ],
+  "span_facts": [
+    {
+      "id": "openai-agents.function_execution",
+      "doc": "The SDK's local function span uses Logfire's stable template and carries the callable name plus both sides of the execution.",
+      "fact": "tool_execution",
+      "signals": [
+        {
+          "id": "logfire_function",
+          "attr_equals": {
+            "key": "logfire.msg_template",
+            "value": "Function: {name}"
+          },
+          "attrs_present": [
+            "name",
+            "input",
+            "output"
+          ]
+        }
+      ]
     }
   ]
 }

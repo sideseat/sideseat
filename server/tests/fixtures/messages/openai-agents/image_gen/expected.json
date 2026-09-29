@@ -20,8 +20,11 @@
       "messages": []
     },
     "trace-1/Function: generate_image failed: Error running tool (non-fatal)/span-7": {
-      "message_count": 1,
+      "message_count": 4,
       "role_sequence": [
+        "assistant",
+        "tool",
+        "tool",
         "assistant"
       ],
       "tool_names": [],
@@ -29,6 +32,33 @@
       "messages": [
         {
           "index": 0,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"name\":\"generate_image\",\"input\":{\"prompt\":\"A joyful playful golden retriever puppy bounding through a sunny spring park, bright green grass, colorful wildflowers, a red frisbee in the foreground, warm golden-hour light, c…[309 chars]",
+          "content_digest": "e8786b7afba198a4",
+          "tool_name": "generate_image",
+          "observation_type": "span"
+        },
+        {
+          "index": 1,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "An error occurred while running the tool. Please try again. Error: Missing credentials. Please pass an `api_key`, `workload_identity`, `admin_api_key`, or set the `OPENAI_API_KEY` or `OPENAI_ADMIN_KEY` environment variable.",
+          "content_digest": "bbb9ee92f441c750",
+          "tool_name": "generate_image",
+          "observation_type": "span"
+        },
+        {
+          "index": 2,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "[Scrubbed due to 'credential']",
+          "content_digest": "8e801b7e67233187",
+          "tool_name": "generate_image",
+          "observation_type": "span"
+        },
+        {
+          "index": 3,
           "role": "assistant",
           "entry_type": "text",
           "content": "openai.OpenAIError: Missing credentials. Please pass an `api_key`, `workload_identity`, `admin_api_key`, or set the `OPENAI_API_KEY` or `OPENAI_ADMIN_KEY` environment variable. ``` Traceback (most recent call last): File \"/Users/sideseat/De…[1909 chars]",
@@ -39,8 +69,11 @@
       ]
     },
     "trace-1/Function: generate_image failed: Error running tool (non-fatal)/span-8": {
-      "message_count": 1,
+      "message_count": 4,
       "role_sequence": [
+        "assistant",
+        "tool",
+        "tool",
         "assistant"
       ],
       "tool_names": [],
@@ -48,6 +81,33 @@
       "messages": [
         {
           "index": 0,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"name\":\"generate_image\",\"input\":{\"prompt\":\"A majestic adult German shepherd posed in a dramatic studio portrait, rich charcoal and tan fur, dignified expression, deep charcoal background, elegant rim lighting, classical f…[325 chars]",
+          "content_digest": "11b4e5c692d90337",
+          "tool_name": "generate_image",
+          "observation_type": "span"
+        },
+        {
+          "index": 1,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "An error occurred while running the tool. Please try again. Error: Missing credentials. Please pass an `api_key`, `workload_identity`, `admin_api_key`, or set the `OPENAI_API_KEY` or `OPENAI_ADMIN_KEY` environment variable.",
+          "content_digest": "bbb9ee92f441c750",
+          "tool_name": "generate_image",
+          "observation_type": "span"
+        },
+        {
+          "index": 2,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "[Scrubbed due to 'credential']",
+          "content_digest": "8e801b7e67233187",
+          "tool_name": "generate_image",
+          "observation_type": "span"
+        },
+        {
+          "index": 3,
           "role": "assistant",
           "entry_type": "text",
           "content": "openai.OpenAIError: Missing credentials. Please pass an `api_key`, `workload_identity`, `admin_api_key`, or set the `OPENAI_API_KEY` or `OPENAI_ADMIN_KEY` environment variable. ``` Traceback (most recent call last): File \"/Users/sideseat/De…[1909 chars]",
@@ -58,8 +118,11 @@
       ]
     },
     "trace-1/Function: generate_image failed: Error running tool (non-fatal)/span-9": {
-      "message_count": 1,
+      "message_count": 4,
       "role_sequence": [
+        "assistant",
+        "tool",
+        "tool",
         "assistant"
       ],
       "tool_names": [],
@@ -67,6 +130,33 @@
       "messages": [
         {
           "index": 0,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"name\":\"generate_image\",\"input\":{\"prompt\":\"A fluffy Siberian husky joyfully playing in fresh powder snow during a gentle winter snowfall, snow-covered pine forest, cool blue twilight light, dynamic leap with snow flying, …[317 chars]",
+          "content_digest": "d749484f115db7f0",
+          "tool_name": "generate_image",
+          "observation_type": "span"
+        },
+        {
+          "index": 1,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "An error occurred while running the tool. Please try again. Error: Missing credentials. Please pass an `api_key`, `workload_identity`, `admin_api_key`, or set the `OPENAI_API_KEY` or `OPENAI_ADMIN_KEY` environment variable.",
+          "content_digest": "bbb9ee92f441c750",
+          "tool_name": "generate_image",
+          "observation_type": "span"
+        },
+        {
+          "index": 2,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "[Scrubbed due to 'credential']",
+          "content_digest": "8e801b7e67233187",
+          "tool_name": "generate_image",
+          "observation_type": "span"
+        },
+        {
+          "index": 3,
           "role": "assistant",
           "entry_type": "text",
           "content": "openai.OpenAIError: Missing credentials. Please pass an `api_key`, `workload_identity`, `admin_api_key`, or set the `OPENAI_API_KEY` or `OPENAI_ADMIN_KEY` environment variable. ``` Traceback (most recent call last): File \"/Users/sideseat/De…[1909 chars]",
@@ -355,12 +445,12 @@
         "assistant",
         "assistant",
         "assistant",
-        "assistant",
-        "assistant",
-        "assistant",
         "tool",
         "tool",
         "tool",
+        "assistant",
+        "assistant",
+        "assistant",
         "assistant",
         "system",
         "user",
@@ -416,24 +506,33 @@
         },
         {
           "index": 5,
-          "role": "assistant",
-          "entry_type": "text",
-          "content": "openai.OpenAIError: Missing credentials. Please pass an `api_key`, `workload_identity`, `admin_api_key`, or set the `OPENAI_API_KEY` or `OPENAI_ADMIN_KEY` environment variable. ``` Traceback (most recent call last): File \"/Users/sideseat/De…[1909 chars]",
-          "content_digest": "f5698c0f324517b3",
-          "finish_reason": "Error",
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "[Scrubbed due to 'credential']",
+          "content_digest": "1386ae1931e02622",
+          "tool_name": "generate_image",
           "observation_type": "span"
         },
         {
           "index": 6,
-          "role": "assistant",
-          "entry_type": "text",
-          "content": "openai.OpenAIError: Missing credentials. Please pass an `api_key`, `workload_identity`, `admin_api_key`, or set the `OPENAI_API_KEY` or `OPENAI_ADMIN_KEY` environment variable. ``` Traceback (most recent call last): File \"/Users/sideseat/De…[1909 chars]",
-          "content_digest": "f5698c0f324517b3",
-          "finish_reason": "Error",
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "[Scrubbed due to 'credential']",
+          "content_digest": "1b6bcfa78c998561",
+          "tool_name": "generate_image",
           "observation_type": "span"
         },
         {
           "index": 7,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "[Scrubbed due to 'credential']",
+          "content_digest": "f5da143851372807",
+          "tool_name": "generate_image",
+          "observation_type": "span"
+        },
+        {
+          "index": 8,
           "role": "assistant",
           "entry_type": "text",
           "content": "openai.OpenAIError: Missing credentials. Please pass an `api_key`, `workload_identity`, `admin_api_key`, or set the `OPENAI_API_KEY` or `OPENAI_ADMIN_KEY` environment variable. ``` Traceback (most recent call last): File \"/Users/sideseat/De…[1909 chars]",
@@ -442,28 +541,22 @@
           "observation_type": "span"
         },
         {
-          "index": 8,
-          "role": "tool",
-          "entry_type": "tool_result",
-          "content": "An error occurred while running the tool. Please try again. Error: Missing credentials. Please pass an `api_key`, `workload_identity`, `admin_api_key`, or set the `OPENAI_API_KEY` or `OPENAI_ADMIN_KEY` environment variable.",
-          "content_digest": "2d2eec1361577101",
-          "observation_type": "generation"
-        },
-        {
           "index": 9,
-          "role": "tool",
-          "entry_type": "tool_result",
-          "content": "An error occurred while running the tool. Please try again. Error: Missing credentials. Please pass an `api_key`, `workload_identity`, `admin_api_key`, or set the `OPENAI_API_KEY` or `OPENAI_ADMIN_KEY` environment variable.",
-          "content_digest": "da84f69c788e6e81",
-          "observation_type": "generation"
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "openai.OpenAIError: Missing credentials. Please pass an `api_key`, `workload_identity`, `admin_api_key`, or set the `OPENAI_API_KEY` or `OPENAI_ADMIN_KEY` environment variable. ``` Traceback (most recent call last): File \"/Users/sideseat/De…[1909 chars]",
+          "content_digest": "f5698c0f324517b3",
+          "finish_reason": "Error",
+          "observation_type": "span"
         },
         {
           "index": 10,
-          "role": "tool",
-          "entry_type": "tool_result",
-          "content": "An error occurred while running the tool. Please try again. Error: Missing credentials. Please pass an `api_key`, `workload_identity`, `admin_api_key`, or set the `OPENAI_API_KEY` or `OPENAI_ADMIN_KEY` environment variable.",
-          "content_digest": "16d72ecbacbfeb15",
-          "observation_type": "generation"
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "openai.OpenAIError: Missing credentials. Please pass an `api_key`, `workload_identity`, `admin_api_key`, or set the `OPENAI_API_KEY` or `OPENAI_ADMIN_KEY` environment variable. ``` Traceback (most recent call last): File \"/Users/sideseat/De…[1909 chars]",
+          "content_digest": "f5698c0f324517b3",
+          "finish_reason": "Error",
+          "observation_type": "span"
         },
         {
           "index": 11,
@@ -525,12 +618,12 @@
         "assistant",
         "assistant",
         "assistant",
-        "assistant",
-        "assistant",
-        "assistant",
         "tool",
         "tool",
         "tool",
+        "assistant",
+        "assistant",
+        "assistant",
         "assistant",
         "system",
         "user",
@@ -586,24 +679,33 @@
         },
         {
           "index": 5,
-          "role": "assistant",
-          "entry_type": "text",
-          "content": "openai.OpenAIError: Missing credentials. Please pass an `api_key`, `workload_identity`, `admin_api_key`, or set the `OPENAI_API_KEY` or `OPENAI_ADMIN_KEY` environment variable. ``` Traceback (most recent call last): File \"/Users/sideseat/De…[1909 chars]",
-          "content_digest": "f5698c0f324517b3",
-          "finish_reason": "Error",
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "[Scrubbed due to 'credential']",
+          "content_digest": "1386ae1931e02622",
+          "tool_name": "generate_image",
           "observation_type": "span"
         },
         {
           "index": 6,
-          "role": "assistant",
-          "entry_type": "text",
-          "content": "openai.OpenAIError: Missing credentials. Please pass an `api_key`, `workload_identity`, `admin_api_key`, or set the `OPENAI_API_KEY` or `OPENAI_ADMIN_KEY` environment variable. ``` Traceback (most recent call last): File \"/Users/sideseat/De…[1909 chars]",
-          "content_digest": "f5698c0f324517b3",
-          "finish_reason": "Error",
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "[Scrubbed due to 'credential']",
+          "content_digest": "1b6bcfa78c998561",
+          "tool_name": "generate_image",
           "observation_type": "span"
         },
         {
           "index": 7,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "[Scrubbed due to 'credential']",
+          "content_digest": "f5da143851372807",
+          "tool_name": "generate_image",
+          "observation_type": "span"
+        },
+        {
+          "index": 8,
           "role": "assistant",
           "entry_type": "text",
           "content": "openai.OpenAIError: Missing credentials. Please pass an `api_key`, `workload_identity`, `admin_api_key`, or set the `OPENAI_API_KEY` or `OPENAI_ADMIN_KEY` environment variable. ``` Traceback (most recent call last): File \"/Users/sideseat/De…[1909 chars]",
@@ -612,28 +714,22 @@
           "observation_type": "span"
         },
         {
-          "index": 8,
-          "role": "tool",
-          "entry_type": "tool_result",
-          "content": "An error occurred while running the tool. Please try again. Error: Missing credentials. Please pass an `api_key`, `workload_identity`, `admin_api_key`, or set the `OPENAI_API_KEY` or `OPENAI_ADMIN_KEY` environment variable.",
-          "content_digest": "2d2eec1361577101",
-          "observation_type": "generation"
-        },
-        {
           "index": 9,
-          "role": "tool",
-          "entry_type": "tool_result",
-          "content": "An error occurred while running the tool. Please try again. Error: Missing credentials. Please pass an `api_key`, `workload_identity`, `admin_api_key`, or set the `OPENAI_API_KEY` or `OPENAI_ADMIN_KEY` environment variable.",
-          "content_digest": "da84f69c788e6e81",
-          "observation_type": "generation"
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "openai.OpenAIError: Missing credentials. Please pass an `api_key`, `workload_identity`, `admin_api_key`, or set the `OPENAI_API_KEY` or `OPENAI_ADMIN_KEY` environment variable. ``` Traceback (most recent call last): File \"/Users/sideseat/De…[1909 chars]",
+          "content_digest": "f5698c0f324517b3",
+          "finish_reason": "Error",
+          "observation_type": "span"
         },
         {
           "index": 10,
-          "role": "tool",
-          "entry_type": "tool_result",
-          "content": "An error occurred while running the tool. Please try again. Error: Missing credentials. Please pass an `api_key`, `workload_identity`, `admin_api_key`, or set the `OPENAI_API_KEY` or `OPENAI_ADMIN_KEY` environment variable.",
-          "content_digest": "16d72ecbacbfeb15",
-          "observation_type": "generation"
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "openai.OpenAIError: Missing credentials. Please pass an `api_key`, `workload_identity`, `admin_api_key`, or set the `OPENAI_API_KEY` or `OPENAI_ADMIN_KEY` environment variable. ``` Traceback (most recent call last): File \"/Users/sideseat/De…[1909 chars]",
+          "content_digest": "f5698c0f324517b3",
+          "finish_reason": "Error",
+          "observation_type": "span"
         },
         {
           "index": 11,
@@ -695,12 +791,12 @@
       "user",
       "assistant",
       "assistant",
-      "tool",
-      "tool",
-      "tool",
       "assistant",
       "assistant",
       "assistant",
+      "tool",
+      "tool",
+      "tool",
       "system",
       "user",
       "assistant",
@@ -760,53 +856,56 @@
       },
       {
         "index": 6,
-        "role": "tool",
-        "entry_type": "tool_result",
-        "content": "An error occurred while running the tool. Please try again. Error: Missing credentials. Please pass an `api_key`, `workload_identity`, `admin_api_key`, or set the `OPENAI_API_KEY` or `OPENAI_ADMIN_KEY` environment variable.",
-        "content_digest": "2d2eec1361577101",
-        "observation_type": "generation"
-      },
-      {
-        "index": 7,
-        "role": "tool",
-        "entry_type": "tool_result",
-        "content": "An error occurred while running the tool. Please try again. Error: Missing credentials. Please pass an `api_key`, `workload_identity`, `admin_api_key`, or set the `OPENAI_API_KEY` or `OPENAI_ADMIN_KEY` environment variable.",
-        "content_digest": "da84f69c788e6e81",
-        "observation_type": "generation"
-      },
-      {
-        "index": 8,
-        "role": "tool",
-        "entry_type": "tool_result",
-        "content": "An error occurred while running the tool. Please try again. Error: Missing credentials. Please pass an `api_key`, `workload_identity`, `admin_api_key`, or set the `OPENAI_API_KEY` or `OPENAI_ADMIN_KEY` environment variable.",
-        "content_digest": "16d72ecbacbfeb15",
-        "observation_type": "generation"
-      },
-      {
-        "index": 9,
         "role": "assistant",
         "entry_type": "text",
         "content": "openai.OpenAIError: Missing credentials. Please pass an `api_key`, `workload_identity`, `admin_api_key`, or set the `OPENAI_API_KEY` or `OPENAI_ADMIN_KEY` environment variable. ``` Traceback (most recent call last): File \"/Users/sideseat/De…[1909 chars]",
         "content_digest": "f5698c0f324517b3",
         "finish_reason": "Error",
+        "observation_type": "span"
+      },
+      {
+        "index": 7,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "openai.OpenAIError: Missing credentials. Please pass an `api_key`, `workload_identity`, `admin_api_key`, or set the `OPENAI_API_KEY` or `OPENAI_ADMIN_KEY` environment variable. ``` Traceback (most recent call last): File \"/Users/sideseat/De…[1909 chars]",
+        "content_digest": "f5698c0f324517b3",
+        "finish_reason": "Error",
+        "observation_type": "span"
+      },
+      {
+        "index": 8,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "openai.OpenAIError: Missing credentials. Please pass an `api_key`, `workload_identity`, `admin_api_key`, or set the `OPENAI_API_KEY` or `OPENAI_ADMIN_KEY` environment variable. ``` Traceback (most recent call last): File \"/Users/sideseat/De…[1909 chars]",
+        "content_digest": "f5698c0f324517b3",
+        "finish_reason": "Error",
+        "observation_type": "span"
+      },
+      {
+        "index": 9,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "[Scrubbed due to 'credential']",
+        "content_digest": "f5da143851372807",
+        "tool_name": "generate_image",
         "observation_type": "span"
       },
       {
         "index": 10,
-        "role": "assistant",
-        "entry_type": "text",
-        "content": "openai.OpenAIError: Missing credentials. Please pass an `api_key`, `workload_identity`, `admin_api_key`, or set the `OPENAI_API_KEY` or `OPENAI_ADMIN_KEY` environment variable. ``` Traceback (most recent call last): File \"/Users/sideseat/De…[1909 chars]",
-        "content_digest": "f5698c0f324517b3",
-        "finish_reason": "Error",
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "[Scrubbed due to 'credential']",
+        "content_digest": "1b6bcfa78c998561",
+        "tool_name": "generate_image",
         "observation_type": "span"
       },
       {
         "index": 11,
-        "role": "assistant",
-        "entry_type": "text",
-        "content": "openai.OpenAIError: Missing credentials. Please pass an `api_key`, `workload_identity`, `admin_api_key`, or set the `OPENAI_API_KEY` or `OPENAI_ADMIN_KEY` environment variable. ``` Traceback (most recent call last): File \"/Users/sideseat/De…[1909 chars]",
-        "content_digest": "f5698c0f324517b3",
-        "finish_reason": "Error",
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "[Scrubbed due to 'credential']",
+        "content_digest": "1386ae1931e02622",
+        "tool_name": "generate_image",
         "observation_type": "span"
       },
       {

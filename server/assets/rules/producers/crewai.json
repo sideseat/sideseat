@@ -355,7 +355,7 @@
     },
     {
       "id": "crewai.aggregate_input",
-      "doc": "On a Crew span, `input.value` may be the framework's own state - agents, tasks, tool `repr` - with no conversation. The tools are read on the metadata axis; claimed here so the repr is not shown as a turn. Claimed only where it holds tools and **no** conversation member (`context`, `messages`), because a carrier that has one of those is a conversation this must not swallow.",
+      "doc": "On a Crew span, `input.value` may be the framework's own state - agents, tasks, tool `repr` - with no conversation. The tools are read on the metadata axis; claimed here so the repr is not shown as a turn. A populated conversation member (`context`, `messages`) must not be swallowed, but CrewAI also writes an empty `context` beside its agent snapshot and an empty tool list. That is still metadata: treating the empty wrappers as a turn leaked the entire agent configuration into `crewai/error`.",
       "read": {
         "attribute": "input.value"
       },
@@ -373,7 +373,7 @@
       "alternatives": [
         {
           "id": "context",
-          "doc": "Only where the tool list is what it holds. An **empty** list is not evidence of one - `crewai/error` carries `tools: []` beside the conversation, and claiming on presence alone took that turn away. And a `context` member is the conversation, so a carrier holding one is read rather than claimed.",
+          "doc": "Only where the tool list is what it holds. A populated `context` or `messages` member is a conversation and keeps the carrier available to message readers.",
           "require": {
             "all": [
               {
@@ -395,6 +395,28 @@
               {
                 "path": "$.tool",
                 "exists": true
+              }
+            ]
+          }
+        },
+        {
+          "id": "empty_agent_snapshot",
+          "doc": "CrewAI's agent execution envelope with no context is configuration metadata even when it declares zero tools. The agent object is the discriminator; a non-empty context or a messages member remains a conversation.",
+          "require": {
+            "all": [
+              {
+                "path": "$.agent",
+                "kind": "object"
+              },
+              {
+                "path": "$.context",
+                "one_of": [
+                  ""
+                ]
+              },
+              {
+                "path": "$.messages",
+                "exists": false
               }
             ]
           }

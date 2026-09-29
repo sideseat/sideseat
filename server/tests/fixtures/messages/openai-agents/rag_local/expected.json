@@ -27,25 +27,91 @@
       "messages": []
     },
     "trace-1/Function: search_knowledge/span-15": {
-      "message_count": 0,
-      "role_sequence": [],
+      "message_count": 2,
+      "role_sequence": [
+        "assistant",
+        "tool"
+      ],
       "tool_names": [],
       "tool_definition_count": 0,
-      "messages": []
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"name\":\"search_knowledge\",\"input\":{\"query\":\"RAG retrieval augmented generation how it works key components retrieval embeddings vector database chunking reranking generation context\",\"num_results\":5}}",
+          "content_digest": "13d04c0bb80ee436",
+          "tool_name": "search_knowledge",
+          "observation_type": "span"
+        },
+        {
+          "index": 1,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "[1] (relevance: 0.71) RAG (Retrieval-Augmented Generation) is a pattern that combines vector search with LLM generation. Documents are embedded into vectors, stored in a vector database, and retrieved based on semantic similarity to enhance…[1351 chars]",
+          "content_digest": "735837b297c84c22",
+          "tool_name": "search_knowledge",
+          "observation_type": "span"
+        }
+      ]
     },
     "trace-1/Function: search_knowledge/span-23": {
-      "message_count": 0,
-      "role_sequence": [],
+      "message_count": 2,
+      "role_sequence": [
+        "assistant",
+        "tool"
+      ],
       "tool_names": [],
       "tool_definition_count": 0,
-      "messages": []
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"name\":\"search_knowledge\",\"input\":{\"query\":\"available embedding models for vector search supported embedding models\",\"num_results\":5}}",
+          "content_digest": "578fbf7a85ce6bb0",
+          "tool_name": "search_knowledge",
+          "observation_type": "span"
+        },
+        {
+          "index": 1,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "[1] (relevance: 0.52) Embeddings are dense vector representations of text that capture semantic meaning. Similar texts have similar embeddings. Common models include Amazon Titan Embeddings, OpenAI text-embedding-3, and Cohere Embed. Typica…[1351 chars]",
+          "content_digest": "f90c5c2121eeda56",
+          "tool_name": "search_knowledge",
+          "observation_type": "span"
+        }
+      ]
     },
     "trace-1/Function: search_knowledge/span-7": {
-      "message_count": 0,
-      "role_sequence": [],
+      "message_count": 2,
+      "role_sequence": [
+        "assistant",
+        "tool"
+      ],
       "tool_names": [],
       "tool_definition_count": 0,
-      "messages": []
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"name\":\"search_knowledge\",\"input\":{\"query\":\"SideSeat AI observability what is SideSeat features traces monitoring agents\",\"num_results\":5}}",
+          "content_digest": "0b3438173964ea71",
+          "tool_name": "search_knowledge",
+          "observation_type": "span"
+        },
+        {
+          "index": 1,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "[1] (relevance: 0.79) SideSeat is an AI observability toolkit that collects OpenTelemetry traces from AI applications. It normalizes multi-framework data into SideML format and provides a web UI for debugging LLM calls, analyzing costs, and…[1331 chars]",
+          "content_digest": "097110550e6c6c5d",
+          "tool_name": "search_knowledge",
+          "observation_type": "span"
+        }
+      ]
     },
     "trace-1/OpenAI Agents trace: Agent workflow/span-10": {
       "message_count": 0,
@@ -466,8 +532,9 @@
           "role": "tool",
           "entry_type": "tool_result",
           "content": "[1] (relevance: 0.79) SideSeat is an AI observability toolkit that collects OpenTelemetry traces from AI applications. It normalizes multi-framework data into SideML format and provides a web UI for debugging LLM calls, analyzing costs, and…[1331 chars]",
-          "content_digest": "33cc8ce13f0ccf18",
-          "observation_type": "generation"
+          "content_digest": "b180e7440a669f1b",
+          "tool_name": "search_knowledge",
+          "observation_type": "span"
         },
         {
           "index": 4,
@@ -499,8 +566,9 @@
           "role": "tool",
           "entry_type": "tool_result",
           "content": "[1] (relevance: 0.71) RAG (Retrieval-Augmented Generation) is a pattern that combines vector search with LLM generation. Documents are embedded into vectors, stored in a vector database, and retrieved based on semantic similarity to enhance…[1351 chars]",
-          "content_digest": "e1ec6aa99d77bc8c",
-          "observation_type": "generation"
+          "content_digest": "a612e80c581c6eff",
+          "tool_name": "search_knowledge",
+          "observation_type": "span"
         },
         {
           "index": 8,
@@ -532,8 +600,9 @@
           "role": "tool",
           "entry_type": "tool_result",
           "content": "[1] (relevance: 0.52) Embeddings are dense vector representations of text that capture semantic meaning. Similar texts have similar embeddings. Common models include Amazon Titan Embeddings, OpenAI text-embedding-3, and Cohere Embed. Typica…[1351 chars]",
-          "content_digest": "5a02e1b5b9e0e83b",
-          "observation_type": "generation"
+          "content_digest": "01cc296c93160cda",
+          "tool_name": "search_knowledge",
+          "observation_type": "span"
         },
         {
           "index": 12,
@@ -597,8 +666,9 @@
           "role": "tool",
           "entry_type": "tool_result",
           "content": "[1] (relevance: 0.79) SideSeat is an AI observability toolkit that collects OpenTelemetry traces from AI applications. It normalizes multi-framework data into SideML format and provides a web UI for debugging LLM calls, analyzing costs, and…[1331 chars]",
-          "content_digest": "33cc8ce13f0ccf18",
-          "observation_type": "generation"
+          "content_digest": "b180e7440a669f1b",
+          "tool_name": "search_knowledge",
+          "observation_type": "span"
         },
         {
           "index": 4,
@@ -630,8 +700,9 @@
           "role": "tool",
           "entry_type": "tool_result",
           "content": "[1] (relevance: 0.71) RAG (Retrieval-Augmented Generation) is a pattern that combines vector search with LLM generation. Documents are embedded into vectors, stored in a vector database, and retrieved based on semantic similarity to enhance…[1351 chars]",
-          "content_digest": "e1ec6aa99d77bc8c",
-          "observation_type": "generation"
+          "content_digest": "a612e80c581c6eff",
+          "tool_name": "search_knowledge",
+          "observation_type": "span"
         },
         {
           "index": 8,
@@ -663,8 +734,9 @@
           "role": "tool",
           "entry_type": "tool_result",
           "content": "[1] (relevance: 0.52) Embeddings are dense vector representations of text that capture semantic meaning. Similar texts have similar embeddings. Common models include Amazon Titan Embeddings, OpenAI text-embedding-3, and Cohere Embed. Typica…[1351 chars]",
-          "content_digest": "5a02e1b5b9e0e83b",
-          "observation_type": "generation"
+          "content_digest": "01cc296c93160cda",
+          "tool_name": "search_knowledge",
+          "observation_type": "span"
         },
         {
           "index": 12,
@@ -710,8 +782,9 @@
         "role": "tool",
         "entry_type": "tool_result",
         "content": "[1] (relevance: 0.52) Embeddings are dense vector representations of text that capture semantic meaning. Similar texts have similar embeddings. Common models include Amazon Titan Embeddings, OpenAI text-embedding-3, and Cohere Embed. Typica…[1351 chars]",
-        "content_digest": "5a02e1b5b9e0e83b",
-        "observation_type": "generation"
+        "content_digest": "01cc296c93160cda",
+        "tool_name": "search_knowledge",
+        "observation_type": "span"
       },
       {
         "index": 2,
@@ -743,8 +816,9 @@
         "role": "tool",
         "entry_type": "tool_result",
         "content": "[1] (relevance: 0.71) RAG (Retrieval-Augmented Generation) is a pattern that combines vector search with LLM generation. Documents are embedded into vectors, stored in a vector database, and retrieved based on semantic similarity to enhance…[1351 chars]",
-        "content_digest": "e1ec6aa99d77bc8c",
-        "observation_type": "generation"
+        "content_digest": "a612e80c581c6eff",
+        "tool_name": "search_knowledge",
+        "observation_type": "span"
       },
       {
         "index": 6,
@@ -776,8 +850,9 @@
         "role": "tool",
         "entry_type": "tool_result",
         "content": "[1] (relevance: 0.79) SideSeat is an AI observability toolkit that collects OpenTelemetry traces from AI applications. It normalizes multi-framework data into SideML format and provides a web UI for debugging LLM calls, analyzing costs, and…[1331 chars]",
-        "content_digest": "33cc8ce13f0ccf18",
-        "observation_type": "generation"
+        "content_digest": "b180e7440a669f1b",
+        "tool_name": "search_knowledge",
+        "observation_type": "span"
       },
       {
         "index": 10,
