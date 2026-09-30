@@ -6,6 +6,8 @@ instrumentation, so it doesn't use the common telemetry base.
 
 from opentelemetry.instrumentation.botocore import BotocoreInstrumentor
 from sideseat import Frameworks, SideSeat
+from sideseat.instrumentation import patch_strands_encoder
+
 from strands.telemetry import StrandsTelemetry
 
 
@@ -17,6 +19,11 @@ def setup_telemetry(use_sideseat: bool = False):
 
     Also instruments boto3/botocore for AWS call tracing.
     """
+    # Strands replaces binary content with "<replaced>" in its default trace encoder. Apply the
+    # same narrow content-preservation patch in both conformance modes so native-vs-SDK comparison
+    # exercises complete image/document payloads.
+    patch_strands_encoder()
+
     if use_sideseat:
         # SideSeat owns both Strands and Bedrock instrumentation in SDK mode.
         client = SideSeat(framework=[Frameworks.Strands, Frameworks.Bedrock])

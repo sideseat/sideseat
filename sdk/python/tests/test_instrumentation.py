@@ -2,8 +2,9 @@
 
 import importlib
 import os
+import sys
 import threading
-from types import SimpleNamespace
+from types import ModuleType, SimpleNamespace
 from typing import Any
 
 import pytest
@@ -19,6 +20,7 @@ from sideseat.instrumentation import (
     _suspend_otel_exporter_env,
     instrument,
     is_logfire_framework,
+    patch_adk_tracing,
 )
 
 
@@ -139,6 +141,77 @@ class TestInstrument:
         # Only one thread should successfully instrument
         assert sum(results) == 1
         assert Frameworks.Strands in _instrumented
+
+
+def test_adk_patch_preserves_native_sanitizer_and_weaves_inline_data(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """ADK's credential exclusions survive the multimodal compatibility patch."""
+    tracing = ModuleType("google.adk.telemetry.tracing")
+    sanitized = {
+        "model": "test-model",
+        "config": {"http_options": {}, "temperature": 0},
+        "contents": [
+            {
+                "role": "user",
+                "parts": [{"text": "before"}, {"text": "after"}],
+            },
+            {"role": "model", "parts": []},
+        ],
+    }
+    calls: list[Any] = []
+
+    def native_sanitizer(request: Any) -> dict[str, Any]:
+        calls.append(request)
+        return sanitized
+
+    tracing._build_llm_request_for_trace = native_sanitizer  # type: ignore[attr-defined]
+    telemetry = ModuleType("google.adk.telemetry")
+    telemetry.tracing = tracing  # type: ignore[attr-defined]
+    adk = ModuleType("google.adk")
+    adk.telemetry = telemetry  # type: ignore[attr-defined]
+    google = ModuleType("google")
+    google.adk = adk  # type: ignore[attr-defined]
+    monkeypatch.setitem(sys.modules, "google", google)
+    monkeypatch.setitem(sys.modules, "google.adk", adk)
+    monkeypatch.setitem(sys.modules, "google.adk.telemetry", telemetry)
+    monkeypatch.setitem(sys.modules, "google.adk.telemetry.tracing", tracing)
+
+    request = SimpleNamespace(
+        contents=[
+            SimpleNamespace(
+                parts=[
+                    SimpleNamespace(inline_data=None),
+                    SimpleNamespace(
+                        inline_data=SimpleNamespace(
+                            data=b"image",
+                            mime_type="image/png",
+                        )
+                    ),
+                    SimpleNamespace(inline_data=None),
+                ]
+            ),
+            SimpleNamespace(parts=None),
+        ]
+    )
+
+    assert patch_adk_tracing() is True
+    result = tracing._build_llm_request_for_trace(request)  # type: ignore[attr-defined]
+
+    assert calls == [request]
+    assert result["config"] == {"http_options": {}, "temperature": 0}
+    assert result["contents"][0]["parts"] == [
+        {"text": "before"},
+        {
+            "inline_data": {
+                "mime_type": "image/png",
+                "data": "aW1hZ2U=",
+            }
+        },
+        {"text": "after"},
+    ]
+    assert result["contents"][1] == {"role": "model", "parts": []}
+    assert patch_adk_tracing() is True
 
 
 class TestAnthropicCompatibility:

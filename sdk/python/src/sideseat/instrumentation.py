@@ -6,7 +6,7 @@ import logging
 import threading
 from collections.abc import Iterator
 from contextlib import contextmanager
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 if TYPE_CHECKING:
     from opentelemetry.sdk.trace import TracerProvider
@@ -527,55 +527,71 @@ def apply_framework_patches(framework: str, encode_binary: bool) -> None:
     """Apply framework-specific monkey patches before provider setup."""
     if encode_binary and framework == Frameworks.Strands:
         patch_strands_encoder()
-    if framework == Frameworks.GoogleADK:
+    if encode_binary and framework == Frameworks.GoogleADK:
         patch_adk_tracing()
 
 
 def patch_adk_tracing() -> bool:
-    """Patch ADK tracing to preserve inline_data as base64 instead of stripping it.
+    """Add base64 inline data to ADK's already-sanitized trace request.
 
     ADK's _build_llm_request_for_trace strips all parts with inline_data,
-    losing multimodal content (images, PDFs) from telemetry. This patch
-    base64-encodes the binary data so the actual content is preserved.
+    losing multimodal content (images, PDFs) from telemetry. Keep ADK's own
+    sanitizer as the source of truth for every other field — including its
+    credential-bearing HTTP-option exclusions — and only weave the omitted
+    inline parts back into the sanitized result.
     """
     try:
         import base64
 
         from google.adk.telemetry import tracing as adk_tracing  # type: ignore  # noqa: I001
 
+        original = adk_tracing._build_llm_request_for_trace
+        if getattr(original, "_sideseat_preserves_inline_data", False):
+            return True
+
+        @functools.wraps(original)
         def _patched(llm_request: Any) -> dict[str, Any]:
-            result = {
-                "model": llm_request.model,
-                "config": llm_request.config.model_dump(
-                    exclude_none=True, exclude="response_schema"
-                ),
-                "contents": [],
-            }
-            for content in llm_request.contents:
-                dumped_parts = []
-                for part in content.parts:
-                    if part.inline_data:
-                        data = part.inline_data.data
-                        dumped_parts.append(
-                            {
-                                "inline_data": {
-                                    "mime_type": part.inline_data.mime_type,
-                                    "data": base64.b64encode(data).decode("ascii") if data else "",
-                                }
-                            }
-                        )
-                    else:
-                        dumped = part.model_dump(exclude_none=True)
-                        if dumped:
-                            dumped_parts.append(dumped)
-                result["contents"].append(
-                    {
-                        "role": content.role,
-                        "parts": dumped_parts,
+            result = cast(dict[str, Any], original(llm_request))
+            sanitized_contents = result.get("contents")
+            if not isinstance(sanitized_contents, list):
+                return result
+
+            for index, source_content in enumerate(llm_request.contents):
+                if index >= len(sanitized_contents):
+                    break
+                sanitized_content = sanitized_contents[index]
+                if not isinstance(sanitized_content, dict):
+                    continue
+                sanitized_parts = sanitized_content.get("parts")
+                if not isinstance(sanitized_parts, list):
+                    continue
+
+                source_parts = list(source_content.parts or ())
+                non_inline_count = sum(not part.inline_data for part in source_parts)
+                can_weave = len(sanitized_parts) == non_inline_count
+                merged_parts = [] if can_weave else list(sanitized_parts)
+                sanitized_iter = iter(sanitized_parts)
+
+                for part in source_parts:
+                    if not part.inline_data:
+                        if can_weave:
+                            merged_parts.append(next(sanitized_iter))
+                        continue
+
+                    data = part.inline_data.data
+                    encoded = {
+                        "inline_data": {
+                            "mime_type": part.inline_data.mime_type,
+                            "data": base64.b64encode(data).decode("ascii") if data else "",
+                        }
                     }
-                )
+                    merged_parts.append(encoded)
+
+                sanitized_content["parts"] = merged_parts
+
             return result
 
+        _patched._sideseat_preserves_inline_data = True  # type: ignore[attr-defined]
         adk_tracing._build_llm_request_for_trace = _patched
         logger.debug("Patched ADK tracing")
         return True
