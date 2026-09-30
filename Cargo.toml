@@ -204,7 +204,7 @@ rdkafka = { version = "0.39.0", features = ["cmake-build"] }
 deadpool-redis = "0.18"
 
 # ClickHouse client
-clickhouse = { version = "0.14", features = ["lz4", "time"] }
+clickhouse = { version = "0.15", features = ["lz4", "time"] }
 
 # MCP server
 rmcp = { version = "3.1", features = ["server", "client", "macros", "transport-streamable-http-server"] }
