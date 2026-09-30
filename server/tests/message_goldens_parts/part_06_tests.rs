@@ -1,4 +1,50 @@
 
+/// Every native half of a framework parity pair reaches the framework label its SDK slug declares.
+///
+/// Conversation goldens deliberately omit provenance, so a current instrumentor could keep producing the
+/// same messages while its spans silently fell back to `OpenInference` or `Unknown`. Native captures are the
+/// proof that server-side detection works without the SDK resource declaration filling the gap.
+#[test]
+fn native_framework_captures_exercise_their_declared_identity() {
+    let plan = &sideseat_domain::rules::ruleset().detect;
+    let mut suites: BTreeMap<String, (String, BTreeSet<String>)> = BTreeMap::new();
+
+    for (label, paths) in discover_fixtures() {
+        let Some((suite, _)) = label.split_once('/') else {
+            continue;
+        };
+        let Some(slug) = suite.strip_suffix("-native") else {
+            continue;
+        };
+        let Some(expected) = plan.label_from_declaration(slug) else {
+            continue;
+        };
+
+        let found = rows_for(&paths)
+            .into_iter()
+            .filter_map(|(_, row)| row.framework)
+            .collect::<BTreeSet<_>>();
+        suites
+            .entry(slug.to_string())
+            .or_insert_with(|| (expected.to_string(), BTreeSet::new()))
+            .1
+            .extend(found);
+    }
+
+    for (suite, (expected, found)) in &suites {
+        assert!(
+            found.contains(expected),
+            "{suite}-native: instrumentation never produced its declared `{expected}` framework label; \
+             observed {found:?}"
+        );
+    }
+
+    assert!(
+        !suites.is_empty(),
+        "no native framework capture had a server-recognised SDK slug"
+    );
+}
+
 /// The declared classification plan answers as the sweep does for **every span of the corpus**.
 ///
 /// The precedence cases live beside the sweep; this is the other half of the shadow comparison, and the half

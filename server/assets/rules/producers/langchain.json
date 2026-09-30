@@ -5,15 +5,21 @@
   "detect": [
     {
       "id": "langchain.detect",
-      "doc": "The LangChain dialect, including the LangSmith exporter's spelling of it.",
+      "doc": "The LangChain dialect, including the LangSmith exporter's spelling and the exact instrumentation scope emitted by the current OpenInference LangChain instrumentor. Supersedes openinference.detect because that instrumentor deliberately writes the shared openinference.* attributes alongside its framework-specific scope.",
       "label": "LangChain",
       "match": {
+        "scope_name": [
+          "openinference.instrumentation.langchain"
+        ],
         "attr_prefix": [
           "langchain.",
           "langsmith."
         ]
       },
-      "legacy_rank": 50
+      "legacy_rank": 50,
+      "supersedes": [
+        "openinference.detect"
+      ]
     }
   ],
   "sdk_slugs": [

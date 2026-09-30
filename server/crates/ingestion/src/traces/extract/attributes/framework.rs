@@ -321,13 +321,24 @@ const FRAMEWORK_RULES: &[FrameworkRule] = &[
 /// It is consulted at all because the current OTel GenAI conventions are framework-neutral by design: the
 /// Vercel AI SDK's current integration emits pure `gen_ai.*` with no `ai.*` attributes, so no rule can
 /// attribute it and no rule should have to. A declaration is the only evidence that exists.
+#[cfg(test)]
 pub(crate) fn detect_framework(
     span_name: &str,
     span_attrs: &HashMap<String, String>,
     resource_attrs: &HashMap<String, String>,
 ) -> String {
+    detect_framework_scoped(span_name, None, span_attrs, resource_attrs)
+}
+
+pub(crate) fn detect_framework_scoped(
+    span_name: &str,
+    scope_name: Option<&str>,
+    span_attrs: &HashMap<String, String>,
+    resource_attrs: &HashMap<String, String>,
+) -> String {
     let ctx = sideseat_domain::rules::DetectContext {
         span_name,
+        scope_name,
         span_attrs,
         resource_attrs,
     };

@@ -127,6 +127,7 @@ fn rank_decides_which_of_two_matching_rules_wins() {
     let hit = plan
         .resolve(&DetectContext {
             span_name: "s",
+            scope_name: None,
             span_attrs: &span_attrs,
             resource_attrs: &resource_attrs,
         })
@@ -296,6 +297,7 @@ fn an_exact_span_name_does_not_claim_names_that_merely_start_with_it() {
     let detected = |name: &str| {
         plan.resolve(&DetectContext {
             span_name: name,
+            scope_name: None,
             span_attrs: &attrs(&[]),
             resource_attrs: &attrs(&[]),
         })
@@ -308,6 +310,32 @@ fn an_exact_span_name_does_not_claim_names_that_merely_start_with_it() {
         detected("LangGraphicalTask").as_deref(),
         Some("LangGraph"),
         "a span whose name merely starts with those letters is not this producer's"
+    );
+}
+
+/// A framework-specific instrumentation scope outranks the shared convention namespace.
+#[test]
+fn an_exact_instrumentation_scope_identifies_the_framework_using_openinference() {
+    let plan = &ruleset().detect;
+    let detected = |scope_name: &str| {
+        plan.resolve(&DetectContext {
+            span_name: "ChatOpenAI",
+            scope_name: Some(scope_name),
+            span_attrs: &attrs(&[("openinference.span.kind", "LLM")]),
+            resource_attrs: &attrs(&[]),
+        })
+        .map(|found| found.label.to_string())
+    };
+
+    assert_eq!(
+        detected("openinference.instrumentation.langchain").as_deref(),
+        Some("LangChain"),
+        "the scope names the concrete framework, while the attribute namespace names its shared convention"
+    );
+    assert_eq!(
+        detected("openinference.instrumentation.langchain_extra").as_deref(),
+        Some("OpenInference"),
+        "scope matching is exact, so a similarly named integration is not relabelled"
     );
 }
 
@@ -326,6 +354,7 @@ fn a_producer_naming_itself_outranks_a_convention_namespace() {
     let label = |span: &str, pairs: &[(&str, &str)], resource: &[(&str, &str)]| {
         plan.resolve(&DetectContext {
             span_name: span,
+            scope_name: None,
             span_attrs: &attrs(pairs),
             resource_attrs: &attrs(resource),
         })
@@ -380,6 +409,7 @@ fn a_service_name_identifies_a_producer_by_substring() {
     let label = |service: &str| {
         plan.resolve(&DetectContext {
             span_name: "chat",
+            scope_name: None,
             span_attrs: &attrs(&[]),
             resource_attrs: &attrs(&[("service.name", service)]),
         })
@@ -640,6 +670,7 @@ fn nothing_recognised_this_producer_says_which_rules_were_close() {
     let near = |span: &str, pairs: &[(&str, &str)], resource: &[(&str, &str)]| {
         plan.near_misses(&DetectContext {
             span_name: span,
+            scope_name: None,
             span_attrs: &attrs(pairs),
             resource_attrs: &attrs(resource),
         })

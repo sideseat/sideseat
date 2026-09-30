@@ -227,6 +227,13 @@ pub struct DetectMatch {
     /// starts with those letters.
     #[serde(default)]
     pub span_name_exact: Vec<String>,
+    /// Instrumentation scope name **is** any of these, exactly.
+    ///
+    /// OpenInference instrumentors expose the concrete framework through the scope while their span
+    /// attributes intentionally stay in the shared `openinference.*` vocabulary. Exact matching keeps
+    /// that producer signal from turning a shared namespace fragment into a substring heuristic.
+    #[serde(default)]
+    pub scope_name: Vec<String>,
     /// Any span attribute key starts with any of these.
     #[serde(default)]
     pub attr_prefix: Vec<String>,

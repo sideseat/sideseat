@@ -227,6 +227,9 @@ snapshot still fail on a real defect:
 
 - every returned block belongs to the scope requested, by exact id (a span view never leaks a
   sibling span; a trace view never survives `scope_feed_to_trace` with another trace's block)
+- every native framework suite produces the framework label its SDK slug declares somewhere in
+  that suite, without relying on `sideseat.framework` to fill the gap. Nested producers keep their
+  own labels, so this is suite-level evidence rather than a demand that every child span have one name
 - a session's trace views partition its session view exactly — summing them must equal it. This is
   now asserted for **every** session, and the reason it once could not be is worth keeping: ADK emits
   its own session id alongside the sample's, so a trace named two sessions and appeared under both,

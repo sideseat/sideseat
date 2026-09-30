@@ -56,6 +56,7 @@ fn a_supersedes_edge_that_cannot_take_effect_is_refused() {
     let found = plan
         .resolve(&crate::rules::detect_rules::DetectContext {
             span_name: "chat",
+            scope_name: None,
             span_attrs: &attrs,
             resource_attrs: &empty,
         })
@@ -94,6 +95,7 @@ fn a_supersedes_edge_that_cannot_take_effect_is_refused() {
         let found = plan
             .resolve(&crate::rules::detect_rules::DetectContext {
                 span_name: "chat",
+                scope_name: None,
                 span_attrs: &attrs,
                 resource_attrs: &empty,
             })
@@ -196,6 +198,7 @@ fn a_superseded_rule_is_dominated_transitively() {
     attrs.insert("probe.mid.deep.marker".to_string(), "1".to_string());
     let ctx = crate::rules::detect_rules::DetectContext {
         span_name: "probe.span",
+        scope_name: None,
         span_attrs: &attrs,
         resource_attrs: &std::collections::HashMap::new(),
     };

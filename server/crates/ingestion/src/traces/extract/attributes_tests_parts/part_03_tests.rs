@@ -610,6 +610,7 @@ fn detection_overlaps_are_reported() {
     for (span_name, span_attrs, resource_attrs) in &probes {
         let ctx = sideseat_domain::rules::DetectContext {
             span_name,
+            scope_name: None,
             span_attrs,
             resource_attrs,
         };

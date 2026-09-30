@@ -65,6 +65,7 @@ pub struct DetectPlan {
 #[derive(Debug, Clone, Copy)]
 pub struct DetectContext<'a> {
     pub span_name: &'a str,
+    pub scope_name: Option<&'a str>,
     pub span_attrs: &'a HashMap<String, String>,
     pub resource_attrs: &'a HashMap<String, String>,
 }
@@ -193,6 +194,7 @@ impl std::fmt::Display for DetectCompileError {
 fn has_signal(spec: &DetectMatch) -> bool {
     !spec.span_name.is_empty()
         || !spec.span_name_exact.is_empty()
+        || !spec.scope_name.is_empty()
         || !spec.attr_prefix.is_empty()
         || !spec.attr_equals.is_empty()
         || !spec.attr_equals_ignore_case.is_empty()
@@ -498,6 +500,7 @@ pub(super) fn compiled_signals_hold(
     static NO_RESOURCE: std::sync::OnceLock<HashMap<String, String>> = std::sync::OnceLock::new();
     probe.matches(&DetectContext {
         span_name,
+        scope_name: None,
         span_attrs,
         resource_attrs: NO_RESOURCE.get_or_init(HashMap::new),
     })
@@ -508,6 +511,9 @@ pub(super) fn compiled_signals_hold(
 pub(super) fn unavailable_gate_dimension(spec: &DetectMatch) -> Option<&'static str> {
     if !spec.service_name.is_empty() {
         return Some("service_name");
+    }
+    if !spec.scope_name.is_empty() {
+        return Some("scope_name");
     }
     if !spec.resource_attr_contains.is_empty() {
         return Some("resource_attr_contains");
@@ -581,6 +587,7 @@ enum Subsumption {
 enum Atom<'a> {
     SpanNamePrefix(&'a str),
     SpanNameExact(&'a str),
+    ScopeNameExact(&'a str),
     AttrPrefix(&'a str),
     AttrExists(&'a str),
     ServiceNameContains(&'a str),
@@ -662,6 +669,7 @@ fn atoms_of(spec: &DetectMatch) -> Option<Vec<Atom<'_>>> {
     let mut out: Vec<Atom<'_>> = Vec::new();
     out.extend(spec.span_name.iter().map(|s| Atom::SpanNamePrefix(s)));
     out.extend(spec.span_name_exact.iter().map(|s| Atom::SpanNameExact(s)));
+    out.extend(spec.scope_name.iter().map(|s| Atom::ScopeNameExact(s)));
     out.extend(spec.attr_prefix.iter().map(|s| Atom::AttrPrefix(s)));
     out.extend(spec.attr_exists.iter().map(|s| Atom::AttrExists(s)));
     out.extend(
@@ -786,6 +794,7 @@ pub(super) fn atom_literal_defect(spec: &DetectMatch) -> Option<AtomDefect> {
     for (dimension, values) in [
         ("span_name", &spec.span_name),
         ("span_name_exact", &spec.span_name_exact),
+        ("scope_name", &spec.scope_name),
         ("attr_prefix", &spec.attr_prefix),
         ("attr_exists", &spec.attr_exists),
         ("service_name", &spec.service_name),
@@ -823,6 +832,7 @@ pub(super) fn atom_literal_defect(spec: &DetectMatch) -> Option<AtomDefect> {
     for (dimension, values, kind) in [
         ("span_name", &spec.span_name, Subsumption::Prefix),
         ("span_name_exact", &spec.span_name_exact, Subsumption::Equal),
+        ("scope_name", &spec.scope_name, Subsumption::Equal),
         ("attr_prefix", &spec.attr_prefix, Subsumption::Prefix),
         ("attr_exists", &spec.attr_exists, Subsumption::Equal),
         ("service_name", &spec.service_name, Subsumption::Contains),
@@ -888,6 +898,7 @@ pub(super) fn gate_defect(spec: &DetectMatch) -> Option<&'static str> {
     }
     let any_signal = !spec.span_name.is_empty()
         || !spec.span_name_exact.is_empty()
+        || !spec.scope_name.is_empty()
         || !spec.attr_prefix.is_empty()
         || !spec.attr_equals.is_empty()
         || !spec.attr_equals_ignore_case.is_empty()

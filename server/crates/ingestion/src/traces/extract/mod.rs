@@ -512,8 +512,9 @@ pub fn extract_attributes_batch(request: &ExportTraceServiceRequest) -> Vec<Span
                 attributes::extract_genai(&mut span, &span_attrs, &otlp_span.name, &tokens);
 
                 // Classify span
-                span.framework = Some(attributes::detect_framework(
+                span.framework = Some(attributes::detect_framework_scoped(
                     &otlp_span.name,
+                    span.scope_name.as_deref(),
                     &span_attrs,
                     &resource_attrs,
                 ));

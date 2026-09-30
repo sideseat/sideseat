@@ -18,6 +18,7 @@ misordered message.
 | Criterion | Required evidence |
 | --- | --- |
 | Wire fidelity | The fixture is the exact OTLP request emitted by the tested SDK or framework |
+| Framework identity | Each native framework suite reaches its declared framework label without SDK fallback |
 | Span view | Each span returns only its own messages, in source order |
 | Trace view | The complete conversation is ordered and scoped to one trace |
 | Session view | Traces partition one session exactly; a trace cannot belong to two sessions |

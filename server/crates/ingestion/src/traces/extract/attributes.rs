@@ -36,9 +36,9 @@ use classification::extract_autogen_tokens;
 pub use classification::{categorize_span, detect_observation_type};
 #[cfg(any(test, feature = "test-support"))]
 pub use classification::{categorize_span_legacy, detect_observation_type_legacy};
-pub(crate) use framework::detect_framework;
+pub(crate) use framework::detect_framework_scoped;
 #[cfg(test)]
-pub(crate) use framework::legacy_detect_framework;
+pub(crate) use framework::{detect_framework, legacy_detect_framework};
 #[cfg(test)]
 use usage::INPUT_TOKENS;
 use usage::counters_already_read;

@@ -38,6 +38,11 @@ impl CompiledDetect {
         {
             return true;
         }
+        if let Some(scope_name) = ctx.scope_name
+            && spec.scope_name.iter().any(|name| scope_name == name)
+        {
+            return true;
+        }
         // Prefix only: `starts_with` subsumes its own equality, so the equality arm here could never be the
         // reason a rule matched, and it made a separator-suffixed literal dead beside the bare one.
         if spec
