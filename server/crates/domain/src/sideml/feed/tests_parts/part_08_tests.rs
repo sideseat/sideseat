@@ -468,7 +468,7 @@ fn test_regression_different_tool_use_ids_preserved() {
 // PR 1: WITHIN-TRACE ADK SUPPORT TESTS
 // ============================================================================
 
-/// In an ADK multi-span trace, assistant input is history and output-source content survives.
+/// In an ADK multi-span trace, ordered assistant input preserves earlier turns and output survives.
 ///
 /// Agent root + 2 generation children.
 /// span1 input (llm_request): [sys, userA, asstB_old, userC]
@@ -476,10 +476,10 @@ fn test_regression_different_tool_use_ids_preserved() {
 /// span2 input (llm_request): [sys, userA, asstB_old, userC, toolD, resultE]
 /// span2 output (gen_ai.choice): [asstG(stop)]
 ///
-/// Key assertion: input-source `asstB_old` is history.
-/// Protected gen_ai.choice output (toolD, asstG) survives.
+/// Key assertion: the ordered request snapshot proves that `asstB_old` is a distinct earlier turn.
+/// Protected gen_ai.choice output (toolD, asstG) survives and duplicate copies collapse.
 #[test]
-fn adk_multi_span_filters_input_assistant_and_deduplicates() {
+fn adk_multi_span_preserves_ordered_input_history_and_deduplicates() {
     let t0 = fixed_time();
     let dur = chrono::Duration::seconds;
 
@@ -581,13 +581,18 @@ fn adk_multi_span_filters_input_assistant_and_deduplicates() {
     let options = FeedOptions::default();
     let result = process_spans(rows, &options);
 
-    // The assistant response re-sent through the request is history.
-    let has_old_assistant = result.messages.iter().any(|m| {
-        matches!(&m.content, ContentBlock::Text { text } if text == "Previous answer from history")
-    });
-    assert!(
-        !has_old_assistant,
-        "input-source assistant should be marked as history"
+    // ADK's ordered request snapshot is a conversation witness, so its earlier assistant turn
+    // remains visible. Repeated snapshots still collapse it to one block.
+    let old_assistant_count = result
+        .messages
+        .iter()
+        .filter(|m| {
+            matches!(&m.content, ContentBlock::Text { text } if text == "Previous answer from history")
+        })
+        .count();
+    assert_eq!(
+        old_assistant_count, 1,
+        "ordered input history should preserve one copy of the earlier assistant turn"
     );
 
     // toolD should survive (from span1 output via gen_ai.choice, protected)
@@ -673,10 +678,9 @@ fn input_attribute_history_does_not_affect_strands_events() {
     );
 }
 
-/// Output-source assistant from llm_response survives while input-source
-/// assistant from llm_request is marked as input history.
+/// An ordered request snapshot preserves its earlier assistant turn and the current response.
 #[test]
-fn test_output_source_assistant_survives_input_source_marked() {
+fn ordered_input_assistant_and_output_source_assistant_both_survive() {
     let t0 = fixed_time();
     let dur = chrono::Duration::seconds;
 
@@ -724,13 +728,13 @@ fn test_output_source_assistant_survives_input_source_marked() {
     let options = FeedOptions::default();
     let result = process_spans(rows, &options);
 
-    // The old response is input-source assistant content on a non-root generation span.
+    // The old response is a distinct earlier turn in ADK's ordered request snapshot.
     let old = result.messages.iter().any(|m| {
         matches!(&m.content, ContentBlock::Text { text } if text == "Old response from history")
     });
     assert!(
-        !old,
-        "Input-source assistant should be marked as history and filtered"
+        old,
+        "ordered input history should preserve the earlier assistant turn"
     );
 
     // "New response" should survive (output-source, has finish_reason → protected)

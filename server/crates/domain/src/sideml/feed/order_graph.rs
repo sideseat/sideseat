@@ -43,6 +43,9 @@ use super::types::BlockEntry;
 use crate::sideml::types::{ChatRole, FinishReason};
 
 mod resolve;
+mod tool_causality;
+
+use tool_causality::{causal_sequence_edges, exact_tool_pairs, parallel_tool_branches};
 
 pub(super) use resolve::resolve;
 
@@ -521,81 +524,6 @@ enum SequenceSource {
     Carrier(usize),
 }
 
-/// Exact call/result pairs recovered from every observation that dedup projected to each survivor.
-///
-/// A representative may be an id-less snapshot even though another copy carried a correlated id.
-/// Reading the evidence makes the edge independent of that quality tie. Distinct ids or callers
-/// remain ambiguous and deliberately produce no pair.
-fn exact_tool_pairs(
-    evidence: &[OrderEvidence],
-    survivors: &[BlockEntry],
-    lineage: &[Option<usize>],
-    repeat_ordinals: &[u32],
-) -> HashSet<(usize, usize)> {
-    type CallKey = (String, u32);
-
-    let mut calls: HashMap<CallKey, HashSet<usize>> = HashMap::new();
-    let mut result_ids: HashMap<usize, HashSet<String>> = HashMap::new();
-    for (survivor, block) in survivors.iter().enumerate() {
-        let Some(id) = block.tool_use_id.as_ref().filter(|id| !id.is_empty()) else {
-            continue;
-        };
-        let ordinal = repeat_ordinals.get(survivor).copied().unwrap_or(0);
-        if block.entry_type == "tool_use" {
-            calls
-                .entry((id.clone(), ordinal))
-                .or_default()
-                .insert(survivor);
-        } else if block.entry_type == "tool_result" {
-            result_ids.entry(survivor).or_default().insert(id.clone());
-        }
-    }
-    for (observation, seen) in evidence.iter().enumerate() {
-        let Some(survivor) = lineage.get(observation).copied().flatten() else {
-            continue;
-        };
-        let ordinal = repeat_ordinals.get(survivor).copied().unwrap_or(0);
-        match &seen.tool_reference {
-            Some(ToolReference::Call(id)) => {
-                calls
-                    .entry((id.clone(), ordinal))
-                    .or_default()
-                    .insert(survivor);
-            }
-            Some(ToolReference::Result(id)) => {
-                result_ids.entry(survivor).or_default().insert(id.clone());
-            }
-            None => {}
-        }
-    }
-
-    let mut pairs = HashSet::new();
-    for (result, ids) in result_ids {
-        if survivors
-            .get(result)
-            .is_none_or(|block| block.entry_type != "tool_result")
-            || ids.len() != 1
-        {
-            continue;
-        }
-        let ordinal = repeat_ordinals.get(result).copied().unwrap_or(0);
-        let Some(id) = ids.into_iter().next() else {
-            continue;
-        };
-        let Some(callers) = calls
-            .get(&(id, ordinal))
-            .filter(|callers| callers.len() == 1)
-        else {
-            continue;
-        };
-        let Some(&call) = callers.iter().next() else {
-            continue;
-        };
-        pairs.insert((call, result));
-    }
-    pairs
-}
-
 /// Build the block-level causal relation over a trace's survivors - see [`Precedence`] for why it is
 /// not the resolver's graph.
 pub(super) fn causal_precedence(
@@ -618,9 +546,11 @@ pub(super) fn causal_precedence(
         }
     };
     let survivor_of = |observation: usize| lineage.get(observation).copied().flatten();
+    let exact_pairs = exact_tool_pairs(evidence, survivors, lineage, repeat_ordinals);
+    let parallel_branches = parallel_tool_branches(evidence, lineage, &exact_pairs);
 
     // An emission's own sequence, and a carrier's stated order: the same shape, so collected together.
-    // Consecutive members only - the transitive closure is what the walk computes.
+    // Parallel tool branches remain a partial order even when one carrier serialises them.
     let mut sequences: HashMap<SequenceSource, Vec<EmissionMember>> = HashMap::new();
     for (observation, seen) in evidence.iter().enumerate() {
         let Some(survivor) = survivor_of(observation) else {
@@ -650,12 +580,12 @@ pub(super) fn causal_precedence(
                 sequence.push(survivor);
             }
         }
-        for pair in sequence.windows(2) {
-            add(pair[0], pair[1], &mut predecessors, &mut successors);
+        for (from, to) in causal_sequence_edges(&sequence, &parallel_branches) {
+            add(from, to, &mut predecessors, &mut successors);
         }
     }
 
-    for (call, result) in exact_tool_pairs(evidence, survivors, lineage, repeat_ordinals) {
+    for (call, result) in exact_pairs {
         add(call, result, &mut predecessors, &mut successors);
     }
 
