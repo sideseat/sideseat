@@ -37,6 +37,13 @@ print(response.content)
 For stateful agent workflows, use [LangGraph](/docs/integrations/frameworks/langgraph/) instead.
 </Aside>
 
+The compatibility corpus exercises LangChain 1.4.3, LangChain Core 1.6.6,
+LangChain OpenAI 1.6.7, and OpenInference's LangChain instrumentor 0.1.76 on
+OpenTelemetry Python 1.45.0. Native OpenTelemetry and SideSeat SDK captures must
+produce identical span projections, two trace conversations, their shared session,
+and the project feed. The scenario includes multi-turn history, streaming, and a
+complete tool-call roundtrip.
+
 ## PydanticAI
 
 <Tabs>

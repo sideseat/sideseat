@@ -305,6 +305,27 @@ fn the_corpus_matches_the_support_matrix() {
             "the support matrix row for `{suite}` has no version, so it does not say what was verified"
         );
     }
+
+    let total_samples: usize = documented.iter().map(|(_, count, _, _)| count).sum();
+    let total_requests: usize = documented.iter().map(|(_, _, count, _)| count).sum();
+    let public_doc = std::fs::read_to_string(
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .expect("repo root")
+            .join("docs/src/content/docs/docs/reference/production-readiness.mdx"),
+    )
+    .expect("production-readiness documentation");
+    let documented_summary = format!(
+        "**{} suites, {} samples, and {} captured OTLP requests**",
+        documented.len(),
+        total_samples,
+        total_requests
+    );
+    assert!(
+        public_doc.contains(&documented_summary),
+        "public production-readiness counts drifted from the fixture support matrix; expected \
+         `{documented_summary}`"
+    );
 }
 
 /// A cached reconstruction is what recomputation would have produced, byte for byte.

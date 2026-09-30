@@ -77,6 +77,8 @@ the corpus matches it.
 | `google-genai-sdk` | SideSeat Python 1.0.8 / Google GenAI 2.25.0 / Logfire 6.0.0b7 / Google GenAI OTel instrumentor 1.2b0 / OpenTelemetry Python 1.44.0 on CPython 3.12.8 | 1 | 1 |
 | `javascript-otel` | OpenTelemetry JS 2.11.0 / OTLP exporter 0.222.0 on Node.js 26.9.0 | 1 | 1 |
 | `javascript-sdk` | SideSeat JavaScript 2.0.0 / OpenTelemetry JS 2.11.0 on Node.js 26.9.0 | 1 | 1 |
+| `langchain-native` | LangChain 1.4.3 / LangChain Core 1.6.6 / LangChain OpenAI 1.6.7 / OpenInference LangChain instrumentor 0.1.76 / OpenTelemetry Python 1.45.0 on CPython 3.13.7, native OTLP setup | 1 | 1 |
+| `langchain-sdk` | SideSeat Python 1.0.8 / LangChain 1.4.3 / LangChain Core 1.6.6 / LangChain OpenAI 1.6.7 / OpenInference LangChain instrumentor 0.1.76 / OpenTelemetry Python 1.45.0 on CPython 3.13.7 | 1 | 1 |
 | `langgraph` | langgraph >=1.1.2 | 9 | 23 |
 | `langgraph-native` | langgraph >=1.1.2, native OTLP setup | 9 | 9 |
 | `langgraph-sdk` | SideSeat Python 1.0.8 / langgraph >=1.1.2 | 9 | 9 |
@@ -95,7 +97,7 @@ the corpus matches it.
 | `strands-native` | strands-agents >=1.30.0, native OTLP setup | 9 | 9 |
 | `strands-sdk` | SideSeat Python 1.0.8 / strands-agents >=1.30.0 | 9 | 9 |
 | `vercel-ai-js` | ai ^7.0.79 | 6 | 13 |
-| **40 suites** | | **215** | **380** |
+| **42 suites** | | **217** | **382** |
 
 Two further samples exist but are **not in the repository**: `strands-js/image-gen` and
 `vercel-ai-js/image-gen`, whose payloads are 15 MB and 7 MB of inlined base64 image data (the Python
@@ -271,20 +273,19 @@ not hide the rest.
 
 ## What is and is not covered
 
-**139 tracked expectation files: 122 captured in 31 suites, plus 17 synthetic.** A suite is not a framework:
+**217 tracked expectation files: 200 captured in 41 suites, plus 17 synthetic.** A suite is not a framework:
 `strands`/`strands-js` and `claude-agent-sdk`/`claude-agent-sdk-js` are one framework each in two
-languages; the eight .NET/JavaScript/Python/Rust suites are SDK conformance rather than framework captures. The 13 framework
-suites plus the `openai-{native,sdk}`, `anthropic-{native,sdk}`, `google-genai-{native,sdk}`, and
-`pydantic-ai-{native,sdk}` and `autogen-{native,sdk}` parity pairs cover **14 of the 32** frameworks SideSeat recognises. (32 is
+languages; the eight .NET/JavaScript/Python/Rust suites are SDK conformance rather than framework
+captures. The fixture families below cover **15 of the 32** frameworks SideSeat recognises. (32 is
 the union of the server's `Framework` classifier and the SDK's framework list, excluding `Unknown`:
 28 named server variants plus `anthropic`, `openai`, `google-genai` and `pydantic-ai`, which only the
 SDK names.) Every framework is not covered, and the gap is deliberate rather than hidden:
 
-| Covered by fixtures (14) | strands, langgraph, crewai, google-adk, google-genai, bedrock, openai, openai-agents, anthropic, pydantic-ai, autogen, agent-framework, claude-agent-sdk, vercel-ai — strands and claude-agent-sdk in both languages, vercel-ai in JS only |
+| Covered by fixtures (15) | strands, langchain, langgraph, crewai, google-adk, google-genai, bedrock, openai, openai-agents, anthropic, pydantic-ai, autogen, agent-framework, claude-agent-sdk, vercel-ai — strands and claude-agent-sdk in both languages, vercel-ai in JS only |
 | ------------------- | --- |
 | Synthetic, not a framework | `_synthetic/*` — hand-written payloads for shapes no captured sample produces, counted in the file total and in neither the suites nor the frameworks. See below. |
 | SDK conformance, not a framework | The `dotnet-{otel,sdk}/canonical`, `javascript-{otel,sdk}/canonical`, `python-{otel,sdk}/canonical`, and `rust-{otel,sdk}/canonical` pairs — the same real four-span, five-message conversation exported without and with each SideSeat SDK |
-| Recognised, no fixtures (18) | ag2, agentscope, agno, azure-ai-foundry, azure-openai, browser-use, haystack, langchain, langflow, livekit, llamaindex, logfire, mlflow, **openinference**, semantic-kernel, smolagents, traceloop, vertex-ai |
+| Recognised, no fixtures (17) | ag2, agentscope, agno, azure-ai-foundry, azure-openai, browser-use, haystack, langflow, livekit, llamaindex, logfire, mlflow, **openinference**, semantic-kernel, smolagents, traceloop, vertex-ai |
 
 The second group shares extractors with covered frameworks, so the *parsing logic* is exercised
 — but nothing here proves their emitted payloads match what those extractors expect. Adding a
