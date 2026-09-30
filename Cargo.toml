@@ -178,7 +178,7 @@ blake3 = "1"
 # Borrowed RFC 9535 matches preserve provider member order during framework-rule
 # selection. See `docs/engineering/framework-rules-engine.md`.
 serde_json_path = "0.7"
-hmac = "0.12"
+hmac = "0.13"
 dashmap = "6.1"
 duckdb = { version = "1.10503.1", features = ["bundled", "json", "vtab"] }
 parking_lot = "0.12"
