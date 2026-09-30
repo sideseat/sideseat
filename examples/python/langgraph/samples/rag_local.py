@@ -1,30 +1,23 @@
-"""RAG sample demonstrating embeddings, vector search, and retrieval-augmented generation.
+"""RAG sample demonstrating local embeddings and retrieval-augmented generation.
 
 Demonstrates:
-- Embedding generation using Amazon Bedrock Titan Embeddings
+- Deterministic local feature-hashing embeddings
 - In-memory vector store with cosine similarity search
 - RAG pattern: retrieve context before generation
 - Tool-based knowledge retrieval in ReAct agent
-
-Prerequisites:
-- AWS credentials with bedrock permissions
-- AWS_REGION environment variable (default: us-east-1)
 """
 
-import json
-import os
-from typing import Optional
+import hashlib
+import re
 
-import boto3
 import numpy as np
 from langchain_core.messages import AIMessage, SystemMessage
 from langchain_core.tools import tool
+
 from langgraph.prebuilt import create_react_agent
 
-# Constants
-AWS_REGION = os.getenv("AWS_REGION", os.getenv("AWS_DEFAULT_REGION", "us-east-1"))
-EMBEDDING_MODEL = "amazon.titan-embed-text-v2:0"
 DEFAULT_TOP_K = 3
+EMBEDDING_DIMENSIONS = 64
 
 # Self-contained knowledge base for the demo
 KNOWLEDGE_BASE = [
@@ -68,36 +61,19 @@ The knowledge base contains information about Strands Agents, SideSeat, RAG, emb
 class RAGKnowledgeBase:
     """In-memory RAG system with embeddings and vector search."""
 
-    def __init__(self, bedrock_client):
-        """Initialize with Bedrock client for embeddings.
-
-        Args:
-            bedrock_client: boto3 bedrock-runtime client
-        """
-        self.bedrock = bedrock_client
+    def __init__(self):
         self.documents: list[dict] = []
         self.embeddings: list[np.ndarray] = []
 
-    def _embed(self, text: str) -> Optional[np.ndarray]:
-        """Generate embedding via Bedrock Titan.
-
-        Args:
-            text: Text to embed
-
-        Returns:
-            Embedding vector as numpy array, or None on error
-        """
-        try:
-            response = self.bedrock.invoke_model(
-                modelId=EMBEDDING_MODEL,
-                body=json.dumps({"inputText": text}),
-                contentType="application/json",
-            )
-            result = json.loads(response["body"].read())
-            return np.array(result["embedding"], dtype=np.float32)
-        except Exception as e:
-            print(f"[Embedding Error: {e}]")
-            return None
+    def _embed(self, text: str) -> np.ndarray:
+        """Generate a stable local feature-hashing embedding."""
+        embedding = np.zeros(EMBEDDING_DIMENSIONS, dtype=np.float32)
+        for token in re.findall(r"[a-z0-9]+", text.lower()):
+            digest = hashlib.sha256(token.encode()).digest()
+            index = int.from_bytes(digest[:4], "big") % EMBEDDING_DIMENSIONS
+            embedding[index] += 1.0 if digest[4] % 2 == 0 else -1.0
+        norm = np.linalg.norm(embedding)
+        return embedding if norm == 0 else embedding / norm
 
     def _cosine_similarity(self, a: np.ndarray, b: np.ndarray) -> float:
         """Compute cosine similarity between two vectors.
@@ -129,10 +105,9 @@ class RAGKnowledgeBase:
         indexed = 0
         for doc in documents:
             embedding = self._embed(doc["content"])
-            if embedding is not None:
-                self.documents.append(doc)
-                self.embeddings.append(embedding)
-                indexed += 1
+            self.documents.append(doc)
+            self.embeddings.append(embedding)
+            indexed += 1
         return indexed
 
     def search(self, query: str, k: int = DEFAULT_TOP_K) -> list[dict]:
@@ -146,9 +121,6 @@ class RAGKnowledgeBase:
             List of dicts with 'document' and 'score' keys
         """
         query_embedding = self._embed(query)
-        if query_embedding is None:
-            return []
-
         scores = [
             self._cosine_similarity(query_embedding, emb) for emb in self.embeddings
         ]
@@ -214,7 +186,7 @@ def run(model, trace_attrs: dict):
     """Run the RAG sample demonstrating retrieval-augmented generation.
 
     This sample shows:
-    - Embedding generation with Bedrock Titan
+    - Deterministic local embedding generation
     - In-memory vector store implementation
     - Cosine similarity search
     - ReAct agent with knowledge retrieval tool
@@ -223,25 +195,13 @@ def run(model, trace_attrs: dict):
         model: LangChain chat model instance
         trace_attrs: Dictionary with session.id and user.id for tracing
     """
-    # Initialize Bedrock client
-    try:
-        boto_session = boto3.Session(region_name=AWS_REGION)
-        bedrock = boto_session.client("bedrock-runtime")
-    except Exception as e:
-        print(f"[Error creating Bedrock client: {e}]")
-        return
-
     # Create and populate knowledge base
     print("Initializing RAG knowledge base...")
-    kb = RAGKnowledgeBase(bedrock)
+    kb = RAGKnowledgeBase()
 
     print(f"Indexing {len(KNOWLEDGE_BASE)} documents...")
     indexed = kb.index(KNOWLEDGE_BASE)
     print(f"Knowledge base ready ({indexed} documents indexed)")
-
-    if indexed == 0:
-        print("[Error: No documents indexed, check Bedrock access]")
-        return
 
     # Create agent with search tool
     print("\nCreating RAG agent...")
@@ -268,8 +228,5 @@ def run(model, trace_attrs: dict):
         print(f"Query {i}: {query}")
         print("-" * 60)
 
-        try:
-            result = agent.invoke({"messages": [("user", query)]}, config=config)
-            print(f"Answer: {extract_response(result)}")
-        except Exception as e:
-            print(f"[Error: {e}]")
+        result = agent.invoke({"messages": [("user", query)]}, config=config)
+        print(f"Answer: {extract_response(result)}")

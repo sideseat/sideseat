@@ -14,7 +14,7 @@ from strands_tools import image_reader
 def run(model, trace_attrs: dict):
     """Run the files sample with image and PDF analysis."""
     # Content directory is at examples/assets (5 levels up from this file)
-    content_dir = Path(__file__).parents[4] / "content"
+    content_dir = Path(__file__).parents[3] / "assets"
 
     agent = Agent(
         model=model,

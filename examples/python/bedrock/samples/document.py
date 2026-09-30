@@ -11,7 +11,7 @@ from pathlib import Path
 from sideseat import SideSeat
 
 # Content directory is at examples/assets (5 levels up from this file)
-CONTENT_DIR = Path(__file__).parents[4] / "content"
+CONTENT_DIR = Path(__file__).parents[3] / "assets"
 
 
 def run(bedrock, trace_attrs: dict, client: SideSeat):

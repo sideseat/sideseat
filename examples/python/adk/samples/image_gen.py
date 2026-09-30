@@ -6,8 +6,8 @@ Demonstrates:
 """
 
 import base64
+import hashlib
 import tempfile
-import uuid
 from pathlib import Path
 
 from google.adk.agents import LlmAgent
@@ -15,7 +15,6 @@ from google.adk.runners import Runner
 from google.adk.sessions import InMemorySessionService
 from google.adk.tools import FunctionTool
 from google.genai import types
-from common import generate_image_bedrock
 from opentelemetry import trace
 
 # Buffer for image Parts (avoids ADK session state serialization issues)
@@ -23,7 +22,7 @@ _pending_image_parts: list = []
 
 
 def generate_image(prompt: str) -> str:
-    """Generate an image using Amazon Bedrock.
+    """Generate a deterministic local PNG.
 
     Args:
         prompt: The image description prompt
@@ -31,7 +30,17 @@ def generate_image(prompt: str) -> str:
     Returns:
         Path to the generated image file
     """
-    return generate_image_bedrock(prompt, prefix="adk_images_")
+    output_dir = Path(tempfile.gettempdir()) / "sideseat-adk-images"
+    output_dir.mkdir(exist_ok=True)
+    digest = hashlib.sha256(prompt.encode()).hexdigest()[:12]
+    output_path = output_dir / f"{digest}.png"
+    output_path.write_bytes(
+        base64.b64decode(
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk"
+            "+A8AAQUBAScY42YAAAAASUVORK5CYII="
+        )
+    )
+    return str(output_path)
 
 
 def read_image(file_path: str) -> dict:
@@ -61,7 +70,6 @@ def _inject_images(callback_context, llm_request):
     if _pending_image_parts and llm_request.contents:
         llm_request.contents[-1].parts.extend(_pending_image_parts)
         _pending_image_parts.clear()
-    return None
 
 
 async def run(model, trace_attrs: dict):

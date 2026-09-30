@@ -13,7 +13,7 @@ def run(model_id: str, trace_attrs: dict, enable_thinking: bool = False):
     tracer = trace.get_tracer(__name__)
 
     # Use local MCP calculator server from tools/mcp-calculator (has its own venv with fastmcp)
-    mcp_server_dir = Path(__file__).parents[4] / "mcp"
+    mcp_server_dir = Path(__file__).parents[4] / "tools" / "mcp-calculator"
     uv = shutil.which("uv") or "uv"
 
     async def run_with_mcp():

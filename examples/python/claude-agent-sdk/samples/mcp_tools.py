@@ -20,7 +20,7 @@ QUERIES = [
 
 async def run(model, trace_attrs: dict, client, env: dict):
     # Reuse the shared MCP calculator from tools/mcp-calculator, which has its own venv.
-    mcp_server_dir = Path(__file__).parents[4] / "mcp"
+    mcp_server_dir = Path(__file__).parents[4] / "tools" / "mcp-calculator"
     uv = shutil.which("uv") or "uv"
 
     options = build_options(

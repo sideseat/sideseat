@@ -6,13 +6,14 @@ from google.adk.runners import Runner
 from google.adk.sessions import InMemorySessionService
 from google.genai import types
 
-INVALID_MODEL_ID = "bedrock/nonexistent-model-id-12345"
+INVALID_MODEL_ID = "nonexistent-model-id-12345"
 APP_NAME = "error_app"
 
 
 async def run(model, trace_attrs: dict):
     """Run the error sample with an invalid model ID."""
-    invalid_model = LiteLlm(model=INVALID_MODEL_ID)
+    provider = model.model.partition("/")[0]
+    invalid_model = LiteLlm(model=f"{provider}/{INVALID_MODEL_ID}")
 
     agent = LlmAgent(
         model=invalid_model,

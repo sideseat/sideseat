@@ -13,7 +13,7 @@ def run(llm, trace_attrs: dict):
     tracer = trace.get_tracer(__name__)
 
     # Use local MCP calculator server from tools/mcp-calculator (has its own venv with fastmcp)
-    mcp_server_dir = Path(__file__).parents[4] / "mcp"
+    mcp_server_dir = Path(__file__).parents[4] / "tools" / "mcp-calculator"
     uv = shutil.which("uv") or "uv"
 
     # Configure MCP server using structured configuration

@@ -1,7 +1,29 @@
-"""Image generation and critic evaluation sample."""
+"""Deterministic local image generation and critic evaluation sample."""
 
-from strands import Agent
-from strands_tools import generate_image, image_reader
+import base64
+import hashlib
+import tempfile
+from pathlib import Path
+
+from strands_tools import image_reader
+
+from strands import Agent, tool
+
+
+@tool
+def generate_image(prompt: str) -> str:
+    """Generate a deterministic local PNG and return its filesystem path."""
+    output_dir = Path(tempfile.gettempdir()) / "sideseat-strands-images"
+    output_dir.mkdir(exist_ok=True)
+    digest = hashlib.sha256(prompt.encode()).hexdigest()[:12]
+    output_path = output_dir / f"{digest}.png"
+    output_path.write_bytes(
+        base64.b64decode(
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk"
+            "+A8AAQUBAScY42YAAAAASUVORK5CYII="
+        )
+    )
+    return str(output_path)
 
 
 def run(model, trace_attrs: dict):

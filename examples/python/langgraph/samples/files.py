@@ -29,8 +29,8 @@ def run(model, trace_attrs: dict):
     Raises:
         FileNotFoundError: If required content files are missing
     """
-    # Content directory is at examples/assets (5 levels up from this file)
-    content_dir = Path(__file__).parents[4] / "content"
+    # Shared sample assets live under examples/assets.
+    content_dir = Path(__file__).parents[3] / "assets"
 
     # Validate content directory exists
     if not content_dir.exists():

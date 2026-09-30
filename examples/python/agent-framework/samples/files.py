@@ -16,7 +16,7 @@ async def run(client, trace_attrs: dict):
     tracer = trace.get_tracer(__name__)
 
     # Content directory is at examples/assets (5 levels up from this file)
-    content_dir = Path(__file__).parents[4] / "content"
+    content_dir = Path(__file__).parents[3] / "assets"
     img_path = content_dir / "img.jpg"
     pdf_path = content_dir / "task.pdf"
 

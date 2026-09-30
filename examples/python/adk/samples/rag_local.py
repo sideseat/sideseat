@@ -1,28 +1,22 @@
-"""RAG sample demonstrating embeddings, vector search, and retrieval-augmented generation.
+"""RAG sample demonstrating local embeddings and retrieval-augmented generation.
 
 This sample shows how to:
-1. Generate embeddings using Amazon Bedrock Titan Embeddings
+1. Generate deterministic embeddings locally
 2. Store vectors in memory with cosine similarity search
 3. Retrieve relevant context based on semantic similarity
 4. Use retrieved context to augment LLM responses
-
-Prerequisites:
-- AWS credentials with bedrock permissions
-- AWS_REGION environment variable (default: us-east-1)
 """
 
-import json
-import os
+import hashlib
+import re
 
-import boto3
 import numpy as np
 from google.adk.agents import LlmAgent
 from google.adk.runners import Runner
 from google.adk.sessions import InMemorySessionService
 from google.genai import types
 
-AWS_REGION = os.getenv("AWS_REGION", os.getenv("AWS_DEFAULT_REGION", "us-east-1"))
-EMBEDDING_MODEL = "amazon.titan-embed-text-v2:0"
+EMBEDDING_DIMENSIONS = 64
 APP_NAME = "rag_app"
 
 # Self-contained knowledge base for the demo
@@ -67,20 +61,19 @@ The knowledge base contains information about Strands Agents, SideSeat, RAG, emb
 class RAGKnowledgeBase:
     """Encapsulated RAG system with embeddings and vector search."""
 
-    def __init__(self, bedrock_client):
-        self.bedrock = bedrock_client
+    def __init__(self):
         self.documents: list[dict] = []
         self.embeddings: list[np.ndarray] = []
 
     def _embed(self, text: str) -> np.ndarray:
-        """Generate embedding via Bedrock Titan."""
-        response = self.bedrock.invoke_model(
-            modelId=EMBEDDING_MODEL,
-            body=json.dumps({"inputText": text}),
-            contentType="application/json",
-        )
-        result = json.loads(response["body"].read())
-        return np.array(result["embedding"], dtype=np.float32)
+        """Generate a stable local feature-hashing embedding."""
+        embedding = np.zeros(EMBEDDING_DIMENSIONS, dtype=np.float32)
+        for token in re.findall(r"[a-z0-9]+", text.lower()):
+            digest = hashlib.sha256(token.encode()).digest()
+            index = int.from_bytes(digest[:4], "big") % EMBEDDING_DIMENSIONS
+            embedding[index] += 1.0 if digest[4] % 2 == 0 else -1.0
+        norm = np.linalg.norm(embedding)
+        return embedding if norm == 0 else embedding / norm
 
     def _cosine_similarity(self, a: np.ndarray, b: np.ndarray) -> float:
         """Compute cosine similarity between two vectors."""
@@ -136,13 +129,9 @@ async def run(model, trace_attrs: dict):
     """Run the RAG sample."""
     global _kb
 
-    # Initialize Bedrock client
-    boto_session = boto3.Session(region_name=AWS_REGION)
-    bedrock = boto_session.client("bedrock-runtime")
-
     # Create and populate knowledge base
     print("Initializing RAG knowledge base...")
-    _kb = RAGKnowledgeBase(bedrock)
+    _kb = RAGKnowledgeBase()
 
     print(f"Indexing {len(KNOWLEDGE_BASE)} documents...")
     _kb.index(KNOWLEDGE_BASE)

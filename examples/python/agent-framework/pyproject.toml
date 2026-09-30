@@ -16,6 +16,7 @@ dependencies = [
     "agent-framework-core>=1.0.0b0",
     "agent-framework-anthropic>=1.0.0b0",
     "agent-framework-openai>=1.0.0b0",
+    "mcp>=1.24,<2",
     "python-dotenv>=1.2.0",
 ]
 

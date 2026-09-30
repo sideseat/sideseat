@@ -13,7 +13,7 @@ from sideseat import SideSeat
 from common import first_text_block
 
 # Content directory is at examples/assets (5 levels up from this file)
-CONTENT_DIR = Path(__file__).parents[4] / "content"
+CONTENT_DIR = Path(__file__).parents[3] / "assets"
 
 
 def run(model, trace_attrs: dict, client: SideSeat):
