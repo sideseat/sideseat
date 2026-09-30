@@ -122,6 +122,12 @@ pub struct BlockEntry {
     /// Before `process_dedup` has run this is the block's own timestamp: no response is known yet.
     #[serde(skip)]
     pub order_time: DateTime<Utc>,
+    /// Rank of this proved occurrence among otherwise identical messages in the trace.
+    ///
+    /// Deduplication assigns it and the ordering resolver preserves it. It is internal evidence,
+    /// not part of the public response shape.
+    #[serde(skip)]
+    pub occurrence_ordinal: u32,
 
     // Span context
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -200,6 +206,13 @@ pub struct BlockEntry {
     /// the full eight-phase detection algorithm (phases 2-7 plus 4b).
     #[serde(skip_serializing)]
     pub is_history: bool,
+
+    /// True when `is_history` was established by matching a replay from an earlier trace.
+    ///
+    /// Ordered snapshot positions can prove distinct occurrences within one trace, but they do not
+    /// make an earlier trace's replay new. Dedup keeps the former and drops the latter.
+    #[serde(skip_serializing)]
+    pub is_cross_trace_history: bool,
 
     /// True when this tool result's `tool_use_id` was derived by correlation rather than sent by
     /// the framework.
@@ -422,11 +435,15 @@ impl BlockEntry {
     /// - `gen_ai.choice` or `gen_ai.content.completion` event
     /// - `GenAIChoice` category
     /// - Explicit `finish_reason`
+    /// - Choiceless-generation output classification
     ///
     /// This is used by history detection to ensure real LLM output is preserved.
     #[inline]
     pub fn is_protected(&self) -> bool {
-        self.is_output_event() || self.is_choice_category() || self.finish_reason.is_some()
+        self.is_output_event()
+            || self.is_choice_category()
+            || self.finish_reason.is_some()
+            || self.promoted_to_span_output
     }
 }
 
@@ -517,6 +534,7 @@ mod tests {
             span_path: vec!["span1".to_string()],
             timestamp: Utc::now(),
             order_time: Utc::now(),
+            occurrence_ordinal: 0,
             observation_type: None,
             model: None,
             provider: None,
@@ -536,6 +554,7 @@ mod tests {
             is_semantic: true,
             uses_span_end: false,
             is_history: false,
+            is_cross_trace_history: false,
             tool_use_id_correlated: false,
             promoted_to_span_output: false,
         }

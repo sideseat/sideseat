@@ -24,6 +24,7 @@ fn block(span: &str, text: &str) -> BlockEntry {
         span_path: vec![span.to_string()],
         timestamp: Utc.timestamp_opt(1_700_000_000, 0).unwrap(),
         order_time: Utc.timestamp_opt(1_700_000_000, 0).unwrap(),
+        occurrence_ordinal: 0,
         observation_type: None,
         model: None,
         provider: None,
@@ -43,6 +44,7 @@ fn block(span: &str, text: &str) -> BlockEntry {
         is_semantic: true,
         uses_span_end: false,
         is_history: false,
+        is_cross_trace_history: false,
         tool_use_id_correlated: false,
         promoted_to_span_output: false,
     }
@@ -63,8 +65,47 @@ fn evidence(carrier: usize, position: i32) -> OrderEvidence {
         is_output: false,
         from_generation: false,
         detached_frame: false,
+        tool_reference: None,
         input_family: None,
     }
+}
+
+#[test]
+fn attribute_roots_share_one_carrier_but_event_roots_do_not() {
+    let positioned =
+        |source_attribute: Option<&str>, event_name: Option<&str>, root: usize, text: &str| {
+            let mut entry = block("span-a", text);
+            entry.source_attribute = source_attribute.map(str::to_string);
+            entry.event_name = event_name.map(str::to_string);
+            entry.source_type = if source_attribute.is_some() {
+                "attribute"
+            } else {
+                "event"
+            }
+            .to_string();
+            entry.position = PositionPath::root(root);
+            entry
+        };
+
+    let attributes = vec![
+        positioned(Some("gcp.vertex.agent.llm_request"), None, 3, "first"),
+        positioned(Some("gcp.vertex.agent.llm_request"), None, 9, "second"),
+    ];
+    let attribute_evidence = collect_order_evidence(&attributes, &HashMap::new());
+    assert_eq!(
+        attribute_evidence[0].carrier, attribute_evidence[1].carrier,
+        "one attribute value expanded into several roots is still one ordered payload"
+    );
+
+    let events = vec![
+        positioned(None, Some("gen_ai.choice"), 3, "first"),
+        positioned(None, Some("gen_ai.choice"), 9, "second"),
+    ];
+    let event_evidence = collect_order_evidence(&events, &HashMap::new());
+    assert_ne!(
+        event_evidence[0].carrier, event_evidence[1].carrier,
+        "two events with the same name are distinct payload instances"
+    );
 }
 
 /// Contradictory evidence still yields every block exactly once.
@@ -94,6 +135,7 @@ fn contradictory_evidence_still_returns_every_block_exactly_once() {
         &evidence_set,
         &survivors,
         &lineage,
+        &[0, 0],
         &HashMap::new(),
         Constraints::PRODUCTION,
     );
@@ -109,6 +151,91 @@ fn contradictory_evidence_still_returns_every_block_exactly_once() {
         seen,
         vec!["span-a", "span-b"],
         "every survivor appears exactly once"
+    );
+}
+
+#[test]
+fn reused_call_ids_pair_by_repeat_ordinal() {
+    let mut result_0 = block("result-0", "result-0");
+    result_0.entry_type = "tool_result".to_string();
+    result_0.role = ChatRole::Tool;
+    result_0.tool_use_id = Some("reused".to_string());
+    let mut call_1 = block("call-1", "call-1");
+    call_1.entry_type = "tool_use".to_string();
+    call_1.role = ChatRole::Assistant;
+    call_1.tool_use_id = Some("reused".to_string());
+    let mut result_1 = block("result-1", "result-1");
+    result_1.entry_type = "tool_result".to_string();
+    result_1.role = ChatRole::Tool;
+    result_1.tool_use_id = Some("reused".to_string());
+    let mut call_0 = block("call-0", "call-0");
+    call_0.entry_type = "tool_use".to_string();
+    call_0.role = ChatRole::Assistant;
+    call_0.tool_use_id = Some("reused".to_string());
+    let survivors = vec![result_0, call_1, result_1, call_0];
+    let ordinals = [0, 1, 1, 0];
+
+    let precedence = causal_precedence(&[], &survivors, &[], &ordinals);
+    assert_eq!(precedence.successors_of(1), &[2]);
+    assert_eq!(precedence.successors_of(3), &[0]);
+
+    let resolved = resolve(
+        &[],
+        &survivors,
+        &[],
+        &ordinals,
+        &HashMap::new(),
+        Constraints::FULL,
+    );
+    assert_eq!(
+        resolved
+            .iter()
+            .map(|block| block.span_id.as_str())
+            .collect::<Vec<_>>(),
+        vec!["call-1", "result-1", "call-0", "result-0"]
+    );
+}
+
+#[test]
+fn exact_tool_causality_overrides_a_same_span_dataflow_conflict() {
+    let mut call = block("generation", "call");
+    call.entry_type = "tool_use".to_string();
+    call.role = ChatRole::Assistant;
+    call.tool_use_id = Some("call-1".to_string());
+    let mut result = block("generation", "result");
+    result.entry_type = "tool_result".to_string();
+    result.role = ChatRole::Tool;
+    result.tool_use_id = Some("call-1".to_string());
+    let survivors = vec![call, result];
+
+    let mut call_evidence = evidence(0, 0);
+    call_evidence.from_generation = true;
+    call_evidence.is_output = true;
+    let mut result_evidence = evidence(1, 1);
+    result_evidence.from_generation = true;
+    result_evidence.is_output = false;
+
+    CYCLES_BROKEN_IN_TESTS.with(|count| *count.borrow_mut() = 0);
+    let resolved = resolve(
+        &[call_evidence, result_evidence],
+        &survivors,
+        &[Some(0), Some(1)],
+        &[0, 0],
+        &HashMap::new(),
+        Constraints::PRODUCTION,
+    );
+
+    assert_eq!(
+        CYCLES_BROKEN_IN_TESTS.with(|count| *count.borrow()),
+        0,
+        "the result cannot cause the call whose exact id it answers"
+    );
+    assert_eq!(
+        resolved
+            .iter()
+            .map(|block| block.entry_type.as_str())
+            .collect::<Vec<_>>(),
+        vec!["tool_use", "tool_result"]
     );
 }
 
@@ -151,6 +278,7 @@ fn a_relisting_is_discounted_only_on_evidence_from_below_it() {
                 accumulator,
                 ancestor_spans: ancestors.clone(),
                 detached_frame: false,
+                tool_reference: None,
                 input_family: None,
             })
             .collect::<Vec<_>>()
@@ -170,6 +298,7 @@ fn a_relisting_is_discounted_only_on_evidence_from_below_it() {
         accumulator: false,
         ancestor_spans: ancestors,
         detached_frame: false,
+        tool_reference: None,
         input_family: None,
     };
     let lineage = |n: usize| move |o: usize| Some(o % n);

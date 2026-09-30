@@ -1,4 +1,5 @@
 use super::*;
+use crate::sideml::provenance::PathSegment;
 
 // ============================================================================
 // INTERNAL: PARSING
@@ -159,8 +160,15 @@ pub fn extract_tools_from_rows<'a>(
     }
 }
 
-/// Compose error display text from structured exception fields.
-/// Presentation logic at query time — raw data preserved in DB columns.
+/// Compose stable conversation text from structured exception fields.
+///
+/// A stacktrace is diagnostic metadata, not assistant-authored conversation content. Including it
+/// when a structured type/message is available makes the same framework failure differ merely
+/// because an instrumentation wrapper added stack frames. The raw trace remains preserved in the
+/// span's `exception_stacktrace` column and is available in the Raw view.
+///
+/// Some producers only emit a stacktrace, so retain it as a last-resort fallback rather than
+/// silently dropping the error.
 pub(in crate::sideml::feed) fn compose_error_text(
     exception_type: Option<&str>,
     exception_message: Option<&str>,
@@ -176,8 +184,7 @@ pub(in crate::sideml::feed) fn compose_error_text(
     let stacktrace = exception_stacktrace.filter(|s| !s.is_empty());
 
     match (header, stacktrace) {
-        (Some(h), Some(st)) => Some(format!("{h}\n\n```\n{st}\n```")),
-        (Some(h), None) => Some(h),
+        (Some(h), _) => Some(h),
         (None, Some(st)) => Some(format!("```\n{st}\n```")),
         (None, None) => None,
     }
@@ -440,6 +447,21 @@ pub(in crate::sideml::feed) fn flatten_to_blocks(
         // Flatten each content block into its own BlockEntry
         // is_history starts as false; will be set by mark_history()
         for (entry_index, block) in msg.message.content.iter().enumerate() {
+            // Strands emits Bedrock prompt-cache control points as system content alongside the
+            // actual prompt. They affect provider caching but are not conversation content.
+            if matches!(
+                block,
+                ContentBlock::Json { data }
+                    if data.as_object().is_some_and(|object| {
+                        object.len() == 1
+                            && object
+                                .get("cachePoint")
+                                .is_some_and(serde_json::Value::is_object)
+                    })
+            ) {
+                continue;
+            }
+
             let entry_type = block.block_type().to_string();
             let tool_use_id =
                 extract_tool_use_id_from_block(block).or_else(|| msg.message.tool_use_id.clone());
@@ -473,6 +495,7 @@ pub(in crate::sideml::feed) fn flatten_to_blocks(
 
                 timestamp: msg.timestamp,
                 order_time: msg.timestamp,
+                occurrence_ordinal: 0,
 
                 observation_type: msg.observation_type.clone(),
                 span_name: msg.span_name.clone(),
@@ -503,6 +526,7 @@ pub(in crate::sideml::feed) fn flatten_to_blocks(
                 is_semantic,
                 uses_span_end: false, // Will be set by classify_blocks()
                 is_history: false,    // Will be set by classify_blocks()
+                is_cross_trace_history: false, // Will be set by cross-trace replay matching
                 tool_use_id_correlated: false, // Will be set by correlate_tool_results()
                 promoted_to_span_output: false, // Will be set by classify_blocks()
             });
@@ -545,10 +569,12 @@ pub(in crate::sideml::feed) fn classify_blocks(
         }
     }
 
-    // Step 1b: Promote assistant messages in choiceless generation spans.
+    // Step 1b: Mark replies in choiceless generation spans as output.
     // Logfire/OpenAI Agents store LLM output as gen_ai.assistant.message (not gen_ai.choice).
     // Without promotion, these sort by array index alongside input events → wrong order.
-    // Promoting to uses_span_end + GenAIChoice category fixes ordering and history protection.
+    // Text keeps the established promotion because some producers list it before their request.
+    // Tool calls need stronger evidence: a terminal assistant run, or no completed matching call
+    // before this generation. Otherwise accumulated snapshots turn earlier executions into outputs.
     //
     // Check at TRACE level: if any span in the trace has gen_ai.choice, skip promotion
     // for the entire trace. This prevents promoting intermediate assistant text in
@@ -559,27 +585,170 @@ pub(in crate::sideml::feed) fn classify_blocks(
         .map(|b| b.trace_id.clone())
         .collect();
 
+    let event_root = |block: &BlockEntry| match block.position.segments().first() {
+        Some(PathSegment::Index(index)) => Some(*index),
+        _ => None,
+    };
+    let mut roots_by_span: HashMap<String, HashMap<String, BTreeMap<usize, bool>>> = HashMap::new();
+    for block in blocks.iter() {
+        if block.is_generation_span()
+            && block.is_from_event()
+            && !traces_with_choice.contains(&block.trace_id)
+            && let Some(root) = event_root(block)
+        {
+            let is_assistant = block.event_name.as_deref() == Some("gen_ai.assistant.message");
+            roots_by_span
+                .entry(block.trace_id.clone())
+                .or_default()
+                .entry(block.span_id.clone())
+                .or_default()
+                .entry(root)
+                .and_modify(|all_assistant| *all_assistant &= is_assistant)
+                .or_insert(is_assistant);
+        }
+    }
+    let mut terminal_assistant_roots = HashSet::new();
+    for (trace_id, spans) in roots_by_span {
+        for (span_id, roots) in spans {
+            let Some((&last, true)) = roots.last_key_value() else {
+                continue;
+            };
+            let mut root = Some(last);
+            while let Some(current) = root {
+                if roots.get(&current) != Some(&true) {
+                    break;
+                }
+                terminal_assistant_roots.insert((trace_id.clone(), span_id.clone(), current));
+                root = current.checked_sub(1);
+            }
+        }
+    }
+
+    let mut call_shape_by_id = HashMap::new();
+    for block in blocks.iter() {
+        if let ContentBlock::ToolUse {
+            id: Some(id),
+            name,
+            input,
+        } = &block.content
+            && !id.is_empty()
+        {
+            call_shape_by_id.insert(
+                (block.trace_id.clone(), id.clone()),
+                super::dedup::compute_tool_call_hash(name, input),
+            );
+        }
+    }
+    let mut completed_id_at: HashMap<(String, String), DateTime<Utc>> = HashMap::new();
+    let mut completed_shape_at: HashMap<(String, u64), DateTime<Utc>> = HashMap::new();
+    let mut result_root_by_id: HashMap<(String, String, String), usize> = HashMap::new();
+    let mut result_root_by_shape: HashMap<(String, String, u64), usize> = HashMap::new();
+    for block in blocks.iter() {
+        let ContentBlock::ToolResult {
+            tool_use_id: Some(id),
+            ..
+        } = &block.content
+        else {
+            continue;
+        };
+        let completed_at = span_timestamps
+            .get(&block.span_id)
+            .and_then(|timestamps| timestamps.span_end)
+            .unwrap_or(block.timestamp);
+        completed_id_at
+            .entry((block.trace_id.clone(), id.clone()))
+            .and_modify(|latest| *latest = (*latest).max(completed_at))
+            .or_insert(completed_at);
+        let shape = call_shape_by_id
+            .get(&(block.trace_id.clone(), id.clone()))
+            .copied();
+        if let Some(shape) = shape {
+            completed_shape_at
+                .entry((block.trace_id.clone(), shape))
+                .and_modify(|latest| *latest = (*latest).max(completed_at))
+                .or_insert(completed_at);
+        }
+        if let Some(root) = event_root(block) {
+            result_root_by_id
+                .entry((block.trace_id.clone(), block.span_id.clone(), id.clone()))
+                .and_modify(|latest| *latest = (*latest).max(root))
+                .or_insert(root);
+            if let Some(shape) = shape {
+                result_root_by_shape
+                    .entry((block.trace_id.clone(), block.span_id.clone(), shape))
+                    .and_modify(|latest| *latest = (*latest).max(root))
+                    .or_insert(root);
+            }
+        }
+    }
+
     let mut promoted = 0;
     for block in blocks.iter_mut() {
+        let tool_call_is_current = match &block.content {
+            ContentBlock::ToolUse { id, name, input } => {
+                let root = event_root(block);
+                let terminal = root.is_some_and(|root| {
+                    terminal_assistant_roots.contains(&(
+                        block.trace_id.clone(),
+                        block.span_id.clone(),
+                        root,
+                    ))
+                });
+                let shape = super::dedup::compute_tool_call_hash(name, input);
+                let generation_start = span_timestamps
+                    .get(&block.span_id)
+                    .map_or(block.timestamp, |timestamps| timestamps.span_start);
+                let completed_before = id
+                    .as_deref()
+                    .filter(|id| !id.is_empty())
+                    .and_then(|id| completed_id_at.get(&(block.trace_id.clone(), id.to_string())))
+                    .is_some_and(|completed| *completed < generation_start)
+                    || completed_shape_at
+                        .get(&(block.trace_id.clone(), shape))
+                        .is_some_and(|completed| *completed < generation_start);
+                let completed_later_in_snapshot = root.is_some_and(|root| {
+                    id.as_deref()
+                        .filter(|id| !id.is_empty())
+                        .and_then(|id| {
+                            result_root_by_id.get(&(
+                                block.trace_id.clone(),
+                                block.span_id.clone(),
+                                id.to_string(),
+                            ))
+                        })
+                        .is_some_and(|result| *result > root)
+                        || result_root_by_shape
+                            .get(&(block.trace_id.clone(), block.span_id.clone(), shape))
+                            .is_some_and(|result| *result > root)
+                });
+                terminal || !(completed_before || completed_later_in_snapshot)
+            }
+            _ => true,
+        };
         if block.is_generation_span()
-            && !block.is_tool_use()
             && !traces_with_choice.contains(&block.trace_id)
             && block.event_name.as_deref() == Some("gen_ai.assistant.message")
+            && tool_call_is_current
         {
-            block.uses_span_end = true;
-            block.category = MessageCategory::GenAIChoice;
             // Effective direction, in one place: the order resolver reads this to know the span
             // produced the block, which its carrier does not say.
             block.promoted_to_span_output = true;
-            // Update timestamp to span_end so the block exits the same-batch group
-            // (Logfire emits all events at span_start, so without this the sort
-            // would preserve array index order instead of using birth_time).
-            if let Some(ts) = span_timestamps.get(&block.span_id)
-                && let Some(end) = ts.span_end
-            {
-                block.timestamp = end;
+
+            // A tool decision happened at its event time. Moving it to span_end can place it after
+            // the result it caused, so output direction and timestamp strategy stay independent.
+            if !block.is_tool_use() {
+                block.uses_span_end = true;
+                block.category = MessageCategory::GenAIChoice;
+                // Update timestamp to span_end so the block exits the same-batch group
+                // (Logfire emits all events at span_start, so without this the sort
+                // would preserve array index order instead of using birth_time).
+                if let Some(ts) = span_timestamps.get(&block.span_id)
+                    && let Some(end) = ts.span_end
+                {
+                    block.timestamp = end;
+                }
+                output_count += 1;
             }
-            output_count += 1;
             promoted += 1;
         }
     }

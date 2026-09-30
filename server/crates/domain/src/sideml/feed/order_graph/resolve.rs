@@ -4,6 +4,7 @@ pub(in crate::sideml::feed) fn resolve(
     evidence: &[OrderEvidence],
     survivors: &[BlockEntry],
     lineage: &[Option<usize>],
+    repeat_ordinals: &[u32],
     span_timestamps: &HashMap<String, SpanTimestamps>,
     constraints: Constraints,
 ) -> Vec<BlockEntry> {
@@ -196,17 +197,14 @@ pub(in crate::sideml::feed) fn resolve(
             .or_insert(observation);
     }
 
-    // Exact call -> result edges over units. A result's unit follows its call's unit, but only when
-    // exactly one surviving call carries the id: a reused or regenerated id is ambiguous and adds no
-    // edge. Choosing the first call with that id would invent a hard constraint.
-    let mut call_units: HashMap<&str, Vec<usize>> = HashMap::new();
-    for (i, block) in survivors.iter().enumerate() {
-        if block.entry_type == "tool_use"
-            && let Some(id) = block.tool_use_id.as_deref().filter(|s| !s.is_empty())
-        {
-            call_units.entry(id).or_default().push(unit_of[i]);
-        }
-    }
+    // Project exact pre-dedup call/result evidence onto the contracted ordering units.
+    let exact_tool_edges: std::collections::HashSet<(usize, usize)> =
+        exact_tool_pairs(evidence, survivors, lineage, repeat_ordinals)
+            .into_iter()
+            .filter_map(|(call, result)| {
+                (unit_of[call] != unit_of[result]).then_some((unit_of[call], unit_of[result]))
+            })
+            .collect();
     let units: Vec<usize> = {
         let mut u: Vec<usize> = unit_priority.keys().copied().collect();
         u.sort_unstable();
@@ -250,24 +248,7 @@ pub(in crate::sideml::feed) fn resolve(
         units.iter().map(|&u| (u, Vec::new())).collect();
     let mut indegree: HashMap<usize, usize> = units.iter().map(|&u| (u, 0)).collect();
     let mut edges: std::collections::HashSet<(usize, usize)> = std::collections::HashSet::new();
-    for (i, block) in survivors.iter().enumerate() {
-        if block.entry_type != "tool_result" {
-            continue;
-        }
-        let Some(id) = block.tool_use_id.as_deref().filter(|s| !s.is_empty()) else {
-            continue;
-        };
-        let Some(callers) = call_units.get(id) else {
-            continue;
-        };
-        if callers.len() != 1 {
-            continue; // ambiguous id
-        }
-        let call_unit = callers[0];
-        let result_unit = unit_of[i];
-        if call_unit == result_unit {
-            continue; // one emission already orders them
-        }
+    for &(call_unit, result_unit) in &exact_tool_edges {
         add_edge(
             call_unit,
             result_unit,
@@ -418,9 +399,15 @@ pub(in crate::sideml::feed) fn resolve(
             // With exactly one shared unit the omitted set is empty, so the two constructions agree
             // *exactly* - which is what `a_barrier_orders_exactly_as_pairwise_edges_do` can compare. Beyond
             // one they differ only where pairwise was already contradicting itself.
-            if constraints.pairwise_dataflow_edges {
+            let opposes_exact_tool_edge = exact_tool_edges
+                .iter()
+                .any(|(call, result)| outputs.contains(call) && inputs.contains(result));
+            if constraints.pairwise_dataflow_edges || opposes_exact_tool_edge {
                 for &input in inputs {
                     for &output in outputs {
+                        if exact_tool_edges.contains(&(output, input)) {
+                            continue;
+                        }
                         add_edge(
                             input,
                             output,

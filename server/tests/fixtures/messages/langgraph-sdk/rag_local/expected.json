@@ -1,0 +1,1433 @@
+{
+  "label": "langgraph-sdk/rag_local",
+  "request_count": 1,
+  "span_count": 45,
+  "trace_count": 3,
+  "session_count": 1,
+  "span_views": {
+    "trace-1/ChatOpenAI/span-14": {
+      "message_count": 4,
+      "role_sequence": [
+        "system",
+        "user",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [
+        "search_knowledge"
+      ],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a helpful AI assistant with access to a technical knowledge base about AI frameworks and observability. When answering questions: 1. ALWAYS use the search_knowledge tool first to find relevant information 2. Base your answers on the…[501 chars]",
+          "content_digest": "90aba6b63e48a6ed",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is SideSeat and how does it help with AI observability?",
+          "content_digest": "258073a7aafdb01d",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "[1] (relevance: 0.22) Strands Agents is an AI framework for building agent applications. It supports tools, multi-agent swarms, and structured outputs. It integrates with AWS Bedrock, OpenAI, Anthropic, and Google models. Agents can use too…[833 chars]",
+          "content_digest": "78198242197d4d27",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "The tool completed successfully.",
+          "content_digest": "66bcb0fcdca80511",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/ChatOpenAI/span-6": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [
+        "search_knowledge"
+      ],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a helpful AI assistant with access to a technical knowledge base about AI frameworks and observability. When answering questions: 1. ALWAYS use the search_knowledge tool first to find relevant information 2. Base your answers on the…[501 chars]",
+          "content_digest": "90aba6b63e48a6ed",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is SideSeat and how does it help with AI observability?",
+          "content_digest": "258073a7aafdb01d",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call-search-knowledge-1\",\"name\":\"search_knowledge\",\"input\":{\"query\":\"deterministic local fixture\"}}",
+          "content_digest": "f128442ad77b4cff",
+          "tool_name": "search_knowledge",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/LangGraph/span-1": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is SideSeat and how does it help with AI observability?",
+          "content_digest": "258073a7aafdb01d",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "trace-1/Prompt/span-13": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is SideSeat and how does it help with AI observability?",
+          "content_digest": "258073a7aafdb01d",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "trace-1/Prompt/span-5": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is SideSeat and how does it help with AI observability?",
+          "content_digest": "258073a7aafdb01d",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "trace-1/RunnableSequence/span-12": {
+      "message_count": 2,
+      "role_sequence": [
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is SideSeat and how does it help with AI observability?",
+          "content_digest": "258073a7aafdb01d",
+          "observation_type": "chain"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "The tool completed successfully.",
+          "content_digest": "66bcb0fcdca80511",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "trace-1/RunnableSequence/span-4": {
+      "message_count": 2,
+      "role_sequence": [
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is SideSeat and how does it help with AI observability?",
+          "content_digest": "258073a7aafdb01d",
+          "observation_type": "chain"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call-search-knowledge-1\",\"name\":\"search_knowledge\",\"input\":{\"query\":\"deterministic local fixture\"}}",
+          "content_digest": "f128442ad77b4cff",
+          "tool_name": "search_knowledge",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "trace-1/agent/span-10": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is SideSeat and how does it help with AI observability?",
+          "content_digest": "258073a7aafdb01d",
+          "observation_type": "agent"
+        }
+      ]
+    },
+    "trace-1/agent/span-2": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is SideSeat and how does it help with AI observability?",
+          "content_digest": "258073a7aafdb01d",
+          "observation_type": "agent"
+        }
+      ]
+    },
+    "trace-1/call_model/span-11": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is SideSeat and how does it help with AI observability?",
+          "content_digest": "258073a7aafdb01d",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "trace-1/call_model/span-3": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is SideSeat and how does it help with AI observability?",
+          "content_digest": "258073a7aafdb01d",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "trace-1/search_knowledge/span-9": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": []
+    },
+    "trace-1/should_continue/span-15": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is SideSeat and how does it help with AI observability?",
+          "content_digest": "258073a7aafdb01d",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "trace-1/should_continue/span-7": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is SideSeat and how does it help with AI observability?",
+          "content_digest": "258073a7aafdb01d",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "trace-1/tools/span-8": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-2/ChatOpenAI/span-14": {
+      "message_count": 4,
+      "role_sequence": [
+        "system",
+        "user",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [
+        "search_knowledge"
+      ],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a helpful AI assistant with access to a technical knowledge base about AI frameworks and observability. When answering questions: 1. ALWAYS use the search_knowledge tool first to find relevant information 2. Base your answers on the…[501 chars]",
+          "content_digest": "90aba6b63e48a6ed",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "How does RAG work and what are its key components?",
+          "content_digest": "d75bacebd91f3248",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "[1] (relevance: 0.22) Strands Agents is an AI framework for building agent applications. It supports tools, multi-agent swarms, and structured outputs. It integrates with AWS Bedrock, OpenAI, Anthropic, and Google models. Agents can use too…[833 chars]",
+          "content_digest": "78198242197d4d27",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "The tool completed successfully.",
+          "content_digest": "66bcb0fcdca80511",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-2/ChatOpenAI/span-6": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [
+        "search_knowledge"
+      ],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a helpful AI assistant with access to a technical knowledge base about AI frameworks and observability. When answering questions: 1. ALWAYS use the search_knowledge tool first to find relevant information 2. Base your answers on the…[501 chars]",
+          "content_digest": "90aba6b63e48a6ed",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "How does RAG work and what are its key components?",
+          "content_digest": "d75bacebd91f3248",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call-search-knowledge-1\",\"name\":\"search_knowledge\",\"input\":{\"query\":\"deterministic local fixture\"}}",
+          "content_digest": "f128442ad77b4cff",
+          "tool_name": "search_knowledge",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-2/LangGraph/span-1": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "How does RAG work and what are its key components?",
+          "content_digest": "d75bacebd91f3248",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "trace-2/Prompt/span-13": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "How does RAG work and what are its key components?",
+          "content_digest": "d75bacebd91f3248",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "trace-2/Prompt/span-5": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "How does RAG work and what are its key components?",
+          "content_digest": "d75bacebd91f3248",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "trace-2/RunnableSequence/span-12": {
+      "message_count": 2,
+      "role_sequence": [
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "How does RAG work and what are its key components?",
+          "content_digest": "d75bacebd91f3248",
+          "observation_type": "chain"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "The tool completed successfully.",
+          "content_digest": "66bcb0fcdca80511",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "trace-2/RunnableSequence/span-4": {
+      "message_count": 2,
+      "role_sequence": [
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "How does RAG work and what are its key components?",
+          "content_digest": "d75bacebd91f3248",
+          "observation_type": "chain"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call-search-knowledge-1\",\"name\":\"search_knowledge\",\"input\":{\"query\":\"deterministic local fixture\"}}",
+          "content_digest": "f128442ad77b4cff",
+          "tool_name": "search_knowledge",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "trace-2/agent/span-10": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "How does RAG work and what are its key components?",
+          "content_digest": "d75bacebd91f3248",
+          "observation_type": "agent"
+        }
+      ]
+    },
+    "trace-2/agent/span-2": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "How does RAG work and what are its key components?",
+          "content_digest": "d75bacebd91f3248",
+          "observation_type": "agent"
+        }
+      ]
+    },
+    "trace-2/call_model/span-11": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "How does RAG work and what are its key components?",
+          "content_digest": "d75bacebd91f3248",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "trace-2/call_model/span-3": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "How does RAG work and what are its key components?",
+          "content_digest": "d75bacebd91f3248",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "trace-2/search_knowledge/span-9": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": []
+    },
+    "trace-2/should_continue/span-15": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "How does RAG work and what are its key components?",
+          "content_digest": "d75bacebd91f3248",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "trace-2/should_continue/span-7": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "How does RAG work and what are its key components?",
+          "content_digest": "d75bacebd91f3248",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "trace-2/tools/span-8": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-3/ChatOpenAI/span-14": {
+      "message_count": 4,
+      "role_sequence": [
+        "system",
+        "user",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [
+        "search_knowledge"
+      ],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a helpful AI assistant with access to a technical knowledge base about AI frameworks and observability. When answering questions: 1. ALWAYS use the search_knowledge tool first to find relevant information 2. Base your answers on the…[501 chars]",
+          "content_digest": "90aba6b63e48a6ed",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What embedding models are available for vector search?",
+          "content_digest": "fc08de1734188b8c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "[1] (relevance: 0.22) Strands Agents is an AI framework for building agent applications. It supports tools, multi-agent swarms, and structured outputs. It integrates with AWS Bedrock, OpenAI, Anthropic, and Google models. Agents can use too…[833 chars]",
+          "content_digest": "78198242197d4d27",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "The tool completed successfully.",
+          "content_digest": "66bcb0fcdca80511",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-3/ChatOpenAI/span-6": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [
+        "search_knowledge"
+      ],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a helpful AI assistant with access to a technical knowledge base about AI frameworks and observability. When answering questions: 1. ALWAYS use the search_knowledge tool first to find relevant information 2. Base your answers on the…[501 chars]",
+          "content_digest": "90aba6b63e48a6ed",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What embedding models are available for vector search?",
+          "content_digest": "fc08de1734188b8c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call-search-knowledge-1\",\"name\":\"search_knowledge\",\"input\":{\"query\":\"deterministic local fixture\"}}",
+          "content_digest": "f128442ad77b4cff",
+          "tool_name": "search_knowledge",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-3/LangGraph/span-1": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What embedding models are available for vector search?",
+          "content_digest": "fc08de1734188b8c",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "trace-3/Prompt/span-13": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What embedding models are available for vector search?",
+          "content_digest": "fc08de1734188b8c",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "trace-3/Prompt/span-5": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What embedding models are available for vector search?",
+          "content_digest": "fc08de1734188b8c",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "trace-3/RunnableSequence/span-12": {
+      "message_count": 2,
+      "role_sequence": [
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What embedding models are available for vector search?",
+          "content_digest": "fc08de1734188b8c",
+          "observation_type": "chain"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "The tool completed successfully.",
+          "content_digest": "66bcb0fcdca80511",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "trace-3/RunnableSequence/span-4": {
+      "message_count": 2,
+      "role_sequence": [
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What embedding models are available for vector search?",
+          "content_digest": "fc08de1734188b8c",
+          "observation_type": "chain"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call-search-knowledge-1\",\"name\":\"search_knowledge\",\"input\":{\"query\":\"deterministic local fixture\"}}",
+          "content_digest": "f128442ad77b4cff",
+          "tool_name": "search_knowledge",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "trace-3/agent/span-10": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What embedding models are available for vector search?",
+          "content_digest": "fc08de1734188b8c",
+          "observation_type": "agent"
+        }
+      ]
+    },
+    "trace-3/agent/span-2": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What embedding models are available for vector search?",
+          "content_digest": "fc08de1734188b8c",
+          "observation_type": "agent"
+        }
+      ]
+    },
+    "trace-3/call_model/span-11": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What embedding models are available for vector search?",
+          "content_digest": "fc08de1734188b8c",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "trace-3/call_model/span-3": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What embedding models are available for vector search?",
+          "content_digest": "fc08de1734188b8c",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "trace-3/search_knowledge/span-9": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": []
+    },
+    "trace-3/should_continue/span-15": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What embedding models are available for vector search?",
+          "content_digest": "fc08de1734188b8c",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "trace-3/should_continue/span-7": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What embedding models are available for vector search?",
+          "content_digest": "fc08de1734188b8c",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "trace-3/tools/span-8": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    }
+  },
+  "trace_views": {
+    "trace-1": {
+      "message_count": 5,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [
+        "search_knowledge"
+      ],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a helpful AI assistant with access to a technical knowledge base about AI frameworks and observability. When answering questions: 1. ALWAYS use the search_knowledge tool first to find relevant information 2. Base your answers on the…[501 chars]",
+          "content_digest": "90aba6b63e48a6ed",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is SideSeat and how does it help with AI observability?",
+          "content_digest": "258073a7aafdb01d",
+          "observation_type": "chain"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call-search-knowledge-1\",\"name\":\"search_knowledge\",\"input\":{\"query\":\"deterministic local fixture\"}}",
+          "content_digest": "f128442ad77b4cff",
+          "tool_name": "search_knowledge",
+          "observation_type": "chain"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "[1] (relevance: 0.22) Strands Agents is an AI framework for building agent applications. It supports tools, multi-agent swarms, and structured outputs. It integrates with AWS Bedrock, OpenAI, Anthropic, and Google models. Agents can use too…[833 chars]",
+          "content_digest": "78198242197d4d27",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "The tool completed successfully.",
+          "content_digest": "66bcb0fcdca80511",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "trace-2": {
+      "message_count": 5,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [
+        "search_knowledge"
+      ],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a helpful AI assistant with access to a technical knowledge base about AI frameworks and observability. When answering questions: 1. ALWAYS use the search_knowledge tool first to find relevant information 2. Base your answers on the…[501 chars]",
+          "content_digest": "90aba6b63e48a6ed",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "How does RAG work and what are its key components?",
+          "content_digest": "d75bacebd91f3248",
+          "observation_type": "chain"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call-search-knowledge-1\",\"name\":\"search_knowledge\",\"input\":{\"query\":\"deterministic local fixture\"}}",
+          "content_digest": "f128442ad77b4cff",
+          "tool_name": "search_knowledge",
+          "observation_type": "chain"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "[1] (relevance: 0.22) Strands Agents is an AI framework for building agent applications. It supports tools, multi-agent swarms, and structured outputs. It integrates with AWS Bedrock, OpenAI, Anthropic, and Google models. Agents can use too…[833 chars]",
+          "content_digest": "78198242197d4d27",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "The tool completed successfully.",
+          "content_digest": "66bcb0fcdca80511",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "trace-3": {
+      "message_count": 5,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [
+        "search_knowledge"
+      ],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a helpful AI assistant with access to a technical knowledge base about AI frameworks and observability. When answering questions: 1. ALWAYS use the search_knowledge tool first to find relevant information 2. Base your answers on the…[501 chars]",
+          "content_digest": "90aba6b63e48a6ed",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What embedding models are available for vector search?",
+          "content_digest": "fc08de1734188b8c",
+          "observation_type": "chain"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call-search-knowledge-1\",\"name\":\"search_knowledge\",\"input\":{\"query\":\"deterministic local fixture\"}}",
+          "content_digest": "f128442ad77b4cff",
+          "tool_name": "search_knowledge",
+          "observation_type": "chain"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "[1] (relevance: 0.22) Strands Agents is an AI framework for building agent applications. It supports tools, multi-agent swarms, and structured outputs. It integrates with AWS Bedrock, OpenAI, Anthropic, and Google models. Agents can use too…[833 chars]",
+          "content_digest": "78198242197d4d27",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "The tool completed successfully.",
+          "content_digest": "66bcb0fcdca80511",
+          "observation_type": "chain"
+        }
+      ]
+    }
+  },
+  "session_views": {
+    "langgraph-rag_local-f1f84c94": {
+      "message_count": 15,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "tool",
+        "assistant",
+        "system",
+        "user",
+        "assistant",
+        "tool",
+        "assistant",
+        "system",
+        "user",
+        "assistant",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [
+        "search_knowledge"
+      ],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a helpful AI assistant with access to a technical knowledge base about AI frameworks and observability. When answering questions: 1. ALWAYS use the search_knowledge tool first to find relevant information 2. Base your answers on the…[501 chars]",
+          "content_digest": "90aba6b63e48a6ed",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is SideSeat and how does it help with AI observability?",
+          "content_digest": "258073a7aafdb01d",
+          "observation_type": "chain"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call-search-knowledge-1\",\"name\":\"search_knowledge\",\"input\":{\"query\":\"deterministic local fixture\"}}",
+          "content_digest": "f128442ad77b4cff",
+          "tool_name": "search_knowledge",
+          "observation_type": "chain"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "[1] (relevance: 0.22) Strands Agents is an AI framework for building agent applications. It supports tools, multi-agent swarms, and structured outputs. It integrates with AWS Bedrock, OpenAI, Anthropic, and Google models. Agents can use too…[833 chars]",
+          "content_digest": "78198242197d4d27",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "The tool completed successfully.",
+          "content_digest": "66bcb0fcdca80511",
+          "observation_type": "chain"
+        },
+        {
+          "index": 5,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a helpful AI assistant with access to a technical knowledge base about AI frameworks and observability. When answering questions: 1. ALWAYS use the search_knowledge tool first to find relevant information 2. Base your answers on the…[501 chars]",
+          "content_digest": "90aba6b63e48a6ed",
+          "observation_type": "generation"
+        },
+        {
+          "index": 6,
+          "role": "user",
+          "entry_type": "text",
+          "content": "How does RAG work and what are its key components?",
+          "content_digest": "d75bacebd91f3248",
+          "observation_type": "chain"
+        },
+        {
+          "index": 7,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call-search-knowledge-1\",\"name\":\"search_knowledge\",\"input\":{\"query\":\"deterministic local fixture\"}}",
+          "content_digest": "f128442ad77b4cff",
+          "tool_name": "search_knowledge",
+          "observation_type": "chain"
+        },
+        {
+          "index": 8,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "[1] (relevance: 0.22) Strands Agents is an AI framework for building agent applications. It supports tools, multi-agent swarms, and structured outputs. It integrates with AWS Bedrock, OpenAI, Anthropic, and Google models. Agents can use too…[833 chars]",
+          "content_digest": "78198242197d4d27",
+          "observation_type": "generation"
+        },
+        {
+          "index": 9,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "The tool completed successfully.",
+          "content_digest": "66bcb0fcdca80511",
+          "observation_type": "chain"
+        },
+        {
+          "index": 10,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a helpful AI assistant with access to a technical knowledge base about AI frameworks and observability. When answering questions: 1. ALWAYS use the search_knowledge tool first to find relevant information 2. Base your answers on the…[501 chars]",
+          "content_digest": "90aba6b63e48a6ed",
+          "observation_type": "generation"
+        },
+        {
+          "index": 11,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What embedding models are available for vector search?",
+          "content_digest": "fc08de1734188b8c",
+          "observation_type": "chain"
+        },
+        {
+          "index": 12,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call-search-knowledge-1\",\"name\":\"search_knowledge\",\"input\":{\"query\":\"deterministic local fixture\"}}",
+          "content_digest": "f128442ad77b4cff",
+          "tool_name": "search_knowledge",
+          "observation_type": "chain"
+        },
+        {
+          "index": 13,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "[1] (relevance: 0.22) Strands Agents is an AI framework for building agent applications. It supports tools, multi-agent swarms, and structured outputs. It integrates with AWS Bedrock, OpenAI, Anthropic, and Google models. Agents can use too…[833 chars]",
+          "content_digest": "78198242197d4d27",
+          "observation_type": "generation"
+        },
+        {
+          "index": 14,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "The tool completed successfully.",
+          "content_digest": "66bcb0fcdca80511",
+          "observation_type": "chain"
+        }
+      ]
+    }
+  },
+  "feed_view": {
+    "message_count": 15,
+    "role_sequence": [
+      "tool",
+      "assistant",
+      "system",
+      "assistant",
+      "user",
+      "tool",
+      "assistant",
+      "system",
+      "assistant",
+      "user",
+      "tool",
+      "assistant",
+      "system",
+      "assistant",
+      "user"
+    ],
+    "tool_names": [
+      "search_knowledge"
+    ],
+    "tool_definition_count": 1,
+    "messages": [
+      {
+        "index": 0,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "[1] (relevance: 0.22) Strands Agents is an AI framework for building agent applications. It supports tools, multi-agent swarms, and structured outputs. It integrates with AWS Bedrock, OpenAI, Anthropic, and Google models. Agents can use too…[833 chars]",
+        "content_digest": "78198242197d4d27",
+        "observation_type": "generation"
+      },
+      {
+        "index": 1,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "The tool completed successfully.",
+        "content_digest": "66bcb0fcdca80511",
+        "observation_type": "chain"
+      },
+      {
+        "index": 2,
+        "role": "system",
+        "entry_type": "text",
+        "content": "You are a helpful AI assistant with access to a technical knowledge base about AI frameworks and observability. When answering questions: 1. ALWAYS use the search_knowledge tool first to find relevant information 2. Base your answers on the…[501 chars]",
+        "content_digest": "90aba6b63e48a6ed",
+        "observation_type": "generation"
+      },
+      {
+        "index": 3,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"call-search-knowledge-1\",\"name\":\"search_knowledge\",\"input\":{\"query\":\"deterministic local fixture\"}}",
+        "content_digest": "f128442ad77b4cff",
+        "tool_name": "search_knowledge",
+        "observation_type": "chain"
+      },
+      {
+        "index": 4,
+        "role": "user",
+        "entry_type": "text",
+        "content": "What embedding models are available for vector search?",
+        "content_digest": "fc08de1734188b8c",
+        "observation_type": "chain"
+      },
+      {
+        "index": 5,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "[1] (relevance: 0.22) Strands Agents is an AI framework for building agent applications. It supports tools, multi-agent swarms, and structured outputs. It integrates with AWS Bedrock, OpenAI, Anthropic, and Google models. Agents can use too…[833 chars]",
+        "content_digest": "78198242197d4d27",
+        "observation_type": "generation"
+      },
+      {
+        "index": 6,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "The tool completed successfully.",
+        "content_digest": "66bcb0fcdca80511",
+        "observation_type": "chain"
+      },
+      {
+        "index": 7,
+        "role": "system",
+        "entry_type": "text",
+        "content": "You are a helpful AI assistant with access to a technical knowledge base about AI frameworks and observability. When answering questions: 1. ALWAYS use the search_knowledge tool first to find relevant information 2. Base your answers on the…[501 chars]",
+        "content_digest": "90aba6b63e48a6ed",
+        "observation_type": "generation"
+      },
+      {
+        "index": 8,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"call-search-knowledge-1\",\"name\":\"search_knowledge\",\"input\":{\"query\":\"deterministic local fixture\"}}",
+        "content_digest": "f128442ad77b4cff",
+        "tool_name": "search_knowledge",
+        "observation_type": "chain"
+      },
+      {
+        "index": 9,
+        "role": "user",
+        "entry_type": "text",
+        "content": "How does RAG work and what are its key components?",
+        "content_digest": "d75bacebd91f3248",
+        "observation_type": "chain"
+      },
+      {
+        "index": 10,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "[1] (relevance: 0.22) Strands Agents is an AI framework for building agent applications. It supports tools, multi-agent swarms, and structured outputs. It integrates with AWS Bedrock, OpenAI, Anthropic, and Google models. Agents can use too…[833 chars]",
+        "content_digest": "78198242197d4d27",
+        "observation_type": "generation"
+      },
+      {
+        "index": 11,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "The tool completed successfully.",
+        "content_digest": "66bcb0fcdca80511",
+        "observation_type": "chain"
+      },
+      {
+        "index": 12,
+        "role": "system",
+        "entry_type": "text",
+        "content": "You are a helpful AI assistant with access to a technical knowledge base about AI frameworks and observability. When answering questions: 1. ALWAYS use the search_knowledge tool first to find relevant information 2. Base your answers on the…[501 chars]",
+        "content_digest": "90aba6b63e48a6ed",
+        "observation_type": "generation"
+      },
+      {
+        "index": 13,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"call-search-knowledge-1\",\"name\":\"search_knowledge\",\"input\":{\"query\":\"deterministic local fixture\"}}",
+        "content_digest": "f128442ad77b4cff",
+        "tool_name": "search_knowledge",
+        "observation_type": "chain"
+      },
+      {
+        "index": 14,
+        "role": "user",
+        "entry_type": "text",
+        "content": "What is SideSeat and how does it help with AI observability?",
+        "content_digest": "258073a7aafdb01d",
+        "observation_type": "chain"
+      }
+    ]
+  }
+}

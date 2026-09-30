@@ -29,7 +29,10 @@
 //!    this by taking the *nearest* call mis-paired every parallel group. Where a framework returns
 //!    results out of order it supplies ids, so it never reaches this rule; a framework that did
 //!    both would be mis-paired here, and nothing in the payload would reveal it.
-//! 6. An unmatched id-less result keeps no id. It stays honestly uncorrelated rather than
+//! 6. A parent span's output can be flattened before the child spans whose execution produced it.
+//!    Such a result may match a later call only when ancestry and tool name identify one unique
+//!    call id in that parent's subtree. Sibling spans and ambiguous same-name calls never qualify.
+//! 7. An unmatched id-less result keeps no id. It stays honestly uncorrelated rather than
 //!    acquiring a fabricated reference.
 
 use super::types::BlockEntry;
@@ -64,16 +67,14 @@ struct Outstanding {
 }
 
 impl Outstanding {
-    fn push(&mut self, trace: &str, name: &str, id: &str) {
+    fn push(&mut self, trace: &str, name: &str, id: &str, taken: bool) {
+        let id_key = (trace.to_string(), id.to_string());
         let slot = self.calls.len();
         self.calls.push(PendingCall {
             id: id.to_string(),
-            taken: false,
+            taken,
         });
-        self.by_id
-            .entry((trace.to_string(), id.to_string()))
-            .or_default()
-            .push(slot);
+        self.by_id.entry(id_key).or_default().push(slot);
         self.by_name
             .entry((trace.to_string(), name.to_string()))
             .or_default()
@@ -82,13 +83,14 @@ impl Outstanding {
 
     /// Mark every pending entry for this call id as answered.
     fn claim(&mut self, trace: &str, id: &str) -> bool {
-        if let Some(slots) = self.by_id.get(&(trace.to_string(), id.to_string())) {
-            for &slot in slots {
-                self.calls[slot].taken = true;
-            }
-            return true;
+        let key = (trace.to_string(), id.to_string());
+        let Some(slots) = self.by_id.get(&key) else {
+            return false;
+        };
+        for &slot in slots {
+            self.calls[slot].taken = true;
         }
-        false
+        true
     }
 
     /// The id of the oldest unclaimed call for this tool in this trace.
@@ -118,6 +120,127 @@ fn indexed_fallback_tool_name(id: &str) -> Option<&str> {
         .then_some(name)
 }
 
+#[derive(Clone)]
+struct CallSite {
+    span_path: Vec<String>,
+    carrier: Option<String>,
+    position: crate::sideml::provenance::PositionPath,
+    content_hash: String,
+}
+
+impl CallSite {
+    fn from_block(block: &BlockEntry) -> Self {
+        Self {
+            span_path: block.span_path.clone(),
+            carrier: block
+                .source_attribute
+                .as_ref()
+                .map(|attribute| format!("attribute:{attribute}"))
+                .or_else(|| {
+                    block
+                        .event_name
+                        .as_ref()
+                        .map(|event| format!("event:{event}"))
+                }),
+            position: block.position.clone(),
+            content_hash: block.content_hash.clone(),
+        }
+    }
+
+    fn is_same_execution_chain(&self, other: &Self) -> bool {
+        if self.span_path == other.span_path {
+            return self.content_hash == other.content_hash
+                && (self.carrier != other.carrier || self.position == other.position);
+        }
+        self.span_path.starts_with(&other.span_path) || other.span_path.starts_with(&self.span_path)
+    }
+}
+
+#[derive(Clone)]
+enum DescendantCall {
+    Unique {
+        id: String,
+        indices: Vec<usize>,
+        sites: Vec<CallSite>,
+    },
+    Ambiguous,
+}
+
+impl DescendantCall {
+    fn include(&mut self, id: &str, index: usize, site: CallSite) {
+        match self {
+            Self::Unique {
+                id: existing,
+                indices,
+                sites,
+            } if existing == id
+                && sites
+                    .iter()
+                    .all(|known| known.is_same_execution_chain(&site)) =>
+            {
+                indices.push(index);
+                sites.push(site);
+            }
+            Self::Unique { .. } => *self = Self::Ambiguous,
+            Self::Ambiguous => {}
+        }
+    }
+
+    fn unique(&self) -> Option<(&str, &[usize])> {
+        match self {
+            Self::Unique { id, indices, .. } => Some((id, indices)),
+            Self::Ambiguous => None,
+        }
+    }
+}
+
+/// Index calls under every strict ancestor span that may carry a snapshot of their result.
+///
+/// Repeated telemetry often contains the same logical call along one descendant span chain. Equal
+/// ids on that chain remain one candidate; separate branches, positions, or ids are ambiguous.
+fn descendant_calls(
+    blocks: &[BlockEntry],
+) -> std::collections::HashMap<(String, String, String), DescendantCall> {
+    let mut calls = std::collections::HashMap::new();
+    for (index, block) in blocks.iter().enumerate() {
+        let ContentBlock::ToolUse {
+            id: Some(id), name, ..
+        } = &block.content
+        else {
+            continue;
+        };
+        if id.is_empty() || name.is_empty() {
+            continue;
+        }
+        // An ancestor output may snapshot a call produced below it. Calls carried only as a later
+        // generation's input are history of that execution, not additional candidate executions.
+        if !block.is_output_source() {
+            continue;
+        }
+        let Some((span, ancestors)) = block.span_path.split_last() else {
+            continue;
+        };
+        if span != &block.span_id {
+            continue;
+        }
+        let site = CallSite::from_block(block);
+        for ancestor in ancestors {
+            let key = (block.trace_id.clone(), ancestor.clone(), name.clone());
+            calls
+                .entry(key)
+                .and_modify(|candidate: &mut DescendantCall| {
+                    candidate.include(id, index, site.clone());
+                })
+                .or_insert_with(|| DescendantCall::Unique {
+                    id: id.clone(),
+                    indices: vec![index],
+                    sites: vec![site.clone()],
+                });
+        }
+    }
+    calls
+}
+
 /// Copy each id-less tool result's owning call id onto it.
 ///
 /// Runs before history classification and dedup, both of which decide what is a duplicate tool
@@ -126,6 +249,8 @@ fn indexed_fallback_tool_name(id: &str) -> Option<&str> {
 /// different calls collapse into one. Needs the blocks in source order, which is what they are
 /// in straight after flattening.
 pub fn correlate_tool_results(blocks: &mut [BlockEntry]) {
+    let descendant_calls = descendant_calls(blocks);
+    let mut structurally_claimed_calls = std::collections::HashSet::new();
     let mut pending = Outstanding::default();
     // OTLP exporters may retry the same span batch. Correlation runs before dedup because dedup needs the
     // resolved id, so an id-less result from a repeated delivery would otherwise consume the *next* pending
@@ -144,14 +269,25 @@ pub fn correlate_tool_results(blocks: &mut [BlockEntry]) {
         String,
     > = std::collections::HashMap::new();
 
-    // One forward pass. Blocks are in source order at this stage, so a call always precedes
-    // the result it answers.
-    for block in blocks.iter_mut() {
+    // One forward pass handles normal source order. Rule 6 is the narrow exception for an
+    // ancestor output snapshot flattened before the child call that produced it.
+    for (block_index, block) in blocks.iter_mut().enumerate() {
         let trace = block.trace_id.clone();
+        let carrier_tool_name = block
+            .tool_name
+            .as_ref()
+            .or(block.name.as_ref())
+            .filter(|name| !name.is_empty())
+            .cloned();
         match &mut block.content {
             ContentBlock::ToolUse { id, name, .. } => {
                 if let Some(id) = id.as_ref().filter(|s| !s.is_empty()) {
-                    pending.push(&trace, name, id);
+                    pending.push(
+                        &trace,
+                        name,
+                        id,
+                        structurally_claimed_calls.contains(&block_index),
+                    );
                 }
             }
             ContentBlock::ToolResult {
@@ -185,10 +321,6 @@ pub fn correlate_tool_results(blocks: &mut [BlockEntry]) {
                     }
                     continue;
                 }
-                let Some(result_name) = name.clone() else {
-                    // Rule 6: with no name there is nothing to match on.
-                    continue;
-                };
                 let source_occurrence = block
                     .source_attribute
                     .as_ref()
@@ -217,8 +349,8 @@ pub fn correlate_tool_results(blocks: &mut [BlockEntry]) {
                     block.tool_use_id_correlated = true;
                     continue;
                 }
-                // Rules 3-5: preceding unclaimed calls for the same name in this trace.
-                // Rule 5: the OLDEST untaken call with this name, not the nearest.
+                // Rules 3-5: preceding unclaimed calls for the same content-level name in this
+                // trace. Rule 5 takes the OLDEST untaken call, not the nearest.
                 //
                 // Both Gemini and the OpenAI-shaped protocols emit their tool results in the same
                 // order as the calls they answer, so among several outstanding calls to one tool
@@ -231,7 +363,10 @@ pub fn correlate_tool_results(blocks: &mut [BlockEntry]) {
                 //
                 // Sequential calls are unaffected: the earlier call is already taken by the time
                 // the second result arrives, so oldest-untaken is the second call.
-                if let Some(resolved) = pending.oldest_unclaimed(&trace, &result_name) {
+                if let Some(resolved) = name
+                    .as_deref()
+                    .and_then(|result_name| pending.oldest_unclaimed(&trace, result_name))
+                {
                     pending.claim(&trace, &resolved);
                     if let Some(occurrence) = occurrence {
                         resolved_occurrences.insert(occurrence, resolved.clone());
@@ -242,7 +377,40 @@ pub fn correlate_tool_results(blocks: &mut [BlockEntry]) {
                     // from a past turn, which is the opposite of what a correlated id means.
                     block.tool_use_id = Some(resolved);
                     block.tool_use_id_correlated = true;
+                    continue;
                 }
+
+                // Rule 6: a parent output is a snapshot assembled after its children ran, even
+                // when flattening places that output before those child spans. An otherwise
+                // nameless ToolResult may use the message/carrier name here because strict
+                // ancestry plus one unique descendant id supplies the missing proof.
+                let structural_name = name.clone().or(carrier_tool_name);
+                let Some(structural_name) = structural_name else {
+                    // Rule 7: with no name there is nothing to match on.
+                    continue;
+                };
+                let key = (
+                    trace.clone(),
+                    block.span_id.clone(),
+                    structural_name.clone(),
+                );
+                let Some((resolved, call_indices)) = descendant_calls
+                    .get(&key)
+                    .and_then(DescendantCall::unique)
+                    .map(|(id, indices)| (id.to_owned(), indices.to_vec()))
+                else {
+                    continue;
+                };
+                structurally_claimed_calls.extend(call_indices);
+                if let Some(occurrence) = occurrence {
+                    resolved_occurrences.insert(occurrence, resolved.clone());
+                }
+                *tool_use_id = Some(resolved.clone());
+                if name.is_none() {
+                    *name = Some(structural_name);
+                }
+                block.tool_use_id = Some(resolved);
+                block.tool_use_id_correlated = true;
             }
             _ => {}
         }

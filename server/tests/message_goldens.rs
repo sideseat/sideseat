@@ -42,3 +42,4 @@ include!("message_goldens_parts/part_03_tests.rs");
 include!("message_goldens_parts/part_04_tests.rs");
 include!("message_goldens_parts/part_05_tests.rs");
 include!("message_goldens_parts/part_06_tests.rs");
+include!("message_goldens_parts/part_07_tests.rs");

@@ -8,6 +8,7 @@ fn invariant_checks_are_not_vacuous() {
             span_path: vec![format!("span-{index}")],
             carrier: "attr:test".to_string(),
             carrier_orders_positions: true,
+            carrier_proves_occurrence: false,
             position: index.to_string(),
             trace_id: trace.to_string(),
             span_id: "span-1".to_string(),
@@ -16,6 +17,7 @@ fn invariant_checks_are_not_vacuous() {
             entry_type: kind.to_string(),
             content: content.to_string(),
             content_digest: format!("d:{content}"),
+            occurrence_ordinal: 0,
             tool_use_id: None,
         }
     }
@@ -25,6 +27,7 @@ fn invariant_checks_are_not_vacuous() {
             span_path: vec![format!("span-{index}")],
             carrier: "attr:test".to_string(),
             carrier_orders_positions: true,
+            carrier_proves_occurrence: false,
             position: index.to_string(),
             trace_id: trace.to_string(),
             span_id: "span-1".to_string(),
@@ -38,6 +41,7 @@ fn invariant_checks_are_not_vacuous() {
             entry_type: kind.to_string(),
             content: format!("{{\"id\":\"{id}\"}}"),
             content_digest: format!("d:{kind}:{id}"),
+            occurrence_ordinal: (index / 2) as u32,
             tool_use_id: Some(id.to_string()),
         }
     }
@@ -112,6 +116,7 @@ fn invariant_checks_are_not_vacuous() {
     // Scope: a span view must not contain another span's or another trace's block.
     let leaked = vec![InvariantRow {
         carrier_orders_positions: true,
+        carrier_proves_occurrence: false,
         carrier: "attr:test".to_string(),
         position: "0".to_string(),
         trace_id: "aaaaaaaa1111".to_string(),
@@ -122,6 +127,7 @@ fn invariant_checks_are_not_vacuous() {
         entry_type: "text".to_string(),
         content: "x".to_string(),
         content_digest: "d:x".to_string(),
+        occurrence_ordinal: 0,
         tool_use_id: None,
     }];
     let in_scope = Scope::Span {
@@ -698,6 +704,26 @@ fn is_subsequence(needle: &[String], haystack: &[String]) -> bool {
     needle
         .iter()
         .all(|wanted| haystack.any(|candidate| candidate == wanted))
+}
+
+#[test]
+fn stable_span_names_normalize_runtime_ids_and_durations_only() {
+    assert_eq!(
+        stable_span_name("invoke_agent 26a6a15d-e291-496f-a550-60c96caa8406"),
+        "invoke_agent <uuid>"
+    );
+    assert_eq!(
+        stable_span_name("chat completion took 0.12345s"),
+        "chat completion took <duration>s"
+    );
+    assert_eq!(
+        stable_span_name("invoke_agent assistant"),
+        "invoke_agent assistant"
+    );
+    assert_eq!(
+        stable_span_name("not-a-uuid-26a6a15d-e291-496f-a550-60c96caa8406"),
+        "not-a-uuid-26a6a15d-e291-496f-a550-60c96caa8406"
+    );
 }
 
 /// The content digest must actually distinguish content, including changes past the preview

@@ -30,6 +30,7 @@ fn base(trace_id: &str, entry_type: &str, content: ContentBlock, role: ChatRole)
         span_path: vec!["span-1".to_string()],
         timestamp: Utc.timestamp_opt(1_700_000_000, 0).unwrap(),
         order_time: Utc.timestamp_opt(1_700_000_000, 0).unwrap(),
+        occurrence_ordinal: 0,
         observation_type: None,
         model: None,
         provider: None,
@@ -49,6 +50,7 @@ fn base(trace_id: &str, entry_type: &str, content: ContentBlock, role: ChatRole)
         is_semantic: true,
         uses_span_end: false,
         is_history: false,
+        is_cross_trace_history: false,
         tool_use_id_correlated: false,
         promoted_to_span_output: false,
     }
@@ -282,7 +284,7 @@ fn a_call_is_claimed_only_once() {
     );
 }
 
-/// Rule 5: an orphan result keeps no id. A fabricated reference is worse than none, because it
+/// Rule 7: an orphan result keeps no id. A fabricated reference is worse than none, because it
 /// looks like a working one — which is exactly what the old synthetic ids did.
 #[test]
 fn leaves_an_orphan_result_without_an_id() {
@@ -304,8 +306,8 @@ fn leaves_a_nameless_result_alone() {
     assert_eq!(resolved_id(&blocks[1]), None);
 }
 
-/// A result appearing BEFORE any call is not matched: correlation only looks backwards, so it
-/// cannot invent a pairing from a call that had not happened yet.
+/// A result appearing before a sibling call is not matched: source order alone cannot prove that
+/// the later call produced it.
 #[test]
 fn does_not_match_a_result_that_precedes_every_call() {
     let mut blocks = vec![
@@ -314,6 +316,121 @@ fn does_not_match_a_result_that_precedes_every_call() {
     ];
     correlate_tool_results(&mut blocks);
     assert_eq!(resolved_id(&blocks[0]), None);
+}
+
+/// A parent output snapshot can be flattened before the child execution that produced it.
+///
+/// Ancestry, tool name, and one unique logical call make this pairing exact even though the
+/// flattened block order is reversed. The repeated call copy demonstrates that uniqueness is by
+/// provider id rather than by the number of carrier spans.
+#[test]
+fn matches_a_parent_result_to_its_unique_descendant_call() {
+    let mut parent_result = result("t1", None, None, "42");
+    parent_result.span_id = "parent".to_string();
+    parent_result.span_path = vec!["root".to_string(), "parent".to_string()];
+    parent_result.name = Some("calc".to_string());
+    parent_result.source_attribute = Some("output.value".to_string());
+
+    let mut child_call = call("t1", Some("call-1"), "calc", json!({}));
+    child_call.source_attribute = Some("output.value".to_string());
+    child_call.span_id = "child".to_string();
+    child_call.parent_span_id = Some("parent".to_string());
+    child_call.span_path = vec![
+        "root".to_string(),
+        "parent".to_string(),
+        "child".to_string(),
+    ];
+    let mut repeated_call = child_call.clone();
+    repeated_call.span_id = "child-copy".to_string();
+    repeated_call.parent_span_id = Some("child".to_string());
+    repeated_call.span_path = vec![
+        "root".to_string(),
+        "parent".to_string(),
+        "child".to_string(),
+        "child-copy".to_string(),
+    ];
+
+    let mut blocks = vec![parent_result, child_call, repeated_call];
+    correlate_tool_results(&mut blocks);
+
+    assert_eq!(resolved_id(&blocks[0]).as_deref(), Some("call-1"));
+    assert!(blocks[0].tool_use_id_correlated);
+    assert!(matches!(
+        &blocks[0].content,
+        ContentBlock::ToolResult { name: Some(name), .. } if name == "calc"
+    ));
+}
+
+/// Two distinct same-name calls below the parent leave its early result ambiguous.
+#[test]
+fn leaves_a_parent_result_unmatched_when_descendant_calls_are_ambiguous() {
+    let mut parent_result = result("t1", None, None, "42");
+    parent_result.span_id = "parent".to_string();
+    parent_result.span_path = vec!["root".to_string(), "parent".to_string()];
+    parent_result.name = Some("calc".to_string());
+
+    let mut first_call = call("t1", Some("call-1"), "calc", json!({"value": 1}));
+    first_call.source_attribute = Some("output.value".to_string());
+    first_call.span_id = "child-1".to_string();
+    first_call.parent_span_id = Some("parent".to_string());
+    first_call.span_path = vec![
+        "root".to_string(),
+        "parent".to_string(),
+        "child-1".to_string(),
+    ];
+    let mut second_call = call("t1", Some("call-2"), "calc", json!({"value": 2}));
+    second_call.source_attribute = Some("output.value".to_string());
+    second_call.span_id = "child-2".to_string();
+    second_call.parent_span_id = Some("parent".to_string());
+    second_call.span_path = vec![
+        "root".to_string(),
+        "parent".to_string(),
+        "child-2".to_string(),
+    ];
+
+    let mut blocks = vec![parent_result, first_call, second_call];
+    correlate_tool_results(&mut blocks);
+
+    assert_eq!(resolved_id(&blocks[0]), None);
+    assert!(!blocks[0].tool_use_id_correlated);
+}
+
+/// Reserving a future descendant copy must not spend a later execution that reuses its provider id.
+#[test]
+fn structural_matching_does_not_claim_a_later_reuse_of_the_same_id() {
+    let mut parent_result = result("t1", None, None, "first");
+    parent_result.span_id = "parent".to_string();
+    parent_result.span_path = vec!["root".to_string(), "parent".to_string()];
+    parent_result.name = Some("calc".to_string());
+
+    let mut child_call = call("t1", Some("reused-id"), "calc", json!({"value": 1}));
+    child_call.source_attribute = Some("output.value".to_string());
+    child_call.span_id = "child".to_string();
+    child_call.parent_span_id = Some("parent".to_string());
+    child_call.span_path = vec![
+        "root".to_string(),
+        "parent".to_string(),
+        "child".to_string(),
+    ];
+
+    let mut later_call = call("t1", Some("reused-id"), "calc", json!({"value": 2}));
+    later_call.span_id = "later".to_string();
+    later_call.parent_span_id = Some("root".to_string());
+    later_call.span_path = vec!["root".to_string(), "later".to_string()];
+    let mut later_result = result("t1", None, Some("calc"), "second");
+    later_result.span_id = "later-result".to_string();
+    later_result.parent_span_id = Some("root".to_string());
+    later_result.span_path = vec!["root".to_string(), "later-result".to_string()];
+
+    let mut blocks = vec![parent_result, child_call, later_call, later_result];
+    correlate_tool_results(&mut blocks);
+
+    assert_eq!(resolved_id(&blocks[0]).as_deref(), Some("reused-id"));
+    assert_eq!(
+        resolved_id(&blocks[3]).as_deref(),
+        Some("reused-id"),
+        "the later execution was mistaken for another carrier copy of the first"
+    );
 }
 
 /// A call with no id of its own cannot lend one.

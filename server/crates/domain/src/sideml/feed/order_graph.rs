@@ -55,9 +55,10 @@ type EmissionMember = (i32, i32, usize);
 /// gives it, where it was first observed, and its own id as the final discriminator.
 type PopKey = (Option<DateTime<Utc>>, usize, usize);
 
-/// One payload instance: its span, the event or attribute it arrived on, and which instance of that
-/// carrier it was - the root of the position path. A span can emit `gen_ai.choice` more than once, and
-/// those are different payloads.
+/// One payload instance: its span, the event or attribute it arrived on, and which event instance it
+/// was. A span can emit `gen_ai.choice` more than once, so events need the position root to distinguish
+/// payloads. An attribute exists only once on a span; all roots extracted from it belong to that one
+/// payload and must retain their sequence.
 type PayloadKey<'a> = (&'a str, Option<&'a str>, Option<&'a str>, String);
 
 // How many cycles the resolver broke, visible to tests: the `warn!` below reaches production
@@ -88,6 +89,11 @@ fn barrier_unit(span: usize, survivor_count: usize, span_upper: usize, generatio
 /// holding onto whole blocks for that meant cloning every message's content on every request - on a
 /// fixture whose tool results carry base64 images that is the dominant cost, and none of it is ever
 /// read. This is the same set of facts in a handful of words per observation.
+enum ToolReference {
+    Call(String),
+    Result(String),
+}
+
 pub(super) struct OrderEvidence {
     /// Which emission instance this observation belongs to, when it is a credible emission of one.
     emission: Option<usize>,
@@ -113,6 +119,8 @@ pub(super) struct OrderEvidence {
     /// generation was given, reported beside the conversation. A carrier fact, never a role fact:
     /// see `CarrierSemantics::carrier_is_detached_request_frame`.
     detached_frame: bool,
+    /// Exact tool causality carried by this observation before dedup chooses a representative.
+    tool_reference: Option<ToolReference>,
     /// The span is an *accumulator* - an agent, chain or plain span, which collects what its children
     /// produced rather than producing it.
     accumulator: bool,
@@ -143,9 +151,11 @@ pub(super) fn collect_order_evidence(
     let mut instances: HashMap<(String, String), usize> = HashMap::new();
     let mut spans: HashMap<&str, usize> = HashMap::new();
     // Keyed by payload *instance*, not carrier name: a span can emit `gen_ai.choice` several times,
-    // and interning by name merged those into one carrier - so a sequence edge could be drawn between
-    // two different emissions as though one payload had listed them. Contraction already keys on the
-    // instance; this is the same key, which is what the TLA+ model assumes throughout.
+    // and interning events by name merged those into one carrier - so a sequence edge could be drawn
+    // between two different emissions as though one payload had listed them. Attributes are the
+    // opposite: there is only one value for a key on a span, and its several extracted roots are one
+    // ordered payload. Splitting those roots lost the sequence in ADK's
+    // `gcp.vertex.agent.llm_request` and LangGraph's `output.value`.
     let mut carriers: HashMap<PayloadKey<'_>, usize> = HashMap::new();
     let mut input_families: HashMap<(String, String), usize> = HashMap::new();
     blocks
@@ -182,13 +192,18 @@ pub(super) fn collect_order_evidence(
                 .next()
                 .unwrap_or("")
                 .to_string();
+            let payload_instance = if block.source_attribute.is_some() {
+                String::new()
+            } else {
+                payload_root
+            };
             let next_carrier = carriers.len();
             let carrier = *carriers
                 .entry((
                     block.span_id.as_str(),
                     block.event_name.as_deref(),
                     block.source_attribute.as_deref(),
-                    payload_root,
+                    payload_instance,
                 ))
                 .or_insert(next_carrier);
             let emission = credible.then(|| {
@@ -251,6 +266,15 @@ pub(super) fn collect_order_evidence(
                 accumulator: block.is_accumulator_span(),
                 ancestor_spans,
                 detached_frame: semantics.carrier_is_detached_request_frame,
+                tool_reference: block
+                    .tool_use_id
+                    .as_ref()
+                    .filter(|id| !id.is_empty())
+                    .and_then(|id| match block.entry_type.as_str() {
+                        "tool_use" => Some(ToolReference::Call(id.clone())),
+                        "tool_result" => Some(ToolReference::Result(id.clone())),
+                        _ => None,
+                    }),
                 input_family,
             }
         })
@@ -497,12 +521,88 @@ enum SequenceSource {
     Carrier(usize),
 }
 
+/// Exact call/result pairs recovered from every observation that dedup projected to each survivor.
+///
+/// A representative may be an id-less snapshot even though another copy carried a correlated id.
+/// Reading the evidence makes the edge independent of that quality tie. Distinct ids or callers
+/// remain ambiguous and deliberately produce no pair.
+fn exact_tool_pairs(
+    evidence: &[OrderEvidence],
+    survivors: &[BlockEntry],
+    lineage: &[Option<usize>],
+    repeat_ordinals: &[u32],
+) -> HashSet<(usize, usize)> {
+    type CallKey = (String, u32);
+
+    let mut calls: HashMap<CallKey, HashSet<usize>> = HashMap::new();
+    let mut result_ids: HashMap<usize, HashSet<String>> = HashMap::new();
+    for (survivor, block) in survivors.iter().enumerate() {
+        let Some(id) = block.tool_use_id.as_ref().filter(|id| !id.is_empty()) else {
+            continue;
+        };
+        let ordinal = repeat_ordinals.get(survivor).copied().unwrap_or(0);
+        if block.entry_type == "tool_use" {
+            calls
+                .entry((id.clone(), ordinal))
+                .or_default()
+                .insert(survivor);
+        } else if block.entry_type == "tool_result" {
+            result_ids.entry(survivor).or_default().insert(id.clone());
+        }
+    }
+    for (observation, seen) in evidence.iter().enumerate() {
+        let Some(survivor) = lineage.get(observation).copied().flatten() else {
+            continue;
+        };
+        let ordinal = repeat_ordinals.get(survivor).copied().unwrap_or(0);
+        match &seen.tool_reference {
+            Some(ToolReference::Call(id)) => {
+                calls
+                    .entry((id.clone(), ordinal))
+                    .or_default()
+                    .insert(survivor);
+            }
+            Some(ToolReference::Result(id)) => {
+                result_ids.entry(survivor).or_default().insert(id.clone());
+            }
+            None => {}
+        }
+    }
+
+    let mut pairs = HashSet::new();
+    for (result, ids) in result_ids {
+        if survivors
+            .get(result)
+            .is_none_or(|block| block.entry_type != "tool_result")
+            || ids.len() != 1
+        {
+            continue;
+        }
+        let ordinal = repeat_ordinals.get(result).copied().unwrap_or(0);
+        let Some(id) = ids.into_iter().next() else {
+            continue;
+        };
+        let Some(callers) = calls
+            .get(&(id, ordinal))
+            .filter(|callers| callers.len() == 1)
+        else {
+            continue;
+        };
+        let Some(&call) = callers.iter().next() else {
+            continue;
+        };
+        pairs.insert((call, result));
+    }
+    pairs
+}
+
 /// Build the block-level causal relation over a trace's survivors - see [`Precedence`] for why it is
 /// not the resolver's graph.
 pub(super) fn causal_precedence(
     evidence: &[OrderEvidence],
     survivors: &[BlockEntry],
     lineage: &[Option<usize>],
+    repeat_ordinals: &[u32],
 ) -> Precedence {
     let n = survivors.len();
     let mut predecessors: Vec<Vec<u32>> = vec![Vec::new(); n];
@@ -555,28 +655,8 @@ pub(super) fn causal_precedence(
         }
     }
 
-    // Exact call to result, at block granularity and only where the id is unambiguous - a reused or
-    // regenerated id says nothing.
-    let mut calls: HashMap<&str, Vec<usize>> = HashMap::new();
-    for (i, block) in survivors.iter().enumerate() {
-        if block.entry_type == "tool_use"
-            && let Some(id) = block.tool_use_id.as_deref().filter(|s| !s.is_empty())
-        {
-            calls.entry(id).or_default().push(i);
-        }
-    }
-    for (i, block) in survivors.iter().enumerate() {
-        if block.entry_type != "tool_result" {
-            continue;
-        }
-        let Some(id) = block.tool_use_id.as_deref().filter(|s| !s.is_empty()) else {
-            continue;
-        };
-        if let Some(callers) = calls.get(id)
-            && callers.len() == 1
-        {
-            add(callers[0], i, &mut predecessors, &mut successors);
-        }
+    for (call, result) in exact_tool_pairs(evidence, survivors, lineage, repeat_ordinals) {
+        add(call, result, &mut predecessors, &mut successors);
     }
 
     Precedence {

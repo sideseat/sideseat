@@ -1,0 +1,1981 @@
+{
+  "label": "strands-sdk/tool_use",
+  "request_count": 1,
+  "span_count": 30,
+  "trace_count": 8,
+  "session_count": 1,
+  "span_views": {
+    "trace-1/chat/span-3": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You're a helpful weather assistant. Use the weather_forecast tool to get weather data. Guidelines (Important!!!): 1. Always use the weather_forecast tool for weather information. 2. Keep responses concise and friendly. 3. Default to New Yor…[4330 chars]",
+          "content_digest": "92df4fe0f3bd0103",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Provide a 3-day weather forecast for New York City.",
+          "content_digest": "75e9643b50cb90f4",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call-temperature-forecast-1\",\"name\":\"temperature_forecast\",\"input\":{\"city\":\"Paris\"}}",
+          "content_digest": "16326b150aa7b510",
+          "tool_name": "temperature_forecast",
+          "finish_reason": "ToolUse",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/chat/span-6": {
+      "message_count": 5,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You're a helpful weather assistant. Use the weather_forecast tool to get weather data. Guidelines (Important!!!): 1. Always use the weather_forecast tool for weather information. 2. Keep responses concise and friendly. 3. Default to New Yor…[4330 chars]",
+          "content_digest": "92df4fe0f3bd0103",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Provide a 3-day weather forecast for New York City.",
+          "content_digest": "75e9643b50cb90f4",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call-temperature-forecast-1\",\"name\":\"temperature_forecast\",\"input\":{\"city\":\"Paris\"}}",
+          "content_digest": "16326b150aa7b510",
+          "tool_name": "temperature_forecast",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call-temperature-forecast-1\",\"content\":[{\"type\":\"json\",\"data\":{\"json\":{\"city\":\"Paris\",\"days\":3,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":25,\"low\":15},{\"day\":2,\"condition\":\"Sunny\",\"high\":26,\"low\":16…[296 chars]",
+          "content_digest": "d5a682779be328fd",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "The tool completed successfully.",
+          "content_digest": "66bcb0fcdca80511",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/execute_event_loop_cycle/span-2": {
+      "message_count": 2,
+      "role_sequence": [
+        "assistant",
+        "tool"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call-temperature-forecast-1\",\"name\":\"temperature_forecast\",\"input\":{\"city\":\"Paris\"}}",
+          "content_digest": "16326b150aa7b510",
+          "tool_name": "temperature_forecast",
+          "observation_type": "span"
+        },
+        {
+          "index": 1,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call-temperature-forecast-1\",\"content\":[{\"type\":\"json\",\"data\":{\"json\":{\"city\":\"Paris\",\"days\":3,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":25,\"low\":15},{\"day\":2,\"condition\":\"Sunny\",\"high\":26,\"low\":16…[296 chars]",
+          "content_digest": "d5a682779be328fd",
+          "observation_type": "span"
+        }
+      ]
+    },
+    "trace-1/execute_event_loop_cycle/span-5": {
+      "message_count": 1,
+      "role_sequence": [
+        "tool"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call-temperature-forecast-1\",\"content\":[{\"type\":\"json\",\"data\":{\"json\":{\"city\":\"Paris\",\"days\":3,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":25,\"low\":15},{\"day\":2,\"condition\":\"Sunny\",\"high\":26,\"low\":16…[296 chars]",
+          "content_digest": "d5a682779be328fd",
+          "observation_type": "span"
+        }
+      ]
+    },
+    "trace-1/execute_tool temperature_forecast/span-4": {
+      "message_count": 1,
+      "role_sequence": [
+        "tool"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call-temperature-forecast-1\",\"content\":{\"json\":{\"city\":\"Paris\",\"days\":3,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":25,\"low\":15},{\"day\":2,\"condition\":\"Sunny\",\"high\":26,\"low\":16},{\"day\":3,\"condition\":…[271 chars]",
+          "content_digest": "5e7034abcc41935b",
+          "observation_type": "tool"
+        }
+      ]
+    },
+    "trace-1/invoke_agent Strands Agents/span-1": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [
+        "precipitation_forecast",
+        "temperature_forecast"
+      ],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You're a helpful weather assistant. Use the weather_forecast tool to get weather data. Guidelines (Important!!!): 1. Always use the weather_forecast tool for weather information. 2. Keep responses concise and friendly. 3. Default to New Yor…[4330 chars]",
+          "content_digest": "92df4fe0f3bd0103",
+          "observation_type": "agent"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Provide a 3-day weather forecast for New York City.",
+          "content_digest": "75e9643b50cb90f4",
+          "observation_type": "agent"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "The tool completed successfully.",
+          "content_digest": "b33665dca752fde5",
+          "finish_reason": "Stop",
+          "observation_type": "agent"
+        }
+      ]
+    },
+    "trace-2/chat/span-3": {
+      "message_count": 6,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "tool",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You're a helpful weather assistant. Use the weather_forecast tool to get weather data. Guidelines (Important!!!): 1. Always use the weather_forecast tool for weather information. 2. Keep responses concise and friendly. 3. Default to New Yor…[4330 chars]",
+          "content_digest": "92df4fe0f3bd0103",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Provide a 3-day weather forecast for New York City.",
+          "content_digest": "75e9643b50cb90f4",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call-temperature-forecast-1\",\"name\":\"temperature_forecast\",\"input\":{\"city\":\"Paris\"}}",
+          "content_digest": "16326b150aa7b510",
+          "tool_name": "temperature_forecast",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call-temperature-forecast-1\",\"content\":[{\"type\":\"json\",\"data\":{\"json\":{\"city\":\"Paris\",\"days\":3,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":25,\"low\":15},{\"day\":2,\"condition\":\"Sunny\",\"high\":26,\"low\":16…[296 chars]",
+          "content_digest": "d5a682779be328fd",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Provide a 7-day weather forecast for Los Angeles.",
+          "content_digest": "984bf68a8a35a65a",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "The tool completed successfully.",
+          "content_digest": "66bcb0fcdca80511",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-2/execute_event_loop_cycle/span-2": {
+      "message_count": 1,
+      "role_sequence": [
+        "tool"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call-temperature-forecast-1\",\"content\":[{\"type\":\"json\",\"data\":{\"json\":{\"city\":\"Paris\",\"days\":3,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":25,\"low\":15},{\"day\":2,\"condition\":\"Sunny\",\"high\":26,\"low\":16…[296 chars]",
+          "content_digest": "d5a682779be328fd",
+          "observation_type": "span"
+        }
+      ]
+    },
+    "trace-2/invoke_agent Strands Agents/span-1": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [
+        "precipitation_forecast",
+        "temperature_forecast"
+      ],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You're a helpful weather assistant. Use the weather_forecast tool to get weather data. Guidelines (Important!!!): 1. Always use the weather_forecast tool for weather information. 2. Keep responses concise and friendly. 3. Default to New Yor…[4330 chars]",
+          "content_digest": "92df4fe0f3bd0103",
+          "observation_type": "agent"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Provide a 7-day weather forecast for Los Angeles.",
+          "content_digest": "984bf68a8a35a65a",
+          "observation_type": "agent"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "The tool completed successfully.",
+          "content_digest": "b33665dca752fde5",
+          "finish_reason": "Stop",
+          "observation_type": "agent"
+        }
+      ]
+    },
+    "trace-3/chat/span-3": {
+      "message_count": 7,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "tool",
+        "user",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You're a helpful weather assistant. Use the weather_forecast tool to get weather data. Guidelines (Important!!!): 1. Always use the weather_forecast tool for weather information. 2. Keep responses concise and friendly. 3. Default to New Yor…[4330 chars]",
+          "content_digest": "92df4fe0f3bd0103",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Provide a 3-day weather forecast for New York City.",
+          "content_digest": "75e9643b50cb90f4",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call-temperature-forecast-1\",\"name\":\"temperature_forecast\",\"input\":{\"city\":\"Paris\"}}",
+          "content_digest": "16326b150aa7b510",
+          "tool_name": "temperature_forecast",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call-temperature-forecast-1\",\"content\":[{\"type\":\"json\",\"data\":{\"json\":{\"city\":\"Paris\",\"days\":3,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":25,\"low\":15},{\"day\":2,\"condition\":\"Sunny\",\"high\":26,\"low\":16…[296 chars]",
+          "content_digest": "d5a682779be328fd",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Provide a 7-day weather forecast for Los Angeles.",
+          "content_digest": "984bf68a8a35a65a",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Provide a 3-day weather forecast for London.",
+          "content_digest": "369fb6bcf81010ee",
+          "observation_type": "generation"
+        },
+        {
+          "index": 6,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "The tool completed successfully.",
+          "content_digest": "66bcb0fcdca80511",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-3/execute_event_loop_cycle/span-2": {
+      "message_count": 1,
+      "role_sequence": [
+        "tool"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call-temperature-forecast-1\",\"content\":[{\"type\":\"json\",\"data\":{\"json\":{\"city\":\"Paris\",\"days\":3,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":25,\"low\":15},{\"day\":2,\"condition\":\"Sunny\",\"high\":26,\"low\":16…[296 chars]",
+          "content_digest": "d5a682779be328fd",
+          "observation_type": "span"
+        }
+      ]
+    },
+    "trace-3/invoke_agent Strands Agents/span-1": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [
+        "precipitation_forecast",
+        "temperature_forecast"
+      ],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You're a helpful weather assistant. Use the weather_forecast tool to get weather data. Guidelines (Important!!!): 1. Always use the weather_forecast tool for weather information. 2. Keep responses concise and friendly. 3. Default to New Yor…[4330 chars]",
+          "content_digest": "92df4fe0f3bd0103",
+          "observation_type": "agent"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Provide a 3-day weather forecast for London.",
+          "content_digest": "369fb6bcf81010ee",
+          "observation_type": "agent"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "The tool completed successfully.",
+          "content_digest": "b33665dca752fde5",
+          "finish_reason": "Stop",
+          "observation_type": "agent"
+        }
+      ]
+    },
+    "trace-4/chat/span-3": {
+      "message_count": 8,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "tool",
+        "user",
+        "user",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You're a helpful weather assistant. Use the weather_forecast tool to get weather data. Guidelines (Important!!!): 1. Always use the weather_forecast tool for weather information. 2. Keep responses concise and friendly. 3. Default to New Yor…[4330 chars]",
+          "content_digest": "92df4fe0f3bd0103",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Provide a 3-day weather forecast for New York City.",
+          "content_digest": "75e9643b50cb90f4",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call-temperature-forecast-1\",\"name\":\"temperature_forecast\",\"input\":{\"city\":\"Paris\"}}",
+          "content_digest": "16326b150aa7b510",
+          "tool_name": "temperature_forecast",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call-temperature-forecast-1\",\"content\":[{\"type\":\"json\",\"data\":{\"json\":{\"city\":\"Paris\",\"days\":3,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":25,\"low\":15},{\"day\":2,\"condition\":\"Sunny\",\"high\":26,\"low\":16…[296 chars]",
+          "content_digest": "d5a682779be328fd",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Provide a 7-day weather forecast for Los Angeles.",
+          "content_digest": "984bf68a8a35a65a",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Provide a 3-day weather forecast for London.",
+          "content_digest": "369fb6bcf81010ee",
+          "observation_type": "generation"
+        },
+        {
+          "index": 6,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Provide a 14-day weather forecast for London.",
+          "content_digest": "7426414dbeed41d0",
+          "observation_type": "generation"
+        },
+        {
+          "index": 7,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "The tool completed successfully.",
+          "content_digest": "66bcb0fcdca80511",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-4/execute_event_loop_cycle/span-2": {
+      "message_count": 1,
+      "role_sequence": [
+        "tool"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call-temperature-forecast-1\",\"content\":[{\"type\":\"json\",\"data\":{\"json\":{\"city\":\"Paris\",\"days\":3,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":25,\"low\":15},{\"day\":2,\"condition\":\"Sunny\",\"high\":26,\"low\":16…[296 chars]",
+          "content_digest": "d5a682779be328fd",
+          "observation_type": "span"
+        }
+      ]
+    },
+    "trace-4/invoke_agent Strands Agents/span-1": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [
+        "precipitation_forecast",
+        "temperature_forecast"
+      ],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You're a helpful weather assistant. Use the weather_forecast tool to get weather data. Guidelines (Important!!!): 1. Always use the weather_forecast tool for weather information. 2. Keep responses concise and friendly. 3. Default to New Yor…[4330 chars]",
+          "content_digest": "92df4fe0f3bd0103",
+          "observation_type": "agent"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Provide a 14-day weather forecast for London.",
+          "content_digest": "7426414dbeed41d0",
+          "observation_type": "agent"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "The tool completed successfully.",
+          "content_digest": "b33665dca752fde5",
+          "finish_reason": "Stop",
+          "observation_type": "agent"
+        }
+      ]
+    },
+    "trace-5/chat/span-3": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You're a helpful weather assistant. Use the weather_forecast tool to get weather data. Guidelines (Important!!!): 1. Always use the weather_forecast tool for weather information. 2. Keep responses concise and friendly. 3. Default to New Yor…[4330 chars]",
+          "content_digest": "92df4fe0f3bd0103",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Provide a 3-day weather forecast for New York City.",
+          "content_digest": "75e9643b50cb90f4",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call-temperature-forecast-1\",\"name\":\"temperature_forecast\",\"input\":{\"city\":\"Paris\"}}",
+          "content_digest": "16326b150aa7b510",
+          "tool_name": "temperature_forecast",
+          "finish_reason": "ToolUse",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-5/chat/span-6": {
+      "message_count": 5,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You're a helpful weather assistant. Use the weather_forecast tool to get weather data. Guidelines (Important!!!): 1. Always use the weather_forecast tool for weather information. 2. Keep responses concise and friendly. 3. Default to New Yor…[4330 chars]",
+          "content_digest": "92df4fe0f3bd0103",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Provide a 3-day weather forecast for New York City.",
+          "content_digest": "75e9643b50cb90f4",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call-temperature-forecast-1\",\"name\":\"temperature_forecast\",\"input\":{\"city\":\"Paris\"}}",
+          "content_digest": "16326b150aa7b510",
+          "tool_name": "temperature_forecast",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call-temperature-forecast-1\",\"content\":[{\"type\":\"json\",\"data\":{\"json\":{\"city\":\"Paris\",\"days\":3,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":25,\"low\":15},{\"day\":2,\"condition\":\"Sunny\",\"high\":26,\"low\":16…[296 chars]",
+          "content_digest": "d5a682779be328fd",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "The tool completed successfully.",
+          "content_digest": "66bcb0fcdca80511",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-5/execute_event_loop_cycle/span-2": {
+      "message_count": 2,
+      "role_sequence": [
+        "assistant",
+        "tool"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call-temperature-forecast-1\",\"name\":\"temperature_forecast\",\"input\":{\"city\":\"Paris\"}}",
+          "content_digest": "16326b150aa7b510",
+          "tool_name": "temperature_forecast",
+          "observation_type": "span"
+        },
+        {
+          "index": 1,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call-temperature-forecast-1\",\"content\":[{\"type\":\"json\",\"data\":{\"json\":{\"city\":\"Paris\",\"days\":3,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":25,\"low\":15},{\"day\":2,\"condition\":\"Sunny\",\"high\":26,\"low\":16…[296 chars]",
+          "content_digest": "d5a682779be328fd",
+          "observation_type": "span"
+        }
+      ]
+    },
+    "trace-5/execute_event_loop_cycle/span-5": {
+      "message_count": 1,
+      "role_sequence": [
+        "tool"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call-temperature-forecast-1\",\"content\":[{\"type\":\"json\",\"data\":{\"json\":{\"city\":\"Paris\",\"days\":3,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":25,\"low\":15},{\"day\":2,\"condition\":\"Sunny\",\"high\":26,\"low\":16…[296 chars]",
+          "content_digest": "d5a682779be328fd",
+          "observation_type": "span"
+        }
+      ]
+    },
+    "trace-5/execute_tool temperature_forecast/span-4": {
+      "message_count": 1,
+      "role_sequence": [
+        "tool"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call-temperature-forecast-1\",\"content\":{\"json\":{\"city\":\"Paris\",\"days\":3,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":25,\"low\":15},{\"day\":2,\"condition\":\"Sunny\",\"high\":26,\"low\":16},{\"day\":3,\"condition\":…[271 chars]",
+          "content_digest": "5e7034abcc41935b",
+          "observation_type": "tool"
+        }
+      ]
+    },
+    "trace-5/invoke_agent Strands Agents/span-1": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [
+        "precipitation_forecast",
+        "temperature_forecast"
+      ],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You're a helpful weather assistant. Use the weather_forecast tool to get weather data. Guidelines (Important!!!): 1. Always use the weather_forecast tool for weather information. 2. Keep responses concise and friendly. 3. Default to New Yor…[4330 chars]",
+          "content_digest": "92df4fe0f3bd0103",
+          "observation_type": "agent"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Provide a 3-day weather forecast for New York City.",
+          "content_digest": "75e9643b50cb90f4",
+          "observation_type": "agent"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "The tool completed successfully.",
+          "content_digest": "b33665dca752fde5",
+          "finish_reason": "Stop",
+          "observation_type": "agent"
+        }
+      ]
+    },
+    "trace-6/chat/span-3": {
+      "message_count": 6,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "tool",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You're a helpful weather assistant. Use the weather_forecast tool to get weather data. Guidelines (Important!!!): 1. Always use the weather_forecast tool for weather information. 2. Keep responses concise and friendly. 3. Default to New Yor…[4330 chars]",
+          "content_digest": "92df4fe0f3bd0103",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Provide a 3-day weather forecast for New York City.",
+          "content_digest": "75e9643b50cb90f4",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call-temperature-forecast-1\",\"name\":\"temperature_forecast\",\"input\":{\"city\":\"Paris\"}}",
+          "content_digest": "16326b150aa7b510",
+          "tool_name": "temperature_forecast",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call-temperature-forecast-1\",\"content\":[{\"type\":\"json\",\"data\":{\"json\":{\"city\":\"Paris\",\"days\":3,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":25,\"low\":15},{\"day\":2,\"condition\":\"Sunny\",\"high\":26,\"low\":16…[296 chars]",
+          "content_digest": "d5a682779be328fd",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Provide a 7-day weather forecast for Los Angeles.",
+          "content_digest": "984bf68a8a35a65a",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "The tool completed successfully.",
+          "content_digest": "66bcb0fcdca80511",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-6/execute_event_loop_cycle/span-2": {
+      "message_count": 1,
+      "role_sequence": [
+        "tool"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call-temperature-forecast-1\",\"content\":[{\"type\":\"json\",\"data\":{\"json\":{\"city\":\"Paris\",\"days\":3,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":25,\"low\":15},{\"day\":2,\"condition\":\"Sunny\",\"high\":26,\"low\":16…[296 chars]",
+          "content_digest": "d5a682779be328fd",
+          "observation_type": "span"
+        }
+      ]
+    },
+    "trace-6/invoke_agent Strands Agents/span-1": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [
+        "precipitation_forecast",
+        "temperature_forecast"
+      ],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You're a helpful weather assistant. Use the weather_forecast tool to get weather data. Guidelines (Important!!!): 1. Always use the weather_forecast tool for weather information. 2. Keep responses concise and friendly. 3. Default to New Yor…[4330 chars]",
+          "content_digest": "92df4fe0f3bd0103",
+          "observation_type": "agent"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Provide a 7-day weather forecast for Los Angeles.",
+          "content_digest": "984bf68a8a35a65a",
+          "observation_type": "agent"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "The tool completed successfully.",
+          "content_digest": "b33665dca752fde5",
+          "finish_reason": "Stop",
+          "observation_type": "agent"
+        }
+      ]
+    },
+    "trace-7/chat/span-3": {
+      "message_count": 7,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "tool",
+        "user",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You're a helpful weather assistant. Use the weather_forecast tool to get weather data. Guidelines (Important!!!): 1. Always use the weather_forecast tool for weather information. 2. Keep responses concise and friendly. 3. Default to New Yor…[4330 chars]",
+          "content_digest": "92df4fe0f3bd0103",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Provide a 3-day weather forecast for New York City.",
+          "content_digest": "75e9643b50cb90f4",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call-temperature-forecast-1\",\"name\":\"temperature_forecast\",\"input\":{\"city\":\"Paris\"}}",
+          "content_digest": "16326b150aa7b510",
+          "tool_name": "temperature_forecast",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call-temperature-forecast-1\",\"content\":[{\"type\":\"json\",\"data\":{\"json\":{\"city\":\"Paris\",\"days\":3,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":25,\"low\":15},{\"day\":2,\"condition\":\"Sunny\",\"high\":26,\"low\":16…[296 chars]",
+          "content_digest": "d5a682779be328fd",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Provide a 7-day weather forecast for Los Angeles.",
+          "content_digest": "984bf68a8a35a65a",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Provide a 3-day weather forecast for London.",
+          "content_digest": "369fb6bcf81010ee",
+          "observation_type": "generation"
+        },
+        {
+          "index": 6,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "The tool completed successfully.",
+          "content_digest": "66bcb0fcdca80511",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-7/execute_event_loop_cycle/span-2": {
+      "message_count": 1,
+      "role_sequence": [
+        "tool"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call-temperature-forecast-1\",\"content\":[{\"type\":\"json\",\"data\":{\"json\":{\"city\":\"Paris\",\"days\":3,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":25,\"low\":15},{\"day\":2,\"condition\":\"Sunny\",\"high\":26,\"low\":16…[296 chars]",
+          "content_digest": "d5a682779be328fd",
+          "observation_type": "span"
+        }
+      ]
+    },
+    "trace-7/invoke_agent Strands Agents/span-1": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [
+        "precipitation_forecast",
+        "temperature_forecast"
+      ],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You're a helpful weather assistant. Use the weather_forecast tool to get weather data. Guidelines (Important!!!): 1. Always use the weather_forecast tool for weather information. 2. Keep responses concise and friendly. 3. Default to New Yor…[4330 chars]",
+          "content_digest": "92df4fe0f3bd0103",
+          "observation_type": "agent"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Provide a 3-day weather forecast for London.",
+          "content_digest": "369fb6bcf81010ee",
+          "observation_type": "agent"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "The tool completed successfully.",
+          "content_digest": "b33665dca752fde5",
+          "finish_reason": "Stop",
+          "observation_type": "agent"
+        }
+      ]
+    },
+    "trace-8/chat/span-3": {
+      "message_count": 8,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "tool",
+        "user",
+        "user",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You're a helpful weather assistant. Use the weather_forecast tool to get weather data. Guidelines (Important!!!): 1. Always use the weather_forecast tool for weather information. 2. Keep responses concise and friendly. 3. Default to New Yor…[4330 chars]",
+          "content_digest": "92df4fe0f3bd0103",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Provide a 3-day weather forecast for New York City.",
+          "content_digest": "75e9643b50cb90f4",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call-temperature-forecast-1\",\"name\":\"temperature_forecast\",\"input\":{\"city\":\"Paris\"}}",
+          "content_digest": "16326b150aa7b510",
+          "tool_name": "temperature_forecast",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call-temperature-forecast-1\",\"content\":[{\"type\":\"json\",\"data\":{\"json\":{\"city\":\"Paris\",\"days\":3,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":25,\"low\":15},{\"day\":2,\"condition\":\"Sunny\",\"high\":26,\"low\":16…[296 chars]",
+          "content_digest": "d5a682779be328fd",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Provide a 7-day weather forecast for Los Angeles.",
+          "content_digest": "984bf68a8a35a65a",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Provide a 3-day weather forecast for London.",
+          "content_digest": "369fb6bcf81010ee",
+          "observation_type": "generation"
+        },
+        {
+          "index": 6,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Provide a 14-day weather forecast for London.",
+          "content_digest": "7426414dbeed41d0",
+          "observation_type": "generation"
+        },
+        {
+          "index": 7,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "The tool completed successfully.",
+          "content_digest": "66bcb0fcdca80511",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-8/execute_event_loop_cycle/span-2": {
+      "message_count": 1,
+      "role_sequence": [
+        "tool"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call-temperature-forecast-1\",\"content\":[{\"type\":\"json\",\"data\":{\"json\":{\"city\":\"Paris\",\"days\":3,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":25,\"low\":15},{\"day\":2,\"condition\":\"Sunny\",\"high\":26,\"low\":16…[296 chars]",
+          "content_digest": "d5a682779be328fd",
+          "observation_type": "span"
+        }
+      ]
+    },
+    "trace-8/invoke_agent Strands Agents/span-1": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [
+        "precipitation_forecast",
+        "temperature_forecast"
+      ],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You're a helpful weather assistant. Use the weather_forecast tool to get weather data. Guidelines (Important!!!): 1. Always use the weather_forecast tool for weather information. 2. Keep responses concise and friendly. 3. Default to New Yor…[4330 chars]",
+          "content_digest": "92df4fe0f3bd0103",
+          "observation_type": "agent"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Provide a 14-day weather forecast for London.",
+          "content_digest": "7426414dbeed41d0",
+          "observation_type": "agent"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "The tool completed successfully.",
+          "content_digest": "b33665dca752fde5",
+          "finish_reason": "Stop",
+          "observation_type": "agent"
+        }
+      ]
+    }
+  },
+  "trace_views": {
+    "trace-1": {
+      "message_count": 5,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [
+        "precipitation_forecast",
+        "temperature_forecast"
+      ],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You're a helpful weather assistant. Use the weather_forecast tool to get weather data. Guidelines (Important!!!): 1. Always use the weather_forecast tool for weather information. 2. Keep responses concise and friendly. 3. Default to New Yor…[4330 chars]",
+          "content_digest": "92df4fe0f3bd0103",
+          "observation_type": "agent"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Provide a 3-day weather forecast for New York City.",
+          "content_digest": "75e9643b50cb90f4",
+          "observation_type": "agent"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call-temperature-forecast-1\",\"name\":\"temperature_forecast\",\"input\":{\"city\":\"Paris\"}}",
+          "content_digest": "16326b150aa7b510",
+          "tool_name": "temperature_forecast",
+          "finish_reason": "ToolUse",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call-temperature-forecast-1\",\"content\":{\"json\":{\"city\":\"Paris\",\"days\":3,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":25,\"low\":15},{\"day\":2,\"condition\":\"Sunny\",\"high\":26,\"low\":16},{\"day\":3,\"condition\":…[271 chars]",
+          "content_digest": "5e7034abcc41935b",
+          "observation_type": "tool"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "The tool completed successfully.",
+          "content_digest": "b33665dca752fde5",
+          "finish_reason": "Stop",
+          "observation_type": "agent"
+        }
+      ]
+    },
+    "trace-2": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [
+        "precipitation_forecast",
+        "temperature_forecast"
+      ],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You're a helpful weather assistant. Use the weather_forecast tool to get weather data. Guidelines (Important!!!): 1. Always use the weather_forecast tool for weather information. 2. Keep responses concise and friendly. 3. Default to New Yor…[4330 chars]",
+          "content_digest": "92df4fe0f3bd0103",
+          "observation_type": "agent"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Provide a 7-day weather forecast for Los Angeles.",
+          "content_digest": "984bf68a8a35a65a",
+          "observation_type": "agent"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "The tool completed successfully.",
+          "content_digest": "b33665dca752fde5",
+          "finish_reason": "Stop",
+          "observation_type": "agent"
+        }
+      ]
+    },
+    "trace-3": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [
+        "precipitation_forecast",
+        "temperature_forecast"
+      ],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You're a helpful weather assistant. Use the weather_forecast tool to get weather data. Guidelines (Important!!!): 1. Always use the weather_forecast tool for weather information. 2. Keep responses concise and friendly. 3. Default to New Yor…[4330 chars]",
+          "content_digest": "92df4fe0f3bd0103",
+          "observation_type": "agent"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Provide a 3-day weather forecast for London.",
+          "content_digest": "369fb6bcf81010ee",
+          "observation_type": "agent"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "The tool completed successfully.",
+          "content_digest": "b33665dca752fde5",
+          "finish_reason": "Stop",
+          "observation_type": "agent"
+        }
+      ]
+    },
+    "trace-4": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [
+        "precipitation_forecast",
+        "temperature_forecast"
+      ],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You're a helpful weather assistant. Use the weather_forecast tool to get weather data. Guidelines (Important!!!): 1. Always use the weather_forecast tool for weather information. 2. Keep responses concise and friendly. 3. Default to New Yor…[4330 chars]",
+          "content_digest": "92df4fe0f3bd0103",
+          "observation_type": "agent"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Provide a 14-day weather forecast for London.",
+          "content_digest": "7426414dbeed41d0",
+          "observation_type": "agent"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "The tool completed successfully.",
+          "content_digest": "b33665dca752fde5",
+          "finish_reason": "Stop",
+          "observation_type": "agent"
+        }
+      ]
+    },
+    "trace-5": {
+      "message_count": 5,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [
+        "precipitation_forecast",
+        "temperature_forecast"
+      ],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You're a helpful weather assistant. Use the weather_forecast tool to get weather data. Guidelines (Important!!!): 1. Always use the weather_forecast tool for weather information. 2. Keep responses concise and friendly. 3. Default to New Yor…[4330 chars]",
+          "content_digest": "92df4fe0f3bd0103",
+          "observation_type": "agent"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Provide a 3-day weather forecast for New York City.",
+          "content_digest": "75e9643b50cb90f4",
+          "observation_type": "agent"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call-temperature-forecast-1\",\"name\":\"temperature_forecast\",\"input\":{\"city\":\"Paris\"}}",
+          "content_digest": "16326b150aa7b510",
+          "tool_name": "temperature_forecast",
+          "finish_reason": "ToolUse",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call-temperature-forecast-1\",\"content\":{\"json\":{\"city\":\"Paris\",\"days\":3,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":25,\"low\":15},{\"day\":2,\"condition\":\"Sunny\",\"high\":26,\"low\":16},{\"day\":3,\"condition\":…[271 chars]",
+          "content_digest": "5e7034abcc41935b",
+          "observation_type": "tool"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "The tool completed successfully.",
+          "content_digest": "b33665dca752fde5",
+          "finish_reason": "Stop",
+          "observation_type": "agent"
+        }
+      ]
+    },
+    "trace-6": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [
+        "precipitation_forecast",
+        "temperature_forecast"
+      ],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You're a helpful weather assistant. Use the weather_forecast tool to get weather data. Guidelines (Important!!!): 1. Always use the weather_forecast tool for weather information. 2. Keep responses concise and friendly. 3. Default to New Yor…[4330 chars]",
+          "content_digest": "92df4fe0f3bd0103",
+          "observation_type": "agent"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Provide a 7-day weather forecast for Los Angeles.",
+          "content_digest": "984bf68a8a35a65a",
+          "observation_type": "agent"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "The tool completed successfully.",
+          "content_digest": "b33665dca752fde5",
+          "finish_reason": "Stop",
+          "observation_type": "agent"
+        }
+      ]
+    },
+    "trace-7": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [
+        "precipitation_forecast",
+        "temperature_forecast"
+      ],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You're a helpful weather assistant. Use the weather_forecast tool to get weather data. Guidelines (Important!!!): 1. Always use the weather_forecast tool for weather information. 2. Keep responses concise and friendly. 3. Default to New Yor…[4330 chars]",
+          "content_digest": "92df4fe0f3bd0103",
+          "observation_type": "agent"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Provide a 3-day weather forecast for London.",
+          "content_digest": "369fb6bcf81010ee",
+          "observation_type": "agent"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "The tool completed successfully.",
+          "content_digest": "b33665dca752fde5",
+          "finish_reason": "Stop",
+          "observation_type": "agent"
+        }
+      ]
+    },
+    "trace-8": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [
+        "precipitation_forecast",
+        "temperature_forecast"
+      ],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You're a helpful weather assistant. Use the weather_forecast tool to get weather data. Guidelines (Important!!!): 1. Always use the weather_forecast tool for weather information. 2. Keep responses concise and friendly. 3. Default to New Yor…[4330 chars]",
+          "content_digest": "92df4fe0f3bd0103",
+          "observation_type": "agent"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Provide a 14-day weather forecast for London.",
+          "content_digest": "7426414dbeed41d0",
+          "observation_type": "agent"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "The tool completed successfully.",
+          "content_digest": "b33665dca752fde5",
+          "finish_reason": "Stop",
+          "observation_type": "agent"
+        }
+      ]
+    }
+  },
+  "session_views": {
+    "strands-tool_use-59aa9d34": {
+      "message_count": 14,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "tool",
+        "assistant",
+        "system",
+        "user",
+        "assistant",
+        "system",
+        "user",
+        "assistant",
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [
+        "precipitation_forecast",
+        "temperature_forecast"
+      ],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You're a helpful weather assistant. Use the weather_forecast tool to get weather data. Guidelines (Important!!!): 1. Always use the weather_forecast tool for weather information. 2. Keep responses concise and friendly. 3. Default to New Yor…[4330 chars]",
+          "content_digest": "92df4fe0f3bd0103",
+          "observation_type": "agent"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Provide a 3-day weather forecast for New York City.",
+          "content_digest": "75e9643b50cb90f4",
+          "observation_type": "agent"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call-temperature-forecast-1\",\"name\":\"temperature_forecast\",\"input\":{\"city\":\"Paris\"}}",
+          "content_digest": "16326b150aa7b510",
+          "tool_name": "temperature_forecast",
+          "finish_reason": "ToolUse",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call-temperature-forecast-1\",\"content\":{\"json\":{\"city\":\"Paris\",\"days\":3,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":25,\"low\":15},{\"day\":2,\"condition\":\"Sunny\",\"high\":26,\"low\":16},{\"day\":3,\"condition\":…[271 chars]",
+          "content_digest": "5e7034abcc41935b",
+          "observation_type": "tool"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "The tool completed successfully.",
+          "content_digest": "b33665dca752fde5",
+          "finish_reason": "Stop",
+          "observation_type": "agent"
+        },
+        {
+          "index": 5,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You're a helpful weather assistant. Use the weather_forecast tool to get weather data. Guidelines (Important!!!): 1. Always use the weather_forecast tool for weather information. 2. Keep responses concise and friendly. 3. Default to New Yor…[4330 chars]",
+          "content_digest": "92df4fe0f3bd0103",
+          "observation_type": "agent"
+        },
+        {
+          "index": 6,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Provide a 7-day weather forecast for Los Angeles.",
+          "content_digest": "984bf68a8a35a65a",
+          "observation_type": "agent"
+        },
+        {
+          "index": 7,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "The tool completed successfully.",
+          "content_digest": "b33665dca752fde5",
+          "finish_reason": "Stop",
+          "observation_type": "agent"
+        },
+        {
+          "index": 8,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You're a helpful weather assistant. Use the weather_forecast tool to get weather data. Guidelines (Important!!!): 1. Always use the weather_forecast tool for weather information. 2. Keep responses concise and friendly. 3. Default to New Yor…[4330 chars]",
+          "content_digest": "92df4fe0f3bd0103",
+          "observation_type": "agent"
+        },
+        {
+          "index": 9,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Provide a 3-day weather forecast for London.",
+          "content_digest": "369fb6bcf81010ee",
+          "observation_type": "agent"
+        },
+        {
+          "index": 10,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "The tool completed successfully.",
+          "content_digest": "b33665dca752fde5",
+          "finish_reason": "Stop",
+          "observation_type": "agent"
+        },
+        {
+          "index": 11,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You're a helpful weather assistant. Use the weather_forecast tool to get weather data. Guidelines (Important!!!): 1. Always use the weather_forecast tool for weather information. 2. Keep responses concise and friendly. 3. Default to New Yor…[4330 chars]",
+          "content_digest": "92df4fe0f3bd0103",
+          "observation_type": "agent"
+        },
+        {
+          "index": 12,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Provide a 14-day weather forecast for London.",
+          "content_digest": "7426414dbeed41d0",
+          "observation_type": "agent"
+        },
+        {
+          "index": 13,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "The tool completed successfully.",
+          "content_digest": "b33665dca752fde5",
+          "finish_reason": "Stop",
+          "observation_type": "agent"
+        }
+      ]
+    }
+  },
+  "feed_view": {
+    "message_count": 28,
+    "role_sequence": [
+      "assistant",
+      "user",
+      "system",
+      "assistant",
+      "user",
+      "system",
+      "assistant",
+      "user",
+      "system",
+      "assistant",
+      "tool",
+      "assistant",
+      "user",
+      "system",
+      "assistant",
+      "user",
+      "system",
+      "assistant",
+      "user",
+      "system",
+      "assistant",
+      "user",
+      "system",
+      "assistant",
+      "tool",
+      "assistant",
+      "user",
+      "system"
+    ],
+    "tool_names": [
+      "precipitation_forecast",
+      "temperature_forecast"
+    ],
+    "tool_definition_count": 1,
+    "messages": [
+      {
+        "index": 0,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "The tool completed successfully.",
+        "content_digest": "b33665dca752fde5",
+        "finish_reason": "Stop",
+        "observation_type": "agent"
+      },
+      {
+        "index": 1,
+        "role": "user",
+        "entry_type": "text",
+        "content": "Provide a 14-day weather forecast for London.",
+        "content_digest": "7426414dbeed41d0",
+        "observation_type": "agent"
+      },
+      {
+        "index": 2,
+        "role": "system",
+        "entry_type": "text",
+        "content": "You're a helpful weather assistant. Use the weather_forecast tool to get weather data. Guidelines (Important!!!): 1. Always use the weather_forecast tool for weather information. 2. Keep responses concise and friendly. 3. Default to New Yor…[4330 chars]",
+        "content_digest": "92df4fe0f3bd0103",
+        "observation_type": "agent"
+      },
+      {
+        "index": 3,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "The tool completed successfully.",
+        "content_digest": "b33665dca752fde5",
+        "finish_reason": "Stop",
+        "observation_type": "agent"
+      },
+      {
+        "index": 4,
+        "role": "user",
+        "entry_type": "text",
+        "content": "Provide a 3-day weather forecast for London.",
+        "content_digest": "369fb6bcf81010ee",
+        "observation_type": "agent"
+      },
+      {
+        "index": 5,
+        "role": "system",
+        "entry_type": "text",
+        "content": "You're a helpful weather assistant. Use the weather_forecast tool to get weather data. Guidelines (Important!!!): 1. Always use the weather_forecast tool for weather information. 2. Keep responses concise and friendly. 3. Default to New Yor…[4330 chars]",
+        "content_digest": "92df4fe0f3bd0103",
+        "observation_type": "agent"
+      },
+      {
+        "index": 6,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "The tool completed successfully.",
+        "content_digest": "b33665dca752fde5",
+        "finish_reason": "Stop",
+        "observation_type": "agent"
+      },
+      {
+        "index": 7,
+        "role": "user",
+        "entry_type": "text",
+        "content": "Provide a 7-day weather forecast for Los Angeles.",
+        "content_digest": "984bf68a8a35a65a",
+        "observation_type": "agent"
+      },
+      {
+        "index": 8,
+        "role": "system",
+        "entry_type": "text",
+        "content": "You're a helpful weather assistant. Use the weather_forecast tool to get weather data. Guidelines (Important!!!): 1. Always use the weather_forecast tool for weather information. 2. Keep responses concise and friendly. 3. Default to New Yor…[4330 chars]",
+        "content_digest": "92df4fe0f3bd0103",
+        "observation_type": "agent"
+      },
+      {
+        "index": 9,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "The tool completed successfully.",
+        "content_digest": "b33665dca752fde5",
+        "finish_reason": "Stop",
+        "observation_type": "agent"
+      },
+      {
+        "index": 10,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call-temperature-forecast-1\",\"content\":{\"json\":{\"city\":\"Paris\",\"days\":3,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":25,\"low\":15},{\"day\":2,\"condition\":\"Sunny\",\"high\":26,\"low\":16},{\"day\":3,\"condition\":…[271 chars]",
+        "content_digest": "5e7034abcc41935b",
+        "observation_type": "tool"
+      },
+      {
+        "index": 11,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"call-temperature-forecast-1\",\"name\":\"temperature_forecast\",\"input\":{\"city\":\"Paris\"}}",
+        "content_digest": "16326b150aa7b510",
+        "tool_name": "temperature_forecast",
+        "finish_reason": "ToolUse",
+        "observation_type": "generation"
+      },
+      {
+        "index": 12,
+        "role": "user",
+        "entry_type": "text",
+        "content": "Provide a 3-day weather forecast for New York City.",
+        "content_digest": "75e9643b50cb90f4",
+        "observation_type": "agent"
+      },
+      {
+        "index": 13,
+        "role": "system",
+        "entry_type": "text",
+        "content": "You're a helpful weather assistant. Use the weather_forecast tool to get weather data. Guidelines (Important!!!): 1. Always use the weather_forecast tool for weather information. 2. Keep responses concise and friendly. 3. Default to New Yor…[4330 chars]",
+        "content_digest": "92df4fe0f3bd0103",
+        "observation_type": "agent"
+      },
+      {
+        "index": 14,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "The tool completed successfully.",
+        "content_digest": "b33665dca752fde5",
+        "finish_reason": "Stop",
+        "observation_type": "agent"
+      },
+      {
+        "index": 15,
+        "role": "user",
+        "entry_type": "text",
+        "content": "Provide a 14-day weather forecast for London.",
+        "content_digest": "7426414dbeed41d0",
+        "observation_type": "agent"
+      },
+      {
+        "index": 16,
+        "role": "system",
+        "entry_type": "text",
+        "content": "You're a helpful weather assistant. Use the weather_forecast tool to get weather data. Guidelines (Important!!!): 1. Always use the weather_forecast tool for weather information. 2. Keep responses concise and friendly. 3. Default to New Yor…[4330 chars]",
+        "content_digest": "92df4fe0f3bd0103",
+        "observation_type": "agent"
+      },
+      {
+        "index": 17,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "The tool completed successfully.",
+        "content_digest": "b33665dca752fde5",
+        "finish_reason": "Stop",
+        "observation_type": "agent"
+      },
+      {
+        "index": 18,
+        "role": "user",
+        "entry_type": "text",
+        "content": "Provide a 3-day weather forecast for London.",
+        "content_digest": "369fb6bcf81010ee",
+        "observation_type": "agent"
+      },
+      {
+        "index": 19,
+        "role": "system",
+        "entry_type": "text",
+        "content": "You're a helpful weather assistant. Use the weather_forecast tool to get weather data. Guidelines (Important!!!): 1. Always use the weather_forecast tool for weather information. 2. Keep responses concise and friendly. 3. Default to New Yor…[4330 chars]",
+        "content_digest": "92df4fe0f3bd0103",
+        "observation_type": "agent"
+      },
+      {
+        "index": 20,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "The tool completed successfully.",
+        "content_digest": "b33665dca752fde5",
+        "finish_reason": "Stop",
+        "observation_type": "agent"
+      },
+      {
+        "index": 21,
+        "role": "user",
+        "entry_type": "text",
+        "content": "Provide a 7-day weather forecast for Los Angeles.",
+        "content_digest": "984bf68a8a35a65a",
+        "observation_type": "agent"
+      },
+      {
+        "index": 22,
+        "role": "system",
+        "entry_type": "text",
+        "content": "You're a helpful weather assistant. Use the weather_forecast tool to get weather data. Guidelines (Important!!!): 1. Always use the weather_forecast tool for weather information. 2. Keep responses concise and friendly. 3. Default to New Yor…[4330 chars]",
+        "content_digest": "92df4fe0f3bd0103",
+        "observation_type": "agent"
+      },
+      {
+        "index": 23,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "The tool completed successfully.",
+        "content_digest": "b33665dca752fde5",
+        "finish_reason": "Stop",
+        "observation_type": "agent"
+      },
+      {
+        "index": 24,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call-temperature-forecast-1\",\"content\":{\"json\":{\"city\":\"Paris\",\"days\":3,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":25,\"low\":15},{\"day\":2,\"condition\":\"Sunny\",\"high\":26,\"low\":16},{\"day\":3,\"condition\":…[271 chars]",
+        "content_digest": "5e7034abcc41935b",
+        "observation_type": "tool"
+      },
+      {
+        "index": 25,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"call-temperature-forecast-1\",\"name\":\"temperature_forecast\",\"input\":{\"city\":\"Paris\"}}",
+        "content_digest": "16326b150aa7b510",
+        "tool_name": "temperature_forecast",
+        "finish_reason": "ToolUse",
+        "observation_type": "generation"
+      },
+      {
+        "index": 26,
+        "role": "user",
+        "entry_type": "text",
+        "content": "Provide a 3-day weather forecast for New York City.",
+        "content_digest": "75e9643b50cb90f4",
+        "observation_type": "agent"
+      },
+      {
+        "index": 27,
+        "role": "system",
+        "entry_type": "text",
+        "content": "You're a helpful weather assistant. Use the weather_forecast tool to get weather data. Guidelines (Important!!!): 1. Always use the weather_forecast tool for weather information. 2. Keep responses concise and friendly. 3. Default to New Yor…[4330 chars]",
+        "content_digest": "92df4fe0f3bd0103",
+        "observation_type": "agent"
+      }
+    ]
+  }
+}

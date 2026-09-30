@@ -10,6 +10,7 @@
       },
       "facts": {
         "preset": "snapshot",
+        "position_proves_distinct_occurrence": true,
         "carrier_holds_span_input": true
       }
     },
@@ -31,8 +32,7 @@
         "attribute": "gcp.vertex.agent.llm_response"
       },
       "facts": {
-        "preset": "snapshot",
-        "carrier_holds_span_output": true
+        "preset": "emission"
       }
     }
   ],

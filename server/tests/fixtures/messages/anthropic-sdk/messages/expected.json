@@ -69,7 +69,7 @@
         }
       ]
     },
-    "trace-2/streaming response from 'claude-sonnet-4-6' took 0.01s/span-2": {
+    "trace-2/streaming response from 'claude-sonnet-4-6' took 0.02s/span-2": {
       "message_count": 3,
       "role_sequence": [
         "system",
@@ -332,7 +332,7 @@
     }
   },
   "session_views": {
-    "anthropic-messages-f9aa7d55": {
+    "anthropic-messages-639df432": {
       "message_count": 5,
       "role_sequence": [
         "system",

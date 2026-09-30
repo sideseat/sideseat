@@ -17,8 +17,8 @@
           "index": 0,
           "role": "assistant",
           "entry_type": "text",
-          "content": "agent_framework.exceptions.ChatClientException: (\"<class 'agent_framework_openai._chat_client.OpenAIChatClient'> service failed to complete the prompt: Error code: 400 - {'error': {'message': 'The provided model identifier is invalid.', 'ty…[4625 chars]",
-          "content_digest": "aaac3e99afe70831",
+          "content": "agent_framework.exceptions.ChatClientException: (\"<class 'agent_framework_openai._chat_client.OpenAIChatClient'> service failed to complete the prompt: Error code: 400 - {'error': {'message': 'The provided model identifier is invalid.', 'ty…[497 chars]",
+          "content_digest": "3965ccbd1e29b23f",
           "finish_reason": "Error",
           "observation_type": "agent"
         }
@@ -54,8 +54,8 @@
           "index": 2,
           "role": "assistant",
           "entry_type": "text",
-          "content": "agent_framework.exceptions.ChatClientException: (\"<class 'agent_framework_openai._chat_client.OpenAIChatClient'> service failed to complete the prompt: Error code: 400 - {'error': {'message': 'The provided model identifier is invalid.', 'ty…[3325 chars]",
-          "content_digest": "5f824df9652f6987",
+          "content": "agent_framework.exceptions.ChatClientException: (\"<class 'agent_framework_openai._chat_client.OpenAIChatClient'> service failed to complete the prompt: Error code: 400 - {'error': {'message': 'The provided model identifier is invalid.', 'ty…[497 chars]",
+          "content_digest": "3965ccbd1e29b23f",
           "finish_reason": "Error",
           "observation_type": "generation"
         }
@@ -91,8 +91,8 @@
           "index": 2,
           "role": "assistant",
           "entry_type": "text",
-          "content": "agent_framework.exceptions.ChatClientException: (\"<class 'agent_framework_openai._chat_client.OpenAIChatClient'> service failed to complete the prompt: Error code: 400 - {'error': {'message': 'The provided model identifier is invalid.', 'ty…[4060 chars]",
-          "content_digest": "38b66c4f9f84a0de",
+          "content": "agent_framework.exceptions.ChatClientException: (\"<class 'agent_framework_openai._chat_client.OpenAIChatClient'> service failed to complete the prompt: Error code: 400 - {'error': {'message': 'The provided model identifier is invalid.', 'ty…[497 chars]",
+          "content_digest": "3965ccbd1e29b23f",
           "finish_reason": "Error",
           "observation_type": "agent"
         }
@@ -130,8 +130,8 @@
           "index": 2,
           "role": "assistant",
           "entry_type": "text",
-          "content": "agent_framework.exceptions.ChatClientException: (\"<class 'agent_framework_openai._chat_client.OpenAIChatClient'> service failed to complete the prompt: Error code: 400 - {'error': {'message': 'The provided model identifier is invalid.', 'ty…[3325 chars]",
-          "content_digest": "5f824df9652f6987",
+          "content": "agent_framework.exceptions.ChatClientException: (\"<class 'agent_framework_openai._chat_client.OpenAIChatClient'> service failed to complete the prompt: Error code: 400 - {'error': {'message': 'The provided model identifier is invalid.', 'ty…[497 chars]",
+          "content_digest": "3965ccbd1e29b23f",
           "finish_reason": "Error",
           "observation_type": "generation"
         }
@@ -169,8 +169,8 @@
           "index": 2,
           "role": "assistant",
           "entry_type": "text",
-          "content": "agent_framework.exceptions.ChatClientException: (\"<class 'agent_framework_openai._chat_client.OpenAIChatClient'> service failed to complete the prompt: Error code: 400 - {'error': {'message': 'The provided model identifier is invalid.', 'ty…[3325 chars]",
-          "content_digest": "5f824df9652f6987",
+          "content": "agent_framework.exceptions.ChatClientException: (\"<class 'agent_framework_openai._chat_client.OpenAIChatClient'> service failed to complete the prompt: Error code: 400 - {'error': {'message': 'The provided model identifier is invalid.', 'ty…[497 chars]",
+          "content_digest": "3965ccbd1e29b23f",
           "finish_reason": "Error",
           "observation_type": "generation"
         }
@@ -191,8 +191,8 @@
         "index": 0,
         "role": "assistant",
         "entry_type": "text",
-        "content": "agent_framework.exceptions.ChatClientException: (\"<class 'agent_framework_openai._chat_client.OpenAIChatClient'> service failed to complete the prompt: Error code: 400 - {'error': {'message': 'The provided model identifier is invalid.', 'ty…[3325 chars]",
-        "content_digest": "5f824df9652f6987",
+        "content": "agent_framework.exceptions.ChatClientException: (\"<class 'agent_framework_openai._chat_client.OpenAIChatClient'> service failed to complete the prompt: Error code: 400 - {'error': {'message': 'The provided model identifier is invalid.', 'ty…[497 chars]",
+        "content_digest": "3965ccbd1e29b23f",
         "finish_reason": "Error",
         "observation_type": "generation"
       },

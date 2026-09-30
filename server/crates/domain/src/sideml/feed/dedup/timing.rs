@@ -4,22 +4,24 @@ use super::*;
 // BIRTH TIME MAP
 // ============================================================================
 
-/// Combine trace_id and hash into a single u128 lookup key.
+/// Combine trace, occurrence rank, and content hash into one lookup key.
 /// Avoids String allocation on HashMap lookups.
 #[inline]
-fn make_key(trace_id: &str, hash: u64) -> u128 {
+fn make_key(trace_id: &str, ordinal: u32, hash: u64) -> u128 {
     let mut hasher = DefaultHasher::new();
     trace_id.hash(&mut hasher);
+    ordinal.hash(&mut hasher);
     let trace_hash = hasher.finish();
     ((trace_hash as u128) << 64) | (hash as u128)
 }
 
-/// Combine trace_id, role, and semantic hash into a single u128 lookup key.
+/// Combine trace, role, occurrence rank, and semantic hash into one lookup key.
 #[inline]
-fn make_regular_key(trace_id: &str, role: ChatRole, semantic_hash: u64) -> u128 {
+fn make_regular_key(trace_id: &str, role: ChatRole, ordinal: u32, semantic_hash: u64) -> u128 {
     let mut hasher = DefaultHasher::new();
     trace_id.hash(&mut hasher);
     role.hash(&mut hasher);
+    ordinal.hash(&mut hasher);
     let combined = hasher.finish();
     ((combined as u128) << 64) | (semantic_hash as u128)
 }
@@ -47,10 +49,11 @@ impl BirthTimeMap {
         &mut self,
         trace_id: &str,
         role: ChatRole,
+        ordinal: u32,
         semantic_hash: u64,
         timestamp: DateTime<Utc>,
     ) {
-        let key = make_regular_key(trace_id, role, semantic_hash);
+        let key = make_regular_key(trace_id, role, ordinal, semantic_hash);
         self.regular_times
             .entry(key)
             .and_modify(|t| {
@@ -62,8 +65,14 @@ impl BirthTimeMap {
     }
 
     /// Record a timestamp for a tool call (keeps minimum for dedup).
-    fn record_tool_call(&mut self, trace_id: &str, content_hash: u64, timestamp: DateTime<Utc>) {
-        let key = make_key(trace_id, content_hash);
+    fn record_tool_call(
+        &mut self,
+        trace_id: &str,
+        ordinal: u32,
+        content_hash: u64,
+        timestamp: DateTime<Utc>,
+    ) {
+        let key = make_key(trace_id, ordinal, content_hash);
         self.tool_call_times
             .entry(key)
             .and_modify(|t| {
@@ -75,8 +84,14 @@ impl BirthTimeMap {
     }
 
     /// Record a timestamp for a tool result (keeps minimum for dedup).
-    fn record_tool_result(&mut self, trace_id: &str, identity_hash: u64, timestamp: DateTime<Utc>) {
-        let key = make_key(trace_id, identity_hash);
+    fn record_tool_result(
+        &mut self,
+        trace_id: &str,
+        ordinal: u32,
+        identity_hash: u64,
+        timestamp: DateTime<Utc>,
+    ) {
+        let key = make_key(trace_id, ordinal, identity_hash);
         self.tool_result_times
             .entry(key)
             .and_modify(|t| {
@@ -93,23 +108,34 @@ impl BirthTimeMap {
         &self,
         trace_id: &str,
         role: ChatRole,
+        ordinal: u32,
         semantic_hash: u64,
     ) -> Option<DateTime<Utc>> {
-        let key = make_regular_key(trace_id, role, semantic_hash);
+        let key = make_regular_key(trace_id, role, ordinal, semantic_hash);
         self.regular_times.get(&key).copied()
     }
 
     /// Get birth time for a tool call.
     #[inline]
-    fn get_tool_call(&self, trace_id: &str, content_hash: u64) -> Option<DateTime<Utc>> {
-        let key = make_key(trace_id, content_hash);
+    fn get_tool_call(
+        &self,
+        trace_id: &str,
+        ordinal: u32,
+        content_hash: u64,
+    ) -> Option<DateTime<Utc>> {
+        let key = make_key(trace_id, ordinal, content_hash);
         self.tool_call_times.get(&key).copied()
     }
 
     /// Get birth time for a tool result.
     #[inline]
-    fn get_tool_result(&self, trace_id: &str, identity_hash: u64) -> Option<DateTime<Utc>> {
-        let key = make_key(trace_id, identity_hash);
+    fn get_tool_result(
+        &self,
+        trace_id: &str,
+        ordinal: u32,
+        identity_hash: u64,
+    ) -> Option<DateTime<Utc>> {
+        let key = make_key(trace_id, ordinal, identity_hash);
         self.tool_result_times.get(&key).copied()
     }
 }
@@ -192,11 +218,12 @@ pub fn effective_timestamp(
 /// but shouldn't affect the ordering of actual message occurrences.
 pub(super) fn build_birth_times(
     blocks: &[BlockEntry],
+    ordinals: &[u32],
     span_timestamps: &HashMap<String, SpanTimestamps>,
 ) -> BirthTimeMap {
     let mut map = BirthTimeMap::default();
 
-    for block in blocks {
+    for (index, block) in blocks.iter().enumerate() {
         // Skip history blocks - they shouldn't affect birth time calculation
         // History copies have misleading timestamps (when context was assembled)
         if block.is_history {
@@ -205,6 +232,7 @@ pub(super) fn build_birth_times(
 
         let effective = effective_timestamp(block, span_timestamps);
         let identity = MessageIdentity::from_block(block);
+        let ordinal = ordinals.get(index).copied().unwrap_or(0);
 
         // Debug: log tool block registration
         if block.is_tool_use() || block.is_tool_result() {
@@ -226,14 +254,14 @@ pub(super) fn build_birth_times(
                 content_hash,
             } => {
                 // Record tool call timestamp (earliest occurrence)
-                map.record_tool_call(trace_id, content_hash, effective);
+                map.record_tool_call(trace_id, ordinal, content_hash, effective);
             }
             MessageIdentity::ToolResult {
                 ref trace_id,
                 identity_hash,
             } => {
                 // Record tool result timestamp (earliest occurrence)
-                map.record_tool_result(trace_id, identity_hash, effective);
+                map.record_tool_result(trace_id, ordinal, identity_hash, effective);
             }
             MessageIdentity::Regular {
                 ref trace_id,
@@ -241,7 +269,7 @@ pub(super) fn build_birth_times(
                 semantic_hash,
             } => {
                 // Record regular message timestamp (earliest occurrence)
-                map.record_regular(trace_id, role, semantic_hash, effective);
+                map.record_regular(trace_id, role, ordinal, semantic_hash, effective);
             }
         }
     }
@@ -252,6 +280,7 @@ pub(super) fn build_birth_times(
 /// Get birth time for a block.
 pub(super) fn get_birth_time(
     block: &BlockEntry,
+    ordinal: u32,
     birth_map: &BirthTimeMap,
     span_timestamps: &HashMap<String, SpanTimestamps>,
 ) -> DateTime<Utc> {
@@ -265,7 +294,7 @@ pub(super) fn get_birth_time(
         } => {
             // Tool calls: look up birth time
             birth_map
-                .get_tool_call(trace_id, content_hash)
+                .get_tool_call(trace_id, ordinal, content_hash)
                 .unwrap_or(effective)
         }
         MessageIdentity::ToolResult {
@@ -274,7 +303,7 @@ pub(super) fn get_birth_time(
         } => {
             // Tool results: look up birth time
             birth_map
-                .get_tool_result(trace_id, identity_hash)
+                .get_tool_result(trace_id, ordinal, identity_hash)
                 .unwrap_or(effective)
         }
         MessageIdentity::Regular {
@@ -284,7 +313,7 @@ pub(super) fn get_birth_time(
         } => {
             // Look up birth time
             birth_map
-                .get_regular(trace_id, role, semantic_hash)
+                .get_regular(trace_id, role, ordinal, semantic_hash)
                 .unwrap_or(effective)
         }
     }

@@ -1,0 +1,364 @@
+{
+  "label": "strands-native/swarm",
+  "request_count": 1,
+  "span_count": 7,
+  "trace_count": 1,
+  "session_count": 1,
+  "span_views": {
+    "trace-1/chat/span-4": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a project planner. Your role is to: 1. Break down complex tasks into steps 2. Identify which specialist should handle each step 3. Hand off to the appropriate agent (researcher, coder, reviewer) 4. Coordinate the overall workflow",
+          "content_digest": "94f9aa950c09d1c4",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Context: User Request: Create a simple plan to build a weather app that shows forecasts for multiple cities Other agents available for collaboration: Agent name: researcher. Agent name: coder. Agent name: reviewer. You have access to swarm …[377 chars]",
+          "content_digest": "8a238ae692b532e7",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call-calculator-1\",\"name\":\"calculator\",\"input\":{\"operation\":\"deterministic-operation\",\"a\":1.0,\"b\":1.0}}",
+          "content_digest": "4dabb8ecf3f9cf21",
+          "tool_name": "calculator",
+          "finish_reason": "ToolUse",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/chat/span-7": {
+      "message_count": 5,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a project planner. Your role is to: 1. Break down complex tasks into steps 2. Identify which specialist should handle each step 3. Hand off to the appropriate agent (researcher, coder, reviewer) 4. Coordinate the overall workflow",
+          "content_digest": "94f9aa950c09d1c4",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Context: User Request: Create a simple plan to build a weather app that shows forecasts for multiple cities Other agents available for collaboration: Agent name: researcher. Agent name: coder. Agent name: reviewer. You have access to swarm …[377 chars]",
+          "content_digest": "8a238ae692b532e7",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call-calculator-1\",\"name\":\"calculator\",\"input\":{\"operation\":\"deterministic-operation\",\"a\":1.0,\"b\":1.0}}",
+          "content_digest": "4dabb8ecf3f9cf21",
+          "tool_name": "calculator",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call-calculator-1\",\"content\":[{\"type\":\"text\",\"text\":\"0.0\"}]}",
+          "content_digest": "ab3f7b6b5d350625",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "The tool completed successfully.",
+          "content_digest": "66bcb0fcdca80511",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/execute_event_loop_cycle/span-3": {
+      "message_count": 2,
+      "role_sequence": [
+        "assistant",
+        "tool"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call-calculator-1\",\"name\":\"calculator\",\"input\":{\"operation\":\"deterministic-operation\",\"a\":1.0,\"b\":1.0}}",
+          "content_digest": "4dabb8ecf3f9cf21",
+          "tool_name": "calculator",
+          "observation_type": "span"
+        },
+        {
+          "index": 1,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call-calculator-1\",\"content\":[{\"type\":\"text\",\"text\":\"0.0\"}]}",
+          "content_digest": "ab3f7b6b5d350625",
+          "observation_type": "span"
+        }
+      ]
+    },
+    "trace-1/execute_event_loop_cycle/span-6": {
+      "message_count": 1,
+      "role_sequence": [
+        "tool"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call-calculator-1\",\"content\":[{\"type\":\"text\",\"text\":\"0.0\"}]}",
+          "content_digest": "ab3f7b6b5d350625",
+          "observation_type": "span"
+        }
+      ]
+    },
+    "trace-1/execute_tool calculator/span-5": {
+      "message_count": 1,
+      "role_sequence": [
+        "tool"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "0.0",
+          "content_digest": "76b0926d2f44dccf",
+          "observation_type": "tool"
+        }
+      ]
+    },
+    "trace-1/invoke_agent planner/span-2": {
+      "message_count": 1,
+      "role_sequence": [
+        "assistant"
+      ],
+      "tool_names": [
+        "calculator",
+        "handoff_to_agent"
+      ],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "The tool completed successfully.",
+          "content_digest": "b33665dca752fde5",
+          "finish_reason": "Stop",
+          "observation_type": "agent"
+        }
+      ]
+    },
+    "trace-1/invoke_swarm/span-1": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
+          "content_digest": "f70ad56a39c626b9",
+          "observation_type": "span"
+        }
+      ]
+    }
+  },
+  "trace_views": {
+    "trace-1": {
+      "message_count": 4,
+      "role_sequence": [
+        "user",
+        "assistant",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [
+        "calculator",
+        "handoff_to_agent"
+      ],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
+          "content_digest": "f70ad56a39c626b9",
+          "observation_type": "span"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call-calculator-1\",\"name\":\"calculator\",\"input\":{\"operation\":\"deterministic-operation\",\"a\":1.0,\"b\":1.0}}",
+          "content_digest": "4dabb8ecf3f9cf21",
+          "tool_name": "calculator",
+          "finish_reason": "ToolUse",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "0.0",
+          "content_digest": "76b0926d2f44dccf",
+          "observation_type": "tool"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "The tool completed successfully.",
+          "content_digest": "b33665dca752fde5",
+          "finish_reason": "Stop",
+          "observation_type": "agent"
+        }
+      ]
+    }
+  },
+  "session_views": {
+    "strands-swarm-7ba989a0": {
+      "message_count": 4,
+      "role_sequence": [
+        "user",
+        "assistant",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [
+        "calculator",
+        "handoff_to_agent"
+      ],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
+          "content_digest": "f70ad56a39c626b9",
+          "observation_type": "span"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call-calculator-1\",\"name\":\"calculator\",\"input\":{\"operation\":\"deterministic-operation\",\"a\":1.0,\"b\":1.0}}",
+          "content_digest": "4dabb8ecf3f9cf21",
+          "tool_name": "calculator",
+          "finish_reason": "ToolUse",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "0.0",
+          "content_digest": "76b0926d2f44dccf",
+          "observation_type": "tool"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "The tool completed successfully.",
+          "content_digest": "b33665dca752fde5",
+          "finish_reason": "Stop",
+          "observation_type": "agent"
+        }
+      ]
+    }
+  },
+  "feed_view": {
+    "message_count": 4,
+    "role_sequence": [
+      "assistant",
+      "tool",
+      "assistant",
+      "user"
+    ],
+    "tool_names": [
+      "calculator",
+      "handoff_to_agent"
+    ],
+    "tool_definition_count": 1,
+    "messages": [
+      {
+        "index": 0,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "The tool completed successfully.",
+        "content_digest": "b33665dca752fde5",
+        "finish_reason": "Stop",
+        "observation_type": "agent"
+      },
+      {
+        "index": 1,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "0.0",
+        "content_digest": "76b0926d2f44dccf",
+        "observation_type": "tool"
+      },
+      {
+        "index": 2,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"call-calculator-1\",\"name\":\"calculator\",\"input\":{\"operation\":\"deterministic-operation\",\"a\":1.0,\"b\":1.0}}",
+        "content_digest": "4dabb8ecf3f9cf21",
+        "tool_name": "calculator",
+        "finish_reason": "ToolUse",
+        "observation_type": "generation"
+      },
+      {
+        "index": 3,
+        "role": "user",
+        "entry_type": "text",
+        "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
+        "content_digest": "f70ad56a39c626b9",
+        "observation_type": "span"
+      }
+    ]
+  }
+}

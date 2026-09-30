@@ -49,7 +49,7 @@
       "tool_definition_count": 0,
       "messages": []
     },
-    "trace-2/streaming response from 'gpt-5-nano-2025-08-07' took 0.01s/span-2": {
+    "trace-2/streaming response from 'gpt-5-nano-2025-08-07' took 0.00s/span-2": {
       "message_count": 3,
       "role_sequence": [
         "system",
@@ -312,7 +312,7 @@
     }
   },
   "session_views": {
-    "openai-chat_completions-3f13f253": {
+    "openai-chat_completions-d4e85382": {
       "message_count": 5,
       "role_sequence": [
         "system",

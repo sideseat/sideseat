@@ -1,0 +1,217 @@
+{
+  "label": "agent-framework-native/error",
+  "request_count": 1,
+  "span_count": 3,
+  "trace_count": 1,
+  "session_count": 1,
+  "span_views": {
+    "trace-1/agent_framework.session/span-1": {
+      "message_count": 1,
+      "role_sequence": [
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "agent_framework.exceptions.ChatClientException: (\"<class 'agent_framework_openai._chat_client.OpenAIChatClient'> service failed to complete the prompt: Error code: 404 - {'error': {'message': 'model not found', 'type': 'invalid_request_erro…[357 chars]",
+          "content_digest": "8384843974b8f3eb",
+          "finish_reason": "Error",
+          "observation_type": "agent"
+        }
+      ]
+    },
+    "trace-1/chat nonexistent-model-id-12345/span-3": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a helpful assistant.",
+          "content_digest": "4e95804d0d397acb",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is 2 + 2?",
+          "content_digest": "63ddd3c6a93ba932",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "agent_framework.exceptions.ChatClientException: (\"<class 'agent_framework_openai._chat_client.OpenAIChatClient'> service failed to complete the prompt: Error code: 404 - {'error': {'message': 'model not found', 'type': 'invalid_request_erro…[357 chars]",
+          "content_digest": "8384843974b8f3eb",
+          "finish_reason": "Error",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/invoke_agent ce859a7f-8913-4c2d-b3ec-2d83e45f47ce/span-2": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a helpful assistant.",
+          "content_digest": "4e95804d0d397acb",
+          "observation_type": "agent"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is 2 + 2?",
+          "content_digest": "63ddd3c6a93ba932",
+          "observation_type": "agent"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "agent_framework.exceptions.ChatClientException: (\"<class 'agent_framework_openai._chat_client.OpenAIChatClient'> service failed to complete the prompt: Error code: 404 - {'error': {'message': 'model not found', 'type': 'invalid_request_erro…[357 chars]",
+          "content_digest": "8384843974b8f3eb",
+          "finish_reason": "Error",
+          "observation_type": "agent"
+        }
+      ]
+    }
+  },
+  "trace_views": {
+    "trace-1": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a helpful assistant.",
+          "content_digest": "4e95804d0d397acb",
+          "observation_type": "agent"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is 2 + 2?",
+          "content_digest": "63ddd3c6a93ba932",
+          "observation_type": "agent"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "agent_framework.exceptions.ChatClientException: (\"<class 'agent_framework_openai._chat_client.OpenAIChatClient'> service failed to complete the prompt: Error code: 404 - {'error': {'message': 'model not found', 'type': 'invalid_request_erro…[357 chars]",
+          "content_digest": "8384843974b8f3eb",
+          "finish_reason": "Error",
+          "observation_type": "generation"
+        }
+      ]
+    }
+  },
+  "session_views": {
+    "agent-framework-error-0d3d0c4e": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a helpful assistant.",
+          "content_digest": "4e95804d0d397acb",
+          "observation_type": "agent"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is 2 + 2?",
+          "content_digest": "63ddd3c6a93ba932",
+          "observation_type": "agent"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "agent_framework.exceptions.ChatClientException: (\"<class 'agent_framework_openai._chat_client.OpenAIChatClient'> service failed to complete the prompt: Error code: 404 - {'error': {'message': 'model not found', 'type': 'invalid_request_erro…[357 chars]",
+          "content_digest": "8384843974b8f3eb",
+          "finish_reason": "Error",
+          "observation_type": "generation"
+        }
+      ]
+    }
+  },
+  "feed_view": {
+    "message_count": 3,
+    "role_sequence": [
+      "assistant",
+      "system",
+      "user"
+    ],
+    "tool_names": [],
+    "tool_definition_count": 0,
+    "messages": [
+      {
+        "index": 0,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "agent_framework.exceptions.ChatClientException: (\"<class 'agent_framework_openai._chat_client.OpenAIChatClient'> service failed to complete the prompt: Error code: 404 - {'error': {'message': 'model not found', 'type': 'invalid_request_erro…[357 chars]",
+        "content_digest": "8384843974b8f3eb",
+        "finish_reason": "Error",
+        "observation_type": "generation"
+      },
+      {
+        "index": 1,
+        "role": "system",
+        "entry_type": "text",
+        "content": "You are a helpful assistant.",
+        "content_digest": "4e95804d0d397acb",
+        "observation_type": "agent"
+      },
+      {
+        "index": 2,
+        "role": "user",
+        "entry_type": "text",
+        "content": "What is 2 + 2?",
+        "content_digest": "63ddd3c6a93ba932",
+        "observation_type": "agent"
+      }
+    ]
+  }
+}

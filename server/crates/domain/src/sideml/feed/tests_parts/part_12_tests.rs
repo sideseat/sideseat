@@ -566,6 +566,7 @@ fn prior_state(
             span_path: vec!["s1".to_string()],
             timestamp: t0,
             order_time: t0,
+            occurrence_ordinal: 0,
             observation_type: Some("generation".to_string()),
             model: None,
             provider: None,
@@ -585,6 +586,7 @@ fn prior_state(
             is_semantic: true,
             uses_span_end: false,
             is_history: false,
+            is_cross_trace_history: false,
             tool_use_id_correlated: false,
             promoted_to_span_output: false,
         })

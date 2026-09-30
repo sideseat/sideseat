@@ -46,7 +46,43 @@ INTENTIONAL_WARNINGS: dict[str, dict[str, tuple[int, str]]] = {
             "provider returns schema-constrained JSON as assistant text",
         ),
     },
+    "adk-native/structured_output": {
+        "raw_json_text": (
+            2,
+            "provider returns schema-constrained JSON as assistant text",
+        ),
+    },
+    "adk-sdk/structured_output": {
+        "raw_json_text": (
+            2,
+            "provider returns schema-constrained JSON as assistant text",
+        ),
+    },
+    "adk-native/swarm": {
+        "unbalanced_tools": (
+            2,
+            "ADK represents transfer completion as quoted handoff context in the next agent",
+        ),
+    },
+    "adk-sdk/swarm": {
+        "unbalanced_tools": (
+            2,
+            "ADK represents transfer completion as quoted handoff context in the next agent",
+        ),
+    },
     "agent-framework/structured_output": {
+        "raw_json_text": (
+            2,
+            "provider returns schema-constrained JSON as assistant text",
+        ),
+    },
+    "agent-framework-native/structured_output": {
+        "raw_json_text": (
+            2,
+            "provider returns schema-constrained JSON as assistant text",
+        ),
+    },
+    "agent-framework-sdk/structured_output": {
         "raw_json_text": (
             2,
             "provider returns schema-constrained JSON as assistant text",
@@ -74,6 +110,18 @@ INTENTIONAL_WARNINGS: dict[str, dict[str, tuple[int, str]]] = {
         ),
     },
     "strands/structured_output": {
+        "json_block": (
+            1,
+            "structured assistant output is canonically represented as JSON",
+        ),
+    },
+    "strands-native/structured_output": {
+        "json_block": (
+            1,
+            "structured assistant output is canonically represented as JSON",
+        ),
+    },
+    "strands-sdk/structured_output": {
         "json_block": (
             1,
             "structured assistant output is canonically represented as JSON",

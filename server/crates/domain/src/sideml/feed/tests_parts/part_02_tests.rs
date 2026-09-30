@@ -874,3 +874,41 @@ fn test_regression_full_agent_trace() {
         .count();
     assert_eq!(json_blocks, 0, "Should have no spurious json blocks");
 }
+
+#[test]
+fn strands_cache_points_are_not_conversation_messages() {
+    let t0 = fixed_time();
+    let messages = json!([
+        {
+            "source": {"event": {"name": "gen_ai.system.message", "time": t0.to_rfc3339()}},
+            "content": {
+                "role": "system",
+                "content": [
+                    {"type": "text", "text": "You are helpful."},
+                    {"type": "json", "data": {"cachePoint": {"type": "default"}}}
+                ]
+            }
+        },
+        {
+            "source": {"event": {"name": "gen_ai.user.message", "time": t0.to_rfc3339()}},
+            "content": {"role": "user", "content": "Hello"}
+        },
+        {
+            "source": {"event": {"name": "gen_ai.choice", "time": t0.to_rfc3339()}},
+            "content": {"role": "assistant", "content": "Hi", "finish_reason": "stop"}
+        }
+    ]);
+    let row = make_span_row("trace", "span", None, &messages.to_string(), "[]", "[]");
+
+    let result = process_spans(vec![row], &FeedOptions::default());
+
+    assert_eq!(result.messages.len(), 3);
+    assert_eq!(
+        result
+            .messages
+            .iter()
+            .map(|message| message.entry_type.as_str())
+            .collect::<Vec<_>>(),
+        ["text", "text", "text"]
+    );
+}

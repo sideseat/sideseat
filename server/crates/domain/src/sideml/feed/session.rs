@@ -196,6 +196,7 @@ pub(super) fn mark_cross_trace_prefix(
         replay_matching_complete &= exhaustive;
         for &i in replayable.iter().take(matched.len()) {
             blocks[i].is_history = true;
+            blocks[i].is_cross_trace_history = true;
             marked += 1;
         }
 

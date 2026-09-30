@@ -55,45 +55,40 @@ fn assert_has_an_answer(
 
 /// Invariant 5: a result follows the call it answers.
 ///
-/// Causality, not adjacency - Vercel emits `call, call, result, result`, so requiring a result to come
-/// *immediately* after its call would falsely accuse it. Nor does it apply to the project feed, which
-/// is newest-first: there a call and the result of an earlier response are legitimately reversed, and
-/// asserting otherwise accused `_synthetic/tool_use` the moment this check was added. The pair is matched by id within one trace,
-/// exactly as `assert_tool_pairing` matches them.
+/// Causality, not adjacency - Vercel emits `call, call, result, result`. Calls are queued per
+/// `(trace, id)`, so a producer may reuse one id for sequential executions without letting the second
+/// result match the first call. The project feed is exempt because it is newest-first across responses.
 ///
 /// A cross-span tie used to break this: an index restarts at zero in every span, so the tool span's
 /// result could sort before the generation span's call. That is what `adopt_call_positions` settles,
 /// and this is the property that says so.
 fn assert_tool_causality(label: &str, view_name: &str, rows: &[InvariantRow]) {
-    let mut call_at: HashMap<(&str, &str), usize> = HashMap::new();
+    let calls: HashSet<(&str, &str)> = rows
+        .iter()
+        .filter(|row| row.entry_type == "tool_use")
+        .filter_map(|row| {
+            row.tool_use_id
+                .as_deref()
+                .filter(|id| !id.is_empty())
+                .map(|id| (row.trace_id.as_str(), id))
+        })
+        .collect();
+    let mut available: HashMap<(&str, &str), VecDeque<usize>> = HashMap::new();
     for (position, row) in rows.iter().enumerate() {
-        if row.entry_type != "tool_use" {
-            continue;
-        }
-        if let Some(id) = row.tool_use_id.as_deref().filter(|s| !s.is_empty()) {
-            call_at
-                .entry((row.trace_id.as_str(), id))
-                .or_insert(position);
-        }
-    }
-
-    for (position, row) in rows.iter().enumerate() {
-        if row.entry_type != "tool_result" {
-            continue;
-        }
         let Some(id) = row.tool_use_id.as_deref().filter(|s| !s.is_empty()) else {
             continue;
         };
-        // Only a *matched* pair constrains order. An unmatched result is the orphan case, which
-        // `assert_tool_pairing` judges.
-        let Some(&call_position) = call_at.get(&(row.trace_id.as_str(), id)) else {
-            continue;
-        };
-        assert!(
-            call_position < position,
-            "{label} / {view_name}: the result of {id} is at index {position}, before its call at \
-             {call_position} - an answer cannot precede its question"
-        );
+        let key = (row.trace_id.as_str(), id);
+        if row.entry_type == "tool_use" {
+            available.entry(key).or_default().push_back(position);
+        } else if row.entry_type == "tool_result" && calls.contains(&key) {
+            let call_position = available.entry(key).or_default().pop_front();
+            assert!(
+                call_position.is_some(),
+                "{label} / {view_name}: result occurrence for {id} is at index {position} before \
+                 any unanswered call occurrence with that id"
+            );
+        }
     }
 }
 
@@ -646,17 +641,8 @@ fn framework_sdk_and_native_conversations_are_identical() {
                 let span_name = after_trace
                     .rsplit_once("/span-")
                     .map_or(after_trace, |(name, _)| name);
-                let stable_span_name = span_name
-                    .rsplit_once(" took ")
-                    .and_then(|(prefix, suffix)| {
-                        suffix
-                            .strip_suffix('s')
-                            .and_then(|seconds| seconds.parse::<f64>().ok())
-                            .map(|_| format!("{prefix} took <duration>s"))
-                    })
-                    .unwrap_or_else(|| span_name.to_string());
                 (
-                    stable_span_name,
+                    stable_span_name(span_name),
                     serde_json::to_string(view).expect("golden view is serializable"),
                 )
             })

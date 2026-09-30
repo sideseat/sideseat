@@ -29,6 +29,7 @@ fn make_test_block(
         span_path: vec![span_id.to_string()],
         timestamp,
         order_time: timestamp,
+        occurrence_ordinal: 0,
         observation_type: None,
         model: None,
         provider: None,
@@ -48,6 +49,7 @@ fn make_test_block(
         is_semantic: true,
         uses_span_end: false,
         is_history: false,
+        is_cross_trace_history: false,
         tool_use_id_correlated: false,
         promoted_to_span_output: false,
     }
@@ -81,6 +83,7 @@ fn make_tool_use_block(
         span_path: vec![span_id.to_string()],
         timestamp,
         order_time: timestamp,
+        occurrence_ordinal: 0,
         observation_type: None,
         model: None,
         provider: None,
@@ -102,6 +105,7 @@ fn make_tool_use_block(
         // happens DURING generation, not at completion. See classify::uses_span_end().
         uses_span_end: false,
         is_history: false,
+        is_cross_trace_history: false,
         tool_use_id_correlated: false,
         promoted_to_span_output: false,
     }
@@ -136,6 +140,7 @@ fn make_tool_result_block(
         span_path: vec![span_id.to_string()],
         timestamp,
         order_time: timestamp,
+        occurrence_ordinal: 0,
         observation_type: None,
         model: None,
         provider: None,
@@ -155,6 +160,7 @@ fn make_tool_result_block(
         is_semantic: true,
         uses_span_end: false, // Tool results are INPUT
         is_history: false,
+        is_cross_trace_history: false,
         tool_use_id_correlated: false,
         promoted_to_span_output: false,
     }
@@ -324,10 +330,10 @@ fn test_birth_time_uses_earliest_occurrence() {
         ),
     ]);
 
-    let birth_map = build_birth_times(&[block1.clone(), block2], &span_timestamps);
+    let birth_map = build_birth_times(&[block1.clone(), block2], &[0, 0], &span_timestamps);
 
     // Both should have birth_time = T=0
-    let birth1 = get_birth_time(&block1, &birth_map, &span_timestamps);
+    let birth1 = get_birth_time(&block1, 0, &birth_map, &span_timestamps);
     assert_eq!(birth1, t0);
 }
 
@@ -412,10 +418,10 @@ fn test_tool_result_uses_own_birth_time() {
         ),
     ]);
 
-    let birth_map = build_birth_times(&[tool_use, tool_result.clone()], &span_timestamps);
+    let birth_map = build_birth_times(&[tool_use, tool_result.clone()], &[0, 0], &span_timestamps);
 
     // Tool result uses its own birth time (content-based)
-    let birth = get_birth_time(&tool_result, &birth_map, &span_timestamps);
+    let birth = get_birth_time(&tool_result, 0, &birth_map, &span_timestamps);
     assert_eq!(birth, t5);
 }
 
@@ -711,8 +717,10 @@ fn two_executions_of_one_shape_on_their_own_spans_are_two_calls() {
     // other side).
     let mut tool1 = make_tool_use_block("trace1", "span1", "call_111", "search", t0);
     tool1.event_name = Some("gen_ai.choice".to_string());
+    tool1.observation_type = Some("generation".to_string());
     let mut tool2 = make_tool_use_block("trace1", "span2", "call_222", "search", t0);
     tool2.event_name = Some("gen_ai.choice".to_string());
+    tool2.observation_type = Some("generation".to_string());
 
     // The *identity* is still content-based: the id decides the repeat rank, never the identity,
     // because a re-send may regenerate it.
@@ -744,6 +752,99 @@ fn two_executions_of_one_shape_on_their_own_spans_are_two_calls() {
         result.len(),
         2,
         "two executions with two provider ids must both survive"
+    );
+}
+
+#[test]
+fn a_reused_provider_id_still_distinguishes_sequential_executions() {
+    let t0 = utc(0);
+    let t1 = utc(1);
+    let t2 = utc(2);
+    let t3 = utc(3);
+    let mut call1 = make_tool_use_block("trace1", "generation1", "reused", "search", t0);
+    call1.event_name = Some("gen_ai.choice".to_string());
+    call1.observation_type = Some("generation".to_string());
+    let result1 = make_tool_result_block("trace1", "tool1", "reused", "same result", t1);
+    let mut call2 = make_tool_use_block("trace1", "generation2", "reused", "search", t2);
+    call2.event_name = Some("gen_ai.choice".to_string());
+    call2.observation_type = Some("generation".to_string());
+    let result2 = make_tool_result_block("trace1", "tool2", "reused", "same result", t3);
+
+    let blocks = vec![call1, result1, call2, result2];
+    assert_eq!(
+        call_repeat_ordinals(&blocks),
+        vec![0, 0, 1, 1],
+        "a response occurrence, not global id uniqueness, proves the second execution"
+    );
+
+    let timestamps = blocks
+        .iter()
+        .map(|block| {
+            (
+                block.span_id.clone(),
+                SpanTimestamps {
+                    span_start: block.timestamp,
+                    span_end: Some(block.timestamp),
+                },
+            )
+        })
+        .collect();
+    let result = process_dedup(blocks, timestamps);
+    assert_eq!(result.iter().filter(|block| block.is_tool_use()).count(), 2);
+    assert_eq!(
+        result.iter().filter(|block| block.is_tool_result()).count(),
+        2
+    );
+}
+
+#[test]
+fn replay_before_an_identical_call_keeps_the_new_execution_distinct() {
+    let t0 = utc(0);
+    let t1 = utc(1);
+    let t2 = utc(2);
+    let mut old_call = make_tool_use_block("trace1", "generation2", "reused", "search", t0);
+    old_call.source_type = "attribute".to_string();
+    old_call.source_attribute = Some("gcp.vertex.agent.llm_request".to_string());
+    old_call.observation_type = Some("generation".to_string());
+    let mut old_result =
+        make_tool_result_block("trace1", "generation2", "reused", "same result", t0);
+    old_result.source_type = "attribute".to_string();
+    old_result.source_attribute = Some("gcp.vertex.agent.llm_request".to_string());
+    old_result.observation_type = Some("generation".to_string());
+    let mut new_call = make_tool_use_block("trace1", "generation2", "reused", "search", t1);
+    new_call.source_type = "attribute".to_string();
+    new_call.source_attribute = Some("gcp.vertex.agent.llm_response".to_string());
+    new_call.observation_type = Some("generation".to_string());
+    let mut new_result =
+        make_tool_result_block("trace1", "generation3", "reused", "same result", t2);
+    new_result.source_type = "attribute".to_string();
+    new_result.source_attribute = Some("gcp.vertex.agent.llm_request".to_string());
+    new_result.observation_type = Some("generation".to_string());
+
+    assert_eq!(
+        call_repeat_ordinals(&[old_call, old_result, new_call, new_result]),
+        vec![0, 0, 1, 1],
+        "history before an output is a previous occurrence, not a copy of the new call"
+    );
+
+    let mut prior_result =
+        make_tool_result_block("trace2", "generation2", "reused", "same result", t0);
+    prior_result.source_type = "attribute".to_string();
+    prior_result.source_attribute = Some("gcp.vertex.agent.llm_request".to_string());
+    prior_result.observation_type = Some("generation".to_string());
+    let mut next_call = make_tool_use_block("trace2", "generation2", "reused", "search", t1);
+    next_call.source_type = "attribute".to_string();
+    next_call.source_attribute = Some("gcp.vertex.agent.llm_response".to_string());
+    next_call.observation_type = Some("generation".to_string());
+    let mut next_result =
+        make_tool_result_block("trace2", "generation3", "reused", "same result", t2);
+    next_result.source_type = "attribute".to_string();
+    next_result.source_attribute = Some("gcp.vertex.agent.llm_request".to_string());
+    next_result.observation_type = Some("generation".to_string());
+    assert_eq!(
+        call_repeat_ordinals(&[prior_result, next_call, next_result]),
+        vec![0, 1, 1],
+        "a result before the next call proves that it belongs to an earlier execution"
     );
 }
 

@@ -453,6 +453,7 @@ pub fn mark_history(
             .filter(|&i| {
                 let block = &blocks[i];
                 block.is_history
+                    && !block.is_cross_trace_history
                     && block.role == ChatRole::User
                     && traces_needing_a_user.contains(&block.trace_id)
                     && span_timestamps

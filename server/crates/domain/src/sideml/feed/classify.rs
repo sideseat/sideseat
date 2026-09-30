@@ -129,6 +129,7 @@ mod tests {
             span_path: vec!["span1".to_string()],
             timestamp: Utc::now(),
             order_time: Utc::now(),
+            occurrence_ordinal: 0,
             observation_type: observation_type.map(String::from),
             model: None,
             provider: None,
@@ -148,6 +149,7 @@ mod tests {
             is_semantic: true,
             uses_span_end: false,
             is_history: false,
+            is_cross_trace_history: false,
             tool_use_id_correlated: false,
             promoted_to_span_output: false,
         }

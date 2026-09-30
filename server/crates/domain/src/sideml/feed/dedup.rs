@@ -470,8 +470,16 @@ fn deduplicate_with_lineage(
         .enumerate()
         .filter(|(_, (b, ordinal))| {
             if b.is_history {
-                // Keep history only if there's a non-history version to dedupe with
-                non_history_ids.contains(&(MessageIdentity::from_block(b), *ordinal))
+                // An ordered snapshot can prove distinct historical occurrences rather than merely
+                // re-listing an undifferentiated state. Atomic emissions also prove occurrences, but
+                // if one was already classified as history it is still history and must not survive
+                // on position alone.
+                (!b.is_cross_trace_history && {
+                    let semantics =
+                        crate::sideml::carrier::semantics_for_context(&b.carrier_context());
+                    semantics.may_restate_prior_observations
+                        && semantics.position_proves_distinct_occurrence
+                }) || non_history_ids.contains(&(MessageIdentity::from_block(b), *ordinal))
             } else {
                 true
             }
@@ -599,25 +607,60 @@ pub fn process_dedup(
 /// or `None` where the observation was dropped as history-only. The order resolver needs this to
 /// project evidence: it cannot recompute the mapping, because the dedup key carries a call's rank
 /// within the whole pre-dedup list, and two identical calls of one response share everything else.
+#[cfg(test)]
 pub fn process_dedup_with_lineage(
     blocks: Vec<BlockEntry>,
     span_timestamps: HashMap<String, SpanTimestamps>,
 ) -> (Vec<BlockEntry>, Vec<Option<usize>>) {
+    let (blocks, lineage, _) = process_dedup_with_lineage_and_ordinals(blocks, span_timestamps);
+    (blocks, lineage)
+}
+
+/// Deduplicate and order while retaining lineage and each survivor's repeat ordinal.
+pub(super) fn process_dedup_with_lineage_and_ordinals(
+    blocks: Vec<BlockEntry>,
+    span_timestamps: HashMap<String, SpanTimestamps>,
+) -> (Vec<BlockEntry>, Vec<Option<usize>>, Vec<u32>) {
     if blocks.is_empty() {
-        return (blocks, Vec::new());
+        return (blocks, Vec::new(), Vec::new());
     }
+
+    let input_occurrences: Vec<(DateTime<Utc>, bool, bool)> = blocks
+        .iter()
+        .map(|block| {
+            (
+                effective_timestamp(block, &span_timestamps),
+                block.is_history,
+                !matches!(
+                    &block.content,
+                    ContentBlock::ToolUse { .. } | ContentBlock::ToolResult { .. }
+                ),
+            )
+        })
+        .collect();
 
     // Deduplicate by identity (keeps highest quality version)
     let (deduped, input_keys, survivor_keys) = deduplicate_with_lineage(blocks);
+    let survivor_occurrences: Vec<(DateTime<Utc>, bool)> = deduped
+        .iter()
+        .map(|block| {
+            (
+                effective_timestamp(block, &span_timestamps),
+                block.is_history,
+            )
+        })
+        .collect();
 
     // Build birth time map (after dedup, from deduped blocks)
-    let birth_map = build_birth_times(&deduped, &span_timestamps);
+    let survivor_ordinals: Vec<u32> = survivor_keys.iter().map(|key| key.1).collect();
+    let birth_map = build_birth_times(&deduped, &survivor_ordinals, &span_timestamps);
 
     // Pre-compute birth times once (O(n)) — avoids O(n log n) identity
     // recomputation (String clones + hashing) during sort comparisons.
     let birth_times: Vec<DateTime<Utc>> = deduped
         .iter()
-        .map(|b| get_birth_time(b, &birth_map, &span_timestamps))
+        .zip(&survivor_ordinals)
+        .map(|(b, ordinal)| get_birth_time(b, *ordinal, &birth_map, &span_timestamps))
         .collect();
 
     // Debug: log birth times for tool blocks
@@ -696,15 +739,38 @@ pub fn process_dedup_with_lineage(
     for (final_index, (_, _, _, dedup_index)) in keyed.iter().enumerate() {
         final_of_dedup[*dedup_index] = final_index;
     }
-    let final_of_key: HashMap<&DedupKey, usize> = survivor_keys
+    let survivor_of_key: HashMap<&DedupKey, (usize, usize)> = survivor_keys
         .iter()
         .enumerate()
-        .map(|(dedup_index, key)| (key, final_of_dedup[dedup_index]))
+        .map(|(dedup_index, key)| (key, (dedup_index, final_of_dedup[dedup_index])))
         .collect();
     let lineage: Vec<Option<usize>> = input_keys
         .iter()
-        .map(|key| key.as_ref().and_then(|k| final_of_key.get(k).copied()))
+        .zip(input_occurrences)
+        .map(|(key, (input_time, input_is_history, input_is_plain))| {
+            let (dedup_index, final_index) = key
+                .as_ref()
+                .and_then(|key| survivor_of_key.get(key))
+                .copied()?;
+            let (survivor_time, survivor_is_history) = survivor_occurrences[dedup_index];
+            // A history observation before a newly produced survivor cannot be a copy of that future
+            // occurrence. This happens when consecutive turns have byte-identical answers: mapping
+            // the previous turn's replay onto the current output makes dataflow point both ways.
+            if input_is_plain
+                && input_is_history
+                && !survivor_is_history
+                && input_time < survivor_time
+            {
+                None
+            } else {
+                Some(final_index)
+            }
+        })
         .collect();
+    let mut repeat_ordinals = vec![0; survivor_keys.len()];
+    for (dedup_index, key) in survivor_keys.iter().enumerate() {
+        repeat_ordinals[final_of_dedup[dedup_index]] = key.1;
+    }
 
     let paired: Vec<(DateTime<Utc>, BlockEntry)> = keyed
         .into_iter()
@@ -734,7 +800,7 @@ pub fn process_dedup_with_lineage(
             block
         })
         .collect();
-    (blocks, lineage)
+    (blocks, lineage, repeat_ordinals)
 }
 
 // ============================================================================

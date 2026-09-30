@@ -13,10 +13,13 @@
       "messages": []
     },
     "trace-1/call_llm/span-10": {
-      "message_count": 6,
+      "message_count": 9,
       "role_sequence": [
         "system",
         "user",
+        "assistant",
+        "assistant",
+        "assistant",
         "tool",
         "tool",
         "tool",
@@ -43,33 +46,60 @@
         },
         {
           "index": 2,
-          "role": "tool",
-          "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"name\":\"generate_image\",\"content\":{\"result\":\"/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/adk_images_kow_bmr2/generated_c77949c5.png\"}}",
-          "content_digest": "3225cced887b6b1b",
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"gemini_generate_image_call_b06cbb37\",\"name\":\"generate_image\",\"input\":{\"prompt\":\"playful golden retriever puppy running through a sunny park with green grass and trees, wagging tail, joyful expression\"}}",
+          "content_digest": "09cb11db9f06e4c7",
           "tool_name": "generate_image",
           "observation_type": "generation"
         },
         {
           "index": 3,
-          "role": "tool",
-          "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"name\":\"generate_image\",\"content\":{\"result\":\"/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/adk_images_a8a_ndn6/generated_280c6e84.png\"}}",
-          "content_digest": "c14be51af27d273f",
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"gemini_generate_image_call_91f6029e\",\"name\":\"generate_image\",\"input\":{\"prompt\":\"majestic dog portrait, noble German Shepherd with piercing eyes, dramatic studio lighting, dark background, professional photography st…[246 chars]",
+          "content_digest": "b2bd820f0fae5797",
           "tool_name": "generate_image",
           "observation_type": "generation"
         },
         {
           "index": 4,
-          "role": "tool",
-          "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"name\":\"generate_image\",\"content\":{\"result\":\"/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/adk_images_p9ahn9ej/generated_996a2312.png\"}}",
-          "content_digest": "74e2b508172fc9d7",
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"gemini_generate_image_call_59324543\",\"name\":\"generate_image\",\"input\":{\"prompt\":\"fluffy white dog playing in fresh snow during winter, jumping and rolling in snowdrifts, snowy landscape with evergreen trees, festive …[254 chars]",
+          "content_digest": "51366bbe76653305",
           "tool_name": "generate_image",
           "observation_type": "generation"
         },
         {
           "index": 5,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"gemini_generate_image_call_b06cbb37\",\"name\":\"generate_image\",\"content\":{\"result\":\"/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/adk_images_kow_bmr2/generated_c77949c5.png\"}}",
+          "content_digest": "757b70b9e3c1fd2e",
+          "tool_name": "generate_image",
+          "observation_type": "generation"
+        },
+        {
+          "index": 6,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"gemini_generate_image_call_91f6029e\",\"name\":\"generate_image\",\"content\":{\"result\":\"/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/adk_images_a8a_ndn6/generated_280c6e84.png\"}}",
+          "content_digest": "10ea845f7eeb2e10",
+          "tool_name": "generate_image",
+          "observation_type": "generation"
+        },
+        {
+          "index": 7,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"gemini_generate_image_call_59324543\",\"name\":\"generate_image\",\"content\":{\"result\":\"/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/adk_images_p9ahn9ej/generated_996a2312.png\"}}",
+          "content_digest": "3da400169d62728b",
+          "tool_name": "generate_image",
+          "observation_type": "generation"
+        },
+        {
+          "index": 8,
           "role": "assistant",
           "entry_type": "text",
           "content": "Perfect! I've generated 3 diverse dog images for you: **/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/adk_images_kow_bmr2/generated_c77949c5.png, /var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/adk_images_a8a_ndn6/generated_280c6e84.png…[1084 chars]",
@@ -80,9 +110,11 @@
       ]
     },
     "trace-1/call_llm/span-14": {
-      "message_count": 15,
+      "message_count": 17,
       "role_sequence": [
         "system",
+        "user",
+        "user",
         "user",
         "user",
         "user",
@@ -153,12 +185,20 @@
           "index": 6,
           "role": "user",
           "entry_type": "text",
+          "content": "For context:",
+          "content_digest": "e35575ce07677244",
+          "observation_type": "generation"
+        },
+        {
+          "index": 7,
+          "role": "user",
+          "entry_type": "text",
           "content": "[artist] `generate_image` tool returned result: {'result': '/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/adk_images_kow_bmr2/generated_c77949c5.png'}",
           "content_digest": "747310bb8bc67ec1",
           "observation_type": "generation"
         },
         {
-          "index": 7,
+          "index": 8,
           "role": "user",
           "entry_type": "text",
           "content": "[artist] `generate_image` tool returned result: {'result': '/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/adk_images_a8a_ndn6/generated_280c6e84.png'}",
@@ -166,7 +206,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 8,
+          "index": 9,
           "role": "user",
           "entry_type": "text",
           "content": "[artist] `generate_image` tool returned result: {'result': '/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/adk_images_p9ahn9ej/generated_996a2312.png'}",
@@ -174,7 +214,15 @@
           "observation_type": "generation"
         },
         {
-          "index": 9,
+          "index": 10,
+          "role": "user",
+          "entry_type": "text",
+          "content": "For context:",
+          "content_digest": "e35575ce07677244",
+          "observation_type": "generation"
+        },
+        {
+          "index": 11,
           "role": "user",
           "entry_type": "text",
           "content": "[artist] said: Perfect! I've generated 3 diverse dog images for you: **/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/adk_images_kow_bmr2/generated_c77949c5.png, /var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/adk_images_a8a_ndn6/generat…[1099 chars]",
@@ -182,7 +230,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 10,
+          "index": 12,
           "role": "user",
           "entry_type": "text",
           "content": "Evaluate these generated images and select the best one: Perfect! I've generated 3 diverse dog images for you: **/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/adk_images_kow_bmr2/generated_c77949c5.png, /var/folders/n_/kvwhfj054zx3zjmwj9…[1141 chars]",
@@ -190,7 +238,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 11,
+          "index": 13,
           "role": "assistant",
           "entry_type": "text",
           "content": "I'll examine each of these three dog images to evaluate them based on creativity, composition, and appeal.",
@@ -199,7 +247,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 12,
+          "index": 14,
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"gemini_read_image_call_abb8f990\",\"name\":\"read_image\",\"input\":{\"file_path\":\"/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/adk_images_kow_bmr2/generated_c77949c5.png\"}}",
@@ -208,7 +256,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 13,
+          "index": 15,
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"gemini_read_image_call_e0ec1c9d\",\"name\":\"read_image\",\"input\":{\"file_path\":\"/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/adk_images_a8a_ndn6/generated_280c6e84.png\"}}",
@@ -217,7 +265,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 14,
+          "index": 16,
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"gemini_read_image_call_231180fd\",\"name\":\"read_image\",\"input\":{\"file_path\":\"/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/adk_images_p9ahn9ej/generated_996a2312.png\"}}",
@@ -228,7 +276,7 @@
       ]
     },
     "trace-1/call_llm/span-20": {
-      "message_count": 15,
+      "message_count": 21,
       "role_sequence": [
         "system",
         "user",
@@ -241,6 +289,12 @@
         "user",
         "user",
         "user",
+        "user",
+        "user",
+        "assistant",
+        "assistant",
+        "assistant",
+        "assistant",
         "tool",
         "tool",
         "tool",
@@ -301,12 +355,20 @@
           "index": 6,
           "role": "user",
           "entry_type": "text",
+          "content": "For context:",
+          "content_digest": "e35575ce07677244",
+          "observation_type": "generation"
+        },
+        {
+          "index": 7,
+          "role": "user",
+          "entry_type": "text",
           "content": "[artist] `generate_image` tool returned result: {'result': '/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/adk_images_kow_bmr2/generated_c77949c5.png'}",
           "content_digest": "747310bb8bc67ec1",
           "observation_type": "generation"
         },
         {
-          "index": 7,
+          "index": 8,
           "role": "user",
           "entry_type": "text",
           "content": "[artist] `generate_image` tool returned result: {'result': '/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/adk_images_a8a_ndn6/generated_280c6e84.png'}",
@@ -314,7 +376,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 8,
+          "index": 9,
           "role": "user",
           "entry_type": "text",
           "content": "[artist] `generate_image` tool returned result: {'result': '/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/adk_images_p9ahn9ej/generated_996a2312.png'}",
@@ -322,7 +384,15 @@
           "observation_type": "generation"
         },
         {
-          "index": 9,
+          "index": 10,
+          "role": "user",
+          "entry_type": "text",
+          "content": "For context:",
+          "content_digest": "e35575ce07677244",
+          "observation_type": "generation"
+        },
+        {
+          "index": 11,
           "role": "user",
           "entry_type": "text",
           "content": "[artist] said: Perfect! I've generated 3 diverse dog images for you: **/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/adk_images_kow_bmr2/generated_c77949c5.png, /var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/adk_images_a8a_ndn6/generat…[1099 chars]",
@@ -330,7 +400,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 10,
+          "index": 12,
           "role": "user",
           "entry_type": "text",
           "content": "Evaluate these generated images and select the best one: Perfect! I've generated 3 diverse dog images for you: **/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/adk_images_kow_bmr2/generated_c77949c5.png, /var/folders/n_/kvwhfj054zx3zjmwj9…[1141 chars]",
@@ -338,34 +408,69 @@
           "observation_type": "generation"
         },
         {
-          "index": 11,
-          "role": "tool",
-          "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"name\":\"read_image\",\"content\":{\"status\":\"loaded\",\"path\":\"/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/adk_images_kow_bmr2/generated_c77949c5.png\",\"size_bytes\":1974894}}",
-          "content_digest": "9a4f211a2536796a",
-          "tool_name": "read_image",
-          "observation_type": "generation"
-        },
-        {
-          "index": 12,
-          "role": "tool",
-          "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"name\":\"read_image\",\"content\":{\"status\":\"loaded\",\"path\":\"/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/adk_images_a8a_ndn6/generated_280c6e84.png\",\"size_bytes\":1481348}}",
-          "content_digest": "0e89ede52d7d3d20",
-          "tool_name": "read_image",
-          "observation_type": "generation"
-        },
-        {
           "index": 13,
-          "role": "tool",
-          "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"name\":\"read_image\",\"content\":{\"status\":\"loaded\",\"path\":\"/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/adk_images_p9ahn9ej/generated_996a2312.png\",\"size_bytes\":1740341}}",
-          "content_digest": "03f92475105893cf",
-          "tool_name": "read_image",
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "I'll examine each of these three dog images to evaluate them based on creativity, composition, and appeal.",
+          "content_digest": "e7851f8bae41f145",
           "observation_type": "generation"
         },
         {
           "index": 14,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"gemini_read_image_call_abb8f990\",\"name\":\"read_image\",\"input\":{\"file_path\":\"/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/adk_images_kow_bmr2/generated_c77949c5.png\"}}",
+          "content_digest": "25671a8973e51322",
+          "tool_name": "read_image",
+          "observation_type": "generation"
+        },
+        {
+          "index": 15,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"gemini_read_image_call_e0ec1c9d\",\"name\":\"read_image\",\"input\":{\"file_path\":\"/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/adk_images_a8a_ndn6/generated_280c6e84.png\"}}",
+          "content_digest": "91a92728bf017554",
+          "tool_name": "read_image",
+          "observation_type": "generation"
+        },
+        {
+          "index": 16,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"gemini_read_image_call_231180fd\",\"name\":\"read_image\",\"input\":{\"file_path\":\"/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/adk_images_p9ahn9ej/generated_996a2312.png\"}}",
+          "content_digest": "a550b568ffaf71f2",
+          "tool_name": "read_image",
+          "observation_type": "generation"
+        },
+        {
+          "index": 17,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"gemini_read_image_call_abb8f990\",\"name\":\"read_image\",\"content\":{\"status\":\"loaded\",\"path\":\"/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/adk_images_kow_bmr2/generated_c77949c5.png\",\"size_bytes\":1974894…[242 chars]",
+          "content_digest": "e41014e12c96ad4b",
+          "tool_name": "read_image",
+          "observation_type": "generation"
+        },
+        {
+          "index": 18,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"gemini_read_image_call_e0ec1c9d\",\"name\":\"read_image\",\"content\":{\"status\":\"loaded\",\"path\":\"/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/adk_images_a8a_ndn6/generated_280c6e84.png\",\"size_bytes\":1481348…[242 chars]",
+          "content_digest": "d4e85dc5f7a5038c",
+          "tool_name": "read_image",
+          "observation_type": "generation"
+        },
+        {
+          "index": 19,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"gemini_read_image_call_231180fd\",\"name\":\"read_image\",\"content\":{\"status\":\"loaded\",\"path\":\"/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/adk_images_p9ahn9ej/generated_996a2312.png\",\"size_bytes\":1740341…[242 chars]",
+          "content_digest": "9d58d854e851ff65",
+          "tool_name": "read_image",
+          "observation_type": "generation"
+        },
+        {
+          "index": 20,
           "role": "assistant",
           "entry_type": "text",
           "content": "Excellent! Now I can evaluate all three images. Let me provide a comprehensive critique: ## IMAGE 1: Playful Puppy in Park **Strengths:** - Vibrant, cheerful composition with excellent use of natural daylight - Beautiful bokeh effect with t…[2414 chars]",
@@ -547,7 +652,7 @@
   },
   "trace_views": {
     "trace-1": {
-      "message_count": 27,
+      "message_count": 29,
       "role_sequence": [
         "system",
         "user",
@@ -559,6 +664,8 @@
         "tool",
         "assistant",
         "system",
+        "user",
+        "user",
         "user",
         "user",
         "user",
@@ -703,12 +810,20 @@
           "index": 14,
           "role": "user",
           "entry_type": "text",
+          "content": "For context:",
+          "content_digest": "e35575ce07677244",
+          "observation_type": "generation"
+        },
+        {
+          "index": 15,
+          "role": "user",
+          "entry_type": "text",
           "content": "[artist] `generate_image` tool returned result: {'result': '/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/adk_images_kow_bmr2/generated_c77949c5.png'}",
           "content_digest": "747310bb8bc67ec1",
           "observation_type": "generation"
         },
         {
-          "index": 15,
+          "index": 16,
           "role": "user",
           "entry_type": "text",
           "content": "[artist] `generate_image` tool returned result: {'result': '/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/adk_images_a8a_ndn6/generated_280c6e84.png'}",
@@ -716,7 +831,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 16,
+          "index": 17,
           "role": "user",
           "entry_type": "text",
           "content": "[artist] `generate_image` tool returned result: {'result': '/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/adk_images_p9ahn9ej/generated_996a2312.png'}",
@@ -724,7 +839,15 @@
           "observation_type": "generation"
         },
         {
-          "index": 17,
+          "index": 18,
+          "role": "user",
+          "entry_type": "text",
+          "content": "For context:",
+          "content_digest": "e35575ce07677244",
+          "observation_type": "generation"
+        },
+        {
+          "index": 19,
           "role": "user",
           "entry_type": "text",
           "content": "[artist] said: Perfect! I've generated 3 diverse dog images for you: **/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/adk_images_kow_bmr2/generated_c77949c5.png, /var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/adk_images_a8a_ndn6/generat…[1099 chars]",
@@ -732,7 +855,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 18,
+          "index": 20,
           "role": "user",
           "entry_type": "text",
           "content": "Evaluate these generated images and select the best one: Perfect! I've generated 3 diverse dog images for you: **/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/adk_images_kow_bmr2/generated_c77949c5.png, /var/folders/n_/kvwhfj054zx3zjmwj9…[1141 chars]",
@@ -740,7 +863,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 19,
+          "index": 21,
           "role": "assistant",
           "entry_type": "text",
           "content": "I'll examine each of these three dog images to evaluate them based on creativity, composition, and appeal.",
@@ -749,7 +872,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 20,
+          "index": 22,
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"gemini_read_image_call_abb8f990\",\"name\":\"read_image\",\"input\":{\"file_path\":\"/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/adk_images_kow_bmr2/generated_c77949c5.png\"}}",
@@ -758,7 +881,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 21,
+          "index": 23,
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"gemini_read_image_call_e0ec1c9d\",\"name\":\"read_image\",\"input\":{\"file_path\":\"/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/adk_images_a8a_ndn6/generated_280c6e84.png\"}}",
@@ -767,7 +890,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 22,
+          "index": 24,
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"gemini_read_image_call_231180fd\",\"name\":\"read_image\",\"input\":{\"file_path\":\"/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/adk_images_p9ahn9ej/generated_996a2312.png\"}}",
@@ -776,7 +899,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 23,
+          "index": 25,
           "role": "tool",
           "entry_type": "tool_result",
           "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"gemini_read_image_call_abb8f990\",\"name\":\"read_image\",\"content\":{\"status\":\"loaded\",\"path\":\"/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/adk_images_kow_bmr2/generated_c77949c5.png\",\"size_bytes\":1974894…[242 chars]",
@@ -785,7 +908,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 24,
+          "index": 26,
           "role": "tool",
           "entry_type": "tool_result",
           "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"gemini_read_image_call_e0ec1c9d\",\"name\":\"read_image\",\"content\":{\"status\":\"loaded\",\"path\":\"/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/adk_images_a8a_ndn6/generated_280c6e84.png\",\"size_bytes\":1481348…[242 chars]",
@@ -794,7 +917,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 25,
+          "index": 27,
           "role": "tool",
           "entry_type": "tool_result",
           "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"gemini_read_image_call_231180fd\",\"name\":\"read_image\",\"content\":{\"status\":\"loaded\",\"path\":\"/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/adk_images_p9ahn9ej/generated_996a2312.png\",\"size_bytes\":1740341…[242 chars]",
@@ -803,7 +926,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 26,
+          "index": 28,
           "role": "assistant",
           "entry_type": "text",
           "content": "Excellent! Now I can evaluate all three images. Let me provide a comprehensive critique: ## IMAGE 1: Playful Puppy in Park **Strengths:** - Vibrant, cheerful composition with excellent use of natural daylight - Beautiful bokeh effect with t…[2414 chars]",
@@ -816,7 +939,7 @@
   },
   "session_views": {
     "adk-image_gen-aff1332d": {
-      "message_count": 27,
+      "message_count": 29,
       "role_sequence": [
         "system",
         "user",
@@ -828,6 +951,8 @@
         "tool",
         "assistant",
         "system",
+        "user",
+        "user",
         "user",
         "user",
         "user",
@@ -972,12 +1097,20 @@
           "index": 14,
           "role": "user",
           "entry_type": "text",
+          "content": "For context:",
+          "content_digest": "e35575ce07677244",
+          "observation_type": "generation"
+        },
+        {
+          "index": 15,
+          "role": "user",
+          "entry_type": "text",
           "content": "[artist] `generate_image` tool returned result: {'result': '/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/adk_images_kow_bmr2/generated_c77949c5.png'}",
           "content_digest": "747310bb8bc67ec1",
           "observation_type": "generation"
         },
         {
-          "index": 15,
+          "index": 16,
           "role": "user",
           "entry_type": "text",
           "content": "[artist] `generate_image` tool returned result: {'result': '/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/adk_images_a8a_ndn6/generated_280c6e84.png'}",
@@ -985,7 +1118,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 16,
+          "index": 17,
           "role": "user",
           "entry_type": "text",
           "content": "[artist] `generate_image` tool returned result: {'result': '/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/adk_images_p9ahn9ej/generated_996a2312.png'}",
@@ -993,7 +1126,15 @@
           "observation_type": "generation"
         },
         {
-          "index": 17,
+          "index": 18,
+          "role": "user",
+          "entry_type": "text",
+          "content": "For context:",
+          "content_digest": "e35575ce07677244",
+          "observation_type": "generation"
+        },
+        {
+          "index": 19,
           "role": "user",
           "entry_type": "text",
           "content": "[artist] said: Perfect! I've generated 3 diverse dog images for you: **/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/adk_images_kow_bmr2/generated_c77949c5.png, /var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/adk_images_a8a_ndn6/generat…[1099 chars]",
@@ -1001,7 +1142,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 18,
+          "index": 20,
           "role": "user",
           "entry_type": "text",
           "content": "Evaluate these generated images and select the best one: Perfect! I've generated 3 diverse dog images for you: **/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/adk_images_kow_bmr2/generated_c77949c5.png, /var/folders/n_/kvwhfj054zx3zjmwj9…[1141 chars]",
@@ -1009,7 +1150,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 19,
+          "index": 21,
           "role": "assistant",
           "entry_type": "text",
           "content": "I'll examine each of these three dog images to evaluate them based on creativity, composition, and appeal.",
@@ -1018,7 +1159,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 20,
+          "index": 22,
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"gemini_read_image_call_abb8f990\",\"name\":\"read_image\",\"input\":{\"file_path\":\"/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/adk_images_kow_bmr2/generated_c77949c5.png\"}}",
@@ -1027,7 +1168,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 21,
+          "index": 23,
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"gemini_read_image_call_e0ec1c9d\",\"name\":\"read_image\",\"input\":{\"file_path\":\"/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/adk_images_a8a_ndn6/generated_280c6e84.png\"}}",
@@ -1036,7 +1177,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 22,
+          "index": 24,
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"gemini_read_image_call_231180fd\",\"name\":\"read_image\",\"input\":{\"file_path\":\"/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/adk_images_p9ahn9ej/generated_996a2312.png\"}}",
@@ -1045,7 +1186,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 23,
+          "index": 25,
           "role": "tool",
           "entry_type": "tool_result",
           "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"gemini_read_image_call_abb8f990\",\"name\":\"read_image\",\"content\":{\"status\":\"loaded\",\"path\":\"/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/adk_images_kow_bmr2/generated_c77949c5.png\",\"size_bytes\":1974894…[242 chars]",
@@ -1054,7 +1195,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 24,
+          "index": 26,
           "role": "tool",
           "entry_type": "tool_result",
           "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"gemini_read_image_call_e0ec1c9d\",\"name\":\"read_image\",\"content\":{\"status\":\"loaded\",\"path\":\"/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/adk_images_a8a_ndn6/generated_280c6e84.png\",\"size_bytes\":1481348…[242 chars]",
@@ -1063,7 +1204,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 25,
+          "index": 27,
           "role": "tool",
           "entry_type": "tool_result",
           "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"gemini_read_image_call_231180fd\",\"name\":\"read_image\",\"content\":{\"status\":\"loaded\",\"path\":\"/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/adk_images_p9ahn9ej/generated_996a2312.png\",\"size_bytes\":1740341…[242 chars]",
@@ -1072,7 +1213,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 26,
+          "index": 28,
           "role": "assistant",
           "entry_type": "text",
           "content": "Excellent! Now I can evaluate all three images. Let me provide a comprehensive critique: ## IMAGE 1: Playful Puppy in Park **Strengths:** - Vibrant, cheerful composition with excellent use of natural daylight - Beautiful bokeh effect with t…[2414 chars]",
@@ -1084,13 +1225,15 @@
     }
   },
   "feed_view": {
-    "message_count": 27,
+    "message_count": 29,
     "role_sequence": [
       "assistant",
       "tool",
       "tool",
       "tool",
       "system",
+      "user",
+      "user",
       "user",
       "user",
       "user",
@@ -1197,12 +1340,20 @@
         "index": 9,
         "role": "user",
         "entry_type": "text",
+        "content": "For context:",
+        "content_digest": "e35575ce07677244",
+        "observation_type": "generation"
+      },
+      {
+        "index": 10,
+        "role": "user",
+        "entry_type": "text",
         "content": "[artist] `generate_image` tool returned result: {'result': '/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/adk_images_kow_bmr2/generated_c77949c5.png'}",
         "content_digest": "747310bb8bc67ec1",
         "observation_type": "generation"
       },
       {
-        "index": 10,
+        "index": 11,
         "role": "user",
         "entry_type": "text",
         "content": "[artist] `generate_image` tool returned result: {'result': '/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/adk_images_a8a_ndn6/generated_280c6e84.png'}",
@@ -1210,7 +1361,7 @@
         "observation_type": "generation"
       },
       {
-        "index": 11,
+        "index": 12,
         "role": "user",
         "entry_type": "text",
         "content": "[artist] `generate_image` tool returned result: {'result': '/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/adk_images_p9ahn9ej/generated_996a2312.png'}",
@@ -1218,7 +1369,15 @@
         "observation_type": "generation"
       },
       {
-        "index": 12,
+        "index": 13,
+        "role": "user",
+        "entry_type": "text",
+        "content": "For context:",
+        "content_digest": "e35575ce07677244",
+        "observation_type": "generation"
+      },
+      {
+        "index": 14,
         "role": "user",
         "entry_type": "text",
         "content": "[artist] said: Perfect! I've generated 3 diverse dog images for you: **/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/adk_images_kow_bmr2/generated_c77949c5.png, /var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/adk_images_a8a_ndn6/generat…[1099 chars]",
@@ -1226,7 +1385,7 @@
         "observation_type": "generation"
       },
       {
-        "index": 13,
+        "index": 15,
         "role": "user",
         "entry_type": "text",
         "content": "Evaluate these generated images and select the best one: Perfect! I've generated 3 diverse dog images for you: **/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/adk_images_kow_bmr2/generated_c77949c5.png, /var/folders/n_/kvwhfj054zx3zjmwj9…[1141 chars]",
@@ -1234,7 +1393,7 @@
         "observation_type": "generation"
       },
       {
-        "index": 14,
+        "index": 16,
         "role": "assistant",
         "entry_type": "text",
         "content": "I'll examine each of these three dog images to evaluate them based on creativity, composition, and appeal.",
@@ -1243,7 +1402,7 @@
         "observation_type": "generation"
       },
       {
-        "index": 15,
+        "index": 17,
         "role": "assistant",
         "entry_type": "tool_use",
         "content": "{\"type\":\"tool_use\",\"id\":\"gemini_read_image_call_abb8f990\",\"name\":\"read_image\",\"input\":{\"file_path\":\"/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/adk_images_kow_bmr2/generated_c77949c5.png\"}}",
@@ -1252,7 +1411,7 @@
         "observation_type": "generation"
       },
       {
-        "index": 16,
+        "index": 18,
         "role": "assistant",
         "entry_type": "tool_use",
         "content": "{\"type\":\"tool_use\",\"id\":\"gemini_read_image_call_e0ec1c9d\",\"name\":\"read_image\",\"input\":{\"file_path\":\"/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/adk_images_a8a_ndn6/generated_280c6e84.png\"}}",
@@ -1261,7 +1420,7 @@
         "observation_type": "generation"
       },
       {
-        "index": 17,
+        "index": 19,
         "role": "assistant",
         "entry_type": "tool_use",
         "content": "{\"type\":\"tool_use\",\"id\":\"gemini_read_image_call_231180fd\",\"name\":\"read_image\",\"input\":{\"file_path\":\"/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/adk_images_p9ahn9ej/generated_996a2312.png\"}}",
@@ -1270,7 +1429,7 @@
         "observation_type": "generation"
       },
       {
-        "index": 18,
+        "index": 20,
         "role": "assistant",
         "entry_type": "text",
         "content": "Perfect! I've generated 3 diverse dog images for you: **/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/adk_images_kow_bmr2/generated_c77949c5.png, /var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/adk_images_a8a_ndn6/generated_280c6e84.png…[1084 chars]",
@@ -1279,7 +1438,7 @@
         "observation_type": "generation"
       },
       {
-        "index": 19,
+        "index": 21,
         "role": "tool",
         "entry_type": "tool_result",
         "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"gemini_generate_image_call_b06cbb37\",\"name\":\"generate_image\",\"content\":{\"result\":\"/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/adk_images_kow_bmr2/generated_c77949c5.png\"}}",
@@ -1288,7 +1447,7 @@
         "observation_type": "generation"
       },
       {
-        "index": 20,
+        "index": 22,
         "role": "tool",
         "entry_type": "tool_result",
         "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"gemini_generate_image_call_91f6029e\",\"name\":\"generate_image\",\"content\":{\"result\":\"/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/adk_images_a8a_ndn6/generated_280c6e84.png\"}}",
@@ -1297,7 +1456,7 @@
         "observation_type": "generation"
       },
       {
-        "index": 21,
+        "index": 23,
         "role": "tool",
         "entry_type": "tool_result",
         "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"gemini_generate_image_call_59324543\",\"name\":\"generate_image\",\"content\":{\"result\":\"/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/adk_images_p9ahn9ej/generated_996a2312.png\"}}",
@@ -1306,7 +1465,7 @@
         "observation_type": "generation"
       },
       {
-        "index": 22,
+        "index": 24,
         "role": "system",
         "entry_type": "text",
         "content": "You are an AI artist. When asked to generate images, use the generate_image tool with varied prompts for each image to create a diverse collection. Return a comma-separated list of the generated image paths. You are an agent. Your internal …[257 chars]",
@@ -1314,7 +1473,7 @@
         "observation_type": "generation"
       },
       {
-        "index": 23,
+        "index": 25,
         "role": "user",
         "entry_type": "text",
         "content": "Generate 3 different images of a dog. Vary the style, setting, and mood for each image. Use different prompts like: playful puppy in a park, majestic dog portrait, dog playing in snow.",
@@ -1322,7 +1481,7 @@
         "observation_type": "generation"
       },
       {
-        "index": 24,
+        "index": 26,
         "role": "assistant",
         "entry_type": "tool_use",
         "content": "{\"type\":\"tool_use\",\"id\":\"gemini_generate_image_call_b06cbb37\",\"name\":\"generate_image\",\"input\":{\"prompt\":\"playful golden retriever puppy running through a sunny park with green grass and trees, wagging tail, joyful expression\"}}",
@@ -1331,7 +1490,7 @@
         "observation_type": "generation"
       },
       {
-        "index": 25,
+        "index": 27,
         "role": "assistant",
         "entry_type": "tool_use",
         "content": "{\"type\":\"tool_use\",\"id\":\"gemini_generate_image_call_91f6029e\",\"name\":\"generate_image\",\"input\":{\"prompt\":\"majestic dog portrait, noble German Shepherd with piercing eyes, dramatic studio lighting, dark background, professional photography st…[246 chars]",
@@ -1340,7 +1499,7 @@
         "observation_type": "generation"
       },
       {
-        "index": 26,
+        "index": 28,
         "role": "assistant",
         "entry_type": "tool_use",
         "content": "{\"type\":\"tool_use\",\"id\":\"gemini_generate_image_call_59324543\",\"name\":\"generate_image\",\"input\":{\"prompt\":\"fluffy white dog playing in fresh snow during winter, jumping and rolling in snowdrifts, snowy landscape with evergreen trees, festive …[254 chars]",

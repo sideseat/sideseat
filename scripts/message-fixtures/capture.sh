@@ -200,6 +200,11 @@ for entry in "${SUITES[@]}"; do
       echo "[capture] $suite/$sample: skipped by SKIP_SAMPLES"
       continue
     fi
+    if [[ "$suite/$sample" == "strands/agent_core" &&
+          -z "${AGENT_CORE_MEMORY_ID:-}" ]]; then
+      echo "[capture] $suite/$sample: skipped - needs a provisioned AWS AgentCore memory"
+      continue
+    fi
     total=$((total + 1))
     if [[ "$capture_mode" == "legacy" ]]; then
       label="${suite}/${sample}"

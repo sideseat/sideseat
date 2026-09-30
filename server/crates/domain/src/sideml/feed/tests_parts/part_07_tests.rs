@@ -665,19 +665,13 @@ fn test_compose_error_text_stacktrace_only() {
 #[test]
 fn test_compose_error_text_message_and_stacktrace() {
     let result = compose_error_text(None, Some("bad input"), Some("at main.py:1"));
-    assert_eq!(
-        result,
-        Some("bad input\n\n```\nat main.py:1\n```".to_string())
-    );
+    assert_eq!(result, Some("bad input".to_string()));
 }
 
 #[test]
 fn test_compose_error_text_all_fields() {
     let result = compose_error_text(Some("ValueError"), Some("bad input"), Some("at main.py:1"));
-    assert_eq!(
-        result,
-        Some("ValueError: bad input\n\n```\nat main.py:1\n```".to_string())
-    );
+    assert_eq!(result, Some("ValueError: bad input".to_string()));
 }
 
 // ============================================================================
@@ -727,9 +721,9 @@ fn test_error_block_with_exception_type_and_message() {
     }
 }
 
-/// Regression: exception with stacktrace renders markdown code block
+/// Regression: a structured exception summary stays stable when instrumentation adds stack frames.
 #[test]
-fn test_error_block_with_stacktrace() {
+fn test_error_block_omits_stacktrace_when_summary_exists() {
     let t0 = fixed_time();
     let t1 = t0 + chrono::Duration::seconds(1);
 
@@ -745,10 +739,7 @@ fn test_error_block_with_stacktrace() {
     let error_blocks: Vec<_> = result.messages.iter().filter(|b| b.is_error).collect();
     assert_eq!(error_blocks.len(), 1);
     match &error_blocks[0].content {
-        ContentBlock::Text { text } => {
-            assert!(text.starts_with("RuntimeError: crash"));
-            assert!(text.contains("```\nTraceback:\n  File main.py\n```"));
-        }
+        ContentBlock::Text { text } => assert_eq!(text, "RuntimeError: crash"),
         _ => panic!("Expected Text content block"),
     }
 }

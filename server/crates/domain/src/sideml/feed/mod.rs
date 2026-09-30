@@ -477,7 +477,7 @@ pub fn stage_timings(rows: Vec<MessageSpanRow>) -> Vec<(&'static str, std::time:
     out.push(("collect_evidence", t.elapsed()));
 
     let t = std::time::Instant::now();
-    let (survivors, lineage) = survivors_with_lineage(blocks, &span_timestamps);
+    let (survivors, lineage, repeat_ordinals) = survivors_with_lineage(blocks, &span_timestamps);
     out.push(("dedup+withdraw", t.elapsed()));
 
     let t = std::time::Instant::now();
@@ -485,6 +485,7 @@ pub fn stage_timings(rows: Vec<MessageSpanRow>) -> Vec<(&'static str, std::time:
         &evidence,
         &survivors,
         &lineage,
+        &repeat_ordinals,
         &span_timestamps,
         order_graph::Constraints::NEUTRAL,
     );
@@ -501,6 +502,17 @@ pub fn stage_timings(rows: Vec<MessageSpanRow>) -> Vec<(&'static str, std::time:
 #[cfg(any(test, feature = "test-support"))]
 pub fn classified_blocks_for_test(rows: Vec<MessageSpanRow>) -> Vec<BlockEntry> {
     classify_span_blocks(&rows, None).0
+}
+
+/// The classified observations with the occurrence rank used by deduplication.
+#[doc(hidden)]
+#[cfg(any(test, feature = "test-support"))]
+pub fn classified_blocks_with_ordinals_for_test(
+    rows: Vec<MessageSpanRow>,
+) -> Vec<(BlockEntry, u32)> {
+    let blocks = classify_span_blocks(&rows, None).0;
+    let ordinals = dedup::call_repeat_ordinals(&blocks);
+    blocks.into_iter().zip(ordinals).collect()
 }
 
 /// One view built twice: with generation dataflow expressed through a barrier node, and as the product
@@ -548,15 +560,25 @@ pub fn presented_and_unconstrained(
 pub fn legacy_and_neutral_order(rows: Vec<MessageSpanRow>) -> (Vec<BlockEntry>, Vec<BlockEntry>) {
     let (blocks, span_timestamps, _) = classify_span_blocks(&rows, None);
     let evidence = order_graph::collect_order_evidence(&blocks, &span_timestamps);
-    let (legacy, lineage) = survivors_with_lineage(blocks, &span_timestamps);
+    let (legacy, lineage, repeat_ordinals) = survivors_with_lineage(blocks, &span_timestamps);
     let scaffold = order_graph::resolve(
         &evidence,
         &legacy,
         &lineage,
+        &repeat_ordinals,
         &span_timestamps,
         order_graph::Constraints::NEUTRAL,
     );
     (legacy, scaffold)
+}
+
+/// The post-dedup blocks with the occurrence rank used to distinguish repeated messages.
+#[doc(hidden)]
+#[cfg(any(test, feature = "test-support"))]
+pub fn deduped_blocks_with_ordinals_for_test(rows: Vec<MessageSpanRow>) -> Vec<(BlockEntry, u32)> {
+    let (blocks, span_timestamps, _) = classify_span_blocks(&rows, None);
+    let (blocks, _, ordinals) = survivors_with_lineage(blocks, &span_timestamps);
+    blocks.into_iter().zip(ordinals).collect()
 }
 
 #[doc(hidden)]
@@ -564,11 +586,12 @@ pub fn legacy_and_neutral_order(rows: Vec<MessageSpanRow>) -> (Vec<BlockEntry>, 
 pub fn shadow_resolved_order(rows: Vec<MessageSpanRow>) -> Vec<BlockEntry> {
     let (blocks, span_timestamps, _) = classify_span_blocks(&rows, None);
     let evidence = order_graph::collect_order_evidence(&blocks, &span_timestamps);
-    let (survivors, lineage) = survivors_with_lineage(blocks, &span_timestamps);
+    let (survivors, lineage, repeat_ordinals) = survivors_with_lineage(blocks, &span_timestamps);
     order_graph::resolve(
         &evidence,
         &survivors,
         &lineage,
+        &repeat_ordinals,
         &span_timestamps,
         order_graph::Constraints::FULL,
     )
@@ -582,15 +605,24 @@ pub fn shadow_resolved_order(rows: Vec<MessageSpanRow>) -> Vec<BlockEntry> {
 fn survivors_with_lineage(
     blocks: Vec<BlockEntry>,
     span_timestamps: &HashMap<String, SpanTimestamps>,
-) -> (Vec<BlockEntry>, Vec<Option<usize>>) {
-    let (blocks, dedup_lineage) =
-        dedup::process_dedup_with_lineage(blocks, span_timestamps.clone());
-    let (blocks, withdrawal_remap) = correlate::withdraw_unbacked_ids_with_remap(blocks);
+) -> (Vec<BlockEntry>, Vec<Option<usize>>, Vec<u32>) {
+    let (blocks, dedup_lineage, dedup_ordinals) =
+        dedup::process_dedup_with_lineage_and_ordinals(blocks, span_timestamps.clone());
+    let (mut blocks, withdrawal_remap) = correlate::withdraw_unbacked_ids_with_remap(blocks);
     let lineage = dedup_lineage
         .into_iter()
         .map(|survivor| survivor.and_then(|s| withdrawal_remap.get(s).copied().flatten()))
         .collect();
-    (blocks, lineage)
+    let mut repeat_ordinals = vec![0; blocks.len()];
+    for (old, survivor) in withdrawal_remap.into_iter().enumerate() {
+        if let Some(survivor) = survivor {
+            repeat_ordinals[survivor] = dedup_ordinals[old];
+        }
+    }
+    for (block, ordinal) in blocks.iter_mut().zip(&repeat_ordinals) {
+        block.occurrence_ordinal = *ordinal;
+    }
+    (blocks, lineage, repeat_ordinals)
 }
 
 fn process_trace_spans_core(
@@ -646,7 +678,7 @@ fn reconstruct_trace(
     //
     // The two run together because the resolver below needs the *lineage* across both: each says which
     // block an observation became, and neither mapping can be re-derived afterwards.
-    let (blocks, lineage) = survivors_with_lineage(blocks, &span_timestamps);
+    let (blocks, lineage, repeat_ordinals) = survivors_with_lineage(blocks, &span_timestamps);
 
     // Stage 6.6: Resolve the order as a partial order rather than a scalar key.
     //
@@ -662,12 +694,19 @@ fn reconstruct_trace(
     // which is what the transcript is. Built only when a later trace can use it: for a single-trace
     // request nothing ever asks.
     let replay_relation = if needs_replay_relation {
-        order_graph::causal_precedence(&evidence, &blocks, &lineage)
+        order_graph::causal_precedence(&evidence, &blocks, &lineage, &repeat_ordinals)
     } else {
         order_graph::Precedence::default()
     };
 
-    let blocks = order_graph::resolve(&evidence, &blocks, &lineage, &span_timestamps, constraints);
+    let blocks = order_graph::resolve(
+        &evidence,
+        &blocks,
+        &lineage,
+        &repeat_ordinals,
+        &span_timestamps,
+        constraints,
+    );
 
     // Debug: Log block counts after dedup
     if tracing::enabled!(tracing::Level::DEBUG) {

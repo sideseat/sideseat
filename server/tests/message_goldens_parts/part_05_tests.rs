@@ -441,25 +441,14 @@ fn a_reported_occurrence_reaches_the_trace() {
 /// deterministically toward the legacy order - which is a *guess*, warned about in production and,
 /// until this test, invisible in the suite (the golden tests install no tracing subscriber, so the
 /// `warn!` reached nobody). The code claimed "no corpus fixture cycles at this constraint density";
-/// measuring found two fixtures that always did.
+/// The list is currently empty: every contradiction previously found in the corpus has been removed.
 ///
 /// Both currently produce byte-correct output, because the deterministic release lands on the legacy
 /// order and the goldens bless it - so a cycle here is a contradiction in the *evidence*, not yet a
 /// wrong answer. The list is bidirectional for the same reason every list in this file is: a new
 /// cycling fixture must be examined rather than silently guessed into order, and a fixture that stops
 /// cycling means a constraint class changed and this entry no longer measures anything.
-const EVIDENCE_CONTRADICTS_ITSELF: &[(&str, &str)] = &[
-    (
-        "_synthetic/repeated_tool_result_parts",
-        "a genuinely repeated identical result part: the emission's own order and the repeat's \
-         identity pull opposite ways",
-    ),
-    (
-        "adk/tool_use",
-        "parallel calls whose llm_request replay lists them in one order and correlation answers \
-         them in another",
-    ),
-];
+const EVIDENCE_CONTRADICTS_ITSELF: &[(&str, &str)] = &[];
 
 /// Cycles are contradictions, and a contradiction is examined, never silently guessed into order.
 #[test]

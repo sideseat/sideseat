@@ -625,13 +625,13 @@
       "assistant",
       "assistant",
       "tool",
+      "assistant",
       "user",
       "tool",
       "assistant",
       "assistant",
       "tool",
       "user",
-      "assistant",
       "assistant",
       "system",
       "user"
@@ -674,6 +674,15 @@
       },
       {
         "index": 4,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01Vu1bgCARnJn7ZQb2ehPPWJ\",\"name\":\"ToolSearch\",\"input\":{\"query\":\"select:mcp__calculator__calculate\",\"max_results\":1}}",
+        "content_digest": "1e7b1ea198375b51",
+        "tool_name": "ToolSearch",
+        "observation_type": "tool"
+      },
+      {
+        "index": 5,
         "role": "user",
         "entry_type": "text",
         "content": "What is 987 multiplied by 654? Use the calculator.",
@@ -681,7 +690,7 @@
         "observation_type": "span"
       },
       {
-        "index": 5,
+        "index": 6,
         "role": "tool",
         "entry_type": "tool_result",
         "content": "{\"result\":19134} <system-reminder> <total_tokens>14982938 tokens left</total_tokens> </system-reminder>",
@@ -689,7 +698,7 @@
         "observation_type": "generation"
       },
       {
-        "index": 6,
+        "index": 7,
         "role": "assistant",
         "entry_type": "text",
         "content": "**12345 + 6789 = 19134**",
@@ -697,7 +706,7 @@
         "observation_type": "generation"
       },
       {
-        "index": 7,
+        "index": 8,
         "role": "assistant",
         "entry_type": "tool_use",
         "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01A7LErkJDdVB8qp35bufgCn\",\"name\":\"mcp__calculator__calculate\",\"input\":{\"expression\":\"12345 + 6789\"}}",
@@ -706,7 +715,7 @@
         "observation_type": "tool"
       },
       {
-        "index": 8,
+        "index": 9,
         "role": "tool",
         "entry_type": "tool_result",
         "content": "[{\"type\":\"tool_reference\",\"tool_name\":\"mcp__calculator__calculate\"}]",
@@ -714,7 +723,7 @@
         "observation_type": "generation"
       },
       {
-        "index": 9,
+        "index": 10,
         "role": "user",
         "entry_type": "text",
         "content": "Tool loaded.",
@@ -722,20 +731,11 @@
         "observation_type": "generation"
       },
       {
-        "index": 10,
+        "index": 11,
         "role": "assistant",
         "entry_type": "tool_use",
         "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01RLMhF9frBnJYFnSXdKJaeS\",\"name\":\"ToolSearch\",\"input\":{\"query\":\"select:mcp__calculator__calculate\",\"max_results\":1}}",
         "content_digest": "9b350aec8bfd6bcf",
-        "tool_name": "ToolSearch",
-        "observation_type": "tool"
-      },
-      {
-        "index": 11,
-        "role": "assistant",
-        "entry_type": "tool_use",
-        "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01Vu1bgCARnJn7ZQb2ehPPWJ\",\"name\":\"ToolSearch\",\"input\":{\"query\":\"select:mcp__calculator__calculate\",\"max_results\":1}}",
-        "content_digest": "1e7b1ea198375b51",
         "tool_name": "ToolSearch",
         "observation_type": "tool"
       },

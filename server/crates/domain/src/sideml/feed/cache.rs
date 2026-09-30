@@ -834,6 +834,7 @@ mod weight_tests {
             span_path: Vec::new(),
             timestamp: t,
             order_time: t,
+            occurrence_ordinal: 0,
             span_name,
             scope_name: None,
             scope_version: None,
@@ -856,6 +857,7 @@ mod weight_tests {
             is_semantic: true,
             uses_span_end: false,
             is_history: false,
+            is_cross_trace_history: false,
             tool_use_id_correlated: false,
             promoted_to_span_output: false,
         }
@@ -881,7 +883,7 @@ mod weight_tests {
         let block_entry = &block_entry[..block_entry.find("\n}").expect("its declaration ends")];
 
         // Fields whose size is bounded by their type, so the flat per-block charge covers them.
-        let fixed_size = ["order_time"];
+        let fixed_size = ["order_time", "occurrence_ordinal"];
         // Fields `weight_of` measures directly.
         let measured = ["position", "span_name", "scope_name", "scope_version"];
 

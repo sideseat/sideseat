@@ -1,4 +1,3 @@
-
 /// Lineage must actually project the evidence, not merely avoid projecting it wrongly.
 ///
 /// Two identical tool calls in one response share a `MessageIdentity` and both survive, keyed by their
@@ -433,38 +432,89 @@ fn ordering_constraints_do_not_change_a_session_s_messages() {
 #[test]
 #[ignore]
 fn probe_pre_dedup() {
+    use sideseat_domain::sideml::feed::PREFER_LATER_ON_TIE;
+
     let want = std::env::var("PROBE").unwrap_or_else(|_| "_synthetic/tool_use".to_string());
+    let prefer_later = std::env::var_os("PROBE_LATER").is_some();
+    PREFER_LATER_ON_TIE.with(|flag| flag.set(prefer_later));
     let (_, paths) = discover_fixtures()
         .into_iter()
         .find(|(l, _)| *l == want)
         .unwrap_or_else(|| panic!("fixture {want} not found"));
-    let rows: Vec<MessageSpanRow> = rows_for(&paths)
+    let mut rows: Vec<MessageSpanRow> = rows_for(&paths)
         .into_iter()
         .map(|(_, r)| r)
         .filter(passes_content_filter)
         .collect();
-    for (i, b) in
-        sideseat_domain::sideml::feed::classified_blocks_for_test(sorted_by_timestamp(rows))
+    if let Ok(span_id) = std::env::var("PROBE_SPAN") {
+        rows.retain(|row| row.span_id == span_id);
+    }
+    let rows = sorted_by_timestamp(rows);
+    for (i, (b, ordinal)) in
+        sideseat_domain::sideml::feed::classified_blocks_with_ordinals_for_test(rows.clone())
             .iter()
             .enumerate()
     {
         let c: String = format!("{:?}", b.content).chars().take(260).collect();
         eprintln!(
-            "{i:2} span={} pos={} {:9} {:11} out={} hist={} correlated={} obs={:?} \
-             scope={:?} carrier={:?}/{:?} {c}",
+            "{i:2} trace={} span={} time={} msg={} pos={} {:9} {:11} ord={ordinal} out={} protected={} promoted={} hist={} correlated={} obs={:?} \
+             name={:?} span_name={:?} scope={:?} carrier={:?}/{:?} path={:?} {c}",
+            &b.trace_id[..8],
             &b.span_id[..8],
+            b.timestamp,
+            b.message_index,
             b.position,
             b.role.as_str(),
             b.entry_type,
             b.is_output_source(),
+            b.is_protected(),
+            b.promoted_to_span_output,
             b.is_history,
             b.tool_use_id_correlated,
             b.observation_type,
+            b.name,
+            b.span_name,
             b.scope_name,
             b.event_name,
-            b.source_attribute
+            b.source_attribute,
+            b.span_path
         );
     }
+    eprintln!("-- survivors --");
+    let survivors =
+        sideseat_domain::sideml::feed::deduped_blocks_with_ordinals_for_test(rows.clone());
+    for (i, (b, ordinal)) in survivors.iter().enumerate() {
+        let c: String = format!("{:?}", b.content).chars().take(260).collect();
+        eprintln!(
+            "{i:2} trace={} span={} parent={:?} pos={} {:9} {:11} ord={ordinal} id={:?} {c}",
+            &b.trace_id[..8],
+            &b.span_id[..8],
+            b.parent_span_id.as_deref().map(|id| &id[..8]),
+            b.position,
+            b.role.as_str(),
+            b.entry_type,
+            b.tool_use_id
+        );
+    }
+    eprintln!("-- resolved --");
+    for (i, b) in process_spans(rows, &FeedOptions::new())
+        .messages
+        .iter()
+        .enumerate()
+    {
+        eprintln!(
+            "{i:2} span={} parent={:?} time={} pos={} ord={} {:9} {:11} id={:?}",
+            &b.span_id[..8],
+            b.parent_span_id.as_deref().map(|id| &id[..8]),
+            b.timestamp,
+            b.position,
+            b.occurrence_ordinal,
+            b.role.as_str(),
+            b.entry_type,
+            b.tool_use_id
+        );
+    }
+    PREFER_LATER_ON_TIE.with(|flag| flag.set(false));
 }
 
 /// Every carrier the corpus produces is classified deliberately in `sideml::carrier`.

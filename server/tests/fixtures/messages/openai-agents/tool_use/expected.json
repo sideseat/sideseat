@@ -639,13 +639,15 @@
   },
   "trace_views": {
     "trace-1": {
-      "message_count": 14,
+      "message_count": 16,
       "role_sequence": [
         "system",
         "user",
         "assistant",
         "tool",
         "assistant",
+        "assistant",
+        "tool",
         "assistant",
         "user",
         "assistant",
@@ -704,13 +706,31 @@
         {
           "index": 5,
           "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call_bfd995541dd455d7ab8a3b66750f076e\",\"name\":\"temperature_forecast\",\"input\":{\"city\":\"New York City\",\"days\":3}}",
+          "content_digest": "ca0fc8d5aad1edfb",
+          "tool_name": "temperature_forecast",
+          "observation_type": "generation"
+        },
+        {
+          "index": 6,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_bfd995541dd455d7ab8a3b66750f076e\",\"name\":\"temperature_forecast\",\"content\":{\"status\":\"success\",\"content\":[{\"json\":{\"city\":\"New York City\",\"days\":3,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":25,\"…[352 chars]",
+          "content_digest": "487ffb7070a59bd4",
+          "tool_name": "temperature_forecast",
+          "observation_type": "span"
+        },
+        {
+          "index": 7,
+          "role": "assistant",
           "entry_type": "text",
           "content": "Hello! Here’s the 3-day forecast for **New York City**: - **Day 1:** Sunny — High **25°**, Low **15°** - **Day 2:** Sunny — High **26°**, Low **16°** - **Day 3:** Sunny — High **27°**, Low **17°** Temperatures are shown as provided by the f…[315 chars]",
           "content_digest": "0a45d534ed0b9851",
           "observation_type": "generation"
         },
         {
-          "index": 6,
+          "index": 8,
           "role": "user",
           "entry_type": "text",
           "content": "Provide a 7-day weather forecast for Los Angeles.",
@@ -718,7 +738,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 7,
+          "index": 9,
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"call_ee4f0e235187538fbfe386a1ccf97dbc\",\"name\":\"temperature_forecast\",\"input\":{\"city\":\"Los Angeles\",\"days\":7}}",
@@ -727,7 +747,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 8,
+          "index": 10,
           "role": "tool",
           "entry_type": "tool_result",
           "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_ee4f0e235187538fbfe386a1ccf97dbc\",\"name\":\"temperature_forecast\",\"content\":{\"status\":\"success\",\"content\":[{\"json\":{\"city\":\"Los Angeles\",\"days\":7,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":25,\"lo…[546 chars]",
@@ -736,7 +756,7 @@
           "observation_type": "span"
         },
         {
-          "index": 9,
+          "index": 11,
           "role": "assistant",
           "entry_type": "text",
           "content": "Hello! Here’s the 7-day forecast for **Los Angeles**: | Day | Conditions | High | Low | |---|---|---:|---:| | 1 | Sunny | 25°C | 15°C | | 2 | Sunny | 26°C | 16°C | | 3 | Sunny | 27°C | 17°C | | 4 | Sunny | 28°C | 18°C | | 5 | Sunny | 29°C |…[447 chars]",
@@ -744,7 +764,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 10,
+          "index": 12,
           "role": "user",
           "entry_type": "text",
           "content": "Provide a 14-day weather forecast for London.",
@@ -752,7 +772,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 11,
+          "index": 13,
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"call_69d8bb12436e55238fde5d3f7453f594\",\"name\":\"temperature_forecast\",\"input\":{\"city\":\"London\",\"days\":7}}",
@@ -761,7 +781,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 12,
+          "index": 14,
           "role": "tool",
           "entry_type": "tool_result",
           "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_69d8bb12436e55238fde5d3f7453f594\",\"name\":\"temperature_forecast\",\"content\":{\"status\":\"success\",\"content\":[{\"json\":{\"city\":\"London\",\"days\":7,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":25,\"low\":15…[541 chars]",
@@ -770,7 +790,7 @@
           "observation_type": "span"
         },
         {
-          "index": 13,
+          "index": 15,
           "role": "assistant",
           "entry_type": "text",
           "content": "Hello! I can provide up to **7 days**, so here’s the available forecast for **London**: | Day | Conditions | High | Low | |---|---|---:|---:| | 1 | Sunny | 25° | 15° | | 2 | Sunny | 26° | 16° | | 3 | Sunny | 27° | 17° | | 4 | Sunny | 28° | …[500 chars]",
@@ -782,13 +802,15 @@
   },
   "session_views": {
     "[Scrubbed due to 'session']": {
-      "message_count": 14,
+      "message_count": 16,
       "role_sequence": [
         "system",
         "user",
         "assistant",
         "tool",
         "assistant",
+        "assistant",
+        "tool",
         "assistant",
         "user",
         "assistant",
@@ -847,13 +869,31 @@
         {
           "index": 5,
           "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call_bfd995541dd455d7ab8a3b66750f076e\",\"name\":\"temperature_forecast\",\"input\":{\"city\":\"New York City\",\"days\":3}}",
+          "content_digest": "ca0fc8d5aad1edfb",
+          "tool_name": "temperature_forecast",
+          "observation_type": "generation"
+        },
+        {
+          "index": 6,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_bfd995541dd455d7ab8a3b66750f076e\",\"name\":\"temperature_forecast\",\"content\":{\"status\":\"success\",\"content\":[{\"json\":{\"city\":\"New York City\",\"days\":3,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":25,\"…[352 chars]",
+          "content_digest": "487ffb7070a59bd4",
+          "tool_name": "temperature_forecast",
+          "observation_type": "span"
+        },
+        {
+          "index": 7,
+          "role": "assistant",
           "entry_type": "text",
           "content": "Hello! Here’s the 3-day forecast for **New York City**: - **Day 1:** Sunny — High **25°**, Low **15°** - **Day 2:** Sunny — High **26°**, Low **16°** - **Day 3:** Sunny — High **27°**, Low **17°** Temperatures are shown as provided by the f…[315 chars]",
           "content_digest": "0a45d534ed0b9851",
           "observation_type": "generation"
         },
         {
-          "index": 6,
+          "index": 8,
           "role": "user",
           "entry_type": "text",
           "content": "Provide a 7-day weather forecast for Los Angeles.",
@@ -861,7 +901,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 7,
+          "index": 9,
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"call_ee4f0e235187538fbfe386a1ccf97dbc\",\"name\":\"temperature_forecast\",\"input\":{\"city\":\"Los Angeles\",\"days\":7}}",
@@ -870,7 +910,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 8,
+          "index": 10,
           "role": "tool",
           "entry_type": "tool_result",
           "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_ee4f0e235187538fbfe386a1ccf97dbc\",\"name\":\"temperature_forecast\",\"content\":{\"status\":\"success\",\"content\":[{\"json\":{\"city\":\"Los Angeles\",\"days\":7,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":25,\"lo…[546 chars]",
@@ -879,7 +919,7 @@
           "observation_type": "span"
         },
         {
-          "index": 9,
+          "index": 11,
           "role": "assistant",
           "entry_type": "text",
           "content": "Hello! Here’s the 7-day forecast for **Los Angeles**: | Day | Conditions | High | Low | |---|---|---:|---:| | 1 | Sunny | 25°C | 15°C | | 2 | Sunny | 26°C | 16°C | | 3 | Sunny | 27°C | 17°C | | 4 | Sunny | 28°C | 18°C | | 5 | Sunny | 29°C |…[447 chars]",
@@ -887,7 +927,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 10,
+          "index": 12,
           "role": "user",
           "entry_type": "text",
           "content": "Provide a 14-day weather forecast for London.",
@@ -895,7 +935,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 11,
+          "index": 13,
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"call_69d8bb12436e55238fde5d3f7453f594\",\"name\":\"temperature_forecast\",\"input\":{\"city\":\"London\",\"days\":7}}",
@@ -904,7 +944,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 12,
+          "index": 14,
           "role": "tool",
           "entry_type": "tool_result",
           "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_69d8bb12436e55238fde5d3f7453f594\",\"name\":\"temperature_forecast\",\"content\":{\"status\":\"success\",\"content\":[{\"json\":{\"city\":\"London\",\"days\":7,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":25,\"low\":15…[541 chars]",
@@ -913,7 +953,7 @@
           "observation_type": "span"
         },
         {
-          "index": 13,
+          "index": 15,
           "role": "assistant",
           "entry_type": "text",
           "content": "Hello! I can provide up to **7 days**, so here’s the available forecast for **London**: | Day | Conditions | High | Low | |---|---|---:|---:| | 1 | Sunny | 25° | 15° | | 2 | Sunny | 26° | 16° | | 3 | Sunny | 27° | 17° | | 4 | Sunny | 28° | …[500 chars]",
@@ -924,7 +964,7 @@
     }
   },
   "feed_view": {
-    "message_count": 14,
+    "message_count": 16,
     "role_sequence": [
       "assistant",
       "tool",
@@ -934,6 +974,8 @@
       "tool",
       "user",
       "assistant",
+      "assistant",
+      "tool",
       "assistant",
       "assistant",
       "tool",
@@ -1022,6 +1064,24 @@
       },
       {
         "index": 9,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_bfd995541dd455d7ab8a3b66750f076e\",\"name\":\"temperature_forecast\",\"content\":{\"status\":\"success\",\"content\":[{\"json\":{\"city\":\"New York City\",\"days\":3,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":25,\"…[352 chars]",
+        "content_digest": "487ffb7070a59bd4",
+        "tool_name": "temperature_forecast",
+        "observation_type": "span"
+      },
+      {
+        "index": 10,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"call_bfd995541dd455d7ab8a3b66750f076e\",\"name\":\"temperature_forecast\",\"input\":{\"city\":\"New York City\",\"days\":3}}",
+        "content_digest": "ca0fc8d5aad1edfb",
+        "tool_name": "temperature_forecast",
+        "observation_type": "generation"
+      },
+      {
+        "index": 11,
         "role": "assistant",
         "entry_type": "text",
         "content": "Hello! Here’s the 3-day forecast for **New York City**: - **Day 1:** Sunny — High **25°**, Low **15°** - **Day 2:** Sunny — High **26°**, Low **16°** - **Day 3:** Sunny — High **27°**, Low **17°** Please check again regularly for updates. T…[270 chars]",
@@ -1029,7 +1089,7 @@
         "observation_type": "generation"
       },
       {
-        "index": 10,
+        "index": 12,
         "role": "tool",
         "entry_type": "tool_result",
         "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_0eeeee840d335a50bb5272aaaebfc6b9\",\"name\":\"temperature_forecast\",\"content\":{\"status\":\"success\",\"content\":[{\"json\":{\"city\":\"New York City\",\"days\":3,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":25,\"…[352 chars]",
@@ -1038,7 +1098,7 @@
         "observation_type": "span"
       },
       {
-        "index": 11,
+        "index": 13,
         "role": "system",
         "entry_type": "text",
         "content": "You're a helpful weather assistant. Use the weather_forecast tool to get weather data. Guidelines (Important!!!): 1. Always use the weather_forecast tool for weather information. 2. Keep responses concise and friendly. 3. Default to New Yor…[4330 chars]",
@@ -1046,7 +1106,7 @@
         "observation_type": "generation"
       },
       {
-        "index": 12,
+        "index": 14,
         "role": "user",
         "entry_type": "text",
         "content": "Provide a 3-day weather forecast for New York City.",
@@ -1054,7 +1114,7 @@
         "observation_type": "generation"
       },
       {
-        "index": 13,
+        "index": 15,
         "role": "assistant",
         "entry_type": "tool_use",
         "content": "{\"type\":\"tool_use\",\"id\":\"call_0eeeee840d335a50bb5272aaaebfc6b9\",\"name\":\"temperature_forecast\",\"input\":{\"city\":\"New York City\",\"days\":3}}",

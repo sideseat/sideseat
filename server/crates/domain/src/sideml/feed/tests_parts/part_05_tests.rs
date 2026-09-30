@@ -461,6 +461,10 @@ fn test_regression_tool_use_from_assistant_message_uses_event_time() {
         block.category,
         sideseat_ports::types::MessageCategory::GenAIAssistantMessage
     );
+    assert!(
+        block.is_output_source(),
+        "a terminal assistant tool call is the choiceless generation's output"
+    );
 }
 
 /// Regression #46: Intermediate assistant text from generation spans is filtered.

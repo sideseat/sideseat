@@ -53,10 +53,12 @@
       ]
     },
     "trace-1/call_llm/span-8": {
-      "message_count": 5,
+      "message_count": 7,
       "role_sequence": [
         "system",
         "user",
+        "assistant",
+        "assistant",
         "tool",
         "tool",
         "assistant"
@@ -82,24 +84,42 @@
         },
         {
           "index": 2,
-          "role": "tool",
-          "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"name\":\"temperature_forecast\",\"content\":{\"status\":\"success\",\"content\":[{\"json\":{\"city\":\"New York City\",\"days\":3,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":25,\"low\":15},{\"day\":2,\"condition\":\"Sunny\",\"high\":26,\"low\":…[298 chars]",
-          "content_digest": "4010f9d7dfef58bd",
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"gemini_temperature_forecast_call_c53654bc\",\"name\":\"temperature_forecast\",\"input\":{\"city\":\"New York City\",\"days\":3}}",
+          "content_digest": "b7a070a2b20c6c80",
           "tool_name": "temperature_forecast",
           "observation_type": "generation"
         },
         {
           "index": 3,
-          "role": "tool",
-          "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"name\":\"precipitation_forecast\",\"content\":{\"result\":\"The precipitation forecast for New York City for the next 3 days is: Light rain expected on day 2.\"}}",
-          "content_digest": "369f5f49616991d4",
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"gemini_precipitation_forecast_call_c53654bc\",\"name\":\"precipitation_forecast\",\"input\":{\"city\":\"New York City\",\"days\":3}}",
+          "content_digest": "03f15361a5d4e079",
           "tool_name": "precipitation_forecast",
           "observation_type": "generation"
         },
         {
           "index": 4,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"gemini_temperature_forecast_call_c53654bc\",\"name\":\"temperature_forecast\",\"content\":{\"status\":\"success\",\"content\":[{\"json\":{\"city\":\"New York City\",\"days\":3,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":…[356 chars]",
+          "content_digest": "f026c51bdebb0c32",
+          "tool_name": "temperature_forecast",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"gemini_precipitation_forecast_call_c53654bc\",\"name\":\"precipitation_forecast\",\"content\":{\"result\":\"The precipitation forecast for New York City for the next 3 days is: Light rain expected on day 2.\"}}",
+          "content_digest": "d2b21e8ed9e4a942",
+          "tool_name": "precipitation_forecast",
+          "observation_type": "generation"
+        },
+        {
+          "index": 6,
           "role": "assistant",
           "entry_type": "text",
           "content": "Hello! 👋 Here's your 3-day weather forecast for New York City: **Day 1:** - Condition: Sunny - High: 25°C | Low: 15°C **Day 2:** - Condition: Sunny - High: 26°C | Low: 16°C - ⚠️ Light rain expected **Day 3:** - Condition: Sunny - High: 27°C…[512 chars]",
@@ -159,14 +179,18 @@
       "messages": []
     },
     "trace-2/call_llm/span-3": {
-      "message_count": 6,
+      "message_count": 10,
       "role_sequence": [
         "system",
         "user",
         "assistant",
+        "assistant",
+        "tool",
         "tool",
         "assistant",
-        "tool"
+        "user",
+        "assistant",
+        "assistant"
       ],
       "tool_names": [],
       "tool_definition_count": 2,
@@ -198,20 +222,20 @@
         },
         {
           "index": 3,
-          "role": "tool",
-          "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"gemini_temperature_forecast_call_c53654bc\",\"name\":\"temperature_forecast\",\"content\":{\"status\":\"success\",\"content\":[{\"json\":{\"city\":\"New York City\",\"days\":3,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":…[356 chars]",
-          "content_digest": "f026c51bdebb0c32",
-          "tool_name": "temperature_forecast",
-          "observation_type": "generation"
-        },
-        {
-          "index": 4,
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"gemini_precipitation_forecast_call_c53654bc\",\"name\":\"precipitation_forecast\",\"input\":{\"city\":\"New York City\",\"days\":3}}",
           "content_digest": "03f15361a5d4e079",
           "tool_name": "precipitation_forecast",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"gemini_temperature_forecast_call_c53654bc\",\"name\":\"temperature_forecast\",\"content\":{\"status\":\"success\",\"content\":[{\"json\":{\"city\":\"New York City\",\"days\":3,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":…[356 chars]",
+          "content_digest": "f026c51bdebb0c32",
+          "tool_name": "temperature_forecast",
           "observation_type": "generation"
         },
         {
@@ -222,14 +246,56 @@
           "content_digest": "d2b21e8ed9e4a942",
           "tool_name": "precipitation_forecast",
           "observation_type": "generation"
+        },
+        {
+          "index": 6,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Hello! 👋 Here's your 3-day weather forecast for New York City: **Day 1:** - Condition: Sunny - High: 25°C | Low: 15°C **Day 2:** - Condition: Sunny - High: 26°C | Low: 16°C - ⚠️ Light rain expected **Day 3:** - Condition: Sunny - High: 27°C…[512 chars]",
+          "content_digest": "7d58955f08ab0a6f",
+          "observation_type": "generation"
+        },
+        {
+          "index": 7,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Provide a 3-day weather forecast for New York City.",
+          "content_digest": "75e9643b50cb90f4",
+          "observation_type": "generation"
+        },
+        {
+          "index": 8,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"gemini_temperature_forecast_call_c53654bc\",\"name\":\"temperature_forecast\",\"input\":{\"city\":\"New York City\",\"days\":3}}",
+          "content_digest": "b7a070a2b20c6c80",
+          "tool_name": "temperature_forecast",
+          "observation_type": "generation"
+        },
+        {
+          "index": 9,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"gemini_precipitation_forecast_call_c53654bc\",\"name\":\"precipitation_forecast\",\"input\":{\"city\":\"New York City\",\"days\":3}}",
+          "content_digest": "03f15361a5d4e079",
+          "tool_name": "precipitation_forecast",
+          "observation_type": "generation"
         }
       ]
     },
     "trace-2/call_llm/span-8": {
-      "message_count": 5,
+      "message_count": 13,
       "role_sequence": [
         "system",
         "user",
+        "assistant",
+        "assistant",
+        "tool",
+        "tool",
+        "assistant",
+        "user",
+        "assistant",
+        "assistant",
         "tool",
         "tool",
         "assistant"
@@ -255,24 +321,94 @@
         },
         {
           "index": 2,
-          "role": "tool",
-          "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"name\":\"temperature_forecast\",\"content\":{\"status\":\"success\",\"content\":[{\"json\":{\"city\":\"New York City\",\"days\":3,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":25,\"low\":15},{\"day\":2,\"condition\":\"Sunny\",\"high\":26,\"low\":…[298 chars]",
-          "content_digest": "4010f9d7dfef58bd",
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"gemini_temperature_forecast_call_c53654bc\",\"name\":\"temperature_forecast\",\"input\":{\"city\":\"New York City\",\"days\":3}}",
+          "content_digest": "b7a070a2b20c6c80",
           "tool_name": "temperature_forecast",
           "observation_type": "generation"
         },
         {
           "index": 3,
-          "role": "tool",
-          "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"name\":\"precipitation_forecast\",\"content\":{\"result\":\"The precipitation forecast for New York City for the next 3 days is: Light rain expected on day 2.\"}}",
-          "content_digest": "369f5f49616991d4",
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"gemini_precipitation_forecast_call_c53654bc\",\"name\":\"precipitation_forecast\",\"input\":{\"city\":\"New York City\",\"days\":3}}",
+          "content_digest": "03f15361a5d4e079",
           "tool_name": "precipitation_forecast",
           "observation_type": "generation"
         },
         {
           "index": 4,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"gemini_temperature_forecast_call_c53654bc\",\"name\":\"temperature_forecast\",\"content\":{\"status\":\"success\",\"content\":[{\"json\":{\"city\":\"New York City\",\"days\":3,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":…[356 chars]",
+          "content_digest": "f026c51bdebb0c32",
+          "tool_name": "temperature_forecast",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"gemini_precipitation_forecast_call_c53654bc\",\"name\":\"precipitation_forecast\",\"content\":{\"result\":\"The precipitation forecast for New York City for the next 3 days is: Light rain expected on day 2.\"}}",
+          "content_digest": "d2b21e8ed9e4a942",
+          "tool_name": "precipitation_forecast",
+          "observation_type": "generation"
+        },
+        {
+          "index": 6,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Hello! 👋 Here's your 3-day weather forecast for New York City: **Day 1:** - Condition: Sunny - High: 25°C | Low: 15°C **Day 2:** - Condition: Sunny - High: 26°C | Low: 16°C - ⚠️ Light rain expected **Day 3:** - Condition: Sunny - High: 27°C…[512 chars]",
+          "content_digest": "7d58955f08ab0a6f",
+          "observation_type": "generation"
+        },
+        {
+          "index": 7,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Provide a 3-day weather forecast for New York City.",
+          "content_digest": "75e9643b50cb90f4",
+          "observation_type": "generation"
+        },
+        {
+          "index": 8,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"gemini_temperature_forecast_call_c53654bc\",\"name\":\"temperature_forecast\",\"input\":{\"city\":\"New York City\",\"days\":3}}",
+          "content_digest": "b7a070a2b20c6c80",
+          "tool_name": "temperature_forecast",
+          "observation_type": "generation"
+        },
+        {
+          "index": 9,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"gemini_precipitation_forecast_call_c53654bc\",\"name\":\"precipitation_forecast\",\"input\":{\"city\":\"New York City\",\"days\":3}}",
+          "content_digest": "03f15361a5d4e079",
+          "tool_name": "precipitation_forecast",
+          "observation_type": "generation"
+        },
+        {
+          "index": 10,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"gemini_temperature_forecast_call_c53654bc\",\"name\":\"temperature_forecast\",\"content\":{\"status\":\"success\",\"content\":[{\"json\":{\"city\":\"New York City\",\"days\":3,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":…[356 chars]",
+          "content_digest": "f026c51bdebb0c32",
+          "tool_name": "temperature_forecast",
+          "observation_type": "generation"
+        },
+        {
+          "index": 11,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"gemini_precipitation_forecast_call_c53654bc\",\"name\":\"precipitation_forecast\",\"content\":{\"result\":\"The precipitation forecast for New York City for the next 3 days is: Light rain expected on day 2.\"}}",
+          "content_digest": "d2b21e8ed9e4a942",
+          "tool_name": "precipitation_forecast",
+          "observation_type": "generation"
+        },
+        {
+          "index": 12,
           "role": "assistant",
           "entry_type": "text",
           "content": "Hello! 👋 Here's your 3-day weather forecast for New York City: **Day 1:** - Condition: Sunny - High: 25°C | Low: 15°C **Day 2:** - Condition: Sunny - High: 26°C | Low: 16°C - ⚠️ Light rain expected **Day 3:** - Condition: Sunny - High: 27°C…[530 chars]",
@@ -332,12 +468,21 @@
       "messages": []
     },
     "trace-3/call_llm/span-3": {
-      "message_count": 7,
+      "message_count": 16,
       "role_sequence": [
         "system",
         "user",
+        "assistant",
+        "assistant",
         "tool",
         "tool",
+        "assistant",
+        "user",
+        "assistant",
+        "assistant",
+        "tool",
+        "tool",
+        "assistant",
         "user",
         "assistant",
         "assistant"
@@ -363,24 +508,102 @@
         },
         {
           "index": 2,
-          "role": "tool",
-          "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"name\":\"temperature_forecast\",\"content\":{\"status\":\"success\",\"content\":[{\"json\":{\"city\":\"New York City\",\"days\":3,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":25,\"low\":15},{\"day\":2,\"condition\":\"Sunny\",\"high\":26,\"low\":…[298 chars]",
-          "content_digest": "4010f9d7dfef58bd",
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"gemini_temperature_forecast_call_c53654bc\",\"name\":\"temperature_forecast\",\"input\":{\"city\":\"New York City\",\"days\":3}}",
+          "content_digest": "b7a070a2b20c6c80",
           "tool_name": "temperature_forecast",
           "observation_type": "generation"
         },
         {
           "index": 3,
-          "role": "tool",
-          "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"name\":\"precipitation_forecast\",\"content\":{\"result\":\"The precipitation forecast for New York City for the next 3 days is: Light rain expected on day 2.\"}}",
-          "content_digest": "369f5f49616991d4",
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"gemini_precipitation_forecast_call_c53654bc\",\"name\":\"precipitation_forecast\",\"input\":{\"city\":\"New York City\",\"days\":3}}",
+          "content_digest": "03f15361a5d4e079",
           "tool_name": "precipitation_forecast",
           "observation_type": "generation"
         },
         {
           "index": 4,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"gemini_temperature_forecast_call_c53654bc\",\"name\":\"temperature_forecast\",\"content\":{\"status\":\"success\",\"content\":[{\"json\":{\"city\":\"New York City\",\"days\":3,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":…[356 chars]",
+          "content_digest": "f026c51bdebb0c32",
+          "tool_name": "temperature_forecast",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"gemini_precipitation_forecast_call_c53654bc\",\"name\":\"precipitation_forecast\",\"content\":{\"result\":\"The precipitation forecast for New York City for the next 3 days is: Light rain expected on day 2.\"}}",
+          "content_digest": "d2b21e8ed9e4a942",
+          "tool_name": "precipitation_forecast",
+          "observation_type": "generation"
+        },
+        {
+          "index": 6,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Hello! 👋 Here's your 3-day weather forecast for New York City: **Day 1:** - Condition: Sunny - High: 25°C | Low: 15°C **Day 2:** - Condition: Sunny - High: 26°C | Low: 16°C - ⚠️ Light rain expected **Day 3:** - Condition: Sunny - High: 27°C…[512 chars]",
+          "content_digest": "7d58955f08ab0a6f",
+          "observation_type": "generation"
+        },
+        {
+          "index": 7,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Provide a 3-day weather forecast for New York City.",
+          "content_digest": "75e9643b50cb90f4",
+          "observation_type": "generation"
+        },
+        {
+          "index": 8,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"gemini_temperature_forecast_call_c53654bc\",\"name\":\"temperature_forecast\",\"input\":{\"city\":\"New York City\",\"days\":3}}",
+          "content_digest": "b7a070a2b20c6c80",
+          "tool_name": "temperature_forecast",
+          "observation_type": "generation"
+        },
+        {
+          "index": 9,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"gemini_precipitation_forecast_call_c53654bc\",\"name\":\"precipitation_forecast\",\"input\":{\"city\":\"New York City\",\"days\":3}}",
+          "content_digest": "03f15361a5d4e079",
+          "tool_name": "precipitation_forecast",
+          "observation_type": "generation"
+        },
+        {
+          "index": 10,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"gemini_temperature_forecast_call_c53654bc\",\"name\":\"temperature_forecast\",\"content\":{\"status\":\"success\",\"content\":[{\"json\":{\"city\":\"New York City\",\"days\":3,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":…[356 chars]",
+          "content_digest": "f026c51bdebb0c32",
+          "tool_name": "temperature_forecast",
+          "observation_type": "generation"
+        },
+        {
+          "index": 11,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"gemini_precipitation_forecast_call_c53654bc\",\"name\":\"precipitation_forecast\",\"content\":{\"result\":\"The precipitation forecast for New York City for the next 3 days is: Light rain expected on day 2.\"}}",
+          "content_digest": "d2b21e8ed9e4a942",
+          "tool_name": "precipitation_forecast",
+          "observation_type": "generation"
+        },
+        {
+          "index": 12,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Hello! 👋 Here's your 3-day weather forecast for New York City: **Day 1:** - Condition: Sunny - High: 25°C | Low: 15°C **Day 2:** - Condition: Sunny - High: 26°C | Low: 16°C - ⚠️ Light rain expected **Day 3:** - Condition: Sunny - High: 27°C…[530 chars]",
+          "content_digest": "ebd26c958f5e3f7d",
+          "observation_type": "generation"
+        },
+        {
+          "index": 13,
           "role": "user",
           "entry_type": "text",
           "content": "Provide a 7-day weather forecast for Los Angeles.",
@@ -388,7 +611,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 5,
+          "index": 14,
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"gemini_temperature_forecast_call_cbc22729\",\"name\":\"temperature_forecast\",\"input\":{\"city\":\"Los Angeles\",\"days\":7}}",
@@ -397,7 +620,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 6,
+          "index": 15,
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"gemini_precipitation_forecast_call_cbc22729\",\"name\":\"precipitation_forecast\",\"input\":{\"city\":\"Los Angeles\",\"days\":7}}",
@@ -408,13 +631,24 @@
       ]
     },
     "trace-3/call_llm/span-8": {
-      "message_count": 8,
+      "message_count": 19,
       "role_sequence": [
         "system",
         "user",
+        "assistant",
+        "assistant",
         "tool",
         "tool",
+        "assistant",
         "user",
+        "assistant",
+        "assistant",
+        "tool",
+        "tool",
+        "assistant",
+        "user",
+        "assistant",
+        "assistant",
         "tool",
         "tool",
         "assistant"
@@ -440,24 +674,102 @@
         },
         {
           "index": 2,
-          "role": "tool",
-          "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"name\":\"temperature_forecast\",\"content\":{\"status\":\"success\",\"content\":[{\"json\":{\"city\":\"New York City\",\"days\":3,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":25,\"low\":15},{\"day\":2,\"condition\":\"Sunny\",\"high\":26,\"low\":…[298 chars]",
-          "content_digest": "4010f9d7dfef58bd",
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"gemini_temperature_forecast_call_c53654bc\",\"name\":\"temperature_forecast\",\"input\":{\"city\":\"New York City\",\"days\":3}}",
+          "content_digest": "b7a070a2b20c6c80",
           "tool_name": "temperature_forecast",
           "observation_type": "generation"
         },
         {
           "index": 3,
-          "role": "tool",
-          "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"name\":\"precipitation_forecast\",\"content\":{\"result\":\"The precipitation forecast for New York City for the next 3 days is: Light rain expected on day 2.\"}}",
-          "content_digest": "369f5f49616991d4",
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"gemini_precipitation_forecast_call_c53654bc\",\"name\":\"precipitation_forecast\",\"input\":{\"city\":\"New York City\",\"days\":3}}",
+          "content_digest": "03f15361a5d4e079",
           "tool_name": "precipitation_forecast",
           "observation_type": "generation"
         },
         {
           "index": 4,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"gemini_temperature_forecast_call_c53654bc\",\"name\":\"temperature_forecast\",\"content\":{\"status\":\"success\",\"content\":[{\"json\":{\"city\":\"New York City\",\"days\":3,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":…[356 chars]",
+          "content_digest": "f026c51bdebb0c32",
+          "tool_name": "temperature_forecast",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"gemini_precipitation_forecast_call_c53654bc\",\"name\":\"precipitation_forecast\",\"content\":{\"result\":\"The precipitation forecast for New York City for the next 3 days is: Light rain expected on day 2.\"}}",
+          "content_digest": "d2b21e8ed9e4a942",
+          "tool_name": "precipitation_forecast",
+          "observation_type": "generation"
+        },
+        {
+          "index": 6,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Hello! 👋 Here's your 3-day weather forecast for New York City: **Day 1:** - Condition: Sunny - High: 25°C | Low: 15°C **Day 2:** - Condition: Sunny - High: 26°C | Low: 16°C - ⚠️ Light rain expected **Day 3:** - Condition: Sunny - High: 27°C…[512 chars]",
+          "content_digest": "7d58955f08ab0a6f",
+          "observation_type": "generation"
+        },
+        {
+          "index": 7,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Provide a 3-day weather forecast for New York City.",
+          "content_digest": "75e9643b50cb90f4",
+          "observation_type": "generation"
+        },
+        {
+          "index": 8,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"gemini_temperature_forecast_call_c53654bc\",\"name\":\"temperature_forecast\",\"input\":{\"city\":\"New York City\",\"days\":3}}",
+          "content_digest": "b7a070a2b20c6c80",
+          "tool_name": "temperature_forecast",
+          "observation_type": "generation"
+        },
+        {
+          "index": 9,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"gemini_precipitation_forecast_call_c53654bc\",\"name\":\"precipitation_forecast\",\"input\":{\"city\":\"New York City\",\"days\":3}}",
+          "content_digest": "03f15361a5d4e079",
+          "tool_name": "precipitation_forecast",
+          "observation_type": "generation"
+        },
+        {
+          "index": 10,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"gemini_temperature_forecast_call_c53654bc\",\"name\":\"temperature_forecast\",\"content\":{\"status\":\"success\",\"content\":[{\"json\":{\"city\":\"New York City\",\"days\":3,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":…[356 chars]",
+          "content_digest": "f026c51bdebb0c32",
+          "tool_name": "temperature_forecast",
+          "observation_type": "generation"
+        },
+        {
+          "index": 11,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"gemini_precipitation_forecast_call_c53654bc\",\"name\":\"precipitation_forecast\",\"content\":{\"result\":\"The precipitation forecast for New York City for the next 3 days is: Light rain expected on day 2.\"}}",
+          "content_digest": "d2b21e8ed9e4a942",
+          "tool_name": "precipitation_forecast",
+          "observation_type": "generation"
+        },
+        {
+          "index": 12,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Hello! 👋 Here's your 3-day weather forecast for New York City: **Day 1:** - Condition: Sunny - High: 25°C | Low: 15°C **Day 2:** - Condition: Sunny - High: 26°C | Low: 16°C - ⚠️ Light rain expected **Day 3:** - Condition: Sunny - High: 27°C…[530 chars]",
+          "content_digest": "ebd26c958f5e3f7d",
+          "observation_type": "generation"
+        },
+        {
+          "index": 13,
           "role": "user",
           "entry_type": "text",
           "content": "Provide a 7-day weather forecast for Los Angeles.",
@@ -465,25 +777,43 @@
           "observation_type": "generation"
         },
         {
-          "index": 5,
-          "role": "tool",
-          "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"name\":\"temperature_forecast\",\"content\":{\"status\":\"success\",\"content\":[{\"json\":{\"city\":\"Los Angeles\",\"days\":7,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":25,\"low\":15},{\"day\":2,\"condition\":\"Sunny\",\"high\":26,\"low\":16…[492 chars]",
-          "content_digest": "0f1beb36e3265d1e",
+          "index": 14,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"gemini_temperature_forecast_call_cbc22729\",\"name\":\"temperature_forecast\",\"input\":{\"city\":\"Los Angeles\",\"days\":7}}",
+          "content_digest": "74483f10390ff518",
           "tool_name": "temperature_forecast",
           "observation_type": "generation"
         },
         {
-          "index": 6,
-          "role": "tool",
-          "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"name\":\"precipitation_forecast\",\"content\":{\"result\":\"The precipitation forecast for Los Angeles for the next 7 days is: Light rain expected on day 2.\"}}",
-          "content_digest": "da61bfe846976d0a",
+          "index": 15,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"gemini_precipitation_forecast_call_cbc22729\",\"name\":\"precipitation_forecast\",\"input\":{\"city\":\"Los Angeles\",\"days\":7}}",
+          "content_digest": "35d838f182734e0f",
           "tool_name": "precipitation_forecast",
           "observation_type": "generation"
         },
         {
-          "index": 7,
+          "index": 16,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"gemini_temperature_forecast_call_cbc22729\",\"name\":\"temperature_forecast\",\"content\":{\"status\":\"success\",\"content\":[{\"json\":{\"city\":\"Los Angeles\",\"days\":7,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":25…[550 chars]",
+          "content_digest": "701abc8f282dd9d7",
+          "tool_name": "temperature_forecast",
+          "observation_type": "generation"
+        },
+        {
+          "index": 17,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"gemini_precipitation_forecast_call_cbc22729\",\"name\":\"precipitation_forecast\",\"content\":{\"result\":\"The precipitation forecast for Los Angeles for the next 7 days is: Light rain expected on day 2.\"}}",
+          "content_digest": "c99e65549bcb4c79",
+          "tool_name": "precipitation_forecast",
+          "observation_type": "generation"
+        },
+        {
+          "index": 18,
           "role": "assistant",
           "entry_type": "text",
           "content": "Hello! 👋 Here's your 7-day weather forecast for Los Angeles: **Day 1:** Sunny | High: 25°C | Low: 15°C **Day 2:** Sunny | High: 26°C | Low: 16°C ⚠️ Light rain expected **Day 3:** Sunny | High: 27°C | Low: 17°C **Day 4:** Sunny | High: 28°C …[785 chars]",
@@ -543,15 +873,27 @@
       "messages": []
     },
     "trace-4/call_llm/span-3": {
-      "message_count": 9,
+      "message_count": 21,
       "role_sequence": [
         "system",
         "user",
+        "assistant",
+        "assistant",
         "tool",
         "tool",
+        "assistant",
         "user",
+        "assistant",
+        "assistant",
         "tool",
         "tool",
+        "assistant",
+        "user",
+        "assistant",
+        "assistant",
+        "tool",
+        "tool",
+        "assistant",
         "user",
         "assistant"
       ],
@@ -576,24 +918,102 @@
         },
         {
           "index": 2,
-          "role": "tool",
-          "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"name\":\"temperature_forecast\",\"content\":{\"status\":\"success\",\"content\":[{\"json\":{\"city\":\"New York City\",\"days\":3,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":25,\"low\":15},{\"day\":2,\"condition\":\"Sunny\",\"high\":26,\"low\":…[298 chars]",
-          "content_digest": "4010f9d7dfef58bd",
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"gemini_temperature_forecast_call_c53654bc\",\"name\":\"temperature_forecast\",\"input\":{\"city\":\"New York City\",\"days\":3}}",
+          "content_digest": "b7a070a2b20c6c80",
           "tool_name": "temperature_forecast",
           "observation_type": "generation"
         },
         {
           "index": 3,
-          "role": "tool",
-          "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"name\":\"precipitation_forecast\",\"content\":{\"result\":\"The precipitation forecast for New York City for the next 3 days is: Light rain expected on day 2.\"}}",
-          "content_digest": "369f5f49616991d4",
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"gemini_precipitation_forecast_call_c53654bc\",\"name\":\"precipitation_forecast\",\"input\":{\"city\":\"New York City\",\"days\":3}}",
+          "content_digest": "03f15361a5d4e079",
           "tool_name": "precipitation_forecast",
           "observation_type": "generation"
         },
         {
           "index": 4,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"gemini_temperature_forecast_call_c53654bc\",\"name\":\"temperature_forecast\",\"content\":{\"status\":\"success\",\"content\":[{\"json\":{\"city\":\"New York City\",\"days\":3,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":…[356 chars]",
+          "content_digest": "f026c51bdebb0c32",
+          "tool_name": "temperature_forecast",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"gemini_precipitation_forecast_call_c53654bc\",\"name\":\"precipitation_forecast\",\"content\":{\"result\":\"The precipitation forecast for New York City for the next 3 days is: Light rain expected on day 2.\"}}",
+          "content_digest": "d2b21e8ed9e4a942",
+          "tool_name": "precipitation_forecast",
+          "observation_type": "generation"
+        },
+        {
+          "index": 6,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Hello! 👋 Here's your 3-day weather forecast for New York City: **Day 1:** - Condition: Sunny - High: 25°C | Low: 15°C **Day 2:** - Condition: Sunny - High: 26°C | Low: 16°C - ⚠️ Light rain expected **Day 3:** - Condition: Sunny - High: 27°C…[512 chars]",
+          "content_digest": "7d58955f08ab0a6f",
+          "observation_type": "generation"
+        },
+        {
+          "index": 7,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Provide a 3-day weather forecast for New York City.",
+          "content_digest": "75e9643b50cb90f4",
+          "observation_type": "generation"
+        },
+        {
+          "index": 8,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"gemini_temperature_forecast_call_c53654bc\",\"name\":\"temperature_forecast\",\"input\":{\"city\":\"New York City\",\"days\":3}}",
+          "content_digest": "b7a070a2b20c6c80",
+          "tool_name": "temperature_forecast",
+          "observation_type": "generation"
+        },
+        {
+          "index": 9,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"gemini_precipitation_forecast_call_c53654bc\",\"name\":\"precipitation_forecast\",\"input\":{\"city\":\"New York City\",\"days\":3}}",
+          "content_digest": "03f15361a5d4e079",
+          "tool_name": "precipitation_forecast",
+          "observation_type": "generation"
+        },
+        {
+          "index": 10,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"gemini_temperature_forecast_call_c53654bc\",\"name\":\"temperature_forecast\",\"content\":{\"status\":\"success\",\"content\":[{\"json\":{\"city\":\"New York City\",\"days\":3,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":…[356 chars]",
+          "content_digest": "f026c51bdebb0c32",
+          "tool_name": "temperature_forecast",
+          "observation_type": "generation"
+        },
+        {
+          "index": 11,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"gemini_precipitation_forecast_call_c53654bc\",\"name\":\"precipitation_forecast\",\"content\":{\"result\":\"The precipitation forecast for New York City for the next 3 days is: Light rain expected on day 2.\"}}",
+          "content_digest": "d2b21e8ed9e4a942",
+          "tool_name": "precipitation_forecast",
+          "observation_type": "generation"
+        },
+        {
+          "index": 12,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Hello! 👋 Here's your 3-day weather forecast for New York City: **Day 1:** - Condition: Sunny - High: 25°C | Low: 15°C **Day 2:** - Condition: Sunny - High: 26°C | Low: 16°C - ⚠️ Light rain expected **Day 3:** - Condition: Sunny - High: 27°C…[530 chars]",
+          "content_digest": "ebd26c958f5e3f7d",
+          "observation_type": "generation"
+        },
+        {
+          "index": 13,
           "role": "user",
           "entry_type": "text",
           "content": "Provide a 7-day weather forecast for Los Angeles.",
@@ -601,25 +1021,51 @@
           "observation_type": "generation"
         },
         {
-          "index": 5,
-          "role": "tool",
-          "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"name\":\"temperature_forecast\",\"content\":{\"status\":\"success\",\"content\":[{\"json\":{\"city\":\"Los Angeles\",\"days\":7,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":25,\"low\":15},{\"day\":2,\"condition\":\"Sunny\",\"high\":26,\"low\":16…[492 chars]",
-          "content_digest": "0f1beb36e3265d1e",
+          "index": 14,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"gemini_temperature_forecast_call_cbc22729\",\"name\":\"temperature_forecast\",\"input\":{\"city\":\"Los Angeles\",\"days\":7}}",
+          "content_digest": "74483f10390ff518",
           "tool_name": "temperature_forecast",
           "observation_type": "generation"
         },
         {
-          "index": 6,
-          "role": "tool",
-          "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"name\":\"precipitation_forecast\",\"content\":{\"result\":\"The precipitation forecast for Los Angeles for the next 7 days is: Light rain expected on day 2.\"}}",
-          "content_digest": "da61bfe846976d0a",
+          "index": 15,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"gemini_precipitation_forecast_call_cbc22729\",\"name\":\"precipitation_forecast\",\"input\":{\"city\":\"Los Angeles\",\"days\":7}}",
+          "content_digest": "35d838f182734e0f",
           "tool_name": "precipitation_forecast",
           "observation_type": "generation"
         },
         {
-          "index": 7,
+          "index": 16,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"gemini_temperature_forecast_call_cbc22729\",\"name\":\"temperature_forecast\",\"content\":{\"status\":\"success\",\"content\":[{\"json\":{\"city\":\"Los Angeles\",\"days\":7,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":25…[550 chars]",
+          "content_digest": "701abc8f282dd9d7",
+          "tool_name": "temperature_forecast",
+          "observation_type": "generation"
+        },
+        {
+          "index": 17,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"gemini_precipitation_forecast_call_cbc22729\",\"name\":\"precipitation_forecast\",\"content\":{\"result\":\"The precipitation forecast for Los Angeles for the next 7 days is: Light rain expected on day 2.\"}}",
+          "content_digest": "c99e65549bcb4c79",
+          "tool_name": "precipitation_forecast",
+          "observation_type": "generation"
+        },
+        {
+          "index": 18,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Hello! 👋 Here's your 7-day weather forecast for Los Angeles: **Day 1:** Sunny | High: 25°C | Low: 15°C **Day 2:** Sunny | High: 26°C | Low: 16°C ⚠️ Light rain expected **Day 3:** Sunny | High: 27°C | Low: 17°C **Day 4:** Sunny | High: 28°C …[785 chars]",
+          "content_digest": "0983796cfdf62fc6",
+          "observation_type": "generation"
+        },
+        {
+          "index": 19,
           "role": "user",
           "entry_type": "text",
           "content": "Provide a 14-day weather forecast for London.",
@@ -627,7 +1073,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 8,
+          "index": 20,
           "role": "assistant",
           "entry_type": "text",
           "content": "I appreciate your interest in a 14-day forecast! However, I can only provide weather forecasts for a maximum of **7 days** ahead. This is a limitation of the forecasting tool to ensure accuracy, as longer-term predictions become less reliab…[410 chars]",
@@ -743,8 +1189,8 @@
         "system",
         "user",
         "assistant",
-        "tool",
         "assistant",
+        "tool",
         "tool",
         "assistant"
       ],
@@ -778,20 +1224,20 @@
         },
         {
           "index": 3,
-          "role": "tool",
-          "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"gemini_temperature_forecast_call_c53654bc\",\"name\":\"temperature_forecast\",\"content\":{\"status\":\"success\",\"content\":[{\"json\":{\"city\":\"New York City\",\"days\":3,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":…[356 chars]",
-          "content_digest": "f026c51bdebb0c32",
-          "tool_name": "temperature_forecast",
-          "observation_type": "generation"
-        },
-        {
-          "index": 4,
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"gemini_precipitation_forecast_call_c53654bc\",\"name\":\"precipitation_forecast\",\"input\":{\"city\":\"New York City\",\"days\":3}}",
           "content_digest": "03f15361a5d4e079",
           "tool_name": "precipitation_forecast",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"gemini_temperature_forecast_call_c53654bc\",\"name\":\"temperature_forecast\",\"content\":{\"status\":\"success\",\"content\":[{\"json\":{\"city\":\"New York City\",\"days\":3,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":…[356 chars]",
+          "content_digest": "f026c51bdebb0c32",
+          "tool_name": "temperature_forecast",
           "observation_type": "generation"
         },
         {
@@ -943,8 +1389,8 @@
         "system",
         "user",
         "assistant",
-        "tool",
         "assistant",
+        "tool",
         "tool",
         "assistant",
         "system",
@@ -1049,20 +1495,20 @@
         },
         {
           "index": 10,
-          "role": "tool",
-          "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"gemini_temperature_forecast_call_c53654bc\",\"name\":\"temperature_forecast\",\"content\":{\"status\":\"success\",\"content\":[{\"json\":{\"city\":\"New York City\",\"days\":3,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":…[356 chars]",
-          "content_digest": "f026c51bdebb0c32",
-          "tool_name": "temperature_forecast",
-          "observation_type": "generation"
-        },
-        {
-          "index": 11,
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"gemini_precipitation_forecast_call_c53654bc\",\"name\":\"precipitation_forecast\",\"input\":{\"city\":\"New York City\",\"days\":3}}",
           "content_digest": "03f15361a5d4e079",
           "tool_name": "precipitation_forecast",
+          "observation_type": "generation"
+        },
+        {
+          "index": 11,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"gemini_temperature_forecast_call_c53654bc\",\"name\":\"temperature_forecast\",\"content\":{\"status\":\"success\",\"content\":[{\"json\":{\"city\":\"New York City\",\"days\":3,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":…[356 chars]",
+          "content_digest": "f026c51bdebb0c32",
+          "tool_name": "temperature_forecast",
           "observation_type": "generation"
         },
         {

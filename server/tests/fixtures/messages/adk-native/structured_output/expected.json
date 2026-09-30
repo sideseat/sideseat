@@ -1,0 +1,182 @@
+{
+  "label": "adk-native/structured_output",
+  "request_count": 1,
+  "span_count": 4,
+  "trace_count": 1,
+  "session_count": 1,
+  "span_views": {
+    "trace-1/call_llm/span-3": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a helpful assistant that extracts structured information from text. Extract all relevant details including name, age, address, contact information, and skills. Return the information in the exact format specified by the output schem…[306 chars]",
+          "content_digest": "c55cc928d0aa28d9",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Extract info: Jane Doe, a systems admin, 28, lives at 123 Main St, New York, USA. Email: jane@example.com",
+          "content_digest": "6a08cceee02e13c8",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "{\"name\":\"deterministic-name\",\"age\":1,\"address\":{\"street\":\"deterministic-street\",\"city\":\"Paris\",\"country\":\"deterministic-country\",\"postal_code\":\"deterministic-postal-code\"},\"contacts\":[{\"email\":\"deterministic-email\",\"phone\":\"deterministic-ph…[281 chars]",
+          "content_digest": "eacd2aec1a5c11a0",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/generate_content openai/gpt-5-nano-2025-08-07/span-4": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/invocation/span-1": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/invoke_agent extraction_assistant/span-2": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    }
+  },
+  "trace_views": {
+    "trace-1": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a helpful assistant that extracts structured information from text. Extract all relevant details including name, age, address, contact information, and skills. Return the information in the exact format specified by the output schem…[306 chars]",
+          "content_digest": "c55cc928d0aa28d9",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Extract info: Jane Doe, a systems admin, 28, lives at 123 Main St, New York, USA. Email: jane@example.com",
+          "content_digest": "6a08cceee02e13c8",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "{\"name\":\"deterministic-name\",\"age\":1,\"address\":{\"street\":\"deterministic-street\",\"city\":\"Paris\",\"country\":\"deterministic-country\",\"postal_code\":\"deterministic-postal-code\"},\"contacts\":[{\"email\":\"deterministic-email\",\"phone\":\"deterministic-ph…[281 chars]",
+          "content_digest": "eacd2aec1a5c11a0",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
+    }
+  },
+  "session_views": {
+    "adk-structured_output-7064cf4d": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a helpful assistant that extracts structured information from text. Extract all relevant details including name, age, address, contact information, and skills. Return the information in the exact format specified by the output schem…[306 chars]",
+          "content_digest": "c55cc928d0aa28d9",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Extract info: Jane Doe, a systems admin, 28, lives at 123 Main St, New York, USA. Email: jane@example.com",
+          "content_digest": "6a08cceee02e13c8",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "{\"name\":\"deterministic-name\",\"age\":1,\"address\":{\"street\":\"deterministic-street\",\"city\":\"Paris\",\"country\":\"deterministic-country\",\"postal_code\":\"deterministic-postal-code\"},\"contacts\":[{\"email\":\"deterministic-email\",\"phone\":\"deterministic-ph…[281 chars]",
+          "content_digest": "eacd2aec1a5c11a0",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
+    }
+  },
+  "feed_view": {
+    "message_count": 3,
+    "role_sequence": [
+      "assistant",
+      "system",
+      "user"
+    ],
+    "tool_names": [],
+    "tool_definition_count": 0,
+    "messages": [
+      {
+        "index": 0,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "{\"name\":\"deterministic-name\",\"age\":1,\"address\":{\"street\":\"deterministic-street\",\"city\":\"Paris\",\"country\":\"deterministic-country\",\"postal_code\":\"deterministic-postal-code\"},\"contacts\":[{\"email\":\"deterministic-email\",\"phone\":\"deterministic-ph…[281 chars]",
+        "content_digest": "eacd2aec1a5c11a0",
+        "finish_reason": "Stop",
+        "observation_type": "generation"
+      },
+      {
+        "index": 1,
+        "role": "system",
+        "entry_type": "text",
+        "content": "You are a helpful assistant that extracts structured information from text. Extract all relevant details including name, age, address, contact information, and skills. Return the information in the exact format specified by the output schem…[306 chars]",
+        "content_digest": "c55cc928d0aa28d9",
+        "observation_type": "generation"
+      },
+      {
+        "index": 2,
+        "role": "user",
+        "entry_type": "text",
+        "content": "Extract info: Jane Doe, a systems admin, 28, lives at 123 Main St, New York, USA. Email: jane@example.com",
+        "content_digest": "6a08cceee02e13c8",
+        "observation_type": "generation"
+      }
+    ]
+  }
+}

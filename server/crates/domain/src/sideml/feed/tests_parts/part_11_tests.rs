@@ -265,6 +265,80 @@ fn test_logfire_assistant_promoted_when_no_choice() {
     );
 }
 
+#[test]
+fn choiceless_generation_promotes_only_the_terminal_assistant_suffix() {
+    let t0 = fixed_time();
+    let messages = json!([
+        {
+            "source": {"event": {"name": "gen_ai.user.message", "time": t0.to_rfc3339()}},
+            "content": {"role": "user", "content": "Search twice."}
+        },
+        {
+            "source": {"event": {"name": "gen_ai.assistant.message", "time": t0.to_rfc3339()}},
+            "content": {
+                "role": "assistant",
+                "content": [{
+                    "type": "tool_use",
+                    "id": "call-1",
+                    "name": "search",
+                    "input": {"query": "same"}
+                }]
+            }
+        },
+        {
+            "source": {"event": {"name": "gen_ai.tool.message", "time": t0.to_rfc3339()}},
+            "content": {
+                "role": "tool",
+                "content": [{
+                    "type": "tool_result",
+                    "tool_use_id": "call-1",
+                    "content": "first"
+                }]
+            }
+        },
+        {
+            "source": {"event": {"name": "gen_ai.assistant.message", "time": t0.to_rfc3339()}},
+            "content": {
+                "role": "assistant",
+                "content": [{
+                    "type": "tool_use",
+                    "id": "call-2",
+                    "name": "search",
+                    "input": {"query": "same"}
+                }]
+            }
+        }
+    ]);
+    let rows = vec![make_span_row_with_timestamps(
+        "trace1",
+        "generation",
+        Some("agent"),
+        &messages.to_string(),
+        t0,
+        Some(t0 + chrono::Duration::seconds(1)),
+    )];
+
+    let blocks = classified_blocks_for_test(rows);
+    let calls: Vec<_> = blocks.iter().filter(|block| block.is_tool_use()).collect();
+    assert_eq!(calls.len(), 2);
+    assert!(
+        !calls[0].is_output_source(),
+        "the call before a tool result is replayed request history"
+    );
+    assert!(
+        calls[1].is_output_source(),
+        "the terminal assistant call is this generation's output"
+    );
+    assert!(
+        !calls[1].is_history,
+        "a generation's own output must not be filtered as replayed history"
+    );
+    assert!(
+        !calls[1].uses_span_end,
+        "tool decisions retain event-time ordering"
+    );
+}
+
 /// Logfire OpenAI 6.x emits an input-only lifetime span beside the completed streaming log.
 ///
 /// That span is raw telemetry and remains stored, but it is not another conversation. The feed
@@ -375,6 +449,7 @@ fn test_no_promotion_when_choice_exists() {
         span_path: vec!["parent-span".to_string(), "gen-span".to_string()],
         timestamp: t0,
         order_time: t0,
+        occurrence_ordinal: 0,
         observation_type: Some("generation".to_string()),
         model: Some("gpt-4".to_string()),
         provider: Some("openai".to_string()),
@@ -394,6 +469,7 @@ fn test_no_promotion_when_choice_exists() {
         is_semantic: true,
         uses_span_end: false,
         is_history: false,
+        is_cross_trace_history: false,
         tool_use_id_correlated: false,
         promoted_to_span_output: false,
     };
@@ -417,6 +493,7 @@ fn test_no_promotion_when_choice_exists() {
         span_path: vec!["parent-span".to_string(), "gen-span".to_string()],
         timestamp: t1,
         order_time: t1,
+        occurrence_ordinal: 0,
         observation_type: Some("generation".to_string()),
         model: Some("gpt-4".to_string()),
         provider: Some("openai".to_string()),
@@ -436,6 +513,7 @@ fn test_no_promotion_when_choice_exists() {
         is_semantic: true,
         uses_span_end: false,
         is_history: false,
+        is_cross_trace_history: false,
         tool_use_id_correlated: false,
         promoted_to_span_output: false,
     };

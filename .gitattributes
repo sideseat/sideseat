@@ -2,3 +2,6 @@
 .githooks/* text eol=lf
 Makefile text eol=lf
 *.sh text eol=lf
+
+# OTLP protobuf fixtures are binary even when a payload happens to contain no NUL bytes.
+*.pb binary

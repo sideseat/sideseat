@@ -2,8 +2,8 @@
 
 Inputs for `server/tests/message_goldens.rs`, which checks that message
 **count, content, ordering and absence of duplicates** hold for every framework *that has a
-fixture here*, in all four views the API exposes. Coverage is 14 of the 32 frameworks SideSeat
-recognises and not every fixture has a session view - see [What is and is not
+fixture here*, in all four views the API exposes. Coverage is the exact versioned support matrix
+below, and not every fixture has a session view - see [What is and is not
 covered](#what-is-and-is-not-covered), which is the honest version of this sentence:
 
 | View    | Row set                                                | API endpoint                     |
@@ -57,7 +57,11 @@ the corpus matches it.
 | --- | --- | --- | --- |
 | `_synthetic` | hand-written shapes, no SDK | 17 | 17 |
 | `adk` | google-adk >=1.27.0 | 8 | 18 |
+| `adk-native` | google-adk >=1.27.0, native OTLP setup | 10 | 11 |
+| `adk-sdk` | SideSeat Python 1.0.8 / google-adk >=1.27.0 | 10 | 11 |
 | `agent-framework` | agent-framework-core >=1.0.0b0 | 10 | 17 |
+| `agent-framework-native` | agent-framework-core >=1.0.0b0, native OTLP setup | 10 | 10 |
+| `agent-framework-sdk` | SideSeat Python 1.0.8 / agent-framework-core >=1.0.0b0 | 10 | 10 |
 | `anthropic` | anthropic >=0.84.0 | 7 | 18 |
 | `anthropic-native` | Anthropic 1.8.0 / Logfire 6.0.0b7 / OpenTelemetry Python 1.44.0 on CPython 3.13.7 | 1 | 1 |
 | `anthropic-sdk` | SideSeat Python 1.0.8 / Anthropic 1.8.0 / Logfire 6.0.0b7 / OpenTelemetry Python 1.44.0 on CPython 3.13.7 | 1 | 1 |
@@ -74,6 +78,8 @@ the corpus matches it.
 | `javascript-otel` | OpenTelemetry JS 2.11.0 / OTLP exporter 0.222.0 on Node.js 26.9.0 | 1 | 1 |
 | `javascript-sdk` | SideSeat JavaScript 2.0.0 / OpenTelemetry JS 2.11.0 on Node.js 26.9.0 | 1 | 1 |
 | `langgraph` | langgraph >=1.1.2 | 9 | 23 |
+| `langgraph-native` | langgraph >=1.1.2, native OTLP setup | 9 | 9 |
+| `langgraph-sdk` | SideSeat Python 1.0.8 / langgraph >=1.1.2 | 9 | 9 |
 | `openai` | openai >=1.80.0 | 6 | 8 |
 | `openai-agents` | openai-agents >=0.12.1 | 10 | 37 |
 | `openai-native` | OpenAI 3.19.2 / Logfire 6.0.0b7 / OpenTelemetry Python 1.44.0 on CPython 3.13.7 | 1 | 1 |
@@ -86,8 +92,10 @@ the corpus matches it.
 | `rust-sdk` | SideSeat Rust 0.2.0 / OpenTelemetry Rust 0.33.0 on Rust 1.94.1 | 1 | 1 |
 | `strands` | strands-agents >=1.30.0 | 10 | 40 |
 | `strands-js` | @strands-agents/sdk ^1.14.0 | 7 | 12 |
+| `strands-native` | strands-agents >=1.30.0, native OTLP setup | 9 | 9 |
+| `strands-sdk` | SideSeat Python 1.0.8 / strands-agents >=1.30.0 | 9 | 9 |
 | `vercel-ai-js` | ai ^7.0.79 | 6 | 13 |
-| **32 suites** | | **139** | **302** |
+| **40 suites** | | **215** | **380** |
 
 Two further samples exist but are **not in the repository**: `strands-js/image-gen` and
 `vercel-ai-js/image-gen`, whose payloads are 15 MB and 7 MB of inlined base64 image data (the Python

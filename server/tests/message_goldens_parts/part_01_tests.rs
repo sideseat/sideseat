@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque};
 use std::path::{Path, PathBuf};
 
 use opentelemetry_proto::tonic::collector::trace::v1::ExportTraceServiceRequest;
@@ -256,6 +256,38 @@ fn content_digest(value: &serde_json::Value) -> String {
     format!("{:016x}", hasher.finish())
 }
 
+/// Remove producer-generated values that are embedded in span names but are not conversation
+/// semantics. The raw span name is still asserted by its own ingestion tests; this representation
+/// exists only to compare two independent executions of the same framework sample.
+fn stable_span_name(span_name: &str) -> String {
+    let without_duration = span_name
+        .rsplit_once(" took ")
+        .and_then(|(prefix, suffix)| {
+            suffix
+                .strip_suffix('s')
+                .and_then(|seconds| seconds.parse::<f64>().ok())
+                .map(|_| format!("{prefix} took <duration>s"))
+        })
+        .unwrap_or_else(|| span_name.to_string());
+
+    without_duration
+        .split_whitespace()
+        .map(|token| {
+            let bytes = token.as_bytes();
+            let is_uuid = bytes.len() == 36
+                && bytes
+                    .iter()
+                    .enumerate()
+                    .all(|(index, byte)| match index {
+                        8 | 13 | 18 | 23 => *byte == b'-',
+                        _ => byte.is_ascii_hexdigit(),
+                    });
+            if is_uuid { "<uuid>" } else { token }
+        })
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
 /// Serialize with object keys in sorted order, recursively.
 fn canonical_json(value: &serde_json::Value) -> String {
     match value {
@@ -326,6 +358,8 @@ struct InvariantRow {
     /// collapsed preview: two genuinely different long messages share a preview and would be
     /// reported as duplicates, while a whitespace-only difference would hide a real one.
     content_digest: String,
+    /// Deduplication's proved occurrence rank for otherwise identical content.
+    occurrence_ordinal: u32,
     /// Correlation id, so a result can be matched to the call it answers rather than merely
     /// counted against it.
     tool_use_id: Option<String>,
@@ -338,6 +372,8 @@ struct InvariantRow {
     /// an orchestration span re-listing a turn is a bag, and holding it to its listing order asserted
     /// that a final answer preceded the tool calls that produced it.
     carrier_orders_positions: bool,
+    /// Whether distinct positions in this carrier prove distinct occurrences.
+    carrier_proves_occurrence: bool,
     /// Where the block sat in that carrier's payload, as a sortable string.
     position: String,
 }
@@ -409,26 +445,30 @@ fn build_view(rows: Vec<MessageSpanRow>, view: View<'_>) -> (GoldenView, Vec<Inv
         .messages
         .iter()
         .zip(messages.iter())
-        .map(|(block, m)| InvariantRow {
-            trace_id: block.trace_id.clone(),
-            span_id: block.span_id.clone(),
-            span_path: block.span_path.clone(),
-            index: m.index,
-            role: m.role.clone(),
-            entry_type: m.entry_type.clone(),
-            content: m.content.clone(),
-            content_digest: m.content_digest.clone(),
-            tool_use_id: block.tool_use_id.clone(),
-            carrier: match (&block.event_name, &block.source_attribute) {
-                (Some(event), _) => format!("event:{event}"),
-                (None, Some(attribute)) => format!("attr:{attribute}"),
-                (None, None) => "synthesised".to_string(),
-            },
-            position: block.position.to_string(),
-            carrier_orders_positions: sideseat_domain::sideml::carrier::semantics_for_context(
+        .map(|(block, m)| {
+            let semantics = sideseat_domain::sideml::carrier::semantics_for_context(
                 &block.carrier_context(),
-            )
-            .position_provides_sequence_order,
+            );
+            InvariantRow {
+                trace_id: block.trace_id.clone(),
+                span_id: block.span_id.clone(),
+                span_path: block.span_path.clone(),
+                index: m.index,
+                role: m.role.clone(),
+                entry_type: m.entry_type.clone(),
+                content: m.content.clone(),
+                content_digest: m.content_digest.clone(),
+                occurrence_ordinal: block.occurrence_ordinal,
+                tool_use_id: block.tool_use_id.clone(),
+                carrier: match (&block.event_name, &block.source_attribute) {
+                    (Some(event), _) => format!("event:{event}"),
+                    (None, Some(attribute)) => format!("attr:{attribute}"),
+                    (None, None) => "synthesised".to_string(),
+                },
+                position: block.position.to_string(),
+                carrier_orders_positions: semantics.position_provides_sequence_order,
+                carrier_proves_occurrence: semantics.position_proves_distinct_occurrence,
+            }
         })
         .collect();
 
@@ -792,14 +832,13 @@ fn build_golden(label: &str, paths: &[PathBuf], rows: &[(String, MessageSpanRow)
 /// several samples run their whole conversation twice, once with a session id and once
 /// without, so a session view contains each prompt twice by design.
 ///
-/// What it does *not* forbid, and this is deliberate: a genuine repeat that the telemetry
-/// distinguishes. A provider's call id is part of a tool block's content, so two identical calls in
-/// one response - `crewai/mcp_tools` retries one - have different digests and both belong here. What
-/// remains forbidden is identical content with nothing to tell the copies apart, which is the shape a
-/// history re-send takes. If the pipeline ever learns to keep id-less repeats, this check has to
-/// learn it at the same time, or it will report the improvement as a defect.
+/// A genuine repeat needs independent occurrence evidence. Ordered payload positions prove repeated
+/// members within one span. Separate execution spans prove them only when deduplication assigned a
+/// different occurrence rank to every copy. A re-delivery retains both the span and rank, while peer
+/// spans merely re-listing one request retain the same rank.
 fn assert_no_duplicates(label: &str, view_name: &str, rows: &[InvariantRow]) {
-    let mut seen: HashMap<(&str, &str, &str, &str, &str), usize> = HashMap::new();
+    type Identity<'a> = (&'a str, &'a str, &'a str, &'a str, &'a str);
+    let mut seen: HashMap<Identity<'_>, Vec<&InvariantRow>> = HashMap::new();
     for r in rows {
         // An exception is a fact about a *span*, and it is composed from that span's own
         // `exception_*` fields rather than read from a payload - so two spans reporting the same
@@ -815,7 +854,7 @@ fn assert_no_duplicates(label: &str, view_name: &str, rows: &[InvariantRow]) {
         } else {
             ""
         };
-        *seen
+        seen
             .entry((
                 r.trace_id.as_str(),
                 scope,
@@ -823,15 +862,39 @@ fn assert_no_duplicates(label: &str, view_name: &str, rows: &[InvariantRow]) {
                 r.entry_type.as_str(),
                 r.content_digest.as_str(),
             ))
-            .or_insert(0) += 1;
+            .or_default()
+            .push(r);
     }
     let mut dupes: Vec<String> = seen
         .iter()
-        .filter(|(_, n)| **n > 1)
-        .map(|((trace, _scope, role, kind, content), n)| {
+        .filter(|(_, copies)| {
+            if copies.len() < 2 {
+                return false;
+            }
+            let occurrences: HashSet<(&str, &str, &str)> = copies
+                .iter()
+                .filter(|row| row.carrier_proves_occurrence && !row.position.is_empty())
+                .map(|row| {
+                    (
+                        row.span_id.as_str(),
+                        row.carrier.as_str(),
+                        row.position.as_str(),
+                    )
+                })
+                .collect();
+            let ordinals: HashSet<u32> =
+                copies.iter().map(|row| row.occurrence_ordinal).collect();
+            let spans: HashSet<&str> = copies.iter().map(|row| row.span_id.as_str()).collect();
+            let carrier_proves_all = occurrences.len() == copies.len();
+            let separate_executions_prove_all =
+                ordinals.len() == copies.len() && spans.len() == copies.len();
+            !carrier_proves_all && !separate_executions_prove_all
+        })
+        .map(|((trace, _scope, role, kind, content), copies)| {
             let head: String = content.chars().take(70).collect();
             format!(
-                "{n}x in trace {} [{role}/{kind}] {head}",
+                "{}x in trace {} [{role}/{kind}] {head}",
+                copies.len(),
                 &trace[..trace.len().min(8)]
             )
         })
@@ -857,15 +920,11 @@ fn extract_tool_use_id(row: &InvariantRow) -> Option<&str> {
 
 /// Tool calls and results must balance within a trace.
 ///
-/// Counted per (trace, tool_use_id) rather than with a stack: a stack assumes results arrive
-/// in call order, which is false for parallel tool calls — every framework here issues two at
-/// once — and it also cannot tell whether a result belongs to the call it was popped against.
-/// The earlier stack version additionally never checked that the stack drained, so
-/// "every call is answered" was never actually verified.
+/// Counted per `(trace, tool_use_id)`: parallel calls may return out of order, and some producers
+/// legitimately reuse an id for multiple sequential executions.
 ///
-/// Two things are asserted. A result whose id matches no call is always a defect. And a call
-/// cannot be answered twice: two results carrying the same id mean the same invocation was
-/// rendered twice.
+/// A result whose id matches no call is a defect, and results cannot outnumber calls for that id.
+/// Occurrence order is checked separately by `assert_tool_causality`.
 ///
 /// Unanswered calls are NOT asserted - a cancelled or failed turn legitimately leaves one open,
 /// and a time-filtered view can cut between the two halves.
