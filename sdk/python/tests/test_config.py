@@ -232,6 +232,7 @@ class TestFrameworks:
         assert Frameworks.OpenAIAgents == "openai-agents"
         assert Frameworks.GoogleADK == "google-adk"
         assert Frameworks.PydanticAI == "pydantic-ai"
+        assert Frameworks.SemanticKernel == "semantic-kernel"
         assert Frameworks.ClaudeAgentSDK == "claude-agent-sdk"
         assert Frameworks.LlamaIndex == "llama-index"
         assert Frameworks.OpenAI == "openai"

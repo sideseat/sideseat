@@ -3,6 +3,7 @@
 import functools
 import importlib
 import logging
+import os
 import threading
 from collections.abc import Iterator
 from contextlib import contextmanager
@@ -101,6 +102,8 @@ def instrument(
             pass  # Uses global provider
         elif framework == Frameworks.AgentFramework:
             _enable_agent_framework_otel()
+        elif framework == Frameworks.SemanticKernel:
+            _enable_semantic_kernel_otel()
         elif framework == Frameworks.ClaudeAgentSDK:
             # Nothing to patch: the SDK spawns the Claude Code CLI, which carries its
             # own OTel instrumentation and is configured via subprocess env vars.
@@ -132,6 +135,35 @@ def _enable_agent_framework_otel() -> None:
 
     OBSERVABILITY_SETTINGS.enable_instrumentation = True
     OBSERVABILITY_SETTINGS.enable_sensitive_data = True
+
+
+def _enable_semantic_kernel_otel() -> None:
+    """Enable Semantic Kernel diagnostics, including content when requested."""
+    diagnostics_env = "SEMANTICKERNEL_EXPERIMENTAL_GENAI_ENABLE_OTEL_DIAGNOSTICS"
+    sensitive_env = "SEMANTICKERNEL_EXPERIMENTAL_GENAI_ENABLE_OTEL_DIAGNOSTICS_SENSITIVE"
+    os.environ.setdefault(diagnostics_env, "true")
+
+    sensitive_value = os.getenv(sensitive_env)
+    if sensitive_value is None:
+        sensitive_value = os.getenv(
+            "OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT",
+            "false",
+        )
+        os.environ[sensitive_env] = sensitive_value
+    sensitive = sensitive_value.lower() in {"1", "true", "yes"}
+
+    # Semantic Kernel snapshots these settings independently in each diagnostics
+    # module. Applications often import the framework before constructing SideSeat,
+    # so environment variables alone cannot enable an already-loaded module.
+    for module_name in (
+        "semantic_kernel.utils.telemetry.agent_diagnostics.decorators",
+        "semantic_kernel.utils.telemetry.model_diagnostics.decorators",
+        "semantic_kernel.utils.telemetry.model_diagnostics.function_tracer",
+    ):
+        module = importlib.import_module(module_name)
+        settings = module.MODEL_DIAGNOSTICS_SETTINGS
+        settings.enable_otel_diagnostics = True
+        settings.enable_otel_diagnostics_sensitive = sensitive
 
 
 def _instrument_openllmetry_vertexai(provider: "TracerProvider | None") -> None:

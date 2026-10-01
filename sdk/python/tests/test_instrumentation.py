@@ -165,6 +165,46 @@ class TestInstrument:
         assert len(enabled) == 1
         assert enabled[0].tracer == "tracer:haystack"
 
+    def test_semantic_kernel_enables_every_diagnostics_snapshot(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Semantic Kernel must emit content even when imported before SideSeat."""
+        snapshots = [
+            SimpleNamespace(
+                enable_otel_diagnostics=False,
+                enable_otel_diagnostics_sensitive=False,
+            )
+            for _ in range(3)
+        ]
+        modules = {
+            name: SimpleNamespace(MODEL_DIAGNOSTICS_SETTINGS=settings)
+            for name, settings in zip(
+                (
+                    "semantic_kernel.utils.telemetry.agent_diagnostics.decorators",
+                    "semantic_kernel.utils.telemetry.model_diagnostics.decorators",
+                    "semantic_kernel.utils.telemetry.model_diagnostics.function_tracer",
+                ),
+                snapshots,
+                strict=True,
+            )
+        }
+        real_import = importlib.import_module
+
+        def fake_import(name: str, package: str | None = None) -> Any:
+            return modules.get(name) or real_import(name, package)
+
+        monkeypatch.setattr(importlib, "import_module", fake_import)
+        monkeypatch.setenv("OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT", "true")
+
+        assert instrument(Frameworks.SemanticKernel, None) is True
+        assert all(settings.enable_otel_diagnostics for settings in snapshots)
+        assert all(settings.enable_otel_diagnostics_sensitive for settings in snapshots)
+        assert os.environ["SEMANTICKERNEL_EXPERIMENTAL_GENAI_ENABLE_OTEL_DIAGNOSTICS"] == "true"
+        assert (
+            os.environ["SEMANTICKERNEL_EXPERIMENTAL_GENAI_ENABLE_OTEL_DIAGNOSTICS_SENSITIVE"]
+            == "true"
+        )
+
     def test_thread_safety(self) -> None:
         """Instrumentation should be thread-safe."""
         results: list[bool] = []

@@ -118,14 +118,14 @@ pip install "sideseat[vertex-ai]"       # + Google Vertex AI (native SDK)
 pip install "sideseat[all]"             # All mutually compatible integrations
 ```
 
-Strands Agents, Google ADK, and Microsoft Agent Framework require only the core SDK.
+Strands Agents, Google ADK, Microsoft Agent Framework, and Semantic Kernel require only the core SDK.
 Vertex AI is separate because its current SDK requires protobuf 6+, while the current AutoGen
 instrumentor requires protobuf 5.29.x. Install `sideseat[vertex-ai]` in a Vertex-specific
 environment; do not combine it with `sideseat[all]`.
 
 ## Framework Examples
 
-SideSeat auto-detects the first installed framework in this order: Strands, LangGraph, LangChain, CrewAI, AutoGen, OpenAI Agents, Google ADK, PydanticAI, Microsoft Agent Framework, Claude Agent SDK, Agno, Smolagents, LlamaIndex, AgentScope, Langflow, AG2, Haystack, browser-use, Vertex AI. `openai`, `anthropic` and `google-genai` are never auto-detected — they are too common as transitive dependencies — so pass those explicitly. When several frameworks are installed, name the one you drive with the `framework` parameter.
+SideSeat auto-detects the first installed framework in this order: Strands, LangGraph, LangChain, CrewAI, AutoGen, OpenAI Agents, Google ADK, PydanticAI, Microsoft Agent Framework, Semantic Kernel, Claude Agent SDK, Agno, Smolagents, LlamaIndex, AgentScope, Langflow, AG2, Haystack, browser-use, Vertex AI. `openai`, `anthropic` and `google-genai` are never auto-detected — they are too common as transitive dependencies — so pass those explicitly. When several frameworks are installed, name the one you drive with the `framework` parameter.
 
 ### Strands Agents
 
@@ -579,6 +579,7 @@ Frameworks.OpenAIAgents  # "openai-agents"
 Frameworks.GoogleADK  # "google-adk"
 Frameworks.PydanticAI  # "pydantic-ai"
 Frameworks.AgentFramework  # "agent-framework"  (Microsoft Agent Framework)
+Frameworks.SemanticKernel  # "semantic-kernel"
 Frameworks.ClaudeAgentSDK  # "claude-agent-sdk"
 Frameworks.Agno  # "agno"
 Frameworks.Smolagents  # "smolagents"

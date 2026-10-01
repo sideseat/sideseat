@@ -26,6 +26,7 @@ class Frameworks:
     GoogleADK = "google-adk"
     PydanticAI = "pydantic-ai"
     AgentFramework = "agent-framework"
+    SemanticKernel = "semantic-kernel"
     ClaudeAgentSDK = "claude-agent-sdk"
     Agno = "agno"
     Smolagents = "smolagents"
@@ -57,6 +58,7 @@ FRAMEWORK_PACKAGES = [
     (Frameworks.GoogleADK, "google-adk"),
     (Frameworks.PydanticAI, "pydantic-ai"),
     (Frameworks.AgentFramework, "agent-framework-core"),
+    (Frameworks.SemanticKernel, "semantic-kernel"),
     (Frameworks.ClaudeAgentSDK, "claude-agent-sdk"),
     (Frameworks.Agno, "agno"),
     (Frameworks.Smolagents, "smolagents"),
