@@ -233,6 +233,7 @@ class TestFrameworks:
         assert Frameworks.GoogleADK == "google-adk"
         assert Frameworks.PydanticAI == "pydantic-ai"
         assert Frameworks.ClaudeAgentSDK == "claude-agent-sdk"
+        assert Frameworks.LlamaIndex == "llama-index"
         assert Frameworks.OpenAI == "openai"
         assert Frameworks.Anthropic == "anthropic"
         # Hyphenated like the rest of the set, the JS SDK and the docs. This assertion

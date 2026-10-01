@@ -7,7 +7,7 @@ prerelease-mode = "allow"
 
 [[package]]
 name = "agno"
-version = "3.0.11"
+version = "3.1.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "agnoctl" },
@@ -21,9 +21,9 @@ dependencies = [
     { name = "rich" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/7b/87/69e4de59b404fcfe303ed76f199407eb675cd83f8de10bba89ddb8fec6f8/agno-3.0.11.tar.gz", hash = "sha256:8e625ebea5265f0cf47b5dafbd749b0e6feb226f8b14f230e2674f5ded41fb7f", size = 3534513, upload-time = "2026-09-23T13:15:40.628Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/2a/7c/11b507cc29e415c9299597357a68e59bb26a0c4dc96ad8f5998e90b2aa48/agno-3.1.0.tar.gz", hash = "sha256:ca4da62231c7231db5d6a70713a3a0b51598aa17ae518defc9a28ba99bd69abf", size = 3691589, upload-time = "2026-10-01T09:30:27.527Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/85/dc/df6eb84fe95ffb5bb8a34b997ad63886151f9c565acb60bf57225f71365e/agno-3.0.11-py3-none-any.whl", hash = "sha256:2517e8524739956648f4b62e6cf568623986144fa1426e430ace14efa1b78257", size = 4020409, upload-time = "2026-09-23T13:15:37.685Z" },
+    { url = "https://files.pythonhosted.org/packages/df/ff/76ce43000e5235e670f1b431648d83aee7c2916aba1e1c61e497b9ca4768/agno-3.1.0-py3-none-any.whl", hash = "sha256:725dedef256937e282c82796fe204959310be0c4286a927dc0a5e029892048c0", size = 4191348, upload-time = "2026-10-01T09:30:24.224Z" },
 ]
 
 [[package]]
@@ -793,6 +793,8 @@ requires-dist = [
     { name = "openinference-instrumentation-langchain", marker = "extra == 'all'", specifier = ">=0.1.0" },
     { name = "openinference-instrumentation-langchain", marker = "extra == 'langchain'", specifier = ">=0.1.0" },
     { name = "openinference-instrumentation-langchain", marker = "extra == 'langgraph'", specifier = ">=0.1.0" },
+    { name = "openinference-instrumentation-llama-index", marker = "extra == 'all'", specifier = ">=4.5.3" },
+    { name = "openinference-instrumentation-llama-index", marker = "extra == 'llama-index'", specifier = ">=4.5.3" },
     { name = "openinference-instrumentation-smolagents", marker = "extra == 'all'", specifier = ">=0.1.0" },
     { name = "openinference-instrumentation-smolagents", marker = "extra == 'smolagents'", specifier = ">=0.1.0" },
     { name = "opentelemetry-api", specifier = ">=1.39.0" },
@@ -808,7 +810,7 @@ requires-dist = [
     { name = "wrapt", marker = "extra == 'all'", specifier = ">=1.14.0" },
     { name = "wrapt", marker = "extra == 'aws'", specifier = ">=1.14.0" },
 ]
-provides-extras = ["ag2", "agno", "agui", "all", "anthropic", "autogen", "aws", "crewai", "dev", "google-genai", "haystack", "langchain", "langgraph", "openai", "openai-agents", "pydantic-ai", "smolagents", "vertex-ai", "ws"]
+provides-extras = ["ag2", "agno", "agui", "all", "anthropic", "autogen", "aws", "crewai", "dev", "google-genai", "haystack", "langchain", "langgraph", "llama-index", "openai", "openai-agents", "pydantic-ai", "smolagents", "vertex-ai", "ws"]
 
 [[package]]
 name = "six"

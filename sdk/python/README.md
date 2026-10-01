@@ -106,6 +106,7 @@ uv add sideseat                        # Core SDK
 pip install "sideseat[langgraph]"       # + LangGraph
 pip install "sideseat[crewai]"          # + CrewAI
 pip install "sideseat[autogen]"         # + AutoGen
+pip install "sideseat[llama-index]"     # + LlamaIndex
 pip install "sideseat[openai]"          # + OpenAI / OpenAI Agents
 
 # Extras for provider instrumentation:
@@ -124,7 +125,7 @@ environment; do not combine it with `sideseat[all]`.
 
 ## Framework Examples
 
-SideSeat auto-detects the first installed framework in this order: Strands, LangGraph, LangChain, CrewAI, AutoGen, OpenAI Agents, Google ADK, PydanticAI, Microsoft Agent Framework, Claude Agent SDK, Agno, Smolagents, AgentScope, Langflow, AG2, Haystack, browser-use, Vertex AI. `openai`, `anthropic` and `google-genai` are never auto-detected — they are too common as transitive dependencies — so pass those explicitly. When several frameworks are installed, name the one you drive with the `framework` parameter.
+SideSeat auto-detects the first installed framework in this order: Strands, LangGraph, LangChain, CrewAI, AutoGen, OpenAI Agents, Google ADK, PydanticAI, Microsoft Agent Framework, Claude Agent SDK, Agno, Smolagents, LlamaIndex, AgentScope, Langflow, AG2, Haystack, browser-use, Vertex AI. `openai`, `anthropic` and `google-genai` are never auto-detected — they are too common as transitive dependencies — so pass those explicitly. When several frameworks are installed, name the one you drive with the `framework` parameter.
 
 ### Strands Agents
 
@@ -581,6 +582,7 @@ Frameworks.AgentFramework  # "agent-framework"  (Microsoft Agent Framework)
 Frameworks.ClaudeAgentSDK  # "claude-agent-sdk"
 Frameworks.Agno  # "agno"
 Frameworks.Smolagents  # "smolagents"
+Frameworks.LlamaIndex  # "llama-index"
 Frameworks.AgentScope  # "agentscope"
 Frameworks.Langflow  # "langflow"
 Frameworks.Haystack  # "haystack"

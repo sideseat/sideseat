@@ -77,32 +77,28 @@ message beside the model-call spans.
 
 ## LlamaIndex
 
-LlamaIndex does **not** emit OpenTelemetry itself — it has its own instrumentation dispatcher
-and no `opentelemetry` dependency. Bridging it needs the OpenInference instrumentor, which
-SideSeat does not bundle as an extra, so install it alongside:
+LlamaIndex uses its own instrumentation dispatcher rather than emitting OpenTelemetry directly.
+SideSeat's `llama-index` extra installs the OpenInference bridge and binds it to the same tracer
+provider and exporter as the rest of the application:
 
 <Tabs>
   <TabItem label="pip">
     ```bash
-    pip install llama-index sideseat openinference-instrumentation-llama-index
+    pip install llama-index "sideseat[llama-index]"
     ```
   </TabItem>
   <TabItem label="uv">
     ```bash
-    uv add llama-index sideseat openinference-instrumentation-llama-index
+    uv add llama-index "sideseat[llama-index]"
     ```
   </TabItem>
 </Tabs>
 
 ```python
-from sideseat import SideSeat
-from openinference.instrumentation.llama_index import LlamaIndexInstrumentor
+from sideseat import SideSeat, Frameworks
 from llama_index.core import VectorStoreIndex, SimpleDirectoryReader
 
-# auto_instrument=False: without a LlamaIndex branch the SDK would otherwise instrument
-# whichever framework it happens to auto-detect from your installed packages.
-client = SideSeat(auto_instrument=False)
-LlamaIndexInstrumentor().instrument(tracer_provider=client.telemetry.tracer_provider)
+SideSeat(framework=Frameworks.LlamaIndex)
 
 documents = SimpleDirectoryReader("data").load_data()
 index = VectorStoreIndex.from_documents(documents)
@@ -112,16 +108,10 @@ response = query_engine.query("What is this about?")
 print(response)
 ```
 
-There is no `Frameworks.LlamaIndex` constant. Passing `framework="llama-index"` would not do
-what it looks like: an unrecognised value is recorded as a **provider**, and `framework` still
-falls back to auto-detection. Hence `auto_instrument=False` above.
-
-The server has a `LlamaIndex` rule (`llama_index.*` attributes) checked *before* the broader
-OpenInference one, so spans carrying those attributes are classified `LlamaIndex` and the rest as
-`OpenInference` — which of the two you get depends on what the instrumentor version you install
-emits. There is no captured fixture for LlamaIndex, so this is read from the classifier rather than
-measured; the support matrix in `server/tests/fixtures/messages/README.md` is the exact boundary of
-what the goldens verify.
+The server checks LlamaIndex signals before the broader OpenInference fallback, so framework
+spans retain the specific `LlamaIndex` identity. There is not yet a captured LlamaIndex fixture;
+the support matrix in `server/tests/fixtures/messages/README.md` remains the exact boundary of
+what the message goldens verify.
 
 ## AutoGen
 

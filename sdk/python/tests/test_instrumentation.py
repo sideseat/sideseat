@@ -118,6 +118,21 @@ class TestInstrument:
         # Result depends on whether deps are installed
         assert isinstance(result, bool)
 
+    def test_llamaindex_uses_its_openinference_instrumentor(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """LlamaIndex must bind its instrumentor to SideSeat's tracer provider."""
+        calls: list[tuple[str, str, Any]] = []
+
+        def record(module: str, class_name: str, provider: Any) -> None:
+            calls.append((module, class_name, provider))
+
+        monkeypatch.setattr("sideseat.instrumentation._instrument_openinference", record)
+        provider: Any = object()
+
+        assert instrument(Frameworks.LlamaIndex, provider) is True
+        assert calls == [("llama_index", "LlamaIndexInstrumentor", provider)]
+
     def test_thread_safety(self) -> None:
         """Instrumentation should be thread-safe."""
         results: list[bool] = []

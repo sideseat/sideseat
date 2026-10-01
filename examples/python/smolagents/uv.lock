@@ -268,7 +268,7 @@ wheels = [
 
 [[package]]
 name = "huggingface-hub"
-version = "2.0.0"
+version = "2.1.0rc0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "click" },
@@ -281,9 +281,9 @@ dependencies = [
     { name = "tqdm" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/0f/47/44e258e8f710d418bcf7522c966cd70c4b780fb2b65021f7c5f4f5461677/huggingface_hub-2.0.0.tar.gz", hash = "sha256:375e5ad35cb3505efbf19c0cdd7e3fbf1e2304b12cd0e6b7fc8d75c6f5484619", size = 1024306, upload-time = "2026-09-24T12:01:23.428Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/78/c5/ef656efa4a36f3be1ef57a8f1c49cc1e21da9148bc126cb7c7a072546192/huggingface_hub-2.1.0rc0.tar.gz", hash = "sha256:e97f08223399849c0a39d4405de7e81ae9958f9d1e1f8d2114a2aaa91e437c11", size = 1037270, upload-time = "2026-10-01T09:58:00.204Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/5f/f9/d752d5756ce0405ba29405b65517b287d2baf9f77a1cf5329266f3d577f0/huggingface_hub-2.0.0-py3-none-any.whl", hash = "sha256:b3eecb60540c17e8ef94c187104f4a5c0c451afcb9510ba8e17739bedcc2d6dd", size = 828498, upload-time = "2026-09-24T12:01:21.358Z" },
+    { url = "https://files.pythonhosted.org/packages/6b/77/e534535ef993e954526038bef24b66979e4c2718e3f46d80931e99882bc1/huggingface_hub-2.1.0rc0-py3-none-any.whl", hash = "sha256:22f84deaad00738eff41433118d95ff913010ec5a85af507b6a8b93ac9e304a4", size = 838048, upload-time = "2026-10-01T09:57:58.055Z" },
 ]
 
 [[package]]
@@ -855,6 +855,8 @@ requires-dist = [
     { name = "openinference-instrumentation-langchain", marker = "extra == 'all'", specifier = ">=0.1.0" },
     { name = "openinference-instrumentation-langchain", marker = "extra == 'langchain'", specifier = ">=0.1.0" },
     { name = "openinference-instrumentation-langchain", marker = "extra == 'langgraph'", specifier = ">=0.1.0" },
+    { name = "openinference-instrumentation-llama-index", marker = "extra == 'all'", specifier = ">=4.5.3" },
+    { name = "openinference-instrumentation-llama-index", marker = "extra == 'llama-index'", specifier = ">=4.5.3" },
     { name = "openinference-instrumentation-smolagents", marker = "extra == 'all'", specifier = ">=0.1.0" },
     { name = "openinference-instrumentation-smolagents", marker = "extra == 'smolagents'", specifier = ">=0.1.0" },
     { name = "opentelemetry-api", specifier = ">=1.39.0" },
@@ -870,7 +872,7 @@ requires-dist = [
     { name = "wrapt", marker = "extra == 'all'", specifier = ">=1.14.0" },
     { name = "wrapt", marker = "extra == 'aws'", specifier = ">=1.14.0" },
 ]
-provides-extras = ["ag2", "agno", "agui", "all", "anthropic", "autogen", "aws", "crewai", "dev", "google-genai", "haystack", "langchain", "langgraph", "openai", "openai-agents", "pydantic-ai", "smolagents", "vertex-ai", "ws"]
+provides-extras = ["ag2", "agno", "agui", "all", "anthropic", "autogen", "aws", "crewai", "dev", "google-genai", "haystack", "langchain", "langgraph", "llama-index", "openai", "openai-agents", "pydantic-ai", "smolagents", "vertex-ai", "ws"]
 
 [[package]]
 name = "six"

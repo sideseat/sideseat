@@ -29,6 +29,7 @@ class Frameworks:
     ClaudeAgentSDK = "claude-agent-sdk"
     Agno = "agno"
     Smolagents = "smolagents"
+    LlamaIndex = "llama-index"
     AgentScope = "agentscope"
     Langflow = "langflow"
     AG2 = "ag2"
@@ -59,6 +60,7 @@ FRAMEWORK_PACKAGES = [
     (Frameworks.ClaudeAgentSDK, "claude-agent-sdk"),
     (Frameworks.Agno, "agno"),
     (Frameworks.Smolagents, "smolagents"),
+    (Frameworks.LlamaIndex, "llama-index-core"),
     (Frameworks.AgentScope, "agentscope"),
     (Frameworks.Langflow, "langflow"),
     (Frameworks.AG2, "ag2"),

@@ -37,6 +37,7 @@ langgraph = ["openinference-instrumentation-langchain>=0.1.0"]
 crewai = ["openinference-instrumentation-crewai>=0.1.0"]
 agno = ["openinference-instrumentation-agno>=0.1.0"]
 smolagents = ["openinference-instrumentation-smolagents>=0.1.0"]
+llama-index = ["openinference-instrumentation-llama-index>=4.5.3"]
 # AG2 is the community AutoGen fork; its OpenInference instrumentor is the `autogen` one.
 ag2 = ["openinference-instrumentation-autogen>=0.1.0"]
 haystack = ["openinference-instrumentation-haystack>=0.1.0"]
@@ -81,6 +82,7 @@ all = [
     "openinference-instrumentation-autogen>=0.1.0",
     "openinference-instrumentation-agno>=0.1.0",
     "openinference-instrumentation-smolagents>=0.1.0",
+    "openinference-instrumentation-llama-index>=4.5.3",
     "openinference-instrumentation-haystack>=0.1.0",
     "logfire[google-genai]>=4.29.0",
     "httpx>=0.27",

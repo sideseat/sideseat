@@ -5,7 +5,9 @@ description = "SideSeat workspace - dev tools only"
 requires-python = ">=3.12"
 
 [dependency-groups]
-dev = ["ruff>=0.11.0"]
+# Ruff 0.15+ changes import and package-name analysis across the sample tree. Upgrade it
+# through a dedicated lint migration instead of changing the repository gate incidentally.
+dev = ["ruff>=0.11.0,<0.15.0"]
 
 [tool.ruff.lint.per-file-ignores]
 # Samples use load_dotenv() before imports (intentional)

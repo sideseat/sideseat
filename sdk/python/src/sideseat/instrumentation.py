@@ -70,6 +70,8 @@ def instrument(
             _instrument_openinference("agno", "AgnoInstrumentor", provider)
         elif framework == Frameworks.Smolagents:
             _instrument_openinference("smolagents", "SmolagentsInstrumentor", provider)
+        elif framework == Frameworks.LlamaIndex:
+            _instrument_openinference("llama_index", "LlamaIndexInstrumentor", provider)
         elif framework == Frameworks.AG2:
             _instrument_openinference("autogen", "AutogenInstrumentor", provider)
         elif framework == Frameworks.Haystack:
