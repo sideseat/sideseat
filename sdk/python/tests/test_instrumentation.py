@@ -12,8 +12,10 @@ import pytest
 
 from sideseat.config import Frameworks
 from sideseat.instrumentation import (
+    LAMINAR_FRAMEWORKS,
     LOGFIRE_FRAMEWORKS,
     _instrumented,
+    _laminar_exporter_env,
     _lock,
     _patch_logfire_anthropic_omit,
     _patch_logfire_anthropic_streaming,
@@ -22,6 +24,7 @@ from sideseat.instrumentation import (
     _TraceLoopEnrichmentProcessor,
     _TraceLoopInlineImageUploader,
     instrument,
+    is_laminar_framework,
     is_logfire_framework,
     patch_adk_tracing,
 )
@@ -85,6 +88,18 @@ class TestIsLogfireFramework:
         assert Frameworks.GoogleGenAI in LOGFIRE_FRAMEWORKS
         assert Frameworks.VertexAI in LOGFIRE_FRAMEWORKS
         assert Frameworks.Logfire in LOGFIRE_FRAMEWORKS
+
+
+class TestIsLaminarFramework:
+    """Tests for frameworks that need Laminar's provider."""
+
+    def test_browser_use_is_laminar(self) -> None:
+        assert is_laminar_framework(Frameworks.BrowserUse) is True
+        assert LAMINAR_FRAMEWORKS == frozenset({Frameworks.BrowserUse})
+
+    def test_other_frameworks_are_not_laminar(self) -> None:
+        assert is_laminar_framework(Frameworks.LangChain) is False
+        assert is_laminar_framework(Frameworks.Langflow) is False
 
 
 class TestInstrument:
@@ -167,6 +182,116 @@ class TestInstrument:
         result = instrument(Frameworks.LangChain, None)
         # Result depends on whether deps are installed
         assert isinstance(result, bool)
+
+    def test_browser_use_initializes_laminar_for_sideseat(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Current browser-use spans come from Laminar, OpenAI, and Bubus hooks."""
+        calls: list[dict[str, Any]] = []
+
+        class Instruments:
+            OPENAI = "openai"
+            BUBUS = "bubus"
+
+        class Laminar:
+            @staticmethod
+            def is_initialized() -> bool:
+                return False
+
+            @staticmethod
+            def initialize(**kwargs: Any) -> None:
+                calls.append(
+                    {
+                        **kwargs,
+                        "endpoint": os.environ.get("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT"),
+                        "headers": os.environ.get("OTEL_EXPORTER_OTLP_TRACES_HEADERS"),
+                        "protocol": os.environ.get("OTEL_EXPORTER_OTLP_TRACES_PROTOCOL"),
+                    }
+                )
+
+        monkeypatch.setitem(
+            sys.modules,
+            "lmnr",
+            SimpleNamespace(Instruments=Instruments, Laminar=Laminar),
+        )
+        monkeypatch.setitem(
+            sys.modules,
+            "lmnr.sdk.utils",
+            SimpleNamespace(from_env=lambda key: None),
+        )
+        monkeypatch.setenv("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT", "http://old")
+        monkeypatch.setenv("OTEL_EXPORTER_OTLP_TRACES_HEADERS", "old=value")
+
+        assert instrument(
+            Frameworks.BrowserUse,
+            None,
+            otlp_endpoint="http://collector/otel/default/v1/traces",
+            otlp_headers={"Authorization": "Bearer secret", "x-project": "default"},
+            export_timeout_seconds=17,
+        )
+        assert calls == [
+            {
+                "instruments": {"openai", "bubus"},
+                "export_timeout_seconds": 17,
+                "force_http": True,
+                "set_global_tracer_provider": True,
+                "endpoint": "http://collector/otel/default/v1/traces",
+                "headers": "Authorization=Bearer%20secret,x-project=default",
+                "protocol": "http/protobuf",
+            }
+        ]
+        assert os.environ["OTEL_EXPORTER_OTLP_TRACES_ENDPOINT"] == "http://old"
+        assert os.environ["OTEL_EXPORTER_OTLP_TRACES_HEADERS"] == "old=value"
+
+    def test_browser_use_rejects_laminar_destination_override(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A Laminar key would silently send the spans somewhere other than SideSeat."""
+
+        class Laminar:
+            @staticmethod
+            def is_initialized() -> bool:
+                return False
+
+        monkeypatch.setitem(
+            sys.modules,
+            "lmnr",
+            SimpleNamespace(Instruments=object(), Laminar=Laminar),
+        )
+        monkeypatch.setitem(
+            sys.modules,
+            "lmnr.sdk.utils",
+            SimpleNamespace(
+                from_env=lambda key: "lmnr-key" if key == "LMNR_PROJECT_API_KEY" else None
+            ),
+        )
+
+        assert (
+            instrument(
+                Frameworks.BrowserUse,
+                None,
+                otlp_endpoint="http://collector/v1/traces",
+            )
+            is False
+        )
+        assert Frameworks.BrowserUse not in _instrumented
+
+    def test_laminar_exporter_env_restores_absent_values(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        for key in (
+            "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT",
+            "OTEL_EXPORTER_OTLP_TRACES_HEADERS",
+            "OTEL_EXPORTER_OTLP_TRACES_PROTOCOL",
+        ):
+            monkeypatch.delenv(key, raising=False)
+
+        with _laminar_exporter_env("http://collector/v1/traces", {}):
+            assert os.environ["OTEL_EXPORTER_OTLP_TRACES_ENDPOINT"].endswith("/v1/traces")
+            assert "OTEL_EXPORTER_OTLP_TRACES_HEADERS" not in os.environ
+
+        assert "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT" not in os.environ
+        assert "OTEL_EXPORTER_OTLP_TRACES_PROTOCOL" not in os.environ
 
     def test_llamaindex_uses_its_openinference_instrumentor(
         self, monkeypatch: pytest.MonkeyPatch

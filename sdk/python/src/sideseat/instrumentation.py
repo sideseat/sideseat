@@ -8,6 +8,7 @@ import threading
 from collections.abc import Iterator
 from contextlib import contextmanager
 from typing import TYPE_CHECKING, Any, cast
+from urllib.parse import quote
 
 from opentelemetry.sdk.trace import SpanProcessor
 
@@ -39,10 +40,17 @@ LOGFIRE_FRAMEWORKS = frozenset(
     }
 )
 
+LAMINAR_FRAMEWORKS = frozenset({Frameworks.BrowserUse})
+
 
 def is_logfire_framework(framework: str) -> bool:
     """Check if framework uses Logfire for instrumentation."""
     return framework in LOGFIRE_FRAMEWORKS
+
+
+def is_laminar_framework(framework: str) -> bool:
+    """Check if framework emits its structure spans through Laminar."""
+    return framework in LAMINAR_FRAMEWORKS
 
 
 def instrument(
@@ -51,6 +59,10 @@ def instrument(
     service_name: str | None = None,
     service_version: str | None = None,
     capture_content: bool = True,
+    *,
+    otlp_endpoint: str | None = None,
+    otlp_headers: dict[str, str] | None = None,
+    export_timeout_seconds: int | None = None,
 ) -> bool:
     """Instrument framework. Thread-safe, idempotent.
 
@@ -84,12 +96,17 @@ def instrument(
             _instrument_haystack(provider)
         elif framework == Frameworks.AgentScope:
             _instrument_agentscope()
-        elif framework in (
-            Frameworks.Langflow,
-            Frameworks.BrowserUse,
-        ):
-            # These emit OpenTelemetry themselves and only need the global provider.
+        elif framework == Frameworks.Langflow:
+            # Langflow emits OpenTelemetry itself and only needs the global provider.
             pass
+        elif framework == Frameworks.BrowserUse:
+            if otlp_endpoint is None:
+                raise ValueError("browser-use instrumentation requires an OTLP traces endpoint")
+            _instrument_browser_use(
+                endpoint=otlp_endpoint,
+                headers=otlp_headers or {},
+                export_timeout_seconds=export_timeout_seconds or 30,
+            )
         elif framework == Frameworks.AutoGen:
             _instrument_openinference("autogen_agentchat", "AutogenAgentChatInstrumentor", provider)
         elif framework == Frameworks.OpenAIAgents:
@@ -141,6 +158,103 @@ def instrument(
         with _lock:
             _instrumented.discard(framework)
         return False
+
+
+def _instrument_browser_use(
+    *,
+    endpoint: str,
+    headers: dict[str, str],
+    export_timeout_seconds: int,
+) -> None:
+    """Initialize the Laminar hooks used by current browser-use releases."""
+    from lmnr import Instruments, Laminar  # type: ignore[import-not-found]
+    from lmnr.sdk.utils import from_env  # type: ignore[import-not-found]
+
+    if Laminar.is_initialized():
+        raise RuntimeError("initialize SideSeat before initializing Laminar")
+    for key in ("LMNR_PROJECT_API_KEY", "LMNR_BASE_URL"):
+        if from_env(key):
+            raise RuntimeError(
+                f"{key} would route browser-use telemetry away from SideSeat; unset it first"
+            )
+
+    with _laminar_exporter_env(endpoint, headers):
+        Laminar.initialize(
+            instruments={Instruments.OPENAI, Instruments.BUBUS},
+            export_timeout_seconds=export_timeout_seconds,
+            force_http=True,
+            set_global_tracer_provider=True,
+        )
+
+
+@contextmanager
+def _laminar_exporter_env(endpoint: str, headers: dict[str, str]) -> Iterator[None]:
+    """Point Laminar's internally-owned exporter at SideSeat for initialization."""
+    keys = (
+        "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT",
+        "OTEL_EXPORTER_OTLP_TRACES_HEADERS",
+        "OTEL_EXPORTER_OTLP_TRACES_PROTOCOL",
+    )
+    saved = {key: os.environ[key] for key in keys if key in os.environ}
+    os.environ["OTEL_EXPORTER_OTLP_TRACES_ENDPOINT"] = endpoint
+    os.environ["OTEL_EXPORTER_OTLP_TRACES_PROTOCOL"] = "http/protobuf"
+    if headers:
+        os.environ["OTEL_EXPORTER_OTLP_TRACES_HEADERS"] = ",".join(
+            f"{quote(key, safe='-._~')}={quote(value, safe='-._~')}"
+            for key, value in headers.items()
+        )
+    else:
+        os.environ.pop("OTEL_EXPORTER_OTLP_TRACES_HEADERS", None)
+    try:
+        yield
+    finally:
+        for key in keys:
+            os.environ.pop(key, None)
+        os.environ.update(saved)
+
+
+def get_laminar_tracer_provider() -> Any | None:
+    """Return Laminar's provider without relying on its broken public accessor."""
+    try:
+        from lmnr.opentelemetry_lib.tracing import (  # type: ignore[import-not-found]
+            TracerWrapper,
+        )
+    except ImportError:
+        return None
+
+    wrapper = getattr(TracerWrapper, "instance", None)
+    return getattr(wrapper, "_tracer_provider", None)
+
+
+def configure_laminar_resource(provider: Any, resource: Any) -> None:
+    """Apply SideSeat's resource to Laminar and the tracers it cached during init."""
+    from lmnr.opentelemetry_lib.tracing import (  # type: ignore[import-not-found]
+        TracerWrapper,
+    )
+
+    wrapper = getattr(TracerWrapper, "instance", None)
+    if wrapper is None or getattr(wrapper, "_tracer_provider", None) is not provider:
+        raise RuntimeError("Laminar did not expose the provider it initialized")
+    assert wrapper is not None
+
+    # Laminar 0.7.64 does not accept resource attributes on Laminar.initialize().
+    # Its provider also creates instrumentation tracers during initialization, and
+    # each OTel tracer snapshots the resource. Update both existing and future
+    # tracers before application code can create a span.
+    active_provider: Any = provider
+    active_provider._resource = resource
+    tracers_lock = getattr(active_provider, "_tracers_lock", None)
+    tracers = getattr(active_provider, "_tracers", {})
+    if tracers_lock is None:
+        raise RuntimeError("Laminar provider has no tracer cache lock")
+    with tracers_lock:
+        for tracer in tracers.values():
+            tracer.resource = resource
+
+    wrapper._resource = resource
+    logger_provider = getattr(wrapper, "_logger_provider", None)
+    if logger_provider is not None:
+        logger_provider._resource = resource
 
 
 def _enable_agent_framework_otel() -> None:

@@ -5,6 +5,7 @@ from __future__ import annotations
 import atexit
 import contextvars
 import logging
+import os
 import threading
 from collections.abc import Iterator
 from contextlib import contextmanager
@@ -64,6 +65,9 @@ class TelemetryClient:
         self._atexit_registered = False
         self._otlp_processor: Any = None
         self._disabled = config.disabled
+        self._laminar_mode = False
+        self._laminar_content_previous: str | None = None
+        self._laminar_content_was_set = False
 
         # Skip all setup if disabled
         if config.disabled:
@@ -74,6 +78,7 @@ class TelemetryClient:
         from sideseat.instrumentation import (
             apply_framework_patches,
             instrument,
+            is_laminar_framework,
             is_logfire_framework,
         )
 
@@ -94,7 +99,10 @@ class TelemetryClient:
 
         # Provider initialization
         logfire_mode = is_logfire_framework(config.framework) and config.auto_instrument
-        if logfire_mode:
+        laminar_mode = is_laminar_framework(config.framework) and config.auto_instrument
+        if laminar_mode:
+            self._init_laminar_mode(instrument)
+        elif logfire_mode:
             self._init_logfire_mode(instrument)
         else:
             self._init_standard_mode(instrument)
@@ -118,6 +126,59 @@ class TelemetryClient:
                     self.logger_provider, self._logging_handler = setup_logs(self._config)
                 except Exception as e:
                     logger.warning("Failed to setup logs: %s", e)
+
+    def _init_laminar_mode(self, instrument_fn: Any) -> None:
+        """Laminar mode: browser-use structure spans use Laminar's provider."""
+        from sideseat.instrumentation import (
+            configure_laminar_resource,
+            get_laminar_tracer_provider,
+            instrument_providers,
+        )
+        from sideseat.telemetry.resource import get_otel_resource
+        from sideseat.telemetry.setup import (
+            build_endpoint,
+            build_headers,
+            build_timeout,
+            setup_propagators,
+        )
+
+        self._laminar_content_previous = os.environ.get("LMNR_TRACE_CONTENT")
+        self._laminar_content_was_set = "LMNR_TRACE_CONTENT" in os.environ
+        os.environ["LMNR_TRACE_CONTENT"] = "true" if self._config.capture_content else "false"
+
+        try:
+            instrument_fn(
+                self._config.framework,
+                None,
+                self._config.service_name,
+                self._config.service_version,
+                self._config.capture_content,
+                otlp_endpoint=build_endpoint(self._config, "traces"),
+                otlp_headers=build_headers(self._config),
+                export_timeout_seconds=build_timeout(),
+            )
+
+            provider = get_laminar_tracer_provider()
+            if provider is None or not hasattr(provider, "add_span_processor"):
+                raise RuntimeError(
+                    "browser-use tracing needs lmnr==0.7.64 installed, and SideSeat "
+                    "must initialize before Laminar"
+                )
+
+            resource = get_otel_resource(
+                self._config.service_name,
+                self._config.service_version,
+                self._config.framework,
+            )
+            configure_laminar_resource(provider, resource)
+        except Exception:
+            self._restore_laminar_content_env()
+            raise
+
+        self.tracer_provider = provider
+        self._laminar_mode = True
+        setup_propagators()
+        instrument_providers(self.tracer_provider, self._config.providers)
 
     def _init_standard_mode(self, instrument_fn: Any) -> None:
         """Standard mode: we own the TracerProvider."""
@@ -214,15 +275,35 @@ class TelemetryClient:
             tokens.append(_session_id_var.set(session_id))
         try:
             with self.get_tracer().start_as_current_span(name, **kwargs) as s:
-                try:
-                    yield s
-                except Exception as e:
-                    s.set_status(StatusCode.ERROR, str(e))
-                    s.record_exception(e)
-                    raise
+                with self._laminar_span_scope(s):
+                    try:
+                        yield s
+                    except Exception as e:
+                        s.set_status(StatusCode.ERROR, str(e))
+                        s.record_exception(e)
+                        raise
         finally:
             for token in tokens:
                 token.var.reset(token)
+
+    @contextmanager
+    def _laminar_span_scope(self, span: Span) -> Iterator[None]:
+        """Expose a SideSeat span to Laminar's isolated context."""
+        if not self._laminar_mode:
+            yield
+            return
+
+        from lmnr import Laminar, LaminarSpan  # type: ignore[import-not-found]
+
+        laminar_span = LaminarSpan(span)
+        laminar_span.set_trace_user_id(_user_id_var.get())
+        laminar_span.set_trace_session_id(_session_id_var.get())
+        with Laminar.use_span(
+            laminar_span,
+            record_exception=False,
+            set_status_on_exception=False,
+        ):
+            yield
 
     def setup_console_exporter(self, **kwargs: Any) -> TelemetryClient:
         """Add console exporter for debugging."""
@@ -266,6 +347,12 @@ class TelemetryClient:
 
     def force_flush(self, timeout_millis: int = 30000) -> bool:
         """Force flush all pending spans."""
+        if self._laminar_mode:
+            from lmnr import Laminar  # type: ignore[import-not-found]
+
+            laminar_flushed = bool(Laminar.flush())
+            provider_flushed = bool(self.tracer_provider.force_flush(timeout_millis))
+            return laminar_flushed and provider_flushed
         if self._otlp_processor:
             return bool(self._otlp_processor.force_flush(timeout_millis))
         return True
@@ -292,7 +379,14 @@ class TelemetryClient:
         for exp in self._file_exporters:
             exp.shutdown()
 
-        if hasattr(self.tracer_provider, "shutdown"):
+        if self._laminar_mode:
+            try:
+                from lmnr import Laminar  # type: ignore[import-not-found]
+
+                Laminar.shutdown()
+            finally:
+                self._restore_laminar_content_env()
+        elif hasattr(self.tracer_provider, "shutdown"):
             self.tracer_provider.shutdown()
         if hasattr(self, "meter_provider"):
             self.meter_provider.shutdown()
@@ -303,3 +397,10 @@ class TelemetryClient:
 
                 stdlib_logging.getLogger().removeHandler(self._logging_handler)
             self.logger_provider.shutdown()
+
+    def _restore_laminar_content_env(self) -> None:
+        if self._laminar_content_was_set:
+            assert self._laminar_content_previous is not None
+            os.environ["LMNR_TRACE_CONTENT"] = self._laminar_content_previous
+        else:
+            os.environ.pop("LMNR_TRACE_CONTENT", None)

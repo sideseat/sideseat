@@ -85,7 +85,9 @@ ws = ["websockets>=12"]
 # users don't pay for unrelated deps.
 agui = ["rich>=13", "ag-ui-protocol>=0.1.18"]
 
-# Bundle every instrumentation extra plus the runtime channel.
+# Bundle every compatible instrumentation extra plus the runtime channel.
+# BrowserUse users install lmnr separately because its semantic-conventions pin
+# cannot coexist with TraceLoop in the universal lock for this package.
 all = [
     "openinference-instrumentation-langchain>=0.1.0",
     "openinference-instrumentation-crewai>=0.1.0",
@@ -178,6 +180,7 @@ module = [
     "ag_ui.*",
     "ag_ui_strands.*",
     "logfire.*",
+    "lmnr.*",
     "rich.*",
     "strands.*",
     "traceloop.*",

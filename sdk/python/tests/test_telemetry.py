@@ -3,12 +3,17 @@
 from __future__ import annotations
 
 import os
+import sys
+from contextlib import contextmanager
 from datetime import date, datetime, timezone
+from types import SimpleNamespace
+from typing import Any
 
 import pytest
 
 import sideseat
 from sideseat import SideSeat, __version__, encode_value
+from sideseat.telemetry import TelemetryClient, _session_id_var, _user_id_var
 
 
 def test_version() -> None:
@@ -214,6 +219,67 @@ def test_sideseat_force_flush(monkeypatch: pytest.MonkeyPatch) -> None:
     result = client.force_flush()
     assert result is True
     client.shutdown()
+
+
+def test_laminar_span_scope_bridges_session_and_user(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Browser-use child spans inherit SideSeat's isolated Laminar context."""
+    events: list[tuple[str, Any]] = []
+    wrapped: list[Any] = []
+
+    class Span:
+        pass
+
+    class LaminarSpan:
+        def __init__(self, span: Any) -> None:
+            wrapped.append(self)
+            events.append(("wrap", span))
+
+        def set_trace_user_id(self, value: str | None) -> None:
+            events.append(("user", value))
+
+        def set_trace_session_id(self, value: str | None) -> None:
+            events.append(("session", value))
+
+    class Laminar:
+        @staticmethod
+        @contextmanager
+        def use_span(span: Any, **kwargs: Any):
+            events.append(("enter", (span, kwargs)))
+            yield span
+            events.append(("exit", span))
+
+    monkeypatch.setitem(
+        sys.modules,
+        "lmnr",
+        SimpleNamespace(Laminar=Laminar, LaminarSpan=LaminarSpan),
+    )
+    client = object.__new__(TelemetryClient)
+    client._laminar_mode = True
+    user_token = _user_id_var.set("user-1")
+    session_token = _session_id_var.set("session-1")
+    span = Span()
+    try:
+        with client._laminar_span_scope(span):
+            events.append(("body", span))
+    finally:
+        _session_id_var.reset(session_token)
+        _user_id_var.reset(user_token)
+
+    assert events[:3] == [
+        ("wrap", span),
+        ("user", "user-1"),
+        ("session", "session-1"),
+    ]
+    entered_span, kwargs = events[3][1]
+    assert entered_span is wrapped[0]
+    assert kwargs == {
+        "record_exception": False,
+        "set_status_on_exception": False,
+    }
+    assert events[4] == ("body", span)
+    assert events[5] == ("exit", wrapped[0])
 
 
 def test_sideseat_validate_connection_disabled(
