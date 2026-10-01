@@ -53,7 +53,27 @@ def tool_definition(body: dict[str, Any]) -> tuple[str, dict[str, Any]] | None:
     return None
 
 
+def named_tool_definition(
+    body: dict[str, Any], wanted: str
+) -> tuple[str, dict[str, Any]] | None:
+    """Return one declared tool by name."""
+    for tool in body.get("tools", []):
+        function = tool.get("function", tool)
+        if function.get("name") != wanted:
+            continue
+        parameters = function.get("parameters", {})
+        return wanted, parameters if isinstance(parameters, dict) else {}
+    return None
+
+
 def property_value(name: str, schema: dict[str, Any], context: str = "") -> Any:
+    if name == "answer":
+        lowered = context.lower()
+        if "boiling point" in lowered:
+            return "Water boils at 100°C at sea level."
+        if "speed of light" in lowered:
+            return "The speed of light is 299,792,458 metres per second."
+
     if name in {"file_path", "image_path", "path"}:
         path = re.search(
             r"(?:/[^\s'\",]+|[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)+)"
@@ -135,6 +155,7 @@ def current_turn_has_tool_result(messages: list[dict[str, Any]]) -> bool:
             index
             for index, message in enumerate(messages)
             if message.get("role") == "tool"
+            or observation_result_text(message) is not None
         ),
         default=-1,
     )
@@ -154,8 +175,30 @@ def current_turn_has_tool_result(messages: list[dict[str, Any]]) -> bool:
     return last_tool_result > last_tool_call and last_tool_result > last_final_assistant
 
 
+def observation_result_text(message: dict[str, Any]) -> str | None:
+    """Read an Action/Observation protocol result carried in a user message."""
+    if message.get("role") != "user":
+        return None
+    content = message.get("content")
+    if isinstance(content, list):
+        content = "\n".join(
+            item.get("text", "")
+            for item in content
+            if isinstance(item, dict) and isinstance(item.get("text"), str)
+        )
+    if not isinstance(content, str):
+        return None
+    prefix = "Observation:\n"
+    if not content.startswith(prefix):
+        return None
+    result = content.removeprefix(prefix).strip()
+    return result or None
+
+
 def latest_tool_result_text(messages: list[dict[str, Any]]) -> str | None:
     for message in reversed(messages):
+        if observation := observation_result_text(message):
+            return observation
         if message.get("role") != "tool":
             continue
         content = message.get("content")
@@ -373,6 +416,18 @@ def completion(body: dict[str, Any]) -> dict[str, Any]:
     model = body.get("model", "sideseat-local")
     has_tool_result = current_turn_has_tool_result(messages)
     declared_tool = tool_definition(body)
+    forced_arguments: str | None = None
+    observation = latest_tool_result_text(messages) if has_tool_result else None
+    if observation and (final_answer := named_tool_definition(body, "final_answer")):
+        completed = completed_tool_name(messages)
+        if completed in {"get_weather", "temperature_forecast"}:
+            answer = "It is sunny and 22°C in Paris."
+        elif completed == "calculate":
+            answer = "The result is 19134."
+        else:
+            answer = observation
+        declared_tool = final_answer
+        forced_arguments = json.dumps({"answer": answer}, separators=(",", ":"))
     if (
         declared_tool
         and declared_tool[0] == "transfer_to_agent"
@@ -380,7 +435,7 @@ def completion(body: dict[str, Any]) -> dict[str, Any]:
     ):
         declared_tool = None
 
-    if declared_tool and not has_tool_result:
+    if declared_tool and (not has_tool_result or forced_arguments is not None):
         tool_name, parameters = declared_tool
         suffix = request_fingerprint(messages)
         message: dict[str, Any] = {
@@ -392,7 +447,8 @@ def completion(body: dict[str, Any]) -> dict[str, Any]:
                     "type": "function",
                     "function": {
                         "name": tool_name,
-                        "arguments": tool_arguments(
+                        "arguments": forced_arguments
+                        or tool_arguments(
                             parameters,
                             json.dumps(messages, separators=(",", ":")),
                         ),
