@@ -219,3 +219,24 @@ fn an_unknown_constructor_remains_text() {
         json!([{"type": "text", "text": "BusinessResult(value='keep this wording')"}])
     );
 }
+
+#[test]
+fn canonical_tool_results_preserve_scalar_and_structured_json() {
+    for content in [
+        json!(0.0),
+        json!(7),
+        json!(true),
+        json!({"value": {"amount": 7}}),
+    ] {
+        let block = json!({
+            "type": "tool_result",
+            "tool_use_id": "call-1",
+            "content": content,
+        });
+        let normalized = normalize_content_block(&block).expect("the canonical block survives");
+        assert_eq!(
+            normalized["content"], content,
+            "canonical result data is not a provider payload to reinterpret"
+        );
+    }
+}

@@ -64,6 +64,8 @@ the corpus matches it.
 | `agent-framework` | agent-framework-core >=1.0.0b0 | 10 | 17 |
 | `agent-framework-native` | agent-framework-core >=1.0.0b0, native OTLP setup | 10 | 10 |
 | `agent-framework-sdk` | SideSeat Python 1.0.8 / agent-framework-core >=1.0.0b0 | 10 | 10 |
+| `agentscope-native` | AgentScope 2.0.9 / OpenAI 3.22.1 / OpenTelemetry Python 1.45.0 on CPython 3.12.8, native `TracingMiddleware` | 1 | 1 |
+| `agentscope-sdk` | SideSeat Python 1.0.8 / AgentScope 2.0.9 / OpenAI 3.22.1 / OpenTelemetry Python 1.45.0 on CPython 3.12.8 | 1 | 1 |
 | `agno-native` | Agno 3.0.11 / OpenAI 3.22.1 / OpenInference Agno instrumentor 1.0.12 / OpenTelemetry Python 1.45.0 on CPython 3.13.7, native OTLP setup | 1 | 1 |
 | `agno-sdk` | SideSeat Python 1.0.8 / Agno 3.0.11 / OpenAI 3.22.1 / OpenInference Agno instrumentor 1.0.12 / OpenTelemetry Python 1.45.0 on CPython 3.13.7 | 1 | 1 |
 | `anthropic` | anthropic >=0.84.0 | 7 | 18 |
@@ -109,7 +111,7 @@ the corpus matches it.
 | `strands-native` | strands-agents >=1.30.0, native OTLP setup | 9 | 9 |
 | `strands-sdk` | SideSeat Python 1.0.8 / strands-agents >=1.30.0 | 9 | 9 |
 | `vercel-ai-js` | ai ^7.0.79 | 6 | 13 |
-| **54 suites** | | **229** | **394** |
+| **56 suites** | | **231** | **396** |
 
 Two further samples exist but are **not in the repository**: `strands-js/image-gen` and
 `vercel-ai-js/image-gen`, whose payloads are 15 MB and 7 MB of inlined base64 image data (the Python
@@ -249,6 +251,13 @@ OPENAI_API_KEY=x \
 OPENAI_BASE_URL=http://127.0.0.1:5401/v1 \
 CAPTURE_MODEL=gpt-5-nano-2025-08-07 \
   scripts/message-fixtures/capture.sh llama-index canonical both
+
+scripts/message-fixtures/fake-openai.py --port 5401
+# In another shell:
+OPENAI_API_KEY=x \
+OPENAI_BASE_URL=http://127.0.0.1:5401/v1 \
+CAPTURE_MODEL=gpt-5-nano-2025-08-07 \
+  scripts/message-fixtures/capture.sh agentscope canonical both
 ```
 
 `CAPTURE_MODEL` is validated before being appended to the sample command. The fake endpoints cover
@@ -338,19 +347,19 @@ not hide the rest.
 
 ## What is and is not covered
 
-**229 tracked expectation files: 212 captured in 53 suites, plus 17 synthetic.** A suite is not a framework:
+**231 tracked expectation files: 214 captured in 55 suites, plus 17 synthetic.** A suite is not a framework:
 `strands`/`strands-js` and `claude-agent-sdk`/`claude-agent-sdk-js` are one framework each in two
 languages; the eight .NET/JavaScript/Python/Rust suites are SDK conformance rather than framework
-captures. The fixture families below cover **21 of the 32** frameworks SideSeat recognises. (32 is
+captures. The fixture families below cover **22 of the 32** frameworks SideSeat recognises. (32 is
 the union of the server's `Framework` classifier and the SDK's framework list, excluding `Unknown`:
 28 named server variants plus `anthropic`, `openai`, `google-genai` and `pydantic-ai`, which only the
 SDK names.) Every framework is not covered, and the gap is deliberate rather than hidden:
 
-| Covered by fixtures (21) | strands, langchain, langgraph, llama-index, crewai, google-adk, google-genai, haystack, bedrock, openai, openai-agents, anthropic, pydantic-ai, autogen, ag2, agent-framework, claude-agent-sdk, agno, semantic-kernel, smolagents, vercel-ai — strands and claude-agent-sdk in both languages, vercel-ai in JS only |
+| Covered by fixtures (22) | strands, langchain, langgraph, llama-index, crewai, google-adk, google-genai, haystack, bedrock, openai, openai-agents, anthropic, pydantic-ai, autogen, ag2, agent-framework, agentscope, claude-agent-sdk, agno, semantic-kernel, smolagents, vercel-ai — strands and claude-agent-sdk in both languages, vercel-ai in JS only |
 | ------------------- | --- |
 | Synthetic, not a framework | `_synthetic/*` — hand-written payloads for shapes no captured sample produces, counted in the file total and in neither the suites nor the frameworks. See below. |
 | SDK conformance, not a framework | The `dotnet-{otel,sdk}/canonical`, `javascript-{otel,sdk}/canonical`, `python-{otel,sdk}/canonical`, and `rust-{otel,sdk}/canonical` pairs — the same real four-span, five-message conversation exported without and with each SideSeat SDK |
-| Recognised, no fixtures (11) | agentscope, azure-ai-foundry, azure-openai, browser-use, langflow, livekit, logfire, mlflow, **openinference**, traceloop, vertex-ai |
+| Recognised, no fixtures (10) | azure-ai-foundry, azure-openai, browser-use, langflow, livekit, logfire, mlflow, **openinference**, traceloop, vertex-ai |
 
 The second group shares extractors with covered frameworks, so the *parsing logic* is exercised
 — but nothing here proves their emitted payloads match what those extractors expect. Adding a

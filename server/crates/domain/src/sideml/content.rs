@@ -8,6 +8,7 @@ use serde_json::{Value as JsonValue, json};
 use super::types::ChatRole;
 use sideseat_core::utils::file_uri as files;
 
+mod canonical;
 mod provider_formats;
 mod python_repr;
 mod tool_result;
@@ -281,7 +282,7 @@ fn try_sideml_passthrough(block: &JsonValue) -> Option<JsonValue> {
         }
         result.insert(
             "content".to_string(),
-            normalize_tool_result_content(block.get("content").cloned()),
+            canonical::normalize_tool_result_content(block.get("content")),
         );
         result.insert(
             "is_error".to_string(),

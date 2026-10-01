@@ -248,8 +248,8 @@
           "index": 2,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call-get-weather-3cab8de3da7f\",\"content\":[{\"type\":\"json\",\"data\":[\"TextBlock(type='text', text='Sunny, 22°C, light breeze in Paris.', id='b6ccaa81b5b745b49e8eabf68de02fc7', created_at='2026-10-01T15:23:16…[272 chars]",
-          "content_digest": "3acce3d227a947a8",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call-get-weather-3cab8de3da7f\",\"content\":[{\"type\":\"text\",\"text\":\"Sunny, 22°C, light breeze in Paris.\"}]}",
+          "content_digest": "b55f41f2bd0bc817",
           "observation_type": "generation"
         },
         {
@@ -285,8 +285,8 @@
           "index": 1,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "ToolResponse(content=[TextBlock(type='text', text='Sunny, 22°C, light breeze in Paris.', id='b6ccaa81b5b745b49e8eabf68de02fc7', created_at='2026-10-01T15:23:16.352585', finished_at=None)], state=<ToolResultState.SUCCESS: 'success'>, metadat…[281 chars]",
-          "content_digest": "3f52256fb33416a9",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call-get-weather-3cab8de3da7f\",\"name\":\"get_weather\",\"content\":[{\"type\":\"text\",\"text\":\"Sunny, 22°C, light breeze in Paris.\"}]}",
+          "content_digest": "488025212919a58d",
           "tool_name": "get_weather",
           "observation_type": "tool"
         }
@@ -426,8 +426,8 @@
           "index": 3,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "ToolResponse(content=[TextBlock(type='text', text='Sunny, 22°C, light breeze in Paris.', id='b6ccaa81b5b745b49e8eabf68de02fc7', created_at='2026-10-01T15:23:16.352585', finished_at=None)], state=<ToolResultState.SUCCESS: 'success'>, metadat…[281 chars]",
-          "content_digest": "3f52256fb33416a9",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call-get-weather-3cab8de3da7f\",\"name\":\"get_weather\",\"content\":[{\"type\":\"text\",\"text\":\"Sunny, 22°C, light breeze in Paris.\"}]}",
+          "content_digest": "488025212919a58d",
           "tool_name": "get_weather",
           "observation_type": "tool"
         },
@@ -538,8 +538,8 @@
           "index": 8,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "ToolResponse(content=[TextBlock(type='text', text='Sunny, 22°C, light breeze in Paris.', id='b6ccaa81b5b745b49e8eabf68de02fc7', created_at='2026-10-01T15:23:16.352585', finished_at=None)], state=<ToolResultState.SUCCESS: 'success'>, metadat…[281 chars]",
-          "content_digest": "3f52256fb33416a9",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call-get-weather-3cab8de3da7f\",\"name\":\"get_weather\",\"content\":[{\"type\":\"text\",\"text\":\"Sunny, 22°C, light breeze in Paris.\"}]}",
+          "content_digest": "488025212919a58d",
           "tool_name": "get_weather",
           "observation_type": "tool"
         },
@@ -585,8 +585,8 @@
         "index": 1,
         "role": "tool",
         "entry_type": "tool_result",
-        "content": "ToolResponse(content=[TextBlock(type='text', text='Sunny, 22°C, light breeze in Paris.', id='b6ccaa81b5b745b49e8eabf68de02fc7', created_at='2026-10-01T15:23:16.352585', finished_at=None)], state=<ToolResultState.SUCCESS: 'success'>, metadat…[281 chars]",
-        "content_digest": "3f52256fb33416a9",
+        "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call-get-weather-3cab8de3da7f\",\"name\":\"get_weather\",\"content\":[{\"type\":\"text\",\"text\":\"Sunny, 22°C, light breeze in Paris.\"}]}",
+        "content_digest": "488025212919a58d",
         "tool_name": "get_weather",
         "observation_type": "tool"
       },

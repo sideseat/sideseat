@@ -422,14 +422,37 @@ AutogenInstrumentor().instrument(tracer_provider=provider)`,
     group: "Frameworks",
     lang: "python",
     docUrl: "https://doc.agentscope.io",
-    install: "pip install agentscope sideseat",
-    code: () => `from sideseat import SideSeat, Frameworks
+    install: 'pip install "sideseat[agentscope]"',
+    code: () => `import asyncio
+import os
+from agentscope.agent import Agent
+from agentscope.credential import OpenAICredential
+from agentscope.message import UserMsg
+from agentscope.model import OpenAIChatModel
+from sideseat import SideSeat, Frameworks
 
 SideSeat(framework=Frameworks.AgentScope)
 
-# AgentScope emits OpenTelemetry itself and uses the provider SideSeat installs.`,
-    altInstall: "pip install agentscope opentelemetry-exporter-otlp",
-    altCode: () => `# AgentScope exports through the global provider - no instrumentor needed.`,
+async def main():
+    model = OpenAIChatModel(
+        credential=OpenAICredential(api_key=os.environ["OPENAI_API_KEY"]),
+        model="gpt-5-mini",
+    )
+    agent = Agent(name="assistant", system_prompt="Answer briefly.", model=model)
+    reply = await agent.reply(UserMsg("user", "Hello!"))
+    print(reply.get_text_content())
+
+asyncio.run(main())`,
+    altInstall: "pip install agentscope opentelemetry-sdk opentelemetry-exporter-otlp-proto-http",
+    altCode: () => `from agentscope.middleware import TracingMiddleware
+
+# Pass this middleware to every Agent after configuring the global provider.
+agent = Agent(
+    name="assistant",
+    system_prompt="Answer briefly.",
+    model=model,
+    middlewares=[TracingMiddleware()],
+)`,
     run: "python agent.py",
   },
   {

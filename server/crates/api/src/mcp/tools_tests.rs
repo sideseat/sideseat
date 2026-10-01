@@ -620,6 +620,7 @@ fn test_setup_guide_carries_required_sdk_extra() {
         ("bedrock", "aws"),
         ("anthropic", "anthropic"),
         ("vertex-ai", "vertex-ai"),
+        ("agentscope", "agentscope"),
     ] {
         let guide = build_setup_guide_template("http://localhost:5388/otel/default", Some(name));
         assert!(
@@ -646,6 +647,16 @@ fn test_setup_guide_resolves_claude_agent_sdk() {
     // substituted after formatting or it leaks into the output verbatim.
     assert!(!guide.contains("__OTLP_ENDPOINT__"));
     assert!(guide.contains("http://localhost:5388/otel/demo/v1/traces"));
+}
+
+#[test]
+fn test_setup_guide_uses_current_agentscope_api_and_middleware() {
+    let guide = build_setup_guide("demo", Some("agentscope"));
+    assert!(guide.contains("pip install \"sideseat[agentscope]\""));
+    assert!(guide.contains("from agentscope.credential import OpenAICredential"));
+    assert!(guide.contains("from agentscope.message import UserMsg"));
+    assert!(guide.contains("middlewares=[TracingMiddleware()]"));
+    assert!(!guide.contains("from agentscope.message import Msg, TextBlock"));
 }
 
 #[test]

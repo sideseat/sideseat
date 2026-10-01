@@ -248,20 +248,59 @@ streaming, automatic tool execution, and the complete tool call/result/final-ans
 ## AgentScope
 
 ```bash
-pip install agentscope sideseat
+pip install "sideseat[agentscope]"
 ```
 
 ```python
+import asyncio
+import os
+
+from agentscope.agent import Agent
+from agentscope.credential import OpenAICredential
+from agentscope.message import UserMsg
+from agentscope.model import OpenAIChatModel
 from sideseat import SideSeat, Frameworks
 
 SideSeat(framework=Frameworks.AgentScope)
 
-# AgentScope emits OpenTelemetry itself and only needs the provider SideSeat installs.
+async def main():
+    model = OpenAIChatModel(
+        credential=OpenAICredential(api_key=os.environ["OPENAI_API_KEY"]),
+        model="gpt-5-mini",
+    )
+    agent = Agent(
+        name="assistant",
+        system_prompt="Answer briefly.",
+        model=model,
+    )
+    reply = await agent.reply(UserMsg("user", "Hello!"))
+    print(reply.get_text_content())
+
+asyncio.run(main())
 ```
 
-No extra is needed: AgentScope exports spans through the global tracer provider. Its spans
-carry `agentscope.*` attributes and `gen_ai.conversation.id`, which SideSeat reads as the
-session id.
+Initialize SideSeat before constructing an `Agent`. SideSeat injects AgentScope 2.x's built-in
+`TracingMiddleware` into subsequently created agents and preserves an explicit middleware instead
+of adding a duplicate.
+
+Without the SDK, install AgentScope and an OTLP exporter, configure the global tracer provider, and
+pass the middleware yourself:
+
+```python
+from agentscope.middleware import TracingMiddleware
+
+agent = Agent(
+    name="assistant",
+    system_prompt="Answer briefly.",
+    model=model,
+    middlewares=[TracingMiddleware()],
+)
+```
+
+The tracked compatibility boundary is AgentScope 2.0.9 with OpenAI 3.22.1 and OpenTelemetry
+Python 1.45.0. Native and SideSeat captures have identical span projections, two ordered trace
+conversations, one shared session, and the project feed. The scenario covers retained history,
+streaming, automatic tool execution, and a complete call/result/final-answer sequence.
 
 ## Langflow
 

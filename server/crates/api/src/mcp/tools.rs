@@ -645,11 +645,11 @@ const FRAMEWORKS: &[FrameworkSetup] = &[
         display: "AgentScope",
         lang: Lang::Python,
         pip_pkg: "agentscope",
-        sdk_extra: "",
+        sdk_extra: "agentscope",
         sdk_variant: "AgentScope",
         // Runnable as a script: AgentScope's agent call is async, so it needs an
         // asyncio entry point rather than a bare top-level await.
-        sdk_snippet: "import asyncio\nimport os\nfrom agentscope.agent import Agent\nfrom agentscope.message import Msg, TextBlock\nfrom agentscope.model import OpenAIChatModel\n\n# AgentScope emits OpenTelemetry itself; it only needs the global provider.\nasync def main():\n    agent = Agent(\n        name=\"assistant\",\n        system_prompt=\"You are a helpful assistant.\",\n        model=OpenAIChatModel(credential=os.environ[\"OPENAI_API_KEY\"], model=\"gpt-5-mini\"),\n    )\n    reply = await agent(Msg(name=\"user\", content=[TextBlock(type=\"text\", text=\"Hello\")], role=\"user\"))\n    print(reply)\n\nasyncio.run(main())",
+        sdk_snippet: "import asyncio\nimport os\nfrom agentscope.agent import Agent\nfrom agentscope.credential import OpenAICredential\nfrom agentscope.message import UserMsg\nfrom agentscope.middleware import TracingMiddleware\nfrom agentscope.model import OpenAIChatModel\n\nasync def main():\n    model = OpenAIChatModel(\n        credential=OpenAICredential(api_key=os.environ[\"OPENAI_API_KEY\"]),\n        model=\"gpt-5-mini\",\n    )\n    # Explicit middleware keeps the same runnable body valid in the direct-OTLP\n    # guide. SideSeat recognises it and does not inject a duplicate.\n    agent = Agent(\n        name=\"assistant\",\n        system_prompt=\"Answer briefly.\",\n        model=model,\n        middlewares=[TracingMiddleware()],\n    )\n    reply = await agent.reply(UserMsg(\"user\", \"Hello!\"))\n    print(reply.get_text_content())\n\nasyncio.run(main())",
         no_sdk_extra_pkgs: "",
         no_sdk_extra_setup: "",
     },

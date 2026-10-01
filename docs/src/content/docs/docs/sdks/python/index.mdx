@@ -74,13 +74,15 @@ than combining it with `sideseat[all]`.
 | `anthropic`                                  | Anthropic SDK                              |
 | `google-genai`, `vertex-ai`                  | Google GenAI / Vertex AI                   |
 | `pydantic-ai`                                | Pydantic AI                                |
+| `agentscope`                                 | AgentScope 2.x                             |
 | `aws`                                        | Bedrock via boto3                          |
 | `ws`, `agui`                                 | [Runtime channel](/docs/sdks/python/runtime) — presence and invocation |
 
 <Aside>
 Frameworks that emit OpenTelemetry themselves — Strands, Google ADK, Agent Framework, Semantic
-Kernel, Langflow, AgentScope, browser-use, the Claude Agent SDK — need no extra. They only need
-the global provider that `SideSeat(...)` installs.
+Kernel, Langflow, browser-use, the Claude Agent SDK — need no instrumentation extra. AgentScope
+uses its own `TracingMiddleware`; the `agentscope` extra installs AgentScope and SideSeat injects
+that middleware into agents created after `SideSeat(...)`.
 </Aside>
 
 ## Quick Start

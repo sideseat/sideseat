@@ -35,7 +35,7 @@ of the surviving messages rather than silently inventing or dropping content.
 
 ## Current checked-in boundary
 
-The current tracked corpus contains **54 suites, 229 samples, and 394 captured OTLP requests**:
+The current tracked corpus contains **56 suites, 231 samples, and 396 captured OTLP requests**:
 
 - SideSeat SDK versus plain OpenTelemetry pairs for Python, TypeScript/Node.js, .NET, and Rust;
 - a credential-free OpenAI 3.19.2 / Logfire 6.0.0b7 pair captured both natively and through
@@ -50,6 +50,9 @@ The current tracked corpus contains **54 suites, 229 samples, and 394 captured O
   direct responses, streaming, and automatic tool execution with exact native/SideSeat parity;
 - a credential-free AG2 1.1.1 / OpenAI 3.22.1 pair using AG2's native
   `TelemetryMiddleware`, covering retained history, streaming, automatic tool execution,
+  two traces, one shared session, and exact native/SideSeat parity;
+- a credential-free AgentScope 2.0.9 / OpenAI 3.22.1 pair using AgentScope's built-in
+  `TracingMiddleware`, covering retained history, streaming, automatic tool execution,
   two traces, one shared session, and exact native/SideSeat parity;
 - a credential-free LangChain 1.4.3 / LangChain Core 1.6.6 / LangChain OpenAI 1.6.7 /
   OpenInference instrumentor 0.1.76 pair covering multi-turn history, streaming, a complete
@@ -75,7 +78,7 @@ The current tracked corpus contains **54 suites, 229 samples, and 394 captured O
   CrewAI, direct OpenAI, direct Anthropic, and Amazon Bedrock;
 - synthetic edge cases for shapes that are difficult or unsafe to obtain from a live model.
 
-These fixtures currently cover 21 of the 32 framework identifiers SideSeat recognises. The exact
+These fixtures currently cover 22 of the 32 framework identifiers SideSeat recognises. The exact
 versioned boundary and the remaining list are maintained beside the raw payloads in
 `server/tests/fixtures/messages/README.md`.
 

@@ -107,6 +107,7 @@ pip install "sideseat[langgraph]"       # + LangGraph
 pip install "sideseat[crewai]"          # + CrewAI
 pip install "sideseat[autogen]"         # + AutoGen
 pip install "sideseat[llama-index]"     # + LlamaIndex
+pip install "sideseat[agentscope]"      # + AgentScope 2.x
 pip install "sideseat[openai]"          # + OpenAI / OpenAI Agents
 
 # Extras for provider instrumentation:
