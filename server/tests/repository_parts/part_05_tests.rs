@@ -234,3 +234,40 @@ fn public_vertex_ai_examples_use_the_current_google_genai_client() {
         }
     }
 }
+
+#[test]
+fn google_genai_fixture_version_matches_its_example_lock() {
+    let repo = repo_root();
+    let lock = std::fs::read_to_string(repo.join("examples/python/google-genai/uv.lock"))
+        .expect("Google GenAI example lock is readable");
+    let package = lock
+        .split("[[package]]")
+        .find(|package| package.lines().any(|line| line == "name = \"google-genai\""))
+        .expect("Google GenAI package is locked");
+    let version = package
+        .lines()
+        .find_map(|line| line.strip_prefix("version = \""))
+        .and_then(|version| version.strip_suffix('"'))
+        .expect("Google GenAI lock entry has a version");
+
+    let manifest =
+        std::fs::read_to_string(repo.join("examples/python/google-genai/pyproject.toml"))
+            .expect("Google GenAI example manifest is readable");
+    assert!(
+        manifest.contains(&format!("\"google-genai>={version}\"")),
+        "Google GenAI example minimum does not match locked version {version}"
+    );
+
+    for relative in [
+        "docs/src/content/docs/docs/integrations/providers/google-gemini.mdx",
+        "docs/src/content/docs/docs/reference/production-readiness.mdx",
+        "server/tests/fixtures/messages/README.md",
+    ] {
+        let source = std::fs::read_to_string(repo.join(relative))
+            .unwrap_or_else(|error| panic!("{relative} is readable: {error}"));
+        assert!(
+            source.contains(&format!("Google GenAI {version}")),
+            "{relative} does not describe the locked Google GenAI {version} fixture"
+        );
+    }
+}

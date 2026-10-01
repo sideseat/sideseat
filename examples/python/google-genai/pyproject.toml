@@ -6,7 +6,7 @@ requires-python = ">=3.12,<3.14"
 dependencies = [
     "telemetry-common",
     "sideseat[google-genai]",
-    "google-genai>=2.25.0",
+    "google-genai>=2.26.0",
     "python-dotenv>=1.2.0",
 ]
 

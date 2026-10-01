@@ -283,7 +283,7 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
-    { name = "google-genai", specifier = ">=2.25.0" },
+    { name = "google-genai", specifier = ">=2.26.0" },
     { name = "python-dotenv", specifier = ">=1.2.0" },
     { name = "sideseat", extras = ["google-genai"], editable = "../../../sdk/python" },
     { name = "telemetry-common", editable = "../common" },
