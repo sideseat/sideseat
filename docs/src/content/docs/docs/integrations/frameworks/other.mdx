@@ -340,6 +340,51 @@ print(result["llm"]["replies"][0].text)
 Component spans carry `haystack.component.name` and `haystack.component.type`, which
 SideSeat uses to label the run Haystack rather than generic OpenInference.
 
+## Logfire
+
+```bash
+pip install "sideseat[logfire]"
+```
+
+```python
+import logfire
+from sideseat import Frameworks, SideSeat
+
+sideseat = SideSeat(framework=Frameworks.Logfire)
+
+with sideseat.trace("answer", session_id="conversation-42"):
+    with logfire.span(
+        "model call",
+        events=[
+            {
+                "event.name": "gen_ai.user.message",
+                "content": "What is the speed of light?",
+            }
+        ],
+        response_data={
+            "message": {
+                "role": "assistant",
+                "content": "299,792,458 metres per second in vacuum.",
+            }
+        },
+        **{"gen_ai.operation.name": "chat"},
+    ):
+        pass
+
+sideseat.shutdown()
+```
+
+Select `Frameworks.Logfire` explicitly. Logfire is a transitive dependency of several provider
+extras, so package presence alone is intentionally not treated as evidence that the application
+uses generic Logfire spans. SideSeat configures Logfire and owns the OTLP export pipeline; do not
+call `logfire.configure()` a second time afterward.
+
+The tracked Logfire 6.0.0b7 native/SideSeat pair covers `events`, `prompt`,
+`all_messages_events`, `request_data`, `response_data`, repeated history, a streaming-shaped
+response, request-side tool definitions, and a complete call/result/final-answer sequence. Both
+paths produce the same six spans, two traces, one shared session, span projections, and project
+feed.
+
 ## browser-use
 
 ```bash
@@ -376,14 +421,13 @@ attributed once they arrive:
 | --- | --- |
 | Semantic Kernel | current Python instrumentation scopes and `semantic_kernel.*` attributes |
 | Azure AI Foundry | Azure AI attributes, after the more specific Azure OpenAI rule |
-| Logfire | Pydantic Logfire's own attributes |
 | MLflow | MLflow tracing attributes |
 | TraceLoop | OpenLLMetry / TraceLoop attributes |
 | LiveKit | LiveKit Agents attributes |
 
-Semantic Kernel is exercised by a paired native/SideSeat capture. Logfire's provider dialects are
-also exercised by paired native/SideSeat captures for OpenAI 3.19.2 and Anthropic 1.8.0
-(Logfire 6.0.0b7); the remaining rows are classifier-only. The support matrix in
+Semantic Kernel and generic Logfire are exercised by paired native/SideSeat captures. Logfire's
+provider dialects are also covered by paired captures for OpenAI 3.19.2 and Anthropic 1.8.0.
+The remaining rows are classifier-only. The support matrix in
 `server/tests/fixtures/messages/README.md` is the exact boundary of what is verified.
 
 ## Generic OpenTelemetry

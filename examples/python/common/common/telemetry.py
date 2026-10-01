@@ -44,10 +44,10 @@ class NativeTraceClient:
 
 
 def setup_logfire_telemetry(
-    instrument_method: str,
+    instrument_method: str | None,
     service_name: str,
 ) -> NativeTraceClient:
-    """Configure a provider SDK through Logfire without using the SideSeat SDK."""
+    """Configure generic Logfire or a provider integration without SideSeat."""
     import logfire
     from sideseat.instrumentation import _suspend_otel_exporter_env
 
@@ -59,7 +59,8 @@ def setup_logfire_telemetry(
             send_to_logfire=False,
             console=False,
         )
-    getattr(logfire, instrument_method)()
+    if instrument_method is not None:
+        getattr(logfire, instrument_method)()
 
     provider = trace.get_tracer_provider()
     if not hasattr(provider, "add_span_processor"):

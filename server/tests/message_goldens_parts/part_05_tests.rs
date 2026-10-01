@@ -757,15 +757,6 @@ fn no_declared_rule_is_dead_across_the_corpus() {
         ),
         ("livekit.tool_output", "no captured fixture for the suite"),
         ("livekit.user_input", "no captured fixture for the suite"),
-        (
-            "logfire.all_messages_events",
-            "no captured fixture for the suite",
-        ),
-        ("logfire.prompt", "no captured fixture for the suite"),
-        (
-            "logfire.request_data_tools",
-            "no captured fixture for the suite",
-        ),
         ("mlflow.chat_tools", "no captured fixture for the suite"),
         ("mlflow.span_inputs", "no captured fixture for the suite"),
         ("mlflow.span_outputs", "no captured fixture for the suite"),

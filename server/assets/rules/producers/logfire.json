@@ -1,6 +1,6 @@
 {
   "id": "logfire",
-  "doc": "Logfire's dialect. `request_data` is deliberately **not** declared: it duplicates the input side that `events` also carries, and the code being replaced read it only when nothing else had - a cross-rule condition the engine does not express, and should not, since rule ids must stay provenance rather than control-flow targets. No captured Logfire fixture exists to show the two spellings hash alike, so declaring it unconditionally would risk putting the same question on screen twice. It moves when a local branch-set combinator lands; the loss it once caused - the answer being dropped because one gate covered both sides - is closed either way, because `response_data` above is read unconditionally.",
+  "doc": "Logfire's dialect. The request side has several overlapping spellings: `events`, `prompt`, and `all_messages_events` are primary, while `request_data` is read only when none of them supplied a conversation. `response_data` is always read because a request carrier must not suppress the answer. The paired generic Logfire capture exercises every branch, repeated history, and overlapping response evidence.",
   "carriers": [
     {
       "id": "logfire.request_data",
@@ -23,6 +23,28 @@
       "facts": {
         "preset": "snapshot",
         "carrier_holds_span_output": true,
+        "carrier_holds_expandable_message_array": true
+      }
+    },
+    {
+      "id": "logfire.prompt",
+      "doc": "The request conversation as an array of messages. It can include earlier assistant turns as context, so the carrier stays direction-neutral: classifying every member as input would hide that history from the span view.",
+      "match": {
+        "attribute": "prompt"
+      },
+      "facts": {
+        "preset": "snapshot",
+        "carrier_holds_expandable_message_array": true
+      }
+    },
+    {
+      "id": "logfire.all_messages_events",
+      "doc": "A completed conversation assembled from the span's request and response. Because one array mixes both directions, assigning either direction to the carrier would misclassify some of its messages; roles and duplicate evidence distinguish the individual turns.",
+      "match": {
+        "attribute": "all_messages_events"
+      },
+      "facts": {
+        "preset": "snapshot",
         "carrier_holds_expandable_message_array": true
       }
     }
@@ -55,7 +77,7 @@
   "messages": [
     {
       "id": "logfire.conversation",
-      "doc": "Every carrier this dialect writes a conversation to, with the local order between them. The order is the point and it is asymmetric: the request side has three spellings and reading a fourth (`request_data`) on top of them would put the same question on screen twice - no captured fixture shows those spellings hash alike, so downstream dedup could not be relied on to collapse them. The *answer* side is unconditional, because one gate covering both sides is exactly what dropped the answer: a span whose events held only the question and whose `response_data` held the reply returned the question alone.",
+      "doc": "Every carrier this dialect writes a conversation to, with the local order between them. The order is asymmetric: `request_data` is a fallback behind the three primary request spellings, while the answer side is unconditional. The paired generic capture proves that a duplicated request is not displayed twice, repeated prompt history collapses across spans, and a response repeated beside `all_messages_events` remains one answer.",
       "legacy_rank": 400,
       "branch_set": {
         "doc": "Primary: the three request spellings. Fallback: the request payload, only if none of them supplied anything. Always: the response.",
@@ -266,7 +288,7 @@
     },
     {
       "id": "logfire.request_data_tools",
-      "doc": "Tools inside the request payload. An older version of this dialect (< 4.20) did not also set the convention's own carrier, which is exactly the condition - stated here, rather than as a global \"nothing else produced tools\" flag that any unrelated dialect could satisfy first.",
+      "doc": "Tools inside the request payload. Some Logfire integrations do not also set the convention's own carrier, which is exactly the condition - stated here, rather than as a global \"nothing else produced tools\" flag that any unrelated dialect could satisfy first. The generic Logfire capture exercises this path without a convention-side duplicate.",
       "read": {
         "attribute": "request_data"
       },

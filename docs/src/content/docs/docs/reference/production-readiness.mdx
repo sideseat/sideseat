@@ -35,7 +35,7 @@ of the surviving messages rather than silently inventing or dropping content.
 
 ## Current checked-in boundary
 
-The current tracked corpus contains **56 suites, 231 samples, and 396 captured OTLP requests**:
+The current tracked corpus contains **58 suites, 233 samples, and 398 captured OTLP requests**:
 
 - SideSeat SDK versus plain OpenTelemetry pairs for Python, TypeScript/Node.js, .NET, and Rust;
 - a credential-free OpenAI 3.19.2 / Logfire 6.0.0b7 pair captured both natively and through
@@ -46,6 +46,9 @@ The current tracked corpus contains **56 suites, 231 samples, and 396 captured O
   multi-turn history, and a complete tool-call roundtrip;
 - a credential-free Google GenAI 2.25.0 / Logfire 6.0.0b7 pair covering ordinary generation,
   SSE streaming, and automatic Python function calling with exact native/SideSeat parity;
+- a credential-free generic Logfire 6.0.0b7 pair covering all three primary conversation
+  carriers, request fallback precedence, streaming response data, repeated history, tool
+  definitions, a complete tool roundtrip, two traces, and one shared session;
 - a credential-free AutoGen AgentChat 0.7.5 / OpenInference instrumentor 0.1.18 pair covering
   direct responses, streaming, and automatic tool execution with exact native/SideSeat parity;
 - a credential-free AG2 1.1.1 / OpenAI 3.22.1 pair using AG2's native
@@ -78,7 +81,7 @@ The current tracked corpus contains **56 suites, 231 samples, and 396 captured O
   CrewAI, direct OpenAI, direct Anthropic, and Amazon Bedrock;
 - synthetic edge cases for shapes that are difficult or unsafe to obtain from a live model.
 
-These fixtures currently cover 22 of the 32 framework identifiers SideSeat recognises. The exact
+These fixtures currently cover 23 of the 32 framework identifiers SideSeat recognises. The exact
 versioned boundary and the remaining list are maintained beside the raw payloads in
 `server/tests/fixtures/messages/README.md`.
 
@@ -145,8 +148,8 @@ Framework captures that call real models require the corresponding provider cred
 uses committed OTLP payloads, so verification remains deterministic and does not make paid or
 network-dependent model calls.
 
-The direct OpenAI, Anthropic, Google GenAI, Pydantic AI, LangChain, Haystack, Agno, Smolagents, and
-LlamaIndex parity fixtures can also be recaptured offline:
+The direct OpenAI, Anthropic, Google GenAI, Pydantic AI, LangChain, Haystack, Agno, Smolagents,
+LlamaIndex, and generic Logfire parity fixtures can also be recaptured offline:
 
 ```bash
 scripts/message-fixtures/fake-openai.py --port 5401
@@ -195,6 +198,8 @@ ANTHROPIC_API_KEY=x ANTHROPIC_BASE_URL=http://127.0.0.1:5402 \
   scripts/message-fixtures/capture.sh anthropic messages both
 
 scripts/message-fixtures/capture.sh pydantic-ai agent both
+
+scripts/message-fixtures/capture.sh logfire canonical both
 
 scripts/message-fixtures/fake-google-genai.py --port 5404
 GOOGLE_GENAI_BASE_URL=http://127.0.0.1:5404 \
