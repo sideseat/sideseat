@@ -40,6 +40,7 @@ SUITES=(
   "llama-index|uv run --locked --directory examples/python/llamaindex telemetry-llamaindex {S}"
   "haystack|uv run --locked --directory examples/python/haystack telemetry-haystack {S}"
   "semantic-kernel|uv run --locked --directory examples/python/semantic-kernel telemetry-semantic-kernel {S}"
+  "ag2|uv run --locked --directory examples/python/ag2 telemetry-ag2 {S}"
   "langgraph|uv run --locked --directory examples/python/langgraph telemetry-langgraph {S}"
   "crewai|uv run --locked --directory examples/python/crewai telemetry-crewai {S}"
   "adk|uv run --locked --directory examples/python/adk telemetry-adk {S}"

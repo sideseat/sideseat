@@ -74,7 +74,7 @@ def instrument(
         elif framework == Frameworks.LlamaIndex:
             _instrument_openinference("llama_index", "LlamaIndexInstrumentor", provider)
         elif framework == Frameworks.AG2:
-            _instrument_openinference("autogen", "AutogenInstrumentor", provider)
+            _instrument_ag2(provider)
         elif framework == Frameworks.Haystack:
             _instrument_haystack(provider)
         elif framework in (
@@ -164,6 +164,37 @@ def _enable_semantic_kernel_otel() -> None:
         settings = module.MODEL_DIAGNOSTICS_SETTINGS
         settings.enable_otel_diagnostics = True
         settings.enable_otel_diagnostics_sensitive = sensitive
+
+
+def _instrument_ag2(provider: "TracerProvider | None") -> None:
+    """Inject AG2 1.x's built-in telemetry into subsequently created agents."""
+    ag2 = importlib.import_module("ag2")
+    middleware_module = importlib.import_module("ag2.middleware.builtin")
+    agent_cls = ag2.Agent
+    telemetry_cls = middleware_module.TelemetryMiddleware
+    original_init = agent_cls.__init__
+
+    if getattr(original_init, "_sideseat_ag2_instrumented", False):
+        return
+
+    @functools.wraps(original_init)
+    def init_with_telemetry(self: Any, *args: Any, **kwargs: Any) -> None:
+        middleware = tuple(kwargs.pop("middleware", ()))
+        if not any(isinstance(item, telemetry_cls) for item in middleware):
+            name = args[0] if args else kwargs.get("name", "unknown")
+            middleware = (
+                *middleware,
+                telemetry_cls(
+                    tracer_provider=provider,
+                    capture_content=True,
+                    agent_name=str(name),
+                ),
+            )
+        kwargs["middleware"] = middleware
+        original_init(self, *args, **kwargs)
+
+    init_with_telemetry._sideseat_ag2_instrumented = True  # type: ignore[attr-defined]
+    agent_cls.__init__ = init_with_telemetry
 
 
 def _instrument_openllmetry_vertexai(provider: "TracerProvider | None") -> None:

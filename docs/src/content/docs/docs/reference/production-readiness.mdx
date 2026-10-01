@@ -35,7 +35,7 @@ of the surviving messages rather than silently inventing or dropping content.
 
 ## Current checked-in boundary
 
-The current tracked corpus contains **52 suites, 227 samples, and 392 captured OTLP requests**:
+The current tracked corpus contains **54 suites, 229 samples, and 394 captured OTLP requests**:
 
 - SideSeat SDK versus plain OpenTelemetry pairs for Python, TypeScript/Node.js, .NET, and Rust;
 - a credential-free OpenAI 3.19.2 / Logfire 6.0.0b7 pair captured both natively and through
@@ -48,6 +48,9 @@ The current tracked corpus contains **52 suites, 227 samples, and 392 captured O
   SSE streaming, and automatic Python function calling with exact native/SideSeat parity;
 - a credential-free AutoGen AgentChat 0.7.5 / OpenInference instrumentor 0.1.18 pair covering
   direct responses, streaming, and automatic tool execution with exact native/SideSeat parity;
+- a credential-free AG2 1.1.1 / OpenAI 3.22.1 pair using AG2's native
+  `TelemetryMiddleware`, covering retained history, streaming, automatic tool execution,
+  two traces, one shared session, and exact native/SideSeat parity;
 - a credential-free LangChain 1.4.3 / LangChain Core 1.6.6 / LangChain OpenAI 1.6.7 /
   OpenInference instrumentor 0.1.76 pair covering multi-turn history, streaming, a complete
   tool roundtrip, two traces, and one shared session with exact native/SideSeat parity;
@@ -72,7 +75,7 @@ The current tracked corpus contains **52 suites, 227 samples, and 392 captured O
   CrewAI, direct OpenAI, direct Anthropic, and Amazon Bedrock;
 - synthetic edge cases for shapes that are difficult or unsafe to obtain from a live model.
 
-These fixtures currently cover 20 of the 32 framework identifiers SideSeat recognises. The exact
+These fixtures currently cover 21 of the 32 framework identifiers SideSeat recognises. The exact
 versioned boundary and the remaining list are maintained beside the raw payloads in
 `server/tests/fixtures/messages/README.md`.
 
@@ -147,6 +150,11 @@ scripts/message-fixtures/fake-openai.py --port 5401
 OPENAI_API_KEY=x OPENAI_BASE_URL=http://127.0.0.1:5401/v1 \
   CAPTURE_MODEL=gpt-5-nano-2025-08-07 \
   scripts/message-fixtures/capture.sh openai chat_completions both
+
+scripts/message-fixtures/fake-openai.py --port 5401
+OPENAI_API_KEY=x OPENAI_BASE_URL=http://127.0.0.1:5401/v1 \
+  CAPTURE_MODEL=gpt-5-nano-2025-08-07 \
+  scripts/message-fixtures/capture.sh ag2 canonical both
 
 scripts/message-fixtures/fake-openai.py --port 5401
 OPENAI_API_KEY=x OPENAI_BASE_URL=http://127.0.0.1:5401/v1 \

@@ -5,9 +5,12 @@
   "detect": [
     {
       "id": "ag2.detect",
-      "doc": "Identifies AG2 by the signals below. Supersedes openinference.detect: this is the more specific dialect, and both match the same span, so the relationship is declared rather than left to the legacy rank.",
+      "doc": "Identifies AG2 1.x by its native instrumentation scope or framework-owned attributes. The supersession preserves classification for older OpenInference payloads without making them the supported boundary.",
       "label": "AG2",
       "match": {
+        "scope_name": [
+          "opentelemetry.instrumentation.ag2"
+        ],
         "attr_prefix": [
           "ag2."
         ]

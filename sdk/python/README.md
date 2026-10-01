@@ -574,7 +574,7 @@ Frameworks.LangGraph  # "langgraph"
 Frameworks.LangChain  # "langchain"
 Frameworks.CrewAI  # "crewai"
 Frameworks.AutoGen  # "autogen"          (autogen-agentchat)
-Frameworks.AG2  # "ag2"              (requires ag2 < 1.0)
+Frameworks.AG2  # "ag2"              (AG2 1.x native telemetry)
 Frameworks.OpenAIAgents  # "openai-agents"
 Frameworks.GoogleADK  # "google-adk"
 Frameworks.PydanticAI  # "pydantic-ai"

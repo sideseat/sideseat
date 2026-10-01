@@ -38,6 +38,27 @@ wheels = [
 ]
 
 [[package]]
+name = "ag2"
+version = "1.1.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "anyio" },
+    { name = "fast-depends", extra = ["pydantic"] },
+    { name = "httpx" },
+    { name = "pydantic" },
+    { name = "pyyaml" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/e8/e0/6847e15292aabffdf8c4e4159d43225d4cc39a75129e85fd6986e70614c7/ag2-1.1.1.tar.gz", hash = "sha256:ff650770c2a3c8bc51220c4092a7b82f77da20c562ab8a38b5e0e79340981171", size = 842290, upload-time = "2026-09-29T20:49:42.141Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/94/6f/aecf35a45b90fc2b50f1eacac52ce6c783873074bb29373a2ba9e89b6500/ag2-1.1.1-py3-none-any.whl", hash = "sha256:a7f8ecc60807ac1846455e64c14c5fd14b99502b22aeec15d6d4b7a9946808b9", size = 1123826, upload-time = "2026-09-29T20:49:40.596Z" },
+]
+
+[package.optional-dependencies]
+tracing = [
+    { name = "opentelemetry-sdk" },
+]
+
+[[package]]
 name = "annotated-types"
 version = "0.8.0"
 source = { registry = "https://pypi.org/simple" }
@@ -569,6 +590,24 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/cc/28/c14e053b6762b1044f34a13aab6859bbf40456d37d23aa286ac24cfd9a5d/executing-2.2.1.tar.gz", hash = "sha256:3632cc370565f6648cc328b32435bd120a1e4ebb20c77e3fdde9a13cd1e533c4", size = 1129488, upload-time = "2025-09-01T09:48:10.866Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/c1/ea/53f2148663b321f21b5a606bd5f191517cf40b7072c0497d3c92c4a13b1e/executing-2.2.1-py2.py3-none-any.whl", hash = "sha256:760643d3452b4d777d295bb167ccc74c64a81df23fb5e08eff250c425a4b2017", size = 28317, upload-time = "2025-09-01T09:48:08.5Z" },
+]
+
+[[package]]
+name = "fast-depends"
+version = "3.0.9"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "anyio" },
+    { name = "typing-extensions" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/4d/8e/0da74a68d1fab3370962802bde8726fbd9248d8156f9cf98f3562e654cc3/fast_depends-3.0.9.tar.gz", hash = "sha256:c31c3985d0196ea4998da9f5913a76ede75cc4484d89eeafcea1a6bd64fbca82", size = 18437, upload-time = "2026-09-19T12:37:28.181Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/b6/c3/a4e6a88229798f5afe0e79a9e81947731a89e3f19659b7e90980cfedeee4/fast_depends-3.0.9-py3-none-any.whl", hash = "sha256:a9fda223e4f9f92ade11dabfdc31d20e62fedc25340f1a5b1f01db2ae25ab1d9", size = 25521, upload-time = "2026-09-19T12:37:26.863Z" },
+]
+
+[package.optional-dependencies]
+pydantic = [
+    { name = "pydantic" },
 ]
 
 [[package]]
@@ -1890,23 +1929,6 @@ wheels = [
 ]
 
 [[package]]
-name = "openinference-instrumentation-ag2"
-version = "0.1.10"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "openinference-instrumentation" },
-    { name = "openinference-semantic-conventions" },
-    { name = "opentelemetry-api" },
-    { name = "opentelemetry-instrumentation" },
-    { name = "opentelemetry-semantic-conventions" },
-    { name = "wrapt" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/3c/02/0212b9f747996886cb16e436f58836b0e5ffa637f9d69f31da2df72e9003/openinference_instrumentation_ag2-0.1.10.tar.gz", hash = "sha256:b41c068be7f6dc2cb1522c5c237bb0e6b29b37499f44da80752e0535e0e22cf2", size = 13815, upload-time = "2026-10-01T02:33:16.098Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/43/13/c9d3474a4ee13b5978086de7e440f1bccb78107d8be5ccf19429b52b23c9/openinference_instrumentation_ag2-0.1.10-py3-none-any.whl", hash = "sha256:6782d2ece48cd9f027cbd1c4a4e892ccbd8d2406b6a33fc76bf2ef47ccc3e174", size = 13477, upload-time = "2026-10-01T02:33:14.951Z" },
-]
-
-[[package]]
 name = "openinference-instrumentation-agno"
 version = "1.0.12"
 source = { registry = "https://pypi.org/simple" }
@@ -1922,19 +1944,6 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/50/43/9aa0b7dba1937b264c02dd8a6f22e84115e0746692f0f0bb814b56cacba1/openinference_instrumentation_agno-1.0.12.tar.gz", hash = "sha256:f43129bafef12db2e95fa10610dde16b966b2c8edf14df5bf7822136c56ae2c0", size = 25985, upload-time = "2026-10-01T02:33:15.849Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/55/a2/1bad6c2eee81e13a038142e098870a8d29cab390e5234a586065349ba7a0/openinference_instrumentation_agno-1.0.12-py3-none-any.whl", hash = "sha256:2f8b2ec74c9cc71a5017e1a18ed8e66170f9e40abf18797cfe38a4adf4d2dbc4", size = 31453, upload-time = "2026-10-01T02:33:14.59Z" },
-]
-
-[[package]]
-name = "openinference-instrumentation-autogen"
-version = "0.1.15"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "openinference-instrumentation-ag2" },
-    { name = "opentelemetry-instrumentation" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/23/02/0975de06d90db41887a7deb2085534e61cdcd154f4cc9e03e4602af623db/openinference_instrumentation_autogen-0.1.15.tar.gz", hash = "sha256:11e23e0812a8ebfc3fcf61118912c6771e7ca976d26ecfe6d7f8bbeed037f8b2", size = 6132, upload-time = "2026-08-07T14:29:17.179Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/c8/c9/6af9727bab31c3e98c09c638cd32a1bfa56bc39f3b6fa719cee685537977/openinference_instrumentation_autogen-0.1.15-py3-none-any.whl", hash = "sha256:182c2c99e74d903af48e95fc7c1fdd1648a4f66e465e0636a1e3b6f9ef0b1eda", size = 7496, upload-time = "2026-08-07T14:29:16.138Z" },
 ]
 
 [[package]]
@@ -3000,7 +3009,7 @@ dependencies = [
 
 [package.optional-dependencies]
 ag2 = [
-    { name = "openinference-instrumentation-autogen" },
+    { name = "ag2", extra = ["tracing"] },
 ]
 agno = [
     { name = "openinference-instrumentation-agno" },
@@ -3011,10 +3020,10 @@ agui = [
 ]
 all = [
     { name = "ag-ui-protocol" },
+    { name = "ag2", extra = ["tracing"], marker = "extra == 'extra-8-sideseat-all' or extra == 'extra-8-sideseat-autogen' or extra != 'extra-8-sideseat-vertex-ai'" },
     { name = "httpx" },
     { name = "logfire", extra = ["google-genai"], marker = "extra == 'extra-8-sideseat-all' or extra == 'extra-8-sideseat-autogen' or extra != 'extra-8-sideseat-vertex-ai'" },
     { name = "openinference-instrumentation-agno" },
-    { name = "openinference-instrumentation-autogen" },
     { name = "openinference-instrumentation-autogen-agentchat" },
     { name = "openinference-instrumentation-crewai" },
     { name = "openinference-instrumentation-langchain" },
@@ -3082,6 +3091,8 @@ ws = [
 requires-dist = [
     { name = "ag-ui-protocol", marker = "extra == 'agui'", specifier = ">=0.1.18" },
     { name = "ag-ui-protocol", marker = "extra == 'all'", specifier = ">=0.1.18" },
+    { name = "ag2", extras = ["tracing"], marker = "extra == 'ag2'", specifier = ">=1.1.1,<2" },
+    { name = "ag2", extras = ["tracing"], marker = "extra == 'all'", specifier = ">=1.1.1,<2" },
     { name = "google-cloud-aiplatform", marker = "extra == 'vertex-ai'", specifier = ">=2.2.0" },
     { name = "httpx", marker = "extra == 'all'", specifier = ">=0.27" },
     { name = "httpx", marker = "extra == 'anthropic'", specifier = ">=0.27" },
@@ -3094,8 +3105,6 @@ requires-dist = [
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.13.0" },
     { name = "openinference-instrumentation-agno", marker = "extra == 'agno'", specifier = ">=0.1.0" },
     { name = "openinference-instrumentation-agno", marker = "extra == 'all'", specifier = ">=0.1.0" },
-    { name = "openinference-instrumentation-autogen", marker = "extra == 'ag2'", specifier = ">=0.1.0" },
-    { name = "openinference-instrumentation-autogen", marker = "extra == 'all'", specifier = ">=0.1.0" },
     { name = "openinference-instrumentation-autogen-agentchat", marker = "extra == 'all'", specifier = ">=0.1.0" },
     { name = "openinference-instrumentation-autogen-agentchat", marker = "extra == 'autogen'", specifier = ">=0.1.0" },
     { name = "openinference-instrumentation-crewai", marker = "extra == 'all'", specifier = ">=0.1.0" },

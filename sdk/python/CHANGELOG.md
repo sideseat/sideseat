@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- AG2 support now targets AG2 1.x and injects its built-in `TelemetryMiddleware` into agents
+  created after SideSeat initialization; the obsolete pre-1.0 OpenInference path was removed
+
 ### Fixed
 
 - The `google-genai` and `all` extras now install Logfire's required Google GenAI

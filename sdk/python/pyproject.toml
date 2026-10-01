@@ -38,8 +38,9 @@ crewai = ["openinference-instrumentation-crewai>=0.1.0"]
 agno = ["openinference-instrumentation-agno>=0.1.0"]
 smolagents = ["openinference-instrumentation-smolagents>=0.1.0"]
 llama-index = ["openinference-instrumentation-llama-index>=4.5.3"]
-# AG2 is the community AutoGen fork; its OpenInference instrumentor is the `autogen` one.
-ag2 = ["openinference-instrumentation-autogen>=0.1.0"]
+# AG2 1.x ships its own OpenTelemetry middleware. The extra supplies that optional
+# dependency and the SDK injects the middleware into agents created after SideSeat.
+ag2 = ["ag2[tracing]>=1.1.1,<2"]
 haystack = ["opentelemetry-haystack>=1.0.0"]
 autogen = ["openinference-instrumentation-autogen-agentchat>=0.1.0"]
 # logfire>=4.29.0 added instrument_openai_agents() using the official SDK hook
@@ -79,7 +80,7 @@ all = [
     "openinference-instrumentation-langchain>=0.1.0",
     "openinference-instrumentation-crewai>=0.1.0",
     "openinference-instrumentation-autogen-agentchat>=0.1.0",
-    "openinference-instrumentation-autogen>=0.1.0",
+    "ag2[tracing]>=1.1.1,<2",
     "openinference-instrumentation-agno>=0.1.0",
     "openinference-instrumentation-smolagents>=0.1.0",
     "openinference-instrumentation-llama-index>=4.5.3",

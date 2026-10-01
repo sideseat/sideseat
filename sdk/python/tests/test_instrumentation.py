@@ -133,6 +133,51 @@ class TestInstrument:
         assert instrument(Frameworks.LlamaIndex, provider) is True
         assert calls == [("llama_index", "LlamaIndexInstrumentor", provider)]
 
+    def test_ag2_injects_builtin_telemetry_once(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """AG2 1.x agents receive native telemetry without duplicate middleware."""
+
+        class TelemetryMiddleware:
+            def __init__(self, **kwargs: Any) -> None:
+                self.kwargs = kwargs
+
+        class Agent:
+            def __init__(
+                self,
+                name: str,
+                prompt: str = "",
+                *,
+                middleware: tuple[Any, ...] = (),
+            ) -> None:
+                self.name = name
+                self.prompt = prompt
+                self.middleware = middleware
+
+        modules = {
+            "ag2": SimpleNamespace(Agent=Agent),
+            "ag2.middleware.builtin": SimpleNamespace(TelemetryMiddleware=TelemetryMiddleware),
+        }
+        real_import = importlib.import_module
+
+        def fake_import(name: str, package: str | None = None) -> Any:
+            return modules.get(name) or real_import(name, package)
+
+        monkeypatch.setattr(importlib, "import_module", fake_import)
+        provider: Any = object()
+
+        assert instrument(Frameworks.AG2, provider) is True
+
+        injected = Agent("weather")
+        assert len(injected.middleware) == 1
+        assert injected.middleware[0].kwargs == {
+            "tracer_provider": provider,
+            "capture_content": True,
+            "agent_name": "weather",
+        }
+
+        explicit = TelemetryMiddleware(tracer_provider=provider)
+        preserved = Agent("explicit", middleware=(explicit,))
+        assert preserved.middleware == (explicit,)
+
     def test_haystack_uses_native_tracing_with_content(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:

@@ -211,28 +211,39 @@ runs, streams the second answer, executes a custom weather tool, and verifies ev
 ## AG2
 
 ```bash
-pip install "ag2[openai]<1.0" "sideseat[ag2]"
+pip install "ag2[openai]>=1.1.1,<2" "sideseat[ag2]"
 ```
 
 ```python
+import asyncio
+
+from ag2 import Agent
+from ag2.config import OpenAIConfig
 from sideseat import SideSeat, Frameworks
-from autogen import ConversableAgent
 
 SideSeat(framework=Frameworks.AG2)
 
-assistant = ConversableAgent(
-    name="assistant",
-    llm_config={"model": "gpt-5-mini"},
+assistant = Agent(
+    "assistant",
+    "Answer briefly.",
+    config=OpenAIConfig(model="gpt-5-mini"),
 )
-print(assistant.generate_reply(messages=[{"role": "user", "content": "Hello!"}]))
+
+async def main():
+    reply = await assistant.ask("Hello!")
+    print(await reply.content())
+
+asyncio.run(main())
 ```
 
-AG2 is the community fork of AutoGen and keeps the `autogen` import path, so its
-OpenInference instrumentor is `openinference-instrumentation-autogen`. Pin below 1.0: ag2 1.0
-renamed its top-level module from `autogen` to `ag2` and removed `ConversableAgent`, and the
-instrumentor patches `autogen`. SideSeat
-distinguishes the two by the `ag2.*` attribute prefix, so AG2 runs are not mislabelled
-AutoGen.
+Initialize SideSeat before constructing the agent. SideSeat injects AG2 1.x's native
+`TelemetryMiddleware` with content capture and the SideSeat tracer provider; an explicit
+`TelemetryMiddleware` is preserved rather than duplicated.
+
+The tracked compatibility boundary is AG2 1.1.1 with OpenAI 3.22.1 and OpenTelemetry Python
+1.45.0. Native OpenTelemetry and SideSeat captures have identical span projections, two trace
+conversations, their shared session, and the project feed. The scenario covers retained history,
+streaming, automatic tool execution, and the complete tool call/result/final-answer sequence.
 
 ## AgentScope
 

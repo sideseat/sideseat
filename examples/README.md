@@ -43,6 +43,7 @@ uv run --locked --directory examples/python/langgraph telemetry-langgraph tool_u
 uv run --locked --directory examples/python/openai-agents telemetry-openai-agents tool_use
 uv run --locked --directory examples/python/agent-framework telemetry-agent-framework tool_use
 uv run --locked --directory examples/python/autogen telemetry-autogen tool_use
+uv run --locked --directory examples/python/ag2 telemetry-ag2 canonical
 uv run --locked --directory examples/python/crewai telemetry-crewai tool_use
 uv run --locked --directory examples/python/openai openai-provider chat_completions
 uv run --locked --directory examples/python/openai openai-provider responses
