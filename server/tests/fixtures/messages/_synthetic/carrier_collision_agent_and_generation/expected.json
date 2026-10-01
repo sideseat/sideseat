@@ -43,10 +43,11 @@
       ]
     },
     "trace-1/chat model-x/span-4": {
-      "message_count": 4,
+      "message_count": 5,
       "role_sequence": [
         "system",
         "user",
+        "assistant",
         "tool",
         "assistant"
       ],
@@ -71,6 +72,15 @@
         },
         {
           "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call_1\",\"name\":\"calculator\",\"input\":{\"expression\":\"2+2\"}}",
+          "content_digest": "cf5ee4641e7036ad",
+          "tool_name": "calculator",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
           "role": "tool",
           "entry_type": "tool_result",
           "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_1\",\"content\":[{\"type\":\"json\",\"data\":{\"value\":4}}]}",
@@ -78,7 +88,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 3,
+          "index": 4,
           "role": "assistant",
           "entry_type": "text",
           "content": "2+2 is 4",

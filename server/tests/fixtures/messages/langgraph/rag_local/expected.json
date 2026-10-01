@@ -20,10 +20,11 @@
       "messages": []
     },
     "trace-11/ChatBedrockConverse/span-14": {
-      "message_count": 4,
+      "message_count": 5,
       "role_sequence": [
         "system",
         "user",
+        "assistant",
         "tool",
         "assistant"
       ],
@@ -50,6 +51,15 @@
         },
         {
           "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_OjItENZS4tSmhGINCDsBXY\",\"name\":\"search_knowledge\",\"input\":{\"query\":\"RAG how it works components\",\"num_results\":5}}",
+          "content_digest": "1126be853f3592e3",
+          "tool_name": "search_knowledge",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
           "role": "tool",
           "entry_type": "tool_result",
           "content": "[1] (relevance: 0.64) RAG (Retrieval-Augmented Generation) is a pattern that combines vector search with LLM generation. Documents are embedded into vectors, stored in a vector database, and retrieved based on semantic similarity to enhance…[1338 chars]",
@@ -57,7 +67,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 3,
+          "index": 4,
           "role": "assistant",
           "entry_type": "text",
           "content": "## How RAG Works **RAG (Retrieval-Augmented Generation)** is a pattern that combines vector search with LLM generation to improve the quality and accuracy of AI-generated responses. Here's how it works: ### Key Components: 1. **Embeddings**…[1559 chars]",
@@ -358,10 +368,11 @@
       "messages": []
     },
     "trace-15/ChatBedrockConverse/span-14": {
-      "message_count": 4,
+      "message_count": 5,
       "role_sequence": [
         "system",
         "user",
+        "assistant",
         "tool",
         "assistant"
       ],
@@ -388,6 +399,15 @@
         },
         {
           "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_JJJcxGUIj3ePdulydgjAcP\",\"name\":\"search_knowledge\",\"input\":{\"query\":\"embedding models vector search\",\"num_results\":5}}",
+          "content_digest": "98743c1ff6047f89",
+          "tool_name": "search_knowledge",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
           "role": "tool",
           "entry_type": "tool_result",
           "content": "[1] (relevance: 0.54) Vector search finds similar items by comparing embedding vectors using distance metrics like cosine similarity or L2 distance. Popular vector databases include FAISS, Pinecone, Chroma, and Weaviate. Cosine similarity m…[1351 chars]",
@@ -395,7 +415,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 3,
+          "index": 4,
           "role": "assistant",
           "entry_type": "text",
           "content": "Based on the knowledge base, here are the **embedding models available for vector search**: ## Common Embedding Models: 1. **Amazon Titan Embeddings** - AWS's embedding model 2. **OpenAI text-embedding-3** - OpenAI's embedding model 3. **Co…[1008 chars]",
@@ -731,10 +751,11 @@
       "messages": []
     },
     "trace-7/ChatBedrockConverse/span-14": {
-      "message_count": 4,
+      "message_count": 5,
       "role_sequence": [
         "system",
         "user",
+        "assistant",
         "tool",
         "assistant"
       ],
@@ -761,6 +782,15 @@
         },
         {
           "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_Wxk3P8CANWrAh24fnIanEj\",\"name\":\"search_knowledge\",\"input\":{\"query\":\"SideSeat AI observability\",\"num_results\":5}}",
+          "content_digest": "d3d58309d0c4bd08",
+          "tool_name": "search_knowledge",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
           "role": "tool",
           "entry_type": "tool_result",
           "content": "[1] (relevance: 0.75) SideSeat is an AI observability toolkit that collects OpenTelemetry traces from AI applications. It normalizes multi-framework data into SideML format and provides a web UI for debugging LLM calls, analyzing costs, and…[1331 chars]",
@@ -768,7 +798,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 3,
+          "index": 4,
           "role": "assistant",
           "entry_type": "text",
           "content": "Based on the knowledge base, here's what SideSeat is and how it helps with AI observability: ## What is SideSeat? SideSeat is an **AI observability toolkit** designed specifically for monitoring and debugging AI applications. It works by co…[1328 chars]",

@@ -260,10 +260,11 @@
       "messages": []
     },
     "trace-2/OpenAI.achat/span-15": {
-      "message_count": 4,
+      "message_count": 5,
       "role_sequence": [
         "system",
         "user",
+        "assistant",
         "tool",
         "assistant"
       ],
@@ -290,6 +291,15 @@
         },
         {
           "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call-get-weather-645056c05a23\",\"name\":\"get_weather\",\"input\":{\"location\":\"Paris\"}}",
+          "content_digest": "65afc6cc8e43fae8",
+          "tool_name": "get_weather",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
           "role": "tool",
           "entry_type": "tool_result",
           "content": "Sunny, 22°C, light breeze in Paris.",
@@ -297,7 +307,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 3,
+          "index": 4,
           "role": "assistant",
           "entry_type": "text",
           "content": "It is sunny and 22°C in Paris.",

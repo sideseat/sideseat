@@ -6,10 +6,13 @@
   "session_count": 1,
   "span_views": {
     "trace-1/ChatBedrockConverse/span-18": {
-      "message_count": 6,
+      "message_count": 9,
       "role_sequence": [
         "system",
         "user",
+        "assistant",
+        "assistant",
+        "assistant",
         "tool",
         "tool",
         "tool",
@@ -38,6 +41,33 @@
         },
         {
           "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_QAdTYCKKAOVkM4GjFlG9st\",\"name\":\"generate_image\",\"input\":{\"prompt\":\"A happy golden retriever playing in a sunny park with green grass and trees in the background\"}}",
+          "content_digest": "88e93aa50e462499",
+          "tool_name": "generate_image",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_FK95G3Y0Z3jUFhYmiJ2DTA\",\"name\":\"generate_image\",\"input\":{\"prompt\":\"A cute corgi wearing a colorful collar, sitting and looking at the camera with a friendly expression\"}}",
+          "content_digest": "acdc9c66dd01a4bf",
+          "tool_name": "generate_image",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_1UKnukpJ8askkqOT9I4ZBv\",\"name\":\"generate_image\",\"input\":{\"prompt\":\"A majestic German Shepherd standing on a mountain overlooking a beautiful landscape\"}}",
+          "content_digest": "9bdffbfb13578450",
+          "tool_name": "generate_image",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
           "role": "tool",
           "entry_type": "tool_result",
           "content": "Error generating image: An error occurred (ResourceNotFoundException) when calling the InvokeModel operation: This model version has reached the end of its life. Please refer to the AWS documentation for more details.",
@@ -45,7 +75,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 3,
+          "index": 6,
           "role": "tool",
           "entry_type": "tool_result",
           "content": "Error generating image: An error occurred (ResourceNotFoundException) when calling the InvokeModel operation: This model version has reached the end of its life. Please refer to the AWS documentation for more details.",
@@ -53,7 +83,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 4,
+          "index": 7,
           "role": "tool",
           "entry_type": "tool_result",
           "content": "Error generating image: An error occurred (ResourceNotFoundException) when calling the InvokeModel operation: This model version has reached the end of its life. Please refer to the AWS documentation for more details.",
@@ -61,7 +91,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 5,
+          "index": 8,
           "role": "assistant",
           "entry_type": "text",
           "content": "I apologize, but I'm unable to generate the images at this time. The image generation service is currently unavailable due to a model version that has reached the end of its life. This is a technical issue with the AWS Titan Image Generator…[375 chars]",

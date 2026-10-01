@@ -272,9 +272,14 @@
       ]
     },
     "trace-2/execute_event_loop_cycle/span-13": {
-      "message_count": 2,
+      "message_count": 7,
       "role_sequence": [
+        "user",
+        "assistant",
+        "assistant",
         "tool",
+        "assistant",
+        "assistant",
         "tool"
       ],
       "tool_names": [],
@@ -282,6 +287,31 @@
       "messages": [
         {
           "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Calculate my favorite number squared.",
+          "content_digest": "d5a620dc2c1fd89b",
+          "observation_type": "span"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "I need to check my memory to find your favorite number first.",
+          "content_digest": "7c1e930017c21098",
+          "observation_type": "span"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_h4e3z5Ibs9cfUU3sU4tyrq\",\"name\":\"agent_core_memory\",\"input\":{\"action\":\"retrieve\",\"query\":\"favorite number\"}}",
+          "content_digest": "bf4fd406a99130cf",
+          "tool_name": "agent_core_memory",
+          "observation_type": "span"
+        },
+        {
+          "index": 3,
           "role": "tool",
           "entry_type": "tool_result",
           "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_h4e3z5Ibs9cfUU3sU4tyrq\",\"content\":[{\"type\":\"text\",\"text\":\"Memories retrieved successfully: {\\\"memoryRecordSummaries\\\": [{\\\"memoryRecordId\\\": \\\"mem-d8c25023-8002-4802-9a2f-24b99e564f08\\\", \\\"conten…[746 chars]",
@@ -289,7 +319,24 @@
           "observation_type": "span"
         },
         {
-          "index": 1,
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Great! Your favorite number is 7. Now let me calculate 7 squared for you:",
+          "content_digest": "5284b10e839d61a2",
+          "observation_type": "span"
+        },
+        {
+          "index": 5,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_IYIkDLEHh0uXHCUI668K6G\",\"name\":\"code_interpreter\",\"input\":{\"code_interpreter_input\":{\"action\":{\"type\":\"executeCode\",\"language\":\"python\",\"code\":\"favorite_number = 7\\nresult = favorite_number ** 2\\nprint(f\\\"Yo…[303 chars]",
+          "content_digest": "f9f9209a8606a818",
+          "tool_name": "code_interpreter",
+          "observation_type": "span"
+        },
+        {
+          "index": 6,
           "role": "tool",
           "entry_type": "tool_result",
           "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_IYIkDLEHh0uXHCUI668K6G\",\"content\":[{\"type\":\"text\",\"text\":\"[{'type': 'text', 'text': 'Your favorite number 7 squared = 49'}]\"}]}",
@@ -299,8 +346,9 @@
       ]
     },
     "trace-2/execute_event_loop_cycle/span-2": {
-      "message_count": 3,
+      "message_count": 4,
       "role_sequence": [
+        "user",
         "assistant",
         "assistant",
         "tool"
@@ -310,6 +358,14 @@
       "messages": [
         {
           "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Calculate my favorite number squared.",
+          "content_digest": "d5a620dc2c1fd89b",
+          "observation_type": "span"
+        },
+        {
+          "index": 1,
           "role": "assistant",
           "entry_type": "text",
           "content": "I need to check my memory to find your favorite number first.",
@@ -317,7 +373,7 @@
           "observation_type": "span"
         },
         {
-          "index": 1,
+          "index": 2,
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_h4e3z5Ibs9cfUU3sU4tyrq\",\"name\":\"agent_core_memory\",\"input\":{\"action\":\"retrieve\",\"query\":\"favorite number\"}}",
@@ -326,7 +382,7 @@
           "observation_type": "span"
         },
         {
-          "index": 2,
+          "index": 3,
           "role": "tool",
           "entry_type": "tool_result",
           "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_h4e3z5Ibs9cfUU3sU4tyrq\",\"content\":[{\"type\":\"text\",\"text\":\"Memories retrieved successfully: {\\\"memoryRecordSummaries\\\": [{\\\"memoryRecordId\\\": \\\"mem-d8c25023-8002-4802-9a2f-24b99e564f08\\\", \\\"conten…[746 chars]",
@@ -336,8 +392,11 @@
       ]
     },
     "trace-2/execute_event_loop_cycle/span-7": {
-      "message_count": 4,
+      "message_count": 7,
       "role_sequence": [
+        "user",
+        "assistant",
+        "assistant",
         "tool",
         "assistant",
         "assistant",
@@ -348,6 +407,31 @@
       "messages": [
         {
           "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Calculate my favorite number squared.",
+          "content_digest": "d5a620dc2c1fd89b",
+          "observation_type": "span"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "I need to check my memory to find your favorite number first.",
+          "content_digest": "7c1e930017c21098",
+          "observation_type": "span"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_h4e3z5Ibs9cfUU3sU4tyrq\",\"name\":\"agent_core_memory\",\"input\":{\"action\":\"retrieve\",\"query\":\"favorite number\"}}",
+          "content_digest": "bf4fd406a99130cf",
+          "tool_name": "agent_core_memory",
+          "observation_type": "span"
+        },
+        {
+          "index": 3,
           "role": "tool",
           "entry_type": "tool_result",
           "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_h4e3z5Ibs9cfUU3sU4tyrq\",\"content\":[{\"type\":\"text\",\"text\":\"Memories retrieved successfully: {\\\"memoryRecordSummaries\\\": [{\\\"memoryRecordId\\\": \\\"mem-d8c25023-8002-4802-9a2f-24b99e564f08\\\", \\\"conten…[746 chars]",
@@ -355,7 +439,7 @@
           "observation_type": "span"
         },
         {
-          "index": 1,
+          "index": 4,
           "role": "assistant",
           "entry_type": "text",
           "content": "Great! Your favorite number is 7. Now let me calculate 7 squared for you:",
@@ -363,7 +447,7 @@
           "observation_type": "span"
         },
         {
-          "index": 2,
+          "index": 5,
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_IYIkDLEHh0uXHCUI668K6G\",\"name\":\"code_interpreter\",\"input\":{\"code_interpreter_input\":{\"action\":{\"type\":\"executeCode\",\"language\":\"python\",\"code\":\"favorite_number = 7\\nresult = favorite_number ** 2\\nprint(f\\\"Yo…[303 chars]",
@@ -372,7 +456,7 @@
           "observation_type": "span"
         },
         {
-          "index": 3,
+          "index": 6,
           "role": "tool",
           "entry_type": "tool_result",
           "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_IYIkDLEHh0uXHCUI668K6G\",\"content\":[{\"type\":\"text\",\"text\":\"[{'type': 'text', 'text': 'Your favorite number 7 squared = 49'}]\"}]}",

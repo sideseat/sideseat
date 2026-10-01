@@ -145,10 +145,11 @@
       ]
     },
     "trace-3/Message with 'claude-sonnet-4-6'/span-3": {
-      "message_count": 4,
+      "message_count": 5,
       "role_sequence": [
         "system",
         "user",
+        "assistant",
         "tool",
         "assistant"
       ],
@@ -173,6 +174,14 @@
         },
         {
           "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "ToolUseBlock(id='toolu_weather_1', caller=None, input={'location': 'Paris'}, name='get_weather', type='tool_use', toolset_name=None)",
+          "content_digest": "cc5bfd4848018de0",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
           "role": "tool",
           "entry_type": "tool_result",
           "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_weather_1\",\"content\":[{\"type\":\"text\",\"text\":\"Sunny, 22C, light breeze\"}]}",
@@ -180,7 +189,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 3,
+          "index": 4,
           "role": "assistant",
           "entry_type": "text",
           "content": "It is sunny and 22°C in Paris.",

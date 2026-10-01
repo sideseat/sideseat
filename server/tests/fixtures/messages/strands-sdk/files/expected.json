@@ -120,8 +120,10 @@
       ]
     },
     "trace-1/execute_event_loop_cycle/span-2": {
-      "message_count": 2,
+      "message_count": 4,
       "role_sequence": [
+        "user",
+        "user",
         "assistant",
         "tool"
       ],
@@ -130,6 +132,23 @@
       "messages": [
         {
           "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Read the image '/Users/sideseat/Desktop/dev/sideseat/examples/assets/img.jpg'. Describe its contents in detail using instructions from PDF.",
+          "content_digest": "a1bf1e44cae5c82c",
+          "observation_type": "span"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "document",
+          "content": "{\"type\":\"document\",\"media_type\":\"application/pdf\",\"name\":\"task-document\",\"source\":\"base64\",\"data\":\"JVBERi0xLjMKJcTl8uXrp/Og0MTGCjMgMCBvYmoKPDwgL0ZpbHRlciAvRmxhdGVEZWNvZGUgL0xlbmd0aCAyMDUgPj4Kc3RyZWFtCngBlVC9CsIwGNz7FOd/opgmaZLaVXFxEwIO1qnoI…[17713 chars]",
+          "content_digest": "0e5f984c3e07df1a",
+          "tool_name": "task-document",
+          "observation_type": "span"
+        },
+        {
+          "index": 2,
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"call-image-reader-1\",\"name\":\"image_reader\",\"input\":{\"image_path\":\"deterministic-image-path\"}}",
@@ -138,7 +157,7 @@
           "observation_type": "span"
         },
         {
-          "index": 1,
+          "index": 3,
           "role": "tool",
           "entry_type": "tool_result",
           "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call-image-reader-1\",\"content\":[{\"type\":\"text\",\"text\":\"File not found at path: deterministic-image-path\"}],\"is_error\":true}",
@@ -148,8 +167,11 @@
       ]
     },
     "trace-1/execute_event_loop_cycle/span-5": {
-      "message_count": 1,
+      "message_count": 4,
       "role_sequence": [
+        "user",
+        "user",
+        "assistant",
         "tool"
       ],
       "tool_names": [],
@@ -157,6 +179,32 @@
       "messages": [
         {
           "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Read the image '/Users/sideseat/Desktop/dev/sideseat/examples/assets/img.jpg'. Describe its contents in detail using instructions from PDF.",
+          "content_digest": "a1bf1e44cae5c82c",
+          "observation_type": "span"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "document",
+          "content": "{\"type\":\"document\",\"media_type\":\"application/pdf\",\"name\":\"task-document\",\"source\":\"base64\",\"data\":\"JVBERi0xLjMKJcTl8uXrp/Og0MTGCjMgMCBvYmoKPDwgL0ZpbHRlciAvRmxhdGVEZWNvZGUgL0xlbmd0aCAyMDUgPj4Kc3RyZWFtCngBlVC9CsIwGNz7FOd/opgmaZLaVXFxEwIO1qnoI…[17713 chars]",
+          "content_digest": "0e5f984c3e07df1a",
+          "tool_name": "task-document",
+          "observation_type": "span"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call-image-reader-1\",\"name\":\"image_reader\",\"input\":{\"image_path\":\"deterministic-image-path\"}}",
+          "content_digest": "29ade6a6d068733e",
+          "tool_name": "image_reader",
+          "observation_type": "span"
+        },
+        {
+          "index": 3,
           "role": "tool",
           "entry_type": "tool_result",
           "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call-image-reader-1\",\"content\":[{\"type\":\"text\",\"text\":\"File not found at path: deterministic-image-path\"}],\"is_error\":true}",

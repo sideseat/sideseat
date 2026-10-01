@@ -155,11 +155,40 @@
       ]
     },
     "trace-3/execute_agent_loop_cycle/span-1": {
-      "message_count": 0,
-      "role_sequence": [],
+      "message_count": 3,
+      "role_sequence": [
+        "user",
+        "assistant",
+        "assistant"
+      ],
       "tool_names": [],
       "tool_definition_count": 0,
-      "messages": []
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Solve this logic puzzle step by step: Three friends (Alice, Bob, Carol) each have a different pet (cat, dog, fish) and live in different colored houses (red, blue, green). Clues: 1. Alice doesn't live in the red house 2. The person with the…[414 chars]",
+          "content_digest": "037aab7424da917a",
+          "observation_type": "agent"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "thinking",
+          "content": "Let me work through this step-by-step. We have: - Three friends: Alice, Bob, Carol - Three pets: cat, dog, fish - Three house colors: red, blue, green Let me organize the clues: 1. Alice doesn't live in the red house 2. The person with the …[3125 chars]",
+          "content_digest": "97636b881e362ab3",
+          "observation_type": "agent"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "# Logic Puzzle Solution Let me work through this systematically. ## Step 1: Determine House Assignments From **Clue 4**: Carol lives in the red house. From **Clue 1**: Alice doesn't live in the red house. - Since Carol has the red house, Al…[1402 chars]",
+          "content_digest": "040cac10b752cc25",
+          "observation_type": "agent"
+        }
+      ]
     },
     "trace-3/invoke_agent Strands Agent/span-2": {
       "message_count": 3,
@@ -295,11 +324,67 @@
       ]
     },
     "trace-5/execute_agent_loop_cycle/span-2": {
-      "message_count": 0,
-      "role_sequence": [],
+      "message_count": 6,
+      "role_sequence": [
+        "user",
+        "assistant",
+        "assistant",
+        "user",
+        "assistant",
+        "assistant"
+      ],
       "tool_names": [],
       "tool_definition_count": 0,
-      "messages": []
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Solve this logic puzzle step by step: Three friends (Alice, Bob, Carol) each have a different pet (cat, dog, fish) and live in different colored houses (red, blue, green). Clues: 1. Alice doesn't live in the red house 2. The person with the…[414 chars]",
+          "content_digest": "037aab7424da917a",
+          "observation_type": "agent"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "thinking",
+          "content": "Let me work through this step-by-step. We have: - Three friends: Alice, Bob, Carol - Three pets: cat, dog, fish - Three house colors: red, blue, green Let me organize the clues: 1. Alice doesn't live in the red house 2. The person with the …[3125 chars]",
+          "content_digest": "97636b881e362ab3",
+          "observation_type": "agent"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "# Logic Puzzle Solution Let me work through this systematically. ## Step 1: Determine House Assignments From **Clue 4**: Carol lives in the red house. From **Clue 1**: Alice doesn't live in the red house. - Since Carol has the red house, Al…[1402 chars]",
+          "content_digest": "040cac10b752cc25",
+          "observation_type": "agent"
+        },
+        {
+          "index": 3,
+          "role": "user",
+          "entry_type": "text",
+          "content": "A water tank has two pipes. Pipe A can fill the tank in 6 hours. Pipe B can empty the tank in 8 hours. If both pipes are opened when the tank is half full, how long will it take to fill the tank completely? Show your reasoning step by step.",
+          "content_digest": "cdaca6f5888cd52c",
+          "observation_type": "agent"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "thinking",
+          "content": "Let me work through this step by step. First, let me define the rates: - Pipe A fills the tank in 6 hours, so its rate is 1/6 of the tank per hour (filling) - Pipe B empties the tank in 8 hours, so its rate is 1/8 of the tank per hour (empt…[1319 chars]",
+          "content_digest": "b209847b5ed7a8d3",
+          "observation_type": "agent"
+        },
+        {
+          "index": 5,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "# Water Tank Problem Solution Let me work through this systematically. ## Step 1: Determine the Filling and Emptying Rates **Pipe A (filling):** - Fills the tank in 6 hours - Rate = 1/6 of the tank per hour **Pipe B (emptying):** - Empties …[1110 chars]",
+          "content_digest": "31089a0478430ee7",
+          "observation_type": "agent"
+        }
+      ]
     },
     "trace-5/invoke_agent Strands Agent/span-3": {
       "message_count": 3,

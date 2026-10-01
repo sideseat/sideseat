@@ -100,8 +100,9 @@
       ]
     },
     "trace-1/execute_event_loop_cycle/span-2": {
-      "message_count": 2,
+      "message_count": 3,
       "role_sequence": [
+        "user",
         "assistant",
         "tool"
       ],
@@ -110,6 +111,14 @@
       "messages": [
         {
           "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Generate 3 images of a dog",
+          "content_digest": "89aa55f374613789",
+          "observation_type": "span"
+        },
+        {
+          "index": 1,
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"call-generate-image-1\",\"name\":\"generate_image\",\"input\":{\"prompt\":\"A deterministic blue circle on a white background\"}}",
@@ -118,7 +127,7 @@
           "observation_type": "span"
         },
         {
-          "index": 1,
+          "index": 2,
           "role": "tool",
           "entry_type": "tool_result",
           "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call-generate-image-1\",\"content\":[{\"type\":\"text\",\"text\":\"/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/sideseat-strands-images/fbfe474edeac.png\"}]}",
@@ -128,8 +137,10 @@
       ]
     },
     "trace-1/execute_event_loop_cycle/span-5": {
-      "message_count": 1,
+      "message_count": 3,
       "role_sequence": [
+        "user",
+        "assistant",
         "tool"
       ],
       "tool_names": [],
@@ -137,6 +148,23 @@
       "messages": [
         {
           "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Generate 3 images of a dog",
+          "content_digest": "89aa55f374613789",
+          "observation_type": "span"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call-generate-image-1\",\"name\":\"generate_image\",\"input\":{\"prompt\":\"A deterministic blue circle on a white background\"}}",
+          "content_digest": "12b8b5e7d057bb0c",
+          "tool_name": "generate_image",
+          "observation_type": "span"
+        },
+        {
+          "index": 2,
           "role": "tool",
           "entry_type": "tool_result",
           "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call-generate-image-1\",\"content\":[{\"type\":\"text\",\"text\":\"/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/sideseat-strands-images/fbfe474edeac.png\"}]}",
@@ -297,8 +325,9 @@
       ]
     },
     "trace-2/execute_event_loop_cycle/span-2": {
-      "message_count": 2,
+      "message_count": 3,
       "role_sequence": [
+        "user",
         "assistant",
         "tool"
       ],
@@ -307,6 +336,14 @@
       "messages": [
         {
           "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/sideseat-strands-images/fbfe474edeac.png",
+          "content_digest": "b793ba9869687d46",
+          "observation_type": "span"
+        },
+        {
+          "index": 1,
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"call-image-reader-1\",\"name\":\"image_reader\",\"input\":{\"image_path\":\"/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/sideseat-strands-images/fbfe474edeac.png\"}}",
@@ -315,7 +352,7 @@
           "observation_type": "span"
         },
         {
-          "index": 1,
+          "index": 2,
           "role": "tool",
           "entry_type": "tool_result",
           "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call-image-reader-1\",\"content\":[{\"type\":\"image\",\"media_type\":\"image/png\",\"source\":\"base64\",\"data\":\"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=\"}]}",
@@ -325,8 +362,10 @@
       ]
     },
     "trace-2/execute_event_loop_cycle/span-5": {
-      "message_count": 1,
+      "message_count": 3,
       "role_sequence": [
+        "user",
+        "assistant",
         "tool"
       ],
       "tool_names": [],
@@ -334,6 +373,23 @@
       "messages": [
         {
           "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/sideseat-strands-images/fbfe474edeac.png",
+          "content_digest": "b793ba9869687d46",
+          "observation_type": "span"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call-image-reader-1\",\"name\":\"image_reader\",\"input\":{\"image_path\":\"/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/sideseat-strands-images/fbfe474edeac.png\"}}",
+          "content_digest": "1b654c980827eaa2",
+          "tool_name": "image_reader",
+          "observation_type": "span"
+        },
+        {
+          "index": 2,
           "role": "tool",
           "entry_type": "tool_result",
           "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call-image-reader-1\",\"content\":[{\"type\":\"image\",\"media_type\":\"image/png\",\"source\":\"base64\",\"data\":\"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=\"}]}",

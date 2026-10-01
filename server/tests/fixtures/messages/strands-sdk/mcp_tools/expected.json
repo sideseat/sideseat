@@ -121,8 +121,9 @@
       ]
     },
     "trace-3/execute_event_loop_cycle/span-2": {
-      "message_count": 2,
+      "message_count": 3,
       "role_sequence": [
+        "user",
         "assistant",
         "tool"
       ],
@@ -131,6 +132,14 @@
       "messages": [
         {
           "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Calculate an expression for me: What is 12345 plus 6789?",
+          "content_digest": "2f005e8714b6ca59",
+          "observation_type": "span"
+        },
+        {
+          "index": 1,
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"call-calculate-1\",\"name\":\"calculate\",\"input\":{\"expression\":\"12345 + 6789\"}}",
@@ -139,7 +148,7 @@
           "observation_type": "span"
         },
         {
-          "index": 1,
+          "index": 2,
           "role": "tool",
           "entry_type": "tool_result",
           "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call-calculate-1\",\"content\":[{\"type\":\"text\",\"text\":\"19134.0\"}]}",
@@ -149,8 +158,10 @@
       ]
     },
     "trace-3/execute_event_loop_cycle/span-6": {
-      "message_count": 1,
+      "message_count": 3,
       "role_sequence": [
+        "user",
+        "assistant",
         "tool"
       ],
       "tool_names": [],
@@ -158,6 +169,23 @@
       "messages": [
         {
           "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Calculate an expression for me: What is 12345 plus 6789?",
+          "content_digest": "2f005e8714b6ca59",
+          "observation_type": "span"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call-calculate-1\",\"name\":\"calculate\",\"input\":{\"expression\":\"12345 + 6789\"}}",
+          "content_digest": "740c1b5c6c765c0a",
+          "tool_name": "calculate",
+          "observation_type": "span"
+        },
+        {
+          "index": 2,
           "role": "tool",
           "entry_type": "tool_result",
           "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call-calculate-1\",\"content\":[{\"type\":\"text\",\"text\":\"19134.0\"}]}",

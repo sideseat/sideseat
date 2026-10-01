@@ -789,6 +789,17 @@ impl Constraints {
         sibling_tool_turn_edges: true,
     };
 
+    /// Single-span projection keeps the payload's replayed input, so an identical call may occur both
+    /// in that input and in the span's output. Deduplication can project those copies onto one unit;
+    /// adding generation dataflow then asserts both `old call -> later input` from the request snapshot
+    /// and `later input -> call` from input-to-output flow. Wider views remove the replay before ordering
+    /// and do not have that ambiguity. Span views therefore rely on carrier order and input/output
+    /// timestamps for the one span instead of adding the contradictory cross-copy dataflow edge.
+    pub(super) const SPAN: Self = Self {
+        generation_dataflow_edges: false,
+        ..Self::PRODUCTION
+    };
+
     /// Every constraint enforced - the redesign's intended answer.
     #[cfg(any(test, feature = "test-support"))]
     pub(super) const FULL: Self = Self {

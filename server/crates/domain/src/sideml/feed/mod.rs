@@ -153,7 +153,7 @@ use extraction::compose_error_text;
 pub use extraction::extract_tools_from_rows;
 use extraction::{
     append_error_messages, build_span_hierarchy, build_span_timestamps, classify_blocks,
-    compute_block_hash, flatten_to_blocks, parse_span_rows,
+    classify_span_view_blocks, compute_block_hash, flatten_to_blocks, parse_span_rows,
 };
 use prefix::CrossTracePrefixState;
 #[cfg(test)]
@@ -187,7 +187,7 @@ use classify::uses_span_end;
 use dedup::{
     SpanTimestamps, hash_json_into, hash_structured_json_into, hash_tool_result_content_into,
 };
-use history::mark_history;
+use history::{mark_history, mark_span_history};
 
 // Re-exports for public API
 pub use types::{BlockEntry, ExtractedTools, FeedMetadata, FeedOptions, FeedResult};
@@ -294,6 +294,25 @@ pub fn process_spans(rows: Vec<MessageSpanRow>, options: &FeedOptions) -> FeedRe
     apply_role_filter(process_spans_unfiltered(rows), options.role.as_deref())
 }
 
+/// Process the rows for one span while preserving the context that span received.
+///
+/// Trace and session reconstruction collapse replayed history. A span view instead exposes the normalized
+/// payload of that exact span, so prior assistant turns and tool results supplied as input remain visible.
+pub fn process_span(rows: Vec<MessageSpanRow>, options: &FeedOptions) -> FeedResult {
+    apply_role_filter(process_span_unfiltered(rows), options.role.as_deref())
+}
+
+/// [`process_span`], memoised independently from chronological trace/session reconstruction.
+pub fn process_span_cached(
+    cache: &cache::ReconstructionCache,
+    rows: Vec<MessageSpanRow>,
+    options: &FeedOptions,
+) -> Arc<FeedResult> {
+    let reconstructed =
+        cache.get_or_reconstruct(cache::Reconstruction::Span, rows, process_span_unfiltered);
+    project_role(reconstructed, options.role.as_deref())
+}
+
 /// [`process_spans`], memoised on the rows - see [`cache::ReconstructionCache`] for why that is safe.
 ///
 /// The *unfiltered* reconstruction is what is remembered, and the role filter narrows it rather than
@@ -338,6 +357,17 @@ fn process_spans_unfiltered(rows: Vec<MessageSpanRow>) -> FeedResult {
     process_spans_unfiltered_with(rows, order_graph::Constraints::PRODUCTION)
 }
 
+fn process_span_unfiltered(rows: Vec<MessageSpanRow>) -> FeedResult {
+    reconstruct_trace(
+        rows,
+        None,
+        order_graph::Constraints::SPAN,
+        false,
+        ReplayPolicy::Preserve,
+    )
+    .0
+}
+
 /// As [`process_spans_unfiltered`], with the ordering constraints named explicitly.
 ///
 /// The parameter exists so a test can hold everything else fixed and vary only the presentation
@@ -357,8 +387,14 @@ fn process_spans_unfiltered_with(
     if is_multi_trace {
         process_multi_trace_spans(rows, constraints)
     } else {
-        reconstruct_trace(rows, None, constraints, false).0
+        reconstruct_trace(rows, None, constraints, false, ReplayPolicy::Collapse).0
     }
+}
+
+#[derive(Clone, Copy)]
+enum ReplayPolicy {
+    Collapse,
+    Preserve,
 }
 
 /// Process span rows from a single trace through the complete feed pipeline.
@@ -394,6 +430,7 @@ pub fn process_trace_spans(rows: Vec<MessageSpanRow>, options: &FeedOptions) -> 
 fn classify_span_blocks(
     rows: &[MessageSpanRow],
     cross_trace_prefix: Option<&CrossTracePrefixState>,
+    replay_policy: ReplayPolicy,
 ) -> (Vec<BlockEntry>, HashMap<String, SpanTimestamps>, bool) {
     // Build span hierarchy for span_path computation
     let span_hierarchy = build_span_hierarchy(rows);
@@ -434,7 +471,10 @@ fn classify_span_blocks(
     // Stages 3-4: Classify blocks and mark history
     // - uses_span_end: determines timestamp strategy (span_end vs event_time)
     // - is_history: marks non-authoritative blocks for filtering
-    classify_blocks(&mut blocks, &span_timestamps);
+    match replay_policy {
+        ReplayPolicy::Collapse => classify_blocks(&mut blocks, &span_timestamps),
+        ReplayPolicy::Preserve => classify_span_view_blocks(&mut blocks, &span_timestamps),
+    }
 
     (blocks, span_timestamps, replay_matching_complete)
 }
@@ -501,7 +541,7 @@ pub fn stage_timings(rows: Vec<MessageSpanRow>) -> Vec<(&'static str, std::time:
 #[doc(hidden)]
 #[cfg(any(test, feature = "test-support"))]
 pub fn classified_blocks_for_test(rows: Vec<MessageSpanRow>) -> Vec<BlockEntry> {
-    classify_span_blocks(&rows, None).0
+    classify_span_blocks(&rows, None, ReplayPolicy::Collapse).0
 }
 
 /// The classified observations with the occurrence rank used by deduplication.
@@ -510,7 +550,7 @@ pub fn classified_blocks_for_test(rows: Vec<MessageSpanRow>) -> Vec<BlockEntry> 
 pub fn classified_blocks_with_ordinals_for_test(
     rows: Vec<MessageSpanRow>,
 ) -> Vec<(BlockEntry, u32)> {
-    let blocks = classify_span_blocks(&rows, None).0;
+    let blocks = classify_span_blocks(&rows, None, ReplayPolicy::Collapse).0;
     let ordinals = dedup::call_repeat_ordinals(&blocks);
     blocks.into_iter().zip(ordinals).collect()
 }
@@ -558,7 +598,7 @@ pub fn presented_and_unconstrained(
 #[doc(hidden)]
 #[cfg(any(test, feature = "test-support"))]
 pub fn legacy_and_neutral_order(rows: Vec<MessageSpanRow>) -> (Vec<BlockEntry>, Vec<BlockEntry>) {
-    let (blocks, span_timestamps, _) = classify_span_blocks(&rows, None);
+    let (blocks, span_timestamps, _) = classify_span_blocks(&rows, None, ReplayPolicy::Collapse);
     let evidence = order_graph::collect_order_evidence(&blocks, &span_timestamps);
     let (legacy, lineage, repeat_ordinals) = survivors_with_lineage(blocks, &span_timestamps);
     let scaffold = order_graph::resolve(
@@ -576,7 +616,7 @@ pub fn legacy_and_neutral_order(rows: Vec<MessageSpanRow>) -> (Vec<BlockEntry>, 
 #[doc(hidden)]
 #[cfg(any(test, feature = "test-support"))]
 pub fn deduped_blocks_with_ordinals_for_test(rows: Vec<MessageSpanRow>) -> Vec<(BlockEntry, u32)> {
-    let (blocks, span_timestamps, _) = classify_span_blocks(&rows, None);
+    let (blocks, span_timestamps, _) = classify_span_blocks(&rows, None, ReplayPolicy::Collapse);
     let (blocks, _, ordinals) = survivors_with_lineage(blocks, &span_timestamps);
     blocks.into_iter().zip(ordinals).collect()
 }
@@ -584,7 +624,7 @@ pub fn deduped_blocks_with_ordinals_for_test(rows: Vec<MessageSpanRow>) -> Vec<(
 #[doc(hidden)]
 #[cfg(any(test, feature = "test-support"))]
 pub fn shadow_resolved_order(rows: Vec<MessageSpanRow>) -> Vec<BlockEntry> {
-    let (blocks, span_timestamps, _) = classify_span_blocks(&rows, None);
+    let (blocks, span_timestamps, _) = classify_span_blocks(&rows, None, ReplayPolicy::Collapse);
     let evidence = order_graph::collect_order_evidence(&blocks, &span_timestamps);
     let (survivors, lineage, repeat_ordinals) = survivors_with_lineage(blocks, &span_timestamps);
     order_graph::resolve(
@@ -634,6 +674,7 @@ fn process_trace_spans_core(
         cross_trace_prefix,
         order_graph::Constraints::PRODUCTION,
         false,
+        ReplayPolicy::Collapse,
     )
     .0
 }
@@ -652,6 +693,7 @@ fn reconstruct_trace(
     cross_trace_prefix: Option<&CrossTracePrefixState>,
     constraints: order_graph::Constraints,
     needs_replay_relation: bool,
+    replay_policy: ReplayPolicy,
 ) -> (FeedResult, Vec<BlockEntry>, order_graph::Precedence) {
     // Extract tools from all rows
     let extracted_tools = extract_tools_from_rows(&rows);
@@ -661,7 +703,7 @@ fn reconstruct_trace(
     // reads the *evidence*: the emission binding a turn's intro text to its call is on one span while
     // dedup may keep a re-listed copy of that text from another, and only the pre-dedup set says so.
     let (blocks, span_timestamps, replay_matching_complete) =
-        classify_span_blocks(&rows, cross_trace_prefix);
+        classify_span_blocks(&rows, cross_trace_prefix, replay_policy);
     // Reduced to what the resolver reads, from the borrowed slice: holding the blocks themselves
     // would clone every message's content, which on a trace carrying base64 images dominates the
     // whole request and is never read.

@@ -142,10 +142,11 @@
       ]
     },
     "trace-3/Message with 'us.anthropic.claude-sonnet-5'/span-3": {
-      "message_count": 4,
+      "message_count": 5,
       "role_sequence": [
         "system",
         "user",
+        "assistant",
         "tool",
         "assistant"
       ],
@@ -170,6 +171,15 @@
         },
         {
           "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_014STzXF7xmt4Kuz39vC3DZy\",\"name\":\"get_weather\",\"input\":{\"location\":\"Paris\"}}",
+          "content_digest": "1a00277bb5f94e03",
+          "tool_name": "get_weather",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
           "role": "tool",
           "entry_type": "tool_result",
           "content": "Sunny, 22C, light breeze",
@@ -177,7 +187,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 3,
+          "index": 4,
           "role": "assistant",
           "entry_type": "text",
           "content": "The weather in Paris is currently **sunny, 22°C (72°F)**, with a light breeze. A pleasant day overall!",

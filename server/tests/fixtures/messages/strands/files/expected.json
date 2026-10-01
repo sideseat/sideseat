@@ -153,8 +153,10 @@
       ]
     },
     "trace-1/execute_event_loop_cycle/span-2": {
-      "message_count": 3,
+      "message_count": 5,
       "role_sequence": [
+        "user",
+        "user",
         "assistant",
         "assistant",
         "tool"
@@ -164,6 +166,23 @@
       "messages": [
         {
           "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Read the image '/Users/sideseat/Desktop/dev/sideseat/misc/content/img.jpg'. Describe its contents in detail using instructions from PDF.",
+          "content_digest": "46131d545b8deb1a",
+          "observation_type": "span"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "document",
+          "content": "{\"type\":\"document\",\"media_type\":\"application/pdf\",\"name\":\"task-document\",\"source\":\"base64\",\"data\":\"<replaced>\"}",
+          "content_digest": "0536dd001b5d940d",
+          "tool_name": "task-document",
+          "observation_type": "span"
+        },
+        {
+          "index": 2,
           "role": "assistant",
           "entry_type": "text",
           "content": "I'll read the image first, and then follow the instructions from the PDF to write a poem about it.",
@@ -171,7 +190,7 @@
           "observation_type": "span"
         },
         {
-          "index": 1,
+          "index": 3,
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_LH6avDO4iLEdOalroo8taA\",\"name\":\"image_reader\",\"input\":{\"image_path\":\"/Users/sideseat/Desktop/dev/sideseat/misc/content/img.jpg\"}}",
@@ -180,7 +199,7 @@
           "observation_type": "span"
         },
         {
-          "index": 2,
+          "index": 4,
           "role": "tool",
           "entry_type": "tool_result",
           "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_LH6avDO4iLEdOalroo8taA\",\"content\":[{\"type\":\"image\",\"media_type\":\"image/jpeg\",\"source\":\"base64\",\"data\":\"<replaced>\"}]}",
@@ -190,8 +209,12 @@
       ]
     },
     "trace-1/execute_event_loop_cycle/span-6": {
-      "message_count": 1,
+      "message_count": 5,
       "role_sequence": [
+        "user",
+        "user",
+        "assistant",
+        "assistant",
         "tool"
       ],
       "tool_names": [],
@@ -199,6 +222,40 @@
       "messages": [
         {
           "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Read the image '/Users/sideseat/Desktop/dev/sideseat/misc/content/img.jpg'. Describe its contents in detail using instructions from PDF.",
+          "content_digest": "46131d545b8deb1a",
+          "observation_type": "span"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "document",
+          "content": "{\"type\":\"document\",\"media_type\":\"application/pdf\",\"name\":\"task-document\",\"source\":\"base64\",\"data\":\"<replaced>\"}",
+          "content_digest": "0536dd001b5d940d",
+          "tool_name": "task-document",
+          "observation_type": "span"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "I'll read the image first, and then follow the instructions from the PDF to write a poem about it.",
+          "content_digest": "418fbbc6f0434d64",
+          "observation_type": "span"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_LH6avDO4iLEdOalroo8taA\",\"name\":\"image_reader\",\"input\":{\"image_path\":\"/Users/sideseat/Desktop/dev/sideseat/misc/content/img.jpg\"}}",
+          "content_digest": "d79b8a5a9c392ccf",
+          "tool_name": "image_reader",
+          "observation_type": "span"
+        },
+        {
+          "index": 4,
           "role": "tool",
           "entry_type": "tool_result",
           "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_LH6avDO4iLEdOalroo8taA\",\"content\":[{\"type\":\"image\",\"media_type\":\"image/jpeg\",\"source\":\"base64\",\"data\":\"<replaced>\"}]}",

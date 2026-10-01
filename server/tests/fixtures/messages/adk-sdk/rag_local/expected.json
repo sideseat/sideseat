@@ -218,10 +218,10 @@
         "user",
         "assistant",
         "tool",
+        "assistant",
         "user",
         "assistant",
-        "tool",
-        "assistant"
+        "tool"
       ],
       "tool_names": [],
       "tool_definition_count": 1,
@@ -262,6 +262,15 @@
         },
         {
           "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "The tool completed successfully.",
+          "content_digest": "66bcb0fcdca80511",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
           "role": "user",
           "entry_type": "text",
           "content": "How does RAG work and what are its key components?",
@@ -269,7 +278,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 5,
+          "index": 6,
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"gemini_search_knowledge_call_06cc3f5f\",\"name\":\"search_knowledge\",\"input\":{\"query\":\"deterministic local fixture\"}}",
@@ -278,21 +287,12 @@
           "observation_type": "generation"
         },
         {
-          "index": 6,
+          "index": 7,
           "role": "tool",
           "entry_type": "tool_result",
           "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"gemini_search_knowledge_call_06cc3f5f\",\"name\":\"search_knowledge\",\"content\":{\"result\":\"[1] (relevance: 0.22) Strands Agents is an AI framework for building agent applications. It supports tools, multi-age…[965 chars]",
           "content_digest": "fc6d37328b722754",
           "tool_name": "search_knowledge",
-          "observation_type": "generation"
-        },
-        {
-          "index": 7,
-          "role": "assistant",
-          "entry_type": "text",
-          "content": "The tool completed successfully.",
-          "content_digest": "66bcb0fcdca80511",
-          "finish_reason": "Stop",
           "observation_type": "generation"
         }
       ]
@@ -453,14 +453,14 @@
         "user",
         "assistant",
         "tool",
-        "user",
-        "assistant",
-        "tool",
         "assistant",
         "user",
         "assistant",
         "tool",
-        "assistant"
+        "assistant",
+        "user",
+        "assistant",
+        "tool"
       ],
       "tool_names": [],
       "tool_definition_count": 1,
@@ -501,6 +501,15 @@
         },
         {
           "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "The tool completed successfully.",
+          "content_digest": "66bcb0fcdca80511",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
           "role": "user",
           "entry_type": "text",
           "content": "How does RAG work and what are its key components?",
@@ -508,7 +517,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 5,
+          "index": 6,
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"gemini_search_knowledge_call_06cc3f5f\",\"name\":\"search_knowledge\",\"input\":{\"query\":\"deterministic local fixture\"}}",
@@ -517,7 +526,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 6,
+          "index": 7,
           "role": "tool",
           "entry_type": "tool_result",
           "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"gemini_search_knowledge_call_06cc3f5f\",\"name\":\"search_knowledge\",\"content\":{\"result\":\"[1] (relevance: 0.22) Strands Agents is an AI framework for building agent applications. It supports tools, multi-age…[965 chars]",
@@ -526,7 +535,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 7,
+          "index": 8,
           "role": "assistant",
           "entry_type": "text",
           "content": "The tool completed successfully.",
@@ -534,7 +543,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 8,
+          "index": 9,
           "role": "user",
           "entry_type": "text",
           "content": "What embedding models are available for vector search?",
@@ -542,7 +551,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 9,
+          "index": 10,
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"gemini_search_knowledge_call_06cc3f5f\",\"name\":\"search_knowledge\",\"input\":{\"query\":\"deterministic local fixture\"}}",
@@ -551,21 +560,12 @@
           "observation_type": "generation"
         },
         {
-          "index": 10,
+          "index": 11,
           "role": "tool",
           "entry_type": "tool_result",
           "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"gemini_search_knowledge_call_06cc3f5f\",\"name\":\"search_knowledge\",\"content\":{\"result\":\"[1] (relevance: 0.22) Strands Agents is an AI framework for building agent applications. It supports tools, multi-age…[965 chars]",
           "content_digest": "fc6d37328b722754",
           "tool_name": "search_knowledge",
-          "observation_type": "generation"
-        },
-        {
-          "index": 11,
-          "role": "assistant",
-          "entry_type": "text",
-          "content": "The tool completed successfully.",
-          "content_digest": "66bcb0fcdca80511",
-          "finish_reason": "Stop",
           "observation_type": "generation"
         }
       ]

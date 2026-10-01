@@ -6,10 +6,11 @@
   "session_count": 1,
   "span_views": {
     "trace-1/ChatBedrockConverse/span-107": {
-      "message_count": 2,
+      "message_count": 3,
       "role_sequence": [
         "system",
-        "user"
+        "user",
+        "assistant"
       ],
       "tool_names": [
         "calculator",
@@ -33,15 +34,24 @@
           "entry_type": "text",
           "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
           "content_digest": "f70ad56a39c626b9",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "I'll break down the project into a structured plan for building a weather app with multi-city forecasts. ## Weather App Project Plan ### Phase 1: Research & Planning **Tasks:** - Identify and evaluate weather APIs (OpenWeatherMap, Weather.g…[1768 chars]",
+          "content_digest": "2f44606d440855e4",
           "observation_type": "generation"
         }
       ]
     },
     "trace-1/ChatBedrockConverse/span-116": {
-      "message_count": 2,
+      "message_count": 3,
       "role_sequence": [
         "system",
-        "user"
+        "user",
+        "assistant"
       ],
       "tool_names": [
         "calculator",
@@ -65,15 +75,24 @@
           "entry_type": "text",
           "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
           "content_digest": "f70ad56a39c626b9",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "I'll break down the project into a structured plan for building a weather app with multi-city forecasts. ## Weather App Project Plan ### Phase 1: Research & Planning **Tasks:** - Identify and evaluate weather APIs (OpenWeatherMap, Weather.g…[1768 chars]",
+          "content_digest": "2f44606d440855e4",
           "observation_type": "generation"
         }
       ]
     },
     "trace-1/ChatBedrockConverse/span-125": {
-      "message_count": 2,
+      "message_count": 3,
       "role_sequence": [
         "system",
-        "user"
+        "user",
+        "assistant"
       ],
       "tool_names": [
         "calculator",
@@ -97,15 +116,24 @@
           "entry_type": "text",
           "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
           "content_digest": "f70ad56a39c626b9",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "I'll break down the project into a structured plan for building a weather app with multi-city forecasts. ## Weather App Project Plan ### Phase 1: Research & Planning **Tasks:** - Identify and evaluate weather APIs (OpenWeatherMap, Weather.g…[1768 chars]",
+          "content_digest": "2f44606d440855e4",
           "observation_type": "generation"
         }
       ]
     },
     "trace-1/ChatBedrockConverse/span-134": {
-      "message_count": 2,
+      "message_count": 3,
       "role_sequence": [
         "system",
-        "user"
+        "user",
+        "assistant"
       ],
       "tool_names": [
         "calculator",
@@ -129,15 +157,24 @@
           "entry_type": "text",
           "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
           "content_digest": "f70ad56a39c626b9",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "I'll break down the project into a structured plan for building a weather app with multi-city forecasts. ## Weather App Project Plan ### Phase 1: Research & Planning **Tasks:** - Identify and evaluate weather APIs (OpenWeatherMap, Weather.g…[1768 chars]",
+          "content_digest": "2f44606d440855e4",
           "observation_type": "generation"
         }
       ]
     },
     "trace-1/ChatBedrockConverse/span-17": {
-      "message_count": 2,
+      "message_count": 3,
       "role_sequence": [
         "system",
-        "user"
+        "user",
+        "assistant"
       ],
       "tool_names": [
         "calculator",
@@ -161,15 +198,24 @@
           "entry_type": "text",
           "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
           "content_digest": "f70ad56a39c626b9",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "I'll break down the project into a structured plan for building a weather app with multi-city forecasts. ## Weather App Project Plan ### Phase 1: Research & Planning **Tasks:** - Identify and evaluate weather APIs (OpenWeatherMap, Weather.g…[1768 chars]",
+          "content_digest": "2f44606d440855e4",
           "observation_type": "generation"
         }
       ]
     },
     "trace-1/ChatBedrockConverse/span-26": {
-      "message_count": 2,
+      "message_count": 3,
       "role_sequence": [
         "system",
-        "user"
+        "user",
+        "assistant"
       ],
       "tool_names": [
         "calculator",
@@ -193,15 +239,24 @@
           "entry_type": "text",
           "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
           "content_digest": "f70ad56a39c626b9",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "I'll break down the project into a structured plan for building a weather app with multi-city forecasts. ## Weather App Project Plan ### Phase 1: Research & Planning **Tasks:** - Identify and evaluate weather APIs (OpenWeatherMap, Weather.g…[1768 chars]",
+          "content_digest": "2f44606d440855e4",
           "observation_type": "generation"
         }
       ]
     },
     "trace-1/ChatBedrockConverse/span-35": {
-      "message_count": 2,
+      "message_count": 3,
       "role_sequence": [
         "system",
-        "user"
+        "user",
+        "assistant"
       ],
       "tool_names": [
         "calculator",
@@ -225,15 +280,24 @@
           "entry_type": "text",
           "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
           "content_digest": "f70ad56a39c626b9",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "I'll break down the project into a structured plan for building a weather app with multi-city forecasts. ## Weather App Project Plan ### Phase 1: Research & Planning **Tasks:** - Identify and evaluate weather APIs (OpenWeatherMap, Weather.g…[1768 chars]",
+          "content_digest": "2f44606d440855e4",
           "observation_type": "generation"
         }
       ]
     },
     "trace-1/ChatBedrockConverse/span-44": {
-      "message_count": 2,
+      "message_count": 3,
       "role_sequence": [
         "system",
-        "user"
+        "user",
+        "assistant"
       ],
       "tool_names": [
         "calculator",
@@ -257,15 +321,24 @@
           "entry_type": "text",
           "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
           "content_digest": "f70ad56a39c626b9",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "I'll break down the project into a structured plan for building a weather app with multi-city forecasts. ## Weather App Project Plan ### Phase 1: Research & Planning **Tasks:** - Identify and evaluate weather APIs (OpenWeatherMap, Weather.g…[1768 chars]",
+          "content_digest": "2f44606d440855e4",
           "observation_type": "generation"
         }
       ]
     },
     "trace-1/ChatBedrockConverse/span-53": {
-      "message_count": 2,
+      "message_count": 3,
       "role_sequence": [
         "system",
-        "user"
+        "user",
+        "assistant"
       ],
       "tool_names": [
         "calculator",
@@ -289,15 +362,24 @@
           "entry_type": "text",
           "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
           "content_digest": "f70ad56a39c626b9",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "I'll break down the project into a structured plan for building a weather app with multi-city forecasts. ## Weather App Project Plan ### Phase 1: Research & Planning **Tasks:** - Identify and evaluate weather APIs (OpenWeatherMap, Weather.g…[1768 chars]",
+          "content_digest": "2f44606d440855e4",
           "observation_type": "generation"
         }
       ]
     },
     "trace-1/ChatBedrockConverse/span-62": {
-      "message_count": 2,
+      "message_count": 3,
       "role_sequence": [
         "system",
-        "user"
+        "user",
+        "assistant"
       ],
       "tool_names": [
         "calculator",
@@ -321,15 +403,24 @@
           "entry_type": "text",
           "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
           "content_digest": "f70ad56a39c626b9",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "I'll break down the project into a structured plan for building a weather app with multi-city forecasts. ## Weather App Project Plan ### Phase 1: Research & Planning **Tasks:** - Identify and evaluate weather APIs (OpenWeatherMap, Weather.g…[1768 chars]",
+          "content_digest": "2f44606d440855e4",
           "observation_type": "generation"
         }
       ]
     },
     "trace-1/ChatBedrockConverse/span-71": {
-      "message_count": 2,
+      "message_count": 3,
       "role_sequence": [
         "system",
-        "user"
+        "user",
+        "assistant"
       ],
       "tool_names": [
         "calculator",
@@ -353,6 +444,14 @@
           "entry_type": "text",
           "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
           "content_digest": "f70ad56a39c626b9",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "I'll break down the project into a structured plan for building a weather app with multi-city forecasts. ## Weather App Project Plan ### Phase 1: Research & Planning **Tasks:** - Identify and evaluate weather APIs (OpenWeatherMap, Weather.g…[1768 chars]",
+          "content_digest": "2f44606d440855e4",
           "observation_type": "generation"
         }
       ]
@@ -399,10 +498,11 @@
       ]
     },
     "trace-1/ChatBedrockConverse/span-80": {
-      "message_count": 2,
+      "message_count": 3,
       "role_sequence": [
         "system",
-        "user"
+        "user",
+        "assistant"
       ],
       "tool_names": [
         "calculator",
@@ -426,15 +526,24 @@
           "entry_type": "text",
           "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
           "content_digest": "f70ad56a39c626b9",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "I'll break down the project into a structured plan for building a weather app with multi-city forecasts. ## Weather App Project Plan ### Phase 1: Research & Planning **Tasks:** - Identify and evaluate weather APIs (OpenWeatherMap, Weather.g…[1768 chars]",
+          "content_digest": "2f44606d440855e4",
           "observation_type": "generation"
         }
       ]
     },
     "trace-1/ChatBedrockConverse/span-89": {
-      "message_count": 2,
+      "message_count": 3,
       "role_sequence": [
         "system",
-        "user"
+        "user",
+        "assistant"
       ],
       "tool_names": [
         "calculator",
@@ -458,15 +567,24 @@
           "entry_type": "text",
           "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
           "content_digest": "f70ad56a39c626b9",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "I'll break down the project into a structured plan for building a weather app with multi-city forecasts. ## Weather App Project Plan ### Phase 1: Research & Planning **Tasks:** - Identify and evaluate weather APIs (OpenWeatherMap, Weather.g…[1768 chars]",
+          "content_digest": "2f44606d440855e4",
           "observation_type": "generation"
         }
       ]
     },
     "trace-1/ChatBedrockConverse/span-98": {
-      "message_count": 2,
+      "message_count": 3,
       "role_sequence": [
         "system",
-        "user"
+        "user",
+        "assistant"
       ],
       "tool_names": [
         "calculator",
@@ -490,6 +608,14 @@
           "entry_type": "text",
           "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
           "content_digest": "f70ad56a39c626b9",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "I'll break down the project into a structured plan for building a weather app with multi-city forecasts. ## Weather App Project Plan ### Phase 1: Research & Planning **Tasks:** - Identify and evaluate weather APIs (OpenWeatherMap, Weather.g…[1768 chars]",
+          "content_digest": "2f44606d440855e4",
           "observation_type": "generation"
         }
       ]

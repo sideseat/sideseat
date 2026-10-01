@@ -560,6 +560,22 @@ pub(in crate::sideml::feed) fn classify_blocks(
     blocks: &mut [BlockEntry],
     span_timestamps: &HashMap<String, SpanTimestamps>,
 ) {
+    classify_blocks_with_history(blocks, span_timestamps, false);
+}
+
+/// Classify one span without stripping the replayed context that its endpoint exposes.
+pub(in crate::sideml::feed) fn classify_span_view_blocks(
+    blocks: &mut [BlockEntry],
+    span_timestamps: &HashMap<String, SpanTimestamps>,
+) {
+    classify_blocks_with_history(blocks, span_timestamps, true);
+}
+
+fn classify_blocks_with_history(
+    blocks: &mut [BlockEntry],
+    span_timestamps: &HashMap<String, SpanTimestamps>,
+    preserve_span_context: bool,
+) {
     // Step 1: Classify timestamp strategy for each block
     let mut output_count = 0;
     for block in blocks.iter_mut() {
@@ -761,7 +777,11 @@ pub(in crate::sideml::feed) fn classify_blocks(
     );
 
     // Step 2: Detect and mark history blocks
-    let stats = mark_history(blocks, span_timestamps);
+    let stats = if preserve_span_context {
+        mark_span_history(blocks, span_timestamps)
+    } else {
+        mark_history(blocks, span_timestamps)
+    };
 
     tracing::trace!(
         total_history = stats.total_history(),

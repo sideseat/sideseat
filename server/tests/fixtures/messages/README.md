@@ -98,6 +98,8 @@ the corpus matches it.
 | `openai-agents` | openai-agents >=0.12.1 | 10 | 37 |
 | `openai-native` | OpenAI 3.19.2 / Logfire 6.0.0b7 / OpenTelemetry Python 1.44.0 on CPython 3.13.7 | 1 | 1 |
 | `openai-sdk` | SideSeat Python 1.0.8 / OpenAI 3.19.2 / Logfire 6.0.0b7 / OpenTelemetry Python 1.44.0 on CPython 3.13.7 | 1 | 1 |
+| `openinference-native` | OpenInference instrumentation 0.1.67 / semantic conventions 0.1.40 / OpenTelemetry Python 1.45.0 on CPython 3.14.7, native OTLP setup | 1 | 1 |
+| `openinference-sdk` | SideSeat Python 1.0.8 / OpenInference instrumentation 0.1.67 / semantic conventions 0.1.40 / OpenTelemetry Python 1.45.0 on CPython 3.14.7 | 1 | 1 |
 | `pydantic-ai-native` | Pydantic AI 2.50.0 / Logfire 6.0.0b7 / OpenTelemetry Python 1.44.0 on CPython 3.12.8 | 1 | 1 |
 | `pydantic-ai-sdk` | SideSeat Python 1.0.8 / Pydantic AI 2.50.0 / Logfire 6.0.0b7 / OpenTelemetry Python 1.44.0 on CPython 3.12.8 | 1 | 1 |
 | `python-otel` | OpenTelemetry Python 1.45.0 on CPython 3.14.7 | 1 | 1 |
@@ -113,7 +115,7 @@ the corpus matches it.
 | `strands-native` | strands-agents >=1.30.0, native OTLP setup | 9 | 9 |
 | `strands-sdk` | SideSeat Python 1.0.8 / strands-agents >=1.30.0 | 9 | 9 |
 | `vercel-ai-js` | ai ^7.0.79 | 6 | 13 |
-| **58 suites** | | **233** | **398** |
+| **60 suites** | | **235** | **400** |
 
 Two further samples exist but are **not in the repository**: `strands-js/image-gen` and
 `vercel-ai-js/image-gen`, whose payloads are 15 MB and 7 MB of inlined base64 image data (the Python
@@ -352,19 +354,19 @@ not hide the rest.
 
 ## What is and is not covered
 
-**233 tracked expectation files: 216 captured in 57 suites, plus 17 synthetic.** A suite is not a framework:
+**235 tracked expectation files: 218 captured in 59 suites, plus 17 synthetic.** A suite is not a framework:
 `strands`/`strands-js` and `claude-agent-sdk`/`claude-agent-sdk-js` are one framework each in two
 languages; the eight .NET/JavaScript/Python/Rust suites are SDK conformance rather than framework
-captures. The fixture families below cover **23 of the 32** frameworks SideSeat recognises. (32 is
+captures. The fixture families below cover **24 of the 32** frameworks SideSeat recognises. (32 is
 the union of the server's `Framework` classifier and the SDK's framework list, excluding `Unknown`:
 28 named server variants plus `anthropic`, `openai`, `google-genai` and `pydantic-ai`, which only the
 SDK names.) Every framework is not covered, and the gap is deliberate rather than hidden:
 
-| Covered by fixtures (23) | strands, langchain, langgraph, llama-index, crewai, google-adk, google-genai, haystack, bedrock, openai, openai-agents, anthropic, pydantic-ai, autogen, ag2, agent-framework, agentscope, claude-agent-sdk, agno, semantic-kernel, smolagents, vercel-ai, logfire — strands and claude-agent-sdk in both languages, vercel-ai in JS only |
+| Covered by fixtures (24) | strands, langchain, langgraph, llama-index, crewai, google-adk, google-genai, haystack, bedrock, openai, openai-agents, openinference, anthropic, pydantic-ai, autogen, ag2, agent-framework, agentscope, claude-agent-sdk, agno, semantic-kernel, smolagents, vercel-ai, logfire — strands and claude-agent-sdk in both languages, vercel-ai in JS only |
 | ------------------- | --- |
 | Synthetic, not a framework | `_synthetic/*` — hand-written payloads for shapes no captured sample produces, counted in the file total and in neither the suites nor the frameworks. See below. |
 | SDK conformance, not a framework | The `dotnet-{otel,sdk}/canonical`, `javascript-{otel,sdk}/canonical`, `python-{otel,sdk}/canonical`, and `rust-{otel,sdk}/canonical` pairs — the same real four-span, five-message conversation exported without and with each SideSeat SDK |
-| Recognised, no fixtures (9) | azure-ai-foundry, azure-openai, browser-use, langflow, livekit, mlflow, **openinference**, traceloop, vertex-ai |
+| Recognised, no fixtures (8) | azure-ai-foundry, azure-openai, browser-use, langflow, livekit, mlflow, traceloop, vertex-ai |
 
 The second group shares extractors with covered frameworks, so the *parsing logic* is exercised
 — but nothing here proves their emitted payloads match what those extractors expect. Adding a

@@ -222,35 +222,35 @@
       ]
     },
     "trace-10/execute_agent_loop_cycle/span-2": {
-      "message_count": 1,
+      "message_count": 4,
       "role_sequence": [
-        "tool"
+        "user",
+        "assistant",
+        "tool",
+        "assistant"
       ],
       "tool_names": [],
       "tool_definition_count": 0,
       "messages": [
         {
           "index": 0,
-          "role": "tool",
-          "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_a20qR6C25kh0aI4AUuYROD\",\"content\":[{\"type\":\"text\",\"text\":\"[1] (relevance: 0.74) SideSeat is an AI observability toolkit that collects OpenTelemetry traces from AI applications. It normalizes mult…[759 chars]",
-          "content_digest": "9ae7e38120f43e8d",
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is SideSeat and how does it help with AI observability?",
+          "content_digest": "258073a7aafdb01d",
           "observation_type": "agent"
-        }
-      ]
-    },
-    "trace-10/execute_agent_loop_cycle/span-9": {
-      "message_count": 3,
-      "role_sequence": [
-        "tool",
-        "tool",
-        "tool"
-      ],
-      "tool_names": [],
-      "tool_definition_count": 0,
-      "messages": [
+        },
         {
-          "index": 0,
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_a20qR6C25kh0aI4AUuYROD\",\"name\":\"search_knowledge\",\"input\":{\"query\":\"SideSeat AI observability\",\"num_results\":3}}",
+          "content_digest": "4666ce78cc94a45b",
+          "tool_name": "search_knowledge",
+          "observation_type": "agent"
+        },
+        {
+          "index": 2,
           "role": "tool",
           "entry_type": "tool_result",
           "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_a20qR6C25kh0aI4AUuYROD\",\"content\":[{\"type\":\"text\",\"text\":\"[1] (relevance: 0.74) SideSeat is an AI observability toolkit that collects OpenTelemetry traces from AI applications. It normalizes mult…[759 chars]",
@@ -258,7 +258,92 @@
           "observation_type": "agent"
         },
         {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Based on the knowledge base, here's what SideSeat is and how it helps with AI observability: ## SideSeat Overview **SideSeat is an AI observability toolkit** designed to help developers understand and debug their AI applications. It works b…[1250 chars]",
+          "content_digest": "8849d65bfc4170b5",
+          "observation_type": "agent"
+        }
+      ]
+    },
+    "trace-10/execute_agent_loop_cycle/span-9": {
+      "message_count": 9,
+      "role_sequence": [
+        "user",
+        "assistant",
+        "tool",
+        "assistant",
+        "user",
+        "assistant",
+        "assistant",
+        "tool",
+        "tool"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is SideSeat and how does it help with AI observability?",
+          "content_digest": "258073a7aafdb01d",
+          "observation_type": "agent"
+        },
+        {
           "index": 1,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_a20qR6C25kh0aI4AUuYROD\",\"name\":\"search_knowledge\",\"input\":{\"query\":\"SideSeat AI observability\",\"num_results\":3}}",
+          "content_digest": "4666ce78cc94a45b",
+          "tool_name": "search_knowledge",
+          "observation_type": "agent"
+        },
+        {
+          "index": 2,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_a20qR6C25kh0aI4AUuYROD\",\"content\":[{\"type\":\"text\",\"text\":\"[1] (relevance: 0.74) SideSeat is an AI observability toolkit that collects OpenTelemetry traces from AI applications. It normalizes mult…[759 chars]",
+          "content_digest": "9ae7e38120f43e8d",
+          "observation_type": "agent"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Based on the knowledge base, here's what SideSeat is and how it helps with AI observability: ## SideSeat Overview **SideSeat is an AI observability toolkit** designed to help developers understand and debug their AI applications. It works b…[1250 chars]",
+          "content_digest": "8849d65bfc4170b5",
+          "observation_type": "agent"
+        },
+        {
+          "index": 4,
+          "role": "user",
+          "entry_type": "text",
+          "content": "How does RAG work and what are its key components?",
+          "content_digest": "d75bacebd91f3248",
+          "observation_type": "agent"
+        },
+        {
+          "index": 5,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_2047gdIv9Beayj00EyftDm\",\"name\":\"search_knowledge\",\"input\":{\"num_results\":5,\"query\":\"RAG Retrieval-Augmented Generation how it works components\"}}",
+          "content_digest": "9ed6866fb9d484c4",
+          "tool_name": "search_knowledge",
+          "observation_type": "agent"
+        },
+        {
+          "index": 6,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_8N0cc27wLSlIvRAnYI4Tng\",\"name\":\"search_knowledge\",\"input\":{\"num_results\":5,\"query\":\"RAG embeddings vector search retrieval\"}}",
+          "content_digest": "d2a67b1064f70aad",
+          "tool_name": "search_knowledge",
+          "observation_type": "agent"
+        },
+        {
+          "index": 7,
           "role": "tool",
           "entry_type": "tool_result",
           "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_2047gdIv9Beayj00EyftDm\",\"content\":[{\"type\":\"text\",\"text\":\"[1] (relevance: 0.73) RAG (Retrieval-Augmented Generation) combines vector search with LLM generation. Documents are embedded into vector…[1193 chars]",
@@ -266,7 +351,7 @@
           "observation_type": "agent"
         },
         {
-          "index": 2,
+          "index": 8,
           "role": "tool",
           "entry_type": "tool_result",
           "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_8N0cc27wLSlIvRAnYI4Tng\",\"content\":[{\"type\":\"text\",\"text\":\"[1] (relevance: 0.70) RAG (Retrieval-Augmented Generation) combines vector search with LLM generation. Documents are embedded into vector…[1193 chars]",
@@ -649,17 +734,41 @@
       ]
     },
     "trace-13/execute_agent_loop_cycle/span-2": {
-      "message_count": 3,
+      "message_count": 10,
       "role_sequence": [
+        "user",
+        "assistant",
+        "tool",
+        "assistant",
+        "user",
+        "assistant",
+        "assistant",
         "tool",
         "tool",
-        "tool"
+        "assistant"
       ],
       "tool_names": [],
       "tool_definition_count": 0,
       "messages": [
         {
           "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is SideSeat and how does it help with AI observability?",
+          "content_digest": "258073a7aafdb01d",
+          "observation_type": "agent"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_a20qR6C25kh0aI4AUuYROD\",\"name\":\"search_knowledge\",\"input\":{\"query\":\"SideSeat AI observability\",\"num_results\":3}}",
+          "content_digest": "4666ce78cc94a45b",
+          "tool_name": "search_knowledge",
+          "observation_type": "agent"
+        },
+        {
+          "index": 2,
           "role": "tool",
           "entry_type": "tool_result",
           "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_a20qR6C25kh0aI4AUuYROD\",\"content\":[{\"type\":\"text\",\"text\":\"[1] (relevance: 0.74) SideSeat is an AI observability toolkit that collects OpenTelemetry traces from AI applications. It normalizes mult…[759 chars]",
@@ -667,7 +776,41 @@
           "observation_type": "agent"
         },
         {
-          "index": 1,
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Based on the knowledge base, here's what SideSeat is and how it helps with AI observability: ## SideSeat Overview **SideSeat is an AI observability toolkit** designed to help developers understand and debug their AI applications. It works b…[1250 chars]",
+          "content_digest": "8849d65bfc4170b5",
+          "observation_type": "agent"
+        },
+        {
+          "index": 4,
+          "role": "user",
+          "entry_type": "text",
+          "content": "How does RAG work and what are its key components?",
+          "content_digest": "d75bacebd91f3248",
+          "observation_type": "agent"
+        },
+        {
+          "index": 5,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_2047gdIv9Beayj00EyftDm\",\"name\":\"search_knowledge\",\"input\":{\"num_results\":5,\"query\":\"RAG Retrieval-Augmented Generation how it works components\"}}",
+          "content_digest": "9ed6866fb9d484c4",
+          "tool_name": "search_knowledge",
+          "observation_type": "agent"
+        },
+        {
+          "index": 6,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_8N0cc27wLSlIvRAnYI4Tng\",\"name\":\"search_knowledge\",\"input\":{\"num_results\":5,\"query\":\"RAG embeddings vector search retrieval\"}}",
+          "content_digest": "d2a67b1064f70aad",
+          "tool_name": "search_knowledge",
+          "observation_type": "agent"
+        },
+        {
+          "index": 7,
           "role": "tool",
           "entry_type": "tool_result",
           "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_2047gdIv9Beayj00EyftDm\",\"content\":[{\"type\":\"text\",\"text\":\"[1] (relevance: 0.73) RAG (Retrieval-Augmented Generation) combines vector search with LLM generation. Documents are embedded into vector…[1193 chars]",
@@ -675,21 +818,38 @@
           "observation_type": "agent"
         },
         {
-          "index": 2,
+          "index": 8,
           "role": "tool",
           "entry_type": "tool_result",
           "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_8N0cc27wLSlIvRAnYI4Tng\",\"content\":[{\"type\":\"text\",\"text\":\"[1] (relevance: 0.70) RAG (Retrieval-Augmented Generation) combines vector search with LLM generation. Documents are embedded into vector…[1193 chars]",
           "content_digest": "85a948852b246978",
+          "observation_type": "agent"
+        },
+        {
+          "index": 9,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Based on the knowledge base, here's how RAG works and its key components: ## What is RAG? **RAG (Retrieval-Augmented Generation)** is a technique that combines vector search with LLM generation to enhance the capabilities of language models…[1613 chars]",
+          "content_digest": "e5240cd7453cc261",
           "observation_type": "agent"
         }
       ]
     },
     "trace-13/execute_agent_loop_cycle/span-7": {
-      "message_count": 4,
+      "message_count": 13,
       "role_sequence": [
+        "user",
+        "assistant",
+        "tool",
+        "assistant",
+        "user",
+        "assistant",
+        "assistant",
         "tool",
         "tool",
-        "tool",
+        "assistant",
+        "user",
+        "assistant",
         "tool"
       ],
       "tool_names": [],
@@ -697,6 +857,23 @@
       "messages": [
         {
           "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is SideSeat and how does it help with AI observability?",
+          "content_digest": "258073a7aafdb01d",
+          "observation_type": "agent"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_a20qR6C25kh0aI4AUuYROD\",\"name\":\"search_knowledge\",\"input\":{\"query\":\"SideSeat AI observability\",\"num_results\":3}}",
+          "content_digest": "4666ce78cc94a45b",
+          "tool_name": "search_knowledge",
+          "observation_type": "agent"
+        },
+        {
+          "index": 2,
           "role": "tool",
           "entry_type": "tool_result",
           "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_a20qR6C25kh0aI4AUuYROD\",\"content\":[{\"type\":\"text\",\"text\":\"[1] (relevance: 0.74) SideSeat is an AI observability toolkit that collects OpenTelemetry traces from AI applications. It normalizes mult…[759 chars]",
@@ -704,7 +881,41 @@
           "observation_type": "agent"
         },
         {
-          "index": 1,
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Based on the knowledge base, here's what SideSeat is and how it helps with AI observability: ## SideSeat Overview **SideSeat is an AI observability toolkit** designed to help developers understand and debug their AI applications. It works b…[1250 chars]",
+          "content_digest": "8849d65bfc4170b5",
+          "observation_type": "agent"
+        },
+        {
+          "index": 4,
+          "role": "user",
+          "entry_type": "text",
+          "content": "How does RAG work and what are its key components?",
+          "content_digest": "d75bacebd91f3248",
+          "observation_type": "agent"
+        },
+        {
+          "index": 5,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_2047gdIv9Beayj00EyftDm\",\"name\":\"search_knowledge\",\"input\":{\"num_results\":5,\"query\":\"RAG Retrieval-Augmented Generation how it works components\"}}",
+          "content_digest": "9ed6866fb9d484c4",
+          "tool_name": "search_knowledge",
+          "observation_type": "agent"
+        },
+        {
+          "index": 6,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_8N0cc27wLSlIvRAnYI4Tng\",\"name\":\"search_knowledge\",\"input\":{\"num_results\":5,\"query\":\"RAG embeddings vector search retrieval\"}}",
+          "content_digest": "d2a67b1064f70aad",
+          "tool_name": "search_knowledge",
+          "observation_type": "agent"
+        },
+        {
+          "index": 7,
           "role": "tool",
           "entry_type": "tool_result",
           "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_2047gdIv9Beayj00EyftDm\",\"content\":[{\"type\":\"text\",\"text\":\"[1] (relevance: 0.73) RAG (Retrieval-Augmented Generation) combines vector search with LLM generation. Documents are embedded into vector…[1193 chars]",
@@ -712,7 +923,7 @@
           "observation_type": "agent"
         },
         {
-          "index": 2,
+          "index": 8,
           "role": "tool",
           "entry_type": "tool_result",
           "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_8N0cc27wLSlIvRAnYI4Tng\",\"content\":[{\"type\":\"text\",\"text\":\"[1] (relevance: 0.70) RAG (Retrieval-Augmented Generation) combines vector search with LLM generation. Documents are embedded into vector…[1193 chars]",
@@ -720,7 +931,32 @@
           "observation_type": "agent"
         },
         {
-          "index": 3,
+          "index": 9,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Based on the knowledge base, here's how RAG works and its key components: ## What is RAG? **RAG (Retrieval-Augmented Generation)** is a technique that combines vector search with LLM generation to enhance the capabilities of language models…[1613 chars]",
+          "content_digest": "e5240cd7453cc261",
+          "observation_type": "agent"
+        },
+        {
+          "index": 10,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What embedding models are available for vector search?",
+          "content_digest": "fc08de1734188b8c",
+          "observation_type": "agent"
+        },
+        {
+          "index": 11,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_omYYpVAADUrUGML3yi78YE\",\"name\":\"search_knowledge\",\"input\":{\"num_results\":5,\"query\":\"embedding models providers\"}}",
+          "content_digest": "01f226c4647be319",
+          "tool_name": "search_knowledge",
+          "observation_type": "agent"
+        },
+        {
+          "index": 12,
           "role": "tool",
           "entry_type": "tool_result",
           "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_omYYpVAADUrUGML3yi78YE\",\"content\":[{\"type\":\"text\",\"text\":\"[1] (relevance: 0.51) Embeddings are dense vector representations of text that capture semantic meaning. Similar texts have similar embed…[1193 chars]",
@@ -941,8 +1177,10 @@
       "messages": []
     },
     "trace-7/execute_agent_loop_cycle/span-6": {
-      "message_count": 1,
+      "message_count": 3,
       "role_sequence": [
+        "user",
+        "assistant",
         "tool"
       ],
       "tool_names": [],
@@ -950,6 +1188,23 @@
       "messages": [
         {
           "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is SideSeat and how does it help with AI observability?",
+          "content_digest": "258073a7aafdb01d",
+          "observation_type": "agent"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_a20qR6C25kh0aI4AUuYROD\",\"name\":\"search_knowledge\",\"input\":{\"query\":\"SideSeat AI observability\",\"num_results\":3}}",
+          "content_digest": "4666ce78cc94a45b",
+          "tool_name": "search_knowledge",
+          "observation_type": "agent"
+        },
+        {
+          "index": 2,
           "role": "tool",
           "entry_type": "tool_result",
           "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_a20qR6C25kh0aI4AUuYROD\",\"content\":[{\"type\":\"text\",\"text\":\"[1] (relevance: 0.74) SideSeat is an AI observability toolkit that collects OpenTelemetry traces from AI applications. It normalizes mult…[759 chars]",

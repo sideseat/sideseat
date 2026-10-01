@@ -40,9 +40,10 @@
       ]
     },
     "trace-1/chat gpt-5-nano-2025-08-07/span-6": {
-      "message_count": 3,
+      "message_count": 4,
       "role_sequence": [
         "user",
+        "assistant",
         "user",
         "assistant"
       ],
@@ -59,6 +60,14 @@
         },
         {
           "index": 1,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "The speed of light is 299,792,458 metres per second.",
+          "content_digest": "2432a9ddf31f860c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
           "role": "user",
           "entry_type": "text",
           "content": "What is the boiling point of water?",
@@ -66,7 +75,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 2,
+          "index": 3,
           "role": "assistant",
           "entry_type": "text",
           "content": "Water boils at 100°C at sea level.",
@@ -139,9 +148,10 @@
       ]
     },
     "trace-2/chat gpt-5-nano-2025-08-07/span-6": {
-      "message_count": 3,
+      "message_count": 4,
       "role_sequence": [
         "user",
+        "assistant",
         "tool",
         "assistant"
       ],
@@ -158,6 +168,15 @@
         },
         {
           "index": 1,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call-get-weather-f725a428067c\",\"name\":\"get_weather\",\"input\":{\"location\":\"Paris\"}}",
+          "content_digest": "ad95609e35247925",
+          "tool_name": "get_weather",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
           "role": "tool",
           "entry_type": "tool_result",
           "content": "Sunny, 22°C, light breeze in Paris.",
@@ -165,7 +184,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 2,
+          "index": 3,
           "role": "assistant",
           "entry_type": "text",
           "content": "It is sunny and 22°C in Paris.",

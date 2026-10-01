@@ -178,8 +178,50 @@
     "trace-2/chat gpt-5-nano-2025-08-07/span-3": {
       "message_count": 3,
       "role_sequence": [
+        "assistant",
+        "system",
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call-get-weather-3cab8de3da7f\",\"name\":\"get_weather\",\"input\":{\"location\":\"Paris\"}}",
+          "content_digest": "d411b487e795d4c5",
+          "tool_name": "get_weather",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "system",
+          "entry_type": "text",
+          "content": "Use tools when they are available.",
+          "content_digest": "5854c8faeaa807cc",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is the weather in Paris?",
+          "content_digest": "c06013560ef43345",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-2/chat gpt-5-nano-2025-08-07/span-5": {
+      "message_count": 5,
+      "role_sequence": [
         "system",
         "user",
+        "assistant",
+        "tool",
         "assistant"
       ],
       "tool_names": [],
@@ -210,42 +252,10 @@
           "content": "{\"type\":\"tool_use\",\"id\":\"call-get-weather-3cab8de3da7f\",\"name\":\"get_weather\",\"input\":{\"location\":\"Paris\"}}",
           "content_digest": "d411b487e795d4c5",
           "tool_name": "get_weather",
-          "finish_reason": "Stop",
-          "observation_type": "generation"
-        }
-      ]
-    },
-    "trace-2/chat gpt-5-nano-2025-08-07/span-5": {
-      "message_count": 4,
-      "role_sequence": [
-        "system",
-        "user",
-        "tool",
-        "assistant"
-      ],
-      "tool_names": [],
-      "tool_definition_count": 1,
-      "messages": [
-        {
-          "index": 0,
-          "role": "system",
-          "entry_type": "text",
-          "content": "Use tools when they are available.",
-          "content_digest": "5854c8faeaa807cc",
-          "finish_reason": "Stop",
           "observation_type": "generation"
         },
         {
-          "index": 1,
-          "role": "user",
-          "entry_type": "text",
-          "content": "What is the weather in Paris?",
-          "content_digest": "c06013560ef43345",
-          "finish_reason": "Stop",
-          "observation_type": "generation"
-        },
-        {
-          "index": 2,
+          "index": 3,
           "role": "tool",
           "entry_type": "tool_result",
           "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call-get-weather-3cab8de3da7f\",\"content\":[{\"type\":\"text\",\"text\":\"Sunny, 22°C, light breeze in Paris.\"}]}",
@@ -253,7 +263,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 3,
+          "index": 4,
           "role": "assistant",
           "entry_type": "text",
           "content": "It is sunny and 22°C in Paris.",

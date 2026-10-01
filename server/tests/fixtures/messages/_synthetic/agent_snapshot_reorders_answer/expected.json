@@ -44,9 +44,11 @@
       ]
     },
     "trace-1/chat model-x/span-5": {
-      "message_count": 4,
+      "message_count": 6,
       "role_sequence": [
         "user",
+        "assistant",
+        "assistant",
         "tool",
         "tool",
         "assistant"
@@ -64,6 +66,24 @@
         },
         {
           "index": 1,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"c1\",\"name\":\"temp\",\"input\":{\"city\":\"NYC\"}}",
+          "content_digest": "3f4a0f557d58e33e",
+          "tool_name": "temp",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"c2\",\"name\":\"precip\",\"input\":{\"city\":\"NYC\"}}",
+          "content_digest": "74005877e610cad6",
+          "tool_name": "precip",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
           "role": "tool",
           "entry_type": "tool_result",
           "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"c1\",\"content\":[{\"type\":\"json\",\"data\":{\"v\":\"sunny\"}}]}",
@@ -71,7 +91,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 2,
+          "index": 4,
           "role": "tool",
           "entry_type": "tool_result",
           "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"c2\",\"content\":[{\"type\":\"json\",\"data\":{\"v\":\"light rain\"}}]}",
@@ -79,7 +99,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 3,
+          "index": 5,
           "role": "assistant",
           "entry_type": "text",
           "content": "Here is the forecast: sunny then light rain.",

@@ -36,6 +36,48 @@
         "carrier_holds_span_input": true
       },
       "ordering_family": "openinference.input_messages"
+    },
+    {
+      "id": "openinference.retrieval_documents",
+      "doc": "The result set produced by one retrieval span.",
+      "match": {
+        "attribute": "retrieval.documents"
+      },
+      "facts": {
+        "preset": "emission"
+      }
+    },
+    {
+      "id": "openinference.reranker_input_documents",
+      "doc": "The candidate documents handed to one reranker span.",
+      "match": {
+        "attribute": "reranker.input_documents"
+      },
+      "facts": {
+        "preset": "snapshot",
+        "carrier_holds_span_input": true
+      }
+    },
+    {
+      "id": "openinference.reranker_output_documents",
+      "doc": "The ordered result set produced by one reranker span.",
+      "match": {
+        "attribute": "reranker.output_documents"
+      },
+      "facts": {
+        "preset": "emission"
+      }
+    },
+    {
+      "id": "openinference.reranker_query",
+      "doc": "The query handed to one reranker span.",
+      "match": {
+        "attribute": "reranker.query"
+      },
+      "facts": {
+        "preset": "snapshot",
+        "carrier_holds_span_input": true
+      }
     }
   ],
   "detect": [
@@ -178,8 +220,49 @@
       "legacy_rank": 210
     },
     {
+      "id": "openinference.tool_output_with_id",
+      "doc": "The return value of a generic OpenInference TOOL span that identifies itself with the convention's tool.id attribute. The dedicated generic scope distinguishes direct OITracer use from framework instrumentors that own another result carrier.",
+      "instrumentation_scope": {
+        "name": "openinference.instrumentation.generic"
+      },
+      "when": {
+        "attr_exists": [
+          "tool.id"
+        ],
+        "attr_equals_ignore_case": [
+          {
+            "key": "openinference.span.kind",
+            "value": "tool"
+          }
+        ]
+      },
+      "read": {
+        "attribute": "output.value"
+      },
+      "parse": "json_or_string",
+      "wrap": {
+        "role": "tool",
+        "block": {
+          "type": "tool_result",
+          "attach": [
+            {
+              "from": "tool.name",
+              "as": "name"
+            },
+            {
+              "from": "tool.id",
+              "as": "tool_use_id"
+            }
+          ]
+        }
+      },
+      "emit": "message",
+      "legacy_rank": 214,
+      "reads_tool_spans": true
+    },
+    {
       "id": "openinference.tool_output",
-      "doc": "The return value of an OpenInference TOOL span. AutoGen 0.7.5 records the call id on its sibling semantic-convention span rather than this OpenInference span, so the result keeps the tool name and query-time correlation links it to the oldest unclaimed call of that name.",
+      "doc": "The return value of an OpenInference TOOL span from AutoGen. AutoGen 0.7.5 records the call id on its sibling semantic-convention span rather than this OpenInference span, so the result keeps the tool name and query-time correlation links it to the oldest unclaimed call of that name.",
       "instrumentation_scope": {
         "name": "openinference.instrumentation.autogen_agentchat"
       },

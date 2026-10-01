@@ -148,6 +148,34 @@ fn detect_session_history(blocks: &[BlockEntry]) -> SessionHistoryInfo {
 // HISTORY DETECTION
 // ============================================================================
 
+/// Preserve the context one span carried while still removing redundant carriers and framework state.
+///
+/// A span message endpoint answers a different question from a trace or session endpoint: it shows the
+/// normalized conversation payload of that one span, including history supplied to the call. The ordinary
+/// history passes intentionally remove that replay from wider views, so applying them here drops real
+/// span-local evidence such as an assistant turn in `llm.input_messages`.
+pub fn mark_span_history(
+    blocks: &mut [BlockEntry],
+    span_timestamps: &HashMap<String, SpanTimestamps>,
+) -> HistoryStats {
+    let mut stats = HistoryStats {
+        protected: blocks.iter().filter(|b| b.is_protected()).count(),
+        ..Default::default()
+    };
+
+    // A chain's raw JSON output is implementation state rather than a conversation message. This is not
+    // replay removal, so it remains hidden even when the caller asks what one span carried.
+    for block in blocks.iter_mut() {
+        if block.observation_type.as_deref() == Some("chain") && block.entry_type == "json" {
+            block.is_history = true;
+            stats.accumulator_history += 1;
+        }
+    }
+
+    stats.duplicates = mark_duplicate_history(blocks, span_timestamps);
+    stats
+}
+
 /// Mark blocks as history based on universal signals.
 ///
 /// # Algorithm
@@ -475,11 +503,7 @@ pub fn mark_history(
     }
 
     // Deduplicate the remaining blocks.
-    let duplicate_indices = find_duplicate_indices(blocks, span_timestamps);
-    for idx in duplicate_indices {
-        blocks[idx].is_history = true;
-        stats.duplicates += 1;
-    }
+    stats.duplicates = mark_duplicate_history(blocks, span_timestamps);
 
     tracing::trace!(
         protected = stats.protected,
@@ -492,6 +516,18 @@ pub fn mark_history(
     );
 
     stats
+}
+
+fn mark_duplicate_history(
+    blocks: &mut [BlockEntry],
+    span_timestamps: &HashMap<String, SpanTimestamps>,
+) -> usize {
+    let duplicate_indices = find_duplicate_indices(blocks, span_timestamps);
+    let duplicate_count = duplicate_indices.len();
+    for idx in duplicate_indices {
+        blocks[idx].is_history = true;
+    }
+    duplicate_count
 }
 
 /// The key used to group blocks that represent the same message.

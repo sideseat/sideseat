@@ -100,8 +100,9 @@
       ]
     },
     "trace-1/execute_event_loop_cycle/span-2": {
-      "message_count": 2,
+      "message_count": 3,
       "role_sequence": [
+        "user",
         "assistant",
         "tool"
       ],
@@ -110,6 +111,14 @@
       "messages": [
         {
           "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Provide a 3-day weather forecast for New York City.",
+          "content_digest": "75e9643b50cb90f4",
+          "observation_type": "span"
+        },
+        {
+          "index": 1,
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"call-temperature-forecast-1\",\"name\":\"temperature_forecast\",\"input\":{\"city\":\"Paris\"}}",
@@ -118,7 +127,7 @@
           "observation_type": "span"
         },
         {
-          "index": 1,
+          "index": 2,
           "role": "tool",
           "entry_type": "tool_result",
           "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call-temperature-forecast-1\",\"content\":[{\"type\":\"json\",\"data\":{\"json\":{\"city\":\"Paris\",\"days\":3,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":25,\"low\":15},{\"day\":2,\"condition\":\"Sunny\",\"high\":26,\"low\":16…[296 chars]",
@@ -128,8 +137,10 @@
       ]
     },
     "trace-1/execute_event_loop_cycle/span-5": {
-      "message_count": 1,
+      "message_count": 3,
       "role_sequence": [
+        "user",
+        "assistant",
         "tool"
       ],
       "tool_names": [],
@@ -137,6 +148,23 @@
       "messages": [
         {
           "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Provide a 3-day weather forecast for New York City.",
+          "content_digest": "75e9643b50cb90f4",
+          "observation_type": "span"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call-temperature-forecast-1\",\"name\":\"temperature_forecast\",\"input\":{\"city\":\"Paris\"}}",
+          "content_digest": "16326b150aa7b510",
+          "tool_name": "temperature_forecast",
+          "observation_type": "span"
+        },
+        {
+          "index": 2,
           "role": "tool",
           "entry_type": "tool_result",
           "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call-temperature-forecast-1\",\"content\":[{\"type\":\"json\",\"data\":{\"json\":{\"city\":\"Paris\",\"days\":3,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":25,\"low\":15},{\"day\":2,\"condition\":\"Sunny\",\"high\":26,\"low\":16…[296 chars]",
@@ -269,19 +297,56 @@
       ]
     },
     "trace-2/execute_event_loop_cycle/span-2": {
-      "message_count": 1,
+      "message_count": 5,
       "role_sequence": [
-        "tool"
+        "user",
+        "assistant",
+        "tool",
+        "assistant",
+        "user"
       ],
       "tool_names": [],
       "tool_definition_count": 0,
       "messages": [
         {
           "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Provide a 3-day weather forecast for New York City.",
+          "content_digest": "75e9643b50cb90f4",
+          "observation_type": "span"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call-temperature-forecast-1\",\"name\":\"temperature_forecast\",\"input\":{\"city\":\"Paris\"}}",
+          "content_digest": "16326b150aa7b510",
+          "tool_name": "temperature_forecast",
+          "observation_type": "span"
+        },
+        {
+          "index": 2,
           "role": "tool",
           "entry_type": "tool_result",
           "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call-temperature-forecast-1\",\"content\":[{\"type\":\"json\",\"data\":{\"json\":{\"city\":\"Paris\",\"days\":3,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":25,\"low\":15},{\"day\":2,\"condition\":\"Sunny\",\"high\":26,\"low\":16…[296 chars]",
           "content_digest": "d5a682779be328fd",
+          "observation_type": "span"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "The tool completed successfully.",
+          "content_digest": "66bcb0fcdca80511",
+          "observation_type": "span"
+        },
+        {
+          "index": 4,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Provide a 7-day weather forecast for Los Angeles.",
+          "content_digest": "984bf68a8a35a65a",
           "observation_type": "span"
         }
       ]
@@ -401,19 +466,65 @@
       ]
     },
     "trace-3/execute_event_loop_cycle/span-2": {
-      "message_count": 1,
+      "message_count": 6,
       "role_sequence": [
-        "tool"
+        "user",
+        "assistant",
+        "tool",
+        "assistant",
+        "user",
+        "user"
       ],
       "tool_names": [],
       "tool_definition_count": 0,
       "messages": [
         {
           "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Provide a 3-day weather forecast for New York City.",
+          "content_digest": "75e9643b50cb90f4",
+          "observation_type": "span"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call-temperature-forecast-1\",\"name\":\"temperature_forecast\",\"input\":{\"city\":\"Paris\"}}",
+          "content_digest": "16326b150aa7b510",
+          "tool_name": "temperature_forecast",
+          "observation_type": "span"
+        },
+        {
+          "index": 2,
           "role": "tool",
           "entry_type": "tool_result",
           "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call-temperature-forecast-1\",\"content\":[{\"type\":\"json\",\"data\":{\"json\":{\"city\":\"Paris\",\"days\":3,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":25,\"low\":15},{\"day\":2,\"condition\":\"Sunny\",\"high\":26,\"low\":16…[296 chars]",
           "content_digest": "d5a682779be328fd",
+          "observation_type": "span"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "The tool completed successfully.",
+          "content_digest": "66bcb0fcdca80511",
+          "observation_type": "span"
+        },
+        {
+          "index": 4,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Provide a 7-day weather forecast for Los Angeles.",
+          "content_digest": "984bf68a8a35a65a",
+          "observation_type": "span"
+        },
+        {
+          "index": 5,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Provide a 3-day weather forecast for London.",
+          "content_digest": "369fb6bcf81010ee",
           "observation_type": "span"
         }
       ]
@@ -542,19 +653,74 @@
       ]
     },
     "trace-4/execute_event_loop_cycle/span-2": {
-      "message_count": 1,
+      "message_count": 7,
       "role_sequence": [
-        "tool"
+        "user",
+        "assistant",
+        "tool",
+        "assistant",
+        "user",
+        "user",
+        "user"
       ],
       "tool_names": [],
       "tool_definition_count": 0,
       "messages": [
         {
           "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Provide a 3-day weather forecast for New York City.",
+          "content_digest": "75e9643b50cb90f4",
+          "observation_type": "span"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call-temperature-forecast-1\",\"name\":\"temperature_forecast\",\"input\":{\"city\":\"Paris\"}}",
+          "content_digest": "16326b150aa7b510",
+          "tool_name": "temperature_forecast",
+          "observation_type": "span"
+        },
+        {
+          "index": 2,
           "role": "tool",
           "entry_type": "tool_result",
           "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call-temperature-forecast-1\",\"content\":[{\"type\":\"json\",\"data\":{\"json\":{\"city\":\"Paris\",\"days\":3,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":25,\"low\":15},{\"day\":2,\"condition\":\"Sunny\",\"high\":26,\"low\":16…[296 chars]",
           "content_digest": "d5a682779be328fd",
+          "observation_type": "span"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "The tool completed successfully.",
+          "content_digest": "66bcb0fcdca80511",
+          "observation_type": "span"
+        },
+        {
+          "index": 4,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Provide a 7-day weather forecast for Los Angeles.",
+          "content_digest": "984bf68a8a35a65a",
+          "observation_type": "span"
+        },
+        {
+          "index": 5,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Provide a 3-day weather forecast for London.",
+          "content_digest": "369fb6bcf81010ee",
+          "observation_type": "span"
+        },
+        {
+          "index": 6,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Provide a 14-day weather forecast for London.",
+          "content_digest": "7426414dbeed41d0",
           "observation_type": "span"
         }
       ]
@@ -694,8 +860,9 @@
       ]
     },
     "trace-5/execute_event_loop_cycle/span-2": {
-      "message_count": 2,
+      "message_count": 3,
       "role_sequence": [
+        "user",
         "assistant",
         "tool"
       ],
@@ -704,6 +871,14 @@
       "messages": [
         {
           "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Provide a 3-day weather forecast for New York City.",
+          "content_digest": "75e9643b50cb90f4",
+          "observation_type": "span"
+        },
+        {
+          "index": 1,
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"call-temperature-forecast-1\",\"name\":\"temperature_forecast\",\"input\":{\"city\":\"Paris\"}}",
@@ -712,7 +887,7 @@
           "observation_type": "span"
         },
         {
-          "index": 1,
+          "index": 2,
           "role": "tool",
           "entry_type": "tool_result",
           "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call-temperature-forecast-1\",\"content\":[{\"type\":\"json\",\"data\":{\"json\":{\"city\":\"Paris\",\"days\":3,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":25,\"low\":15},{\"day\":2,\"condition\":\"Sunny\",\"high\":26,\"low\":16…[296 chars]",
@@ -722,8 +897,10 @@
       ]
     },
     "trace-5/execute_event_loop_cycle/span-5": {
-      "message_count": 1,
+      "message_count": 3,
       "role_sequence": [
+        "user",
+        "assistant",
         "tool"
       ],
       "tool_names": [],
@@ -731,6 +908,23 @@
       "messages": [
         {
           "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Provide a 3-day weather forecast for New York City.",
+          "content_digest": "75e9643b50cb90f4",
+          "observation_type": "span"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call-temperature-forecast-1\",\"name\":\"temperature_forecast\",\"input\":{\"city\":\"Paris\"}}",
+          "content_digest": "16326b150aa7b510",
+          "tool_name": "temperature_forecast",
+          "observation_type": "span"
+        },
+        {
+          "index": 2,
           "role": "tool",
           "entry_type": "tool_result",
           "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call-temperature-forecast-1\",\"content\":[{\"type\":\"json\",\"data\":{\"json\":{\"city\":\"Paris\",\"days\":3,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":25,\"low\":15},{\"day\":2,\"condition\":\"Sunny\",\"high\":26,\"low\":16…[296 chars]",
@@ -863,19 +1057,56 @@
       ]
     },
     "trace-6/execute_event_loop_cycle/span-2": {
-      "message_count": 1,
+      "message_count": 5,
       "role_sequence": [
-        "tool"
+        "user",
+        "assistant",
+        "tool",
+        "assistant",
+        "user"
       ],
       "tool_names": [],
       "tool_definition_count": 0,
       "messages": [
         {
           "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Provide a 3-day weather forecast for New York City.",
+          "content_digest": "75e9643b50cb90f4",
+          "observation_type": "span"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call-temperature-forecast-1\",\"name\":\"temperature_forecast\",\"input\":{\"city\":\"Paris\"}}",
+          "content_digest": "16326b150aa7b510",
+          "tool_name": "temperature_forecast",
+          "observation_type": "span"
+        },
+        {
+          "index": 2,
           "role": "tool",
           "entry_type": "tool_result",
           "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call-temperature-forecast-1\",\"content\":[{\"type\":\"json\",\"data\":{\"json\":{\"city\":\"Paris\",\"days\":3,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":25,\"low\":15},{\"day\":2,\"condition\":\"Sunny\",\"high\":26,\"low\":16…[296 chars]",
           "content_digest": "d5a682779be328fd",
+          "observation_type": "span"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "The tool completed successfully.",
+          "content_digest": "66bcb0fcdca80511",
+          "observation_type": "span"
+        },
+        {
+          "index": 4,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Provide a 7-day weather forecast for Los Angeles.",
+          "content_digest": "984bf68a8a35a65a",
           "observation_type": "span"
         }
       ]
@@ -995,19 +1226,65 @@
       ]
     },
     "trace-7/execute_event_loop_cycle/span-2": {
-      "message_count": 1,
+      "message_count": 6,
       "role_sequence": [
-        "tool"
+        "user",
+        "assistant",
+        "tool",
+        "assistant",
+        "user",
+        "user"
       ],
       "tool_names": [],
       "tool_definition_count": 0,
       "messages": [
         {
           "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Provide a 3-day weather forecast for New York City.",
+          "content_digest": "75e9643b50cb90f4",
+          "observation_type": "span"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call-temperature-forecast-1\",\"name\":\"temperature_forecast\",\"input\":{\"city\":\"Paris\"}}",
+          "content_digest": "16326b150aa7b510",
+          "tool_name": "temperature_forecast",
+          "observation_type": "span"
+        },
+        {
+          "index": 2,
           "role": "tool",
           "entry_type": "tool_result",
           "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call-temperature-forecast-1\",\"content\":[{\"type\":\"json\",\"data\":{\"json\":{\"city\":\"Paris\",\"days\":3,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":25,\"low\":15},{\"day\":2,\"condition\":\"Sunny\",\"high\":26,\"low\":16…[296 chars]",
           "content_digest": "d5a682779be328fd",
+          "observation_type": "span"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "The tool completed successfully.",
+          "content_digest": "66bcb0fcdca80511",
+          "observation_type": "span"
+        },
+        {
+          "index": 4,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Provide a 7-day weather forecast for Los Angeles.",
+          "content_digest": "984bf68a8a35a65a",
+          "observation_type": "span"
+        },
+        {
+          "index": 5,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Provide a 3-day weather forecast for London.",
+          "content_digest": "369fb6bcf81010ee",
           "observation_type": "span"
         }
       ]
@@ -1136,19 +1413,74 @@
       ]
     },
     "trace-8/execute_event_loop_cycle/span-2": {
-      "message_count": 1,
+      "message_count": 7,
       "role_sequence": [
-        "tool"
+        "user",
+        "assistant",
+        "tool",
+        "assistant",
+        "user",
+        "user",
+        "user"
       ],
       "tool_names": [],
       "tool_definition_count": 0,
       "messages": [
         {
           "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Provide a 3-day weather forecast for New York City.",
+          "content_digest": "75e9643b50cb90f4",
+          "observation_type": "span"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call-temperature-forecast-1\",\"name\":\"temperature_forecast\",\"input\":{\"city\":\"Paris\"}}",
+          "content_digest": "16326b150aa7b510",
+          "tool_name": "temperature_forecast",
+          "observation_type": "span"
+        },
+        {
+          "index": 2,
           "role": "tool",
           "entry_type": "tool_result",
           "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call-temperature-forecast-1\",\"content\":[{\"type\":\"json\",\"data\":{\"json\":{\"city\":\"Paris\",\"days\":3,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":25,\"low\":15},{\"day\":2,\"condition\":\"Sunny\",\"high\":26,\"low\":16…[296 chars]",
           "content_digest": "d5a682779be328fd",
+          "observation_type": "span"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "The tool completed successfully.",
+          "content_digest": "66bcb0fcdca80511",
+          "observation_type": "span"
+        },
+        {
+          "index": 4,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Provide a 7-day weather forecast for Los Angeles.",
+          "content_digest": "984bf68a8a35a65a",
+          "observation_type": "span"
+        },
+        {
+          "index": 5,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Provide a 3-day weather forecast for London.",
+          "content_digest": "369fb6bcf81010ee",
+          "observation_type": "span"
+        },
+        {
+          "index": 6,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Provide a 14-day weather forecast for London.",
+          "content_digest": "7426414dbeed41d0",
           "observation_type": "span"
         }
       ]

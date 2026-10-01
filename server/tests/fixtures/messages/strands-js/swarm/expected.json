@@ -84,9 +84,10 @@
       ]
     },
     "trace-1/invoke_agent Planner/span-4": {
-      "message_count": 2,
+      "message_count": 3,
       "role_sequence": [
         "system",
+        "user",
         "assistant"
       ],
       "tool_names": [
@@ -104,6 +105,14 @@
         },
         {
           "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
+          "content_digest": "f70ad56a39c626b9",
+          "observation_type": "agent"
+        },
+        {
+          "index": 2,
           "role": "assistant",
           "entry_type": "text",
           "content": "I'll break down this project into a structured plan for building a weather app. Let me create a comprehensive project plan that identifies the key tasks and which specialists should handle them.",

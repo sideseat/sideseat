@@ -100,8 +100,9 @@
       ]
     },
     "trace-1/execute_event_loop_cycle/span-3": {
-      "message_count": 2,
+      "message_count": 3,
       "role_sequence": [
+        "user",
         "assistant",
         "tool"
       ],
@@ -110,6 +111,14 @@
       "messages": [
         {
           "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Context: User Request: Create a simple plan to build a weather app that shows forecasts for multiple cities Other agents available for collaboration: Agent name: researcher. Agent name: coder. Agent name: reviewer. You have access to swarm …[377 chars]",
+          "content_digest": "8a238ae692b532e7",
+          "observation_type": "span"
+        },
+        {
+          "index": 1,
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"call-calculator-1\",\"name\":\"calculator\",\"input\":{\"operation\":\"deterministic-operation\",\"a\":1.0,\"b\":1.0}}",
@@ -118,7 +127,7 @@
           "observation_type": "span"
         },
         {
-          "index": 1,
+          "index": 2,
           "role": "tool",
           "entry_type": "tool_result",
           "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call-calculator-1\",\"content\":[{\"type\":\"text\",\"text\":\"0.0\"}]}",
@@ -128,8 +137,10 @@
       ]
     },
     "trace-1/execute_event_loop_cycle/span-6": {
-      "message_count": 1,
+      "message_count": 3,
       "role_sequence": [
+        "user",
+        "assistant",
         "tool"
       ],
       "tool_names": [],
@@ -137,6 +148,23 @@
       "messages": [
         {
           "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Context: User Request: Create a simple plan to build a weather app that shows forecasts for multiple cities Other agents available for collaboration: Agent name: researcher. Agent name: coder. Agent name: reviewer. You have access to swarm …[377 chars]",
+          "content_digest": "8a238ae692b532e7",
+          "observation_type": "span"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call-calculator-1\",\"name\":\"calculator\",\"input\":{\"operation\":\"deterministic-operation\",\"a\":1.0,\"b\":1.0}}",
+          "content_digest": "4dabb8ecf3f9cf21",
+          "tool_name": "calculator",
+          "observation_type": "span"
+        },
+        {
+          "index": 2,
           "role": "tool",
           "entry_type": "tool_result",
           "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call-calculator-1\",\"content\":[{\"type\":\"text\",\"text\":\"0.0\"}]}",
@@ -164,8 +192,10 @@
       ]
     },
     "trace-1/invoke_agent planner/span-2": {
-      "message_count": 1,
+      "message_count": 3,
       "role_sequence": [
+        "system",
+        "user",
         "assistant"
       ],
       "tool_names": [
@@ -176,6 +206,22 @@
       "messages": [
         {
           "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a project planner. Your role is to: 1. Break down complex tasks into steps 2. Identify which specialist should handle each step 3. Hand off to the appropriate agent (researcher, coder, reviewer) 4. Coordinate the overall workflow",
+          "content_digest": "94f9aa950c09d1c4",
+          "observation_type": "agent"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Context: User Request: Create a simple plan to build a weather app that shows forecasts for multiple cities Other agents available for collaboration: Agent name: researcher. Agent name: coder. Agent name: reviewer. You have access to swarm …[377 chars]",
+          "content_digest": "8a238ae692b532e7",
+          "observation_type": "agent"
+        },
+        {
+          "index": 2,
           "role": "assistant",
           "entry_type": "text",
           "content": "The tool completed successfully.",

@@ -411,6 +411,41 @@ asyncio.run(main())
 No extra is needed: browser-use exports OpenTelemetry through the global provider. Every
 span it emits sets `gen_ai.provider.name = "browser_use"`, which is how SideSeat detects it.
 
+## OpenInference
+
+OpenInference is a semantic convention and instrumentation toolkit rather than a framework that
+SideSeat auto-patches. Install its base instrumentation package and wrap SideSeat's tracer with the
+official `OITracer`:
+
+```bash
+pip install sideseat openinference-instrumentation
+```
+
+```python
+from openinference.instrumentation import OITracer, TraceConfig
+from sideseat import SideSeat
+
+sideseat = SideSeat(
+    auto_instrument=False,
+    service_name="my-openinference-app",
+)
+tracer = OITracer(
+    sideseat.tracer_provider.get_tracer("openinference.instrumentation.generic"),
+    TraceConfig(),
+)
+```
+
+Use OpenInference's `get_llm_attributes`, `get_tool_attributes`, `get_retriever_attributes`,
+and `get_reranker_attributes` helpers when creating spans. Keep the
+`openinference.instrumentation.generic` scope name so generic TOOL spans are not confused with
+framework instrumentors that own their own result carriers. There is no `Frameworks.OpenInference`:
+the emitted `openinference.*` attributes identify the dialect directly.
+
+The tracked native/SideSeat pair uses OpenInference instrumentation 0.1.67 and semantic
+conventions 0.1.40 on OpenTelemetry Python 1.45.0. It verifies retained multi-turn context,
+tool definitions, a complete tool roundtrip with call-id correlation, retrieval and reranking,
+three ordered traces, one shared session, and the project feed.
+
 ## Recognised without a setup guide
 
 The server classifies these, but nothing here tells you how to wire them up — each already emits

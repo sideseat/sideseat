@@ -45,6 +45,8 @@ use sideseat_ports::types::MessageSpanRow;
 /// the others) or a feed could receive session ordering.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Reconstruction {
+    /// One span's normalized payload, including replayed input context.
+    Span,
     /// `process_spans` output: chronological, forward.
     Spans,
     /// `process_feed` output: responses newest-first, forward within each.
@@ -516,12 +518,21 @@ mod tests {
     #[test]
     fn two_reconstruction_modes_do_not_share_a_slot() {
         let cache = ReconstructionCache::new();
+        let span_calls = std::cell::Cell::new(0);
         let spans_calls = std::cell::Cell::new(0);
         let feed_calls = std::cell::Cell::new(0);
         let rows = vec![row("s1", "[]")];
 
         // Distinct answers per mode, so a slot collision reads as the wrong count of blocks - which is
         // what a session receiving feed ordering looks like from the outside.
+        let span = cache.get_or_reconstruct(Reconstruction::Span, rows.clone(), |_| {
+            span_calls.set(span_calls.get() + 1);
+            let mut r = FeedResult::default();
+            r.tool_names.push("span-a".to_string());
+            r.tool_names.push("span-b".to_string());
+            r.tool_names.push("span-c".to_string());
+            r
+        });
         let spans = cache.get_or_reconstruct(Reconstruction::Spans, rows.clone(), |_| {
             spans_calls.set(spans_calls.get() + 1);
             let mut r = FeedResult::default();
@@ -536,8 +547,10 @@ mod tests {
             r
         });
 
+        assert_eq!(span.tool_names.len(), 3, "span mode gets its own answer");
         assert_eq!(spans.tool_names.len(), 1, "spans mode gets its own answer");
         assert_eq!(feed.tool_names.len(), 2, "feed mode gets its own answer");
+        assert_eq!(span_calls.get(), 1);
         assert_eq!(spans_calls.get(), 1);
         assert_eq!(feed_calls.get(), 1);
 

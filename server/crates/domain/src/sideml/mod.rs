@@ -80,7 +80,7 @@ pub use types::{
 pub use feed::{
     BlockEntry, ExtractedTools, FeedMetadata, FeedOptions, FeedResult, apply_time_window,
     deduplicate_names, deduplicate_tools, extract_tools_from_rows, process_feed,
-    process_feed_cached, process_spans, process_spans_cached,
+    process_feed_cached, process_span, process_span_cached, process_spans, process_spans_cached,
 };
 
 pub use tools::extract_tool_name;

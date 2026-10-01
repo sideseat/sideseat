@@ -20,7 +20,7 @@ use crate::routes::otel::types::{
     SessionSummaryDto, SpanDetailDto, SpanSummaryDto, TraceDetailDto, TraceSummaryDto,
 };
 use crate::types::{MAX_PAGE, MAX_PAGE_LIMIT, OrderBy, OrderDirection};
-use sideseat_domain::sideml::{FeedOptions, extract_tools_from_rows, process_spans};
+use sideseat_domain::sideml::{FeedOptions, extract_tools_from_rows, process_span, process_spans};
 use sideseat_ports::clock::Clock;
 use sideseat_ports::traits::AnalyticsRepository;
 use sideseat_ports::types::{
@@ -191,7 +191,11 @@ impl McpServer {
             let result = repo.get_messages(&params).await.map_err(mcp_err)?;
             let envelopes: Vec<SpanEnvelopeDto> =
                 result.rows.iter().map(SpanEnvelopeDto::from_row).collect();
-            let processed = process_spans(result.rows, &options);
+            let processed = if params.span_id.is_some() {
+                process_span(result.rows, &options)
+            } else {
+                process_spans(result.rows, &options)
+            };
             // Session totals come from the session aggregate because message rows omit silent billed spans
             // and do not apply the parent/child billing deduplication. A span view contains one span, where
             // neither distinction applies.

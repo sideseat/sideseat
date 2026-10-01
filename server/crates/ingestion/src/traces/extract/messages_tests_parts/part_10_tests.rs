@@ -509,6 +509,7 @@ fn declared_tool_definitions_survive_a_tool_execution_span() {
 fn openinference_tool_output_is_a_tool_result() {
     let attrs = make_attrs(&[
         ("openinference.span.kind", "TOOL"),
+        ("tool.id", "call-weather"),
         ("tool.name", "get_weather"),
         ("tool.parameters", r#"{"location":"Paris"}"#),
         ("input.value", r#"{"location":"Paris"}"#),
@@ -528,8 +529,8 @@ fn openinference_tool_output_is_a_tool_result() {
         SpanExtraction {
             name: "weather_assistant.get_weather",
             attrs: &attrs,
-            scope_name: Some("openinference.instrumentation.autogen_agentchat"),
-            scope_version: Some("0.1.18"),
+            scope_name: Some("openinference.instrumentation.custom"),
+            scope_version: Some("0.1.67"),
             is_tool_span: true,
         },
         Utc::now(),
@@ -553,6 +554,10 @@ fn openinference_tool_output_is_a_tool_result() {
     assert_eq!(
         messages[0].content["content"][0]["name"].as_str(),
         Some("get_weather")
+    );
+    assert_eq!(
+        messages[0].content["content"][0]["tool_use_id"].as_str(),
+        Some("call-weather")
     );
     assert_eq!(
         messages[0].content["content"][0]["content"].as_str(),

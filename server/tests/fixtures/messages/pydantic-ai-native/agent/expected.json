@@ -121,10 +121,11 @@
       ]
     },
     "trace-2/chat sideseat-fixture/span-5": {
-      "message_count": 4,
+      "message_count": 5,
       "role_sequence": [
         "system",
         "user",
+        "assistant",
         "user",
         "assistant"
       ],
@@ -149,6 +150,14 @@
         },
         {
           "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Water boils at 100°C at sea level.",
+          "content_digest": "bb1f388d59f64cf5",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
           "role": "user",
           "entry_type": "text",
           "content": "What is that on the same scale used in the United States?",
@@ -156,7 +165,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 3,
+          "index": 4,
           "role": "assistant",
           "entry_type": "text",
           "content": "That is 212°F on the Fahrenheit scale.",
@@ -300,10 +309,11 @@
       ]
     },
     "trace-3/chat sideseat-fixture/span-5": {
-      "message_count": 4,
+      "message_count": 5,
       "role_sequence": [
         "system",
         "user",
+        "assistant",
         "tool",
         "assistant"
       ],
@@ -328,6 +338,15 @@
         },
         {
           "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"weather-call-1\",\"name\":\"get_weather\",\"input\":{\"location\":\"Paris\"}}",
+          "content_digest": "b2e97569607003ff",
+          "tool_name": "get_weather",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
           "role": "tool",
           "entry_type": "tool_result",
           "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"weather-call-1\",\"content\":[]}",
@@ -335,7 +354,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 3,
+          "index": 4,
           "role": "assistant",
           "entry_type": "text",
           "content": "It is sunny and 22°C in Paris.",

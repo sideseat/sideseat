@@ -15,7 +15,7 @@ use crate::auth::{SessionRead, SpanRead, TraceRead};
 use crate::types::{ApiError, parse_timestamp_param};
 use sideseat_domain::sideml::{
     BlockEntry, ExtractedTools, FeedMetadata, FeedOptions, FeedResult, apply_time_window,
-    extract_tools_from_rows, process_spans_cached,
+    extract_tools_from_rows, process_span_cached, process_spans_cached,
 };
 use sideseat_ports::types::MessageQueryParams;
 
@@ -101,7 +101,7 @@ pub async fn get_span_messages(
     // Process through feed pipeline
     let envelopes: Vec<SpanEnvelopeDto> =
         result.rows.iter().map(SpanEnvelopeDto::from_row).collect();
-    let reconstructed = process_spans_cached(&state.reconstruction, result.rows, &options);
+    let reconstructed = process_span_cached(&state.reconstruction, result.rows, &options);
     let processed = feed_arc_after_window(reconstructed, from_timestamp, to_timestamp);
     stream_messages_response(processed, None, envelopes, state.clock.now())
 }

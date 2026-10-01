@@ -8,7 +8,7 @@ from openinference.instrumentation import OITracer, TraceConfig
 from sideseat import SideSeat
 
 SERVICE_NAME = "openinference-sample"
-SCOPE_NAME = "openinference.instrumentation.sideseat_sample"
+SCOPE_NAME = "openinference.instrumentation.generic"
 
 
 def setup_telemetry(use_sideseat: bool = False) -> tuple[Any, OITracer]:

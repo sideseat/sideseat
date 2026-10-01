@@ -66,6 +66,7 @@ pub(super) fn process_multi_trace_spans(
             cross_trace_prefix,
             constraints,
             more_traces_follow,
+            ReplayPolicy::Collapse,
         );
 
         // First trace always contributes. Subsequent traces contribute only if

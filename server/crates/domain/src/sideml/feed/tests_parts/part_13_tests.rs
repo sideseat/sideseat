@@ -130,6 +130,69 @@ fn an_incomplete_search_is_reported_as_incomplete() {
     );
 }
 
+/// A span view is the normalized payload of that span, not a one-span trace reconstruction.
+///
+/// The ordinary history pass removes assistant messages from generation inputs because a wider trace or
+/// session already has the authoritative output. With only the requested span in scope, that removal hid
+/// context the span actually received and contradicted the span endpoint's contract.
+#[test]
+fn a_span_view_preserves_replayed_assistant_context() {
+    let t0 = fixed_time();
+    let messages = json!([
+        {
+            "source": {"attribute": {"key": "llm.input_messages", "time": t0.to_rfc3339()}},
+            "content": {"role": "user", "content": "first question"}
+        },
+        {
+            "source": {"attribute": {"key": "llm.input_messages", "time": t0.to_rfc3339()}},
+            "content": {"role": "assistant", "content": "first answer"}
+        },
+        {
+            "source": {"attribute": {"key": "llm.input_messages", "time": t0.to_rfc3339()}},
+            "content": {"role": "user", "content": "second question"}
+        },
+        {
+            "source": {"attribute": {"key": "llm.output_messages", "time": t0.to_rfc3339()}},
+            "content": {"role": "assistant", "content": "second answer"}
+        }
+    ]);
+    let row = make_span_row_with_timestamps(
+        "trace-span-context",
+        "generation",
+        Some("root"),
+        &messages.to_string(),
+        t0,
+        Some(t0 + chrono::Duration::milliseconds(1)),
+    );
+
+    let span = process_span(vec![row.clone()], &FeedOptions::new());
+    let span_text: Vec<&str> = span
+        .messages
+        .iter()
+        .filter_map(|block| match &block.content {
+            ContentBlock::Text { text } => Some(text.as_str()),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(
+        span_text,
+        [
+            "first question",
+            "first answer",
+            "second question",
+            "second answer"
+        ]
+    );
+
+    let trace = process_spans(vec![row], &FeedOptions::new());
+    assert!(
+        !trace.messages.iter().any(
+            |block| matches!(&block.content, ContentBlock::Text { text } if text == "first answer")
+        ),
+        "trace reconstruction still collapses input history"
+    );
+}
+
 /// **Known limit**, asserted as it behaves: two spans starting at the same instant are ordered by their
 /// span ids, and an id-less tool result whose call lands on the far side of that tie stays uncorrelated.
 ///

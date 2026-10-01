@@ -51,11 +51,12 @@
       ]
     },
     "trace-1/Chat Completion with 'us.openai.gpt-5.6-luna'/span-3": {
-      "message_count": 5,
+      "message_count": 6,
       "role_sequence": [
         "system",
         "user",
         "user",
+        "assistant",
         "user",
         "assistant"
       ],
@@ -88,6 +89,14 @@
         },
         {
           "index": 3,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "A sunny park scene with a winding black asphalt footpath curving through a broad grassy lawn. A low stone retaining wall borders the raised grass on the left, while mature deciduous and evergreen trees stand throughout the park. Brick resid…[312 chars]",
+          "content_digest": "bb73eaf089642910",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
           "role": "user",
           "entry_type": "text",
           "content": "Based on what you see, what is the main subject or theme of this image?",
@@ -95,7 +104,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 4,
+          "index": 5,
           "role": "assistant",
           "entry_type": "text",
           "content": "The main theme is a peaceful landscaped park, centered on a winding paved footpath surrounded by lawns, trees, and residential buildings in the background.",

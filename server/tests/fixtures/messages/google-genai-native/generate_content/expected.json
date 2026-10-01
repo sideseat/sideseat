@@ -118,10 +118,11 @@
       ]
     },
     "trace-3/generate_content gemini-2.5-flash/span-3": {
-      "message_count": 4,
+      "message_count": 5,
       "role_sequence": [
         "system",
         "user",
+        "assistant",
         "tool",
         "assistant"
       ],
@@ -146,15 +147,24 @@
         },
         {
           "index": 2,
-          "role": "tool",
-          "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"name\":\"get_weather\",\"content\":[{\"type\":\"json\",\"data\":{\"result\":\"Sunny, 22°C in Paris\"}}]}",
-          "content_digest": "dda0c6f573ce5122",
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"weather-call-1\",\"name\":\"get_weather\",\"input\":{\"location\":\"Paris\"}}",
+          "content_digest": "b2e97569607003ff",
           "tool_name": "get_weather",
           "observation_type": "generation"
         },
         {
           "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"weather-call-1\",\"name\":\"get_weather\",\"content\":[{\"type\":\"json\",\"data\":{\"result\":\"Sunny, 22°C in Paris\"}}]}",
+          "content_digest": "19d86be613f6762e",
+          "tool_name": "get_weather",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
           "role": "assistant",
           "entry_type": "text",
           "content": "It is sunny and 22°C in Paris.",

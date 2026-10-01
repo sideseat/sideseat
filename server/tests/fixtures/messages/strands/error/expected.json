@@ -50,8 +50,9 @@
       ]
     },
     "trace-1/execute_event_loop_cycle/span-2": {
-      "message_count": 1,
+      "message_count": 2,
       "role_sequence": [
+        "user",
         "assistant"
       ],
       "tool_names": [],
@@ -59,6 +60,14 @@
       "messages": [
         {
           "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is 2 + 2?",
+          "content_digest": "63ddd3c6a93ba932",
+          "observation_type": "span"
+        },
+        {
+          "index": 1,
           "role": "assistant",
           "entry_type": "text",
           "content": "botocore.errorfactory.ValidationException: An error occurred (ValidationException) when calling the ConverseStream operation: The provided model identifier is invalid.",

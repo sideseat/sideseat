@@ -43,11 +43,22 @@
       ]
     },
     "trace-1/execute_event_loop_cycle/span-2": {
-      "message_count": 0,
-      "role_sequence": [],
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
       "tool_names": [],
       "tool_definition_count": 0,
-      "messages": []
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Solve this logic puzzle step by step: Three friends (Alice, Bob, Carol) each have a different pet (cat, dog, fish) and live in different colored houses (red, blue, green). Clues: 1. Alice doesn't live in the red house 2. The person with the…[414 chars]",
+          "content_digest": "037aab7424da917a",
+          "observation_type": "span"
+        }
+      ]
     },
     "trace-1/invoke_agent Strands Agents/span-1": {
       "message_count": 3,
@@ -133,11 +144,40 @@
       ]
     },
     "trace-2/execute_event_loop_cycle/span-2": {
-      "message_count": 0,
-      "role_sequence": [],
+      "message_count": 3,
+      "role_sequence": [
+        "user",
+        "assistant",
+        "user"
+      ],
       "tool_names": [],
       "tool_definition_count": 0,
-      "messages": []
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Solve this logic puzzle step by step: Three friends (Alice, Bob, Carol) each have a different pet (cat, dog, fish) and live in different colored houses (red, blue, green). Clues: 1. Alice doesn't live in the red house 2. The person with the…[414 chars]",
+          "content_digest": "037aab7424da917a",
+          "observation_type": "span"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "This is a deterministic local response.",
+          "content_digest": "cabe67b517eb819b",
+          "observation_type": "span"
+        },
+        {
+          "index": 2,
+          "role": "user",
+          "entry_type": "text",
+          "content": "A water tank has two pipes. Pipe A can fill the tank in 6 hours. Pipe B can empty the tank in 8 hours. If both pipes are opened when the tank is half full, how long will it take to fill the tank completely? Show your reasoning step by step.",
+          "content_digest": "cdaca6f5888cd52c",
+          "observation_type": "span"
+        }
+      ]
     },
     "trace-2/invoke_agent Strands Agents/span-1": {
       "message_count": 3,
@@ -232,11 +272,49 @@
       ]
     },
     "trace-3/execute_event_loop_cycle/span-2": {
-      "message_count": 0,
-      "role_sequence": [],
+      "message_count": 4,
+      "role_sequence": [
+        "user",
+        "assistant",
+        "user",
+        "user"
+      ],
       "tool_names": [],
       "tool_definition_count": 0,
-      "messages": []
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Solve this logic puzzle step by step: Three friends (Alice, Bob, Carol) each have a different pet (cat, dog, fish) and live in different colored houses (red, blue, green). Clues: 1. Alice doesn't live in the red house 2. The person with the…[414 chars]",
+          "content_digest": "037aab7424da917a",
+          "observation_type": "span"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "This is a deterministic local response.",
+          "content_digest": "cabe67b517eb819b",
+          "observation_type": "span"
+        },
+        {
+          "index": 2,
+          "role": "user",
+          "entry_type": "text",
+          "content": "A water tank has two pipes. Pipe A can fill the tank in 6 hours. Pipe B can empty the tank in 8 hours. If both pipes are opened when the tank is half full, how long will it take to fill the tank completely? Show your reasoning step by step.",
+          "content_digest": "cdaca6f5888cd52c",
+          "observation_type": "span"
+        },
+        {
+          "index": 3,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Analyze this Python function and explain what it computes: ```python def mystery(n): if n <= 1: return n a, b = 0, 1 for _ in range(2, n + 1): a, b = b, a + b return b ``` What mathematical sequence does this implement? Prove your answer by…[265 chars]",
+          "content_digest": "ff3a1fd7c1a725cc",
+          "observation_type": "span"
+        }
+      ]
     },
     "trace-3/invoke_agent Strands Agents/span-1": {
       "message_count": 3,

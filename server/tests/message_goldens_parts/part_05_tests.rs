@@ -765,22 +765,6 @@ fn no_declared_rule_is_dead_across_the_corpus() {
             "the dialect is captured; no fixture has an embedding span",
         ),
         (
-            "openinference.reranker_input",
-            "the dialect is captured; no fixture has a reranker span",
-        ),
-        (
-            "openinference.reranker_output",
-            "the dialect is captured; no fixture has a reranker span",
-        ),
-        (
-            "openinference.reranker_query",
-            "the dialect is captured; no fixture has a reranker span",
-        ),
-        (
-            "openinference.retrieval",
-            "the dialect is captured; no fixture has a retrieval span",
-        ),
-        (
             "openinference.tools",
             "the dialect is captured; no fixture states its tools under this key",
         ),

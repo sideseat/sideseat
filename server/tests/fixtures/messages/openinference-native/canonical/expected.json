@@ -1,0 +1,755 @@
+{
+  "label": "openinference-native/canonical",
+  "request_count": 1,
+  "span_count": 11,
+  "trace_count": 3,
+  "session_count": 1,
+  "span_views": {
+    "trace-1/openinference first answer/span-2": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "Answer scientific questions in one sentence.",
+          "content_digest": "2b8fa10a94b5626d",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is the speed of light?",
+          "content_digest": "6cd7e48e0fe698ef",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Light travels at 299,792,458 metres per second in vacuum.",
+          "content_digest": "58e227f5e2997dcf",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/openinference second answer/span-3": {
+      "message_count": 5,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "Answer scientific questions in one sentence.",
+          "content_digest": "2b8fa10a94b5626d",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is the speed of light?",
+          "content_digest": "6cd7e48e0fe698ef",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Light travels at 299,792,458 metres per second in vacuum.",
+          "content_digest": "58e227f5e2997dcf",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is the boiling point of water?",
+          "content_digest": "30d19820dbb43177",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Water boils at 100°C at standard atmospheric pressure.",
+          "content_digest": "5f43e659ca001326",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/openinference-history/span-1": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-2/get_weather/span-3": {
+      "message_count": 1,
+      "role_sequence": [
+        "tool"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "Sunny, 22°C, light breeze in Paris.",
+          "content_digest": "4a6b00946380d5fd",
+          "tool_name": "get_weather",
+          "observation_type": "tool"
+        }
+      ]
+    },
+    "trace-2/openinference tool answer/span-4": {
+      "message_count": 5,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [
+        "get_weather"
+      ],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "Use tools when they are available.",
+          "content_digest": "5854c8faeaa807cc",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is the weather in Paris?",
+          "content_digest": "c06013560ef43345",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call-weather-1\",\"name\":\"get_weather\",\"input\":{\"location\":\"Paris\"}}",
+          "content_digest": "967db1cac316ab14",
+          "tool_name": "get_weather",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "Sunny, 22°C, light breeze in Paris.",
+          "content_digest": "4c8952d5f6642a8f",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "The weather in Paris is sunny at 22°C with a light breeze.",
+          "content_digest": "3626c674f2d7f079",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-2/openinference tool request/span-2": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [
+        "get_weather"
+      ],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "Use tools when they are available.",
+          "content_digest": "5854c8faeaa807cc",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is the weather in Paris?",
+          "content_digest": "c06013560ef43345",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call-weather-1\",\"name\":\"get_weather\",\"input\":{\"location\":\"Paris\"}}",
+          "content_digest": "967db1cac316ab14",
+          "tool_name": "get_weather",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-2/openinference-tool-roundtrip/span-1": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-3/openinference grounded answer/span-4": {
+      "message_count": 2,
+      "role_sequence": [
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Which city has the Eiffel Tower?",
+          "content_digest": "99a5a4de1716164d",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "The Eiffel Tower is in Paris.",
+          "content_digest": "30d34f20e769b86e",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-3/openinference rerank/span-3": {
+      "message_count": 3,
+      "role_sequence": [
+        "user",
+        "user",
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "context",
+          "content": "{\"type\":\"context\",\"data\":[{\"content\":\"Big Ben is in London.\",\"id\":\"doc-london\",\"score\":0.61},{\"content\":\"The Eiffel Tower is in Paris.\",\"id\":\"doc-paris\",\"score\":0.98}],\"context_type\":\"chat_context\"}",
+          "content_digest": "40463ffb47d1b27c",
+          "observation_type": "span"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "context",
+          "content": "{\"type\":\"context\",\"data\":[{\"content\":\"The Eiffel Tower is in Paris.\",\"id\":\"doc-paris\",\"score\":0.98},{\"content\":\"Big Ben is in London.\",\"id\":\"doc-london\",\"score\":0.61}],\"context_type\":\"chat_context\"}",
+          "content_digest": "5a253c7454a2934e",
+          "observation_type": "span"
+        },
+        {
+          "index": 2,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Which city has the Eiffel Tower?",
+          "content_digest": "99a5a4de1716164d",
+          "observation_type": "span"
+        }
+      ]
+    },
+    "trace-3/openinference retrieve/span-2": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "context",
+          "content": "{\"type\":\"context\",\"data\":[{\"content\":\"Big Ben is in London.\",\"id\":\"doc-london\",\"score\":0.61},{\"content\":\"The Eiffel Tower is in Paris.\",\"id\":\"doc-paris\",\"score\":0.98}],\"context_type\":\"chat_context\"}",
+          "content_digest": "40463ffb47d1b27c",
+          "observation_type": "retriever"
+        }
+      ]
+    },
+    "trace-3/openinference-retrieval/span-1": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    }
+  },
+  "trace_views": {
+    "trace-1": {
+      "message_count": 5,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "Answer scientific questions in one sentence.",
+          "content_digest": "2b8fa10a94b5626d",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is the speed of light?",
+          "content_digest": "6cd7e48e0fe698ef",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Light travels at 299,792,458 metres per second in vacuum.",
+          "content_digest": "58e227f5e2997dcf",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is the boiling point of water?",
+          "content_digest": "30d19820dbb43177",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Water boils at 100°C at standard atmospheric pressure.",
+          "content_digest": "5f43e659ca001326",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-2": {
+      "message_count": 5,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [
+        "get_weather"
+      ],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "Use tools when they are available.",
+          "content_digest": "5854c8faeaa807cc",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is the weather in Paris?",
+          "content_digest": "c06013560ef43345",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call-weather-1\",\"name\":\"get_weather\",\"input\":{\"location\":\"Paris\"}}",
+          "content_digest": "967db1cac316ab14",
+          "tool_name": "get_weather",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "Sunny, 22°C, light breeze in Paris.",
+          "content_digest": "4a6b00946380d5fd",
+          "tool_name": "get_weather",
+          "observation_type": "tool"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "The weather in Paris is sunny at 22°C with a light breeze.",
+          "content_digest": "3626c674f2d7f079",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-3": {
+      "message_count": 4,
+      "role_sequence": [
+        "user",
+        "user",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "context",
+          "content": "{\"type\":\"context\",\"data\":[{\"content\":\"Big Ben is in London.\",\"id\":\"doc-london\",\"score\":0.61},{\"content\":\"The Eiffel Tower is in Paris.\",\"id\":\"doc-paris\",\"score\":0.98}],\"context_type\":\"chat_context\"}",
+          "content_digest": "40463ffb47d1b27c",
+          "observation_type": "retriever"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "context",
+          "content": "{\"type\":\"context\",\"data\":[{\"content\":\"The Eiffel Tower is in Paris.\",\"id\":\"doc-paris\",\"score\":0.98},{\"content\":\"Big Ben is in London.\",\"id\":\"doc-london\",\"score\":0.61}],\"context_type\":\"chat_context\"}",
+          "content_digest": "5a253c7454a2934e",
+          "observation_type": "span"
+        },
+        {
+          "index": 2,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Which city has the Eiffel Tower?",
+          "content_digest": "99a5a4de1716164d",
+          "observation_type": "span"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "The Eiffel Tower is in Paris.",
+          "content_digest": "30d34f20e769b86e",
+          "observation_type": "generation"
+        }
+      ]
+    }
+  },
+  "session_views": {
+    "openinference-canonical-3fa45f1f": {
+      "message_count": 14,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "user",
+        "assistant",
+        "system",
+        "user",
+        "assistant",
+        "tool",
+        "assistant",
+        "user",
+        "user",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [
+        "get_weather"
+      ],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "Answer scientific questions in one sentence.",
+          "content_digest": "2b8fa10a94b5626d",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is the speed of light?",
+          "content_digest": "6cd7e48e0fe698ef",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Light travels at 299,792,458 metres per second in vacuum.",
+          "content_digest": "58e227f5e2997dcf",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is the boiling point of water?",
+          "content_digest": "30d19820dbb43177",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Water boils at 100°C at standard atmospheric pressure.",
+          "content_digest": "5f43e659ca001326",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
+          "role": "system",
+          "entry_type": "text",
+          "content": "Use tools when they are available.",
+          "content_digest": "5854c8faeaa807cc",
+          "observation_type": "generation"
+        },
+        {
+          "index": 6,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is the weather in Paris?",
+          "content_digest": "c06013560ef43345",
+          "observation_type": "generation"
+        },
+        {
+          "index": 7,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call-weather-1\",\"name\":\"get_weather\",\"input\":{\"location\":\"Paris\"}}",
+          "content_digest": "967db1cac316ab14",
+          "tool_name": "get_weather",
+          "observation_type": "generation"
+        },
+        {
+          "index": 8,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "Sunny, 22°C, light breeze in Paris.",
+          "content_digest": "4a6b00946380d5fd",
+          "tool_name": "get_weather",
+          "observation_type": "tool"
+        },
+        {
+          "index": 9,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "The weather in Paris is sunny at 22°C with a light breeze.",
+          "content_digest": "3626c674f2d7f079",
+          "observation_type": "generation"
+        },
+        {
+          "index": 10,
+          "role": "user",
+          "entry_type": "context",
+          "content": "{\"type\":\"context\",\"data\":[{\"content\":\"Big Ben is in London.\",\"id\":\"doc-london\",\"score\":0.61},{\"content\":\"The Eiffel Tower is in Paris.\",\"id\":\"doc-paris\",\"score\":0.98}],\"context_type\":\"chat_context\"}",
+          "content_digest": "40463ffb47d1b27c",
+          "observation_type": "retriever"
+        },
+        {
+          "index": 11,
+          "role": "user",
+          "entry_type": "context",
+          "content": "{\"type\":\"context\",\"data\":[{\"content\":\"The Eiffel Tower is in Paris.\",\"id\":\"doc-paris\",\"score\":0.98},{\"content\":\"Big Ben is in London.\",\"id\":\"doc-london\",\"score\":0.61}],\"context_type\":\"chat_context\"}",
+          "content_digest": "5a253c7454a2934e",
+          "observation_type": "span"
+        },
+        {
+          "index": 12,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Which city has the Eiffel Tower?",
+          "content_digest": "99a5a4de1716164d",
+          "observation_type": "span"
+        },
+        {
+          "index": 13,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "The Eiffel Tower is in Paris.",
+          "content_digest": "30d34f20e769b86e",
+          "observation_type": "generation"
+        }
+      ]
+    }
+  },
+  "feed_view": {
+    "message_count": 14,
+    "role_sequence": [
+      "assistant",
+      "user",
+      "user",
+      "user",
+      "assistant",
+      "tool",
+      "system",
+      "user",
+      "assistant",
+      "user",
+      "assistant",
+      "system",
+      "user",
+      "assistant"
+    ],
+    "tool_names": [
+      "get_weather"
+    ],
+    "tool_definition_count": 1,
+    "messages": [
+      {
+        "index": 0,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "The Eiffel Tower is in Paris.",
+        "content_digest": "30d34f20e769b86e",
+        "observation_type": "generation"
+      },
+      {
+        "index": 1,
+        "role": "user",
+        "entry_type": "context",
+        "content": "{\"type\":\"context\",\"data\":[{\"content\":\"The Eiffel Tower is in Paris.\",\"id\":\"doc-paris\",\"score\":0.98},{\"content\":\"Big Ben is in London.\",\"id\":\"doc-london\",\"score\":0.61}],\"context_type\":\"chat_context\"}",
+        "content_digest": "5a253c7454a2934e",
+        "observation_type": "span"
+      },
+      {
+        "index": 2,
+        "role": "user",
+        "entry_type": "text",
+        "content": "Which city has the Eiffel Tower?",
+        "content_digest": "99a5a4de1716164d",
+        "observation_type": "span"
+      },
+      {
+        "index": 3,
+        "role": "user",
+        "entry_type": "context",
+        "content": "{\"type\":\"context\",\"data\":[{\"content\":\"Big Ben is in London.\",\"id\":\"doc-london\",\"score\":0.61},{\"content\":\"The Eiffel Tower is in Paris.\",\"id\":\"doc-paris\",\"score\":0.98}],\"context_type\":\"chat_context\"}",
+        "content_digest": "40463ffb47d1b27c",
+        "observation_type": "retriever"
+      },
+      {
+        "index": 4,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "The weather in Paris is sunny at 22°C with a light breeze.",
+        "content_digest": "3626c674f2d7f079",
+        "observation_type": "generation"
+      },
+      {
+        "index": 5,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "Sunny, 22°C, light breeze in Paris.",
+        "content_digest": "4a6b00946380d5fd",
+        "tool_name": "get_weather",
+        "observation_type": "tool"
+      },
+      {
+        "index": 6,
+        "role": "system",
+        "entry_type": "text",
+        "content": "Use tools when they are available.",
+        "content_digest": "5854c8faeaa807cc",
+        "observation_type": "generation"
+      },
+      {
+        "index": 7,
+        "role": "user",
+        "entry_type": "text",
+        "content": "What is the weather in Paris?",
+        "content_digest": "c06013560ef43345",
+        "observation_type": "generation"
+      },
+      {
+        "index": 8,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"call-weather-1\",\"name\":\"get_weather\",\"input\":{\"location\":\"Paris\"}}",
+        "content_digest": "967db1cac316ab14",
+        "tool_name": "get_weather",
+        "observation_type": "generation"
+      },
+      {
+        "index": 9,
+        "role": "user",
+        "entry_type": "text",
+        "content": "What is the boiling point of water?",
+        "content_digest": "30d19820dbb43177",
+        "observation_type": "generation"
+      },
+      {
+        "index": 10,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "Water boils at 100°C at standard atmospheric pressure.",
+        "content_digest": "5f43e659ca001326",
+        "observation_type": "generation"
+      },
+      {
+        "index": 11,
+        "role": "system",
+        "entry_type": "text",
+        "content": "Answer scientific questions in one sentence.",
+        "content_digest": "2b8fa10a94b5626d",
+        "observation_type": "generation"
+      },
+      {
+        "index": 12,
+        "role": "user",
+        "entry_type": "text",
+        "content": "What is the speed of light?",
+        "content_digest": "6cd7e48e0fe698ef",
+        "observation_type": "generation"
+      },
+      {
+        "index": 13,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "Light travels at 299,792,458 metres per second in vacuum.",
+        "content_digest": "58e227f5e2997dcf",
+        "observation_type": "generation"
+      }
+    ]
+  }
+}

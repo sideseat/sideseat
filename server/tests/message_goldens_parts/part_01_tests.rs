@@ -10,7 +10,7 @@ use sideseat_api::routes::otel::messages::scope_feed_to_trace;
 use sideseat_domain::pricing::PricingService;
 use sideseat_domain::sideml::feed::{
     FeedOptions, extract_tools_from_rows, legacy_and_neutral_order, presented_and_unconstrained,
-    process_feed, process_spans, shadow_resolved_order,
+    process_feed, process_span, process_spans, shadow_resolved_order,
 };
 use sideseat_ingestion::traces::extract::ExtractionMode;
 use sideseat_ports::types::{MessageSpanRow, ObservationType, ProjectId};
@@ -420,6 +420,7 @@ fn build_view(rows: Vec<MessageSpanRow>, view: View<'_>) -> (GoldenView, Vec<Inv
             scope_feed_to_trace(&processed, scoped_tools, trace_id)
         }
         View::Feed => process_feed(rows, &options),
+        View::Span => process_span(rows, &options),
         _ => process_spans(rows, &options),
     };
 
