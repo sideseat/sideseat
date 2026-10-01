@@ -211,6 +211,7 @@ describe("Frameworks", () => {
     expect(Frameworks.Strands).toBe("strands");
     expect(Frameworks.VercelAI).toBe("vercel-ai");
     expect(Frameworks.LangChain).toBe("langchain");
+    expect(Frameworks.AzureOpenAI).toBe("azure-openai");
   });
 });
 

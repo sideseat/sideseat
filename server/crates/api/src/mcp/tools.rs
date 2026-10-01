@@ -607,13 +607,11 @@ const FRAMEWORKS: &[FrameworkSetup] = &[
         display: "Azure OpenAI",
         lang: Lang::Python,
         pip_pkg: "openai",
-        // Azure OpenAI is reached through the OpenAI SDK, so it reuses the openai
-        // extra and Frameworks.OpenAI - there is no separate SDK constant for it.
-        sdk_extra: "openai",
-        sdk_variant: "OpenAI",
-        sdk_snippet: "from openai import AzureOpenAI\n\nazure = AzureOpenAI(\n    api_key=\"your-api-key\",\n    api_version=\"2024-02-01\",\n    azure_endpoint=\"https://your-resource.openai.azure.com\",\n)\nresponse = azure.chat.completions.create(\n    model=\"gpt-5-mini\",\n    messages=[{\"role\": \"user\", \"content\": \"Hello\"}],\n)\nprint(response.choices[0].message.content)",
-        no_sdk_extra_pkgs: "logfire",
-        no_sdk_extra_setup: "import logfire\nlogfire.configure(send_to_logfire=False, console=False)\nlogfire.instrument_openai()",
+        sdk_extra: "azure-openai",
+        sdk_variant: "AzureOpenAI",
+        sdk_snippet: "import os\nfrom openai import OpenAI\n\nazure = OpenAI(\n    api_key=os.environ[\"AZURE_OPENAI_API_KEY\"],\n    base_url=\"https://YOUR-RESOURCE.openai.azure.com/openai/v1/\",\n)\nresponse = azure.chat.completions.create(\n    model=\"YOUR-DEPLOYMENT\",\n    messages=[{\"role\": \"user\", \"content\": \"Hello\"}],\n)\nprint(response.choices[0].message.content)",
+        no_sdk_extra_pkgs: "openinference-instrumentation-openai",
+        no_sdk_extra_setup: "from openinference.instrumentation.openai import OpenAIInstrumentor\nOpenAIInstrumentor().instrument(tracer_provider=provider)",
     },
     FrameworkSetup {
         display: "Agno",

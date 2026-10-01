@@ -114,6 +114,7 @@ Available frameworks:
 - `Frameworks.Logfire` — generic Logfire spans
 - `Frameworks.TraceLoop` — TraceLoop/OpenLLMetry
 - `Frameworks.OpenAI`
+- `Frameworks.AzureOpenAI` — Azure OpenAI through the OpenAI SDK
 - `Frameworks.Anthropic`
 - `Frameworks.GoogleGenAI`
 - `Frameworks.VertexAI` — native Vertex AI SDK (`vertexai`)
@@ -146,9 +147,9 @@ installed, in this order:
 If none match, the framework falls back to `sideseat`.
 
 <Aside type="note">
-`openai`, `anthropic`, `google-genai` and `logfire` are **never** auto-detected — they are too common
-as transitive dependencies, so their presence says nothing about what your app actually uses. Pass
-`framework=Frameworks.OpenAI` (or the relevant constant) explicitly to instrument them.
+`openai`, `azure-openai`, `anthropic`, `google-genai` and `logfire` are **never** auto-detected —
+their packages are too common or shared by multiple providers, so their presence says nothing about
+what your app actually uses. Pass the relevant `Frameworks.*` constant explicitly.
 
 LangGraph is checked before LangChain, so a LangGraph app is identified as `langgraph` even
 though `langchain-core` is also installed. Both map to the same instrumentor.
@@ -183,10 +184,19 @@ client = SideSeat(framework=[Frameworks.Strands, Frameworks.Bedrock])
 ```
 
 Available providers:
+
 - `Frameworks.Bedrock` — Amazon Bedrock (patches botocore to capture model, tokens, and messages)
+- `Frameworks.OpenAI` — OpenAI through the OpenAI SDK
+- `Frameworks.AzureOpenAI` — Azure OpenAI through the OpenAI SDK
+- `Frameworks.Anthropic` — Anthropic through the Anthropic SDK
+- `Frameworks.GoogleGenAI` — Google Gemini through the Google Gen AI SDK
+- `Frameworks.VertexAI` — native Vertex AI SDK
 
 <Aside type="note">
-Use provider identifiers when calling provider SDKs directly. Framework instrumentation (Strands, LangGraph, etc.) captures LLM calls through their own telemetry and does not need providers. Azure OpenAI uses the same `openai` SDK, so use `Frameworks.OpenAI` for Azure OpenAI as well.
+Use provider identifiers when calling provider SDKs directly. Framework instrumentation (Strands,
+LangGraph, etc.) captures LLM calls through its own telemetry and does not need a second provider
+instrumentor. Azure OpenAI shares the `openai` package with OpenAI but has its own
+`Frameworks.AzureOpenAI` identifier and instrumentation extra.
 </Aside>
 
 ## Service Identity

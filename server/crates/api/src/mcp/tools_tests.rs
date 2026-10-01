@@ -620,6 +620,7 @@ fn test_setup_guide_carries_required_sdk_extra() {
         ("bedrock", "aws"),
         ("anthropic", "anthropic"),
         ("vertex-ai", "vertex-ai"),
+        ("azure-openai", "azure-openai"),
         ("agentscope", "agentscope"),
     ] {
         let guide = build_setup_guide_template("http://localhost:5388/otel/default", Some(name));
@@ -636,6 +637,16 @@ fn test_setup_guide_carries_required_sdk_extra() {
             "{name} should install plain sideseat, got:\n{guide}"
         );
     }
+}
+
+#[test]
+fn test_setup_guide_uses_current_azure_openai_v1_instrumentation() {
+    let guide = build_setup_guide("demo", Some("azure-openai"));
+    assert!(guide.contains("Frameworks.AzureOpenAI"));
+    assert!(guide.contains("openai.azure.com/openai/v1/"));
+    assert!(guide.contains("OpenAIInstrumentor().instrument(tracer_provider=provider)"));
+    assert!(!guide.contains("from openai import AzureOpenAI"));
+    assert!(!guide.contains("Frameworks.OpenAI"));
 }
 
 #[test]

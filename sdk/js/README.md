@@ -472,6 +472,7 @@ Frameworks.BrowserUse; // "browser-use"
 Frameworks.Bedrock; // "bedrock"
 Frameworks.Anthropic; // "anthropic"
 Frameworks.OpenAI; // "openai"
+Frameworks.AzureOpenAI; // "azure-openai"
 Frameworks.GoogleGenAI; // "google-genai"
 Frameworks.VertexAI; // "vertex-ai"
 ```

@@ -35,6 +35,7 @@ export const Frameworks = {
   Bedrock: "bedrock",
   Anthropic: "anthropic",
   OpenAI: "openai",
+  AzureOpenAI: "azure-openai",
   GoogleGenAI: "google-genai",
   VertexAI: "vertex-ai",
 } as const;
