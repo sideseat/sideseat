@@ -193,3 +193,44 @@ fn every_registered_signal_uses_the_shared_lifecycle_on_both_transports() {
         );
     }
 }
+
+#[test]
+fn public_vertex_ai_examples_use_the_current_google_genai_client() {
+    let repo = repo_root();
+    let examples = [
+        "docs/src/components/marketing/CodeExample.astro",
+        "docs/src/content/docs/docs/index.mdx",
+        "docs/src/content/docs/docs/integrations/providers/google-gemini.mdx",
+        "docs/src/content/docs/docs/integrations/providers/vertex-ai.mdx",
+        "docs/src/content/docs/docs/sdks/python/configuration.mdx",
+        "examples/python/vertex-ai/runner.py",
+        "sdk/python/README.md",
+        "server/crates/api/src/mcp/tools.rs",
+        "web/src/pages/configuration/telemetry-frameworks.ts",
+    ];
+    let retired = [
+        "from vertexai",
+        "import vertexai",
+        "vertexai.generative_models",
+        "VertexAIInstrumentor",
+        "google-cloud-aiplatform",
+        "opentelemetry-instrumentation-vertexai",
+        "genai.Client(vertexai=True",
+        "\"vertexai\": True",
+    ];
+
+    for relative in examples {
+        let source = std::fs::read_to_string(repo.join(relative))
+            .unwrap_or_else(|error| panic!("{relative} is readable: {error}"));
+        assert!(
+            source.contains("enterprise=True") || source.contains("\"enterprise\": True"),
+            "{relative} does not select the current Google Gen AI Enterprise client"
+        );
+        for obsolete in retired {
+            assert!(
+                !source.contains(obsolete),
+                "{relative} publishes retired Vertex AI setup `{obsolete}`"
+            );
+        }
+    }
+}

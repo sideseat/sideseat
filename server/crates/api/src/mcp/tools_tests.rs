@@ -645,7 +645,8 @@ fn test_setup_guide_uses_current_vertex_ai_google_genai_client() {
 
     assert!(guide.contains("pip install \"sideseat[vertex-ai]\" google-genai"));
     assert!(guide.contains("Frameworks.VertexAI"));
-    assert!(guide.contains("genai.Client(vertexai=True"));
+    assert!(guide.contains("genai.Client(enterprise=True"));
+    assert!(!guide.contains("genai.Client(vertexai=True"));
     assert!(guide.contains("logfire.instrument_google_genai()"));
     assert!(!guide.contains("vertexai.generative_models"));
     assert!(!guide.contains("VertexAIInstrumentor"));

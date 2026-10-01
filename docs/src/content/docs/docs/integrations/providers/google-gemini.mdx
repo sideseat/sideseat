@@ -8,7 +8,9 @@ import { Aside } from '@astrojs/starlight/components';
 SideSeat instruments the Google Gen AI SDK to capture model information, token usage, messages, and costs from the Gemini API.
 
 <Aside type="note">
-The [Google Gen AI SDK](https://github.com/googleapis/python-genai) is the unified SDK for both the Gemini Developer API and the Vertex AI Gemini API. It replaces the older `vertexai` and `google-generativeai` packages. Switch between APIs by toggling the `vertexai` flag on the client.
+The [Google Gen AI SDK](https://github.com/googleapis/python-genai) is the unified SDK for both the
+Gemini Developer API and Google Cloud. Use an API key for the Developer API, or initialize the
+client with `enterprise=True`, a project, and a location for the API previously called Vertex AI.
 </Aside>
 
 ## Prerequisites
@@ -140,16 +142,17 @@ Each trace starts a fresh conversation with its own message history. The SideSea
 
 ## Vertex AI
 
-To use the Vertex AI Gemini API, set `vertexai=True` on the client:
+To use Gemini through Google Cloud, select the explicit Vertex provider and initialize the client
+with `enterprise=True`:
 
 ```python
 from sideseat import SideSeat, Frameworks
 from google import genai
 
-SideSeat(framework=Frameworks.GoogleGenAI)
+SideSeat(framework=Frameworks.VertexAI)
 
 client = genai.Client(
-    vertexai=True,
+    enterprise=True,
     project="your-project",
     location="us-central1",
 )
@@ -163,7 +166,9 @@ print(response.text)
 ```
 
 <Aside type="tip">
-The only difference between the Developer API and Vertex AI is the client initialization. All other code (generate_content, streaming, tool use) is identical.
+The Developer API and Google Cloud modes share the same package and instrumentor, so package
+auto-detection cannot distinguish them. Pass `Frameworks.VertexAI` explicitly for Google Cloud.
+The generate-content, streaming, chat, and tool APIs remain the same.
 </Aside>
 
 ## Streaming

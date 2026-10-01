@@ -118,19 +118,16 @@ pip install "sideseat[anthropic]"       # + Anthropic
 pip install "sideseat[aws]" boto3      # + Amazon Bedrock (the extra adds wrapt; boto3 is yours)
 pip install "sideseat[azure-openai]"    # + Azure OpenAI
 pip install "sideseat[google-genai]"    # + Google Gemini
-pip install "sideseat[vertex-ai]"       # + Google Vertex AI (native SDK)
+pip install "sideseat[vertex-ai]"       # + Google Gen AI SDK in Enterprise/Vertex mode
 
-pip install "sideseat[all]"             # All mutually compatible integrations
+pip install "sideseat[all]"             # All integration extras
 ```
 
 Strands Agents, Google ADK, Microsoft Agent Framework, and Semantic Kernel require only the core SDK.
-Vertex AI is separate because its current SDK requires protobuf 6+, while the current AutoGen
-instrumentor requires protobuf 5.29.x. Install `sideseat[vertex-ai]` in a Vertex-specific
-environment; do not combine it with `sideseat[all]`.
 
 ## Framework Examples
 
-SideSeat auto-detects the first installed framework in this order: Strands, LangGraph, LangChain, CrewAI, AutoGen, OpenAI Agents, Google ADK, PydanticAI, Microsoft Agent Framework, Semantic Kernel, Claude Agent SDK, Agno, Smolagents, LlamaIndex, AgentScope, Langflow, AG2, Haystack, browser-use, TraceLoop, Vertex AI. `openai`, `azure-openai`, `anthropic`, `google-genai`, and generic `logfire` are never auto-detected — they are too common as transitive dependencies — so pass those explicitly. When several frameworks are installed, name the one you drive with the `framework` parameter.
+SideSeat auto-detects the first installed framework in this order: Strands, LangGraph, LangChain, CrewAI, AutoGen, OpenAI Agents, Google ADK, PydanticAI, Microsoft Agent Framework, Semantic Kernel, Claude Agent SDK, Agno, Smolagents, LlamaIndex, AgentScope, Langflow, AG2, Haystack, browser-use, TraceLoop. `openai`, `azure-openai`, `anthropic`, `google-genai`, `vertex-ai`, and generic `logfire` are never auto-detected — they are too common as transitive dependencies or share a package with another provider — so pass those explicitly. When several frameworks are installed, name the one you drive with the `framework` parameter.
 
 ### Strands Agents
 
@@ -630,7 +627,7 @@ Frameworks.OpenAI  # OpenAI (instruments openai SDK)
 Frameworks.AzureOpenAI  # Azure OpenAI (instruments openai SDK)
 Frameworks.Anthropic  # Anthropic (instruments anthropic SDK)
 Frameworks.GoogleGenAI  # Google Gemini (instruments google-genai SDK)
-Frameworks.VertexAI  # Google Vertex AI (instruments vertexai SDK)
+Frameworks.VertexAI  # Google Gen AI SDK with enterprise=True
 ```
 
 ### Module Functions

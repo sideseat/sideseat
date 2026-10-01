@@ -145,6 +145,21 @@ describe("telemetry page Python snippets - undefined names", () => {
   );
 });
 
+describe("Vertex AI onboarding contract", () => {
+  const vertex = FRAMEWORKS.find((framework) => framework.id === "vertex-ai");
+
+  it("uses the current Google Gen AI Enterprise client in both setup paths", () => {
+    expect(vertex).toBeDefined();
+    expect(vertex?.install).toBe('pip install "sideseat[vertex-ai]"');
+    expect(vertex?.code()).toContain("from google import genai");
+    expect(vertex?.code()).toContain("enterprise=True");
+    expect(vertex?.code()).not.toContain("import vertexai");
+    expect(vertex?.altInstall).toContain("logfire[google-genai]");
+    expect(vertex?.altCode?.()).toContain("logfire.instrument_google_genai()");
+    expect(vertex?.altCode?.()).not.toContain("VertexAIInstrumentor");
+  });
+});
+
 describe("telemetry page JavaScript snippets", () => {
   const jsFrameworks = FRAMEWORKS.filter((f) => f.lang === "javascript");
 

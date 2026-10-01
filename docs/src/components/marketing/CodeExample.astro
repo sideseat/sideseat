@@ -131,15 +131,20 @@ print(message.content[0].text)</code></pre>
           <span class="terminal-title">your_app.py</span>
         </div>
         <div class="terminal-body">
-          <pre><code>import vertexai
-from vertexai.generative_models import GenerativeModel
-<span class="text-accent">from sideseat import SideSeat, Frameworks</span>
+          <pre><code>from google import genai
+<span class="text-accent">from sideseat import Frameworks, SideSeat</span>
 
 <span class="text-accent">SideSeat(framework=Frameworks.VertexAI)</span>   <span class="text-muted"># add this</span>
 
-vertexai.init(project="your-project", location="us-central1")
-model = GenerativeModel("gemini-2.5-flash")
-response = model.generate_content("Analyze this dataset...")
+client = genai.Client(
+    enterprise=True,
+    project="your-project",
+    location="us-central1",
+)
+response = client.models.generate_content(
+    model="gemini-2.5-flash",
+    contents="Analyze this dataset...",
+)
 
 print(response.text)</code></pre>
         </div>

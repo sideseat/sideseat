@@ -325,17 +325,23 @@ print(response.text)`,
        label: "Google Vertex AI",
        group: "Providers",
        lang: "python",
-       install: 'pip install "sideseat[vertex-ai]" google-cloud-aiplatform vertexai',
-       installUv: 'uv add "sideseat[vertex-ai]" google-cloud-aiplatform vertexai',
-       code: `from sideseat import SideSeat, Frameworks
-import vertexai
-from vertexai.generative_models import GenerativeModel
+       install: 'pip install "sideseat[vertex-ai]"',
+       installUv: 'uv add "sideseat[vertex-ai]"',
+       code: `from google import genai
+from sideseat import SideSeat, Frameworks
 
 SideSeat(framework=Frameworks.VertexAI)
 
-vertexai.init(project="YOUR_PROJECT_ID", location="us-central1")
-model = GenerativeModel("gemini-2.5-flash")
-print(model.generate_content("What is 2+2?").text)`,
+client = genai.Client(
+    enterprise=True,
+    project="YOUR_PROJECT_ID",
+    location="us-central1",
+)
+response = client.models.generate_content(
+    model="gemini-2.5-flash",
+    contents="What is 2+2?",
+)
+print(response.text)`,
      },
 ]} />
 

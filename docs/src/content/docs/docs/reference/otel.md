@@ -216,8 +216,8 @@ exporter = OTLPSpanExporter(endpoint="localhost:4317", insecure=True)
 
 SideSeat automatically detects and normalizes spans from popular AI frameworks:
 
-Detection uses the span name, span attributes, and resource attributes (notably
-`service.name`). The instrumentation scope name is not consulted.
+Detection uses span names, span attributes, resource attributes (notably `service.name`), and
+exact instrumentation scope names where two producers otherwise emit the same shape.
 
 | Framework | Detection Method | Extracted Fields |
 |-----------|------------------|------------------|
@@ -231,7 +231,7 @@ Detection uses the span name, span attributes, and resource attributes (notably
 | OpenAI Agents | `openai.agents.*`, `service.name` | Agent name, model |
 | Claude Agent SDK | `claude_code.*` span names, `service.name` | Model, tokens, messages |
 | Microsoft Agent Framework | GenAI semantic conventions | Model, tokens, tool calls |
-| Google Vertex AI | `vertexai.*` span names | Model, tokens, tool calls |
+| Google Vertex AI | `opentelemetry.instrumentation.google_genai` scope plus `gen_ai.provider.name=vertex_ai` | Messages, tools, model, tokens |
 | OpenInference | Attribute prefix | Session ID, user ID |
 | Generic GenAI | `gen_ai.*` attributes | Model, tokens, system |
 

@@ -1,99 +1,231 @@
 ---
 title: Google Vertex AI
-description: Instrument the Vertex AI SDK with SideSeat for full observability of Gemini calls on Google Cloud.
+description: Instrument Google Gen AI SDK calls to Vertex AI with SideSeat.
 ---
 
-import { Aside, Tabs, TabItem } from '@astrojs/starlight/components';
+import { Aside } from '@astrojs/starlight/components';
 
-SideSeat instruments the native Vertex AI SDK (`vertexai` / `google-cloud-aiplatform`) to capture model information, token usage, messages, and costs from Gemini models on Google Cloud.
+SideSeat instruments the current `google-genai` client in its Google Cloud mode. It captures
+model information, token usage, complete message history, streaming responses, tool calls, and
+costs from Gemini models served through Vertex AI.
 
-<Aside type="note">
-This page covers the native `vertexai` Python SDK (`google-cloud-aiplatform`). If you use the Google Gen AI SDK (`google-genai`) with `vertexai=True`, see [Google Gemini](/docs/integrations/providers/google-gemini/#vertex-ai) instead.
+<Aside type="caution">
+Google Gen AI SDK 2.26 uses `enterprise=True` for the API previously selected with the legacy
+Vertex flag. The older Vertex AI Python client is not the current integration path. SideSeat still
+reads its historical telemetry when it was already stored, but new applications should use the
+setup below.
 </Aside>
 
 ## Prerequisites
 
 - SideSeat running locally (`sideseat`)
-- Python SDK installed with the Vertex AI extra (`pip install "sideseat[vertex-ai]" vertexai`)
-- Google Cloud project with Vertex AI API enabled
-- Google Cloud credentials configured
+- A Google Cloud project with the Vertex AI API enabled
+- [Application Default Credentials](https://cloud.google.com/docs/authentication/provide-credentials-adc)
+- The SideSeat Vertex extra:
 
-## Quick Start
+```bash
+pip install "sideseat[vertex-ai]"
+```
+
+The extra installs the Google Gen AI client and Logfire's Google Gen AI OpenTelemetry
+instrumentor. Installing plain `sideseat` does not install either optional dependency.
+
+## Quick start
 
 ```python
-import vertexai
-from vertexai.generative_models import GenerativeModel
-from sideseat import SideSeat, Frameworks
+from google import genai
+from sideseat import Frameworks, SideSeat
 
 SideSeat(framework=Frameworks.VertexAI)
 
-vertexai.init(project="your-project", location="us-central1")
-model = GenerativeModel("gemini-2.5-flash")
-response = model.generate_content("What is the speed of light?")
+client = genai.Client(
+    enterprise=True,
+    project="your-project",
+    location="us-central1",
+)
+response = client.models.generate_content(
+    model="gemini-2.5-flash",
+    contents="What is the speed of light?",
+)
 print(response.text)
 ```
 
-## Streaming
+The same client can be configured through environment variables:
 
-Streaming responses are fully captured, including token counts aggregated from stream chunks:
-
-```python
-import vertexai
-from vertexai.generative_models import GenerativeModel
-from sideseat import SideSeat, Frameworks
-
-SideSeat(framework=Frameworks.VertexAI)
-
-vertexai.init(project="your-project", location="us-central1")
-model = GenerativeModel("gemini-2.5-flash")
-
-for chunk in model.generate_content("Explain quantum computing.", stream=True):
-    print(chunk.text, end="", flush=True)
+```bash
+export GOOGLE_GENAI_USE_ENTERPRISE=true
+export GOOGLE_CLOUD_PROJECT=your-project
+export GOOGLE_CLOUD_LOCATION=us-central1
 ```
 
-## Tool Use
+```python
+from google import genai
 
-Tool definitions and function call results are captured:
+client = genai.Client()
+```
+
+## Streaming and retained history
+
+The chat API re-sends retained history on later requests. SideSeat reconstructs the conversation
+once, in causal order, without duplicating earlier turns:
 
 ```python
-import vertexai
-from vertexai.generative_models import FunctionDeclaration, GenerativeModel, Tool
-from sideseat import SideSeat, Frameworks
+from google.genai import types
 
-SideSeat(framework=Frameworks.VertexAI)
-
-vertexai.init(project="your-project", location="us-central1")
-
-get_weather = FunctionDeclaration(
-    name="get_weather",
-    description="Get the current weather for a location.",
-    parameters={
-        "type": "object",
-        "properties": {
-            "location": {"type": "string", "description": "City name"}
-        },
-        "required": ["location"],
-    },
+chat = client.chats.create(
+    model="gemini-2.5-flash",
+    config=types.GenerateContentConfig(
+        system_instruction="Answer scientific questions in one sentence.",
+    ),
 )
 
-tool = Tool(function_declarations=[get_weather])
-model = GenerativeModel("gemini-2.5-flash", tools=[tool])
-response = model.generate_content("What's the weather in London?")
+first = chat.send_message("What is the speed of light?")
+print(first.text)
+
+for chunk in chat.send_message_stream("What is the boiling point of water?"):
+    print(chunk.text or "", end="", flush=True)
 ```
+
+The resulting role sequence is:
+
+```text
+system → user → assistant → user → assistant
+```
+
+## Tool use
+
+Python functions can be passed directly to the Google SDK. Its automatic function-calling loop
+executes the function and asks the model for the final answer:
+
+```python
+from google.genai import types
+
+
+def get_weather(location: str) -> str:
+    """Get the current weather for a location."""
+    return f"Sunny and 22°C in {location}."
+
+
+chat = client.chats.create(
+    model="gemini-2.5-flash",
+    config=types.GenerateContentConfig(tools=[get_weather]),
+)
+response = chat.send_message("What's the weather in London?")
+print(response.text)
+```
+
+SideSeat keeps the tool definition, call ID, arguments, result, and final answer in this order:
+
+```text
+user → assistant tool_use → tool tool_result → assistant
+```
+
+## Traces and sessions
+
+Use explicit SideSeat traces when several model calls belong to one application operation. Reuse
+the same session ID to group independent traces into one user session:
+
+```python
+from google import genai
+from sideseat import Frameworks, SideSeat
+
+sideseat = SideSeat(framework=Frameworks.VertexAI)
+vertex = genai.Client(
+    enterprise=True,
+    project="your-project",
+    location="us-central1",
+)
+
+session_id = "session-123"
+user_id = "user-456"
+
+with sideseat.trace("scientific-history", session_id=session_id, user_id=user_id):
+    vertex.models.generate_content(
+        model="gemini-2.5-flash",
+        contents="What is the speed of light?",
+    )
+
+with sideseat.trace("weather-question", session_id=session_id, user_id=user_id):
+    vertex.models.generate_content(
+        model="gemini-2.5-flash",
+        contents="What is the weather in London?",
+    )
+```
+
+## Without the SideSeat SDK
+
+Install and configure the same instrumentor directly:
+
+```bash
+pip install google-genai "logfire[google-genai]>=4.29.0" opentelemetry-exporter-otlp
+```
+
+```bash
+export OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:5388/otel/default
+export OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf
+export OTEL_SERVICE_NAME=my-vertex-app
+export OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT=true
+```
+
+```python
+import logfire
+
+logfire.configure(send_to_logfire=False, console=False)
+logfire.instrument_google_genai()
+```
+
+Create `genai.Client(enterprise=True, ...)` after instrumentation is installed.
+
+## Detection
+
+The Developer API and Vertex AI use the same `google-genai` package and instrumentation scope, so
+package presence cannot identify which provider an application uses. Pass
+`Frameworks.VertexAI` explicitly when using the SideSeat SDK.
+
+Native telemetry is identified by the exact
+`opentelemetry.instrumentation.google_genai` scope together with
+`gen_ai.provider.name=vertex_ai`. The provider attribute is required because the scope is shared
+with the Gemini Developer API.
 
 ## Authentication
 
-```bash
-# Application Default Credentials (recommended for local dev)
-gcloud auth application-default login
+For local development:
 
-# Service account key
-export GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account.json
+```bash
+gcloud auth application-default login
 ```
 
-The Vertex AI SDK uses Application Default Credentials (ADC) automatically. Run `gcloud auth application-default login` for local development, or configure a service account key for CI/production.
+In production, use the workload's attached service account or another supported Application
+Default Credentials source. A downloaded service-account key can be selected with
+`GOOGLE_APPLICATION_CREDENTIALS`, but workload identity is preferable when the platform supports
+it.
 
-## Next Steps
+## Verified contract
 
-- [Google Gemini](/docs/integrations/providers/google-gemini/) — use the unified Google Gen AI SDK with Vertex AI or Developer API
-- [Python SDK](/docs/sdks/python/) — SDK configuration and API reference
+The checked-in native and SideSeat fixtures use Google Gen AI 2.26.0, Logfire 6.0.0b7, Google Gen
+AI OpenTelemetry instrumentor 1.2b0, OpenTelemetry Python 1.44.0, and CPython 3.12.8. They verify:
+
+- non-streaming and streaming responses;
+- retained multi-turn history without duplicates;
+- a complete automatic tool-call, result, and final-answer roundtrip;
+- two traces grouped into one session;
+- identical span, trace, session, and project-feed answers with and without the SDK;
+- six spans, two traces, one session, and zero unresolved review warnings.
+
+Reproduce the credential-free fixture:
+
+```bash
+scripts/message-fixtures/fake-google-genai.py --port 5404
+# In another shell:
+VERTEX_AI_BASE_URL=http://127.0.0.1:5404 \
+  scripts/message-fixtures/capture.sh vertex-ai canonical both
+```
+
+The sample runs the real Google Gen AI client and instrumentor against a deterministic local
+Vertex-compatible endpoint.
+
+## Next steps
+
+- [Google Gemini Developer API](/docs/integrations/providers/google-gemini/)
+- [Python SDK configuration](/docs/sdks/python/configuration/)
+- [Production readiness](/docs/reference/production-readiness/)

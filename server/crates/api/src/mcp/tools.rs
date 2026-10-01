@@ -599,7 +599,7 @@ const FRAMEWORKS: &[FrameworkSetup] = &[
         pip_pkg: "google-genai",
         sdk_extra: "vertex-ai",
         sdk_variant: "VertexAI",
-        sdk_snippet: "from google import genai\nclient = genai.Client(vertexai=True, project=\"PROJECT_ID\", location=\"us-central1\")\nprint(client.models.generate_content(model=\"gemini-2.5-flash\", contents=\"Hello\").text)",
+        sdk_snippet: "from google import genai\nclient = genai.Client(enterprise=True, project=\"PROJECT_ID\", location=\"us-central1\")\nprint(client.models.generate_content(model=\"gemini-2.5-flash\", contents=\"Hello\").text)",
         no_sdk_extra_pkgs: "logfire[google-genai]",
         no_sdk_extra_setup: "import logfire\nlogfire.configure(send_to_logfire=False, console=False)\nlogfire.instrument_google_genai()",
     },

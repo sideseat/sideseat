@@ -189,22 +189,28 @@ logfire.instrument_google_genai()`,
     group: "Providers",
     lang: "python",
     docUrl: "https://sideseat.ai/docs/integrations/providers/vertex-ai/",
-    install: 'pip install "sideseat[vertex-ai]" vertexai',
-    code: () => `import vertexai
-from vertexai.generative_models import GenerativeModel
+    install: 'pip install "sideseat[vertex-ai]"',
+    code: () => `from google import genai
 from sideseat import SideSeat, Frameworks
 
 SideSeat(framework=Frameworks.VertexAI)
 
-vertexai.init(project="your-project", location="us-central1")
-model = GenerativeModel("gemini-2.5-flash")
-response = model.generate_content("What is 2+2?")
+client = genai.Client(
+    enterprise=True,
+    project="your-project",
+    location="us-central1",
+)
+response = client.models.generate_content(
+    model="gemini-2.5-flash",
+    contents="What is 2+2?",
+)
 print(response.text)`,
     altInstall:
-      "pip install google-cloud-aiplatform opentelemetry-instrumentation-vertexai opentelemetry-exporter-otlp",
-    altCode: () => `from opentelemetry.instrumentation.vertexai import VertexAIInstrumentor
+      'pip install google-genai "logfire[google-genai]>=4.29.0" opentelemetry-exporter-otlp',
+    altCode: () => `import logfire
 
-VertexAIInstrumentor().instrument(tracer_provider=provider)`,
+logfire.configure(send_to_logfire=False, console=False)
+logfire.instrument_google_genai()`,
     run: "python app.py",
   },
   // — Frameworks —

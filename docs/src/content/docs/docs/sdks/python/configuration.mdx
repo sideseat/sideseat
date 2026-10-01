@@ -117,7 +117,7 @@ Available frameworks:
 - `Frameworks.AzureOpenAI` — Azure OpenAI through the OpenAI SDK
 - `Frameworks.Anthropic`
 - `Frameworks.GoogleGenAI`
-- `Frameworks.VertexAI` — Google Gen AI SDK in Vertex AI mode
+- `Frameworks.VertexAI` — Google Gen AI SDK in Enterprise/Vertex mode
 
 If not specified, the SDK auto-detects by looking for the first of these packages that is
 installed, in this order:
@@ -190,7 +190,7 @@ Available providers:
 - `Frameworks.AzureOpenAI` — Azure OpenAI through the OpenAI SDK
 - `Frameworks.Anthropic` — Anthropic through the Anthropic SDK
 - `Frameworks.GoogleGenAI` — Google Gemini through the Google Gen AI SDK
-- `Frameworks.VertexAI` — Google Gen AI SDK configured with `vertexai=True`
+- `Frameworks.VertexAI` — Google Gen AI SDK configured with `enterprise=True`
 
 <Aside type="note">
 Use provider identifiers when calling provider SDKs directly. Framework instrumentation (Strands,
