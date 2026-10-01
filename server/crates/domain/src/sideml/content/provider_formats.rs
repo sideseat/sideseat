@@ -63,12 +63,21 @@ pub(super) fn try_openai_format(block: &JsonValue) -> Option<JsonValue> {
                 match serde_json::from_str::<JsonValue>(s) {
                     // Object or array → render as json block
                     Ok(v @ (JsonValue::Object(_) | JsonValue::Array(_))) => {
-                        json!([{"type": "json", "data": v}])
+                        try_normalize_python_constructor_content(&v)
+                            .unwrap_or_else(|| json!([{"type": "json", "data": v}]))
                     }
                     // JSON-encoded string (e.g. json.dumps("text result")) → unwrap to text
-                    Ok(JsonValue::String(text)) => json!([{"type": "text", "text": text}]),
+                    Ok(JsonValue::String(text)) => {
+                        let value = JsonValue::String(text.clone());
+                        try_normalize_python_constructor_content(&value)
+                            .unwrap_or_else(|| json!([{"type": "text", "text": text}]))
+                    }
                     // Non-parseable or scalar → plain text
-                    _ => json!([{"type": "text", "text": s}]),
+                    _ => {
+                        let value = JsonValue::String(s.to_string());
+                        try_normalize_python_constructor_content(&value)
+                            .unwrap_or_else(|| json!([{"type": "text", "text": s}]))
+                    }
                 }
             } else if let Some(v) = response {
                 json!([{"type": "json", "data": v}])

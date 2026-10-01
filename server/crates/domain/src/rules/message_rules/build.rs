@@ -263,7 +263,7 @@ pub(super) fn attached_value(
                 },
                 None => found.clone(),
             };
-            return Some(value);
+            return Some(attach.value.clone().unwrap_or(value));
         }
         // Nothing in the value: fall through to the payload path below, which is how "the element's own, else
         // its parent's" is one member rather than two that overwrite each other.
@@ -285,7 +285,7 @@ pub(super) fn attached_value(
                 (true, Some(text)) => json!(text.to_lowercase()),
                 _ => found.clone(),
             };
-            return Some(value);
+            return Some(attach.value.clone().unwrap_or(value));
         }
     }
     if let Some(raw) = attach

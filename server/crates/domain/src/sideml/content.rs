@@ -17,7 +17,8 @@ use provider_formats::try_vercel_format;
 use provider_formats::{
     try_anthropic_format, try_bedrock_format, try_gemini_format, try_openai_format,
 };
-use python_repr::try_parse_python_repr;
+pub(crate) use python_repr::try_parse_python_constructor_repr;
+use python_repr::{try_normalize_python_constructor_content, try_parse_python_repr};
 pub use tool_result::convert_to_tool_result;
 
 /// FNV-1a hash constants (32-bit).
@@ -260,11 +261,42 @@ fn normalize_block(block: &JsonValue, consult_envelopes: bool) -> Option<JsonVal
 fn try_sideml_passthrough(block: &JsonValue) -> Option<JsonValue> {
     let block_type = block.get("type")?.as_str()?;
 
+    // Rebuild text blocks rather than cloning them. A typed SideML text block has exactly its text; producer
+    // metadata beside it is not part of the block and otherwise survives when the block is nested inside a
+    // tool result, where no typed deserialisation strips unknown members.
+    if block_type == "text" {
+        let text = block.get("text")?.as_str()?;
+        return Some(json!({"type": "text", "text": text}));
+    }
+    if block_type == "tool_result"
+        && (block.get("tool_use_id").is_some() || block.get("content").is_some())
+    {
+        let mut result = serde_json::Map::new();
+        result.insert("type".to_string(), json!("tool_result"));
+        if let Some(id) = block.get("tool_use_id") {
+            result.insert("tool_use_id".to_string(), id.clone());
+        }
+        if let Some(name) = block.get("name").and_then(JsonValue::as_str) {
+            result.insert("name".to_string(), json!(name));
+        }
+        result.insert(
+            "content".to_string(),
+            normalize_tool_result_content(block.get("content").cloned()),
+        );
+        result.insert(
+            "is_error".to_string(),
+            json!(
+                block
+                    .get("is_error")
+                    .and_then(JsonValue::as_bool)
+                    .unwrap_or(false)
+            ),
+        );
+        return Some(JsonValue::Object(result));
+    }
+
     // Check structure based on type
     let is_valid_sideml = match block_type {
-        // Text: must have "text" string field (not just type)
-        "text" => block.get("text").is_some_and(|t| t.is_string()),
-
         // Image/audio/document/video/file: must have "source" and "data" fields
         "image" | "audio" | "document" | "video" | "file" => {
             block.get("source").is_some() && block.get("data").is_some()
@@ -278,9 +310,6 @@ fn try_sideml_passthrough(block: &JsonValue) -> Option<JsonValue> {
 
         // Tool use: must have "name" field
         "tool_use" => block.get("name").is_some(),
-
-        // Tool result: must have "tool_use_id" or "content" field
-        "tool_result" => block.get("tool_use_id").is_some() || block.get("content").is_some(),
 
         // JSON: must have "data" field (not "value" like Vercel)
         "json" => block.get("data").is_some(),

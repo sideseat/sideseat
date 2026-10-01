@@ -531,6 +531,12 @@ pub enum ParseMode {
     /// An OTLP array attribute whose elements are each a serialised object arrives as an array of strings,
     /// because the attribute type has no nesting. Generic: the encoding is OTLP's, not a producer's.
     StringifiedArray,
+    /// Parse a Python constructor `repr` into a JSON tree.
+    ///
+    /// The accepted grammar is deliberately smaller than Python: constructor calls, JSON-shaped
+    /// containers and scalars, and enum reprs. Constructor names and positional arguments remain explicit,
+    /// so producer rules can select their own fields without putting class names in Rust.
+    PythonConstructorRepr,
     /// Keep the raw text. Some carriers hold prose, and parsing it would turn a bare word into a
     /// non-string or an accidental number into a number.
     Text,

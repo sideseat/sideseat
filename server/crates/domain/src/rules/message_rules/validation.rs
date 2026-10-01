@@ -366,7 +366,10 @@ pub(super) fn rule_condition(rule: &CompiledMessageRule) -> Condition {
     let gate = rule.when.as_ref().map(|g| g.match_spec.clone());
     // `unless` narrows in the opposite direction: this rule runs where the gate does *not* hold, and nothing
     // here can relate that to another rule's positive gate. Treated as an incomparable narrowing.
-    let opaque = rule.unless.is_some();
+    // An instrumentation scope is a telemetry-envelope gate evaluated beside `when`. The carrier is free
+    // outside that exact scope, so treating the rule as unconditional makes a producer-specific decoder
+    // appear to permanently suppress the convention's general reading of the same attribute.
+    let opaque = rule.unless.is_some() || rule.instrumentation_scope.is_some();
     if opaque {
         return Condition {
             gate,

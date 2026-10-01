@@ -269,6 +269,7 @@ fn built(block: &JsonValue, rule: &ContentBlockRule) -> Option<JsonValue> {
     if let Some(spec) = &rule.media {
         let declared = member(block, &spec.media_type, false)?.as_str()?;
         let data = member(block, &spec.data, false)?.as_str()?;
+        let name = member(block, &spec.name, false).and_then(JsonValue::as_str);
         // Both derived, because both are facts about the bytes rather than about the producer: the kind
         // comes from the media type, and whether this is a reference or the content itself from the value.
         let (source, referenced) = crate::sideml::content::decode_media_source(data);
@@ -291,12 +292,16 @@ fn built(block: &JsonValue, rule: &ContentBlockRule) -> Option<JsonValue> {
             Some(stored) => stored,
             None => declared,
         };
-        return Some(json!({
+        let mut result = json!({
             "type": crate::sideml::content::mime_to_content_type(media_type),
             "media_type": media_type,
             "source": source,
             "data": data,
-        }));
+        });
+        if let Some(name) = name {
+            result["name"] = json!(name);
+        }
+        return Some(result);
     }
     None
 }

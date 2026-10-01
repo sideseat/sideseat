@@ -139,3 +139,83 @@ fn test_anthropic_media_with_mime_file_ref() {
     assert_eq!(result["type"], "image");
     assert_eq!(result["source"], "file");
 }
+
+#[test]
+fn python_constructor_repr_preserves_data_and_exposes_volatile_metadata_to_rules() {
+    let parsed = try_parse_python_constructor_repr(
+        "ToolResponse(content=[TextBlock(type='text', text='Sunny, 22°C', \
+         id='generated', created_at='2026-10-01T15:23:10', finished_at=None)], \
+         state=<ToolResultState.SUCCESS: 'success'>, metadata={}, id='response-id')",
+    )
+    .expect("the supported constructor repr parses");
+
+    assert_eq!(parsed["__python_constructor"], "ToolResponse");
+    assert_eq!(parsed["content"][0]["__python_constructor"], "TextBlock");
+    assert_eq!(parsed["content"][0]["text"], "Sunny, 22°C");
+    assert_eq!(parsed["content"][0]["id"], "generated");
+    assert_eq!(parsed["state"], "success");
+}
+
+#[test]
+fn constructor_repr_inside_a_tool_response_becomes_semantic_content() {
+    let repr = "TextBlock(type='text', text='Sunny, 22°C', id='generated', \
+                created_at='2026-10-01T15:23:10', finished_at=None)";
+    let block = json!({
+        "type": "tool_call_response",
+        "id": "call-1",
+        "response": serde_json::to_string(&vec![repr]).expect("the response serialises"),
+    });
+
+    assert_eq!(
+        normalize_content_block(&block),
+        Some(json!({
+            "type": "tool_result",
+            "tool_use_id": "call-1",
+            "content": [{"type": "text", "text": "Sunny, 22°C"}],
+            "is_error": false,
+        })),
+        "generated ids and timestamps are not product content"
+    );
+}
+
+#[test]
+fn constructor_repr_keeps_agentscope_media_content_and_its_name() {
+    let repr = "DataBlock(type='data', id='generated', \
+                source=URLSource(type='url', url=AnyUrl('https://example.com/chart.png'), \
+                media_type='image/png'), name='chart.png', \
+                created_at='2026-10-01T15:23:10', finished_at=None)";
+    let block = json!({
+        "type": "tool_call_response",
+        "id": "call-1",
+        "response": serde_json::to_string(&vec![repr]).expect("the response serialises"),
+    });
+
+    assert_eq!(
+        normalize_content_block(&block),
+        Some(json!({
+            "type": "tool_result",
+            "tool_use_id": "call-1",
+            "content": [{
+                "type": "image",
+                "media_type": "image/png",
+                "source": "url",
+                "data": "https://example.com/chart.png",
+                "name": "chart.png",
+            }],
+            "is_error": false,
+        }))
+    );
+}
+
+#[test]
+fn an_unknown_constructor_remains_text() {
+    let block = json!({
+        "type": "tool_call_response",
+        "id": "call-1",
+        "response": "BusinessResult(value='keep this wording')",
+    });
+    assert_eq!(
+        normalize_content_block(&block).expect("the tool result normalises")["content"],
+        json!([{"type": "text", "text": "BusinessResult(value='keep this wording')"}])
+    );
+}

@@ -29,6 +29,9 @@ pub(super) fn parse_value(raw: &str, mode: ParseMode) -> Option<JsonValue> {
             Some(value)
         }
         ParseMode::JsonOrString => Some(serde_json::from_str(raw).unwrap_or_else(|_| json!(raw))),
+        ParseMode::PythonConstructorRepr => {
+            crate::sideml::content::try_parse_python_constructor_repr(raw)
+        }
         // Prose. Parsing it would turn a bare word into a non-string and an accidental digit string
         // into a number.
         ParseMode::Text => Some(json!(raw)),

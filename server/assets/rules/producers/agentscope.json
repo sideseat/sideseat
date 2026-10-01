@@ -2,6 +2,138 @@
   "id": "agentscope",
   "doc": "The AgentScope dialect.",
   "carriers": [],
+  "messages": [
+    {
+      "id": "agentscope.tool_call_result",
+      "doc": "AgentScope serialises its completed ToolResponse as a Python constructor repr. Read only that repr on AgentScope's own instrumentation scope; ordinary JSON and text results fall through to the semantic-conventions rule. The content projection removes framework object ids and timestamps while preserving every returned block.",
+      "read": {
+        "attribute": "gen_ai.tool.call.result"
+      },
+      "parse": "python_constructor_repr",
+      "wrap": {
+        "role": "tool",
+        "content_from_any_of": [
+          "$.content"
+        ],
+        "block": {
+          "type": "tool_result",
+          "attach": [
+            {
+              "from": "gen_ai.tool.name",
+              "as": "name",
+              "or_span_name_after": "execute_tool "
+            },
+            {
+              "from": "gen_ai.tool.call.id",
+              "as": "tool_use_id"
+            },
+            {
+              "from_value_any_of": [
+                "$.state"
+              ],
+              "require": {
+                "all": [
+                  {
+                    "one_of": [
+                      "error",
+                      "denied",
+                      "interrupted"
+                    ]
+                  }
+                ]
+              },
+              "as": "is_error",
+              "value": true,
+              "after_content": true
+            }
+          ]
+        }
+      },
+      "emit": "message",
+      "instrumentation_scope": {
+        "name": "agentscope"
+      },
+      "legacy_rank": 165,
+      "reads_tool_spans": true
+    }
+  ],
+  "content_blocks": [
+    {
+      "id": "agentscope.data_block",
+      "doc": "AgentScope DataBlock reprs retain a nested base64 or URL source. Constructor parsing exposes those fields; this declaration maps them to a canonical media block and leaves generated block ids and timestamps behind.",
+      "at": "before_provider_formats",
+      "legacy_rank": 80,
+      "require": {
+        "all": [
+          {
+            "path": "$.type",
+            "one_of": [
+              "data"
+            ]
+          },
+          {
+            "path": "$.source.media_type",
+            "kind": "string"
+          }
+        ],
+        "any": [
+          {
+            "path": "$.source.data",
+            "kind": "string"
+          },
+          {
+            "path": "$.source.url.__python_args[0]",
+            "kind": "string"
+          },
+          {
+            "path": "$.source.url",
+            "kind": "string"
+          }
+        ]
+      },
+      "media": {
+        "media_type": [
+          "$.source.media_type"
+        ],
+        "data": [
+          "$.source.data",
+          "$.source.url.__python_args[0]",
+          "$.source.url"
+        ],
+        "name": [
+          "$.name"
+        ]
+      }
+    },
+    {
+      "id": "agentscope.thinking_block",
+      "doc": "AgentScope calls the reasoning text `thinking`; the canonical SideML block calls it `text`.",
+      "at": "before_provider_formats",
+      "legacy_rank": 90,
+      "require": {
+        "all": [
+          {
+            "path": "$.type",
+            "one_of": [
+              "thinking"
+            ]
+          },
+          {
+            "path": "$.thinking",
+            "kind": "string"
+          }
+        ]
+      },
+      "thinking": {
+        "text": [
+          "$.thinking"
+        ],
+        "signature": [
+          "$.signature"
+        ]
+      }
+    }
+  ],
   "detect": [
     {
       "id": "agentscope.detect",

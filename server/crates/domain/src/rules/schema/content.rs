@@ -558,6 +558,9 @@ pub struct UnwrapSpec {
 pub struct MediaBlock {
     pub media_type: Vec<JsonPath>,
     pub data: Vec<JsonPath>,
+    /// Optional display name, such as the filename a framework retained beside the bytes.
+    #[serde(default)]
+    pub name: Vec<JsonPath>,
 }
 
 /// Where a message rule reads from.

@@ -205,3 +205,49 @@ fn test_module_source(path: &std::path::Path) -> String {
     }
     source
 }
+
+#[test]
+fn a_scoped_constructor_repr_decoder_yields_to_the_general_carrier_reader() {
+    use crate::rules::message_rules::{MessageContext, compile};
+
+    let plan = compile(&std::collections::BTreeMap::from([(
+        "t.json".to_string(),
+        br#"{"id":"t","messages":[
+          {"id":"t.constructor","read":{"attribute":"result"},
+           "parse":"python_constructor_repr","instrumentation_scope":{"name":"specific"},
+           "wrap":{"role":"tool","content_from_any_of":["$.content"],"block":{
+             "type":"tool_result","attach":[
+               {"from_value_any_of":["$.state"],"require":{"all":[
+                 {"one_of":["error","denied","interrupted"]}]},
+                "as":"is_error","value":true,"after_content":true}]}},
+           "emit":"message","reads_tool_spans":true,"legacy_rank":1},
+          {"id":"t.general","read":{"attribute":"result"},"parse":"json_or_string",
+           "wrap":{"role":"tool","block":{"type":"tool_result"}},
+           "emit":"message","reads_tool_spans":true,"legacy_rank":2}]}"#
+            .to_vec(),
+    )]))
+    .expect("an exact instrumentation scope makes the first reading conditional");
+
+    let attrs = std::collections::HashMap::from([(
+        "result".to_string(),
+        serde_json::to_string(
+            "Response(content=[TextBlock(type='text', text='failed', id='volatile')], \
+             state=<State.ERROR: 'error'>)",
+        )
+        .expect("the OTLP string layer serialises"),
+    )]);
+    let scoped = MessageContext::for_scoped_span("tool", Some("specific"), Some("1.0"), &attrs, true);
+    let read = plan.run(&scoped);
+    assert_eq!(read.len(), 1);
+    assert_eq!(read[0].rule_id, "t.constructor");
+    assert_eq!(read[0].value["content"][0]["is_error"], true);
+    assert_eq!(read[0].value["content"][0]["content"][0]["text"], "failed");
+
+    let other = MessageContext::for_scoped_span("tool", Some("other"), Some("1.0"), &attrs, true);
+    let read = plan.run(&other);
+    assert_eq!(read.len(), 1);
+    assert_eq!(
+        read[0].rule_id, "t.general",
+        "outside the declared scope the conventional reader still owns the carrier"
+    );
+}

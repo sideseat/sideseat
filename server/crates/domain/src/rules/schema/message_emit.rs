@@ -179,8 +179,8 @@ pub struct AttachSpec {
     /// literal `"false"` would attach as a truthy value.
     #[serde(default)]
     pub when_equals: Option<String>,
-    /// The literal to attach instead of the attribute's value, for a flag - or on its own, for a member
-    /// that is part of the shape rather than something read.
+    /// The literal to attach instead of the source's value, for a flag - or on its own, for a member that
+    /// is part of the shape rather than something read.
     ///
     /// An explicit `null` is a value: a content block declares an unsigned signature that way, and the
     /// member has to be present rather than omitted.
