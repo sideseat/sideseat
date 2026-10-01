@@ -425,12 +425,12 @@ fn the_footprint_script_enforces_the_declared_ceilings() {
 fn the_gates_run_under_the_allocator_they_claim() {
     let before = AllocationSnapshot::now();
     let block: Vec<u8> = vec![7u8; 4 * 1024 * 1024];
-    let growth = AllocationSnapshot::now().growth_since(&before);
+    let churn = AllocationSnapshot::now().churn_since(&before);
     assert_eq!(block[0], 7);
     assert!(
-        growth >= 4 * 1024 * 1024,
-        "the counting allocator is not in force in this test binary: a 4 MiB allocation showed {growth} \
-         bytes of live growth"
+        churn >= 4 * 1024 * 1024,
+        "the counting allocator is not in force in this test binary: a 4 MiB allocation showed {churn} \
+         allocated bytes"
     );
 
     if RESIDENT_CEILINGS_APPLY {
