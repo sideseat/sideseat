@@ -99,3 +99,56 @@ def test_final_answer_uses_the_current_scientific_question() -> None:
     assert json.loads(call["arguments"]) == {
         "answer": "The speed of light is 299,792,458 metres per second."
     }
+
+
+def test_retained_observation_does_not_hide_a_new_task() -> None:
+    """Smolagents history must answer the task after its retained observation."""
+    fake = _fake_openai()
+    body = {
+        "model": "sideseat-local",
+        "messages": [
+            {"role": "system", "content": "Answer through final_answer."},
+            {"role": "user", "content": "What is the speed of light?"},
+            {
+                "role": "assistant",
+                "content": None,
+                "tool_calls": [
+                    {
+                        "id": "call-final-answer",
+                        "type": "function",
+                        "function": {
+                            "name": "final_answer",
+                            "arguments": json.dumps(
+                                {
+                                    "answer": (
+                                        "The speed of light is 299,792,458 metres "
+                                        "per second."
+                                    )
+                                }
+                            ),
+                        },
+                    }
+                ],
+            },
+            {
+                "role": "user",
+                "content": (
+                    "Observation:\n"
+                    "The speed of light is 299,792,458 metres per second.\n"
+                    "New task:\n"
+                    "What is the boiling point of water?"
+                ),
+            },
+        ],
+        "tools": [
+            _tool(
+                "final_answer",
+                {"answer": {"description": "Final answer"}},
+            )
+        ],
+    }
+
+    call = fake.completion(body)["choices"][0]["message"]["tool_calls"][0]["function"]
+    assert json.loads(call["arguments"]) == {
+        "answer": "Water boils at 100°C at sea level."
+    }

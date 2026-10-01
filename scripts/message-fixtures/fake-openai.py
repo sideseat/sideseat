@@ -192,6 +192,11 @@ def observation_result_text(message: dict[str, Any]) -> str | None:
     if not content.startswith(prefix):
         return None
     result = content.removeprefix(prefix).strip()
+    # Smolagents retains the previous final-answer observation by folding it into the
+    # next user turn before a `New task:` marker. That message starts like a tool result,
+    # but the active turn is the task after the marker.
+    if "\nNew task:\n" in result:
+        return None
     return result or None
 
 
