@@ -1,0 +1,1 @@
+"""BrowserUse telemetry samples."""

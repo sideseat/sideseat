@@ -58,6 +58,7 @@ SUITES=(
   "traceloop|uv run --locked --directory examples/python/traceloop telemetry-traceloop {S}"
   "agent-framework|uv run --locked --directory examples/python/agent-framework telemetry-agent-framework {S}"
   "claude-agent-sdk|uv run --locked --directory examples/python/claude-agent-sdk claude-agent-sdk {S}"
+  "browser-use|uv run --locked --directory examples/python/browser-use telemetry-browser-use {S}"
   # The `agent` sample can also run against scripts/message-fixtures/fake-openai.py through
   # AUTOGEN_OPENAI_BASE_URL, so it needs no first-party credential.
   "autogen|uv run --locked --directory examples/python/autogen telemetry-autogen {S}"
