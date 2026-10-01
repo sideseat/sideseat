@@ -53,6 +53,7 @@ SUITES=(
   "google-genai|uv run --locked --directory examples/python/google-genai google-genai-provider {S}"
   "logfire|uv run --locked --directory examples/python/logfire telemetry-logfire {S}"
   "openinference|uv run --locked --directory examples/python/openinference telemetry-openinference {S}"
+  "azure-openai|uv run --locked --directory examples/python/azure-openai telemetry-azure-openai {S}"
   "traceloop|uv run --locked --directory examples/python/traceloop telemetry-traceloop {S}"
   "agent-framework|uv run --locked --directory examples/python/agent-framework telemetry-agent-framework {S}"
   "claude-agent-sdk|uv run --locked --directory examples/python/claude-agent-sdk claude-agent-sdk {S}"

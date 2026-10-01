@@ -43,6 +43,7 @@ class Frameworks:
     Bedrock = "bedrock"
     Anthropic = "anthropic"
     OpenAI = "openai"
+    AzureOpenAI = "azure-openai"
     # Hyphenated to match every other constant here, the JS SDK, the MCP setup_guide and
     # the docs. It was "google_genai", so a user passing the documented "google-genai"
     # string silently failed the framework comparison and got no instrumentation.
@@ -73,6 +74,7 @@ FRAMEWORK_PACKAGES = [
     (Frameworks.Logfire, "logfire"),
     (Frameworks.TraceLoop, "traceloop-sdk"),
     (Frameworks.OpenAI, "openai"),
+    (Frameworks.AzureOpenAI, "openai"),
     (Frameworks.Anthropic, "anthropic"),
     (Frameworks.GoogleGenAI, "google-genai"),
     (Frameworks.VertexAI, "vertexai"),
@@ -83,6 +85,7 @@ _FRAMEWORK_KEYS = {key for key, _ in FRAMEWORK_PACKAGES}
 # Packages too common as transitive deps for reliable auto-detection
 _NO_AUTO_DETECT = {
     Frameworks.OpenAI,
+    Frameworks.AzureOpenAI,
     Frameworks.Anthropic,
     Frameworks.GoogleGenAI,
     # Logfire is installed by several provider extras. Its presence does not prove

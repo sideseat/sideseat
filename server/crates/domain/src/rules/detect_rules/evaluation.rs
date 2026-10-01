@@ -1,9 +1,18 @@
 use super::*;
 
 impl CompiledDetect {
+    /// Every required signal set matches, while each set is internally disjunctive.
+    pub(super) fn matches(&self, ctx: &DetectContext<'_>) -> bool {
+        self.matches_signal_set(ctx)
+            && self
+                .required
+                .iter()
+                .all(|required| required.matches_signal_set(ctx))
+    }
+
     /// Any satisfied signal matches. Ordered cheapest-first: an equality probe is a hash lookup, while
     /// the prefix dimensions scan the span's keys.
-    pub(super) fn matches(&self, ctx: &DetectContext<'_>) -> bool {
+    fn matches_signal_set(&self, ctx: &DetectContext<'_>) -> bool {
         let spec = &self.match_spec;
 
         if spec
@@ -189,46 +198,49 @@ impl DetectPlan {
         }
         let mut out: Vec<NearMiss> = Vec::new();
         for rule in &self.rules {
-            let spec = &rule.match_spec;
-            let mut disagreements = |carrier: &str, wanted: &str, found: Option<&String>| {
-                if let Some(found) = found
-                    && !found.eq_ignore_ascii_case(wanted)
-                {
-                    out.push(NearMiss {
-                        rule_id: rule.rule_id.clone(),
-                        label: rule.label.clone(),
-                        carrier: carrier.to_string(),
-                        expected: wanted.to_string(),
-                        found: found.clone(),
-                    });
-                }
-            };
-            for pair in spec.attr_equals.iter().chain(&spec.attr_equals_ignore_case) {
-                disagreements(&pair.key, &pair.value, ctx.span_attrs.get(&pair.key));
-            }
-            for pair in &spec.span_attr_contains {
-                if let Some(found) = ctx.span_attrs.get(&pair.key)
-                    && !found.contains(pair.value.as_str())
-                {
-                    out.push(NearMiss {
-                        rule_id: rule.rule_id.clone(),
-                        label: rule.label.clone(),
-                        carrier: pair.key.clone(),
-                        expected: format!("containing `{}`", pair.value),
-                        found: found.clone(),
-                    });
-                }
-            }
-            if let Some(service) = ctx.resource_attrs.get(super::super::SERVICE_NAME_KEY) {
-                for declared in &spec.service_name {
-                    if !service.contains(declared.as_str()) {
+            for spec in std::iter::once(&rule.match_spec)
+                .chain(rule.required.iter().map(|required| &required.match_spec))
+            {
+                let mut disagreements = |carrier: &str, wanted: &str, found: Option<&String>| {
+                    if let Some(found) = found
+                        && !found.eq_ignore_ascii_case(wanted)
+                    {
                         out.push(NearMiss {
                             rule_id: rule.rule_id.clone(),
                             label: rule.label.clone(),
-                            carrier: super::super::SERVICE_NAME_KEY.to_string(),
-                            expected: format!("containing `{declared}`"),
-                            found: service.clone(),
+                            carrier: carrier.to_string(),
+                            expected: wanted.to_string(),
+                            found: found.clone(),
                         });
+                    }
+                };
+                for pair in spec.attr_equals.iter().chain(&spec.attr_equals_ignore_case) {
+                    disagreements(&pair.key, &pair.value, ctx.span_attrs.get(&pair.key));
+                }
+                for pair in &spec.span_attr_contains {
+                    if let Some(found) = ctx.span_attrs.get(&pair.key)
+                        && !found.contains(pair.value.as_str())
+                    {
+                        out.push(NearMiss {
+                            rule_id: rule.rule_id.clone(),
+                            label: rule.label.clone(),
+                            carrier: pair.key.clone(),
+                            expected: format!("containing `{}`", pair.value),
+                            found: found.clone(),
+                        });
+                    }
+                }
+                if let Some(service) = ctx.resource_attrs.get(super::super::SERVICE_NAME_KEY) {
+                    for declared in &spec.service_name {
+                        if !service.contains(declared.as_str()) {
+                            out.push(NearMiss {
+                                rule_id: rule.rule_id.clone(),
+                                label: rule.label.clone(),
+                                carrier: super::super::SERVICE_NAME_KEY.to_string(),
+                                expected: format!("containing `{declared}`"),
+                                found: service.clone(),
+                            });
+                        }
                     }
                 }
             }

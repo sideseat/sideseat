@@ -61,6 +61,7 @@ class TestIsLogfireFramework:
         assert is_logfire_framework(Frameworks.AutoGen) is False
         assert is_logfire_framework(Frameworks.GoogleADK) is False
         assert is_logfire_framework(Frameworks.ClaudeAgentSDK) is False
+        assert is_logfire_framework(Frameworks.AzureOpenAI) is False
 
     def test_google_genai_is_logfire(self) -> None:
         """Google GenAI should use Logfire."""
@@ -176,6 +177,21 @@ class TestInstrument:
 
         assert instrument(Frameworks.LlamaIndex, provider) is True
         assert calls == [("llama_index", "LlamaIndexInstrumentor", provider)]
+
+    def test_azure_openai_uses_its_openinference_instrumentor(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The OpenInference OpenAI integration preserves Azure provider identity."""
+        calls: list[tuple[str, str, Any]] = []
+
+        def record(module: str, class_name: str, provider: Any) -> None:
+            calls.append((module, class_name, provider))
+
+        monkeypatch.setattr("sideseat.instrumentation._instrument_openinference", record)
+        provider: Any = object()
+
+        assert instrument(Frameworks.AzureOpenAI, provider) is True
+        assert calls == [("openai", "OpenAIInstrumentor", provider)]
 
     def test_ag2_injects_builtin_telemetry_once(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """AG2 1.x agents receive native telemetry without duplicate middleware."""

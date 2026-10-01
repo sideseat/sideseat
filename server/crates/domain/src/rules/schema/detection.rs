@@ -135,6 +135,15 @@ pub struct DetectRule {
     pub supersedes: Vec<String>,
     #[serde(rename = "match")]
     pub match_spec: DetectMatch,
+    /// Further signal sets that must each match.
+    ///
+    /// A `DetectMatch` is deliberately disjunctive: every signal inside it is independently
+    /// sufficient. Some producer identities need a conjunction instead, such as a shared cloud
+    /// provider together with the model API used through it. Keeping those as separate sets
+    /// preserves the useful disjunction within each set without hard-coding a producer
+    /// combination in the engine.
+    #[serde(default)]
+    pub all_of: Vec<DetectMatch>,
     /// Further evidence for the same label, each at its **own** rank.
     ///
     /// The predicates inside one `match` are independently sufficient, so a rule whose signals differ in
@@ -164,6 +173,9 @@ pub struct DetectAlternative {
     pub legacy_rank: i32,
     #[serde(rename = "match")]
     pub match_spec: DetectMatch,
+    /// Further signal sets that must each match.
+    #[serde(default)]
+    pub all_of: Vec<DetectMatch>,
 }
 
 /// One SDK-declared slug and the label it resolves to.

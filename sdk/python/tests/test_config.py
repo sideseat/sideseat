@@ -237,6 +237,7 @@ class TestFrameworks:
         assert Frameworks.LlamaIndex == "llama-index"
         assert Frameworks.TraceLoop == "traceloop"
         assert Frameworks.OpenAI == "openai"
+        assert Frameworks.AzureOpenAI == "azure-openai"
         assert Frameworks.Anthropic == "anthropic"
         # Hyphenated like the rest of the set, the JS SDK and the docs. This assertion
         # previously pinned "google_genai", which is what let the mismatch survive.
@@ -485,6 +486,22 @@ def test_google_genai_extra_installs_logfires_instrumentor():
 
     assert extras["google-genai"] == ["logfire[google-genai]>=4.29.0"]
     assert "logfire[google-genai]>=4.29.0" in extras["all"]
+
+
+def test_azure_openai_extra_installs_the_client_and_openinference_instrumentor():
+    """Azure identity is a pair of OpenInference attributes, so this path uses its
+    OpenAI instrumentor rather than Logfire's provider-agnostic OpenAI spans."""
+    from pathlib import Path
+
+    import tomllib
+
+    pyproject = Path(__file__).resolve().parents[1] / "pyproject.toml"
+    extras = tomllib.loads(pyproject.read_text())["project"]["optional-dependencies"]
+
+    assert extras["azure-openai"] == [
+        "openai>=2.8.0",
+        "openinference-instrumentation-openai>=0.1.62",
+    ]
 
 
 def test_traceloop_extra_supplies_undeclared_runtime_dependencies():

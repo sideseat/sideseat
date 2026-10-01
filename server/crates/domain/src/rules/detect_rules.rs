@@ -25,6 +25,8 @@ pub struct CompiledDetect {
     pub legacy_rank: i32,
     pub supersedes: Vec<String>,
     pub match_spec: DetectMatch,
+    /// Further disjunctive signal sets that must each hold.
+    required: Vec<CompiledDetect>,
     /// `text_contains` sources split once, at compile time, into "the span name" and attribute keys.
     span_name_is_a_text_source: bool,
     text_attribute_keys: Vec<String>,
@@ -240,7 +242,8 @@ pub fn compile(sources: &BTreeMap<String, Vec<u8>>) -> Result<DetectPlan, Detect
                            legacy_rank: i32,
                            label: &str,
                            supersedes: Vec<String>,
-                           spec: &DetectMatch|
+                           spec: &DetectMatch,
+                           all_of: &[DetectMatch]|
          -> Result<CompiledDetect, DetectCompileError> {
             if id.is_empty() || label.is_empty() {
                 return Err(DetectCompileError::EmptyLiteral {
@@ -248,38 +251,40 @@ pub fn compile(sources: &BTreeMap<String, Vec<u8>>) -> Result<DetectPlan, Detect
                     dimension: "id/label",
                 });
             }
-            if !has_signal(spec) {
-                return Err(DetectCompileError::NoSignal {
-                    rule: id.to_string(),
-                });
-            }
-            // Through the shared atom validator, not a copy of it: the two had drifted in both directions.
-            if let Some(defect) = atom_literal_defect(spec) {
-                // The variant a caller's own diagnostic wants: detection has a dedicated error for an
-                // unreadable phrase source, and collapsing every defect into one variant made that
-                // diagnostic worse than it was.
-                return Err(match defect {
-                    AtomDefect::BadTextSource(source) => DetectCompileError::BadTextSource {
+            for signal_set in std::iter::once(spec).chain(all_of) {
+                if !has_signal(signal_set) {
+                    return Err(DetectCompileError::NoSignal {
                         rule: id.to_string(),
-                        source,
-                    },
-                    // Names the two literals, because "a literal is subsumed" without saying which two sends
-                    // the reader to re-derive the covering relation by hand.
-                    AtomDefect::SubsumedLiteral {
-                        dimension,
-                        dead,
-                        covering,
-                    } => DetectCompileError::SubsumedLiteral {
-                        rule: id.to_string(),
-                        dimension,
-                        dead,
-                        covering,
-                    },
-                    other => DetectCompileError::EmptyLiteral {
-                        rule: id.to_string(),
-                        dimension: other.dimension(),
-                    },
-                });
+                    });
+                }
+                // Through the shared atom validator, not a copy of it: the two had drifted in both directions.
+                if let Some(defect) = atom_literal_defect(signal_set) {
+                    // The variant a caller's own diagnostic wants: detection has a dedicated error for an
+                    // unreadable phrase source, and collapsing every defect into one variant made that
+                    // diagnostic worse than it was.
+                    return Err(match defect {
+                        AtomDefect::BadTextSource(source) => DetectCompileError::BadTextSource {
+                            rule: id.to_string(),
+                            source,
+                        },
+                        // Names the two literals, because "a literal is subsumed" without saying which two sends
+                        // the reader to re-derive the covering relation by hand.
+                        AtomDefect::SubsumedLiteral {
+                            dimension,
+                            dead,
+                            covering,
+                        } => DetectCompileError::SubsumedLiteral {
+                            rule: id.to_string(),
+                            dimension,
+                            dead,
+                            covering,
+                        },
+                        other => DetectCompileError::EmptyLiteral {
+                            rule: id.to_string(),
+                            dimension: other.dimension(),
+                        },
+                    });
+                }
             }
             let (mut span_source, mut attr_keys, mut needles) = (false, Vec::new(), Vec::new());
             if let Some(TextContains {
@@ -310,6 +315,7 @@ pub fn compile(sources: &BTreeMap<String, Vec<u8>>) -> Result<DetectPlan, Detect
                 legacy_rank,
                 supersedes,
                 match_spec: spec.clone(),
+                required: all_of.iter().map(probe_for).collect(),
                 span_name_is_a_text_source: span_source,
                 text_attribute_keys: attr_keys,
                 text_needles_lowered: needles,
@@ -335,6 +341,7 @@ pub fn compile(sources: &BTreeMap<String, Vec<u8>>) -> Result<DetectPlan, Detect
                 &rule.label,
                 rule.supersedes.clone(),
                 &rule.match_spec,
+                &rule.all_of,
             )?);
             for alternative in &rule.alternatives {
                 // The label and the overlap edges are the *rule's*, not the alternative's: an alternative is
@@ -347,6 +354,7 @@ pub fn compile(sources: &BTreeMap<String, Vec<u8>>) -> Result<DetectPlan, Detect
                     &rule.label,
                     rule.supersedes.clone(),
                     &alternative.match_spec,
+                    &alternative.all_of,
                 )?);
             }
         }
@@ -427,10 +435,16 @@ pub fn compile(sources: &BTreeMap<String, Vec<u8>>) -> Result<DetectPlan, Detect
     };
     for (index, earlier) in rules.iter().enumerate() {
         for later in &rules[index + 1..] {
-            if shadows(
-                std::slice::from_ref(&earlier.match_spec),
-                std::slice::from_ref(&later.match_spec),
-            ) && !beats(later.rule_id.as_str()).contains(earlier.rule_id.as_str())
+            let earlier_specs: Vec<DetectMatch> = std::iter::once(&earlier.match_spec)
+                .chain(earlier.required.iter().map(|probe| &probe.match_spec))
+                .cloned()
+                .collect();
+            let later_specs: Vec<DetectMatch> = std::iter::once(&later.match_spec)
+                .chain(later.required.iter().map(|probe| &probe.match_spec))
+                .cloned()
+                .collect();
+            if shadows(&earlier_specs, &later_specs)
+                && !beats(later.rule_id.as_str()).contains(earlier.rule_id.as_str())
             {
                 return Err(DetectCompileError::ShadowedRule {
                     earlier: earlier.rule_id.clone(),
@@ -922,6 +936,7 @@ fn probe_for(spec: &DetectMatch) -> CompiledDetect {
         legacy_rank: 0,
         supersedes: Vec::new(),
         match_spec: spec.clone(),
+        required: Vec::new(),
         span_name_is_a_text_source: spec
             .text_contains
             .as_ref()

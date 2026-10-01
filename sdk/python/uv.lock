@@ -1164,6 +1164,7 @@ dependencies = [
     { name = "proto-plus" },
     { name = "protobuf", version = "6.33.6", source = { registry = "https://pypi.org/simple" } },
 ]
+sdist = { url = "https://files.pythonhosted.org/packages/f4/1f/a2f23d2c2c0a34dab2e689d11ac4f20d77ac51c4832953beece2bc39e48a/google_cloud_resource_manager-1.19.0.tar.gz", hash = "sha256:68e5d28ed9091ab1adf04a77876b09d553e97a440fba78163f6ce2b5fe5f2558", size = 446420, upload-time = "2026-10-01T18:17:54.309Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/53/47/0bf39ed47f5012f85bf75673e13e0ee29ad39e72e8f55796c42880b9dfe9/google_cloud_resource_manager-1.19.0-py3-none-any.whl", hash = "sha256:74f94950288ff3d04082b4bd514af0632c74b507601e68d0399f35ae2cc8cc2e", size = 395250, upload-time = "2026-10-01T18:12:00.104Z" },
 ]
@@ -1180,6 +1181,7 @@ dependencies = [
     { name = "google-resumable-media" },
     { name = "requests" },
 ]
+sdist = { url = "https://files.pythonhosted.org/packages/ae/54/d487cd2bcf2c94befce79baa677c54fa863f88c221e5481a4066ab08c33e/google_cloud_storage-3.16.0.tar.gz", hash = "sha256:3f75cf8ad345d68ef33f0c69db8a8b3f34f160b1524e75d73890602b7b8a4d6e", size = 17351062, upload-time = "2026-10-01T18:18:20.765Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/47/bf/1a0f5f7fc1d4af8b95fc1da72d3cfe84ac709ef4dcabfd2182ef9cfe3a7a/google_cloud_storage-3.16.0-py3-none-any.whl", hash = "sha256:59e54ff1f7f8a7253c01f593f79d253728c122a8901b83f68fe7464a4131539f", size = 343457, upload-time = "2026-10-01T18:12:33.141Z" },
 ]
@@ -2589,7 +2591,7 @@ wheels = [
 
 [[package]]
 name = "openinference-instrumentation"
-version = "0.1.67"
+version = "0.1.68"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "openinference-semantic-conventions" },
@@ -2597,9 +2599,9 @@ dependencies = [
     { name = "opentelemetry-sdk" },
     { name = "wrapt" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/a3/9f/e13920b612006fac7fb949b0d8b18e0e269f850774dd85eb848a58eb4bb7/openinference_instrumentation-0.1.67.tar.gz", hash = "sha256:cf348bd936bf9409a7e68bc158c929406126d48f4b77e5aa364b1affb1f3df5c", size = 44175, upload-time = "2026-10-01T02:33:15.143Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/b0/f3/16177469d634282945caf5339c7eccaca2eb4d44bcd64e7f09312bf00ddd/openinference_instrumentation-0.1.68.tar.gz", hash = "sha256:41a0f76f23bef07e98566b24c6dba7ff400840f427a5a65c4b3dce91f71f1a54", size = 44337, upload-time = "2026-10-01T18:22:38.596Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/0c/89/43cd91ea31a1b2c0b16de4538ffcb45030672aa5fbd9b403a3c5dfaa134b/openinference_instrumentation-0.1.67-py3-none-any.whl", hash = "sha256:7793706bb0e91231ede2f5556dd263d9a411514237a662a34aedc09df2f50468", size = 51953, upload-time = "2026-10-01T02:33:13.776Z" },
+    { url = "https://files.pythonhosted.org/packages/7f/8e/6a77021a0874cdf37a0e58e51796e01d9cdfe86453ced5d0aa218f16f7dd/openinference_instrumentation-0.1.68-py3-none-any.whl", hash = "sha256:adc76588c0b6ae120b85cc0c0e63f3db31c2ac58f7ac0346bc541e3dd6983ef2", size = 52114, upload-time = "2026-10-01T18:22:37.134Z" },
 ]
 
 [[package]]
@@ -2692,6 +2694,25 @@ wheels = [
 ]
 
 [[package]]
+name = "openinference-instrumentation-openai"
+version = "0.1.62"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "anyio" },
+    { name = "openinference-instrumentation" },
+    { name = "openinference-semantic-conventions" },
+    { name = "opentelemetry-api" },
+    { name = "opentelemetry-instrumentation" },
+    { name = "opentelemetry-semantic-conventions" },
+    { name = "typing-extensions" },
+    { name = "wrapt" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/c2/d2/4e7691dbd282f3cba1dfd1b133b70d77fcab9c49e65bbc365180dccbea9e/openinference_instrumentation_openai-0.1.62.tar.gz", hash = "sha256:671577b7abc3529c6db35fd9b41c4b66ea679ed2ae0cea393b29c247a9763b28", size = 27825, upload-time = "2026-10-01T02:33:14.821Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/ca/5b/d47582e754a8b946513bcd970e51d3b510d22a1821e226a374457f79ae3a/openinference_instrumentation_openai-0.1.62-py3-none-any.whl", hash = "sha256:2c1557a1beca3180b1bea9bfb0571877cb87bf45b75dcb39943e1f2a7730e3c9", size = 35727, upload-time = "2026-10-01T02:33:12.993Z" },
+]
+
+[[package]]
 name = "openinference-instrumentation-smolagents"
 version = "0.1.41"
 source = { registry = "https://pypi.org/simple" }
@@ -2711,11 +2732,11 @@ wheels = [
 
 [[package]]
 name = "openinference-semantic-conventions"
-version = "0.1.40"
+version = "0.1.41"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/59/d6/279ecdfe77e5c2fd05a2f26ff4a970bb5390090cbf70d5b9774e27e68d90/openinference_semantic_conventions-0.1.40.tar.gz", hash = "sha256:1a21e1a19eee461f541438603fad560cb3fa1a4a073d2560767f608240d0af3f", size = 14609, upload-time = "2026-10-01T02:33:17.762Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/53/be/e1fe52e3ae242695101144e058edfdd8e412a58ce04e2e2b410268683b05/openinference_semantic_conventions-0.1.41.tar.gz", hash = "sha256:78d4ffd9d1f2f89cb4bd58a0afe5a460475ce3d76a4d993f50fb0ce8bf4129a3", size = 15789, upload-time = "2026-10-01T18:22:33.408Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/14/20/b0dc0cccef2bd052ebb591df79f8df430b1ba93b8f6c9f5313a2bed8ac2b/openinference_semantic_conventions-0.1.40-py3-none-any.whl", hash = "sha256:a15c6fb75cbd51f6a42ffd156fcbdd0cb836edc952c9a5c3d065efdf0ffa0d71", size = 11711, upload-time = "2026-10-01T02:33:16.521Z" },
+    { url = "https://files.pythonhosted.org/packages/74/fa/a5197690b860f8a5b43e56aba4a34e0b42db6548b45dd6ceda9ab8980c63/openinference_semantic_conventions-0.1.41-py3-none-any.whl", hash = "sha256:4c55f59427436da842c7aae871965399ef92b8909b41e02c076e1092b4c12e51", size = 12678, upload-time = "2026-10-01T18:22:32.275Z" },
 ]
 
 [[package]]
@@ -4587,11 +4608,13 @@ all = [
     { name = "agentscope", marker = "python_full_version >= '3.11'" },
     { name = "httpx" },
     { name = "logfire", extra = ["google-genai"], marker = "extra == 'extra-8-sideseat-all' or extra == 'extra-8-sideseat-autogen' or extra != 'extra-8-sideseat-vertex-ai'" },
+    { name = "openai" },
     { name = "openinference-instrumentation-agno" },
     { name = "openinference-instrumentation-autogen-agentchat" },
     { name = "openinference-instrumentation-crewai" },
     { name = "openinference-instrumentation-langchain" },
     { name = "openinference-instrumentation-llama-index" },
+    { name = "openinference-instrumentation-openai" },
     { name = "openinference-instrumentation-smolagents" },
     { name = "opentelemetry-haystack" },
     { name = "requests" },
@@ -4609,6 +4632,10 @@ autogen = [
 ]
 aws = [
     { name = "wrapt" },
+]
+azure-openai = [
+    { name = "openai" },
+    { name = "openinference-instrumentation-openai" },
 ]
 crewai = [
     { name = "openinference-instrumentation-crewai" },
@@ -4681,6 +4708,8 @@ requires-dist = [
     { name = "logfire", extras = ["google-genai"], marker = "extra == 'all'", specifier = ">=4.29.0" },
     { name = "logfire", extras = ["google-genai"], marker = "extra == 'google-genai'", specifier = ">=4.29.0" },
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.13.0" },
+    { name = "openai", marker = "extra == 'all'", specifier = ">=2.8.0" },
+    { name = "openai", marker = "extra == 'azure-openai'", specifier = ">=2.8.0" },
     { name = "openinference-instrumentation-agno", marker = "extra == 'agno'", specifier = ">=0.1.0" },
     { name = "openinference-instrumentation-agno", marker = "extra == 'all'", specifier = ">=0.1.0" },
     { name = "openinference-instrumentation-autogen-agentchat", marker = "extra == 'all'", specifier = ">=0.1.0" },
@@ -4692,6 +4721,8 @@ requires-dist = [
     { name = "openinference-instrumentation-langchain", marker = "extra == 'langgraph'", specifier = ">=0.1.0" },
     { name = "openinference-instrumentation-llama-index", marker = "extra == 'all'", specifier = ">=4.5.3" },
     { name = "openinference-instrumentation-llama-index", marker = "extra == 'llama-index'", specifier = ">=4.5.3" },
+    { name = "openinference-instrumentation-openai", marker = "extra == 'all'", specifier = ">=0.1.62" },
+    { name = "openinference-instrumentation-openai", marker = "extra == 'azure-openai'", specifier = ">=0.1.62" },
     { name = "openinference-instrumentation-smolagents", marker = "extra == 'all'", specifier = ">=0.1.0" },
     { name = "openinference-instrumentation-smolagents", marker = "extra == 'smolagents'", specifier = ">=0.1.0" },
     { name = "opentelemetry-api", specifier = ">=1.39.0" },
@@ -4713,7 +4744,7 @@ requires-dist = [
     { name = "wrapt", marker = "extra == 'all'", specifier = ">=1.14.0" },
     { name = "wrapt", marker = "extra == 'aws'", specifier = ">=1.14.0" },
 ]
-provides-extras = ["ag2", "agentscope", "agno", "agui", "all", "anthropic", "autogen", "aws", "crewai", "dev", "google-genai", "haystack", "langchain", "langgraph", "llama-index", "logfire", "openai", "openai-agents", "pydantic-ai", "smolagents", "traceloop", "vertex-ai", "ws"]
+provides-extras = ["ag2", "agentscope", "agno", "agui", "all", "anthropic", "autogen", "aws", "azure-openai", "crewai", "dev", "google-genai", "haystack", "langchain", "langgraph", "llama-index", "logfire", "openai", "openai-agents", "pydantic-ai", "smolagents", "traceloop", "vertex-ai", "ws"]
 
 [[package]]
 name = "simple-websocket"

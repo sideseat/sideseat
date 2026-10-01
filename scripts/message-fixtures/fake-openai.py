@@ -9,6 +9,7 @@ import json
 import re
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
+from urllib.parse import urlsplit
 
 
 def usage() -> dict[str, int]:
@@ -30,6 +31,19 @@ def responses_usage() -> dict[str, Any]:
         "output_tokens_details": {"reasoning_tokens": 0},
         "total_tokens": 19,
     }
+
+
+def canonical_api_path(raw_path: str) -> str:
+    """Map Azure OpenAI routes onto the deterministic OpenAI handlers."""
+    path = urlsplit(raw_path).path.rstrip("/") or "/"
+    if path.startswith("/openai/v1/"):
+        return f"/v1/{path.removeprefix('/openai/v1/')}"
+    if re.fullmatch(
+        r"/openai/deployments/[^/]+/chat/completions",
+        path,
+    ):
+        return "/v1/chat/completions"
+    return path
 
 
 def request_fingerprint(value: Any) -> str:
@@ -562,7 +576,7 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self) -> None:
         length = int(self.headers.get("Content-Length", "0"))
         raw_body = self.rfile.read(length)
-        path = self.path.rstrip("/")
+        path = canonical_api_path(self.path)
         if path == "/v1/files":
             self.send_json(
                 200,

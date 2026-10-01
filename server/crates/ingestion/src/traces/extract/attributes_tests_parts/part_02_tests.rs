@@ -166,6 +166,34 @@ fn test_azure_openai_framework_detection() {
         Framework::AzureOpenAI.as_str(),
         "Should detect Azure OpenAI from gen_ai.provider.name=azure_openai"
     );
+
+    let current_semconv = make_attrs(&[("gen_ai.provider.name", "azure.ai.openai")]);
+    assert_eq!(
+        detect_framework("chat", &current_semconv, &resource_attrs),
+        Framework::AzureOpenAI.as_str(),
+        "Should detect the current Azure OpenAI semantic-convention provider"
+    );
+
+    let openinference = make_attrs(&[
+        ("llm.provider", "azure"),
+        ("llm.system", "openai"),
+        ("openinference.span.kind", "LLM"),
+    ]);
+    assert_eq!(
+        detect_framework("ChatCompletion", &openinference, &resource_attrs),
+        Framework::AzureOpenAI.as_str(),
+        "OpenInference reports Azure and OpenAI as two independently insufficient attributes"
+    );
+    for incomplete in [
+        make_attrs(&[("llm.provider", "azure")]),
+        make_attrs(&[("llm.system", "openai")]),
+    ] {
+        assert_ne!(
+            detect_framework("ChatCompletion", &incomplete, &resource_attrs),
+            Framework::AzureOpenAI.as_str(),
+            "neither half of the OpenInference identity is sufficient alone"
+        );
+    }
 }
 
 #[test]

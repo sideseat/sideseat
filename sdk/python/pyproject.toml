@@ -56,6 +56,10 @@ autogen = ["openinference-instrumentation-autogen-agentchat>=0.1.0"]
 openai-agents = ["logfire>=4.29.0"]
 pydantic-ai = ["logfire>=4.29.0"]
 openai = ["logfire>=4.29.0"]
+azure-openai = [
+    "openai>=2.8.0",
+    "openinference-instrumentation-openai>=0.1.62",
+]
 # httpx: anthropic >= 1.0 switched its HTTP client to httpx2, but logfire's Anthropic
 # integration still imports httpx at module level (for httpx.Headers()), so without
 # this the import fails, instrument() only logs a warning and no spans are produced.
@@ -93,6 +97,8 @@ all = [
     "openinference-instrumentation-agno>=0.1.0",
     "openinference-instrumentation-smolagents>=0.1.0",
     "openinference-instrumentation-llama-index>=4.5.3",
+    "openinference-instrumentation-openai>=0.1.62",
+    "openai>=2.8.0",
     "agentscope>=2.0.9,<3; python_version >= '3.11'",
     "opentelemetry-haystack>=1.0.0",
     "logfire[google-genai]>=4.29.0",

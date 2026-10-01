@@ -169,3 +169,20 @@ def test_null_tools_is_treated_as_no_declared_tools() -> None:
     assert choice["message"]["content"] == (
         "The speed of light is 299,792,458 metres per second."
     )
+
+
+def test_azure_openai_routes_use_the_same_deterministic_handlers() -> None:
+    """Both current v1 and deployment-scoped Azure routes retain their query strings
+    only for the client; the fixture server dispatches them as OpenAI operations."""
+    fake = _fake_openai()
+
+    assert (
+        fake.canonical_api_path("/openai/v1/chat/completions") == "/v1/chat/completions"
+    )
+    assert (
+        fake.canonical_api_path(
+            "/openai/deployments/gpt-5/chat/completions?api-version=2024-10-21"
+        )
+        == "/v1/chat/completions"
+    )
+    assert fake.canonical_api_path("/v1/responses?trace=1") == "/v1/responses"

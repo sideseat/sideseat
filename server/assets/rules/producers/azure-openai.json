@@ -5,7 +5,7 @@
   "detect": [
     {
       "id": "azure-openai.detect",
-      "doc": "Before Azure AI Foundry, whose `az.ai.` prefix is broader. Two spellings of the system value because both are in the wild. Supersedes azure-ai-foundry.detect: this is the more specific dialect, and both match the same span, so the relationship is declared rather than left to the legacy rank.",
+      "doc": "Before Azure AI Foundry, whose `az.ai.` prefix is broader. The legacy system spellings and the current semantic-convention provider value are independently sufficient. OpenInference instead reports the cloud and model API in separate attributes, so that wire shape is a conjunctive alternative below.",
       "label": "AzureOpenAI",
       "match": {
         "attr_prefix": [
@@ -23,12 +23,42 @@
           {
             "key": "gen_ai.provider.name",
             "value": "azure_openai"
+          },
+          {
+            "key": "gen_ai.provider.name",
+            "value": "azure.ai.openai"
           }
         ]
       },
       "legacy_rank": 160,
       "supersedes": [
-        "azure-ai-foundry.detect"
+        "azure-ai-foundry.detect",
+        "openinference.detect"
+      ],
+      "alternatives": [
+        {
+          "id": "azure-openai.detect.openinference",
+          "doc": "OpenInference 0.1.62 identifies the Azure cloud separately from the OpenAI API. Neither attribute is sufficient alone: Azure also serves non-OpenAI models, and OpenAI may be served directly. Together they identify Azure OpenAI and outrank the shared OpenInference convention.",
+          "legacy_rank": 139,
+          "match": {
+            "attr_equals": [
+              {
+                "key": "llm.provider",
+                "value": "azure"
+              }
+            ]
+          },
+          "all_of": [
+            {
+              "attr_equals": [
+                {
+                  "key": "llm.system",
+                  "value": "openai"
+                }
+              ]
+            }
+          ]
+        }
       ]
     }
   ],

@@ -169,6 +169,8 @@ requires-dist = [
     { name = "logfire", extras = ["google-genai"], marker = "extra == 'all'", specifier = ">=4.29.0" },
     { name = "logfire", extras = ["google-genai"], marker = "extra == 'google-genai'", specifier = ">=4.29.0" },
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.13.0" },
+    { name = "openai", marker = "extra == 'all'", specifier = ">=2.8.0" },
+    { name = "openai", marker = "extra == 'azure-openai'", specifier = ">=2.8.0" },
     { name = "openinference-instrumentation-agno", marker = "extra == 'agno'", specifier = ">=0.1.0" },
     { name = "openinference-instrumentation-agno", marker = "extra == 'all'", specifier = ">=0.1.0" },
     { name = "openinference-instrumentation-autogen-agentchat", marker = "extra == 'all'", specifier = ">=0.1.0" },
@@ -180,6 +182,8 @@ requires-dist = [
     { name = "openinference-instrumentation-langchain", marker = "extra == 'langgraph'", specifier = ">=0.1.0" },
     { name = "openinference-instrumentation-llama-index", marker = "extra == 'all'", specifier = ">=4.5.3" },
     { name = "openinference-instrumentation-llama-index", marker = "extra == 'llama-index'", specifier = ">=4.5.3" },
+    { name = "openinference-instrumentation-openai", marker = "extra == 'all'", specifier = ">=0.1.62" },
+    { name = "openinference-instrumentation-openai", marker = "extra == 'azure-openai'", specifier = ">=0.1.62" },
     { name = "openinference-instrumentation-smolagents", marker = "extra == 'all'", specifier = ">=0.1.0" },
     { name = "openinference-instrumentation-smolagents", marker = "extra == 'smolagents'", specifier = ">=0.1.0" },
     { name = "opentelemetry-api", specifier = ">=1.39.0" },
@@ -201,7 +205,7 @@ requires-dist = [
     { name = "wrapt", marker = "extra == 'all'", specifier = ">=1.14.0" },
     { name = "wrapt", marker = "extra == 'aws'", specifier = ">=1.14.0" },
 ]
-provides-extras = ["ag2", "agentscope", "agno", "agui", "all", "anthropic", "autogen", "aws", "crewai", "dev", "google-genai", "haystack", "langchain", "langgraph", "llama-index", "logfire", "openai", "openai-agents", "pydantic-ai", "smolagents", "traceloop", "vertex-ai", "ws"]
+provides-extras = ["ag2", "agentscope", "agno", "agui", "all", "anthropic", "autogen", "aws", "azure-openai", "crewai", "dev", "google-genai", "haystack", "langchain", "langgraph", "llama-index", "logfire", "openai", "openai-agents", "pydantic-ai", "smolagents", "traceloop", "vertex-ai", "ws"]
 
 [[package]]
 name = "sideseat-python-conformance"

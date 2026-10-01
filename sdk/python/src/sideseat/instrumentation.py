@@ -97,6 +97,8 @@ def instrument(
             _instrument_logfire("pydantic_ai", service_name, service_version)
         elif framework == Frameworks.OpenAI:
             _instrument_logfire("openai", service_name, service_version)
+        elif framework == Frameworks.AzureOpenAI:
+            _instrument_openinference("openai", "OpenAIInstrumentor", provider)
         elif framework == Frameworks.Anthropic:
             _instrument_logfire("anthropic", service_name, service_version)
         elif framework == Frameworks.GoogleGenAI:

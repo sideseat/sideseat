@@ -37,7 +37,7 @@ Built on [OpenTelemetry](https://opentelemetry.io/) — the open standard alread
 **Supported integrations:** See the complete [`Frameworks`](#frameworks) reference below; it
 includes agent frameworks, model providers, and generic Logfire telemetry.
 
-**Supported providers:** OpenAI, Amazon Bedrock, Anthropic, Google Gemini
+**Supported providers:** OpenAI, Azure OpenAI, Amazon Bedrock, Anthropic, Google Gemini
 
 ## Quick Start
 
@@ -116,6 +116,7 @@ pip install "sideseat[openai]"          # + OpenAI / OpenAI Agents
 # Extras for provider instrumentation:
 pip install "sideseat[anthropic]"       # + Anthropic
 pip install "sideseat[aws]" boto3      # + Amazon Bedrock (the extra adds wrapt; boto3 is yours)
+pip install "sideseat[azure-openai]"    # + Azure OpenAI
 pip install "sideseat[google-genai]"    # + Google Gemini
 pip install "sideseat[vertex-ai]"       # + Google Vertex AI (native SDK)
 
@@ -129,7 +130,7 @@ environment; do not combine it with `sideseat[all]`.
 
 ## Framework Examples
 
-SideSeat auto-detects the first installed framework in this order: Strands, LangGraph, LangChain, CrewAI, AutoGen, OpenAI Agents, Google ADK, PydanticAI, Microsoft Agent Framework, Semantic Kernel, Claude Agent SDK, Agno, Smolagents, LlamaIndex, AgentScope, Langflow, AG2, Haystack, browser-use, TraceLoop, Vertex AI. `openai`, `anthropic`, `google-genai`, and generic `logfire` are never auto-detected — they are too common as transitive dependencies — so pass those explicitly. When several frameworks are installed, name the one you drive with the `framework` parameter.
+SideSeat auto-detects the first installed framework in this order: Strands, LangGraph, LangChain, CrewAI, AutoGen, OpenAI Agents, Google ADK, PydanticAI, Microsoft Agent Framework, Semantic Kernel, Claude Agent SDK, Agno, Smolagents, LlamaIndex, AgentScope, Langflow, AG2, Haystack, browser-use, TraceLoop, Vertex AI. `openai`, `azure-openai`, `anthropic`, `google-genai`, and generic `logfire` are never auto-detected — they are too common as transitive dependencies — so pass those explicitly. When several frameworks are installed, name the one you drive with the `framework` parameter.
 
 ### Strands Agents
 
@@ -388,6 +389,31 @@ response = openai.responses.create(
 print(response.output_text)
 ```
 
+### Azure OpenAI
+
+```bash
+pip install "sideseat[azure-openai]"
+```
+
+```python
+import os
+
+from openai import OpenAI
+from sideseat import Frameworks, SideSeat
+
+SideSeat(framework=Frameworks.AzureOpenAI)
+client = OpenAI(
+    api_key=os.environ["AZURE_OPENAI_API_KEY"],
+    base_url="https://YOUR-RESOURCE.openai.azure.com/openai/v1/",
+)
+
+response = client.chat.completions.create(
+    model="YOUR-DEPLOYMENT",
+    messages=[{"role": "user", "content": "What is 2+2?"}],
+)
+print(response.choices[0].message.content)
+```
+
 ## Configuration
 
 ### Environment Variables
@@ -601,6 +627,7 @@ Frameworks.TraceLoop  # "traceloop"       (TraceLoop/OpenLLMetry)
 ```python
 Frameworks.Bedrock  # Amazon Bedrock (patches botocore)
 Frameworks.OpenAI  # OpenAI (instruments openai SDK)
+Frameworks.AzureOpenAI  # Azure OpenAI (instruments openai SDK)
 Frameworks.Anthropic  # Anthropic (instruments anthropic SDK)
 Frameworks.GoogleGenAI  # Google Gemini (instruments google-genai SDK)
 Frameworks.VertexAI  # Google Vertex AI (instruments vertexai SDK)

@@ -16,13 +16,13 @@ fn attrs(pairs: &[(&str, &str)]) -> HashMap<String, String> {
 #[test]
 fn the_detection_plan_holds_every_rule() {
     let plan = &ruleset().detect;
-    // 28 producers, 29 compiled rules: one producer declares its **self-identification** as a separately ranked
-    // alternative, because the predicates in one `match` are independently sufficient and its three signals
-    // differ in strength - a defaulted `service.name` has to be ranked last, which put `gen_ai.system` there too.
+    // 28 producers, 30 compiled rules: one alternative separates strong self-identification from a weak
+    // service name, and one combines the independently insufficient cloud and model-API signals OpenInference
+    // emits for Azure OpenAI.
     assert_eq!(
         plan.rule_count(),
-        29,
-        "the assets declare {} detection rules; the table they replaced had 28, plus one ranked alternative",
+        30,
+        "the assets declare {} detection rules; the table they replaced had 28, plus two ranked alternatives",
         plan.rule_count()
     );
     assert_eq!(
@@ -136,6 +136,73 @@ fn rank_decides_which_of_two_matching_rules_wins() {
         hit.label, "Narrow",
         "the lower rank wins, and it is declared rather than implied by position in a file"
     );
+}
+
+#[test]
+fn detection_can_require_independent_signal_sets() {
+    let source = br#"{
+      "id": "t", "doc": "d",
+      "detect": [{
+        "id": "azure-openai",
+        "doc": "d",
+        "label": "AzureOpenAI",
+        "legacy_rank": 10,
+        "match": {
+          "attr_equals": [{"key": "llm.provider", "value": "azure"}]
+        },
+        "all_of": [{
+          "attr_equals": [{"key": "llm.system", "value": "openai"}]
+        }]
+      }]
+    }"#;
+    let sources = std::collections::BTreeMap::from([("t.json".to_string(), source.to_vec())]);
+    let plan = compile(&sources).expect("conjunctive detection compiles");
+    let resource_attrs = attrs(&[]);
+    let detected = |pairs: &[(&str, &str)]| {
+        let span_attrs = attrs(pairs);
+        plan.resolve(&DetectContext {
+            span_name: "ChatCompletion",
+            scope_name: Some("openinference.instrumentation.openai"),
+            span_attrs: &span_attrs,
+            resource_attrs: &resource_attrs,
+        })
+        .map(|found| found.label.as_str())
+    };
+
+    assert_eq!(
+        detected(&[("llm.provider", "azure"), ("llm.system", "openai")]),
+        Some("AzureOpenAI")
+    );
+    assert_eq!(
+        detected(&[("llm.provider", "azure")]),
+        None,
+        "a shared cloud provider alone does not identify the model API"
+    );
+    assert_eq!(
+        detected(&[("llm.system", "openai")]),
+        None,
+        "the model API alone does not identify which cloud served it"
+    );
+}
+
+#[test]
+fn every_required_detection_set_must_declare_a_signal() {
+    let source = br#"{
+      "id": "t", "doc": "d",
+      "detect": [{
+        "id": "broken",
+        "doc": "d",
+        "label": "Broken",
+        "legacy_rank": 10,
+        "match": {"attr_exists": ["one"]},
+        "all_of": [{}]
+      }]
+    }"#;
+    let sources = std::collections::BTreeMap::from([("t.json".to_string(), source.to_vec())]);
+    assert!(matches!(
+        compile(&sources),
+        Err(DetectCompileError::NoSignal { .. })
+    ));
 }
 
 #[test]
