@@ -77,8 +77,9 @@ def instrument(
             _instrument_ag2(provider)
         elif framework == Frameworks.Haystack:
             _instrument_haystack(provider)
+        elif framework == Frameworks.AgentScope:
+            _instrument_agentscope()
         elif framework in (
-            Frameworks.AgentScope,
             Frameworks.Langflow,
             Frameworks.BrowserUse,
         ):
@@ -195,6 +196,41 @@ def _instrument_ag2(provider: "TracerProvider | None") -> None:
 
     init_with_telemetry._sideseat_ag2_instrumented = True  # type: ignore[attr-defined]
     agent_cls.__init__ = init_with_telemetry
+
+
+def _instrument_agentscope() -> None:
+    """Inject AgentScope 2.x tracing into subsequently created agents."""
+    agent_module = importlib.import_module("agentscope.agent")
+    middleware_module = importlib.import_module("agentscope.middleware")
+    agent_cls = agent_module.Agent
+    tracing_cls = middleware_module.TracingMiddleware
+    original_init = agent_cls.__init__
+
+    if getattr(original_init, "_sideseat_agentscope_instrumented", False):
+        return
+
+    @functools.wraps(original_init)
+    def init_with_tracing(self: Any, *args: Any, **kwargs: Any) -> None:
+        # `middlewares` is the fifth positional parameter in AgentScope 2.x.
+        # Support both calling styles so instrumentation does not change the
+        # framework's public constructor contract.
+        if len(args) >= 5:
+            positional = list(args)
+            middlewares = list(positional[4] or ())
+            if not any(isinstance(item, tracing_cls) for item in middlewares):
+                middlewares.append(tracing_cls())
+            positional[4] = middlewares
+            args = tuple(positional)
+        else:
+            middlewares = list(kwargs.pop("middlewares", ()) or ())
+            if not any(isinstance(item, tracing_cls) for item in middlewares):
+                middlewares.append(tracing_cls())
+            kwargs["middlewares"] = middlewares
+
+        original_init(self, *args, **kwargs)
+
+    init_with_tracing._sideseat_agentscope_instrumented = True  # type: ignore[attr-defined]
+    agent_cls.__init__ = init_with_tracing
 
 
 def _instrument_openllmetry_vertexai(provider: "TracerProvider | None") -> None:

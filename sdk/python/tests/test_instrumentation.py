@@ -178,6 +178,65 @@ class TestInstrument:
         preserved = Agent("explicit", middleware=(explicit,))
         assert preserved.middleware == (explicit,)
 
+    def test_agentscope_injects_builtin_tracing_once(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """AgentScope 2.x agents receive tracing without duplicate middleware."""
+
+        class TracingMiddleware:
+            pass
+
+        class Agent:
+            def __init__(
+                self,
+                name: str,
+                system_prompt: str,
+                model: Any,
+                toolkit: Any = None,
+                middlewares: list[Any] | None = None,
+            ) -> None:
+                self.name = name
+                self.system_prompt = system_prompt
+                self.model = model
+                self.toolkit = toolkit
+                self.middlewares = middlewares
+
+        modules = {
+            "agentscope.agent": SimpleNamespace(Agent=Agent),
+            "agentscope.middleware": SimpleNamespace(TracingMiddleware=TracingMiddleware),
+        }
+        real_import = importlib.import_module
+
+        def fake_import(name: str, package: str | None = None) -> Any:
+            return modules.get(name) or real_import(name, package)
+
+        monkeypatch.setattr(importlib, "import_module", fake_import)
+
+        assert instrument(Frameworks.AgentScope, None) is True
+
+        injected = Agent("weather", "Use tools.", object())
+        assert injected.middlewares is not None
+        assert len(injected.middlewares) == 1
+        assert isinstance(injected.middlewares[0], TracingMiddleware)
+
+        explicit = TracingMiddleware()
+        preserved = Agent(
+            "explicit",
+            "Use tools.",
+            object(),
+            middlewares=[explicit],
+        )
+        assert preserved.middlewares == [explicit]
+
+        positional = Agent(
+            "positional",
+            "Use tools.",
+            object(),
+            None,
+            [],
+        )
+        assert positional.middlewares is not None
+        assert len(positional.middlewares) == 1
+        assert isinstance(positional.middlewares[0], TracingMiddleware)
+
     def test_haystack_uses_native_tracing_with_content(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
