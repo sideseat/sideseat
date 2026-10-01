@@ -6,8 +6,8 @@
 //! held*. Several of them are already nothing but that, expressed as Rust:
 //!
 //! ```text
-//! if let Some(parsed) = extract_json(attrs, "traceloop.entity.input") {
-//!     messages.push(RawMessage::from_attr("traceloop.entity.input", timestamp, parsed));
+//! if let Some(parsed) = extract_json(attrs, "input.value") {
+//!     messages.push(RawMessage::from_attr("input.value", timestamp, parsed));
 //! }
 //! ```
 //!

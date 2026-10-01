@@ -649,7 +649,6 @@ fn the_rules_reproduce_the_extractors_they_replaced() {
             try_google_adk,
             try_langgraph,
             try_mlflow,
-            try_traceloop,
             try_pydantic_ai,
             try_langsmith,
             try_livekit,
@@ -854,7 +853,7 @@ fn declared_message_rules_cover_what_they_claim() {
     let plan = &ruleset().messages;
     assert_eq!(
         plan.rule_count(),
-        94,
+        92,
         "the assets declare {} message rules. Production has no extractor registry: even last-resort \
          carriers are declared with `stage: fallback`. A dialect moves whole or not at all, so there are \
          no partially migrated carriers to count.",
@@ -874,7 +873,6 @@ fn declared_message_rules_cover_what_they_claim() {
         .map(|b| String::from_utf8_lossy(b).to_string())
         .collect();
     for carrier in [
-        "traceloop.entity.input",
         "mlflow.spanInputs",
         "mlflow.chat.tools",
         "tool_arguments",

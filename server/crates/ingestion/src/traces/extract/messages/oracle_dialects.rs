@@ -442,40 +442,6 @@ pub(crate) fn try_mlflow(
     found
 }
 
-/// TraceLoop message extraction
-#[cfg(test)]
-pub(crate) fn try_traceloop(
-    messages: &mut Vec<RawMessage>,
-    _tool_definitions: &mut Vec<RawToolDefinition>,
-    attrs: &HashMap<String, String>,
-    _: &str,
-    timestamp: DateTime<Utc>,
-) -> bool {
-    let mut found = false;
-
-    // traceloop.entity.input - JSON string
-    if let Some(parsed) = extract_json::<JsonValue>(attrs, keys::TRACELOOP_ENTITY_INPUT) {
-        messages.push(RawMessage::from_attr(
-            keys::TRACELOOP_ENTITY_INPUT,
-            timestamp,
-            parsed,
-        ));
-        found = true;
-    }
-
-    // traceloop.entity.output - JSON string
-    if let Some(parsed) = extract_json::<JsonValue>(attrs, keys::TRACELOOP_ENTITY_OUTPUT) {
-        messages.push(RawMessage::from_attr(
-            keys::TRACELOOP_ENTITY_OUTPUT,
-            timestamp,
-            parsed,
-        ));
-        found = true;
-    }
-
-    found
-}
-
 /// Pydantic AI (via Logfire) message extraction
 #[cfg(test)]
 pub(crate) fn try_pydantic_ai(

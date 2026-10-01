@@ -375,12 +375,6 @@ pub(super) mod keys {
     #[cfg(any(test, feature = "test-support"))]
     pub const MLFLOW_TRACE_USER: &str = "mlflow.trace.user";
 
-    // TraceLoop
-    #[cfg(any(test, feature = "test-support"))]
-    pub const TRACELOOP_ENTITY_INPUT: &str = "traceloop.entity.input";
-    #[cfg(any(test, feature = "test-support"))]
-    pub const TRACELOOP_ENTITY_OUTPUT: &str = "traceloop.entity.output";
-
     // Vercel AI SDK.
     //
     // Named by the assets in production; these are kept for the equivalence oracles' reference

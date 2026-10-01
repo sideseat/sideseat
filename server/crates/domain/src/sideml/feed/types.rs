@@ -379,7 +379,6 @@ impl BlockEntry {
     /// - `ai.prompt` - Vercel AI SDK
     /// - `lk.input_text`, `lk.user_input`, `lk.instructions`, `lk.chat_ctx` - LiveKit
     /// - `mlflow.spanInputs` - MLflow
-    /// - `traceloop.entity.input` - TraceLoop
     /// - `pydantic_ai.all_messages` - Pydantic AI
     /// - `request_data` - Logfire
     /// - Input events (gen_ai.user.message, etc.)
@@ -402,7 +401,6 @@ impl BlockEntry {
     /// - `ai.result.*` - Vercel AI SDK
     /// - `lk.response.*` - LiveKit
     /// - `mlflow.spanOutputs` - MLflow
-    /// - `traceloop.entity.output` - TraceLoop
     /// - `response_data` - Logfire
     /// - Output events (gen_ai.choice, etc.)
     #[inline]
@@ -719,22 +717,6 @@ mod tests {
     fn test_is_output_source_mlflow() {
         let mut block = make_test_block();
         block.source_attribute = Some("mlflow.spanOutputs".to_string());
-        assert!(block.is_output_source());
-        assert!(!block.is_input_source());
-    }
-
-    #[test]
-    fn test_is_input_source_traceloop() {
-        let mut block = make_test_block();
-        block.source_attribute = Some("traceloop.entity.input".to_string());
-        assert!(block.is_input_source());
-        assert!(!block.is_output_source());
-    }
-
-    #[test]
-    fn test_is_output_source_traceloop() {
-        let mut block = make_test_block();
-        block.source_attribute = Some("traceloop.entity.output".to_string());
         assert!(block.is_output_source());
         assert!(!block.is_input_source());
     }

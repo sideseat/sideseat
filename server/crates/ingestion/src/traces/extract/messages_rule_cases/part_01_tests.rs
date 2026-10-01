@@ -408,26 +408,6 @@ vec![
         ),
         (
             "span",
-            rule_attrs(&[("traceloop.entity.input", r#"{"a":1}"#)]),
-        ),
-        (
-            "span",
-            rule_attrs(&[("traceloop.entity.output", r#"[1,2]"#)]),
-        ),
-        (
-            "span",
-            rule_attrs(&[
-                ("traceloop.entity.input", r#"{"a":1}"#),
-                ("traceloop.entity.output", r#""done""#),
-            ]),
-        ),
-        // Not JSON: `Json` mode must skip it, which is what the legacy `extract_json` did.
-        (
-            "span",
-            rule_attrs(&[("traceloop.entity.input", "not json at all")]),
-        ),
-        (
-            "span",
             rule_attrs(&[("mlflow.spanInputs", r#"{"messages":[]}"#)]),
         ),
         (
@@ -455,7 +435,6 @@ vec![
         (
             "span",
             rule_attrs(&[
-                ("traceloop.entity.input", r#"{"a":1}"#),
                 ("mlflow.spanInputs", r#"{"b":2}"#),
                 ("mlflow.chat.tools", r#"[{"name":"t"}]"#),
                 ("tool_arguments", r#"{"c":3}"#),

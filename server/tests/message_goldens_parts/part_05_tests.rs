@@ -784,14 +784,6 @@ fn no_declared_rule_is_dead_across_the_corpus() {
             "semconv.indexed_prompt",
             "no captured producer uses the indexed convention spelling",
         ),
-        (
-            "traceloop.entity_input",
-            "no captured fixture for the suite",
-        ),
-        (
-            "traceloop.entity_output",
-            "no captured fixture for the suite",
-        ),
     ];
 
     let declared = declared_rule_ids();

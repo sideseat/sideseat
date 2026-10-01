@@ -17,7 +17,7 @@ every read, so correcting them corrects history.
 
 ```mermaid
 flowchart TB
-    assets["server/assets/rules/*.json<br/>44 assets · 443 clauses"]
+    assets["server/assets/rules/*.json<br/>44 assets · 446 clauses"]
     compile["domain::rules::compile<br/>one OnceLock ruleset · digest"]
     assets --> compile
 
@@ -309,7 +309,7 @@ flowchart LR
         names["no_production_module_names_a_framework<br/>tokenised · markers derived from asset ids"]
         keys["no_production_module_carries_a_framework_telemetry_key<br/>every dotted string minus our own vocabulary"]
         oracles["17 equivalence oracles<br/>declared vs current behavior"]
-        goldens["235 tracked goldens<br/>4 views · count · order · content · no duplicates"]
+        goldens["237 tracked goldens<br/>4 views · count · order · content · no duplicates"]
         compile2["compile refusals<br/>dead rule · shared rank · unknown result · unreachable declaration"]
     end
 

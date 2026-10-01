@@ -287,28 +287,31 @@ fn test_strands_tool_use_in_choice_event() {
 }
 
 #[test]
-fn test_traceloop_entity_input() {
-    let attrs = make_attrs(&[(
-        "traceloop.entity.input",
-        r#"{"messages":[{"role":"user","content":"Hello"}]}"#,
-    )]);
-
+fn traceloop_decorator_values_are_not_chat_messages() {
+    let attrs = make_attrs(&[
+        (
+            "traceloop.entity.input",
+            r#"{"args":["model"],"kwargs":{"location":"Paris"}}"#,
+        ),
+        (
+            "traceloop.entity.output",
+            r#"{"first":"answer","second":"another answer"}"#,
+        ),
+    ]);
     let mut messages = Vec::new();
-    let found = try_traceloop(&mut messages, &mut Vec::new(), &attrs, "", Utc::now());
+    let mut tool_definitions = Vec::new();
+    extract_messages_from_attrs(
+        &mut messages,
+        &mut tool_definitions,
+        &attrs,
+        "workflow",
+        Utc::now(),
+        ExtractionMode::FirstMatch,
+        false,
+    );
 
-    assert!(found, "Should extract from traceloop.entity.input");
-    assert!(!messages.is_empty());
-}
-
-#[test]
-fn test_traceloop_entity_output() {
-    let attrs = make_attrs(&[("traceloop.entity.output", r#"{"response":"Hi there!"}"#)]);
-
-    let mut messages = Vec::new();
-    let found = try_traceloop(&mut messages, &mut Vec::new(), &attrs, "", Utc::now());
-
-    assert!(found, "Should extract from traceloop.entity.output");
-    assert!(!messages.is_empty());
+    assert!(messages.is_empty());
+    assert!(tool_definitions.is_empty());
 }
 
 #[test]

@@ -280,7 +280,6 @@ fn legacy_direction_facts(attribute: Option<&str>) -> (bool, bool) {
         "lk.instructions",
         "lk.chat_ctx",
         "mlflow.spanInputs",
-        "traceloop.entity.input",
         "pydantic_ai.all_messages",
         "request_data",
     ];

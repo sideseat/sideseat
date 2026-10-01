@@ -267,6 +267,44 @@ fn test_detect_observation_type_tool_from_operation() {
 }
 
 #[test]
+fn traceloop_tool_kind_outweighs_the_owning_agent_name() {
+    use sideseat_domain::rules::schema::SpanFact;
+
+    let attrs = make_attrs(&[
+        ("traceloop.span.kind", "tool"),
+        ("gen_ai.agent.name", "weather-agent"),
+        ("gen_ai.tool.name", "get_weather"),
+    ]);
+
+    assert_eq!(
+        detect_observation_type("get_weather.tool", &attrs),
+        ObservationType::Tool
+    );
+    assert_eq!(
+        categorize_span("get_weather.tool", &attrs),
+        SpanCategory::Tool
+    );
+    assert!(
+        sideseat_domain::rules::ruleset()
+            .span_facts
+            .holds(SpanFact::ToolExecution, &attrs)
+    );
+}
+
+#[test]
+fn traceloop_decorator_kinds_classify_from_their_explicit_attribute() {
+    for (kind, observation, category) in [
+        ("agent", ObservationType::Agent, SpanCategory::Agent),
+        ("task", ObservationType::Chain, SpanCategory::Chain),
+        ("workflow", ObservationType::Chain, SpanCategory::Chain),
+    ] {
+        let attrs = make_attrs(&[("traceloop.span.kind", kind)]);
+        assert_eq!(detect_observation_type("opaque", &attrs), observation);
+        assert_eq!(categorize_span("opaque", &attrs), category);
+    }
+}
+
+#[test]
 fn test_detect_observation_type_rpc_not_retriever() {
     // RPC spans should not be classified as Retriever even if name contains "retriev"
     let attrs = make_attrs(&[("rpc.system", "aws-api")]);
