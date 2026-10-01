@@ -176,14 +176,14 @@ impl std::fmt::Display for CompileError {
     }
 }
 
-/// Resolve a preset name to the eight facts, then apply the clause's overrides, then refuse a vector the
+/// Resolve a preset name to the nine facts, then apply the clause's overrides, then refuse a vector the
 /// model cannot mean.
 ///
 /// **The presets are not a semantic vocabulary**, and saying so here is more use than the names suggest.
 /// `snapshot` and `accumulated_state` differ in exactly one bit - whether the carrier holds the span's output -
 /// so `{preset: accumulated_state}` and `{preset: snapshot, carrier_holds_span_output: true}` are the same
 /// declaration written two ways, and the corpus contains both spellings. Nor does the preset name survive
-/// compilation: only the bits do. So they are historical constructors for an eight-bit value rather than
+/// compilation: only the bits do. So they are historical constructors for a nine-bit value rather than
 /// categories the engine acts on, and the honest form is orthogonal axes with one spelling each.
 fn resolve_facts(
     clause_id: &str,
@@ -206,6 +206,9 @@ fn resolve_facts(
     }
     if let Some(v) = facts.position_provides_sequence_order {
         semantics.position_provides_sequence_order = v;
+    }
+    if let Some(v) = facts.history_positions_provide_sequence_order {
+        semantics.history_positions_provide_sequence_order = v;
     }
     if let Some(v) = facts.carrier_is_atomic_emission {
         semantics.carrier_is_atomic_emission = v;
@@ -296,7 +299,15 @@ fn incoherent(
     {
         return Some(
             "expands into one observation per message and says its positions carry no sequence order - the \
-             expansion is what gives each message its position",
+            expansion is what gives each message its position",
+        );
+    }
+    if semantics.history_positions_provide_sequence_order
+        && !semantics.position_provides_sequence_order
+    {
+        return Some(
+            "says history positions carry sequence order while positions generally carry no sequence \
+             order",
         );
     }
     None

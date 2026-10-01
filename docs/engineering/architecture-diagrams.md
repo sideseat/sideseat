@@ -17,7 +17,7 @@ every read, so correcting them corrects history.
 
 ```mermaid
 flowchart TB
-    assets["server/assets/rules/*.json<br/>44 assets · 395 clauses"]
+    assets["server/assets/rules/*.json<br/>44 assets · 433 clauses"]
     compile["domain::rules::compile<br/>one OnceLock ruleset · digest"]
     assets --> compile
 
@@ -63,7 +63,7 @@ flowchart TB
     compile -. "digest joins the key" .-> cache["sideml::feed::cache<br/>reconstruction memo"]
 ```
 
-`carriers` is read on **both** sides, asymmetrically. The query side reads all eight facts and the ordering
+`carriers` is read on **both** sides, asymmetrically. The query side reads all nine facts and the ordering
 family, so a correction there reaches stored rows. Ingestion reads exactly one, `carrier_holds_span_output`,
 to decide which of a span's messages are its own output — and _that_ answer is persisted, so correcting it
 does **not** reach spans already stored. "A fix applies to history" is therefore true of carrier semantics

@@ -217,18 +217,22 @@ fn built(block: &JsonValue, rule: &ContentBlockRule) -> Option<JsonValue> {
     }
     if let Some(spec) = &rule.tool_result {
         let tool_use_id = member(block, &spec.tool_use_id, false).and_then(JsonValue::as_str);
+        let name = member(block, &spec.name, false).and_then(JsonValue::as_str);
         let content = crate::sideml::content::normalize_tool_result_content(
             member(block, &spec.content, false).cloned(),
         );
         let is_error = member(block, &spec.is_error, false)
             .and_then(JsonValue::as_bool)
             .unwrap_or(false);
-        return Some(json!({
-            "type": "tool_result",
-            "tool_use_id": tool_use_id,
-            "content": content,
-            "is_error": is_error,
-        }));
+        let mut result = serde_json::Map::new();
+        result.insert("type".to_string(), json!("tool_result"));
+        result.insert("tool_use_id".to_string(), json!(tool_use_id));
+        if let Some(name) = name {
+            result.insert("name".to_string(), json!(name));
+        }
+        result.insert("content".to_string(), content);
+        result.insert("is_error".to_string(), json!(is_error));
+        return Some(JsonValue::Object(result));
     }
     if let Some(spec) = &rule.json {
         let data = member(block, &spec.data, false)
@@ -448,6 +452,39 @@ mod tests {
             "require": {"all": [{"path": "$.type", "one_of": ["tool-result"]}]},
             "tool_result": {"content": ["$"]},
         }));
+    }
+
+    #[test]
+    fn a_tool_result_keeps_its_declared_name() {
+        let plan = plan_from(serde_json::json!({
+            "id": "probe.named_result",
+            "at": "before_provider_formats",
+            "legacy_rank": 1,
+            "require": {"all": [{"path": "$.result"}]},
+            "tool_result": {
+                "tool_use_id": ["$.id"],
+                "name": ["$.name"],
+                "content": ["$.result"]
+            }
+        }));
+
+        assert_eq!(
+            plan.normalize(
+                &serde_json::json!({
+                    "id": "call-1",
+                    "name": "weather",
+                    "result": "sunny"
+                }),
+                ChainPosition::BeforeProviderFormats,
+            ),
+            Some(serde_json::json!({
+                "type": "tool_result",
+                "tool_use_id": "call-1",
+                "name": "weather",
+                "content": "sunny",
+                "is_error": false
+            }))
+        );
     }
 
     /// A condition that is a tautology is not a condition. `{}`, `{"path": "$"}` and `{"exists": true}` are

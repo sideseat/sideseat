@@ -35,6 +35,13 @@ pub struct CarrierSemantics {
     /// Almost always true - it is what `assert_carrier_subsequence` checks - and false only where a
     /// carrier is a bag rather than a sequence.
     pub position_provides_sequence_order: bool,
+    /// Positions still state chronology when an observation is a duplicate/history copy.
+    ///
+    /// Usually false: a replay can list old turns in an order that is useful as context but not
+    /// authoritative globally. Some canonical accumulated outputs preserve the completed
+    /// conversation exactly, so their duplicate observations may still project ordering edges onto
+    /// the surviving direct producer.
+    pub history_positions_provide_sequence_order: bool,
     /// The carrier is one emission, so its observations belong together and stay contiguous.
     pub carrier_is_atomic_emission: bool,
     /// The carrier may re-state observations that already happened, so what it holds can be a replay
@@ -104,6 +111,7 @@ impl CarrierSemantics {
         carrier_holds_expandable_message_array: false,
         position_proves_distinct_occurrence: true,
         position_provides_sequence_order: true,
+        history_positions_provide_sequence_order: false,
         carrier_is_atomic_emission: true,
         may_restate_prior_observations: false,
         may_contain_framework_state: false,
@@ -118,6 +126,7 @@ impl CarrierSemantics {
         carrier_holds_expandable_message_array: false,
         position_proves_distinct_occurrence: false,
         position_provides_sequence_order: true,
+        history_positions_provide_sequence_order: false,
         carrier_is_atomic_emission: false,
         may_restate_prior_observations: true,
         may_contain_framework_state: false,
@@ -135,6 +144,7 @@ impl CarrierSemantics {
         carrier_holds_expandable_message_array: false,
         position_proves_distinct_occurrence: false,
         position_provides_sequence_order: true,
+        history_positions_provide_sequence_order: false,
         carrier_is_atomic_emission: false,
         may_restate_prior_observations: true,
         may_contain_framework_state: true,

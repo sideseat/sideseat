@@ -93,7 +93,12 @@ fn the_declared_classification_matches_the_sweep_across_the_corpus() {
                             && swept == "agent"
                             && attrs.get("gen_ai.operation.name").map(String::as_str)
                                 == Some("execute_tool");
-                        if declared != swept && !repaired_tool_execution {
+                        let declared_replacement = plan.observation_type_replaces_legacy(
+                            &span.name,
+                            &attrs,
+                            &swept,
+                        );
+                        if declared != swept && !repaired_tool_execution && !declared_replacement {
                             disagreements.push(format!(
                                 "{label} / {}: observation declared {declared}, swept {swept}",
                                 span.name
@@ -111,7 +116,13 @@ fn the_declared_classification_matches_the_sweep_across_the_corpus() {
                         *seen
                             .entry(format!("category:{declared_category}"))
                             .or_default() += 1;
-                        if declared_category != swept_category {
+                        if declared_category != swept_category
+                            && !plan.span_category_replaces_legacy(
+                                &span.name,
+                                &attrs,
+                                &swept_category,
+                            )
+                        {
                             disagreements.push(format!(
                                 "{label} / {}: category declared {declared_category}, swept {swept_category}",
                                 span.name

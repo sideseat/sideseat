@@ -90,6 +90,12 @@ pub struct ClassifyRule {
     /// What the span is, in the stored vocabulary. Mapped to the enum by the caller, which is the one thing
     /// about this that is not a producer's business.
     pub result: String,
+    /// The retired heuristic sweep's answer when this rule intentionally corrects it.
+    ///
+    /// This keeps a reviewed migration delta beside the producer fact that justifies it, instead of
+    /// teaching the framework-blind sweep or its corpus test about producer-specific span names.
+    #[serde(default)]
+    pub replaces_legacy_result: Option<String>,
 }
 
 /// One detection rule: signals that identify a producer, and the label they yield.
@@ -635,10 +641,10 @@ pub enum ParametersEncoding {
     ArgumentMap,
 }
 
-/// The **eight** carrier facts, named by preset with optional per-field overrides.
+/// The **nine** carrier facts, named by preset with optional per-field overrides.
 ///
 /// A preset is a constructor, not a category: `snapshot` and `accumulated_state` differ in one bit, so two
-/// declarations that read as different kinds of thing can be the same eight facts - and the name does not
+/// declarations that read as different kinds of thing can be the same nine facts - and the name does not
 /// survive compilation. 37 of the 55 shipped clauses override something, and nearly all of those overrides are
 /// compensating for direction or encoding being bundled into a preset that is otherwise about *reconstruction*.
 ///
@@ -654,6 +660,8 @@ pub struct Facts {
     pub position_proves_distinct_occurrence: Option<bool>,
     #[serde(default)]
     pub position_provides_sequence_order: Option<bool>,
+    #[serde(default)]
+    pub history_positions_provide_sequence_order: Option<bool>,
     #[serde(default)]
     pub carrier_is_atomic_emission: Option<bool>,
     #[serde(default)]

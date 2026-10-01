@@ -64,6 +64,7 @@ struct CompiledRule {
     /// Every one of these must hold; each is internally a disjunction.
     all_of: Vec<CompiledDetect>,
     result: String,
+    replaces_legacy_result: Option<String>,
 }
 
 /// The ordered rules of each classification, sorted by rank at compile time.
@@ -92,6 +93,16 @@ impl ClassifyPlan {
         first_match(&self.observation_types, span_name, attrs)
     }
 
+    /// Whether the matching observation rule explicitly replaces this retired-sweep answer.
+    pub fn observation_type_replaces_legacy(
+        &self,
+        span_name: &str,
+        attrs: &HashMap<String, String>,
+        legacy_result: &str,
+    ) -> bool {
+        replaces_legacy(&self.observation_types, span_name, attrs, legacy_result)
+    }
+
     /// Which category this span falls in, or `None` where no rule holds.
     pub fn span_category(
         &self,
@@ -100,6 +111,28 @@ impl ClassifyPlan {
     ) -> Option<super::expr::Verdict<&str>> {
         first_match(&self.span_categories, span_name, attrs)
     }
+
+    /// Whether the matching category rule explicitly replaces this retired-sweep answer.
+    pub fn span_category_replaces_legacy(
+        &self,
+        span_name: &str,
+        attrs: &HashMap<String, String>,
+        legacy_result: &str,
+    ) -> bool {
+        replaces_legacy(&self.span_categories, span_name, attrs, legacy_result)
+    }
+}
+
+fn matching_rule<'a>(
+    rules: &'a [CompiledRule],
+    span_name: &str,
+    attrs: &HashMap<String, String>,
+) -> Option<&'a CompiledRule> {
+    rules.iter().find(|rule| {
+        rule.all_of
+            .iter()
+            .all(|signals| super::detect_rules::compiled_signals_hold(signals, span_name, attrs))
+    })
 }
 
 fn first_match<'a>(
@@ -107,22 +140,25 @@ fn first_match<'a>(
     span_name: &str,
     attrs: &HashMap<String, String>,
 ) -> Option<super::expr::Verdict<&'a str>> {
-    rules
-        .iter()
-        .find(|rule| {
-            rule.all_of.iter().all(|signals| {
-                super::detect_rules::compiled_signals_hold(signals, span_name, attrs)
-            })
-        })
-        .map(|rule| {
-            // The rule that answered, named. A classification used to return the label alone, so "this span is
-            // a plain span" and "no rule recognised it" were the same answer to a reader, and the rule's id -
-            // which compilation keeps - was discarded at the one moment it is useful.
-            super::expr::Verdict::from_one(
-                rule.result.as_str(),
-                super::expr::ClausePath::root(rule.rule_id.clone()),
-            )
-        })
+    matching_rule(rules, span_name, attrs).map(|rule| {
+        // The rule that answered, named. A classification used to return the label alone, so "this span is
+        // a plain span" and "no rule recognised it" were the same answer to a reader, and the rule's id -
+        // which compilation keeps - was discarded at the one moment it is useful.
+        super::expr::Verdict::from_one(
+            rule.result.as_str(),
+            super::expr::ClausePath::root(rule.rule_id.clone()),
+        )
+    })
+}
+
+fn replaces_legacy(
+    rules: &[CompiledRule],
+    span_name: &str,
+    attrs: &HashMap<String, String>,
+    legacy_result: &str,
+) -> bool {
+    matching_rule(rules, span_name, attrs).and_then(|rule| rule.replaces_legacy_result.as_deref())
+        == Some(legacy_result)
 }
 
 /// Compile every asset's classification rules into one ordered plan.
@@ -264,6 +300,16 @@ fn compile_rule(
             allowed: allowed.join(", "),
         });
     }
+    if let Some(legacy_result) = &rule.replaces_legacy_result
+        && !allowed.contains(&legacy_result.as_str())
+    {
+        return Err(ClassifyCompileError::UnknownResult {
+            file: file_id.to_string(),
+            rule: rule.id.clone(),
+            result: legacy_result.clone(),
+            allowed: allowed.join(", "),
+        });
+    }
     for spec in &rule.all_of {
         // A conjunct that can never hold makes the whole rule dead, so it is refused for the same reason a
         // field source's gate is. `service_name` and `resource_attr_contains` are *not* refused here, unlike on
@@ -297,5 +343,6 @@ fn compile_rule(
         rule_id: rule.id.clone(),
         all_of: rule.all_of.iter().map(compile_signals).collect(),
         result: rule.result.clone(),
+        replaces_legacy_result: rule.replaces_legacy_result.clone(),
     })
 }

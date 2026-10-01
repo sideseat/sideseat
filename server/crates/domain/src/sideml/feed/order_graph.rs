@@ -112,7 +112,8 @@ pub(super) struct OrderEvidence {
     span: usize,
     /// Which carrier of that span, interned - the event or attribute it was read from.
     carrier: usize,
-    /// That carrier's positions state the order its observations belong in.
+    /// That carrier's positions state the order its observations belong in, including this
+    /// observation when it is a declared authoritative history copy.
     carrier_ordered: bool,
     /// The span produced this observation, rather than receiving it.
     is_output: bool,
@@ -263,7 +264,8 @@ pub(super) fn collect_order_evidence(
                 credible: credible && !block.is_history,
                 span,
                 carrier,
-                carrier_ordered: semantics.position_provides_sequence_order && !block.is_history,
+                carrier_ordered: semantics.position_provides_sequence_order
+                    && (!block.is_history || semantics.history_positions_provide_sequence_order),
                 is_output: block.is_output_source(),
                 from_generation: block.is_generation_span(),
                 accumulator: block.is_accumulator_span(),

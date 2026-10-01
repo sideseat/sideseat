@@ -1,14 +1,125 @@
 {
   "id": "haystack",
-  "doc": "The Haystack dialect.",
-  "carriers": [],
+  "doc": "The Haystack dialect. The official OpenTelemetry integration writes structured agent, component and pipeline snapshots under `haystack.*`; model-step inputs may fall back to a Python repr when they contain callbacks or Tool objects, so the lossless aggregate snapshots are the authoritative conversation evidence.",
+  "carriers": [
+    {
+      "id": "haystack.agent_step_llm_input",
+      "doc": "The conversation and tools handed to one model step. It is a request snapshot and may repeat earlier turns.",
+      "match": {
+        "attribute": "haystack.agent.step.llm.input"
+      },
+      "facts": {
+        "preset": "snapshot",
+        "carrier_holds_span_input": true
+      }
+    },
+    {
+      "id": "haystack.agent_step_llm_output",
+      "doc": "The replies produced by one model step.",
+      "match": {
+        "attribute": "haystack.agent.step.llm.output"
+      },
+      "facts": {
+        "preset": "emission"
+      }
+    },
+    {
+      "id": "haystack.agent_input",
+      "doc": "The conversation handed to an Agent invocation.",
+      "match": {
+        "attribute": "haystack.agent.input"
+      },
+      "facts": {
+        "preset": "snapshot",
+        "carrier_holds_span_input": true
+      }
+    },
+    {
+      "id": "haystack.agent_output",
+      "doc": "The Agent's accumulated state after the invocation, including the full conversation.",
+      "match": {
+        "attribute": "haystack.agent.output"
+      },
+      "facts": {
+        "preset": "accumulated_state",
+        "history_positions_provide_sequence_order": true
+      }
+    },
+    {
+      "id": "haystack.component_input",
+      "doc": "The input snapshot for one component invocation.",
+      "match": {
+        "attribute": "haystack.component.input"
+      },
+      "facts": {
+        "preset": "snapshot",
+        "carrier_holds_span_input": true
+      }
+    },
+    {
+      "id": "haystack.component_output",
+      "doc": "A component's output state. Agent components repeat the accumulated conversation while chat generators carry their replies here.",
+      "match": {
+        "attribute": "haystack.component.output"
+      },
+      "facts": {
+        "preset": "accumulated_state",
+        "history_positions_provide_sequence_order": true
+      }
+    },
+    {
+      "id": "haystack.pipeline_input",
+      "doc": "The pipeline input snapshot, keyed by component name.",
+      "match": {
+        "attribute": "haystack.pipeline.input_data"
+      },
+      "facts": {
+        "preset": "snapshot",
+        "carrier_holds_span_input": true
+      }
+    },
+    {
+      "id": "haystack.pipeline_output",
+      "doc": "The pipeline output state, keyed by component name.",
+      "match": {
+        "attribute": "haystack.pipeline.output_data"
+      },
+      "facts": {
+        "preset": "accumulated_state",
+        "history_positions_provide_sequence_order": true
+      }
+    },
+    {
+      "id": "haystack.agent_step_tool_input",
+      "doc": "The arguments handed to one tool execution.",
+      "match": {
+        "attribute": "haystack.agent.step.tool.input"
+      },
+      "facts": {
+        "preset": "emission",
+        "carrier_holds_span_output": false,
+        "carrier_holds_span_input": true
+      }
+    },
+    {
+      "id": "haystack.agent_step_tool_output",
+      "doc": "The result produced by one tool execution.",
+      "match": {
+        "attribute": "haystack.agent.step.tool.output"
+      },
+      "facts": {
+        "preset": "emission"
+      }
+    }
+  ],
   "detect": [
     {
       "id": "haystack.detect",
-      "doc": "Identifies Haystack by its OpenInference instrumentation scope or legacy component attributes. Supersedes openinference.detect: this is the more specific dialect, and both match the same span, so the relationship is declared rather than left to the legacy rank.",
+      "doc": "Identifies Haystack by the official integration's scope, the older OpenInference scope or Haystack-owned attributes. Supersedes openinference.detect: this is the more specific dialect, and both may match the same span, so the relationship is declared rather than left to the legacy rank.",
       "label": "Haystack",
       "match": {
         "scope_name": [
+          "haystack",
           "openinference.instrumentation.haystack"
         ],
         "attr_prefix": [
@@ -25,6 +136,772 @@
     {
       "slug": "haystack",
       "label": "Haystack"
+    }
+  ],
+  "span_facts": [
+    {
+      "id": "haystack.tool_execution",
+      "doc": "The official tracer names a tool execution through its tool metadata and paired input/output carriers.",
+      "fact": "tool_execution",
+      "signals": [
+        {
+          "id": "agent_step_tool",
+          "attrs_present": [
+            "haystack.tool.name",
+            "haystack.agent.step.tool.input",
+            "haystack.agent.step.tool.output"
+          ]
+        }
+      ]
+    }
+  ],
+  "observation_types": [
+    {
+      "id": "observation.haystack_agent_step_llm",
+      "doc": "A Haystack model step. The exact operation outranks the weaker `agent` substring in its name.",
+      "rank": 47,
+      "all_of": [
+        {
+          "span_name_exact": [
+            "haystack.agent.step.llm"
+          ]
+        }
+      ],
+      "result": "generation",
+      "replaces_legacy_result": "agent"
+    },
+    {
+      "id": "observation.haystack_agent_step_tool",
+      "doc": "A Haystack tool step.",
+      "rank": 48,
+      "all_of": [
+        {
+          "span_name_exact": [
+            "haystack.agent.step.tool"
+          ]
+        }
+      ],
+      "result": "tool",
+      "replaces_legacy_result": "agent"
+    },
+    {
+      "id": "observation.haystack_agent",
+      "doc": "The Agent invocation and its loop steps.",
+      "rank": 49,
+      "all_of": [
+        {
+          "span_name_exact": [
+            "haystack.agent.run",
+            "haystack.agent.step"
+          ]
+        }
+      ],
+      "result": "agent"
+    },
+    {
+      "id": "observation.haystack_chat_generator_component",
+      "doc": "A chat-generator component is a model generation even though its generic span name only says `component`.",
+      "rank": 51,
+      "all_of": [
+        {
+          "span_name_exact": [
+            "haystack.component.run"
+          ]
+        },
+        {
+          "attr_equals": [
+            {
+              "key": "haystack.component.type",
+              "value": "OpenAIChatGenerator"
+            }
+          ]
+        }
+      ],
+      "result": "generation",
+      "replaces_legacy_result": "span"
+    },
+    {
+      "id": "observation.haystack_agent_component",
+      "doc": "The component wrapper around an Agent invocation.",
+      "rank": 52,
+      "all_of": [
+        {
+          "span_name_exact": [
+            "haystack.component.run"
+          ]
+        },
+        {
+          "attr_equals": [
+            {
+              "key": "haystack.component.type",
+              "value": "Agent"
+            }
+          ]
+        }
+      ],
+      "result": "agent",
+      "replaces_legacy_result": "span"
+    },
+    {
+      "id": "observation.haystack_pipeline",
+      "doc": "A pipeline coordinates component invocations.",
+      "rank": 53,
+      "all_of": [
+        {
+          "span_name_exact": [
+            "haystack.pipeline.run"
+          ]
+        }
+      ],
+      "result": "chain",
+      "replaces_legacy_result": "span"
+    },
+    {
+      "id": "observation.haystack_component",
+      "doc": "A component without a more specific declared operation is one step in a chain.",
+      "rank": 54,
+      "all_of": [
+        {
+          "span_name_exact": [
+            "haystack.component.run"
+          ]
+        }
+      ],
+      "result": "chain",
+      "replaces_legacy_result": "span"
+    }
+  ],
+  "span_categories": [
+    {
+      "id": "category.haystack_agent_step_llm",
+      "rank": 81,
+      "all_of": [
+        {
+          "span_name_exact": [
+            "haystack.agent.step.llm"
+          ]
+        }
+      ],
+      "result": "llm",
+      "replaces_legacy_result": "other"
+    },
+    {
+      "id": "category.haystack_agent_step_tool",
+      "rank": 82,
+      "all_of": [
+        {
+          "span_name_exact": [
+            "haystack.agent.step.tool"
+          ]
+        }
+      ],
+      "result": "tool",
+      "replaces_legacy_result": "other"
+    },
+    {
+      "id": "category.haystack_chat_generator_component",
+      "rank": 83,
+      "all_of": [
+        {
+          "span_name_exact": [
+            "haystack.component.run"
+          ]
+        },
+        {
+          "attr_equals": [
+            {
+              "key": "haystack.component.type",
+              "value": "OpenAIChatGenerator"
+            }
+          ]
+        }
+      ],
+      "result": "llm",
+      "replaces_legacy_result": "other"
+    },
+    {
+      "id": "category.haystack_agent",
+      "rank": 84,
+      "all_of": [
+        {
+          "span_name_exact": [
+            "haystack.agent.run",
+            "haystack.agent.step"
+          ]
+        }
+      ],
+      "result": "agent",
+      "replaces_legacy_result": "other"
+    },
+    {
+      "id": "category.haystack_agent_component",
+      "rank": 85,
+      "all_of": [
+        {
+          "span_name_exact": [
+            "haystack.component.run"
+          ]
+        },
+        {
+          "attr_equals": [
+            {
+              "key": "haystack.component.type",
+              "value": "Agent"
+            }
+          ]
+        }
+      ],
+      "result": "agent",
+      "replaces_legacy_result": "other"
+    },
+    {
+      "id": "category.haystack_pipeline",
+      "rank": 86,
+      "all_of": [
+        {
+          "span_name_exact": [
+            "haystack.pipeline.run"
+          ]
+        }
+      ],
+      "result": "chain",
+      "replaces_legacy_result": "other"
+    },
+    {
+      "id": "category.haystack_component",
+      "rank": 87,
+      "all_of": [
+        {
+          "span_name_exact": [
+            "haystack.component.run"
+          ]
+        }
+      ],
+      "result": "chain",
+      "replaces_legacy_result": "other"
+    }
+  ],
+  "messages": [
+    {
+      "id": "haystack.agent_step_llm_input",
+      "doc": "A model step's structured request. Haystack falls back to Python repr when callbacks or Tool objects are present; JSON snapshots on the enclosing Agent remain authoritative for those cases, so an unreadable repr is deliberately not converted into a fake text turn.",
+      "instrumentation_scope": {
+        "name": "haystack"
+      },
+      "when": {
+        "span_name_exact": [
+          "haystack.agent.step.llm"
+        ]
+      },
+      "read": {
+        "attribute": "haystack.agent.step.llm.input"
+      },
+      "parse": "json",
+      "also": [
+        {
+          "id": "messages",
+          "select": "$.messages[*]",
+          "require": {
+            "all": [
+              {
+                "path": "$.role"
+              },
+              {
+                "path": "$.content"
+              }
+            ]
+          }
+        },
+        {
+          "id": "tools",
+          "doc": "Serializable Tool objects are wrapped under `data` by Haystack's dataclass serialiser.",
+          "select": "$.tools[*].data",
+          "emit": "tool_definitions"
+        }
+      ],
+      "legacy_rank": 1700
+    },
+    {
+      "id": "haystack.agent_step_llm_output",
+      "doc": "The replies emitted by one model step.",
+      "instrumentation_scope": {
+        "name": "haystack"
+      },
+      "when": {
+        "span_name_exact": [
+          "haystack.agent.step.llm"
+        ]
+      },
+      "read": {
+        "attribute": "haystack.agent.step.llm.output"
+      },
+      "parse": "json",
+      "alternatives": [
+        {
+          "id": "replies",
+          "select": "$.replies[*]",
+          "require": {
+            "all": [
+              {
+                "path": "$.role"
+              },
+              {
+                "path": "$.content"
+              }
+            ]
+          }
+        }
+      ],
+      "legacy_rank": 1710
+    },
+    {
+      "id": "haystack.agent_input",
+      "doc": "The conversation supplied to one Agent invocation.",
+      "instrumentation_scope": {
+        "name": "haystack"
+      },
+      "when": {
+        "span_name_exact": [
+          "haystack.agent.run"
+        ]
+      },
+      "read": {
+        "attribute": "haystack.agent.input"
+      },
+      "parse": "json",
+      "alternatives": [
+        {
+          "id": "messages",
+          "select": "$.messages[*]",
+          "require": {
+            "all": [
+              {
+                "path": "$.role"
+              },
+              {
+                "path": "$.content"
+              }
+            ]
+          }
+        }
+      ],
+      "legacy_rank": 1720
+    },
+    {
+      "id": "haystack.agent_output",
+      "doc": "The full, structured conversation after one Agent invocation.",
+      "instrumentation_scope": {
+        "name": "haystack"
+      },
+      "when": {
+        "span_name_exact": [
+          "haystack.agent.run"
+        ]
+      },
+      "read": {
+        "attribute": "haystack.agent.output"
+      },
+      "parse": "json",
+      "alternatives": [
+        {
+          "id": "messages",
+          "select": "$.messages[*]",
+          "require": {
+            "all": [
+              {
+                "path": "$.role"
+              },
+              {
+                "path": "$.content"
+              }
+            ]
+          }
+        }
+      ],
+      "legacy_rank": 1730
+    },
+    {
+      "id": "haystack.component_input",
+      "doc": "Messages and tool definitions handed to a component. Agent and chat-generator components use the same carrier with different envelopes.",
+      "instrumentation_scope": {
+        "name": "haystack"
+      },
+      "when": {
+        "span_name_exact": [
+          "haystack.component.run"
+        ]
+      },
+      "read": {
+        "attribute": "haystack.component.input"
+      },
+      "parse": "json",
+      "also": [
+        {
+          "id": "messages",
+          "select": "$.messages[*]",
+          "require": {
+            "all": [
+              {
+                "path": "$.role"
+              },
+              {
+                "path": "$.content"
+              }
+            ]
+          }
+        },
+        {
+          "id": "tools",
+          "select": "$.tools[*].data",
+          "emit": "tool_definitions"
+        }
+      ],
+      "legacy_rank": 1740
+    },
+    {
+      "id": "haystack.component_output",
+      "doc": "Agent components expose `messages`; chat generators expose `replies`. Both are additive readings because a component may legally carry both.",
+      "instrumentation_scope": {
+        "name": "haystack"
+      },
+      "when": {
+        "span_name_exact": [
+          "haystack.component.run"
+        ]
+      },
+      "read": {
+        "attribute": "haystack.component.output"
+      },
+      "parse": "json",
+      "also": [
+        {
+          "id": "messages",
+          "select": "$.messages[*]",
+          "require": {
+            "all": [
+              {
+                "path": "$.role"
+              },
+              {
+                "path": "$.content"
+              }
+            ]
+          }
+        },
+        {
+          "id": "replies",
+          "select": "$.replies[*]",
+          "require": {
+            "all": [
+              {
+                "path": "$.role"
+              },
+              {
+                "path": "$.content"
+              }
+            ]
+          }
+        }
+      ],
+      "legacy_rank": 1750
+    },
+    {
+      "id": "haystack.pipeline_input",
+      "doc": "Pipeline inputs are keyed by component name; each component's message list is a request snapshot.",
+      "instrumentation_scope": {
+        "name": "haystack"
+      },
+      "when": {
+        "span_name_exact": [
+          "haystack.pipeline.run"
+        ]
+      },
+      "read": {
+        "attribute": "haystack.pipeline.input_data"
+      },
+      "parse": "json",
+      "also": [
+        {
+          "id": "messages",
+          "select": "$.*.messages[*]",
+          "require": {
+            "all": [
+              {
+                "path": "$.role"
+              },
+              {
+                "path": "$.content"
+              }
+            ]
+          }
+        },
+        {
+          "id": "tools",
+          "select": "$.*.tools[*].data",
+          "emit": "tool_definitions"
+        }
+      ],
+      "legacy_rank": 1760
+    },
+    {
+      "id": "haystack.pipeline_output",
+      "doc": "Pipeline outputs are keyed by component name and may contain either an accumulated conversation or generator replies.",
+      "instrumentation_scope": {
+        "name": "haystack"
+      },
+      "when": {
+        "span_name_exact": [
+          "haystack.pipeline.run"
+        ]
+      },
+      "read": {
+        "attribute": "haystack.pipeline.output_data"
+      },
+      "parse": "json",
+      "also": [
+        {
+          "id": "messages",
+          "select": "$.*.messages[*]",
+          "require": {
+            "all": [
+              {
+                "path": "$.role"
+              },
+              {
+                "path": "$.content"
+              }
+            ]
+          }
+        },
+        {
+          "id": "replies",
+          "select": "$.*.replies[*]",
+          "require": {
+            "all": [
+              {
+                "path": "$.role"
+              },
+              {
+                "path": "$.content"
+              }
+            ]
+          }
+        }
+      ],
+      "legacy_rank": 1770
+    },
+    {
+      "id": "haystack.agent_step_tool_input",
+      "doc": "The call represented by a tool span. The official tracer does not repeat the call id here, so query-time name and argument correlation joins it to the richer Agent snapshot.",
+      "instrumentation_scope": {
+        "name": "haystack"
+      },
+      "when": {
+        "span_name_exact": [
+          "haystack.agent.step.tool"
+        ]
+      },
+      "read": {
+        "attribute": "haystack.agent.step.tool.input"
+      },
+      "parse": "json_or_string",
+      "wrap": {
+        "role": "assistant",
+        "block": {
+          "type": "tool_use",
+          "content_as": "input",
+          "attach": [
+            {
+              "from": "haystack.tool.name",
+              "as": "name",
+              "default": ""
+            }
+          ]
+        }
+      },
+      "emit": "message",
+      "legacy_rank": 1780,
+      "reads_tool_spans": true
+    },
+    {
+      "id": "haystack.agent_step_tool_output",
+      "doc": "The result represented by a tool span. It keeps the tool name even though the official tracer omits the call id from this span.",
+      "instrumentation_scope": {
+        "name": "haystack"
+      },
+      "when": {
+        "span_name_exact": [
+          "haystack.agent.step.tool"
+        ]
+      },
+      "read": {
+        "attribute": "haystack.agent.step.tool.output"
+      },
+      "parse": "json_or_string",
+      "wrap": {
+        "role": "tool",
+        "block": {
+          "type": "tool_result",
+          "attach": [
+            {
+              "from": "haystack.tool.name",
+              "as": "name"
+            }
+          ]
+        }
+      },
+      "emit": "message",
+      "legacy_rank": 1790,
+      "reads_tool_spans": true
+    },
+    {
+      "id": "haystack.agent_tools",
+      "doc": "The official tracer serialises a non-empty Agent tool list as Python repr. The generic repr grammar keeps the tool's name and description instead of presenting framework internals as a conversation turn.",
+      "instrumentation_scope": {
+        "name": "haystack"
+      },
+      "when": {
+        "span_name_exact": [
+          "haystack.agent.run"
+        ]
+      },
+      "read": {
+        "attribute": "haystack.agent.tools"
+      },
+      "parse": "json_or_string",
+      "emit": "tool_definitions",
+      "tool_repr": {
+        "name_field": "name",
+        "description_field": "description",
+        "name_label": "Tool Name:",
+        "description_label": "Tool Description:",
+        "arguments_label": "Tool Arguments:",
+        "repr_markers": [
+          "Tool("
+        ],
+        "parameter_members": [
+          "parameters"
+        ],
+        "type_map": [
+          [
+            "str",
+            "string"
+          ],
+          [
+            "string",
+            "string"
+          ],
+          [
+            "int",
+            "integer"
+          ],
+          [
+            "integer",
+            "integer"
+          ],
+          [
+            "float",
+            "number"
+          ],
+          [
+            "number",
+            "number"
+          ],
+          [
+            "bool",
+            "boolean"
+          ],
+          [
+            "boolean",
+            "boolean"
+          ],
+          [
+            "list",
+            "array"
+          ],
+          [
+            "array",
+            "array"
+          ],
+          [
+            "dict",
+            "object"
+          ],
+          [
+            "object",
+            "object"
+          ]
+        ],
+        "type_default": "unconstrained",
+        "entries": "$",
+        "candidates": [
+          "$"
+        ],
+        "field_terminators": [
+          "parameters",
+          "function",
+          "outputs_to_string",
+          "inputs_from_state",
+          "outputs_to_state",
+          "async_function"
+        ]
+      },
+      "legacy_rank": 1800
+    }
+  ],
+  "content_blocks": [
+    {
+      "id": "haystack.tool_call",
+      "doc": "Haystack wraps a model tool call in a `tool_call` member.",
+      "at": "before_provider_formats",
+      "legacy_rank": 100,
+      "require": {
+        "all": [
+          {
+            "path": "$.tool_call.tool_name",
+            "exists": true
+          }
+        ]
+      },
+      "tool_use": {
+        "id": [
+          "$.tool_call.id"
+        ],
+        "name": [
+          "$.tool_call.tool_name"
+        ],
+        "input": [
+          "$.tool_call.arguments"
+        ]
+      }
+    },
+    {
+      "id": "haystack.tool_call_result",
+      "doc": "Haystack wraps a tool result together with the originating call, preserving the id needed for exact pairing.",
+      "at": "before_provider_formats",
+      "legacy_rank": 110,
+      "require": {
+        "all": [
+          {
+            "path": "$.tool_call_result.origin.tool_name",
+            "exists": true
+          }
+        ]
+      },
+      "tool_result": {
+        "tool_use_id": [
+          "$.tool_call_result.origin.id"
+        ],
+        "name": [
+          "$.tool_call_result.origin.tool_name"
+        ],
+        "content": [
+          "$.tool_call_result.result"
+        ],
+        "is_error": [
+          "$.tool_call_result.error"
+        ]
+      }
     }
   ]
 }

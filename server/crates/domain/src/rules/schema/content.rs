@@ -486,6 +486,11 @@ pub struct ToolUseBlock {
 pub struct ToolResultBlock {
     #[serde(default)]
     pub tool_use_id: Vec<JsonPath>,
+    /// Ordered; omitted when no path resolves. A result may carry both the id that pairs it exactly and the
+    /// human-readable tool name, and keeping the latter can make an aggregate snapshot at least as rich as a
+    /// duplicate tool-span observation.
+    #[serde(default)]
+    pub name: Vec<JsonPath>,
     #[serde(default)]
     pub content: Vec<JsonPath>,
     #[serde(default)]
