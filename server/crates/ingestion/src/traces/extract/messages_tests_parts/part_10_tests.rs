@@ -529,7 +529,7 @@ fn openinference_tool_output_is_a_tool_result() {
         SpanExtraction {
             name: "weather_assistant.get_weather",
             attrs: &attrs,
-            scope_name: Some("openinference.instrumentation.custom"),
+            scope_name: Some("openinference.instrumentation.generic"),
             scope_version: Some("0.1.67"),
             is_tool_span: true,
         },
