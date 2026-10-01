@@ -9,6 +9,7 @@ cd "$REPO_ROOT"
 SUITES=(
   "strands|3.13"
   "langchain|3.13"
+  "agno|3.13"
   "langgraph|3.13"
   "crewai|3.13"
   "adk|3.13"

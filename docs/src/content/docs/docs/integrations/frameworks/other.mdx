@@ -179,6 +179,10 @@ Agno is instrumented through OpenInference. Its spans carry `agno.*` attributes 
 `openinference.*`, and SideSeat's detection prefers the specific `agno.` prefix so runs are
 labelled Agno rather than the generic OpenInference.
 
+The tracked compatibility boundary is Agno 3.0.11 with OpenAI 3.22.1 and the OpenInference
+Agno instrumentor 1.0.12 on Python 3.13. It is exercised both natively and through SideSeat
+with persisted history, streaming, automatic tool execution, two traces, and one shared session.
+
 ## Smolagents
 
 ```bash

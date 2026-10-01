@@ -62,6 +62,8 @@ the corpus matches it.
 | `agent-framework` | agent-framework-core >=1.0.0b0 | 10 | 17 |
 | `agent-framework-native` | agent-framework-core >=1.0.0b0, native OTLP setup | 10 | 10 |
 | `agent-framework-sdk` | SideSeat Python 1.0.8 / agent-framework-core >=1.0.0b0 | 10 | 10 |
+| `agno-native` | Agno 3.0.11 / OpenAI 3.22.1 / OpenInference Agno instrumentor 1.0.12 / OpenTelemetry Python 1.45.0 on CPython 3.13.7, native OTLP setup | 1 | 1 |
+| `agno-sdk` | SideSeat Python 1.0.8 / Agno 3.0.11 / OpenAI 3.22.1 / OpenInference Agno instrumentor 1.0.12 / OpenTelemetry Python 1.45.0 on CPython 3.13.7 | 1 | 1 |
 | `anthropic` | anthropic >=0.84.0 | 7 | 18 |
 | `anthropic-native` | Anthropic 1.8.0 / Logfire 6.0.0b7 / OpenTelemetry Python 1.44.0 on CPython 3.13.7 | 1 | 1 |
 | `anthropic-sdk` | SideSeat Python 1.0.8 / Anthropic 1.8.0 / Logfire 6.0.0b7 / OpenTelemetry Python 1.44.0 on CPython 3.13.7 | 1 | 1 |
@@ -97,7 +99,7 @@ the corpus matches it.
 | `strands-native` | strands-agents >=1.30.0, native OTLP setup | 9 | 9 |
 | `strands-sdk` | SideSeat Python 1.0.8 / strands-agents >=1.30.0 | 9 | 9 |
 | `vercel-ai-js` | ai ^7.0.79 | 6 | 13 |
-| **42 suites** | | **217** | **382** |
+| **44 suites** | | **219** | **384** |
 
 Two further samples exist but are **not in the repository**: `strands-js/image-gen` and
 `vercel-ai-js/image-gen`, whose payloads are 15 MB and 7 MB of inlined base64 image data (the Python
@@ -115,6 +117,7 @@ passing checks. Any upstream capability exemption is named per fixture with a re
 | Criterion | Passing evidence |
 | --- | --- |
 | Wire fidelity | Fixture is the exact OTLP request emitted by the pinned SDK/framework version |
+| Framework identity | Every native framework suite reaches its declared framework label without SDK fallback |
 | Span view | Every span returns only its own messages, in source order |
 | Trace view | Full conversation is complete, ordered, and scoped to one trace |
 | Session view | Traces partition one session exactly; no trace belongs to two sessions |
@@ -156,8 +159,8 @@ scripts/message-fixtures/capture.sh strands tool_use native # one native sample
 scripts/message-fixtures/capture.sh strands tool_use sdk    # the matching SDK sample
 ```
 
-The latest direct OpenAI, Anthropic, Google GenAI, and Pydantic AI pairs are credential-free and
-deterministic:
+The latest direct OpenAI, Anthropic, Google GenAI, Pydantic AI, AutoGen, LangChain, and Agno
+pairs are credential-free and deterministic:
 
 ```bash
 scripts/message-fixtures/fake-openai.py --port 5401
@@ -187,6 +190,20 @@ AUTOGEN_OPENAI_BASE_URL=http://127.0.0.1:5401/v1 \
 AUTOGEN_API_KEY=x \
 CAPTURE_MODEL=gpt-4o-mini \
   scripts/message-fixtures/capture.sh autogen agent both
+
+scripts/message-fixtures/fake-openai.py --port 5401
+# In another shell:
+OPENAI_API_KEY=x \
+OPENAI_BASE_URL=http://127.0.0.1:5401/v1 \
+CAPTURE_MODEL=gpt-5-nano-2025-08-07 \
+  scripts/message-fixtures/capture.sh langchain canonical both
+
+scripts/message-fixtures/fake-openai.py --port 5401
+# In another shell:
+OPENAI_API_KEY=x \
+OPENAI_BASE_URL=http://127.0.0.1:5401/v1 \
+CAPTURE_MODEL=gpt-5-nano-2025-08-07 \
+  scripts/message-fixtures/capture.sh agno canonical both
 ```
 
 `CAPTURE_MODEL` is validated before being appended to the sample command. The fake endpoints cover
@@ -276,19 +293,19 @@ not hide the rest.
 
 ## What is and is not covered
 
-**217 tracked expectation files: 200 captured in 41 suites, plus 17 synthetic.** A suite is not a framework:
+**219 tracked expectation files: 202 captured in 43 suites, plus 17 synthetic.** A suite is not a framework:
 `strands`/`strands-js` and `claude-agent-sdk`/`claude-agent-sdk-js` are one framework each in two
 languages; the eight .NET/JavaScript/Python/Rust suites are SDK conformance rather than framework
-captures. The fixture families below cover **15 of the 32** frameworks SideSeat recognises. (32 is
+captures. The fixture families below cover **16 of the 32** frameworks SideSeat recognises. (32 is
 the union of the server's `Framework` classifier and the SDK's framework list, excluding `Unknown`:
 28 named server variants plus `anthropic`, `openai`, `google-genai` and `pydantic-ai`, which only the
 SDK names.) Every framework is not covered, and the gap is deliberate rather than hidden:
 
-| Covered by fixtures (15) | strands, langchain, langgraph, crewai, google-adk, google-genai, bedrock, openai, openai-agents, anthropic, pydantic-ai, autogen, agent-framework, claude-agent-sdk, vercel-ai — strands and claude-agent-sdk in both languages, vercel-ai in JS only |
+| Covered by fixtures (16) | strands, langchain, langgraph, crewai, google-adk, google-genai, bedrock, openai, openai-agents, anthropic, pydantic-ai, autogen, agent-framework, claude-agent-sdk, agno, vercel-ai — strands and claude-agent-sdk in both languages, vercel-ai in JS only |
 | ------------------- | --- |
 | Synthetic, not a framework | `_synthetic/*` — hand-written payloads for shapes no captured sample produces, counted in the file total and in neither the suites nor the frameworks. See below. |
 | SDK conformance, not a framework | The `dotnet-{otel,sdk}/canonical`, `javascript-{otel,sdk}/canonical`, `python-{otel,sdk}/canonical`, and `rust-{otel,sdk}/canonical` pairs — the same real four-span, five-message conversation exported without and with each SideSeat SDK |
-| Recognised, no fixtures (17) | ag2, agentscope, agno, azure-ai-foundry, azure-openai, browser-use, haystack, langflow, livekit, llamaindex, logfire, mlflow, **openinference**, semantic-kernel, smolagents, traceloop, vertex-ai |
+| Recognised, no fixtures (16) | ag2, agentscope, azure-ai-foundry, azure-openai, browser-use, haystack, langflow, livekit, llamaindex, logfire, mlflow, **openinference**, semantic-kernel, smolagents, traceloop, vertex-ai |
 
 The second group shares extractors with covered frameworks, so the *parsing logic* is exercised
 — but nothing here proves their emitted payloads match what those extractors expect. Adding a
