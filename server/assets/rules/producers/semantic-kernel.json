@@ -5,9 +5,15 @@
   "detect": [
     {
       "id": "semantic-kernel.detect",
-      "doc": "Identifies SemanticKernel by the signals below.",
+      "doc": "Identifies SemanticKernel by its current Python instrumentation scopes or framework-owned attributes.",
       "label": "SemanticKernel",
       "match": {
+        "scope_name": [
+          "semantic_kernel.connectors.ai.chat_completion_client_base",
+          "semantic_kernel.functions.kernel_function",
+          "semantic_kernel.utils.telemetry.agent_diagnostics.decorators",
+          "semantic_kernel.utils.telemetry.model_diagnostics.decorators"
+        ],
         "attr_prefix": [
           "semantic_kernel."
         ]

@@ -324,16 +324,16 @@ attributed once they arrive:
 
 | Framework | Recognised by |
 | --- | --- |
-| Semantic Kernel | `semantic_kernel.*` attributes |
+| Semantic Kernel | current Python instrumentation scopes and `semantic_kernel.*` attributes |
 | Azure AI Foundry | Azure AI attributes, after the more specific Azure OpenAI rule |
 | Logfire | Pydantic Logfire's own attributes |
 | MLflow | MLflow tracing attributes |
 | TraceLoop | OpenLLMetry / TraceLoop attributes |
 | LiveKit | LiveKit Agents attributes |
 
-None has a first-class standalone framework fixture. Logfire's provider dialects are nevertheless
-exercised by paired native/SideSeat captures for OpenAI 3.19.2 and Anthropic 1.8.0
-(Logfire 6.0.0b7); the other rows remain classifier-only. The support matrix in
+Semantic Kernel is exercised by a paired native/SideSeat capture. Logfire's provider dialects are
+also exercised by paired native/SideSeat captures for OpenAI 3.19.2 and Anthropic 1.8.0
+(Logfire 6.0.0b7); the remaining rows are classifier-only. The support matrix in
 `server/tests/fixtures/messages/README.md` is the exact boundary of what is verified.
 
 ## Generic OpenTelemetry
