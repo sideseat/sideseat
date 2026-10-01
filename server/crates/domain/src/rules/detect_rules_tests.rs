@@ -16,13 +16,13 @@ fn attrs(pairs: &[(&str, &str)]) -> HashMap<String, String> {
 #[test]
 fn the_detection_plan_holds_every_rule() {
     let plan = &ruleset().detect;
-    // 28 producers, 30 compiled rules: one alternative separates strong self-identification from a weak
-    // service name, and one combines the independently insufficient cloud and model-API signals OpenInference
-    // emits for Azure OpenAI.
+    // 28 producers, 31 compiled rules: one alternative separates strong self-identification from a weak
+    // service name, one combines the independently insufficient Azure OpenAI signals, and one preserves
+    // historical Vertex AI telemetry alongside the current Google Gen AI SDK signal.
     assert_eq!(
         plan.rule_count(),
-        30,
-        "the assets declare {} detection rules; the table they replaced had 28, plus two ranked alternatives",
+        31,
+        "the assets declare {} detection rules; the table they replaced had 28, plus three ranked alternatives",
         plan.rule_count()
     );
     assert_eq!(
