@@ -339,6 +339,8 @@ pub fn normalize(raw: &JsonValue) -> ChatMessage {
         });
     }
 
+    remove_blank_text_beside_visible_content(&mut content_vec);
+
     // Parse finish reason (snake_case or camelCase)
     let finish_reason = raw
         .get("finish_reason")
@@ -405,6 +407,17 @@ const CITATION_CONTEXT_FIELDS: &[(&str, &str)] = &[
     ("citations", "citations"),
     ("attributions", "attributions"),
 ];
+
+fn remove_blank_text_beside_visible_content(content: &mut Vec<ContentBlock>) {
+    let has_visible_sibling = content
+        .iter()
+        .any(|block| !matches!(block, ContentBlock::Text { text } if text.trim().is_empty()));
+    if has_visible_sibling {
+        content.retain(
+            |block| !matches!(block, ContentBlock::Text { text } if text.trim().is_empty()),
+        );
+    }
+}
 
 fn has_meaningful_data(val: &JsonValue) -> bool {
     match val {

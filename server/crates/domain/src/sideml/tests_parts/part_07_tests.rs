@@ -2,6 +2,43 @@
 // === Edge Case Tests ===
 
 #[test]
+fn blank_text_is_removed_only_when_a_sibling_carries_the_message() {
+    let tool_call = normalize(&json!({
+        "role": "assistant",
+        "contents": [{
+            "message_content": {
+                "type": "text",
+                "text": ""
+            }
+        }],
+        "tool_calls": [{
+            "tool_call": {
+                "id": "call-final",
+                "function": {
+                    "name": "final_answer",
+                    "arguments": "{\"answer\":\"done\"}"
+                }
+            }
+        }]
+    }));
+    assert_eq!(tool_call.content.len(), 1);
+    assert!(matches!(
+        &tool_call.content[0],
+        ContentBlock::ToolUse { id: Some(id), name, .. }
+            if id == "call-final" && name == "final_answer"
+    ));
+
+    let standalone = normalize(&json!({
+        "role": "assistant",
+        "content": [{"type": "text", "text": ""}]
+    }));
+    assert!(matches!(
+        &standalone.content[..],
+        [ContentBlock::Text { text }] if text.is_empty()
+    ));
+}
+
+#[test]
 fn test_empty_tool_name_handling() {
     // Test that empty tool names are handled gracefully
     let raw = json!({
