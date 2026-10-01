@@ -235,6 +235,7 @@ class TestFrameworks:
         assert Frameworks.SemanticKernel == "semantic-kernel"
         assert Frameworks.ClaudeAgentSDK == "claude-agent-sdk"
         assert Frameworks.LlamaIndex == "llama-index"
+        assert Frameworks.TraceLoop == "traceloop"
         assert Frameworks.OpenAI == "openai"
         assert Frameworks.Anthropic == "anthropic"
         # Hyphenated like the rest of the set, the JS SDK and the docs. This assertion
@@ -484,6 +485,22 @@ def test_google_genai_extra_installs_logfires_instrumentor():
 
     assert extras["google-genai"] == ["logfire[google-genai]>=4.29.0"]
     assert "logfire[google-genai]>=4.29.0" in extras["all"]
+
+
+def test_traceloop_extra_supplies_undeclared_runtime_dependencies():
+    """TraceLoop 0.62.4 imports requests and httpx without declaring either."""
+    from pathlib import Path
+
+    import tomllib
+
+    pyproject = Path(__file__).resolve().parents[1] / "pyproject.toml"
+    extras = tomllib.loads(pyproject.read_text())["project"]["optional-dependencies"]
+
+    assert extras["traceloop"] == [
+        "traceloop-sdk==0.62.4",
+        "requests>=2.32",
+        "httpx>=0.28,<1",
+    ]
 
 
 def test_trace_starts_a_root_span_even_when_nested():

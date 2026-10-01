@@ -37,6 +37,7 @@ class Frameworks:
     Haystack = "haystack"
     BrowserUse = "browser-use"
     Logfire = "logfire"
+    TraceLoop = "traceloop"
 
     # Providers
     Bedrock = "bedrock"
@@ -70,6 +71,7 @@ FRAMEWORK_PACKAGES = [
     (Frameworks.Haystack, "haystack-ai"),
     (Frameworks.BrowserUse, "browser-use"),
     (Frameworks.Logfire, "logfire"),
+    (Frameworks.TraceLoop, "traceloop-sdk"),
     (Frameworks.OpenAI, "openai"),
     (Frameworks.Anthropic, "anthropic"),
     (Frameworks.GoogleGenAI, "google-genai"),

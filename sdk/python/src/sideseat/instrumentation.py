@@ -9,6 +9,8 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from typing import TYPE_CHECKING, Any, cast
 
+from opentelemetry.sdk.trace import SpanProcessor
+
 if TYPE_CHECKING:
     from opentelemetry.sdk.trace import TracerProvider
 
@@ -47,6 +49,7 @@ def instrument(
     provider: "TracerProvider | None",
     service_name: str | None = None,
     service_version: str | None = None,
+    capture_content: bool = True,
 ) -> bool:
     """Instrument framework. Thread-safe, idempotent.
 
@@ -100,6 +103,12 @@ def instrument(
             _instrument_logfire("google_genai", service_name, service_version)
         elif framework == Frameworks.Logfire:
             _configure_logfire(service_name, service_version)
+        elif framework == Frameworks.TraceLoop:
+            _instrument_traceloop(
+                service_name,
+                service_version,
+                capture_content=capture_content,
+            )
         elif framework == Frameworks.VertexAI:
             _instrument_openllmetry_vertexai(provider)
         elif framework == Frameworks.GoogleADK:
@@ -241,6 +250,88 @@ def _instrument_openllmetry_vertexai(provider: "TracerProvider | None") -> None:
     from opentelemetry.instrumentation.vertexai import VertexAIInstrumentor
 
     VertexAIInstrumentor().instrument(tracer_provider=provider)
+
+
+class _TraceLoopEnrichmentProcessor(SpanProcessor):
+    """Let TraceLoop enrich spans while SideSeat remains the sole exporter.
+
+    TraceLoop requires a processor or exporter at initialization. When given an
+    exporter it adds a second export pipeline to the global provider. This
+    processor is intentionally export-free; TraceLoop wraps ``on_start`` with
+    its workflow/agent context enrichment, while SideSeat's existing processors
+    receive and export each span exactly once.
+    """
+
+    def on_start(self, span: Any, parent_context: Any = None) -> None:
+        pass
+
+    def on_end(self, span: Any) -> None:
+        pass
+
+    def shutdown(self) -> None:
+        pass
+
+    def force_flush(self, timeout_millis: int = 30000) -> bool:
+        return True
+
+
+class _TraceLoopInlineImageUploader:
+    """Keep inline images in telemetry instead of sending them to TraceLoop."""
+
+    async def aupload_base64_image(
+        self,
+        trace_id: str,
+        span_id: str,
+        image_name: str,
+        image_file: str,
+    ) -> str:
+        del trace_id, span_id
+        image_format = image_name.rpartition(".")[2] or "png"
+        return f"data:image/{image_format};base64,{image_file}"
+
+
+@contextmanager
+def _traceloop_content_setting(enabled: bool) -> Iterator[None]:
+    """Apply SideSeat's content policy while TraceLoop snapshots its config."""
+    key = "TRACELOOP_TRACE_CONTENT"
+    previous = os.environ.get(key)
+    os.environ[key] = "true" if enabled else "false"
+    try:
+        yield
+    finally:
+        if previous is None:
+            os.environ.pop(key, None)
+        else:
+            os.environ[key] = previous
+
+
+def _instrument_traceloop(
+    service_name: str | None,
+    service_version: str | None,
+    *,
+    capture_content: bool,
+) -> None:
+    """Initialize TraceLoop on SideSeat's global provider without extra export."""
+    from traceloop.sdk import Traceloop
+    from traceloop.sdk.instruments import Instruments
+
+    # TraceLoop's default set includes requests and urllib3. Instrumenting either
+    # captures the HTTP request made by SideSeat's OTLP exporter and can recursively
+    # export telemetry about exporting telemetry.
+    blocked = {Instruments.REQUESTS, Instruments.URLLIB3}
+    resource_attributes = {
+        "service.version": service_version or "0.0.0",
+        "sideseat.framework": Frameworks.TraceLoop,
+    }
+    with _traceloop_content_setting(capture_content):
+        Traceloop.init(
+            app_name=service_name or "traceloop-app",
+            processor=_TraceLoopEnrichmentProcessor(),
+            resource_attributes=resource_attributes,
+            block_instruments=blocked,
+            image_uploader=_TraceLoopInlineImageUploader(),
+            use_attributes=True,
+        )
 
 
 def _instrument_haystack(provider: "TracerProvider | None") -> None:

@@ -1,5 +1,6 @@
 """Tests for framework instrumentation."""
 
+import asyncio
 import importlib
 import os
 import sys
@@ -18,6 +19,8 @@ from sideseat.instrumentation import (
     _patch_logfire_anthropic_streaming,
     _strip_anthropic_omit,
     _suspend_otel_exporter_env,
+    _TraceLoopEnrichmentProcessor,
+    _TraceLoopInlineImageUploader,
     instrument,
     is_logfire_framework,
     patch_adk_tracing,
@@ -309,6 +312,66 @@ class TestInstrument:
         assert tracing.tracer.is_content_tracing_enabled is True
         assert len(enabled) == 1
         assert enabled[0].tracer == "tracer:haystack"
+
+    def test_traceloop_reuses_sideseat_export_and_content_policy(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """TraceLoop enriches the global provider without adding another exporter."""
+        calls: list[dict[str, Any]] = []
+
+        class Traceloop:
+            @staticmethod
+            def init(**kwargs: Any) -> None:
+                calls.append(
+                    {
+                        **kwargs,
+                        "content_setting": os.environ.get("TRACELOOP_TRACE_CONTENT"),
+                    }
+                )
+
+        instruments = SimpleNamespace(REQUESTS="requests", URLLIB3="urllib3")
+        monkeypatch.setitem(sys.modules, "traceloop.sdk", SimpleNamespace(Traceloop=Traceloop))
+        monkeypatch.setitem(
+            sys.modules,
+            "traceloop.sdk.instruments",
+            SimpleNamespace(Instruments=instruments),
+        )
+        monkeypatch.setenv("TRACELOOP_TRACE_CONTENT", "original")
+
+        assert instrument(
+            Frameworks.TraceLoop,
+            object(),
+            service_name="trace-app",
+            service_version="1.2.3",
+            capture_content=False,
+        )
+
+        assert len(calls) == 1
+        call = calls[0]
+        assert call["app_name"] == "trace-app"
+        assert call["resource_attributes"] == {
+            "service.version": "1.2.3",
+            "sideseat.framework": "traceloop",
+        }
+        assert call["block_instruments"] == {"requests", "urllib3"}
+        assert isinstance(call["processor"], _TraceLoopEnrichmentProcessor)
+        assert isinstance(call["image_uploader"], _TraceLoopInlineImageUploader)
+        assert call["use_attributes"] is True
+        assert call["content_setting"] == "false"
+        assert os.environ["TRACELOOP_TRACE_CONTENT"] == "original"
+
+    def test_traceloop_image_uploader_preserves_inline_content(self) -> None:
+        """SideSeat must not upload application images to TraceLoop's cloud."""
+        uploader = _TraceLoopInlineImageUploader()
+        result = asyncio.run(
+            uploader.aupload_base64_image(
+                "trace",
+                "span",
+                "message_0_content_1.jpeg",
+                "aW1hZ2U=",
+            )
+        )
+        assert result == "data:image/jpeg;base64,aW1hZ2U="
 
     def test_semantic_kernel_enables_every_diagnostics_snapshot(
         self, monkeypatch: pytest.MonkeyPatch

@@ -149,6 +149,7 @@ class TelemetryClient:
                 self.tracer_provider,
                 self._config.service_name,
                 self._config.service_version,
+                self._config.capture_content,
             )
 
         # Instrument cloud providers if explicitly requested
@@ -165,6 +166,7 @@ class TelemetryClient:
             None,
             self._config.service_name,
             self._config.service_version,
+            self._config.capture_content,
         )
 
         self.tracer_provider = trace.get_tracer_provider()

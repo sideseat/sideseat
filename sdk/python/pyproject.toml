@@ -40,6 +40,13 @@ smolagents = ["openinference-instrumentation-smolagents>=0.1.0"]
 llama-index = ["openinference-instrumentation-llama-index>=4.5.3"]
 agentscope = ["agentscope>=2.0.9,<3; python_version >= '3.11'"]
 logfire = ["logfire>=4.29.0"]
+traceloop = [
+    # 0.62.4 imports both modules but omits them from its package metadata.
+    # It also accepts httpx 1.0 prereleases even though it uses the 0.x AsyncClient API.
+    "traceloop-sdk==0.62.4",
+    "requests>=2.32",
+    "httpx>=0.28,<1",
+]
 # AG2 1.x ships its own OpenTelemetry middleware. The extra supplies that optional
 # dependency and the SDK injects the middleware into agents created after SideSeat.
 ag2 = ["ag2[tracing]>=1.1.1,<2"]
@@ -89,7 +96,9 @@ all = [
     "agentscope>=2.0.9,<3; python_version >= '3.11'",
     "opentelemetry-haystack>=1.0.0",
     "logfire[google-genai]>=4.29.0",
-    "httpx>=0.27",
+    "traceloop-sdk==0.62.4",
+    "requests>=2.32",
+    "httpx>=0.27,<1",
     "wrapt>=1.14.0",
     "websockets>=12",
     "rich>=13",
@@ -178,6 +187,7 @@ module = [
     "logfire.*",
     "rich.*",
     "strands.*",
+    "traceloop.*",
     "websockets.*",
     "wrapt",
 ]

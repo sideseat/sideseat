@@ -592,6 +592,7 @@ Frameworks.Langflow  # "langflow"
 Frameworks.Haystack  # "haystack"
 Frameworks.BrowserUse  # "browser-use"
 Frameworks.Logfire  # "logfire"
+Frameworks.TraceLoop  # "traceloop"       (TraceLoop/OpenLLMetry)
 ```
 
 ### Providers (via Frameworks)
