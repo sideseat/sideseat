@@ -152,3 +152,20 @@ def test_retained_observation_does_not_hide_a_new_task() -> None:
     assert json.loads(call["arguments"]) == {
         "answer": "Water boils at 100°C at sea level."
     }
+
+
+def test_null_tools_is_treated_as_no_declared_tools() -> None:
+    """Current clients may serialize an absent tool list as JSON null."""
+    fake = _fake_openai()
+    body = {
+        "model": "sideseat-local",
+        "messages": [{"role": "user", "content": "What is the speed of light?"}],
+        "tools": None,
+    }
+
+    choice = fake.completion(body)["choices"][0]
+
+    assert choice["finish_reason"] == "stop"
+    assert choice["message"]["content"] == (
+        "The speed of light is 299,792,458 metres per second."
+    )

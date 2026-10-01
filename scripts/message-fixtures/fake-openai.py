@@ -44,7 +44,7 @@ def request_fingerprint(value: Any) -> str:
 
 
 def tool_definition(body: dict[str, Any]) -> tuple[str, dict[str, Any]] | None:
-    for tool in body.get("tools", []):
+    for tool in body.get("tools") or []:
         function = tool.get("function", tool)
         name = function.get("name")
         if isinstance(name, str) and name:
@@ -57,7 +57,7 @@ def named_tool_definition(
     body: dict[str, Any], wanted: str
 ) -> tuple[str, dict[str, Any]] | None:
     """Return one declared tool by name."""
-    for tool in body.get("tools", []):
+    for tool in body.get("tools") or []:
         function = tool.get("function", tool)
         if function.get("name") != wanted:
             continue
