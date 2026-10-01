@@ -69,8 +69,8 @@ azure-openai = [
 anthropic = ["logfire>=4.29.0", "httpx>=0.27"]
 google-genai = ["logfire[google-genai]>=4.29.0"]
 vertex-ai = [
-    "opentelemetry-instrumentation-vertexai>=0.62.3",
-    "google-cloud-aiplatform>=2.2.0",
+    "google-genai>=2.26.0",
+    "logfire[google-genai]>=4.29.0",
 ]
 
 # Cloud provider instrumentation
@@ -85,10 +85,7 @@ ws = ["websockets>=12"]
 # users don't pay for unrelated deps.
 agui = ["rich>=13", "ag-ui-protocol>=0.1.18"]
 
-# Bundle every mutually compatible instrumentation extra plus the runtime channel.
-# Vertex AI is intentionally separate: google-cloud-aiplatform 2.x requires protobuf 6+
-# while the current AutoGen instrumentor requires protobuf 5.29.x. Installing
-# `sideseat[all,vertex-ai]` cannot resolve until one upstream range changes.
+# Bundle every instrumentation extra plus the runtime channel.
 all = [
     "openinference-instrumentation-langchain>=0.1.0",
     "openinference-instrumentation-crewai>=0.1.0",
@@ -102,6 +99,7 @@ all = [
     "agentscope>=2.0.9,<3; python_version >= '3.11'",
     "opentelemetry-haystack>=1.0.0",
     "logfire[google-genai]>=4.29.0",
+    "google-genai>=2.26.0",
     "traceloop-sdk==0.62.4",
     "requests>=2.32",
     "httpx>=0.27,<1",
@@ -129,16 +127,6 @@ build-backend = "hatchling.build"
 
 [tool.uv]
 required-version = "==0.12.13"
-conflicts = [
-    [
-        { extra = "autogen" },
-        { extra = "vertex-ai" },
-    ],
-    [
-        { extra = "all" },
-        { extra = "vertex-ai" },
-    ],
-]
 
 [tool.hatch.version]
 path = "src/sideseat/_version.py"
@@ -189,7 +177,6 @@ module = [
     "agent_framework.*",
     "ag_ui.*",
     "ag_ui_strands.*",
-    "opentelemetry.instrumentation.vertexai",
     "logfire.*",
     "rich.*",
     "strands.*",

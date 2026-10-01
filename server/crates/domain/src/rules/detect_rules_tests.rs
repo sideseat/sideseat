@@ -406,6 +406,40 @@ fn an_exact_instrumentation_scope_identifies_the_framework_using_openinference()
     );
 }
 
+/// Google Gen AI uses one instrumentation scope for both APIs, while many frameworks can call
+/// models hosted on Vertex. Only the conjunction identifies the direct Vertex SDK integration.
+#[test]
+fn vertex_ai_requires_its_google_genai_scope_and_cloud_provider() {
+    let plan = &ruleset().detect;
+    let detected = |scope_name: &str, provider: &str| {
+        plan.resolve(&DetectContext {
+            span_name: "generate_content gemini-2.5-flash",
+            scope_name: Some(scope_name),
+            span_attrs: &attrs(&[
+                ("gen_ai.provider.name", provider),
+                ("logfire.span_type", "span"),
+            ]),
+            resource_attrs: &attrs(&[("telemetry.sdk.name", "logfire")]),
+        })
+        .map(|found| found.label.to_string())
+    };
+
+    assert_eq!(
+        detected("opentelemetry.instrumentation.google_genai", "vertex_ai").as_deref(),
+        Some("VertexAI")
+    );
+    assert_ne!(
+        detected("opentelemetry.instrumentation.google_genai", "gemini").as_deref(),
+        Some("VertexAI"),
+        "the same instrumentor's Developer API mode is not Vertex AI"
+    );
+    assert_ne!(
+        detected("langchain", "vertex_ai").as_deref(),
+        Some("VertexAI"),
+        "a framework using a Vertex-hosted model remains that framework"
+    );
+}
+
 /// A producer naming **itself** outranks a convention namespace, because they are separately ranked.
 ///
 /// The predicates in one `match` are independently sufficient, so one rank has to be placed for the *weakest* of

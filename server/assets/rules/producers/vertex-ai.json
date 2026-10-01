@@ -1,18 +1,43 @@
 {
   "id": "vertex-ai",
-  "doc": "The VertexAI dialect.",
+  "doc": "Vertex AI through Google's current unified Gen AI SDK. The native SDK shares its instrumentation scope and message carriers with the Gemini Developer API, so identity requires both that exact scope and the cloud-specific provider value. The older vertexai span-name signal remains as a historical fallback for already stored OpenLLMetry telemetry.",
   "carriers": [],
   "detect": [
     {
       "id": "vertex-ai.detect",
-      "doc": "openllmetry's Vertex instrumentation identifies itself only through its span names.",
+      "doc": "The current Google Gen AI instrumentor reports Vertex through its exact scope together with gen_ai.provider.name=vertex_ai. Either signal alone is shared: the scope also serves the Gemini Developer API, while framework integrations can call models hosted on Vertex.",
       "label": "VertexAI",
       "match": {
-        "span_name": [
-          "vertexai."
+        "scope_name": [
+          "opentelemetry.instrumentation.google_genai"
         ]
       },
-      "legacy_rank": 180
+      "all_of": [
+        {
+          "attr_equals": [
+            {
+              "key": "gen_ai.provider.name",
+              "value": "vertex_ai"
+            }
+          ]
+        }
+      ],
+      "legacy_rank": 180,
+      "supersedes": [
+        "logfire.detect"
+      ],
+      "alternatives": [
+        {
+          "id": "vertex-ai.detect.legacy-openllmetry",
+          "doc": "Historical opentelemetry-instrumentation-vertexai releases identified themselves only through vertexai.* span names.",
+          "legacy_rank": 181,
+          "match": {
+            "span_name": [
+              "vertexai."
+            ]
+          }
+        }
+      ]
     }
   ],
   "sdk_slugs": [

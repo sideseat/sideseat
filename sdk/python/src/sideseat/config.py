@@ -77,7 +77,7 @@ FRAMEWORK_PACKAGES = [
     (Frameworks.AzureOpenAI, "openai"),
     (Frameworks.Anthropic, "anthropic"),
     (Frameworks.GoogleGenAI, "google-genai"),
-    (Frameworks.VertexAI, "vertexai"),
+    (Frameworks.VertexAI, "google-genai"),
 ]
 
 _FRAMEWORK_KEYS = {key for key, _ in FRAMEWORK_PACKAGES}
@@ -88,6 +88,7 @@ _NO_AUTO_DETECT = {
     Frameworks.AzureOpenAI,
     Frameworks.Anthropic,
     Frameworks.GoogleGenAI,
+    Frameworks.VertexAI,
     # Logfire is installed by several provider extras. Its presence does not prove
     # that the application emits generic Logfire spans.
     Frameworks.Logfire,

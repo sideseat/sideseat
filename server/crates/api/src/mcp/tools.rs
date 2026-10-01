@@ -596,12 +596,12 @@ const FRAMEWORKS: &[FrameworkSetup] = &[
     FrameworkSetup {
         display: "Google Vertex AI",
         lang: Lang::Python,
-        pip_pkg: "google-cloud-aiplatform vertexai",
+        pip_pkg: "google-genai",
         sdk_extra: "vertex-ai",
         sdk_variant: "VertexAI",
-        sdk_snippet: "import vertexai\nfrom vertexai.generative_models import GenerativeModel\nvertexai.init(project=\"PROJECT_ID\", location=\"us-central1\")\nprint(GenerativeModel(\"gemini-2.5-flash\").generate_content(\"Hello\").text)",
-        no_sdk_extra_pkgs: "opentelemetry-instrumentation-vertexai",
-        no_sdk_extra_setup: "from opentelemetry.instrumentation.vertexai import VertexAIInstrumentor\nVertexAIInstrumentor().instrument(tracer_provider=provider)",
+        sdk_snippet: "from google import genai\nclient = genai.Client(vertexai=True, project=\"PROJECT_ID\", location=\"us-central1\")\nprint(client.models.generate_content(model=\"gemini-2.5-flash\", contents=\"Hello\").text)",
+        no_sdk_extra_pkgs: "logfire[google-genai]",
+        no_sdk_extra_setup: "import logfire\nlogfire.configure(send_to_logfire=False, console=False)\nlogfire.instrument_google_genai()",
     },
     FrameworkSetup {
         display: "Azure OpenAI",

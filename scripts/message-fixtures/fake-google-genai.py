@@ -100,6 +100,17 @@ def response(body: dict[str, Any]) -> dict[str, Any]:
     return text_response(text)
 
 
+def is_supported_model_path(path: str) -> bool:
+    """Accept Gemini Developer API and Vertex AI publisher-model routes."""
+    if path.startswith("/v1beta/models/"):
+        return True
+    return (
+        path.startswith("/v1beta1/projects/")
+        and "/locations/" in path
+        and "/publishers/google/models/" in path
+    )
+
+
 class Handler(BaseHTTPRequestHandler):
     """Serve the small subset of the Gemini API exercised by the fixture."""
 
@@ -127,7 +138,7 @@ class Handler(BaseHTTPRequestHandler):
         length = int(self.headers.get("Content-Length", "0"))
         body = json.loads(self.rfile.read(length) or b"{}")
 
-        if not path.startswith("/v1beta/models/"):
+        if not is_supported_model_path(path):
             self.send_json(
                 404,
                 {"error": {"message": "unsupported endpoint", "status": "NOT_FOUND"}},

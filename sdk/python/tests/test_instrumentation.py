@@ -67,6 +67,10 @@ class TestIsLogfireFramework:
         """Google GenAI should use Logfire."""
         assert is_logfire_framework(Frameworks.GoogleGenAI) is True
 
+    def test_vertex_ai_is_logfire(self) -> None:
+        """The current Vertex AI path is the Google Gen AI SDK in cloud mode."""
+        assert is_logfire_framework(Frameworks.VertexAI) is True
+
     def test_generic_logfire_uses_logfire_provider(self) -> None:
         """Generic Logfire spans need Logfire's provider even without another integration."""
         assert is_logfire_framework(Frameworks.Logfire) is True
@@ -79,6 +83,7 @@ class TestIsLogfireFramework:
         assert Frameworks.OpenAI in LOGFIRE_FRAMEWORKS
         assert Frameworks.Anthropic in LOGFIRE_FRAMEWORKS
         assert Frameworks.GoogleGenAI in LOGFIRE_FRAMEWORKS
+        assert Frameworks.VertexAI in LOGFIRE_FRAMEWORKS
         assert Frameworks.Logfire in LOGFIRE_FRAMEWORKS
 
 
@@ -177,6 +182,29 @@ class TestInstrument:
 
         assert instrument(Frameworks.LlamaIndex, provider) is True
         assert calls == [("llama_index", "LlamaIndexInstrumentor", provider)]
+
+    def test_vertex_ai_uses_google_genai_instrumentation(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Vertex mode and the Developer API share the current unified client."""
+        calls: list[tuple[str, str | None, str | None]] = []
+
+        def record(
+            suffix: str,
+            service_name: str | None,
+            service_version: str | None,
+        ) -> None:
+            calls.append((suffix, service_name, service_version))
+
+        monkeypatch.setattr("sideseat.instrumentation._instrument_logfire", record)
+
+        assert instrument(
+            Frameworks.VertexAI,
+            None,
+            service_name="vertex-service",
+            service_version="2.26.0",
+        )
+        assert calls == [("google_genai", "vertex-service", "2.26.0")]
 
     def test_azure_openai_uses_its_openinference_instrumentor(
         self, monkeypatch: pytest.MonkeyPatch

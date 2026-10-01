@@ -51,6 +51,7 @@ SUITES=(
   "anthropic|uv run --locked --directory examples/python/anthropic anthropic-provider {S}"
   "pydantic-ai|uv run --locked --directory examples/python/pydantic-ai telemetry-pydantic-ai {S}"
   "google-genai|uv run --locked --directory examples/python/google-genai google-genai-provider {S}"
+  "vertex-ai|uv run --locked --directory examples/python/vertex-ai telemetry-vertex-ai {S}"
   "logfire|uv run --locked --directory examples/python/logfire telemetry-logfire {S}"
   "openinference|uv run --locked --directory examples/python/openinference telemetry-openinference {S}"
   "azure-openai|uv run --locked --directory examples/python/azure-openai telemetry-azure-openai {S}"

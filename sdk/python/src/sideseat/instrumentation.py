@@ -34,6 +34,7 @@ LOGFIRE_FRAMEWORKS = frozenset(
         Frameworks.OpenAI,
         Frameworks.Anthropic,
         Frameworks.GoogleGenAI,
+        Frameworks.VertexAI,
         Frameworks.Logfire,
     }
 )
@@ -101,7 +102,7 @@ def instrument(
             _instrument_openinference("openai", "OpenAIInstrumentor", provider)
         elif framework == Frameworks.Anthropic:
             _instrument_logfire("anthropic", service_name, service_version)
-        elif framework == Frameworks.GoogleGenAI:
+        elif framework in (Frameworks.GoogleGenAI, Frameworks.VertexAI):
             _instrument_logfire("google_genai", service_name, service_version)
         elif framework == Frameworks.Logfire:
             _configure_logfire(service_name, service_version)
@@ -111,8 +112,6 @@ def instrument(
                 service_version,
                 capture_content=capture_content,
             )
-        elif framework == Frameworks.VertexAI:
-            _instrument_openllmetry_vertexai(provider)
         elif framework == Frameworks.GoogleADK:
             pass  # Uses global provider
         elif framework == Frameworks.AgentFramework:
@@ -245,13 +244,6 @@ def _instrument_agentscope() -> None:
 
     init_with_tracing._sideseat_agentscope_instrumented = True  # type: ignore[attr-defined]
     agent_cls.__init__ = init_with_tracing
-
-
-def _instrument_openllmetry_vertexai(provider: "TracerProvider | None") -> None:
-    """Instrument Vertex AI SDK via opentelemetry-instrumentation-vertexai (openllmetry)."""
-    from opentelemetry.instrumentation.vertexai import VertexAIInstrumentor
-
-    VertexAIInstrumentor().instrument(tracer_provider=provider)
 
 
 class _TraceLoopEnrichmentProcessor(SpanProcessor):

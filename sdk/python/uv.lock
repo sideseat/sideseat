@@ -9,13 +9,6 @@ resolution-markers = [
     "python_full_version == '3.11.*'",
     "python_full_version < '3.11'",
 ]
-conflicts = [[
-    { package = "sideseat", extra = "autogen" },
-    { package = "sideseat", extra = "vertex-ai" },
-], [
-    { package = "sideseat", extra = "all" },
-    { package = "sideseat", extra = "vertex-ai" },
-]]
 
 [[package]]
 name = "ag-ui-protocol"
@@ -55,34 +48,34 @@ name = "agentscope"
 version = "2.0.9"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "aiofiles", marker = "python_full_version >= '3.11' or (extra == 'extra-8-sideseat-all' and extra == 'extra-8-sideseat-vertex-ai') or (extra == 'extra-8-sideseat-autogen' and extra == 'extra-8-sideseat-vertex-ai')" },
-    { name = "aioitertools", marker = "python_full_version >= '3.11' or (extra == 'extra-8-sideseat-all' and extra == 'extra-8-sideseat-vertex-ai') or (extra == 'extra-8-sideseat-autogen' and extra == 'extra-8-sideseat-vertex-ai')" },
-    { name = "anthropic", marker = "python_full_version >= '3.11' or (extra == 'extra-8-sideseat-all' and extra == 'extra-8-sideseat-vertex-ai') or (extra == 'extra-8-sideseat-autogen' and extra == 'extra-8-sideseat-vertex-ai')" },
-    { name = "dashscope", marker = "python_full_version >= '3.11' or (extra == 'extra-8-sideseat-all' and extra == 'extra-8-sideseat-vertex-ai') or (extra == 'extra-8-sideseat-autogen' and extra == 'extra-8-sideseat-vertex-ai')" },
-    { name = "docstring-parser", marker = "python_full_version >= '3.11' or (extra == 'extra-8-sideseat-all' and extra == 'extra-8-sideseat-vertex-ai') or (extra == 'extra-8-sideseat-autogen' and extra == 'extra-8-sideseat-vertex-ai')" },
-    { name = "filetype", marker = "python_full_version >= '3.11' or (extra == 'extra-8-sideseat-all' and extra == 'extra-8-sideseat-vertex-ai') or (extra == 'extra-8-sideseat-autogen' and extra == 'extra-8-sideseat-vertex-ai')" },
-    { name = "httpx", marker = "python_full_version >= '3.11' or (extra == 'extra-8-sideseat-all' and extra == 'extra-8-sideseat-vertex-ai') or (extra == 'extra-8-sideseat-autogen' and extra == 'extra-8-sideseat-vertex-ai')" },
-    { name = "jinja2", marker = "python_full_version >= '3.11' or (extra == 'extra-8-sideseat-all' and extra == 'extra-8-sideseat-vertex-ai') or (extra == 'extra-8-sideseat-autogen' and extra == 'extra-8-sideseat-vertex-ai')" },
-    { name = "json-repair", extra = ["schema"], marker = "python_full_version >= '3.11' or (extra == 'extra-8-sideseat-all' and extra == 'extra-8-sideseat-vertex-ai') or (extra == 'extra-8-sideseat-autogen' and extra == 'extra-8-sideseat-vertex-ai')" },
-    { name = "json5", marker = "python_full_version >= '3.11' or (extra == 'extra-8-sideseat-all' and extra == 'extra-8-sideseat-vertex-ai') or (extra == 'extra-8-sideseat-autogen' and extra == 'extra-8-sideseat-vertex-ai')" },
-    { name = "jsonschema", marker = "python_full_version >= '3.11' or (extra == 'extra-8-sideseat-all' and extra == 'extra-8-sideseat-vertex-ai') or (extra == 'extra-8-sideseat-autogen' and extra == 'extra-8-sideseat-vertex-ai')" },
-    { name = "mcp", marker = "python_full_version >= '3.11' or (extra == 'extra-8-sideseat-all' and extra == 'extra-8-sideseat-vertex-ai') or (extra == 'extra-8-sideseat-autogen' and extra == 'extra-8-sideseat-vertex-ai')" },
-    { name = "numpy", version = "2.4.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version == '3.11.*' or (extra == 'extra-8-sideseat-all' and extra == 'extra-8-sideseat-vertex-ai') or (extra == 'extra-8-sideseat-autogen' and extra == 'extra-8-sideseat-vertex-ai')" },
-    { name = "numpy", version = "2.5.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12' or (extra == 'extra-8-sideseat-all' and extra == 'extra-8-sideseat-vertex-ai') or (extra == 'extra-8-sideseat-autogen' and extra == 'extra-8-sideseat-vertex-ai')" },
-    { name = "openai", marker = "python_full_version >= '3.11' or (extra == 'extra-8-sideseat-all' and extra == 'extra-8-sideseat-vertex-ai') or (extra == 'extra-8-sideseat-autogen' and extra == 'extra-8-sideseat-vertex-ai')" },
-    { name = "opentelemetry-api", marker = "python_full_version >= '3.11' or (extra == 'extra-8-sideseat-all' and extra == 'extra-8-sideseat-vertex-ai') or (extra == 'extra-8-sideseat-autogen' and extra == 'extra-8-sideseat-vertex-ai')" },
-    { name = "opentelemetry-exporter-otlp", marker = "python_full_version >= '3.11' or (extra == 'extra-8-sideseat-all' and extra == 'extra-8-sideseat-vertex-ai') or (extra == 'extra-8-sideseat-autogen' and extra == 'extra-8-sideseat-vertex-ai')" },
-    { name = "opentelemetry-sdk", marker = "python_full_version >= '3.11' or (extra == 'extra-8-sideseat-all' and extra == 'extra-8-sideseat-vertex-ai') or (extra == 'extra-8-sideseat-autogen' and extra == 'extra-8-sideseat-vertex-ai')" },
-    { name = "opentelemetry-semantic-conventions", marker = "python_full_version >= '3.11' or (extra == 'extra-8-sideseat-all' and extra == 'extra-8-sideseat-vertex-ai') or (extra == 'extra-8-sideseat-autogen' and extra == 'extra-8-sideseat-vertex-ai')" },
-    { name = "pypdf", marker = "python_full_version >= '3.11' or (extra == 'extra-8-sideseat-all' and extra == 'extra-8-sideseat-vertex-ai') or (extra == 'extra-8-sideseat-autogen' and extra == 'extra-8-sideseat-vertex-ai')" },
-    { name = "python-datauri", marker = "python_full_version >= '3.11' or (extra == 'extra-8-sideseat-all' and extra == 'extra-8-sideseat-vertex-ai') or (extra == 'extra-8-sideseat-autogen' and extra == 'extra-8-sideseat-vertex-ai')" },
-    { name = "python-frontmatter", marker = "python_full_version >= '3.11' or (extra == 'extra-8-sideseat-all' and extra == 'extra-8-sideseat-vertex-ai') or (extra == 'extra-8-sideseat-autogen' and extra == 'extra-8-sideseat-vertex-ai')" },
-    { name = "python-socketio", marker = "python_full_version >= '3.11' or (extra == 'extra-8-sideseat-all' and extra == 'extra-8-sideseat-vertex-ai') or (extra == 'extra-8-sideseat-autogen' and extra == 'extra-8-sideseat-vertex-ai')" },
-    { name = "rich", marker = "python_full_version >= '3.11' or (extra == 'extra-8-sideseat-all' and extra == 'extra-8-sideseat-vertex-ai') or (extra == 'extra-8-sideseat-autogen' and extra == 'extra-8-sideseat-vertex-ai')" },
-    { name = "shortuuid", marker = "python_full_version >= '3.11' or (extra == 'extra-8-sideseat-all' and extra == 'extra-8-sideseat-vertex-ai') or (extra == 'extra-8-sideseat-autogen' and extra == 'extra-8-sideseat-vertex-ai')" },
-    { name = "tree-sitter", marker = "python_full_version >= '3.11' or (extra == 'extra-8-sideseat-all' and extra == 'extra-8-sideseat-vertex-ai') or (extra == 'extra-8-sideseat-autogen' and extra == 'extra-8-sideseat-vertex-ai')" },
-    { name = "tree-sitter-bash", marker = "python_full_version >= '3.11' or (extra == 'extra-8-sideseat-all' and extra == 'extra-8-sideseat-vertex-ai') or (extra == 'extra-8-sideseat-autogen' and extra == 'extra-8-sideseat-vertex-ai')" },
-    { name = "tzdata", marker = "python_full_version >= '3.11' or (extra == 'extra-8-sideseat-all' and extra == 'extra-8-sideseat-vertex-ai') or (extra == 'extra-8-sideseat-autogen' and extra == 'extra-8-sideseat-vertex-ai')" },
+    { name = "aiofiles" },
+    { name = "aioitertools" },
+    { name = "anthropic" },
+    { name = "dashscope" },
+    { name = "docstring-parser" },
+    { name = "filetype" },
+    { name = "httpx" },
+    { name = "jinja2" },
+    { name = "json-repair", extra = ["schema"] },
+    { name = "json5" },
+    { name = "jsonschema" },
+    { name = "mcp" },
+    { name = "numpy", version = "2.4.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
+    { name = "numpy", version = "2.5.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
+    { name = "openai" },
+    { name = "opentelemetry-api" },
+    { name = "opentelemetry-exporter-otlp" },
+    { name = "opentelemetry-sdk" },
+    { name = "opentelemetry-semantic-conventions" },
+    { name = "pypdf" },
+    { name = "python-datauri" },
+    { name = "python-frontmatter" },
+    { name = "python-socketio" },
+    { name = "rich" },
+    { name = "shortuuid" },
+    { name = "tree-sitter" },
+    { name = "tree-sitter-bash" },
+    { name = "tzdata" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/10/66/7ad089fb31721b8470424f6b16fb2ff8835cb91288bfd03a368cc3e61240/agentscope-2.0.9.tar.gz", hash = "sha256:5b71f5894822bb20895d4aaafb1b5cdfd08cb081ee882a92e070d94b06191fb5", size = 1038809, upload-time = "2026-09-28T05:06:53.6Z" }
 wheels = [
@@ -114,12 +107,12 @@ source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "aiohappyeyeballs" },
     { name = "aiosignal" },
-    { name = "async-timeout", marker = "python_full_version < '3.11' or (extra == 'extra-8-sideseat-all' and extra == 'extra-8-sideseat-vertex-ai') or (extra == 'extra-8-sideseat-autogen' and extra == 'extra-8-sideseat-vertex-ai')" },
+    { name = "async-timeout", marker = "python_full_version < '3.11'" },
     { name = "attrs" },
     { name = "frozenlist" },
     { name = "multidict" },
     { name = "propcache" },
-    { name = "typing-extensions", marker = "python_full_version < '3.13' or (extra == 'extra-8-sideseat-all' and extra == 'extra-8-sideseat-vertex-ai') or (extra == 'extra-8-sideseat-autogen' and extra == 'extra-8-sideseat-vertex-ai')" },
+    { name = "typing-extensions", marker = "python_full_version < '3.13'" },
     { name = "yarl" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/58/d9/22ce5786ac0c1653ae8b6c23bded02c1686d11f0dbb45b31ce128e0df985/aiohttp-3.14.3.tar.gz", hash = "sha256:9491196535a88924a60afd5b5f434b5b203b6cc616250878dbdb223a8f7844bc", size = 7971213, upload-time = "2026-07-23T01:57:27.037Z" }
@@ -259,7 +252,7 @@ version = "1.4.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "frozenlist" },
-    { name = "typing-extensions", marker = "python_full_version < '3.13' or (extra == 'extra-8-sideseat-all' and extra == 'extra-8-sideseat-vertex-ai') or (extra == 'extra-8-sideseat-autogen' and extra == 'extra-8-sideseat-vertex-ai')" },
+    { name = "typing-extensions", marker = "python_full_version < '3.13'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/61/62/06741b579156360248d1ec624842ad0edf697050bbaf7c3e46394e106ad1/aiosignal-1.4.0.tar.gz", hash = "sha256:f47eecd9468083c2029cc99945502cb7708b082c232f9aca65da147157b251c7", size = 25007, upload-time = "2025-07-03T22:54:43.528Z" }
 wheels = [
@@ -289,13 +282,13 @@ name = "anthropic"
 version = "1.11.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "anyio", marker = "python_full_version >= '3.11' or (extra == 'extra-8-sideseat-all' and extra == 'extra-8-sideseat-vertex-ai') or (extra == 'extra-8-sideseat-autogen' and extra == 'extra-8-sideseat-vertex-ai')" },
-    { name = "docstring-parser", marker = "python_full_version >= '3.11' or (extra == 'extra-8-sideseat-all' and extra == 'extra-8-sideseat-vertex-ai') or (extra == 'extra-8-sideseat-autogen' and extra == 'extra-8-sideseat-vertex-ai')" },
-    { name = "httpx2", marker = "python_full_version >= '3.11' or (extra == 'extra-8-sideseat-all' and extra == 'extra-8-sideseat-vertex-ai') or (extra == 'extra-8-sideseat-autogen' and extra == 'extra-8-sideseat-vertex-ai')" },
-    { name = "jiter", marker = "python_full_version >= '3.11' or (extra == 'extra-8-sideseat-all' and extra == 'extra-8-sideseat-vertex-ai') or (extra == 'extra-8-sideseat-autogen' and extra == 'extra-8-sideseat-vertex-ai')" },
-    { name = "pydantic", marker = "python_full_version >= '3.11' or (extra == 'extra-8-sideseat-all' and extra == 'extra-8-sideseat-vertex-ai') or (extra == 'extra-8-sideseat-autogen' and extra == 'extra-8-sideseat-vertex-ai')" },
-    { name = "sniffio", marker = "python_full_version >= '3.11' or (extra == 'extra-8-sideseat-all' and extra == 'extra-8-sideseat-vertex-ai') or (extra == 'extra-8-sideseat-autogen' and extra == 'extra-8-sideseat-vertex-ai')" },
-    { name = "typing-extensions", marker = "python_full_version >= '3.11' or (extra == 'extra-8-sideseat-all' and extra == 'extra-8-sideseat-vertex-ai') or (extra == 'extra-8-sideseat-autogen' and extra == 'extra-8-sideseat-vertex-ai')" },
+    { name = "anyio" },
+    { name = "docstring-parser" },
+    { name = "httpx2" },
+    { name = "jiter" },
+    { name = "pydantic" },
+    { name = "sniffio" },
+    { name = "typing-extensions" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/ad/12/9a6ffa397b172adb040008d934a1dfd85d0e4cefc77489416db294ffc880/anthropic-1.11.0.tar.gz", hash = "sha256:3906fabac7ad7b5b46c6186040398fc7826885c77ce34e4dd7849de16fc8d0f8", size = 1390390, upload-time = "2026-09-30T22:58:21.098Z" }
 wheels = [
@@ -307,9 +300,9 @@ name = "anyio"
 version = "4.15.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "exceptiongroup", marker = "python_full_version < '3.11' or (extra == 'extra-8-sideseat-all' and extra == 'extra-8-sideseat-vertex-ai') or (extra == 'extra-8-sideseat-autogen' and extra == 'extra-8-sideseat-vertex-ai')" },
+    { name = "exceptiongroup", marker = "python_full_version < '3.11'" },
     { name = "idna" },
-    { name = "typing-extensions", marker = "python_full_version < '3.15' or (extra == 'extra-8-sideseat-all' and extra == 'extra-8-sideseat-vertex-ai') or (extra == 'extra-8-sideseat-autogen' and extra == 'extra-8-sideseat-vertex-ai')" },
+    { name = "typing-extensions", marker = "python_full_version < '3.15'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/a9/d2/f4d173e22df740bc37b1db102b386ba719b66e95b0f0d751f556b387e6d2/anyio-4.15.1.tar.gz", hash = "sha256:9f28306018cbd6d329e64a36d58256edff76dd996fe423bc957326e578b82a94", size = 276966, upload-time = "2026-09-05T10:42:39.44Z" }
 wheels = [
@@ -418,7 +411,7 @@ dependencies = [
     { name = "jsonref" },
     { name = "opentelemetry-api" },
     { name = "pillow" },
-    { name = "protobuf", version = "5.29.6", source = { registry = "https://pypi.org/simple" } },
+    { name = "protobuf" },
     { name = "pydantic" },
     { name = "typing-extensions" },
 ]
@@ -441,7 +434,7 @@ name = "bidict"
 version = "0.24.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "typing-extensions", marker = "python_full_version == '3.11.*' or (extra == 'extra-8-sideseat-all' and extra == 'extra-8-sideseat-vertex-ai') or (extra == 'extra-8-sideseat-autogen' and extra == 'extra-8-sideseat-vertex-ai')" },
+    { name = "typing-extensions", marker = "python_full_version < '3.12'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/a8/f2/8d2dd8276ca05e1f5157b6a0d34efb2f585f47a0fbed61e8aad04b221f0b/bidict-0.24.1.tar.gz", hash = "sha256:4dca6c17f0b01700e9f24359daa5ebabf7be022d99f4cb2a257b6af2a5076c88", size = 30818, upload-time = "2026-08-25T23:45:52.214Z" }
 wheels = [
@@ -471,7 +464,7 @@ name = "cffi"
 version = "2.1.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "pycparser", marker = "(python_full_version >= '3.11' and implementation_name != 'PyPy') or (implementation_name != 'PyPy' and extra == 'extra-8-sideseat-vertex-ai') or (extra == 'extra-8-sideseat-all' and extra == 'extra-8-sideseat-vertex-ai') or (extra == 'extra-8-sideseat-autogen' and extra == 'extra-8-sideseat-vertex-ai')" },
+    { name = "pycparser", marker = "implementation_name != 'PyPy'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/9e/ef/008a1939e372c06329a3fce4279c02f328488f3526744906eeec3da7ad5f/cffi-2.1.1.tar.gz", hash = "sha256:dd31f52ea1086513bb9df30f8fcee9b8918323ae067a3d5b78bc826a000712be", size = 530807, upload-time = "2026-08-03T21:21:18.939Z" }
 wheels = [
@@ -762,8 +755,8 @@ name = "cryptography"
 version = "50.0.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "cffi", marker = "(python_full_version >= '3.11' and platform_python_implementation != 'PyPy') or (platform_python_implementation != 'PyPy' and extra == 'extra-8-sideseat-vertex-ai') or (extra == 'extra-8-sideseat-all' and extra == 'extra-8-sideseat-vertex-ai') or (extra == 'extra-8-sideseat-autogen' and extra == 'extra-8-sideseat-vertex-ai')" },
-    { name = "typing-extensions", marker = "(python_full_version < '3.11' and extra == 'extra-8-sideseat-vertex-ai') or (extra == 'extra-8-sideseat-all' and extra == 'extra-8-sideseat-vertex-ai') or (extra == 'extra-8-sideseat-autogen' and extra == 'extra-8-sideseat-vertex-ai')" },
+    { name = "cffi", marker = "platform_python_implementation != 'PyPy'" },
+    { name = "typing-extensions", marker = "python_full_version < '3.11'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/9d/af/182eb91b0df3fe75c4d9f26fe70684569566745f6ba7e5c9c73a862c5252/cryptography-50.0.2.tar.gz", hash = "sha256:7b46165bb56eb4704e2eaaf86f3c940d19154535d9b0ca7d6d590b04060e00d5", size = 880623, upload-time = "2026-09-30T15:30:04.884Z" }
 wheels = [
@@ -838,16 +831,16 @@ name = "dashscope"
 version = "1.27.7"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "aiohttp", marker = "python_full_version >= '3.11' or (extra == 'extra-8-sideseat-all' and extra == 'extra-8-sideseat-vertex-ai') or (extra == 'extra-8-sideseat-autogen' and extra == 'extra-8-sideseat-vertex-ai')" },
-    { name = "certifi", marker = "python_full_version >= '3.11' or (extra == 'extra-8-sideseat-all' and extra == 'extra-8-sideseat-vertex-ai') or (extra == 'extra-8-sideseat-autogen' and extra == 'extra-8-sideseat-vertex-ai')" },
-    { name = "cryptography", marker = "python_full_version >= '3.11' or (extra == 'extra-8-sideseat-all' and extra == 'extra-8-sideseat-vertex-ai') or (extra == 'extra-8-sideseat-autogen' and extra == 'extra-8-sideseat-vertex-ai')" },
-    { name = "httpx", marker = "python_full_version >= '3.11' or (extra == 'extra-8-sideseat-all' and extra == 'extra-8-sideseat-vertex-ai') or (extra == 'extra-8-sideseat-autogen' and extra == 'extra-8-sideseat-vertex-ai')" },
-    { name = "httpx-sse", marker = "python_full_version >= '3.11' or (extra == 'extra-8-sideseat-all' and extra == 'extra-8-sideseat-vertex-ai') or (extra == 'extra-8-sideseat-autogen' and extra == 'extra-8-sideseat-vertex-ai')" },
-    { name = "requests", marker = "python_full_version >= '3.11' or (extra == 'extra-8-sideseat-all' and extra == 'extra-8-sideseat-vertex-ai') or (extra == 'extra-8-sideseat-autogen' and extra == 'extra-8-sideseat-vertex-ai')" },
-    { name = "rich", marker = "python_full_version >= '3.11' or (extra == 'extra-8-sideseat-all' and extra == 'extra-8-sideseat-vertex-ai') or (extra == 'extra-8-sideseat-autogen' and extra == 'extra-8-sideseat-vertex-ai')" },
-    { name = "typer", marker = "python_full_version >= '3.11' or (extra == 'extra-8-sideseat-all' and extra == 'extra-8-sideseat-vertex-ai') or (extra == 'extra-8-sideseat-autogen' and extra == 'extra-8-sideseat-vertex-ai')" },
-    { name = "typing-extensions", marker = "python_full_version >= '3.11' or (extra == 'extra-8-sideseat-all' and extra == 'extra-8-sideseat-vertex-ai') or (extra == 'extra-8-sideseat-autogen' and extra == 'extra-8-sideseat-vertex-ai')" },
-    { name = "websocket-client", marker = "python_full_version >= '3.11' or (extra == 'extra-8-sideseat-all' and extra == 'extra-8-sideseat-vertex-ai') or (extra == 'extra-8-sideseat-autogen' and extra == 'extra-8-sideseat-vertex-ai')" },
+    { name = "aiohttp" },
+    { name = "certifi" },
+    { name = "cryptography" },
+    { name = "httpx" },
+    { name = "httpx-sse" },
+    { name = "requests" },
+    { name = "rich" },
+    { name = "typer" },
+    { name = "typing-extensions" },
+    { name = "websocket-client" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/24/a8/c92b104a7e7f47b74d79904c1ff29dbca470c090ce805beecb29abbe4888/dashscope-1.27.7.tar.gz", hash = "sha256:6736697d8308f051a19616f64f85f7bd3d52abf52e9689a66ea18642df3cc757", size = 1829398, upload-time = "2026-09-24T05:12:21.762Z" }
 wheels = [
@@ -889,7 +882,7 @@ name = "exceptiongroup"
 version = "1.3.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "typing-extensions", marker = "python_full_version < '3.11' or (extra == 'extra-8-sideseat-all' and extra == 'extra-8-sideseat-vertex-ai') or (extra == 'extra-8-sideseat-autogen' and extra == 'extra-8-sideseat-vertex-ai')" },
+    { name = "typing-extensions" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/50/79/66800aadf48771f6b62f7eb014e352e5d06856655206165d775e675a02c9/exceptiongroup-1.3.1.tar.gz", hash = "sha256:8b412432c6055b0b7d14c310000ae93352ed6754f70fa8f7c34141f91c4e3219", size = 30371, upload-time = "2025-11-21T23:01:54.787Z" }
 wheels = [
@@ -1054,29 +1047,6 @@ wheels = [
 ]
 
 [[package]]
-name = "google-api-core"
-version = "2.40.0"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "google-auth" },
-    { name = "googleapis-common-protos", version = "1.75.5", source = { registry = "https://pypi.org/simple" } },
-    { name = "opentelemetry-api" },
-    { name = "proto-plus" },
-    { name = "protobuf", version = "6.33.6", source = { registry = "https://pypi.org/simple" } },
-    { name = "requests" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/23/f7/0fb8c3618c783ad49da1aaf97f93a4bb9e4ed522135516b44d129a7f85bb/google_api_core-2.40.0.tar.gz", hash = "sha256:ebee7d1b138b5362beecec260e6e8988ac97346562c7382ccb6f0ad8435c599f", size = 258617, upload-time = "2026-09-29T19:25:54.611Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/44/e4/35f849ef989a801fa4f32ada19cef898fc32913c6b93bc2a6a4f95d2df9d/google_api_core-2.40.0-py3-none-any.whl", hash = "sha256:4b9e0a80024c269ae173136d5439f4ed284651d6e5e2773ba5c694f481f9c0f4", size = 214233, upload-time = "2026-09-29T19:25:29.006Z" },
-]
-
-[package.optional-dependencies]
-grpc = [
-    { name = "grpcio" },
-    { name = "grpcio-status" },
-]
-
-[[package]]
 name = "google-auth"
 version = "2.59.1"
 source = { registry = "https://pypi.org/simple" }
@@ -1090,138 +1060,8 @@ wheels = [
 ]
 
 [package.optional-dependencies]
-pyopenssl = [
-    { name = "cryptography" },
-]
 requests = [
     { name = "requests" },
-]
-
-[[package]]
-name = "google-cloud-aiplatform"
-version = "2.3.0"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "certifi" },
-    { name = "docstring-parser" },
-    { name = "google-api-core", extra = ["grpc"], marker = "extra == 'extra-8-sideseat-vertex-ai'" },
-    { name = "google-auth" },
-    { name = "google-cloud-bigquery" },
-    { name = "google-cloud-resource-manager" },
-    { name = "google-cloud-storage" },
-    { name = "google-genai" },
-    { name = "packaging" },
-    { name = "proto-plus" },
-    { name = "protobuf", version = "6.33.6", source = { registry = "https://pypi.org/simple" } },
-    { name = "pydantic" },
-    { name = "typing-extensions" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/82/61/247c0513bef320519453390d8fd02856f61f72339b6c8155d3626c7075fd/google_cloud_aiplatform-2.3.0.tar.gz", hash = "sha256:9c20e44b7b509bc92dc3364f71628999caf4f87792a40118ca3bae9c27b10d42", size = 11342845, upload-time = "2026-09-30T17:11:20.351Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/15/44/3253b3321309425377b93f9adc4b9c98617e8aec35ff5006653fea74ea71/google_cloud_aiplatform-2.3.0-py2.py3-none-any.whl", hash = "sha256:3a1f52961dfe484f908c6833bc22b575c14f71d74fd67653ca26214f12ddcaca", size = 9464706, upload-time = "2026-09-30T17:11:16.091Z" },
-]
-
-[[package]]
-name = "google-cloud-bigquery"
-version = "3.46.0"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "google-api-core", extra = ["grpc"], marker = "extra == 'extra-8-sideseat-vertex-ai'" },
-    { name = "google-auth", extra = ["pyopenssl"], marker = "extra == 'extra-8-sideseat-vertex-ai'" },
-    { name = "google-cloud-core" },
-    { name = "google-resumable-media" },
-    { name = "packaging" },
-    { name = "python-dateutil" },
-    { name = "requests" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/d9/27/da7557eabe77ccb037c6c093dd378eeed881f14280c7807ec23ce70fee93/google_cloud_bigquery-3.46.0.tar.gz", hash = "sha256:6d4a43238aa7207bc9798270b3303a703c5c451c856aae14ed04a6b2e7ce4654", size = 529261, upload-time = "2026-10-01T18:15:16.285Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/cb/14/70a3cca99a44e676d50be7ea03756bcc57e525855ba06c5f60cede5868d9/google_cloud_bigquery-3.46.0-py3-none-any.whl", hash = "sha256:5039bd16c7430f0f2929f72779d6c05a48501c3dc0a5f7f2191818f9c2170777", size = 267851, upload-time = "2026-10-01T18:08:43.057Z" },
-]
-
-[[package]]
-name = "google-cloud-core"
-version = "2.8.0"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "google-api-core" },
-    { name = "google-auth" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/55/71/d6081acadf55d4233271c39860f0d140ef61fbdb4bceb2075e9c2905d947/google_cloud_core-2.8.0.tar.gz", hash = "sha256:365f8e4518ae81c8101b8dea5fc1c32a960badedb8b511f19db2843cbbd285d2", size = 36605, upload-time = "2026-09-29T19:25:59.275Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/12/ed/1b09640a565e5d34d4e517463f65a67a11f9dcdeb6b6e8220f2d06aaf489/google_cloud_core-2.8.0-py3-none-any.whl", hash = "sha256:e235b0952f7ffe7b9c71a4cf96b506d9cfb557e22557c412f0df9b7068b5d007", size = 31048, upload-time = "2026-09-29T19:25:35.361Z" },
-]
-
-[[package]]
-name = "google-cloud-resource-manager"
-version = "1.19.0"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "google-api-core", extra = ["grpc"], marker = "extra == 'extra-8-sideseat-vertex-ai'" },
-    { name = "google-auth" },
-    { name = "grpc-google-iam-v1" },
-    { name = "grpcio" },
-    { name = "proto-plus" },
-    { name = "protobuf", version = "6.33.6", source = { registry = "https://pypi.org/simple" } },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/f4/1f/a2f23d2c2c0a34dab2e689d11ac4f20d77ac51c4832953beece2bc39e48a/google_cloud_resource_manager-1.19.0.tar.gz", hash = "sha256:68e5d28ed9091ab1adf04a77876b09d553e97a440fba78163f6ce2b5fe5f2558", size = 446420, upload-time = "2026-10-01T18:17:54.309Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/53/47/0bf39ed47f5012f85bf75673e13e0ee29ad39e72e8f55796c42880b9dfe9/google_cloud_resource_manager-1.19.0-py3-none-any.whl", hash = "sha256:74f94950288ff3d04082b4bd514af0632c74b507601e68d0399f35ae2cc8cc2e", size = 395250, upload-time = "2026-10-01T18:12:00.104Z" },
-]
-
-[[package]]
-name = "google-cloud-storage"
-version = "3.16.0"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "google-api-core" },
-    { name = "google-auth" },
-    { name = "google-cloud-core" },
-    { name = "google-crc32c" },
-    { name = "google-resumable-media" },
-    { name = "requests" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/ae/54/d487cd2bcf2c94befce79baa677c54fa863f88c221e5481a4066ab08c33e/google_cloud_storage-3.16.0.tar.gz", hash = "sha256:3f75cf8ad345d68ef33f0c69db8a8b3f34f160b1524e75d73890602b7b8a4d6e", size = 17351062, upload-time = "2026-10-01T18:18:20.765Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/47/bf/1a0f5f7fc1d4af8b95fc1da72d3cfe84ac709ef4dcabfd2182ef9cfe3a7a/google_cloud_storage-3.16.0-py3-none-any.whl", hash = "sha256:59e54ff1f7f8a7253c01f593f79d253728c122a8901b83f68fe7464a4131539f", size = 343457, upload-time = "2026-10-01T18:12:33.141Z" },
-]
-
-[[package]]
-name = "google-crc32c"
-version = "1.9.0"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/fa/25/9cb0c1c31c45b893eb8f11ae70b3f4309432d59b5acaebca5dbe791729a4/google_crc32c-1.9.0.tar.gz", hash = "sha256:7b8c84c3d159ab6817fe3f74e6e6cef099c3f95dcec3abc0d8afb1404642efbe", size = 14857, upload-time = "2026-09-24T21:39:32.067Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/87/7c/e89a13c971bcab4a0464ecc78f8dc162c5c7ec8986a54dd867fc093b2c6f/google_crc32c-1.9.0-cp310-cp310-macosx_12_0_arm64.whl", hash = "sha256:e6b529a6a287104ec79d281c411685231200ce954a29c28ab8e5093cb6e130fb", size = 31959, upload-time = "2026-09-24T21:19:00.091Z" },
-    { url = "https://files.pythonhosted.org/packages/c6/06/510062c2acbdbf602d759b7b0086032c487126106bb25197b9da1ff1047f/google_crc32c-1.9.0-cp310-cp310-macosx_12_0_x86_64.whl", hash = "sha256:51cb4e23a38ad4f495f35f87c233ca3ea6b9c4559e7ac383cdef786fab0f7977", size = 31801, upload-time = "2026-09-24T21:22:24.222Z" },
-    { url = "https://files.pythonhosted.org/packages/9a/c6/53eaa12dc62625f4605760b09854a0814ef6afebdc0e611a38c7b15aa6d1/google_crc32c-1.9.0-cp310-cp310-manylinux2014_aarch64.manylinux_2_17_aarch64.whl", hash = "sha256:8535e75dfead304f30e9122b9ea2c0a570dbaa52c176a0a591540c7914c1e46d", size = 37203, upload-time = "2026-09-24T21:38:04.791Z" },
-    { url = "https://files.pythonhosted.org/packages/dd/92/770c2713df471df73998f79758739da83e410ef576bfafd05e5e845959ff/google_crc32c-1.9.0-cp310-cp310-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:280f3a3e47af0eeba3a3e5aa7d311af77001812b8df80fb8beafcd0b40eaf7f1", size = 35816, upload-time = "2026-09-24T21:38:05.798Z" },
-    { url = "https://files.pythonhosted.org/packages/b8/f3/181945217690644aa502220a3ec9bf0d2ef9af930bbfffee555fe5236e2f/google_crc32c-1.9.0-cp310-cp310-win_amd64.whl", hash = "sha256:56610f548f1b35c9568b9d1de30423480f505dae4991556072d5802820ff35c4", size = 35097, upload-time = "2026-09-24T21:39:27.402Z" },
-    { url = "https://files.pythonhosted.org/packages/0e/55/a2f07f15e624f0de79359b1a6c1deb59ec5061bd3b38744b3b2849400662/google_crc32c-1.9.0-cp311-cp311-macosx_12_0_arm64.whl", hash = "sha256:457d0d9a4718fd52b1494eac5c200ad25beeadbdc91843d550a003910838589f", size = 31958, upload-time = "2026-09-24T21:19:00.994Z" },
-    { url = "https://files.pythonhosted.org/packages/f8/b3/923743597b774bbcf12a7c3e00e48d745e15fd616ad7489a40a63fff8f2f/google_crc32c-1.9.0-cp311-cp311-macosx_12_0_x86_64.whl", hash = "sha256:ccfe40021fd6afe23361175cf7551e3cef5fd34dc1ebe319f14993a83579e0eb", size = 31805, upload-time = "2026-09-24T21:22:25.019Z" },
-    { url = "https://files.pythonhosted.org/packages/df/a6/4d0352fe889663e0d81cea7fc664ec9158727384de4a44ab10e9967a7682/google_crc32c-1.9.0-cp311-cp311-manylinux2014_aarch64.manylinux_2_17_aarch64.whl", hash = "sha256:fbef61a3794e011c65fb4396a196cf123a7f474fe5a443db8e5dd7d751b9e6d4", size = 38119, upload-time = "2026-09-24T21:38:06.634Z" },
-    { url = "https://files.pythonhosted.org/packages/aa/e3/26685384e4b66ff0928d9566ef6110a7df76029175a1842329d7e3515f10/google_crc32c-1.9.0-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:86764b99e7a607830d93cb5b75e0ec3ff6cb06d3c274624418473cee701900d4", size = 36677, upload-time = "2026-09-24T21:38:08.082Z" },
-    { url = "https://files.pythonhosted.org/packages/cb/ce/4e90102e84880e97d3cf935f2672ecd29191bdeacf57f01740f92debda00/google_crc32c-1.9.0-cp311-cp311-win_amd64.whl", hash = "sha256:43a2dc26f9be213fbe0b4fc4a1088c5d45cbfcb3247420ccc820f0fc3edeea86", size = 35096, upload-time = "2026-09-24T21:39:28.201Z" },
-    { url = "https://files.pythonhosted.org/packages/e4/5d/0730e1b3a14d054d1466f2fec88dadf978509c749a3d96d8b069cc56d38a/google_crc32c-1.9.0-cp312-cp312-macosx_12_0_arm64.whl", hash = "sha256:53fdafef58e230d0c946ab5f8446d123d9f548230a73b29c8b41c9546f268bc1", size = 31961, upload-time = "2026-09-24T21:19:01.724Z" },
-    { url = "https://files.pythonhosted.org/packages/dd/32/d085abaf2fd907121975b92245bb3480fb8be40c37d03f9d6c41857f84c3/google_crc32c-1.9.0-cp312-cp312-macosx_12_0_x86_64.whl", hash = "sha256:8b91f41645b15a720357183fa5716682ada441873e3c462c15f9714be36f146b", size = 31804, upload-time = "2026-09-24T21:22:25.81Z" },
-    { url = "https://files.pythonhosted.org/packages/94/78/dd1935432337e5da7af391a6fc9f161c1c8e9b9002a402b9190135fe1b59/google_crc32c-1.9.0-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.whl", hash = "sha256:16865b477d7941712cb0e0aad8ad4815e984fb5fc16d3fdaef7d986e26e53c95", size = 37775, upload-time = "2026-09-24T21:38:09.249Z" },
-    { url = "https://files.pythonhosted.org/packages/9e/43/9db03635bb10188d93dcbab9baa2a8670a0da4e868b4370cdbd98d65fed8/google_crc32c-1.9.0-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:3abb18297d9ef0ab120531838be0e6d68c9fa876570e11c229c48f2edac23ce7", size = 36347, upload-time = "2026-09-24T21:38:10.141Z" },
-    { url = "https://files.pythonhosted.org/packages/cf/eb/94dee516c846bd9382c3f566d8f8e5fb9e90599e45afeb697f9fc2533528/google_crc32c-1.9.0-cp312-cp312-win_amd64.whl", hash = "sha256:fb63a8d7fa2e95dcff1ca16af2f4d88b526fa5ff72d1696285884ac2d49b6963", size = 35097, upload-time = "2026-09-24T21:39:28.934Z" },
-    { url = "https://files.pythonhosted.org/packages/3f/34/cb484e8b6174f130f8c6dc79c733a9dd8869b410ad6511fb6104c46b973a/google_crc32c-1.9.0-cp313-cp313-macosx_12_0_arm64.whl", hash = "sha256:f1dc17d987ddcc5eba12a7ce48f0eb93141dea236b170c1101151396edf2f0cf", size = 31960, upload-time = "2026-09-24T21:19:02.454Z" },
-    { url = "https://files.pythonhosted.org/packages/af/25/3e8e567bd48448e225ea27318ccf2b94e05124e7b8b97b13eaec9e127199/google_crc32c-1.9.0-cp313-cp313-macosx_12_0_x86_64.whl", hash = "sha256:f894a2877650b56201d26a012a257b76d54a68834dc3913a93830ca8a047b075", size = 31803, upload-time = "2026-09-24T21:22:27.008Z" },
-    { url = "https://files.pythonhosted.org/packages/f0/18/bee0dd59ae622482dc6463636c79e4bde7c954d061c859c9256362c9931a/google_crc32c-1.9.0-cp313-cp313-manylinux2014_aarch64.manylinux_2_17_aarch64.whl", hash = "sha256:4488f1553a9ab7e86cdedc833374a7e904031803b995dc0bd0be48c271fa6556", size = 37776, upload-time = "2026-09-24T21:38:11.056Z" },
-    { url = "https://files.pythonhosted.org/packages/fd/b6/e76e80fed5f2558273c7839e622f98095c9b36c719c7147e38e3c055cb70/google_crc32c-1.9.0-cp313-cp313-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:0568b17ed90ac596f29400d99e243fd0cc6276766183def888d1bf8d1dc13827", size = 36350, upload-time = "2026-09-24T21:38:12.138Z" },
-    { url = "https://files.pythonhosted.org/packages/87/34/165542bfa99dfef91a76471cc48cce74b8ff4e295722896087ab2b8e8611/google_crc32c-1.9.0-cp313-cp313-win_amd64.whl", hash = "sha256:8583ec21d56b565d68ab2963cc7e21b3b271247c29b04286068255ef65f221bd", size = 35090, upload-time = "2026-09-24T21:39:29.764Z" },
-    { url = "https://files.pythonhosted.org/packages/8f/eb/43ea41f4061a1cad87b2b6559c98e960e45bf551fe66f83d833b98aaf0c9/google_crc32c-1.9.0-cp314-cp314-macosx_12_0_arm64.whl", hash = "sha256:6a3b2c8a343c570ed8100a7627c20badfd92c6caa2067093a86be45af27f5b1b", size = 31963, upload-time = "2026-09-24T21:19:03.208Z" },
-    { url = "https://files.pythonhosted.org/packages/45/d2/a968c0c29ccd2b0c980ff4f9e3f7035cee28c23a1c57541825cc8221858c/google_crc32c-1.9.0-cp314-cp314-macosx_12_0_x86_64.whl", hash = "sha256:13179f7e3282617923e957b8e54b8f9c3968030f48640a9f47fd7c5c38c4a215", size = 31805, upload-time = "2026-09-24T21:22:27.917Z" },
-    { url = "https://files.pythonhosted.org/packages/03/73/388e493d6c3e252e37165d22efe5a1361f872a24425391b999822861b23a/google_crc32c-1.9.0-cp314-cp314-manylinux2014_aarch64.manylinux_2_17_aarch64.whl", hash = "sha256:265233aff33d835f5b909584fe36ab29647b598c271b661a300001099109e53e", size = 37925, upload-time = "2026-09-24T21:38:13.32Z" },
-    { url = "https://files.pythonhosted.org/packages/98/36/190d32caa363ef25d685f422ed1bbf93ff1140fb22fd4d90f24cec209977/google_crc32c-1.9.0-cp314-cp314-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:dee799544cae42a42b17a88e38b59cf2c271051dc001da2117a8ff240ffa0548", size = 36495, upload-time = "2026-09-24T21:38:14.211Z" },
-    { url = "https://files.pythonhosted.org/packages/d3/fd/81cefea6adae7bd92abb23d4567d199f6485a20ec0a305ca5fa04c52b9c5/google_crc32c-1.9.0-cp314-cp314-win_amd64.whl", hash = "sha256:af73200fa9791ccd380f3598235dba8d82b8af0905df045b3dc60b59836e8ddd", size = 35535, upload-time = "2026-09-24T21:39:30.52Z" },
-    { url = "https://files.pythonhosted.org/packages/c5/18/19d4f17f3f33f8fdffcb3e1e69219d6f7ec2c359c160867b04dac1d0a64d/google_crc32c-1.9.0-cp315-cp315-macosx_12_0_arm64.whl", hash = "sha256:e6e8be8a94436079cb5340f6d495d9d7ba30124d8b952703994c739c7c06e236", size = 31977, upload-time = "2026-09-24T21:19:03.976Z" },
-    { url = "https://files.pythonhosted.org/packages/81/b4/8010372c4b46f2ee2352dfdb630c397570cd85522a315df024ad2f9459aa/google_crc32c-1.9.0-cp315-cp315-macosx_12_0_x86_64.whl", hash = "sha256:f2b64641bca27497b986b9d87883014035aa904cb4fa333407c6752b3afee9ba", size = 31809, upload-time = "2026-09-24T21:22:29.1Z" },
-    { url = "https://files.pythonhosted.org/packages/c5/f8/7e33845d6b90ce1cf37cfabf25cb859277c7d3533ef1b6b1e1ca58581549/google_crc32c-1.9.0-cp315-cp315-manylinux2014_aarch64.manylinux_2_17_aarch64.whl", hash = "sha256:f97c3806dcea41c29c04965347b0e12481561b75e0045dc7a4f69d75dec5d9b1", size = 38359, upload-time = "2026-09-24T21:38:14.983Z" },
-    { url = "https://files.pythonhosted.org/packages/36/ff/556b2423f449a7515af6b8222a4d7833cbe09ff3e8d2f0b80471f5f6d02e/google_crc32c-1.9.0-cp315-cp315-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:0abe7e202c25909869c35672ab0f2fe748a7acf276eb78577332a7c38999740f", size = 36858, upload-time = "2026-09-24T21:38:15.799Z" },
-    { url = "https://files.pythonhosted.org/packages/40/71/4733f1b7c921d04a2bb9b9916cf66498bf7ad0860a06289413830da83192/google_crc32c-1.9.0-cp315-cp315-win_amd64.whl", hash = "sha256:5695c8b9327e040b2aba12c6659b0acb5995314ef0af0192da66e662e011103b", size = 35534, upload-time = "2026-09-24T21:39:31.337Z" },
 ]
 
 [[package]]
@@ -1231,7 +1071,7 @@ source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "anyio" },
     { name = "distro" },
-    { name = "google-auth", extra = ["requests"], marker = "extra == 'extra-8-sideseat-vertex-ai'" },
+    { name = "google-auth", extra = ["requests"] },
     { name = "httpx" },
     { name = "pydantic" },
     { name = "requests" },
@@ -1246,74 +1086,15 @@ wheels = [
 ]
 
 [[package]]
-name = "google-resumable-media"
-version = "2.11.0"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "google-crc32c" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/cf/64/df6a482d5aa39d7f7be186d892377d605cae6c88525fd851d456e8bbe9c9/google_resumable_media-2.11.0.tar.gz", hash = "sha256:febd83686752799661b4de575f0b993c5c25c349a5362556fc4d7be164056a37", size = 2164914, upload-time = "2026-09-29T19:26:13.546Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/5e/2e/4f0a152f2e576e496f31ba1c3c62ed174a8878d06008916a7edc58b1bb28/google_resumable_media-2.11.0-py3-none-any.whl", hash = "sha256:f43d15e6a7f818f762eaead0f369c551f8275a4179c9d6225d0d259f49b87b5d", size = 81515, upload-time = "2026-09-29T19:25:47.31Z" },
-]
-
-[[package]]
 name = "googleapis-common-protos"
 version = "1.75.0"
 source = { registry = "https://pypi.org/simple" }
-resolution-markers = [
-    "python_full_version >= '3.15'",
-    "python_full_version == '3.14.*'",
-    "python_full_version == '3.13.*'",
-    "python_full_version == '3.12.*'",
-    "python_full_version == '3.11.*'",
-    "python_full_version < '3.11'",
-]
 dependencies = [
-    { name = "protobuf", version = "5.29.6", source = { registry = "https://pypi.org/simple" } },
+    { name = "protobuf" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/b5/c8/f439cffde755cffa462bfbb156278fa6f9d09119719af9814b858fd4f81f/googleapis_common_protos-1.75.0.tar.gz", hash = "sha256:53a062ff3c32552fbd62c11fe23768b78e4ddf0494d5e5fd97d3f4689c75fbbd", size = 151035, upload-time = "2026-05-07T08:04:49.423Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/e7/c8/e2645aa8ed02fd4c7a2f59d68783b65b1f3cbdfe39a6308e156509d1fee8/googleapis_common_protos-1.75.0-py3-none-any.whl", hash = "sha256:961ed60399c457ceb0ee8f285a84c870aabc9c6a832b9d37bb281b5bebde43ed", size = 300631, upload-time = "2026-05-07T08:03:30.345Z" },
-]
-
-[[package]]
-name = "googleapis-common-protos"
-version = "1.75.5"
-source = { registry = "https://pypi.org/simple" }
-resolution-markers = [
-    "python_full_version >= '3.15'",
-    "python_full_version == '3.14.*'",
-    "python_full_version == '3.13.*'",
-    "python_full_version == '3.12.*'",
-    "python_full_version == '3.11.*'",
-    "python_full_version < '3.11'",
-]
-dependencies = [
-    { name = "protobuf", version = "6.33.6", source = { registry = "https://pypi.org/simple" }, marker = "extra == 'extra-8-sideseat-vertex-ai'" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/8d/2b/6ce81972d5c8cab9705fddce3153be63222d9e12fd96f8baba5038a744dd/googleapis_common_protos-1.75.5.tar.gz", hash = "sha256:c7a866fc34ed29a3b10af627a4b9b1dc2433313ca6e959f0ae4feb132047ed72", size = 156513, upload-time = "2026-09-29T19:26:14.863Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/65/b9/6b29500a1c581ff4d77fd83c6568d068bee06f1b139fb6eb0a4f2d4bce8a/googleapis_common_protos-1.75.5-py3-none-any.whl", hash = "sha256:d7285525c23039db98f2463e6d5a4f9b958b94d497f03a844ece3259c4e72d5d", size = 307737, upload-time = "2026-09-29T19:25:48.735Z" },
-]
-
-[package.optional-dependencies]
-grpc = [
-    { name = "grpcio" },
-]
-
-[[package]]
-name = "grpc-google-iam-v1"
-version = "0.14.5"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "googleapis-common-protos", version = "1.75.5", source = { registry = "https://pypi.org/simple" }, extra = ["grpc"], marker = "extra == 'extra-8-sideseat-vertex-ai'" },
-    { name = "grpcio" },
-    { name = "protobuf", version = "6.33.6", source = { registry = "https://pypi.org/simple" } },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/d2/d0/fa5bdd5f3f421bb68dc6dc162e9caaf942897ca41ce7255b524723c80f0b/grpc_google_iam_v1-0.14.5.tar.gz", hash = "sha256:07fd3a9fafb586588e771831fbfc8f6597050181d0c3b45e039d18b8fdc1aab5", size = 23736, upload-time = "2026-08-06T06:24:54.489Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/84/ab/be3ad0d46cffe35fd1e7cc3f9947edd6cb3c552229de3be2742f15f7ea47/grpc_google_iam_v1-0.14.5-py3-none-any.whl", hash = "sha256:0f5e680b20aa0a9441e68c769da04d94d70fca4e43751a82d8abb8aa6a7181ca", size = 32674, upload-time = "2026-08-06T06:23:49.467Z" },
 ]
 
 [[package]]
@@ -1388,20 +1169,6 @@ wheels = [
 ]
 
 [[package]]
-name = "grpcio-status"
-version = "1.84.0"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "googleapis-common-protos", version = "1.75.5", source = { registry = "https://pypi.org/simple" } },
-    { name = "grpcio" },
-    { name = "protobuf", version = "6.33.6", source = { registry = "https://pypi.org/simple" } },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/52/45/f80309cdb6a7dbf8f65e2082dd2ddc9797ba7180516a73c54d966ba632c4/grpcio_status-1.84.0.tar.gz", hash = "sha256:5caf28ba7184b81f618b5f7f094859fd2541bf429d2189bbbcd715c9c2cdcee2", size = 14015, upload-time = "2026-09-14T07:10:29.402Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/71/c4/3a77e4273e866b1b0c412afd80882e95941a37170032b5109d847c501124/grpcio_status-1.84.0-py3-none-any.whl", hash = "sha256:0c182ca0d6e60acbfd0e14499cf39a155e4827a1c3fd9f7638e49af15a74c30a", size = 14639, upload-time = "2026-09-14T07:10:15.175Z" },
-]
-
-[[package]]
 name = "h11"
 version = "0.16.0"
 source = { registry = "https://pypi.org/simple" }
@@ -1424,12 +1191,12 @@ dependencies = [
     { name = "lazy-imports" },
     { name = "markupsafe" },
     { name = "more-itertools" },
-    { name = "networkx", version = "3.4.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11' or (extra == 'extra-8-sideseat-all' and extra == 'extra-8-sideseat-vertex-ai') or (extra == 'extra-8-sideseat-autogen' and extra == 'extra-8-sideseat-vertex-ai')" },
-    { name = "networkx", version = "3.6.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version == '3.11.*' or (extra == 'extra-8-sideseat-all' and extra == 'extra-8-sideseat-vertex-ai') or (extra == 'extra-8-sideseat-autogen' and extra == 'extra-8-sideseat-vertex-ai')" },
-    { name = "networkx", version = "3.7", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12' or (extra == 'extra-8-sideseat-all' and extra == 'extra-8-sideseat-vertex-ai') or (extra == 'extra-8-sideseat-autogen' and extra == 'extra-8-sideseat-vertex-ai')" },
-    { name = "numpy", version = "2.2.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11' or (extra == 'extra-8-sideseat-all' and extra == 'extra-8-sideseat-vertex-ai') or (extra == 'extra-8-sideseat-autogen' and extra == 'extra-8-sideseat-vertex-ai')" },
-    { name = "numpy", version = "2.4.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version == '3.11.*' or (extra == 'extra-8-sideseat-all' and extra == 'extra-8-sideseat-vertex-ai') or (extra == 'extra-8-sideseat-autogen' and extra == 'extra-8-sideseat-vertex-ai')" },
-    { name = "numpy", version = "2.5.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12' or (extra == 'extra-8-sideseat-all' and extra == 'extra-8-sideseat-vertex-ai') or (extra == 'extra-8-sideseat-autogen' and extra == 'extra-8-sideseat-vertex-ai')" },
+    { name = "networkx", version = "3.4.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
+    { name = "networkx", version = "3.6.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version == '3.11.*'" },
+    { name = "networkx", version = "3.7", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
+    { name = "numpy", version = "2.2.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
+    { name = "numpy", version = "2.4.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version == '3.11.*'" },
+    { name = "numpy", version = "2.5.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
     { name = "openai" },
     { name = "posthog" },
     { name = "pydantic" },
@@ -1499,12 +1266,12 @@ name = "httpx2"
 version = "2.13.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "anyio", marker = "sys_platform != 'emscripten' or (extra == 'extra-8-sideseat-all' and extra == 'extra-8-sideseat-vertex-ai') or (extra == 'extra-8-sideseat-autogen' and extra == 'extra-8-sideseat-vertex-ai')" },
-    { name = "httpcore2", marker = "sys_platform != 'emscripten' or (extra == 'extra-8-sideseat-all' and extra == 'extra-8-sideseat-vertex-ai') or (extra == 'extra-8-sideseat-autogen' and extra == 'extra-8-sideseat-vertex-ai')" },
-    { name = "httpx2-jsfetch", marker = "(python_full_version >= '3.12' and sys_platform == 'emscripten') or (python_full_version < '3.12' and extra == 'extra-8-sideseat-all' and extra == 'extra-8-sideseat-vertex-ai') or (python_full_version < '3.12' and extra == 'extra-8-sideseat-autogen' and extra == 'extra-8-sideseat-vertex-ai') or (sys_platform != 'emscripten' and extra == 'extra-8-sideseat-all' and extra == 'extra-8-sideseat-vertex-ai') or (sys_platform != 'emscripten' and extra == 'extra-8-sideseat-autogen' and extra == 'extra-8-sideseat-vertex-ai')" },
+    { name = "anyio", marker = "sys_platform != 'emscripten'" },
+    { name = "httpcore2", marker = "sys_platform != 'emscripten'" },
+    { name = "httpx2-jsfetch", marker = "python_full_version >= '3.12' and sys_platform == 'emscripten'" },
     { name = "idna" },
-    { name = "truststore", marker = "sys_platform != 'emscripten' or (extra == 'extra-8-sideseat-all' and extra == 'extra-8-sideseat-vertex-ai') or (extra == 'extra-8-sideseat-autogen' and extra == 'extra-8-sideseat-vertex-ai')" },
-    { name = "typing-extensions", marker = "python_full_version < '3.13' or (extra == 'extra-8-sideseat-all' and extra == 'extra-8-sideseat-vertex-ai') or (extra == 'extra-8-sideseat-autogen' and extra == 'extra-8-sideseat-vertex-ai')" },
+    { name = "truststore", marker = "sys_platform != 'emscripten'" },
+    { name = "typing-extensions", marker = "python_full_version < '3.13'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/d5/44/474bef2a0e9d90f1715d32cb98b0738695ca17ba324095fb2497ed7fbd59/httpx2-2.13.1.tar.gz", hash = "sha256:e48744a19e3af5ee48313d0ce5fe941d5422fae5705ea922a4aabf94d7800dfa", size = 100405, upload-time = "2026-09-23T07:47:23.052Z" }
 wheels = [
@@ -1696,8 +1463,8 @@ wheels = [
 
 [package.optional-dependencies]
 schema = [
-    { name = "jsonschema", marker = "python_full_version >= '3.11' or (extra == 'extra-8-sideseat-all' and extra == 'extra-8-sideseat-vertex-ai') or (extra == 'extra-8-sideseat-autogen' and extra == 'extra-8-sideseat-vertex-ai')" },
-    { name = "pydantic", marker = "python_full_version >= '3.11' or (extra == 'extra-8-sideseat-all' and extra == 'extra-8-sideseat-vertex-ai') or (extra == 'extra-8-sideseat-autogen' and extra == 'extra-8-sideseat-vertex-ai')" },
+    { name = "jsonschema" },
+    { name = "pydantic" },
 ]
 
 [[package]]
@@ -1726,8 +1493,8 @@ dependencies = [
     { name = "attrs" },
     { name = "jsonschema-specifications" },
     { name = "referencing" },
-    { name = "rpds-py", version = "0.30.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11' or (extra == 'extra-8-sideseat-all' and extra == 'extra-8-sideseat-vertex-ai') or (extra == 'extra-8-sideseat-autogen' and extra == 'extra-8-sideseat-vertex-ai')" },
-    { name = "rpds-py", version = "2026.6.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11' or (extra == 'extra-8-sideseat-all' and extra == 'extra-8-sideseat-vertex-ai') or (extra == 'extra-8-sideseat-autogen' and extra == 'extra-8-sideseat-vertex-ai')" },
+    { name = "rpds-py", version = "0.30.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
+    { name = "rpds-py", version = "2026.6.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/b3/fc/e067678238fa451312d4c62bf6e6cf5ec56375422aee02f9cb5f909b3047/jsonschema-4.26.0.tar.gz", hash = "sha256:0c26707e2efad8aa1bfc5b7ce170f3fccc2e4918ff85989ba9ffa9facb2be326", size = 366583, upload-time = "2026-01-07T13:41:07.246Z" }
 wheels = [
@@ -1894,10 +1661,9 @@ dependencies = [
     { name = "opentelemetry-exporter-otlp-proto-http" },
     { name = "opentelemetry-instrumentation" },
     { name = "opentelemetry-sdk" },
-    { name = "protobuf", version = "5.29.6", source = { registry = "https://pypi.org/simple" }, marker = "extra == 'extra-8-sideseat-all' or extra == 'extra-8-sideseat-autogen' or extra != 'extra-8-sideseat-vertex-ai'" },
-    { name = "protobuf", version = "6.33.6", source = { registry = "https://pypi.org/simple" }, marker = "extra == 'extra-8-sideseat-vertex-ai'" },
+    { name = "protobuf" },
     { name = "rich" },
-    { name = "tomli", marker = "python_full_version < '3.11' or (extra == 'extra-8-sideseat-all' and extra == 'extra-8-sideseat-vertex-ai') or (extra == 'extra-8-sideseat-autogen' and extra == 'extra-8-sideseat-vertex-ai')" },
+    { name = "tomli", marker = "python_full_version < '3.11'" },
     { name = "typing-extensions" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/51/70/efb64888a6e375de10fa990169222493d5cf2a76ccb990c483b0ba7372df/logfire-5.1.1.tar.gz", hash = "sha256:7f9fc158988be37559045b054f278608d9fdc06bd9f875515ea6476bf260cb23", size = 1368530, upload-time = "2026-09-25T09:19:50.082Z" }
@@ -2012,20 +1778,20 @@ name = "mcp"
 version = "1.30.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "anyio", marker = "python_full_version >= '3.11' or (extra == 'extra-8-sideseat-all' and extra == 'extra-8-sideseat-vertex-ai') or (extra == 'extra-8-sideseat-autogen' and extra == 'extra-8-sideseat-vertex-ai')" },
-    { name = "httpx", marker = "python_full_version >= '3.11' or (extra == 'extra-8-sideseat-all' and extra == 'extra-8-sideseat-vertex-ai') or (extra == 'extra-8-sideseat-autogen' and extra == 'extra-8-sideseat-vertex-ai')" },
-    { name = "httpx-sse", marker = "python_full_version >= '3.11' or (extra == 'extra-8-sideseat-all' and extra == 'extra-8-sideseat-vertex-ai') or (extra == 'extra-8-sideseat-autogen' and extra == 'extra-8-sideseat-vertex-ai')" },
-    { name = "jsonschema", marker = "python_full_version >= '3.11' or (extra == 'extra-8-sideseat-all' and extra == 'extra-8-sideseat-vertex-ai') or (extra == 'extra-8-sideseat-autogen' and extra == 'extra-8-sideseat-vertex-ai')" },
-    { name = "pydantic", marker = "python_full_version >= '3.11' or (extra == 'extra-8-sideseat-all' and extra == 'extra-8-sideseat-vertex-ai') or (extra == 'extra-8-sideseat-autogen' and extra == 'extra-8-sideseat-vertex-ai')" },
-    { name = "pydantic-settings", marker = "python_full_version >= '3.11' or (extra == 'extra-8-sideseat-all' and extra == 'extra-8-sideseat-vertex-ai') or (extra == 'extra-8-sideseat-autogen' and extra == 'extra-8-sideseat-vertex-ai')" },
-    { name = "pyjwt", extra = ["crypto"], marker = "python_full_version >= '3.11' or (extra == 'extra-8-sideseat-all' and extra == 'extra-8-sideseat-vertex-ai') or (extra == 'extra-8-sideseat-autogen' and extra == 'extra-8-sideseat-vertex-ai')" },
-    { name = "python-multipart", marker = "python_full_version >= '3.11' or (extra == 'extra-8-sideseat-all' and extra == 'extra-8-sideseat-vertex-ai') or (extra == 'extra-8-sideseat-autogen' and extra == 'extra-8-sideseat-vertex-ai')" },
-    { name = "pywin32", marker = "(python_full_version >= '3.11' and sys_platform == 'win32') or (python_full_version < '3.11' and extra == 'extra-8-sideseat-all' and extra == 'extra-8-sideseat-vertex-ai') or (python_full_version < '3.11' and extra == 'extra-8-sideseat-autogen' and extra == 'extra-8-sideseat-vertex-ai') or (sys_platform != 'win32' and extra == 'extra-8-sideseat-all' and extra == 'extra-8-sideseat-vertex-ai') or (sys_platform != 'win32' and extra == 'extra-8-sideseat-autogen' and extra == 'extra-8-sideseat-vertex-ai')" },
-    { name = "sse-starlette", marker = "python_full_version >= '3.11' or (extra == 'extra-8-sideseat-all' and extra == 'extra-8-sideseat-vertex-ai') or (extra == 'extra-8-sideseat-autogen' and extra == 'extra-8-sideseat-vertex-ai')" },
-    { name = "starlette", marker = "python_full_version >= '3.11' or (extra == 'extra-8-sideseat-all' and extra == 'extra-8-sideseat-vertex-ai') or (extra == 'extra-8-sideseat-autogen' and extra == 'extra-8-sideseat-vertex-ai')" },
-    { name = "typing-extensions", marker = "python_full_version >= '3.11' or (extra == 'extra-8-sideseat-all' and extra == 'extra-8-sideseat-vertex-ai') or (extra == 'extra-8-sideseat-autogen' and extra == 'extra-8-sideseat-vertex-ai')" },
-    { name = "typing-inspection", marker = "python_full_version >= '3.11' or (extra == 'extra-8-sideseat-all' and extra == 'extra-8-sideseat-vertex-ai') or (extra == 'extra-8-sideseat-autogen' and extra == 'extra-8-sideseat-vertex-ai')" },
-    { name = "uvicorn", marker = "(python_full_version >= '3.11' and sys_platform != 'emscripten') or (python_full_version < '3.11' and extra == 'extra-8-sideseat-all' and extra == 'extra-8-sideseat-vertex-ai') or (python_full_version < '3.11' and extra == 'extra-8-sideseat-autogen' and extra == 'extra-8-sideseat-vertex-ai') or (sys_platform == 'emscripten' and extra == 'extra-8-sideseat-all' and extra == 'extra-8-sideseat-vertex-ai') or (sys_platform == 'emscripten' and extra == 'extra-8-sideseat-autogen' and extra == 'extra-8-sideseat-vertex-ai')" },
+    { name = "anyio" },
+    { name = "httpx" },
+    { name = "httpx-sse" },
+    { name = "jsonschema" },
+    { name = "pydantic" },
+    { name = "pydantic-settings" },
+    { name = "pyjwt", extra = ["crypto"] },
+    { name = "python-multipart" },
+    { name = "pywin32", marker = "sys_platform == 'win32'" },
+    { name = "sse-starlette" },
+    { name = "starlette" },
+    { name = "typing-extensions" },
+    { name = "typing-inspection" },
+    { name = "uvicorn", marker = "sys_platform != 'emscripten'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/ba/93/0142dc84a666daf8ad51a34268f34c12fd6fda4f3810c4be2504eecc8212/mcp-1.30.0.tar.gz", hash = "sha256:445414625fce5c295faa505bb11bacece661ab6f4028d57c935db57820b7a3e4", size = 680511, upload-time = "2026-09-07T14:34:15.845Z" }
 wheels = [
@@ -2055,7 +1821,7 @@ name = "multidict"
 version = "6.9.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "typing-extensions", marker = "python_full_version < '3.11' or (extra == 'extra-8-sideseat-all' and extra == 'extra-8-sideseat-vertex-ai') or (extra == 'extra-8-sideseat-autogen' and extra == 'extra-8-sideseat-vertex-ai')" },
+    { name = "typing-extensions", marker = "python_full_version < '3.11'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/d6/99/1d4d69c3512d0ddbfa3a1b69cfd9a151012ab2eb4eabbb096201b1f0b7d8/multidict-6.9.1.tar.gz", hash = "sha256:0f06e60fa190aa7abd0914c2a766736fdc8e9f34878c4346338534b73d1b20e2", size = 182404, upload-time = "2026-09-21T17:59:05.362Z" }
 wheels = [
@@ -2237,10 +2003,10 @@ version = "2.3.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "ast-serialize" },
-    { name = "librt", marker = "platform_python_implementation != 'PyPy' or (extra == 'extra-8-sideseat-all' and extra == 'extra-8-sideseat-vertex-ai') or (extra == 'extra-8-sideseat-autogen' and extra == 'extra-8-sideseat-vertex-ai')" },
+    { name = "librt", marker = "platform_python_implementation != 'PyPy'" },
     { name = "mypy-extensions" },
     { name = "pathspec" },
-    { name = "tomli", marker = "python_full_version < '3.11' or (extra == 'extra-8-sideseat-all' and extra == 'extra-8-sideseat-vertex-ai') or (extra == 'extra-8-sideseat-autogen' and extra == 'extra-8-sideseat-vertex-ai')" },
+    { name = "tomli", marker = "python_full_version < '3.11'" },
     { name = "typing-extensions" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/82/6a/878cc1097d4035f82bd516658d0c528d2a9955bc7b363afcbd0b07fea11b/mypy-2.3.1.tar.gz", hash = "sha256:47c1b1207258513a9d93495f69c8be9de73916186f0e52703e8c461b7a623419", size = 3992554, upload-time = "2026-08-15T03:03:38.549Z" }
@@ -2591,7 +2357,7 @@ wheels = [
 
 [[package]]
 name = "openinference-instrumentation"
-version = "0.1.68"
+version = "0.1.69"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "openinference-semantic-conventions" },
@@ -2599,9 +2365,9 @@ dependencies = [
     { name = "opentelemetry-sdk" },
     { name = "wrapt" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/b0/f3/16177469d634282945caf5339c7eccaca2eb4d44bcd64e7f09312bf00ddd/openinference_instrumentation-0.1.68.tar.gz", hash = "sha256:41a0f76f23bef07e98566b24c6dba7ff400840f427a5a65c4b3dce91f71f1a54", size = 44337, upload-time = "2026-10-01T18:22:38.596Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/08/f8/639528a13bc233665b2a332d093ffca2fbfe8286018215b6cf2daa424d11/openinference_instrumentation-0.1.69.tar.gz", hash = "sha256:7574944aa6631154cfa7ef152caab8ee23e30c2fbc1f901de40cc8958623660d", size = 46350, upload-time = "2026-10-01T19:56:13.329Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/7f/8e/6a77021a0874cdf37a0e58e51796e01d9cdfe86453ced5d0aa218f16f7dd/openinference_instrumentation-0.1.68-py3-none-any.whl", hash = "sha256:adc76588c0b6ae120b85cc0c0e63f3db31c2ac58f7ac0346bc541e3dd6983ef2", size = 52114, upload-time = "2026-10-01T18:22:37.134Z" },
+    { url = "https://files.pythonhosted.org/packages/38/22/80e142bc21345a8a28bcb22a23da52e49fe965f11bfb2c65549ff627e443/openinference_instrumentation-0.1.69-py3-none-any.whl", hash = "sha256:972870484330a1d6bb142b6ba6c12633345c897dd41680fd37faa998788306ef", size = 54247, upload-time = "2026-10-01T19:56:11.59Z" },
 ]
 
 [[package]]
@@ -2756,8 +2522,8 @@ name = "opentelemetry-exporter-otlp"
 version = "1.44.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "opentelemetry-exporter-otlp-proto-grpc", marker = "python_full_version >= '3.11' or (extra == 'extra-8-sideseat-all' and extra == 'extra-8-sideseat-vertex-ai') or (extra == 'extra-8-sideseat-autogen' and extra == 'extra-8-sideseat-vertex-ai')" },
-    { name = "opentelemetry-exporter-otlp-proto-http", marker = "python_full_version >= '3.11' or (extra == 'extra-8-sideseat-all' and extra == 'extra-8-sideseat-vertex-ai') or (extra == 'extra-8-sideseat-autogen' and extra == 'extra-8-sideseat-vertex-ai')" },
+    { name = "opentelemetry-exporter-otlp-proto-grpc" },
+    { name = "opentelemetry-exporter-otlp-proto-http" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/f2/45/7af37fe54e5d3e66e7dcd7ba8b8aeee73f202bfac909cc94b8c4e428f9ac/opentelemetry_exporter_otlp-1.44.0.tar.gz", hash = "sha256:af1cde7c33ea8ed624bf04ac49a885730fe44c1f1ad698656e592c38f70ce106", size = 6090, upload-time = "2026-07-16T15:25:34.585Z" }
 wheels = [
@@ -2781,8 +2547,7 @@ name = "opentelemetry-exporter-otlp-proto-grpc"
 version = "1.44.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "googleapis-common-protos", version = "1.75.0", source = { registry = "https://pypi.org/simple" }, marker = "extra == 'extra-8-sideseat-all' or extra == 'extra-8-sideseat-autogen' or extra != 'extra-8-sideseat-vertex-ai'" },
-    { name = "googleapis-common-protos", version = "1.75.5", source = { registry = "https://pypi.org/simple" }, marker = "extra == 'extra-8-sideseat-vertex-ai'" },
+    { name = "googleapis-common-protos" },
     { name = "grpcio" },
     { name = "opentelemetry-api" },
     { name = "opentelemetry-exporter-otlp-proto-common" },
@@ -2800,8 +2565,7 @@ name = "opentelemetry-exporter-otlp-proto-http"
 version = "1.44.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "googleapis-common-protos", version = "1.75.0", source = { registry = "https://pypi.org/simple" }, marker = "extra == 'extra-8-sideseat-all' or extra == 'extra-8-sideseat-autogen' or extra != 'extra-8-sideseat-vertex-ai'" },
-    { name = "googleapis-common-protos", version = "1.75.5", source = { registry = "https://pypi.org/simple" }, marker = "extra == 'extra-8-sideseat-vertex-ai'" },
+    { name = "googleapis-common-protos" },
     { name = "opentelemetry-api" },
     { name = "opentelemetry-exporter-otlp-proto-common" },
     { name = "opentelemetry-proto" },
@@ -3434,8 +3198,7 @@ name = "opentelemetry-proto"
 version = "1.44.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "protobuf", version = "5.29.6", source = { registry = "https://pypi.org/simple" }, marker = "extra == 'extra-8-sideseat-all' or extra == 'extra-8-sideseat-autogen' or extra != 'extra-8-sideseat-vertex-ai'" },
-    { name = "protobuf", version = "6.33.6", source = { registry = "https://pypi.org/simple" }, marker = "extra == 'extra-8-sideseat-vertex-ai'" },
+    { name = "protobuf" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/64/01/40ac4ae9a149263cc52c2cee200ddd80cb6d8db1a4610abf8eabce0fe771/opentelemetry_proto-1.44.0.tar.gz", hash = "sha256:c547a79c2f8c0c515d31509154682e5921c7cfd5ca67b70e1f9266e2c3e103f3", size = 46488, upload-time = "2026-07-16T15:25:45.34Z" }
 wheels = [
@@ -3788,29 +3551,9 @@ wheels = [
 ]
 
 [[package]]
-name = "proto-plus"
-version = "1.29.0"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "protobuf", version = "6.33.6", source = { registry = "https://pypi.org/simple" } },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/46/70/783e33ffbb4466cc154a94f79b869b92a451e2bd45605054e68ff68b7af6/proto_plus-1.29.0.tar.gz", hash = "sha256:cfb4e62ad7e13dd18f346cabbda00cab39930d36a05791fd81ddb074d6ee884f", size = 58592, upload-time = "2026-09-29T19:26:15.963Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/b1/05/a3ef5b1161498e7b5a2a60288a9cf41b9149e94555423a43ec536737ac1a/proto_plus-1.29.0-py3-none-any.whl", hash = "sha256:8acd070469a7aaf43f440b022ef9757c8cac1a9f866e933f59ae98669ddc6c8b", size = 50786, upload-time = "2026-09-29T19:25:50.409Z" },
-]
-
-[[package]]
 name = "protobuf"
 version = "5.29.6"
 source = { registry = "https://pypi.org/simple" }
-resolution-markers = [
-    "python_full_version >= '3.15'",
-    "python_full_version == '3.14.*'",
-    "python_full_version == '3.13.*'",
-    "python_full_version == '3.12.*'",
-    "python_full_version == '3.11.*'",
-    "python_full_version < '3.11'",
-]
 sdist = { url = "https://files.pythonhosted.org/packages/7e/57/394a763c103e0edf87f0938dafcd918d53b4c011dfc5c8ae80f3b0452dbb/protobuf-5.29.6.tar.gz", hash = "sha256:da9ee6a5424b6b30fd5e45c5ea663aef540ca95f9ad99d1e887e819cdf9b8723", size = 425623, upload-time = "2026-02-04T22:54:40.584Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/d4/88/9ee58ff7863c479d6f8346686d4636dd4c415b0cbeed7a6a7d0617639c2a/protobuf-5.29.6-cp310-abi3-win32.whl", hash = "sha256:62e8a3114992c7c647bce37dcc93647575fc52d50e48de30c6fcb28a6a291eb1", size = 423357, upload-time = "2026-02-04T22:54:25.805Z" },
@@ -3819,29 +3562,6 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/b7/d7/48cbf6b0c3c39761e47a99cb483405f0fde2be22cf00d71ef316ce52b458/protobuf-5.29.6-cp38-abi3-manylinux2014_aarch64.whl", hash = "sha256:a8866b2cff111f0f863c1b3b9e7572dc7eaea23a7fae27f6fc613304046483e6", size = 320284, upload-time = "2026-02-04T22:54:31.782Z" },
     { url = "https://files.pythonhosted.org/packages/e3/dd/cadd6ec43069247d91f6345fa7a0d2858bef6af366dbd7ba8f05d2c77d3b/protobuf-5.29.6-cp38-abi3-manylinux2014_x86_64.whl", hash = "sha256:e3387f44798ac1106af0233c04fb8abf543772ff241169946f698b3a9a3d3ab9", size = 320478, upload-time = "2026-02-04T22:54:32.909Z" },
     { url = "https://files.pythonhosted.org/packages/5a/cb/e3065b447186cb70aa65acc70c86baf482d82bf75625bf5a2c4f6919c6a3/protobuf-5.29.6-py3-none-any.whl", hash = "sha256:6b9edb641441b2da9fa8f428760fc136a49cf97a52076010cf22a2ff73438a86", size = 173126, upload-time = "2026-02-04T22:54:39.462Z" },
-]
-
-[[package]]
-name = "protobuf"
-version = "6.33.6"
-source = { registry = "https://pypi.org/simple" }
-resolution-markers = [
-    "python_full_version >= '3.15'",
-    "python_full_version == '3.14.*'",
-    "python_full_version == '3.13.*'",
-    "python_full_version == '3.12.*'",
-    "python_full_version == '3.11.*'",
-    "python_full_version < '3.11'",
-]
-sdist = { url = "https://files.pythonhosted.org/packages/66/70/e908e9c5e52ef7c3a6c7902c9dfbb34c7e29c25d2f81ade3856445fd5c94/protobuf-6.33.6.tar.gz", hash = "sha256:a6768d25248312c297558af96a9f9c929e8c4cee0659cb07e780731095f38135", size = 444531, upload-time = "2026-03-18T19:05:00.988Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/fc/9f/2f509339e89cfa6f6a4c4ff50438db9ca488dec341f7e454adad60150b00/protobuf-6.33.6-cp310-abi3-win32.whl", hash = "sha256:7d29d9b65f8afef196f8334e80d6bc1d5d4adedb449971fefd3723824e6e77d3", size = 425739, upload-time = "2026-03-18T19:04:48.373Z" },
-    { url = "https://files.pythonhosted.org/packages/76/5d/683efcd4798e0030c1bab27374fd13a89f7c2515fb1f3123efdfaa5eab57/protobuf-6.33.6-cp310-abi3-win_amd64.whl", hash = "sha256:0cd27b587afca21b7cfa59a74dcbd48a50f0a6400cfb59391340ad729d91d326", size = 437089, upload-time = "2026-03-18T19:04:50.381Z" },
-    { url = "https://files.pythonhosted.org/packages/5c/01/a3c3ed5cd186f39e7880f8303cc51385a198a81469d53d0fdecf1f64d929/protobuf-6.33.6-cp39-abi3-macosx_10_9_universal2.whl", hash = "sha256:9720e6961b251bde64edfdab7d500725a2af5280f3f4c87e57c0208376aa8c3a", size = 427737, upload-time = "2026-03-18T19:04:51.866Z" },
-    { url = "https://files.pythonhosted.org/packages/ee/90/b3c01fdec7d2f627b3a6884243ba328c1217ed2d978def5c12dc50d328a3/protobuf-6.33.6-cp39-abi3-manylinux2014_aarch64.whl", hash = "sha256:e2afbae9b8e1825e3529f88d514754e094278bb95eadc0e199751cdd9a2e82a2", size = 324610, upload-time = "2026-03-18T19:04:53.096Z" },
-    { url = "https://files.pythonhosted.org/packages/9b/ca/25afc144934014700c52e05103c2421997482d561f3101ff352e1292fb81/protobuf-6.33.6-cp39-abi3-manylinux2014_s390x.whl", hash = "sha256:c96c37eec15086b79762ed265d59ab204dabc53056e3443e702d2681f4b39ce3", size = 339381, upload-time = "2026-03-18T19:04:54.616Z" },
-    { url = "https://files.pythonhosted.org/packages/16/92/d1e32e3e0d894fe00b15ce28ad4944ab692713f2e7f0a99787405e43533a/protobuf-6.33.6-cp39-abi3-manylinux2014_x86_64.whl", hash = "sha256:e9db7e292e0ab79dd108d7f1a94fe31601ce1ee3f7b79e0692043423020b0593", size = 323436, upload-time = "2026-03-18T19:04:55.768Z" },
-    { url = "https://files.pythonhosted.org/packages/c4/72/02445137af02769918a93807b2b7890047c32bfb9f90371cbc12688819eb/protobuf-6.33.6-py3-none-any.whl", hash = "sha256:77179e006c476e69bf8e8ce866640091ec42e1beb80b213c3900006ecfba6901", size = 170656, upload-time = "2026-03-18T19:04:59.826Z" },
 ]
 
 [[package]]
@@ -4010,9 +3730,9 @@ name = "pydantic-settings"
 version = "2.15.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "pydantic", marker = "python_full_version >= '3.11' or (extra == 'extra-8-sideseat-all' and extra == 'extra-8-sideseat-vertex-ai') or (extra == 'extra-8-sideseat-autogen' and extra == 'extra-8-sideseat-vertex-ai')" },
-    { name = "python-dotenv", marker = "python_full_version >= '3.11' or (extra == 'extra-8-sideseat-all' and extra == 'extra-8-sideseat-vertex-ai') or (extra == 'extra-8-sideseat-autogen' and extra == 'extra-8-sideseat-vertex-ai')" },
-    { name = "typing-inspection", marker = "python_full_version >= '3.11' or (extra == 'extra-8-sideseat-all' and extra == 'extra-8-sideseat-vertex-ai') or (extra == 'extra-8-sideseat-autogen' and extra == 'extra-8-sideseat-vertex-ai')" },
+    { name = "pydantic" },
+    { name = "python-dotenv" },
+    { name = "typing-inspection" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/68/ca/31c57507b13119d7d3cfa1576dad2911a4861e3be07b579395f4e9d393f9/pydantic_settings-2.15.0.tar.gz", hash = "sha256:694b793e84f766ba76a90ebdefc01d0a9a045dab0382bee70393da93712ad117", size = 261253, upload-time = "2026-08-07T09:24:57.419Z" }
 wheels = [
@@ -4039,7 +3759,7 @@ wheels = [
 
 [package.optional-dependencies]
 crypto = [
-    { name = "cryptography", marker = "python_full_version >= '3.11' or (extra == 'extra-8-sideseat-all' and extra == 'extra-8-sideseat-vertex-ai') or (extra == 'extra-8-sideseat-autogen' and extra == 'extra-8-sideseat-vertex-ai')" },
+    { name = "cryptography" },
 ]
 
 [[package]]
@@ -4056,13 +3776,13 @@ name = "pytest"
 version = "9.1.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "colorama", marker = "sys_platform == 'win32' or (extra == 'extra-8-sideseat-all' and extra == 'extra-8-sideseat-vertex-ai') or (extra == 'extra-8-sideseat-autogen' and extra == 'extra-8-sideseat-vertex-ai')" },
-    { name = "exceptiongroup", marker = "python_full_version < '3.11' or (extra == 'extra-8-sideseat-all' and extra == 'extra-8-sideseat-vertex-ai') or (extra == 'extra-8-sideseat-autogen' and extra == 'extra-8-sideseat-vertex-ai')" },
+    { name = "colorama", marker = "sys_platform == 'win32'" },
+    { name = "exceptiongroup", marker = "python_full_version < '3.11'" },
     { name = "iniconfig" },
     { name = "packaging" },
     { name = "pluggy" },
     { name = "pygments" },
-    { name = "tomli", marker = "python_full_version < '3.11' or (extra == 'extra-8-sideseat-all' and extra == 'extra-8-sideseat-vertex-ai') or (extra == 'extra-8-sideseat-autogen' and extra == 'extra-8-sideseat-vertex-ai')" },
+    { name = "tomli", marker = "python_full_version < '3.11'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/e4/47/b9efed96c114afcfa3c9d3fe98a76a1d14c74a9e266d397cf6eb64be5e01/pytest-9.1.1.tar.gz", hash = "sha256:1088fbde8f2b49d95a549a195707afa7a76a3ce9bcadc26b6d71f0ffda5fe313", size = 1636369, upload-time = "2026-06-19T10:58:32.857Z" }
 wheels = [
@@ -4074,8 +3794,8 @@ name = "python-datauri"
 version = "3.0.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "cached-property", marker = "python_full_version >= '3.11' or (extra == 'extra-8-sideseat-all' and extra == 'extra-8-sideseat-vertex-ai') or (extra == 'extra-8-sideseat-autogen' and extra == 'extra-8-sideseat-vertex-ai')" },
-    { name = "typing-extensions", marker = "python_full_version >= '3.11' or (extra == 'extra-8-sideseat-all' and extra == 'extra-8-sideseat-vertex-ai') or (extra == 'extra-8-sideseat-autogen' and extra == 'extra-8-sideseat-vertex-ai')" },
+    { name = "cached-property" },
+    { name = "typing-extensions" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/7c/3b/8a9a2ec12424a8617678d663fa70de43d917d3590416d3a2b9c7fc065d5b/python_datauri-3.0.2.tar.gz", hash = "sha256:d77c37f1f734fc035de424e643464990b2b840e9b8c7c1817c11fca19b71eeb7", size = 9746, upload-time = "2025-01-03T16:22:56.143Z" }
 wheels = [
@@ -4108,7 +3828,7 @@ name = "python-engineio"
 version = "4.14.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "simple-websocket", marker = "python_full_version >= '3.11' or (extra == 'extra-8-sideseat-all' and extra == 'extra-8-sideseat-vertex-ai') or (extra == 'extra-8-sideseat-autogen' and extra == 'extra-8-sideseat-vertex-ai')" },
+    { name = "simple-websocket" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/fc/65/f8bae11b228647e2e2f45b63dec7448efaddb7cb51f529de1fdba69e63b5/python_engineio-4.14.0.tar.gz", hash = "sha256:eaa1e386baf9c2c7959eef7f9d9165c5ea910c5b392f5316e78d29ed073cb43d", size = 80863, upload-time = "2026-08-30T19:52:01.32Z" }
 wheels = [
@@ -4120,7 +3840,7 @@ name = "python-frontmatter"
 version = "1.3.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "pyyaml", marker = "python_full_version >= '3.11' or (extra == 'extra-8-sideseat-all' and extra == 'extra-8-sideseat-vertex-ai') or (extra == 'extra-8-sideseat-autogen' and extra == 'extra-8-sideseat-vertex-ai')" },
+    { name = "pyyaml" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/9d/e8/79cbe69864d44f3b48e70ebee0a872a7d5a4e7150c9f8577ed7a5beefff0/python_frontmatter-1.3.0.tar.gz", hash = "sha256:acc73e477a568dc2a25c9e130c6c68ae8daa8c204c8f7e813db47d6a7280dcf2", size = 8322, upload-time = "2026-05-20T19:21:44.164Z" }
 wheels = [
@@ -4141,8 +3861,8 @@ name = "python-socketio"
 version = "5.17.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "bidict", marker = "python_full_version >= '3.11' or (extra == 'extra-8-sideseat-all' and extra == 'extra-8-sideseat-vertex-ai') or (extra == 'extra-8-sideseat-autogen' and extra == 'extra-8-sideseat-vertex-ai')" },
-    { name = "python-engineio", marker = "python_full_version >= '3.11' or (extra == 'extra-8-sideseat-all' and extra == 'extra-8-sideseat-vertex-ai') or (extra == 'extra-8-sideseat-autogen' and extra == 'extra-8-sideseat-vertex-ai')" },
+    { name = "bidict" },
+    { name = "python-engineio" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/b9/04/8647675c93b5e74a3daa41a2a03930bac0cbdcfcf307900f0441ae6550ba/python_socketio-5.17.0.tar.gz", hash = "sha256:c3bbfc4937dcfea7c4d1b182afa94d4a30335d153987e8f2078b344beacf95a0", size = 134574, upload-time = "2026-09-14T22:51:02.968Z" }
 wheels = [
@@ -4244,9 +3964,9 @@ version = "0.37.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "attrs" },
-    { name = "rpds-py", version = "0.30.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11' or (extra == 'extra-8-sideseat-all' and extra == 'extra-8-sideseat-vertex-ai') or (extra == 'extra-8-sideseat-autogen' and extra == 'extra-8-sideseat-vertex-ai')" },
-    { name = "rpds-py", version = "2026.6.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11' or (extra == 'extra-8-sideseat-all' and extra == 'extra-8-sideseat-vertex-ai') or (extra == 'extra-8-sideseat-autogen' and extra == 'extra-8-sideseat-vertex-ai')" },
-    { name = "typing-extensions", marker = "python_full_version < '3.13' or (extra == 'extra-8-sideseat-all' and extra == 'extra-8-sideseat-vertex-ai') or (extra == 'extra-8-sideseat-autogen' and extra == 'extra-8-sideseat-vertex-ai')" },
+    { name = "rpds-py", version = "0.30.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
+    { name = "rpds-py", version = "2026.6.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
+    { name = "typing-extensions", marker = "python_full_version < '3.13'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/22/f5/df4e9027acead3ecc63e50fe1e36aca1523e1719559c499951bb4b53188f/referencing-0.37.0.tar.gz", hash = "sha256:44aefc3142c5b842538163acb373e24cce6632bd54bdb01b21ad5863489f50d8", size = 78036, upload-time = "2025-10-13T15:30:48.871Z" }
 wheels = [
@@ -4593,7 +4313,7 @@ ag2 = [
     { name = "ag2", extra = ["tracing"] },
 ]
 agentscope = [
-    { name = "agentscope", marker = "python_full_version >= '3.11' or (extra == 'extra-8-sideseat-all' and extra == 'extra-8-sideseat-vertex-ai') or (extra == 'extra-8-sideseat-autogen' and extra == 'extra-8-sideseat-vertex-ai')" },
+    { name = "agentscope", marker = "python_full_version >= '3.11'" },
 ]
 agno = [
     { name = "openinference-instrumentation-agno" },
@@ -4604,10 +4324,11 @@ agui = [
 ]
 all = [
     { name = "ag-ui-protocol" },
-    { name = "ag2", extra = ["tracing"], marker = "extra == 'extra-8-sideseat-all' or extra == 'extra-8-sideseat-autogen' or extra != 'extra-8-sideseat-vertex-ai'" },
+    { name = "ag2", extra = ["tracing"] },
     { name = "agentscope", marker = "python_full_version >= '3.11'" },
+    { name = "google-genai" },
     { name = "httpx" },
-    { name = "logfire", extra = ["google-genai"], marker = "extra == 'extra-8-sideseat-all' or extra == 'extra-8-sideseat-autogen' or extra != 'extra-8-sideseat-vertex-ai'" },
+    { name = "logfire", extra = ["google-genai"] },
     { name = "openai" },
     { name = "openinference-instrumentation-agno" },
     { name = "openinference-instrumentation-autogen-agentchat" },
@@ -4681,8 +4402,8 @@ traceloop = [
     { name = "traceloop-sdk" },
 ]
 vertex-ai = [
-    { name = "google-cloud-aiplatform" },
-    { name = "opentelemetry-instrumentation-vertexai" },
+    { name = "google-genai" },
+    { name = "logfire", extra = ["google-genai"] },
 ]
 ws = [
     { name = "websockets" },
@@ -4696,7 +4417,8 @@ requires-dist = [
     { name = "ag2", extras = ["tracing"], marker = "extra == 'all'", specifier = ">=1.1.1,<2" },
     { name = "agentscope", marker = "python_full_version >= '3.11' and extra == 'agentscope'", specifier = ">=2.0.9,<3" },
     { name = "agentscope", marker = "python_full_version >= '3.11' and extra == 'all'", specifier = ">=2.0.9,<3" },
-    { name = "google-cloud-aiplatform", marker = "extra == 'vertex-ai'", specifier = ">=2.2.0" },
+    { name = "google-genai", marker = "extra == 'all'", specifier = ">=2.26.0" },
+    { name = "google-genai", marker = "extra == 'vertex-ai'", specifier = ">=2.26.0" },
     { name = "httpx", marker = "extra == 'all'", specifier = ">=0.27,<1" },
     { name = "httpx", marker = "extra == 'anthropic'", specifier = ">=0.27" },
     { name = "httpx", marker = "extra == 'traceloop'", specifier = ">=0.28,<1" },
@@ -4707,6 +4429,7 @@ requires-dist = [
     { name = "logfire", marker = "extra == 'pydantic-ai'", specifier = ">=4.29.0" },
     { name = "logfire", extras = ["google-genai"], marker = "extra == 'all'", specifier = ">=4.29.0" },
     { name = "logfire", extras = ["google-genai"], marker = "extra == 'google-genai'", specifier = ">=4.29.0" },
+    { name = "logfire", extras = ["google-genai"], marker = "extra == 'vertex-ai'", specifier = ">=4.29.0" },
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.13.0" },
     { name = "openai", marker = "extra == 'all'", specifier = ">=2.8.0" },
     { name = "openai", marker = "extra == 'azure-openai'", specifier = ">=2.8.0" },
@@ -4729,7 +4452,6 @@ requires-dist = [
     { name = "opentelemetry-exporter-otlp-proto-http", specifier = ">=1.39.0" },
     { name = "opentelemetry-haystack", marker = "extra == 'all'", specifier = ">=1.0.0" },
     { name = "opentelemetry-haystack", marker = "extra == 'haystack'", specifier = ">=1.0.0" },
-    { name = "opentelemetry-instrumentation-vertexai", marker = "extra == 'vertex-ai'", specifier = ">=0.62.3" },
     { name = "opentelemetry-sdk", specifier = ">=1.39.0" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.0.0" },
     { name = "requests", marker = "extra == 'all'", specifier = ">=2.32" },
@@ -4751,7 +4473,7 @@ name = "simple-websocket"
 version = "1.1.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "wsproto", marker = "python_full_version >= '3.11' or (extra == 'extra-8-sideseat-all' and extra == 'extra-8-sideseat-vertex-ai') or (extra == 'extra-8-sideseat-autogen' and extra == 'extra-8-sideseat-vertex-ai')" },
+    { name = "wsproto" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/b0/d4/bfa032f961103eba93de583b161f0e6a5b63cebb8f2c7d0c6e6efe1e3d2e/simple_websocket-1.1.0.tar.gz", hash = "sha256:7939234e7aa067c534abdab3a9ed933ec9ce4691b0713c78acb195560aa52ae4", size = 17300, upload-time = "2024-10-10T22:39:31.412Z" }
 wheels = [
@@ -4781,8 +4503,8 @@ name = "sse-starlette"
 version = "3.5.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "anyio", marker = "python_full_version >= '3.11' or (extra == 'extra-8-sideseat-all' and extra == 'extra-8-sideseat-vertex-ai') or (extra == 'extra-8-sideseat-autogen' and extra == 'extra-8-sideseat-vertex-ai')" },
-    { name = "starlette", marker = "python_full_version >= '3.11' or (extra == 'extra-8-sideseat-all' and extra == 'extra-8-sideseat-vertex-ai') or (extra == 'extra-8-sideseat-autogen' and extra == 'extra-8-sideseat-vertex-ai')" },
+    { name = "anyio" },
+    { name = "starlette" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/e4/be/0123026f719d1a7936f214a88b553bb5701e04ff2511147c1dab0c5035eb/sse_starlette-3.5.0.tar.gz", hash = "sha256:75de713aa8a9441513cc283220826da079d982770965b951e9437720e8bafdb2", size = 36794, upload-time = "2026-09-28T17:48:14.7Z" }
 wheels = [
@@ -4794,8 +4516,8 @@ name = "starlette"
 version = "1.7.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "anyio", marker = "python_full_version >= '3.11' or (extra == 'extra-8-sideseat-all' and extra == 'extra-8-sideseat-vertex-ai') or (extra == 'extra-8-sideseat-autogen' and extra == 'extra-8-sideseat-vertex-ai')" },
-    { name = "typing-extensions", marker = "(python_full_version >= '3.11' and python_full_version < '3.13') or (python_full_version < '3.11' and extra == 'extra-8-sideseat-all' and extra == 'extra-8-sideseat-vertex-ai') or (python_full_version < '3.11' and extra == 'extra-8-sideseat-autogen' and extra == 'extra-8-sideseat-vertex-ai') or (python_full_version >= '3.13' and extra == 'extra-8-sideseat-all' and extra == 'extra-8-sideseat-vertex-ai') or (python_full_version >= '3.13' and extra == 'extra-8-sideseat-autogen' and extra == 'extra-8-sideseat-vertex-ai')" },
+    { name = "anyio" },
+    { name = "typing-extensions", marker = "python_full_version < '3.13'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/7b/2b/3850dc6bf7ef71b088962eba31dafc6cffd2f96e577ebb0bb316df96da3e/starlette-1.7.0.tar.gz", hash = "sha256:c79f74ea63cff761804fbbfb182f1e0b440c2d07b164d24700c5a1bab5d6ff5d", size = 2736246, upload-time = "2026-09-23T07:30:26.35Z" }
 wheels = [
@@ -4870,7 +4592,7 @@ name = "tqdm"
 version = "4.70.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "colorama", marker = "sys_platform == 'win32' or (extra == 'extra-8-sideseat-all' and extra == 'extra-8-sideseat-vertex-ai') or (extra == 'extra-8-sideseat-autogen' and extra == 'extra-8-sideseat-vertex-ai')" },
+    { name = "colorama", marker = "sys_platform == 'win32'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/0d/ea/b2a5bd54b28a324dae8211928b2d730b6547500342c7e6c6dea08bd0a485/tqdm-4.70.1.tar.gz", hash = "sha256:cefd0eca11b2a37a3aee776544d4f4ae913f02688135b5556b8788dfa474afc4", size = 171846, upload-time = "2026-09-11T07:25:16.601Z" }
 wheels = [
@@ -5016,10 +4738,10 @@ name = "typer"
 version = "0.27.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "annotated-doc", marker = "python_full_version >= '3.11' or (extra == 'extra-8-sideseat-all' and extra == 'extra-8-sideseat-vertex-ai') or (extra == 'extra-8-sideseat-autogen' and extra == 'extra-8-sideseat-vertex-ai')" },
-    { name = "colorama", marker = "(python_full_version >= '3.11' and sys_platform == 'win32') or (python_full_version < '3.11' and extra == 'extra-8-sideseat-all' and extra == 'extra-8-sideseat-vertex-ai') or (python_full_version < '3.11' and extra == 'extra-8-sideseat-autogen' and extra == 'extra-8-sideseat-vertex-ai') or (sys_platform != 'win32' and extra == 'extra-8-sideseat-all' and extra == 'extra-8-sideseat-vertex-ai') or (sys_platform != 'win32' and extra == 'extra-8-sideseat-autogen' and extra == 'extra-8-sideseat-vertex-ai')" },
-    { name = "rich", marker = "python_full_version >= '3.11' or (extra == 'extra-8-sideseat-all' and extra == 'extra-8-sideseat-vertex-ai') or (extra == 'extra-8-sideseat-autogen' and extra == 'extra-8-sideseat-vertex-ai')" },
-    { name = "shellingham", marker = "python_full_version >= '3.11' or (extra == 'extra-8-sideseat-all' and extra == 'extra-8-sideseat-vertex-ai') or (extra == 'extra-8-sideseat-autogen' and extra == 'extra-8-sideseat-vertex-ai')" },
+    { name = "annotated-doc" },
+    { name = "colorama", marker = "sys_platform == 'win32'" },
+    { name = "rich" },
+    { name = "shellingham" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/16/f7/57713ba479fd405eb76de31404b2c744c289e336b2d999511ebf51e496f7/typer-0.27.2.tar.gz", hash = "sha256:269b7eb9d3c202ca84b4bc9618cb04ebb43d3d4d1e567e4c768607232c05f945", size = 204045, upload-time = "2026-08-28T10:26:55.046Z" }
 wheels = [
@@ -5070,8 +4792,8 @@ name = "uvicorn"
 version = "0.54.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "click", marker = "python_full_version >= '3.11' or (extra == 'extra-8-sideseat-all' and extra == 'extra-8-sideseat-vertex-ai') or (extra == 'extra-8-sideseat-autogen' and extra == 'extra-8-sideseat-vertex-ai')" },
-    { name = "h11", marker = "python_full_version >= '3.11' or (extra == 'extra-8-sideseat-all' and extra == 'extra-8-sideseat-vertex-ai') or (extra == 'extra-8-sideseat-autogen' and extra == 'extra-8-sideseat-vertex-ai')" },
+    { name = "click" },
+    { name = "h11" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/da/34/30e9280707135d2cfc589dfff3cb796bd07a3aeb1a3e415ba09dd89d7bb4/uvicorn-0.54.0.tar.gz", hash = "sha256:a2e33cbfaa0306f8e6b0c13e0cb89d7d7a2da3e62b90c66e18c33d9807b28620", size = 112283, upload-time = "2026-09-25T06:52:37.601Z" }
 wheels = [
@@ -5305,7 +5027,7 @@ name = "wsproto"
 version = "1.3.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "h11", marker = "python_full_version >= '3.11' or (extra == 'extra-8-sideseat-all' and extra == 'extra-8-sideseat-vertex-ai') or (extra == 'extra-8-sideseat-autogen' and extra == 'extra-8-sideseat-vertex-ai')" },
+    { name = "h11" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/c7/79/12135bdf8b9c9367b8701c2c19a14c913c120b882d50b014ca0d38083c2c/wsproto-1.3.2.tar.gz", hash = "sha256:b86885dcf294e15204919950f666e06ffc6c7c114ca900b060d6e16293528294", size = 50116, upload-time = "2025-11-20T18:18:01.871Z" }
 wheels = [

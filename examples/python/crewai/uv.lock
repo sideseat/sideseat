@@ -1707,7 +1707,7 @@ wheels = [
 
 [[package]]
 name = "openinference-instrumentation"
-version = "0.1.68"
+version = "0.1.69"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "openinference-semantic-conventions" },
@@ -1715,9 +1715,9 @@ dependencies = [
     { name = "opentelemetry-sdk" },
     { name = "wrapt" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/b0/f3/16177469d634282945caf5339c7eccaca2eb4d44bcd64e7f09312bf00ddd/openinference_instrumentation-0.1.68.tar.gz", hash = "sha256:41a0f76f23bef07e98566b24c6dba7ff400840f427a5a65c4b3dce91f71f1a54", size = 44337, upload-time = "2026-10-01T18:22:38.596Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/08/f8/639528a13bc233665b2a332d093ffca2fbfe8286018215b6cf2daa424d11/openinference_instrumentation-0.1.69.tar.gz", hash = "sha256:7574944aa6631154cfa7ef152caab8ee23e30c2fbc1f901de40cc8958623660d", size = 46350, upload-time = "2026-10-01T19:56:13.329Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/7f/8e/6a77021a0874cdf37a0e58e51796e01d9cdfe86453ced5d0aa218f16f7dd/openinference_instrumentation-0.1.68-py3-none-any.whl", hash = "sha256:adc76588c0b6ae120b85cc0c0e63f3db31c2ac58f7ac0346bc541e3dd6983ef2", size = 52114, upload-time = "2026-10-01T18:22:37.134Z" },
+    { url = "https://files.pythonhosted.org/packages/38/22/80e142bc21345a8a28bcb22a23da52e49fe965f11bfb2c65549ff627e443/openinference_instrumentation-0.1.69-py3-none-any.whl", hash = "sha256:972870484330a1d6bb142b6ba6c12633345c897dd41680fd37faa998788306ef", size = 54247, upload-time = "2026-10-01T19:56:11.59Z" },
 ]
 
 [[package]]
@@ -2666,7 +2666,8 @@ requires-dist = [
     { name = "ag2", extras = ["tracing"], marker = "extra == 'all'", specifier = ">=1.1.1,<2" },
     { name = "agentscope", marker = "python_full_version >= '3.11' and extra == 'agentscope'", specifier = ">=2.0.9,<3" },
     { name = "agentscope", marker = "python_full_version >= '3.11' and extra == 'all'", specifier = ">=2.0.9,<3" },
-    { name = "google-cloud-aiplatform", marker = "extra == 'vertex-ai'", specifier = ">=2.2.0" },
+    { name = "google-genai", marker = "extra == 'all'", specifier = ">=2.26.0" },
+    { name = "google-genai", marker = "extra == 'vertex-ai'", specifier = ">=2.26.0" },
     { name = "httpx", marker = "extra == 'all'", specifier = ">=0.27,<1" },
     { name = "httpx", marker = "extra == 'anthropic'", specifier = ">=0.27" },
     { name = "httpx", marker = "extra == 'traceloop'", specifier = ">=0.28,<1" },
@@ -2677,6 +2678,7 @@ requires-dist = [
     { name = "logfire", marker = "extra == 'pydantic-ai'", specifier = ">=4.29.0" },
     { name = "logfire", extras = ["google-genai"], marker = "extra == 'all'", specifier = ">=4.29.0" },
     { name = "logfire", extras = ["google-genai"], marker = "extra == 'google-genai'", specifier = ">=4.29.0" },
+    { name = "logfire", extras = ["google-genai"], marker = "extra == 'vertex-ai'", specifier = ">=4.29.0" },
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.13.0" },
     { name = "openai", marker = "extra == 'all'", specifier = ">=2.8.0" },
     { name = "openai", marker = "extra == 'azure-openai'", specifier = ">=2.8.0" },
@@ -2699,7 +2701,6 @@ requires-dist = [
     { name = "opentelemetry-exporter-otlp-proto-http", specifier = ">=1.39.0" },
     { name = "opentelemetry-haystack", marker = "extra == 'all'", specifier = ">=1.0.0" },
     { name = "opentelemetry-haystack", marker = "extra == 'haystack'", specifier = ">=1.0.0" },
-    { name = "opentelemetry-instrumentation-vertexai", marker = "extra == 'vertex-ai'", specifier = ">=0.62.3" },
     { name = "opentelemetry-sdk", specifier = ">=1.39.0" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.0.0" },
     { name = "requests", marker = "extra == 'all'", specifier = ">=2.32" },

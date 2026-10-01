@@ -443,21 +443,18 @@ def test_all_extra_is_complete():
         return {r.split(">=")[0].split("==")[0].split("[")[0].strip().lower() for r in reqs}
 
     all_names = names(extras["all"])
-    intentionally_separate = {"vertex-ai"}
     missing = {}
     for extra, reqs in extras.items():
-        if extra in ("all", "dev") or extra in intentionally_separate:
+        if extra in ("all", "dev"):
             continue
         gap = names(reqs) - all_names
         if gap:
             missing[extra] = sorted(gap)
     assert not missing, f"`all` is missing deps from these extras: {missing}"
-    assert intentionally_separate <= extras.keys()
 
 
-def test_vertex_ai_extra_installs_the_instrumented_sdk():
-    """The instrumentor imports ``vertexai`` eagerly, so publishing it without the provider
-    package makes ``sideseat[vertex-ai]`` fail before instrumentation can start."""
+def test_vertex_ai_extra_installs_the_current_unified_sdk():
+    """Vertex AI uses Google Gen AI's cloud mode, not the deprecated vertexai client."""
     from pathlib import Path
 
     import tomllib
@@ -470,8 +467,8 @@ def test_vertex_ai_extra_installs_the_instrumented_sdk():
     }
 
     assert requirement_names == {
-        "google-cloud-aiplatform",
-        "opentelemetry-instrumentation-vertexai",
+        "google-genai",
+        "logfire",
     }
 
 
