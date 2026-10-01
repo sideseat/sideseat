@@ -38,6 +38,7 @@ SUITES=(
   "agno|uv run --locked --directory examples/python/agno telemetry-agno {S}"
   "smolagents|uv run --locked --directory examples/python/smolagents telemetry-smolagents {S}"
   "llama-index|uv run --locked --directory examples/python/llamaindex telemetry-llamaindex {S}"
+  "haystack|uv run --locked --directory examples/python/haystack telemetry-haystack {S}"
   "langgraph|uv run --locked --directory examples/python/langgraph telemetry-langgraph {S}"
   "crewai|uv run --locked --directory examples/python/crewai telemetry-crewai {S}"
   "adk|uv run --locked --directory examples/python/adk telemetry-adk {S}"
