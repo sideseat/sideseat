@@ -174,7 +174,15 @@ pub(super) fn emit_rule<'p>(
             family,
             &rule.read,
             rule.require_members.as_ref(),
-        );
+        )
+        .into_iter()
+        .filter(|entry| {
+            rule.read
+                .entry_require
+                .as_ref()
+                .is_none_or(|require| predicates_hold(&entry.value, require))
+        })
+        .collect::<Vec<_>>();
         // A result set is one observation. Its entries are the array, and the envelope says what the array
         // is - so the whole family is tagged once rather than one carrier per document.
         if rule.aggregate_into_array {

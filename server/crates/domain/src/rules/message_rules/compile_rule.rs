@@ -607,6 +607,22 @@ pub(super) fn compile_rule(
                  `indexed_family`",
         ));
     }
+    if read.entry_require.is_some() && read.indexed_family.is_none() {
+        return Err(inexpressible(
+            "`entry_require` is checked against each assembled indexed entry and means nothing without \
+                 `indexed_family`",
+        ));
+    }
+    if read
+        .entry_require
+        .as_ref()
+        .is_some_and(PredicateSet::is_empty)
+    {
+        return Err(inexpressible(
+            "`entry_require` is declared with no predicate, which keeps every entry - leave it out to \
+                 require nothing",
+        ));
+    }
     // The requirement's own literals, which nothing checked. An empty member name makes the evaluator look
     // for `<entry>.` or `<entry>..`, so the rule is dead - and an explicitly empty group holds
     // unconditionally, which is the opposite of "at least one of these".

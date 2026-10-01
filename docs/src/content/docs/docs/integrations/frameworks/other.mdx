@@ -191,16 +191,26 @@ pip install smolagents "sideseat[smolagents]"
 
 ```python
 from sideseat import SideSeat, Frameworks
-from smolagents import CodeAgent, InferenceClientModel
+from smolagents import OpenAIModel, ToolCallingAgent
 
 SideSeat(framework=Frameworks.Smolagents)
 
-agent = CodeAgent(tools=[], model=InferenceClientModel())
+model = OpenAIModel(model_id="gpt-5-mini")
+agent = ToolCallingAgent(tools=[], model=model)
 agent.run("What is 2+2?")
 ```
 
-Only the agent run span carries `smolagents.*`; step, model and tool spans inside the run
-are attributed by their own attributes.
+Smolagents uses OpenInference telemetry. Only the agent run span carries `smolagents.*`;
+the step, model, and tool spans are identified by the exact
+`openinference.instrumentation.smolagents` scope.
+
+The tracked compatibility boundary is Smolagents 1.26.0 with OpenAI 3.22.1, the OpenInference
+Smolagents instrumentor 0.1.41, and OpenTelemetry Python 1.45.0 on Python 3.13. Native
+OpenTelemetry and SideSeat captures must produce identical span projections, two trace
+conversations, their shared session, and the project feed. The scenario retains history across
+runs, streams the second answer, executes a custom weather tool, and verifies every
+`final_answer` call/result pair without exposing Smolagents' internal `Calling tools` and
+`Observation` renderings as user messages.
 
 ## AG2
 

@@ -184,6 +184,7 @@ fn every_predicate_set_in_the_schema_is_validated() {
     const VALIDATED: &[(&str, &str)] = &[
         ("OverlaySpec::witness", "predicate_sets"),
         ("OverlaySpec::require", "predicate_sets"),
+        ("ReadSpec::entry_require", "predicate_sets"),
         ("WrapSpec::require_after", "predicate_sets"),
         (
             "AttachSpec::require",
@@ -226,7 +227,10 @@ fn every_predicate_set_in_the_schema_is_validated() {
         }
         if let Some(rest) = trimmed.strip_prefix("pub ")
             && let Some((name, kind)) = rest.split_once(": ")
-            && kind.trim_end_matches(',') == "PredicateSet"
+            && matches!(
+                kind.trim_end_matches(','),
+                "PredicateSet" | "Option<PredicateSet>"
+            )
         {
             declared.push(format!("{current}::{name}"));
         }

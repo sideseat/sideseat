@@ -842,3 +842,71 @@ fn metadata_contends_on_the_axis_it_emits_on() {
     )
     .expect("one carrier holding a conversation and the tools it was offered is two statements");
 }
+
+/// An indexed family can distinguish semantic entries from bookkeeping only after each entry has been
+/// assembled. Member presence is not enough: both shapes carry a role and content.
+#[test]
+fn an_indexed_family_filters_assembled_entries() {
+    use crate::rules::message_rules::{MessageContext, compile};
+
+    let compiled = |read: &str| {
+        let asset = format!(
+            r#"{{"id":"t","messages":[{{"id":"t.family","read":{read},
+                 "require_members":{{"all_of":[{{"name":"role"}},{{"name":"content"}}]}},
+                 "emit":"message","legacy_rank":1}}]}}"#
+        );
+        compile(&std::collections::BTreeMap::from([(
+            "t.json".to_string(),
+            asset.into_bytes(),
+        )]))
+    };
+
+    let plan = compiled(
+        r#"{"indexed_family":"chat","entry_require":{"all":[
+               {"path":"$.role","none_of":["tool-call","tool-response"]}
+             ]}}"#,
+    )
+    .expect("an assembled-entry predicate is a declarative indexed-family filter");
+    let attrs = std::collections::HashMap::from([
+        ("chat.0.role".to_string(), "system".to_string()),
+        ("chat.0.content".to_string(), "instructions".to_string()),
+        ("chat.1.role".to_string(), "tool-call".to_string()),
+        ("chat.1.content".to_string(), "framework repr".to_string()),
+        ("chat.2.role".to_string(), "user".to_string()),
+        ("chat.2.content".to_string(), "question".to_string()),
+        ("chat.3.role".to_string(), "tool-response".to_string()),
+        ("chat.3.content".to_string(), "framework repr".to_string()),
+    ]);
+    let carriers: Vec<String> = plan
+        .run(&MessageContext::for_span("span", &attrs, false))
+        .iter()
+        .map(|emission| emission.carrier.name().to_string())
+        .collect();
+    assert_eq!(
+        carriers,
+        ["chat.0".to_string(), "chat.2".to_string()],
+        "the predicate sees each assembled object and excludes only the two declared semantic values"
+    );
+
+    let without_family = compile(&std::collections::BTreeMap::from([(
+        "t.json".to_string(),
+        br#"{"id":"t","messages":[{"id":"t.scalar",
+             "read":{"attribute":"chat","entry_require":{"all":[
+               {"path":"$.role","exists":true}
+             ]}},
+             "parse":"json","emit":"message","legacy_rank":1}]}"#
+            .to_vec(),
+    )]))
+    .expect_err("an entry predicate without indexed entries must be refused");
+    assert!(
+        without_family.to_string().contains("indexed_family"),
+        "the refusal names the missing carrier shape: {without_family}"
+    );
+
+    let empty = compiled(r#"{"indexed_family":"chat","entry_require":{}}"#)
+        .expect_err("an explicitly empty entry predicate is a dead declaration");
+    assert!(
+        empty.to_string().contains("keeps every entry"),
+        "the refusal explains why the declaration has no effect: {empty}"
+    );
+}

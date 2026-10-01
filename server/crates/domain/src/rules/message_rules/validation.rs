@@ -295,6 +295,9 @@ pub(super) fn predicate_sets(rule: &CompiledMessageRule) -> Vec<&PredicateSet> {
         out.push(&overlay.witness);
         out.push(&overlay.require);
     }
+    if let Some(require) = &rule.read.entry_require {
+        out.push(require);
+    }
     for reading in rule
         .alternatives
         .iter()
@@ -744,11 +747,13 @@ pub(super) fn consumed_patterns(rule: &CompiledMessageRule) -> Vec<Consumed> {
         // Conditional where members are required: an entry lacking them contributes nothing, so a second rule
         // reading one of the family's keys is live on a span whose entries this rule rejects.
         let pattern = CarrierPattern::Prefix(format!("{family}."));
-        out.push(if rule.require_members.is_some() {
-            only_sometimes(pattern)
-        } else {
-            always(pattern)
-        });
+        out.push(
+            if rule.require_members.is_some() || rule.read.entry_require.is_some() {
+                only_sometimes(pattern)
+            } else {
+                always(pattern)
+            },
+        );
     }
     if let Some(overlay) = &rule.read.overlay {
         // The payload a positional overlay joins against is read too, and it is not beneath the family.
@@ -871,17 +876,19 @@ pub(super) fn emitted_patterns(rule: &CompiledMessageRule) -> Vec<Consumed> {
         // One tag per index, and per sub-level where there is one - a prefix covers them all. Emitted only
         // for entries that satisfy the required members, which is why the condition mirrors the read side.
         let pattern = CarrierPattern::Prefix(format!("{family}."));
-        out.push(if rule.require_members.is_some() {
-            Consumed {
-                pattern,
-                condition: Condition {
-                    gate: None,
-                    narrowed: true,
-                },
-            }
-        } else {
-            always(pattern)
-        });
+        out.push(
+            if rule.require_members.is_some() || rule.read.entry_require.is_some() {
+                Consumed {
+                    pattern,
+                    condition: Condition {
+                        gate: None,
+                        narrowed: true,
+                    },
+                }
+            } else {
+                always(pattern)
+            },
+        );
     }
     out
 }

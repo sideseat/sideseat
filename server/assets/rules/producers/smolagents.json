@@ -18,6 +18,96 @@
       ]
     }
   ],
+  "messages": [
+    {
+      "id": "smolagents.agent_chain_input",
+      "doc": "Smolagents AGENT and CHAIN spans carry framework execution state in `input.value`; their LLM children carry the actual conversation. Claim the envelope so the generic fallback does not present task options or an ActionStep repr as a user turn.",
+      "instrumentation_scope": {
+        "name": "openinference.instrumentation.smolagents"
+      },
+      "when": {
+        "attr_equals_ignore_case": [
+          {
+            "key": "openinference.span.kind",
+            "value": "agent"
+          },
+          {
+            "key": "openinference.span.kind",
+            "value": "chain"
+          }
+        ]
+      },
+      "read": {
+        "attribute": "input.value"
+      },
+      "parse": "json_or_string",
+      "emit": "claim",
+      "legacy_rank": 216
+    },
+    {
+      "id": "smolagents.agent_chain_output",
+      "doc": "The AGENT and CHAIN output is an aggregate copy of the answer already represented by the model tool call and its execution span. Streaming agents additionally serialise every delta into a Python repr here, so this carrier is claimed rather than shown as an assistant message.",
+      "instrumentation_scope": {
+        "name": "openinference.instrumentation.smolagents"
+      },
+      "when": {
+        "attr_equals_ignore_case": [
+          {
+            "key": "openinference.span.kind",
+            "value": "agent"
+          },
+          {
+            "key": "openinference.span.kind",
+            "value": "chain"
+          }
+        ]
+      },
+      "read": {
+        "attribute": "output.value"
+      },
+      "parse": "json_or_string",
+      "emit": "claim",
+      "legacy_rank": 186
+    },
+    {
+      "id": "smolagents.tool_output",
+      "doc": "The return value of one Smolagents TOOL span. The instrumentor does not attach the call id, so the result carries the tool name and query-time correlation pairs it with the oldest unclaimed call of that name.",
+      "instrumentation_scope": {
+        "name": "openinference.instrumentation.smolagents"
+      },
+      "when": {
+        "attr_equals_ignore_case": [
+          {
+            "key": "openinference.span.kind",
+            "value": "tool"
+          }
+        ]
+      },
+      "read": {
+        "attribute": "output.value"
+      },
+      "parse": "json_or_string",
+      "wrap": {
+        "role": "tool",
+        "block": {
+          "type": "tool_result",
+          "attach": [
+            {
+              "from": "tool.name",
+              "as": "name"
+            },
+            {
+              "from": "gen_ai.tool.call.id",
+              "as": "tool_use_id"
+            }
+          ]
+        }
+      },
+      "emit": "message",
+      "legacy_rank": 205,
+      "reads_tool_spans": true
+    }
+  ],
   "sdk_slugs": [
     {
       "slug": "smolagents",
