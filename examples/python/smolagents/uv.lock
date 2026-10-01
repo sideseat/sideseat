@@ -834,6 +834,8 @@ requires-dist = [
     { name = "ag-ui-protocol", marker = "extra == 'all'", specifier = ">=0.1.18" },
     { name = "ag2", extras = ["tracing"], marker = "extra == 'ag2'", specifier = ">=1.1.1,<2" },
     { name = "ag2", extras = ["tracing"], marker = "extra == 'all'", specifier = ">=1.1.1,<2" },
+    { name = "agentscope", marker = "python_full_version >= '3.11' and extra == 'agentscope'", specifier = ">=2.0.9,<3" },
+    { name = "agentscope", marker = "python_full_version >= '3.11' and extra == 'all'", specifier = ">=2.0.9,<3" },
     { name = "google-cloud-aiplatform", marker = "extra == 'vertex-ai'", specifier = ">=2.2.0" },
     { name = "httpx", marker = "extra == 'all'", specifier = ">=0.27" },
     { name = "httpx", marker = "extra == 'anthropic'", specifier = ">=0.27" },
@@ -872,7 +874,7 @@ requires-dist = [
     { name = "wrapt", marker = "extra == 'all'", specifier = ">=1.14.0" },
     { name = "wrapt", marker = "extra == 'aws'", specifier = ">=1.14.0" },
 ]
-provides-extras = ["ag2", "agno", "agui", "all", "anthropic", "autogen", "aws", "crewai", "dev", "google-genai", "haystack", "langchain", "langgraph", "llama-index", "openai", "openai-agents", "pydantic-ai", "smolagents", "vertex-ai", "ws"]
+provides-extras = ["ag2", "agentscope", "agno", "agui", "all", "anthropic", "autogen", "aws", "crewai", "dev", "google-genai", "haystack", "langchain", "langgraph", "llama-index", "openai", "openai-agents", "pydantic-ai", "smolagents", "vertex-ai", "ws"]
 
 [[package]]
 name = "six"

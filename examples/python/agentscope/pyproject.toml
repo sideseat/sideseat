@@ -1,0 +1,30 @@
+[project]
+name = "agentscope-sample"
+version = "0.1.0"
+description = "SideSeat telemetry sample for AgentScope"
+requires-python = ">=3.12,<3.14"
+dependencies = [
+    "telemetry-common",
+    "sideseat",
+    "agentscope==2.0.9",
+    "openai==3.22.1",
+    "python-dotenv>=1.2.0",
+]
+
+[project.scripts]
+telemetry-agentscope = "cli:main"
+
+[tool.uv]
+required-version = "==0.12.13"
+prerelease = "allow"
+
+[tool.uv.sources]
+telemetry-common = { path = "../common", editable = true }
+sideseat = { path = "../../../sdk/python", editable = true }
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+include = ["*.py", "samples/"]
