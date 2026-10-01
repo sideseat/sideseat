@@ -108,10 +108,16 @@ response = query_engine.query("What is this about?")
 print(response)
 ```
 
-The server checks LlamaIndex signals before the broader OpenInference fallback, so framework
-spans retain the specific `LlamaIndex` identity. There is not yet a captured LlamaIndex fixture;
-the support matrix in `server/tests/fixtures/messages/README.md` remains the exact boundary of
-what the message goldens verify.
+The compatibility corpus exercises LlamaIndex Core 0.14.25, LlamaIndex OpenAI 0.8.2,
+OpenInference's LlamaIndex instrumentor 4.5.3, and OpenTelemetry Python 1.45.0 on Python 3.13.
+The OpenAI adapter currently requires `openai <3`, so the capture uses OpenAI 2.54.0, the newest
+compatible release resolved by the lockfile.
+
+Native OpenTelemetry and SideSeat SDK captures must produce identical span projections, two
+trace conversations, their shared session, and the project feed. The scenario covers retained
+history, a streamed second answer, and one automatic weather-tool roundtrip. LlamaIndex workflow
+and request-preparation spans remain available as raw telemetry, but their serialized internal
+state is not presented as conversation messages.
 
 ## AutoGen
 

@@ -8,11 +8,97 @@
       "doc": "Identifies LlamaIndex by the signals below.",
       "label": "LlamaIndex",
       "match": {
+        "scope_name": [
+          "openinference.instrumentation.llama_index"
+        ],
         "attr_prefix": [
           "llama_index."
         ]
       },
-      "legacy_rank": 60
+      "legacy_rank": 60,
+      "supersedes": [
+        "openinference.detect"
+      ]
+    }
+  ],
+  "messages": [
+    {
+      "id": "llamaindex.chain_input",
+      "doc": "LlamaIndex workflow CHAIN spans serialize Context objects and workflow events in `input.value`; model-call descendants carry the actual conversation. Claim this framework state so the generic fallback does not render it as a user turn.",
+      "instrumentation_scope": {
+        "name": "openinference.instrumentation.llama_index"
+      },
+      "when": {
+        "attr_equals_ignore_case": [
+          {
+            "key": "openinference.span.kind",
+            "value": "chain"
+          }
+        ]
+      },
+      "read": {
+        "attribute": "input.value"
+      },
+      "parse": "json_or_string",
+      "emit": "claim",
+      "legacy_rank": 217
+    },
+    {
+      "id": "llamaindex.chain_output",
+      "doc": "A LlamaIndex workflow CHAIN output is an aggregate Python repr of AgentInput, AgentSetup, AgentOutput, ToolCallResult, or StopEvent state already represented by model and tool spans. Claim it rather than inventing assistant messages from workflow bookkeeping.",
+      "instrumentation_scope": {
+        "name": "openinference.instrumentation.llama_index"
+      },
+      "when": {
+        "attr_equals_ignore_case": [
+          {
+            "key": "openinference.span.kind",
+            "value": "chain"
+          }
+        ]
+      },
+      "read": {
+        "attribute": "output.value"
+      },
+      "parse": "json_or_string",
+      "emit": "claim",
+      "legacy_rank": 218
+    },
+    {
+      "id": "llamaindex.prepare_chat_input",
+      "doc": "The private `_prepare_chat_with_tools` helper serializes the same request that its `OpenAI.achat` or `OpenAI.astream_chat` sibling sends. Claim the helper input so only the actual model invocation contributes conversation messages.",
+      "instrumentation_scope": {
+        "name": "openinference.instrumentation.llama_index"
+      },
+      "when": {
+        "span_name_exact": [
+          "OpenAI._prepare_chat_with_tools"
+        ]
+      },
+      "read": {
+        "attribute": "input.value"
+      },
+      "parse": "json_or_string",
+      "emit": "claim",
+      "legacy_rank": 219
+    },
+    {
+      "id": "llamaindex.prepare_chat_output",
+      "doc": "The private `_prepare_chat_with_tools` result is a second serialization of the model invocation's messages and tools. Claim it so the generic fallback cannot expose transport preparation as an assistant JSON block.",
+      "instrumentation_scope": {
+        "name": "openinference.instrumentation.llama_index"
+      },
+      "when": {
+        "span_name_exact": [
+          "OpenAI._prepare_chat_with_tools"
+        ]
+      },
+      "read": {
+        "attribute": "output.value"
+      },
+      "parse": "json_or_string",
+      "emit": "claim",
+      "legacy_rank": 221
     }
   ],
   "sdk_slugs": [

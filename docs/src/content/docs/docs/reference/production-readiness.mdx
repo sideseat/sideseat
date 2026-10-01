@@ -35,7 +35,7 @@ of the surviving messages rather than silently inventing or dropping content.
 
 ## Current checked-in boundary
 
-The current tracked corpus contains **46 suites, 221 samples, and 386 captured OTLP requests**:
+The current tracked corpus contains **48 suites, 223 samples, and 388 captured OTLP requests**:
 
 - SideSeat SDK versus plain OpenTelemetry pairs for Python, TypeScript/Node.js, .NET, and Rust;
 - a credential-free OpenAI 3.19.2 / Logfire 6.0.0b7 pair captured both natively and through
@@ -57,12 +57,16 @@ The current tracked corpus contains **46 suites, 221 samples, and 386 captured O
 - a credential-free Smolagents 1.26.0 / OpenAI 3.22.1 / OpenInference instrumentor 0.1.41
   pair covering retained history, streamed agent output, direct and custom tool execution,
   two traces, and one shared session with exact native/SideSeat parity;
+- a credential-free LlamaIndex Core 0.14.25 / LlamaIndex OpenAI 0.8.2 / OpenAI 2.54.0 /
+  OpenInference instrumentor 4.5.3 pair covering retained history, streaming, automatic tool
+  execution, two traces, and one shared session with exact native/SideSeat parity. OpenAI 2.54.0
+  is the latest release admitted by the adapter's current `openai <3` constraint;
 - current captures for Strands Python and TypeScript, Vercel AI SDK, Google ADK, LangGraph,
   OpenAI Agents SDK, Claude Agent SDK in Python and TypeScript, Microsoft Agent Framework,
   CrewAI, direct OpenAI, direct Anthropic, and Amazon Bedrock;
 - synthetic edge cases for shapes that are difficult or unsafe to obtain from a live model.
 
-These fixtures currently cover 17 of the 32 framework identifiers SideSeat recognises. The exact
+These fixtures currently cover 18 of the 32 framework identifiers SideSeat recognises. The exact
 versioned boundary and the remaining list are maintained beside the raw payloads in
 `server/tests/fixtures/messages/README.md`.
 
@@ -129,8 +133,8 @@ Framework captures that call real models require the corresponding provider cred
 uses committed OTLP payloads, so verification remains deterministic and does not make paid or
 network-dependent model calls.
 
-The direct OpenAI, Anthropic, Google GenAI, Pydantic AI, LangChain, Agno, and Smolagents parity fixtures can
-also be recaptured offline:
+The direct OpenAI, Anthropic, Google GenAI, Pydantic AI, LangChain, Agno, Smolagents, and
+LlamaIndex parity fixtures can also be recaptured offline:
 
 ```bash
 scripts/message-fixtures/fake-openai.py --port 5401
@@ -152,6 +156,11 @@ scripts/message-fixtures/fake-openai.py --port 5401
 OPENAI_API_KEY=x OPENAI_BASE_URL=http://127.0.0.1:5401/v1 \
   CAPTURE_MODEL=gpt-5-nano-2025-08-07 \
   scripts/message-fixtures/capture.sh smolagents canonical both
+
+scripts/message-fixtures/fake-openai.py --port 5401
+OPENAI_API_KEY=x OPENAI_BASE_URL=http://127.0.0.1:5401/v1 \
+  CAPTURE_MODEL=gpt-5-nano-2025-08-07 \
+  scripts/message-fixtures/capture.sh llama-index canonical both
 
 scripts/message-fixtures/fake-anthropic.py --port 5402
 ANTHROPIC_API_KEY=x ANTHROPIC_BASE_URL=http://127.0.0.1:5402 \

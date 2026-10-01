@@ -11,6 +11,7 @@ SUITES=(
   "langchain|3.13"
   "agno|3.13"
   "smolagents|3.13"
+  "llamaindex|3.13"
   "langgraph|3.13"
   "crewai|3.13"
   "adk|3.13"
