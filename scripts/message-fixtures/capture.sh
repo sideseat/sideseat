@@ -52,6 +52,7 @@ SUITES=(
   "pydantic-ai|uv run --locked --directory examples/python/pydantic-ai telemetry-pydantic-ai {S}"
   "google-genai|uv run --locked --directory examples/python/google-genai google-genai-provider {S}"
   "logfire|uv run --locked --directory examples/python/logfire telemetry-logfire {S}"
+  "openinference|uv run --locked --directory examples/python/openinference telemetry-openinference {S}"
   "agent-framework|uv run --locked --directory examples/python/agent-framework telemetry-agent-framework {S}"
   "claude-agent-sdk|uv run --locked --directory examples/python/claude-agent-sdk claude-agent-sdk {S}"
   # The `agent` sample can also run against scripts/message-fixtures/fake-openai.py through
