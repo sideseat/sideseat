@@ -111,6 +111,7 @@ Available frameworks:
 - `Frameworks.Langflow`
 - `Frameworks.Haystack`
 - `Frameworks.BrowserUse`
+- `Frameworks.Logfire` — generic Logfire spans
 - `Frameworks.OpenAI`
 - `Frameworks.Anthropic`
 - `Frameworks.GoogleGenAI`
@@ -143,8 +144,8 @@ installed, in this order:
 If none match, the framework falls back to `sideseat`.
 
 <Aside type="note">
-`openai`, `anthropic` and `google-genai` are **never** auto-detected — they are too common as
-transitive dependencies, so their presence says nothing about what your app actually uses. Pass
+`openai`, `anthropic`, `google-genai` and `logfire` are **never** auto-detected — they are too common
+as transitive dependencies, so their presence says nothing about what your app actually uses. Pass
 `framework=Frameworks.OpenAI` (or the relevant constant) explicitly to instrument them.
 
 LangGraph is checked before LangChain, so a LangGraph app is identified as `langgraph` even

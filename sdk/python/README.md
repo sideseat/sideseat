@@ -34,7 +34,8 @@ Built on [OpenTelemetry](https://opentelemetry.io/) — the open standard alread
 - **Message threading** — See full conversations, tool calls, and images
 - **Cost tracking** — Automatic token counting and cost calculation
 
-**Supported frameworks:** Strands Agents, LangGraph, LangChain, CrewAI, AutoGen, OpenAI Agents, Google ADK, PydanticAI
+**Supported integrations:** See the complete [`Frameworks`](#frameworks) reference below; it
+includes agent frameworks, model providers, and generic Logfire telemetry.
 
 **Supported providers:** OpenAI, Amazon Bedrock, Anthropic, Google Gemini
 
@@ -108,6 +109,7 @@ pip install "sideseat[crewai]"          # + CrewAI
 pip install "sideseat[autogen]"         # + AutoGen
 pip install "sideseat[llama-index]"     # + LlamaIndex
 pip install "sideseat[agentscope]"      # + AgentScope 2.x
+pip install "sideseat[logfire]"         # + generic Logfire spans
 pip install "sideseat[openai]"          # + OpenAI / OpenAI Agents
 
 # Extras for provider instrumentation:
@@ -589,6 +591,7 @@ Frameworks.AgentScope  # "agentscope"
 Frameworks.Langflow  # "langflow"
 Frameworks.Haystack  # "haystack"
 Frameworks.BrowserUse  # "browser-use"
+Frameworks.Logfire  # "logfire"
 ```
 
 ### Providers (via Frameworks)

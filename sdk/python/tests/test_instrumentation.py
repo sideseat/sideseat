@@ -63,6 +63,10 @@ class TestIsLogfireFramework:
         """Google GenAI should use Logfire."""
         assert is_logfire_framework(Frameworks.GoogleGenAI) is True
 
+    def test_generic_logfire_uses_logfire_provider(self) -> None:
+        """Generic Logfire spans need Logfire's provider even without another integration."""
+        assert is_logfire_framework(Frameworks.Logfire) is True
+
     def test_logfire_frameworks_frozenset(self) -> None:
         """LOGFIRE_FRAMEWORKS should be a frozenset."""
         assert isinstance(LOGFIRE_FRAMEWORKS, frozenset)
@@ -71,6 +75,7 @@ class TestIsLogfireFramework:
         assert Frameworks.OpenAI in LOGFIRE_FRAMEWORKS
         assert Frameworks.Anthropic in LOGFIRE_FRAMEWORKS
         assert Frameworks.GoogleGenAI in LOGFIRE_FRAMEWORKS
+        assert Frameworks.Logfire in LOGFIRE_FRAMEWORKS
 
 
 class TestInstrument:
@@ -109,6 +114,42 @@ class TestInstrument:
         result = instrument("unknown-framework", None)
         assert result is False
         assert "unknown-framework" not in _instrumented
+
+    def test_generic_logfire_configures_without_provider_instrumentation(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Generic Logfire must not guess and patch an unrelated model provider."""
+        calls: list[dict[str, Any]] = []
+        fake_logfire = SimpleNamespace(configure=lambda **kwargs: calls.append(kwargs))
+        monkeypatch.setitem(sys.modules, "logfire", fake_logfire)
+        monkeypatch.setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "http://collector.example")
+
+        assert instrument(
+            Frameworks.Logfire,
+            None,
+            service_name="generic-logfire",
+            service_version="1.2.3",
+        )
+        assert calls == [
+            {
+                "service_name": "generic-logfire",
+                "service_version": "1.2.3",
+                "send_to_logfire": False,
+                "console": False,
+            }
+        ]
+        assert os.environ["OTEL_EXPORTER_OTLP_ENDPOINT"] == "http://collector.example"
+
+    def test_generic_logfire_has_a_service_name_without_provider_context(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The generic path has no provider suffix from which to derive its default."""
+        calls: list[dict[str, Any]] = []
+        fake_logfire = SimpleNamespace(configure=lambda **kwargs: calls.append(kwargs))
+        monkeypatch.setitem(sys.modules, "logfire", fake_logfire)
+
+        assert instrument(Frameworks.Logfire, None)
+        assert calls[0]["service_name"] == "logfire-app"
 
     def test_missing_deps_graceful(self) -> None:
         """Missing instrumentation deps should not crash."""

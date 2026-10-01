@@ -32,6 +32,7 @@ LOGFIRE_FRAMEWORKS = frozenset(
         Frameworks.OpenAI,
         Frameworks.Anthropic,
         Frameworks.GoogleGenAI,
+        Frameworks.Logfire,
     }
 )
 
@@ -97,6 +98,8 @@ def instrument(
             _instrument_logfire("anthropic", service_name, service_version)
         elif framework == Frameworks.GoogleGenAI:
             _instrument_logfire("google_genai", service_name, service_version)
+        elif framework == Frameworks.Logfire:
+            _configure_logfire(service_name, service_version)
         elif framework == Frameworks.VertexAI:
             _instrument_openllmetry_vertexai(provider)
         elif framework == Frameworks.GoogleADK:
@@ -329,6 +332,29 @@ def _instrument_logfire(
     service_version: str | None,
 ) -> None:
     """Logfire instrumentation (creates its own provider)."""
+    logfire = _configure_logfire(
+        service_name,
+        service_version,
+        default_service_name=f"{method_suffix.replace('_', '-')}-app",
+    )
+
+    _apply_logfire_compatibility_patches(method_suffix)
+
+    # Call the appropriate instrument method
+    method = getattr(logfire, f"instrument_{method_suffix}")
+    method()
+
+    # Resolve abstract method gaps caused by framework SDK / logfire version skew.
+    _patch_logfire_wrappers(method_suffix)
+
+
+def _configure_logfire(
+    service_name: str | None,
+    service_version: str | None,
+    *,
+    default_service_name: str = "logfire-app",
+) -> Any:
+    """Configure Logfire without enabling a provider-specific integration."""
     import logfire  # type: ignore[import-not-found]
 
     # Hide OTLP env vars while Logfire configures — SideSeat is the sole export
@@ -341,20 +367,12 @@ def _instrument_logfire(
     # application's lasting environment.
     with _suspend_otel_exporter_env():
         logfire.configure(
-            service_name=service_name or f"{method_suffix.replace('_', '-')}-app",
+            service_name=service_name or default_service_name,
             service_version=service_version or "0.0.0",
             send_to_logfire=False,
             console=False,
         )
-
-    _apply_logfire_compatibility_patches(method_suffix)
-
-    # Call the appropriate instrument method
-    method = getattr(logfire, f"instrument_{method_suffix}")
-    method()
-
-    # Resolve abstract method gaps caused by framework SDK / logfire version skew.
-    _patch_logfire_wrappers(method_suffix)
+    return logfire
 
 
 @contextmanager

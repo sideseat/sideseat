@@ -36,6 +36,7 @@ class Frameworks:
     AG2 = "ag2"
     Haystack = "haystack"
     BrowserUse = "browser-use"
+    Logfire = "logfire"
 
     # Providers
     Bedrock = "bedrock"
@@ -68,6 +69,7 @@ FRAMEWORK_PACKAGES = [
     (Frameworks.AG2, "ag2"),
     (Frameworks.Haystack, "haystack-ai"),
     (Frameworks.BrowserUse, "browser-use"),
+    (Frameworks.Logfire, "logfire"),
     (Frameworks.OpenAI, "openai"),
     (Frameworks.Anthropic, "anthropic"),
     (Frameworks.GoogleGenAI, "google-genai"),
@@ -77,7 +79,14 @@ FRAMEWORK_PACKAGES = [
 _FRAMEWORK_KEYS = {key for key, _ in FRAMEWORK_PACKAGES}
 
 # Packages too common as transitive deps for reliable auto-detection
-_NO_AUTO_DETECT = {Frameworks.OpenAI, Frameworks.Anthropic, Frameworks.GoogleGenAI}
+_NO_AUTO_DETECT = {
+    Frameworks.OpenAI,
+    Frameworks.Anthropic,
+    Frameworks.GoogleGenAI,
+    # Logfire is installed by several provider extras. Its presence does not prove
+    # that the application emits generic Logfire spans.
+    Frameworks.Logfire,
+}
 
 
 # Values that used to be spelled differently. Accepted so existing code keeps working
