@@ -35,7 +35,7 @@ of the surviving messages rather than silently inventing or dropping content.
 
 ## Current checked-in boundary
 
-The current tracked corpus contains **64 suites, 239 samples, and 404 captured OTLP requests**:
+The current tracked corpus contains **66 suites, 241 samples, and 406 captured OTLP requests**:
 
 - SideSeat SDK versus plain OpenTelemetry pairs for Python, TypeScript/Node.js, .NET, and Rust;
 - a credential-free OpenAI 3.19.2 / Logfire 6.0.0b7 pair captured both natively and through
@@ -46,6 +46,9 @@ The current tracked corpus contains **64 suites, 239 samples, and 404 captured O
   multi-turn history, and a complete tool-call roundtrip;
 - a credential-free Google GenAI 2.25.0 / Logfire 6.0.0b7 pair covering ordinary generation,
   SSE streaming, and automatic Python function calling with exact native/SideSeat parity;
+- a credential-free Google GenAI 2.26.0 / Logfire 6.0.0b7 pair in Vertex AI mode, covering
+  retained multi-turn history, streaming, automatic Python function calling, two traces, one
+  shared session, cloud-specific framework identity, and exact native/SideSeat parity;
 - a credential-free generic Logfire 6.0.0b7 pair covering all three primary conversation
   carriers, request fallback precedence, streaming response data, repeated history, tool
   definitions, a complete tool roundtrip, two traces, and one shared session;
@@ -92,7 +95,7 @@ The current tracked corpus contains **64 suites, 239 samples, and 404 captured O
   CrewAI, direct OpenAI, direct Anthropic, and Amazon Bedrock;
 - synthetic edge cases for shapes that are difficult or unsafe to obtain from a live model.
 
-These fixtures currently cover 26 of the 32 framework identifiers SideSeat recognises. The exact
+These fixtures currently cover 27 of the 32 framework identifiers SideSeat recognises. The exact
 versioned boundary and the remaining list are maintained beside the raw payloads in
 `server/tests/fixtures/messages/README.md`.
 
@@ -159,7 +162,7 @@ Framework captures that call real models require the corresponding provider cred
 uses committed OTLP payloads, so verification remains deterministic and does not make paid or
 network-dependent model calls.
 
-The direct OpenAI, Azure OpenAI, Anthropic, Google GenAI, Pydantic AI, LangChain, Haystack,
+The direct OpenAI, Azure OpenAI, Anthropic, Google GenAI, Vertex AI, Pydantic AI, LangChain, Haystack,
 Agno, Smolagents, LlamaIndex, TraceLoop, and generic Logfire parity fixtures can also be
 recaptured offline:
 
@@ -225,8 +228,13 @@ scripts/message-fixtures/capture.sh logfire canonical both
 scripts/message-fixtures/fake-google-genai.py --port 5404
 GOOGLE_GENAI_BASE_URL=http://127.0.0.1:5404 \
   scripts/message-fixtures/capture.sh google-genai generate_content both
+
+scripts/message-fixtures/fake-google-genai.py --port 5404
+VERTEX_AI_BASE_URL=http://127.0.0.1:5404 \
+  scripts/message-fixtures/capture.sh vertex-ai canonical both
 ```
 
 Pydantic AI uses a deterministic in-process `FunctionModel`; no provider credential or local
 HTTP fixture server is required. The Google endpoint is a deterministic Gemini-compatible wire
-fixture; the sample still runs the real Google GenAI client and OpenTelemetry instrumentor.
+fixture; the samples still run the real Google GenAI client and OpenTelemetry instrumentor in
+Gemini Developer API and Vertex AI modes.

@@ -119,7 +119,9 @@ the corpus matches it.
 | `traceloop-native` | TraceLoop SDK 0.62.4 / OpenAI 3.22.1 / OpenTelemetry Python 1.45.0 on CPython 3.12.8, native OTLP setup | 1 | 1 |
 | `traceloop-sdk` | SideSeat Python 1.0.8 / TraceLoop SDK 0.62.4 / OpenAI 3.22.1 / OpenTelemetry Python 1.45.0 on CPython 3.12.8 | 1 | 1 |
 | `vercel-ai-js` | ai ^7.0.79 | 6 | 13 |
-| **64 suites** | | **239** | **404** |
+| `vertex-ai-native` | Google GenAI 2.26.0 / Logfire 6.0.0b7 / Google GenAI OTel instrumentor 1.2b0 / OpenTelemetry Python 1.44.0 on CPython 3.12.8, native Logfire setup in Vertex AI mode | 1 | 1 |
+| `vertex-ai-sdk` | SideSeat Python 1.0.8 / Google GenAI 2.26.0 / Logfire 6.0.0b7 / Google GenAI OTel instrumentor 1.2b0 / OpenTelemetry Python 1.44.0 on CPython 3.12.8 | 1 | 1 |
+| **66 suites** | | **241** | **406** |
 
 Two further samples exist but are **not in the repository**: `strands-js/image-gen` and
 `vercel-ai-js/image-gen`, whose payloads are 15 MB and 7 MB of inlined base64 image data (the Python
@@ -212,6 +214,11 @@ scripts/message-fixtures/fake-google-genai.py --port 5404
 GOOGLE_GENAI_BASE_URL=http://127.0.0.1:5404 \
   scripts/message-fixtures/capture.sh google-genai generate_content both
 
+scripts/message-fixtures/fake-google-genai.py --port 5404
+# In another shell:
+VERTEX_AI_BASE_URL=http://127.0.0.1:5404 \
+  scripts/message-fixtures/capture.sh vertex-ai canonical both
+
 scripts/message-fixtures/fake-openai.py --port 5401
 # In another shell:
 AUTOGEN_OPENAI_BASE_URL=http://127.0.0.1:5401/v1 \
@@ -287,8 +294,8 @@ CAPTURE_MODEL=gpt-5-nano-2025-08-07 \
 ordinary completion, SSE streaming, and a two-call tool roundtrip; they are wire-contract fixture servers,
 not model-quality substitutes. Pydantic AI uses its deterministic in-process `FunctionModel`, so it needs
 neither a fake HTTP endpoint nor provider credentials. The Google endpoint exercises ordinary generation,
-SSE streaming, and Google GenAI's automatic Python function-calling roundtrip against the real client and
-instrumentor.
+SSE streaming, and automatic Python function calling against the real Google GenAI client and instrumentor
+in both Gemini Developer API and Vertex AI modes.
 
 New captures use `<suite>-native/<sample>` and `<suite>-sdk/<sample>` so the support
 matrix can prove framework-level parity instead of mixing instrumentation modes under one
@@ -370,19 +377,19 @@ not hide the rest.
 
 ## What is and is not covered
 
-**239 tracked expectation files: 222 captured in 63 suites, plus 17 synthetic.** A suite is not a framework:
+**241 tracked expectation files: 224 captured in 65 suites, plus 17 synthetic.** A suite is not a framework:
 `strands`/`strands-js` and `claude-agent-sdk`/`claude-agent-sdk-js` are one framework each in two
 languages; the eight .NET/JavaScript/Python/Rust suites are SDK conformance rather than framework
-captures. The fixture families below cover **26 of the 32** frameworks SideSeat recognises. (32 is
+captures. The fixture families below cover **27 of the 32** frameworks SideSeat recognises. (32 is
 the union of the server's `Framework` classifier and the SDK's framework list, excluding `Unknown`:
 28 named server variants plus `anthropic`, `openai`, `google-genai` and `pydantic-ai`, which only the
 SDK names.) Every framework is not covered, and the gap is deliberate rather than hidden:
 
-| Covered by fixtures (26) | strands, langchain, langgraph, llama-index, crewai, google-adk, google-genai, haystack, bedrock, openai, azure-openai, openai-agents, openinference, anthropic, pydantic-ai, autogen, ag2, agent-framework, agentscope, claude-agent-sdk, agno, semantic-kernel, smolagents, vercel-ai, logfire, traceloop — strands and claude-agent-sdk in both languages, vercel-ai in JS only |
+| Covered by fixtures (27) | strands, langchain, langgraph, llama-index, crewai, google-adk, google-genai, vertex-ai, haystack, bedrock, openai, azure-openai, openai-agents, openinference, anthropic, pydantic-ai, autogen, ag2, agent-framework, agentscope, claude-agent-sdk, agno, semantic-kernel, smolagents, vercel-ai, logfire, traceloop — strands and claude-agent-sdk in both languages, vercel-ai in JS only |
 | ------------------- | --- |
 | Synthetic, not a framework | `_synthetic/*` — hand-written payloads for shapes no captured sample produces, counted in the file total and in neither the suites nor the frameworks. See below. |
 | SDK conformance, not a framework | The `dotnet-{otel,sdk}/canonical`, `javascript-{otel,sdk}/canonical`, `python-{otel,sdk}/canonical`, and `rust-{otel,sdk}/canonical` pairs — the same real four-span, five-message conversation exported without and with each SideSeat SDK |
-| Recognised, no fixtures (6) | azure-ai-foundry, browser-use, langflow, livekit, mlflow, vertex-ai |
+| Recognised, no fixtures (5) | azure-ai-foundry, browser-use, langflow, livekit, mlflow |
 
 The second group shares extractors with covered frameworks, so the *parsing logic* is exercised
 — but nothing here proves their emitted payloads match what those extractors expect. Adding a
