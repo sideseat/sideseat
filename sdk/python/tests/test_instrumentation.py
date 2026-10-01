@@ -133,6 +133,38 @@ class TestInstrument:
         assert instrument(Frameworks.LlamaIndex, provider) is True
         assert calls == [("llama_index", "LlamaIndexInstrumentor", provider)]
 
+    def test_haystack_uses_native_tracing_with_content(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Haystack 3 must emit its complete native content through SideSeat's provider."""
+        enabled: list[Any] = []
+        tracing = SimpleNamespace(
+            tracer=SimpleNamespace(is_content_tracing_enabled=False),
+            enable_tracing=enabled.append,
+        )
+
+        class OpenTelemetryTracer:
+            def __init__(self, tracer: Any) -> None:
+                self.tracer = tracer
+
+        integration = SimpleNamespace(OpenTelemetryTracer=OpenTelemetryTracer)
+        real_import = importlib.import_module
+
+        def fake_import(name: str, package: str | None = None) -> Any:
+            modules = {
+                "haystack.tracing": tracing,
+                "haystack_integrations.tracing.opentelemetry": integration,
+            }
+            return modules.get(name) or real_import(name, package)
+
+        monkeypatch.setattr(importlib, "import_module", fake_import)
+        provider = SimpleNamespace(get_tracer=lambda name: f"tracer:{name}")
+
+        assert instrument(Frameworks.Haystack, provider) is True
+        assert tracing.tracer.is_content_tracing_enabled is True
+        assert len(enabled) == 1
+        assert enabled[0].tracer == "tracer:haystack"
+
     def test_thread_safety(self) -> None:
         """Instrumentation should be thread-safe."""
         results: list[bool] = []

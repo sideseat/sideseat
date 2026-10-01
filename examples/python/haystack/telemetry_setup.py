@@ -3,18 +3,17 @@
 from typing import Any
 
 from common.telemetry import NativeTraceClient, setup_base_telemetry
-from openinference.instrumentation.haystack import HaystackInstrumentor
+from haystack import tracing
+from haystack_integrations.tracing.opentelemetry import OpenTelemetryTracer
 from sideseat import Frameworks
 
 
 def setup_telemetry(use_sideseat: bool = False) -> Any:
-    """Configure native OpenInference or SideSeat-owned instrumentation."""
+    """Configure native Haystack tracing or SideSeat-owned instrumentation."""
 
     def instrumentor(provider: Any = None) -> None:
-        HaystackInstrumentor().instrument(
-            tracer_provider=provider,
-            skip_dep_check=True,
-        )
+        tracing.tracer.is_content_tracing_enabled = True
+        tracing.enable_tracing(OpenTelemetryTracer(provider.get_tracer("haystack")))
 
     owner = setup_base_telemetry(
         instrumentor=instrumentor,

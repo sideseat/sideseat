@@ -75,7 +75,7 @@ def instrument(
         elif framework == Frameworks.AG2:
             _instrument_openinference("autogen", "AutogenInstrumentor", provider)
         elif framework == Frameworks.Haystack:
-            _instrument_openinference("haystack", "HaystackInstrumentor", provider)
+            _instrument_haystack(provider)
         elif framework in (
             Frameworks.AgentScope,
             Frameworks.Langflow,
@@ -139,6 +139,24 @@ def _instrument_openllmetry_vertexai(provider: "TracerProvider | None") -> None:
     from opentelemetry.instrumentation.vertexai import VertexAIInstrumentor
 
     VertexAIInstrumentor().instrument(tracer_provider=provider)
+
+
+def _instrument_haystack(provider: "TracerProvider | None") -> None:
+    """Connect Haystack 3's native tracing API to SideSeat's provider."""
+    from opentelemetry import trace
+
+    tracing = importlib.import_module("haystack.tracing")
+    integration = importlib.import_module("haystack_integrations.tracing.opentelemetry")
+    tracer_provider = provider or trace.get_tracer_provider()
+    get_tracer = getattr(tracer_provider, "get_tracer", None)
+    if get_tracer is None:
+        raise RuntimeError("Haystack requires an OpenTelemetry tracer provider")
+
+    # Haystack snapshots this opt-in when its tracing module is imported. Applications
+    # commonly import Haystack before constructing SideSeat, so setting only the
+    # environment variable here would leave message bodies disabled for that process.
+    tracing.tracer.is_content_tracing_enabled = True
+    tracing.enable_tracing(integration.OpenTelemetryTracer(get_tracer("haystack")))
 
 
 def _instrument_openinference(
