@@ -32,7 +32,7 @@ def get_model(model_id: str) -> VertexModel:
     )
     location = os.getenv("GOOGLE_CLOUD_LOCATION", DEFAULT_LOCATION)
     kwargs: dict[str, Any] = {
-        "vertexai": True,
+        "enterprise": True,
         "project": project,
         "location": location,
     }

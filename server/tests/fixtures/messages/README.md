@@ -119,8 +119,8 @@ the corpus matches it.
 | `traceloop-native` | TraceLoop SDK 0.62.4 / OpenAI 3.22.1 / OpenTelemetry Python 1.45.0 on CPython 3.12.8, native OTLP setup | 1 | 1 |
 | `traceloop-sdk` | SideSeat Python 1.0.8 / TraceLoop SDK 0.62.4 / OpenAI 3.22.1 / OpenTelemetry Python 1.45.0 on CPython 3.12.8 | 1 | 1 |
 | `vercel-ai-js` | ai ^7.0.79 | 6 | 13 |
-| `vertex-ai-native` | Google GenAI 2.26.0 / Logfire 6.0.0b7 / Google GenAI OTel instrumentor 1.2b0 / OpenTelemetry Python 1.44.0 on CPython 3.12.8, native Logfire setup in Vertex AI mode | 1 | 1 |
-| `vertex-ai-sdk` | SideSeat Python 1.0.8 / Google GenAI 2.26.0 / Logfire 6.0.0b7 / Google GenAI OTel instrumentor 1.2b0 / OpenTelemetry Python 1.44.0 on CPython 3.12.8 | 1 | 1 |
+| `vertex-ai-native` | Google GenAI 2.26.0 / Logfire 6.0.0b7 / Google GenAI OTel instrumentor 1.2b0 / OpenTelemetry Python 1.44.0 on CPython 3.12.8, native Logfire setup with the current `enterprise=True` Vertex mode | 1 | 1 |
+| `vertex-ai-sdk` | SideSeat Python 1.0.8 / Google GenAI 2.26.0 / Logfire 6.0.0b7 / Google GenAI OTel instrumentor 1.2b0 / OpenTelemetry Python 1.44.0 on CPython 3.12.8, current `enterprise=True` Vertex mode | 1 | 1 |
 | **66 suites** | | **241** | **406** |
 
 Two further samples exist but are **not in the repository**: `strands-js/image-gen` and
