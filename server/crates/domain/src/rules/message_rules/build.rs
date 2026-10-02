@@ -238,7 +238,11 @@ pub(super) fn attached_value(
 ) -> Option<JsonValue> {
     // A literal on its own, naming no source: the member is part of the shape rather than something read.
     // A content block's unsigned `signature` is exactly this, and its value is `null`.
-    if attach.from.is_none() && attach.from_value_any_of.is_empty() && attach.from_path.is_none() {
+    if attach.from.is_none()
+        && attach.from_value_any_of.is_empty()
+        && attach.from_path.is_none()
+        && attach.or_span_name_after.is_none()
+    {
         return attach.value.clone();
     }
     // Ordered paths into the value being wrapped, for a member that may sit at the top level or under the

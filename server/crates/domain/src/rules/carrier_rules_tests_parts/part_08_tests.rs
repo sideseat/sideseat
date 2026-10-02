@@ -733,6 +733,32 @@ fn an_attachment_falls_through_to_its_other_sources() {
     );
 }
 
+/// A tool exporter may use the complete span name as the tool name.
+///
+/// `or_span_name_after` used to be reachable only as a fallback from another source. Declaring it on its own
+/// therefore looked valid but emitted no name because the literal-only fast path returned first. An empty prefix
+/// is intentional here: stripping it yields the complete span name.
+#[test]
+fn a_span_name_can_be_an_attachments_only_source() {
+    use crate::rules::message_rules::{MessageContext, compile};
+
+    let plan = compile(&std::collections::BTreeMap::from([(
+        "t.json".to_string(),
+        br#"{"id":"t","messages":[{"id":"t.r","read":{"attribute":"x"},"parse":"text",
+             "emit":"message","legacy_rank":1,
+             "wrap":{"role":"tool","block":{"type":"tool_result","attach":[
+               {"as":"name","or_span_name_after":""}]}}}]}"#
+            .to_vec(),
+    )]))
+    .expect("the probe compiles");
+    let attrs = std::collections::HashMap::from([("x".to_string(), "result".to_string())]);
+    let ctx = MessageContext::for_span("done", &attrs, false);
+    assert_eq!(
+        plan.run(&ctx)[0].value["content"][0]["name"], "done",
+        "an exporter that names its span exactly after the tool keeps that name"
+    );
+}
+
 /// A walk stops on the clauses it **names**, and a clause it names must exist.
 ///
 /// The boolean it replaces asked "did anything get selected at this node", which is wider than "was this node a

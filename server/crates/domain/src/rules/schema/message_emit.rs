@@ -195,10 +195,11 @@ pub struct AttachSpec {
     /// it; parsing without stripping fails, and the member would silently fall back to its default.
     #[serde(default)]
     pub strip_bracket_tag: bool,
-    /// Fall back to the span name with this prefix removed, trimmed, when the attribute is absent.
+    /// Fall back to the span name with this prefix removed, trimmed, when the other sources are absent.
     ///
     /// The conventions prescribe `execute_tool {name}` as a tool span's name, so a producer that omits
-    /// the attribute still names the tool - and an unnamed call is unusable downstream.
+    /// the attribute still names the tool - and an unnamed call is unusable downstream. An empty prefix
+    /// deliberately uses the complete span name for exporters that name a tool span exactly after the tool.
     #[serde(default)]
     pub or_span_name_after: Option<String>,
     /// Attach this literal when nothing else supplied a value.
