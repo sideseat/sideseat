@@ -349,8 +349,9 @@
           "index": 3,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"weather-call-1\",\"content\":[]}",
-          "content_digest": "516aee84e4ad0455",
+          "content": "Sunny, 22°C in Paris",
+          "content_digest": "ea792eb922fe5b67",
+          "tool_name": "get_weather",
           "observation_type": "generation"
         },
         {
@@ -433,8 +434,9 @@
           "index": 3,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"weather-call-1\",\"content\":[]}",
-          "content_digest": "516aee84e4ad0455",
+          "content": "Sunny, 22°C in Paris",
+          "content_digest": "ea792eb922fe5b67",
+          "tool_name": "get_weather",
           "observation_type": "agent"
         },
         {

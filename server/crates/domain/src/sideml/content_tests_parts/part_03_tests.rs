@@ -240,3 +240,33 @@ fn canonical_tool_results_preserve_scalar_and_structured_json() {
         );
     }
 }
+
+/// The conventions' binary part carries its payload in `content` beside `mime_type`. It used to fall through
+/// to an unknown block, so an image and a PDF a user sent rendered as raw JSON.
+#[test]
+fn a_semconv_blob_part_is_a_media_block_of_its_mime_type() {
+    for (mime, kind) in [("image/jpeg", "image"), ("application/pdf", "document")] {
+        let block = json!({"type": "blob", "mime_type": mime, "modality": "image", "content": "AAAA"});
+        let normalized = normalize_content_block(&block).expect("the blob normalises");
+        assert_eq!(normalized["type"], kind, "{mime}");
+        assert_eq!(normalized["media_type"], mime);
+        assert_eq!(normalized["data"], "AAAA");
+    }
+}
+
+/// A tool result under `result` rather than `response` keeps its value and its tool name. Read only as
+/// `response`, it became an empty result with no name - invisible wherever no tool span restated it.
+#[test]
+fn a_tool_call_response_under_result_keeps_its_value() {
+    let block = json!({
+        "type": "tool_call_response",
+        "id": "call-1",
+        "name": "final_result",
+        "result": "Final result processed.",
+    });
+    let normalized = normalize_content_block(&block).expect("the tool result normalises");
+    assert_eq!(normalized["type"], "tool_result");
+    assert_eq!(normalized["tool_use_id"], "call-1");
+    assert_eq!(normalized["name"], "final_result");
+    assert_eq!(normalized["content"], "Final result processed.");
+}

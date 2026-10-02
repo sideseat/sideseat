@@ -266,6 +266,33 @@ fn test_detect_observation_type_tool_from_operation() {
     assert_eq!(obs, ObservationType::Tool);
 }
 
+/// An MCP client's `tools/call` span is a tool call even when the caller's agent name was propagated onto it,
+/// as Logfire copies Pydantic AI's baggage onto every span. The agent name used to make it an `agent` observation
+/// with an `agent` category, or - where the span also named the tool - an `agent` with a `tool` category.
+#[test]
+fn an_mcp_tool_call_outweighs_a_propagated_agent_name() {
+    for attrs in [
+        make_attrs(&[
+            ("mcp.method.name", "tools/call"),
+            ("gen_ai.agent.name", "agent"),
+        ]),
+        make_attrs(&[
+            ("mcp.method.name", "tools/call"),
+            ("gen_ai.agent.name", "agent"),
+            ("gen_ai.tool.name", "calculate"),
+        ]),
+    ] {
+        assert_eq!(
+            detect_observation_type("tools/call calculate", &attrs),
+            ObservationType::Tool
+        );
+        assert_eq!(
+            categorize_span("tools/call calculate", &attrs),
+            SpanCategory::Tool
+        );
+    }
+}
+
 #[test]
 fn traceloop_tool_kind_outweighs_the_owning_agent_name() {
     use sideseat_domain::rules::schema::SpanFact;

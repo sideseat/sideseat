@@ -117,6 +117,23 @@
       "result": "agent"
     },
     {
+      "id": "observation.mcp_tool_call",
+      "doc": "The MCP conventions' name for calling a tool on a server. An MCP client span inherits whatever its caller propagates, and one SDK copies baggage onto every span, so the client span of an agent's tool call also carries `gen_ai.agent.name` - which `observation.named_agent` (rank 100) would read as an agent, against its `tool` category. The method the span names is what it did.",
+      "rank": 44,
+      "all_of": [
+        {
+          "attr_equals": [
+            {
+              "key": "mcp.method.name",
+              "value": "tools/call"
+            }
+          ]
+        }
+      ],
+      "result": "tool",
+      "replaces_legacy_result": "agent"
+    },
+    {
       "id": "observation.agent_construction",
       "rank": 50,
       "doc": "One dialect emits `create_agent` for the *construction* of an agent, which ran no model and is not an agent invocation. Only that dialect's: the same operation name from anywhere else falls through, which is why this rule names the system as well.",

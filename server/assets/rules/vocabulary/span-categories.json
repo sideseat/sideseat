@@ -136,6 +136,45 @@
       "result": "tool"
     },
     {
+      "id": "category.mcp_tool_call_under_an_agent",
+      "doc": "The MCP conventions' name for calling a tool on a server, read before any agent name for the reason `observation.mcp_tool_call` gives: the client span of an agent's tool call can carry a propagated `gen_ai.agent.name` and no `gen_ai.tool.name`, which `category.named_agent` would read as an agent. Split from `category.mcp_tool_call` only because each rule names the one retired answer it replaces.",
+      "rank": 77,
+      "all_of": [
+        {
+          "attr_equals": [
+            {
+              "key": "mcp.method.name",
+              "value": "tools/call"
+            }
+          ]
+        },
+        {
+          "attr_exists": [
+            "gen_ai.agent.name"
+          ]
+        }
+      ],
+      "result": "tool",
+      "replaces_legacy_result": "agent"
+    },
+    {
+      "id": "category.mcp_tool_call",
+      "doc": "An MCP client's tool call is a tool call. The retired sweep had no reading of MCP, so these spans were `other` while the observation type already said `tool`.",
+      "rank": 78,
+      "all_of": [
+        {
+          "attr_equals": [
+            {
+              "key": "mcp.method.name",
+              "value": "tools/call"
+            }
+          ]
+        }
+      ],
+      "result": "tool",
+      "replaces_legacy_result": "other"
+    },
+    {
       "id": "category.agent_operations",
       "rank": 90,
       "doc": "Three operation names that all mean an agent was running: the conventional one, and two a dialect adds for a group of agents and for one turn of its own loop.",
