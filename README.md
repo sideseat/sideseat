@@ -1,8 +1,8 @@
 <h1 align="center">SideSeat</h1>
 
 <p align="center">
-  <strong>AI Development Workbench</strong><br>
-  Debug, trace, and understand your AI agents.
+  <strong>Observability for AI agents, built on OpenTelemetry.</strong><br>
+  See every model call, tool call, and agent decision - as conversations, live.
 </p>
 
 <p align="center">
@@ -13,221 +13,114 @@
 
 <p align="center">
   <a href="https://www.youtube.com/watch?v=JqTcJ2OCLQI">
-    <img src="docs/public/images/screenshots/screenshot_1.png" alt="SideSeat showing an AI agent conversation with tool calls" width="800" /><br/>
-    https://www.youtube.com/watch?v=JqTcJ2OCLQI
+    <img src="docs/public/images/screenshots/screenshot_1.png" alt="SideSeat showing an agent conversation with tool calls" width="800" />
   </a>
 </p>
 
-## What is SideSeat?
+SideSeat collects the OpenTelemetry your agent framework already emits and turns it back into the
+conversation it describes: every system prompt, question, tool call, tool result, reasoning block, and
+answer, in order, grouped into traces and sessions. Run it on your machine - prompts and data never
+leave it - or deploy it for a team.
 
-AI agents are hard to debug. Requests fly by, context builds up, and when something fails you're left guessing.
-
-SideSeat captures every LLM call, tool call, and agent decision, then displays them in a live dashboard as they happen. Run it locally — proprietary prompts, PII, and confidential documents never leave your machine. Or deploy to your private cloud for team-wide visibility.
-
-Built on [OpenTelemetry](https://opentelemetry.io/) — the open standard already supported by most AI frameworks.
-
-## Quick Start
+## Quick start
 
 ```bash
-npx sideseat
+npx sideseat                      # or: docker run -p 5388:5388 sideseat/core
 ```
 
-Open [localhost:5388](http://localhost:5388) and instrument your agent.
-
-**Frameworks:** [Strands Agents](https://sideseat.ai/docs/integrations/frameworks/strands/) · [LangGraph](https://sideseat.ai/docs/integrations/frameworks/langgraph/) · [CrewAI](https://sideseat.ai/docs/integrations/frameworks/crewai/) · [AutoGen](https://sideseat.ai/docs/integrations/frameworks/autogen/) · [Google ADK](https://sideseat.ai/docs/integrations/frameworks/google-adk/) · [OpenAI Agents](https://sideseat.ai/docs/integrations/frameworks/openai-agents/) · [Vercel AI](https://sideseat.ai/docs/integrations/frameworks/vercel-ai/) · [more](https://sideseat.ai/docs/integrations/)
-
-**Providers:** [Amazon Bedrock](https://sideseat.ai/docs/integrations/providers/bedrock/) · [Anthropic](https://sideseat.ai/docs/integrations/providers/anthropic/) · [OpenAI](https://sideseat.ai/docs/integrations/providers/openai/) · [Azure](https://sideseat.ai/docs/integrations/providers/azure/) · [Google Gemini](https://sideseat.ai/docs/integrations/providers/google-gemini/)
-
-**Strands Agents:**
+Open [http://localhost:5388](http://localhost:5388), then instrument your agent:
 
 ```bash
-pip install strands-agents sideseat
+pip install sideseat strands-agents
 ```
 
 ```python
-from sideseat import SideSeat, Frameworks
+import sideseat
 from strands import Agent
 
-SideSeat(framework=Frameworks.Strands)
+sideseat.init(integrations=["strands"])
 
-agent = Agent()
-response = agent("What is 2+2?")
-print(response)
+agent = Agent(model="global.anthropic.claude-sonnet-5-5")
+
+with sideseat.session("trip-planning", user_id="user-7"):
+    agent("Plan a weekend in Lisbon.")
+    agent("What should I eat there?")
 ```
 
-**Amazon Bedrock (direct):**
+The same in TypeScript:
+
+```ts
+import * as sideseat from "@sideseat/sdk";
+
+await sideseat.init({ integrations: ["vercel-ai"] });
+await sideseat.session({ sessionId: "trip-planning" }, () => runAgent());
+```
+
+No SDK? Point any OpenTelemetry exporter at `http://localhost:5388/otel/default`.
+
+## Supported frameworks and providers
+
+**Python:** Strands Agents, LangGraph, LangChain, CrewAI, AutoGen, AG2, OpenAI Agents SDK, Google ADK,
+Pydantic AI, Microsoft Agent Framework, Semantic Kernel, Claude Agent SDK, Agno, smolagents, LlamaIndex,
+AgentScope, Haystack, Browser Use, Langflow, Logfire, TraceLoop, OpenInference.
+
+**TypeScript:** Strands Agents, Vercel AI SDK, Claude Agent SDK. **.NET:** Microsoft.Extensions.AI,
+Microsoft Agent Framework, Semantic Kernel. **Providers:** Amazon Bedrock, Anthropic, OpenAI, Azure
+OpenAI, Google Gemini, Vertex AI.
+
+Every integration is verified end to end: each one runs a fixed set of scenarios - tool use, multi-turn,
+sessions, streaming, reasoning, files, multi-agent - with and without the SDK, and SideSeat's reading of
+the captured telemetry is checked message by message. See
+[compatibility and verification](https://sideseat.ai/docs/reference/production-readiness/).
+
+## SDKs
+
+| Language | Package | Docs |
+| --- | --- | --- |
+| Python | [`sideseat`](https://pypi.org/project/sideseat/) | [Python SDK](https://sideseat.ai/docs/sdks/python/) |
+| TypeScript | [`@sideseat/sdk`](https://www.npmjs.com/package/@sideseat/sdk) | [TypeScript SDK](https://sideseat.ai/docs/sdks/typescript/) |
+| .NET | [`SideSeat`](https://www.nuget.org/packages/SideSeat) | [.NET SDK](https://sideseat.ai/docs/sdks/dotnet/) |
+| Rust | [`sideseat`](https://crates.io/crates/sideseat) | [Rust SDK](https://sideseat.ai/docs/sdks/rust/) |
+
+All four implement one [contract](docs/engineering/sdk-contract.md): one call to configure, session
+scopes that reach framework spans, and exactly-once export.
+
+## MCP server for coding agents
+
+SideSeat serves your agent's execution history over [MCP](https://modelcontextprotocol.io/), so a coding
+agent can read real prompts, tool calls, errors, and costs:
 
 ```bash
-pip install "sideseat[aws]" boto3
-```
-
-```python
-from sideseat import SideSeat, Frameworks
-import boto3
-
-client = SideSeat(framework=Frameworks.Bedrock)
-bedrock = boto3.client("bedrock-runtime", region_name="us-east-1")
-model_id = "us.anthropic.claude-sonnet-4-5-20250929-v1:0"
-
-session_id = "sess-abc"
-user_id = "user-123"
-
-# Trace 1: Trip planning
-with client.trace("trip-planning", session_id=session_id, user_id=user_id):
-    messages = []
-    messages.append({"role": "user", "content": [{"text": "Plan a 5-day trip to Japan."}]})
-    response = bedrock.converse(modelId=model_id, messages=messages)
-    messages.append(response["output"]["message"])
-
-    messages.append({"role": "user", "content": [{"text": "Tell me more about Kyoto."}]})
-    response = bedrock.converse(modelId=model_id, messages=messages)
-
-# Trace 2: Food recommendations (fresh conversation, same session)
-with client.trace("food-recommendations", session_id=session_id, user_id=user_id):
-    messages = []
-    messages.append({"role": "user", "content": [{"text": "What are the must-try dishes in Tokyo?"}]})
-    response = bedrock.converse(modelId=model_id, messages=messages)
-    messages.append(response["output"]["message"])
-
-    messages.append({"role": "user", "content": [{"text": "What about street food in Osaka?"}]})
-    response = bedrock.converse(modelId=model_id, messages=messages)
-```
-
-**Without SideSeat SDK** — manual OpenTelemetry setup:
-
-```bash
-export OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:5388/otel/default
-pip install 'strands-agents[otel]'
-```
-
-```python
-from strands.telemetry import StrandsTelemetry
-from strands import Agent
-
-telemetry = StrandsTelemetry()
-telemetry.setup_otlp_exporter()
-
-agent = Agent()
-response = agent("What is 2+2?")
-print(response)
-```
-
-SDKs: [Python (PyPI)](https://pypi.org/project/sideseat/) | [TypeScript (npm)](https://www.npmjs.com/package/@sideseat/sdk) | [.NET (NuGet)](https://www.nuget.org/packages/SideSeat)
-
-## Features
-
-- **Real-time tracing** — Watch LLM requests and tool calls as they happen
-- **Message threading** — See full conversations, tool calls, and images
-- **Cost tracking** — Automatic token counting and cost calculation
-
-<p align="center">
-  <img src="docs/public/images/screenshots/screenshot_2.png" alt="Detailed view showing message threading" width="800" />
-</p>
-
-<p align="center">
-  <img src="docs/public/images/screenshots/screenshot_3.png" alt="Cost analytics and token usage breakdown" width="800" />
-</p>
-
-## AI Agent Development with MCP
-
-SideSeat includes a built-in [MCP](https://modelcontextprotocol.io/) server that gives AI coding agents direct access to your agent's execution history — prompts sent, responses received, tool calls made, costs incurred, and errors encountered.
-
-Connect your coding tool and let it optimize prompts, debug failures, and reduce costs using real observability data instead of guesswork.
-
-```bash
-# Auth is on by default: set a key first, or start the server with --no-auth and drop the credential.
-export SIDESEAT_API_KEY=...
-
-# Claude Code
 claude mcp add --transport http sideseat http://localhost:5388/api/v1/projects/default/mcp \
   --header "Authorization: Bearer $SIDESEAT_API_KEY"
-
-# OpenAI Codex  (no --transport flag; --url selects streamable HTTP)
-codex mcp add sideseat --url http://localhost:5388/api/v1/projects/default/mcp \
-  --bearer-token-env-var SIDESEAT_API_KEY
-
-# Kiro CLI  (its CLI cannot send headers - use the config file below when auth is on)
-kiro-cli mcp add --name sideseat --url http://localhost:5388/api/v1/projects/default/mcp
 ```
 
-Config file for Kiro, Cursor, and other MCP clients:
+Setup for Codex, Cursor, Kiro, and other clients is in the [MCP docs](https://sideseat.ai/docs/mcp/).
 
-```json
-{
-  "mcpServers": {
-    "sideseat": {
-      "url": "http://localhost:5388/api/v1/projects/default/mcp",
-      "headers": {
-        "Authorization": "Bearer <your-api-key>"
-      }
-    }
-  }
-}
-```
+## Deploy
 
-Replace `<your-api-key>` with a key for the organisation that owns the project. Some clients expand environment variables in this file (Cursor and other VS Code-derived editors use `${env:VAR}`); check your client's docs before relying on that. Drop the `headers` block entirely if the server runs with `--no-auth`.
+- **Local:** `npx sideseat` stores everything in a local embedded database.
+- **Container:** `docker run -p 5388:5388 -v $(pwd)/data:/data sideseat/core`.
+- **Team:** PostgreSQL, ClickHouse, Redis or Redpanda, and S3-compatible storage scale it out - see the
+  [configuration reference](https://sideseat.ai/docs/reference/config/).
 
-See the [MCP docs](https://sideseat.ai/docs/mcp/) for all setup options.
-
-Then ask your coding agent:
-
-> Look at my last 5 agent runs in SideSeat. Find any that errored or had high token usage. Show me the system prompts and suggest improvements.
-
-7 tools are available: `list_traces`, `list_sessions`, `list_spans`, `get_trace`, `get_messages`, `get_raw_span`, `get_stats`. See the [MCP docs](https://sideseat.ai/docs/mcp/) for setup guides for Kiro, Claude Code, Codex, Cursor, and other clients.
-
-## Deployment
-
-**Local** — Run on your machine with `npx sideseat`. Traces are stored locally. Nothing is sent to any external service.
-
-**Self-hosted** — Deploy to your private cloud for team-wide observability. See the [configuration guide](https://sideseat.ai/docs/reference/config/).
-
-## Docker
-
-**Docker image:** https://hub.docker.com/r/sideseat/core
-
-```bash
-docker pull sideseat/core:latest
-docker run -p 5388:5388 \
-  -v $(pwd)/data:/data \
-  --name sideseat \
-  sideseat/core:latest
-```
-
-This mounts a local `./data` directory into the container at `/data` to persist traces and project data.
-
-## Compatibility
-
-**Agent frameworks** — Strands Agents, LangGraph, CrewAI, AutoGen, Google ADK, OpenAI Agents, LangChain, PydanticAI
-
-**LLM providers** — OpenAI, Anthropic, AWS Bedrock, Azure OpenAI, Google Gemini
-
-**Telemetry** — Vercel AI SDK, OpenInference, MLflow, Logfire
-
-## Repository map
+## Repository
 
 ```
-server/       Rust backend (Axum) — crates/ src/ tests/ assets/
-web/          React frontend (Vite)
-cli/          npm distribution wrapper
-sdk/          Client SDKs: python/ js/ rust/ dotnet/
-examples/     Runnable samples per framework, with their inputs
-config/       Configuration schema and examples
-docs/         Documentation site, plus docs/engineering/ for internals and the ws-v1 wire protocol
-tools/        Developer utilities  ·  scripts/  Automation and benchmarks
-specs/        TLA+ specifications
-deploy/       Container image and local compose stack
-packaging/    Release metadata (Homebrew, macOS entitlements)
+server/     Rust backend: crates/ (ports and adapters), src/ (composition root), tests/, assets/rules/
+web/        React UI
+sdk/        python/  js/  dotnet/  rust/
+examples/   one suite per framework, sharing a scenario harness; the source of the golden fixtures
+docs/       the documentation site, and docs/engineering/ for internals
+cli/        the npm distribution
+deploy/     container image and a local compose stack
+config/     configuration schema and examples
+specs/      TLA+ specifications
+scripts/    automation   tools/  developer utilities   packaging/  release metadata
 ```
 
-## Resources
-
-- **[Documentation](https://sideseat.ai/docs)** — Setup, configuration, API reference
-- **[Examples](examples/)** — A runnable sample per supported framework
-- **[Discussions](https://github.com/sideseat/sideseat/discussions)** — Questions and ideas
-- **[Issues](https://github.com/sideseat/sideseat/issues)** — Bug reports
-- **[Contributing](CONTRIBUTING.md)** — Development guide
-- **[Security](SECURITY.md)** — Reporting a vulnerability privately
+[CONTRIBUTING.md](CONTRIBUTING.md) explains the development loop.
 
 ## License
 
-[Apache-2.0](LICENSE) — Free to use, modify, and distribute.
+[Apache-2.0](LICENSE). The SDKs are MIT.

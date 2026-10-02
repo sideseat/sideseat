@@ -7,7 +7,7 @@ session correctly.
 
 ```
 examples/
-├── assets/            inputs for the files scenario: img.jpg, task.pdf
+├── assets/            the image and PDF the files scenario sends
 ├── data/              tabular input for samples that read a dataset
 ├── python/
 │   ├── harness/       shared CLI, model catalog, prompts and tools, telemetry modes, capture tool

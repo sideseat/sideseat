@@ -1,118 +1,97 @@
 # Contributing to SideSeat
 
-## Prerequisites
+## Set up
 
-- Rust 1.94.1+ (declared in `Cargo.toml`; cargo, clippy and a CI job all hold it)
-- Node.js ^22.22.0 || ^24.0.0 || >=26.0.0 (measured across the lockfiles; CI uses 24)
-- [uv](https://docs.astral.sh/uv/)
-- Make
-
-## Setup
+[mise](https://mise.jdx.dev) installs the pinned toolchains (Node, Python, uv, .NET, cargo-nextest);
+Rust comes from `rust-toolchain.toml` through rustup.
 
 ```bash
 git clone https://github.com/sideseat/sideseat.git
 cd sideseat
-make setup
-make dev
+mise install          # or install the versions in mise.toml yourself
+make setup            # dependencies and git hooks
+make dev              # server on http://localhost:5388, UI with hot reload on http://localhost:5389
 ```
 
-Dev server runs at http://localhost:5389 (UI) and http://localhost:5388 (API).
+Supported Node versions: ^22.22.0 || ^24.0.0 || >=26.0.0. The Rust floor is `rust-version` in
+`Cargo.toml`.
 
-## Project Structure
+## The development loop
 
-```
-server/       Rust backend: executable composition root and layer crates under server/crates/
-web/          React frontend (Vite)
-cli/          npm distribution wrapper
-sdk/          Client SDKs: python/ js/ rust/ dotnet/
-config/       Product configuration: JSON schema and example files
-examples/     Runnable samples per framework, with their inputs
-tools/        Standalone developer utilities: otel-replay/ mcp-calculator/ audit/
-scripts/      Repository automation and performance measurement
-make/         Makefile fragments grouped by maintenance area
-packaging/    Release metadata: homebrew formula, macOS entitlements
-deploy/       Container image and a local compose stack
-specs/        TLA+ specifications, checked by `make harden-spec`
-docs/         Public documentation site (Astro), plus docs/engineering/ (internal architecture and the ws-v1 wire protocol)
-```
+The loop is a requirement: keep it short.
 
-`server/assets/` holds everything compiled into the binary — the framework rule assets and the
-pricing catalogue. `docs/engineering/` holds the internal architecture documents; the Astro site
-builds from `docs/src/` only, so they are not published.
+| Command | What it runs | Budget |
+| --- | --- | --- |
+| `make quick` | format, lint, and unit tests for the areas you changed | under a minute |
+| `make check` | every container-free gate | a few minutes |
+| `make test-postgres`, `make test-clickhouse`, ... | backend parity in Docker | opt-in |
 
-## Development Commands
+While iterating, run the narrowest command for what you touched:
 
 ```bash
-make dev                                  # Start server + web in parallel
-make dev-server                           # Start Rust server with hot reload
-make dev-server ARGS="--debug --no-auth"  # Server without authentication
-make dev-web                              # Start Vite dev server
-make test                                 # Run all tests
-make fmt                                  # Format code
-make lint                                 # Lint code
-make check                                # fmt-check + lint + test
-make build                                # Production build
+cargo nextest run --locked -p sideseat-domain                     # one crate
+cargo nextest run --locked -p sideseat-server --test message_goldens
+uv run --locked --directory sdk/python pytest tests/test_client.py
+npm --prefix web test -- --run src/components/thread
 ```
 
-To generate test traces, run `uv run --locked --directory examples/python/strands strands tool_use
---sideseat`. `--locked` everywhere: a bare `uv run` rewrites that suite's lockfile to match a drifted
-manifest, and `make update-python-deps` is the one command meant to do that.
+`make help` lists every command, grouped by area. The pre-commit hook checks only formatting, secrets,
+and the file-length limit; the pre-push hook runs `make check`.
 
-### Release Workflow
+## Project structure
 
-```bash
-make release TYPE=patch  # check, bump, commit, tag, push
-make build-cli           # cross-compile all platforms
-make sign-release SIGN_IDENTITY="Developer ID Application: Name (TEAMID)"
-make build-release       # create archives, optionally notarize, and checksum
-make build-docker        # build Docker image for current platform
-make publish-cli         # publish platform packages + main package to npm
-make publish-sdk-js      # publish JS SDK to npm
-make publish-sdk-python  # publish Python SDK to PyPI
-make publish-release     # upload to GitHub Releases
-make publish-docker      # multi-arch build + push to registry
-make publish-brew        # update Homebrew tap formula
+```
+server/
+  crates/core/          configuration, constants, shared utilities
+  crates/ports/         storage and service traits, shared DTOs
+  crates/domain/        SideML reconstruction, rules, retention, search
+  crates/ingestion/     OTLP decoding, normalization, durability
+  crates/query-sql/     typed analytical queries
+  crates/api/           HTTP, gRPC, MCP, SSE, WebSocket
+  crates/adapter-*/     databases, blob storage, cache, queues, secrets
+  src/                  the composition root
+  assets/rules/         what each framework's telemetry means - no framework knowledge lives in Rust
+  tests/                message goldens, parity suites, repository invariants
+web/                    React UI; web/src/components/ui is the design system
+sdk/                    python/ js/ dotnet/ rust/
+examples/               scenario suites per framework and the shared harness
+docs/                   documentation site; docs/engineering/ holds internals
+cli/                    the npm distribution wrapper
+config/                 configuration schema and examples
+deploy/                 container image and a local compose stack
+make/                   Makefile fragments, one per area
+packaging/              release metadata: Homebrew formula, macOS entitlements
+scripts/                automation and benchmarks
+specs/                  TLA+ specifications, checked by make harden-spec
+tools/                  developer utilities: otel-replay, mcp-calculator, audit
 ```
 
-Homebrew formula template: `packaging/homebrew/sideseat.rb.tmpl`. Users install via `brew tap sideseat/tap && brew install sideseat`.
+[AGENTS.md](AGENTS.md) states the architecture rules and domain invariants every change must keep.
 
-## Code Style
+## Supporting a framework
 
-### Rust
+1. Add a suite under `examples/python/<framework>` following [examples/README.md](examples/README.md).
+2. Capture it: `make capture P=<framework>`.
+3. Read the regenerated views. Where the conversation is wrong, fix the framework's rule asset in
+   `server/assets/rules/`, the SDK integration, or - if the defect is general - the reconstruction, with a
+   regression test.
+4. Add or update the integration's documentation page under `docs/src/content/docs/docs/integrations/`.
 
-- Format with `cargo fmt`
-- Lint with `cargo clippy` — no warnings allowed
-- Use `thiserror` for library errors, `anyhow` for application errors
-- Use `Arc<T>` + `parking_lot` for shared state
-- Comments: minimal, explain why not what
+## Code style
 
-### TypeScript
+- Rust: `cargo fmt`, Clippy with `-D warnings`, `thiserror` in libraries and `anyhow` at boundaries.
+- TypeScript: Prettier and ESLint; erasable syntax only (no enums, namespaces, or parameter
+  properties). The web UI also runs `@shadcn/lint`: use the design tokens and component variants in
+  `web/src/styles/index.css` and `web/src/components/ui/` instead of raw colors or arbitrary values.
+- Python: Ruff and mypy (strict in the SDK).
+- Comments explain constraints and tradeoffs, not what the code does or how it got that way.
 
-- Format with `npm run fmt`
-- Lint with `npm run lint`
-- No enums — use `as const`
-- Never modify `web/src/components/ui/` (shadcn/ui)
-- No constructor parameter properties:
+## Pull requests
 
-```typescript
-// Do this
-private client: ApiClient;
-constructor(client: ApiClient) { this.client = client; }
+Keep each change focused, run `make check`, and explain why as well as what. Open an issue first for
+large changes.
 
-// Not this
-constructor(private client: ApiClient) {}
-```
-
-## Pull Requests
-
-1. Open an issue first for significant changes
-2. Create a feature branch: `git checkout -b fix/issue-123`
-3. Keep changes focused — one issue per PR
-4. Run `make check` before committing (runs fmt-check + lint + test)
-5. Write a clear description explaining why and what
-6. Reference related issues
-
-## Reporting Issues
+## Reporting issues
 
 **Bugs** — Include steps to reproduce, expected vs actual behavior, version (`sideseat --version`), and OS. Use `SIDESEAT_LOG=debug` for verbose output.
 
