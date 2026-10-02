@@ -64,11 +64,13 @@ uv run --locked --directory strands strands <sample> --sideseat       # Use Side
 ### LangGraph
 
 ```bash
-uv run --locked --directory langgraph telemetry-langgraph                         # List samples and models
-uv run --locked --directory langgraph telemetry-langgraph tool_use                # Tool usage
-uv run --locked --directory langgraph telemetry-langgraph reasoning               # Extended thinking
-uv run --locked --directory langgraph telemetry-langgraph all                     # Run all samples
+uv run --locked --directory langgraph sample --list                  # List scenarios and models
+uv run --locked --directory langgraph sample tool_use                # Tool usage, native telemetry
+uv run --locked --directory langgraph sample tool_use --sideseat     # The same with the SideSeat SDK
+uv run --locked --directory langgraph sample all                     # Run every scenario
 ```
+
+On the shared scenario harness; see `langgraph/README.md`.
 
 ### CrewAI
 

@@ -1,43 +1,25 @@
 [project]
-name = "langgraph-sample"
-version = "0.1.0"
-description = "SideSeat telemetry sample for LangGraph"
-requires-python = ">=3.12,<3.14"
+name = "example-langgraph"
+version = "0.0.0"
+description = "LangGraph scenarios for SideSeat"
+requires-python = ">=3.11"
 dependencies = [
-    "numpy>=1.26",
-    "telemetry-common",
-    "sideseat[langchain]",
-    "langgraph>=1.1.2",
-    "langchain-aws>=1.4.0",
-    "langchain-anthropic>=1.3.4",
-    "langchain-openai>=1.1.11",
-    "langchain-google-genai>=4.2.1",
-    "langchain-mcp-adapters>=0.2.1",
-    "boto3>=1.42.22",
-    "opentelemetry-instrumentation-botocore>=0.58b0",
-    "pymupdf>=1.25.0",
-    "python-dotenv>=1.2.0",
+    "langgraph>=1.2.12",
+    "langchain-aws>=1.8.0",
+    "langchain-mcp-adapters>=0.3.2",
+    "openinference-instrumentation-langchain>=0.1.78",
+    "sideseat[langgraph]",
+    "sideseat-example-harness[bedrock]",
 ]
 
-[project.scripts]
-langgraph = "cli:main"
-telemetry-langgraph = "cli:main"
+[tool.sideseat-example]
+producer = "langgraph"
+integrations = ["langgraph"]
 
 [tool.uv]
-# The resolver version this repository declares. Restated here because a project's own `[tool.uv]`
-# **replaces** the `uv.toml` found above it rather than merging with it, so without this line these
-# projects were the ones a differently-versioned uv could still write lockfiles for. Held equal to the
-# root by `every_uv_project_requires_the_same_resolver`.
 required-version = "==0.12.13"
-prerelease = "allow"
+package = false
 
 [tool.uv.sources]
-telemetry-common = { path = "../common", editable = true }
+sideseat-example-harness = { path = "../harness", editable = true }
 sideseat = { path = "../../../sdk/python", editable = true }
-
-[build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
-
-[tool.hatch.build.targets.wheel]
-include = ["*.py", "samples/"]
