@@ -34,7 +34,6 @@ FIXTURES="server/tests/fixtures/messages"
 # tool_use) and a hardcoded list silently skips or fails whole suites when it drifts.
 SUITES=(
   "strands|uv run --locked --directory examples/python/strands strands {S}"
-  "llama-index|uv run --locked --directory examples/python/llamaindex telemetry-llamaindex {S}"
   "haystack|uv run --locked --directory examples/python/haystack telemetry-haystack {S}"
   "adk|uv run --locked --directory examples/python/adk telemetry-adk {S}"
   "openai|uv run --locked --directory examples/python/openai openai-provider {S}"

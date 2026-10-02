@@ -1,32 +1,25 @@
 [project]
-name = "llamaindex-sample"
-version = "0.1.0"
-description = "SideSeat telemetry sample for LlamaIndex"
-requires-python = ">=3.12,<3.14"
+name = "example-llamaindex"
+version = "0.0.0"
+description = "LlamaIndex scenarios for SideSeat"
+requires-python = ">=3.11"
 dependencies = [
-    "telemetry-common",
-    "sideseat[llama-index]",
     "llama-index-core>=0.14.25",
-    "llama-index-llms-openai>=0.8.2",
-    "openai>=1.108.1,<3",
-    "httpx>=0.28.1,<1.0.dev0",
-    "python-dotenv>=1.2.0",
+    "llama-index-llms-bedrock-converse>=0.15.3",
+    "llama-index-tools-mcp>=0.6.0",
+    "openinference-instrumentation-llama-index>=4.5.4",
+    "sideseat[llama-index]",
+    "sideseat-example-harness[bedrock]",
 ]
 
-[project.scripts]
-telemetry-llamaindex = "cli:main"
+[tool.sideseat-example]
+producer = "llama-index"
+integrations = ["llama-index"]
 
 [tool.uv]
 required-version = "==0.12.13"
-prerelease = "allow"
+package = false
 
 [tool.uv.sources]
-telemetry-common = { path = "../common", editable = true }
+sideseat-example-harness = { path = "../harness", editable = true }
 sideseat = { path = "../../../sdk/python", editable = true }
-
-[build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
-
-[tool.hatch.build.targets.wheel]
-include = ["*.py", "samples/"]
