@@ -51,7 +51,6 @@ SUITES=(
   "openinference|uv run --locked --directory examples/python/openinference telemetry-openinference {S}"
   "azure-openai|uv run --locked --directory examples/python/azure-openai telemetry-azure-openai {S}"
   "traceloop|uv run --locked --directory examples/python/traceloop telemetry-traceloop {S}"
-  "agent-framework|uv run --locked --directory examples/python/agent-framework telemetry-agent-framework {S}"
   "claude-agent-sdk|uv run --locked --directory examples/python/claude-agent-sdk claude-agent-sdk {S}"
   "browser-use|uv run --locked --directory examples/python/browser-use telemetry-browser-use {S}"
   # The `agent` sample can also run against scripts/message-fixtures/fake-openai.py through

@@ -35,11 +35,11 @@ import { Aside, Steps, Tabs, TabItem } from '@astrojs/starlight/components';
 
    ```python
    import asyncio
-   from sideseat import SideSeat, Frameworks
+   import sideseat
    from agent_framework import Agent
    from agent_framework.openai import OpenAIChatClient
 
-   SideSeat(framework=Frameworks.AgentFramework)
+   sideseat.init(integrations=["agent-framework"])
 
    client = OpenAIChatClient(model="gpt-5-nano-2025-08-07")
    agent = Agent(client=client, instructions="You are a helpful assistant.")
@@ -86,18 +86,16 @@ import { Aside, Steps, Tabs, TabItem } from '@astrojs/starlight/components';
 4. **Add telemetry**
 
    ```python
-   from agent_framework.observability import OBSERVABILITY_SETTINGS
+   from agent_framework.observability import enable_sensitive_telemetry
    from opentelemetry.sdk.trace import TracerProvider
    from opentelemetry.sdk.trace.export import BatchSpanProcessor
    from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
    from opentelemetry import trace
 
-   OBSERVABILITY_SETTINGS.enable_instrumentation = True
-   OBSERVABILITY_SETTINGS.enable_sensitive_data = True
-
    provider = TracerProvider()
    provider.add_span_processor(BatchSpanProcessor(OTLPSpanExporter()))
    trace.set_tracer_provider(provider)
+   enable_sensitive_telemetry()
    ```
 
 5. **View runs**
