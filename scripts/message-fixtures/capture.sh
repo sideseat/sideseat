@@ -36,7 +36,6 @@ SUITES=(
   "strands|uv run --locked --directory examples/python/strands strands {S}"
   "llama-index|uv run --locked --directory examples/python/llamaindex telemetry-llamaindex {S}"
   "haystack|uv run --locked --directory examples/python/haystack telemetry-haystack {S}"
-  "ag2|uv run --locked --directory examples/python/ag2 telemetry-ag2 {S}"
   "adk|uv run --locked --directory examples/python/adk telemetry-adk {S}"
   "openai|uv run --locked --directory examples/python/openai openai-provider {S}"
   "openai-agents|uv run --locked --directory examples/python/openai-agents telemetry-openai-agents {S}"
