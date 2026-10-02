@@ -106,6 +106,8 @@ make test
 make check
 ```
 
+After changing `web/`, run `npm --prefix web run lint`; it includes the `@shadcn/lint` design-system rules, so use the tokens in `web/src/styles/index.css` and the variants in `web/src/components/ui/` instead of raw colors, arbitrary values, inline styles, or restyling components.
+
 Backend and operational checks are opt-in because they start containers or
 release binaries:
 
