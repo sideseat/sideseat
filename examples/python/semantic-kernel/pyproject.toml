@@ -1,31 +1,25 @@
 [project]
-name = "semantic-kernel-sample"
-version = "0.1.0"
-description = "SideSeat telemetry sample for Semantic Kernel"
-requires-python = ">=3.12,<3.14"
+name = "example-semantic-kernel"
+version = "0.0.0"
+description = "Semantic Kernel scenarios for SideSeat"
+# Semantic Kernel cannot parse builtin generic annotations on Python 3.14.
+requires-python = ">=3.11,<3.14"
 dependencies = [
-    "telemetry-common",
+    # The aws extra installs boto3 below 1.43, which the harness's bedrock extra would exclude; the
+    # harness needs only some boto3 to record model traffic.
+    "semantic-kernel[aws,mcp]>=1.44.1",
     "sideseat",
-    "semantic-kernel==1.44.1",
-    "openai>=3.22.1",
-    "httpx>=0.28.1,<1.0.dev0",
-    "python-dotenv>=1.2.0",
+    "sideseat-example-harness",
 ]
 
-[project.scripts]
-telemetry-semantic-kernel = "cli:main"
+[tool.sideseat-example]
+producer = "semantic-kernel"
+integrations = ["semantic-kernel"]
 
 [tool.uv]
 required-version = "==0.12.13"
-prerelease = "allow"
+package = false
 
 [tool.uv.sources]
-telemetry-common = { path = "../common", editable = true }
+sideseat-example-harness = { path = "../harness", editable = true }
 sideseat = { path = "../../../sdk/python", editable = true }
-
-[build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
-
-[tool.hatch.build.targets.wheel]
-include = ["*.py", "samples/"]
