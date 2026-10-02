@@ -165,7 +165,7 @@
           "entry_type": "text",
           "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
           "content_digest": "f70ad56a39c626b9",
-          "observation_type": "generation"
+          "observation_type": "agent"
         },
         {
           "index": 2,
@@ -241,7 +241,7 @@
         "entry_type": "text",
         "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
         "content_digest": "f70ad56a39c626b9",
-        "observation_type": "generation"
+        "observation_type": "agent"
       },
       {
         "index": 4,

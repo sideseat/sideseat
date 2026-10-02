@@ -305,6 +305,13 @@ fn test_strands_assistant_text_marked_history() {
         ),
     ];
 
+    // The generation spans sit under the agent span, which carries the turn's authoritative copy.
+    let agent_span = blocks[0].span_id.clone();
+    for block in &mut blocks[1..] {
+        block.parent_span_id = Some(agent_span.clone());
+        block.span_path = vec![agent_span.clone(), block.span_id.clone()];
+    }
+
     let span_timestamps = HashMap::new();
     mark_history(&mut blocks, &span_timestamps);
 

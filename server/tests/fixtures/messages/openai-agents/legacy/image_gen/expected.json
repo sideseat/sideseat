@@ -20,12 +20,11 @@
       "messages": []
     },
     "trace-1/Function: generate_image failed: Error running tool (non-fatal)/span-7": {
-      "message_count": 4,
+      "message_count": 3,
       "role_sequence": [
         "assistant",
         "tool",
-        "tool",
-        "assistant"
+        "tool"
       ],
       "tool_names": [],
       "tool_definition_count": 0,
@@ -56,25 +55,15 @@
           "content_digest": "8e801b7e67233187",
           "tool_name": "generate_image",
           "observation_type": "span"
-        },
-        {
-          "index": 3,
-          "role": "assistant",
-          "entry_type": "text",
-          "content": "openai.OpenAIError: Missing credentials. Please pass an `api_key`, `workload_identity`, `admin_api_key`, or set the `OPENAI_API_KEY` or `OPENAI_ADMIN_KEY` environment variable.",
-          "content_digest": "76115ee7f76f9767",
-          "finish_reason": "Error",
-          "observation_type": "span"
         }
       ]
     },
     "trace-1/Function: generate_image failed: Error running tool (non-fatal)/span-8": {
-      "message_count": 4,
+      "message_count": 3,
       "role_sequence": [
         "assistant",
         "tool",
-        "tool",
-        "assistant"
+        "tool"
       ],
       "tool_names": [],
       "tool_definition_count": 0,
@@ -105,25 +94,15 @@
           "content_digest": "8e801b7e67233187",
           "tool_name": "generate_image",
           "observation_type": "span"
-        },
-        {
-          "index": 3,
-          "role": "assistant",
-          "entry_type": "text",
-          "content": "openai.OpenAIError: Missing credentials. Please pass an `api_key`, `workload_identity`, `admin_api_key`, or set the `OPENAI_API_KEY` or `OPENAI_ADMIN_KEY` environment variable.",
-          "content_digest": "76115ee7f76f9767",
-          "finish_reason": "Error",
-          "observation_type": "span"
         }
       ]
     },
     "trace-1/Function: generate_image failed: Error running tool (non-fatal)/span-9": {
-      "message_count": 4,
+      "message_count": 3,
       "role_sequence": [
         "assistant",
         "tool",
-        "tool",
-        "assistant"
+        "tool"
       ],
       "tool_names": [],
       "tool_definition_count": 0,
@@ -153,15 +132,6 @@
           "content": "[Scrubbed due to 'credential']",
           "content_digest": "8e801b7e67233187",
           "tool_name": "generate_image",
-          "observation_type": "span"
-        },
-        {
-          "index": 3,
-          "role": "assistant",
-          "entry_type": "text",
-          "content": "openai.OpenAIError: Missing credentials. Please pass an `api_key`, `workload_identity`, `admin_api_key`, or set the `OPENAI_API_KEY` or `OPENAI_ADMIN_KEY` environment variable.",
-          "content_digest": "76115ee7f76f9767",
-          "finish_reason": "Error",
           "observation_type": "span"
         }
       ]
@@ -438,7 +408,7 @@
   },
   "trace_views": {
     "trace-1": {
-      "message_count": 18,
+      "message_count": 15,
       "role_sequence": [
         "system",
         "user",
@@ -448,9 +418,6 @@
         "tool",
         "tool",
         "tool",
-        "assistant",
-        "assistant",
-        "assistant",
         "assistant",
         "assistant",
         "system",
@@ -536,39 +503,12 @@
           "index": 8,
           "role": "assistant",
           "entry_type": "text",
-          "content": "openai.OpenAIError: Missing credentials. Please pass an `api_key`, `workload_identity`, `admin_api_key`, or set the `OPENAI_API_KEY` or `OPENAI_ADMIN_KEY` environment variable.",
-          "content_digest": "76115ee7f76f9767",
-          "finish_reason": "Error",
-          "observation_type": "span"
-        },
-        {
-          "index": 9,
-          "role": "assistant",
-          "entry_type": "text",
-          "content": "openai.OpenAIError: Missing credentials. Please pass an `api_key`, `workload_identity`, `admin_api_key`, or set the `OPENAI_API_KEY` or `OPENAI_ADMIN_KEY` environment variable.",
-          "content_digest": "76115ee7f76f9767",
-          "finish_reason": "Error",
-          "observation_type": "span"
-        },
-        {
-          "index": 10,
-          "role": "assistant",
-          "entry_type": "text",
-          "content": "openai.OpenAIError: Missing credentials. Please pass an `api_key`, `workload_identity`, `admin_api_key`, or set the `OPENAI_API_KEY` or `OPENAI_ADMIN_KEY` environment variable.",
-          "content_digest": "76115ee7f76f9767",
-          "finish_reason": "Error",
-          "observation_type": "span"
-        },
-        {
-          "index": 11,
-          "role": "assistant",
-          "entry_type": "text",
           "content": "Unable to generate the images because image-generation credentials are unavailable.",
           "content_digest": "65b4c255760b6458",
           "observation_type": "generation"
         },
         {
-          "index": 12,
+          "index": 9,
           "role": "assistant",
           "entry_type": "text",
           "content": "[Scrubbed due to 'credential']",
@@ -576,7 +516,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 13,
+          "index": 10,
           "role": "system",
           "entry_type": "text",
           "content": "You are an experienced art critic. Use the read_image tool to load and visually inspect each image. Evaluate based on creativity, composition, and appeal. Your final line must include: FINAL DECISION: [path to best image]",
@@ -584,7 +524,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 14,
+          "index": 11,
           "role": "user",
           "entry_type": "text",
           "content": "Evaluate these generated images and select the best one: Unable to generate the images because image-generation credentials are unavailable.",
@@ -592,7 +532,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 15,
+          "index": 12,
           "role": "user",
           "entry_type": "text",
           "content": "[Scrubbed due to 'credential']",
@@ -600,7 +540,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 16,
+          "index": 13,
           "role": "assistant",
           "entry_type": "text",
           "content": "No images were provided for evaluation; image generation failed because credentials were unavailable. Therefore, I cannot compare creativity, composition, or appeal. FINAL DECISION: No image available (generation failed)",
@@ -608,7 +548,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 17,
+          "index": 14,
           "role": "assistant",
           "entry_type": "text",
           "content": "[Scrubbed due to 'credential']",
@@ -620,7 +560,7 @@
   },
   "session_views": {
     "[Scrubbed due to 'session']": {
-      "message_count": 18,
+      "message_count": 15,
       "role_sequence": [
         "system",
         "user",
@@ -630,9 +570,6 @@
         "tool",
         "tool",
         "tool",
-        "assistant",
-        "assistant",
-        "assistant",
         "assistant",
         "assistant",
         "system",
@@ -718,39 +655,12 @@
           "index": 8,
           "role": "assistant",
           "entry_type": "text",
-          "content": "openai.OpenAIError: Missing credentials. Please pass an `api_key`, `workload_identity`, `admin_api_key`, or set the `OPENAI_API_KEY` or `OPENAI_ADMIN_KEY` environment variable.",
-          "content_digest": "76115ee7f76f9767",
-          "finish_reason": "Error",
-          "observation_type": "span"
-        },
-        {
-          "index": 9,
-          "role": "assistant",
-          "entry_type": "text",
-          "content": "openai.OpenAIError: Missing credentials. Please pass an `api_key`, `workload_identity`, `admin_api_key`, or set the `OPENAI_API_KEY` or `OPENAI_ADMIN_KEY` environment variable.",
-          "content_digest": "76115ee7f76f9767",
-          "finish_reason": "Error",
-          "observation_type": "span"
-        },
-        {
-          "index": 10,
-          "role": "assistant",
-          "entry_type": "text",
-          "content": "openai.OpenAIError: Missing credentials. Please pass an `api_key`, `workload_identity`, `admin_api_key`, or set the `OPENAI_API_KEY` or `OPENAI_ADMIN_KEY` environment variable.",
-          "content_digest": "76115ee7f76f9767",
-          "finish_reason": "Error",
-          "observation_type": "span"
-        },
-        {
-          "index": 11,
-          "role": "assistant",
-          "entry_type": "text",
           "content": "Unable to generate the images because image-generation credentials are unavailable.",
           "content_digest": "65b4c255760b6458",
           "observation_type": "generation"
         },
         {
-          "index": 12,
+          "index": 9,
           "role": "assistant",
           "entry_type": "text",
           "content": "[Scrubbed due to 'credential']",
@@ -758,7 +668,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 13,
+          "index": 10,
           "role": "system",
           "entry_type": "text",
           "content": "You are an experienced art critic. Use the read_image tool to load and visually inspect each image. Evaluate based on creativity, composition, and appeal. Your final line must include: FINAL DECISION: [path to best image]",
@@ -766,7 +676,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 14,
+          "index": 11,
           "role": "user",
           "entry_type": "text",
           "content": "Evaluate these generated images and select the best one: Unable to generate the images because image-generation credentials are unavailable.",
@@ -774,7 +684,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 15,
+          "index": 12,
           "role": "user",
           "entry_type": "text",
           "content": "[Scrubbed due to 'credential']",
@@ -782,7 +692,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 16,
+          "index": 13,
           "role": "assistant",
           "entry_type": "text",
           "content": "No images were provided for evaluation; image generation failed because credentials were unavailable. Therefore, I cannot compare creativity, composition, or appeal. FINAL DECISION: No image available (generation failed)",
@@ -790,7 +700,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 17,
+          "index": 14,
           "role": "assistant",
           "entry_type": "text",
           "content": "[Scrubbed due to 'credential']",
@@ -801,16 +711,13 @@
     }
   },
   "feed_view": {
-    "message_count": 18,
+    "message_count": 15,
     "role_sequence": [
       "assistant",
       "assistant",
       "system",
       "user",
       "user",
-      "assistant",
-      "assistant",
-      "assistant",
       "assistant",
       "assistant",
       "tool",
@@ -883,33 +790,6 @@
       },
       {
         "index": 7,
-        "role": "assistant",
-        "entry_type": "text",
-        "content": "openai.OpenAIError: Missing credentials. Please pass an `api_key`, `workload_identity`, `admin_api_key`, or set the `OPENAI_API_KEY` or `OPENAI_ADMIN_KEY` environment variable.",
-        "content_digest": "76115ee7f76f9767",
-        "finish_reason": "Error",
-        "observation_type": "span"
-      },
-      {
-        "index": 8,
-        "role": "assistant",
-        "entry_type": "text",
-        "content": "openai.OpenAIError: Missing credentials. Please pass an `api_key`, `workload_identity`, `admin_api_key`, or set the `OPENAI_API_KEY` or `OPENAI_ADMIN_KEY` environment variable.",
-        "content_digest": "76115ee7f76f9767",
-        "finish_reason": "Error",
-        "observation_type": "span"
-      },
-      {
-        "index": 9,
-        "role": "assistant",
-        "entry_type": "text",
-        "content": "openai.OpenAIError: Missing credentials. Please pass an `api_key`, `workload_identity`, `admin_api_key`, or set the `OPENAI_API_KEY` or `OPENAI_ADMIN_KEY` environment variable.",
-        "content_digest": "76115ee7f76f9767",
-        "finish_reason": "Error",
-        "observation_type": "span"
-      },
-      {
-        "index": 10,
         "role": "tool",
         "entry_type": "tool_result",
         "content": "[Scrubbed due to 'credential']",
@@ -918,7 +798,7 @@
         "observation_type": "span"
       },
       {
-        "index": 11,
+        "index": 8,
         "role": "tool",
         "entry_type": "tool_result",
         "content": "[Scrubbed due to 'credential']",
@@ -927,7 +807,7 @@
         "observation_type": "span"
       },
       {
-        "index": 12,
+        "index": 9,
         "role": "tool",
         "entry_type": "tool_result",
         "content": "[Scrubbed due to 'credential']",
@@ -936,7 +816,7 @@
         "observation_type": "span"
       },
       {
-        "index": 13,
+        "index": 10,
         "role": "system",
         "entry_type": "text",
         "content": "You are an AI artist. When asked to generate images, use the generate_image tool with varied prompts for each image to create a diverse collection. Return a comma-separated list of the generated image paths.",
@@ -944,7 +824,7 @@
         "observation_type": "generation"
       },
       {
-        "index": 14,
+        "index": 11,
         "role": "user",
         "entry_type": "text",
         "content": "Generate 3 different images of a dog. Vary the style, setting, and mood for each image. Use different prompts like: playful puppy in a park, majestic dog portrait, dog playing in snow.",
@@ -952,7 +832,7 @@
         "observation_type": "generation"
       },
       {
-        "index": 15,
+        "index": 12,
         "role": "assistant",
         "entry_type": "tool_use",
         "content": "{\"type\":\"tool_use\",\"id\":\"call_b927172290845e3f82cdd316c2f64df1\",\"name\":\"generate_image\",\"input\":{\"prompt\":\"A joyful playful golden retriever puppy bounding through a sunny spring park, bright green grass, colorful wildflowers, a red frisbee…[354 chars]",
@@ -961,7 +841,7 @@
         "observation_type": "generation"
       },
       {
-        "index": 16,
+        "index": 13,
         "role": "assistant",
         "entry_type": "tool_use",
         "content": "{\"type\":\"tool_use\",\"id\":\"call_cd488973791e5791b0a0df6b09b83697\",\"name\":\"generate_image\",\"input\":{\"prompt\":\"A majestic adult German shepherd posed in a dramatic studio portrait, rich charcoal and tan fur, dignified expression, deep charcoal …[370 chars]",
@@ -970,7 +850,7 @@
         "observation_type": "generation"
       },
       {
-        "index": 17,
+        "index": 14,
         "role": "assistant",
         "entry_type": "tool_use",
         "content": "{\"type\":\"tool_use\",\"id\":\"call_917368052e0a580e855a2d3aa0b20d2b\",\"name\":\"generate_image\",\"input\":{\"prompt\":\"A fluffy Siberian husky joyfully playing in fresh powder snow during a gentle winter snowfall, snow-covered pine forest, cool blue tw…[362 chars]",

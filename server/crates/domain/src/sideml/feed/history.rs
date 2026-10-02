@@ -148,6 +148,33 @@ fn detect_session_history(blocks: &[BlockEntry]) -> SessionHistoryInfo {
 // HISTORY DETECTION
 // ============================================================================
 
+/// Spans at the root of the conversation: no ancestor carries conversation content.
+///
+/// The accumulator and child-generation passes treat the root's copy of a turn as authoritative and
+/// the copies below it as replays. The trace's first span is the wrong root when the application wraps
+/// its work in a span of its own - `sideseat.trace(...)` around several agent calls is the ordinary
+/// way to group a conversation - because that wrapper holds no messages. Every agent invocation under
+/// it then looked like a nested accumulator, every copy of each question became history, and a
+/// three-question conversation showed one question. A span is a root here when none of its ancestors
+/// carries a message.
+fn conversation_root_spans(blocks: &[BlockEntry]) -> HashSet<String> {
+    let content_spans: HashSet<&str> = blocks.iter().map(|b| b.span_id.as_str()).collect();
+    blocks
+        .iter()
+        .filter(|block| match block.span_path.split_last() {
+            Some((_, ancestors)) => !ancestors
+                .iter()
+                .any(|span| content_spans.contains(span.as_str())),
+            // Without a computed path, the parent is the only ancestor known.
+            None => block
+                .parent_span_id
+                .as_deref()
+                .is_none_or(|parent| !content_spans.contains(parent)),
+        })
+        .map(|block| block.span_id.clone())
+        .collect()
+}
+
 /// Preserve the context one span carried while still removing redundant carriers and framework state.
 ///
 /// A span message endpoint answers a different question from a trace or session endpoint: it shows the
@@ -192,6 +219,16 @@ pub fn mark_history(
     };
 
     // Detect the trace shape and index tool calls that belong to the current turn.
+    let conversation_roots = conversation_root_spans(blocks);
+    let at_root = |block: &BlockEntry| conversation_roots.contains(&block.span_id);
+    // A configured agent states its own instructions; a pass-through loop span does not, even where a
+    // producer classifies its loop spans as agents.
+    let configured_agents: HashSet<String> = blocks
+        .iter()
+        .filter(|b| b.is_agent_span() && b.role == ChatRole::System)
+        .map(|b| b.span_id.clone())
+        .collect();
+    let is_configured_agent = |block: &BlockEntry| configured_agents.contains(&block.span_id);
     let current_tool_ids = build_current_tool_use_ids(blocks);
     let history_info = detect_session_history(blocks);
 
@@ -267,14 +304,16 @@ pub fn mark_history(
             continue;
         }
 
-        // Root span content is generally authoritative (except JSON handled above)
-        if block.is_root_span() {
+        // Root content is authoritative (except JSON handled above).
+        if at_root(block) {
             continue;
         }
 
-        // Accumulator spans (agent/chain/span) pass through messages
-        // Their input events are context copies, not authoritative
-        if block.is_accumulator_span() && block.is_input_event() {
+        // Accumulators pass messages through, so their input events are copies of the turn above them.
+        // A configured agent below the root is the exception: a swarm member or sub-agent carries its
+        // own system prompt and a request its orchestrator composed, which no other span carries. Its
+        // inputs that do repeat the parent's are removed by identity deduplication instead.
+        if block.is_accumulator_span() && !is_configured_agent(block) && block.is_input_event() {
             block.is_history = true;
             stats.accumulator_history += 1;
         }
@@ -302,8 +341,8 @@ pub fn mark_history(
                 continue;
             }
 
-            // Only non-root generation spans
-            if !block.is_generation_span() || block.is_root_span() {
+            // Only generation spans below the conversation root
+            if !block.is_generation_span() || at_root(block) {
                 continue;
             }
 

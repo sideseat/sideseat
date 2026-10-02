@@ -245,6 +245,18 @@ pub(in crate::sideml::feed) fn append_error_messages(
         if spans_with_error_children.contains(&(row.trace_id.as_str(), row.span_id.as_str())) {
             continue;
         }
+        // A failed tool that reported its failure as a tool result has already said what went wrong;
+        // the exception would repeat it, attributed to the assistant.
+        let reported_as_result = messages.iter().any(|m| {
+            m.span_id == row.span_id
+                && m.message
+                    .content
+                    .iter()
+                    .any(|block| matches!(block, ContentBlock::ToolResult { .. }))
+        });
+        if reported_as_result {
+            continue;
+        }
 
         let timestamp = row.span_end_timestamp.unwrap_or(row.span_timestamp);
         let max_msg_idx = messages

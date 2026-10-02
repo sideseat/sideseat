@@ -513,10 +513,11 @@ fn test_regression_output_events_preserved() {
         texts
     );
 
-    // Input should be filtered
+    // The root holds no messages, so this span is the conversation's root and its input is the only
+    // copy of the question: it is the turn, not a replay of one.
     assert!(
-        !texts.iter().any(|t| t.contains("History input")),
-        "Input events from span should be filtered. Found: {:?}",
+        texts.iter().any(|t| t.contains("History input")),
+        "the only copy of the user's turn must be kept. Found: {:?}",
         texts
     );
 }
