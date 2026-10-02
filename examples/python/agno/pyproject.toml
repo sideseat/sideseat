@@ -1,31 +1,23 @@
 [project]
-name = "agno-sample"
-version = "0.1.0"
-description = "SideSeat telemetry sample for Agno"
-requires-python = ">=3.12,<3.14"
+name = "example-agno"
+version = "0.0.0"
+description = "Agno scenarios for SideSeat"
+requires-python = ">=3.11"
 dependencies = [
-    "telemetry-common",
+    "agno[anthropic,aws-bedrock,mcp]>=3.1.0",
+    "openinference-instrumentation-agno>=1.0.13",
     "sideseat[agno]",
-    "agno>=3.0.11",
-    "openai>=3.22.1",
-    "httpx>=0.28.1,<1.0.dev0",
-    "python-dotenv>=1.2.0",
+    "sideseat-example-harness[bedrock]",
 ]
 
-[project.scripts]
-telemetry-agno = "cli:main"
+[tool.sideseat-example]
+producer = "agno"
+integrations = ["agno"]
 
 [tool.uv]
 required-version = "==0.12.13"
-prerelease = "allow"
+package = false
 
 [tool.uv.sources]
-telemetry-common = { path = "../common", editable = true }
+sideseat-example-harness = { path = "../harness", editable = true }
 sideseat = { path = "../../../sdk/python", editable = true }
-
-[build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
-
-[tool.hatch.build.targets.wheel]
-include = ["*.py", "samples/"]

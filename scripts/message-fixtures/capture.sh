@@ -35,7 +35,6 @@ FIXTURES="server/tests/fixtures/messages"
 SUITES=(
   "strands|uv run --locked --directory examples/python/strands strands {S}"
   "langchain|uv run --locked --directory examples/python/langchain telemetry-langchain {S}"
-  "agno|uv run --locked --directory examples/python/agno telemetry-agno {S}"
   "smolagents|uv run --locked --directory examples/python/smolagents telemetry-smolagents {S}"
   "llama-index|uv run --locked --directory examples/python/llamaindex telemetry-llamaindex {S}"
   "haystack|uv run --locked --directory examples/python/haystack telemetry-haystack {S}"

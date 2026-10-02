@@ -175,19 +175,22 @@ asyncio.run(main())
 ## Agno
 
 ```bash
-pip install agno openai "sideseat[agno]"
+pip install "agno[anthropic,aws-bedrock]" "sideseat[agno]"
 ```
 
 ```python
-from sideseat import SideSeat, Frameworks
+import sideseat
 from agno.agent import Agent
-from agno.models.openai import OpenAIChat
+from agno.models.aws import Claude
 
-SideSeat(framework=Frameworks.Agno)
+sideseat.init(integrations=["agno"])
 
-agent = Agent(model=OpenAIChat(id="gpt-5-mini"), tools=[])
+agent = Agent(model=Claude(id="global.anthropic.claude-sonnet-5-5"))
 agent.print_response("Hello!")
 ```
+
+Without the SDK, install `openinference-instrumentation-agno` and call
+`AgnoInstrumentor().instrument(tracer_provider=provider)` on an OTLP-exporting tracer provider.
 
 Agno is instrumented through OpenInference. Its spans carry `agno.*` attributes alongside
 `openinference.*`, and SideSeat's detection prefers the specific `agno.` prefix so runs are

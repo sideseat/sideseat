@@ -1,0 +1,14 @@
+from agno.agent import Agent
+
+from harness import Run, content
+
+
+def run(run: Run) -> None:
+    agent = Agent(
+        model=run.llm, instructions=content.SYSTEM, output_schema=content.TripPlan
+    )
+    with run.trace():
+        result = agent.run(
+            content.STRUCTURED, session_id=run.session_id, user_id=run.user_id
+        )
+        print(result.content)
