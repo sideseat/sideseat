@@ -76,10 +76,10 @@ command -v "$cargo_command" >/dev/null 2>&1 || {
 
 "$cargo_command" build --locked -p sideseat --example sdk-conformance
 
-capture_mode rust-otel/canonical otel "$base_port"
-capture_mode rust-sdk/canonical sdk "$((base_port + 1))"
+capture_mode rust/native/canonical otel "$base_port"
+capture_mode rust/sdk/canonical sdk "$((base_port + 1))"
 
 echo "[rust-conformance] review and record expectations:"
-echo "  scripts/message-fixtures/review-goldens.py rust-otel/canonical"
-echo "  scripts/message-fixtures/review-goldens.py rust-sdk/canonical"
+echo "  scripts/message-fixtures/review-goldens.py rust/native/canonical"
+echo "  scripts/message-fixtures/review-goldens.py rust/sdk/canonical"
 echo "  UPDATE_GOLDENS=1 cargo test --locked -p sideseat-server --test message_goldens message_goldens"

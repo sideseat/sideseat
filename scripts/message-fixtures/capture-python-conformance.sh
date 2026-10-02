@@ -85,10 +85,10 @@ command -v "$uv_command" >/dev/null 2>&1 || {
   --project "$project_dir" \
   --python "$python_version"
 
-capture_mode python-otel/canonical otel "$base_port"
-capture_mode python-sdk/canonical sdk "$((base_port + 1))"
+capture_mode python/native/canonical otel "$base_port"
+capture_mode python/sdk/canonical sdk "$((base_port + 1))"
 
 echo "[python-conformance] review and record expectations:"
-echo "  scripts/message-fixtures/review-goldens.py python-otel/canonical"
-echo "  scripts/message-fixtures/review-goldens.py python-sdk/canonical"
+echo "  scripts/message-fixtures/review-goldens.py python/native/canonical"
+echo "  scripts/message-fixtures/review-goldens.py python/sdk/canonical"
 echo "  UPDATE_GOLDENS=1 cargo test --locked -p sideseat-server --test message_goldens message_goldens"

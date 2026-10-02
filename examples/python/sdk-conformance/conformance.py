@@ -74,23 +74,15 @@ def emit_children(span_factory: Callable[..., Any]) -> None:
 
 
 def run_with_sideseat() -> None:
-    from sideseat import SideSeat
+    import sideseat
 
-    with SideSeat(
-        framework="python-conformance",
-        service_name="python-conformance",
-        auto_instrument=False,
-        enable_metrics=False,
-        enable_logs=False,
-    ) as client:
-        with client.trace(
-            "canonical-agent-run",
-            session_id=SESSION_ID,
-            user_id=USER_ID,
-        ):
-            emit_children(client.span)
-        if not client.force_flush():
-            raise RuntimeError("SideSeat Python SDK did not flush its spans")
+    client = sideseat.init(
+        service_name="python-conformance", integrations=[], metrics=False, logs=False
+    )
+    with client.trace("canonical-agent-run", session_id=SESSION_ID, user_id=USER_ID):
+        emit_children(client.span)
+    if not client.shutdown():
+        raise RuntimeError("SideSeat Python SDK did not export its spans")
 
 
 def run_with_opentelemetry() -> None:

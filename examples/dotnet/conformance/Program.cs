@@ -34,7 +34,7 @@ return 0;
 
 void RunWithSideSeat()
 {
-    using var client = new SideSeatClient(new SideSeatOptions("dotnet-conformance")
+    using var client = SideSeatClient.Create(new SideSeatOptions
     {
         ServiceName = "dotnet-conformance",
     });
@@ -57,7 +57,7 @@ void RunWithSideSeat()
         }
     }
 
-    if (!client.ForceFlush())
+    if (!client.Flush())
     {
         throw new InvalidOperationException("SideSeat SDK did not flush its spans");
     }

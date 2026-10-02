@@ -1,114 +1,88 @@
-# SideSeat
+# SideSeat for .NET
 
-**AI Development Workbench** — Debug, trace, and understand your AI agents.
-
-[![NuGet](https://img.shields.io/nuget/v/SideSeat)](https://www.nuget.org/packages/SideSeat)
-[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-
-SideSeat captures every LLM call, tool call, and agent decision, then displays them in a web UI as they happen. Built on [OpenTelemetry](https://opentelemetry.io/).
-
-## Installation
+OpenTelemetry for AI agents in .NET: one call configures tracing for a [SideSeat](https://sideseat.ai)
+project, switches on your framework's GenAI telemetry, and attributes every span to the right session
+and user.
 
 ```bash
 dotnet add package SideSeat
+npx sideseat            # a local SideSeat server on http://127.0.0.1:5388
 ```
-
-The package targets .NET Standard 2.0 and exports OTLP/HTTP protobuf traces to SideSeat.
 
 ## Quick start
 
-Start the local workbench:
-
-```bash
-npx sideseat
-```
-
-Create an independent trace and child spans:
-
 ```csharp
-using System.Diagnostics;
 using SideSeat;
 
-using var sideSeat = new SideSeatClient(new SideSeatOptions("semantic-kernel")
+using var sideseat = SideSeatClient.Create(new SideSeatOptions
 {
-    ProjectId = "default",
-    ServiceName = "travel-agent",
+    Integrations = { "extensions-ai" },
 });
 
-using (var trace = sideSeat.StartTrace(
-    "plan-trip",
-    sessionId: "conversation-42",
-    userId: "user-7"))
+IChatClient chat = bedrockChatClient
+    .AsBuilder()
+    .UseOpenTelemetry()
+    .Build();
+
+using (sideseat.Session("conversation-42", userId: "user-7"))
 {
-    trace.SetAttribute("input.value", "Plan a weekend in Lisbon");
-
-    using var modelCall = sideSeat.StartSpan("chat", ActivityKind.Client);
-    modelCall
-        .SetAttribute("gen_ai.system", "openai")
-        .SetAttribute("gen_ai.request.model", "gpt-5");
+    await chat.GetResponseAsync("Plan a weekend in Lisbon.");
+    await chat.GetResponseAsync("What should I eat there?");
 }
-
-sideSeat.ForceFlush();
 ```
 
-`StartTrace` always creates a root operation, even when another `Activity` is active.
-`StartSpan` uses the current activity as its parent. Session and user identifiers propagate
-through child spans created by the client and are restored correctly after nested scopes end.
+A session scope attributes every activity started inside it - including those your framework creates -
+to the session and user, across `await`. It creates no span of its own, and the identifiers never leave
+the process as W3C baggage.
+
+## Integrations
+
+| Name | Library | What SideSeat does |
+| --- | --- | --- |
+| `extensions-ai` | Microsoft.Extensions.AI | Listens to its activity source; wrap chat clients with `UseOpenTelemetry()`. |
+| `agent-framework` | Microsoft Agent Framework | Listens to its agent and chat sources. |
+| `semantic-kernel` | Semantic Kernel | Switches on its GenAI diagnostics, including content. |
+| `openai` | OpenAI .NET | Switches on its experimental OpenTelemetry support. |
+
+Content capture is on by default (`OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT` and each library's
+own switch); set `CaptureContent = false` to turn it off everywhere.
+
+## Structure
+
+```csharp
+using (var trace = sideseat.StartTrace("plan-trip", sessionId: "s-1", userId: "u-1"))
+using (var span = sideseat.StartSpan("retrieve-context"))
+{
+    span.SetAttribute("app.documents", 4);
+}
+```
+
+`StartTrace` always starts a root span; `StartSpan` starts a child of `Activity.Current`.
+
+## An existing OpenTelemetry pipeline
+
+```csharp
+builder.Services.AddOpenTelemetry().WithTracing(tracing => tracing.AddSideSeat(new SideSeatOptions
+{
+    Integrations = { "semantic-kernel" },
+}));
+```
 
 ## Configuration
 
-Code options take the values loaded from the environment as their starting point:
+| Property | Environment | Default |
+| --- | --- | --- |
+| `Endpoint` | `SIDESEAT_ENDPOINT`, `OTEL_EXPORTER_OTLP_ENDPOINT` | `http://127.0.0.1:5388` |
+| `Project` | `SIDESEAT_PROJECT_ID` | `default` |
+| `ApiKey` | `SIDESEAT_API_KEY` | none |
+| `ServiceName` | `OTEL_SERVICE_NAME` | the primary integration |
+| `Integrations` | `SIDESEAT_INTEGRATIONS` | none |
+| `CaptureContent` | `SIDESEAT_CAPTURE_CONTENT` | `true` |
+| `Disabled` | `SIDESEAT_DISABLED` | `false` |
 
-| Environment variable | Purpose | Default |
-|---|---|---|
-| `SIDESEAT_ENDPOINT` | SideSeat URL, OTLP project URL, or full traces URL | `http://127.0.0.1:5388` |
-| `SIDESEAT_PROJECT_ID` | Project used with a base SideSeat URL | `default` |
-| `SIDESEAT_API_KEY` | Bearer token | unset |
-| `SIDESEAT_DISABLED` | Disable recording and export (`1`, `true`, or `yes`) | `false` |
-
-`OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` and `OTEL_EXPORTER_OTLP_ENDPOINT` are accepted
-when `SIDESEAT_ENDPOINT` is unset. Endpoint routing is deterministic:
-
-```text
-http://localhost:5388
-  -> http://localhost:5388/otel/{projectId}/v1/traces
-
-http://collector:4318/otel/my-project
-  -> http://collector:4318/otel/my-project/v1/traces
-
-http://collector:4318/otel/my-project/v1/traces
-  -> unchanged
-```
-
-Set `ExportTraces = false` if your application supplies another OpenTelemetry exporter
-through `ConfigureTracerProvider`.
-
-## Errors and shutdown
-
-Record exceptions as structured OpenTelemetry events:
-
-```csharp
-using var span = sideSeat.StartSpan("tool-call");
-try
-{
-    await CallToolAsync();
-}
-catch (Exception error)
-{
-    span.RecordException(error);
-    throw;
-}
-```
-
-Dispose the client during application shutdown. `Dispose()` flushes queued spans; call
-`ForceFlush()` explicitly before a short-lived process exits when you need a synchronous result.
-
-## Resources
-
-- [Documentation](https://sideseat.ai/docs)
-- [GitHub](https://github.com/sideseat/sideseat)
-- [Issues](https://github.com/sideseat/sideseat/issues)
+`Flush()` and `Shutdown()` return whether every span was exported; disposing the client shuts it down.
+One client exists per process: create another only after disposing the first.
 
 ## License
 
-[MIT](LICENSE)
+MIT

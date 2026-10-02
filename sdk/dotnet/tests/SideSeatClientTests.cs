@@ -1,205 +1,175 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Linq;
+using System.Threading.Tasks;
 using OpenTelemetry.Trace;
 using Xunit;
 
 namespace SideSeat.Tests;
 
+// The client is process-wide, so these tests must not run in parallel with each other.
+[Collection("SideSeat")]
 public sealed class SideSeatClientTests
 {
-    [Fact]
-    public void ResolvesSideSeatAndCollectorEndpoints()
+    private static SideSeatClient Capture(out List<Activity> exported, params string[] integrations)
     {
-        using var root = CreateClient(out _, endpoint: "http://localhost:5388");
+        var sink = new List<Activity>();
+        exported = sink;
+        var options = new SideSeatOptions
+        {
+            Endpoint = "http://127.0.0.1:1",
+            Export = false,
+            ConfigureTracerProvider = builder => builder.AddInMemoryExporter(sink),
+        };
+        foreach (var integration in integrations)
+        {
+            options.Integrations.Add(integration);
+        }
+        options.Sources.Add("framework");
+        return SideSeatClient.Create(options);
+    }
+
+    [Fact]
+    public void ResolvesServerAndCollectorEndpoints()
+    {
         Assert.Equal(
             "http://localhost:5388/otel/project-a/v1/traces",
-            root.TraceEndpoint.AbsoluteUri.TrimEnd('/'));
-
-        using var project = CreateClient(out _, endpoint: "http://collector:4318/otel/custom");
+            new SideSeatOptions { Endpoint = "http://localhost:5388/", Project = "project-a" }
+                .Resolve().SignalEndpoint("traces").AbsoluteUri);
         Assert.Equal(
             "http://collector:4318/otel/custom/v1/traces",
-            project.TraceEndpoint.AbsoluteUri.TrimEnd('/'));
+            new SideSeatOptions { Endpoint = "http://collector:4318/otel/custom" }
+                .Resolve().SignalEndpoint("traces").AbsoluteUri);
+    }
 
-        using var complete = CreateClient(
-            out _,
-            endpoint: "http://collector:4318/otel/custom/v1/traces");
-        Assert.Equal(
-            "http://collector:4318/otel/custom/v1/traces",
-            complete.TraceEndpoint.AbsoluteUri.TrimEnd('/'));
+    [Theory]
+    [InlineData("ftp://host")]
+    [InlineData("localhost:5388")]
+    public void RejectsEndpointsThatAreNotHttp(string endpoint)
+    {
+        Assert.Throws<SideSeatConfigurationException>(() => new SideSeatOptions { Endpoint = endpoint }.Resolve());
     }
 
     [Fact]
-    public void RootTraceIsDetachedAndChildrenKeepSessionContext()
+    public void TraceIsARootEvenInsideAnotherActivity()
     {
-        using var client = CreateClient(out var exported);
-        using var ambientSource = new ActivitySource("ambient");
-        using var listener = ListenTo(ambientSource.Name);
-        using var ambient = ambientSource.StartActivity("ambient-root");
-        Assert.NotNull(ambient);
-
-        string traceId;
-        using (var trace = client.StartTrace("agent-run", sessionId: "session-1", userId: "user-1"))
+        using (var client = Capture(out var exported))
         {
-            Assert.NotNull(trace.Activity);
-            Assert.Null(trace.Activity!.ParentId);
-            Assert.Same(trace.Activity, Activity.Current);
-            Assert.Equal("session-1", trace.Activity.GetTagItem("session.id"));
-            traceId = trace.Activity.TraceId.ToHexString();
-
-            using var child = client.StartSpan("model-call", ActivityKind.Client);
-            Assert.NotNull(child.Activity);
-            Assert.Equal(traceId, child.Activity!.TraceId.ToHexString());
-            Assert.Equal(trace.Activity.SpanId, child.Activity.ParentSpanId);
-            Assert.Equal("session-1", child.Activity.GetTagItem("session.id"));
-            Assert.Equal("user-1", child.Activity.GetTagItem("user.id"));
+            using var outer = client.StartTrace("outer");
+            using var inner = client.StartTrace("inner");
+            Assert.Equal(default, inner.Activity!.ParentSpanId);
+            Assert.NotEqual(outer.Activity!.TraceId, inner.Activity.TraceId);
         }
-
-        Assert.True(client.ForceFlush());
-        Assert.Collection(
-            exported,
-            child =>
-            {
-                Assert.Equal("model-call", child.DisplayName);
-                Assert.Equal("session-1", child.GetTagItem("session.id"));
-            },
-            trace =>
-            {
-                Assert.Equal("agent-run", trace.DisplayName);
-                Assert.Equal(default, trace.ParentSpanId);
-            });
-        Assert.Same(ambient, Activity.Current);
     }
 
     [Fact]
-    public void NestedContextOverridesAreRestored()
+    public void SpanIsAChildOfTheCurrentActivity()
     {
-        using var client = CreateClient(out var exported);
+        using var client = Capture(out _);
+        using var root = client.StartTrace("root");
+        using var child = client.StartSpan("child", ActivityKind.Client);
+        Assert.Equal(root.Activity!.SpanId, child.Activity!.ParentSpanId);
+    }
 
-        using (client.StartTrace("run", sessionId: "outer", userId: "u1"))
+    [Fact]
+    public async Task SessionReachesActivitiesAFrameworkCreatesAcrossAwaits()
+    {
+        using var framework = new ActivitySource("framework");
+        List<Activity> exported;
+        using (var client = Capture(out exported))
         {
-            using (client.StartSpan("override", sessionId: "inner", userId: "u2"))
+            using (client.Session("s-1", userId: "u-1"))
             {
-                using var nested = client.StartSpan("nested");
-                Assert.Equal("inner", nested.Activity?.GetTagItem("session.id"));
-                Assert.Equal("u2", nested.Activity?.GetTagItem("user.id"));
+                await Task.Yield();
+                using var activity = framework.StartActivity("llm");
             }
-
-            using var restored = client.StartSpan("restored");
-            Assert.Equal("outer", restored.Activity?.GetTagItem("session.id"));
-            Assert.Equal("u1", restored.Activity?.GetTagItem("user.id"));
+            using var after = framework.StartActivity("after");
         }
-
-        Assert.True(client.ForceFlush());
-        Assert.Equal(4, exported.Count);
+        var llm = exported.Single(a => a.DisplayName == "llm");
+        Assert.Equal("s-1", llm.GetTagItem("session.id"));
+        Assert.Equal("u-1", llm.GetTagItem("user.id"));
+        Assert.Null(exported.Single(a => a.DisplayName == "after").GetTagItem("session.id"));
     }
 
     [Fact]
-    public void ExceptionsAreStructuredAndFailed()
+    public void NestedSessionOverridesAndRestores()
     {
-        using var client = CreateClient(out var exported);
-        using (var span = client.StartTrace("failed"))
+        List<Activity> exported;
+        using (var client = Capture(out exported))
         {
-            span.RecordException(new InvalidOperationException("broken"));
-        }
-
-        Assert.True(client.ForceFlush());
-        var activity = Assert.Single(exported);
-        Assert.Equal(ActivityStatusCode.Error, activity.Status);
-        var error = Assert.Single(activity.Events);
-        Assert.Equal("exception", error.Name);
-        Assert.Equal(
-            typeof(InvalidOperationException).FullName,
-            FindTag(error.Tags, "exception.type"));
-        Assert.Equal("broken", FindTag(error.Tags, "exception.message"));
-    }
-
-    [Fact]
-    public void DisabledClientIsARealNoOp()
-    {
-        var options = new SideSeatOptions("custom")
-        {
-            Disabled = true,
-        };
-        using var client = new SideSeatClient(options);
-        using var trace = client.StartTrace("ignored", sessionId: "session");
-        Assert.Null(trace.Activity);
-        Assert.True(client.ForceFlush());
-    }
-
-    [Fact]
-    public void ConcurrentClientsDoNotDuplicateEachOthersSpans()
-    {
-        using var first = CreateClient(out var firstExported);
-        using var second = CreateClient(out var secondExported);
-
-        using (first.StartTrace("first"))
-        {
-        }
-        Assert.True(first.ForceFlush());
-        Assert.True(second.ForceFlush());
-        Assert.Equal("first", Assert.Single(firstExported).DisplayName);
-        Assert.Empty(secondExported);
-
-        using (second.StartTrace("second"))
-        {
-        }
-        Assert.True(first.ForceFlush());
-        Assert.True(second.ForceFlush());
-        Assert.Equal("second", Assert.Single(secondExported).DisplayName);
-        Assert.Single(firstExported);
-    }
-
-    [Fact]
-    public void PackageAndRuntimeVersionsStayAligned()
-    {
-        var informationalVersion = typeof(SideSeatClient).Assembly
-            .GetCustomAttributes(typeof(System.Reflection.AssemblyInformationalVersionAttribute), false);
-        var attribute = Assert.IsType<System.Reflection.AssemblyInformationalVersionAttribute>(
-            Assert.Single(informationalVersion));
-        Assert.StartsWith(SideSeatClient.Version, attribute.InformationalVersion);
-        Assert.Equal("0.2.0", SideSeatClient.Version);
-    }
-
-    private static SideSeatClient CreateClient(
-        out List<Activity> exported,
-        string endpoint = "http://localhost:5388")
-    {
-        exported = new List<Activity>();
-        var activities = exported;
-        var options = new SideSeatOptions("custom")
-        {
-            Endpoint = new Uri(endpoint),
-            ProjectId = "project-a",
-            ExportTraces = false,
-            ConfigureTracerProvider = builder => builder.AddInMemoryExporter(activities),
-        };
-        return new SideSeatClient(options);
-    }
-
-    private static ActivityListener ListenTo(string sourceName)
-    {
-        var listener = new ActivityListener
-        {
-            ShouldListenTo = source => source.Name == sourceName,
-            Sample = (ref ActivityCreationOptions<ActivityContext> _) =>
-                ActivitySamplingResult.AllDataAndRecorded,
-        };
-        ActivitySource.AddActivityListener(listener);
-        return listener;
-    }
-
-    private static object? FindTag(
-        IEnumerable<KeyValuePair<string, object?>> tags,
-        string name)
-    {
-        foreach (var tag in tags)
-        {
-            if (tag.Key == name)
+            using (client.Session("outer", userId: "u"))
             {
-                return tag.Value;
+                using (client.Session("inner"))
+                using (client.StartSpan("a"))
+                {
+                }
+                using (client.StartSpan("b"))
+                {
+                }
             }
         }
-        return null;
+        Assert.Equal("inner", exported.Single(a => a.DisplayName == "a").GetTagItem("session.id"));
+        Assert.Equal("u", exported.Single(a => a.DisplayName == "a").GetTagItem("user.id"));
+        Assert.Equal("outer", exported.Single(a => a.DisplayName == "b").GetTagItem("session.id"));
+    }
+
+    [Fact]
+    public void TraceCorrelationAppliesToDescendantsOnly()
+    {
+        List<Activity> exported;
+        using (var client = Capture(out exported))
+        {
+            using (client.StartTrace("conversation", sessionId: "s-2"))
+            using (client.StartSpan("step"))
+            {
+            }
+            using (client.StartSpan("unrelated"))
+            {
+            }
+        }
+        Assert.Equal("s-2", exported.Single(a => a.DisplayName == "conversation").GetTagItem("session.id"));
+        Assert.Equal("s-2", exported.Single(a => a.DisplayName == "step").GetTagItem("session.id"));
+        Assert.Null(exported.Single(a => a.DisplayName == "unrelated").GetTagItem("session.id"));
+    }
+
+    [Fact]
+    public void ResourceNamesTheSdkAndThePrimaryIntegration()
+    {
+        using var client = Capture(out _, "extensions-ai");
+        Assert.Equal(new[] { "extensions-ai" }, client.Integrations);
+    }
+
+    [Fact]
+    public void ASecondLiveClientIsAnError()
+    {
+        using var client = Capture(out _);
+        Assert.Throws<SideSeatConfigurationException>(() => SideSeatClient.Create(new SideSeatOptions { Export = false }));
+    }
+
+    [Fact]
+    public void UnknownIntegrationsListTheKnownOnes()
+    {
+        var error = Assert.Throws<SideSeatConfigurationException>(() => SideSeatIntegrations.Get("semantic-kernal"));
+        Assert.Contains("semantic-kernel", error.Message);
+    }
+
+    [Fact]
+    public void DisabledRecordsNothing()
+    {
+        using var client = SideSeatClient.Create(new SideSeatOptions { Disabled = true });
+        using var span = client.StartTrace("ignored", sessionId: "s");
+        Assert.Null(span.Activity);
+        Assert.True(client.Flush());
+    }
+
+    [Fact]
+    public void ShutdownIsIdempotentAndAllowsANewClient()
+    {
+        var client = Capture(out _);
+        Assert.True(client.Shutdown());
+        Assert.True(client.Shutdown());
+        using var next = Capture(out _);
+        Assert.Same(next, SideSeatClient.Current);
     }
 }

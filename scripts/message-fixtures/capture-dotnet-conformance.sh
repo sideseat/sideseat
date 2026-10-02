@@ -83,10 +83,10 @@ command -v "$dotnet_command" >/dev/null 2>&1 || {
 "$dotnet_command" restore "$project" --locked-mode
 "$dotnet_command" build "$project" --configuration Release --no-restore -warnaserror
 
-capture_mode dotnet-otel/canonical otel "$base_port"
-capture_mode dotnet-sdk/canonical sdk "$((base_port + 1))"
+capture_mode dotnet/native/canonical otel "$base_port"
+capture_mode dotnet/sdk/canonical sdk "$((base_port + 1))"
 
 echo "[dotnet-conformance] review and record expectations:"
-echo "  scripts/message-fixtures/review-goldens.py dotnet-otel/canonical"
-echo "  scripts/message-fixtures/review-goldens.py dotnet-sdk/canonical"
+echo "  scripts/message-fixtures/review-goldens.py dotnet/native/canonical"
+echo "  scripts/message-fixtures/review-goldens.py dotnet/sdk/canonical"
 echo "  UPDATE_GOLDENS=1 cargo test --locked -p sideseat-server --test message_goldens message_goldens"

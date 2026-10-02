@@ -93,7 +93,7 @@ the corpus matches it.
 | `claude-agent-sdk-js/legacy` | @anthropic-ai/claude-agent-sdk ^0.3.246 | 8 | 17 |
 | `crewai/legacy` | crewai >=1.10.1 | 9 | 33 |
 | `dotnet/native` | OpenTelemetry .NET 1.19.1 on .NET SDK 10.0.401 | 1 | 1 |
-| `dotnet/sdk` | SideSeat .NET 0.2.0 / OpenTelemetry 1.19.1 on .NET SDK 10.0.401 | 1 | 1 |
+| `dotnet/sdk` | SideSeat .NET 1.0.0 / OpenTelemetry 1.19.1 on .NET SDK 10.0.401 | 1 | 1 |
 | `google-genai/native` | Google GenAI 2.26.0 / Logfire 6.0.0b7 / Google GenAI OTel instrumentor 1.2b0 / OpenTelemetry Python 1.44.0 on CPython 3.12.8 | 1 | 1 |
 | `google-genai/sdk` | SideSeat Python 1.0.8 / Google GenAI 2.26.0 / Logfire 6.0.0b7 / Google GenAI OTel instrumentor 1.2b0 / OpenTelemetry Python 1.44.0 on CPython 3.12.8 | 1 | 1 |
 | `haystack/native` | Haystack 3.3.0 / opentelemetry-haystack 1.0.0 / OpenAI 3.22.1 / OpenTelemetry Python 1.45.0, native OTLP setup | 1 | 1 |
@@ -118,7 +118,7 @@ the corpus matches it.
 | `pydantic-ai/native` | Pydantic AI 2.50.0 / Logfire 6.0.0b7 / OpenTelemetry Python 1.44.0 on CPython 3.12.8 | 1 | 1 |
 | `pydantic-ai/sdk` | SideSeat Python 1.0.8 / Pydantic AI 2.50.0 / Logfire 6.0.0b7 / OpenTelemetry Python 1.44.0 on CPython 3.12.8 | 1 | 1 |
 | `python/native` | OpenTelemetry Python 1.45.0 on CPython 3.14.7 | 1 | 1 |
-| `python/sdk` | SideSeat Python 1.0.8 / OpenTelemetry Python 1.45.0 on CPython 3.14.7 | 1 | 1 |
+| `python/sdk` | SideSeat Python 2.0.0 / OpenTelemetry Python 1.45.0 on CPython 3.14.7 | 1 | 1 |
 | `rust/native` | OpenTelemetry Rust 0.33.0 on Rust 1.94.1 | 1 | 1 |
 | `rust/sdk` | SideSeat Rust 0.2.0 / OpenTelemetry Rust 0.33.0 on Rust 1.94.1 | 1 | 1 |
 | `semantic-kernel/native` | Semantic Kernel 1.44.1 / OpenAI 3.22.1 / OpenTelemetry Python 1.45.0, native OTLP setup | 1 | 1 |
