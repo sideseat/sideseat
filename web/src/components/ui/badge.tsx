@@ -15,10 +15,28 @@ const badgeVariants = cva(
         destructive:
           "border-transparent bg-destructive text-white [a&]:hover:bg-destructive/90 focus-visible:ring-destructive/20 dark:focus-visible:ring-destructive/40 dark:bg-destructive/60",
         outline: "text-foreground [a&]:hover:bg-accent [a&]:hover:text-accent-foreground",
+        success: "border-success/30 bg-success/10 text-success-foreground",
+      },
+      size: {
+        default: "",
+        // Dense metadata such as status pills and source markers.
+        sm: "px-1.5 text-3xs",
+      },
+      weight: {
+        default: "",
+        normal: "font-normal",
+      },
+      // Values that read better aligned: durations, token counts, model ids.
+      mono: {
+        true: "font-mono",
+        false: "",
       },
     },
     defaultVariants: {
       variant: "default",
+      size: "default",
+      weight: "default",
+      mono: false,
     },
   },
 );
@@ -26,13 +44,20 @@ const badgeVariants = cva(
 function Badge({
   className,
   variant,
+  size,
+  weight,
+  mono,
   asChild = false,
   ...props
 }: React.ComponentProps<"span"> & VariantProps<typeof badgeVariants> & { asChild?: boolean }) {
   const Comp = asChild ? Slot : "span";
 
   return (
-    <Comp data-slot="badge" className={cn(badgeVariants({ variant }), className)} {...props} />
+    <Comp
+      data-slot="badge"
+      className={cn(badgeVariants({ variant, size, weight, mono }), className)}
+      {...props}
+    />
   );
 }
 

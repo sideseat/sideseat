@@ -1,6 +1,7 @@
 import * as React from "react";
 import * as SheetPrimitive from "@radix-ui/react-dialog";
 import { XIcon } from "lucide-react";
+import { cva, type VariantProps } from "class-variance-authority";
 
 import { cn } from "@/lib/utils";
 
@@ -56,7 +57,7 @@ function SheetContent({
       <SheetPrimitive.Content
         data-slot="sheet-content"
         className={cn(
-          "bg-background fixed z-50 flex flex-col gap-4 shadow-lg",
+          "bg-background fixed z-50 flex flex-col shadow-lg",
           !noAnimation &&
             "data-[state=open]:animate-in data-[state=closed]:animate-out transition ease-in-out data-[state=closed]:duration-300 data-[state=open]:duration-500",
           side === "right" &&
@@ -99,11 +100,28 @@ function SheetContent({
   );
 }
 
-function SheetHeader({ className, ...props }: React.ComponentProps<"div">) {
+const sheetHeaderVariants = cva("flex flex-col gap-1.5 p-4", {
+  variants: {
+    variant: {
+      default: "",
+      // Separates the header from a scrolling body.
+      bordered: "border-b",
+      // Detail sheets whose header hosts tabs and actions.
+      toolbar: "border-b bg-muted/40",
+    },
+  },
+  defaultVariants: { variant: "default" },
+});
+
+function SheetHeader({
+  className,
+  variant,
+  ...props
+}: React.ComponentProps<"div"> & VariantProps<typeof sheetHeaderVariants>) {
   return (
     <div
       data-slot="sheet-header"
-      className={cn("flex flex-col gap-1.5 p-4", className)}
+      className={cn(sheetHeaderVariants({ variant }), className)}
       {...props}
     />
   );
@@ -119,11 +137,26 @@ function SheetFooter({ className, ...props }: React.ComponentProps<"div">) {
   );
 }
 
-function SheetTitle({ className, ...props }: React.ComponentProps<typeof SheetPrimitive.Title>) {
+const sheetTitleVariants = cva("text-foreground gap-2", {
+  variants: {
+    size: {
+      sm: "text-sm font-semibold tracking-tight",
+      default: "font-semibold",
+      md: "text-base font-medium",
+    },
+  },
+  defaultVariants: { size: "default" },
+});
+
+function SheetTitle({
+  className,
+  size,
+  ...props
+}: React.ComponentProps<typeof SheetPrimitive.Title> & VariantProps<typeof sheetTitleVariants>) {
   return (
     <SheetPrimitive.Title
       data-slot="sheet-title"
-      className={cn("text-foreground font-semibold", className)}
+      className={cn(sheetTitleVariants({ size }), className)}
       {...props}
     />
   );

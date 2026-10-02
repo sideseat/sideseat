@@ -47,6 +47,86 @@
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-role-system: var(--role-system);
+  --color-role-user: var(--role-user);
+  --color-role-assistant: var(--role-assistant);
+  --color-role-tool: var(--role-tool);
+  --color-role-tool-call: var(--role-tool-call);
+  --color-role-thinking: var(--role-thinking);
+  --color-role-context: var(--role-context);
+  --color-highlight: var(--highlight);
+  --color-favorite: var(--favorite);
+  --color-overlay: var(--overlay);
+  --color-overlay-foreground: var(--overlay-foreground);
+  --color-overlay-muted-foreground: var(--overlay-muted-foreground);
+  --color-overlay-border: var(--overlay-border);
+}
+
+/*
+ * Type steps below text-xs for dense telemetry chrome (badges, axis labels,
+ * metadata pills). No line-height is declared, so these inherit the
+ * surrounding leading exactly as the arbitrary sizes they replace did.
+ */
+@theme {
+  --text-2xs: 0.6875rem;
+  --text-3xs: 0.625rem;
+}
+
+/* Header, scrolling body, footer: the list pages' fixed chrome around a grid. */
+@utility grid-rows-frame {
+  grid-template-rows: auto 1fr auto;
+}
+
+/*
+ * Semantic colors shared by every color scheme. They are not part of the
+ * per-theme files because status and message-role meaning must not change
+ * with the brand palette.
+ *
+ * - success / warning: accents for icons, borders, and tints (bg-warning/10).
+ *   The -foreground token is body text on that tint, which needs more
+ *   contrast than the accent itself provides.
+ * - role-*: message roles and block kinds in conversation views.
+ * - highlight: search-match marks. favorite: the favorite star.
+ * - overlay-*: always-dark chrome (media lightbox, terminal snippets) that
+ *   stays dark in light mode.
+ */
+:root {
+  --success: oklch(62.7% 0.194 149.214);
+  --success-foreground: oklch(52.7% 0.154 150.069);
+  --warning: oklch(66.6% 0.179 58.318);
+  --warning-foreground: oklch(41.4% 0.112 45.904);
+  --role-system: oklch(55.8% 0.288 302.321);
+  --role-user: oklch(54.6% 0.245 262.881);
+  --role-assistant: oklch(59.6% 0.145 163.225);
+  --role-tool: oklch(60% 0.118 184.704);
+  --role-tool-call: oklch(64.6% 0.222 41.116);
+  --role-thinking: oklch(59.2% 0.249 0.584);
+  --role-context: oklch(66.6% 0.179 58.318);
+  --highlight: oklch(90.5% 0.182 98.111);
+  --favorite: oklch(85.2% 0.199 91.936);
+  --overlay: oklch(14.1% 0.005 285.823);
+  --overlay-foreground: oklch(96.7% 0.001 286.375);
+  --overlay-muted-foreground: oklch(70.8% 0 0);
+  --overlay-border: oklch(27.4% 0.006 286.033);
+}
+
+.dark {
+  --success: oklch(79.2% 0.209 151.711);
+  --success-foreground: oklch(79.2% 0.209 151.711);
+  --warning: oklch(82.8% 0.189 84.429);
+  --warning-foreground: oklch(92.4% 0.12 95.746);
+  --role-system: oklch(71.4% 0.203 305.504);
+  --role-user: oklch(70.7% 0.165 254.624);
+  --role-assistant: oklch(76.5% 0.177 163.223);
+  --role-tool: oklch(77.7% 0.152 181.912);
+  --role-tool-call: oklch(75% 0.183 55.934);
+  --role-thinking: oklch(71.8% 0.202 349.761);
+  --role-context: oklch(82.8% 0.189 84.429);
+  --highlight: oklch(79.5% 0.184 86.047);
 }
 
 @layer base {
@@ -135,6 +215,60 @@
 }
 .dark .prose {
   @apply text-foreground;
+}
+
+/*
+ * JSON viewer syntax colors: the @uiw/react-json-view light theme, and its
+ * vscode theme in dark mode, on a transparent background in the page font.
+ */
+.json-viewer {
+  --w-rjv-font-family: inherit;
+  --w-rjv-color: #002b36;
+  --w-rjv-key-string: #002b36;
+  --w-rjv-background-color: transparent;
+  --w-rjv-line-color: #ebebeb;
+  --w-rjv-arrow-color: var(--w-rjv-color);
+  --w-rjv-edit-color: var(--w-rjv-color);
+  --w-rjv-info-color: #0000004d;
+  --w-rjv-update-color: #ebcb8b;
+  --w-rjv-copied-color: #002b36;
+  --w-rjv-copied-success-color: #28a745;
+  --w-rjv-curlybraces-color: #236a7c;
+  --w-rjv-colon-color: #002b36;
+  --w-rjv-brackets-color: #236a7c;
+  --w-rjv-quotes-color: var(--w-rjv-key-string);
+  --w-rjv-quotes-string-color: var(--w-rjv-type-string-color);
+  --w-rjv-type-string-color: #cb4b16;
+  --w-rjv-type-int-color: #268bd2;
+  --w-rjv-type-float-color: #859900;
+  --w-rjv-type-bigint-color: #268bd2;
+  --w-rjv-type-boolean-color: #2aa198;
+  --w-rjv-type-date-color: #586e75;
+  --w-rjv-type-url-color: #0969da;
+  --w-rjv-type-null-color: #d33682;
+  --w-rjv-type-nan-color: #859900;
+  --w-rjv-type-undefined-color: #586e75;
+}
+.dark .json-viewer {
+  --w-rjv-color: #9cdcfe;
+  --w-rjv-key-string: #9cdcfe;
+  --w-rjv-line-color: #36334280;
+  --w-rjv-arrow-color: #838383;
+  --w-rjv-info-color: #9c9c9c7a;
+  --w-rjv-update-color: #9cdcfe;
+  --w-rjv-copied-color: #9cdcfe;
+  --w-rjv-curlybraces-color: #d4d4d4;
+  --w-rjv-colon-color: #d4d4d4;
+  --w-rjv-brackets-color: #d4d4d4;
+  --w-rjv-type-string-color: #ce9178;
+  --w-rjv-type-int-color: #b5cea8;
+  --w-rjv-type-float-color: #b5cea8;
+  --w-rjv-type-bigint-color: #b5cea8;
+  --w-rjv-type-boolean-color: #569cd6;
+  --w-rjv-type-date-color: #b5cea8;
+  --w-rjv-type-url-color: #3b89cf;
+  --w-rjv-type-null-color: #569cd6;
+  --w-rjv-type-undefined-color: #569cd6;
 }
 
 /* JSON viewer collapse disable styles */
