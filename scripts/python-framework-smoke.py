@@ -8,6 +8,7 @@ import importlib
 import inspect
 import os
 import sys
+import tomllib
 from pathlib import Path
 from typing import Any
 
@@ -28,11 +29,42 @@ def shutdown_owner(value: Any) -> None:
         shutdown()
 
 
+def smoke_harness_suite(project: Path, mode: str) -> None:
+    """A suite on the shared harness: configure its telemetry mode, build its model, import its scenarios."""
+    from harness import models
+    from harness.cli import Suite
+    from harness.telemetry import NativeTelemetry, SdkTelemetry, Telemetry
+
+    suite = Suite.load(project)
+    telemetry: Telemetry
+    if mode == "sdk":
+        telemetry = SdkTelemetry(suite.integrations)
+    else:
+        native = NativeTelemetry(suite.service_name)
+        suite.module("native").configure(native)
+        telemetry = native
+    suite.module("models").build(models.resolve(suite.default_model))
+    scenarios = suite.scenarios()
+    for name in scenarios:
+        suite.module(f"scenarios.{name}")
+    # The endpoint is unreachable and nothing was traced, so a failed final flush is not a failure here.
+    try:
+        telemetry.shutdown()
+    except SystemExit:
+        pass
+    print(f"{project.name}: {mode}: {len(scenarios)} scenarios")
+
+
 def main() -> None:
     args = parse_args()
     project = Path(args.project).resolve()
     os.chdir(project)
     sys.path.insert(0, str(project))
+
+    manifest = tomllib.loads((project / "pyproject.toml").read_text())
+    if "sideseat-example" in manifest.get("tool", {}):
+        smoke_harness_suite(project, args.mode)
+        return
 
     config = importlib.import_module("config")
     samples = config.SAMPLES
