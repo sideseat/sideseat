@@ -870,7 +870,7 @@ fn development_processes_are_scoped_and_environment_is_explicit() {
 
 #[test]
 fn maintenance_loops_fail_fast_and_hook_setup_supports_worktrees() {
-    let makefile = std::fs::read_to_string(repo_root().join("Makefile")).expect("Makefile");
+    let makefile = makefile_sources();
     assert!(
         makefile.contains("update-python-deps: ## Upgrade every Python lockfile")
             && makefile
@@ -881,9 +881,9 @@ fn maintenance_loops_fail_fast_and_hook_setup_supports_worktrees() {
 
     let hooks_start = makefile.find("setup-hooks:").expect("setup-hooks target");
     let hooks_end = makefile[hooks_start..]
-        .find("# Development")
+        .find("\n\n")
         .map(|offset| hooks_start + offset)
-        .expect("development section");
+        .expect("setup-hooks recipe ends");
     let hooks = &makefile[hooks_start..hooks_end];
     assert!(
         hooks.contains("git rev-parse --git-dir")

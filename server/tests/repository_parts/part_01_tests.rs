@@ -11,6 +11,22 @@ fn repo_root() -> &'static Path {
         .expect("the crate sits in the repository")
 }
 
+/// The root Makefile followed by every fragment it includes, in include order.
+fn makefile_sources() -> String {
+    let root = std::fs::read_to_string(repo_root().join("Makefile")).expect("Makefile");
+    let mut combined = root.clone();
+    for line in root.lines() {
+        if let Some(fragment) = line.strip_prefix("include ") {
+            let path = repo_root().join(fragment.trim());
+            combined.push('\n');
+            combined.push_str(&std::fs::read_to_string(&path).unwrap_or_else(|error| {
+                panic!("{} is included but unreadable: {error}", path.display())
+            }));
+        }
+    }
+    combined
+}
+
 #[test]
 fn authorization_membership_checks_are_not_cached() {
     let source = std::fs::read_to_string(repo_root().join("server/crates/api/src/auth/context.rs"))

@@ -1,0 +1,17 @@
+# cargo-nextest runs every Rust test in its own process, in parallel across all crates.
+
+[profile.default]
+failure-output = "immediate-final"
+slow-timeout = { period = "30s" }
+
+[profile.ci]
+fail-fast = false
+retries = 0
+
+# Allocation counters are process-global, so the footprint gates must not overlap.
+[test-groups]
+footprint = { max-threads = 1 }
+
+[[profile.default.overrides]]
+filter = "binary(footprint)"
+test-group = "footprint"

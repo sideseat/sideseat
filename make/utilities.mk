@@ -1,5 +1,6 @@
-# Utilities
-# =============================================================================
+##@ Utilities
+
+.PHONY: deps-check node-floor download-prices clean-stale clean-docker disk disk-guard clean
 
 deps-check: ## Report outdated dependencies
 	@./scripts/deps-check.sh
@@ -138,7 +139,3 @@ clean: ## Remove all generated build artifacts
 	@rm -rf $(RELEASE_DIR)
 	@echo "[clean] Done. Cargo artifacts and web/dist are gone; the next Rust build is cold."
 	@echo "[clean] The API crate recreates web/dist as a placeholder on the next build - run make build-web for the real UI."
-
-# Aliases
-run: dev ## Alias for dev
-start: dev ## Alias for dev

@@ -1,7 +1,13 @@
+# Prints `make help` from the `##@ Section` headings and `target: ## description` annotations in
+# every Makefile fragment, in include order.
 BEGIN {
   FS = ":.*## "
   print "SideSeat repository commands"
-  print ""
+}
+
+/^##@ / {
+  printf "\n%s\n", substr($0, 5)
+  next
 }
 
 /^[A-Za-z0-9_.%-]+:.*## / {

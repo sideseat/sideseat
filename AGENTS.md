@@ -91,13 +91,15 @@ architecture manual.
 
 ## Verification
 
-Run the smallest relevant checks while iterating, then the broader gate for the
-affected surface:
+`make quick` is the inner loop: it formats, lints, and tests only the areas changed
+since `main`, and must stay under a minute. Run it while iterating, then the broader
+gate for the affected surface:
 
 ```bash
+make quick
 cargo fmt --all -- --check
 cargo clippy --locked --workspace --all-targets -- -D warnings
-cargo test --locked --workspace
+cargo nextest run --locked --workspace
 make fmt-check
 make lint
 make test

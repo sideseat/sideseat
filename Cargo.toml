@@ -217,6 +217,9 @@ core-foundation = "0.10"
 # DWARF to bound local build size.
 [profile.dev]
 debug = "line-tables-only"
+# The test suites replay a large captured telemetry corpus. Unoptimized code made them about ten times
+# slower while an incremental rebuild costs about the same at this level.
+opt-level = 2
 
 [profile.dev.package."*"]
 debug = false

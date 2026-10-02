@@ -1,0 +1,8 @@
+# One command installs every toolchain this repository builds with: `mise install`.
+# Rust comes from rust-toolchain.toml through rustup; everything else is pinned here.
+[tools]
+node = "24"
+python = "3.13"
+uv = "0.12.13"
+dotnet = "10.0.401"
+"cargo:cargo-nextest" = "0.9.137"

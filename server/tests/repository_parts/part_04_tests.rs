@@ -39,7 +39,7 @@ fn container_tests_share_trapped_cleanup() {
         );
     }
 
-    let makefile = std::fs::read_to_string(repo_root().join("Makefile")).expect("Makefile");
+    let makefile = makefile_sources();
     for scenario in [
         "clickhouse",
         "clickhouse-replicated",
@@ -56,27 +56,18 @@ fn container_tests_share_trapped_cleanup() {
 }
 
 #[test]
-fn pre_commit_routes_root_rust_changes_to_the_workspace_suite() {
+fn pre_commit_stays_cheap() {
     let hook =
         std::fs::read_to_string(repo_root().join(".githooks/pre-commit")).expect("pre-commit hook");
-    for root_input in [
-        "'Cargo.toml'",
-        "'Cargo.lock'",
-        "'deny.toml'",
-        "'rustfmt.toml'",
-        "'clippy.toml'",
-        "'rust-toolchain.toml'",
-        "'.cargo/'",
-    ] {
+    for required in ["make --no-print-directory secret-scan-staged", "check-file-lengths.sh --cached"] {
+        assert!(hook.contains(required), "pre-commit must run `{required}`");
+    }
+    for forbidden in ["make test", "make lint", "make check", "nextest", "cargo test", "clippy"] {
         assert!(
-            hook.contains(root_input),
-            "pre-commit Rust detection must include {root_input}"
+            !hook.contains(forbidden),
+            "pre-commit must not run `{forbidden}`: tests and lint belong to make quick, pre-push, and CI"
         );
     }
-    assert!(
-        hook.contains("staged 'sdk/rust/'") && hook.contains("make test-rust"),
-        "Rust SDK and root configuration changes must run workspace tests"
-    );
 }
 
 #[test]
@@ -180,7 +171,7 @@ fn stale_cleanup_discovers_every_incremental_directory() {
 
 #[test]
 fn make_help_is_generated_from_target_annotations() {
-    let makefile = std::fs::read_to_string(repo_root().join("Makefile")).expect("Makefile");
+    let makefile = makefile_sources();
     assert!(
         makefile.contains("help: ## Show available commands")
             && makefile.contains("@awk -f scripts/make-help.awk $(MAKEFILE_LIST)")

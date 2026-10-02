@@ -23,7 +23,7 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@f7ccc83f9ed1e5b9c81d8a67d7ad1a747e22a561 # stable
         with:
-          toolchain: stable
+          toolchain: '1.95.0'
           components: rustfmt, clippy
 
       - uses: Swatinem/rust-cache@779680da715d629ac1d338a641029a2f4372abb5 # v2.8.2
@@ -65,6 +65,9 @@ jobs:
       # No web-dist step: `cargo check` runs build scripts, and the API crate creates the placeholder the
       # asset embedding needs.
       - name: Check the whole workspace
+        # rust-toolchain.toml pins the development toolchain; the floor overrides it here.
+        env:
+          RUSTUP_TOOLCHAIN: '1.94.1'
         run: cargo check --locked --workspace --all-targets
 
   check-clickhouse:
@@ -92,7 +95,7 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@f7ccc83f9ed1e5b9c81d8a67d7ad1a747e22a561 # stable
         with:
-          toolchain: stable
+          toolchain: '1.95.0'
 
       - uses: Swatinem/rust-cache@779680da715d629ac1d338a641029a2f4372abb5 # v2.8.2
         with:
@@ -153,7 +156,7 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@f7ccc83f9ed1e5b9c81d8a67d7ad1a747e22a561 # stable
         with:
-          toolchain: stable
+          toolchain: '1.95.0'
 
       - uses: Swatinem/rust-cache@779680da715d629ac1d338a641029a2f4372abb5 # v2.8.2
         with:
@@ -230,7 +233,7 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@f7ccc83f9ed1e5b9c81d8a67d7ad1a747e22a561 # stable
         with:
-          toolchain: stable
+          toolchain: '1.95.0'
 
       - uses: Swatinem/rust-cache@779680da715d629ac1d338a641029a2f4372abb5 # v2.8.2
         with:
@@ -279,7 +282,7 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@f7ccc83f9ed1e5b9c81d8a67d7ad1a747e22a561 # stable
         with:
-          toolchain: stable
+          toolchain: '1.95.0'
 
       - uses: Swatinem/rust-cache@779680da715d629ac1d338a641029a2f4372abb5 # v2.8.2
         with:
@@ -322,7 +325,7 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@f7ccc83f9ed1e5b9c81d8a67d7ad1a747e22a561 # stable
         with:
-          toolchain: stable
+          toolchain: '1.95.0'
 
       - uses: Swatinem/rust-cache@779680da715d629ac1d338a641029a2f4372abb5 # v2.8.2
         with:
@@ -639,7 +642,7 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@f7ccc83f9ed1e5b9c81d8a67d7ad1a747e22a561 # stable
         with:
-          toolchain: stable
+          toolchain: '1.95.0'
 
       - name: Install Rust supply-chain tools
         # Pin the tools as well as their dependency graphs.

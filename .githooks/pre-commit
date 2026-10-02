@@ -1,52 +1,36 @@
 #!/usr/bin/env bash
 #
-# Delegates to Make targets and scopes tests to the staged areas. The pre-push hook runs the
-# complete gate.
+# Cheap by design: a commit must never wait for a test suite. This hook stops the two mistakes that
+# are expensive to undo once committed - a secret, and an oversized file - and checks formatting.
+# Lint and tests run in `make quick` while iterating, in the pre-push hook, and in CI.
 set -euo pipefail
 
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 cd "$REPO_ROOT"
 
-staged() { git diff --cached --name-only -- "$@" | grep -qc . 2>/dev/null; }
-
-# A secret that reaches a commit is effectively public even if it is never pushed: it survives
-# in reflogs, stashes and any clone, and removing it needs a history rewrite. Cheapest possible
-# place to stop it, so it runs first and unconditionally.
-make secret-scan-staged
-# Read blobs from the index, not the working tree: an unstaged shortening must not hide an oversized version
-# that is actually about to be committed.
+# A committed secret survives in reflogs, stashes, and clones even if it is never pushed.
+make --no-print-directory secret-scan-staged
+# Reads blobs from the index, so an unstaged shortening cannot hide an oversized staged version.
 ./scripts/check-file-lengths.sh --cached
 
-RUST_SERVER=0; RUST_WORKSPACE=0; WEB=0; JS_SDK=0; PY=0
-staged 'server/' && RUST_SERVER=1
-staged 'sdk/rust/' 'Cargo.toml' 'Cargo.lock' 'deny.toml' 'rustfmt.toml' 'clippy.toml' \
-    'rust-toolchain' 'rust-toolchain.toml' '.cargo/' && RUST_WORKSPACE=1
-staged 'web/' && WEB=1
-staged 'sdk/js/' && JS_SDK=1
-staged 'sdk/python/' 'examples/python/' 'scripts/' 'tools/' && PY=1
+staged() { git diff --cached --name-only --diff-filter=ACMR -- "$@"; }
 
-if [ "$RUST_SERVER$RUST_WORKSPACE$WEB$JS_SDK$PY" = "00000" ]; then
-    echo "[pre-commit] No code staged, skipping build checks"
-    echo "[pre-commit] All checks passed"
-    exit 0
+if [ -n "$(staged '*.rs')" ]; then
+    cargo fmt --all -- --check
 fi
 
-# Format and lint are whole-tree and fast, and they are what most commits get wrong.
-echo "[pre-commit] Format + lint..."
-make fmt-check
-make lint
-
-# Root Rust configuration and SDK changes affect the whole workspace. Server-only changes keep
-# the faster package-level loop.
-if [ "$RUST_WORKSPACE" = 1 ]; then
-    echo "[pre-commit] Rust workspace tests..."
-    make test-rust
-elif [ "$RUST_SERVER" = 1 ]; then
-    echo "[pre-commit] Server tests..."
-    make test-server
+python_files="$(staged '*.py')"
+if [ -n "$python_files" ]; then
+    # shellcheck disable=SC2086
+    uv run --locked ruff format --check $python_files
 fi
-[ "$WEB" = 1 ]    && { echo "[pre-commit] Web tests...";        make test-web; }
-[ "$JS_SDK" = 1 ] && { echo "[pre-commit] JS SDK tests...";     make test-sdk-js; }
-[ "$PY" = 1 ]     && { echo "[pre-commit] Python SDK tests..."; make test-sdk-python; }
 
-echo "[pre-commit] All checks passed"
+for project in web sdk/js examples/javascript; do
+    files="$(staged "$project/*.ts" "$project/*.tsx" "$project/*.css" "$project/*.json")"
+    [ -n "$files" ] || continue
+    [ -x "$project/node_modules/.bin/prettier" ] || { echo "Error: $project/node_modules missing. Run 'make setup'."; exit 1; }
+    # shellcheck disable=SC2086
+    "$project/node_modules/.bin/prettier" --check $files
+done
+
+echo "[pre-commit] Passed"
