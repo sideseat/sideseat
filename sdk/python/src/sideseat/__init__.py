@@ -1,390 +1,213 @@
-"""SideSeat: AI observability SDK with automatic framework instrumentation."""
+"""SideSeat: OpenTelemetry for AI agents, configured in one call.
+
+::
+
+    import sideseat
+
+    sideseat.init(integrations=["strands"])
+
+    with sideseat.session("conversation-42", user_id="user-7"):
+        agent("Plan a trip to Kyoto")
+
+See https://sideseat.ai/docs/sdks/python/ for every option.
+"""
 
 from __future__ import annotations
 
-import logging
 import threading
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator, Mapping, Sequence
 from contextlib import contextmanager
-from typing import TYPE_CHECKING, Any
+from typing import Any, TypeVar
 
+from opentelemetry.trace import Span, SpanKind
+
+from sideseat import _config
+from sideseat._client import SideSeat
 from sideseat._version import __version__
-from sideseat.config import Config, Frameworks
-from sideseat.telemetry import TelemetryClient
-from sideseat.telemetry.encoding import encode_value, span_to_dict
-from sideseat.telemetry.exporters import JsonFileSpanExporter
+from sideseat.errors import ConfigurationError, IntegrationError, SideSeatError
+from sideseat.integrations import Integration
 
-if TYPE_CHECKING:
-    from opentelemetry.trace import Span, Tracer
+F = TypeVar("F", bound=Callable[..., Any])
 
-logger = logging.getLogger("sideseat")
+_lock = threading.Lock()
+_client: SideSeat | None = None
 
 
-class SideSeatError(Exception):
-    """Base exception for SideSeat SDK errors."""
+def init(
+    *,
+    endpoint: str | None = None,
+    project: str | None = None,
+    api_key: str | None = None,
+    service_name: str | None = None,
+    service_version: str | None = None,
+    integrations: Sequence[str | Integration] | str | None = None,
+    capture_content: bool | None = None,
+    disabled: bool | None = None,
+    debug: bool | None = None,
+    export: bool = True,
+    metrics: bool = True,
+    logs: bool = True,
+    capture_python_logs: bool = False,
+    resource_attributes: Mapping[str, Any] | None = None,
+    span_processors: Sequence[Any] | None = None,
+) -> SideSeat:
+    """Configure telemetry for this process and return the client.
 
+    Args:
+        endpoint: SideSeat server URL, or an OTLP base URL that already has a path.
+        project: Project that receives the telemetry.
+        api_key: Sent as a bearer token.
+        service_name: ``service.name``; defaults to the primary integration's package name.
+        service_version: ``service.version``; defaults to that package's version.
+        integrations: Names or :class:`~sideseat.integrations.Integration` instances. The first is
+            the primary integration. ``None`` detects the installed framework.
+        capture_content: Record prompts, responses, and tool payloads. On by default.
+        disabled: Configure nothing; every call becomes a no-op.
+        debug: Log the SDK's decisions at debug level.
+        export: Send telemetry over OTLP. Off is useful with ``span_processors`` in tests.
+        metrics: Export OpenTelemetry metrics.
+        logs: Export OpenTelemetry log records, which some instrumentations use for GenAI events.
+        capture_python_logs: Also export records from Python's ``logging`` root logger.
+        resource_attributes: Extra resource attributes for every signal.
+        span_processors: Extra processors, run after correlation and before export.
 
-_global_instance: SideSeat | None = None
-_global_lock = threading.Lock()
-
-
-class SideSeat:
-    """SideSeat observability client.
-
-    Examples:
-        # Zero config - auto-detects framework
-        SideSeat()
-
-        # Explicit framework
-        SideSeat(framework=Frameworks.Strands)
-
-        # With cloud provider instrumentation (direct boto3 usage)
-        SideSeat(framework=Frameworks.Bedrock)
-
-        # Framework + provider
-        SideSeat(framework=[Frameworks.Strands, Frameworks.Bedrock])
-
-        # Context manager (auto shutdown)
-        with SideSeat() as client:
-            pass
-
-        # Disabled mode (testing/CI)
-        SideSeat(disabled=True)  # or SIDESEAT_DISABLED=true
+    Calling ``init`` again with the same arguments returns the same client. Different arguments
+    raise :class:`ConfigurationError`: telemetry configuration is process-wide.
     """
-
-    def __init__(
-        self,
-        *,
-        disabled: bool | None = None,
-        endpoint: str | None = None,
-        api_key: str | None = None,
-        project_id: str | None = None,
-        framework: str | list[str] | None = None,
-        service_name: str | None = None,
-        service_version: str | None = None,
-        auto_instrument: bool = True,
-        enable_traces: bool = True,
-        enable_metrics: bool = True,
-        enable_logs: bool | None = None,
-        encode_binary: bool = True,
-        capture_content: bool = True,
-        debug: bool | None = None,
-    ):
-        self._config = Config.create(
-            disabled=disabled,
-            endpoint=endpoint,
-            api_key=api_key,
-            project_id=project_id,
-            framework=framework,
-            service_name=service_name,
-            service_version=service_version,
-            auto_instrument=auto_instrument,
-            enable_traces=enable_traces,
-            enable_metrics=enable_metrics,
-            enable_logs=enable_logs,
-            encode_binary=encode_binary,
-            capture_content=capture_content,
-            debug=debug,
-        )
-        self._telemetry = TelemetryClient(self._config)
-        self._runtime: Any | None = None
-
-    def __enter__(self) -> SideSeat:
-        return self
-
-    def __exit__(self, *args: Any) -> None:
-        self.shutdown()
-
-    def __repr__(self) -> str:
-        return f"SideSeat(endpoint={self._config.endpoint!r}, project={self._config.project_id!r})"
-
-    @property
-    def telemetry(self) -> TelemetryClient:
-        """Access telemetry client for additional exporters."""
-        return self._telemetry
-
-    @property
-    def config(self) -> Config:
-        """Access immutable configuration."""
-        return self._config
-
-    @property
-    def is_disabled(self) -> bool:
-        """Check if telemetry is disabled."""
-        return self._config.disabled
-
-    @property
-    def tracer_provider(self) -> Any:
-        """Access tracer provider directly."""
-        return self._telemetry.tracer_provider
-
-    def get_tracer(self, name: str = "sideseat") -> Tracer:
-        """Get tracer for creating custom spans."""
-        return self._telemetry.get_tracer(name)
-
-    @contextmanager
-    def span(
-        self,
-        name: str,
-        *,
-        user_id: str | None = None,
-        session_id: str | None = None,
-        **kwargs: Any,
-    ) -> Iterator[Span]:
-        """Create a span (child of current span if one exists, otherwise root).
-
-        Example:
-            with client.span("sub-task") as span:
-                do_work()
-        """
-        with self._telemetry.span(name, user_id=user_id, session_id=session_id, **kwargs) as s:
-            yield s
-
-    @contextmanager
-    def trace(
-        self,
-        name: str,
-        *,
-        user_id: str | None = None,
-        session_id: str | None = None,
-        **kwargs: Any,
-    ) -> Iterator[Span]:
-        """Start a trace (root span that groups child spans).
-
-        Unlike `span()`, this always starts a new trace: an empty context detaches any
-        active span, so the result is a root even when called inside one. Without that,
-        `trace()` was identical to `span()` and quietly became a child, splitting nothing
-        off into its own trace.
-
-        Example:
-            with client.trace("bedrock-converse"):
-                bedrock.client.converse(...)
-                bedrock.client.converse(...)
-        """
-        from opentelemetry.context import Context
-
-        # setdefault: an explicit context= from the caller still wins.
-        kwargs.setdefault("context", Context())
-        with self._telemetry.span(name, user_id=user_id, session_id=session_id, **kwargs) as s:
-            yield s
-
-    def force_flush(self, timeout_millis: int = 30000) -> bool:
-        """Force flush pending spans."""
-        return self._telemetry.force_flush(timeout_millis)
-
-    def validate_connection(self, timeout: float = 5.0) -> bool:
-        """Test connection to SideSeat server."""
-        return self._telemetry.validate_connection(timeout)
-
-    def shutdown(self, timeout_millis: int = 30000) -> None:
-        """Graceful shutdown with flush."""
-        if self._runtime is not None:
-            try:
-                self._runtime.disconnect()
-            except Exception:  # pragma: no cover - best-effort
-                logger.debug("runtime disconnect raised", exc_info=True)
-        self._telemetry.shutdown(timeout_millis)
-
-    # ------------------------------------------------------------------
-    # SDK runtime channel (presence + introspection)
-    # ------------------------------------------------------------------
-
-    @property
-    def runtime(self) -> Any:
-        """Lazy-instantiated runtime client. Requires sideseat[ws] extra."""
-        if self._runtime is None:
-            from sideseat.runtime.client import RuntimeClient
-
-            self._runtime = RuntimeClient(
-                endpoint=self._config.endpoint,
-                project_id=self._config.project_id,
-                # Passed through: the runtime channel is authenticated whenever
-                # the server has auth on, so dropping the key here made
-                # `SideSeat(api_key=...).register(...).connect()` reconnect-loop
-                # on 401 against a correctly-configured server.
-                api_key=self._config.api_key,
-            )
-        return self._runtime
-
-    def register(
-        self,
-        objects: Any,
-        *,
-        name: str | None = None,
-        runtime: str | dict[str, Any] = "inproc",
-        agentcore_endpoint: str | None = None,
-    ) -> SideSeat:
-        """Register one object or a list of objects.
-
-        Auto-detects whether each object is an agent or an MCP client via
-        the inspector registry, and uses `obj.name` (or the explicit `name=`
-        kwarg for a single object) as the registration identity.
-        Chainable: `client.register([a]).register([b, mcp]).connect()`.
-        """
-        self.runtime.register(
-            objects,
-            name=name,
-            runtime=runtime,
-            agentcore_endpoint=agentcore_endpoint,
-        )
-        return self
-
-    def agent(
-        self,
-        instance: Any,
-        *,
-        name: str,
-        runtime: str | dict[str, Any] = "inproc",
-        agentcore_endpoint: str | None = None,
-        tools: list[Any] | None = None,
-        system_prompt: str | None = None,
-        model: str | None = None,
-        metadata: dict[str, Any] | None = None,
-    ) -> SideSeat:
-        """Register an agent for presence + introspection."""
-        self.runtime.add_agent(
-            instance,
-            name=name,
-            runtime=runtime,
-            agentcore_endpoint=agentcore_endpoint,
-            tools=tools,
-            system_prompt=system_prompt,
-            model=model,
-            metadata=metadata,
-        )
-        return self
-
-    def mcp(
-        self,
-        client: Any,
-        *,
-        name: str,
-        transport: str | None = None,
-        url: str | None = None,
-        tools: list[Any] | None = None,
-        metadata: dict[str, Any] | None = None,
-    ) -> SideSeat:
-        """Register an MCP client for presence + introspection."""
-        self.runtime.add_mcp(
-            client,
-            name=name,
-            transport=transport,
-            url=url,
-            tools=tools,
-            metadata=metadata,
-        )
-        return self
-
-    def connect(self, *, block: bool = True, banner: bool = True) -> SideSeat:
-        """Open the persistent WebSocket and re-flush the local registry.
-
-        When `block=True` (default), blocks the calling thread until
-        `disconnect()` is called or SIGINT/SIGTERM is received. Pass
-        `block=False` for embedding scenarios where the caller wants to
-        drive its own loop. Pass `banner=False` to suppress the startup
-        banner printed on stdout.
-        """
-        self.runtime.connect(block=block, banner=banner)
-        return self
-
-    def disconnect(self) -> None:
-        """Send unregisters and close the WebSocket."""
-        if self._runtime is not None:
-            self._runtime.disconnect()
-
-
-def init(**kwargs: Any) -> SideSeat:
-    """Initialize global SideSeat instance (thread-safe)."""
-    global _global_instance
-    with _global_lock:
-        if _global_instance is not None:
-            logger.warning("SideSeat already initialized; returning existing instance")
-            return _global_instance
-        _global_instance = SideSeat(**kwargs)
-        return _global_instance
+    global _client
+    settings = _config.resolve(
+        endpoint=endpoint,
+        project=project,
+        api_key=api_key,
+        service_name=service_name,
+        service_version=service_version,
+        integrations=integrations,
+        capture_content=capture_content,
+        disabled=disabled,
+        debug=debug,
+        export=export,
+        metrics=metrics,
+        logs=logs,
+        capture_python_logs=capture_python_logs,
+        resource_attributes=resource_attributes,
+        span_processors=span_processors,
+    )
+    with _lock:
+        if _client is not None:
+            if _client.settings.identity() != settings.identity():
+                raise ConfigurationError(
+                    "sideseat.init was already called with different settings; "
+                    "call sideseat.shutdown() first"
+                )
+            return _client
+        _client = SideSeat(settings)
+        return _client
 
 
 def get_client() -> SideSeat:
-    """Get global SideSeat instance. Raises if not initialized."""
-    with _global_lock:
-        if _global_instance is None:
-            raise SideSeatError("SideSeat not initialized. Call sideseat.init() first.")
-        return _global_instance
+    """The client :func:`init` created."""
+    with _lock:
+        if _client is None:
+            raise SideSeatError("call sideseat.init() first")
+        return _client
 
 
-def shutdown() -> None:
-    """Shutdown global SideSeat instance (for cleanup)."""
-    global _global_instance
-    with _global_lock:
-        if _global_instance is not None:
-            _global_instance.shutdown()
-            _global_instance = None
+def flush(timeout_millis: int = 30_000) -> bool:
+    """Export everything pending. Returns whether all of it was exported."""
+    return get_client().flush(timeout_millis)
 
 
-def is_initialized() -> bool:
-    """Check if global SideSeat instance exists."""
-    with _global_lock:
-        return _global_instance is not None
+def shutdown(timeout_millis: int = 30_000) -> bool:
+    """Flush and stop the pipeline. Runs automatically at exit; safe to call more than once."""
+    global _client
+    with _lock:
+        client, _client = _client, None
+    return True if client is None else client.shutdown(timeout_millis)
 
 
-# ---------------------------------------------------------------------------
-# Module-level convenience helpers for the WS runtime channel.
-# ---------------------------------------------------------------------------
+@contextmanager
+def session(session_id: str, *, user_id: str | None = None) -> Iterator[None]:
+    """Attribute every span started inside the block to a session and, optionally, a user."""
+    with get_client().session(session_id, user_id=user_id):
+        yield
 
 
-def register(objects: Any, **kwargs: Any) -> SideSeat:
-    """Module-level shorthand for `sideseat.get_client().register(...)`."""
-    return get_client().register(objects, **kwargs)
+@contextmanager
+def trace(
+    name: str,
+    *,
+    session_id: str | None = None,
+    user_id: str | None = None,
+    attributes: Mapping[str, Any] | None = None,
+    kind: SpanKind = SpanKind.INTERNAL,
+) -> Iterator[Span]:
+    """Start a new trace: a root span, even inside another span."""
+    with get_client().trace(
+        name, session_id=session_id, user_id=user_id, attributes=attributes, kind=kind
+    ) as span:
+        yield span
 
 
-def agent(instance: Any, *, name: str, **kwargs: Any) -> SideSeat:
-    """Module-level shorthand for `sideseat.get_client().agent(...)`."""
-    return get_client().agent(instance, name=name, **kwargs)
+@contextmanager
+def span(
+    name: str,
+    *,
+    attributes: Mapping[str, Any] | None = None,
+    kind: SpanKind = SpanKind.INTERNAL,
+) -> Iterator[Span]:
+    """Start a child of the active span."""
+    with get_client().span(name, attributes=attributes, kind=kind) as s:
+        yield s
 
 
-def mcp(client: Any, *, name: str, **kwargs: Any) -> SideSeat:
-    """Module-level shorthand for `sideseat.get_client().mcp(...)`."""
-    return get_client().mcp(client, name=name, **kwargs)
+def observe(
+    name: str | None = None,
+    *,
+    attributes: Mapping[str, Any] | None = None,
+    kind: SpanKind = SpanKind.INTERNAL,
+) -> Callable[[F], F]:
+    """Run each call of the decorated function in a span named after it.
 
+    The client is looked up at call time, so the decorator can be applied before :func:`init`.
+    """
 
-def connect(*, block: bool = True, banner: bool = True) -> SideSeat:
-    """Module-level shorthand for `sideseat.get_client().connect(...)`."""
-    return get_client().connect(block=block, banner=banner)
+    def decorate(func: F) -> F:
+        import functools
+        import inspect
 
+        if inspect.iscoroutinefunction(func):
 
-def disconnect() -> None:
-    """Module-level shorthand for `sideseat.get_client().disconnect()`."""
-    get_client().disconnect()
+            @functools.wraps(func)
+            async def run_async(*args: Any, **kwargs: Any) -> Any:
+                wrapped = get_client().observe(name, attributes=attributes, kind=kind)(func)
+                return await wrapped(*args, **kwargs)
 
+            return run_async  # type: ignore[return-value]
 
-# Wrap logfire.instrument_* early so abstract-method fixes apply to any
-# subsequent logfire instrumentation call, whether through SideSeat or not.
-try:
-    from sideseat.instrumentation import _wrap_logfire_instruments as _wli
+        @functools.wraps(func)
+        def run(*args: Any, **kwargs: Any) -> Any:
+            return get_client().observe(name, attributes=attributes, kind=kind)(func)(
+                *args, **kwargs
+            )
 
-    _wli()
-    del _wli
-except ImportError:
-    pass
+        return run  # type: ignore[return-value]
+
+    return decorate
 
 
 __all__ = [
-    "__version__",
+    "ConfigurationError",
+    "Integration",
+    "IntegrationError",
     "SideSeat",
-    "Frameworks",
     "SideSeatError",
-    "TelemetryClient",
-    "JsonFileSpanExporter",
-    "Config",
-    "init",
+    "__version__",
+    "flush",
     "get_client",
+    "init",
+    "observe",
+    "session",
     "shutdown",
-    "is_initialized",
-    "encode_value",
-    "span_to_dict",
-    "register",
-    "agent",
-    "mcp",
-    "connect",
-    "disconnect",
+    "span",
+    "trace",
 ]

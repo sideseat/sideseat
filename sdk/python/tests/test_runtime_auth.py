@@ -30,19 +30,8 @@ def test_auth_headers_carry_the_configured_key() -> None:
     assert without_key._auth_headers() == {}
 
 
-def test_the_facade_passes_its_api_key_to_the_runtime_client() -> None:
-    """`SideSeat(api_key=...)` must reach the runtime client.
-
-    This is where the key was being lost.
-    """
+def test_the_client_passes_its_api_key_to_the_runtime_client() -> None:
     import sideseat
 
-    client = sideseat.SideSeat(
-        api_key="sk_facade",
-        endpoint="http://127.0.0.1:1",
-        project_id="default",
-        # Nothing is exported or instrumented here; only the plumbing is read.
-        disabled=True,
-        auto_instrument=False,
-    )
-    assert client.runtime._auth_headers() == {"Authorization": "Bearer sk_facade"}
+    client = sideseat.init(api_key="sk_client", endpoint="http://127.0.0.1:1", disabled=True)
+    assert client.runtime()._auth_headers() == {"Authorization": "Bearer sk_client"}

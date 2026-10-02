@@ -275,7 +275,7 @@ def test_invoke_graph_routes_to_multiagent_converter() -> None:
             self.name = "pipeline"
             self.nodes = {"a": _Node(inner), "b": _Node(inner)}
 
-        async def stream_async(self, prompt: str):  # noqa: ARG002
+        async def stream_async(self, prompt: str):
             yield {"type": "multiagent_node_start", "node_id": "a"}
             yield {
                 "type": "multiagent_node_stream",
@@ -342,7 +342,7 @@ def test_invoke_swarm_routes_to_multiagent_converter() -> None:
             self.name = "team"
             self.nodes = {"alice": _Node(_StubAgent(name="alice"))}
 
-        async def stream_async(self, prompt: str):  # noqa: ARG002
+        async def stream_async(self, prompt: str):
             yield {"type": "multiagent_node_start", "node_id": "alice"}
             yield {
                 "type": "multiagent_node_stream",
@@ -418,7 +418,7 @@ def test_invoke_busy_check_scoped_by_kind_name() -> None:
             self.name = "pipeline"
             self.nodes = {"a": _Node(inner)}
 
-        async def stream_async(self, prompt: str):  # noqa: ARG002
+        async def stream_async(self, prompt: str):
             yield {"type": "multiagent_node_start", "node_id": "a"}
             yield {"type": "multiagent_node_stop", "node_id": "a"}
 

@@ -8,6 +8,7 @@ External users can register their own inspectors via `register_*_inspector`.
 
 from __future__ import annotations
 
+import contextlib
 import logging
 import threading
 from collections import OrderedDict
@@ -147,7 +148,7 @@ def inspect_strands_agent(
         try:
             registry = getattr(obj, "tool_registry", None)
             if registry is not None and hasattr(registry, "get_all_tools_config"):
-                config = registry.get_all_tools_config()  # type: ignore[attr-defined]
+                config = registry.get_all_tools_config()
                 if isinstance(config, dict):
                     discovered_tools = list(config.values())
                 elif isinstance(config, list):
@@ -205,10 +206,8 @@ def _swarm_or_graph_nodes(obj: Any) -> list[dict[str, Any]]:
             item.update(_strands_node_summary(executor))
         deps = getattr(node, "dependencies", None)
         if deps is not None:
-            try:
+            with contextlib.suppress(Exception):
                 item["dependencies"] = sorted(getattr(d, "node_id", str(d)) for d in deps)
-            except Exception:
-                pass
         out.append(item)
     return out
 
@@ -271,7 +270,7 @@ def inspect_mcp_client(
             if callable(list_fn):
                 result = list_fn()
                 if hasattr(result, "tools"):
-                    result = list(result.tools)  # type: ignore[attr-defined]
+                    result = list(result.tools)
                 if isinstance(result, list):
                     discovered_tools = [_to_jsonable(t) for t in result]
         except Exception as exc:
@@ -308,7 +307,7 @@ def _stringify(value: Any) -> str | None:
 def _to_jsonable(value: Any) -> Any:
     if hasattr(value, "model_dump"):
         try:
-            return value.model_dump()  # type: ignore[no-any-return]
+            return value.model_dump()
         except Exception:
             pass
     if hasattr(value, "__dict__"):
@@ -436,10 +435,7 @@ def _normalize_runtime(
     runtime: str | dict[str, Any],
     agentcore_endpoint: str | None,
 ) -> dict[str, Any]:
-    if isinstance(runtime, dict):
-        out = dict(runtime)
-    else:
-        out = {"kind": runtime}
+    out = dict(runtime) if isinstance(runtime, dict) else {"kind": runtime}
     if agentcore_endpoint and "endpoint" not in out:
         out["endpoint"] = agentcore_endpoint
     return out

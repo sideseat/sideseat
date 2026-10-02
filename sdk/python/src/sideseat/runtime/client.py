@@ -8,6 +8,7 @@ with jitter and re-flushes the local registry on every reconnect.
 from __future__ import annotations
 
 import atexit
+import importlib.util
 import logging
 import random
 import signal
@@ -18,7 +19,6 @@ from contextlib import suppress
 from typing import Any
 from urllib.parse import urlparse, urlunparse
 
-from sideseat._utils import _module_available
 from sideseat._version import __version__
 from sideseat.runtime.adapters import (
     build_agent_manifest,
@@ -325,9 +325,9 @@ class RuntimeClient(_InvocationMixin):
         When `block=True`, a startup banner is printed on stdout once the
         first welcome arrives. Pass `banner=False` to suppress it.
         """
-        if not _module_available("websockets"):
+        if not importlib.util.find_spec("websockets") is not None:
             raise ImportError(
-                "sideseat[ws] extra is not installed. Install with `pip install sideseat[ws]`."
+                'the runtime channel needs websockets: pip install "sideseat[runtime]"'
             )
         self._banner_enabled = banner and block
         if self._banner_enabled:
@@ -439,7 +439,7 @@ class RuntimeClient(_InvocationMixin):
         return {"Authorization": f"Bearer {self._api_key}"} if self._api_key else {}
 
     def _run_loop(self) -> None:
-        from websockets.sync.client import connect as ws_connect  # type: ignore[import-not-found]
+        from websockets.sync.client import connect as ws_connect
 
         backoff = _RECONNECT_INITIAL
         consecutive_failures = 0
@@ -695,4 +695,4 @@ class RuntimeClient(_InvocationMixin):
                     signal.signal(sig, lambda *_a: self.disconnect())
 
 
-__all__ = ["RuntimeClient", "PROTOCOL_VERSION"]
+__all__ = ["PROTOCOL_VERSION", "RuntimeClient"]

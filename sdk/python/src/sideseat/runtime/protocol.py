@@ -15,7 +15,7 @@ from typing import Any
 PROTOCOL_VERSION = 1
 
 
-class ErrorCode(str, enum.Enum):
+class ErrorCode(enum.StrEnum):
     UNSUPPORTED = "unsupported"
     BAD_PAYLOAD = "bad_payload"
     TOO_LARGE = "too_large"

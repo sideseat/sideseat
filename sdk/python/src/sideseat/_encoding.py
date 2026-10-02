@@ -1,8 +1,8 @@
-"""Value encoding for OTEL span export."""
+"""JSON encoding of span values: binary content becomes base64, unknown objects a type marker."""
 
 import base64
 import json
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 from typing import Any
 
 from opentelemetry.sdk.trace import ReadableSpan
@@ -41,7 +41,7 @@ def _ns_to_iso8601(ns: int | None) -> str | None:
     """Convert nanoseconds to ISO8601 timestamp."""
     if ns is None:
         return None
-    return datetime.fromtimestamp(ns / 1e9, tz=timezone.utc).isoformat()
+    return datetime.fromtimestamp(ns / 1e9, tz=UTC).isoformat()
 
 
 def span_to_dict(span: ReadableSpan) -> dict[str, Any]:

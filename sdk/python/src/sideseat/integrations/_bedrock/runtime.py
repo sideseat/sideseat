@@ -11,7 +11,8 @@ from typing import TYPE_CHECKING, Any
 from opentelemetry import context, trace
 from opentelemetry.trace import SpanKind, StatusCode
 
-from sideseat.instrumentors.aws._constants import (
+from sideseat._encoding import encode_value
+from sideseat.integrations._bedrock._constants import (
     CACHE_READ_TOKENS,
     CACHE_WRITE_TOKENS,
     FINISH_REASONS,
@@ -29,7 +30,6 @@ from sideseat.instrumentors.aws._constants import (
     TOP_P,
     get_tracer,
 )
-from sideseat.telemetry.encoding import encode_value
 
 if TYPE_CHECKING:
     from opentelemetry.sdk.trace import TracerProvider
@@ -72,12 +72,12 @@ class _ConverseAccumulator:
     """
 
     __slots__ = (
+        "_current_block",
+        "_current_signature",
+        "_current_text",
         "blocks",
         "stop_reason",
         "usage",
-        "_current_block",
-        "_current_text",
-        "_current_signature",
     )
 
     def __init__(self) -> None:
@@ -226,7 +226,7 @@ def _wrap_converse_stream(original: Any, tracer: Tracer) -> Any:
 class _ConverseStreamWrapper:
     """Proxies the EventStream, accumulating content blocks for span events."""
 
-    __slots__ = ("_inner", "_span", "_ctx_token", "_tool_results", "_ended", "_acc")
+    __slots__ = ("_acc", "_ctx_token", "_ended", "_inner", "_span", "_tool_results")
 
     def __init__(
         self,
@@ -349,7 +349,7 @@ def _wrap_invoke_model(original: Any, tracer: Tracer) -> Any:
 
             # Read and rebuffer the streaming body
             body_bytes = response["body"].read()
-            from botocore.response import StreamingBody  # type: ignore[import-not-found]
+            from botocore.response import StreamingBody
 
             response["body"] = StreamingBody(io.BytesIO(body_bytes), len(body_bytes))
 
@@ -472,7 +472,7 @@ def _wrap_invoke_model_stream(original: Any, tracer: Tracer) -> Any:
 class _InvokeModelStreamWrapper:
     """Wraps InvokeModelWithResponseStream body, accumulating streaming events."""
 
-    __slots__ = ("_inner", "_span", "_ctx_token", "_req_body", "_family", "_ended", "_chunks")
+    __slots__ = ("_chunks", "_ctx_token", "_ended", "_family", "_inner", "_req_body", "_span")
 
     def __init__(
         self,

@@ -1,4 +1,9 @@
-"""Span processors for logfire integration."""
+"""Logfire, and the providers and frameworks Logfire instruments.
+
+Logfire builds its own tracer provider, so these integrations own it. SideSeat configures Logfire
+with no exporters of its own and attaches SideSeat's processors and exporter to the provider Logfire
+made.
+"""
 
 from __future__ import annotations
 
@@ -6,27 +11,120 @@ import hashlib
 import logging
 import threading
 import time
-from typing import Any
+from typing import Any, ClassVar
+from urllib.parse import quote
 
-from opentelemetry.sdk.trace import SpanProcessor
+from opentelemetry import trace as otel_trace
+from opentelemetry.sdk.trace import SpanProcessor, TracerProvider
 from opentelemetry.trace import SpanContext
 
-logger = logging.getLogger("sideseat.telemetry")
+from sideseat.integrations._base import Integration, SetupContext
+from sideseat.integrations._logfire_compat import apply_after, apply_before
+from sideseat.integrations._util import temporary_env, without_otlp_exporter_env
+
+logger = logging.getLogger("sideseat")
 
 
-class _LogfireStreamingProcessor(SpanProcessor):
+class LogfireIntegration(Integration):
+    """Configures Logfire as the tracer provider owner, then runs one ``logfire.instrument_*``."""
+
+    owns_tracer_provider = True
+    extra = "logfire"
+    #: Suffix of the ``logfire.instrument_<suffix>`` call; ``None`` configures Logfire only.
+    instrument_method: ClassVar[str | None] = None
+
+    def create_tracer_provider(self, ctx: SetupContext) -> TracerProvider:
+        import logfire
+
+        resource = ",".join(
+            f"{quote(str(key), safe='')}={quote(str(value), safe='')}"
+            for key, value in ctx.resource.attributes.items()
+        )
+        # Logfire reads OTLP variables at configure time and would add exporters of its own; the
+        # resource travels in OTEL_RESOURCE_ATTRIBUTES because configure takes no resource argument.
+        with without_otlp_exporter_env(), temporary_env({"OTEL_RESOURCE_ATTRIBUTES": resource}):
+            logfire.configure(
+                service_name=ctx.service_name,
+                service_version=ctx.service_version,
+                send_to_logfire=False,
+                console=False,
+            )
+        provider = otel_trace.get_tracer_provider()
+        if not hasattr(provider, "add_span_processor"):
+            raise RuntimeError("Logfire did not install an SDK tracer provider")
+        return provider  # type: ignore[return-value]
+
+    def span_processors(self, ctx: SetupContext) -> tuple[SpanProcessor, ...]:
+        return (StreamingResponseReparenter(),)
+
+    def instrument(self, ctx: SetupContext) -> None:
+        if self.instrument_method is None:
+            return
+        import logfire
+
+        apply_before(self.instrument_method)
+        getattr(logfire, f"instrument_{self.instrument_method}")()
+        apply_after(self.instrument_method)
+
+
+class Logfire(LogfireIntegration):
+    name = "logfire"
+    packages = ("logfire",)
+    # Several provider extras install Logfire, so its presence says nothing about the application.
+    detectable = False
+
+
+class OpenAIAgents(LogfireIntegration):
+    name = "openai-agents"
+    packages = ("openai-agents",)
+    extra = "openai-agents"
+    instrument_method = "openai_agents"
+
+
+class PydanticAI(LogfireIntegration):
+    name = "pydantic-ai"
+    packages = ("pydantic-ai", "pydantic-ai-slim")
+    extra = "pydantic-ai"
+    instrument_method = "pydantic_ai"
+
+
+class OpenAI(LogfireIntegration):
+    name = "openai"
+    packages = ("openai",)
+    detectable = False
+    extra = "openai"
+    instrument_method = "openai"
+
+
+class Anthropic(LogfireIntegration):
+    name = "anthropic"
+    packages = ("anthropic",)
+    detectable = False
+    extra = "anthropic"
+    instrument_method = "anthropic"
+
+
+class GoogleGenAI(LogfireIntegration):
+    name = "google-genai"
+    packages = ("google-genai",)
+    detectable = False
+    extra = "google-genai"
+    instrument_method = "google_genai"
+
+
+class VertexAI(GoogleGenAI):
+    name = "vertex-ai"
+    extra = "vertex-ai"
+
+
+class StreamingResponseReparenter(SpanProcessor):
     """Reparents logfire streaming response logs under their request span's trace.
 
-    Root cause: logfire's ``llm_provider.py`` calls ``get_context()`` in
-    ``_instrumentation_setup()`` *before* the request span is created (line 102
-    vs 141).  When there is no parent span, ``get_context()`` captures an empty
-    OTel context.  After streaming, ``attach_context(original_context)``
-    restores that empty context, so ``logfire.info()`` starts a new root trace
-    for the response log instead of continuing the request span's trace.
-
-    Fix: this ``on_end`` processor watches for the two halves — request span
-    and response log — and rewrites the response log's trace/parent context to
-    match the request span.
+    Logfire captures the OpenTelemetry context before it creates the request span. When the request
+    has no parent, that context is empty, and once the stream completes the response log is emitted
+    under it - as the root of a new, unrelated trace. The server cannot reconnect the two halves
+    after ingestion, so this ``on_end`` processor does it before export: it remembers each request
+    span and rewrites the matching response log's trace and parent to the request's.
 
     Detection (definitive logfire signals):
       Request span: ``logfire.span_type="span"`` + ``request_data`` present + no output carrier
@@ -36,12 +134,10 @@ class _LogfireStreamingProcessor(SpanProcessor):
     streaming logs carry ``events`` instead. Logfire 6 uses
     ``gen_ai.output.messages`` for completed non-streaming spans. All are handled.
 
-    Matching: SHA-256 of ``request_data`` plus ``gen_ai.input.messages`` when
-    available. Logfire 6 reduced ``request_data`` to the model alone, so matching
-    it by itself attached every stream to the oldest call of the same model.
-    The bundled input is present on both halves and distinguishes requests.
-    Older Logfire shapes without it keep the request-data fallback. Uses FIFO
-    queues per key to correctly handle concurrent identical streaming requests.
+    Matching: SHA-256 of ``request_data`` plus ``gen_ai.input.messages`` when present. Some Logfire
+    versions reduce ``request_data`` to the model name, so it alone cannot tell two calls to the
+    same model apart; the input messages, present on both halves, can. FIFO queues per key keep
+    concurrent identical streaming requests paired in order.
 
     Mutation: replaces ``ReadableSpan._context`` and ``._parent``.
     ``ReadableSpan`` has no ``__setattr__`` override, and ``BatchSpanProcessor``
@@ -51,9 +147,7 @@ class _LogfireStreamingProcessor(SpanProcessor):
     so mutation completes before the span enters the export queue.
     ``SynchronousMultiSpanProcessor.on_end`` iterates processors in insertion order.
 
-    Applies to all logfire-instrumented providers (OpenAI, Anthropic) and all
-    frameworks that delegate to them (OpenAI Agents, PydanticAI).  Non-logfire
-    spans are ignored (no ``logfire.span_type`` attribute).
+    Non-Logfire spans carry no ``logfire.span_type`` attribute and pass through untouched.
     """
 
     _TTL = 60.0

@@ -111,7 +111,7 @@ async def strands_multiagent_to_agui(
             thread_id=run_input.thread_id,
             run_id=run_input.run_id,
         )
-    except Exception as exc:  # noqa: BLE001 — terminal error frame
+    except Exception as exc:
         _log.warning("multiagent stream raised", exc_info=exc)
         # Best-effort: drain open translators before the error so any
         # buffered text/tool_calls aren't lost from the renderer.

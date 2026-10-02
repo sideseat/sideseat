@@ -7,6 +7,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.0.0]
+
+A rewrite against the cross-language SDK contract (`docs/engineering/sdk-contract.md`). There is no
+compatibility layer; every application needs the small migration below.
+
+### Changed
+
+- One entry point: `sideseat.init(...)` configures the process and returns the client. Calling it again
+  with different settings raises `ConfigurationError` instead of silently keeping the first setup.
+- `framework=Frameworks.X` is replaced by `integrations=["x", ...]`. Several integrations can be
+  active at once; the first is the primary one. The `Frameworks` constants are gone.
+- `sideseat.session(session_id, user_id=...)` attributes every span in a block, including spans a
+  framework creates, without creating a span. The values stay inside the process and are never sent
+  as W3C baggage.
+- `trace()` always starts a root span; `span()` starts a child; `observe()` decorates functions.
+- Logs and metrics are exported by default; `capture_python_logs=True` also exports the `logging`
+  root logger.
+- Each integration is one module under `sideseat.integrations` implementing `Integration`.
+  Explicitly requested integrations that cannot import raise `IntegrationError` with an install hint.
+- The Claude Agent SDK integration configures the Claude Code CLI's telemetry in every
+  `ClaudeAgentOptions` automatically.
+- Extras are named after integrations. `ws` and `agui` became `runtime`; `aws` became `bedrock`;
+  `all` is gone because several integrations cannot share one environment.
+- Python 3.11 or newer.
+
+### Removed
+
+- `SideSeat(...)` construction, `Config`, `Frameworks`, `TelemetryClient`, `JsonFileSpanExporter`
+  (now `sideseat.exporters.JsonlSpanExporter`), `encode_value`/`span_to_dict` re-exports,
+  `encode_binary`, `auto_instrument`, `enable_traces`, and the module-level runtime helpers. Use
+  `client.runtime()` for the runtime channel.
+- Import-time wrapping of `logfire.instrument_*`; compatibility repairs apply only to the
+  integrations SideSeat installs.
+
+### Added
+
+- `sideseat.testing.capture()` records spans in memory for application tests.
+
 ### Changed
 
 - AG2 support now targets AG2 1.x and injects its built-in `TelemetryMiddleware` into agents

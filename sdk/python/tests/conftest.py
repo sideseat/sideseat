@@ -1,59 +1,40 @@
-"""Test fixtures with proper OpenTelemetry cleanup.
-
-Based on patterns from strands-agents/sdk-python.
-"""
+"""Every test starts with no SideSeat client, no OpenTelemetry globals, and a clean environment."""
 
 from collections.abc import Iterator
-from pathlib import Path
 
 import pytest
 
+import sideseat
+from sideseat.testing import reset_global_providers
 
-@pytest.fixture(autouse=True)
-def clean_otel_env(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Remove OpenTelemetry and SideSeat environment variables to prevent test pollution.
-
-    This follows the pattern from strands-agents to ensure tests don't
-    accidentally send telemetry to external endpoints.
-    """
-    otel_env_vars = [
-        "OTEL_EXPORTER_OTLP_ENDPOINT",
-        "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT",
-        "OTEL_EXPORTER_OTLP_HEADERS",
-        "OTEL_EXPORTER_OTLP_TRACES_HEADERS",
-        "OTEL_EXPORTER_OTLP_TRACES_PROTOCOL",
-        "OTEL_SERVICE_NAME",
-        "OTEL_RESOURCE_ATTRIBUTES",
-        "OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT",
-        "OTEL_PYTHON_LOGGING_AUTO_INSTRUMENTATION_ENABLED",
-        "LMNR_TRACE_CONTENT",
-        "LMNR_PROJECT_API_KEY",
-        "LMNR_BASE_URL",
-    ]
-    sideseat_env_vars = [
-        "SIDESEAT_ENDPOINT",
-        "SIDESEAT_API_KEY",
-        "SIDESEAT_PROJECT",
-        "SIDESEAT_PROJECT_ID",
-        "SIDESEAT_DISABLED",
-        "SIDESEAT_DEBUG",
-    ]
-    for var in otel_env_vars + sideseat_env_vars:
-        monkeypatch.delenv(var, raising=False)
+_ENV = (
+    "OTEL_EXPORTER_OTLP_ENDPOINT",
+    "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT",
+    "OTEL_EXPORTER_OTLP_HEADERS",
+    "OTEL_EXPORTER_OTLP_TRACES_HEADERS",
+    "OTEL_EXPORTER_OTLP_TRACES_PROTOCOL",
+    "OTEL_SERVICE_NAME",
+    "OTEL_SERVICE_VERSION",
+    "OTEL_RESOURCE_ATTRIBUTES",
+    "OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT",
+    "LMNR_TRACE_CONTENT",
+    "LMNR_PROJECT_API_KEY",
+    "LMNR_BASE_URL",
+    "SIDESEAT_ENDPOINT",
+    "SIDESEAT_API_KEY",
+    "SIDESEAT_PROJECT_ID",
+    "SIDESEAT_INTEGRATIONS",
+    "SIDESEAT_CAPTURE_CONTENT",
+    "SIDESEAT_DISABLED",
+    "SIDESEAT_DEBUG",
+)
 
 
 @pytest.fixture(autouse=True)
-def reset_global_instance() -> Iterator[None]:
-    """Reset global SideSeat instance between tests."""
-    import sideseat
-
+def isolated(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
+    for name in _ENV:
+        monkeypatch.delenv(name, raising=False)
+    reset_global_providers()
     yield
-    # Cleanup after test
-    if sideseat.is_initialized():
-        sideseat.shutdown()
-
-
-@pytest.fixture
-def temp_trace_file(tmp_path: Path) -> str:
-    """Provide a temporary file path for trace output."""
-    return str(tmp_path / "traces.jsonl")
+    sideseat.shutdown()
+    reset_global_providers()

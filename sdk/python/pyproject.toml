@@ -1,126 +1,77 @@
 [project]
 name = "sideseat"
 dynamic = ["version"]
-description = "Debug, trace, and understand your AI agents"
+description = "OpenTelemetry for AI agents: traces, sessions, and conversations in SideSeat"
 readme = "README.md"
 license = "MIT"
-requires-python = ">=3.10"
-authors = [
-    { name = "SideSeat", email = "support@sideseat.ai" }
-]
+requires-python = ">=3.11"
+authors = [{ name = "SideSeat", email = "support@sideseat.ai" }]
 classifiers = [
-    "Development Status :: 4 - Beta",
+    "Development Status :: 5 - Production/Stable",
     "Intended Audience :: Developers",
     "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: 3.14",
-    "Topic :: Software Development :: Libraries :: Python Modules",
     "Topic :: System :: Monitoring",
     "Typing :: Typed",
 ]
-keywords = ["opentelemetry", "observability", "llm", "ai", "tracing", "telemetry"]
+keywords = ["opentelemetry", "observability", "llm", "agents", "tracing", "genai"]
 
+# A wide floor on purpose: frameworks cap OpenTelemetry themselves (Logfire below 1.45, Google ADK at
+# 1.42.1), and the SDK must install alongside each of them.
 dependencies = [
-    "opentelemetry-api>=1.39.0",
-    "opentelemetry-sdk>=1.39.0",
-    "opentelemetry-exporter-otlp-proto-http>=1.39.0",
+    "opentelemetry-api>=1.39",
+    "opentelemetry-sdk>=1.39",
+    "opentelemetry-exporter-otlp-proto-http>=1.39",
 ]
 
+# One extra per integration that needs packages beyond the framework itself. Integrations whose
+# framework emits OpenTelemetry natively (strands, google-adk, agent-framework, semantic-kernel,
+# claude-agent-sdk, langflow) need no extra.
 [project.optional-dependencies]
-# Framework-specific instrumentation
-langchain = ["openinference-instrumentation-langchain>=0.1.0"]
-langgraph = ["openinference-instrumentation-langchain>=0.1.0"]
-crewai = ["openinference-instrumentation-crewai>=0.1.0"]
-agno = ["openinference-instrumentation-agno>=0.1.0"]
-smolagents = ["openinference-instrumentation-smolagents>=0.1.0"]
-llama-index = ["openinference-instrumentation-llama-index>=4.5.3"]
-agentscope = ["agentscope>=2.0.9,<3; python_version >= '3.11'"]
-logfire = ["logfire>=4.29.0"]
-traceloop = [
-    # 0.62.4 imports both modules but omits them from its package metadata.
-    # It also accepts httpx 1.0 prereleases even though it uses the 0.x AsyncClient API.
-    "traceloop-sdk==0.62.4",
-    "requests>=2.32",
-    "httpx>=0.28,<1",
-]
-# AG2 1.x ships its own OpenTelemetry middleware. The extra supplies that optional
-# dependency and the SDK injects the middleware into agents created after SideSeat.
-ag2 = ["ag2[tracing]>=1.1.1,<2"]
+langchain = ["openinference-instrumentation-langchain>=0.1.78"]
+langgraph = ["openinference-instrumentation-langchain>=0.1.78"]
+crewai = ["openinference-instrumentation-crewai>=1.1.20"]
+autogen = ["openinference-instrumentation-autogen-agentchat>=0.1.21"]
+agno = ["openinference-instrumentation-agno>=1.0.13"]
+smolagents = ["openinference-instrumentation-smolagents>=0.1.42"]
+llama-index = ["openinference-instrumentation-llama-index>=4.5.4"]
+azure-openai = ["openinference-instrumentation-openai>=0.1.63"]
+ag2 = ["ag2[tracing]>=1.1.1"]
+agentscope = ["agentscope>=2.0.9"]
 haystack = ["opentelemetry-haystack>=1.0.0"]
-autogen = ["openinference-instrumentation-autogen-agentchat>=0.1.0"]
-# logfire>=4.29.0 added instrument_openai_agents() using the official SDK hook
-openai-agents = ["logfire>=4.29.0"]
-pydantic-ai = ["logfire>=4.29.0"]
-openai = ["logfire>=4.29.0"]
-azure-openai = [
-    "openai>=2.8.0",
-    "openinference-instrumentation-openai>=0.1.62",
-]
-# httpx: anthropic >= 1.0 switched its HTTP client to httpx2, but logfire's Anthropic
-# integration still imports httpx at module level (for httpx.Headers()), so without
-# this the import fails, instrument() only logs a warning and no spans are produced.
-# logfire patches the Anthropic client's own _request method, so the underlying HTTP
-# library does not otherwise matter. Only the Anthropic integration needs this - the
-# openai one has no module-level httpx import.
-anthropic = ["logfire>=4.29.0", "httpx>=0.27"]
-google-genai = ["logfire[google-genai]>=4.29.0"]
-vertex-ai = [
-    "google-genai>=2.26.0",
-    "logfire[google-genai]>=4.29.0",
-]
+traceloop = ["traceloop-sdk>=0.62.4"]
+browser-use = ["lmnr>=0.7.64"]
+logfire = ["logfire>=5.1.1"]
+openai-agents = ["logfire>=5.1.1"]
+pydantic-ai = ["logfire>=5.1.1"]
+openai = ["logfire>=5.1.1"]
+anthropic = ["logfire>=5.1.1"]
+google-genai = ["logfire[google-genai]>=5.1.1"]
+vertex-ai = ["logfire[google-genai]>=5.1.1"]
+bedrock = ["wrapt>=1.14"]
+# The runtime channel: agent presence, introspection, and invocation from the SideSeat UI.
+runtime = ["websockets>=17", "rich>=15", "ag-ui-protocol>=1.0"]
 
-# Cloud provider instrumentation
-aws = ["wrapt>=1.14.0"]
-
-# Persistent WebSocket bridge (presence + introspection)
-ws = ["websockets>=12"]
-
-# AG-UI run-agent invoke flow + console renderer. Sample projects that
-# wire a Strands agent through SideSeat add `ag_ui_strands` themselves
-# (it pulls in fastapi); we don't pin it on the core SDK so non-Strands
-# users don't pay for unrelated deps.
-agui = ["rich>=13", "ag-ui-protocol>=0.1.18"]
-
-# Bundle every compatible instrumentation extra plus the runtime channel.
-# BrowserUse users install lmnr separately because its semantic-conventions pin
-# cannot coexist with TraceLoop in the universal lock for this package.
-all = [
-    "openinference-instrumentation-langchain>=0.1.0",
-    "openinference-instrumentation-crewai>=0.1.0",
-    "openinference-instrumentation-autogen-agentchat>=0.1.0",
-    "ag2[tracing]>=1.1.1,<2",
-    "openinference-instrumentation-agno>=0.1.0",
-    "openinference-instrumentation-smolagents>=0.1.0",
-    "openinference-instrumentation-llama-index>=4.5.3",
-    "openinference-instrumentation-openai>=0.1.62",
-    "openai>=2.8.0",
-    "agentscope>=2.0.9,<3; python_version >= '3.11'",
-    "opentelemetry-haystack>=1.0.0",
-    "logfire[google-genai]>=4.29.0",
-    "google-genai>=2.26.0",
-    "traceloop-sdk==0.62.4",
-    "requests>=2.32",
-    "httpx>=0.27,<1",
-    "wrapt>=1.14.0",
-    "websockets>=12",
-    "rich>=13",
-    "ag-ui-protocol>=0.1.18",
-]
-
-# Development dependencies
+[dependency-groups]
 dev = [
-    "pytest>=8.0.0",
-    "ruff>=0.8.0",
-    "mypy>=1.13.0",
+    "pytest>=9.1",
+    "pytest-asyncio>=1.0",
+    "ruff>=0.16",
+    "mypy>=2.4",
+    "wrapt>=1.14",
+    "botocore>=1.43",
+    "websockets>=17",
+    "rich>=15",
+    "ag-ui-protocol>=1.0",
 ]
 
 [project.urls]
 Homepage = "https://sideseat.ai"
-Documentation = "https://sideseat.ai/docs"
+Documentation = "https://sideseat.ai/docs/sdks/python/"
 Repository = "https://github.com/sideseat/sideseat"
 
 [build-system]
@@ -129,6 +80,9 @@ build-backend = "hatchling.build"
 
 [tool.uv]
 required-version = "==0.12.13"
+# Laminar and TraceLoop pin incompatible OpenTelemetry semantic-convention packages, so one
+# environment can hold either, not both.
+conflicts = [[{ extra = "browser-use" }, { extra = "traceloop" }]]
 
 [tool.hatch.version]
 path = "src/sideseat/_version.py"
@@ -136,51 +90,38 @@ path = "src/sideseat/_version.py"
 [tool.hatch.build.targets.wheel]
 packages = ["src/sideseat"]
 
-# =============================================================================
-# Testing
-# =============================================================================
-
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-
-# =============================================================================
-# Ruff (formatting + linting)
-# =============================================================================
+asyncio_mode = "auto"
+filterwarnings = ["error::DeprecationWarning:sideseat"]
 
 [tool.ruff]
 line-length = 100
-target-version = "py310"
+target-version = "py311"
 
 [tool.ruff.lint]
-select = [
-    "E",   # pycodestyle errors
-    "F",   # pyflakes
-    "I",   # isort
-    "B",   # flake8-bugbear
-    "UP",  # pyupgrade
-]
+select = ["E", "F", "I", "B", "UP", "SIM", "RUF"]
 
-[tool.ruff.format]
-quote-style = "double"
-indent-style = "space"
-
-# =============================================================================
-# MyPy (type checking)
-# =============================================================================
+[tool.ruff.lint.per-file-ignores]
+# Separate `with` blocks keep "set up telemetry" and "do the work under test" visibly apart.
+"tests/**" = ["SIM117"]
 
 [tool.mypy]
-python_version = "3.10"
-warn_return_any = true
+python_version = "3.11"
+strict = true
 warn_unused_configs = true
-disallow_untyped_defs = true
 
 [[tool.mypy.overrides]]
+# Optional framework dependencies: imported only inside the integration that needs them.
 module = [
-    "agent_framework.*",
     "ag_ui.*",
     "ag_ui_strands.*",
-    "logfire.*",
+    "agent_framework.*",
+    "botocore.*",
+    "claude_agent_sdk.*",
+    "google.adk.*",
     "lmnr.*",
+    "logfire.*",
     "rich.*",
     "strands.*",
     "traceloop.*",

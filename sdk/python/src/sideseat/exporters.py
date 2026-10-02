@@ -1,4 +1,4 @@
-"""Custom span exporters."""
+"""Span exporters for offline capture."""
 
 import json
 import logging
@@ -8,13 +8,13 @@ from collections.abc import Sequence
 from opentelemetry.sdk.trace import ReadableSpan
 from opentelemetry.sdk.trace.export import SpanExporter, SpanExportResult
 
-from sideseat.telemetry.encoding import span_to_dict
+from sideseat._encoding import span_to_dict
 
 logger = logging.getLogger("sideseat.telemetry.exporters")
 
 
-class JsonFileSpanExporter(SpanExporter):
-    """Exports spans to JSONL file with base64-encoded binaries."""
+class JsonlSpanExporter(SpanExporter):
+    """Writes one JSON object per span to a file, with binary content base64-encoded."""
 
     def __init__(self, path: str, mode: str = "a") -> None:
         if mode not in ("a", "w"):

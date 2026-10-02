@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 from typing import Any
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 from opentelemetry.sdk.trace import TracerProvider
@@ -12,21 +12,7 @@ from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from opentelemetry.trace import StatusCode
 
-from sideseat.instrumentation import _instrumented, _lock
-from sideseat.instrumentors.aws import AWSInstrumentor
-from sideseat.instrumentors.aws.bedrock import _detect_model_family, patch_bedrock_client
-
-
-@pytest.fixture(autouse=True)
-def reset_aws_state():
-    """Reset AWSInstrumentor singleton and instrumentation state."""
-    AWSInstrumentor._instance = None
-    with _lock:
-        _instrumented.discard("aws")
-    yield
-    AWSInstrumentor._instance = None
-    with _lock:
-        _instrumented.discard("aws")
+from sideseat.integrations._bedrock.runtime import _detect_model_family, patch_bedrock_client
 
 
 @pytest.fixture
@@ -41,99 +27,6 @@ def tracer_setup() -> tuple[TracerProvider, InMemorySpanExporter]:
 # ---------------------------------------------------------------------------
 # AWSInstrumentor
 # ---------------------------------------------------------------------------
-
-
-class TestAWSInstrumentor:
-    def test_singleton(self) -> None:
-        """Second instrument() call is a no-op."""
-        mock_wrapt = MagicMock()
-        with patch.dict("sys.modules", {"wrapt": mock_wrapt}):
-            inst = AWSInstrumentor(tracer_provider=None)
-            inst.instrument()
-            assert AWSInstrumentor._instance is inst
-            assert mock_wrapt.wrap_function_wrapper.call_count == 1
-
-            inst2 = AWSInstrumentor(tracer_provider=None)
-            inst2.instrument()
-            assert AWSInstrumentor._instance is inst
-            assert mock_wrapt.wrap_function_wrapper.call_count == 1
-
-    def test_no_wrapt_warns_and_names_the_remedy(self, caplog: pytest.LogCaptureFixture) -> None:
-        """Missing wrapt returns without error, but says so loudly.
-
-        At debug level this was invisible, so the documented `pip install sideseat boto3`
-        produced a program that ran fine and emitted nothing - and the only symptom was an
-        empty SideSeat, which sends a user looking at the server and their credentials.
-        """
-        with patch("importlib.util.find_spec", return_value=None):
-            inst = AWSInstrumentor(tracer_provider=None)
-            with caplog.at_level("WARNING"):
-                inst.instrument()
-            assert AWSInstrumentor._instance is None
-
-        # And it reports the failure, so the caller does not record success it did not have.
-        with patch("importlib.util.find_spec", return_value=None):
-            assert AWSInstrumentor(tracer_provider=None).instrument() is False
-
-        warnings = [r for r in caplog.records if r.levelname == "WARNING"]
-        assert warnings, "a user getting no telemetry at all must be told"
-        message = warnings[0].getMessage()
-        assert "wrapt" in message
-        assert "sideseat[aws]" in message, "the message must name the fix, not just the symptom"
-
-    def test_on_create_client_bedrock_runtime(
-        self, tracer_setup: tuple[TracerProvider, InMemorySpanExporter]
-    ) -> None:
-        """bedrock-runtime client gets patched."""
-        provider, _ = tracer_setup
-        inst = AWSInstrumentor(tracer_provider=provider)
-
-        client = MagicMock()
-        service = MagicMock()
-        service.service_name = "bedrock-runtime"
-        client._service_model = service
-        client.converse = MagicMock()
-        client.converse_stream = MagicMock()
-        client.invoke_model = MagicMock()
-        client.invoke_model_with_response_stream = MagicMock()
-
-        wrapped = MagicMock(return_value=client)
-        result = inst._on_create_client(wrapped, None, (), {})
-        assert result is client
-
-    def test_on_create_client_other_service(
-        self, tracer_setup: tuple[TracerProvider, InMemorySpanExporter]
-    ) -> None:
-        """Non-Bedrock services are returned unmodified."""
-        provider, _ = tracer_setup
-        inst = AWSInstrumentor(tracer_provider=provider)
-
-        client = MagicMock()
-        service = MagicMock()
-        service.service_name = "s3"
-        client._service_model = service
-        original_put = client.put_object
-
-        wrapped = MagicMock(return_value=client)
-        result = inst._on_create_client(wrapped, None, (), {})
-        assert result is client
-        assert client.put_object is original_put
-
-    def test_on_create_client_agent_runtime(
-        self, tracer_setup: tuple[TracerProvider, InMemorySpanExporter]
-    ) -> None:
-        """bedrock-agent-runtime client gets patched."""
-        provider, _ = tracer_setup
-        inst = AWSInstrumentor(tracer_provider=provider)
-
-        client = MagicMock()
-        service = MagicMock()
-        service.service_name = "bedrock-agent-runtime"
-        client._service_model = service
-
-        wrapped = MagicMock(return_value=client)
-        result = inst._on_create_client(wrapped, None, (), {})
-        assert result is client
 
 
 # ---------------------------------------------------------------------------

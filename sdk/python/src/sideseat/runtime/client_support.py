@@ -6,7 +6,7 @@ import os
 import platform
 import socket
 from collections.abc import Iterator
-from contextlib import contextmanager
+from contextlib import contextmanager, suppress
 from dataclasses import dataclass
 from typing import Any
 
@@ -60,17 +60,13 @@ def _mute_strands_callbacks(obj: Any) -> Iterator[None]:
     try:
         for ag in agents:
             originals.append((ag, getattr(ag, "callback_handler", None)))
-            try:
+            with suppress(Exception):
                 ag.callback_handler = null_callback_handler
-            except Exception:
-                pass
         yield
     finally:
         for ag, original in originals:
-            try:
+            with suppress(Exception):
                 ag.callback_handler = original
-            except Exception:
-                pass
 
 
 @dataclass
@@ -105,7 +101,7 @@ def _capture_caller_var_names(arg: Any) -> dict[int, str]:
 
     try:
         # Skip our own frame and the caller of ``_capture_caller_var_names``.
-        outer = sys._getframe(2)  # type: ignore[attr-defined]
+        outer = sys._getframe(2)
     except (AttributeError, ValueError):
         return {}
 

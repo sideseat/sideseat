@@ -94,9 +94,10 @@ def test_bundled_schema_is_the_protocol_schema() -> None:
     difference in formatting is still a difference in what was copied,
     and `make sync-protocol-schema` is one command.
     """
-    canonical = Path(__file__).resolve().parents[3] / "protocol" / "ws-v1" / "schema.json"
-    if not canonical.exists():
+    repository = Path(__file__).resolve().parents[3]
+    if not (repository / ".git").exists():
         pytest.skip("running from an installed package, without the repository around it")
+    canonical = repository / "docs" / "engineering" / "protocol-ws-v1" / "schema.json"
     assert SCHEMA_PATH.read_bytes() == canonical.read_bytes(), (
         f"{SCHEMA_PATH} differs from {canonical} - run `make sync-protocol-schema`"
     )

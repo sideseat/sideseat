@@ -63,9 +63,7 @@ class _StubServer:
                 data = json.loads(raw)
                 with self.lock:
                     self.frames.append(data)
-                if data["type"] == "hello":
-                    conn.send(make_envelope("ack", {"ref_id": data["id"]}).to_json())
-                elif data["type"] in (
+                if data["type"] == "hello" or data["type"] in (
                     "agent.register",
                     "mcp.register",
                     "agent.unregister",
@@ -458,9 +456,14 @@ def test_register_name_collision_across_kinds_raises() -> None:
 def test_connect_without_ws_extra_raises_clear_error(monkeypatch: pytest.MonkeyPatch) -> None:
     from sideseat.runtime import client as client_module
 
-    monkeypatch.setattr(client_module, "_module_available", lambda _name: False)
+    real_find_spec = client_module.importlib.util.find_spec
+    monkeypatch.setattr(
+        client_module.importlib.util,
+        "find_spec",
+        lambda name, *a: None if name == "websockets" else real_find_spec(name, *a),
+    )
     rc = RuntimeClient(endpoint="http://127.0.0.1:1", project_id="default")
-    with pytest.raises(ImportError, match="sideseat\\[ws\\]"):
+    with pytest.raises(ImportError, match="sideseat\\[runtime\\]"):
         rc.connect(block=False)
 
 

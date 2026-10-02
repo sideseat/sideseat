@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
+import importlib.util
 import logging
 import threading
 from contextlib import suppress
 from typing import Any
 
-from sideseat._utils import _module_available
 from sideseat.runtime.client_support import (
     _as_jsonable,
     _Invocation,
@@ -71,11 +71,11 @@ class _InvocationMixin:
 
         # 1. Gate on the optional [agui] extra. Renderer + ag_ui types are
         #    needed; bail out cleanly if missing.
-        if not _module_available("ag_ui"):
+        if not importlib.util.find_spec("ag_ui") is not None:
             self._send_invoke_error(
                 request_id,
                 "agui_extra_missing",
-                "install sideseat[agui] to accept invocations",
+                'install "sideseat[runtime]" to accept invocations',
             )
             return
 
@@ -194,7 +194,7 @@ class _InvocationMixin:
         )
         try:
             asyncio.run(self._run_invoke_async(request_id, agent_name, kind, live_instance, run_in))
-        except BaseException as exc:  # noqa: BLE001 — we genuinely catch all
+        except BaseException as exc:
             logger.error("invoke worker crashed", exc_info=exc)
             with suppress(Exception):
                 self._send_invoke_error(request_id, "internal", str(exc))
@@ -247,10 +247,8 @@ class _InvocationMixin:
             self._send_invoke_error(
                 request_id, "unsupported_backend", f"kind {kind!r} not invokable"
             )
-            try:
+            with suppress(Exception):
                 renderer.finish()
-            except Exception:
-                pass
             return
 
         # Mute Strands' default callback handlers across the composite so
@@ -275,16 +273,14 @@ class _InvocationMixin:
                     self._send_invoke_error(request_id, "cancelled", "cancelled by server")
                 else:
                     self._send_invoke_complete(request_id)
-            except Exception as exc:  # noqa: BLE001
+            except Exception as exc:
                 err = RunErrorEvent(message=str(exc), code="internal")
                 with suppress(Exception):
                     self._send_agui_event(request_id, err, renderer)
                 self._send_invoke_error(request_id, "internal", str(exc))
             finally:
-                try:
+                with suppress(Exception):
                     renderer.finish()
-                except Exception:
-                    pass
 
     def _is_cancelled(self, request_id: str) -> bool:
         with self._invoke_lock:

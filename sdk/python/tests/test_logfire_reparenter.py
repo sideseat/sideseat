@@ -7,7 +7,7 @@ from unittest.mock import MagicMock
 
 from opentelemetry.trace import SpanContext, TraceFlags
 
-from sideseat.telemetry.processors import _LogfireStreamingProcessor
+from sideseat.integrations.logfire import StreamingResponseReparenter
 
 
 def _make_span(
@@ -30,7 +30,7 @@ def _make_span(
     return span
 
 
-def _entry_count(proc: _LogfireStreamingProcessor) -> int:
+def _entry_count(proc: StreamingResponseReparenter) -> int:
     """Total entries across all keys."""
     return sum(len(v) for v in proc._pending.values())
 
@@ -43,7 +43,7 @@ REQUEST_DATA = (
 class TestLogfireStreamingProcessor:
     def test_reparents_response_log(self) -> None:
         """Response log should get the request span's trace_id and parent."""
-        proc = _LogfireStreamingProcessor()
+        proc = StreamingResponseReparenter()
 
         request_span = _make_span(
             trace_id=0xAABB,
@@ -73,7 +73,7 @@ class TestLogfireStreamingProcessor:
 
     def test_reparents_responses_api_log(self) -> None:
         """Responses API streaming log (no response_data, has events) should also be reparented."""
-        proc = _LogfireStreamingProcessor()
+        proc = StreamingResponseReparenter()
 
         request_span = _make_span(
             trace_id=0xAABB,
@@ -103,7 +103,7 @@ class TestLogfireStreamingProcessor:
 
     def test_non_streaming_span_ignored(self) -> None:
         """Span with both request_data and response_data (non-streaming) is not stored."""
-        proc = _LogfireStreamingProcessor()
+        proc = StreamingResponseReparenter()
 
         non_streaming = _make_span(
             trace_id=0xAABB,
@@ -119,7 +119,7 @@ class TestLogfireStreamingProcessor:
 
     def test_logfire_6_non_streaming_output_is_not_a_stream_request(self) -> None:
         """Logfire 6 writes normal output to gen_ai.output.messages, not response_data."""
-        proc = _LogfireStreamingProcessor()
+        proc = StreamingResponseReparenter()
 
         non_streaming = _make_span(
             trace_id=0xAABB,
@@ -136,7 +136,7 @@ class TestLogfireStreamingProcessor:
 
     def test_logfire_6_matches_on_input_not_model_only_request_data(self) -> None:
         """A stream must not be attached to an earlier call using the same model."""
-        proc = _LogfireStreamingProcessor()
+        proc = StreamingResponseReparenter()
         request_data = '{"model":"gpt-5-nano"}'
 
         sync_span = _make_span(
@@ -179,7 +179,7 @@ class TestLogfireStreamingProcessor:
 
     def test_unmatched_response_log_unchanged(self) -> None:
         """Response log without matching request span is not modified."""
-        proc = _LogfireStreamingProcessor()
+        proc = StreamingResponseReparenter()
 
         response_log = _make_span(
             trace_id=0xCCDD,
@@ -196,7 +196,7 @@ class TestLogfireStreamingProcessor:
 
     def test_already_correct_parent_is_unchanged(self) -> None:
         """A response already parented to its request needs no mutation."""
-        proc = _LogfireStreamingProcessor()
+        proc = StreamingResponseReparenter()
 
         request_span = _make_span(
             trace_id=0xAABB,
@@ -226,7 +226,7 @@ class TestLogfireStreamingProcessor:
 
     def test_pending_entry_consumed(self) -> None:
         """Matching response log should consume (remove) the pending entry."""
-        proc = _LogfireStreamingProcessor()
+        proc = StreamingResponseReparenter()
 
         request_span = _make_span(
             trace_id=0xAABB,
@@ -253,7 +253,7 @@ class TestLogfireStreamingProcessor:
 
     def test_unrelated_spans_ignored(self) -> None:
         """Non-logfire spans are not affected."""
-        proc = _LogfireStreamingProcessor()
+        proc = StreamingResponseReparenter()
 
         span = _make_span(
             trace_id=0xAABB,
@@ -265,7 +265,7 @@ class TestLogfireStreamingProcessor:
 
     def test_no_attributes_ignored(self) -> None:
         """Span with no attributes is safely ignored."""
-        proc = _LogfireStreamingProcessor()
+        proc = StreamingResponseReparenter()
 
         span = MagicMock()
         span.attributes = None
@@ -274,7 +274,7 @@ class TestLogfireStreamingProcessor:
 
     def test_non_string_span_type_ignored(self) -> None:
         """Non-string logfire.span_type is safely ignored."""
-        proc = _LogfireStreamingProcessor()
+        proc = StreamingResponseReparenter()
 
         span = _make_span(
             trace_id=0xAABB,
@@ -286,7 +286,7 @@ class TestLogfireStreamingProcessor:
 
     def test_non_string_request_data_ignored(self) -> None:
         """Non-string request_data is safely ignored."""
-        proc = _LogfireStreamingProcessor()
+        proc = StreamingResponseReparenter()
 
         span = _make_span(
             trace_id=0xAABB,
@@ -298,7 +298,7 @@ class TestLogfireStreamingProcessor:
 
     def test_mutation_failure_restores_pending(self) -> None:
         """If span mutation fails, pending entry is restored for retry."""
-        proc = _LogfireStreamingProcessor()
+        proc = StreamingResponseReparenter()
 
         request_span = _make_span(
             trace_id=0xAABB,
@@ -337,7 +337,7 @@ class TestLogfireStreamingProcessor:
 
     def test_ttl_cleanup(self) -> None:
         """Stale entries should be cleaned up."""
-        proc = _LogfireStreamingProcessor()
+        proc = StreamingResponseReparenter()
 
         request_span = _make_span(
             trace_id=0xAABB,
@@ -351,7 +351,7 @@ class TestLogfireStreamingProcessor:
         assert _entry_count(proc) == 1
 
         # Manually backdate the entry to make it stale
-        key = list(proc._pending.keys())[0]
+        key = next(iter(proc._pending))
         context, _ = proc._pending[key][0]
         proc._pending[key] = [(context, time.monotonic() - 120)]
 
@@ -368,7 +368,7 @@ class TestLogfireStreamingProcessor:
 
     def test_shutdown_clears_pending(self) -> None:
         """Shutdown should clear all pending entries."""
-        proc = _LogfireStreamingProcessor()
+        proc = StreamingResponseReparenter()
 
         request_span = _make_span(
             trace_id=0xAABB,
@@ -386,7 +386,7 @@ class TestLogfireStreamingProcessor:
 
     def test_concurrent_identical_requests(self) -> None:
         """Two concurrent streaming requests with identical request_data both get matched."""
-        proc = _LogfireStreamingProcessor()
+        proc = StreamingResponseReparenter()
 
         # Two request spans with identical request_data but different traces
         req_a = _make_span(
@@ -436,7 +436,7 @@ class TestLogfireStreamingProcessor:
 
     def test_max_pending_eviction(self) -> None:
         """Entries beyond _MAX_PENDING are evicted oldest-first."""
-        proc = _LogfireStreamingProcessor()
+        proc = StreamingResponseReparenter()
         proc._MAX_PENDING = 5  # type: ignore[assignment]
 
         # Add 7 entries (each with unique request_data)
@@ -459,7 +459,7 @@ class TestLogfireStreamingProcessor:
 
     def test_different_request_data_independent(self) -> None:
         """Requests with different request_data do not interfere."""
-        proc = _LogfireStreamingProcessor()
+        proc = StreamingResponseReparenter()
 
         req_data_1 = (
             '{"messages": [{"role": "user", "content": "A"}], "model": "gpt-4o", "stream": true}'

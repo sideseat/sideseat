@@ -17,15 +17,15 @@ from sideseat.runtime.protocol import (
 )
 
 __all__ = [
-    "RuntimeClient",
-    "RegistrationManifest",
+    "PROTOCOL_VERSION",
     "Envelope",
     "ErrorCode",
-    "PROTOCOL_VERSION",
+    "RegistrationManifest",
+    "RuntimeClient",
     "make_envelope",
     "parse_envelope",
     "register_agent_inspector",
+    "register_graph_inspector",
     "register_mcp_inspector",
     "register_swarm_inspector",
-    "register_graph_inspector",
 ]

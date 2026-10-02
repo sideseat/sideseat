@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import functools
 import json
 import logging
@@ -10,7 +11,8 @@ from typing import TYPE_CHECKING, Any
 from opentelemetry import context, trace
 from opentelemetry.trace import SpanKind, StatusCode
 
-from sideseat.instrumentors.aws._constants import (
+from sideseat._encoding import encode_value
+from sideseat.integrations._bedrock._constants import (
     AGENT_ID,
     INPUT_TOKENS,
     OPERATION,
@@ -22,7 +24,6 @@ from sideseat.instrumentors.aws._constants import (
     SYSTEM_VALUE,
     get_tracer,
 )
-from sideseat.telemetry.encoding import encode_value
 
 if TYPE_CHECKING:
     from opentelemetry.sdk.trace import TracerProvider
@@ -107,14 +108,14 @@ class _InvokeAgentStreamWrapper:
     """Wraps agent completion stream, accumulating response chunks."""
 
     __slots__ = (
-        "_inner",
-        "_span",
         "_ctx_token",
         "_ended",
-        "_response_text",
+        "_inner",
         "_input_tokens",
-        "_output_tokens",
         "_model",
+        "_output_tokens",
+        "_response_text",
+        "_span",
     )
 
     def __init__(self, inner: Any, span: Span, ctx_token: object) -> None:
@@ -162,10 +163,8 @@ class _InvokeAgentStreamWrapper:
             data = chunk["chunk"]
             raw = data.get("bytes", b"")
             if raw:
-                try:
+                with contextlib.suppress(UnicodeDecodeError, AttributeError):
                     self._response_text += raw.decode("utf-8")
-                except (UnicodeDecodeError, AttributeError):
-                    pass
 
         elif "trace" in chunk:
             trace_data = chunk["trace"].get("trace", {})

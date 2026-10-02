@@ -33,7 +33,7 @@ async def strands_run_to_agui(
     `StrandsAgent` is imported lazily so test suites that monkeypatch
     `sys.modules["ag_ui_strands"]` between tests pick up the freshest
     binding instead of the cached module-level import."""
-    from ag_ui_strands import StrandsAgent  # noqa: PLC0415 — see docstring
+    from ag_ui_strands import StrandsAgent
 
     sa = StrandsAgent(agent=agent, name=name, description=description)
     async for event in sa.run(run_input):

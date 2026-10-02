@@ -87,7 +87,7 @@ class StrandsEventTranslator:
         if event.get("complete") or event.get("force_stop"):
             return
 
-        if "data" in event and event["data"]:
+        if event.get("data"):
             if not self._message_started:
                 yield TextMessageStartEvent(
                     type=EventType.TEXT_MESSAGE_START,
@@ -125,7 +125,7 @@ class StrandsEventTranslator:
                 )
             return
 
-        if "current_tool_use" in event and event["current_tool_use"]:
+        if event.get("current_tool_use"):
             self._accumulate_tool_use(event["current_tool_use"])
             return
 

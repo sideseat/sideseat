@@ -12,22 +12,8 @@ from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from opentelemetry.trace import StatusCode
 
-from sideseat.instrumentation import _instrumented, _lock
-from sideseat.instrumentors.aws import AWSInstrumentor
-from sideseat.instrumentors.aws.bedrock import patch_bedrock_client
-from sideseat.instrumentors.aws.bedrock_agent import patch_bedrock_agent_client
-
-
-@pytest.fixture(autouse=True)
-def reset_aws_state():
-    """Reset AWSInstrumentor singleton and instrumentation state."""
-    AWSInstrumentor._instance = None
-    with _lock:
-        _instrumented.discard("aws")
-    yield
-    AWSInstrumentor._instance = None
-    with _lock:
-        _instrumented.discard("aws")
+from sideseat.integrations._bedrock.agent_runtime import patch_bedrock_agent_client
+from sideseat.integrations._bedrock.runtime import patch_bedrock_client
 
 
 @pytest.fixture
@@ -600,7 +586,7 @@ class TestResilience:
         patch_bedrock_client(client, provider)
 
         # Monkey-patch _emit_converse_events to throw
-        import sideseat.instrumentors.aws.bedrock as bedrock_mod
+        import sideseat.integrations._bedrock.runtime as bedrock_mod
 
         original_emit = bedrock_mod._emit_converse_events
         bedrock_mod._emit_converse_events = MagicMock(side_effect=RuntimeError("encode boom"))
@@ -636,7 +622,7 @@ class TestResilience:
         )
 
         # Monkey-patch _emit_span_events to throw during finalize
-        import sideseat.instrumentors.aws.bedrock as bedrock_mod
+        import sideseat.integrations._bedrock.runtime as bedrock_mod
 
         original_emit = bedrock_mod._emit_span_events
         bedrock_mod._emit_span_events = MagicMock(side_effect=RuntimeError("serialize boom"))
@@ -796,93 +782,3 @@ class TestInvokeAgent:
 # ---------------------------------------------------------------------------
 # instrument_providers integration
 # ---------------------------------------------------------------------------
-
-
-class TestInstrumentProviders:
-    def test_idempotent(self) -> None:
-        """instrument_providers is idempotent via _instrumented set."""
-        from sideseat.instrumentation import instrument_providers
-
-        with patch("sideseat.instrumentation._try_instrument_aws") as mock_try:
-            instrument_providers(None, ("bedrock",))
-            instrument_providers(None, ("bedrock",))
-            assert mock_try.call_count == 2
-
-    def test_no_providers_skips_aws(self) -> None:
-        """Empty providers list skips AWS instrumentation."""
-        from sideseat.instrumentation import instrument_providers
-
-        with patch("sideseat.instrumentation._try_instrument_aws") as mock_try:
-            instrument_providers(None)
-            instrument_providers(None, ())
-            assert mock_try.call_count == 0
-
-    def test_no_botocore(self) -> None:
-        """No botocore installed -> silent return."""
-        from sideseat.instrumentation import _try_instrument_aws
-
-        with patch.dict("sys.modules", {"botocore": None}):
-            _try_instrument_aws(None)
-            assert "aws" not in _instrumented
-
-    def test_with_botocore(self) -> None:
-        """With botocore -> AWSInstrumentor.instrument() called."""
-        from sideseat.instrumentation import _try_instrument_aws
-
-        mock_botocore = MagicMock()
-        with (
-            patch.dict("sys.modules", {"botocore": mock_botocore}),
-            patch("sideseat.instrumentors.aws.AWSInstrumentor") as mock_cls,
-        ):
-            _try_instrument_aws(None)
-            mock_cls.assert_called_once_with(tracer_provider=None)
-            mock_cls.return_value.instrument.assert_called_once()
-            assert "aws" in _instrumented
-
-    def test_instrument_failure_cleans_up(self) -> None:
-        """Failed instrumentation removes 'aws' from _instrumented."""
-        from sideseat.instrumentation import _try_instrument_aws
-
-        mock_botocore = MagicMock()
-        with (
-            patch.dict("sys.modules", {"botocore": mock_botocore}),
-            patch(
-                "sideseat.instrumentors.aws.AWSInstrumentor",
-                side_effect=RuntimeError("boom"),
-            ),
-        ):
-            _try_instrument_aws(None)
-            assert "aws" not in _instrumented
-
-    def test_unknown_provider_ignored(self) -> None:
-        """Unknown provider string in providers tuple is harmless."""
-        from sideseat.instrumentation import instrument_providers
-
-        instrument_providers(None, ("unknown_provider",))
-        assert "unknown_provider" not in _instrumented
-
-
-class TestInstrumentationOutcome:
-    """A framework is recorded as instrumented only if it actually was."""
-
-    def test_missing_wrapt_does_not_record_aws_as_instrumented(self) -> None:
-        """Otherwise a later retry is skipped and the log claims success.
-
-        `_try_instrument_aws` added "aws" to `_instrumented` before calling the instrumentor and
-        `instrument()` returned normally when `wrapt` was absent - so a process with botocore and no
-        wrapt logged "Instrumented: aws (botocore)", produced no spans, and could never retry.
-        """
-        from sideseat.instrumentation import _instrumented, _try_instrument_aws
-
-        with _lock:
-            _instrumented.discard("aws")
-
-        def only_wrapt_missing(name: str, *args: object, **kwargs: object) -> object | None:
-            return None if name == "wrapt" else MagicMock()
-
-        with patch("importlib.util.find_spec", side_effect=only_wrapt_missing):
-            _try_instrument_aws(None)
-
-        assert "aws" not in _instrumented, (
-            "AWS must not be recorded as instrumented when nothing was patched"
-        )
