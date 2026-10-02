@@ -47,7 +47,7 @@ opentelemetry-otlp = { workspace = true }
 # Context and MCP
 parking_lot = { workspace = true }
 uuid = { version = "1.11", features = ["v7"] }
-yrs = "0.21"
+yrs = "0.28"
 rmcp = { workspace = true }
 
 [dev-dependencies]
