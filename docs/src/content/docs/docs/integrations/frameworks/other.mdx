@@ -60,14 +60,32 @@ complete tool-call roundtrip.
 </Tabs>
 
 ```python
-from sideseat import SideSeat, Frameworks
+import sideseat
 from pydantic_ai import Agent
 
-SideSeat(framework=Frameworks.PydanticAI)
+sideseat.init(integrations=["pydantic-ai"])
 
-agent = Agent('openai:gpt-5-mini')
-result = agent.run_sync('What is the capital of France?')
+agent = Agent("bedrock:global.anthropic.claude-sonnet-5-5")
+result = agent.run_sync("What is the capital of France?")
 print(result.output)
+```
+
+SideSeat instruments Pydantic AI through Logfire, configured to send nothing to Logfire itself.
+Without the SDK, Pydantic AI's own OpenTelemetry instrumentation works on any OTLP pipeline:
+
+```python
+from opentelemetry import trace
+from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import BatchSpanProcessor
+from pydantic_ai import Agent
+
+provider = TracerProvider()
+provider.add_span_processor(
+    BatchSpanProcessor(OTLPSpanExporter(endpoint="http://localhost:5388/otel/default/v1/traces"))
+)
+trace.set_tracer_provider(provider)
+Agent.instrument_all()
 ```
 
 The compatibility corpus exercises Pydantic AI 2.50.0 with and without the SideSeat SDK,

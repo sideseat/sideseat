@@ -49,7 +49,6 @@ SUITES=(
   "openai|uv run --locked --directory examples/python/openai openai-provider {S}"
   "openai-agents|uv run --locked --directory examples/python/openai-agents telemetry-openai-agents {S}"
   "anthropic|uv run --locked --directory examples/python/anthropic anthropic-provider {S}"
-  "pydantic-ai|uv run --locked --directory examples/python/pydantic-ai telemetry-pydantic-ai {S}"
   "google-genai|uv run --locked --directory examples/python/google-genai google-genai-provider {S}"
   "vertex-ai|uv run --locked --directory examples/python/vertex-ai telemetry-vertex-ai {S}"
   "logfire|uv run --locked --directory examples/python/logfire telemetry-logfire {S}"
