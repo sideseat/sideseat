@@ -167,7 +167,7 @@ opentelemetry-proto = { version = "0.28", features = [
   "with-serde",
 ] }
 prost = "0.13"
-tonic = { version = "0.12", features = ["transport"] }
+tonic = { version = "0.14", features = ["transport"] }
 tokio-stream = { version = "0.1", features = ["sync"] }
 base64 = "0.22"
 hex = "0.4"
