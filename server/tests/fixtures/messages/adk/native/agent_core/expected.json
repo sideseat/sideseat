@@ -1,0 +1,324 @@
+{
+  "label": "adk/native/agent_core",
+  "request_count": 1,
+  "span_count": 8,
+  "trace_count": 1,
+  "session_count": 1,
+  "span_views": {
+    "trace-1/adk.session/span-1": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/call_llm/span-4": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 3,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are an AI assistant that validates answers through code execution. When asked about code, algorithms, or calculations, write Python code to verify your answers. When asked about user preferences or personal information (like favorite nu…[392 chars]",
+          "content_digest": "0cb0126db9f7c8e7",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Calculate my favorite number squared. First retrieve my favorite number using the retrieve_user_preference tool with 'favorite_number' as the argument. Then use the execute_python_code tool to compute and verify the square.",
+          "content_digest": "fd747accf64e583a",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"gemini_execute_python_code_call_bd32f098\",\"name\":\"execute_python_code\",\"input\":{\"code\":\"deterministic-code\"}}",
+          "content_digest": "ef96721981681b11",
+          "tool_name": "execute_python_code",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/call_llm/span-7": {
+      "message_count": 5,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 3,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are an AI assistant that validates answers through code execution. When asked about code, algorithms, or calculations, write Python code to verify your answers. When asked about user preferences or personal information (like favorite nu…[392 chars]",
+          "content_digest": "0cb0126db9f7c8e7",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Calculate my favorite number squared. First retrieve my favorite number using the retrieve_user_preference tool with 'favorite_number' as the argument. Then use the execute_python_code tool to compute and verify the square.",
+          "content_digest": "fd747accf64e583a",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"gemini_execute_python_code_call_bd32f098\",\"name\":\"execute_python_code\",\"input\":{\"code\":\"deterministic-code\"}}",
+          "content_digest": "ef96721981681b11",
+          "tool_name": "execute_python_code",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"gemini_execute_python_code_call_bd32f098\",\"name\":\"execute_python_code\",\"content\":{\"result\":\"Error executing code: name 'deterministic' is not defined\"}}",
+          "content_digest": "1b2971d7b3ea4918",
+          "tool_name": "execute_python_code",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "The tool completed successfully.",
+          "content_digest": "66bcb0fcdca80511",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/execute_tool execute_python_code/span-6": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": []
+    },
+    "trace-1/generate_content openai/gpt-5-nano-2025-08-07/span-5": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/generate_content openai/gpt-5-nano-2025-08-07/span-8": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/invocation/span-2": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/invoke_agent memory_code_assistant/span-3": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    }
+  },
+  "trace_views": {
+    "trace-1": {
+      "message_count": 5,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 3,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are an AI assistant that validates answers through code execution. When asked about code, algorithms, or calculations, write Python code to verify your answers. When asked about user preferences or personal information (like favorite nu…[392 chars]",
+          "content_digest": "0cb0126db9f7c8e7",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Calculate my favorite number squared. First retrieve my favorite number using the retrieve_user_preference tool with 'favorite_number' as the argument. Then use the execute_python_code tool to compute and verify the square.",
+          "content_digest": "fd747accf64e583a",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"gemini_execute_python_code_call_bd32f098\",\"name\":\"execute_python_code\",\"input\":{\"code\":\"deterministic-code\"}}",
+          "content_digest": "ef96721981681b11",
+          "tool_name": "execute_python_code",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"gemini_execute_python_code_call_bd32f098\",\"name\":\"execute_python_code\",\"content\":{\"result\":\"Error executing code: name 'deterministic' is not defined\"}}",
+          "content_digest": "1b2971d7b3ea4918",
+          "tool_name": "execute_python_code",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "The tool completed successfully.",
+          "content_digest": "66bcb0fcdca80511",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
+    }
+  },
+  "session_views": {
+    "adk-agent_core-760e44b9": {
+      "message_count": 5,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 3,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are an AI assistant that validates answers through code execution. When asked about code, algorithms, or calculations, write Python code to verify your answers. When asked about user preferences or personal information (like favorite nu…[392 chars]",
+          "content_digest": "0cb0126db9f7c8e7",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Calculate my favorite number squared. First retrieve my favorite number using the retrieve_user_preference tool with 'favorite_number' as the argument. Then use the execute_python_code tool to compute and verify the square.",
+          "content_digest": "fd747accf64e583a",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"gemini_execute_python_code_call_bd32f098\",\"name\":\"execute_python_code\",\"input\":{\"code\":\"deterministic-code\"}}",
+          "content_digest": "ef96721981681b11",
+          "tool_name": "execute_python_code",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"gemini_execute_python_code_call_bd32f098\",\"name\":\"execute_python_code\",\"content\":{\"result\":\"Error executing code: name 'deterministic' is not defined\"}}",
+          "content_digest": "1b2971d7b3ea4918",
+          "tool_name": "execute_python_code",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "The tool completed successfully.",
+          "content_digest": "66bcb0fcdca80511",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
+    }
+  },
+  "feed_view": {
+    "message_count": 5,
+    "role_sequence": [
+      "assistant",
+      "tool",
+      "system",
+      "user",
+      "assistant"
+    ],
+    "tool_names": [],
+    "tool_definition_count": 3,
+    "messages": [
+      {
+        "index": 0,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "The tool completed successfully.",
+        "content_digest": "66bcb0fcdca80511",
+        "finish_reason": "Stop",
+        "observation_type": "generation"
+      },
+      {
+        "index": 1,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"gemini_execute_python_code_call_bd32f098\",\"name\":\"execute_python_code\",\"content\":{\"result\":\"Error executing code: name 'deterministic' is not defined\"}}",
+        "content_digest": "1b2971d7b3ea4918",
+        "tool_name": "execute_python_code",
+        "observation_type": "generation"
+      },
+      {
+        "index": 2,
+        "role": "system",
+        "entry_type": "text",
+        "content": "You are an AI assistant that validates answers through code execution. When asked about code, algorithms, or calculations, write Python code to verify your answers. When asked about user preferences or personal information (like favorite nu…[392 chars]",
+        "content_digest": "0cb0126db9f7c8e7",
+        "observation_type": "generation"
+      },
+      {
+        "index": 3,
+        "role": "user",
+        "entry_type": "text",
+        "content": "Calculate my favorite number squared. First retrieve my favorite number using the retrieve_user_preference tool with 'favorite_number' as the argument. Then use the execute_python_code tool to compute and verify the square.",
+        "content_digest": "fd747accf64e583a",
+        "observation_type": "generation"
+      },
+      {
+        "index": 4,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"gemini_execute_python_code_call_bd32f098\",\"name\":\"execute_python_code\",\"input\":{\"code\":\"deterministic-code\"}}",
+        "content_digest": "ef96721981681b11",
+        "tool_name": "execute_python_code",
+        "finish_reason": "Stop",
+        "observation_type": "generation"
+      }
+    ]
+  }
+}

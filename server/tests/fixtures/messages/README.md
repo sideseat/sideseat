@@ -31,10 +31,23 @@ ASC`, exactly as the queries do — feeding unfiltered rows made whole sessions 
 ## Layout
 
 ```
-<suite>/<sample>/req-001.pb        captured OTLP payload (protobuf, or .json)
-<suite>/<sample>/req-002.pb        one file per exported batch, in capture order
-<suite>/<sample>/expected.json     committed expectation
+<producer>/<mode>/<scenario>/req-001.pb     captured OTLP payload (protobuf, or .json)
+<producer>/<mode>/<scenario>/req-002.pb     one file per exported batch, in capture order
+<producer>/<mode>/<scenario>/expected.json  committed expectation
+_synthetic/<sample>/                        hand-written shapes no producer emits on its own
 ```
+
+A producer is a framework or provider (`strands`, `openai-agents`, `bedrock`) or an SDK conformance
+program (`python`, `javascript`, `dotnet`, `rust`). The mode says who configured the telemetry:
+
+| Mode | Telemetry configured by |
+| --- | --- |
+| `native` | the framework's own documented OpenTelemetry setup, or plain OpenTelemetry for a conformance program |
+| `sdk` | the SideSeat SDK, with the same scenario code |
+| `legacy` | an older capture with no native/SDK pair; removed as each producer is recaptured |
+
+A scenario captured in both `native` and `sdk` is a parity pair, and the goldens require the two to
+produce the same conversations.
 
 The fixture is the **raw OTLP payload the framework actually sent**, not database rows. That
 is the only input the server really receives, so a fixture cannot drift from reality. The test
@@ -56,71 +69,71 @@ the corpus matches it.
 | Suite | Version captured against | Samples | Captured requests |
 | --- | --- | --- | --- |
 | `_synthetic` | hand-written shapes, no SDK | 17 | 17 |
-| `adk` | google-adk >=1.27.0 | 8 | 18 |
-| `adk-native` | google-adk >=1.27.0, native OTLP setup | 10 | 11 |
-| `adk-sdk` | SideSeat Python 1.0.8 / google-adk >=1.27.0 | 10 | 11 |
-| `ag2-native` | AG2 1.1.1 / OpenAI 3.22.1 / OpenTelemetry Python 1.45.0 on CPython 3.12.8, native OTLP setup | 1 | 1 |
-| `ag2-sdk` | SideSeat Python 1.0.8 / AG2 1.1.1 / OpenAI 3.22.1 / OpenTelemetry Python 1.45.0 on CPython 3.12.8 | 1 | 1 |
-| `agent-framework` | agent-framework-core >=1.0.0b0 | 10 | 17 |
-| `agent-framework-native` | agent-framework-core >=1.0.0b0, native OTLP setup | 10 | 10 |
-| `agent-framework-sdk` | SideSeat Python 1.0.8 / agent-framework-core >=1.0.0b0 | 10 | 10 |
-| `agentscope-native` | AgentScope 2.0.9 / OpenAI 3.22.1 / OpenTelemetry Python 1.45.0 on CPython 3.12.8, native `TracingMiddleware` | 1 | 1 |
-| `agentscope-sdk` | SideSeat Python 1.0.8 / AgentScope 2.0.9 / OpenAI 3.22.1 / OpenTelemetry Python 1.45.0 on CPython 3.12.8 | 1 | 1 |
-| `agno-native` | Agno 3.0.11 / OpenAI 3.22.1 / OpenInference Agno instrumentor 1.0.12 / OpenTelemetry Python 1.45.0 on CPython 3.13.7, native OTLP setup | 1 | 1 |
-| `agno-sdk` | SideSeat Python 1.0.8 / Agno 3.0.11 / OpenAI 3.22.1 / OpenInference Agno instrumentor 1.0.12 / OpenTelemetry Python 1.45.0 on CPython 3.13.7 | 1 | 1 |
-| `anthropic` | anthropic >=0.84.0 | 7 | 18 |
-| `anthropic-native` | Anthropic 1.8.0 / Logfire 6.0.0b7 / OpenTelemetry Python 1.44.0 on CPython 3.13.7 | 1 | 1 |
-| `anthropic-sdk` | SideSeat Python 1.0.8 / Anthropic 1.8.0 / Logfire 6.0.0b7 / OpenTelemetry Python 1.44.0 on CPython 3.13.7 | 1 | 1 |
-| `autogen-native` | AutoGen AgentChat 0.7.5 / AutoGen Ext 0.7.5 / OpenInference AutoGen instrumentor 0.1.18 / OpenTelemetry Python 1.45.0 on CPython 3.13.7 | 1 | 1 |
-| `autogen-sdk` | SideSeat Python 1.0.8 / AutoGen AgentChat 0.7.5 / AutoGen Ext 0.7.5 / OpenInference AutoGen instrumentor 0.1.18 / OpenTelemetry Python 1.45.0 on CPython 3.13.7 | 1 | 1 |
-| `azure-openai-native` | OpenAI 3.22.1 / OpenInference OpenAI instrumentor 0.1.62 / OpenTelemetry Python 1.45.0 on CPython 3.14.7, native OTLP setup | 1 | 1 |
-| `azure-openai-sdk` | SideSeat Python 1.0.8 / OpenAI 3.22.1 / OpenInference OpenAI instrumentor 0.1.62 / OpenTelemetry Python 1.45.0 on CPython 3.14.7 | 1 | 1 |
-| `bedrock` | boto3 (bedrock runtime) | 6 | 14 |
-| `claude-agent-sdk` | claude-agent-sdk >=0.2.0 | 8 | 17 |
-| `claude-agent-sdk-js` | @anthropic-ai/claude-agent-sdk ^0.3.246 | 8 | 17 |
-| `crewai` | crewai >=1.10.1 | 9 | 33 |
-| `dotnet-otel` | OpenTelemetry .NET 1.19.1 on .NET SDK 10.0.401 | 1 | 1 |
-| `dotnet-sdk` | SideSeat .NET 0.2.0 / OpenTelemetry 1.19.1 on .NET SDK 10.0.401 | 1 | 1 |
-| `google-genai-native` | Google GenAI 2.26.0 / Logfire 6.0.0b7 / Google GenAI OTel instrumentor 1.2b0 / OpenTelemetry Python 1.44.0 on CPython 3.12.8 | 1 | 1 |
-| `google-genai-sdk` | SideSeat Python 1.0.8 / Google GenAI 2.26.0 / Logfire 6.0.0b7 / Google GenAI OTel instrumentor 1.2b0 / OpenTelemetry Python 1.44.0 on CPython 3.12.8 | 1 | 1 |
-| `haystack-native` | Haystack 3.3.0 / opentelemetry-haystack 1.0.0 / OpenAI 3.22.1 / OpenTelemetry Python 1.45.0, native OTLP setup | 1 | 1 |
-| `haystack-sdk` | SideSeat Python 1.0.8 / Haystack 3.3.0 / opentelemetry-haystack 1.0.0 / OpenAI 3.22.1 / OpenTelemetry Python 1.45.0 | 1 | 1 |
-| `javascript-otel` | OpenTelemetry JS 2.11.0 / OTLP exporter 0.222.0 on Node.js 26.9.0 | 1 | 1 |
-| `javascript-sdk` | SideSeat JavaScript 2.0.0 / OpenTelemetry JS 2.11.0 on Node.js 26.9.0 | 1 | 1 |
-| `langchain-native` | LangChain 1.4.3 / LangChain Core 1.6.6 / LangChain OpenAI 1.6.7 / OpenInference LangChain instrumentor 0.1.76 / OpenTelemetry Python 1.45.0 on CPython 3.13.7, native OTLP setup | 1 | 1 |
-| `langchain-sdk` | SideSeat Python 1.0.8 / LangChain 1.4.3 / LangChain Core 1.6.6 / LangChain OpenAI 1.6.7 / OpenInference LangChain instrumentor 0.1.76 / OpenTelemetry Python 1.45.0 on CPython 3.13.7 | 1 | 1 |
-| `langgraph` | langgraph >=1.1.2 | 9 | 23 |
-| `langgraph-native` | langgraph >=1.1.2, native OTLP setup | 9 | 9 |
-| `langgraph-sdk` | SideSeat Python 1.0.8 / langgraph >=1.1.2 | 9 | 9 |
-| `llama-index-native` | LlamaIndex Core 0.14.25 / LlamaIndex OpenAI 0.8.2 / OpenAI 2.54.0 (latest allowed by the adapter's `<3` constraint) / OpenInference LlamaIndex instrumentor 4.5.3 / OpenTelemetry Python 1.45.0 on CPython 3.13.7, native OTLP setup | 1 | 1 |
-| `llama-index-sdk` | SideSeat Python 1.0.8 / LlamaIndex Core 0.14.25 / LlamaIndex OpenAI 0.8.2 / OpenAI 2.54.0 (latest allowed by the adapter's `<3` constraint) / OpenInference LlamaIndex instrumentor 4.5.3 / OpenTelemetry Python 1.45.0 on CPython 3.13.7 | 1 | 1 |
-| `logfire-native` | Logfire 6.0.0b7 / OpenTelemetry Python 1.44.0 on CPython 3.12.8, native Logfire setup | 1 | 1 |
-| `logfire-sdk` | SideSeat Python 1.0.8 / Logfire 6.0.0b7 / OpenTelemetry Python 1.44.0 on CPython 3.12.8 | 1 | 1 |
-| `openai` | openai >=1.80.0 | 6 | 8 |
-| `openai-agents` | openai-agents >=0.12.1 | 10 | 37 |
-| `openai-native` | OpenAI 3.19.2 / Logfire 6.0.0b7 / OpenTelemetry Python 1.44.0 on CPython 3.13.7 | 1 | 1 |
-| `openai-sdk` | SideSeat Python 1.0.8 / OpenAI 3.19.2 / Logfire 6.0.0b7 / OpenTelemetry Python 1.44.0 on CPython 3.13.7 | 1 | 1 |
-| `openinference-native` | OpenInference instrumentation 0.1.67 / semantic conventions 0.1.40 / OpenTelemetry Python 1.45.0 on CPython 3.14.7, native OTLP setup | 1 | 1 |
-| `openinference-sdk` | SideSeat Python 1.0.8 / OpenInference instrumentation 0.1.67 / semantic conventions 0.1.40 / OpenTelemetry Python 1.45.0 on CPython 3.14.7 | 1 | 1 |
-| `pydantic-ai-native` | Pydantic AI 2.50.0 / Logfire 6.0.0b7 / OpenTelemetry Python 1.44.0 on CPython 3.12.8 | 1 | 1 |
-| `pydantic-ai-sdk` | SideSeat Python 1.0.8 / Pydantic AI 2.50.0 / Logfire 6.0.0b7 / OpenTelemetry Python 1.44.0 on CPython 3.12.8 | 1 | 1 |
-| `python-otel` | OpenTelemetry Python 1.45.0 on CPython 3.14.7 | 1 | 1 |
-| `python-sdk` | SideSeat Python 1.0.8 / OpenTelemetry Python 1.45.0 on CPython 3.14.7 | 1 | 1 |
-| `rust-otel` | OpenTelemetry Rust 0.33.0 on Rust 1.94.1 | 1 | 1 |
-| `rust-sdk` | SideSeat Rust 0.2.0 / OpenTelemetry Rust 0.33.0 on Rust 1.94.1 | 1 | 1 |
-| `semantic-kernel-native` | Semantic Kernel 1.44.1 / OpenAI 3.22.1 / OpenTelemetry Python 1.45.0, native OTLP setup | 1 | 1 |
-| `semantic-kernel-sdk` | SideSeat Python 1.0.8 / Semantic Kernel 1.44.1 / OpenAI 3.22.1 / OpenTelemetry Python 1.45.0 | 1 | 1 |
-| `smolagents-native` | Smolagents 1.26.0 / OpenAI 3.22.1 / OpenInference Smolagents instrumentor 0.1.41 / OpenTelemetry Python 1.45.0 on CPython 3.13.7, native OTLP setup | 1 | 1 |
-| `smolagents-sdk` | SideSeat Python 1.0.8 / Smolagents 1.26.0 / OpenAI 3.22.1 / OpenInference Smolagents instrumentor 0.1.41 / OpenTelemetry Python 1.45.0 on CPython 3.13.7 | 1 | 1 |
-| `strands` | strands-agents >=1.30.0 | 10 | 40 |
-| `strands-js` | @strands-agents/sdk ^1.14.0 | 7 | 12 |
-| `strands-native` | strands-agents >=1.30.0, native OTLP setup | 9 | 9 |
-| `strands-sdk` | SideSeat Python 1.0.8 / strands-agents >=1.30.0 | 9 | 9 |
-| `traceloop-native` | TraceLoop SDK 0.62.4 / OpenAI 3.22.1 / OpenTelemetry Python 1.45.0 on CPython 3.12.8, native OTLP setup | 1 | 1 |
-| `traceloop-sdk` | SideSeat Python 1.0.8 / TraceLoop SDK 0.62.4 / OpenAI 3.22.1 / OpenTelemetry Python 1.45.0 on CPython 3.12.8 | 1 | 1 |
-| `vercel-ai-js` | ai ^7.0.79 | 6 | 13 |
-| `vertex-ai-native` | Google GenAI 2.26.0 / Logfire 6.0.0b7 / Google GenAI OTel instrumentor 1.2b0 / OpenTelemetry Python 1.44.0 on CPython 3.12.8, native Logfire setup with the current `enterprise=True` Vertex mode | 1 | 1 |
-| `vertex-ai-sdk` | SideSeat Python 1.0.8 / Google GenAI 2.26.0 / Logfire 6.0.0b7 / Google GenAI OTel instrumentor 1.2b0 / OpenTelemetry Python 1.44.0 on CPython 3.12.8, current `enterprise=True` Vertex mode | 1 | 1 |
+| `adk/legacy` | google-adk >=1.27.0 | 8 | 18 |
+| `adk/native` | google-adk >=1.27.0, native OTLP setup | 10 | 11 |
+| `adk/sdk` | SideSeat Python 1.0.8 / google-adk >=1.27.0 | 10 | 11 |
+| `ag2/native` | AG2 1.1.1 / OpenAI 3.22.1 / OpenTelemetry Python 1.45.0 on CPython 3.12.8, native OTLP setup | 1 | 1 |
+| `ag2/sdk` | SideSeat Python 1.0.8 / AG2 1.1.1 / OpenAI 3.22.1 / OpenTelemetry Python 1.45.0 on CPython 3.12.8 | 1 | 1 |
+| `agent-framework/legacy` | agent-framework-core >=1.0.0b0 | 10 | 17 |
+| `agent-framework/native` | agent-framework-core >=1.0.0b0, native OTLP setup | 10 | 10 |
+| `agent-framework/sdk` | SideSeat Python 1.0.8 / agent-framework-core >=1.0.0b0 | 10 | 10 |
+| `agentscope/native` | AgentScope 2.0.9 / OpenAI 3.22.1 / OpenTelemetry Python 1.45.0 on CPython 3.12.8, native `TracingMiddleware` | 1 | 1 |
+| `agentscope/sdk` | SideSeat Python 1.0.8 / AgentScope 2.0.9 / OpenAI 3.22.1 / OpenTelemetry Python 1.45.0 on CPython 3.12.8 | 1 | 1 |
+| `agno/native` | Agno 3.0.11 / OpenAI 3.22.1 / OpenInference Agno instrumentor 1.0.12 / OpenTelemetry Python 1.45.0 on CPython 3.13.7, native OTLP setup | 1 | 1 |
+| `agno/sdk` | SideSeat Python 1.0.8 / Agno 3.0.11 / OpenAI 3.22.1 / OpenInference Agno instrumentor 1.0.12 / OpenTelemetry Python 1.45.0 on CPython 3.13.7 | 1 | 1 |
+| `anthropic/legacy` | anthropic >=0.84.0 | 7 | 18 |
+| `anthropic/native` | Anthropic 1.8.0 / Logfire 6.0.0b7 / OpenTelemetry Python 1.44.0 on CPython 3.13.7 | 1 | 1 |
+| `anthropic/sdk` | SideSeat Python 1.0.8 / Anthropic 1.8.0 / Logfire 6.0.0b7 / OpenTelemetry Python 1.44.0 on CPython 3.13.7 | 1 | 1 |
+| `autogen/native` | AutoGen AgentChat 0.7.5 / AutoGen Ext 0.7.5 / OpenInference AutoGen instrumentor 0.1.18 / OpenTelemetry Python 1.45.0 on CPython 3.13.7 | 1 | 1 |
+| `autogen/sdk` | SideSeat Python 1.0.8 / AutoGen AgentChat 0.7.5 / AutoGen Ext 0.7.5 / OpenInference AutoGen instrumentor 0.1.18 / OpenTelemetry Python 1.45.0 on CPython 3.13.7 | 1 | 1 |
+| `azure-openai/native` | OpenAI 3.22.1 / OpenInference OpenAI instrumentor 0.1.62 / OpenTelemetry Python 1.45.0 on CPython 3.14.7, native OTLP setup | 1 | 1 |
+| `azure-openai/sdk` | SideSeat Python 1.0.8 / OpenAI 3.22.1 / OpenInference OpenAI instrumentor 0.1.62 / OpenTelemetry Python 1.45.0 on CPython 3.14.7 | 1 | 1 |
+| `bedrock/legacy` | boto3 (bedrock runtime) | 6 | 14 |
+| `claude-agent-sdk/legacy` | claude-agent-sdk >=0.2.0 | 8 | 17 |
+| `claude-agent-sdk-js/legacy` | @anthropic-ai/claude-agent-sdk ^0.3.246 | 8 | 17 |
+| `crewai/legacy` | crewai >=1.10.1 | 9 | 33 |
+| `dotnet/native` | OpenTelemetry .NET 1.19.1 on .NET SDK 10.0.401 | 1 | 1 |
+| `dotnet/sdk` | SideSeat .NET 0.2.0 / OpenTelemetry 1.19.1 on .NET SDK 10.0.401 | 1 | 1 |
+| `google-genai/native` | Google GenAI 2.26.0 / Logfire 6.0.0b7 / Google GenAI OTel instrumentor 1.2b0 / OpenTelemetry Python 1.44.0 on CPython 3.12.8 | 1 | 1 |
+| `google-genai/sdk` | SideSeat Python 1.0.8 / Google GenAI 2.26.0 / Logfire 6.0.0b7 / Google GenAI OTel instrumentor 1.2b0 / OpenTelemetry Python 1.44.0 on CPython 3.12.8 | 1 | 1 |
+| `haystack/native` | Haystack 3.3.0 / opentelemetry-haystack 1.0.0 / OpenAI 3.22.1 / OpenTelemetry Python 1.45.0, native OTLP setup | 1 | 1 |
+| `haystack/sdk` | SideSeat Python 1.0.8 / Haystack 3.3.0 / opentelemetry-haystack 1.0.0 / OpenAI 3.22.1 / OpenTelemetry Python 1.45.0 | 1 | 1 |
+| `javascript/native` | OpenTelemetry JS 2.11.0 / OTLP exporter 0.222.0 on Node.js 26.9.0 | 1 | 1 |
+| `javascript/sdk` | SideSeat JavaScript 2.0.0 / OpenTelemetry JS 2.11.0 on Node.js 26.9.0 | 1 | 1 |
+| `langchain/native` | LangChain 1.4.3 / LangChain Core 1.6.6 / LangChain OpenAI 1.6.7 / OpenInference LangChain instrumentor 0.1.76 / OpenTelemetry Python 1.45.0 on CPython 3.13.7, native OTLP setup | 1 | 1 |
+| `langchain/sdk` | SideSeat Python 1.0.8 / LangChain 1.4.3 / LangChain Core 1.6.6 / LangChain OpenAI 1.6.7 / OpenInference LangChain instrumentor 0.1.76 / OpenTelemetry Python 1.45.0 on CPython 3.13.7 | 1 | 1 |
+| `langgraph/legacy` | langgraph >=1.1.2 | 9 | 23 |
+| `langgraph/native` | langgraph >=1.1.2, native OTLP setup | 9 | 9 |
+| `langgraph/sdk` | SideSeat Python 1.0.8 / langgraph >=1.1.2 | 9 | 9 |
+| `llama-index/native` | LlamaIndex Core 0.14.25 / LlamaIndex OpenAI 0.8.2 / OpenAI 2.54.0 (latest allowed by the adapter's `<3` constraint) / OpenInference LlamaIndex instrumentor 4.5.3 / OpenTelemetry Python 1.45.0 on CPython 3.13.7, native OTLP setup | 1 | 1 |
+| `llama-index/sdk` | SideSeat Python 1.0.8 / LlamaIndex Core 0.14.25 / LlamaIndex OpenAI 0.8.2 / OpenAI 2.54.0 (latest allowed by the adapter's `<3` constraint) / OpenInference LlamaIndex instrumentor 4.5.3 / OpenTelemetry Python 1.45.0 on CPython 3.13.7 | 1 | 1 |
+| `logfire/native` | Logfire 6.0.0b7 / OpenTelemetry Python 1.44.0 on CPython 3.12.8, native Logfire setup | 1 | 1 |
+| `logfire/sdk` | SideSeat Python 1.0.8 / Logfire 6.0.0b7 / OpenTelemetry Python 1.44.0 on CPython 3.12.8 | 1 | 1 |
+| `openai/legacy` | openai >=1.80.0 | 6 | 8 |
+| `openai-agents/legacy` | openai-agents >=0.12.1 | 10 | 37 |
+| `openai/native` | OpenAI 3.19.2 / Logfire 6.0.0b7 / OpenTelemetry Python 1.44.0 on CPython 3.13.7 | 1 | 1 |
+| `openai/sdk` | SideSeat Python 1.0.8 / OpenAI 3.19.2 / Logfire 6.0.0b7 / OpenTelemetry Python 1.44.0 on CPython 3.13.7 | 1 | 1 |
+| `openinference/native` | OpenInference instrumentation 0.1.67 / semantic conventions 0.1.40 / OpenTelemetry Python 1.45.0 on CPython 3.14.7, native OTLP setup | 1 | 1 |
+| `openinference/sdk` | SideSeat Python 1.0.8 / OpenInference instrumentation 0.1.67 / semantic conventions 0.1.40 / OpenTelemetry Python 1.45.0 on CPython 3.14.7 | 1 | 1 |
+| `pydantic-ai/native` | Pydantic AI 2.50.0 / Logfire 6.0.0b7 / OpenTelemetry Python 1.44.0 on CPython 3.12.8 | 1 | 1 |
+| `pydantic-ai/sdk` | SideSeat Python 1.0.8 / Pydantic AI 2.50.0 / Logfire 6.0.0b7 / OpenTelemetry Python 1.44.0 on CPython 3.12.8 | 1 | 1 |
+| `python/native` | OpenTelemetry Python 1.45.0 on CPython 3.14.7 | 1 | 1 |
+| `python/sdk` | SideSeat Python 1.0.8 / OpenTelemetry Python 1.45.0 on CPython 3.14.7 | 1 | 1 |
+| `rust/native` | OpenTelemetry Rust 0.33.0 on Rust 1.94.1 | 1 | 1 |
+| `rust/sdk` | SideSeat Rust 0.2.0 / OpenTelemetry Rust 0.33.0 on Rust 1.94.1 | 1 | 1 |
+| `semantic-kernel/native` | Semantic Kernel 1.44.1 / OpenAI 3.22.1 / OpenTelemetry Python 1.45.0, native OTLP setup | 1 | 1 |
+| `semantic-kernel/sdk` | SideSeat Python 1.0.8 / Semantic Kernel 1.44.1 / OpenAI 3.22.1 / OpenTelemetry Python 1.45.0 | 1 | 1 |
+| `smolagents/native` | Smolagents 1.26.0 / OpenAI 3.22.1 / OpenInference Smolagents instrumentor 0.1.41 / OpenTelemetry Python 1.45.0 on CPython 3.13.7, native OTLP setup | 1 | 1 |
+| `smolagents/sdk` | SideSeat Python 1.0.8 / Smolagents 1.26.0 / OpenAI 3.22.1 / OpenInference Smolagents instrumentor 0.1.41 / OpenTelemetry Python 1.45.0 on CPython 3.13.7 | 1 | 1 |
+| `strands/legacy` | strands-agents >=1.30.0 | 10 | 40 |
+| `strands-js/legacy` | @strands-agents/sdk ^1.14.0 | 7 | 12 |
+| `strands/native` | strands-agents >=1.30.0, native OTLP setup | 9 | 9 |
+| `strands/sdk` | SideSeat Python 1.0.8 / strands-agents >=1.30.0 | 9 | 9 |
+| `traceloop/native` | TraceLoop SDK 0.62.4 / OpenAI 3.22.1 / OpenTelemetry Python 1.45.0 on CPython 3.12.8, native OTLP setup | 1 | 1 |
+| `traceloop/sdk` | SideSeat Python 1.0.8 / TraceLoop SDK 0.62.4 / OpenAI 3.22.1 / OpenTelemetry Python 1.45.0 on CPython 3.12.8 | 1 | 1 |
+| `vercel-ai-js/legacy` | ai ^7.0.79 | 6 | 13 |
+| `vertex-ai/native` | Google GenAI 2.26.0 / Logfire 6.0.0b7 / Google GenAI OTel instrumentor 1.2b0 / OpenTelemetry Python 1.44.0 on CPython 3.12.8, native Logfire setup with the current `enterprise=True` Vertex mode | 1 | 1 |
+| `vertex-ai/sdk` | SideSeat Python 1.0.8 / Google GenAI 2.26.0 / Logfire 6.0.0b7 / Google GenAI OTel instrumentor 1.2b0 / OpenTelemetry Python 1.44.0 on CPython 3.12.8, current `enterprise=True` Vertex mode | 1 | 1 |
 | **66 suites** | | **241** | **406** |
 
 Two further samples exist but are **not in the repository**: `strands-js/image-gen` and
@@ -408,12 +421,12 @@ breaks that rule is named.
 
 | Fixture | The shape | What it makes bite |
 | --- | --- | --- |
-| `tool_use` | a Strands call/result pair | the baseline hand-written case |
-| `multi_turn_one_carrier` | nine turns in **one** carrier, in conversation order | carrier subsequence across many siblings - the ADK shape, where one span holds a whole conversation |
-| `parallel_tool_calls` | two distinct calls in one response, then both results | causality *without* adjacency: `call, call, result, result` must be allowed |
-| `resent_history` | a later span re-sending the earlier turn | the re-send collapses onto the original rather than duplicating it |
-| `cross_span_tie` | a generation span and its tool span reporting the **identical** instant, with the tool span's id sorting *first* | `adopt_call_positions`. Disable it and this fixture reports the answer at index 1 before its question at index 3; every captured fixture stays green, because none of them ties |
-| `agent_snapshot_reorders_answer` | a root agent span re-listing a whole turn **answer-first** while its child generation spans emit the calls and the answer separately — the shape the Vercel AI SDK's current integration produces | The **redundant re-listing** rule (`redundant_relistings`, `order_graph.rs`). Its golden records the correct conversation — question, calls, results, answer — and did not until that rule landed: `gen_ai.output.messages` reads as one atomic emission wherever it appears, so the re-listing's stated order was trusted and the answer sorted ahead of the calls that produced it. Two earlier attempts are recorded in `a_relisting_is_discounted_only_on_evidence_from_below_it`: declaring the carrier `accumulated_state` **lost a message** in `agent-framework/tool_use`, and discounting any instance whose messages appear below it fired 4,044 times across the corpus and broke `agent-framework/swarm` and `strands/image_gen`. The rule that works asks two questions instead — is every message witnessed by a *descendant*, and does the instance hold **both** a message the span produced and a result answering it, which no single model response can |
+| `tool_use/legacy` | a Strands call/result pair | the baseline hand-written case |
+| `multi_turn_one_carrier/legacy` | nine turns in **one** carrier, in conversation order | carrier subsequence across many siblings - the ADK shape, where one span holds a whole conversation |
+| `parallel_tool_calls/legacy` | two distinct calls in one response, then both results | causality *without* adjacency: `call, call, result, result` must be allowed |
+| `resent_history/legacy` | a later span re-sending the earlier turn | the re-send collapses onto the original rather than duplicating it |
+| `cross_span_tie/legacy` | a generation span and its tool span reporting the **identical** instant, with the tool span's id sorting *first* | `adopt_call_positions`. Disable it and this fixture reports the answer at index 1 before its question at index 3; every captured fixture stays green, because none of them ties |
+| `agent_snapshot_reorders_answer/legacy` | a root agent span re-listing a whole turn **answer-first** while its child generation spans emit the calls and the answer separately — the shape the Vercel AI SDK's current integration produces | The **redundant re-listing** rule (`redundant_relistings`, `order_graph.rs`). Its golden records the correct conversation — question, calls, results, answer — and did not until that rule landed: `gen_ai.output.messages` reads as one atomic emission wherever it appears, so the re-listing's stated order was trusted and the answer sorted ahead of the calls that produced it. Two earlier attempts are recorded in `a_relisting_is_discounted_only_on_evidence_from_below_it`: declaring the carrier `accumulated_state` **lost a message** in `agent-framework/tool_use`, and discounting any instance whose messages appear below it fired 4,044 times across the corpus and broke `agent-framework/swarm` and `strands/image_gen`. The rule that works asks two questions instead — is every message witnessed by a *descendant*, and does the instance hold **both** a message the span produced and a result answering it, which no single model response can |
 
 The carrier-overlap defect is documented by `reading_more_carriers_only_adds_messages` rather than by a
 fixture: it runs every fixture through both extraction modes and reports what each gains and what

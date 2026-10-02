@@ -249,7 +249,7 @@ fn local_only_samples_are_actually_gitignored() {
     )
     .expect("read .gitignore");
 
-    for (suite, sample) in [("strands-js", "image-gen"), ("vercel-ai-js", "image-gen")] {
+    for (suite, sample) in [("strands-js/legacy", "image-gen"), ("vercel-ai-js/legacy", "image-gen")] {
         let path = format!("server/tests/fixtures/messages/{suite}/{sample}/");
         assert!(
             gitignore.lines().any(|line| line.trim() == path),
@@ -267,7 +267,7 @@ fn local_only_samples_are_actually_gitignored() {
 ///
 /// Two parts, because they catch different failures:
 ///
-/// - **at least one survives**: `strands/error` rendered *no* error at all, because a parent deferred to
+/// - **at least one survives**: `strands/legacy/error` rendered *no* error at all, because a parent deferred to
 ///   an ERROR-status child with nothing to report. The antecedent is source-backed - a span view holding
 ///   an `attr:exception` block means a row had renderable exception fields - so this cannot accuse a
 ///   trace whose ERROR status carried no detail;

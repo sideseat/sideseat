@@ -1,0 +1,270 @@
+{
+  "label": "python/sdk/canonical",
+  "request_count": 1,
+  "span_count": 4,
+  "trace_count": 1,
+  "session_count": 1,
+  "span_views": {
+    "trace-1/canonical-agent-run/span-1": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/chat canonical-model/span-2": {
+      "message_count": 2,
+      "role_sequence": [
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is the weather in London?",
+          "content_digest": "bb7ec104e8651438",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "I will check the weather.",
+          "content_digest": "778a810eaca8513c",
+          "finish_reason": "ToolUse",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/chat canonical-model/span-4": {
+      "message_count": 1,
+      "role_sequence": [
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "It is 18°C and sunny in London.",
+          "content_digest": "dc43128304213aae",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/execute_tool get_weather/span-3": {
+      "message_count": 2,
+      "role_sequence": [
+        "assistant",
+        "tool"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call-weather-1\",\"name\":\"get_weather\",\"input\":{\"city\":\"London\"}}",
+          "content_digest": "de987e3463adc759",
+          "tool_name": "get_weather",
+          "observation_type": "tool"
+        },
+        {
+          "index": 1,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call-weather-1\",\"name\":\"get_weather\",\"content\":{\"temperature_c\":18,\"condition\":\"sunny\"}}",
+          "content_digest": "63933df402748341",
+          "tool_name": "get_weather",
+          "observation_type": "tool"
+        }
+      ]
+    }
+  },
+  "trace_views": {
+    "trace-1": {
+      "message_count": 5,
+      "role_sequence": [
+        "user",
+        "assistant",
+        "assistant",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is the weather in London?",
+          "content_digest": "bb7ec104e8651438",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "I will check the weather.",
+          "content_digest": "778a810eaca8513c",
+          "finish_reason": "ToolUse",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call-weather-1\",\"name\":\"get_weather\",\"input\":{\"city\":\"London\"}}",
+          "content_digest": "de987e3463adc759",
+          "tool_name": "get_weather",
+          "observation_type": "tool"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call-weather-1\",\"name\":\"get_weather\",\"content\":{\"temperature_c\":18,\"condition\":\"sunny\"}}",
+          "content_digest": "63933df402748341",
+          "tool_name": "get_weather",
+          "observation_type": "tool"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "It is 18°C and sunny in London.",
+          "content_digest": "dc43128304213aae",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
+    }
+  },
+  "session_views": {
+    "sdk-conformance-session": {
+      "message_count": 5,
+      "role_sequence": [
+        "user",
+        "assistant",
+        "assistant",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is the weather in London?",
+          "content_digest": "bb7ec104e8651438",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "I will check the weather.",
+          "content_digest": "778a810eaca8513c",
+          "finish_reason": "ToolUse",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call-weather-1\",\"name\":\"get_weather\",\"input\":{\"city\":\"London\"}}",
+          "content_digest": "de987e3463adc759",
+          "tool_name": "get_weather",
+          "observation_type": "tool"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call-weather-1\",\"name\":\"get_weather\",\"content\":{\"temperature_c\":18,\"condition\":\"sunny\"}}",
+          "content_digest": "63933df402748341",
+          "tool_name": "get_weather",
+          "observation_type": "tool"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "It is 18°C and sunny in London.",
+          "content_digest": "dc43128304213aae",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
+    }
+  },
+  "feed_view": {
+    "message_count": 5,
+    "role_sequence": [
+      "assistant",
+      "tool",
+      "assistant",
+      "assistant",
+      "user"
+    ],
+    "tool_names": [],
+    "tool_definition_count": 1,
+    "messages": [
+      {
+        "index": 0,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "It is 18°C and sunny in London.",
+        "content_digest": "dc43128304213aae",
+        "finish_reason": "Stop",
+        "observation_type": "generation"
+      },
+      {
+        "index": 1,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call-weather-1\",\"name\":\"get_weather\",\"content\":{\"temperature_c\":18,\"condition\":\"sunny\"}}",
+        "content_digest": "63933df402748341",
+        "tool_name": "get_weather",
+        "observation_type": "tool"
+      },
+      {
+        "index": 2,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"call-weather-1\",\"name\":\"get_weather\",\"input\":{\"city\":\"London\"}}",
+        "content_digest": "de987e3463adc759",
+        "tool_name": "get_weather",
+        "observation_type": "tool"
+      },
+      {
+        "index": 3,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "I will check the weather.",
+        "content_digest": "778a810eaca8513c",
+        "finish_reason": "ToolUse",
+        "observation_type": "generation"
+      },
+      {
+        "index": 4,
+        "role": "user",
+        "entry_type": "text",
+        "content": "What is the weather in London?",
+        "content_digest": "bb7ec104e8651438",
+        "observation_type": "generation"
+      }
+    ]
+  }
+}

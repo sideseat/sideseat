@@ -270,7 +270,7 @@ fn invariant_checks_are_not_vacuous() {
 fn canonical_labels_ignore_regenerated_trace_and_span_ids() {
     let (label, paths) = discover_fixtures()
         .into_iter()
-        .find(|(label, _)| label == "javascript-sdk/canonical")
+        .find(|(label, _)| label == "javascript/sdk/canonical")
         .expect("JavaScript SDK conformance fixture");
     let rows = rows_for(&paths);
     let expected = build_golden(&label, &paths, &rows).golden;
@@ -612,12 +612,12 @@ const REORDERS_UNDER_PER_CARRIER: &[(&str, &str)] = &[];
 /// One entry left of the original 22 fixtures. The Claude SDK's 16 were fixed by the request-framing
 /// edge (frame and turn meet on one generation span); langgraph's 5 by ordered-input array sequencing
 /// (its frame arrives *inside* `llm.input_messages`, which extraction fragments into per-index
-/// carriers - the resolver re-groups the family and orders its first-seen members). `strands/swarm`
+/// carriers - the resolver re-groups the family and orders its first-seen members). `strands/legacy/swarm`
 /// reports its frame on the agent span while the turn sits on the orchestrator span, and linking the
 /// two needs a request-membership locator that ancestry cannot soundly supply: an agent span can hold
 /// several requests, and several framed agents live under one orchestrator.
 const SYSTEM_FRAME_GAP: &[(&str, &str)] = &[(
-    "strands/swarm",
+    "strands/legacy/swarm",
     "the swarm's request arrives on its orchestrator span, the planner's prompt on the agent span",
 )];
 
@@ -809,7 +809,7 @@ fn shadow_order_of(label: &str) -> Vec<(String, String)> {
 /// exists to prove before any view consumes the new order.
 #[test]
 fn shadow_resolver_keeps_intro_with_its_call_before_the_result() {
-    let order = shadow_order_of("strands-js/swarm");
+    let order = shadow_order_of("strands-js/legacy/swarm");
 
     let text = order
         .iter()
@@ -837,7 +837,7 @@ fn shadow_resolver_keeps_intro_with_its_call_before_the_result() {
 /// The resolver is a permutation: it reorders survivors, it does not add, drop or alter them.
 #[test]
 fn shadow_resolver_is_a_permutation_of_the_survivors() {
-    for label in ["strands-js/swarm", "strands/tool_use", "strands/mcp_tools"] {
+    for label in ["strands-js/legacy/swarm", "strands/legacy/tool_use", "strands/legacy/mcp_tools"] {
         let (_, paths) = discover_fixtures()
             .into_iter()
             .find(|(l, _)| l == label)

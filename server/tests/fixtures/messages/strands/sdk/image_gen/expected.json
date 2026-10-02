@@ -1,0 +1,797 @@
+{
+  "label": "strands/sdk/image_gen",
+  "request_count": 1,
+  "span_count": 12,
+  "trace_count": 2,
+  "session_count": 1,
+  "span_views": {
+    "trace-1/chat/span-3": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You will be instructed to generate a number of images of a given subject. Vary the prompt for each generated image to create a variety of options. Your final output must contain ONLY a comma-separated list of the filesystem paths of generat…[250 chars]",
+          "content_digest": "5e5525d3b8659029",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Generate 3 images of a dog",
+          "content_digest": "89aa55f374613789",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call-generate-image-1\",\"name\":\"generate_image\",\"input\":{\"prompt\":\"A deterministic blue circle on a white background\"}}",
+          "content_digest": "12b8b5e7d057bb0c",
+          "tool_name": "generate_image",
+          "finish_reason": "ToolUse",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/chat/span-6": {
+      "message_count": 5,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You will be instructed to generate a number of images of a given subject. Vary the prompt for each generated image to create a variety of options. Your final output must contain ONLY a comma-separated list of the filesystem paths of generat…[250 chars]",
+          "content_digest": "5e5525d3b8659029",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Generate 3 images of a dog",
+          "content_digest": "89aa55f374613789",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call-generate-image-1\",\"name\":\"generate_image\",\"input\":{\"prompt\":\"A deterministic blue circle on a white background\"}}",
+          "content_digest": "12b8b5e7d057bb0c",
+          "tool_name": "generate_image",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call-generate-image-1\",\"content\":[{\"type\":\"text\",\"text\":\"/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/sideseat-strands-images/fbfe474edeac.png\"}]}",
+          "content_digest": "b2ce0ddefd20ac88",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/sideseat-strands-images/fbfe474edeac.png",
+          "content_digest": "41ae167cac0151ec",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/execute_event_loop_cycle/span-2": {
+      "message_count": 3,
+      "role_sequence": [
+        "user",
+        "assistant",
+        "tool"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Generate 3 images of a dog",
+          "content_digest": "89aa55f374613789",
+          "observation_type": "span"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call-generate-image-1\",\"name\":\"generate_image\",\"input\":{\"prompt\":\"A deterministic blue circle on a white background\"}}",
+          "content_digest": "12b8b5e7d057bb0c",
+          "tool_name": "generate_image",
+          "observation_type": "span"
+        },
+        {
+          "index": 2,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call-generate-image-1\",\"content\":[{\"type\":\"text\",\"text\":\"/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/sideseat-strands-images/fbfe474edeac.png\"}]}",
+          "content_digest": "b2ce0ddefd20ac88",
+          "observation_type": "span"
+        }
+      ]
+    },
+    "trace-1/execute_event_loop_cycle/span-5": {
+      "message_count": 3,
+      "role_sequence": [
+        "user",
+        "assistant",
+        "tool"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Generate 3 images of a dog",
+          "content_digest": "89aa55f374613789",
+          "observation_type": "span"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call-generate-image-1\",\"name\":\"generate_image\",\"input\":{\"prompt\":\"A deterministic blue circle on a white background\"}}",
+          "content_digest": "12b8b5e7d057bb0c",
+          "tool_name": "generate_image",
+          "observation_type": "span"
+        },
+        {
+          "index": 2,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call-generate-image-1\",\"content\":[{\"type\":\"text\",\"text\":\"/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/sideseat-strands-images/fbfe474edeac.png\"}]}",
+          "content_digest": "b2ce0ddefd20ac88",
+          "observation_type": "span"
+        }
+      ]
+    },
+    "trace-1/execute_tool generate_image/span-4": {
+      "message_count": 1,
+      "role_sequence": [
+        "tool"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/sideseat-strands-images/fbfe474edeac.png",
+          "content_digest": "470c65edbc29b054",
+          "observation_type": "tool"
+        }
+      ]
+    },
+    "trace-1/invoke_agent Strands Agents/span-1": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [
+        "generate_image"
+      ],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You will be instructed to generate a number of images of a given subject. Vary the prompt for each generated image to create a variety of options. Your final output must contain ONLY a comma-separated list of the filesystem paths of generat…[250 chars]",
+          "content_digest": "5e5525d3b8659029",
+          "observation_type": "agent"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Generate 3 images of a dog",
+          "content_digest": "89aa55f374613789",
+          "observation_type": "agent"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/sideseat-strands-images/fbfe474edeac.png",
+          "content_digest": "b793ba9869687d46",
+          "finish_reason": "Stop",
+          "observation_type": "agent"
+        }
+      ]
+    },
+    "trace-2/chat/span-3": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You will be provided with a list of filesystem paths, each containing an image. Describe each image, and then choose which one is best. Your final line of output must be as follows: FINAL DECISION: <path to final decision image>",
+          "content_digest": "4000fcf8e134d2e3",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/sideseat-strands-images/fbfe474edeac.png",
+          "content_digest": "b793ba9869687d46",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call-image-reader-1\",\"name\":\"image_reader\",\"input\":{\"image_path\":\"/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/sideseat-strands-images/fbfe474edeac.png\"}}",
+          "content_digest": "1b654c980827eaa2",
+          "tool_name": "image_reader",
+          "finish_reason": "ToolUse",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-2/chat/span-6": {
+      "message_count": 5,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You will be provided with a list of filesystem paths, each containing an image. Describe each image, and then choose which one is best. Your final line of output must be as follows: FINAL DECISION: <path to final decision image>",
+          "content_digest": "4000fcf8e134d2e3",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/sideseat-strands-images/fbfe474edeac.png",
+          "content_digest": "b793ba9869687d46",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call-image-reader-1\",\"name\":\"image_reader\",\"input\":{\"image_path\":\"/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/sideseat-strands-images/fbfe474edeac.png\"}}",
+          "content_digest": "1b654c980827eaa2",
+          "tool_name": "image_reader",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call-image-reader-1\",\"content\":[{\"type\":\"image\",\"media_type\":\"image/png\",\"source\":\"base64\",\"data\":\"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=\"}]}",
+          "content_digest": "7fd7501f11bd0b8b",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "The tool completed successfully.",
+          "content_digest": "66bcb0fcdca80511",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-2/execute_event_loop_cycle/span-2": {
+      "message_count": 3,
+      "role_sequence": [
+        "user",
+        "assistant",
+        "tool"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/sideseat-strands-images/fbfe474edeac.png",
+          "content_digest": "b793ba9869687d46",
+          "observation_type": "span"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call-image-reader-1\",\"name\":\"image_reader\",\"input\":{\"image_path\":\"/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/sideseat-strands-images/fbfe474edeac.png\"}}",
+          "content_digest": "1b654c980827eaa2",
+          "tool_name": "image_reader",
+          "observation_type": "span"
+        },
+        {
+          "index": 2,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call-image-reader-1\",\"content\":[{\"type\":\"image\",\"media_type\":\"image/png\",\"source\":\"base64\",\"data\":\"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=\"}]}",
+          "content_digest": "7fd7501f11bd0b8b",
+          "observation_type": "span"
+        }
+      ]
+    },
+    "trace-2/execute_event_loop_cycle/span-5": {
+      "message_count": 3,
+      "role_sequence": [
+        "user",
+        "assistant",
+        "tool"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/sideseat-strands-images/fbfe474edeac.png",
+          "content_digest": "b793ba9869687d46",
+          "observation_type": "span"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call-image-reader-1\",\"name\":\"image_reader\",\"input\":{\"image_path\":\"/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/sideseat-strands-images/fbfe474edeac.png\"}}",
+          "content_digest": "1b654c980827eaa2",
+          "tool_name": "image_reader",
+          "observation_type": "span"
+        },
+        {
+          "index": 2,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call-image-reader-1\",\"content\":[{\"type\":\"image\",\"media_type\":\"image/png\",\"source\":\"base64\",\"data\":\"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=\"}]}",
+          "content_digest": "7fd7501f11bd0b8b",
+          "observation_type": "span"
+        }
+      ]
+    },
+    "trace-2/execute_tool image_reader/span-4": {
+      "message_count": 1,
+      "role_sequence": [
+        "tool"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call-image-reader-1\",\"content\":[{\"type\":\"image\",\"media_type\":\"image/png\",\"source\":\"base64\",\"data\":\"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=\"}]}",
+          "content_digest": "7fd7501f11bd0b8b",
+          "observation_type": "tool"
+        }
+      ]
+    },
+    "trace-2/invoke_agent Strands Agents/span-1": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [
+        "image_reader"
+      ],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You will be provided with a list of filesystem paths, each containing an image. Describe each image, and then choose which one is best. Your final line of output must be as follows: FINAL DECISION: <path to final decision image>",
+          "content_digest": "4000fcf8e134d2e3",
+          "observation_type": "agent"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/sideseat-strands-images/fbfe474edeac.png",
+          "content_digest": "b793ba9869687d46",
+          "observation_type": "agent"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "The tool completed successfully.",
+          "content_digest": "b33665dca752fde5",
+          "finish_reason": "Stop",
+          "observation_type": "agent"
+        }
+      ]
+    }
+  },
+  "trace_views": {
+    "trace-1": {
+      "message_count": 5,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [
+        "generate_image"
+      ],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You will be instructed to generate a number of images of a given subject. Vary the prompt for each generated image to create a variety of options. Your final output must contain ONLY a comma-separated list of the filesystem paths of generat…[250 chars]",
+          "content_digest": "5e5525d3b8659029",
+          "observation_type": "agent"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Generate 3 images of a dog",
+          "content_digest": "89aa55f374613789",
+          "observation_type": "agent"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call-generate-image-1\",\"name\":\"generate_image\",\"input\":{\"prompt\":\"A deterministic blue circle on a white background\"}}",
+          "content_digest": "12b8b5e7d057bb0c",
+          "tool_name": "generate_image",
+          "finish_reason": "ToolUse",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/sideseat-strands-images/fbfe474edeac.png",
+          "content_digest": "470c65edbc29b054",
+          "observation_type": "tool"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/sideseat-strands-images/fbfe474edeac.png",
+          "content_digest": "b793ba9869687d46",
+          "finish_reason": "Stop",
+          "observation_type": "agent"
+        }
+      ]
+    },
+    "trace-2": {
+      "message_count": 5,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [
+        "image_reader"
+      ],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You will be provided with a list of filesystem paths, each containing an image. Describe each image, and then choose which one is best. Your final line of output must be as follows: FINAL DECISION: <path to final decision image>",
+          "content_digest": "4000fcf8e134d2e3",
+          "observation_type": "agent"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/sideseat-strands-images/fbfe474edeac.png",
+          "content_digest": "b793ba9869687d46",
+          "observation_type": "agent"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call-image-reader-1\",\"name\":\"image_reader\",\"input\":{\"image_path\":\"/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/sideseat-strands-images/fbfe474edeac.png\"}}",
+          "content_digest": "1b654c980827eaa2",
+          "tool_name": "image_reader",
+          "finish_reason": "ToolUse",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call-image-reader-1\",\"content\":[{\"type\":\"image\",\"media_type\":\"image/png\",\"source\":\"base64\",\"data\":\"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=\"}]}",
+          "content_digest": "7fd7501f11bd0b8b",
+          "observation_type": "tool"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "The tool completed successfully.",
+          "content_digest": "b33665dca752fde5",
+          "finish_reason": "Stop",
+          "observation_type": "agent"
+        }
+      ]
+    }
+  },
+  "session_views": {
+    "strands-image_gen-f5e86756": {
+      "message_count": 10,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "tool",
+        "assistant",
+        "system",
+        "user",
+        "assistant",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [
+        "generate_image",
+        "image_reader"
+      ],
+      "tool_definition_count": 2,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You will be instructed to generate a number of images of a given subject. Vary the prompt for each generated image to create a variety of options. Your final output must contain ONLY a comma-separated list of the filesystem paths of generat…[250 chars]",
+          "content_digest": "5e5525d3b8659029",
+          "observation_type": "agent"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Generate 3 images of a dog",
+          "content_digest": "89aa55f374613789",
+          "observation_type": "agent"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call-generate-image-1\",\"name\":\"generate_image\",\"input\":{\"prompt\":\"A deterministic blue circle on a white background\"}}",
+          "content_digest": "12b8b5e7d057bb0c",
+          "tool_name": "generate_image",
+          "finish_reason": "ToolUse",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/sideseat-strands-images/fbfe474edeac.png",
+          "content_digest": "470c65edbc29b054",
+          "observation_type": "tool"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/sideseat-strands-images/fbfe474edeac.png",
+          "content_digest": "b793ba9869687d46",
+          "finish_reason": "Stop",
+          "observation_type": "agent"
+        },
+        {
+          "index": 5,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You will be provided with a list of filesystem paths, each containing an image. Describe each image, and then choose which one is best. Your final line of output must be as follows: FINAL DECISION: <path to final decision image>",
+          "content_digest": "4000fcf8e134d2e3",
+          "observation_type": "agent"
+        },
+        {
+          "index": 6,
+          "role": "user",
+          "entry_type": "text",
+          "content": "/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/sideseat-strands-images/fbfe474edeac.png",
+          "content_digest": "b793ba9869687d46",
+          "observation_type": "agent"
+        },
+        {
+          "index": 7,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call-image-reader-1\",\"name\":\"image_reader\",\"input\":{\"image_path\":\"/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/sideseat-strands-images/fbfe474edeac.png\"}}",
+          "content_digest": "1b654c980827eaa2",
+          "tool_name": "image_reader",
+          "finish_reason": "ToolUse",
+          "observation_type": "generation"
+        },
+        {
+          "index": 8,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call-image-reader-1\",\"content\":[{\"type\":\"image\",\"media_type\":\"image/png\",\"source\":\"base64\",\"data\":\"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=\"}]}",
+          "content_digest": "7fd7501f11bd0b8b",
+          "observation_type": "tool"
+        },
+        {
+          "index": 9,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "The tool completed successfully.",
+          "content_digest": "b33665dca752fde5",
+          "finish_reason": "Stop",
+          "observation_type": "agent"
+        }
+      ]
+    }
+  },
+  "feed_view": {
+    "message_count": 10,
+    "role_sequence": [
+      "assistant",
+      "tool",
+      "assistant",
+      "user",
+      "system",
+      "assistant",
+      "tool",
+      "assistant",
+      "user",
+      "system"
+    ],
+    "tool_names": [
+      "generate_image",
+      "image_reader"
+    ],
+    "tool_definition_count": 2,
+    "messages": [
+      {
+        "index": 0,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "The tool completed successfully.",
+        "content_digest": "b33665dca752fde5",
+        "finish_reason": "Stop",
+        "observation_type": "agent"
+      },
+      {
+        "index": 1,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call-image-reader-1\",\"content\":[{\"type\":\"image\",\"media_type\":\"image/png\",\"source\":\"base64\",\"data\":\"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=\"}]}",
+        "content_digest": "7fd7501f11bd0b8b",
+        "observation_type": "tool"
+      },
+      {
+        "index": 2,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"call-image-reader-1\",\"name\":\"image_reader\",\"input\":{\"image_path\":\"/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/sideseat-strands-images/fbfe474edeac.png\"}}",
+        "content_digest": "1b654c980827eaa2",
+        "tool_name": "image_reader",
+        "finish_reason": "ToolUse",
+        "observation_type": "generation"
+      },
+      {
+        "index": 3,
+        "role": "user",
+        "entry_type": "text",
+        "content": "/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/sideseat-strands-images/fbfe474edeac.png",
+        "content_digest": "b793ba9869687d46",
+        "observation_type": "agent"
+      },
+      {
+        "index": 4,
+        "role": "system",
+        "entry_type": "text",
+        "content": "You will be provided with a list of filesystem paths, each containing an image. Describe each image, and then choose which one is best. Your final line of output must be as follows: FINAL DECISION: <path to final decision image>",
+        "content_digest": "4000fcf8e134d2e3",
+        "observation_type": "agent"
+      },
+      {
+        "index": 5,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/sideseat-strands-images/fbfe474edeac.png",
+        "content_digest": "b793ba9869687d46",
+        "finish_reason": "Stop",
+        "observation_type": "agent"
+      },
+      {
+        "index": 6,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/sideseat-strands-images/fbfe474edeac.png",
+        "content_digest": "470c65edbc29b054",
+        "observation_type": "tool"
+      },
+      {
+        "index": 7,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"call-generate-image-1\",\"name\":\"generate_image\",\"input\":{\"prompt\":\"A deterministic blue circle on a white background\"}}",
+        "content_digest": "12b8b5e7d057bb0c",
+        "tool_name": "generate_image",
+        "finish_reason": "ToolUse",
+        "observation_type": "generation"
+      },
+      {
+        "index": 8,
+        "role": "user",
+        "entry_type": "text",
+        "content": "Generate 3 images of a dog",
+        "content_digest": "89aa55f374613789",
+        "observation_type": "agent"
+      },
+      {
+        "index": 9,
+        "role": "system",
+        "entry_type": "text",
+        "content": "You will be instructed to generate a number of images of a given subject. Vary the prompt for each generated image to create a variety of options. Your final output must contain ONLY a comma-separated list of the filesystem paths of generat…[250 chars]",
+        "content_digest": "5e5525d3b8659029",
+        "observation_type": "agent"
+      }
+    ]
+  }
+}

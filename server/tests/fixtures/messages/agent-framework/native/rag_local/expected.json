@@ -1,0 +1,899 @@
+{
+  "label": "agent-framework/native/rag_local",
+  "request_count": 1,
+  "span_count": 13,
+  "trace_count": 1,
+  "session_count": 1,
+  "span_views": {
+    "trace-1/agent_framework.session/span-1": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/chat gpt-5-nano-2025-08-07/span-11": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a helpful AI assistant with access to a technical knowledge base about AI frameworks and observability. When answering questions: 1. ALWAYS use the search_knowledge tool first to find relevant information 2. Base your answers on the…[512 chars]",
+          "content_digest": "4d7a852a15408106",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What embedding models are available for vector search?",
+          "content_digest": "fc08de1734188b8c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call-search-knowledge-1\",\"name\":\"search_knowledge\",\"input\":{\"query\":\"deterministic local fixture\"}}",
+          "content_digest": "f128442ad77b4cff",
+          "tool_name": "search_knowledge",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/chat gpt-5-nano-2025-08-07/span-13": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a helpful AI assistant with access to a technical knowledge base about AI frameworks and observability. When answering questions: 1. ALWAYS use the search_knowledge tool first to find relevant information 2. Base your answers on the…[512 chars]",
+          "content_digest": "4d7a852a15408106",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call-search-knowledge-1\",\"content\":[{\"type\":\"text\",\"text\":\"[1] (relevance: 0.09) Microsoft Agent Framework is a Python SDK for building AI agents. It supports tools, multi-agent orchestration (Sequential…[968 chars]",
+          "content_digest": "bbc694c65082ad41",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "The tool completed successfully.",
+          "content_digest": "66bcb0fcdca80511",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/chat gpt-5-nano-2025-08-07/span-3": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a helpful AI assistant with access to a technical knowledge base about AI frameworks and observability. When answering questions: 1. ALWAYS use the search_knowledge tool first to find relevant information 2. Base your answers on the…[512 chars]",
+          "content_digest": "4d7a852a15408106",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is SideSeat and how does it help with AI observability?",
+          "content_digest": "258073a7aafdb01d",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call-search-knowledge-1\",\"name\":\"search_knowledge\",\"input\":{\"query\":\"deterministic local fixture\"}}",
+          "content_digest": "f128442ad77b4cff",
+          "tool_name": "search_knowledge",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/chat gpt-5-nano-2025-08-07/span-5": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a helpful AI assistant with access to a technical knowledge base about AI frameworks and observability. When answering questions: 1. ALWAYS use the search_knowledge tool first to find relevant information 2. Base your answers on the…[512 chars]",
+          "content_digest": "4d7a852a15408106",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call-search-knowledge-1\",\"content\":[{\"type\":\"text\",\"text\":\"[1] (relevance: 0.09) Microsoft Agent Framework is a Python SDK for building AI agents. It supports tools, multi-agent orchestration (Sequential…[968 chars]",
+          "content_digest": "bbc694c65082ad41",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "The tool completed successfully.",
+          "content_digest": "66bcb0fcdca80511",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/chat gpt-5-nano-2025-08-07/span-7": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a helpful AI assistant with access to a technical knowledge base about AI frameworks and observability. When answering questions: 1. ALWAYS use the search_knowledge tool first to find relevant information 2. Base your answers on the…[512 chars]",
+          "content_digest": "4d7a852a15408106",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "How does RAG work and what are its key components?",
+          "content_digest": "d75bacebd91f3248",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call-search-knowledge-1\",\"name\":\"search_knowledge\",\"input\":{\"query\":\"deterministic local fixture\"}}",
+          "content_digest": "f128442ad77b4cff",
+          "tool_name": "search_knowledge",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/chat gpt-5-nano-2025-08-07/span-9": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a helpful AI assistant with access to a technical knowledge base about AI frameworks and observability. When answering questions: 1. ALWAYS use the search_knowledge tool first to find relevant information 2. Base your answers on the…[512 chars]",
+          "content_digest": "4d7a852a15408106",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call-search-knowledge-1\",\"content\":[{\"type\":\"text\",\"text\":\"[1] (relevance: 0.09) Microsoft Agent Framework is a Python SDK for building AI agents. It supports tools, multi-agent orchestration (Sequential…[968 chars]",
+          "content_digest": "bbc694c65082ad41",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "The tool completed successfully.",
+          "content_digest": "66bcb0fcdca80511",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/execute_tool search_knowledge/span-12": {
+      "message_count": 2,
+      "role_sequence": [
+        "assistant",
+        "tool"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call-search-knowledge-1\",\"name\":\"search_knowledge\",\"input\":{\"query\":\"deterministic local fixture\"}}",
+          "content_digest": "f128442ad77b4cff",
+          "tool_name": "search_knowledge",
+          "observation_type": "tool"
+        },
+        {
+          "index": 1,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "[1] (relevance: 0.09) Microsoft Agent Framework is a Python SDK for building AI agents. It supports tools, multi-agent orchestration (Sequential, Concurrent, Handoff, GroupChat), MCP integration, and built-in OpenTelemetry observability. It…[862 chars]",
+          "content_digest": "2694af07012b1c4f",
+          "tool_name": "search_knowledge",
+          "observation_type": "tool"
+        }
+      ]
+    },
+    "trace-1/execute_tool search_knowledge/span-4": {
+      "message_count": 2,
+      "role_sequence": [
+        "assistant",
+        "tool"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call-search-knowledge-1\",\"name\":\"search_knowledge\",\"input\":{\"query\":\"deterministic local fixture\"}}",
+          "content_digest": "f128442ad77b4cff",
+          "tool_name": "search_knowledge",
+          "observation_type": "tool"
+        },
+        {
+          "index": 1,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "[1] (relevance: 0.09) Microsoft Agent Framework is a Python SDK for building AI agents. It supports tools, multi-agent orchestration (Sequential, Concurrent, Handoff, GroupChat), MCP integration, and built-in OpenTelemetry observability. It…[862 chars]",
+          "content_digest": "2694af07012b1c4f",
+          "tool_name": "search_knowledge",
+          "observation_type": "tool"
+        }
+      ]
+    },
+    "trace-1/execute_tool search_knowledge/span-8": {
+      "message_count": 2,
+      "role_sequence": [
+        "assistant",
+        "tool"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call-search-knowledge-1\",\"name\":\"search_knowledge\",\"input\":{\"query\":\"deterministic local fixture\"}}",
+          "content_digest": "f128442ad77b4cff",
+          "tool_name": "search_knowledge",
+          "observation_type": "tool"
+        },
+        {
+          "index": 1,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "[1] (relevance: 0.09) Microsoft Agent Framework is a Python SDK for building AI agents. It supports tools, multi-agent orchestration (Sequential, Concurrent, Handoff, GroupChat), MCP integration, and built-in OpenTelemetry observability. It…[862 chars]",
+          "content_digest": "2694af07012b1c4f",
+          "tool_name": "search_knowledge",
+          "observation_type": "tool"
+        }
+      ]
+    },
+    "trace-1/invoke_agent eeca2c07-c7dc-4c67-8e26-40828b8eef0f/span-10": {
+      "message_count": 5,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a helpful AI assistant with access to a technical knowledge base about AI frameworks and observability. When answering questions: 1. ALWAYS use the search_knowledge tool first to find relevant information 2. Base your answers on the…[512 chars]",
+          "content_digest": "4d7a852a15408106",
+          "observation_type": "agent"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What embedding models are available for vector search?",
+          "content_digest": "fc08de1734188b8c",
+          "observation_type": "agent"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call-search-knowledge-1\",\"name\":\"search_knowledge\",\"input\":{\"query\":\"deterministic local fixture\"}}",
+          "content_digest": "f128442ad77b4cff",
+          "tool_name": "search_knowledge",
+          "observation_type": "agent"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call-search-knowledge-1\",\"content\":[{\"type\":\"text\",\"text\":\"[1] (relevance: 0.09) Microsoft Agent Framework is a Python SDK for building AI agents. It supports tools, multi-agent orchestration (Sequential…[968 chars]",
+          "content_digest": "bbc694c65082ad41",
+          "observation_type": "agent"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "The tool completed successfully.",
+          "content_digest": "66bcb0fcdca80511",
+          "observation_type": "agent"
+        }
+      ]
+    },
+    "trace-1/invoke_agent eeca2c07-c7dc-4c67-8e26-40828b8eef0f/span-2": {
+      "message_count": 5,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a helpful AI assistant with access to a technical knowledge base about AI frameworks and observability. When answering questions: 1. ALWAYS use the search_knowledge tool first to find relevant information 2. Base your answers on the…[512 chars]",
+          "content_digest": "4d7a852a15408106",
+          "observation_type": "agent"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is SideSeat and how does it help with AI observability?",
+          "content_digest": "258073a7aafdb01d",
+          "observation_type": "agent"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call-search-knowledge-1\",\"name\":\"search_knowledge\",\"input\":{\"query\":\"deterministic local fixture\"}}",
+          "content_digest": "f128442ad77b4cff",
+          "tool_name": "search_knowledge",
+          "observation_type": "agent"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call-search-knowledge-1\",\"content\":[{\"type\":\"text\",\"text\":\"[1] (relevance: 0.09) Microsoft Agent Framework is a Python SDK for building AI agents. It supports tools, multi-agent orchestration (Sequential…[968 chars]",
+          "content_digest": "bbc694c65082ad41",
+          "observation_type": "agent"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "The tool completed successfully.",
+          "content_digest": "66bcb0fcdca80511",
+          "observation_type": "agent"
+        }
+      ]
+    },
+    "trace-1/invoke_agent eeca2c07-c7dc-4c67-8e26-40828b8eef0f/span-6": {
+      "message_count": 5,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a helpful AI assistant with access to a technical knowledge base about AI frameworks and observability. When answering questions: 1. ALWAYS use the search_knowledge tool first to find relevant information 2. Base your answers on the…[512 chars]",
+          "content_digest": "4d7a852a15408106",
+          "observation_type": "agent"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "How does RAG work and what are its key components?",
+          "content_digest": "d75bacebd91f3248",
+          "observation_type": "agent"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call-search-knowledge-1\",\"name\":\"search_knowledge\",\"input\":{\"query\":\"deterministic local fixture\"}}",
+          "content_digest": "f128442ad77b4cff",
+          "tool_name": "search_knowledge",
+          "observation_type": "agent"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call-search-knowledge-1\",\"content\":[{\"type\":\"text\",\"text\":\"[1] (relevance: 0.09) Microsoft Agent Framework is a Python SDK for building AI agents. It supports tools, multi-agent orchestration (Sequential…[968 chars]",
+          "content_digest": "bbc694c65082ad41",
+          "observation_type": "agent"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "The tool completed successfully.",
+          "content_digest": "66bcb0fcdca80511",
+          "observation_type": "agent"
+        }
+      ]
+    }
+  },
+  "trace_views": {
+    "trace-1": {
+      "message_count": 13,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "tool",
+        "assistant",
+        "user",
+        "assistant",
+        "tool",
+        "assistant",
+        "user",
+        "assistant",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a helpful AI assistant with access to a technical knowledge base about AI frameworks and observability. When answering questions: 1. ALWAYS use the search_knowledge tool first to find relevant information 2. Base your answers on the…[512 chars]",
+          "content_digest": "4d7a852a15408106",
+          "observation_type": "agent"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is SideSeat and how does it help with AI observability?",
+          "content_digest": "258073a7aafdb01d",
+          "observation_type": "agent"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call-search-knowledge-1\",\"name\":\"search_knowledge\",\"input\":{\"query\":\"deterministic local fixture\"}}",
+          "content_digest": "f128442ad77b4cff",
+          "tool_name": "search_knowledge",
+          "observation_type": "agent"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "[1] (relevance: 0.09) Microsoft Agent Framework is a Python SDK for building AI agents. It supports tools, multi-agent orchestration (Sequential, Concurrent, Handoff, GroupChat), MCP integration, and built-in OpenTelemetry observability. It…[862 chars]",
+          "content_digest": "2694af07012b1c4f",
+          "tool_name": "search_knowledge",
+          "observation_type": "tool"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "The tool completed successfully.",
+          "content_digest": "66bcb0fcdca80511",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
+          "role": "user",
+          "entry_type": "text",
+          "content": "How does RAG work and what are its key components?",
+          "content_digest": "d75bacebd91f3248",
+          "observation_type": "agent"
+        },
+        {
+          "index": 6,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call-search-knowledge-1\",\"name\":\"search_knowledge\",\"input\":{\"query\":\"deterministic local fixture\"}}",
+          "content_digest": "f128442ad77b4cff",
+          "tool_name": "search_knowledge",
+          "observation_type": "agent"
+        },
+        {
+          "index": 7,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "[1] (relevance: 0.09) Microsoft Agent Framework is a Python SDK for building AI agents. It supports tools, multi-agent orchestration (Sequential, Concurrent, Handoff, GroupChat), MCP integration, and built-in OpenTelemetry observability. It…[862 chars]",
+          "content_digest": "2694af07012b1c4f",
+          "tool_name": "search_knowledge",
+          "observation_type": "tool"
+        },
+        {
+          "index": 8,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "The tool completed successfully.",
+          "content_digest": "66bcb0fcdca80511",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        },
+        {
+          "index": 9,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What embedding models are available for vector search?",
+          "content_digest": "fc08de1734188b8c",
+          "observation_type": "agent"
+        },
+        {
+          "index": 10,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call-search-knowledge-1\",\"name\":\"search_knowledge\",\"input\":{\"query\":\"deterministic local fixture\"}}",
+          "content_digest": "f128442ad77b4cff",
+          "tool_name": "search_knowledge",
+          "observation_type": "agent"
+        },
+        {
+          "index": 11,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "[1] (relevance: 0.09) Microsoft Agent Framework is a Python SDK for building AI agents. It supports tools, multi-agent orchestration (Sequential, Concurrent, Handoff, GroupChat), MCP integration, and built-in OpenTelemetry observability. It…[862 chars]",
+          "content_digest": "2694af07012b1c4f",
+          "tool_name": "search_knowledge",
+          "observation_type": "tool"
+        },
+        {
+          "index": 12,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "The tool completed successfully.",
+          "content_digest": "66bcb0fcdca80511",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
+    }
+  },
+  "session_views": {
+    "agent-framework-rag_local-c519dd6c": {
+      "message_count": 13,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "tool",
+        "assistant",
+        "user",
+        "assistant",
+        "tool",
+        "assistant",
+        "user",
+        "assistant",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a helpful AI assistant with access to a technical knowledge base about AI frameworks and observability. When answering questions: 1. ALWAYS use the search_knowledge tool first to find relevant information 2. Base your answers on the…[512 chars]",
+          "content_digest": "4d7a852a15408106",
+          "observation_type": "agent"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is SideSeat and how does it help with AI observability?",
+          "content_digest": "258073a7aafdb01d",
+          "observation_type": "agent"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call-search-knowledge-1\",\"name\":\"search_knowledge\",\"input\":{\"query\":\"deterministic local fixture\"}}",
+          "content_digest": "f128442ad77b4cff",
+          "tool_name": "search_knowledge",
+          "observation_type": "agent"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "[1] (relevance: 0.09) Microsoft Agent Framework is a Python SDK for building AI agents. It supports tools, multi-agent orchestration (Sequential, Concurrent, Handoff, GroupChat), MCP integration, and built-in OpenTelemetry observability. It…[862 chars]",
+          "content_digest": "2694af07012b1c4f",
+          "tool_name": "search_knowledge",
+          "observation_type": "tool"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "The tool completed successfully.",
+          "content_digest": "66bcb0fcdca80511",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
+          "role": "user",
+          "entry_type": "text",
+          "content": "How does RAG work and what are its key components?",
+          "content_digest": "d75bacebd91f3248",
+          "observation_type": "agent"
+        },
+        {
+          "index": 6,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call-search-knowledge-1\",\"name\":\"search_knowledge\",\"input\":{\"query\":\"deterministic local fixture\"}}",
+          "content_digest": "f128442ad77b4cff",
+          "tool_name": "search_knowledge",
+          "observation_type": "agent"
+        },
+        {
+          "index": 7,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "[1] (relevance: 0.09) Microsoft Agent Framework is a Python SDK for building AI agents. It supports tools, multi-agent orchestration (Sequential, Concurrent, Handoff, GroupChat), MCP integration, and built-in OpenTelemetry observability. It…[862 chars]",
+          "content_digest": "2694af07012b1c4f",
+          "tool_name": "search_knowledge",
+          "observation_type": "tool"
+        },
+        {
+          "index": 8,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "The tool completed successfully.",
+          "content_digest": "66bcb0fcdca80511",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        },
+        {
+          "index": 9,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What embedding models are available for vector search?",
+          "content_digest": "fc08de1734188b8c",
+          "observation_type": "agent"
+        },
+        {
+          "index": 10,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call-search-knowledge-1\",\"name\":\"search_knowledge\",\"input\":{\"query\":\"deterministic local fixture\"}}",
+          "content_digest": "f128442ad77b4cff",
+          "tool_name": "search_knowledge",
+          "observation_type": "agent"
+        },
+        {
+          "index": 11,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "[1] (relevance: 0.09) Microsoft Agent Framework is a Python SDK for building AI agents. It supports tools, multi-agent orchestration (Sequential, Concurrent, Handoff, GroupChat), MCP integration, and built-in OpenTelemetry observability. It…[862 chars]",
+          "content_digest": "2694af07012b1c4f",
+          "tool_name": "search_knowledge",
+          "observation_type": "tool"
+        },
+        {
+          "index": 12,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "The tool completed successfully.",
+          "content_digest": "66bcb0fcdca80511",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
+    }
+  },
+  "feed_view": {
+    "message_count": 13,
+    "role_sequence": [
+      "assistant",
+      "tool",
+      "user",
+      "assistant",
+      "assistant",
+      "tool",
+      "user",
+      "assistant",
+      "assistant",
+      "tool",
+      "system",
+      "user",
+      "assistant"
+    ],
+    "tool_names": [],
+    "tool_definition_count": 1,
+    "messages": [
+      {
+        "index": 0,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "The tool completed successfully.",
+        "content_digest": "66bcb0fcdca80511",
+        "finish_reason": "Stop",
+        "observation_type": "generation"
+      },
+      {
+        "index": 1,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "[1] (relevance: 0.09) Microsoft Agent Framework is a Python SDK for building AI agents. It supports tools, multi-agent orchestration (Sequential, Concurrent, Handoff, GroupChat), MCP integration, and built-in OpenTelemetry observability. It…[862 chars]",
+        "content_digest": "2694af07012b1c4f",
+        "tool_name": "search_knowledge",
+        "observation_type": "tool"
+      },
+      {
+        "index": 2,
+        "role": "user",
+        "entry_type": "text",
+        "content": "What embedding models are available for vector search?",
+        "content_digest": "fc08de1734188b8c",
+        "observation_type": "agent"
+      },
+      {
+        "index": 3,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"call-search-knowledge-1\",\"name\":\"search_knowledge\",\"input\":{\"query\":\"deterministic local fixture\"}}",
+        "content_digest": "f128442ad77b4cff",
+        "tool_name": "search_knowledge",
+        "observation_type": "agent"
+      },
+      {
+        "index": 4,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "The tool completed successfully.",
+        "content_digest": "66bcb0fcdca80511",
+        "finish_reason": "Stop",
+        "observation_type": "generation"
+      },
+      {
+        "index": 5,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "[1] (relevance: 0.09) Microsoft Agent Framework is a Python SDK for building AI agents. It supports tools, multi-agent orchestration (Sequential, Concurrent, Handoff, GroupChat), MCP integration, and built-in OpenTelemetry observability. It…[862 chars]",
+        "content_digest": "2694af07012b1c4f",
+        "tool_name": "search_knowledge",
+        "observation_type": "tool"
+      },
+      {
+        "index": 6,
+        "role": "user",
+        "entry_type": "text",
+        "content": "How does RAG work and what are its key components?",
+        "content_digest": "d75bacebd91f3248",
+        "observation_type": "agent"
+      },
+      {
+        "index": 7,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"call-search-knowledge-1\",\"name\":\"search_knowledge\",\"input\":{\"query\":\"deterministic local fixture\"}}",
+        "content_digest": "f128442ad77b4cff",
+        "tool_name": "search_knowledge",
+        "observation_type": "agent"
+      },
+      {
+        "index": 8,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "The tool completed successfully.",
+        "content_digest": "66bcb0fcdca80511",
+        "finish_reason": "Stop",
+        "observation_type": "generation"
+      },
+      {
+        "index": 9,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "[1] (relevance: 0.09) Microsoft Agent Framework is a Python SDK for building AI agents. It supports tools, multi-agent orchestration (Sequential, Concurrent, Handoff, GroupChat), MCP integration, and built-in OpenTelemetry observability. It…[862 chars]",
+        "content_digest": "2694af07012b1c4f",
+        "tool_name": "search_knowledge",
+        "observation_type": "tool"
+      },
+      {
+        "index": 10,
+        "role": "system",
+        "entry_type": "text",
+        "content": "You are a helpful AI assistant with access to a technical knowledge base about AI frameworks and observability. When answering questions: 1. ALWAYS use the search_knowledge tool first to find relevant information 2. Base your answers on the…[512 chars]",
+        "content_digest": "4d7a852a15408106",
+        "observation_type": "agent"
+      },
+      {
+        "index": 11,
+        "role": "user",
+        "entry_type": "text",
+        "content": "What is SideSeat and how does it help with AI observability?",
+        "content_digest": "258073a7aafdb01d",
+        "observation_type": "agent"
+      },
+      {
+        "index": 12,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"call-search-knowledge-1\",\"name\":\"search_knowledge\",\"input\":{\"query\":\"deterministic local fixture\"}}",
+        "content_digest": "f128442ad77b4cff",
+        "tool_name": "search_knowledge",
+        "observation_type": "agent"
+      }
+    ]
+  }
+}

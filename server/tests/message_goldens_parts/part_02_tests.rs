@@ -509,11 +509,14 @@ fn message_goldens() {
     eprintln!("message_goldens: {checked} fixture(s) matched");
 }
 
+/// Producers whose fixtures are SDK conformance programs rather than frameworks.
+const CONFORMANCE_LANGUAGES: &[&str] = &["dotnet", "javascript", "python", "rust"];
+
 /// SideSeat SDK setup must not change the conversation a user sees compared with a
 /// standards-only OpenTelemetry setup emitting the same spans.
 ///
-/// Conformance fixtures use paired suite names: `<language>-otel/<sample>` and
-/// `<language>-sdk/<sample>`. Every view is compared, including span topology and session
+/// Conformance fixtures are paired as `<language>/native/<sample>` (plain OpenTelemetry) and
+/// `<language>/sdk/<sample>`. Every view is compared, including span topology and session
 /// grouping, so parity cannot pass by checking only a flattened message feed.
 ///
 /// Span ids are regenerated on every run. The golden builder replaces them with `span-N` labels
@@ -526,13 +529,13 @@ fn sdk_and_plain_otel_conformance_are_identical() {
     let fixtures: BTreeMap<String, Vec<PathBuf>> = discover_fixtures().into_iter().collect();
     let mut compared = 0usize;
 
-    // Explicit because framework suite names can themselves end in `-sdk`
-    // (`claude-agent-sdk`), which is not an SDK-vs-OTel conformance pair.
-    const LANGUAGES: &[&str] = &["dotnet", "javascript", "python", "rust"];
+    // The languages are listed rather than discovered so a missing pair fails instead of shrinking
+    // the comparison.
+    const LANGUAGES: &[&str] = CONFORMANCE_LANGUAGES;
     const SAMPLE: &str = "canonical";
     for language in LANGUAGES {
-        let sdk_label = format!("{language}-sdk/{SAMPLE}");
-        let otel_label = format!("{language}-otel/{SAMPLE}");
+        let sdk_label = format!("{language}/sdk/{SAMPLE}");
+        let otel_label = format!("{language}/native/{SAMPLE}");
         let sdk_paths = fixtures
             .get(&sdk_label)
             .unwrap_or_else(|| panic!("missing SideSeat SDK conformance fixture {sdk_label}"));
@@ -608,7 +611,7 @@ fn sdk_and_plain_otel_conformance_are_identical() {
 /// A framework instrumented through SideSeat must expose the same conversation as its native
 /// instrumentation.
 ///
-/// Framework pairs use `<framework>-native/<sample>` and `<framework>-sdk/<sample>`. Their resource
+/// Framework pairs are `<framework>/native/<sample>` and `<framework>/sdk/<sample>`. Their resource
 /// attributes, span IDs, and measured duration embedded in Logfire's streaming span name can differ,
 /// but the transport and user-visible contract are exact:
 ///
@@ -653,11 +656,12 @@ fn framework_sdk_and_native_conversations_are_identical() {
 
     let native_labels: Vec<String> = fixtures
         .keys()
-        .filter_map(|label| {
-            let (suite, _) = label.split_once('/')?;
-            suite.strip_suffix("-native")?;
-            Some(label.clone())
+        .filter(|label| {
+            let mut parts = label.split('/');
+            let producer = parts.next().unwrap_or_default();
+            parts.next() == Some("native") && !CONFORMANCE_LANGUAGES.contains(&producer)
         })
+        .cloned()
         .collect();
     assert!(
         !native_labels.is_empty(),
@@ -666,13 +670,7 @@ fn framework_sdk_and_native_conversations_are_identical() {
 
     let mut compared = 0usize;
     for native_label in native_labels {
-        let (native_suite, sample) = native_label
-            .split_once('/')
-            .expect("discovered labels have a sample");
-        let framework = native_suite
-            .strip_suffix("-native")
-            .expect("filtered native suite");
-        let sdk_label = format!("{framework}-sdk/{sample}");
+        let sdk_label = native_label.replacen("/native/", "/sdk/", 1);
         let native_paths = &fixtures[&native_label];
         let sdk_paths = fixtures
             .get(&sdk_label)

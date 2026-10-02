@@ -9,7 +9,7 @@
 /// projection is internal, so what is checked is the observable consequence.
 #[test]
 fn repeated_identical_calls_keep_both_and_stay_resolvable() {
-    let label = "crewai/mcp_tools";
+    let label = "crewai/legacy/mcp_tools";
     let (_, paths) = discover_fixtures()
         .into_iter()
         .find(|(l, _)| l == label)
@@ -105,7 +105,7 @@ fn the_feed_keeps_each_response_forward() {
 #[test]
 #[ignore]
 fn bench_pipeline() {
-    let want = std::env::var("BENCH").unwrap_or_else(|_| "langgraph/swarm".to_string());
+    let want = std::env::var("BENCH").unwrap_or_else(|_| "langgraph/legacy/swarm".to_string());
     let (_, paths) = discover_fixtures()
         .into_iter()
         .find(|(l, _)| *l == want)
@@ -250,14 +250,29 @@ fn the_corpus_matches_the_support_matrix() {
     // Kept honest by `local_only_samples_are_actually_gitignored`, so this cannot drift into excusing a
     // sample that someone simply forgot to commit.
     const LOCAL_ONLY_SAMPLES: [(&str, &str); 2] =
-        [("strands-js", "image-gen"), ("vercel-ai-js", "image-gen")];
+        [("strands-js/legacy", "image-gen"), ("vercel-ai-js/legacy", "image-gen")];
 
+    // A suite is `_synthetic`, or `<producer>/<mode>` for captured telemetry.
+    let mut suites: Vec<(String, std::path::PathBuf)> = Vec::new();
     for entry in std::fs::read_dir(&root).expect("fixture root") {
         let path = entry.expect("dir entry").path();
         if !path.is_dir() {
             continue;
         }
-        let suite = path.file_name().unwrap().to_string_lossy().to_string();
+        let producer = path.file_name().unwrap().to_string_lossy().to_string();
+        if producer == "_synthetic" {
+            suites.push((producer, path));
+            continue;
+        }
+        for mode in std::fs::read_dir(&path).expect("producer dir") {
+            let mode = mode.expect("mode entry").path();
+            if mode.is_dir() {
+                let name = mode.file_name().unwrap().to_string_lossy().to_string();
+                suites.push((format!("{producer}/{name}"), mode));
+            }
+        }
+    }
+    for (suite, path) in suites {
         let mut samples = 0usize;
         let mut requests = 0usize;
         for sample in std::fs::read_dir(&path).expect("suite dir") {
@@ -265,11 +280,9 @@ fn the_corpus_matches_the_support_matrix() {
             if !sample.is_dir() {
                 continue;
             }
-            // Samples captured locally only are not part of the documented corpus. They are gitignored
-            // because their payloads are 15 MB and 7 MB of inlined base64 image data, so a clean checkout
-            // does not have them - and comparing the *filesystem* against a table that counted them made
-            // this test fail for everyone but whoever captured them, including CI. The table now describes
-            // what the repository actually contains.
+            // Samples captured locally only are not part of the documented corpus: their payloads are
+            // megabytes of inlined base64 image data, so they are gitignored and a clean checkout does
+            // not have them.
             let sample_name = sample.file_name().unwrap().to_string_lossy().to_string();
             if LOCAL_ONLY_SAMPLES.contains(&(suite.as_str(), sample_name.as_str())) {
                 continue;
@@ -775,7 +788,7 @@ async fn bench_ingestion_end_to_end() {
     use sideseat_server::app::storage::{AnalyticsService, TransactionalService};
     use std::sync::Arc;
 
-    let want = std::env::var("BENCH").unwrap_or_else(|_| "langgraph/swarm".to_string());
+    let want = std::env::var("BENCH").unwrap_or_else(|_| "langgraph/legacy/swarm".to_string());
     let (label, paths) = discover_fixtures()
         .into_iter()
         .find(|(l, _)| *l == want)

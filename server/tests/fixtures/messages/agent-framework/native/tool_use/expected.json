@@ -1,0 +1,1174 @@
+{
+  "label": "agent-framework/native/tool_use",
+  "request_count": 1,
+  "span_count": 17,
+  "trace_count": 1,
+  "session_count": 1,
+  "span_views": {
+    "trace-1/agent_framework.session/span-1": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/chat gpt-5-nano-2025-08-07/span-11": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You're a helpful weather assistant. Use the weather_forecast tool to get weather data. Guidelines (Important!!!): 1. Always use the weather_forecast tool for weather information. 2. Keep responses concise and friendly. 3. Default to New Yor…[1794 chars]",
+          "content_digest": "a6aa114ce205cf95",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Provide a 7-day weather forecast for Los Angeles.",
+          "content_digest": "984bf68a8a35a65a",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call-temperature-forecast-1\",\"name\":\"temperature_forecast\",\"input\":{\"city\":\"Paris\"}}",
+          "content_digest": "16326b150aa7b510",
+          "tool_name": "temperature_forecast",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/chat gpt-5-nano-2025-08-07/span-13": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You're a helpful weather assistant. Use the weather_forecast tool to get weather data. Guidelines (Important!!!): 1. Always use the weather_forecast tool for weather information. 2. Keep responses concise and friendly. 3. Default to New Yor…[1794 chars]",
+          "content_digest": "a6aa114ce205cf95",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call-temperature-forecast-1\",\"content\":[{\"type\":\"json\",\"data\":{\"city\":\"Paris\",\"days\":3,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":25,\"low\":15},{\"day\":2,\"condition\":\"Sunny\",\"high\":26,\"low\":16},{\"day\"…[287 chars]",
+          "content_digest": "27f8305014b61cbe",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "It is sunny and 22°C in Paris.",
+          "content_digest": "fd7f703792a3765a",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/chat gpt-5-nano-2025-08-07/span-15": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You're a helpful weather assistant. Use the weather_forecast tool to get weather data. Guidelines (Important!!!): 1. Always use the weather_forecast tool for weather information. 2. Keep responses concise and friendly. 3. Default to New Yor…[1794 chars]",
+          "content_digest": "a6aa114ce205cf95",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Provide a 14-day weather forecast for London.",
+          "content_digest": "7426414dbeed41d0",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call-temperature-forecast-1\",\"name\":\"temperature_forecast\",\"input\":{\"city\":\"Paris\"}}",
+          "content_digest": "16326b150aa7b510",
+          "tool_name": "temperature_forecast",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/chat gpt-5-nano-2025-08-07/span-17": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You're a helpful weather assistant. Use the weather_forecast tool to get weather data. Guidelines (Important!!!): 1. Always use the weather_forecast tool for weather information. 2. Keep responses concise and friendly. 3. Default to New Yor…[1794 chars]",
+          "content_digest": "a6aa114ce205cf95",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call-temperature-forecast-1\",\"content\":[{\"type\":\"json\",\"data\":{\"city\":\"Paris\",\"days\":3,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":25,\"low\":15},{\"day\":2,\"condition\":\"Sunny\",\"high\":26,\"low\":16},{\"day\"…[287 chars]",
+          "content_digest": "27f8305014b61cbe",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "It is sunny and 22°C in Paris.",
+          "content_digest": "fd7f703792a3765a",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/chat gpt-5-nano-2025-08-07/span-3": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You're a helpful weather assistant. Use the weather_forecast tool to get weather data. Guidelines (Important!!!): 1. Always use the weather_forecast tool for weather information. 2. Keep responses concise and friendly. 3. Default to New Yor…[1794 chars]",
+          "content_digest": "a6aa114ce205cf95",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Provide a 3-day weather forecast for New York City.",
+          "content_digest": "75e9643b50cb90f4",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call-temperature-forecast-1\",\"name\":\"temperature_forecast\",\"input\":{\"city\":\"Paris\"}}",
+          "content_digest": "16326b150aa7b510",
+          "tool_name": "temperature_forecast",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/chat gpt-5-nano-2025-08-07/span-5": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You're a helpful weather assistant. Use the weather_forecast tool to get weather data. Guidelines (Important!!!): 1. Always use the weather_forecast tool for weather information. 2. Keep responses concise and friendly. 3. Default to New Yor…[1794 chars]",
+          "content_digest": "a6aa114ce205cf95",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call-temperature-forecast-1\",\"content\":[{\"type\":\"json\",\"data\":{\"city\":\"Paris\",\"days\":3,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":25,\"low\":15},{\"day\":2,\"condition\":\"Sunny\",\"high\":26,\"low\":16},{\"day\"…[287 chars]",
+          "content_digest": "27f8305014b61cbe",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "It is sunny and 22°C in Paris.",
+          "content_digest": "fd7f703792a3765a",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/chat gpt-5-nano-2025-08-07/span-7": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You're a helpful weather assistant. Use the weather_forecast tool to get weather data. Guidelines (Important!!!): 1. Always use the weather_forecast tool for weather information. 2. Keep responses concise and friendly. 3. Default to New Yor…[1794 chars]",
+          "content_digest": "a6aa114ce205cf95",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Provide a 3-day weather forecast for New York City.",
+          "content_digest": "75e9643b50cb90f4",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call-temperature-forecast-1\",\"name\":\"temperature_forecast\",\"input\":{\"city\":\"Paris\"}}",
+          "content_digest": "16326b150aa7b510",
+          "tool_name": "temperature_forecast",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/chat gpt-5-nano-2025-08-07/span-9": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You're a helpful weather assistant. Use the weather_forecast tool to get weather data. Guidelines (Important!!!): 1. Always use the weather_forecast tool for weather information. 2. Keep responses concise and friendly. 3. Default to New Yor…[1794 chars]",
+          "content_digest": "a6aa114ce205cf95",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call-temperature-forecast-1\",\"content\":[{\"type\":\"json\",\"data\":{\"city\":\"Paris\",\"days\":3,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":25,\"low\":15},{\"day\":2,\"condition\":\"Sunny\",\"high\":26,\"low\":16},{\"day\"…[287 chars]",
+          "content_digest": "27f8305014b61cbe",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "It is sunny and 22°C in Paris.",
+          "content_digest": "fd7f703792a3765a",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/execute_tool temperature_forecast/span-12": {
+      "message_count": 2,
+      "role_sequence": [
+        "assistant",
+        "tool"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call-temperature-forecast-1\",\"name\":\"temperature_forecast\",\"input\":{\"city\":\"Paris\"}}",
+          "content_digest": "16326b150aa7b510",
+          "tool_name": "temperature_forecast",
+          "observation_type": "tool"
+        },
+        {
+          "index": 1,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call-temperature-forecast-1\",\"name\":\"temperature_forecast\",\"content\":{\"city\":\"Paris\",\"days\":3,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":25,\"low\":15},{\"day\":2,\"condition\":\"Sunny\",\"high\":26,\"low\":16}…[292 chars]",
+          "content_digest": "1d9f621600112b12",
+          "tool_name": "temperature_forecast",
+          "observation_type": "tool"
+        }
+      ]
+    },
+    "trace-1/execute_tool temperature_forecast/span-16": {
+      "message_count": 2,
+      "role_sequence": [
+        "assistant",
+        "tool"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call-temperature-forecast-1\",\"name\":\"temperature_forecast\",\"input\":{\"city\":\"Paris\"}}",
+          "content_digest": "16326b150aa7b510",
+          "tool_name": "temperature_forecast",
+          "observation_type": "tool"
+        },
+        {
+          "index": 1,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call-temperature-forecast-1\",\"name\":\"temperature_forecast\",\"content\":{\"city\":\"Paris\",\"days\":3,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":25,\"low\":15},{\"day\":2,\"condition\":\"Sunny\",\"high\":26,\"low\":16}…[292 chars]",
+          "content_digest": "1d9f621600112b12",
+          "tool_name": "temperature_forecast",
+          "observation_type": "tool"
+        }
+      ]
+    },
+    "trace-1/execute_tool temperature_forecast/span-4": {
+      "message_count": 2,
+      "role_sequence": [
+        "assistant",
+        "tool"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call-temperature-forecast-1\",\"name\":\"temperature_forecast\",\"input\":{\"city\":\"Paris\"}}",
+          "content_digest": "16326b150aa7b510",
+          "tool_name": "temperature_forecast",
+          "observation_type": "tool"
+        },
+        {
+          "index": 1,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call-temperature-forecast-1\",\"name\":\"temperature_forecast\",\"content\":{\"city\":\"Paris\",\"days\":3,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":25,\"low\":15},{\"day\":2,\"condition\":\"Sunny\",\"high\":26,\"low\":16}…[292 chars]",
+          "content_digest": "1d9f621600112b12",
+          "tool_name": "temperature_forecast",
+          "observation_type": "tool"
+        }
+      ]
+    },
+    "trace-1/execute_tool temperature_forecast/span-8": {
+      "message_count": 2,
+      "role_sequence": [
+        "assistant",
+        "tool"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call-temperature-forecast-1\",\"name\":\"temperature_forecast\",\"input\":{\"city\":\"Paris\"}}",
+          "content_digest": "16326b150aa7b510",
+          "tool_name": "temperature_forecast",
+          "observation_type": "tool"
+        },
+        {
+          "index": 1,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call-temperature-forecast-1\",\"name\":\"temperature_forecast\",\"content\":{\"city\":\"Paris\",\"days\":3,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":25,\"low\":15},{\"day\":2,\"condition\":\"Sunny\",\"high\":26,\"low\":16}…[292 chars]",
+          "content_digest": "1d9f621600112b12",
+          "tool_name": "temperature_forecast",
+          "observation_type": "tool"
+        }
+      ]
+    },
+    "trace-1/invoke_agent 5d1f508a-fab6-4d09-8992-730701e13e0b/span-10": {
+      "message_count": 5,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 2,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You're a helpful weather assistant. Use the weather_forecast tool to get weather data. Guidelines (Important!!!): 1. Always use the weather_forecast tool for weather information. 2. Keep responses concise and friendly. 3. Default to New Yor…[1794 chars]",
+          "content_digest": "a6aa114ce205cf95",
+          "observation_type": "agent"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Provide a 7-day weather forecast for Los Angeles.",
+          "content_digest": "984bf68a8a35a65a",
+          "observation_type": "agent"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call-temperature-forecast-1\",\"name\":\"temperature_forecast\",\"input\":{\"city\":\"Paris\"}}",
+          "content_digest": "16326b150aa7b510",
+          "tool_name": "temperature_forecast",
+          "observation_type": "agent"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call-temperature-forecast-1\",\"content\":[{\"type\":\"json\",\"data\":{\"city\":\"Paris\",\"days\":3,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":25,\"low\":15},{\"day\":2,\"condition\":\"Sunny\",\"high\":26,\"low\":16},{\"day\"…[287 chars]",
+          "content_digest": "27f8305014b61cbe",
+          "observation_type": "agent"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "It is sunny and 22°C in Paris.",
+          "content_digest": "fd7f703792a3765a",
+          "observation_type": "agent"
+        }
+      ]
+    },
+    "trace-1/invoke_agent 5d1f508a-fab6-4d09-8992-730701e13e0b/span-14": {
+      "message_count": 5,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 2,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You're a helpful weather assistant. Use the weather_forecast tool to get weather data. Guidelines (Important!!!): 1. Always use the weather_forecast tool for weather information. 2. Keep responses concise and friendly. 3. Default to New Yor…[1794 chars]",
+          "content_digest": "a6aa114ce205cf95",
+          "observation_type": "agent"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Provide a 14-day weather forecast for London.",
+          "content_digest": "7426414dbeed41d0",
+          "observation_type": "agent"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call-temperature-forecast-1\",\"name\":\"temperature_forecast\",\"input\":{\"city\":\"Paris\"}}",
+          "content_digest": "16326b150aa7b510",
+          "tool_name": "temperature_forecast",
+          "observation_type": "agent"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call-temperature-forecast-1\",\"content\":[{\"type\":\"json\",\"data\":{\"city\":\"Paris\",\"days\":3,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":25,\"low\":15},{\"day\":2,\"condition\":\"Sunny\",\"high\":26,\"low\":16},{\"day\"…[287 chars]",
+          "content_digest": "27f8305014b61cbe",
+          "observation_type": "agent"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "It is sunny and 22°C in Paris.",
+          "content_digest": "fd7f703792a3765a",
+          "observation_type": "agent"
+        }
+      ]
+    },
+    "trace-1/invoke_agent 5d1f508a-fab6-4d09-8992-730701e13e0b/span-2": {
+      "message_count": 5,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 2,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You're a helpful weather assistant. Use the weather_forecast tool to get weather data. Guidelines (Important!!!): 1. Always use the weather_forecast tool for weather information. 2. Keep responses concise and friendly. 3. Default to New Yor…[1794 chars]",
+          "content_digest": "a6aa114ce205cf95",
+          "observation_type": "agent"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Provide a 3-day weather forecast for New York City.",
+          "content_digest": "75e9643b50cb90f4",
+          "observation_type": "agent"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call-temperature-forecast-1\",\"name\":\"temperature_forecast\",\"input\":{\"city\":\"Paris\"}}",
+          "content_digest": "16326b150aa7b510",
+          "tool_name": "temperature_forecast",
+          "observation_type": "agent"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call-temperature-forecast-1\",\"content\":[{\"type\":\"json\",\"data\":{\"city\":\"Paris\",\"days\":3,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":25,\"low\":15},{\"day\":2,\"condition\":\"Sunny\",\"high\":26,\"low\":16},{\"day\"…[287 chars]",
+          "content_digest": "27f8305014b61cbe",
+          "observation_type": "agent"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "It is sunny and 22°C in Paris.",
+          "content_digest": "fd7f703792a3765a",
+          "observation_type": "agent"
+        }
+      ]
+    },
+    "trace-1/invoke_agent 5d1f508a-fab6-4d09-8992-730701e13e0b/span-6": {
+      "message_count": 5,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 2,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You're a helpful weather assistant. Use the weather_forecast tool to get weather data. Guidelines (Important!!!): 1. Always use the weather_forecast tool for weather information. 2. Keep responses concise and friendly. 3. Default to New Yor…[1794 chars]",
+          "content_digest": "a6aa114ce205cf95",
+          "observation_type": "agent"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Provide a 3-day weather forecast for New York City.",
+          "content_digest": "75e9643b50cb90f4",
+          "observation_type": "agent"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call-temperature-forecast-1\",\"name\":\"temperature_forecast\",\"input\":{\"city\":\"Paris\"}}",
+          "content_digest": "16326b150aa7b510",
+          "tool_name": "temperature_forecast",
+          "observation_type": "agent"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call-temperature-forecast-1\",\"content\":[{\"type\":\"json\",\"data\":{\"city\":\"Paris\",\"days\":3,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":25,\"low\":15},{\"day\":2,\"condition\":\"Sunny\",\"high\":26,\"low\":16},{\"day\"…[287 chars]",
+          "content_digest": "27f8305014b61cbe",
+          "observation_type": "agent"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "It is sunny and 22°C in Paris.",
+          "content_digest": "fd7f703792a3765a",
+          "observation_type": "agent"
+        }
+      ]
+    }
+  },
+  "trace_views": {
+    "trace-1": {
+      "message_count": 17,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "tool",
+        "assistant",
+        "user",
+        "assistant",
+        "tool",
+        "assistant",
+        "user",
+        "assistant",
+        "tool",
+        "assistant",
+        "user",
+        "assistant",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 2,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You're a helpful weather assistant. Use the weather_forecast tool to get weather data. Guidelines (Important!!!): 1. Always use the weather_forecast tool for weather information. 2. Keep responses concise and friendly. 3. Default to New Yor…[1794 chars]",
+          "content_digest": "a6aa114ce205cf95",
+          "observation_type": "agent"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Provide a 3-day weather forecast for New York City.",
+          "content_digest": "75e9643b50cb90f4",
+          "observation_type": "agent"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call-temperature-forecast-1\",\"name\":\"temperature_forecast\",\"input\":{\"city\":\"Paris\"}}",
+          "content_digest": "16326b150aa7b510",
+          "tool_name": "temperature_forecast",
+          "observation_type": "agent"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call-temperature-forecast-1\",\"name\":\"temperature_forecast\",\"content\":{\"city\":\"Paris\",\"days\":3,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":25,\"low\":15},{\"day\":2,\"condition\":\"Sunny\",\"high\":26,\"low\":16}…[292 chars]",
+          "content_digest": "1d9f621600112b12",
+          "tool_name": "temperature_forecast",
+          "observation_type": "tool"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "It is sunny and 22°C in Paris.",
+          "content_digest": "fd7f703792a3765a",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Provide a 3-day weather forecast for New York City.",
+          "content_digest": "75e9643b50cb90f4",
+          "observation_type": "agent"
+        },
+        {
+          "index": 6,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call-temperature-forecast-1\",\"name\":\"temperature_forecast\",\"input\":{\"city\":\"Paris\"}}",
+          "content_digest": "16326b150aa7b510",
+          "tool_name": "temperature_forecast",
+          "observation_type": "agent"
+        },
+        {
+          "index": 7,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call-temperature-forecast-1\",\"name\":\"temperature_forecast\",\"content\":{\"city\":\"Paris\",\"days\":3,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":25,\"low\":15},{\"day\":2,\"condition\":\"Sunny\",\"high\":26,\"low\":16}…[292 chars]",
+          "content_digest": "1d9f621600112b12",
+          "tool_name": "temperature_forecast",
+          "observation_type": "tool"
+        },
+        {
+          "index": 8,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "It is sunny and 22°C in Paris.",
+          "content_digest": "fd7f703792a3765a",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        },
+        {
+          "index": 9,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Provide a 7-day weather forecast for Los Angeles.",
+          "content_digest": "984bf68a8a35a65a",
+          "observation_type": "agent"
+        },
+        {
+          "index": 10,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call-temperature-forecast-1\",\"name\":\"temperature_forecast\",\"input\":{\"city\":\"Paris\"}}",
+          "content_digest": "16326b150aa7b510",
+          "tool_name": "temperature_forecast",
+          "observation_type": "agent"
+        },
+        {
+          "index": 11,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call-temperature-forecast-1\",\"name\":\"temperature_forecast\",\"content\":{\"city\":\"Paris\",\"days\":3,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":25,\"low\":15},{\"day\":2,\"condition\":\"Sunny\",\"high\":26,\"low\":16}…[292 chars]",
+          "content_digest": "1d9f621600112b12",
+          "tool_name": "temperature_forecast",
+          "observation_type": "tool"
+        },
+        {
+          "index": 12,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "It is sunny and 22°C in Paris.",
+          "content_digest": "fd7f703792a3765a",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        },
+        {
+          "index": 13,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Provide a 14-day weather forecast for London.",
+          "content_digest": "7426414dbeed41d0",
+          "observation_type": "agent"
+        },
+        {
+          "index": 14,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call-temperature-forecast-1\",\"name\":\"temperature_forecast\",\"input\":{\"city\":\"Paris\"}}",
+          "content_digest": "16326b150aa7b510",
+          "tool_name": "temperature_forecast",
+          "observation_type": "agent"
+        },
+        {
+          "index": 15,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call-temperature-forecast-1\",\"name\":\"temperature_forecast\",\"content\":{\"city\":\"Paris\",\"days\":3,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":25,\"low\":15},{\"day\":2,\"condition\":\"Sunny\",\"high\":26,\"low\":16}…[292 chars]",
+          "content_digest": "1d9f621600112b12",
+          "tool_name": "temperature_forecast",
+          "observation_type": "tool"
+        },
+        {
+          "index": 16,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "It is sunny and 22°C in Paris.",
+          "content_digest": "fd7f703792a3765a",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
+    }
+  },
+  "session_views": {
+    "agent-framework-tool_use-a8b4bfd5": {
+      "message_count": 17,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "tool",
+        "assistant",
+        "user",
+        "assistant",
+        "tool",
+        "assistant",
+        "user",
+        "assistant",
+        "tool",
+        "assistant",
+        "user",
+        "assistant",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 2,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You're a helpful weather assistant. Use the weather_forecast tool to get weather data. Guidelines (Important!!!): 1. Always use the weather_forecast tool for weather information. 2. Keep responses concise and friendly. 3. Default to New Yor…[1794 chars]",
+          "content_digest": "a6aa114ce205cf95",
+          "observation_type": "agent"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Provide a 3-day weather forecast for New York City.",
+          "content_digest": "75e9643b50cb90f4",
+          "observation_type": "agent"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call-temperature-forecast-1\",\"name\":\"temperature_forecast\",\"input\":{\"city\":\"Paris\"}}",
+          "content_digest": "16326b150aa7b510",
+          "tool_name": "temperature_forecast",
+          "observation_type": "agent"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call-temperature-forecast-1\",\"name\":\"temperature_forecast\",\"content\":{\"city\":\"Paris\",\"days\":3,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":25,\"low\":15},{\"day\":2,\"condition\":\"Sunny\",\"high\":26,\"low\":16}…[292 chars]",
+          "content_digest": "1d9f621600112b12",
+          "tool_name": "temperature_forecast",
+          "observation_type": "tool"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "It is sunny and 22°C in Paris.",
+          "content_digest": "fd7f703792a3765a",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Provide a 3-day weather forecast for New York City.",
+          "content_digest": "75e9643b50cb90f4",
+          "observation_type": "agent"
+        },
+        {
+          "index": 6,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call-temperature-forecast-1\",\"name\":\"temperature_forecast\",\"input\":{\"city\":\"Paris\"}}",
+          "content_digest": "16326b150aa7b510",
+          "tool_name": "temperature_forecast",
+          "observation_type": "agent"
+        },
+        {
+          "index": 7,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call-temperature-forecast-1\",\"name\":\"temperature_forecast\",\"content\":{\"city\":\"Paris\",\"days\":3,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":25,\"low\":15},{\"day\":2,\"condition\":\"Sunny\",\"high\":26,\"low\":16}…[292 chars]",
+          "content_digest": "1d9f621600112b12",
+          "tool_name": "temperature_forecast",
+          "observation_type": "tool"
+        },
+        {
+          "index": 8,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "It is sunny and 22°C in Paris.",
+          "content_digest": "fd7f703792a3765a",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        },
+        {
+          "index": 9,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Provide a 7-day weather forecast for Los Angeles.",
+          "content_digest": "984bf68a8a35a65a",
+          "observation_type": "agent"
+        },
+        {
+          "index": 10,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call-temperature-forecast-1\",\"name\":\"temperature_forecast\",\"input\":{\"city\":\"Paris\"}}",
+          "content_digest": "16326b150aa7b510",
+          "tool_name": "temperature_forecast",
+          "observation_type": "agent"
+        },
+        {
+          "index": 11,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call-temperature-forecast-1\",\"name\":\"temperature_forecast\",\"content\":{\"city\":\"Paris\",\"days\":3,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":25,\"low\":15},{\"day\":2,\"condition\":\"Sunny\",\"high\":26,\"low\":16}…[292 chars]",
+          "content_digest": "1d9f621600112b12",
+          "tool_name": "temperature_forecast",
+          "observation_type": "tool"
+        },
+        {
+          "index": 12,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "It is sunny and 22°C in Paris.",
+          "content_digest": "fd7f703792a3765a",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        },
+        {
+          "index": 13,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Provide a 14-day weather forecast for London.",
+          "content_digest": "7426414dbeed41d0",
+          "observation_type": "agent"
+        },
+        {
+          "index": 14,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call-temperature-forecast-1\",\"name\":\"temperature_forecast\",\"input\":{\"city\":\"Paris\"}}",
+          "content_digest": "16326b150aa7b510",
+          "tool_name": "temperature_forecast",
+          "observation_type": "agent"
+        },
+        {
+          "index": 15,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call-temperature-forecast-1\",\"name\":\"temperature_forecast\",\"content\":{\"city\":\"Paris\",\"days\":3,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":25,\"low\":15},{\"day\":2,\"condition\":\"Sunny\",\"high\":26,\"low\":16}…[292 chars]",
+          "content_digest": "1d9f621600112b12",
+          "tool_name": "temperature_forecast",
+          "observation_type": "tool"
+        },
+        {
+          "index": 16,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "It is sunny and 22°C in Paris.",
+          "content_digest": "fd7f703792a3765a",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
+    }
+  },
+  "feed_view": {
+    "message_count": 17,
+    "role_sequence": [
+      "assistant",
+      "tool",
+      "user",
+      "assistant",
+      "assistant",
+      "tool",
+      "user",
+      "assistant",
+      "assistant",
+      "tool",
+      "user",
+      "assistant",
+      "assistant",
+      "tool",
+      "system",
+      "user",
+      "assistant"
+    ],
+    "tool_names": [],
+    "tool_definition_count": 2,
+    "messages": [
+      {
+        "index": 0,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "It is sunny and 22°C in Paris.",
+        "content_digest": "fd7f703792a3765a",
+        "finish_reason": "Stop",
+        "observation_type": "generation"
+      },
+      {
+        "index": 1,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call-temperature-forecast-1\",\"name\":\"temperature_forecast\",\"content\":{\"city\":\"Paris\",\"days\":3,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":25,\"low\":15},{\"day\":2,\"condition\":\"Sunny\",\"high\":26,\"low\":16}…[292 chars]",
+        "content_digest": "1d9f621600112b12",
+        "tool_name": "temperature_forecast",
+        "observation_type": "tool"
+      },
+      {
+        "index": 2,
+        "role": "user",
+        "entry_type": "text",
+        "content": "Provide a 14-day weather forecast for London.",
+        "content_digest": "7426414dbeed41d0",
+        "observation_type": "agent"
+      },
+      {
+        "index": 3,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"call-temperature-forecast-1\",\"name\":\"temperature_forecast\",\"input\":{\"city\":\"Paris\"}}",
+        "content_digest": "16326b150aa7b510",
+        "tool_name": "temperature_forecast",
+        "observation_type": "agent"
+      },
+      {
+        "index": 4,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "It is sunny and 22°C in Paris.",
+        "content_digest": "fd7f703792a3765a",
+        "finish_reason": "Stop",
+        "observation_type": "generation"
+      },
+      {
+        "index": 5,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call-temperature-forecast-1\",\"name\":\"temperature_forecast\",\"content\":{\"city\":\"Paris\",\"days\":3,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":25,\"low\":15},{\"day\":2,\"condition\":\"Sunny\",\"high\":26,\"low\":16}…[292 chars]",
+        "content_digest": "1d9f621600112b12",
+        "tool_name": "temperature_forecast",
+        "observation_type": "tool"
+      },
+      {
+        "index": 6,
+        "role": "user",
+        "entry_type": "text",
+        "content": "Provide a 7-day weather forecast for Los Angeles.",
+        "content_digest": "984bf68a8a35a65a",
+        "observation_type": "agent"
+      },
+      {
+        "index": 7,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"call-temperature-forecast-1\",\"name\":\"temperature_forecast\",\"input\":{\"city\":\"Paris\"}}",
+        "content_digest": "16326b150aa7b510",
+        "tool_name": "temperature_forecast",
+        "observation_type": "agent"
+      },
+      {
+        "index": 8,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "It is sunny and 22°C in Paris.",
+        "content_digest": "fd7f703792a3765a",
+        "finish_reason": "Stop",
+        "observation_type": "generation"
+      },
+      {
+        "index": 9,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call-temperature-forecast-1\",\"name\":\"temperature_forecast\",\"content\":{\"city\":\"Paris\",\"days\":3,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":25,\"low\":15},{\"day\":2,\"condition\":\"Sunny\",\"high\":26,\"low\":16}…[292 chars]",
+        "content_digest": "1d9f621600112b12",
+        "tool_name": "temperature_forecast",
+        "observation_type": "tool"
+      },
+      {
+        "index": 10,
+        "role": "user",
+        "entry_type": "text",
+        "content": "Provide a 3-day weather forecast for New York City.",
+        "content_digest": "75e9643b50cb90f4",
+        "observation_type": "agent"
+      },
+      {
+        "index": 11,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"call-temperature-forecast-1\",\"name\":\"temperature_forecast\",\"input\":{\"city\":\"Paris\"}}",
+        "content_digest": "16326b150aa7b510",
+        "tool_name": "temperature_forecast",
+        "observation_type": "agent"
+      },
+      {
+        "index": 12,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "It is sunny and 22°C in Paris.",
+        "content_digest": "fd7f703792a3765a",
+        "finish_reason": "Stop",
+        "observation_type": "generation"
+      },
+      {
+        "index": 13,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call-temperature-forecast-1\",\"name\":\"temperature_forecast\",\"content\":{\"city\":\"Paris\",\"days\":3,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":25,\"low\":15},{\"day\":2,\"condition\":\"Sunny\",\"high\":26,\"low\":16}…[292 chars]",
+        "content_digest": "1d9f621600112b12",
+        "tool_name": "temperature_forecast",
+        "observation_type": "tool"
+      },
+      {
+        "index": 14,
+        "role": "system",
+        "entry_type": "text",
+        "content": "You're a helpful weather assistant. Use the weather_forecast tool to get weather data. Guidelines (Important!!!): 1. Always use the weather_forecast tool for weather information. 2. Keep responses concise and friendly. 3. Default to New Yor…[1794 chars]",
+        "content_digest": "a6aa114ce205cf95",
+        "observation_type": "agent"
+      },
+      {
+        "index": 15,
+        "role": "user",
+        "entry_type": "text",
+        "content": "Provide a 3-day weather forecast for New York City.",
+        "content_digest": "75e9643b50cb90f4",
+        "observation_type": "agent"
+      },
+      {
+        "index": 16,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"call-temperature-forecast-1\",\"name\":\"temperature_forecast\",\"input\":{\"city\":\"Paris\"}}",
+        "content_digest": "16326b150aa7b510",
+        "tool_name": "temperature_forecast",
+        "observation_type": "agent"
+      }
+    ]
+  }
+}

@@ -187,7 +187,7 @@ bench_curl -sf "http://127.0.0.1:$PORT/api/v1/health" >/dev/null || {
   echo "[bench] server did not come up"; cat "$WORK/server.log"; exit 1;
 }
 
-FIXTURE="$ROOT/server/tests/fixtures/messages/langgraph/swarm"
+FIXTURE="$ROOT/server/tests/fixtures/messages/langgraph/legacy/swarm"
 SMALL="$FIXTURE/req-001.pb"
 LARGE="$(python3 - "$FIXTURE" <<'PY'
 import sys

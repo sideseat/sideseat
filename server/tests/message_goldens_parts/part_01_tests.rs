@@ -939,11 +939,11 @@ fn extract_tool_use_id(row: &InvariantRow) -> Option<&str> {
 /// conversation. The result is therefore genuinely callless upstream.
 const PAIRING_EXEMPT: &[(&str, &str)] = &[
     (
-        "claude-agent-sdk/subagents",
+        "claude-agent-sdk/legacy/subagents",
         "Claude Code CLI emits subagent tool executions without the matching tool_use block",
     ),
     (
-        "claude-agent-sdk-js/subagents",
+        "claude-agent-sdk-js/legacy/subagents",
         "Claude Code CLI emits subagent tool executions without the matching tool_use block",
     ),
 ];
@@ -956,7 +956,7 @@ const PAIRING_EXEMPT: &[(&str, &str)] = &[
 /// the goldens blessed it as correct.
 /// Empty, and that is the point: the one entry it held is gone because the defect behind it was fixed.
 ///
-/// `strands/error` was exempted on the grounds that "the sample exists to fail, so the run never
+/// `strands/legacy/error` was exempted on the grounds that "the sample exists to fail, so the run never
 /// produced an answer". The run *did* produce an answer - a `ValidationException` - and three span views
 /// displayed it while the trace view showed `system, user` and nothing else, because a parent error span
 /// deferred to a child that had ERROR status and no exception fields to render. The exemption was

@@ -1,0 +1,741 @@
+{
+  "label": "smolagents/native/canonical",
+  "request_count": 1,
+  "span_count": 17,
+  "trace_count": 2,
+  "session_count": 1,
+  "span_views": {
+    "trace-1/FinalAnswerTool/span-5": {
+      "message_count": 1,
+      "role_sequence": [
+        "tool"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "The speed of light is 299,792,458 metres per second.",
+          "content_digest": "f296f9d309e0d567",
+          "tool_name": "final_answer",
+          "observation_type": "tool"
+        }
+      ]
+    },
+    "trace-1/FinalAnswerTool/span-9": {
+      "message_count": 1,
+      "role_sequence": [
+        "tool"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "Water boils at 100°C at sea level.",
+          "content_digest": "0cbdd5b5176e214e",
+          "tool_name": "final_answer",
+          "observation_type": "tool"
+        }
+      ]
+    },
+    "trace-1/OpenAIModel.generate_stream/span-4": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [
+        "final_answer"
+      ],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are an expert assistant who can solve any task using tool calls. You will be given a task to solve as best you can. To do so, you have been given access to some tools. The tool call you write is an action: after the tool is executed, yo…[3068 chars]",
+          "content_digest": "042f57cf77b032e1",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "New task: What is the speed of light?",
+          "content_digest": "e444ba70c7f62f96",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call-final-answer-0d94a60c39c8\",\"name\":\"final_answer\",\"input\":{\"answer\":\"The speed of light is 299,792,458 metres per second.\"}}",
+          "content_digest": "0f36be76a7771a29",
+          "tool_name": "final_answer",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/OpenAIModel.generate_stream/span-8": {
+      "message_count": 4,
+      "role_sequence": [
+        "system",
+        "user",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [
+        "final_answer"
+      ],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are an expert assistant who can solve any task using tool calls. You will be given a task to solve as best you can. To do so, you have been given access to some tools. The tool call you write is an action: after the tool is executed, yo…[3068 chars]",
+          "content_digest": "042f57cf77b032e1",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "New task: What is the speed of light?",
+          "content_digest": "e444ba70c7f62f96",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "user",
+          "entry_type": "text",
+          "content": "New task: What is the boiling point of water?",
+          "content_digest": "9444231bf24b59bd",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call-final-answer-55578e4bbf2a\",\"name\":\"final_answer\",\"input\":{\"answer\":\"Water boils at 100°C at sea level.\"}}",
+          "content_digest": "02da6274b008dd78",
+          "tool_name": "final_answer",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/Step 1/span-3": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/Step 1/span-7": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/ToolCallingAgent.run/span-2": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/ToolCallingAgent.run/span-6": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/smolagents-history/span-1": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-2/FinalAnswerTool/span-8": {
+      "message_count": 1,
+      "role_sequence": [
+        "tool"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "Sunny, 22°C in Paris.",
+          "content_digest": "86619c802665a970",
+          "tool_name": "final_answer",
+          "observation_type": "tool"
+        }
+      ]
+    },
+    "trace-2/OpenAIModel.generate/span-4": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [
+        "final_answer",
+        "get_weather"
+      ],
+      "tool_definition_count": 2,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are an expert assistant who can solve any task using tool calls. You will be given a task to solve as best you can. To do so, you have been given access to some tools. The tool call you write is an action: after the tool is executed, yo…[3240 chars]",
+          "content_digest": "d768122c07604f96",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "New task: What is the weather in Paris?",
+          "content_digest": "c869ccd09513b7af",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call-get-weather-0dadd979d883\",\"name\":\"get_weather\",\"input\":{\"location\":\"Paris\"}}",
+          "content_digest": "83f8b01295ee2bd9",
+          "tool_name": "get_weather",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-2/OpenAIModel.generate/span-7": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [
+        "final_answer",
+        "get_weather"
+      ],
+      "tool_definition_count": 2,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are an expert assistant who can solve any task using tool calls. You will be given a task to solve as best you can. To do so, you have been given access to some tools. The tool call you write is an action: after the tool is executed, yo…[3240 chars]",
+          "content_digest": "d768122c07604f96",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "New task: What is the weather in Paris?",
+          "content_digest": "c869ccd09513b7af",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call-final-answer-c0cb8cd443c5\",\"name\":\"final_answer\",\"input\":{\"answer\":\"Sunny, 22°C in Paris.\"}}",
+          "content_digest": "8f2d5a004e2db6bb",
+          "tool_name": "final_answer",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-2/Step 1/span-3": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-2/Step 2/span-6": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-2/ToolCallingAgent.run/span-2": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-2/WeatherTool/span-5": {
+      "message_count": 1,
+      "role_sequence": [
+        "tool"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "Sunny, 22°C in Paris.",
+          "content_digest": "cb2eca1e28511715",
+          "tool_name": "get_weather",
+          "observation_type": "tool"
+        }
+      ]
+    },
+    "trace-2/smolagents-tool-roundtrip/span-1": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    }
+  },
+  "trace_views": {
+    "trace-1": {
+      "message_count": 7,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "tool",
+        "user",
+        "assistant",
+        "tool"
+      ],
+      "tool_names": [
+        "final_answer"
+      ],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are an expert assistant who can solve any task using tool calls. You will be given a task to solve as best you can. To do so, you have been given access to some tools. The tool call you write is an action: after the tool is executed, yo…[3068 chars]",
+          "content_digest": "042f57cf77b032e1",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "New task: What is the speed of light?",
+          "content_digest": "e444ba70c7f62f96",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call-final-answer-0d94a60c39c8\",\"name\":\"final_answer\",\"input\":{\"answer\":\"The speed of light is 299,792,458 metres per second.\"}}",
+          "content_digest": "0f36be76a7771a29",
+          "tool_name": "final_answer",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "The speed of light is 299,792,458 metres per second.",
+          "content_digest": "984c45ccc2389872",
+          "tool_name": "final_answer",
+          "observation_type": "tool"
+        },
+        {
+          "index": 4,
+          "role": "user",
+          "entry_type": "text",
+          "content": "New task: What is the boiling point of water?",
+          "content_digest": "9444231bf24b59bd",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call-final-answer-55578e4bbf2a\",\"name\":\"final_answer\",\"input\":{\"answer\":\"Water boils at 100°C at sea level.\"}}",
+          "content_digest": "02da6274b008dd78",
+          "tool_name": "final_answer",
+          "observation_type": "generation"
+        },
+        {
+          "index": 6,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "Water boils at 100°C at sea level.",
+          "content_digest": "f1ee9b746d551a67",
+          "tool_name": "final_answer",
+          "observation_type": "tool"
+        }
+      ]
+    },
+    "trace-2": {
+      "message_count": 6,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "tool",
+        "assistant",
+        "tool"
+      ],
+      "tool_names": [
+        "final_answer",
+        "get_weather"
+      ],
+      "tool_definition_count": 2,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are an expert assistant who can solve any task using tool calls. You will be given a task to solve as best you can. To do so, you have been given access to some tools. The tool call you write is an action: after the tool is executed, yo…[3240 chars]",
+          "content_digest": "d768122c07604f96",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "New task: What is the weather in Paris?",
+          "content_digest": "c869ccd09513b7af",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call-get-weather-0dadd979d883\",\"name\":\"get_weather\",\"input\":{\"location\":\"Paris\"}}",
+          "content_digest": "83f8b01295ee2bd9",
+          "tool_name": "get_weather",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "Sunny, 22°C in Paris.",
+          "content_digest": "02ab64ca07960478",
+          "tool_name": "get_weather",
+          "observation_type": "tool"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call-final-answer-c0cb8cd443c5\",\"name\":\"final_answer\",\"input\":{\"answer\":\"Sunny, 22°C in Paris.\"}}",
+          "content_digest": "8f2d5a004e2db6bb",
+          "tool_name": "final_answer",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "Sunny, 22°C in Paris.",
+          "content_digest": "dc5c628c6de8b1a3",
+          "tool_name": "final_answer",
+          "observation_type": "tool"
+        }
+      ]
+    }
+  },
+  "session_views": {
+    "smolagents-canonical-81c83bce": {
+      "message_count": 13,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "tool",
+        "user",
+        "assistant",
+        "tool",
+        "system",
+        "user",
+        "assistant",
+        "tool",
+        "assistant",
+        "tool"
+      ],
+      "tool_names": [
+        "final_answer",
+        "get_weather"
+      ],
+      "tool_definition_count": 2,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are an expert assistant who can solve any task using tool calls. You will be given a task to solve as best you can. To do so, you have been given access to some tools. The tool call you write is an action: after the tool is executed, yo…[3068 chars]",
+          "content_digest": "042f57cf77b032e1",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "New task: What is the speed of light?",
+          "content_digest": "e444ba70c7f62f96",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call-final-answer-0d94a60c39c8\",\"name\":\"final_answer\",\"input\":{\"answer\":\"The speed of light is 299,792,458 metres per second.\"}}",
+          "content_digest": "0f36be76a7771a29",
+          "tool_name": "final_answer",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "The speed of light is 299,792,458 metres per second.",
+          "content_digest": "984c45ccc2389872",
+          "tool_name": "final_answer",
+          "observation_type": "tool"
+        },
+        {
+          "index": 4,
+          "role": "user",
+          "entry_type": "text",
+          "content": "New task: What is the boiling point of water?",
+          "content_digest": "9444231bf24b59bd",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call-final-answer-55578e4bbf2a\",\"name\":\"final_answer\",\"input\":{\"answer\":\"Water boils at 100°C at sea level.\"}}",
+          "content_digest": "02da6274b008dd78",
+          "tool_name": "final_answer",
+          "observation_type": "generation"
+        },
+        {
+          "index": 6,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "Water boils at 100°C at sea level.",
+          "content_digest": "f1ee9b746d551a67",
+          "tool_name": "final_answer",
+          "observation_type": "tool"
+        },
+        {
+          "index": 7,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are an expert assistant who can solve any task using tool calls. You will be given a task to solve as best you can. To do so, you have been given access to some tools. The tool call you write is an action: after the tool is executed, yo…[3240 chars]",
+          "content_digest": "d768122c07604f96",
+          "observation_type": "generation"
+        },
+        {
+          "index": 8,
+          "role": "user",
+          "entry_type": "text",
+          "content": "New task: What is the weather in Paris?",
+          "content_digest": "c869ccd09513b7af",
+          "observation_type": "generation"
+        },
+        {
+          "index": 9,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call-get-weather-0dadd979d883\",\"name\":\"get_weather\",\"input\":{\"location\":\"Paris\"}}",
+          "content_digest": "83f8b01295ee2bd9",
+          "tool_name": "get_weather",
+          "observation_type": "generation"
+        },
+        {
+          "index": 10,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "Sunny, 22°C in Paris.",
+          "content_digest": "02ab64ca07960478",
+          "tool_name": "get_weather",
+          "observation_type": "tool"
+        },
+        {
+          "index": 11,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call-final-answer-c0cb8cd443c5\",\"name\":\"final_answer\",\"input\":{\"answer\":\"Sunny, 22°C in Paris.\"}}",
+          "content_digest": "8f2d5a004e2db6bb",
+          "tool_name": "final_answer",
+          "observation_type": "generation"
+        },
+        {
+          "index": 12,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "Sunny, 22°C in Paris.",
+          "content_digest": "dc5c628c6de8b1a3",
+          "tool_name": "final_answer",
+          "observation_type": "tool"
+        }
+      ]
+    }
+  },
+  "feed_view": {
+    "message_count": 13,
+    "role_sequence": [
+      "tool",
+      "assistant",
+      "tool",
+      "system",
+      "user",
+      "assistant",
+      "tool",
+      "user",
+      "assistant",
+      "tool",
+      "system",
+      "user",
+      "assistant"
+    ],
+    "tool_names": [
+      "final_answer",
+      "get_weather"
+    ],
+    "tool_definition_count": 2,
+    "messages": [
+      {
+        "index": 0,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "Sunny, 22°C in Paris.",
+        "content_digest": "dc5c628c6de8b1a3",
+        "tool_name": "final_answer",
+        "observation_type": "tool"
+      },
+      {
+        "index": 1,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"call-final-answer-c0cb8cd443c5\",\"name\":\"final_answer\",\"input\":{\"answer\":\"Sunny, 22°C in Paris.\"}}",
+        "content_digest": "8f2d5a004e2db6bb",
+        "tool_name": "final_answer",
+        "observation_type": "generation"
+      },
+      {
+        "index": 2,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "Sunny, 22°C in Paris.",
+        "content_digest": "02ab64ca07960478",
+        "tool_name": "get_weather",
+        "observation_type": "tool"
+      },
+      {
+        "index": 3,
+        "role": "system",
+        "entry_type": "text",
+        "content": "You are an expert assistant who can solve any task using tool calls. You will be given a task to solve as best you can. To do so, you have been given access to some tools. The tool call you write is an action: after the tool is executed, yo…[3240 chars]",
+        "content_digest": "d768122c07604f96",
+        "observation_type": "generation"
+      },
+      {
+        "index": 4,
+        "role": "user",
+        "entry_type": "text",
+        "content": "New task: What is the weather in Paris?",
+        "content_digest": "c869ccd09513b7af",
+        "observation_type": "generation"
+      },
+      {
+        "index": 5,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"call-get-weather-0dadd979d883\",\"name\":\"get_weather\",\"input\":{\"location\":\"Paris\"}}",
+        "content_digest": "83f8b01295ee2bd9",
+        "tool_name": "get_weather",
+        "observation_type": "generation"
+      },
+      {
+        "index": 6,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "Water boils at 100°C at sea level.",
+        "content_digest": "f1ee9b746d551a67",
+        "tool_name": "final_answer",
+        "observation_type": "tool"
+      },
+      {
+        "index": 7,
+        "role": "user",
+        "entry_type": "text",
+        "content": "New task: What is the boiling point of water?",
+        "content_digest": "9444231bf24b59bd",
+        "observation_type": "generation"
+      },
+      {
+        "index": 8,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"call-final-answer-55578e4bbf2a\",\"name\":\"final_answer\",\"input\":{\"answer\":\"Water boils at 100°C at sea level.\"}}",
+        "content_digest": "02da6274b008dd78",
+        "tool_name": "final_answer",
+        "observation_type": "generation"
+      },
+      {
+        "index": 9,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "The speed of light is 299,792,458 metres per second.",
+        "content_digest": "984c45ccc2389872",
+        "tool_name": "final_answer",
+        "observation_type": "tool"
+      },
+      {
+        "index": 10,
+        "role": "system",
+        "entry_type": "text",
+        "content": "You are an expert assistant who can solve any task using tool calls. You will be given a task to solve as best you can. To do so, you have been given access to some tools. The tool call you write is an action: after the tool is executed, yo…[3068 chars]",
+        "content_digest": "042f57cf77b032e1",
+        "observation_type": "generation"
+      },
+      {
+        "index": 11,
+        "role": "user",
+        "entry_type": "text",
+        "content": "New task: What is the speed of light?",
+        "content_digest": "e444ba70c7f62f96",
+        "observation_type": "generation"
+      },
+      {
+        "index": 12,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"call-final-answer-0d94a60c39c8\",\"name\":\"final_answer\",\"input\":{\"answer\":\"The speed of light is 299,792,458 metres per second.\"}}",
+        "content_digest": "0f36be76a7771a29",
+        "tool_name": "final_answer",
+        "observation_type": "generation"
+      }
+    ]
+  }
+}

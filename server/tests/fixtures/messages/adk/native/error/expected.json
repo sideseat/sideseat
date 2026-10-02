@@ -1,0 +1,146 @@
+{
+  "label": "adk/native/error",
+  "request_count": 1,
+  "span_count": 4,
+  "trace_count": 1,
+  "session_count": 1,
+  "span_views": {
+    "trace-1/call_llm/span-3": {
+      "message_count": 1,
+      "role_sequence": [
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "litellm.exceptions.BadRequestError: litellm.BadRequestError: OpenAIException - model not found",
+          "content_digest": "cd8ff8c41a34743c",
+          "finish_reason": "Error",
+          "observation_type": "span"
+        }
+      ]
+    },
+    "trace-1/generate_content openai/nonexistent-model-id-12345/span-4": {
+      "message_count": 1,
+      "role_sequence": [
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "litellm.exceptions.BadRequestError: litellm.BadRequestError: OpenAIException - model not found",
+          "content_digest": "cd8ff8c41a34743c",
+          "finish_reason": "Error",
+          "observation_type": "agent"
+        }
+      ]
+    },
+    "trace-1/invocation/span-1": {
+      "message_count": 1,
+      "role_sequence": [
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "litellm.exceptions.BadRequestError: litellm.BadRequestError: OpenAIException - model not found",
+          "content_digest": "cd8ff8c41a34743c",
+          "finish_reason": "Error",
+          "observation_type": "span"
+        }
+      ]
+    },
+    "trace-1/invoke_agent assistant/span-2": {
+      "message_count": 1,
+      "role_sequence": [
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "litellm.exceptions.BadRequestError: litellm.BadRequestError: OpenAIException - model not found",
+          "content_digest": "cd8ff8c41a34743c",
+          "finish_reason": "Error",
+          "observation_type": "agent"
+        }
+      ]
+    }
+  },
+  "trace_views": {
+    "trace-1": {
+      "message_count": 1,
+      "role_sequence": [
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "litellm.exceptions.BadRequestError: litellm.BadRequestError: OpenAIException - model not found",
+          "content_digest": "cd8ff8c41a34743c",
+          "finish_reason": "Error",
+          "observation_type": "agent"
+        }
+      ]
+    }
+  },
+  "session_views": {
+    "adk-error-b56644ab": {
+      "message_count": 1,
+      "role_sequence": [
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "litellm.exceptions.BadRequestError: litellm.BadRequestError: OpenAIException - model not found",
+          "content_digest": "cd8ff8c41a34743c",
+          "finish_reason": "Error",
+          "observation_type": "agent"
+        }
+      ]
+    }
+  },
+  "feed_view": {
+    "message_count": 1,
+    "role_sequence": [
+      "assistant"
+    ],
+    "tool_names": [],
+    "tool_definition_count": 0,
+    "messages": [
+      {
+        "index": 0,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "litellm.exceptions.BadRequestError: litellm.BadRequestError: OpenAIException - model not found",
+        "content_digest": "cd8ff8c41a34743c",
+        "finish_reason": "Error",
+        "observation_type": "agent"
+      }
+    ]
+  }
+}

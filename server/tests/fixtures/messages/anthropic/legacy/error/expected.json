@@ -1,0 +1,115 @@
+{
+  "label": "anthropic/legacy/error",
+  "request_count": 1,
+  "span_count": 2,
+  "trace_count": 1,
+  "session_count": 0,
+  "span_views": {
+    "trace-1/Message with 'nonexistent-model-id-12345'/span-2": {
+      "message_count": 2,
+      "role_sequence": [
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Hello",
+          "content_digest": "ec371cafa6a5b98e",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "anthropic.BadRequestError: Error code: 400 - {'type': 'error', 'error': {'type': 'invalid_request_error', 'message': 'The provided model identifier is invalid.'}}",
+          "content_digest": "e5cdac9b54adfda1",
+          "finish_reason": "Error",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/anthropic-error/span-1": {
+      "message_count": 1,
+      "role_sequence": [
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "anthropic.BadRequestError: Error code: 400 - {'type': 'error', 'error': {'type': 'invalid_request_error', 'message': 'The provided model identifier is invalid.'}}",
+          "content_digest": "e5cdac9b54adfda1",
+          "finish_reason": "Error",
+          "observation_type": "span"
+        }
+      ]
+    }
+  },
+  "trace_views": {
+    "trace-1": {
+      "message_count": 2,
+      "role_sequence": [
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Hello",
+          "content_digest": "ec371cafa6a5b98e",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "anthropic.BadRequestError: Error code: 400 - {'type': 'error', 'error': {'type': 'invalid_request_error', 'message': 'The provided model identifier is invalid.'}}",
+          "content_digest": "e5cdac9b54adfda1",
+          "finish_reason": "Error",
+          "observation_type": "generation"
+        }
+      ]
+    }
+  },
+  "session_views": {},
+  "feed_view": {
+    "message_count": 2,
+    "role_sequence": [
+      "assistant",
+      "user"
+    ],
+    "tool_names": [],
+    "tool_definition_count": 0,
+    "messages": [
+      {
+        "index": 0,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "anthropic.BadRequestError: Error code: 400 - {'type': 'error', 'error': {'type': 'invalid_request_error', 'message': 'The provided model identifier is invalid.'}}",
+        "content_digest": "e5cdac9b54adfda1",
+        "finish_reason": "Error",
+        "observation_type": "generation"
+      },
+      {
+        "index": 1,
+        "role": "user",
+        "entry_type": "text",
+        "content": "Hello",
+        "content_digest": "ec371cafa6a5b98e",
+        "observation_type": "generation"
+      }
+    ]
+  }
+}

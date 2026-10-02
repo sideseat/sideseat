@@ -1,0 +1,678 @@
+{
+  "label": "agentscope/sdk/canonical",
+  "request_count": 1,
+  "span_count": 10,
+  "trace_count": 2,
+  "session_count": 1,
+  "span_views": {
+    "trace-1/agentscope-history/span-1": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/chat gpt-5-nano-2025-08-07/span-3": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "Answer scientific questions in one sentence.",
+          "content_digest": "2b8fa10a94b5626d",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is the speed of light?",
+          "content_digest": "6cd7e48e0fe698ef",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "The speed of light is 299,792,458 metres per second.",
+          "content_digest": "2432a9ddf31f860c",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/chat gpt-5-nano-2025-08-07/span-5": {
+      "message_count": 5,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "Answer scientific questions in one sentence.",
+          "content_digest": "2b8fa10a94b5626d",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is the speed of light?",
+          "content_digest": "6cd7e48e0fe698ef",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "The speed of light is 299,792,458 metres per second.",
+          "content_digest": "2432a9ddf31f860c",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is the boiling point of water?",
+          "content_digest": "30d19820dbb43177",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Water boils at 100°C at sea level.",
+          "content_digest": "bb1f388d59f64cf5",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/invoke_agent HistoryAgent/span-2": {
+      "message_count": 2,
+      "role_sequence": [
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is the speed of light?",
+          "content_digest": "6cd7e48e0fe698ef",
+          "finish_reason": "Stop",
+          "observation_type": "agent"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "The speed of light is 299,792,458 metres per second.",
+          "content_digest": "2432a9ddf31f860c",
+          "finish_reason": "Stop",
+          "observation_type": "agent"
+        }
+      ]
+    },
+    "trace-1/invoke_agent HistoryAgent/span-4": {
+      "message_count": 2,
+      "role_sequence": [
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is the boiling point of water?",
+          "content_digest": "30d19820dbb43177",
+          "finish_reason": "Stop",
+          "observation_type": "agent"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Water boils at 100°C at sea level.",
+          "content_digest": "bb1f388d59f64cf5",
+          "finish_reason": "Stop",
+          "observation_type": "agent"
+        }
+      ]
+    },
+    "trace-2/agentscope-tool-roundtrip/span-1": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-2/chat gpt-5-nano-2025-08-07/span-3": {
+      "message_count": 3,
+      "role_sequence": [
+        "assistant",
+        "system",
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call-get-weather-3cab8de3da7f\",\"name\":\"get_weather\",\"input\":{\"location\":\"Paris\"}}",
+          "content_digest": "d411b487e795d4c5",
+          "tool_name": "get_weather",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "system",
+          "entry_type": "text",
+          "content": "Use tools when they are available.",
+          "content_digest": "5854c8faeaa807cc",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is the weather in Paris?",
+          "content_digest": "c06013560ef43345",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-2/chat gpt-5-nano-2025-08-07/span-5": {
+      "message_count": 5,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "Use tools when they are available.",
+          "content_digest": "5854c8faeaa807cc",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is the weather in Paris?",
+          "content_digest": "c06013560ef43345",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call-get-weather-3cab8de3da7f\",\"name\":\"get_weather\",\"input\":{\"location\":\"Paris\"}}",
+          "content_digest": "d411b487e795d4c5",
+          "tool_name": "get_weather",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call-get-weather-3cab8de3da7f\",\"content\":[{\"type\":\"text\",\"text\":\"Sunny, 22°C, light breeze in Paris.\"}]}",
+          "content_digest": "b55f41f2bd0bc817",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "It is sunny and 22°C in Paris.",
+          "content_digest": "fd7f703792a3765a",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-2/execute_tool get_weather/span-4": {
+      "message_count": 2,
+      "role_sequence": [
+        "assistant",
+        "tool"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call-get-weather-3cab8de3da7f\",\"name\":\"get_weather\",\"input\":{\"location\":\"Paris\"}}",
+          "content_digest": "d411b487e795d4c5",
+          "tool_name": "get_weather",
+          "observation_type": "tool"
+        },
+        {
+          "index": 1,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call-get-weather-3cab8de3da7f\",\"name\":\"get_weather\",\"content\":[{\"type\":\"text\",\"text\":\"Sunny, 22°C, light breeze in Paris.\"}]}",
+          "content_digest": "488025212919a58d",
+          "tool_name": "get_weather",
+          "observation_type": "tool"
+        }
+      ]
+    },
+    "trace-2/invoke_agent ToolAgent/span-2": {
+      "message_count": 2,
+      "role_sequence": [
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is the weather in Paris?",
+          "content_digest": "c06013560ef43345",
+          "finish_reason": "Stop",
+          "observation_type": "agent"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "It is sunny and 22°C in Paris.",
+          "content_digest": "fd7f703792a3765a",
+          "finish_reason": "Stop",
+          "observation_type": "agent"
+        }
+      ]
+    }
+  },
+  "trace_views": {
+    "trace-1": {
+      "message_count": 5,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "Answer scientific questions in one sentence.",
+          "content_digest": "2b8fa10a94b5626d",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is the speed of light?",
+          "content_digest": "6cd7e48e0fe698ef",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "The speed of light is 299,792,458 metres per second.",
+          "content_digest": "2432a9ddf31f860c",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is the boiling point of water?",
+          "content_digest": "30d19820dbb43177",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Water boils at 100°C at sea level.",
+          "content_digest": "bb1f388d59f64cf5",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-2": {
+      "message_count": 5,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "Use tools when they are available.",
+          "content_digest": "5854c8faeaa807cc",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is the weather in Paris?",
+          "content_digest": "c06013560ef43345",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call-get-weather-3cab8de3da7f\",\"name\":\"get_weather\",\"input\":{\"location\":\"Paris\"}}",
+          "content_digest": "d411b487e795d4c5",
+          "tool_name": "get_weather",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call-get-weather-3cab8de3da7f\",\"name\":\"get_weather\",\"content\":[{\"type\":\"text\",\"text\":\"Sunny, 22°C, light breeze in Paris.\"}]}",
+          "content_digest": "488025212919a58d",
+          "tool_name": "get_weather",
+          "observation_type": "tool"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "It is sunny and 22°C in Paris.",
+          "content_digest": "fd7f703792a3765a",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
+    }
+  },
+  "session_views": {
+    "agentscope-canonical-fd8fd750": {
+      "message_count": 10,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "user",
+        "assistant",
+        "system",
+        "user",
+        "assistant",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "Answer scientific questions in one sentence.",
+          "content_digest": "2b8fa10a94b5626d",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is the speed of light?",
+          "content_digest": "6cd7e48e0fe698ef",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "The speed of light is 299,792,458 metres per second.",
+          "content_digest": "2432a9ddf31f860c",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is the boiling point of water?",
+          "content_digest": "30d19820dbb43177",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Water boils at 100°C at sea level.",
+          "content_digest": "bb1f388d59f64cf5",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
+          "role": "system",
+          "entry_type": "text",
+          "content": "Use tools when they are available.",
+          "content_digest": "5854c8faeaa807cc",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        },
+        {
+          "index": 6,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is the weather in Paris?",
+          "content_digest": "c06013560ef43345",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        },
+        {
+          "index": 7,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call-get-weather-3cab8de3da7f\",\"name\":\"get_weather\",\"input\":{\"location\":\"Paris\"}}",
+          "content_digest": "d411b487e795d4c5",
+          "tool_name": "get_weather",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        },
+        {
+          "index": 8,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call-get-weather-3cab8de3da7f\",\"name\":\"get_weather\",\"content\":[{\"type\":\"text\",\"text\":\"Sunny, 22°C, light breeze in Paris.\"}]}",
+          "content_digest": "488025212919a58d",
+          "tool_name": "get_weather",
+          "observation_type": "tool"
+        },
+        {
+          "index": 9,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "It is sunny and 22°C in Paris.",
+          "content_digest": "fd7f703792a3765a",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
+    }
+  },
+  "feed_view": {
+    "message_count": 10,
+    "role_sequence": [
+      "assistant",
+      "tool",
+      "system",
+      "user",
+      "assistant",
+      "user",
+      "assistant",
+      "system",
+      "user",
+      "assistant"
+    ],
+    "tool_names": [],
+    "tool_definition_count": 1,
+    "messages": [
+      {
+        "index": 0,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "It is sunny and 22°C in Paris.",
+        "content_digest": "fd7f703792a3765a",
+        "finish_reason": "Stop",
+        "observation_type": "generation"
+      },
+      {
+        "index": 1,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call-get-weather-3cab8de3da7f\",\"name\":\"get_weather\",\"content\":[{\"type\":\"text\",\"text\":\"Sunny, 22°C, light breeze in Paris.\"}]}",
+        "content_digest": "488025212919a58d",
+        "tool_name": "get_weather",
+        "observation_type": "tool"
+      },
+      {
+        "index": 2,
+        "role": "system",
+        "entry_type": "text",
+        "content": "Use tools when they are available.",
+        "content_digest": "5854c8faeaa807cc",
+        "finish_reason": "Stop",
+        "observation_type": "generation"
+      },
+      {
+        "index": 3,
+        "role": "user",
+        "entry_type": "text",
+        "content": "What is the weather in Paris?",
+        "content_digest": "c06013560ef43345",
+        "finish_reason": "Stop",
+        "observation_type": "generation"
+      },
+      {
+        "index": 4,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"call-get-weather-3cab8de3da7f\",\"name\":\"get_weather\",\"input\":{\"location\":\"Paris\"}}",
+        "content_digest": "d411b487e795d4c5",
+        "tool_name": "get_weather",
+        "finish_reason": "Stop",
+        "observation_type": "generation"
+      },
+      {
+        "index": 5,
+        "role": "user",
+        "entry_type": "text",
+        "content": "What is the boiling point of water?",
+        "content_digest": "30d19820dbb43177",
+        "finish_reason": "Stop",
+        "observation_type": "generation"
+      },
+      {
+        "index": 6,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "Water boils at 100°C at sea level.",
+        "content_digest": "bb1f388d59f64cf5",
+        "finish_reason": "Stop",
+        "observation_type": "generation"
+      },
+      {
+        "index": 7,
+        "role": "system",
+        "entry_type": "text",
+        "content": "Answer scientific questions in one sentence.",
+        "content_digest": "2b8fa10a94b5626d",
+        "finish_reason": "Stop",
+        "observation_type": "generation"
+      },
+      {
+        "index": 8,
+        "role": "user",
+        "entry_type": "text",
+        "content": "What is the speed of light?",
+        "content_digest": "6cd7e48e0fe698ef",
+        "finish_reason": "Stop",
+        "observation_type": "generation"
+      },
+      {
+        "index": 9,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "The speed of light is 299,792,458 metres per second.",
+        "content_digest": "2432a9ddf31f860c",
+        "finish_reason": "Stop",
+        "observation_type": "generation"
+      }
+    ]
+  }
+}

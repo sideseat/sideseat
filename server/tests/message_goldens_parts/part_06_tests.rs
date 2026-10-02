@@ -10,10 +10,8 @@ fn native_framework_captures_exercise_their_declared_identity() {
     let mut suites: BTreeMap<String, (String, BTreeSet<String>)> = BTreeMap::new();
 
     for (label, paths) in discover_fixtures() {
-        let Some((suite, _)) = label.split_once('/') else {
-            continue;
-        };
-        let Some(slug) = suite.strip_suffix("-native") else {
+        let mut parts = label.split('/');
+        let (Some(slug), Some("native")) = (parts.next(), parts.next()) else {
             continue;
         };
         let Some(expected) = plan.label_from_declaration(slug) else {
@@ -34,7 +32,7 @@ fn native_framework_captures_exercise_their_declared_identity() {
     for (suite, (expected, found)) in &suites {
         assert!(
             found.contains(expected),
-            "{suite}-native: instrumentation never produced its declared `{expected}` framework label; \
+            "{suite}/native: instrumentation never produced its declared `{expected}` framework label; \
              observed {found:?}"
         );
     }

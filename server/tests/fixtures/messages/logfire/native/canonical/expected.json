@@ -1,0 +1,562 @@
+{
+  "label": "logfire/native/canonical",
+  "request_count": 1,
+  "span_count": 6,
+  "trace_count": 2,
+  "session_count": 1,
+  "span_views": {
+    "trace-1/logfire events request/span-2": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "Answer scientific questions in one sentence.",
+          "content_digest": "2b8fa10a94b5626d",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is the speed of light?",
+          "content_digest": "6cd7e48e0fe698ef",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Light travels at 299,792,458 metres per second in vacuum.",
+          "content_digest": "58e227f5e2997dcf",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/logfire prompt streaming response/span-3": {
+      "message_count": 5,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "Answer scientific questions in one sentence.",
+          "content_digest": "2b8fa10a94b5626d",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is the speed of light?",
+          "content_digest": "6cd7e48e0fe698ef",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Light travels at 299,792,458 metres per second in vacuum.",
+          "content_digest": "58e227f5e2997dcf",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is the boiling point of water?",
+          "content_digest": "30d19820dbb43177",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Water boils at 100°C at standard atmospheric pressure.",
+          "content_digest": "5f43e659ca001326",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/logfire request data fallback/span-4": {
+      "message_count": 2,
+      "role_sequence": [
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Which planet is known as the Red Planet?",
+          "content_digest": "3d5c300ad5cbd3e2",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Mars is known as the Red Planet.",
+          "content_digest": "367392f0239c46f1",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/logfire-history/span-1": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-2/logfire all messages tool roundtrip/span-2": {
+      "message_count": 5,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "Use tools when they are available.",
+          "content_digest": "5854c8faeaa807cc",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is the weather in Paris?",
+          "content_digest": "c06013560ef43345",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call-weather-1\",\"name\":\"get_weather\",\"input\":{\"location\":\"Paris\"}}",
+          "content_digest": "967db1cac316ab14",
+          "tool_name": "get_weather",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "Sunny, 22°C, light breeze in Paris.",
+          "content_digest": "4c8952d5f6642a8f",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "The weather in Paris is sunny at 22°C with a light breeze.",
+          "content_digest": "3626c674f2d7f079",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-2/logfire-tool-roundtrip/span-1": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    }
+  },
+  "trace_views": {
+    "trace-1": {
+      "message_count": 7,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "user",
+        "assistant",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "Answer scientific questions in one sentence.",
+          "content_digest": "2b8fa10a94b5626d",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is the speed of light?",
+          "content_digest": "6cd7e48e0fe698ef",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Light travels at 299,792,458 metres per second in vacuum.",
+          "content_digest": "58e227f5e2997dcf",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is the boiling point of water?",
+          "content_digest": "30d19820dbb43177",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Water boils at 100°C at standard atmospheric pressure.",
+          "content_digest": "5f43e659ca001326",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Which planet is known as the Red Planet?",
+          "content_digest": "3d5c300ad5cbd3e2",
+          "observation_type": "generation"
+        },
+        {
+          "index": 6,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Mars is known as the Red Planet.",
+          "content_digest": "367392f0239c46f1",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-2": {
+      "message_count": 5,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "Use tools when they are available.",
+          "content_digest": "5854c8faeaa807cc",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is the weather in Paris?",
+          "content_digest": "c06013560ef43345",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call-weather-1\",\"name\":\"get_weather\",\"input\":{\"location\":\"Paris\"}}",
+          "content_digest": "967db1cac316ab14",
+          "tool_name": "get_weather",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "Sunny, 22°C, light breeze in Paris.",
+          "content_digest": "4c8952d5f6642a8f",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "The weather in Paris is sunny at 22°C with a light breeze.",
+          "content_digest": "3626c674f2d7f079",
+          "observation_type": "generation"
+        }
+      ]
+    }
+  },
+  "session_views": {
+    "logfire-canonical-ff67f9f3": {
+      "message_count": 12,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "user",
+        "assistant",
+        "user",
+        "assistant",
+        "system",
+        "user",
+        "assistant",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "Answer scientific questions in one sentence.",
+          "content_digest": "2b8fa10a94b5626d",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is the speed of light?",
+          "content_digest": "6cd7e48e0fe698ef",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Light travels at 299,792,458 metres per second in vacuum.",
+          "content_digest": "58e227f5e2997dcf",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is the boiling point of water?",
+          "content_digest": "30d19820dbb43177",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Water boils at 100°C at standard atmospheric pressure.",
+          "content_digest": "5f43e659ca001326",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Which planet is known as the Red Planet?",
+          "content_digest": "3d5c300ad5cbd3e2",
+          "observation_type": "generation"
+        },
+        {
+          "index": 6,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Mars is known as the Red Planet.",
+          "content_digest": "367392f0239c46f1",
+          "observation_type": "generation"
+        },
+        {
+          "index": 7,
+          "role": "system",
+          "entry_type": "text",
+          "content": "Use tools when they are available.",
+          "content_digest": "5854c8faeaa807cc",
+          "observation_type": "generation"
+        },
+        {
+          "index": 8,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is the weather in Paris?",
+          "content_digest": "c06013560ef43345",
+          "observation_type": "generation"
+        },
+        {
+          "index": 9,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call-weather-1\",\"name\":\"get_weather\",\"input\":{\"location\":\"Paris\"}}",
+          "content_digest": "967db1cac316ab14",
+          "tool_name": "get_weather",
+          "observation_type": "generation"
+        },
+        {
+          "index": 10,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "Sunny, 22°C, light breeze in Paris.",
+          "content_digest": "4c8952d5f6642a8f",
+          "observation_type": "generation"
+        },
+        {
+          "index": 11,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "The weather in Paris is sunny at 22°C with a light breeze.",
+          "content_digest": "3626c674f2d7f079",
+          "observation_type": "generation"
+        }
+      ]
+    }
+  },
+  "feed_view": {
+    "message_count": 12,
+    "role_sequence": [
+      "system",
+      "user",
+      "assistant",
+      "tool",
+      "assistant",
+      "user",
+      "assistant",
+      "user",
+      "assistant",
+      "system",
+      "user",
+      "assistant"
+    ],
+    "tool_names": [],
+    "tool_definition_count": 1,
+    "messages": [
+      {
+        "index": 0,
+        "role": "system",
+        "entry_type": "text",
+        "content": "Use tools when they are available.",
+        "content_digest": "5854c8faeaa807cc",
+        "observation_type": "generation"
+      },
+      {
+        "index": 1,
+        "role": "user",
+        "entry_type": "text",
+        "content": "What is the weather in Paris?",
+        "content_digest": "c06013560ef43345",
+        "observation_type": "generation"
+      },
+      {
+        "index": 2,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"call-weather-1\",\"name\":\"get_weather\",\"input\":{\"location\":\"Paris\"}}",
+        "content_digest": "967db1cac316ab14",
+        "tool_name": "get_weather",
+        "observation_type": "generation"
+      },
+      {
+        "index": 3,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "Sunny, 22°C, light breeze in Paris.",
+        "content_digest": "4c8952d5f6642a8f",
+        "observation_type": "generation"
+      },
+      {
+        "index": 4,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "The weather in Paris is sunny at 22°C with a light breeze.",
+        "content_digest": "3626c674f2d7f079",
+        "observation_type": "generation"
+      },
+      {
+        "index": 5,
+        "role": "user",
+        "entry_type": "text",
+        "content": "Which planet is known as the Red Planet?",
+        "content_digest": "3d5c300ad5cbd3e2",
+        "observation_type": "generation"
+      },
+      {
+        "index": 6,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "Mars is known as the Red Planet.",
+        "content_digest": "367392f0239c46f1",
+        "observation_type": "generation"
+      },
+      {
+        "index": 7,
+        "role": "user",
+        "entry_type": "text",
+        "content": "What is the boiling point of water?",
+        "content_digest": "30d19820dbb43177",
+        "observation_type": "generation"
+      },
+      {
+        "index": 8,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "Water boils at 100°C at standard atmospheric pressure.",
+        "content_digest": "5f43e659ca001326",
+        "observation_type": "generation"
+      },
+      {
+        "index": 9,
+        "role": "system",
+        "entry_type": "text",
+        "content": "Answer scientific questions in one sentence.",
+        "content_digest": "2b8fa10a94b5626d",
+        "observation_type": "generation"
+      },
+      {
+        "index": 10,
+        "role": "user",
+        "entry_type": "text",
+        "content": "What is the speed of light?",
+        "content_digest": "6cd7e48e0fe698ef",
+        "observation_type": "generation"
+      },
+      {
+        "index": 11,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "Light travels at 299,792,458 metres per second in vacuum.",
+        "content_digest": "58e227f5e2997dcf",
+        "observation_type": "generation"
+      }
+    ]
+  }
+}

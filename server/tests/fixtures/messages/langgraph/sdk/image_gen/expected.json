@@ -1,0 +1,930 @@
+{
+  "label": "langgraph/sdk/image_gen",
+  "request_count": 1,
+  "span_count": 28,
+  "trace_count": 2,
+  "session_count": 1,
+  "span_views": {
+    "trace-1/ChatOpenAI/span-13": {
+      "message_count": 5,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [
+        "generate_image"
+      ],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You will be instructed to generate a number of images of a given subject. Vary the prompt for each generated image to create a variety of options. Your final output must contain ONLY a comma-separated list of the filesystem paths of generat…[250 chars]",
+          "content_digest": "5e5525d3b8659029",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Generate 3 images of a dog",
+          "content_digest": "89aa55f374613789",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call-weather-1\",\"name\":\"get_weather\",\"input\":{\"location\":\"Paris\"}}",
+          "content_digest": "967db1cac316ab14",
+          "tool_name": "get_weather",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "Error: get_weather is not a valid tool, try one of [generate_image].",
+          "content_digest": "0213d87a858a5d12",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "It is sunny and 22°C in Paris.",
+          "content_digest": "fd7f703792a3765a",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/ChatOpenAI/span-6": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [
+        "generate_image"
+      ],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You will be instructed to generate a number of images of a given subject. Vary the prompt for each generated image to create a variety of options. Your final output must contain ONLY a comma-separated list of the filesystem paths of generat…[250 chars]",
+          "content_digest": "5e5525d3b8659029",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Generate 3 images of a dog",
+          "content_digest": "89aa55f374613789",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call-weather-1\",\"name\":\"get_weather\",\"input\":{\"location\":\"Paris\"}}",
+          "content_digest": "967db1cac316ab14",
+          "tool_name": "get_weather",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/LangGraph/span-1": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Generate 3 images of a dog",
+          "content_digest": "89aa55f374613789",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "trace-1/Prompt/span-12": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Generate 3 images of a dog",
+          "content_digest": "89aa55f374613789",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "trace-1/Prompt/span-5": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Generate 3 images of a dog",
+          "content_digest": "89aa55f374613789",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "trace-1/RunnableSequence/span-11": {
+      "message_count": 2,
+      "role_sequence": [
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Generate 3 images of a dog",
+          "content_digest": "89aa55f374613789",
+          "observation_type": "chain"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "It is sunny and 22°C in Paris.",
+          "content_digest": "fd7f703792a3765a",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "trace-1/RunnableSequence/span-4": {
+      "message_count": 2,
+      "role_sequence": [
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Generate 3 images of a dog",
+          "content_digest": "89aa55f374613789",
+          "observation_type": "chain"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call-weather-1\",\"name\":\"get_weather\",\"input\":{\"location\":\"Paris\"}}",
+          "content_digest": "967db1cac316ab14",
+          "tool_name": "get_weather",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "trace-1/agent/span-2": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Generate 3 images of a dog",
+          "content_digest": "89aa55f374613789",
+          "observation_type": "agent"
+        }
+      ]
+    },
+    "trace-1/agent/span-9": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Generate 3 images of a dog",
+          "content_digest": "89aa55f374613789",
+          "observation_type": "agent"
+        }
+      ]
+    },
+    "trace-1/call_model/span-10": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Generate 3 images of a dog",
+          "content_digest": "89aa55f374613789",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "trace-1/call_model/span-3": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Generate 3 images of a dog",
+          "content_digest": "89aa55f374613789",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "trace-1/should_continue/span-14": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Generate 3 images of a dog",
+          "content_digest": "89aa55f374613789",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "trace-1/should_continue/span-7": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Generate 3 images of a dog",
+          "content_digest": "89aa55f374613789",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "trace-1/tools/span-8": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-2/ChatOpenAI/span-13": {
+      "message_count": 4,
+      "role_sequence": [
+        "system",
+        "assistant",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [
+        "read_image"
+      ],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You will be provided with a list of filesystem paths, each containing an image. Describe each image, and then choose which one is best. Your final line of output must be as follows: FINAL DECISION: <path to final decision image>",
+          "content_digest": "4000fcf8e134d2e3",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call-weather-1\",\"name\":\"get_weather\",\"input\":{\"location\":\"Paris\"}}",
+          "content_digest": "967db1cac316ab14",
+          "tool_name": "get_weather",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "Error: get_weather is not a valid tool, try one of [read_image].",
+          "content_digest": "c8267e0ace841570",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "It is sunny and 22°C in Paris.",
+          "content_digest": "fd7f703792a3765a",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-2/ChatOpenAI/span-6": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [
+        "read_image"
+      ],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You will be provided with a list of filesystem paths, each containing an image. Describe each image, and then choose which one is best. Your final line of output must be as follows: FINAL DECISION: <path to final decision image>",
+          "content_digest": "4000fcf8e134d2e3",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "It is sunny and 22°C in Paris.",
+          "content_digest": "fd7f703792a3765a",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call-weather-1\",\"name\":\"get_weather\",\"input\":{\"location\":\"Paris\"}}",
+          "content_digest": "967db1cac316ab14",
+          "tool_name": "get_weather",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-2/LangGraph/span-1": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "It is sunny and 22°C in Paris.",
+          "content_digest": "fd7f703792a3765a",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "trace-2/Prompt/span-12": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "It is sunny and 22°C in Paris.",
+          "content_digest": "fd7f703792a3765a",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "trace-2/Prompt/span-5": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "It is sunny and 22°C in Paris.",
+          "content_digest": "fd7f703792a3765a",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "trace-2/RunnableSequence/span-11": {
+      "message_count": 1,
+      "role_sequence": [
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "It is sunny and 22°C in Paris.",
+          "content_digest": "fd7f703792a3765a",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "trace-2/RunnableSequence/span-4": {
+      "message_count": 2,
+      "role_sequence": [
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "It is sunny and 22°C in Paris.",
+          "content_digest": "fd7f703792a3765a",
+          "observation_type": "chain"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call-weather-1\",\"name\":\"get_weather\",\"input\":{\"location\":\"Paris\"}}",
+          "content_digest": "967db1cac316ab14",
+          "tool_name": "get_weather",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "trace-2/agent/span-2": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "It is sunny and 22°C in Paris.",
+          "content_digest": "fd7f703792a3765a",
+          "observation_type": "agent"
+        }
+      ]
+    },
+    "trace-2/agent/span-9": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "It is sunny and 22°C in Paris.",
+          "content_digest": "fd7f703792a3765a",
+          "observation_type": "agent"
+        }
+      ]
+    },
+    "trace-2/call_model/span-10": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "It is sunny and 22°C in Paris.",
+          "content_digest": "fd7f703792a3765a",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "trace-2/call_model/span-3": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "It is sunny and 22°C in Paris.",
+          "content_digest": "fd7f703792a3765a",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "trace-2/should_continue/span-14": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "It is sunny and 22°C in Paris.",
+          "content_digest": "fd7f703792a3765a",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "trace-2/should_continue/span-7": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "It is sunny and 22°C in Paris.",
+          "content_digest": "fd7f703792a3765a",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "trace-2/tools/span-8": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    }
+  },
+  "trace_views": {
+    "trace-1": {
+      "message_count": 5,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [
+        "generate_image"
+      ],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You will be instructed to generate a number of images of a given subject. Vary the prompt for each generated image to create a variety of options. Your final output must contain ONLY a comma-separated list of the filesystem paths of generat…[250 chars]",
+          "content_digest": "5e5525d3b8659029",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Generate 3 images of a dog",
+          "content_digest": "89aa55f374613789",
+          "observation_type": "chain"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call-weather-1\",\"name\":\"get_weather\",\"input\":{\"location\":\"Paris\"}}",
+          "content_digest": "967db1cac316ab14",
+          "tool_name": "get_weather",
+          "observation_type": "chain"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "Error: get_weather is not a valid tool, try one of [generate_image].",
+          "content_digest": "0213d87a858a5d12",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "It is sunny and 22°C in Paris.",
+          "content_digest": "fd7f703792a3765a",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "trace-2": {
+      "message_count": 4,
+      "role_sequence": [
+        "system",
+        "assistant",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [
+        "read_image"
+      ],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You will be provided with a list of filesystem paths, each containing an image. Describe each image, and then choose which one is best. Your final line of output must be as follows: FINAL DECISION: <path to final decision image>",
+          "content_digest": "4000fcf8e134d2e3",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call-weather-1\",\"name\":\"get_weather\",\"input\":{\"location\":\"Paris\"}}",
+          "content_digest": "967db1cac316ab14",
+          "tool_name": "get_weather",
+          "observation_type": "chain"
+        },
+        {
+          "index": 2,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "Error: get_weather is not a valid tool, try one of [read_image].",
+          "content_digest": "c8267e0ace841570",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "It is sunny and 22°C in Paris.",
+          "content_digest": "fd7f703792a3765a",
+          "observation_type": "chain"
+        }
+      ]
+    }
+  },
+  "session_views": {
+    "langgraph-image_gen-9c85d622": {
+      "message_count": 9,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "tool",
+        "assistant",
+        "system",
+        "assistant",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [
+        "generate_image",
+        "read_image"
+      ],
+      "tool_definition_count": 2,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You will be instructed to generate a number of images of a given subject. Vary the prompt for each generated image to create a variety of options. Your final output must contain ONLY a comma-separated list of the filesystem paths of generat…[250 chars]",
+          "content_digest": "5e5525d3b8659029",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Generate 3 images of a dog",
+          "content_digest": "89aa55f374613789",
+          "observation_type": "chain"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call-weather-1\",\"name\":\"get_weather\",\"input\":{\"location\":\"Paris\"}}",
+          "content_digest": "967db1cac316ab14",
+          "tool_name": "get_weather",
+          "observation_type": "chain"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "Error: get_weather is not a valid tool, try one of [generate_image].",
+          "content_digest": "0213d87a858a5d12",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "It is sunny and 22°C in Paris.",
+          "content_digest": "fd7f703792a3765a",
+          "observation_type": "chain"
+        },
+        {
+          "index": 5,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You will be provided with a list of filesystem paths, each containing an image. Describe each image, and then choose which one is best. Your final line of output must be as follows: FINAL DECISION: <path to final decision image>",
+          "content_digest": "4000fcf8e134d2e3",
+          "observation_type": "generation"
+        },
+        {
+          "index": 6,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call-weather-1\",\"name\":\"get_weather\",\"input\":{\"location\":\"Paris\"}}",
+          "content_digest": "967db1cac316ab14",
+          "tool_name": "get_weather",
+          "observation_type": "chain"
+        },
+        {
+          "index": 7,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "Error: get_weather is not a valid tool, try one of [read_image].",
+          "content_digest": "c8267e0ace841570",
+          "observation_type": "generation"
+        },
+        {
+          "index": 8,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "It is sunny and 22°C in Paris.",
+          "content_digest": "fd7f703792a3765a",
+          "observation_type": "chain"
+        }
+      ]
+    }
+  },
+  "feed_view": {
+    "message_count": 9,
+    "role_sequence": [
+      "tool",
+      "assistant",
+      "system",
+      "assistant",
+      "tool",
+      "assistant",
+      "system",
+      "assistant",
+      "user"
+    ],
+    "tool_names": [
+      "generate_image",
+      "read_image"
+    ],
+    "tool_definition_count": 2,
+    "messages": [
+      {
+        "index": 0,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "Error: get_weather is not a valid tool, try one of [read_image].",
+        "content_digest": "c8267e0ace841570",
+        "observation_type": "generation"
+      },
+      {
+        "index": 1,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "It is sunny and 22°C in Paris.",
+        "content_digest": "fd7f703792a3765a",
+        "observation_type": "chain"
+      },
+      {
+        "index": 2,
+        "role": "system",
+        "entry_type": "text",
+        "content": "You will be provided with a list of filesystem paths, each containing an image. Describe each image, and then choose which one is best. Your final line of output must be as follows: FINAL DECISION: <path to final decision image>",
+        "content_digest": "4000fcf8e134d2e3",
+        "observation_type": "generation"
+      },
+      {
+        "index": 3,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"call-weather-1\",\"name\":\"get_weather\",\"input\":{\"location\":\"Paris\"}}",
+        "content_digest": "967db1cac316ab14",
+        "tool_name": "get_weather",
+        "observation_type": "chain"
+      },
+      {
+        "index": 4,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "Error: get_weather is not a valid tool, try one of [generate_image].",
+        "content_digest": "0213d87a858a5d12",
+        "observation_type": "generation"
+      },
+      {
+        "index": 5,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "It is sunny and 22°C in Paris.",
+        "content_digest": "fd7f703792a3765a",
+        "observation_type": "chain"
+      },
+      {
+        "index": 6,
+        "role": "system",
+        "entry_type": "text",
+        "content": "You will be instructed to generate a number of images of a given subject. Vary the prompt for each generated image to create a variety of options. Your final output must contain ONLY a comma-separated list of the filesystem paths of generat…[250 chars]",
+        "content_digest": "5e5525d3b8659029",
+        "observation_type": "generation"
+      },
+      {
+        "index": 7,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"call-weather-1\",\"name\":\"get_weather\",\"input\":{\"location\":\"Paris\"}}",
+        "content_digest": "967db1cac316ab14",
+        "tool_name": "get_weather",
+        "observation_type": "chain"
+      },
+      {
+        "index": 8,
+        "role": "user",
+        "entry_type": "text",
+        "content": "Generate 3 images of a dog",
+        "content_digest": "89aa55f374613789",
+        "observation_type": "chain"
+      }
+    ]
+  }
+}

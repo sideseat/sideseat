@@ -1,0 +1,93 @@
+{
+  "label": "strands/native/structured_output",
+  "request_count": 1,
+  "span_count": 1,
+  "trace_count": 1,
+  "session_count": 0,
+  "span_views": {
+    "trace-1/execute_structured_output/span-1": {
+      "message_count": 2,
+      "role_sequence": [
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Extract info: Jane Doe, a systems admin, 28, lives at 123 Main St, New York, USA. Email: jane@example.com",
+          "content_digest": "6a08cceee02e13c8",
+          "observation_type": "agent"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "json",
+          "content": "{\"type\":\"json\",\"data\":{\"name\":\"deterministic-name\",\"age\":1,\"address\":{\"street\":\"deterministic-street\",\"city\":\"Paris\",\"country\":\"deterministic-country\",\"postal_code\":\"deterministic-postal-code\"},\"contacts\":[{\"email\":\"deterministic-email\",\"ph…[304 chars]",
+          "content_digest": "c719f0e481026bfd",
+          "observation_type": "agent"
+        }
+      ]
+    }
+  },
+  "trace_views": {
+    "trace-1": {
+      "message_count": 2,
+      "role_sequence": [
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Extract info: Jane Doe, a systems admin, 28, lives at 123 Main St, New York, USA. Email: jane@example.com",
+          "content_digest": "6a08cceee02e13c8",
+          "observation_type": "agent"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "json",
+          "content": "{\"type\":\"json\",\"data\":{\"name\":\"deterministic-name\",\"age\":1,\"address\":{\"street\":\"deterministic-street\",\"city\":\"Paris\",\"country\":\"deterministic-country\",\"postal_code\":\"deterministic-postal-code\"},\"contacts\":[{\"email\":\"deterministic-email\",\"ph…[304 chars]",
+          "content_digest": "c719f0e481026bfd",
+          "observation_type": "agent"
+        }
+      ]
+    }
+  },
+  "session_views": {},
+  "feed_view": {
+    "message_count": 2,
+    "role_sequence": [
+      "assistant",
+      "user"
+    ],
+    "tool_names": [],
+    "tool_definition_count": 0,
+    "messages": [
+      {
+        "index": 0,
+        "role": "assistant",
+        "entry_type": "json",
+        "content": "{\"type\":\"json\",\"data\":{\"name\":\"deterministic-name\",\"age\":1,\"address\":{\"street\":\"deterministic-street\",\"city\":\"Paris\",\"country\":\"deterministic-country\",\"postal_code\":\"deterministic-postal-code\"},\"contacts\":[{\"email\":\"deterministic-email\",\"ph…[304 chars]",
+        "content_digest": "c719f0e481026bfd",
+        "observation_type": "agent"
+      },
+      {
+        "index": 1,
+        "role": "user",
+        "entry_type": "text",
+        "content": "Extract info: Jane Doe, a systems admin, 28, lives at 123 Main St, New York, USA. Email: jane@example.com",
+        "content_digest": "6a08cceee02e13c8",
+        "observation_type": "agent"
+      }
+    ]
+  }
+}

@@ -1,0 +1,332 @@
+{
+  "label": "vercel-ai-js/legacy/files",
+  "request_count": 2,
+  "span_count": 4,
+  "trace_count": 1,
+  "session_count": 0,
+  "span_views": {
+    "trace-1/ai.generateText.doGenerate/span-2": {
+      "message_count": 4,
+      "role_sequence": [
+        "system",
+        "user",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a file analysis AI that can read images and documents.",
+          "content_digest": "a7b564c8a3a5cf2b",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Read the image '/Users/sideseat/Desktop/dev/sideseat/misc/content/img.jpg'. Describe its contents in detail using instructions from PDF.",
+          "content_digest": "46131d545b8deb1a",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "user",
+          "entry_type": "document",
+          "content": "{\"type\":\"document\",\"media_type\":\"application/pdf\",\"source\":\"base64\",\"data\":\"JVBERi0xLjMKJcTl8uXrp/Og0MTGCjMgMCBvYmoKPDwgL0ZpbHRlciAvRmxhdGVEZWNvZGUgL0xlbmd0aCAyMDUgPj4Kc3RyZWFtCngBlVC9CsIwGNz7FOd/opgmaZLaVXFxEwIO1qnoIFSofX8wXyvUKoKSIZfkct/d…[17690 chars]",
+          "content_digest": "e69c476dd545eb4b",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "I'll read the image and then follow the instruction from the PDF to write a poem about its contents.",
+          "content_digest": "52d82b7d5deb28b2",
+          "finish_reason": "ToolUse",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/ai.generateText.doGenerate/span-4": {
+      "message_count": 7,
+      "role_sequence": [
+        "system",
+        "user",
+        "user",
+        "assistant",
+        "assistant",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a file analysis AI that can read images and documents.",
+          "content_digest": "a7b564c8a3a5cf2b",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Read the image '/Users/sideseat/Desktop/dev/sideseat/misc/content/img.jpg'. Describe its contents in detail using instructions from PDF.",
+          "content_digest": "46131d545b8deb1a",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "user",
+          "entry_type": "document",
+          "content": "{\"type\":\"document\",\"media_type\":\"application/pdf\",\"source\":\"base64\",\"data\":\"JVBERi0xLjMKJcTl8uXrp/Og0MTGCjMgMCBvYmoKPDwgL0ZpbHRlciAvRmxhdGVEZWNvZGUgL0xlbmd0aCAyMDUgPj4Kc3RyZWFtCngBlVC9CsIwGNz7FOd/opgmaZLaVXFxEwIO1qnoIFSofX8wXyvUKoKSIZfkct/d…[17690 chars]",
+          "content_digest": "e69c476dd545eb4b",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "I'll read the image and then follow the instruction from the PDF to write a poem about its contents.",
+          "content_digest": "52d82b7d5deb28b2",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_rBijYDxumYLKYwFSRv55Ak\",\"name\":\"image_reader\",\"input\":{\"path\":\"/Users/sideseat/Desktop/dev/sideseat/misc/content/img.jpg\"}}",
+          "content_digest": "b1a566666360c26c",
+          "tool_name": "image_reader",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_rBijYDxumYLKYwFSRv55Ak\",\"content\":{\"type\":\"json\",\"data\":{\"type\":\"image\",\"data\":\"/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCU…[218778 chars]",
+          "content_digest": "0cddd4b437b6850b",
+          "observation_type": "generation"
+        },
+        {
+          "index": 6,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Based on the PDF instructions to \"Write a poem!\", here is a poem inspired by the image contents: ## A Moment Captured in Time In pixels and light, a world unfolds, A digital canvas where beauty holds, Layers of color, dimensions deep, Secre…[949 chars]",
+          "content_digest": "380ccd8e2c7218fa",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/ai.generateText/span-1": {
+      "message_count": 1,
+      "role_sequence": [
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Based on the PDF instructions to \"Write a poem!\", here is a poem inspired by the image contents: ## A Moment Captured in Time In pixels and light, a world unfolds, A digital canvas where beauty holds, Layers of color, dimensions deep, Secre…[949 chars]",
+          "content_digest": "380ccd8e2c7218fa",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/ai.toolCall/span-3": {
+      "message_count": 2,
+      "role_sequence": [
+        "assistant",
+        "tool"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_rBijYDxumYLKYwFSRv55Ak\",\"name\":\"image_reader\",\"input\":{\"path\":\"/Users/sideseat/Desktop/dev/sideseat/misc/content/img.jpg\"}}",
+          "content_digest": "b1a566666360c26c",
+          "tool_name": "image_reader",
+          "finish_reason": "ToolUse",
+          "observation_type": "tool"
+        },
+        {
+          "index": 1,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_rBijYDxumYLKYwFSRv55Ak\",\"content\":{\"type\":\"image\",\"data\":\"/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKC…[218755 chars]",
+          "content_digest": "739df64c079aea2b",
+          "observation_type": "tool"
+        }
+      ]
+    }
+  },
+  "trace_views": {
+    "trace-1": {
+      "message_count": 7,
+      "role_sequence": [
+        "system",
+        "user",
+        "user",
+        "assistant",
+        "assistant",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a file analysis AI that can read images and documents.",
+          "content_digest": "a7b564c8a3a5cf2b",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Read the image '/Users/sideseat/Desktop/dev/sideseat/misc/content/img.jpg'. Describe its contents in detail using instructions from PDF.",
+          "content_digest": "46131d545b8deb1a",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "user",
+          "entry_type": "document",
+          "content": "{\"type\":\"document\",\"media_type\":\"application/pdf\",\"source\":\"base64\",\"data\":\"JVBERi0xLjMKJcTl8uXrp/Og0MTGCjMgMCBvYmoKPDwgL0ZpbHRlciAvRmxhdGVEZWNvZGUgL0xlbmd0aCAyMDUgPj4Kc3RyZWFtCngBlVC9CsIwGNz7FOd/opgmaZLaVXFxEwIO1qnoIFSofX8wXyvUKoKSIZfkct/d…[17690 chars]",
+          "content_digest": "e69c476dd545eb4b",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "I'll read the image and then follow the instruction from the PDF to write a poem about its contents.",
+          "content_digest": "52d82b7d5deb28b2",
+          "finish_reason": "ToolUse",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_rBijYDxumYLKYwFSRv55Ak\",\"name\":\"image_reader\",\"input\":{\"path\":\"/Users/sideseat/Desktop/dev/sideseat/misc/content/img.jpg\"}}",
+          "content_digest": "b1a566666360c26c",
+          "tool_name": "image_reader",
+          "finish_reason": "ToolUse",
+          "observation_type": "tool"
+        },
+        {
+          "index": 5,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_rBijYDxumYLKYwFSRv55Ak\",\"content\":{\"type\":\"image\",\"data\":\"/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKC…[218755 chars]",
+          "content_digest": "739df64c079aea2b",
+          "observation_type": "tool"
+        },
+        {
+          "index": 6,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Based on the PDF instructions to \"Write a poem!\", here is a poem inspired by the image contents: ## A Moment Captured in Time In pixels and light, a world unfolds, A digital canvas where beauty holds, Layers of color, dimensions deep, Secre…[949 chars]",
+          "content_digest": "380ccd8e2c7218fa",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
+    }
+  },
+  "session_views": {},
+  "feed_view": {
+    "message_count": 7,
+    "role_sequence": [
+      "assistant",
+      "assistant",
+      "tool",
+      "assistant",
+      "system",
+      "user",
+      "user"
+    ],
+    "tool_names": [],
+    "tool_definition_count": 1,
+    "messages": [
+      {
+        "index": 0,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "Based on the PDF instructions to \"Write a poem!\", here is a poem inspired by the image contents: ## A Moment Captured in Time In pixels and light, a world unfolds, A digital canvas where beauty holds, Layers of color, dimensions deep, Secre…[949 chars]",
+        "content_digest": "380ccd8e2c7218fa",
+        "finish_reason": "Stop",
+        "observation_type": "generation"
+      },
+      {
+        "index": 1,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "I'll read the image and then follow the instruction from the PDF to write a poem about its contents.",
+        "content_digest": "52d82b7d5deb28b2",
+        "finish_reason": "ToolUse",
+        "observation_type": "generation"
+      },
+      {
+        "index": 2,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_rBijYDxumYLKYwFSRv55Ak\",\"content\":{\"type\":\"image\",\"data\":\"/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKC…[218755 chars]",
+        "content_digest": "739df64c079aea2b",
+        "observation_type": "tool"
+      },
+      {
+        "index": 3,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_rBijYDxumYLKYwFSRv55Ak\",\"name\":\"image_reader\",\"input\":{\"path\":\"/Users/sideseat/Desktop/dev/sideseat/misc/content/img.jpg\"}}",
+        "content_digest": "b1a566666360c26c",
+        "tool_name": "image_reader",
+        "finish_reason": "ToolUse",
+        "observation_type": "tool"
+      },
+      {
+        "index": 4,
+        "role": "system",
+        "entry_type": "text",
+        "content": "You are a file analysis AI that can read images and documents.",
+        "content_digest": "a7b564c8a3a5cf2b",
+        "observation_type": "generation"
+      },
+      {
+        "index": 5,
+        "role": "user",
+        "entry_type": "text",
+        "content": "Read the image '/Users/sideseat/Desktop/dev/sideseat/misc/content/img.jpg'. Describe its contents in detail using instructions from PDF.",
+        "content_digest": "46131d545b8deb1a",
+        "observation_type": "generation"
+      },
+      {
+        "index": 6,
+        "role": "user",
+        "entry_type": "document",
+        "content": "{\"type\":\"document\",\"media_type\":\"application/pdf\",\"source\":\"base64\",\"data\":\"JVBERi0xLjMKJcTl8uXrp/Og0MTGCjMgMCBvYmoKPDwgL0ZpbHRlciAvRmxhdGVEZWNvZGUgL0xlbmd0aCAyMDUgPj4Kc3RyZWFtCngBlVC9CsIwGNz7FOd/opgmaZLaVXFxEwIO1qnoIFSofX8wXyvUKoKSIZfkct/d…[17690 chars]",
+        "content_digest": "e69c476dd545eb4b",
+        "observation_type": "generation"
+      }
+    ]
+  }
+}

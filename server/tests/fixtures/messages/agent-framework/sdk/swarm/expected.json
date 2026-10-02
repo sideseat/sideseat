@@ -1,0 +1,1056 @@
+{
+  "label": "agent-framework/sdk/swarm",
+  "request_count": 1,
+  "span_count": 15,
+  "trace_count": 1,
+  "session_count": 1,
+  "span_views": {
+    "trace-1/agent_framework.session/span-1": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/chat gpt-5-nano-2025-08-07/span-10": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a market and product researcher. Given a prompt, provide concise, factual insights, opportunities, and risks. Be specific and data-driven.",
+          "content_digest": "038811931e39e4f4",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call-web-search-1\",\"content\":[{\"type\":\"json\",\"data\":{\"query\":\"deterministic local fixture\",\"results\":[{\"title\":\"Result 1 for 'deterministic local fixture'\",\"url\":\"https://example.com/0\"},{\"title\":\"Result…[568 chars]",
+          "content_digest": "287bafb055250413",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "The tool completed successfully.",
+          "content_digest": "66bcb0fcdca80511",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/chat gpt-5-nano-2025-08-07/span-11": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a technical architect. Evaluate the technical feasibility, identify key implementation challenges, and propose a high-level architecture. Use the calculator tool for any numerical estimates.",
+          "content_digest": "89e2f08745bee458",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call-calculator-1\",\"content\":[{\"type\":\"text\",\"text\":\"0.0\"}]}",
+          "content_digest": "ab3f7b6b5d350625",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "The tool completed successfully.",
+          "content_digest": "66bcb0fcdca80511",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/chat gpt-5-nano-2025-08-07/span-13": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a senior project reviewer. Synthesize insights from research, technical, and marketing perspectives. Identify gaps and provide a final go/no-go recommendation with clear rationale.",
+          "content_digest": "d1e4817165e719fa",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Original task: Create a simple plan to build a weather app that shows forecasts for multiple cities [researcher]: The tool completed successfully. [technical]: The tool completed successfully. [marketing]: This is a deterministic local resp…[286 chars]",
+          "content_digest": "8ff98a495bd98ba4",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call-calculator-1\",\"name\":\"calculator\",\"input\":{\"operation\":\"deterministic-operation\",\"a\":1.0,\"b\":1.0}}",
+          "content_digest": "4dabb8ecf3f9cf21",
+          "tool_name": "calculator",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/chat gpt-5-nano-2025-08-07/span-15": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a senior project reviewer. Synthesize insights from research, technical, and marketing perspectives. Identify gaps and provide a final go/no-go recommendation with clear rationale.",
+          "content_digest": "d1e4817165e719fa",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call-calculator-1\",\"content\":[{\"type\":\"text\",\"text\":\"0.0\"}]}",
+          "content_digest": "ab3f7b6b5d350625",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "The tool completed successfully.",
+          "content_digest": "66bcb0fcdca80511",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/chat gpt-5-nano-2025-08-07/span-3": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a market and product researcher. Given a prompt, provide concise, factual insights, opportunities, and risks. Be specific and data-driven.",
+          "content_digest": "038811931e39e4f4",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
+          "content_digest": "f70ad56a39c626b9",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call-web-search-1\",\"name\":\"web_search\",\"input\":{\"query\":\"deterministic local fixture\"}}",
+          "content_digest": "45559a02efdb3eb3",
+          "tool_name": "web_search",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/chat gpt-5-nano-2025-08-07/span-5": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a technical architect. Evaluate the technical feasibility, identify key implementation challenges, and propose a high-level architecture. Use the calculator tool for any numerical estimates.",
+          "content_digest": "89e2f08745bee458",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
+          "content_digest": "f70ad56a39c626b9",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call-calculator-1\",\"name\":\"calculator\",\"input\":{\"operation\":\"deterministic-operation\",\"a\":1.0,\"b\":1.0}}",
+          "content_digest": "4dabb8ecf3f9cf21",
+          "tool_name": "calculator",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/chat gpt-5-nano-2025-08-07/span-7": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a creative marketing strategist. Craft compelling value propositions, identify target audiences, and propose key marketing messages. Be creative and audience-focused.",
+          "content_digest": "68dde79a54c7a16f",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
+          "content_digest": "f70ad56a39c626b9",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "This is a deterministic local response.",
+          "content_digest": "cabe67b517eb819b",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/execute_tool calculator/span-14": {
+      "message_count": 2,
+      "role_sequence": [
+        "assistant",
+        "tool"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call-calculator-1\",\"name\":\"calculator\",\"input\":{\"operation\":\"deterministic-operation\",\"a\":1.0,\"b\":1.0}}",
+          "content_digest": "4dabb8ecf3f9cf21",
+          "tool_name": "calculator",
+          "observation_type": "tool"
+        },
+        {
+          "index": 1,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call-calculator-1\",\"name\":\"calculator\",\"content\":0.0}",
+          "content_digest": "2f30d9b67a59ed4c",
+          "tool_name": "calculator",
+          "observation_type": "tool"
+        }
+      ]
+    },
+    "trace-1/execute_tool calculator/span-9": {
+      "message_count": 2,
+      "role_sequence": [
+        "assistant",
+        "tool"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call-calculator-1\",\"name\":\"calculator\",\"input\":{\"operation\":\"deterministic-operation\",\"a\":1.0,\"b\":1.0}}",
+          "content_digest": "4dabb8ecf3f9cf21",
+          "tool_name": "calculator",
+          "observation_type": "tool"
+        },
+        {
+          "index": 1,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call-calculator-1\",\"name\":\"calculator\",\"content\":0.0}",
+          "content_digest": "2f30d9b67a59ed4c",
+          "tool_name": "calculator",
+          "observation_type": "tool"
+        }
+      ]
+    },
+    "trace-1/execute_tool web_search/span-8": {
+      "message_count": 2,
+      "role_sequence": [
+        "assistant",
+        "tool"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call-web-search-1\",\"name\":\"web_search\",\"input\":{\"query\":\"deterministic local fixture\"}}",
+          "content_digest": "45559a02efdb3eb3",
+          "tool_name": "web_search",
+          "observation_type": "tool"
+        },
+        {
+          "index": 1,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call-web-search-1\",\"name\":\"web_search\",\"content\":{\"query\":\"deterministic local fixture\",\"results\":[{\"title\":\"Result 1 for 'deterministic local fixture'\",\"url\":\"https://example.com/0\"},{\"title\":\"Result 2 …[563 chars]",
+          "content_digest": "69fcbdc0f3834a49",
+          "tool_name": "web_search",
+          "observation_type": "tool"
+        }
+      ]
+    },
+    "trace-1/invoke_agent 02f12e85-977b-4f3d-9ca8-ecd2699facba/span-2": {
+      "message_count": 5,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 2,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a market and product researcher. Given a prompt, provide concise, factual insights, opportunities, and risks. Be specific and data-driven.",
+          "content_digest": "038811931e39e4f4",
+          "observation_type": "agent"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
+          "content_digest": "f70ad56a39c626b9",
+          "observation_type": "agent"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call-web-search-1\",\"name\":\"web_search\",\"input\":{\"query\":\"deterministic local fixture\"}}",
+          "content_digest": "45559a02efdb3eb3",
+          "tool_name": "web_search",
+          "observation_type": "agent"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call-web-search-1\",\"content\":[{\"type\":\"json\",\"data\":{\"query\":\"deterministic local fixture\",\"results\":[{\"title\":\"Result 1 for 'deterministic local fixture'\",\"url\":\"https://example.com/0\"},{\"title\":\"Result…[568 chars]",
+          "content_digest": "287bafb055250413",
+          "observation_type": "agent"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "The tool completed successfully.",
+          "content_digest": "66bcb0fcdca80511",
+          "observation_type": "agent"
+        }
+      ]
+    },
+    "trace-1/invoke_agent 3e0b7a02-d8e1-4133-bf60-94a788436097/span-12": {
+      "message_count": 5,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a senior project reviewer. Synthesize insights from research, technical, and marketing perspectives. Identify gaps and provide a final go/no-go recommendation with clear rationale.",
+          "content_digest": "d1e4817165e719fa",
+          "observation_type": "agent"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Original task: Create a simple plan to build a weather app that shows forecasts for multiple cities [researcher]: The tool completed successfully. [technical]: The tool completed successfully. [marketing]: This is a deterministic local resp…[286 chars]",
+          "content_digest": "8ff98a495bd98ba4",
+          "observation_type": "agent"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call-calculator-1\",\"name\":\"calculator\",\"input\":{\"operation\":\"deterministic-operation\",\"a\":1.0,\"b\":1.0}}",
+          "content_digest": "4dabb8ecf3f9cf21",
+          "tool_name": "calculator",
+          "observation_type": "agent"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call-calculator-1\",\"content\":[{\"type\":\"text\",\"text\":\"0.0\"}]}",
+          "content_digest": "ab3f7b6b5d350625",
+          "observation_type": "agent"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "The tool completed successfully.",
+          "content_digest": "66bcb0fcdca80511",
+          "observation_type": "agent"
+        }
+      ]
+    },
+    "trace-1/invoke_agent 40982fc1-8d8d-4acb-8e13-a62d58147fc6/span-4": {
+      "message_count": 5,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a technical architect. Evaluate the technical feasibility, identify key implementation challenges, and propose a high-level architecture. Use the calculator tool for any numerical estimates.",
+          "content_digest": "89e2f08745bee458",
+          "observation_type": "agent"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
+          "content_digest": "f70ad56a39c626b9",
+          "observation_type": "agent"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call-calculator-1\",\"name\":\"calculator\",\"input\":{\"operation\":\"deterministic-operation\",\"a\":1.0,\"b\":1.0}}",
+          "content_digest": "4dabb8ecf3f9cf21",
+          "tool_name": "calculator",
+          "observation_type": "agent"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call-calculator-1\",\"content\":[{\"type\":\"text\",\"text\":\"0.0\"}]}",
+          "content_digest": "ab3f7b6b5d350625",
+          "observation_type": "agent"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "The tool completed successfully.",
+          "content_digest": "66bcb0fcdca80511",
+          "observation_type": "agent"
+        }
+      ]
+    },
+    "trace-1/invoke_agent b14c9273-7ce5-4061-b15c-b64683a6d8a8/span-6": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a creative marketing strategist. Craft compelling value propositions, identify target audiences, and propose key marketing messages. Be creative and audience-focused.",
+          "content_digest": "68dde79a54c7a16f",
+          "observation_type": "agent"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
+          "content_digest": "f70ad56a39c626b9",
+          "observation_type": "agent"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "This is a deterministic local response.",
+          "content_digest": "cabe67b517eb819b",
+          "observation_type": "agent"
+        }
+      ]
+    }
+  },
+  "trace_views": {
+    "trace-1": {
+      "message_count": 16,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "system",
+        "assistant",
+        "system",
+        "assistant",
+        "tool",
+        "tool",
+        "assistant",
+        "assistant",
+        "system",
+        "user",
+        "assistant",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 3,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a market and product researcher. Given a prompt, provide concise, factual insights, opportunities, and risks. Be specific and data-driven.",
+          "content_digest": "038811931e39e4f4",
+          "observation_type": "agent"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
+          "content_digest": "f70ad56a39c626b9",
+          "observation_type": "agent"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call-web-search-1\",\"name\":\"web_search\",\"input\":{\"query\":\"deterministic local fixture\"}}",
+          "content_digest": "45559a02efdb3eb3",
+          "tool_name": "web_search",
+          "observation_type": "agent"
+        },
+        {
+          "index": 3,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a technical architect. Evaluate the technical feasibility, identify key implementation challenges, and propose a high-level architecture. Use the calculator tool for any numerical estimates.",
+          "content_digest": "89e2f08745bee458",
+          "observation_type": "agent"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call-calculator-1\",\"name\":\"calculator\",\"input\":{\"operation\":\"deterministic-operation\",\"a\":1.0,\"b\":1.0}}",
+          "content_digest": "4dabb8ecf3f9cf21",
+          "tool_name": "calculator",
+          "observation_type": "agent"
+        },
+        {
+          "index": 5,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a creative marketing strategist. Craft compelling value propositions, identify target audiences, and propose key marketing messages. Be creative and audience-focused.",
+          "content_digest": "68dde79a54c7a16f",
+          "observation_type": "agent"
+        },
+        {
+          "index": 6,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "This is a deterministic local response.",
+          "content_digest": "cabe67b517eb819b",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        },
+        {
+          "index": 7,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call-web-search-1\",\"name\":\"web_search\",\"content\":{\"query\":\"deterministic local fixture\",\"results\":[{\"title\":\"Result 1 for 'deterministic local fixture'\",\"url\":\"https://example.com/0\"},{\"title\":\"Result 2 …[563 chars]",
+          "content_digest": "69fcbdc0f3834a49",
+          "tool_name": "web_search",
+          "observation_type": "tool"
+        },
+        {
+          "index": 8,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call-calculator-1\",\"name\":\"calculator\",\"content\":0.0}",
+          "content_digest": "2f30d9b67a59ed4c",
+          "tool_name": "calculator",
+          "observation_type": "tool"
+        },
+        {
+          "index": 9,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "The tool completed successfully.",
+          "content_digest": "66bcb0fcdca80511",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        },
+        {
+          "index": 10,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "The tool completed successfully.",
+          "content_digest": "66bcb0fcdca80511",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        },
+        {
+          "index": 11,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a senior project reviewer. Synthesize insights from research, technical, and marketing perspectives. Identify gaps and provide a final go/no-go recommendation with clear rationale.",
+          "content_digest": "d1e4817165e719fa",
+          "observation_type": "agent"
+        },
+        {
+          "index": 12,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Original task: Create a simple plan to build a weather app that shows forecasts for multiple cities [researcher]: The tool completed successfully. [technical]: The tool completed successfully. [marketing]: This is a deterministic local resp…[286 chars]",
+          "content_digest": "8ff98a495bd98ba4",
+          "observation_type": "agent"
+        },
+        {
+          "index": 13,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call-calculator-1\",\"name\":\"calculator\",\"input\":{\"operation\":\"deterministic-operation\",\"a\":1.0,\"b\":1.0}}",
+          "content_digest": "4dabb8ecf3f9cf21",
+          "tool_name": "calculator",
+          "observation_type": "agent"
+        },
+        {
+          "index": 14,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call-calculator-1\",\"name\":\"calculator\",\"content\":0.0}",
+          "content_digest": "2f30d9b67a59ed4c",
+          "tool_name": "calculator",
+          "observation_type": "tool"
+        },
+        {
+          "index": 15,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "The tool completed successfully.",
+          "content_digest": "66bcb0fcdca80511",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
+    }
+  },
+  "session_views": {
+    "agent-framework-swarm-e277efd6": {
+      "message_count": 16,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "system",
+        "assistant",
+        "system",
+        "assistant",
+        "tool",
+        "tool",
+        "assistant",
+        "assistant",
+        "system",
+        "user",
+        "assistant",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 3,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a market and product researcher. Given a prompt, provide concise, factual insights, opportunities, and risks. Be specific and data-driven.",
+          "content_digest": "038811931e39e4f4",
+          "observation_type": "agent"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
+          "content_digest": "f70ad56a39c626b9",
+          "observation_type": "agent"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call-web-search-1\",\"name\":\"web_search\",\"input\":{\"query\":\"deterministic local fixture\"}}",
+          "content_digest": "45559a02efdb3eb3",
+          "tool_name": "web_search",
+          "observation_type": "agent"
+        },
+        {
+          "index": 3,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a technical architect. Evaluate the technical feasibility, identify key implementation challenges, and propose a high-level architecture. Use the calculator tool for any numerical estimates.",
+          "content_digest": "89e2f08745bee458",
+          "observation_type": "agent"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call-calculator-1\",\"name\":\"calculator\",\"input\":{\"operation\":\"deterministic-operation\",\"a\":1.0,\"b\":1.0}}",
+          "content_digest": "4dabb8ecf3f9cf21",
+          "tool_name": "calculator",
+          "observation_type": "agent"
+        },
+        {
+          "index": 5,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a creative marketing strategist. Craft compelling value propositions, identify target audiences, and propose key marketing messages. Be creative and audience-focused.",
+          "content_digest": "68dde79a54c7a16f",
+          "observation_type": "agent"
+        },
+        {
+          "index": 6,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "This is a deterministic local response.",
+          "content_digest": "cabe67b517eb819b",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        },
+        {
+          "index": 7,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call-web-search-1\",\"name\":\"web_search\",\"content\":{\"query\":\"deterministic local fixture\",\"results\":[{\"title\":\"Result 1 for 'deterministic local fixture'\",\"url\":\"https://example.com/0\"},{\"title\":\"Result 2 …[563 chars]",
+          "content_digest": "69fcbdc0f3834a49",
+          "tool_name": "web_search",
+          "observation_type": "tool"
+        },
+        {
+          "index": 8,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call-calculator-1\",\"name\":\"calculator\",\"content\":0.0}",
+          "content_digest": "2f30d9b67a59ed4c",
+          "tool_name": "calculator",
+          "observation_type": "tool"
+        },
+        {
+          "index": 9,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "The tool completed successfully.",
+          "content_digest": "66bcb0fcdca80511",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        },
+        {
+          "index": 10,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "The tool completed successfully.",
+          "content_digest": "66bcb0fcdca80511",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        },
+        {
+          "index": 11,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a senior project reviewer. Synthesize insights from research, technical, and marketing perspectives. Identify gaps and provide a final go/no-go recommendation with clear rationale.",
+          "content_digest": "d1e4817165e719fa",
+          "observation_type": "agent"
+        },
+        {
+          "index": 12,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Original task: Create a simple plan to build a weather app that shows forecasts for multiple cities [researcher]: The tool completed successfully. [technical]: The tool completed successfully. [marketing]: This is a deterministic local resp…[286 chars]",
+          "content_digest": "8ff98a495bd98ba4",
+          "observation_type": "agent"
+        },
+        {
+          "index": 13,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call-calculator-1\",\"name\":\"calculator\",\"input\":{\"operation\":\"deterministic-operation\",\"a\":1.0,\"b\":1.0}}",
+          "content_digest": "4dabb8ecf3f9cf21",
+          "tool_name": "calculator",
+          "observation_type": "agent"
+        },
+        {
+          "index": 14,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call-calculator-1\",\"name\":\"calculator\",\"content\":0.0}",
+          "content_digest": "2f30d9b67a59ed4c",
+          "tool_name": "calculator",
+          "observation_type": "tool"
+        },
+        {
+          "index": 15,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "The tool completed successfully.",
+          "content_digest": "66bcb0fcdca80511",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
+    }
+  },
+  "feed_view": {
+    "message_count": 16,
+    "role_sequence": [
+      "assistant",
+      "tool",
+      "system",
+      "user",
+      "assistant",
+      "assistant",
+      "assistant",
+      "tool",
+      "assistant",
+      "tool",
+      "system",
+      "system",
+      "assistant",
+      "system",
+      "user",
+      "assistant"
+    ],
+    "tool_names": [],
+    "tool_definition_count": 3,
+    "messages": [
+      {
+        "index": 0,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "The tool completed successfully.",
+        "content_digest": "66bcb0fcdca80511",
+        "finish_reason": "Stop",
+        "observation_type": "generation"
+      },
+      {
+        "index": 1,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call-calculator-1\",\"name\":\"calculator\",\"content\":0.0}",
+        "content_digest": "2f30d9b67a59ed4c",
+        "tool_name": "calculator",
+        "observation_type": "tool"
+      },
+      {
+        "index": 2,
+        "role": "system",
+        "entry_type": "text",
+        "content": "You are a senior project reviewer. Synthesize insights from research, technical, and marketing perspectives. Identify gaps and provide a final go/no-go recommendation with clear rationale.",
+        "content_digest": "d1e4817165e719fa",
+        "observation_type": "agent"
+      },
+      {
+        "index": 3,
+        "role": "user",
+        "entry_type": "text",
+        "content": "Original task: Create a simple plan to build a weather app that shows forecasts for multiple cities [researcher]: The tool completed successfully. [technical]: The tool completed successfully. [marketing]: This is a deterministic local resp…[286 chars]",
+        "content_digest": "8ff98a495bd98ba4",
+        "observation_type": "agent"
+      },
+      {
+        "index": 4,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"call-calculator-1\",\"name\":\"calculator\",\"input\":{\"operation\":\"deterministic-operation\",\"a\":1.0,\"b\":1.0}}",
+        "content_digest": "4dabb8ecf3f9cf21",
+        "tool_name": "calculator",
+        "observation_type": "agent"
+      },
+      {
+        "index": 5,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "The tool completed successfully.",
+        "content_digest": "66bcb0fcdca80511",
+        "finish_reason": "Stop",
+        "observation_type": "generation"
+      },
+      {
+        "index": 6,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "The tool completed successfully.",
+        "content_digest": "66bcb0fcdca80511",
+        "finish_reason": "Stop",
+        "observation_type": "generation"
+      },
+      {
+        "index": 7,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call-calculator-1\",\"name\":\"calculator\",\"content\":0.0}",
+        "content_digest": "2f30d9b67a59ed4c",
+        "tool_name": "calculator",
+        "observation_type": "tool"
+      },
+      {
+        "index": 8,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "This is a deterministic local response.",
+        "content_digest": "cabe67b517eb819b",
+        "finish_reason": "Stop",
+        "observation_type": "generation"
+      },
+      {
+        "index": 9,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call-web-search-1\",\"name\":\"web_search\",\"content\":{\"query\":\"deterministic local fixture\",\"results\":[{\"title\":\"Result 1 for 'deterministic local fixture'\",\"url\":\"https://example.com/0\"},{\"title\":\"Result 2 …[563 chars]",
+        "content_digest": "69fcbdc0f3834a49",
+        "tool_name": "web_search",
+        "observation_type": "tool"
+      },
+      {
+        "index": 10,
+        "role": "system",
+        "entry_type": "text",
+        "content": "You are a creative marketing strategist. Craft compelling value propositions, identify target audiences, and propose key marketing messages. Be creative and audience-focused.",
+        "content_digest": "68dde79a54c7a16f",
+        "observation_type": "agent"
+      },
+      {
+        "index": 11,
+        "role": "system",
+        "entry_type": "text",
+        "content": "You are a technical architect. Evaluate the technical feasibility, identify key implementation challenges, and propose a high-level architecture. Use the calculator tool for any numerical estimates.",
+        "content_digest": "89e2f08745bee458",
+        "observation_type": "agent"
+      },
+      {
+        "index": 12,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"call-calculator-1\",\"name\":\"calculator\",\"input\":{\"operation\":\"deterministic-operation\",\"a\":1.0,\"b\":1.0}}",
+        "content_digest": "4dabb8ecf3f9cf21",
+        "tool_name": "calculator",
+        "observation_type": "agent"
+      },
+      {
+        "index": 13,
+        "role": "system",
+        "entry_type": "text",
+        "content": "You are a market and product researcher. Given a prompt, provide concise, factual insights, opportunities, and risks. Be specific and data-driven.",
+        "content_digest": "038811931e39e4f4",
+        "observation_type": "agent"
+      },
+      {
+        "index": 14,
+        "role": "user",
+        "entry_type": "text",
+        "content": "Create a simple plan to build a weather app that shows forecasts for multiple cities",
+        "content_digest": "f70ad56a39c626b9",
+        "observation_type": "agent"
+      },
+      {
+        "index": 15,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"call-web-search-1\",\"name\":\"web_search\",\"input\":{\"query\":\"deterministic local fixture\"}}",
+        "content_digest": "45559a02efdb3eb3",
+        "tool_name": "web_search",
+        "observation_type": "agent"
+      }
+    ]
+  }
+}
