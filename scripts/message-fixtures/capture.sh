@@ -41,7 +41,6 @@ SUITES=(
   "langgraph|uv run --locked --directory examples/python/langgraph telemetry-langgraph {S}"
   "crewai|uv run --locked --directory examples/python/crewai telemetry-crewai {S}"
   "adk|uv run --locked --directory examples/python/adk telemetry-adk {S}"
-  "bedrock|uv run --locked --directory examples/python/bedrock bedrock {S}"
   "openai|uv run --locked --directory examples/python/openai openai-provider {S}"
   "openai-agents|uv run --locked --directory examples/python/openai-agents telemetry-openai-agents {S}"
   "anthropic|uv run --locked --directory examples/python/anthropic anthropic-provider {S}"
