@@ -283,9 +283,9 @@ from agentscope.agent import Agent
 from agentscope.credential import OpenAICredential
 from agentscope.message import UserMsg
 from agentscope.model import OpenAIChatModel
-from sideseat import SideSeat, Frameworks
+import sideseat
 
-SideSeat(framework=Frameworks.AgentScope)
+sideseat.init(integrations=["agentscope"])
 
 async def main():
     model = OpenAIChatModel(
