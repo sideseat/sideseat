@@ -23,7 +23,7 @@ Current lockfile baselines:
 | --- | --- |
 | Strands | `strands-agents 1.57.0` |
 | LangGraph | `langgraph 1.2.12` |
-| CrewAI | `crewai 1.15.22` |
+| CrewAI | `crewai 1.15.23` |
 | Google ADK | `google-adk 2.9.2` |
 | AutoGen | `autogen-agentchat 0.7.5` |
 | OpenAI Agents | `openai-agents 0.22.3` |
@@ -75,10 +75,13 @@ On the shared scenario harness; see `langgraph/README.md`.
 ### CrewAI
 
 ```bash
-uv run --locked --directory crewai telemetry-crewai                            # List samples and models
-uv run --locked --directory crewai telemetry-crewai tool_use                   # Tool usage
-uv run --locked --directory crewai telemetry-crewai all                        # Run all samples
+uv run --locked --directory crewai sample --list                     # List scenarios and models
+uv run --locked --directory crewai sample tool_use                   # Tool usage, native telemetry
+uv run --locked --directory crewai sample tool_use --sideseat        # The same with the SideSeat SDK
+uv run --locked --directory crewai sample all                        # Run every scenario
 ```
+
+On the shared scenario harness; see `crewai/README.md`.
 
 ### Google ADK
 

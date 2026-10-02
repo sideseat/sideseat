@@ -78,10 +78,8 @@ done
 for s in agent_core error files image_gen mcp_tools rag_local reasoning structured_output swarm tool_use; do
   run_py adk telemetry-adk "$s"
 done
-# The suite installs a `crewai` script but so does the crewai package, and the real CLI
-# wins; telemetry-crewai is the collision-free alias.
-for s in agent_core error files image_gen mcp_tools rag_local reasoning structured_output swarm tool_use; do
-  run_py crewai telemetry-crewai "$s"
+for s in chat multi_turn tool_use session error streaming structured_output reasoning files multi_agent mcp_tools; do
+  run_py crewai sample "$s"
 done
 for s in chat multi_turn tool_use session error streaming structured_output reasoning files multi_agent mcp_tools; do
   run_py langgraph sample "$s"
