@@ -87,8 +87,6 @@ export default defineConfig({
               items: [
                 { label: 'Overview', link: '/docs/sdks/python/' },
                 { label: 'Configuration', slug: 'docs/sdks/python/configuration' },
-                { label: 'SideSeat Class', slug: 'docs/sdks/python/telemetry' },
-                { label: 'Exporters', slug: 'docs/sdks/python/exporters' },
                 { label: 'Runtime Channel', slug: 'docs/sdks/python/runtime' },
               ],
             },
@@ -97,7 +95,6 @@ export default defineConfig({
               items: [
                 { label: 'Overview', link: '/docs/sdks/typescript/' },
                 { label: 'Configuration', slug: 'docs/sdks/typescript/configuration' },
-                { label: 'init() / createClient()', slug: 'docs/sdks/typescript/init' },
               ],
             },
             {

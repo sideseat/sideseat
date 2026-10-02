@@ -46,6 +46,7 @@ class SideSeat:
         self._tracer_provider: Any = otel_trace.NoOpTracerProvider()
         self._logger_provider: Any = None
         self._meter_provider: Any = None
+        self._runtime: RuntimeClient | None = None
         if settings.debug:
             logging.getLogger("sideseat").setLevel(logging.DEBUG)
         if not settings.disabled:
@@ -341,6 +342,8 @@ class SideSeat:
             if self._shut_down:
                 return True
             self._shut_down = True
+        if self._runtime is not None:
+            self._runtime.disconnect()
         ok = self.flush(timeout_millis)
         for integration in reversed(self._integrations):
             try:
@@ -362,17 +365,19 @@ class SideSeat:
         return ok
 
     def runtime(self) -> RuntimeClient:
-        """A client for the SideSeat runtime channel: agent presence, introspection, and invocation.
+        """The runtime channel client: agent presence, introspection, and invocation.
 
-        Requires ``pip install "sideseat[runtime]"``.
+        Created on first use and disconnected at shutdown. Requires ``pip install "sideseat[runtime]"``.
         """
-        from sideseat.runtime import RuntimeClient
+        if self._runtime is None:
+            from sideseat.runtime import RuntimeClient
 
-        return RuntimeClient(
-            endpoint=self._settings.endpoint,
-            project_id=self._settings.project,
-            api_key=self._settings.api_key,
-        )
+            self._runtime = RuntimeClient(
+                endpoint=self._settings.endpoint,
+                project_id=self._settings.project,
+                api_key=self._settings.api_key,
+            )
+        return self._runtime
 
     def __repr__(self) -> str:
         state = "disabled" if self._settings.disabled else self._settings.otlp_base

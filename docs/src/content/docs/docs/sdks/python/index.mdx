@@ -1,31 +1,15 @@
 ---
 title: Python SDK
-description: Instrument Python AI apps for the SideSeat local workbench.
+description: Send traces, sessions, and conversations from Python AI applications to SideSeat in one call.
 ---
 
-import { Tabs, TabItem, Aside } from '@astrojs/starlight/components';
+import { Aside, Tabs, TabItem } from '@astrojs/starlight/components';
 
-The SideSeat Python SDK (`sideseat`) provides OpenTelemetry instrumentation with automatic binary data handling, framework detection, and multiple export options. Stream runs into the local AI development workbench while keeping your stack intact.
+`sideseat` is an OpenTelemetry distribution for AI applications. One call configures tracing, logs,
+and metrics for a SideSeat project, switches on your framework's telemetry, and attributes every span
+to the right session and user.
 
-**What you'll learn:**
-- Install and configure the Python SDK
-- Set up OTLP, console, and file exporters
-- Handle binary data and framework detection
-
-## Prerequisites
-
-- SideSeat running locally (`sideseat`)
-- Python 3.10+
-
-## Installation
-
-```bash
-pip install sideseat
-# or
-uv add sideseat
-```
-
-Or with your package manager:
+## Install
 
 <Tabs>
   <TabItem label="pip">
@@ -38,162 +22,124 @@ Or with your package manager:
     uv add sideseat
     ```
   </TabItem>
-  <TabItem label="poetry">
-    ```bash
-    poetry add sideseat
-    ```
-  </TabItem>
 </Tabs>
 
-### Optional extras
+Python 3.11 or newer. Some integrations need an extra, for example `pip install "sideseat[langgraph]"`;
+the [integration table](#integrations) lists them.
 
-The base package exports traces on its own. Instrumenting a specific framework pulls in that
-framework's instrumentor, which ships as an extra:
+Start a local server with `npx sideseat` and open [http://localhost:5388](http://localhost:5388).
 
-```bash
-pip install "sideseat[langchain]"
-pip install "sideseat[openai,anthropic]"   # combine freely
-pip install "sideseat[all]"                # every integration extra
+## Quick start
+
+```python
+import sideseat
+from strands import Agent
+
+sideseat.init(integrations=["strands"])
+
+agent = Agent(model="global.anthropic.claude-sonnet-5-5")
+
+with sideseat.session("conversation-42", user_id="user-7"):
+    agent("Plan a weekend in Lisbon.")
+    agent("What should I eat there?")
 ```
 
-| Extra                                        | For                                        |
-| -------------------------------------------- | ------------------------------------------ |
-| `langchain`, `langgraph`                     | LangChain / LangGraph                      |
-| `crewai`                                     | CrewAI                                     |
-| `autogen`                                    | AutoGen (AgentChat)                        |
-| `ag2`                                        | AG2                                        |
-| `agno`                                       | Agno                                       |
-| `smolagents`                                 | Smolagents                                 |
-| `llama-index`                                | LlamaIndex                                 |
-| `haystack`                                   | Haystack                                   |
-| `openai`, `openai-agents`                    | OpenAI SDK / OpenAI Agents SDK             |
-| `azure-openai`                               | Azure OpenAI through the OpenAI SDK        |
-| `anthropic`                                  | Anthropic SDK                              |
-| `google-genai`, `vertex-ai`                  | Google Gen AI SDK: Developer / Enterprise mode |
-| `pydantic-ai`                                | Pydantic AI                                |
-| `agentscope`                                 | AgentScope 2.x                             |
-| `logfire`                                    | Generic Logfire spans                      |
-| `traceloop`                                  | TraceLoop / OpenLLMetry                    |
-| `aws`                                        | Bedrock via boto3                          |
-| `ws`, `agui`                                 | [Runtime channel](/docs/sdks/python/runtime) — presence and invocation |
+That is the whole setup. `init` points OpenTelemetry at `http://127.0.0.1:5388` and the `default`
+project; the [configuration page](/docs/sdks/python/configuration/) covers servers elsewhere, API keys,
+and every other option.
+
+## Sessions and users
+
+`sideseat.session(session_id, user_id=...)` is a scope, not a span. Every span started inside it - the
+ones your framework creates included - gets `session.id` and `user.id`, so SideSeat groups the traces
+of one conversation into one session.
+
+The identifiers follow the OpenTelemetry context through `async` code and threads that propagate it.
+They are never sent as W3C baggage: HTTP instrumentation forwards baggage to every service you call,
+including model providers.
+
+## Traces and spans
+
+```python
+with sideseat.trace("plan-trip", session_id="s-1", user_id="u-1"):
+    with sideseat.span("retrieve-context") as span:
+        span.set_attribute("app.documents", 4)
+        documents = load_documents()
+    agent(f"Plan a trip using: {documents}")
+
+
+@sideseat.observe()
+async def load_documents() -> list[str]:
+    ...
+```
+
+- `trace()` always starts a new root span, even inside another span.
+- `span()` starts a child of the active span.
+- `observe()` wraps each call of a function, sync or async, in a span named after it.
+
+An exception inside any of them is recorded on the span, which is marked as failed, and re-raised.
+
+## Integrations
+
+Pass the frameworks and providers you use; the first one is the primary integration and names the
+service. Without `integrations`, the installed framework is detected. Provider client libraries are
+never detected - frameworks install them transitively - so name them explicitly.
+
+| Name | Framework or provider | Extra |
+| --- | --- | --- |
+| `strands` | Strands Agents | |
+| `langgraph`, `langchain` | LangGraph, LangChain | `langgraph`, `langchain` |
+| `crewai` | CrewAI | `crewai` |
+| `autogen` | AutoGen AgentChat | `autogen` |
+| `ag2` | AG2 | `ag2` |
+| `openai-agents` | OpenAI Agents SDK | `openai-agents` |
+| `google-adk` | Google Agent Development Kit | |
+| `pydantic-ai` | Pydantic AI | `pydantic-ai` |
+| `agent-framework` | Microsoft Agent Framework | |
+| `semantic-kernel` | Semantic Kernel | |
+| `claude-agent-sdk` | Claude Agent SDK | |
+| `agno`, `smolagents`, `llama-index` | Agno, smolagents, LlamaIndex | same name |
+| `agentscope`, `haystack` | AgentScope, Haystack | same name |
+| `browser-use` | Browser Use | `browser-use` |
+| `langflow`, `openinference` | Langflow, hand-written OpenInference spans | |
+| `logfire`, `traceloop` | Logfire, TraceLoop (OpenLLMetry) | same name |
+| `bedrock` | Amazon Bedrock through boto3 | `bedrock` |
+| `openai`, `azure-openai` | OpenAI and Azure OpenAI clients | same name |
+| `anthropic` | Anthropic client | `anthropic` |
+| `google-genai`, `vertex-ai` | Google Gen AI SDK | same name |
+
+Several integrations can run together, for example `integrations=["langgraph", "bedrock"]`. A requested
+integration whose package is missing raises `IntegrationError` with the install command.
+
+Each framework's page under [Integrations](/docs/integrations/) shows its setup with and without the SDK.
 
 <Aside>
-Frameworks that emit OpenTelemetry themselves — Strands, Google ADK, Agent Framework, Semantic
-Kernel, Langflow, browser-use, the Claude Agent SDK — need no instrumentation extra. AgentScope
-uses its own `TracingMiddleware`; the `agentscope` extra installs AgentScope and SideSeat injects
-that middleware into agents created after `SideSeat(...)`.
+Create boto3 Bedrock clients after `init`: the `bedrock` integration instruments clients as they are
+created.
 </Aside>
 
-## Quick Start
+## Flushing and shutdown
 
-Add two lines at the top of your entry point:
+Telemetry is exported in batches. `sideseat.shutdown()` runs at exit and flushes everything; call
+`sideseat.flush()` yourself in a short-lived process, such as a serverless handler, before it is frozen.
+Both return whether every span was exported.
 
-```python
-from sideseat import SideSeat, Frameworks
-from strands import Agent
+## Testing your application
 
-SideSeat(framework=Frameworks.Strands)
-
-agent = Agent()
-response = agent("Hello!")
-```
-
-That's it. Runs flow to SideSeat at `http://localhost:5388`.
-
-## Features
-
-### Automatic Framework Detection
-
-When you do not pass `framework=`, the SDK looks for the first supported framework package
-that is installed and uses its distribution name as `service.name` — `strands-agents` for a
-Strands app, `langchain-core` for LangChain, and so on.
-
-The full ordered list is in
-[Configuration → framework](/docs/sdks/python/configuration/#framework). Passing `framework=`
-explicitly is recommended for anything non-trivial: detection is a convenience, and it cannot
-tell which of several installed frameworks you actually drive.
-
-Override the service name with either of:
+`sideseat.testing.capture()` initializes SideSeat without network export and records spans in memory:
 
 ```python
-SideSeat(service_name="my-custom-service")
+from sideseat.testing import capture
+
+
+def test_the_agent_reports_its_session():
+    with capture(integrations=["strands"]) as spans:
+        with sideseat.session("s-1"):
+            run_agent()
+    assert all(span.attributes["session.id"] == "s-1" for span in spans.finished())
 ```
 
-```bash
-export OTEL_SERVICE_NAME=my-custom-service
-```
+## The runtime channel
 
-### Binary Data Handling
-
-AI frameworks often use binary data (images, audio). The SDK automatically encodes binary data as base64:
-
-```python
-# Default: encode binary as base64
-client = SideSeat(encode_binary=True)
-
-# Disable if not needed (saves bandwidth)
-client = SideSeat(encode_binary=False)
-```
-
-### Debug Exporters
-
-Configure additional exporters for debugging:
-
-```python
-client = SideSeat()
-
-# Console (for debugging)
-client.telemetry.setup_console_exporter()
-
-# File (JSONL format)
-client.telemetry.setup_file_exporter("traces.jsonl")
-```
-
-## Resource Attributes
-
-The SDK automatically sets these OpenTelemetry resource attributes:
-
-| Attribute | Value |
-|-----------|-------|
-| `service.name` | Auto-detected or user-provided |
-| `service.version` | Package version (if detected) |
-| `telemetry.sdk.name` | `sideseat` |
-| `telemetry.sdk.version` | SDK version |
-| `telemetry.sdk.language` | `python` |
-
-## Context Manager
-
-Use the context manager for automatic shutdown:
-
-```python
-from sideseat import SideSeat, Frameworks
-from strands import Agent
-
-with SideSeat(framework=Frameworks.Strands) as client:
-    agent = Agent()
-    print(agent("Hello!"))
-# Traces flushed and connection closed automatically on exit
-```
-
-## Graceful Shutdown
-
-The SDK registers an `atexit` handler for automatic shutdown. You can also call it explicitly:
-
-```python
-client = SideSeat()
-
-# ... your code ...
-
-# Flush all pending spans before exit
-client.shutdown()
-```
-
-<Aside type="note">
-`shutdown()` is idempotent and thread-safe. Calling it multiple times has no effect.
-</Aside>
-
-## Next Steps
-
-- [Configuration](/docs/sdks/python/configuration/) — detailed configuration options
-- [API Reference](/docs/sdks/python/telemetry/) — SideSeat class reference
-- [Exporters](/docs/sdks/python/exporters/) — console and file exporters for debugging
+Agents registered over the [runtime channel](/docs/sdks/python/runtime/) appear in the SideSeat UI,
+which can inspect and run them.

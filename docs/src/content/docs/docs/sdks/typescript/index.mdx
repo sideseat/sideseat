@@ -1,39 +1,20 @@
 ---
 title: TypeScript SDK
-description: Instrument Node.js AI apps for the SideSeat local workbench.
+description: Send traces, sessions, and conversations from Node.js AI applications to SideSeat in one call.
 ---
 
-import { Tabs, TabItem, Aside } from '@astrojs/starlight/components';
+import { Tabs, TabItem } from '@astrojs/starlight/components';
 
-The SideSeat TypeScript SDK (`@sideseat/sdk`) provides OpenTelemetry instrumentation for Node.js applications with automatic configuration and OTLP export. Stream runs into the local AI development workbench while you iterate locally.
+`@sideseat/sdk` is an OpenTelemetry distribution for AI applications on Node.js. One call configures
+tracing and logs for a SideSeat project, switches on your framework's telemetry, and attributes every
+span to the right session and user.
 
-**What you'll learn:**
-- Install and configure the TypeScript SDK
-- Use environment variables for configuration
-- Enable debug mode and custom endpoints
-
-## Prerequisites
-
-- SideSeat running locally (`sideseat`)
-- Node.js 18+
-
-## Installation
-
-```bash
-npm install @sideseat/sdk
-```
-
-Or with your package manager:
+## Install
 
 <Tabs>
   <TabItem label="npm">
     ```bash
     npm install @sideseat/sdk
-    ```
-  </TabItem>
-  <TabItem label="yarn">
-    ```bash
-    yarn add @sideseat/sdk
     ```
   </TabItem>
   <TabItem label="pnpm">
@@ -43,183 +24,71 @@ Or with your package manager:
   </TabItem>
 </Tabs>
 
-## Quick Start
+Node.js 20.19 or newer. Start a local server with `npx sideseat`.
 
-Add two lines at the top of your entry point:
+## Quick start
 
-```typescript
-import { init, Frameworks } from '@sideseat/sdk';
-import { generateText } from 'ai';
-import { bedrock } from '@ai-sdk/amazon-bedrock';
+```ts
+import * as sideseat from "@sideseat/sdk";
+import { Agent } from "@strands-agents/sdk";
 
-// Await before the first model call. SideSeat registers AI SDK 7's current
-// OpenTelemetry integration automatically.
-await init({ framework: Frameworks.VercelAI });
+await sideseat.init({ integrations: ["strands"] });
 
-const { text } = await generateText({
-  model: bedrock('us.anthropic.claude-sonnet-4-5-20250929-v1:0'),
-  prompt: 'Hello!',
-  experimental_telemetry: { isEnabled: true },
+const agent = new Agent({ model: "global.anthropic.claude-sonnet-5-5" });
+
+await sideseat.session({ sessionId: "conversation-42", userId: "user-7" }, async () => {
+  await agent.invoke("Plan a weekend in Lisbon.");
+  await agent.invoke("What should I eat there?");
 });
 ```
 
-Runs flow to SideSeat at `http://localhost:5388`.
+Call `init` before your framework creates its first span. It points OpenTelemetry at
+`http://127.0.0.1:5388` and the `default` project; [configuration](/docs/sdks/typescript/configuration/)
+covers everything else.
 
-## Features
+## Sessions and users
 
-### Framework Selection
+`session()` is a scope, not a span: every span started inside the callback - including the ones your
+framework creates - gets `session.id` and `user.id`. The values follow the async context and are never
+sent as W3C baggage, which HTTP instrumentation would forward to model providers.
 
-`framework` is required and tells SideSeat which framework you are using for accurate trace detection:
+## Traces and spans
 
-```typescript
-import { init, Frameworks } from '@sideseat/sdk';
-
-await init({ framework: Frameworks.VercelAI });
+```ts
+await sideseat.trace("plan-trip", { sessionId: "s-1", userId: "u-1" }, async () => {
+  const documents = await sideseat.span("retrieve-context", async (span) => {
+    span.setAttribute("app.documents", 4);
+    return loadDocuments();
+  });
+  await agent.invoke(`Plan a trip using: ${documents}`);
+});
 ```
 
-Available frameworks: `Strands`, `VercelAI`, `LangChain`, `CrewAI`, `AutoGen`, `OpenAIAgents`, `GoogleADK`, `PydanticAI`.
+`trace()` always starts a root span; `span()` starts a child of the active span. Both resolve to the
+callback's result, and record and rethrow its exception.
 
-### Idempotent Initialization
+## Integrations
 
-Safe to call multiple times:
+| Name | Framework | Notes |
+| --- | --- | --- |
+| `strands` | `@strands-agents/sdk` | Emits through the global tracer provider. |
+| `vercel-ai` | `ai` 7 or newer | Registers `@ai-sdk/otel` (install it alongside `ai`). Each call still needs `experimental_telemetry: { isEnabled: true }`. |
+| `claude-agent-sdk` | `@anthropic-ai/claude-agent-sdk` | Configures the telemetry of the Claude Code CLI it spawns. If you pass `options.env`, spread `process.env` into it. |
 
-```typescript
-await init({ framework: Frameworks.VercelAI });  // Initializes
-await init({ framework: Frameworks.VercelAI });  // No-op (already initialized)
-```
+Without `integrations`, the installed framework is detected. Pass `[]` for none.
 
-### Correlated Custom Traces
+## Shutdown
 
-```typescript
-const client = await init({ framework: Frameworks.VercelAI });
+`shutdown()` runs before the process exits and on `SIGINT` and `SIGTERM`, after which the signal ends the
+process as it would have without SideSeat. In a serverless handler, `await sideseat.flush()` before
+returning. Both resolve to whether every span was exported.
 
-await client.trace(
-  'chat-request',
-  async () => {
-    await client.span('retrieve-context', async (span) => {
-      span.setAttribute('app.documents', 4);
-    });
-    await callModel();
-  },
-  { sessionId: 'session-123', userId: 'user-456' },
+## Testing your application
+
+```ts
+import { capture } from "@sideseat/sdk/testing";
+
+const spans = await capture({ integrations: [] }, () =>
+  sideseat.session({ sessionId: "s-1" }, () => runAgent()),
 );
 ```
-
-`trace()` starts a new root trace even when another OpenTelemetry span is active.
-`span()` and `spanSync()` create children of the active span. `sessionId` and `userId`
-propagate to nested SideSeat spans; a nested override is restored when its callback ends.
-The standard `session.id` and `user.id` attributes are accepted as alternatives.
-
-### Environment Variable Support
-
-Configure via environment variables without code changes:
-
-```bash
-SIDESEAT_ENDPOINT=http://custom:5388 \
-SIDESEAT_PROJECT_ID=my-project \
-SIDESEAT_API_KEY=sk-xxx \
-node app.js
-```
-
-### Debug Mode
-
-Enable verbose logging:
-
-```typescript
-await init({ framework: Frameworks.VercelAI, debug: true });
-```
-
-Logging goes through the OpenTelemetry diagnostic logger. Output:
-
-```
-@opentelemetry/api: Registered a global for diag v1.9.1.
-@opentelemetry/api: Registered a global for trace v1.9.1.
-@opentelemetry/api: Registered a global for context v1.9.1.
-@opentelemetry/api: Registered a global for propagation v1.9.1.
-[sideseat] TracerProvider registered
-[sideseat] Initialized - sending traces to http://127.0.0.1:5388/otel/default/v1/traces
-```
-
-The `@opentelemetry/api:` lines come from the OTel API registering its globals; SideSeat's own
-messages are prefixed `[sideseat]`.
-
-Use `logLevel` for finer control — `debug: true` implies `logLevel: 'debug'`.
-
-## Resource Attributes
-
-The SDK automatically sets these OpenTelemetry resource attributes:
-
-| Attribute | Value |
-|-----------|-------|
-| `service.name` | From config, `package.json`, or `"unknown-service"` |
-| `service.version` | From config, `package.json`, or `"0.0.0"` |
-| `telemetry.sdk.name` | `"sideseat"` |
-| `telemetry.sdk.version` | SDK version |
-| `telemetry.sdk.language` | `"node"` |
-
-## OTLP Export
-
-The SDK uses HTTP/1.1 OTLP export with:
-- **Batching**: Spans are batched for efficient export
-- **Retry**: Automatic retry on transient failures
-- **Compression**: Optional gzip compression
-
-The endpoint URL is constructed as:
-
-```
-{endpoint}/otel/{projectId}/v1/traces   # endpoint has no path
-{endpoint}/v1/traces                    # endpoint already has a path
-```
-
-In the second case `projectId` is not inserted — the project is taken from the path you
-supplied. See [Configuration → endpoint](/docs/sdks/typescript/configuration/#endpoint).
-
-## Example
-
-```typescript
-import { init, Frameworks } from '@sideseat/sdk';
-
-// Initialize with all options
-const client = await init({
-  framework: Frameworks.VercelAI,
-  endpoint: 'http://localhost:5388',
-  projectId: 'my-project',
-  apiKey: 'sk-xxx',
-  serviceName: 'my-ai-agent',
-  debug: true
-});
-
-// Your AI application code
-import { generateText } from 'ai';
-import { bedrock } from '@ai-sdk/amazon-bedrock';
-
-const { text } = await generateText({
-  model: bedrock('us.anthropic.claude-sonnet-4-5-20250929-v1:0'),
-  prompt: 'Hello!',
-  experimental_telemetry: { isEnabled: true },
-});
-console.log(text);
-```
-
-## TypeScript Support
-
-The SDK is written in TypeScript and includes type definitions:
-
-```typescript
-import { init, Frameworks } from '@sideseat/sdk';
-import type { SideSeatOptions } from '@sideseat/sdk';
-
-const config: SideSeatOptions = {
-  framework: Frameworks.VercelAI,
-  endpoint: 'http://localhost:5388',
-  projectId: 'my-project',
-  debug: true
-};
-
-await init(config);
-```
-
-## Next Steps
-
-- [Configuration](/docs/sdks/typescript/configuration/) — detailed configuration options
-- [init()](/docs/sdks/typescript/init/) — API reference

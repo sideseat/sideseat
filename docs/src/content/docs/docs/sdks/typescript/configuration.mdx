@@ -1,295 +1,41 @@
 ---
-title: TypeScript SDK Configuration
-description: Configuration options for the SideSeat TypeScript SDK.
+title: TypeScript SDK configuration
+description: Every option of init, its environment variable, and its default.
 ---
 
-import { Aside } from '@astrojs/starlight/components';
-
-This page covers all configuration options for the SideSeat TypeScript SDK.
-
-## Configuration Object
-
-```typescript
-interface SideSeatOptions {
-  framework: Framework | string; // required
-  disabled?: boolean;
-  endpoint?: string;
-  apiKey?: string;
-  projectId?: string;
-  serviceName?: string;
-  serviceVersion?: string;
-  enableTraces?: boolean;
-  logLevel?: LogLevel;
-  debug?: boolean;
-}
-```
-
-Only `framework` is required — omitting it throws `SideSeatError`. Every other property is optional; the SDK uses sensible defaults and environment variables.
-
-<Aside type="note">
-The type was previously named `SideSeatConfig`. That name has been **removed**, not merely
-deprecated — importing it fails. Use `SideSeatOptions`.
-</Aside>
-
-## Configuration Priority
-
-For each option, the SDK checks in order:
-
-1. **Config parameter** (highest priority)
-2. **Environment variable**
-3. **Auto-detection**
-4. **Default value** (lowest priority)
-
-## Options
-
-### `disabled`
-
-Disable all telemetry.
-
-| Source | Value |
-|--------|-------|
-| Config | `config.disabled` |
-| Environment | `SIDESEAT_DISABLED` |
-| Default | `false` |
-
-```typescript
-await init({ framework: Frameworks.Strands, disabled: true });
-```
-
-### `endpoint`
-
-The SideSeat server URL.
-
-| Source | Value |
-|--------|-------|
-| Config | `config.endpoint` |
-| Environment | `SIDESEAT_ENDPOINT` |
-| Default | `http://127.0.0.1:5388` |
-
-```typescript
-// Via config
-await init({ framework: Frameworks.Strands, endpoint: 'http://custom:5388' });
-
-// Via environment
-// SIDESEAT_ENDPOINT=http://custom:5388 node app.js
-```
-
-<Aside type="note">
-How the full OTLP URL is built depends on whether your endpoint already has a path:
-
-- **No path** — `/otel/{projectId}/v1/{signal}` is appended, so
-  `http://127.0.0.1:5388` becomes `http://127.0.0.1:5388/otel/default/v1/traces`.
-- **Has a path** — only `/v1/{signal}` is appended and `projectId` is *not* inserted, so
-  `http://127.0.0.1:5388/otel/my-project` becomes
-  `http://127.0.0.1:5388/otel/my-project/v1/traces`.
-
-The second form is what lets `OTEL_EXPORTER_OTLP_ENDPOINT` point straight at a project. Note
-that with it the project comes from the URL, and the `projectId` option is ignored for
-routing. The Python SDK builds endpoints identically.
-</Aside>
-
-### `projectId`
-
-The project ID for organizing traces.
-
-| Source | Value |
-|--------|-------|
-| Config | `config.projectId` |
-| Environment | `SIDESEAT_PROJECT_ID` |
-| Default | `"default"` |
-
-```typescript
-await init({ framework: Frameworks.Strands, projectId: 'my-project' });
-```
-
-### `apiKey`
-
-Optional API key for authenticated endpoints.
-
-| Source | Value |
-|--------|-------|
-| Config | `config.apiKey` |
-| Environment | `SIDESEAT_API_KEY` |
-| Default | (none) |
-
-```typescript
-await init({ framework: Frameworks.Strands, apiKey: 'sk-xxx' });
-```
-
-When set, adds an `Authorization: Bearer {apiKey}` header to OTLP requests.
-
-### `serviceName`
-
-The service name for resource attributes.
-
-Resolved in this order, first match winning:
-
-1. the `serviceName` option
-2. `OTEL_SERVICE_NAME`
-3. a framework-specific default, for the frameworks that have one (`strands` →
-   `strands-agents`, `openai-agents` → `openai-agents`, `claude-agent-sdk` →
-   `claude-agent-sdk`) — these are the names the server matches on
-4. `npm_package_name`, set by npm when running through a script
-5. `"unknown-service"`
-
-```typescript
-await init({ framework: Frameworks.Strands, serviceName: 'my-ai-agent' });
-```
-
-<Aside type="tip">
-`OTEL_SERVICE_NAME` takes precedence over `npm_package_name`, so you can override the name
-without editing package.json.
-</Aside>
-
-### `serviceVersion`
-
-The service version for resource attributes.
-
-| Source | Value |
-|--------|-------|
-| Config | `config.serviceVersion` |
-| Environment | `npm_package_version` |
-| Default | `"0.0.0"` |
-
-```typescript
-await init({ framework: Frameworks.Strands, serviceVersion: '1.2.3' });
-```
-
-### `framework`
-
-Select the framework to instrument. This one is **required**.
-
-| Source | Value |
-|--------|-------|
-| Config | `config.framework` (required) |
-| Environment | not read from the environment |
-| Default | none — omitting it throws `SideSeatError` |
-
-```typescript
-import { init, Frameworks } from '@sideseat/sdk';
-
-await init({ framework: Frameworks.VercelAI });
-```
-
-Available constants: `Frameworks.Strands`, `Frameworks.VercelAI`, `Frameworks.LangChain`, `Frameworks.CrewAI`, `Frameworks.AutoGen`, `Frameworks.OpenAIAgents`, `Frameworks.GoogleADK`, `Frameworks.PydanticAI`, `Frameworks.ClaudeAgentSDK`.
-
-You can also pass any string for custom frameworks.
-
-### `enableTraces`
-
-Enable trace span export.
-
-| Source | Value |
-|--------|-------|
-| Config | `config.enableTraces` |
-| Default | `true` |
-
-```typescript
-await init({ framework: Frameworks.Strands, enableTraces: false }); // Disable tracing
-```
-
-### `logLevel`
-
-Control SDK log verbosity.
-
-| Source | Value |
-|--------|-------|
-| Config | `config.logLevel` |
-| Environment | `SIDESEAT_LOG_LEVEL` |
-| Default | `"debug"` if `debug=true`, else `"none"` |
-
-Valid levels: `"none"`, `"error"`, `"warn"`, `"info"`, `"debug"`, `"verbose"`.
-
-```typescript
-await init({ framework: Frameworks.Strands, logLevel: 'info' });
-```
-
-### `debug`
-
-Enable verbose logging (shortcut for `logLevel: "debug"`).
-
-| Source | Value |
-|--------|-------|
-| Config | `config.debug` |
-| Environment | `SIDESEAT_DEBUG` |
-| Default | `false` |
-
-```typescript
-await init({ framework: Frameworks.VercelAI, debug: true });
-```
-
-## Environment Variables
-
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `SIDESEAT_DISABLED` | Disable all telemetry | `false` |
-| `SIDESEAT_ENDPOINT` | Server URL | `http://127.0.0.1:5388` |
-| `SIDESEAT_PROJECT_ID` | Project ID | `default` |
-| `OTEL_EXPORTER_OTLP_ENDPOINT` | Endpoint fallback, used when `SIDESEAT_ENDPOINT` is unset | — |
-| `SIDESEAT_API_KEY` | API key (optional) | (none) |
-| `SIDESEAT_DEBUG` | Enable debug logging | `false` |
-| `SIDESEAT_LOG_LEVEL` | Log verbosity | (none) |
-| `npm_package_name` | Service name (set by npm) | (from package.json) |
-| `npm_package_version` | Service version (set by npm) | (from package.json) |
-| `OTEL_SERVICE_NAME` | Service name, ahead of `npm_package_name` | (none) |
-| `OTEL_EXPORTER_OTLP_HEADERS` | Extra OTLP headers, merged with the API-key header | (none) |
-| `OTEL_EXPORTER_OTLP_TIMEOUT` | Export timeout in **milliseconds** | `30000` |
-
-## HTTP Headers
-
-The SDK sends these headers with OTLP requests:
-
-| Header | Value |
-|--------|-------|
-| `User-Agent` | `sideseat-sdk-node/{version}` |
-| `Authorization` | `Bearer {apiKey}` (if apiKey set) |
-| `Content-Type` | `application/x-protobuf` |
-
-## Complete Examples
-
-### Development
-
-```typescript
-import { init, Frameworks } from '@sideseat/sdk';
-
-await init({
-  framework: Frameworks.VercelAI,
-  debug: true  // See what's happening
-});
-```
-
-### Production
-
-```typescript
-import { init, Frameworks } from '@sideseat/sdk';
-
-await init({
-  framework: Frameworks.VercelAI,
-  endpoint: process.env.SIDESEAT_ENDPOINT,
-  projectId: process.env.SIDESEAT_PROJECT_ID,
-  apiKey: process.env.SIDESEAT_API_KEY,
-  serviceName: 'my-production-agent'
-});
-```
-
-### Multi-Environment
-
-```typescript
-import { init, Frameworks } from '@sideseat/sdk';
-
-const isProduction = process.env.NODE_ENV === 'production';
-
-await init({
-  framework: Frameworks.VercelAI,
-  endpoint: isProduction
-    ? 'http://sideseat.internal:5388'
-    : 'http://localhost:5388',
-  projectId: isProduction ? 'production' : 'development',
-  debug: !isProduction
-});
-```
-
-## Next Steps
-
-- [init()](/docs/sdks/typescript/init/) — API reference
-- [Integrations](/docs/integrations/) — framework-specific guides
+| Option | Environment | Default |
+| --- | --- | --- |
+| `endpoint` | `SIDESEAT_ENDPOINT`, then `OTEL_EXPORTER_OTLP_ENDPOINT` | `http://127.0.0.1:5388` |
+| `project` | `SIDESEAT_PROJECT_ID` | `default` |
+| `apiKey` | `SIDESEAT_API_KEY` | none |
+| `serviceName` | `OTEL_SERVICE_NAME` | the primary integration's package name |
+| `serviceVersion` | `OTEL_SERVICE_VERSION` | that package's version |
+| `integrations` | `SIDESEAT_INTEGRATIONS` | detected |
+| `captureContent` | `SIDESEAT_CAPTURE_CONTENT` | `true` |
+| `disabled` | `SIDESEAT_DISABLED` | `false` |
+| `debug` | `SIDESEAT_DEBUG` | `false` |
+| `export` | | `true` |
+| `logs` | | `true` |
+| `resourceAttributes` | | none |
+| `spanProcessors` | | none |
+
+Boolean variables accept `1`/`0`, `true`/`false`, and `yes`/`no`; anything else throws
+`ConfigurationError`.
+
+**Endpoint.** Without a path it is a SideSeat server and telemetry goes to
+`{endpoint}/otel/{project}/v1/traces`. With a path it is an OTLP base used as given, for example a
+collector at `https://collector.example.com/otel/team-a`.
+
+**Authentication.** An API key is sent as `Authorization: Bearer <key>`, merged over
+`OTEL_EXPORTER_OTLP_HEADERS`.
+
+**Content.** Prompts, responses, and tool payloads are recorded by default; `captureContent: false`
+turns them off. With it on, SideSeat sets `OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT=true`
+unless you chose a value.
+
+**Calling init twice.** The same options resolve to the same client; different options reject with
+`ConfigurationError`. Call `shutdown()` first to configure again.
+
+**Another provider registered first.** OpenTelemetry keeps the first global tracer provider. If another
+library registered one before `init`, SideSeat warns: spans created through the global tracer go to that
+provider. Call `init` earlier.

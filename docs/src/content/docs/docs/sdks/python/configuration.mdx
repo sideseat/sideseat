@@ -1,398 +1,72 @@
 ---
-title: Python SDK Configuration
-description: Configuration options for the SideSeat Python SDK.
+title: Python SDK configuration
+description: Every option of sideseat.init, its environment variable, and its default.
 ---
 
-import { Aside } from '@astrojs/starlight/components';
-
-This page covers all configuration options for the SideSeat Python SDK.
-
-## Constructor Parameters
-
-Every parameter is keyword-only — the `*` means there are no positional arguments, so
-`SideSeat("http://localhost:5388")` raises `TypeError`.
-
-```python
-SideSeat(
-    *,
-    # Connection
-    endpoint: str | None = None,
-    project_id: str | None = None,
-    api_key: str | None = None,
-
-    # Framework
-    framework: str | list[str] | None = None,
-    auto_instrument: bool = True,
-
-    # Service identity
-    service_name: str | None = None,
-    service_version: str | None = None,
-
-    # Telemetry signals
-    enable_traces: bool = True,
-    enable_metrics: bool = True,
-    enable_logs: bool | None = None,   # None -> env var, else False
-
-    # Content capture
-    capture_content: bool = True,
-    encode_binary: bool = True,
-
-    # Control
-    disabled: bool | None = None,      # None -> SIDESEAT_DISABLED, else False
-    debug: bool | None = None,         # None -> SIDESEAT_DEBUG, else False
-)
-```
-
-<Aside>
-`disabled`, `enable_logs` and `debug` default to `None`, not `False`. `None` means "consult
-the environment"; passing `False` explicitly pins the value and overrides the env var. This is
-what lets `SIDESEAT_DISABLED=true` work without the constructor arguing with it.
-</Aside>
-
-## Connection Parameters
-
-### `endpoint`
-
-SideSeat server URL.
-
-```python
-# Default
-client = SideSeat()  # Uses http://127.0.0.1:5388
-
-# Custom endpoint
-client = SideSeat(endpoint="http://sideseat.example.com:5388")
-```
-
-### `project_id`
-
-Project identifier for organizing traces.
-
-```python
-client = SideSeat(project_id="my-project")
-```
-
-### `api_key`
-
-Authentication key for the SideSeat server.
-
-```python
-client = SideSeat(api_key="pk-your-api-key")
-```
-
-## Framework Parameters
-
-### `framework`
-
-Explicitly select a framework to instrument.
-
-```python
-from sideseat import SideSeat, Frameworks
-
-client = SideSeat(framework=Frameworks.LangGraph)
-```
-
-Available frameworks:
-- `Frameworks.Strands`
-- `Frameworks.LangGraph`
-- `Frameworks.LangChain`
-- `Frameworks.CrewAI`
-- `Frameworks.AutoGen`
-- `Frameworks.AG2`
-- `Frameworks.OpenAIAgents`
-- `Frameworks.GoogleADK`
-- `Frameworks.PydanticAI`
-- `Frameworks.AgentFramework`
-- `Frameworks.SemanticKernel`
-- `Frameworks.ClaudeAgentSDK` — Claude Agent SDK (`claude-agent-sdk`)
-- `Frameworks.Agno`
-- `Frameworks.Smolagents`
-- `Frameworks.LlamaIndex`
-- `Frameworks.AgentScope`
-- `Frameworks.Langflow`
-- `Frameworks.Haystack`
-- `Frameworks.BrowserUse`
-- `Frameworks.Logfire` — generic Logfire spans
-- `Frameworks.TraceLoop` — TraceLoop/OpenLLMetry
-- `Frameworks.OpenAI`
-- `Frameworks.AzureOpenAI` — Azure OpenAI through the OpenAI SDK
-- `Frameworks.Anthropic`
-- `Frameworks.GoogleGenAI`
-- `Frameworks.VertexAI` — Google Gen AI SDK in Enterprise/Vertex mode
-
-If not specified, the SDK auto-detects by looking for the first of these packages that is
-installed, in this order:
-
-1. Strands (`strands-agents`)
-2. LangGraph (`langgraph`)
-3. LangChain (`langchain-core`)
-4. CrewAI (`crewai`)
-5. AutoGen (`autogen-agentchat`)
-6. OpenAI Agents (`agents`)
-7. Google ADK (`google-adk`)
-8. PydanticAI (`pydantic-ai`)
-9. Microsoft Agent Framework (`agent-framework-core`)
-10. Semantic Kernel (`semantic-kernel`)
-11. Claude Agent SDK (`claude-agent-sdk`)
-12. Agno (`agno`)
-13. Smolagents (`smolagents`)
-14. LlamaIndex (`llama-index-core`)
-15. AgentScope (`agentscope`)
-16. Langflow (`langflow`)
-17. AG2 (`ag2`)
-18. Haystack (`haystack-ai`)
-19. browser-use (`browser-use`)
-20. TraceLoop (`traceloop-sdk`)
-
-If none match, the framework falls back to `sideseat`.
-
-<Aside type="note">
-`openai`, `azure-openai`, `anthropic`, `google-genai`, `vertex-ai`, and `logfire` are **never**
-auto-detected — their packages are too common or shared by multiple providers, so their presence
-says nothing about what your app actually uses. Pass the relevant `Frameworks.*` constant
-explicitly.
-
-LangGraph is checked before LangChain, so a LangGraph app is identified as `langgraph` even
-though `langchain-core` is also installed. Both map to the same instrumentor.
-</Aside>
-
-### `auto_instrument`
-
-Enable automatic framework instrumentation.
-
-```python
-# Auto-instrument (default)
-client = SideSeat(auto_instrument=True)
-
-# Skip instrumentation
-client = SideSeat(auto_instrument=False)
-```
-
-<Aside type="tip">
-Set `auto_instrument=False` if your framework isn't supported or you want to use native instrumentation.
-</Aside>
-
-The `framework` parameter also accepts provider identifiers and lists:
-
-```python
-from sideseat import SideSeat, Frameworks
-
-# Instrument direct Bedrock API calls
-client = SideSeat(framework=Frameworks.Bedrock)
-
-# Framework + provider together
-client = SideSeat(framework=[Frameworks.Strands, Frameworks.Bedrock])
-```
-
-Available providers:
-
-- `Frameworks.Bedrock` — Amazon Bedrock (patches botocore to capture model, tokens, and messages)
-- `Frameworks.OpenAI` — OpenAI through the OpenAI SDK
-- `Frameworks.AzureOpenAI` — Azure OpenAI through the OpenAI SDK
-- `Frameworks.Anthropic` — Anthropic through the Anthropic SDK
-- `Frameworks.GoogleGenAI` — Google Gemini through the Google Gen AI SDK
-- `Frameworks.VertexAI` — Google Gen AI SDK configured with `enterprise=True`
-
-<Aside type="note">
-Use provider identifiers when calling provider SDKs directly. Framework instrumentation (Strands,
-LangGraph, etc.) captures LLM calls through its own telemetry and does not need a second provider
-instrumentor. Azure OpenAI shares the `openai` package with OpenAI but has its own
-`Frameworks.AzureOpenAI` identifier and instrumentation extra.
-</Aside>
-
-## Service Identity
-
-### `service_name`
-
-Override the auto-detected service name. Resolved as: this argument → `OTEL_SERVICE_NAME` →
-the detected framework's package name.
-
-```python
-# Auto-detect (default): the framework package name
-client = SideSeat()
-
-# Explicit name
-client = SideSeat(service_name="my-agent")
-```
-
-```bash
-# Same effect, without touching code
-export OTEL_SERVICE_NAME=my-agent
-```
-
-### `service_version`
-
-Set the service version for resource attributes.
-
-```python
-client = SideSeat(
-    service_name="my-agent",
-    service_version="1.2.3"
-)
-```
-
-## Telemetry Signals
-
-### `enable_traces`
-
-Enable trace span export.
-
-```python
-client = SideSeat(enable_traces=True)  # Default
-```
-
-### `enable_metrics`
-
-Enable metrics export.
-
-```python
-client = SideSeat(enable_metrics=True)  # Default
-```
-
-### `enable_logs`
-
-Enable log export.
-
-```python
-client = SideSeat(enable_logs=False)  # Default
-```
-
-## Content Capture
-
-### `capture_content`
-
-Capture LLM prompts and responses.
-
-```python
-# Capture content (default)
-client = SideSeat(capture_content=True)
-
-# Disable for privacy
-client = SideSeat(capture_content=False)
-```
-
-### `encode_binary`
-
-Base64 encode binary data in spans.
-
-```python
-# Encode binary (default)
-client = SideSeat(encode_binary=True)
-
-# Leave as-is (may cause export errors)
-client = SideSeat(encode_binary=False)
-```
-
-<Aside type="tip">
-Keep `encode_binary=True` unless you're sure your spans don't contain binary data. Base64 encoding ensures compatibility with JSON-based exporters.
-</Aside>
-
-## Control Parameters
-
-### `disabled`
-
-Disable all telemetry.
-
-```python
-# Disabled mode
-client = SideSeat(disabled=True)
-```
-
-Useful for testing or CI environments.
-
-### `debug`
-
-Enable verbose logging.
-
-```python
-client = SideSeat(debug=True)
-```
-
-## Environment Variables
-
-The SDK respects these environment variables:
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `SIDESEAT_ENDPOINT` | `http://127.0.0.1:5388` | Server URL |
-| `SIDESEAT_PROJECT_ID` | `default` | Project identifier |
-| `SIDESEAT_PROJECT` | `default` | Legacy alias for `SIDESEAT_PROJECT_ID` |
-| `SIDESEAT_API_KEY` | — | Authentication key |
-| `SIDESEAT_DISABLED` | `false` | Disable all telemetry |
-| `SIDESEAT_DEBUG` | `false` | Enable verbose logging |
-
-Standard OpenTelemetry variables are also supported:
-
-| Variable | Description |
-|----------|-------------|
-| `OTEL_SERVICE_NAME` | Override service name |
-| `OTEL_EXPORTER_OTLP_ENDPOINT` | Default OTLP endpoint |
-| `OTEL_EXPORTER_OTLP_HEADERS` | Extra headers (comma-separated `k=v`), merged with the API-key header |
-| `OTEL_EXPORTER_OTLP_TRACES_HEADERS` | As above, trace-only; takes precedence |
-| `OTEL_EXPORTER_OTLP_TIMEOUT` | Export timeout in **seconds** (default `30`) — the TypeScript SDK reads this same variable in milliseconds, per each ecosystem's OpenTelemetry convention |
-| `OTEL_PYTHON_LOGGING_AUTO_INSTRUMENTATION_ENABLED` | Enable log export (`enable_logs`) |
-| `OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT` | Capture prompt/response content |
-
-## Configuration Priority
-
-Settings are resolved in this order (highest to lowest):
-1. Constructor parameters
-2. `SIDESEAT_*` environment variables
-3. `OTEL_*` environment variables
-4. Defaults
-
-<Aside type="caution" title="One exception: content capture">
-`capture_content=True` sets `OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT` only when that
-variable is **not already set**, so a pre-existing value wins over the constructor — the reverse
-of the order above. This is deliberate: instrumentors read the variable directly, and an operator
-who has turned content capture off for a whole environment should not have it re-enabled by an
-application argument. To force it from code, set the variable yourself before constructing
-`SideSeat`.
-</Aside>
-
-## Complete Example
-
-```python
-from sideseat import SideSeat, Frameworks
-
-# Full configuration
-client = SideSeat(
-    # Connection
-    endpoint="http://localhost:5388",
-    project_id="my-project",
-    api_key="pk-xxx",
-
-    # Framework
-    framework=Frameworks.Strands,
-    auto_instrument=True,
-
-    # Service identity
-    service_name="my-agent",
-    service_version="1.0.0",
-
-    # Telemetry signals
-    enable_traces=True,
-    enable_metrics=True,
-    enable_logs=False,
-
-    # Content capture
-    capture_content=True,
-    encode_binary=True,
-
-    # Control
-    disabled=False,
-    debug=False,
-)
-
-# Add debug exporters
-client.telemetry.setup_file_exporter("traces.jsonl")
-
-# Your agent code here...
-
-# Explicit shutdown (or let atexit handle it)
-client.shutdown()
-```
-
-## Next Steps
-
-- [SideSeat Class](/docs/sdks/python/telemetry/) — API reference
-- [Exporters](/docs/sdks/python/exporters/) — debug exporters
+`sideseat.init` takes keyword arguments. Each falls back to its environment variable, then to a default.
+
+| Argument | Environment | Default |
+| --- | --- | --- |
+| `endpoint` | `SIDESEAT_ENDPOINT`, then `OTEL_EXPORTER_OTLP_ENDPOINT` | `http://127.0.0.1:5388` |
+| `project` | `SIDESEAT_PROJECT_ID` | `default` |
+| `api_key` | `SIDESEAT_API_KEY` | none |
+| `service_name` | `OTEL_SERVICE_NAME` | the primary integration's package name |
+| `service_version` | `OTEL_SERVICE_VERSION` | that package's version |
+| `integrations` | `SIDESEAT_INTEGRATIONS` (comma-separated) | detected |
+| `capture_content` | `SIDESEAT_CAPTURE_CONTENT` | `True` |
+| `disabled` | `SIDESEAT_DISABLED` | `False` |
+| `debug` | `SIDESEAT_DEBUG` | `False` |
+| `export` | | `True` |
+| `metrics` | | `True` |
+| `logs` | | `True` |
+| `capture_python_logs` | | `False` |
+| `resource_attributes` | `OTEL_RESOURCE_ATTRIBUTES` (merged underneath) | none |
+| `span_processors` | | none |
+
+Boolean variables accept `1`/`0`, `true`/`false`, and `yes`/`no`. Any other value raises
+`ConfigurationError` instead of silently using the default.
+
+## Endpoint
+
+An endpoint without a path is a SideSeat server, and telemetry goes to its project:
+`http://host:5388` sends traces to `http://host:5388/otel/<project>/v1/traces`. An endpoint with a path
+is already an OTLP base and is used as given, which is how to send through a collector:
+`https://collector.example.com/otel/team-a` sends traces to `.../otel/team-a/v1/traces`.
+
+## Authentication
+
+With authentication enabled on the server - the default - pass an API key for the organization that
+owns the project. It is sent as `Authorization: Bearer <key>`. Headers from
+`OTEL_EXPORTER_OTLP_HEADERS` are sent too; the API key wins on a conflict.
+
+## Content
+
+Prompts, responses, tool arguments, and tool results are recorded by default, because reading the
+conversation is the point of SideSeat. `capture_content=False` turns content off in every integration.
+With it on, SideSeat sets the standard `OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT=true` unless
+you already chose a value. Images and documents are exported as base64 and moved to file storage by the
+server.
+
+## Logs and metrics
+
+Log records are exported because several instrumentations emit GenAI content as log events.
+`capture_python_logs=True` additionally exports records from the `logging` root logger. Metrics are
+exported every minute; turn them off with `metrics=False`.
+
+## An existing OpenTelemetry setup
+
+When the application has already installed an OpenTelemetry tracer provider, SideSeat adds its
+processors and exporter to it instead of replacing it, and leaves its shutdown to the application.
+Frameworks that build their own provider - Logfire and Browser Use's Laminar - own it, and SideSeat
+attaches to theirs.
+
+## Calling init twice
+
+`init` configures the process. Calling it again with the same arguments returns the same client;
+different arguments raise `ConfigurationError`, because a second configuration would silently leave the
+process exporting with whichever came first. Call `sideseat.shutdown()` before configuring again.
+
+## Disabling
+
+`disabled=True` or `SIDESEAT_DISABLED=true` configures nothing. Every SideSeat call still works and
+records nothing, so the same code runs in tests and in production.

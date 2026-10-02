@@ -23,20 +23,11 @@ The channel lives behind optional extras, so the WebSocket and AG-UI dependencie
 pulled in unless you ask for them:
 
 ```bash
-# presence + introspection
-pip install "sideseat[ws]"
-
-# additionally required to invoke agents from the UI
-pip install "sideseat[ws,agui]"
+pip install "sideseat[runtime]"
 ```
 
-| Extra    | Adds                             | Needed for                              |
-| -------- | -------------------------------- | --------------------------------------- |
-| `ws`     | `websockets`                     | Connecting at all; presence             |
-| `agui`   | `ag-ui-protocol`, `rich`         | Running agents from the UI (AG-UI)      |
-
-Without `[ws]` the client raises when you call `connect()`. Without `[agui]` registration and
-presence work, but invocation requests are rejected.
+The `runtime` extra adds `websockets` for the connection and `ag-ui-protocol` and `rich` for running
+agents from the UI. Without it, `connect()` raises `ImportError` with the install command.
 
 ## Quick Start
 
@@ -46,18 +37,17 @@ presence work, but invocation requests are rejected.
 
    ```python
    import sideseat
-   from sideseat import Frameworks
    from strands import Agent
 
-   client = sideseat.init(framework=Frameworks.Strands)
+   runtime = sideseat.init(integrations=["strands"]).runtime()
 
-   researcher = Agent(name="researcher", model="global.anthropic.claude-haiku-4-5-20251001-v1:0")
+   researcher = Agent(name="researcher", model="global.anthropic.claude-sonnet-5-5")
 
-   client.register(researcher).connect()
+   runtime.register(researcher).connect()
    ```
 
-   With auth enabled — the default — the WebSocket needs a key: pass `api_key=...` to
-   `sideseat.init(...)`, or set `SIDESEAT_API_KEY` and it is picked up automatically.
+   With authentication enabled - the default - the WebSocket needs a key: pass `api_key=...` to
+   `sideseat.init(...)` or set `SIDESEAT_API_KEY`.
 
 2. **Open the Playground**
 
@@ -87,30 +77,30 @@ Registering a graph also registers its inner agents, so each node is individuall
 while the graph itself shows up as one entry.
 
 ```python
-client.register(car_sales_pipeline).connect()
+runtime.register(car_sales_pipeline).connect()
 ```
 
 `register()` accepts a list and is chainable:
 
 ```python
-client.register([planner, writer]).register(mcp_client).connect()
+runtime.register([planner, writer]).register(mcp_client).connect()
 ```
 
 ## Other frameworks
 
 Only Strands has built-in inspectors. For any other framework, an inspector cannot read the
-object's tools, so you must supply them yourself — otherwise `agent()` raises `ValueError`:
+object's tools, so you must supply them yourself — otherwise `add_agent()` raises `ValueError`:
 
 ```python
 # Without tools=[...] this raises:
 #   no agent inspector matched 'CompiledStateGraph'; register one via
 #   sideseat.runtime.adapters.register_agent_inspector(...) or pass tools=[...]
-client.agent(
+runtime.add_agent(
     my_langgraph_app,
     name="support-bot",
     tools=[{"name": "lookup_order", "description": "Fetch an order by id"}],
     system_prompt="You are a support agent.",
-    model="global.anthropic.claude-haiku-4-5-20251001-v1:0",
+    model="global.anthropic.claude-sonnet-5-5",
 )
 ```
 
@@ -127,27 +117,17 @@ register_agent_inspector(
 
 ## API
 
-The registration methods return the client, so they chain. `disconnect()` returns `None`.
+`client.runtime()` returns the process's `RuntimeClient`, created on first use. `register` returns the
+client, so it chains.
 
-| Method                                | Description                                              |
-| ------------------------------------- | -------------------------------------------------------- |
-| `register(objects, *, name=None, ...)` | Register one object or a list; kind is auto-detected      |
-| `agent(instance, *, name, tools=None, system_prompt=None, model=None, metadata=None)` | Register an agent explicitly |
-| `mcp(client, *, name, transport=None, url=None, tools=None, metadata=None)` | Register an MCP client |
-| `connect(*, block=True, banner=True)` | Open the WebSocket and flush the registry                |
-| `disconnect()`                        | Send unregisters and close the WebSocket                 |
-| `runtime`                             | The underlying `RuntimeClient`                            |
-
-Module-level shorthands exist for each, operating on the global instance created by
-`sideseat.init()`:
-
-```python
-import sideseat
-
-sideseat.init(framework="strands")
-sideseat.register(my_agent)
-sideseat.connect()
-```
+| Method | Description |
+| --- | --- |
+| `register(objects, *, name=None, runtime="inproc")` | Register one object or a list; agent or MCP client is detected |
+| `add_agent(instance, *, name, tools=None, system_prompt=None, model=None, metadata=None)` | Register an agent explicitly |
+| `add_mcp(client, *, name, transport=None, url=None, tools=None, metadata=None)` | Register an MCP client |
+| `remove_agent(name)`, `remove_mcp(name)` | Unregister |
+| `connect(*, block=True, banner=True)` | Open the WebSocket and send the registry |
+| `disconnect()` | Send unregisters and close the WebSocket |
 
 ### Embedding in your own loop
 
@@ -155,22 +135,21 @@ sideseat.connect()
 server or an existing event loop, take over the lifecycle yourself:
 
 ```python
-client.register(agent).connect(block=False, banner=False)
+runtime.register(agent).connect(block=False, banner=False)
 try:
     run_my_application()
 finally:
-    client.disconnect()
+    runtime.disconnect()
 ```
 
-`shutdown()` also disconnects, so a single `client.shutdown()` is enough if you are already
-calling it.
+`sideseat.shutdown()` also disconnects the runtime channel.
 
 ## Naming
 
 Identity comes from `obj.name`, or the `name=` keyword when registering a single object:
 
 ```python
-client.register(agent, name="researcher")
+runtime.register(agent, name="researcher")
 ```
 
 Names are how the UI addresses an agent, so they must be unique within a project — across kinds,
@@ -217,8 +196,8 @@ uv run --locked --directory examples/python/strands strands strands_ws --sidesea
 
 | Problem                            | Cause                                                     |
 | ---------------------------------- | --------------------------------------------------------- |
-| `ModuleNotFoundError: websockets`  | Install `sideseat[ws]`                                    |
+| `ImportError` mentioning websockets | Install `sideseat[runtime]` |
 | Agent absent from the Playground   | `connect()` not called, or the process exited             |
 | `no agent inspector matched ...`   | Non-Strands agent — pass `tools=[...]` or add an inspector |
-| Invocation rejected                | Install `sideseat[agui]`                                  |
+| Invocation rejected | Install `sideseat[runtime]` |
 | Agent shown present after exit     | Process was killed with `SIGKILL`; no unregister was sent |
