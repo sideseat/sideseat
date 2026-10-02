@@ -103,12 +103,14 @@ fn the_documented_project_structure_matches_the_tree() {
     let contributing = std::fs::read_to_string(repo.join("CONTRIBUTING.md"))
         .expect("CONTRIBUTING.md is committed");
     let block = contributing
-        .split("## Project Structure")
+        .split("## Project structure")
         .nth(1)
         .and_then(|rest| rest.split("```").nth(1))
         .expect("the project structure is a fenced block under its own heading");
+    // Indented lines describe children of the entry above them, not top-level directories.
     let documented: BTreeSet<&str> = block
         .lines()
+        .filter(|l| !l.starts_with(char::is_whitespace))
         .filter_map(|l| l.split_whitespace().next())
         .filter_map(|first| first.strip_suffix('/'))
         .filter(|name| !name.contains('/'))

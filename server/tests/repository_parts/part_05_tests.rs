@@ -202,7 +202,6 @@ fn public_vertex_ai_examples_use_the_current_google_genai_client() {
         "docs/src/content/docs/docs/index.mdx",
         "docs/src/content/docs/docs/integrations/providers/google-gemini.mdx",
         "docs/src/content/docs/docs/integrations/providers/vertex-ai.mdx",
-        "docs/src/content/docs/docs/sdks/python/configuration.mdx",
         "examples/python/vertex-ai/runner.py",
         "sdk/python/README.md",
         "server/crates/api/src/mcp/tools.rs",
