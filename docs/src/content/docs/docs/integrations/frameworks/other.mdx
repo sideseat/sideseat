@@ -203,19 +203,22 @@ with persisted history, streaming, automatic tool execution, two traces, and one
 ## Smolagents
 
 ```bash
-pip install smolagents "sideseat[smolagents]"
+pip install "smolagents[litellm]" "sideseat[smolagents]"
 ```
 
 ```python
-from sideseat import SideSeat, Frameworks
-from smolagents import OpenAIModel, ToolCallingAgent
+import sideseat
+from smolagents import LiteLLMModel, ToolCallingAgent
 
-SideSeat(framework=Frameworks.Smolagents)
+sideseat.init(integrations=["smolagents"])
 
-model = OpenAIModel(model_id="gpt-5-mini")
+model = LiteLLMModel(model_id="bedrock/global.anthropic.claude-sonnet-5-5", tool_choice="auto")
 agent = ToolCallingAgent(tools=[], model=model)
 agent.run("What is 2+2?")
 ```
+
+Without the SDK, install `openinference-instrumentation-smolagents` and call
+`SmolagentsInstrumentor().instrument(tracer_provider=provider)` on an OTLP-exporting tracer provider.
 
 Smolagents uses OpenInference telemetry. Only the agent run span carries `smolagents.*`;
 the step, model, and tool spans are identified by the exact

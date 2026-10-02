@@ -1,1 +1,0 @@
-"""Smolagents conformance samples."""
