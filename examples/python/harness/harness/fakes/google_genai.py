@@ -1,5 +1,11 @@
-#!/usr/bin/env python3
-"""Deterministic local Gemini endpoint for Google GenAI fixture capture."""
+"""A local Gemini endpoint, for the Gemini Developer API and Vertex AI routes of ``google-genai``.
+
+Serves ``generateContent`` and ``streamGenerateContent`` (SSE) with the answers of
+:mod:`harness.fakes.script`: function calls for the declared tools, thought parts when the request
+asks for thoughts, and JSON when it sets a response schema.
+
+    uv run --locked --directory examples/python/harness python -m harness.fakes.google_genai
+"""
 
 from __future__ import annotations
 
@@ -9,115 +15,113 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
 from urllib.parse import urlsplit
 
-MODEL = "gemini-2.5-flash"
+from harness.fakes import script
+
+PORT = 5404
+MODEL_VERSION = "gemini-flash-latest"
 
 
-def usage(output_tokens: int = 8) -> dict[str, int]:
-    """Return stable Gemini usage metadata."""
-    return {
-        "promptTokenCount": 12,
-        "candidatesTokenCount": output_tokens,
-        "totalTokenCount": 12 + output_tokens,
+def request_of(body: dict[str, Any]) -> script.Request:
+    turns = []
+    for message in body.get("contents") or []:
+        role = "user" if message.get("role", "user") == "user" else "assistant"
+        turn = script.Turn(role=role)
+        for part in message.get("parts") or []:
+            if part.get("thought"):
+                continue
+            if isinstance(part.get("text"), str):
+                turn.text += part["text"]
+            elif call := part.get("functionCall"):
+                turn.calls.append(
+                    script.Call(
+                        call.get("id", ""), call["name"], call.get("args") or {}
+                    )
+                )
+            elif response := part.get("functionResponse"):
+                turn.results.append(
+                    script.Result(
+                        response.get("id", ""),
+                        response["name"],
+                        json.dumps(response.get("response")),
+                    )
+                )
+        turns.append(turn)
+    tools = {
+        declaration["name"]: declaration.get("parametersJsonSchema")
+        or declaration.get("parameters")
+        or {}
+        for tool in body.get("tools") or []
+        for declaration in tool.get("functionDeclarations") or []
     }
+    config = body.get("generationConfig") or {}
+    schema = config.get("responseJsonSchema") or config.get("responseSchema")
+    thinking = bool((config.get("thinkingConfig") or {}).get("includeThoughts"))
+    return script.Request(turns=turns, tools=tools, schema=schema, thinking=thinking)
 
 
-def parts(contents: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Flatten content parts from a GenerateContent request."""
-    return [
-        part
-        for content in contents
-        for part in content.get("parts", [])
-        if isinstance(part, dict)
-    ]
+def parts_of(answer: script.Reply) -> list[dict[str, Any]]:
+    parts: list[dict[str, Any]] = []
+    if answer.thought:
+        parts.append({"text": answer.thought, "thought": True})
+    if answer.text:
+        parts.append({"text": answer.text})
+    parts.extend(
+        {"functionCall": {"id": call.id, "name": call.name, "args": call.arguments}}
+        for call in answer.calls
+    )
+    return parts
 
 
-def text_response(text: str, *, response_id: str = "gemini-local") -> dict[str, Any]:
-    """Build one non-streaming Gemini response."""
+def chunk(
+    parts: list[dict[str, Any]], *, final: bool, response_id: str
+) -> dict[str, Any]:
+    candidate: dict[str, Any] = {
+        "content": {"role": "model", "parts": parts},
+        "index": 0,
+    }
+    if final:
+        candidate["finishReason"] = "STOP"
+    output = sum(len(json.dumps(part)) // 4 for part in parts)
     return {
-        "candidates": [
-            {
-                "content": {
-                    "parts": [{"text": text}],
-                    "role": "model",
-                },
-                "finishReason": "STOP",
-                "index": 0,
-            }
-        ],
-        "usageMetadata": usage(),
-        "modelVersion": MODEL,
+        "candidates": [candidate],
+        "usageMetadata": {
+            "promptTokenCount": 40,
+            "candidatesTokenCount": output,
+            "totalTokenCount": 40 + output,
+        },
+        "modelVersion": MODEL_VERSION,
         "responseId": response_id,
     }
 
 
-def response(body: dict[str, Any]) -> dict[str, Any]:
-    """Return the deterministic response for one request body."""
-    contents = body.get("contents", [])
-    request_parts = parts(contents)
-    has_tool_result = any("functionResponse" in part for part in request_parts)
-
-    if body.get("tools") and not has_tool_result:
-        return {
-            "candidates": [
-                {
-                    "content": {
-                        "parts": [
-                            {
-                                "functionCall": {
-                                    "id": "weather-call-1",
-                                    "name": "get_weather",
-                                    "args": {"location": "Paris"},
-                                }
-                            }
-                        ],
-                        "role": "model",
-                    },
-                    "finishReason": "STOP",
-                    "index": 0,
-                }
-            ],
-            "usageMetadata": usage(5),
-            "modelVersion": MODEL,
-            "responseId": "gemini-tool-call",
-        }
-
-    last_text = next(
-        (
-            part["text"]
-            for part in reversed(request_parts)
-            if isinstance(part.get("text"), str)
-        ),
-        "",
-    )
-    if has_tool_result:
-        text = "It is sunny and 22°C in Paris."
-    elif "boiling point" in last_text.lower():
-        text = "Water boils at 100°C at sea level."
-    elif "speed of light" in last_text.lower():
-        text = "The speed of light is 299,792,458 metres per second."
-    else:
-        text = "This is a deterministic local response."
-    return text_response(text)
+def stream_of(parts: list[dict[str, Any]], response_id: str) -> list[dict[str, Any]]:
+    """Text parts split in two, as a real stream delivers them; function calls arrive whole."""
+    pieces: list[dict[str, Any]] = []
+    for part in parts:
+        text = part.get("text")
+        if isinstance(text, str) and len(text) > 1:
+            middle = len(text) // 2
+            pieces += [{**part, "text": text[:middle]}, {**part, "text": text[middle:]}]
+        else:
+            pieces.append(part)
+    return [
+        chunk([piece], final=index == len(pieces) - 1, response_id=response_id)
+        for index, piece in enumerate(pieces)
+    ]
 
 
-def is_supported_model_path(path: str) -> bool:
-    """Accept Gemini Developer API and Vertex AI publisher-model routes."""
-    if path.startswith("/v1beta/models/"):
-        return True
-    return (
-        path.startswith("/v1beta1/projects/")
-        and "/locations/" in path
-        and "/publishers/google/models/" in path
+def is_model_path(path: str) -> bool:
+    """Gemini Developer API (``/v1beta/models/...``) and Vertex AI publisher-model routes."""
+    return "/models/" in path and (
+        path.endswith(":generateContent") or path.endswith(":streamGenerateContent")
     )
 
 
 class Handler(BaseHTTPRequestHandler):
-    """Serve the small subset of the Gemini API exercised by the fixture."""
-
     protocol_version = "HTTP/1.1"
 
     def log_message(self, format: str, *args: object) -> None:
-        print(f"[fake-google-genai] {format % args}", flush=True)
+        pass
 
     def send_json(self, status: int, value: dict[str, Any]) -> None:
         payload = json.dumps(value, separators=(",", ":")).encode()
@@ -127,93 +131,42 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(payload)
 
-    def do_GET(self) -> None:
-        if self.path == "/health":
-            self.send_json(200, {"status": "ok"})
-            return
-        self.send_json(404, {"error": {"message": "not found", "status": "NOT_FOUND"}})
-
-    def do_POST(self) -> None:
+    def do_POST(self) -> None:  # noqa: N802 - BaseHTTPRequestHandler API
         path = urlsplit(self.path).path
         length = int(self.headers.get("Content-Length", "0"))
         body = json.loads(self.rfile.read(length) or b"{}")
-
-        if not is_supported_model_path(path):
+        if not is_model_path(path):
             self.send_json(
                 404,
                 {"error": {"message": "unsupported endpoint", "status": "NOT_FOUND"}},
             )
             return
-
-        value = response(body)
+        parts = parts_of(script.reply(request_of(body)))
+        response_id = "gemini-" + script.digest(body)
         if path.endswith(":generateContent"):
-            self.send_json(200, value)
+            self.send_json(200, chunk(parts, final=True, response_id=response_id))
             return
-        if not path.endswith(":streamGenerateContent"):
-            self.send_json(
-                404,
-                {"error": {"message": "unsupported operation", "status": "NOT_FOUND"}},
-            )
-            return
-
-        text = value["candidates"][0]["content"]["parts"][0]["text"]
-        midpoint = max(1, len(text) // 2)
-        chunks = [
-            {
-                "candidates": [
-                    {
-                        "content": {
-                            "parts": [{"text": text[:midpoint]}],
-                            "role": "model",
-                        },
-                        "index": 0,
-                    }
-                ],
-                "usageMetadata": usage(0),
-                "modelVersion": MODEL,
-                "responseId": "gemini-stream",
-            },
-            {
-                "candidates": [
-                    {
-                        "content": {
-                            "parts": [{"text": text[midpoint:]}],
-                            "role": "model",
-                        },
-                        "finishReason": "STOP",
-                        "index": 0,
-                    }
-                ],
-                "usageMetadata": usage(),
-                "modelVersion": MODEL,
-                "responseId": "gemini-stream",
-            },
-        ]
         payload = "".join(
-            f"data: {json.dumps(chunk, separators=(',', ':'))}\n\n" for chunk in chunks
+            f"data: {json.dumps(event, separators=(',', ':'))}\r\n\r\n"
+            for event in stream_of(parts, response_id)
         ).encode()
         self.send_response(200)
         self.send_header("Content-Type", "text/event-stream")
-        self.send_header("Cache-Control", "no-cache")
         self.send_header("Content-Length", str(len(payload)))
         self.end_headers()
         self.wfile.write(payload)
-        self.wfile.flush()
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--port", type=int, default=5404)
+    parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
+    parser.add_argument("--port", type=int, default=PORT)
     args = parser.parse_args()
-
     server = ThreadingHTTPServer(("127.0.0.1", args.port), Handler)
-    print(f"[fake-google-genai] listening on http://127.0.0.1:{args.port}", flush=True)
+    print(f"[fake-gemini] listening on http://127.0.0.1:{args.port}", flush=True)
     try:
         server.serve_forever()
     except KeyboardInterrupt:
         pass
-    finally:
-        server.server_close()
 
 
 if __name__ == "__main__":

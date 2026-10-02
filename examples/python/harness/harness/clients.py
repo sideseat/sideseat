@@ -12,15 +12,21 @@ from typing import Any
 
 from harness.models import Model, region
 
-FAKE_URLS = {
-    "fake-openai": "http://127.0.0.1:5401/v1",
-    "fake-anthropic": "http://127.0.0.1:5402",
-    "fake-gemini": "http://127.0.0.1:5403",
-}
+#: The path each fake serves its API under, after the server's base URL.
+FAKE_PATHS = {"fake-openai": "/v1", "fake-anthropic": "", "fake-gemini": ""}
+_started: dict[str, str] = {}
 
 
 def fake_url(surface: str) -> str:
-    return os.getenv(f"{surface.upper().replace('-', '_')}_URL", FAKE_URLS[surface])
+    """The fake server for a ``fake-*`` surface: ``FAKE_<SURFACE>_URL``, or one started in-process."""
+    configured = os.getenv(f"{surface.upper().replace('-', '_')}_URL")
+    if configured:
+        return configured
+    if surface not in _started:
+        from harness import fakes
+
+        _started[surface] = fakes.start(surface) + FAKE_PATHS[surface]
+    return _started[surface]
 
 
 def bedrock_runtime_url() -> str:

@@ -9,6 +9,8 @@
 The first mode of each scenario talks to Bedrock through a recording proxy (:mod:`harness.proxy`) and
 saves the model's responses to ``<suite>/cassettes/<scenario>.json``; the other mode replays them, so
 both runs hold the same conversation. ``--offline`` replays the committed cassettes in both modes.
+A suite whose model is a ``fake-*`` alias needs neither: each run starts the deterministic fake
+server in-process (:mod:`harness.fakes`), so captures are reproducible without credentials.
 
 Each run also starts a telemetry recorder on a free local port, points the suite at it, and writes every trace
 export to ``server/tests/fixtures/messages/<producer>/<mode>/<scenario>/req-NNN.*``. The previous
@@ -150,6 +152,17 @@ def scenarios_of(suite: Path) -> list[str]:
     return names
 
 
+def uses_fake_model(suite: Path, model: str | None) -> bool:
+    """Whether the suite runs a ``fake-*`` model: ``--model``, or the suite's default."""
+    from harness import models
+
+    table = tomllib.loads((suite / "pyproject.toml").read_text())["tool"][
+        "sideseat-example"
+    ]
+    alias = model or table.get("default-model", models.DEFAULT)
+    return models.resolve(alias).surface.startswith("fake-")
+
+
 def capture_one(
     producer: str,
     suite: Path,
@@ -162,7 +175,9 @@ def capture_one(
     from harness.proxy import ModelProxy, client_environment
 
     cassette = suite / "cassettes" / f"{scenario}.json"
-    if not record and not cassette.exists():
+    # A fake model is deterministic and local: there is no traffic to record or replay.
+    deterministic = uses_fake_model(suite, model)
+    if not record and not deterministic and not cassette.exists():
         print(
             f"[capture] {producer}/{mode}/{scenario}: no cassette to replay at {cassette}"
         )
@@ -182,15 +197,22 @@ def capture_one(
         "SIDESEAT_PROJECT_ID": "default",
     }
     env.pop("OTEL_EXPORTER_OTLP_ENDPOINT", None)
-    action = "recording" if record else "replaying"
-    print(
-        f"[capture] {producer}/{mode}/{scenario}: {' '.join(command[5:])} ({action} model traffic)"
+    action = (
+        "fake model"
+        if deterministic
+        else "recording model traffic"
+        if record
+        else "replaying model traffic"
     )
+    print(f"[capture] {producer}/{mode}/{scenario}: {' '.join(command[5:])} ({action})")
     try:
-        with ModelProxy(cassette, record=record) as proxy:
-            env.update(client_environment(proxy.url))
+        if deterministic:
             ok = subprocess.run(command, env=env, check=False).returncode == 0
-        if proxy.misses:
+        else:
+            with ModelProxy(cassette, record=record) as proxy:
+                env.update(client_environment(proxy.url))
+                ok = subprocess.run(command, env=env, check=False).returncode == 0
+        if not deterministic and proxy.misses:
             print(
                 f"[capture] the scenario made requests the cassette has no answer for: {proxy.misses}"
             )

@@ -72,7 +72,10 @@ make capture-offline P=strands         # replay committed model traffic; no cred
 
 The native run talks to Bedrock through a recording proxy and saves the model's responses to
 `<suite>/cassettes/<scenario>.json`; the SDK run replays them byte for byte, so both runs hold the
-same conversation. Fixtures land in `server/tests/fixtures/messages/<producer>/<native|sdk>/<scenario>/`.
+same conversation. Providers that Bedrock does not serve (Gemini, Vertex AI, Azure OpenAI) run
+their real client library against a `fake-*` model instead: a local server, started in-process,
+that speaks the provider's wire format and answers the shared prompts with the shared tools
+(`harness/fakes/`). Those captures need no credentials and no cassette. Fixtures land in `server/tests/fixtures/messages/<producer>/<native|sdk>/<scenario>/`.
 
 A regenerated `expected.json` is a claim, not a result. Read every trace and session view against
 the rubric in `server/tests/fixtures/messages/README.md` before committing it: every user question,
