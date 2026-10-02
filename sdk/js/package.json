@@ -1,7 +1,7 @@
 {
   "name": "@sideseat/sdk",
-  "version": "2.0.0",
-  "description": "SideSeat SDK for AI observability",
+  "version": "3.0.0",
+  "description": "OpenTelemetry for AI agents: traces, sessions, and conversations in SideSeat",
   "type": "module",
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
@@ -11,6 +11,11 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js",
       "require": "./dist/index.cjs"
+    },
+    "./testing": {
+      "types": "./dist/testing.d.ts",
+      "import": "./dist/testing.js",
+      "require": "./dist/testing.cjs"
     }
   },
   "files": [
@@ -19,32 +24,34 @@
     "LICENSE"
   ],
   "scripts": {
-    "build": "tsup src/index.ts --format esm,cjs --dts",
-    "dev": "tsup src/index.ts --format esm,cjs --dts --watch",
+    "build": "tsup src/index.ts src/testing.ts --format esm,cjs --dts --clean",
     "test": "vitest run",
+    "typecheck": "tsc --noEmit",
     "lint": "eslint src",
-    "fmt": "prettier --write src"
+    "fmt": "prettier --write src",
+    "fmt:check": "prettier --check src"
   },
   "dependencies": {
     "@opentelemetry/api": "^1.9.1",
-    "@opentelemetry/core": "^2.11.0",
+    "@opentelemetry/api-logs": "^0.222.0",
+    "@opentelemetry/exporter-logs-otlp-http": "^0.222.0",
     "@opentelemetry/exporter-trace-otlp-http": "^0.222.0",
     "@opentelemetry/resources": "^2.11.0",
+    "@opentelemetry/sdk-logs": "^0.222.0",
     "@opentelemetry/sdk-trace-base": "^2.11.0",
-    "@opentelemetry/sdk-trace-node": "^2.11.0",
-    "@opentelemetry/semantic-conventions": "^1.43.0"
+    "@opentelemetry/sdk-trace-node": "^2.11.0"
   },
   "devDependencies": {
-    "@ai-sdk/otel": "^1.0.114",
+    "@ai-sdk/otel": "^1.0.127",
     "@eslint/js": "^10.0.1",
     "@types/node": "^26.6.2",
-    "ai": "^7.0.114",
+    "ai": "^7.0.127",
     "eslint": "^10.11.0",
     "prettier": "^3.9.9",
-    "tsup": "^8.0.0",
+    "tsup": "^8.5.1",
     "typescript": "^5.9.3",
-    "typescript-eslint": "^8.70.1",
-    "vitest": "^5.0.2"
+    "typescript-eslint": "^8.71.0",
+    "vitest": "^5.0.3"
   },
   "keywords": [
     "sideseat",
@@ -64,9 +71,8 @@
     "url": "git+https://github.com/sideseat/sideseat.git"
   },
   "engines": {
-    "node": ">=18"
+    "node": ">=20.19"
   },
-  "//typescript": "Pinned to 5.x: typescript-eslint 8.70.1 supports TypeScript >=4.8.4 <6.1.0. tsup now accepts TypeScript 7, but upgrading would leave the lint toolchain outside its supported peer range. Revisit when typescript-eslint supports TypeScript 7.",
   "peerDependencies": {
     "ai": ">=7",
     "@ai-sdk/otel": ">=1"

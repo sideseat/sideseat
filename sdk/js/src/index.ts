@@ -1,104 +1,137 @@
-import { diag } from "@opentelemetry/api";
-import { SideSeat } from "./sideseat.js";
-import { SideSeatError } from "./config.js";
-import type { SideSeatOptions } from "./config.js";
+/**
+ * SideSeat: OpenTelemetry for AI agents, configured in one call.
+ *
+ * ```ts
+ * import * as sideseat from "@sideseat/sdk";
+ *
+ * await sideseat.init({ integrations: ["vercel-ai"] });
+ * await sideseat.session({ sessionId: "conversation-42", userId: "user-7" }, () => agent.run());
+ * ```
+ */
+import { identity, resolveSettings, type SideSeatOptions } from "./config.js";
+import { SideSeat, type SpanOptions, type TraceOptions } from "./client.js";
+import type { Correlation } from "./correlation.js";
+import { ConfigurationError, SideSeatError } from "./errors.js";
+import type { Span } from "@opentelemetry/api";
 
-// Global instance management
-let _instance: SideSeat | null = null;
-let _initPromise: Promise<SideSeat> | null = null;
+let client: SideSeat | undefined;
+let starting: Promise<SideSeat> | undefined;
+let startingIdentity: string | undefined;
 
 /**
- * Initialise SideSeat and return the client.
- *
- * One entry point, and it is async. There used to be two - a synchronous `init()` and an asynchronous
- * `createClient()` - which forced every caller to choose between them with no way to tell which they needed,
- * and made the framework wiring impossible to do correctly: registering the Vercel AI SDK's telemetry
- * integration means importing the user's `ai` package, which cannot be done from a synchronous function, so
- * `experimental_telemetry: { isEnabled: true }` silently produced nothing. Awaiting one call fixes that and
- * removes the choice.
- *
- * Idempotent: a second call returns the same client and warns, and concurrent calls share one initialisation
- * rather than racing.
+ * Configures telemetry for this process and resolves to the client. Calling it again with the same
+ * options returns the same client; different options reject with {@link ConfigurationError}.
  */
-export async function init(options: SideSeatOptions): Promise<SideSeat> {
-  if (_instance !== null) {
-    diag.warn("[sideseat] Already initialized; returning existing instance");
-    return _instance;
-  }
-  // Share the in-flight initialisation instead of starting a second one.
-  if (_initPromise !== null) {
-    return _initPromise;
-  }
-  _initPromise = SideSeat.create(options)
-    .then((client) => {
-      _instance = client;
-      _initPromise = null;
-      return client;
-    })
-    .catch((err) => {
-      _initPromise = null;
-      throw err;
-    });
-  return _initPromise;
-}
-
-/**
- * Get the global SideSeat instance.
- * Throws if not initialized.
- */
-export function getClient(): SideSeat {
-  if (_instance === null) {
-    throw new SideSeatError(
-      "SideSeat not initialized. Call and await init() first.",
+export async function init(options: SideSeatOptions = {}): Promise<SideSeat> {
+  const settings = resolveSettings(options);
+  const key = identity(settings);
+  const existing = client ? identity(client.settings) : startingIdentity;
+  if (existing !== undefined && existing !== key) {
+    throw new ConfigurationError(
+      "init was already called with different options; call shutdown() first",
     );
   }
-  return _instance;
-}
-
-/**
- * Shutdown the global SideSeat instance.
- *
- * Flushes pending spans and releases resources. Resolves to whether every span was exported - `false`
- * means some were lost, which a caller draining before exit needs to know and could not previously
- * learn: this resolved `void` regardless, and the diagnostic warning is silent until the host installs
- * a `diag` logger.
- */
-export async function shutdown(): Promise<boolean> {
-  // Wait for any pending init to complete first
-  if (_initPromise !== null) {
-    try {
-      await _initPromise;
-    } catch (err) {
-      diag.debug(`[sideseat] Init error during shutdown: ${err}`);
-    }
+  if (client) return client;
+  if (!starting) {
+    startingIdentity = key;
+    starting = SideSeat.start(settings).then(
+      (started) => {
+        client = started;
+        return started;
+      },
+      (error: unknown) => {
+        starting = undefined;
+        startingIdentity = undefined;
+        throw error;
+      },
+    );
   }
-
-  if (_instance !== null) {
-    const flushed = await _instance.shutdown();
-    _instance = null;
-    return flushed;
-  }
-  return true;
+  return starting;
 }
 
-/**
- * Check if SideSeat has been initialized.
- */
-export function isInitialized(): boolean {
-  return _instance !== null;
+/** The client {@link init} created. */
+export function getClient(): SideSeat {
+  if (!client) throw new SideSeatError("call and await init() first");
+  return client;
 }
 
-// Re-exports
-export { SideSeat } from "./sideseat.js";
+/** Exports everything pending. Resolves to whether all of it was exported. */
+export function flush(timeoutMs?: number): Promise<boolean> {
+  return getClient().flush(timeoutMs);
+}
+
+/** Flushes and stops the pipeline. Safe to call more than once. */
+export async function shutdown(timeoutMs?: number): Promise<boolean> {
+  const current =
+    client ?? (starting ? await starting.catch(() => undefined) : undefined);
+  client = undefined;
+  starting = undefined;
+  startingIdentity = undefined;
+  return current ? current.shutdown(timeoutMs) : true;
+}
+
+/** Attributes every span started inside `fn` to a session and, optionally, a user. */
+export function session<T>(correlation: Correlation, fn: () => T): T {
+  return getClient().session(correlation, fn);
+}
+
+/** Runs `fn` in a new root span, even inside another span. */
+export function trace<T>(
+  name: string,
+  fn: (span: Span) => T | Promise<T>,
+): Promise<T>;
+export function trace<T>(
+  name: string,
+  options: TraceOptions,
+  fn: (span: Span) => T | Promise<T>,
+): Promise<T>;
+export function trace<T>(
+  name: string,
+  a: TraceOptions | ((span: Span) => T | Promise<T>),
+  b?: (span: Span) => T | Promise<T>,
+): Promise<T> {
+  return typeof a === "function"
+    ? getClient().trace(name, a)
+    : getClient().trace(name, a, b!);
+}
+
+/** Runs `fn` in a child of the active span. */
+export function span<T>(
+  name: string,
+  fn: (span: Span) => T | Promise<T>,
+): Promise<T>;
+export function span<T>(
+  name: string,
+  options: SpanOptions,
+  fn: (span: Span) => T | Promise<T>,
+): Promise<T>;
+export function span<T>(
+  name: string,
+  a: SpanOptions | ((span: Span) => T | Promise<T>),
+  b?: (span: Span) => T | Promise<T>,
+): Promise<T> {
+  return typeof a === "function"
+    ? getClient().span(name, a)
+    : getClient().span(name, a, b!);
+}
+
+export { SideSeat } from "./client.js";
+export type { SpanOptions, TraceOptions } from "./client.js";
+export { DEFAULT_ENDPOINT, DEFAULT_PROJECT } from "./config.js";
+export type { SideSeatOptions, Settings } from "./config.js";
+export type { Correlation } from "./correlation.js";
 export {
-  Config,
-  Frameworks,
-  LOG_LEVELS,
+  ConfigurationError,
+  IntegrationError,
   SideSeatError,
-  DEFAULT_ENDPOINT,
-  DEFAULT_PROJECT_ID,
-} from "./config.js";
-export type { SideSeatOptions, LogLevel, Framework } from "./config.js";
-export type { SideSeatSpanOptions } from "./sideseat.js";
-export { JsonFileSpanExporter, spanToDict, encodeValue } from "./exporters.js";
+} from "./errors.js";
+export { JsonlSpanExporter } from "./exporters.js";
+export {
+  claudeAgentSDK,
+  cliEnvironment,
+  integrationNames,
+  strands,
+  vercelAI,
+} from "./integrations/index.js";
+export type { Integration, SetupContext } from "./integrations/index.js";
 export { VERSION } from "./version.js";

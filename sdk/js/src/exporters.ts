@@ -107,8 +107,8 @@ export function spanToDict(span: ReadableSpan): Record<string, unknown> {
   };
 }
 
-// JSONL file exporter (match Python JsonFileSpanExporter)
-export class JsonFileSpanExporter implements SpanExporter {
+// JSONL file exporter (match Python JsonlSpanExporter)
+export class JsonlSpanExporter implements SpanExporter {
   private _fh: fs.WriteStream;
   private _closed: boolean = false;
   private _writeError: Error | null = null;

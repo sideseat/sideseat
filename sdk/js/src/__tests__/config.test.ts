@@ -1,259 +1,64 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import {
-  Config,
-  SideSeatError,
-  LOG_LEVELS,
-  Frameworks,
-  FRAMEWORK_SERVICE_NAMES,
-} from "../config.js";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { exportHeaders, resolveSettings, signalEndpoint } from "../config.js";
+import { ConfigurationError } from "../errors.js";
 
-describe("Config", () => {
-  // Save/restore env vars to prevent leakage between tests
-  const originalEnv: Record<string, string | undefined> = {};
-  const envKeys = [
-    "SIDESEAT_ENDPOINT",
-    "SIDESEAT_PROJECT_ID",
-    "SIDESEAT_LOG_LEVEL",
-    "SIDESEAT_DEBUG",
-    "SIDESEAT_DISABLED",
-    "SIDESEAT_API_KEY",
-    "npm_package_name",
-    "npm_package_version",
-    "OTEL_SERVICE_NAME",
-  ];
+afterEach(() => vi.unstubAllEnvs());
 
-  beforeEach(() => {
-    envKeys.forEach((key) => {
-      originalEnv[key] = process.env[key];
-      delete process.env[key];
+describe("settings", () => {
+  it("defaults to the local server and default project", () => {
+    const settings = resolveSettings();
+    expect(signalEndpoint(settings, "traces")).toBe(
+      "http://127.0.0.1:5388/otel/default/v1/traces",
+    );
+    expect(settings.captureContent).toBe(true);
+    expect(settings.integrations).toBeUndefined();
+  });
+
+  it("treats an endpoint with a path as an OTLP base", () => {
+    const settings = resolveSettings({
+      endpoint: "https://collector.example.com/otel/team-a/",
+      project: "ignored",
+    });
+    expect(signalEndpoint(settings, "logs")).toBe(
+      "https://collector.example.com/otel/team-a/v1/logs",
+    );
+  });
+
+  it("prefers arguments, then environment, then defaults", () => {
+    vi.stubEnv("SIDESEAT_ENDPOINT", "http://env:1");
+    vi.stubEnv("OTEL_EXPORTER_OTLP_ENDPOINT", "http://otel:2");
+    vi.stubEnv("SIDESEAT_PROJECT_ID", "from-env");
+    expect(resolveSettings().endpoint).toBe("http://env:1");
+    expect(resolveSettings().project).toBe("from-env");
+    expect(
+      signalEndpoint(
+        resolveSettings({ endpoint: "http://arg:3", project: "arg" }),
+        "traces",
+      ),
+    ).toBe("http://arg:3/otel/arg/v1/traces");
+  });
+
+  it.each(["ftp://host", "localhost:5388", "http://"])("rejects %s", (raw) => {
+    expect(() => resolveSettings({ endpoint: raw })).toThrow(
+      ConfigurationError,
+    );
+  });
+
+  it("treats an invalid boolean as an error, not a default", () => {
+    vi.stubEnv("SIDESEAT_CAPTURE_CONTENT", "sometimes");
+    expect(() => resolveSettings()).toThrow(/SIDESEAT_CAPTURE_CONTENT/);
+  });
+
+  it("merges the API key over OTLP headers", () => {
+    vi.stubEnv("OTEL_EXPORTER_OTLP_HEADERS", "x-team=a%20b,Authorization=old");
+    expect(exportHeaders(resolveSettings({ apiKey: "k" }))).toEqual({
+      "x-team": "a b",
+      Authorization: "Bearer k",
     });
   });
 
-  afterEach(() => {
-    envKeys.forEach((key) => {
-      if (originalEnv[key] === undefined) delete process.env[key];
-      else process.env[key] = originalEnv[key];
-    });
-  });
-
-  it("throws when framework is not provided", () => {
-    // The type now requires `framework`, so these calls are cast: the runtime guard has
-    // to keep working for plain-JavaScript callers, who get no type checking.
-    const noOptions = Config.create as unknown as () => Config;
-    const withOptions = Config.create as unknown as (o: object) => Config;
-    expect(() => noOptions()).toThrow(SideSeatError);
-    expect(() => withOptions({})).toThrow(SideSeatError);
-    expect(() => withOptions({})).toThrow("framework is required");
-  });
-
-  it("uses defaults when framework is provided", () => {
-    const config = Config.create({ framework: Frameworks.VercelAI });
-    expect(config.endpoint).toBe("http://127.0.0.1:5388");
-    expect(config.projectId).toBe("default");
-    expect(config.disabled).toBe(false);
-    expect(config.enableTraces).toBe(true);
-    expect(config.logLevel).toBe("none");
-  });
-
-  it("reads from env vars", () => {
-    process.env.SIDESEAT_ENDPOINT = "http://custom:8080";
-    process.env.SIDESEAT_PROJECT_ID = "test-project";
-    const config = Config.create({ framework: Frameworks.VercelAI });
-    expect(config.endpoint).toBe("http://custom:8080");
-    expect(config.projectId).toBe("test-project");
-  });
-
-  it("options override env vars", () => {
-    process.env.SIDESEAT_ENDPOINT = "http://env:8080";
-    const config = Config.create({
-      framework: Frameworks.VercelAI,
-      endpoint: "http://option:9090",
-    });
-    expect(config.endpoint).toBe("http://option:9090");
-  });
-
-  it("validates endpoint format", () => {
-    expect(() =>
-      Config.create({ framework: Frameworks.VercelAI, endpoint: "invalid" }),
-    ).toThrow(SideSeatError);
-    expect(() =>
-      Config.create({ framework: Frameworks.VercelAI, endpoint: "ftp://host" }),
-    ).toThrow(SideSeatError);
-  });
-
-  it("accepts http and https endpoints", () => {
-    expect(() =>
-      Config.create({
-        framework: Frameworks.VercelAI,
-        endpoint: "http://host:8080",
-      }),
-    ).not.toThrow();
-    expect(() =>
-      Config.create({
-        framework: Frameworks.VercelAI,
-        endpoint: "https://host:8080",
-      }),
-    ).not.toThrow();
-  });
-
-  it("removes trailing slashes from endpoint", () => {
-    const config = Config.create({
-      framework: Frameworks.VercelAI,
-      endpoint: "http://host:8080///",
-    });
-    expect(config.endpoint).toBe("http://host:8080");
-  });
-
-  it("parses log level from env", () => {
-    process.env.SIDESEAT_LOG_LEVEL = "debug";
-    const config = Config.create({ framework: Frameworks.VercelAI });
-    expect(config.logLevel).toBe("debug");
-  });
-
-  it("ignores invalid log level with warning", () => {
-    process.env.SIDESEAT_LOG_LEVEL = "invalid";
-    const config = Config.create({ framework: Frameworks.VercelAI });
-    expect(config.logLevel).toBe("none"); // falls back to default
-  });
-
-  it("debug flag sets log level to debug", () => {
-    const config = Config.create({
-      framework: Frameworks.VercelAI,
-      debug: true,
-    });
-    expect(config.logLevel).toBe("debug");
-  });
-
-  it("explicit logLevel overrides debug flag", () => {
-    const config = Config.create({
-      framework: Frameworks.VercelAI,
-      debug: true,
-      logLevel: "error",
-    });
-    expect(config.logLevel).toBe("error");
-  });
-
-  it("falls back to OTEL_SERVICE_NAME", () => {
-    process.env.OTEL_SERVICE_NAME = "otel-service";
-    const config = Config.create({ framework: Frameworks.VercelAI });
-    expect(config.serviceName).toBe("otel-service");
-  });
-
-  it("OTEL_SERVICE_NAME takes precedence over npm_package_name", () => {
-    process.env.OTEL_SERVICE_NAME = "otel-service";
-    process.env.npm_package_name = "npm-package";
-    const config = Config.create({ framework: Frameworks.VercelAI });
-    expect(config.serviceName).toBe("otel-service");
-  });
-
-  it("npm_package_name used when OTEL_SERVICE_NAME not set", () => {
-    process.env.npm_package_name = "npm-package";
-    const config = Config.create({ framework: Frameworks.VercelAI });
-    expect(config.serviceName).toBe("npm-package");
-  });
-
-  it("framework derives serviceName when not otherwise set", () => {
-    const config = Config.create({ framework: Frameworks.Strands });
-    expect(config.serviceName).toBe("strands-agents");
-  });
-
-  it("OTEL_SERVICE_NAME overrides framework-derived serviceName", () => {
-    process.env.OTEL_SERVICE_NAME = "otel-service";
-    const config = Config.create({ framework: Frameworks.Strands });
-    expect(config.serviceName).toBe("otel-service");
-  });
-
-  it("explicit serviceName overrides framework-derived serviceName", () => {
-    const config = Config.create({
-      framework: Frameworks.Strands,
-      serviceName: "my-app",
-    });
-    expect(config.serviceName).toBe("my-app");
-  });
-
-  it("VercelAI framework has no service name override (detected via span attrs)", () => {
-    const config = Config.create({ framework: Frameworks.VercelAI });
-    expect(config.serviceName).toBe("unknown-service");
-  });
-
-  it("parses boolean env vars", () => {
-    const fw = { framework: Frameworks.VercelAI };
-
-    process.env.SIDESEAT_DISABLED = "true";
-    expect(Config.create(fw).disabled).toBe(true);
-
-    process.env.SIDESEAT_DISABLED = "1";
-    expect(Config.create(fw).disabled).toBe(true);
-
-    process.env.SIDESEAT_DISABLED = "false";
-    expect(Config.create(fw).disabled).toBe(false);
-
-    process.env.SIDESEAT_DISABLED = "0";
-    expect(Config.create(fw).disabled).toBe(false);
-  });
-});
-
-describe("LOG_LEVELS", () => {
-  it("contains all expected levels", () => {
-    expect(LOG_LEVELS).toEqual([
-      "none",
-      "error",
-      "warn",
-      "info",
-      "debug",
-      "verbose",
-    ]);
-  });
-});
-
-describe("Frameworks", () => {
-  it("contains framework identifiers", () => {
-    expect(Frameworks.Strands).toBe("strands");
-    expect(Frameworks.VercelAI).toBe("vercel-ai");
-    expect(Frameworks.LangChain).toBe("langchain");
-    expect(Frameworks.AzureOpenAI).toBe("azure-openai");
-  });
-});
-
-describe("FRAMEWORK_SERVICE_NAMES", () => {
-  it("maps strands to strands-agents", () => {
-    expect(FRAMEWORK_SERVICE_NAMES["strands"]).toBe("strands-agents");
-  });
-
-  it("maps openai-agents to openai-agents", () => {
-    expect(FRAMEWORK_SERVICE_NAMES["openai-agents"]).toBe("openai-agents");
-  });
-
-  it("has no entry for vercel-ai (detected via span attributes)", () => {
-    expect(FRAMEWORK_SERVICE_NAMES["vercel-ai"]).toBeUndefined();
-  });
-});
-
-describe("SideSeatError", () => {
-  it("has correct name", () => {
-    const error = new SideSeatError("test message");
-    expect(error.name).toBe("SideSeatError");
-    expect(error.message).toBe("test message");
-  });
-});
-
-describe("endpoint environment fallbacks", () => {
-  const saved = { ...process.env };
-  afterEach(() => {
-    process.env = { ...saved };
-  });
-
-  it("falls back to OTEL_EXPORTER_OTLP_ENDPOINT", () => {
-    delete process.env.SIDESEAT_ENDPOINT;
-    process.env.OTEL_EXPORTER_OTLP_ENDPOINT = "http://collector:4318";
-    const cfg = Config.create({ framework: Frameworks.Strands });
-    expect(cfg.endpoint).toBe("http://collector:4318");
-  });
-
-  it("prefers SIDESEAT_ENDPOINT over the OTel variable", () => {
-    process.env.SIDESEAT_ENDPOINT = "http://sideseat:5388";
-    process.env.OTEL_EXPORTER_OTLP_ENDPOINT = "http://collector:4318";
-    const cfg = Config.create({ framework: Frameworks.Strands });
-    expect(cfg.endpoint).toBe("http://sideseat:5388");
+  it("reads integrations from the environment", () => {
+    vi.stubEnv("SIDESEAT_INTEGRATIONS", "strands, vercel-ai,");
+    expect(resolveSettings().integrations).toEqual(["strands", "vercel-ai"]);
   });
 });
