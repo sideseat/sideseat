@@ -164,6 +164,13 @@ fn no_production_module_names_a_framework() {
              item is invisible to a dependent",
         ),
         (
+            "server/crates/ingestion/src/traces/extract/attributes/semantic_oracle.rs",
+            Allowed::Only(&["langgraph", "langsmith", "mlflow"]),
+            "*is* the equivalence oracle for the declared session, user and tag resolvers: a test-only copy \
+             of the retired lookup chains, compiled only under `#[cfg(test)]`, so naming the keys those \
+             chains read is what it preserves",
+        ),
+        (
             "server/crates/api/src/mcp/tools.rs",
             Allowed::EveryFramework,
             "generates integration documentation for an AI assistant, so naming each framework is its job - it \

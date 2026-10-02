@@ -30,7 +30,7 @@ use super::keys;
 mod classification;
 mod framework;
 #[cfg(test)]
-mod semantic_legacy;
+mod semantic_oracle;
 mod usage;
 
 #[cfg(test)]
@@ -42,7 +42,7 @@ pub(crate) use framework::detect_framework_scoped;
 #[cfg(test)]
 pub(crate) use framework::{detect_framework, legacy_detect_framework};
 #[cfg(test)]
-pub(super) use semantic_legacy::extract_semantic_legacy;
+pub(super) use semantic_oracle::extract_semantic_legacy;
 #[cfg(test)]
 use usage::INPUT_TOKENS;
 use usage::counters_already_read;
