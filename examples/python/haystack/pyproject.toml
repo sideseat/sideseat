@@ -1,31 +1,25 @@
 [project]
-name = "haystack-sample"
-version = "0.1.0"
-description = "SideSeat telemetry sample for Haystack"
-requires-python = ">=3.12,<3.14"
+name = "example-haystack"
+version = "0.0.0"
+description = "Haystack scenarios for SideSeat"
+requires-python = ">=3.11"
 dependencies = [
-    "telemetry-common",
+    "haystack-ai>=3.3.0",
+    "amazon-bedrock-haystack>=8.3.0",
+    "mcp-haystack>=1.5.1",
+    "opentelemetry-haystack>=1.0.0",
     "sideseat[haystack]",
-    "haystack-ai==3.3.0",
-    "openai>=3.22.1",
-    "httpx>=0.28.1,<1.0.dev0",
-    "python-dotenv>=1.2.0",
+    "sideseat-example-harness[bedrock]",
 ]
 
-[project.scripts]
-telemetry-haystack = "cli:main"
+[tool.sideseat-example]
+producer = "haystack"
+integrations = ["haystack"]
 
 [tool.uv]
 required-version = "==0.12.13"
-prerelease = "allow"
+package = false
 
 [tool.uv.sources]
-telemetry-common = { path = "../common", editable = true }
+sideseat-example-harness = { path = "../harness", editable = true }
 sideseat = { path = "../../../sdk/python", editable = true }
-
-[build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
-
-[tool.hatch.build.targets.wheel]
-include = ["*.py", "samples/"]
