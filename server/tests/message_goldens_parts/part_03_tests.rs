@@ -609,17 +609,9 @@ const REORDERS_UNDER_PER_CARRIER: &[(&str, &str)] = &[];
 /// Also deliberately not keyed on `role == System`: `developer` normalises to `System`, and an in-band
 /// system message inside an ordered array is a turn in that array rather than a frame. Comparing firsts
 /// sidesteps that too, where a general rule would have to distinguish them.
-/// One entry left of the original 22 fixtures. The Claude SDK's 16 were fixed by the request-framing
-/// edge (frame and turn meet on one generation span); langgraph's 5 by ordered-input array sequencing
-/// (its frame arrives *inside* `llm.input_messages`, which extraction fragments into per-index
-/// carriers - the resolver re-groups the family and orders its first-seen members). `strands/legacy/swarm`
-/// reports its frame on the agent span while the turn sits on the orchestrator span, and linking the
-/// two needs a request-membership locator that ancestry cannot soundly supply: an agent span can hold
-/// several requests, and several framed agents live under one orchestrator.
-const SYSTEM_FRAME_GAP: &[(&str, &str)] = &[(
-    "strands/legacy/swarm",
-    "the swarm's request arrives on its orchestrator span, the planner's prompt on the agent span",
-)];
+/// Fixtures whose trace view cannot order their system instruction first, with the reason. Empty:
+/// every captured producer currently satisfies the invariant.
+const SYSTEM_FRAME_GAP: &[(&str, &str)] = &[];
 
 /// Every trace view whose system instruction sorts after the first user turn.
 fn system_frame_violations(built: &Built) -> Vec<String> {
@@ -628,12 +620,19 @@ fn system_frame_violations(built: &Built) -> Vec<String> {
         if !matches!(scope, Scope::Trace { .. }) {
             continue;
         }
-        let first_user = rows.iter().position(|r| r.role == "user");
-        let first_system = rows.iter().position(|r| r.role == "system");
-        if let (Some(user), Some(system)) = (first_user, first_system)
+        // The first frame precedes the first turn it frames: one in its own span's subtree. In a
+        // multi-agent trace the request to the orchestrator legitimately comes before a sub-agent's
+        // instructions, and a later instruction may re-frame a turn that has already completed.
+        let Some((system, frame)) = rows.iter().enumerate().find(|(_, r)| r.role == "system") else {
+            continue;
+        };
+        let framed_user = rows
+            .iter()
+            .position(|r| r.role == "user" && r.span_path.contains(&frame.span_id));
+        if let Some(user) = framed_user
             && system > user
         {
-            out.push(format!("{name}: system at {system}, first user at {user}"));
+            out.push(format!("{name}: system at {system}, first user it frames at {user}"));
         }
     }
     out
@@ -837,7 +836,7 @@ fn shadow_resolver_keeps_intro_with_its_call_before_the_result() {
 /// The resolver is a permutation: it reorders survivors, it does not add, drop or alter them.
 #[test]
 fn shadow_resolver_is_a_permutation_of_the_survivors() {
-    for label in ["strands-js/legacy/swarm", "strands/legacy/tool_use", "strands/legacy/mcp_tools"] {
+    for label in ["strands-js/legacy/swarm", "strands/sdk/tool_use", "strands/sdk/mcp_tools"] {
         let (_, paths) = discover_fixtures()
             .into_iter()
             .find(|(l, _)| l == label)

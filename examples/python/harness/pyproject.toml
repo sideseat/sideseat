@@ -1,0 +1,37 @@
+[project]
+name = "sideseat-example-harness"
+version = "0.0.0"
+description = "Shared CLI, model catalog, and telemetry modes for the SideSeat example suites"
+requires-python = ">=3.11"
+dependencies = [
+    "opentelemetry-sdk>=1.39",
+    "opentelemetry-exporter-otlp-proto-http>=1.39",
+    "pydantic>=2.11",
+    "python-dotenv>=1.2",
+    "sideseat",
+]
+
+[project.optional-dependencies]
+bedrock = ["boto3>=1.43"]
+openai = ["openai>=3.23", "boto3>=1.43"]
+anthropic = ["anthropic[bedrock]>=1.11"]
+
+[project.scripts]
+sample = "harness.cli:main"
+capture = "harness.capture:main"
+
+[dependency-groups]
+dev = ["pytest>=9.1"]
+
+[tool.uv]
+required-version = "==0.12.13"
+
+[tool.uv.sources]
+sideseat = { path = "../../../sdk/python", editable = true }
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["harness"]

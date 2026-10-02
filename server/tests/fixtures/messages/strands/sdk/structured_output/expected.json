@@ -1,13 +1,14 @@
 {
   "label": "strands/sdk/structured_output",
   "request_count": 1,
-  "span_count": 1,
+  "span_count": 5,
   "trace_count": 1,
-  "session_count": 0,
+  "session_count": 1,
   "span_views": {
-    "trace-1/execute_structured_output/span-1": {
-      "message_count": 2,
+    "trace-1/chat/span-4": {
+      "message_count": 3,
       "role_sequence": [
+        "system",
         "user",
         "assistant"
       ],
@@ -16,76 +17,303 @@
       "messages": [
         {
           "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+          "content_digest": "5d227641a000cd8c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
           "role": "user",
           "entry_type": "text",
-          "content": "Extract info: Jane Doe, a systems admin, 28, lives at 123 Main St, New York, USA. Email: jane@example.com",
-          "content_digest": "6a08cceee02e13c8",
-          "observation_type": "agent"
+          "content": "Plan a two-day trip to Vienna.",
+          "content_digest": "5f56235d64bfe00d",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_YttHwiHfMEowEzmOv25YC2\",\"name\":\"TripPlan\",\"input\":{\"city\":\"Vienna\",\"days\":[\"Day 1: Explore the Innere Stadt — St. Stephen's Cathedral, Hofburg Palace, and a coffee-house stop at Café Central, then an evening…[441 chars]",
+          "content_digest": "5af472645483526f",
+          "tool_name": "TripPlan",
+          "finish_reason": "ToolUse",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/execute_event_loop_cycle/span-3": {
+      "message_count": 3,
+      "role_sequence": [
+        "user",
+        "assistant",
+        "tool"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Plan a two-day trip to Vienna.",
+          "content_digest": "5f56235d64bfe00d",
+          "observation_type": "span"
         },
         {
           "index": 1,
           "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_YttHwiHfMEowEzmOv25YC2\",\"name\":\"TripPlan\",\"input\":{\"city\":\"Vienna\",\"days\":[\"Day 1: Explore the Innere Stadt — St. Stephen's Cathedral, Hofburg Palace, and a coffee-house stop at Café Central, then an evening…[441 chars]",
+          "content_digest": "5af472645483526f",
+          "tool_name": "TripPlan",
+          "observation_type": "span"
+        },
+        {
+          "index": 2,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_YttHwiHfMEowEzmOv25YC2\",\"content\":[{\"type\":\"text\",\"text\":\"Successfully validated TripPlan structured output\"}]}",
+          "content_digest": "e1c54ede96c2fb55",
+          "observation_type": "span"
+        }
+      ]
+    },
+    "trace-1/execute_tool TripPlan/span-5": {
+      "message_count": 1,
+      "role_sequence": [
+        "tool"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "Successfully validated TripPlan structured output",
+          "content_digest": "5fe78a982d61c55c",
+          "observation_type": "tool"
+        }
+      ]
+    },
+    "trace-1/invoke_agent Strands Agents/span-2": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+          "content_digest": "5d227641a000cd8c",
+          "observation_type": "agent"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Plan a two-day trip to Vienna.",
+          "content_digest": "5f56235d64bfe00d",
+          "observation_type": "agent"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
           "entry_type": "json",
-          "content": "{\"type\":\"json\",\"data\":{\"name\":\"deterministic-name\",\"age\":1,\"address\":{\"street\":\"deterministic-street\",\"city\":\"Paris\",\"country\":\"deterministic-country\",\"postal_code\":\"deterministic-postal-code\"},\"contacts\":[{\"email\":\"deterministic-email\",\"ph…[304 chars]",
-          "content_digest": "c719f0e481026bfd",
+          "content": "{\"type\":\"json\",\"data\":{\"city\":\"Vienna\",\"days\":[\"Day 1: Explore the Innere Stadt — St. Stephen's Cathedral, Hofburg Palace, and a coffee-house stop at Café Central, then an evening stroll along the Ringstrasse.\",\"Day 2: Visit Schönbrunn Pala…[380 chars]",
+          "content_digest": "59244e56ff03ce5c",
+          "finish_reason": "ToolUse",
           "observation_type": "agent"
         }
       ]
+    },
+    "trace-1/structured-output/span-1": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
     }
   },
   "trace_views": {
     "trace-1": {
-      "message_count": 2,
+      "message_count": 5,
       "role_sequence": [
+        "system",
         "user",
+        "assistant",
+        "tool",
         "assistant"
       ],
       "tool_names": [],
-      "tool_definition_count": 0,
+      "tool_definition_count": 1,
       "messages": [
         {
           "index": 0,
-          "role": "user",
+          "role": "system",
           "entry_type": "text",
-          "content": "Extract info: Jane Doe, a systems admin, 28, lives at 123 Main St, New York, USA. Email: jane@example.com",
-          "content_digest": "6a08cceee02e13c8",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+          "content_digest": "5d227641a000cd8c",
           "observation_type": "agent"
         },
         {
           "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Plan a two-day trip to Vienna.",
+          "content_digest": "5f56235d64bfe00d",
+          "observation_type": "agent"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_YttHwiHfMEowEzmOv25YC2\",\"name\":\"TripPlan\",\"input\":{\"city\":\"Vienna\",\"days\":[\"Day 1: Explore the Innere Stadt — St. Stephen's Cathedral, Hofburg Palace, and a coffee-house stop at Café Central, then an evening…[441 chars]",
+          "content_digest": "5af472645483526f",
+          "tool_name": "TripPlan",
+          "finish_reason": "ToolUse",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "Successfully validated TripPlan structured output",
+          "content_digest": "5fe78a982d61c55c",
+          "observation_type": "tool"
+        },
+        {
+          "index": 4,
           "role": "assistant",
           "entry_type": "json",
-          "content": "{\"type\":\"json\",\"data\":{\"name\":\"deterministic-name\",\"age\":1,\"address\":{\"street\":\"deterministic-street\",\"city\":\"Paris\",\"country\":\"deterministic-country\",\"postal_code\":\"deterministic-postal-code\"},\"contacts\":[{\"email\":\"deterministic-email\",\"ph…[304 chars]",
-          "content_digest": "c719f0e481026bfd",
+          "content": "{\"type\":\"json\",\"data\":{\"city\":\"Vienna\",\"days\":[\"Day 1: Explore the Innere Stadt — St. Stephen's Cathedral, Hofburg Palace, and a coffee-house stop at Café Central, then an evening stroll along the Ringstrasse.\",\"Day 2: Visit Schönbrunn Pala…[380 chars]",
+          "content_digest": "59244e56ff03ce5c",
+          "finish_reason": "ToolUse",
           "observation_type": "agent"
         }
       ]
     }
   },
-  "session_views": {},
+  "session_views": {
+    "strands-structured_output": {
+      "message_count": 5,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+          "content_digest": "5d227641a000cd8c",
+          "observation_type": "agent"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Plan a two-day trip to Vienna.",
+          "content_digest": "5f56235d64bfe00d",
+          "observation_type": "agent"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_YttHwiHfMEowEzmOv25YC2\",\"name\":\"TripPlan\",\"input\":{\"city\":\"Vienna\",\"days\":[\"Day 1: Explore the Innere Stadt — St. Stephen's Cathedral, Hofburg Palace, and a coffee-house stop at Café Central, then an evening…[441 chars]",
+          "content_digest": "5af472645483526f",
+          "tool_name": "TripPlan",
+          "finish_reason": "ToolUse",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "Successfully validated TripPlan structured output",
+          "content_digest": "5fe78a982d61c55c",
+          "observation_type": "tool"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "json",
+          "content": "{\"type\":\"json\",\"data\":{\"city\":\"Vienna\",\"days\":[\"Day 1: Explore the Innere Stadt — St. Stephen's Cathedral, Hofburg Palace, and a coffee-house stop at Café Central, then an evening stroll along the Ringstrasse.\",\"Day 2: Visit Schönbrunn Pala…[380 chars]",
+          "content_digest": "59244e56ff03ce5c",
+          "finish_reason": "ToolUse",
+          "observation_type": "agent"
+        }
+      ]
+    }
+  },
   "feed_view": {
-    "message_count": 2,
+    "message_count": 5,
     "role_sequence": [
       "assistant",
-      "user"
+      "tool",
+      "assistant",
+      "user",
+      "system"
     ],
     "tool_names": [],
-    "tool_definition_count": 0,
+    "tool_definition_count": 1,
     "messages": [
       {
         "index": 0,
         "role": "assistant",
         "entry_type": "json",
-        "content": "{\"type\":\"json\",\"data\":{\"name\":\"deterministic-name\",\"age\":1,\"address\":{\"street\":\"deterministic-street\",\"city\":\"Paris\",\"country\":\"deterministic-country\",\"postal_code\":\"deterministic-postal-code\"},\"contacts\":[{\"email\":\"deterministic-email\",\"ph…[304 chars]",
-        "content_digest": "c719f0e481026bfd",
+        "content": "{\"type\":\"json\",\"data\":{\"city\":\"Vienna\",\"days\":[\"Day 1: Explore the Innere Stadt — St. Stephen's Cathedral, Hofburg Palace, and a coffee-house stop at Café Central, then an evening stroll along the Ringstrasse.\",\"Day 2: Visit Schönbrunn Pala…[380 chars]",
+        "content_digest": "59244e56ff03ce5c",
+        "finish_reason": "ToolUse",
         "observation_type": "agent"
       },
       {
         "index": 1,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "Successfully validated TripPlan structured output",
+        "content_digest": "5fe78a982d61c55c",
+        "observation_type": "tool"
+      },
+      {
+        "index": 2,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_YttHwiHfMEowEzmOv25YC2\",\"name\":\"TripPlan\",\"input\":{\"city\":\"Vienna\",\"days\":[\"Day 1: Explore the Innere Stadt — St. Stephen's Cathedral, Hofburg Palace, and a coffee-house stop at Café Central, then an evening…[441 chars]",
+        "content_digest": "5af472645483526f",
+        "tool_name": "TripPlan",
+        "finish_reason": "ToolUse",
+        "observation_type": "generation"
+      },
+      {
+        "index": 3,
         "role": "user",
         "entry_type": "text",
-        "content": "Extract info: Jane Doe, a systems admin, 28, lives at 123 Main St, New York, USA. Email: jane@example.com",
-        "content_digest": "6a08cceee02e13c8",
+        "content": "Plan a two-day trip to Vienna.",
+        "content_digest": "5f56235d64bfe00d",
+        "observation_type": "agent"
+      },
+      {
+        "index": 4,
+        "role": "system",
+        "entry_type": "text",
+        "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+        "content_digest": "5d227641a000cd8c",
         "observation_type": "agent"
       }
     ]

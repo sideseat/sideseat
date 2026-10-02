@@ -1,42 +1,22 @@
 [project]
-name = "strands-sample"
-version = "0.1.0"
-description = "SideSeat telemetry sample for Strands Agents"
-requires-python = ">=3.12,<3.14"
+name = "example-strands"
+version = "0.0.0"
+description = "Strands Agents scenarios for SideSeat"
+requires-python = ">=3.11"
 dependencies = [
-    "numpy>=1.26",
-    "telemetry-common",
-    "sideseat[openai,anthropic,ws,agui]",
-    "strands-agents>=1.30.0",
-    "strands-agents-tools>=0.2.22",
-    "opentelemetry-instrumentation-botocore>=0.58b0",
-    "boto3>=1.42.22",
-    "litellm>=1.82.1",
-    "bedrock-agentcore>=1.4.6",
-    "pymupdf>=1.25.0",
-    "python-dotenv>=1.2.0",
-    "ag_ui_strands>=0.1.9",
-    "duckdb>=1.5.2",
+    "strands-agents[otel]>=1.57.2",
+    "mcp>=1.24",
+    "sideseat-example-harness[bedrock]",
 ]
 
-[project.scripts]
-strands = "cli:main"
+[tool.sideseat-example]
+producer = "strands"
+integrations = ["strands"]
 
 [tool.uv]
-# The resolver version this repository declares. Restated here because a project's own `[tool.uv]`
-# **replaces** the `uv.toml` found above it rather than merging with it, so without this line these
-# projects were the ones a differently-versioned uv could still write lockfiles for. Held equal to the
-# root by `every_uv_project_requires_the_same_resolver`.
 required-version = "==0.12.13"
-prerelease = "allow"
+package = false
 
 [tool.uv.sources]
-telemetry-common = { path = "../common", editable = true }
+sideseat-example-harness = { path = "../harness", editable = true }
 sideseat = { path = "../../../sdk/python", editable = true }
-
-[build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
-
-[tool.hatch.build.targets.wheel]
-include = ["*.py", "samples/"]

@@ -125,10 +125,9 @@ the corpus matches it.
 | `semantic-kernel/sdk` | SideSeat Python 1.0.8 / Semantic Kernel 1.44.1 / OpenAI 3.22.1 / OpenTelemetry Python 1.45.0 | 1 | 1 |
 | `smolagents/native` | Smolagents 1.26.0 / OpenAI 3.22.1 / OpenInference Smolagents instrumentor 0.1.41 / OpenTelemetry Python 1.45.0 on CPython 3.13.7, native OTLP setup | 1 | 1 |
 | `smolagents/sdk` | SideSeat Python 1.0.8 / Smolagents 1.26.0 / OpenAI 3.22.1 / OpenInference Smolagents instrumentor 0.1.41 / OpenTelemetry Python 1.45.0 on CPython 3.13.7 | 1 | 1 |
-| `strands/legacy` | strands-agents >=1.30.0 | 10 | 40 |
 | `strands-js/legacy` | @strands-agents/sdk ^1.14.0 | 7 | 12 |
-| `strands/native` | strands-agents >=1.30.0, native OTLP setup | 9 | 9 |
-| `strands/sdk` | SideSeat Python 1.0.8 / strands-agents >=1.30.0 | 9 | 9 |
+| `strands/native` | Strands Agents 1.57.2 / OpenTelemetry Python 1.45.0 on CPython 3.14.7, `StrandsTelemetry` | 11 | 14 |
+| `strands/sdk` | SideSeat Python 2.0.0 / Strands Agents 1.57.2 / OpenTelemetry Python 1.45.0 on CPython 3.14.7 | 11 | 11 |
 | `traceloop/native` | TraceLoop SDK 0.62.4 / OpenAI 3.22.1 / OpenTelemetry Python 1.45.0 on CPython 3.12.8, native OTLP setup | 1 | 1 |
 | `traceloop/sdk` | SideSeat Python 1.0.8 / TraceLoop SDK 0.62.4 / OpenAI 3.22.1 / OpenTelemetry Python 1.45.0 on CPython 3.12.8 | 1 | 1 |
 | `vercel-ai-js/legacy` | ai ^7.0.79 | 6 | 13 |

@@ -30,6 +30,7 @@ include make/dev.mk
 include make/quality.mk
 include make/test.mk
 include make/sdk.mk
+include make/examples.mk
 include make/build.mk
 include make/docs.mk
 include make/release.mk

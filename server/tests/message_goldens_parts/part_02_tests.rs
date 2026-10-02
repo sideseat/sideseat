@@ -549,10 +549,6 @@ fn sdk_and_plain_otel_conformance_are_identical() {
         let otel = build_golden(&otel_label, otel_paths, &otel_rows).golden;
 
         assert_eq!(
-            sdk.request_count, otel.request_count,
-            "{sdk_label}: SDK and raw OTel exported a different number of requests"
-        );
-        assert_eq!(
             sdk.span_count, otel.span_count,
             "{sdk_label}: SDK and raw OTel produced different span topology"
         );
@@ -615,11 +611,12 @@ fn sdk_and_plain_otel_conformance_are_identical() {
 /// attributes, span IDs, and measured duration embedded in Logfire's streaming span name can differ,
 /// but the transport and user-visible contract are exact:
 ///
-/// - both paths export the same number of OTLP batches and spans;
+/// - both paths export the same spans (batch boundaries are exporter timing and may differ);
 /// - every source span has the same message projection;
 /// - the same conversations exist as traces, including empty transport-only traces;
 /// - the same session conversations exist, independent of producer-side ID scrubbing;
-/// - the project feed is identical.
+/// - the project feed holds the same messages; its order follows completion time, which concurrent
+///   tool execution makes vary between runs, so the per-fixture golden pins the order instead.
 ///
 /// The native Logfire control path installs the same streaming reparenter before its raw OTLP
 /// exporter. Without it, Logfire 6 closes the request span before consuming the stream and exports
@@ -678,11 +675,8 @@ fn framework_sdk_and_native_conversations_are_identical() {
 
         let native = build_golden(&native_label, native_paths, &rows_for(native_paths)).golden;
         let sdk = build_golden(&sdk_label, sdk_paths, &rows_for(sdk_paths)).golden;
+        let (native, sdk) = with_restored_media_aligned(&sdk_label, native, sdk);
 
-        assert_eq!(
-            sdk.request_count, native.request_count,
-            "{sdk_label}: SDK and native instrumentation exported a different number of requests"
-        );
         assert_eq!(
             sdk.span_count, native.span_count,
             "{sdk_label}: SDK changed the number of framework spans"
@@ -710,8 +704,20 @@ fn framework_sdk_and_native_conversations_are_identical() {
             view_multiset(&native.session_views),
             "{sdk_label}: session conversations differ from native instrumentation"
         );
+        // The feed orders by completion time, and concurrently executed tools complete in a
+        // different order on every run; the same messages must appear, each once.
+        let feed_multiset = |view: &GoldenView| {
+            let mut messages: Vec<String> = view
+                .messages
+                .iter()
+                .map(|m| format!("{}|{}|{}", m.role, m.entry_type, m.content_digest))
+                .collect();
+            messages.sort();
+            messages
+        };
         assert_eq!(
-            sdk.feed_view, native.feed_view,
+            feed_multiset(&sdk.feed_view),
+            feed_multiset(&native.feed_view),
             "{sdk_label}: project feed differs from native instrumentation"
         );
         compared += 1;
@@ -721,6 +727,48 @@ fn framework_sdk_and_native_conversations_are_identical() {
         compared > 0,
         "no framework native/SDK fixture pairs were compared"
     );
+}
+
+/// The payload a framework writes in place of binary content it does not export.
+const MEDIA_OMITTED: &str = "<replaced>";
+
+/// Aligns a pair where native telemetry omitted media payloads that the SDK restores.
+///
+/// Some frameworks replace image and document bytes with a placeholder in their own telemetry, and
+/// their SideSeat integration exports the bytes instead. That is the one difference parity allows:
+/// when the native side carries the placeholder, media blocks on both sides are compared by type
+/// alone. The SDK side must never carry the placeholder itself - restoring media is the point.
+fn with_restored_media_aligned(label: &str, native: Golden, sdk: Golden) -> (Golden, Golden) {
+    let sdk_json = serde_json::to_string(&sdk).expect("golden is serializable");
+    assert!(
+        !sdk_json.contains(MEDIA_OMITTED),
+        "{label}: SDK telemetry lost a media payload the integration should restore"
+    );
+    if !serde_json::to_string(&native).expect("golden is serializable").contains(MEDIA_OMITTED) {
+        return (native, sdk);
+    }
+    fn mask(value: &mut serde_json::Value) {
+        match value {
+            serde_json::Value::Object(map) => {
+                let media = map.get("entry_type").and_then(serde_json::Value::as_str).is_some_and(|kind| {
+                    matches!(kind, "image" | "document" | "audio" | "video" | "file")
+                });
+                if media {
+                    map.insert("content".into(), serde_json::Value::String("<media>".into()));
+                    map.insert("content_digest".into(), serde_json::Value::String(String::new()));
+                }
+                map.values_mut().for_each(mask);
+            }
+            serde_json::Value::Array(items) => items.iter_mut().for_each(mask),
+            _ => {}
+        }
+    }
+    let masked = |golden: Golden| -> Golden {
+        let mut value = serde_json::to_value(golden).expect("golden is serializable");
+        mask(&mut value);
+        serde_json::from_value(value).expect("masked golden deserializes")
+    };
+    (masked(native), masked(sdk))
 }
 
 /// Human-readable differences between one expected and one actual view.
