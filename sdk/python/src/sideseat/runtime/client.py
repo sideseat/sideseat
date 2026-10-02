@@ -325,7 +325,7 @@ class RuntimeClient(_InvocationMixin):
         When `block=True`, a startup banner is printed on stdout once the
         first welcome arrives. Pass `banner=False` to suppress it.
         """
-        if not importlib.util.find_spec("websockets") is not None:
+        if importlib.util.find_spec("websockets") is None:
             raise ImportError(
                 'the runtime channel needs websockets: pip install "sideseat[runtime]"'
             )

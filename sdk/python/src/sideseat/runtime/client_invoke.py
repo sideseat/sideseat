@@ -71,7 +71,7 @@ class _InvocationMixin:
 
         # 1. Gate on the optional [agui] extra. Renderer + ag_ui types are
         #    needed; bail out cleanly if missing.
-        if not importlib.util.find_spec("ag_ui") is not None:
+        if importlib.util.find_spec("ag_ui") is None:
             self._send_invoke_error(
                 request_id,
                 "agui_extra_missing",
