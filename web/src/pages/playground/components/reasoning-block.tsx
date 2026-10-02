@@ -40,7 +40,7 @@ export function ReasoningBlock({ content, streaming }: Props) {
       </summary>
       {hasContent ? (
         <div className="border-t px-3 py-2.5">
-          <pre className="m-0 whitespace-pre-wrap font-sans text-[12.5px] leading-relaxed text-muted-foreground">
+          <pre className="m-0 whitespace-pre-wrap font-sans text-xs leading-relaxed text-muted-foreground">
             {content}
           </pre>
         </div>

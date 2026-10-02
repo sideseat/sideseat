@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type CSSProperties } from "react";
 import { Trash2, Plus, CheckCircle, XCircle, Loader2 } from "lucide-react";
 
 import type { Credential, TestResult } from "@/api/credentials";
@@ -63,8 +63,8 @@ function ProviderBadge({ providerKey }: { providerKey: string }) {
   }
   return (
     <span
-      className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-sm font-bold text-white"
-      style={{ backgroundColor: p.accentColor }}
+      className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-(--provider-accent) text-sm font-bold text-white"
+      style={{ "--provider-accent": p.accentColor } as CSSProperties}
     >
       {p.abbrev}
     </span>
@@ -128,12 +128,9 @@ export function ManageCredentialDialog({
 
   return (
     <Dialog open={!!credential} onOpenChange={handleOpenChange}>
-      <DialogContent
-        className="flex w-full flex-col sm:max-w-3xl"
-        style={{ height: "min(90vh, 760px)" }}
-      >
+      <DialogContent className="flex h-190 max-h-9/10 w-full flex-col sm:max-w-3xl">
         <DialogHeader className="shrink-0">
-          <DialogTitle className="flex items-center gap-2">
+          <DialogTitle className="flex items-center">
             {credential && <ProviderBadge providerKey={credential.provider_key} />}
             {credential?.display_name ?? "Manage Credential"}
           </DialogTitle>
@@ -188,7 +185,7 @@ export function ManageCredentialDialog({
               className={cn(
                 "flex items-start gap-2 rounded-lg border px-3 py-2.5 text-sm",
                 testResult.success
-                  ? "border-green-500/30 bg-green-500/10 text-green-700 dark:text-green-400"
+                  ? "border-success/30 bg-success/10 text-success-foreground"
                   : "border-destructive/30 bg-destructive/10 text-destructive",
               )}
             >
@@ -303,11 +300,7 @@ function GeneralTab({
               return (
                 <Field key={key}>
                   <FieldLabel>{label}</FieldLabel>
-                  <Input
-                    value={displayValue}
-                    readOnly
-                    className="cursor-default opacity-60 focus-visible:ring-0"
-                  />
+                  <Input value={displayValue} readOnly variant="readonly" />
                 </Field>
               );
             })}
@@ -379,7 +372,7 @@ function AccessTab({ credential, orgId }: { credential: Credential; orgId: strin
                       className={cn(
                         "rounded px-1.5 py-0.5 text-xs font-medium",
                         perm.access === "allow"
-                          ? "bg-green-500/10 text-green-600"
+                          ? "bg-success/10 text-success"
                           : "bg-destructive/10 text-destructive",
                       )}
                     >

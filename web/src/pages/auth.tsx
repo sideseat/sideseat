@@ -100,7 +100,7 @@ function AuthForm({
     <div className="flex items-center justify-center min-h-screen bg-background p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-1">
-          <CardTitle className="text-2xl font-bold">Authentication</CardTitle>
+          <CardTitle size="xl">Authentication</CardTitle>
           <CardDescription>
             Enter the authentication token from your terminal to continue.
           </CardDescription>

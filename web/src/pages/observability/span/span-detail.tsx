@@ -92,12 +92,13 @@ interface TagBadgeProps {
   children: React.ReactNode;
   tooltip?: string;
   variant?: "secondary" | "destructive";
+  mono?: boolean;
   className?: string;
 }
 
-function TagBadge({ children, tooltip, variant = "secondary", className }: TagBadgeProps) {
+function TagBadge({ children, tooltip, variant = "secondary", mono, className }: TagBadgeProps) {
   const badge = (
-    <Badge variant={variant} className={cn("gap-1 text-xs font-normal", className)}>
+    <Badge variant={variant} weight="normal" mono={mono} className={className}>
       {children}
     </Badge>
   );
@@ -111,8 +112,8 @@ function TagBadge({ children, tooltip, variant = "secondary", className }: TagBa
       <TooltipTrigger asChild>
         <span className="inline-flex">{badge}</span>
       </TooltipTrigger>
-      <TooltipContent side="bottom" className="max-w-sm break-all font-mono text-xs">
-        {tooltip}
+      <TooltipContent side="bottom" className="max-w-sm break-all">
+        <span className="font-mono">{tooltip}</span>
       </TooltipContent>
     </Tooltip>
   );
@@ -167,12 +168,7 @@ function SpanHeader({
           <div className="flex shrink-0 items-center gap-1">
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-7 gap-1.5 px-2 text-xs"
-                  onClick={onViewInTrace}
-                >
+                <Button variant="ghost" size="xs" onClick={onViewInTrace}>
                   <ArrowUpRight className="h-3.5 w-3.5" />
                   <span className="hidden @[500px]:inline">Trace</span>
                 </Button>
@@ -182,13 +178,7 @@ function SpanHeader({
 
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-7 gap-1.5 px-2 text-xs"
-                  onClick={onViewInSession}
-                  disabled={!hasSession}
-                >
+                <Button variant="ghost" size="xs" onClick={onViewInSession} disabled={!hasSession}>
                   <Users className="h-3.5 w-3.5" />
                   <span className="hidden @[500px]:inline">Session</span>
                 </Button>
@@ -217,21 +207,21 @@ function SpanHeader({
         )}
 
         {span.duration_ms != null && (
-          <TagBadge className="font-mono">
+          <TagBadge mono>
             <Clock className="h-3 w-3" />
             {formatDuration(span.duration_ms)}
           </TagBadge>
         )}
 
         {tokenDisplay && (
-          <TagBadge className="font-mono">
+          <TagBadge mono>
             <Cpu className="h-3 w-3" />
             {tokenDisplay}
           </TagBadge>
         )}
 
         {hasCost && (
-          <TagBadge className="font-mono">
+          <TagBadge mono>
             <Coins className="h-3 w-3" />
             {formatCost(span.total_cost)}
           </TagBadge>
@@ -245,7 +235,7 @@ function SpanHeader({
         )}
 
         {span.model && (
-          <TagBadge className="max-w-48 font-mono @[500px]:max-w-64" tooltip={span.model}>
+          <TagBadge mono className="max-w-48 @[500px]:max-w-64" tooltip={span.model}>
             <span className="truncate">{span.model}</span>
           </TagBadge>
         )}

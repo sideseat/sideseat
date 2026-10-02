@@ -95,7 +95,7 @@ export function ApiKeyCard({ apiKey, onDelete }: ApiKeyCardProps) {
           <div className="flex items-center gap-2 shrink-0">
             {/* Scope badge */}
             {expired ? (
-              <Badge variant="destructive" className="gap-1">
+              <Badge variant="destructive">
                 <AlertTriangle className="h-3 w-3" />
                 Expired
               </Badge>

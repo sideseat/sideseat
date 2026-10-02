@@ -81,16 +81,16 @@ export function FiltersPanel({
     <Sheet open={open} onOpenChange={handleOpenChange}>
       <SheetTrigger asChild onMouseEnter={onTriggerMouseEnter}>
         {trigger ?? (
-          <Button variant="outline" size="sm" className="gap-2">
+          <Button variant="outline" size="sm">
             <SlidersHorizontal className="h-4 w-4" />
             <span className="hidden sm:inline">Filters</span>
             {activeCount > 0 && <Badge variant="secondary">{activeCount}</Badge>}
           </Button>
         )}
       </SheetTrigger>
-      <SheetContent side="right" className="flex w-full max-w-sm flex-col gap-0 p-0 sm:max-w-md">
-        <SheetHeader className="flex h-14 flex-row items-center border-b px-6">
-          <SheetTitle className="flex items-center gap-2 text-base font-medium">
+      <SheetContent side="right" className="flex w-full max-w-sm flex-col sm:max-w-md">
+        <SheetHeader variant="bordered" className="flex h-14 flex-row items-center px-6">
+          <SheetTitle size="md" className="flex items-center">
             <SlidersHorizontal className="h-4 w-4 text-muted-foreground" />
             Filters
           </SheetTitle>
@@ -107,7 +107,7 @@ export function FiltersPanel({
               placeholder="Search filters..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="h-9 pl-9 text-sm"
+              adornment="start"
             />
           </div>
           <div className="flex items-center gap-2">

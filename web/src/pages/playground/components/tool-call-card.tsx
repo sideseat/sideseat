@@ -54,7 +54,7 @@ export function ToolCallCard({ toolName, args, result, done, onOpenFull, scrollT
         </span>
         <span
           className={cn(
-            "shrink-0 font-mono text-[12px] font-medium",
+            "shrink-0 font-mono text-xs font-medium",
             streaming ? "text-foreground" : "text-foreground/85",
           )}
         >
@@ -63,14 +63,14 @@ export function ToolCallCard({ toolName, args, result, done, onOpenFull, scrollT
         {summary ? (
           <span
             className={cn(
-              "min-w-0 max-w-[22ch] truncate font-mono text-[12px]",
+              "min-w-0 max-w-40 truncate font-mono text-xs",
               streaming ? "text-foreground/80" : "text-muted-foreground",
             )}
           >
             {summary}
           </span>
         ) : null}
-        {streaming ? <PulseDot /> : <Check className="size-3 shrink-0 text-green-600" />}
+        {streaming ? <PulseDot /> : <Check className="size-3 shrink-0 text-success" />}
       </button>
     );
   }
@@ -87,9 +87,7 @@ export function ToolCallCard({ toolName, args, result, done, onOpenFull, scrollT
         <span className="flex size-5 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
           <ToolIcon toolName={toolName} className="size-3.5" />
         </span>
-        <span className="shrink-0 font-mono text-[12px] font-medium text-foreground">
-          {toolName}
-        </span>
+        <span className="shrink-0 font-mono text-xs font-medium text-foreground">{toolName}</span>
         {summary ? (
           <span className="min-w-0 flex-1 truncate font-mono text-muted-foreground">{summary}</span>
         ) : (
@@ -114,10 +112,10 @@ export function ToolCallCard({ toolName, args, result, done, onOpenFull, scrollT
 function OversizeResultHint({ bytes }: { bytes: number }) {
   return (
     <div className="rounded-md border border-dashed bg-background px-3 py-2">
-      <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">
+      <p className="text-3xs font-semibold uppercase tracking-widest text-muted-foreground">
         Result
       </p>
-      <p className="text-[11px] text-muted-foreground">
+      <p className="text-2xs text-muted-foreground">
         {formatBytes(bytes)} — too large to render inline.
       </p>
     </div>
@@ -153,17 +151,14 @@ export function ResultSection({ body, unbounded }: { body: string; unbounded?: b
 function StatusPill({ status }: { status: "streaming" | "done" }) {
   if (status === "streaming") {
     return (
-      <Badge variant="default" className="gap-1 text-[10px] font-medium">
+      <Badge variant="default" size="sm">
         <PulseDot />
         Streaming
       </Badge>
     );
   }
   return (
-    <Badge
-      variant="outline"
-      className="gap-1 border-green-600/30 bg-green-600/10 text-[10px] font-medium text-green-700 dark:text-green-400"
-    >
+    <Badge variant="success" size="sm">
       <Check className="size-3" />
       Done
     </Badge>
@@ -196,17 +191,17 @@ function Section({
     <div>
       <div className="mb-1.5 flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">
+          <p className="text-3xs font-semibold uppercase tracking-widest text-muted-foreground">
             {label}
           </p>
-          <span className="rounded-sm border px-1 py-px font-mono text-[9px] uppercase text-muted-foreground/80">
+          <span className="rounded-sm border px-1 py-px font-mono text-3xs uppercase text-muted-foreground/80">
             {mode}
           </span>
         </div>
         <button
           type="button"
           onClick={onCopy}
-          className="inline-flex cursor-pointer items-center gap-1 rounded px-1 py-0.5 text-[10px] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          className="inline-flex cursor-pointer items-center gap-1 rounded px-1 py-0.5 text-3xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
           aria-label={`Copy ${label}`}
         >
           {copied ? <Check className="size-3" /> : <Copy className="size-3" />}
@@ -215,8 +210,8 @@ function Section({
       </div>
       <pre
         className={cn(
-          "overflow-auto rounded-md border bg-background p-2.5 font-mono text-[11px] leading-relaxed",
-          unbounded ? "max-h-[70vh]" : "max-h-72",
+          "overflow-auto rounded-md border bg-background p-2.5 font-mono text-2xs leading-relaxed",
+          unbounded ? "max-h-160" : "max-h-72",
           mode === "json" ? "whitespace-pre-wrap" : "whitespace-pre",
         )}
       >

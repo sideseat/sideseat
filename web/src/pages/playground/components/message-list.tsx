@@ -105,12 +105,9 @@ function renderItems(items: Message[]) {
 
 function StickyStepHeader({ name }: { name: string }) {
   return (
-    <div
-      className="sticky z-10 -mx-3 flex items-center gap-3 bg-background/85 px-3 py-1.5 backdrop-blur supports-backdrop-filter:bg-background/70 md:-mx-6 md:px-6"
-      style={{ top: "var(--header-height)" }}
-    >
+    <div className="sticky top-header-height z-10 -mx-3 flex items-center gap-3 bg-background/85 px-3 py-1.5 backdrop-blur supports-backdrop-filter:bg-background/70 md:-mx-6 md:px-6">
       <span className="h-px flex-1 bg-border" />
-      <span className="inline-flex items-center gap-2 rounded-full border bg-card px-2.5 py-0.5 font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground shadow-xs">
+      <span className="inline-flex items-center gap-2 rounded-full border bg-card px-2.5 py-0.5 font-mono text-3xs uppercase tracking-widest text-muted-foreground shadow-xs">
         <span className="size-1.5 rounded-full bg-primary" />
         {name}
       </span>
@@ -153,7 +150,7 @@ function ActivityIndicator({ tail }: { tail: Message | undefined }) {
       <PulseDot />
       <span className="font-medium text-foreground/85">{label}</span>
       {since > 0 && (
-        <span className="ml-auto font-mono tabular-nums text-[11px] text-muted-foreground/80">
+        <span className="ml-auto font-mono tabular-nums text-2xs text-muted-foreground/80">
           {formatElapsed(since)}
         </span>
       )}

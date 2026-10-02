@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type CSSProperties } from "react";
 import { Navigate, useParams } from "react-router";
 import { CheckCircle2, Plug, Plus, Settings, Trash2, XCircle } from "lucide-react";
 
@@ -37,8 +37,8 @@ function ProviderBadge({ providerKey }: { providerKey: string }) {
   }
   return (
     <div
-      className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-xs font-bold text-white"
-      style={{ backgroundColor: provider.accentColor }}
+      className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-(--provider-accent) text-xs font-bold text-white"
+      style={{ "--provider-accent": provider.accentColor } as CSSProperties}
     >
       {provider.abbrev}
     </div>
@@ -59,12 +59,7 @@ function TestButton({ testInfo, onTest }: { testInfo: TestInfo; onTest: () => vo
       <TooltipProvider>
         <Tooltip>
           <TooltipTrigger asChild>
-            <Button
-              variant="outline"
-              size="sm"
-              className="text-green-600 border-green-600/50"
-              onClick={onTest}
-            >
+            <Button variant="outline-success" size="sm" onClick={onTest}>
               <CheckCircle2 className="mr-1.5 h-3.5 w-3.5" />
               Connected
               {testInfo.latencyMs !== undefined && (
@@ -86,12 +81,7 @@ function TestButton({ testInfo, onTest }: { testInfo: TestInfo; onTest: () => vo
       <TooltipProvider>
         <Tooltip>
           <TooltipTrigger asChild>
-            <Button
-              variant="outline"
-              size="sm"
-              className="text-destructive border-destructive/50"
-              onClick={onTest}
-            >
+            <Button variant="outline-destructive" size="sm" onClick={onTest}>
               <XCircle className="mr-1.5 h-3.5 w-3.5" />
               Failed
             </Button>
@@ -168,7 +158,7 @@ function CredentialCard({ credential, orgId, onDelete, onManage }: CredentialCar
                 {credential.display_name}
               </h3>
               {envVarName && (
-                <code className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-mono text-muted-foreground">
+                <code className="rounded bg-muted px-1.5 py-0.5 text-3xs font-mono text-muted-foreground">
                   {envVarName}
                 </code>
               )}
@@ -191,7 +181,7 @@ function CredentialCard({ credential, orgId, onDelete, onManage }: CredentialCar
           {/* Status badges */}
           <div className="flex shrink-0 flex-col items-end gap-1">
             {credential.source === "env" && (
-              <Badge variant="secondary" className="text-[10px] px-1.5">
+              <Badge variant="secondary" size="sm">
                 ENV
               </Badge>
             )}
@@ -208,9 +198,9 @@ function CredentialCard({ credential, orgId, onDelete, onManage }: CredentialCar
                 Manage
               </Button>
               <Button
-                variant="ghost"
+                variant="muted-destructive"
                 size="sm"
-                className="ml-auto text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                className="ml-auto"
                 onClick={onDelete}
                 aria-label={`Delete credential ${credential.display_name}`}
               >

@@ -59,15 +59,11 @@ export default function NotFoundPage() {
 
           {/* Primary actions */}
           <div className="flex w-full flex-col gap-2 sm:flex-row sm:justify-center">
-            <Button
-              onClick={() => navigate(-1)}
-              variant="outline"
-              className="w-full gap-2 sm:w-auto"
-            >
+            <Button onClick={() => navigate(-1)} variant="outline" className="w-full sm:w-auto">
               <ArrowLeft className="size-4" />
               Go Back
             </Button>
-            <Button asChild className="w-full gap-2 sm:w-auto">
+            <Button asChild className="w-full sm:w-auto">
               <Link to="/">
                 <Home className="size-4" />
                 Home
@@ -87,13 +83,7 @@ export default function NotFoundPage() {
             {quickLinks.map((link) => {
               const Icon = link.icon;
               return (
-                <Button
-                  key={link.title}
-                  variant="ghost"
-                  size="sm"
-                  asChild
-                  className="gap-2 text-muted-foreground hover:text-foreground"
-                >
+                <Button key={link.title} variant="muted" size="sm" asChild>
                   <Link to={link.url}>
                     <Icon className="size-4" />
                     {link.title}

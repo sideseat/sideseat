@@ -30,10 +30,7 @@ export function FavoriteButton({
       aria-label={isFavorite ? "Remove from favorites" : "Add to favorites"}
     >
       <Star
-        className={cn(
-          "h-3.5 w-3.5 transition-colors",
-          isFavorite && "fill-yellow-400 text-yellow-400",
-        )}
+        className={cn("h-3.5 w-3.5 transition-colors", isFavorite && "fill-favorite text-favorite")}
       />
     </Button>
   );

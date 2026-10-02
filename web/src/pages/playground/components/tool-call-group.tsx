@@ -41,15 +41,13 @@ export function ToolCallGroup({ tools }: { tools: ToolCallMessage[] }) {
           if (!o) close();
         }}
       >
-        <SheetContent side="right" className="w-full sm:max-w-3xl flex flex-col p-0">
-          <SheetHeader className="gap-0 border-b px-5 py-4">
-            <SheetTitle className="text-sm font-semibold tracking-tight text-foreground">
+        <SheetContent side="right" className="w-full sm:max-w-3xl flex flex-col">
+          <SheetHeader variant="bordered" className="gap-0 px-5 py-4">
+            <SheetTitle size="sm">
               {tools.length === 1 ? "Tool call" : `${tools.length} tool calls`}
             </SheetTitle>
             {tools.length > 1 && (
-              <p className="text-[11px] text-muted-foreground">
-                Batch — scroll to browse each call.
-              </p>
+              <p className="text-2xs text-muted-foreground">Batch — scroll to browse each call.</p>
             )}
           </SheetHeader>
           <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
@@ -89,9 +87,9 @@ function ToolSheetSection({
         <span className="flex size-6 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
           <ToolIcon toolName={tool.toolName} className="size-3.5" />
         </span>
-        <span className="font-mono text-[13px] font-medium text-foreground">{tool.toolName}</span>
+        <span className="font-mono text-sm font-medium text-foreground">{tool.toolName}</span>
         {total > 1 && (
-          <span className="ml-auto font-mono text-[10px] tabular-nums text-muted-foreground">
+          <span className="ml-auto font-mono text-3xs tabular-nums text-muted-foreground">
             {index} / {total}
           </span>
         )}

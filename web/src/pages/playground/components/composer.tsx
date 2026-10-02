@@ -67,8 +67,8 @@ export function Composer({
     <div
       onClick={() => textareaRef.current?.focus()}
       className={cn(
-        "flex min-h-11 cursor-text items-end gap-2 rounded-xl border bg-card px-1.5 py-1.5 shadow-sm transition-[border-color,box-shadow] duration-150",
-        focused && "border-foreground/30 ring-[3px] ring-ring/20",
+        "flex min-h-11 cursor-text items-end gap-2 rounded-xl border bg-card px-1.5 py-1.5 shadow-sm transition duration-150",
+        focused && "border-foreground/30 ring-3 ring-ring/20",
       )}
     >
       <textarea
@@ -81,12 +81,10 @@ export function Composer({
         placeholder={placeholder}
         disabled={disabled}
         rows={rows}
-        // Inline `box-shadow: none` overrides the theme-level
-        // `textarea:focus { box-shadow: ... }` rule that themes inject.
-        // The outer wrapper owns the focus ring; the textarea must not
-        // draw its own.
-        style={{ boxShadow: "none" }}
-        className="min-h-8 flex-1 resize-none border-0 bg-transparent px-2 py-1.5 text-sm leading-5 outline-none ring-0 focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50"
+        // The outer wrapper owns the focus ring. The color schemes inject an
+        // unlayered `textarea:focus { box-shadow }` rule, which beats any
+        // layered utility, so only an important shadow-none removes it.
+        className="shadow-none! min-h-8 flex-1 resize-none border-0 bg-transparent px-2 py-1.5 text-sm leading-5 outline-none ring-0 focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50"
       />
       {isStreaming ? (
         <Button

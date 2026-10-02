@@ -45,23 +45,28 @@ export const SpanTimelineRow = memo(function SpanTimelineRow({
 
   return (
     <div className="group flex min-w-fit cursor-pointer flex-row items-center py-1 pr-4">
-      <div style={{ marginLeft: `${metrics.marginLeft}px` }} onClick={() => onSelect(node.id)}>
+      <div
+        className="ml-(--indent)"
+        style={
+          {
+            "--indent": `${metrics.marginLeft}px`,
+            "--bar-width": `${metrics.barWidth}px`,
+            // The fill sits inside the bar's 2px border on each side.
+            "--bar-fill-width": `${metrics.barWidth - 4}px`,
+          } as React.CSSProperties
+        }
+        onClick={() => onSelect(node.id)}
+      >
         <div
           className={cn(
-            "relative flex h-8 items-center rounded-sm border bg-transparent",
+            "relative flex h-8 min-w-(--bar-width) items-center rounded-sm border bg-transparent",
             hasError && !isSelected ? "border-destructive/50" : "border-border",
             isSelected
               ? "ring-2 ring-primary"
               : "group-hover:ring-1 group-hover:ring-muted-foreground/50",
           )}
-          style={{
-            minWidth: `${metrics.barWidth}px`,
-          }}
         >
-          <div
-            className="absolute inset-y-px left-px rounded-sm bg-muted"
-            style={{ width: `calc(${metrics.barWidth}px - 4px)` }}
-          />
+          <div className="absolute inset-y-px left-px w-(--bar-fill-width) rounded-sm bg-muted" />
 
           <div
             className={cn(

@@ -122,8 +122,8 @@ function ProjectHome({ projectId }: { projectId: string }) {
             <ButtonGroup>
               <Button
                 variant="outline"
-                size="sm"
-                className="px-2 gap-1.5 min-w-13 sm:min-w-17"
+                size="toolbar"
+                className="min-w-13 sm:min-w-17"
                 onClick={() => {
                   setRealtimeEnabled((prev) => {
                     const next = !prev;
@@ -153,8 +153,7 @@ function ProjectHome({ projectId }: { projectId: string }) {
               </Button>
               <Button
                 variant="outline"
-                size="sm"
-                className="h-8 w-8 px-0"
+                size="icon-sm"
                 onClick={handleRefresh}
                 disabled={isRefreshing}
               >
@@ -179,8 +178,8 @@ function ProjectHome({ projectId }: { projectId: string }) {
           <ButtonGroup>
             <Button
               variant="outline"
-              size="sm"
-              className="px-2 gap-1.5 min-w-13 sm:min-w-17"
+              size="toolbar"
+              className="min-w-13 sm:min-w-17"
               onClick={() => {
                 setRealtimeEnabled((prev) => {
                   const next = !prev;
@@ -208,8 +207,7 @@ function ProjectHome({ projectId }: { projectId: string }) {
             </Button>
             <Button
               variant="outline"
-              size="sm"
-              className="h-8 w-8 px-0"
+              size="icon-sm"
               onClick={handleRefresh}
               disabled={isRefreshing}
             >

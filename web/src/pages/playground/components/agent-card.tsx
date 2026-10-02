@@ -3,7 +3,6 @@ import { Bot, Network, Sparkles, Users, Workflow, type LucideIcon } from "lucide
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { RegistrationEntry, RegistrationKind } from "@/api/registrations/types";
-import { cn } from "@/lib/utils";
 
 interface Props {
   agent: RegistrationEntry;
@@ -104,22 +103,16 @@ export function AgentCard({ agent, selected, onSelect }: Props) {
       title={agent.name}
       className="block h-full w-full text-left focus-visible:outline-none"
     >
-      <Card
-        className={cn(
-          "h-full gap-3 border-border bg-card py-4 shadow-sm transition-colors",
-          "hover:border-primary/50 hover:bg-accent/50",
-          selected && "border-primary/60 ring-1 ring-primary/40",
-        )}
-      >
+      <Card size="sm" interactive selected={selected} className="h-full">
         <CardHeader className="flex flex-row items-start gap-3 px-5">
           <div className="flex size-9 shrink-0 items-center justify-center rounded-lg border bg-muted/40 text-muted-foreground">
             <Icon className="size-4" />
           </div>
           <div className="min-w-0 flex-1">
-            <CardTitle className="flex items-center gap-2 text-base leading-tight">
+            <CardTitle size="md" className="flex items-center">
               <span className="min-w-0 flex-1 truncate">{agent.name}</span>
-              <Badge variant="outline" className="shrink-0 font-mono text-[10px] uppercase">
-                {agent.kind}
+              <Badge variant="outline" size="sm" mono className="shrink-0">
+                <span className="uppercase">{agent.kind}</span>
               </Badge>
             </CardTitle>
             <p className="mt-1 truncate text-xs text-muted-foreground">
@@ -131,7 +124,7 @@ export function AgentCard({ agent, selected, onSelect }: Props) {
         {/* Body always renders so every card reserves the same height,
             even when a registration has no system_prompt or node summary. */}
         <CardContent className="px-5 pb-0">
-          <p className="line-clamp-2 min-h-[2.6em] text-sm leading-relaxed text-muted-foreground">
+          <p className="line-clamp-2 min-h-9 text-sm leading-relaxed text-muted-foreground">
             {subtitle || <span className="opacity-0">placeholder</span>}
           </p>
         </CardContent>

@@ -18,10 +18,8 @@ export function ToolUseContent({ id, name, input, showInlineHeader = false }: To
     <div className="space-y-2">
       {showInlineHeader && name && (
         <div className="flex items-center gap-2">
-          <Wrench className="h-4 w-4 text-orange-600 dark:text-orange-400" />
-          <span className="font-mono text-sm font-semibold text-orange-700 dark:text-orange-300">
-            {name}
-          </span>
+          <Wrench className="h-4 w-4 text-role-tool-call" />
+          <span className="font-mono text-sm font-semibold text-role-tool-call">{name}</span>
         </div>
       )}
       {id && <div className="text-xs text-muted-foreground font-mono">tool_call_id: {id}</div>}

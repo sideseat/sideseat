@@ -30,76 +30,81 @@ export function FilterSection({
 
   return (
     <Collapsible open={isOpen} onOpenChange={setIsOpen}>
-      <CollapsibleTrigger className="flex w-full items-center justify-between border-b px-4 py-3 hover:bg-accent">
-        <div className="flex items-center gap-2">
-          <span className="text-sm font-medium">{config.label}</span>
-          {hasActiveFilters && (
-            <span className="h-2 w-2 rounded-full bg-primary" aria-label="Active filter" />
+      <CollapsibleTrigger asChild>
+        <button
+          type="button"
+          className="flex w-full items-center justify-between border-b px-4 py-3 hover:bg-accent"
+        >
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-medium">{config.label}</span>
+            {hasActiveFilters && (
+              <span className="h-2 w-2 rounded-full bg-primary" aria-label="Active filter" />
+            )}
+          </div>
+          <ChevronDown
+            className={cn(
+              "h-4 w-4 text-muted-foreground transition-transform",
+              isOpen && "rotate-180",
+            )}
+          />
+        </button>
+      </CollapsibleTrigger>
+      <CollapsibleContent asChild>
+        <div className="border-b bg-muted/30 px-4 py-4">
+          {config.type === "select" && (
+            <div className="mb-3 flex gap-1">
+              <Button
+                type="button"
+                size="xs"
+                variant={mode === "select" ? "default" : "outline"}
+                onClick={() => setMode("select")}
+              >
+                SELECT
+              </Button>
+              <Button
+                type="button"
+                size="xs"
+                variant={mode === "text" ? "default" : "outline"}
+                onClick={() => setMode("text")}
+              >
+                TEXT
+              </Button>
+            </div>
+          )}
+
+          {config.type === "select" && mode === "select" && (
+            <SelectFilter
+              config={config}
+              options={options}
+              filters={filters}
+              onChange={onChange}
+              isLoading={isLoading}
+            />
+          )}
+          {config.type === "select" && mode === "text" && (
+            <TextFilter config={config} filters={filters} onChange={onChange} />
+          )}
+          {config.type === "text" && (
+            <TextFilter config={config} filters={filters} onChange={onChange} />
+          )}
+          {config.type === "tags" && (
+            <TagsFilter
+              config={config}
+              options={options}
+              filters={filters}
+              onChange={onChange}
+              isLoading={isLoading}
+            />
+          )}
+          {config.type === "number" && (
+            <NumberFilter
+              key={JSON.stringify(filters)}
+              config={config}
+              filters={filters}
+              onChange={onChange}
+            />
           )}
         </div>
-        <ChevronDown
-          className={cn(
-            "h-4 w-4 text-muted-foreground transition-transform",
-            isOpen && "rotate-180",
-          )}
-        />
-      </CollapsibleTrigger>
-      <CollapsibleContent className="border-b bg-muted/30 px-4 py-4">
-        {config.type === "select" && (
-          <div className="mb-3 flex gap-1">
-            <Button
-              type="button"
-              size="sm"
-              variant={mode === "select" ? "default" : "outline"}
-              onClick={() => setMode("select")}
-              className="h-7 text-xs"
-            >
-              SELECT
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant={mode === "text" ? "default" : "outline"}
-              onClick={() => setMode("text")}
-              className="h-7 text-xs"
-            >
-              TEXT
-            </Button>
-          </div>
-        )}
-
-        {config.type === "select" && mode === "select" && (
-          <SelectFilter
-            config={config}
-            options={options}
-            filters={filters}
-            onChange={onChange}
-            isLoading={isLoading}
-          />
-        )}
-        {config.type === "select" && mode === "text" && (
-          <TextFilter config={config} filters={filters} onChange={onChange} />
-        )}
-        {config.type === "text" && (
-          <TextFilter config={config} filters={filters} onChange={onChange} />
-        )}
-        {config.type === "tags" && (
-          <TagsFilter
-            config={config}
-            options={options}
-            filters={filters}
-            onChange={onChange}
-            isLoading={isLoading}
-          />
-        )}
-        {config.type === "number" && (
-          <NumberFilter
-            key={JSON.stringify(filters)}
-            config={config}
-            filters={filters}
-            onChange={onChange}
-          />
-        )}
       </CollapsibleContent>
     </Collapsible>
   );
@@ -213,10 +218,9 @@ function TextFilter({ config, filters, onChange }: TextFilterProps) {
           <Button
             type="button"
             key={op}
-            size="sm"
+            size="xs"
             variant={operator === op ? "default" : "outline"}
             onClick={() => setOperator(op)}
-            className="h-7 text-xs"
           >
             {op === "=" ? "equals" : op.replace("_", " ")}
           </Button>

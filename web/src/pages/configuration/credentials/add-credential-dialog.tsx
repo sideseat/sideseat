@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type CSSProperties } from "react";
 import { Eye, EyeOff, CheckCircle, XCircle, Loader2, Trash2, Plus } from "lucide-react";
 
 import { useQueryClient } from "@tanstack/react-query";
@@ -76,7 +76,7 @@ function PasswordInput({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        className="pr-10"
+        adornment="end"
       />
       <button
         type="button"
@@ -170,8 +170,8 @@ function ProviderPicker({
           )}
         >
           <div
-            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-sm font-bold text-white shadow-sm"
-            style={{ backgroundColor: p.accentColor }}
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-(--provider-accent) text-sm font-bold text-white shadow-sm"
+            style={{ "--provider-accent": p.accentColor } as CSSProperties}
           >
             {p.abbrev}
           </div>
@@ -243,10 +243,11 @@ function ConfigureStep({
             type="single"
             value={authModeId ?? ""}
             onValueChange={(v) => v && onAuthModeChange(v)}
-            className="flex flex-wrap justify-start gap-1"
+            spacing={1}
+            className="flex flex-wrap justify-start"
           >
             {provider.authModes.map((mode) => (
-              <ToggleGroupItem key={mode.id} value={mode.id} className="px-3 py-1.5 text-sm">
+              <ToggleGroupItem key={mode.id} value={mode.id}>
                 {mode.label}
               </ToggleGroupItem>
             ))}
@@ -307,7 +308,7 @@ function AccessStep({
                       className={cn(
                         "rounded px-1.5 py-0.5 text-xs font-medium",
                         perm.access === "allow"
-                          ? "bg-green-500/10 text-green-600"
+                          ? "bg-success/10 text-success"
                           : "bg-destructive/10 text-destructive",
                       )}
                     >
@@ -639,7 +640,7 @@ export function AddCredentialDialog({ open, onOpenChange, orgId }: AddCredential
       className={cn(
         "flex items-start gap-2 rounded-lg border px-3 py-2.5 text-sm",
         testResult.success
-          ? "border-green-500/30 bg-green-500/10 text-green-700 dark:text-green-400"
+          ? "border-success/30 bg-success/10 text-success-foreground"
           : "border-destructive/30 bg-destructive/10 text-destructive",
       )}
     >
@@ -658,10 +659,7 @@ export function AddCredentialDialog({ open, onOpenChange, orgId }: AddCredential
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && handleClose()}>
-      <DialogContent
-        className="flex w-full flex-col sm:max-w-3xl"
-        style={{ height: "min(90vh, 760px)" }}
-      >
+      <DialogContent className="flex h-190 max-h-9/10 w-full flex-col sm:max-w-3xl">
         <DialogHeader className="shrink-0">
           <DialogTitle>Add Model Provider</DialogTitle>
           <DialogDescription>{stepDescriptions[step]}</DialogDescription>

@@ -27,7 +27,7 @@ interface PdfLightboxContentProps {
 
 function LoadingSpinner() {
   return (
-    <div className="flex items-center justify-center min-h-[200px]">
+    <div className="flex items-center justify-center min-h-50">
       <div className="w-10 h-10 border-2 border-white/20 border-t-white/80 rounded-full animate-spin" />
     </div>
   );
@@ -36,14 +36,10 @@ function LoadingSpinner() {
 function ErrorState({ message, onDownload }: { message: string; onDownload: () => void }) {
   return (
     <div className="absolute inset-0 flex items-center justify-center">
-      <div className="flex flex-col items-center gap-4 p-8 bg-neutral-900/80 rounded-xl border border-white/10 max-w-md text-center">
-        <AlertCircle className="h-12 w-12 text-red-400" />
-        <p className="text-neutral-300">{message}</p>
-        <Button
-          variant="ghost"
-          className="text-white border border-white/20 bg-white/5 hover:bg-white/10"
-          onClick={onDownload}
-        >
+      <div className="flex flex-col items-center gap-4 p-8 bg-overlay/80 rounded-xl border border-white/10 max-w-md text-center">
+        <AlertCircle className="h-12 w-12 text-destructive" />
+        <p className="text-overlay-foreground/80">{message}</p>
+        <Button variant="overlay-outline" onClick={onDownload}>
           <Download className="h-4 w-4 mr-2" />
           Download PDF
         </Button>
@@ -193,9 +189,8 @@ export default function PdfLightboxContent({
       >
         {/* Zoom controls */}
         <Button
-          variant="ghost"
-          size="icon"
-          className="h-8 w-8 text-neutral-400 hover:text-white hover:bg-white/10 rounded-full"
+          variant="overlay"
+          size="icon-sm"
           onClick={handleZoomOut}
           disabled={scale <= MIN_SCALE}
           title="Zoom out (-)"
@@ -204,7 +199,7 @@ export default function PdfLightboxContent({
         </Button>
 
         <button
-          className="min-w-15 px-2 py-1 text-xs font-medium text-neutral-300 hover:text-white hover:bg-white/10 rounded-full transition-colors"
+          className="min-w-15 px-2 py-1 text-xs font-medium text-overlay-foreground/80 hover:text-white hover:bg-white/10 rounded-full transition-colors"
           onClick={handleResetZoom}
           title="Reset zoom (0)"
         >
@@ -212,9 +207,8 @@ export default function PdfLightboxContent({
         </button>
 
         <Button
-          variant="ghost"
-          size="icon"
-          className="h-8 w-8 text-neutral-400 hover:text-white hover:bg-white/10 rounded-full"
+          variant="overlay"
+          size="icon-sm"
           onClick={handleZoomIn}
           disabled={scale >= MAX_SCALE}
           title="Zoom in (+)"
@@ -226,9 +220,8 @@ export default function PdfLightboxContent({
 
         {/* Download */}
         <Button
-          variant="ghost"
-          size="icon"
-          className="h-8 w-8 text-neutral-400 hover:text-white hover:bg-white/10 rounded-full"
+          variant="overlay"
+          size="icon-sm"
           onClick={(e) => {
             e.stopPropagation();
             onDownload();
@@ -242,7 +235,7 @@ export default function PdfLightboxContent({
         {numPages > 1 && (
           <>
             <div className="w-px h-5 bg-white/20 mx-1" />
-            <span className="px-2 text-xs text-neutral-300 min-w-16 text-center">
+            <span className="px-2 text-xs text-overlay-foreground/80 min-w-16 text-center">
               {currentPage} / {numPages}
             </span>
           </>

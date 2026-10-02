@@ -11,6 +11,8 @@ interface FlatTimelineNode {
   metrics: TimelineMetrics;
 }
 
+const scaleWidthStyle = { "--scale-width": `${SCALE_WIDTH}px` } as React.CSSProperties;
+
 export function SpanTimeline() {
   const {
     filteredTree,
@@ -71,7 +73,7 @@ export function SpanTimeline() {
         className="shrink-0 overflow-x-auto overflow-y-hidden px-3 border-b bg-muted/30"
         onScroll={handleScaleScroll}
       >
-        <div className="min-w-fit" style={{ minWidth: SCALE_WIDTH }}>
+        <div className="min-w-(--scale-width)" style={scaleWidthStyle}>
           <TimelineScale scaleWidth={SCALE_WIDTH} />
         </div>
       </div>
@@ -81,7 +83,7 @@ export function SpanTimeline() {
         className="flex-1 overflow-auto px-3 py-1"
         onScroll={handleContentScroll}
       >
-        <div className="min-w-fit" style={{ minWidth: SCALE_WIDTH }} role="tree">
+        <div className="min-w-(--scale-width)" style={scaleWidthStyle} role="tree">
           {flattenedItems.map(({ node, metrics }) => (
             <SpanTimelineRow
               key={node.id}

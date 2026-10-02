@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef, type CSSProperties } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import {
   AlertCircle,
@@ -344,14 +344,15 @@ export function RawSpansView({
                 }
               }
             }}
-            className="h-7 pl-7 pr-7 text-xs"
+            inputSize="xs"
+            adornment="both"
           />
           {search && (
             <Button
               variant="ghost"
-              size="sm"
+              size="icon-2xs"
               onClick={() => setSearch("")}
-              className="absolute right-0.5 top-1/2 h-6 w-6 -translate-y-1/2 p-0"
+              className="absolute right-0.5 top-1/2 -translate-y-1/2"
               aria-label="Clear search"
             >
               <X className="h-3 w-3" />
@@ -367,18 +368,18 @@ export function RawSpansView({
               <>
                 <Button
                   variant="ghost"
-                  size="sm"
+                  size="icon-2xs"
                   onClick={goToPrevMatch}
-                  className="h-6 w-6 p-0"
+
                   aria-label="Previous match"
                 >
                   <ChevronUp className="h-4 w-4" />
                 </Button>
                 <Button
                   variant="ghost"
-                  size="sm"
+                  size="icon-2xs"
                   onClick={goToNextMatch}
-                  className="h-6 w-6 p-0"
+
                   aria-label="Next match"
                 >
                   <ChevronDown className="h-4 w-4" />
@@ -396,9 +397,9 @@ export function RawSpansView({
             <TooltipTrigger asChild>
               <Button
                 variant="outline"
-                size="sm"
+                size="icon-xs"
                 onClick={handleCopyAll}
-                className="h-7 w-7 px-0"
+
                 aria-label="Copy all spans"
               >
                 {copiedAll ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
@@ -410,9 +411,9 @@ export function RawSpansView({
             <TooltipTrigger asChild>
               <Button
                 variant="outline"
-                size="sm"
+                size="icon-xs"
                 onClick={handleDownloadAll}
-                className="h-7 w-7 px-0"
+
                 aria-label="Download all spans"
               >
                 <Download className="h-3.5 w-3.5" />
@@ -423,7 +424,10 @@ export function RawSpansView({
         </ButtonGroup>
       </div>
       <div ref={scrollRef} className="flex-1 min-h-0 overflow-auto">
-        <div className="relative p-2 @[400px]:p-3" style={{ height: virtualizer.getTotalSize() }}>
+        <div
+          className="relative h-(--list-size) p-2 @[400px]:p-3"
+          style={{ "--list-size": `${virtualizer.getTotalSize()}px` } as CSSProperties}
+        >
           {virtualizer.getVirtualItems().map((virtualRow) => {
             const index = virtualRow.index;
             const span = spansWithParsedRaw[index];
@@ -433,8 +437,8 @@ export function RawSpansView({
                 key={span.span_id}
                 data-index={index}
                 ref={virtualizer.measureElement}
-                className="absolute left-2 right-2 @[400px]:left-3 @[400px]:right-3 pb-2 @[400px]:pb-3"
-                style={{ transform: `translateY(${virtualRow.start}px)` }}
+                className="absolute left-2 right-2 translate-y-(--row-start) pb-2 @[400px]:left-3 @[400px]:right-3 @[400px]:pb-3"
+                style={{ "--row-start": `${virtualRow.start}px` } as CSSProperties}
               >
                 <div className="rounded-lg border bg-card">
                   <div className="flex items-center justify-between gap-1 border-b px-2 py-1.5 @[400px]:gap-2 @[400px]:px-3 @[400px]:py-2">
@@ -448,13 +452,13 @@ export function RawSpansView({
                     </div>
                     <Button
                       variant="ghost"
-                      size="sm"
+                      size="icon-2xs"
                       onClick={() => span.raw_span && handleCopySpan(span.span_id, span.raw_span)}
-                      className="h-6 w-6 shrink-0 p-0 @[400px]:h-7 @[400px]:w-7"
+                      className="shrink-0 @[400px]:h-7 @[400px]:w-7"
                       aria-label="Copy span"
                     >
                       {copiedSpanId === span.span_id ? (
-                        <Check className="h-3 w-3 text-green-600 @[400px]:h-3.5 @[400px]:w-3.5" />
+                        <Check className="h-3 w-3 text-success @[400px]:h-3.5 @[400px]:w-3.5" />
                       ) : (
                         <Copy className="h-3 w-3 @[400px]:h-3.5 @[400px]:w-3.5" />
                       )}

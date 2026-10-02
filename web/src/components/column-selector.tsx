@@ -78,7 +78,7 @@ export function ColumnSelector({
   return (
     <Sheet open={open} onOpenChange={handleOpenChange}>
       <SheetTrigger asChild>
-        <Button variant="outline" size="sm" className="gap-2">
+        <Button variant="outline" size="sm">
           <Columns3 className="h-4 w-4" />
           <span className="hidden sm:inline">Columns</span>
           <span className="tabular-nums text-xs text-muted-foreground">
@@ -86,9 +86,9 @@ export function ColumnSelector({
           </span>
         </Button>
       </SheetTrigger>
-      <SheetContent side="right" className="flex w-full max-w-sm flex-col gap-0 p-0 sm:max-w-md">
-        <SheetHeader className="border-b px-6 py-4">
-          <SheetTitle className="flex items-center gap-2 text-base font-medium">
+      <SheetContent side="right" className="flex w-full max-w-sm flex-col sm:max-w-md">
+        <SheetHeader variant="bordered" className="px-6 py-4">
+          <SheetTitle size="md" className="flex items-center">
             <Columns3 className="h-4 w-4 text-muted-foreground" />
             Table Columns
           </SheetTitle>
@@ -104,7 +104,7 @@ export function ColumnSelector({
               placeholder="Search columns..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="h-9 pl-9 text-sm"
+              adornment="start"
             />
           </div>
           <div className="flex items-center gap-2">

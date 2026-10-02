@@ -49,14 +49,12 @@ export function ProjectCard({ project, onEdit, onDelete }: ProjectCardProps) {
 
   return (
     <Link to={`/projects/${project.id}/home`} className="block">
-      <Card
-        className={`border-border bg-card shadow-sm transition-colors hover:border-primary/50 hover:bg-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 ${
-          isDefault ? "border-primary/60 ring-1 ring-primary/40" : ""
-        }`}
-      >
+      <Card interactive selected={isDefault}>
         <CardHeader className="flex flex-row items-start justify-between gap-3">
           <div className="min-w-0 flex-1 space-y-2">
-            <CardTitle className="text-xl leading-tight truncate">{project.name}</CardTitle>
+            <CardTitle size="lg">
+              <span className="block truncate">{project.name}</span>
+            </CardTitle>
             <button
               type="button"
               onClick={handleCopyId}

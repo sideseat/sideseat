@@ -437,7 +437,7 @@ export default function SessionsPage() {
 
   return (
     <div className="h-screen w-full mx-auto pt-header-offset sm:pt-header-offset-sm px-2 sm:px-4">
-      <div className="w-full h-full overflow-hidden grid grid-rows-[auto_1fr_auto]">
+      <div className="w-full h-full overflow-hidden grid grid-rows-frame">
         <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 pb-4">
           <div className="shrink-0">
             <h1 className="text-2xl font-semibold tracking-tight">Sessions</h1>
@@ -465,8 +465,7 @@ export default function SessionsPage() {
             />
             <Button
               variant={favoritesOnly ? "default" : "outline"}
-              size="sm"
-              className="px-2 gap-1.5"
+              size="toolbar"
               onClick={() => {
                 setFavoritesOnly((prev) => !prev);
                 setPage(1);
@@ -488,8 +487,8 @@ export default function SessionsPage() {
             <ButtonGroup>
               <Button
                 variant="outline"
-                size="sm"
-                className="px-2 gap-1.5 min-w-13 sm:min-w-17"
+                size="toolbar"
+                className="min-w-13 sm:min-w-17"
                 onClick={() => {
                   setRealtimeEnabled((prev) => {
                     const next = !prev;
@@ -519,8 +518,7 @@ export default function SessionsPage() {
               </Button>
               <Button
                 variant="outline"
-                size="sm"
-                className="px-2"
+                size="toolbar"
                 onClick={() => refetch()}
                 disabled={isFetching}
                 aria-label="Refresh"
@@ -529,7 +527,7 @@ export default function SessionsPage() {
               </Button>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="outline" size="sm" className="px-2" aria-label="More actions">
+                  <Button variant="outline" size="toolbar" aria-label="More actions">
                     <MoreHorizontal className="h-4 w-4" />
                   </Button>
                 </DropdownMenuTrigger>

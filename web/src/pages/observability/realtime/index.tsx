@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo, useRef, useEffect } from "react";
+import { useState, useCallback, useMemo, useRef, useEffect, type CSSProperties } from "react";
 import { useParams } from "react-router";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import {
@@ -38,7 +38,6 @@ import {
   CONTAINER_PADDING,
   DEBOUNCE_MS,
   ESTIMATED_SPAN_HEIGHT,
-  ITEM_GAP,
   LATE_MESSAGE_BUFFER_MS,
   MAX_BUFFER_SIZE,
   MIN_REFETCH_INTERVAL_MS,
@@ -626,7 +625,7 @@ export default function RealtimePage() {
             <div className="@[500px]:hidden">
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="outline" size="sm" className="h-9 gap-2 px-3">
+                  <Button variant="outline" size="sm" className="h-9">
                     {activeTabConfig?.icon}
                     <span>{activeTabConfig?.label}</span>
                     <ChevronsUpDown className="h-3.5 w-3.5 opacity-50" />
@@ -634,11 +633,7 @@ export default function RealtimePage() {
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="start">
                   {TABS.map((tab) => (
-                    <DropdownMenuItem
-                      key={tab.value}
-                      onClick={() => handleTabChange(tab.value)}
-                      className="gap-2"
-                    >
+                    <DropdownMenuItem key={tab.value} onClick={() => handleTabChange(tab.value)}>
                       {tab.icon}
                       {tab.label}
                       {activeTab === tab.value && <Check className="ml-auto h-4 w-4" />}
@@ -675,8 +670,8 @@ export default function RealtimePage() {
             {/* Scroll to end button */}
             <Button
               variant="outline"
-              size="sm"
-              className="h-9 px-2"
+              size="toolbar"
+              className="h-9"
               onClick={jumpToBottom}
               disabled={
                 (activeTab === "messages" ? displayBlocks.length : displaySpans.length) === 0
@@ -688,8 +683,9 @@ export default function RealtimePage() {
             {/* Markdown toggle */}
             <Button
               variant="outline"
-              size="sm"
-              className={cn("h-9 px-2", markdownEnabled && activeTab === "messages" && "bg-muted")}
+              size="toolbar"
+              className="h-9"
+              aria-pressed={markdownEnabled && activeTab === "messages"}
               onClick={handleMarkdownToggle}
               disabled={activeTab === "raw"}
             >
@@ -699,8 +695,8 @@ export default function RealtimePage() {
             {/* Live toggle */}
             <Button
               variant="outline"
-              size="sm"
-              className="h-9 px-2 gap-1.5 min-w-13 sm:min-w-17"
+              size="toolbar"
+              className="h-9 min-w-13 sm:min-w-17"
               onClick={toggleLive}
             >
               <span
@@ -717,8 +713,8 @@ export default function RealtimePage() {
             {/* Clear - clears both blocks and spans */}
             <Button
               variant="outline"
-              size="sm"
-              className="h-9 px-2"
+              size="toolbar"
+              className="h-9"
               onClick={handleClear}
               disabled={displayBlocks.length === 0 && spans.length === 0}
             >
@@ -726,7 +722,7 @@ export default function RealtimePage() {
             </Button>
 
             {/* Refresh */}
-            <Button variant="outline" size="sm" className="h-9 px-2" onClick={handleRefresh}>
+            <Button variant="outline" size="toolbar" className="h-9" onClick={handleRefresh}>
               <RefreshCw className="h-4 w-4" />
             </Button>
           </ButtonGroup>
@@ -735,7 +731,7 @@ export default function RealtimePage() {
         {/* Content container */}
         <div className="relative min-h-0 flex-1 overflow-hidden rounded-lg border">
           {refreshFailures > 0 && (
-            <div className="mb-2 flex items-center gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-900 dark:text-amber-200">
+            <div className="mb-2 flex items-center gap-2 rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-xs text-warning-foreground">
               <AlertCircle className="h-3.5 w-3.5 shrink-0" />
               <span>
                 {refreshFailures === 1
@@ -748,7 +744,7 @@ export default function RealtimePage() {
           {replayIncomplete && (
             <div
               role="status"
-              className="mb-2 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-900 dark:text-amber-200"
+              className="mb-2 rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-xs text-warning-foreground"
             >
               Repeated history may appear twice below: a conversation here was large enough that
               duplicate-detection stopped short of a complete answer.
@@ -769,12 +765,13 @@ export default function RealtimePage() {
                 onScroll={(e) => handleScroll(e.currentTarget, "messages")}
               >
                 <div
-                  style={{
-                    // getTotalSize includes sentinel (bottom padding), add only top padding
-                    height: blocksVirtualizer.getTotalSize() + CONTAINER_PADDING,
-                    width: "100%",
-                    position: "relative",
-                  }}
+                  className="relative h-(--list-size) w-full"
+                  style={
+                    {
+                      // getTotalSize includes sentinel (bottom padding), add only top padding
+                      "--list-size": `${blocksVirtualizer.getTotalSize() + CONTAINER_PADDING}px`,
+                    } as CSSProperties
+                  }
                 >
                   {blocksVirtualizer.getVirtualItems().map((virtualItem) => {
                     // Skip sentinel item (last index) - it's just a spacer
@@ -784,14 +781,12 @@ export default function RealtimePage() {
                           key={virtualItem.key}
                           data-index={virtualItem.index}
                           ref={blocksVirtualizer.measureElement}
-                          style={{
-                            position: "absolute",
-                            top: 0,
-                            left: 0,
-                            width: "100%",
-                            height: CONTAINER_PADDING,
-                            transform: `translateY(${virtualItem.start + CONTAINER_PADDING}px)`,
-                          }}
+                          className="absolute top-0 left-0 h-4 w-full translate-y-(--row-start)"
+                          style={
+                            {
+                              "--row-start": `${virtualItem.start + CONTAINER_PADDING}px`,
+                            } as CSSProperties
+                          }
                         />
                       );
                     }
@@ -801,16 +796,12 @@ export default function RealtimePage() {
                         key={virtualItem.key}
                         data-index={virtualItem.index}
                         ref={blocksVirtualizer.measureElement}
-                        style={{
-                          position: "absolute",
-                          top: 0,
-                          left: 0,
-                          width: "100%",
-                          transform: `translateY(${virtualItem.start + CONTAINER_PADDING}px)`,
-                          paddingLeft: CONTAINER_PADDING,
-                          paddingRight: CONTAINER_PADDING,
-                          paddingBottom: ITEM_GAP,
-                        }}
+                        className="absolute top-0 left-0 w-full translate-y-(--row-start) px-4 pb-3"
+                        style={
+                          {
+                            "--row-start": `${virtualItem.start + CONTAINER_PADDING}px`,
+                          } as CSSProperties
+                        }
                       >
                         <FeedBlockItem
                           block={block}
@@ -834,12 +825,13 @@ export default function RealtimePage() {
               onScroll={(e) => handleScroll(e.currentTarget, "raw")}
             >
               <div
-                style={{
-                  // getTotalSize includes sentinel (bottom padding), add only top padding
-                  height: spansVirtualizer.getTotalSize() + CONTAINER_PADDING,
-                  width: "100%",
-                  position: "relative",
-                }}
+                className="relative h-(--list-size) w-full"
+                style={
+                  {
+                    // getTotalSize includes sentinel (bottom padding), add only top padding
+                    "--list-size": `${spansVirtualizer.getTotalSize() + CONTAINER_PADDING}px`,
+                  } as CSSProperties
+                }
               >
                 {spansVirtualizer.getVirtualItems().map((virtualItem) => {
                   // Skip sentinel item (last index) - it's just a spacer
@@ -849,14 +841,12 @@ export default function RealtimePage() {
                         key={virtualItem.key}
                         data-index={virtualItem.index}
                         ref={spansVirtualizer.measureElement}
-                        style={{
-                          position: "absolute",
-                          top: 0,
-                          left: 0,
-                          width: "100%",
-                          height: CONTAINER_PADDING,
-                          transform: `translateY(${virtualItem.start + CONTAINER_PADDING}px)`,
-                        }}
+                        className="absolute top-0 left-0 h-4 w-full translate-y-(--row-start)"
+                        style={
+                          {
+                            "--row-start": `${virtualItem.start + CONTAINER_PADDING}px`,
+                          } as CSSProperties
+                        }
                       />
                     );
                   }
@@ -866,16 +856,12 @@ export default function RealtimePage() {
                       key={virtualItem.key}
                       data-index={virtualItem.index}
                       ref={spansVirtualizer.measureElement}
-                      style={{
-                        position: "absolute",
-                        top: 0,
-                        left: 0,
-                        width: "100%",
-                        transform: `translateY(${virtualItem.start + CONTAINER_PADDING}px)`,
-                        paddingLeft: CONTAINER_PADDING,
-                        paddingRight: CONTAINER_PADDING,
-                        paddingBottom: ITEM_GAP,
-                      }}
+                      className="absolute top-0 left-0 w-full translate-y-(--row-start) px-4 pb-3"
+                      style={
+                        {
+                          "--row-start": `${virtualItem.start + CONTAINER_PADDING}px`,
+                        } as CSSProperties
+                      }
                     >
                       <FeedSpanItem span={span} />
                     </div>
@@ -888,9 +874,9 @@ export default function RealtimePage() {
           {/* Jump to bottom button */}
           {!isAtBottom && newCount > 0 && (
             <Button
-              variant="secondary"
+              variant="floating"
               size="sm"
-              className="absolute bottom-4 left-1/2 -translate-x-1/2 shadow-lg gap-1.5 cursor-pointer"
+              className="absolute bottom-4 left-1/2 -translate-x-1/2 cursor-pointer"
               onClick={jumpToBottom}
             >
               <ArrowDown className="h-3.5 w-3.5" />

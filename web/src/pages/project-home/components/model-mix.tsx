@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo, type CSSProperties } from "react";
 import { useNavigate } from "react-router";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -65,8 +65,8 @@ export function ModelMix({ projectId, data, totalTokens, traceCount, isLoading }
   if (isLoading) {
     return (
       <Card className="h-full min-h-70">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm font-medium">Model Mix</CardTitle>
+        <CardHeader size="sm">
+          <CardTitle size="sm">Model Mix</CardTitle>
           <CardDescription>Token share and spend by model</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-1 flex-col gap-3">
@@ -81,8 +81,8 @@ export function ModelMix({ projectId, data, totalTokens, traceCount, isLoading }
   if (displayData.length === 0) {
     return (
       <Card className="h-full min-h-70">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm font-medium">Model Mix</CardTitle>
+        <CardHeader size="sm">
+          <CardTitle size="sm">Model Mix</CardTitle>
           <CardDescription>Token share and spend by model</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-1 items-center justify-center">
@@ -96,8 +96,8 @@ export function ModelMix({ projectId, data, totalTokens, traceCount, isLoading }
 
   return (
     <Card className="h-full min-h-70">
-      <CardHeader className="pb-2">
-        <CardTitle className="text-sm font-medium">Model Mix</CardTitle>
+      <CardHeader size="sm">
+        <CardTitle size="sm">Model Mix</CardTitle>
         <CardDescription>Token share and spend by model</CardDescription>
       </CardHeader>
       <CardContent className="flex flex-1 flex-col gap-3" role="img" aria-label={ariaLabel}>
@@ -117,13 +117,18 @@ export function ModelMix({ projectId, data, totalTokens, traceCount, isLoading }
                 </div>
                 <div className="h-2 bg-muted rounded-full overflow-hidden">
                   <div
-                    className="h-full rounded-full transition-all"
-                    style={{ width: `${entry.percentage}%`, backgroundColor: color }}
+                    className="h-full w-(--bar-width) rounded-full bg-(--bar-color) transition-all"
+                    style={
+                      {
+                        "--bar-width": `${entry.percentage}%`,
+                        "--bar-color": color,
+                      } as CSSProperties
+                    }
                   />
                 </div>
                 <div className="flex justify-between text-xs text-muted-foreground mt-1">
                   <span>{formatCompact(entry.tokens)} tokens</span>
-                  <span className="min-w-[4.5rem] text-right tabular-nums">
+                  <span className="min-w-18 text-right tabular-nums">
                     {formatCurrencyFixed(entry.cost)}
                   </span>
                 </div>
@@ -140,8 +145,8 @@ export function ModelMix({ projectId, data, totalTokens, traceCount, isLoading }
                     {rowContent}
                   </button>
                 </TooltipTrigger>
-                <TooltipContent side="top" className="max-w-sm break-all font-mono text-xs">
-                  {fullName}
+                <TooltipContent side="top" className="max-w-sm">
+                  <span className="break-all font-mono">{fullName}</span>
                 </TooltipContent>
               </Tooltip>
             );
@@ -151,8 +156,8 @@ export function ModelMix({ projectId, data, totalTokens, traceCount, isLoading }
         {hasMore && (
           <Button
             variant="ghost"
-            size="sm"
-            className="w-full text-xs"
+            size="xs"
+            className="h-8 w-full"
             onClick={() => setIsExpanded(!isExpanded)}
           >
             {isExpanded ? (

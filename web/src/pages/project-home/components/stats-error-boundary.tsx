@@ -61,8 +61,8 @@ export class WidgetErrorBoundary extends Component<
       return (
         <Card className="h-full min-h-70">
           {this.props.title && (
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium">{this.props.title}</CardTitle>
+            <CardHeader size="sm">
+              <CardTitle size="sm">{this.props.title}</CardTitle>
             </CardHeader>
           )}
           <CardContent className="flex flex-1 flex-col items-center justify-center py-8">

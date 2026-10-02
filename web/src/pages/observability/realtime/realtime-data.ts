@@ -7,6 +7,9 @@ export const DEBOUNCE_MS = 100;
 export const MIN_REFETCH_INTERVAL_MS = 500;
 export const REFETCH_LIMIT = 100;
 export const LATE_MESSAGE_BUFFER_MS = 30000;
+// The feed rows render these as Tailwind classes (pb-3 for ITEM_GAP; px-4 and the
+// h-4 sentinel for CONTAINER_PADDING). Change both together, or the virtualizer's
+// size estimates drift from the rendered rows.
 export const ITEM_GAP = 12;
 export const CONTAINER_PADDING = 16;
 

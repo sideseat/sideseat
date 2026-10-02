@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, type CSSProperties } from "react";
 import { ChevronRight, ChevronDown, Copy, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -56,7 +56,9 @@ interface RowProps {
 
 function Row({ row, isExpanded, onToggle, maxDepth, expandedPaths }: RowProps) {
   const { copied, copy } = useCopy();
-  const indentStyle = { paddingLeft: `${row.depth * INDENT_PX + BASE_INDENT_PX}px` };
+  const indentStyle = {
+    "--row-indent": `${row.depth * INDENT_PX + BASE_INDENT_PX}px`,
+  } as CSSProperties;
 
   const displayValue = formatValue(row.value, row.type);
   const copyValue =
@@ -107,7 +109,7 @@ function Row({ row, isExpanded, onToggle, maxDepth, expandedPaths }: RowProps) {
       >
         {/* Path column */}
         <div
-          className="flex min-w-0 flex-1 items-center gap-1 py-1.5 pr-2 @[420px]:w-2/5 @[420px]:flex-none"
+          className="flex min-w-0 flex-1 items-center gap-1 py-1.5 pr-2 pl-(--row-indent) @[420px]:w-2/5 @[420px]:flex-none"
           style={indentStyle}
         >
           {row.hasChildren ? (
@@ -129,19 +131,17 @@ function Row({ row, isExpanded, onToggle, maxDepth, expandedPaths }: RowProps) {
           <span className={cn("break-all font-mono text-sm", getValueColorClass(row.type))}>
             {displayValue}
           </span>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={handleCopy}
-            aria-label="Copy value"
-            className="ml-auto h-5 w-5 shrink-0 p-0 opacity-0 transition-opacity group-hover/row:opacity-100"
-          >
-            {copied ? (
-              <Check className="h-3 w-3 text-green-600 dark:text-green-500" />
-            ) : (
-              <Copy className="h-3 w-3" />
-            )}
-          </Button>
+          <span className="ml-auto shrink-0 opacity-0 transition-opacity group-hover/row:opacity-100">
+            <Button
+              variant="ghost"
+              size="icon-2xs"
+              onClick={handleCopy}
+              aria-label="Copy value"
+              className="size-5"
+            >
+              {copied ? <Check className="h-3 w-3 text-success" /> : <Copy className="h-3 w-3" />}
+            </Button>
+          </span>
         </div>
       </div>
 

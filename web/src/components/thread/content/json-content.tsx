@@ -1,8 +1,5 @@
-import { useMemo, useCallback } from "react";
+import { useCallback } from "react";
 import JsonView from "@uiw/react-json-view";
-import { lightTheme } from "@uiw/react-json-view/light";
-import { vscodeTheme } from "@uiw/react-json-view/vscode";
-import { useTheme } from "@/components/theme-provider";
 import { cn } from "@/lib/utils";
 import { highlightText, MAX_SEARCH_LENGTH } from "./highlight-text";
 
@@ -21,8 +18,6 @@ export function JsonContent({
   disableCollapse = false,
   highlight = "",
 }: JsonContentProps) {
-  const { resolvedTheme } = useTheme();
-  const isDark = resolvedTheme === "dark";
   const trimmedHighlight = highlight.trim();
   const searchTerm = trimmedHighlight.length <= MAX_SEARCH_LENGTH ? trimmedHighlight : "";
 
@@ -38,17 +33,6 @@ export function JsonContent({
     [searchTerm],
   );
 
-  const jsonStyle = useMemo(
-    () => ({
-      ...(isDark ? vscodeTheme : lightTheme),
-      backgroundColor: "transparent",
-      fontFamily: "inherit",
-      fontSize: "0.875rem",
-      wordBreak: "break-all" as const,
-    }),
-    [isDark],
-  );
-
   return (
     <div className={cn("overflow-x-auto", disableCollapse && "json-no-collapse")}>
       <JsonView
@@ -58,7 +42,8 @@ export function JsonContent({
         displayObjectSize={false}
         collapsed={collapsed}
         shortenTextAfterLength={0}
-        style={jsonStyle}
+        // The viewer sets font-size inline, so the size class must be important to win.
+        className="json-viewer break-all text-sm!"
       >
         {disableCollapse && <JsonView.Arrow render={HiddenArrow} />}
         {searchTerm && (

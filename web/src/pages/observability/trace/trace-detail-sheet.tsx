@@ -205,12 +205,15 @@ export function TraceDetailSheet({
       onInteractOutside={(e) => e.preventDefault()}
       onPointerDownOutside={(e) => e.preventDefault()}
     >
-      <SheetHeader className="@container flex h-11 shrink-0 flex-row items-center gap-2 border-b bg-muted/40 px-2 sm:h-12 sm:gap-3 sm:px-4">
+      <SheetHeader
+        variant="toolbar"
+        className="@container flex h-11 shrink-0 flex-row items-center gap-2 px-2 sm:h-12 sm:gap-3 sm:px-4"
+      >
         {/* Dropdown menu for narrow container */}
         <div className="@[600px]:hidden">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm" className="h-8 gap-1.5 px-2">
+              <Button variant="outline" size="toolbar">
                 {TABS.find((t) => t.value === effectiveActiveTab)?.icon}
                 <span className="text-xs">
                   {TABS.find((t) => t.value === effectiveActiveTab)?.label}
@@ -220,11 +223,7 @@ export function TraceDetailSheet({
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start">
               {TABS.map((tab) => (
-                <DropdownMenuItem
-                  key={tab.value}
-                  onClick={() => handleActiveTabChange(tab.value)}
-                  className="gap-2"
-                >
+                <DropdownMenuItem key={tab.value} onClick={() => handleActiveTabChange(tab.value)}>
                   {tab.icon}
                   {tab.label}
                   {effectiveActiveTab === tab.value && <Check className="ml-auto h-4 w-4" />}
@@ -258,7 +257,7 @@ export function TraceDetailSheet({
 
         {/* Trace ID - hidden on narrow container */}
         {trace && (
-          <code className="hidden truncate rounded border border-border/50 bg-background/80 px-2 py-0.5 font-mono text-[10px] text-muted-foreground @[600px]:block @[600px]:max-w-[180px] @[800px]:max-w-[280px] @[1000px]:max-w-none">
+          <code className="hidden truncate rounded border border-border/50 bg-background/80 px-2 py-0.5 font-mono text-3xs text-muted-foreground @[600px]:block @[600px]:max-w-45 @[800px]:max-w-70 @[1000px]:max-w-none">
             {trace.trace_id}
           </code>
         )}
@@ -282,7 +281,7 @@ export function TraceDetailSheet({
                     <ChevronUp className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent side="bottom" className="flex items-center gap-2">
+                <TooltipContent side="bottom" className="flex items-center">
                   Previous
                   <Kbd>↑</Kbd>
                 </TooltipContent>
@@ -300,7 +299,7 @@ export function TraceDetailSheet({
                     <ChevronDown className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent side="bottom" className="flex items-center gap-2">
+                <TooltipContent side="bottom" className="flex items-center">
                   Next
                   <Kbd>↓</Kbd>
                 </TooltipContent>
@@ -354,7 +353,7 @@ export function TraceDetailSheet({
                     <Maximize2 className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent side="bottom" className="flex items-center gap-2">
+                <TooltipContent side="bottom" className="flex items-center">
                   Open full page
                   <Kbd>Enter</Kbd>
                 </TooltipContent>

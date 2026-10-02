@@ -42,8 +42,8 @@ export function TraceLatency({
   if (isLoading) {
     return (
       <Card className="h-full min-h-70">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm font-medium">Avg Trace Latency</CardTitle>
+        <CardHeader size="sm">
+          <CardTitle size="sm">Avg Trace Latency</CardTitle>
           <CardDescription>Average duration over time</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-1 flex-col gap-3">
@@ -64,8 +64,8 @@ export function TraceLatency({
   if (chartData.length === 0 || !hasData) {
     return (
       <Card className="h-full min-h-70">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm font-medium">Avg Trace Latency</CardTitle>
+        <CardHeader size="sm">
+          <CardTitle size="sm">Avg Trace Latency</CardTitle>
           <CardDescription>Average duration over time</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-1 items-center justify-center">
@@ -79,14 +79,13 @@ export function TraceLatency({
 
   return (
     <Card className="h-full min-h-70">
-      <CardHeader className="pb-2">
-        <CardTitle className="text-sm font-medium">Avg Trace Latency</CardTitle>
+      <CardHeader size="sm">
+        <CardTitle size="sm">Avg Trace Latency</CardTitle>
         <CardDescription>Average duration over time</CardDescription>
       </CardHeader>
       <CardContent className="flex flex-1 flex-col pt-2">
         <div
-          className="flex-1"
-          style={{ minHeight: 176 }}
+          className="min-h-44 flex-1"
           role="img"
           aria-label={`Average trace latency chart showing ${formatDuration(avgDurationMs ?? 0)} average duration`}
         >
@@ -102,8 +101,8 @@ export function TraceLatency({
             >
               <defs>
                 <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" style={{ stopColor: "var(--primary)", stopOpacity: 0.35 }} />
-                  <stop offset="100%" style={{ stopColor: "var(--primary)", stopOpacity: 0.05 }} />
+                  <stop offset="0%" stopColor="var(--primary)" stopOpacity={0.35} />
+                  <stop offset="100%" stopColor="var(--primary)" stopOpacity={0.05} />
                 </linearGradient>
               </defs>
               <XAxis

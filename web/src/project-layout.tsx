@@ -4,6 +4,7 @@ import { QueryParamProvider } from "use-query-params";
 import { ReactRouter6Adapter } from "use-query-params/adapters/react-router-6";
 import { AlertCircle, Check, ChevronDown, Home, Plug } from "lucide-react";
 import { AppSidebar } from "@/components/app-sidebar";
+import { cn } from "@/lib/utils";
 import { ProjectSwitcher } from "@/components/project-switcher";
 import { ThemeSwitcher } from "@/components/theme-switcher";
 import { AppProvider } from "@/lib/app-context";
@@ -124,11 +125,11 @@ function LayoutHeader({
   const isSpanDetail = pathname.includes("/spans/") && traceId && spanId;
   const detailPageTitle = isSpanDetail ? "Span" : traceId ? "Trace" : sessionId ? "Session" : null;
 
-  const sidebarOffset = isMobile
-    ? "0px"
+  const sidebarOffsetClass = isMobile
+    ? "left-0"
     : state === "collapsed"
-      ? "var(--sidebar-width-icon)"
-      : "var(--sidebar-width)";
+      ? "left-(--sidebar-width-icon)"
+      : "left-(--sidebar-width)";
 
   const parentSection = navigationTrail.find((item) => item.items && item.items.length > 0);
   const activeSubPage =
@@ -153,8 +154,10 @@ function LayoutHeader({
 
   return (
     <header
-      style={{ left: sidebarOffset, right: 0, height: "var(--header-height)" }}
-      className="fixed top-0 z-40 flex shrink-0 items-center gap-2 border-b bg-background/95 backdrop-blur supports-backdrop-filter:bg-background/60 transition-[left,height] ease-linear"
+      className={cn(
+        "fixed top-0 right-0 z-40 flex h-header-height shrink-0 items-center gap-2 border-b bg-background/95 backdrop-blur supports-backdrop-filter:bg-background/60 transition-all ease-linear",
+        sidebarOffsetClass,
+      )}
     >
       <div className="flex w-full items-center gap-3 px-2 sm:px-4">
         <SidebarTrigger className="-ml-1" />
@@ -164,7 +167,7 @@ function LayoutHeader({
             {/* Mobile/Tablet: Collapsed view */}
             <BreadcrumbItem className="lg:hidden">
               <DropdownMenu>
-                <DropdownMenuTrigger className="flex items-center gap-1">
+                <DropdownMenuTrigger className="flex items-center">
                   <BreadcrumbEllipsis />
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="start">
@@ -235,7 +238,7 @@ function LayoutHeader({
         <div className="ml-auto flex items-center gap-2">
           {toolbarNode}
           {toolbarNode && <Separator orientation="vertical" className="h-5" />}
-          <Button variant="outline" size="sm" className="h-8 gap-1.5" asChild>
+          <Button variant="outline" size="sm" asChild>
             <Link to={`/organizations/default/configuration/telemetry?project=${projectId}`}>
               <Plug className="h-3.5 w-3.5" />
               <span className="hidden sm:inline">Connect</span>
@@ -253,10 +256,12 @@ function SectionDropdown({ section, projectId }: { section: NavigationItem; proj
 
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger className="flex items-center gap-1 rounded-md px-2 py-1 text-sm font-medium hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-        {section.icon && <section.icon className="mr-1 h-4 w-4" />}
-        {section.title}
-        <ChevronDown className="h-4 w-4 opacity-50" />
+      <DropdownMenuTrigger asChild>
+        <Button variant="ghost" size="toolbar" className="h-7">
+          {section.icon && <section.icon className="mr-1 h-4 w-4" />}
+          {section.title}
+          <ChevronDown className="h-4 w-4 opacity-50" />
+        </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="w-48">
         {sections.map((item) => (
@@ -304,7 +309,7 @@ function ProjectErrorState() {
             The project you're looking for doesn't exist or you don't have access to it.
           </p>
         </div>
-        <Button onClick={() => navigate("/")} className="gap-2">
+        <Button onClick={() => navigate("/")}>
           <Home className="h-4 w-4" />
           Back to Projects
         </Button>

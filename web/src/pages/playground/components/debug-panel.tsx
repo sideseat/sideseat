@@ -219,33 +219,35 @@ export function DebugPanel({ open, onOpenChange, state }: Props) {
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="flex w-full flex-col gap-0 p-0 sm:max-w-2xl">
+      <SheetContent side="right" className="flex w-full flex-col sm:max-w-2xl">
         <Tabs defaultValue="events" className="flex flex-1 min-h-0 flex-col">
           {/* HEADER: title + tabs side-by-side, like a real toolbar. */}
           <header className="flex shrink-0 items-center gap-3 border-b px-4 py-2.5">
-            <SheetTitle className="shrink-0 text-sm font-semibold">Debug</SheetTitle>
+            <SheetTitle size="sm" className="shrink-0">
+              Debug
+            </SheetTitle>
             <TabsList className="h-8">
-              <TabsTrigger value="events" className="gap-1.5 text-xs">
+              <TabsTrigger value="events" size="sm">
                 Events
-                <span className="rounded bg-muted px-1 py-0 font-mono text-[10px] tabular-nums text-muted-foreground">
+                <span className="rounded bg-muted px-1 py-0 font-mono text-3xs tabular-nums text-muted-foreground">
                   {totalEvents}
                 </span>
               </TabsTrigger>
-              <TabsTrigger value="state" className="text-xs">
+              <TabsTrigger value="state" size="sm">
                 State
               </TabsTrigger>
-              <TabsTrigger value="custom" className="gap-1.5 text-xs">
+              <TabsTrigger value="custom" size="sm">
                 Custom
                 {state.customEvents.length > 0 && (
-                  <span className="rounded bg-muted px-1 py-0 font-mono text-[10px] tabular-nums text-muted-foreground">
+                  <span className="rounded bg-muted px-1 py-0 font-mono text-3xs tabular-nums text-muted-foreground">
                     {state.customEvents.length}
                   </span>
                 )}
               </TabsTrigger>
-              <TabsTrigger value="raw" className="gap-1.5 text-xs">
+              <TabsTrigger value="raw" size="sm">
                 Raw
                 {state.rawEvents.length > 0 && (
-                  <span className="rounded bg-muted px-1 py-0 font-mono text-[10px] tabular-nums text-muted-foreground">
+                  <span className="rounded bg-muted px-1 py-0 font-mono text-3xs tabular-nums text-muted-foreground">
                     {state.rawEvents.length}
                   </span>
                 )}
@@ -263,7 +265,8 @@ export function DebugPanel({ open, onOpenChange, state }: Props) {
                   value={filter}
                   onChange={(e) => setFilter(e.target.value)}
                   placeholder="Filter events…"
-                  className="h-8 pl-7 pr-7 text-xs"
+                  inputSize="sm"
+                  adornment="both"
                 />
                 {filter && (
                   <button
@@ -289,7 +292,7 @@ export function DebugPanel({ open, onOpenChange, state }: Props) {
                       type="button"
                       onClick={() => toggleCat(cat)}
                       className={cn(
-                        "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] transition-colors",
+                        "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-2xs transition-colors",
                         active
                           ? `${meta.tint} border-transparent`
                           : "border-border bg-background text-muted-foreground hover:bg-muted",
@@ -340,9 +343,9 @@ export function DebugPanel({ open, onOpenChange, state }: Props) {
                 <details key={c.id} className="group rounded-md border bg-card">
                   <summary className="flex cursor-pointer select-none items-center gap-2 px-3 py-2 text-xs">
                     <ChevronRight className="size-3 shrink-0 transition-transform group-open:rotate-90" />
-                    <Sparkles className="size-3.5 text-rose-500" />
+                    <Sparkles className="size-3.5 text-role-thinking" />
                     <span className="font-mono font-medium">{c.name}</span>
-                    <span className="ml-auto font-mono text-[10px] text-muted-foreground">
+                    <span className="ml-auto font-mono text-3xs text-muted-foreground">
                       {formatTimestamp(c.timestamp)}
                     </span>
                   </summary>
@@ -363,9 +366,9 @@ export function DebugPanel({ open, onOpenChange, state }: Props) {
                 <details key={r.id} className="group rounded-md border bg-card">
                   <summary className="flex cursor-pointer select-none items-center gap-2 px-3 py-2 text-xs">
                     <ChevronRight className="size-3 shrink-0 transition-transform group-open:rotate-90" />
-                    <AlertCircle className="size-3.5 text-zinc-500" />
+                    <AlertCircle className="size-3.5 text-muted-foreground" />
                     <span className="font-mono font-medium">RAW</span>
-                    <span className="ml-auto font-mono text-[10px] text-muted-foreground">
+                    <span className="ml-auto font-mono text-3xs text-muted-foreground">
                       {formatTimestamp(r.timestamp)}
                     </span>
                   </summary>
@@ -397,16 +400,16 @@ function EventRow({ group }: { group: EventGroup }) {
             <Icon className="size-3.5" />
           </span>
           <span className="min-w-0 flex-1">
-            <span className="block font-mono text-[12px] font-medium leading-tight">
+            <span className="block font-mono text-xs font-medium leading-tight">
               {group.type}
               {group.count > 1 && (
-                <span className="ml-1.5 rounded bg-muted px-1 py-0 align-middle font-mono text-[10px] tabular-nums text-muted-foreground">
+                <span className="ml-1.5 rounded bg-muted px-1 py-0 align-middle font-mono text-3xs tabular-nums text-muted-foreground">
                   ×{group.count}
                 </span>
               )}
             </span>
             {summary && (
-              <span className="block truncate text-[11px] text-muted-foreground">{summary}</span>
+              <span className="block truncate text-2xs text-muted-foreground">{summary}</span>
             )}
           </span>
           <ChevronRight className="size-3.5 shrink-0 text-muted-foreground transition-transform group-open:rotate-90" />

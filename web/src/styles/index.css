@@ -81,6 +81,11 @@
   grid-template-rows: auto 1fr auto;
 }
 
+/* Equal-width card columns that wrap, never narrower than 280px or the container. */
+@utility grid-cols-cards {
+  grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr));
+}
+
 /*
  * Semantic colors shared by every color scheme. They are not part of the
  * per-theme files because status and message-role meaning must not change

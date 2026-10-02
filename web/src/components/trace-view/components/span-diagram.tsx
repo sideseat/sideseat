@@ -295,7 +295,7 @@ export function SpanDiagram() {
       />
 
       <Dialog open={isFullscreen} onOpenChange={setIsFullscreen}>
-        <DialogContent className="fixed! inset-0! translate-x-0! translate-y-0! max-w-none! h-full! w-full! rounded-none! border-0! p-0! gap-0! sm:max-w-none!">
+        <DialogContent fullscreen>
           <DialogTitle className="sr-only">Trace Diagram</DialogTitle>
           <ReactFlowProvider>
             <DiagramContent

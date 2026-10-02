@@ -32,14 +32,22 @@ export function TimelineScale({ duration, scaleWidth, className }: TimelineScale
   return (
     <div
       ref={containerRef}
-      className={cn("relative h-6 text-xs text-muted-foreground", className)}
-      style={scaleWidth !== undefined ? { width: scaleWidth } : undefined}
+      className={cn(
+        "relative h-6 text-xs text-muted-foreground",
+        scaleWidth !== undefined && "w-(--scale-width)",
+        className,
+      )}
+      style={
+        scaleWidth !== undefined
+          ? ({ "--scale-width": `${scaleWidth}px` } as React.CSSProperties)
+          : undefined
+      }
     >
       {ticks.map((tick, index) => (
         <div
           key={index}
-          className="absolute top-0 flex h-full flex-col items-start"
-          style={{ left: `${tick.position}%` }}
+          className="absolute top-0 left-(--tick-left) flex h-full flex-col items-start"
+          style={{ "--tick-left": `${tick.position}%` } as React.CSSProperties}
         >
           <div className="h-2 w-px bg-border" />
           <span className="mt-0.5 -translate-x-1/2 whitespace-nowrap px-0.5">{tick.label}</span>

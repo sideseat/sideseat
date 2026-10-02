@@ -108,29 +108,21 @@ export function ToolResultContent({
     <div className="space-y-2">
       {showInlineHeader && (
         <div className="flex items-center gap-2">
-          <Icon
-            className={
-              isError
-                ? "h-4 w-4 text-red-600 dark:text-red-400"
-                : "h-4 w-4 text-teal-600 dark:text-teal-400"
-            }
-          />
+          <Icon className={isError ? "h-4 w-4 text-destructive" : "h-4 w-4 text-role-tool"} />
           <span
             className={
               isError
-                ? "text-sm font-medium text-red-600 dark:text-red-400"
-                : "text-sm font-medium text-teal-600 dark:text-teal-400"
+                ? "text-sm font-medium text-destructive"
+                : "text-sm font-medium text-role-tool"
             }
           >
             {isError ? "Error" : "Result"}
           </span>
-          {toolName && (
-            <span className="font-mono text-sm text-teal-700 dark:text-teal-300">{toolName}</span>
-          )}
+          {toolName && <span className="font-mono text-sm text-role-tool">{toolName}</span>}
         </div>
       )}
       {isError && errorMessage && (
-        <div className="rounded-md bg-red-100 px-3 py-2 text-sm font-medium text-red-700 dark:bg-red-900/50 dark:text-red-300">
+        <div className="rounded-md bg-destructive/10 px-3 py-2 text-sm font-medium text-destructive">
           {errorMessage}
         </div>
       )}

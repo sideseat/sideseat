@@ -14,6 +14,7 @@ import {
   HelpCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { ButtonGroup } from "@/components/ui/button-group";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { cn } from "@/lib/utils";
@@ -28,25 +29,25 @@ const ROLE_CONFIG: Record<
   system: {
     icon: Settings,
     label: "System",
-    accent: "text-purple-600 dark:text-purple-400",
+    accent: "text-role-system",
     showMetadata: true,
   },
   user: {
     icon: User,
     label: "User",
-    accent: "text-blue-600 dark:text-blue-400",
+    accent: "text-role-user",
     showMetadata: true,
   },
   assistant: {
     icon: Bot,
     label: "Assistant",
-    accent: "text-emerald-600 dark:text-emerald-400",
+    accent: "text-role-assistant",
     showMetadata: true,
   },
   tool: {
     icon: CornerDownRight,
     label: "Tool Result",
-    accent: "text-teal-600 dark:text-teal-400",
+    accent: "text-role-tool",
     showMetadata: false,
   },
 };
@@ -59,37 +60,37 @@ const SPECIAL_ENTRY_CONFIG: Record<
   tool_use: {
     icon: Wrench,
     label: "Tool Call",
-    accent: "text-orange-600 dark:text-orange-400",
+    accent: "text-role-tool-call",
     showMetadata: false,
   },
   tool_result: {
     icon: CornerDownRight,
     label: "Tool Result",
-    accent: "text-teal-600 dark:text-teal-400",
+    accent: "text-role-tool",
     showMetadata: false,
   },
   thinking: {
     icon: Brain,
     label: "Thinking",
-    accent: "text-pink-600 dark:text-pink-400",
+    accent: "text-role-thinking",
     showMetadata: false,
   },
   redacted_thinking: {
     icon: Brain,
     label: "Thinking",
-    accent: "text-pink-600/50 dark:text-pink-400/50",
+    accent: "text-role-thinking/50",
     showMetadata: false,
   },
   tool_definitions: {
     icon: ListTree,
     label: "System",
-    accent: "text-purple-600 dark:text-purple-400",
+    accent: "text-role-system",
     showMetadata: false,
   },
   refusal: {
     icon: AlertCircle,
     label: "Assistant",
-    accent: "text-red-600 dark:text-red-400",
+    accent: "text-destructive",
     showMetadata: false,
   },
 };
@@ -98,7 +99,7 @@ const SPECIAL_ENTRY_CONFIG: Record<
 const DEFAULT_CONFIG = {
   icon: HelpCircle,
   label: "Assistant",
-  accent: "text-emerald-600 dark:text-emerald-400",
+  accent: "text-role-assistant",
   showMetadata: false,
 };
 
@@ -155,7 +156,7 @@ export function TimelineRow({
   }, [block.entry_type, block.role]);
 
   const Icon = isError ? AlertCircle : config.icon;
-  const accentClass = isError ? "text-red-600 dark:text-red-400" : config.accent;
+  const accentClass = isError ? "text-destructive" : config.accent;
 
   const relativeTime = useMemo(() => {
     if (!startTime || !block.timestamp) return null;
@@ -195,7 +196,7 @@ export function TimelineRow({
       <div
         className={cn(
           "@container group relative rounded-lg border bg-card transition-colors",
-          isError && "border-red-300 dark:border-red-800",
+          isError && "border-destructive/40",
           isSelected && "border-primary/50 bg-muted/30",
         )}
         onClick={onSelect}
@@ -217,7 +218,7 @@ export function TimelineRow({
             </span>
 
             {!isOpen && (
-              <span className="min-w-0 flex-1 truncate text-[11px] text-muted-foreground @[400px]:text-xs">
+              <span className="min-w-0 flex-1 truncate text-2xs text-muted-foreground @[400px]:text-xs">
                 {preview}
               </span>
             )}
@@ -231,21 +232,19 @@ export function TimelineRow({
               </span>
             )}
 
-            <div className="flex shrink-0 items-center gap-1.5 text-[10px] text-muted-foreground @[400px]:gap-2 @[400px]:text-xs">
+            <div className="flex shrink-0 items-center gap-1.5 text-3xs text-muted-foreground @[400px]:gap-2 @[400px]:text-xs">
               <TooltipProvider delayDuration={300}>
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <span className="tabular-nums">{relativeTime}</span>
                   </TooltipTrigger>
-                  <TooltipContent side="top" className="text-xs">
-                    {absoluteTime}
-                  </TooltipContent>
+                  <TooltipContent side="top">{absoluteTime}</TooltipContent>
                 </Tooltip>
               </TooltipProvider>
             </div>
 
             {/* Button group: trace number + copy */}
-            <div className="flex shrink-0">
+            <ButtonGroup className="shrink-0">
               {traceNumber !== undefined && projectId && (
                 <TooltipProvider delayDuration={300}>
                   <Tooltip>
@@ -253,39 +252,34 @@ export function TimelineRow({
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="h-6 w-6 rounded-r-none @[400px]:h-7 @[400px]:w-7"
+                        className="h-6 w-6 @[400px]:h-7 @[400px]:w-7"
                         onClick={handleOpenTrace}
                       >
-                        <span className="text-[10px] font-medium @[400px]:text-xs">
+                        <span className="text-3xs font-medium @[400px]:text-xs">
                           #{traceNumber}
                         </span>
                       </Button>
                     </TooltipTrigger>
-                    <TooltipContent side="top" className="text-xs">
-                      Open trace in new tab
-                    </TooltipContent>
+                    <TooltipContent side="top">Open trace in new tab</TooltipContent>
                   </Tooltip>
                 </TooltipProvider>
               )}
               <Button
                 variant="ghost"
                 size="icon"
-                className={cn(
-                  "h-6 w-6 @[400px]:h-7 @[400px]:w-7",
-                  traceNumber !== undefined && projectId && "rounded-l-none",
-                )}
+                className="h-6 w-6 @[400px]:h-7 @[400px]:w-7"
                 onClick={(e) => {
                   e.stopPropagation();
                   handleCopy();
                 }}
               >
                 {copied ? (
-                  <Check className="h-3 w-3 text-emerald-500 @[400px]:h-3.5 @[400px]:w-3.5" />
+                  <Check className="h-3 w-3 text-success @[400px]:h-3.5 @[400px]:w-3.5" />
                 ) : (
                   <Copy className="h-3 w-3 @[400px]:h-3.5 @[400px]:w-3.5" />
                 )}
               </Button>
-            </div>
+            </ButtonGroup>
           </div>
         </CollapsibleTrigger>
 

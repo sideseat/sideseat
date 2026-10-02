@@ -13,7 +13,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useCopy } from "@/hooks/use-copy";
-import { cn } from "@/lib/utils";
 
 interface ApiKeyCreatedDialogProps {
   createdKey: CreateApiKeyResponse | null;
@@ -58,9 +57,9 @@ OTEL_EXPORTER_OTLP_HEADERS=Authorization=Basic%20${base64Key}
     <Dialog open={!!createdKey} onOpenChange={() => {}}>
       <DialogContent className="[&>button]:hidden sm:max-w-xl">
         <DialogHeader className="overflow-hidden">
-          <DialogTitle className="flex items-center gap-3 overflow-hidden">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-amber-500/15">
-              <ShieldAlert className="h-5 w-5 text-amber-500" />
+          <DialogTitle className="flex items-center overflow-hidden">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-warning/15">
+              <ShieldAlert className="h-5 w-5 text-warning" />
             </div>
             <div className="min-w-0 flex-1 overflow-hidden">
               <span className="block">Save Your API Key</span>
@@ -72,13 +71,11 @@ OTEL_EXPORTER_OTLP_HEADERS=Authorization=Basic%20${base64Key}
         </DialogHeader>
 
         {/* Warning banner */}
-        <div className="flex items-start gap-3 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3">
-          <AlertTriangle className="h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400 mt-0.5" />
+        <div className="flex items-start gap-3 rounded-lg border border-warning/30 bg-warning/10 p-3">
+          <AlertTriangle className="h-5 w-5 shrink-0 text-warning mt-0.5" />
           <div className="text-sm">
-            <p className="font-medium text-amber-700 dark:text-amber-300">
-              This key will only be shown once
-            </p>
-            <p className="mt-0.5 text-amber-600/80 dark:text-amber-400/80">
+            <p className="font-medium text-warning-foreground">This key will only be shown once</p>
+            <p className="mt-0.5 text-warning-foreground/80">
               Copy it now or download the .env file. You won&apos;t be able to see it again.
             </p>
           </div>
@@ -101,10 +98,7 @@ OTEL_EXPORTER_OTLP_HEADERS=Authorization=Basic%20${base64Key}
 
         {/* Action buttons */}
         <div className="flex gap-3">
-          <Button
-            className={cn("flex-1 gap-2", copied && "bg-green-600 hover:bg-green-600")}
-            onClick={handleCopy}
-          >
+          <Button className="flex-1" variant={copied ? "success" : "default"} onClick={handleCopy}>
             {copied ? (
               <>
                 <Check className="h-4 w-4" />
@@ -117,7 +111,7 @@ OTEL_EXPORTER_OTLP_HEADERS=Authorization=Basic%20${base64Key}
               </>
             )}
           </Button>
-          <Button className="flex-1 gap-2" variant="outline" onClick={handleDownload}>
+          <Button className="flex-1" variant="outline" onClick={handleDownload}>
             <Download className="h-4 w-4" />
             Download .env
           </Button>

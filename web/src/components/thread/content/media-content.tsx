@@ -170,7 +170,7 @@ function ImageViewer({
       <div className="relative bg-black/5 dark:bg-white/5">
         {/* Loading skeleton */}
         {!isLoaded && (
-          <div className="absolute inset-0 flex items-center justify-center min-h-[120px] min-w-40">
+          <div className="absolute inset-0 flex items-center justify-center min-h-30 min-w-40">
             <div className="w-8 h-8 border-2 border-muted-foreground/20 border-t-muted-foreground/60 rounded-full animate-spin" />
           </div>
         )}
@@ -188,37 +188,37 @@ function ImageViewer({
 
       {/* Status bar */}
       <div className="flex items-center gap-1.5 px-2.5 py-1.5 border-t border-border/30 bg-muted/40 text-muted-foreground">
-        <span className="text-[11px] font-semibold uppercase tracking-wide">{typeLabel}</span>
+        <span className="text-2xs font-semibold uppercase tracking-wide">{typeLabel}</span>
         {dimensions && (
           <>
-            <span className="text-[11px] opacity-40">|</span>
-            <span className="text-[11px]">
+            <span className="text-2xs opacity-40">|</span>
+            <span className="text-2xs">
               {dimensions.w}×{dimensions.h}
             </span>
           </>
         )}
         {fileSize != null && fileSize > 0 && (
           <>
-            <span className="text-[11px] opacity-40">|</span>
-            <span className="text-[11px]">{formatBytes(fileSize)}</span>
+            <span className="text-2xs opacity-40">|</span>
+            <span className="text-2xs">{formatBytes(fileSize)}</span>
           </>
         )}
 
         <div className="flex-1" />
 
         <Button
-          variant="ghost"
-          size="icon"
-          className="h-5 w-5 opacity-60 hover:opacity-100"
+          variant="muted"
+          size="icon-2xs"
+          className="h-5 w-5"
           onClick={handleOpen}
           title="Enlarge"
         >
           <Maximize2 className="h-3 w-3" />
         </Button>
         <Button
-          variant="ghost"
-          size="icon"
-          className="h-5 w-5 opacity-60 hover:opacity-100"
+          variant="muted"
+          size="icon-2xs"
+          className="h-5 w-5"
           onClick={handleDownload}
           title="Download"
         >

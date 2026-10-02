@@ -97,19 +97,19 @@ function ProjectSelector({
           variant="outline"
           role="combobox"
           aria-expanded={open}
-          className="h-10 w-full justify-between font-normal sm:w-80"
+          className="h-10 w-full justify-between sm:w-80"
         >
           {isLoading ? (
-            <span className="text-muted-foreground">Loading...</span>
+            <span className="font-normal text-muted-foreground">Loading...</span>
           ) : selectedProject ? (
-            <span className="truncate">{selectedProject.name}</span>
+            <span className="truncate font-normal">{selectedProject.name}</span>
           ) : (
-            <span className="text-muted-foreground">Select project...</span>
+            <span className="font-normal text-muted-foreground">Select project...</span>
           )}
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-[--radix-popover-trigger-width] p-0 sm:w-80" align="start">
+      <PopoverContent className="w-(--radix-popover-trigger-width) p-0 sm:w-80" align="start">
         <div className="p-2">
           <div className="flex items-center rounded-md border px-3 py-2 ring-offset-background focus-within:ring-2 focus-within:ring-ring">
             <Search className="mr-2 h-4 w-4 shrink-0 text-muted-foreground" />
@@ -175,9 +175,9 @@ function CopyButton({ text, label }: { text: string; label: string }) {
 
   return (
     <Button
-      variant="ghost"
-      size="icon"
-      className="absolute right-2 top-2 h-7 w-7 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100"
+      variant="overlay"
+      size="icon-xs"
+      className="absolute right-2 top-2"
       onClick={handleCopy}
       aria-label={`Copy ${label}`}
     >
@@ -189,7 +189,7 @@ function CopyButton({ text, label }: { text: string; label: string }) {
 function CodeBlock({ code, label }: { code: string; label: string }) {
   return (
     <div className="relative">
-      <pre className="overflow-x-auto rounded-lg border border-zinc-800 bg-zinc-950 p-3 pr-12 font-mono text-xs text-zinc-100 sm:p-4 sm:text-sm">
+      <pre className="overflow-x-auto rounded-lg border border-overlay-border bg-overlay p-3 pr-12 font-mono text-xs text-overlay-foreground sm:p-4 sm:text-sm">
         <code>{code}</code>
       </pre>
       <CopyButton text={code} label={label} />
@@ -203,7 +203,7 @@ function ClientCard({ client }: { client: ClientConfig }) {
       <div className="flex items-center justify-between">
         <p className="text-sm font-medium">{client.name}</p>
         {client.deepLink && (
-          <Button variant="outline" size="sm" className="h-7 gap-1.5 text-xs" asChild>
+          <Button variant="outline" size="xs" asChild>
             <a href={client.deepLink.url}>
               <ExternalLink className="h-3 w-3" />
               {client.deepLink.label}

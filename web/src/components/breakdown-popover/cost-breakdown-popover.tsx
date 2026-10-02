@@ -66,7 +66,7 @@ export function CostBreakdownPopover({ data, children }: CostBreakdownPopoverPro
               <BreakdownRow label="Total" value={formatCost(grandTotal)} bold />
             </div>
           </div>
-          <p className="text-[10px] text-muted-foreground mt-3">
+          <p className="text-3xs text-muted-foreground mt-3">
             Estimates based on published pricing. Actual costs may vary.
           </p>
         </div>

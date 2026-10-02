@@ -19,7 +19,7 @@ interface InsightItem {
 function InsightCard({ label, value, detail, icon }: InsightItem) {
   return (
     <div className="flex h-full flex-col rounded-xl border border-border/60 bg-background/70 p-3 shadow-sm">
-      <div className="flex items-center justify-between text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+      <div className="flex items-center justify-between text-3xs font-semibold uppercase tracking-wide text-muted-foreground">
         <span>{label}</span>
         <span className="text-muted-foreground">{icon}</span>
       </div>
@@ -38,8 +38,8 @@ export function InsightsPanel({ stats, isLoading }: InsightsPanelProps) {
   if (isLoading) {
     return (
       <Card className="h-full min-h-70">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm font-medium">Insights</CardTitle>
+        <CardHeader size="sm">
+          <CardTitle size="sm">Insights</CardTitle>
           <CardDescription>Key signals from the selected time range</CardDescription>
         </CardHeader>
         <CardContent className="grid flex-1 gap-3 sm:grid-cols-2 sm:auto-rows-fr">
@@ -61,8 +61,8 @@ export function InsightsPanel({ stats, isLoading }: InsightsPanelProps) {
   if (!stats) {
     return (
       <Card className="h-full min-h-70">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm font-medium">Insights</CardTitle>
+        <CardHeader size="sm">
+          <CardTitle size="sm">Insights</CardTitle>
           <CardDescription>Key signals from the selected time range</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-1 items-center justify-center">
@@ -108,8 +108,8 @@ export function InsightsPanel({ stats, isLoading }: InsightsPanelProps) {
 
   return (
     <Card className="h-full min-h-70">
-      <CardHeader className="pb-2">
-        <CardTitle className="text-sm font-medium">Insights</CardTitle>
+      <CardHeader size="sm">
+        <CardTitle size="sm">Insights</CardTitle>
         <CardDescription>Key signals from the selected time range</CardDescription>
       </CardHeader>
       <CardContent className="grid flex-1 gap-3 sm:grid-cols-2 sm:auto-rows-fr">

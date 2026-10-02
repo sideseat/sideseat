@@ -225,7 +225,7 @@ function TruncationNotice({ shown, total }: { shown: number; total: number }) {
   return (
     <div
       role="status"
-      className="mb-3 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-900 dark:text-amber-200"
+      className="mb-3 rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-sm text-warning-foreground"
     >
       Showing the first {shown.toLocaleString()} of {total.toLocaleString()} spans. This session is
       larger than one page, so the view below is incomplete — open individual traces to see the

@@ -12,6 +12,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { Project } from "@/api/projects";
 
@@ -54,13 +55,15 @@ export function ProjectSwitcher({
   return (
     <>
       <DropdownMenu>
-        <DropdownMenuTrigger className="flex items-center gap-1 rounded-md px-2 py-1 text-sm font-medium hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-          {project ? (
-            <span className="max-w-[200px] truncate">{project.name}</span>
-          ) : (
-            <Skeleton className="h-4 w-24" />
-          )}
-          <ChevronDown className="h-4 w-4 opacity-50" />
+        <DropdownMenuTrigger asChild>
+          <Button variant="ghost" size="toolbar" className="h-7">
+            {project ? (
+              <span className="max-w-50 truncate">{project.name}</span>
+            ) : (
+              <Skeleton className="h-4 w-24" />
+            )}
+            <ChevronDown className="h-4 w-4 opacity-50" />
+          </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start" className="w-56">
           {projectsLoading ? (

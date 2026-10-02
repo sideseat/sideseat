@@ -13,12 +13,13 @@ interface TagBadgeProps {
   children: React.ReactNode;
   tooltip?: string;
   variant?: "secondary" | "destructive";
+  mono?: boolean;
   className?: string;
 }
 
-function TagBadge({ children, tooltip, variant = "secondary", className }: TagBadgeProps) {
+function TagBadge({ children, tooltip, variant = "secondary", mono, className }: TagBadgeProps) {
   const badge = (
-    <Badge variant={variant} className={cn("gap-1 text-xs font-normal", className)}>
+    <Badge variant={variant} weight="normal" mono={mono} className={className}>
       {children}
     </Badge>
   );
@@ -32,8 +33,8 @@ function TagBadge({ children, tooltip, variant = "secondary", className }: TagBa
       <TooltipTrigger asChild>
         <span className="inline-flex">{badge}</span>
       </TooltipTrigger>
-      <TooltipContent side="bottom" className="max-w-sm break-all font-mono text-xs">
-        {tooltip}
+      <TooltipContent side="bottom" className="max-w-sm break-all">
+        <span className="font-mono">{tooltip}</span>
       </TooltipContent>
     </Tooltip>
   );
@@ -75,21 +76,21 @@ export function SpanDetailHeader({ node }: SpanDetailHeaderProps) {
         )}
 
         {node.duration !== undefined && (
-          <TagBadge className="font-mono">
+          <TagBadge mono>
             <Clock className="h-3 w-3" />
             {formatDuration(node.duration)}
           </TagBadge>
         )}
 
         {tokenDisplay && (
-          <TagBadge className="font-mono">
+          <TagBadge mono>
             <Cpu className="h-3 w-3" />
             {tokenDisplay}
           </TagBadge>
         )}
 
         {hasCost && (
-          <TagBadge className="font-mono">
+          <TagBadge mono>
             <Coins className="h-3 w-3" />
             {formatCost(cost)}
           </TagBadge>
@@ -103,7 +104,7 @@ export function SpanDetailHeader({ node }: SpanDetailHeaderProps) {
         )}
 
         {span.model && (
-          <TagBadge className="max-w-48 font-mono @[500px]:max-w-64" tooltip={span.model}>
+          <TagBadge mono className="max-w-48 @[500px]:max-w-64" tooltip={span.model}>
             <span className="truncate">{span.model}</span>
           </TagBadge>
         )}

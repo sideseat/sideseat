@@ -65,10 +65,10 @@ function ToolCard({ tool, index, forceExpanded, onManualToggle }: ToolCardProps)
                 isOpen && "rotate-90",
               )}
             />
-            <span className="shrink-0 text-orange-600 dark:text-orange-400">
+            <span className="shrink-0 text-role-tool-call">
               <Wrench className="h-3.5 w-3.5 @[400px]:h-4 @[400px]:w-4" />
             </span>
-            <span className="truncate text-xs font-medium text-orange-600 @[400px]:text-sm dark:text-orange-400">
+            <span className="truncate text-xs font-medium text-role-tool-call @[400px]:text-sm">
               {toolName}
             </span>
 
@@ -84,7 +84,7 @@ function ToolCard({ tool, index, forceExpanded, onManualToggle }: ToolCardProps)
               }}
             >
               {copied ? (
-                <Check className="h-3 w-3 text-emerald-500 @[400px]:h-3.5 @[400px]:w-3.5" />
+                <Check className="h-3 w-3 text-success @[400px]:h-3.5 @[400px]:w-3.5" />
               ) : (
                 <Copy className="h-3 w-3 @[400px]:h-3.5 @[400px]:w-3.5" />
               )}
@@ -280,7 +280,7 @@ export function ThreadView({
       {metadata?.replay_matching_complete === false && (
         <div
           role="status"
-          className="mx-4 mt-3 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-900 dark:text-amber-200"
+          className="mx-4 mt-3 rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-sm text-warning-foreground"
         >
           Repeated history may appear twice below: this conversation was large enough that
           duplicate-detection stopped short of a complete answer.

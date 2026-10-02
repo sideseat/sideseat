@@ -78,7 +78,7 @@ export default function SpanDetailPage() {
           <div className="@[500px]:hidden">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm" className="h-9 gap-2 px-3">
+                <Button variant="outline" size="sm" className="h-9">
                   {activeTabConfig?.icon}
                   <span>{activeTabConfig?.label}</span>
                   <ChevronsUpDown className="h-3.5 w-3.5 opacity-50" />
@@ -86,11 +86,7 @@ export default function SpanDetailPage() {
               </DropdownMenuTrigger>
               <DropdownMenuContent align="start">
                 {SPAN_TABS.map((tab) => (
-                  <DropdownMenuItem
-                    key={tab.value}
-                    onClick={() => setActiveTab(tab.value)}
-                    className="gap-2"
-                  >
+                  <DropdownMenuItem key={tab.value} onClick={() => setActiveTab(tab.value)}>
                     {tab.icon}
                     {tab.label}
                     {effectiveActiveTab === tab.value && <Check className="ml-auto h-4 w-4" />}
@@ -123,7 +119,7 @@ export default function SpanDetailPage() {
 
           {/* Right side - span ID, favorite, and refresh */}
           <div className="flex items-center gap-2">
-            <code className="hidden truncate rounded border border-border/50 bg-muted px-2 py-1 font-mono text-xs text-muted-foreground @[600px]:block @[600px]:max-w-[200px] @[800px]:max-w-[300px] @[1000px]:max-w-none">
+            <code className="hidden truncate rounded border border-border/50 bg-muted px-2 py-1 font-mono text-xs text-muted-foreground @[600px]:block @[600px]:max-w-50 @[800px]:max-w-75 @[1000px]:max-w-none">
               {spanId}
             </code>
             <FavoriteButton
@@ -134,8 +130,8 @@ export default function SpanDetailPage() {
             />
             <Button
               variant="outline"
-              size="sm"
-              className="h-9 w-9 shrink-0 p-0"
+              size="icon"
+              className="shrink-0"
               onClick={() => refetch?.()}
               disabled={!refetch || isRefreshing}
               aria-label="Refresh"

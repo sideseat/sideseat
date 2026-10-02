@@ -80,12 +80,12 @@ export function AgentEmpty() {
           <header className="flex items-center justify-between border-b px-3 py-2">
             <TabsList className="h-7">
               {SNIPPETS.map((s) => (
-                <TabsTrigger key={s.id} value={s.id} className="text-xs">
+                <TabsTrigger key={s.id} value={s.id} size="sm">
                   {s.label}
                 </TabsTrigger>
               ))}
             </TabsList>
-            <Button variant="ghost" size="sm" className="h-7 gap-1.5 text-xs" asChild>
+            <Button variant="ghost" size="xs" asChild>
               <a href="https://sideseat.ai/docs" target="_blank" rel="noreferrer">
                 Docs
                 <ExternalLink className="size-3" />
@@ -108,7 +108,7 @@ export function AgentEmpty() {
         </Tabs>
       </div>
 
-      <div className="mt-3 flex items-center gap-2 text-[11px] text-muted-foreground">
+      <div className="mt-3 flex items-center gap-2 text-2xs text-muted-foreground">
         <Loader2 className="size-3 animate-spin" />
         <span>Listening for new agents on this project…</span>
       </div>
@@ -119,8 +119,8 @@ export function AgentEmpty() {
 function Step({ n, label, children }: { n: number; label: string; children: React.ReactNode }) {
   return (
     <div>
-      <div className="mb-1 flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">
-        <span className="flex size-4 items-center justify-center rounded-full border bg-background font-mono text-[9px] tabular-nums text-foreground">
+      <div className="mb-1 flex items-center gap-2 text-3xs font-semibold uppercase tracking-widest text-muted-foreground">
+        <span className="flex size-4 items-center justify-center rounded-full border bg-background font-mono text-3xs tabular-nums text-foreground">
           {n}
         </span>
         {label}
@@ -148,7 +148,7 @@ function CodeBlock({ value }: { value: string }) {
       <div className="absolute right-1.5 top-1.5 z-10">
         <CopyButton value={value} />
       </div>
-      <pre className="max-h-72 overflow-auto p-3 font-mono text-[11.5px] leading-relaxed text-foreground/90">
+      <pre className="max-h-72 overflow-auto p-3 font-mono text-2xs leading-relaxed text-foreground/90">
         {value}
       </pre>
     </div>

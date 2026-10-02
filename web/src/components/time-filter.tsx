@@ -1,5 +1,5 @@
 import { useState, useCallback, useMemo } from "react";
-import { Calendar as CalendarIcon, Check, ChevronDown, ChevronLeft, Clock } from "lucide-react";
+import { CalendarIcon, Check, ChevronDown, ChevronLeft, Clock } from "lucide-react";
 import type { DateRange } from "react-day-picker";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -83,7 +83,8 @@ function TimeInput({
           value={value.hours}
           onChange={(e) => handleNumericChange("hours", e.target.value)}
           onBlur={() => handleBlur("hours")}
-          className="h-8 w-11 px-1 text-center tabular-nums"
+          variant="segment"
+          className="h-8 w-11 text-center"
           maxLength={2}
           aria-label={`${label} hours`}
         />
@@ -96,7 +97,8 @@ function TimeInput({
           value={value.minutes}
           onChange={(e) => handleNumericChange("minutes", e.target.value)}
           onBlur={() => handleBlur("minutes")}
-          className="h-8 w-11 px-1 text-center tabular-nums"
+          variant="segment"
+          className="h-8 w-11 text-center"
           maxLength={2}
           aria-label={`${label} minutes`}
         />
@@ -109,7 +111,8 @@ function TimeInput({
           value={value.seconds}
           onChange={(e) => handleNumericChange("seconds", e.target.value)}
           onBlur={() => handleBlur("seconds")}
-          className="h-8 w-11 px-1 text-center tabular-nums"
+          variant="segment"
+          className="h-8 w-11 text-center"
           maxLength={2}
           aria-label={`${label} seconds`}
         />
@@ -117,7 +120,7 @@ function TimeInput({
           value={value.period}
           onValueChange={(p) => onChange({ ...value, period: p as "AM" | "PM" })}
         >
-          <SelectTrigger className="h-8 w-[4.5rem]" aria-label={`${label} AM/PM`}>
+          <SelectTrigger className="h-8 w-18" aria-label={`${label} AM/PM`}>
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -239,7 +242,7 @@ export function TimeFilter({
   return (
     <Popover open={open} onOpenChange={handleOpenChange}>
       <PopoverTrigger asChild>
-        <Button variant="outline" size="sm" className="gap-2">
+        <Button variant="outline" size="sm">
           {displayBadge && (
             <span className="rounded bg-muted px-1.5 py-0.5 text-xs font-medium tabular-nums">
               {displayBadge}

@@ -26,14 +26,10 @@ export function LandingView({ entries, selected, onSelect, loading }: Props) {
       {/* Uniform grid: `auto-fit` gives every column the same width (1fr);
           `auto-rows-fr` makes every row equal in height. Combined with the
           card's `h-full`, every card ends up the same size. */}
-      <div
-        className="grid auto-rows-fr gap-3"
-        style={{ gridTemplateColumns: "repeat(auto-fit, minmax(min(280px, 100%), 1fr))" }}
-        role="list"
-      >
+      <div className="grid grid-cols-cards auto-rows-fr gap-3" role="list">
         {loading
           ? Array.from({ length: 3 }).map((_, i) => (
-              <Skeleton key={i} className="h-28 w-full rounded-xl" />
+              <Skeleton key={i} shape="xl" className="h-28 w-full" />
             ))
           : entries.map((entry) => (
               <div role="listitem" className="h-full" key={`${entry.kind}:${entry.name}`}>

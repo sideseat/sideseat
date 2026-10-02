@@ -121,8 +121,8 @@ export function TraceViewHeader({
           <TooltipTrigger asChild>
             <Button
               variant="outline"
-              size="sm"
-              className={cn("h-7 w-7 px-0", !showNonGenAiSpans && "bg-muted")}
+              size="icon-xs"
+              aria-pressed={!showNonGenAiSpans}
               onClick={() => onShowNonGenAiSpansChange(!showNonGenAiSpans)}
             >
               <Layers className="h-3.5 w-3.5" />
@@ -135,7 +135,7 @@ export function TraceViewHeader({
 
         <Tooltip>
           <TooltipTrigger asChild>
-            <Button variant="outline" size="sm" className="h-7 w-7 px-0" onClick={toggleLayout}>
+            <Button variant="outline" size="icon-xs" onClick={toggleLayout}>
               {layoutDirection === "horizontal" ? (
                 <PanelLeftDashed className="h-3.5 w-3.5" />
               ) : (
@@ -152,8 +152,7 @@ export function TraceViewHeader({
           <TooltipTrigger asChild>
             <Button
               variant="outline"
-              size="sm"
-              className="h-7 w-7 px-0"
+              size="icon-xs"
               onClick={onToggleExpandAll}
               disabled={viewMode === "diagram"}
             >

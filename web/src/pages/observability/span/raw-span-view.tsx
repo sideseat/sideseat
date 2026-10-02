@@ -72,14 +72,15 @@ export function RawSpanView({ spanId, spanName, rawSpan }: RawSpanViewProps) {
             placeholder="Search..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="h-7 pl-7 pr-7 text-xs"
+            inputSize="xs"
+            adornment="both"
           />
           {search && (
             <Button
               variant="ghost"
-              size="sm"
+              size="icon-2xs"
               onClick={() => setSearch("")}
-              className="absolute right-0.5 top-1/2 h-6 w-6 -translate-y-1/2 p-0"
+              className="absolute right-0.5 top-1/2 -translate-y-1/2"
               aria-label="Clear search"
             >
               <X className="h-3 w-3" />
@@ -87,7 +88,7 @@ export function RawSpanView({ spanId, spanName, rawSpan }: RawSpanViewProps) {
           )}
         </div>
         <div className="flex-1" />
-        <code className="hidden truncate text-xs text-muted-foreground @[500px]:block @[500px]:max-w-[150px] @[700px]:max-w-[250px]">
+        <code className="hidden truncate text-xs text-muted-foreground @[500px]:block @[500px]:max-w-37.5 @[700px]:max-w-62.5">
           {spanName}
         </code>
         <ButtonGroup>
@@ -95,9 +96,9 @@ export function RawSpanView({ spanId, spanName, rawSpan }: RawSpanViewProps) {
             <TooltipTrigger asChild>
               <Button
                 variant="outline"
-                size="sm"
+                size="icon-xs"
                 onClick={handleCopy}
-                className="h-7 w-7 px-0"
+
                 aria-label="Copy span"
               >
                 {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
@@ -109,9 +110,9 @@ export function RawSpanView({ spanId, spanName, rawSpan }: RawSpanViewProps) {
             <TooltipTrigger asChild>
               <Button
                 variant="outline"
-                size="sm"
+                size="icon-xs"
                 onClick={handleDownload}
-                className="h-7 w-7 px-0"
+
                 aria-label="Download span"
               >
                 <Download className="h-3.5 w-3.5" />

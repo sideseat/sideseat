@@ -5,7 +5,6 @@ import { useParams } from "react-router";
 import { Button } from "@/components/ui/button";
 import { useAgentRun } from "@/api/agui/use-agent-run";
 import { useRegistrationsList, usePresenceStream } from "@/api/registrations/hooks";
-import { cn } from "@/lib/utils";
 import { usePageToolbar } from "@/lib/page-toolbar";
 
 import { AgentEmpty } from "./components/agent-empty";
@@ -59,7 +58,7 @@ export default function PlaygroundPage() {
     () => (
       <>
         {inChat && (
-          <Button variant="outline" size="sm" className="h-8 gap-1.5" onClick={handleNewChat}>
+          <Button variant="outline" size="sm" onClick={handleNewChat}>
             <Plus className="h-3.5 w-3.5" />
             <span className="hidden sm:inline">New chat</span>
           </Button>
@@ -67,7 +66,6 @@ export default function PlaygroundPage() {
         <Button
           variant="outline"
           size="sm"
-          className={cn("h-8 gap-1.5", debugOpen && "bg-accent text-accent-foreground")}
           onClick={() => setDebugOpen((v) => !v)}
           aria-pressed={debugOpen}
         >

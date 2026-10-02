@@ -31,7 +31,7 @@ const MessageBreadcrumb = memo(function MessageBreadcrumb({
   if (!sessionId && !traceId && !spanId) return null;
 
   return (
-    <div className="flex items-center gap-1 font-mono text-[10px] text-muted-foreground/70 mb-1.5 select-none">
+    <div className="flex items-center gap-1 font-mono text-3xs text-muted-foreground/70 mb-1.5 select-none">
       {sessionId && (
         <>
           <button
@@ -154,13 +154,13 @@ export const FeedSpanItem = memo(function FeedSpanItem({ span }: { span: SpanSum
         </div>
         <Button
           variant="ghost"
-          size="sm"
+          size="icon-2xs"
           onClick={handleCopy}
-          className="h-6 w-6 shrink-0 p-0 sm:h-7 sm:w-7"
+          className="shrink-0 sm:h-7 sm:w-7"
           aria-label="Copy span"
         >
           {copied ? (
-            <Check className="h-3 w-3 text-green-600 sm:h-3.5 sm:w-3.5" />
+            <Check className="h-3 w-3 text-success sm:h-3.5 sm:w-3.5" />
           ) : (
             <Copy className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
           )}

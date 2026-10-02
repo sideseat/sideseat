@@ -109,11 +109,8 @@ export function ThreadHeader({
           <TooltipTrigger asChild>
             <Button
               variant="outline"
-              size="sm"
-              className={cn(
-                "h-7 w-7 px-0",
-                markdownEnabled && activeTab === "messages" && "bg-muted",
-              )}
+              size="icon-xs"
+              aria-pressed={markdownEnabled && activeTab === "messages"}
               onClick={onMarkdownToggle}
               disabled={activeTab === "tools"}
             >
@@ -130,12 +127,7 @@ export function ThreadHeader({
         {/* Expand/Collapse */}
         <Tooltip>
           <TooltipTrigger asChild>
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-7 w-7 px-0"
-              onClick={onToggleExpandAll}
-            >
+            <Button variant="outline" size="icon-xs" onClick={onToggleExpandAll}>
               {allExpanded ? (
                 <ChevronsDownUp className="h-3.5 w-3.5" />
               ) : (

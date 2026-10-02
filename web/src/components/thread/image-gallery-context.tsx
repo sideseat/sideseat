@@ -21,6 +21,7 @@ import {
   getMediaTypeLabel,
 } from "@/lib/utils";
 import { getDataUrlByteLength } from "@/lib/media";
+import { cn } from "@/lib/utils";
 import { useFilesClient } from "@/lib/app-context";
 import type { FilesClient } from "@/api/files/client";
 import type { Block, ContentBlock } from "@/api/otel/types";
@@ -251,7 +252,7 @@ const IMAGE_ZOOM_STEP = 0.5;
 /** Loading spinner for lazy-loaded content */
 function LoadingSpinner() {
   return (
-    <div className="flex items-center justify-center min-h-[200px]">
+    <div className="flex items-center justify-center min-h-50">
       <div className="w-10 h-10 border-2 border-white/20 border-t-white/80 rounded-full animate-spin" />
     </div>
   );
@@ -384,11 +385,19 @@ function ImageLightboxContent({
           src={src}
           alt="Expanded view"
           crossOrigin="use-credentials"
-          className={`max-w-none transition-transform ${isDragging ? "cursor-grabbing" : zoom > 1 ? "cursor-grab" : "cursor-zoom-in"}`}
-          style={{
-            transform: `translate(${position.x}px, ${position.y}px) scale(${zoom}) rotate(${rotation}deg)`,
-            transitionDuration: isDragging ? "0ms" : "150ms",
-          }}
+          className={cn(
+            "max-w-none translate-x-(--pan-x) translate-y-(--pan-y) scale-(--zoom) rotate-(--rotation) transition-transform",
+            isDragging ? "cursor-grabbing duration-0" : "duration-150",
+            !isDragging && (zoom > 1 ? "cursor-grab" : "cursor-zoom-in"),
+          )}
+          style={
+            {
+              "--pan-x": `${position.x}px`,
+              "--pan-y": `${position.y}px`,
+              "--zoom": zoom,
+              "--rotation": `${rotation}deg`,
+            } as React.CSSProperties
+          }
           onMouseDown={handleMouseDown}
           onClick={(e) => {
             e.stopPropagation();
@@ -405,9 +414,8 @@ function ImageLightboxContent({
         className={`absolute bottom-6 left-1/2 -translate-x-1/2 z-10 flex items-center gap-1 px-2 py-1.5 bg-black/70 backdrop-blur-sm rounded-full border border-white/10 transition-opacity duration-300 ${showControls ? "opacity-100" : "opacity-0"}`}
       >
         <Button
-          variant="ghost"
-          size="icon"
-          className="h-8 w-8 text-neutral-400 hover:text-white hover:bg-white/10 rounded-full"
+          variant="overlay"
+          size="icon-sm"
           onClick={handleZoomOut}
           disabled={zoom <= IMAGE_MIN_ZOOM}
           title="Zoom out (-)"
@@ -416,7 +424,7 @@ function ImageLightboxContent({
         </Button>
 
         <button
-          className="min-w-15 px-2 py-1 text-xs font-medium text-neutral-300 hover:text-white hover:bg-white/10 rounded-full transition-colors"
+          className="min-w-15 px-2 py-1 text-xs font-medium text-overlay-foreground/80 hover:text-white hover:bg-white/10 rounded-full transition-colors"
           onClick={handleReset}
           title="Reset (0)"
         >
@@ -424,9 +432,8 @@ function ImageLightboxContent({
         </button>
 
         <Button
-          variant="ghost"
-          size="icon"
-          className="h-8 w-8 text-neutral-400 hover:text-white hover:bg-white/10 rounded-full"
+          variant="overlay"
+          size="icon-sm"
           onClick={handleZoomIn}
           disabled={zoom >= IMAGE_MAX_ZOOM}
           title="Zoom in (+)"
@@ -436,20 +443,13 @@ function ImageLightboxContent({
 
         <div className="w-px h-5 bg-white/20 mx-1" />
 
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-8 w-8 text-neutral-400 hover:text-white hover:bg-white/10 rounded-full"
-          onClick={handleRotate}
-          title="Rotate (R)"
-        >
+        <Button variant="overlay" size="icon-sm" onClick={handleRotate} title="Rotate (R)">
           <RotateCcw className="h-4 w-4" />
         </Button>
 
         <Button
-          variant="ghost"
-          size="icon"
-          className="h-8 w-8 text-neutral-400 hover:text-white hover:bg-white/10 rounded-full"
+          variant="overlay"
+          size="icon-sm"
           onClick={(e) => {
             e.stopPropagation();
             onDownload();
@@ -580,7 +580,7 @@ function MediaLightbox({
       <div
         className={`absolute top-0 left-0 right-0 z-10 flex items-center justify-between px-4 py-3 bg-linear-to-b from-black/80 via-black/40 to-transparent transition-opacity duration-300 ${showControls ? "opacity-100" : "opacity-0"}`}
       >
-        <div className="flex items-center gap-3 text-sm text-neutral-400">
+        <div className="flex items-center gap-3 text-sm text-overlay-muted-foreground">
           <span className="font-medium text-white">{entry.typeLabel}</span>
           {headerInfo && (
             <>
@@ -603,13 +603,7 @@ function MediaLightbox({
             </>
           )}
         </div>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-9 w-9 text-neutral-400 hover:text-white hover:bg-white/10 rounded-full"
-          onClick={onClose}
-          title="Close (Esc)"
-        >
+        <Button variant="overlay" size="icon" onClick={onClose} title="Close (Esc)">
           <X className="h-5 w-5" />
         </Button>
       </div>

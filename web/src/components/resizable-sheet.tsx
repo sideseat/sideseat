@@ -3,6 +3,7 @@ import {
   useEffect,
   useState,
   useRef,
+  type CSSProperties,
   type ReactNode,
   type MouseEvent as ReactMouseEvent,
 } from "react";
@@ -98,8 +99,16 @@ export function ResizableSheet({
         hideOverlay
         onInteractOutside={onInteractOutside}
         onPointerDownOutside={onPointerDownOutside}
-        className={cn("@container flex flex-col gap-0 p-0", className)}
-        style={{ width, minWidth: `min(${minWidth}px, 100vw)`, maxWidth: "100vw" }}
+        className={cn(
+          "@container flex w-(--sheet-width) max-w-screen min-w-(--sheet-min-width) flex-col sm:max-w-screen",
+          className,
+        )}
+        style={
+          {
+            "--sheet-width": `${width}px`,
+            "--sheet-min-width": `min(${minWidth}px, 100vw)`,
+          } as CSSProperties
+        }
         aria-describedby={undefined}
       >
         {/* Resize handle */}

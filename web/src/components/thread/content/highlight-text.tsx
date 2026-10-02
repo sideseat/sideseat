@@ -11,7 +11,7 @@ export function highlightText(text: unknown, search: string): React.ReactNode {
   if (parts.length === 1) return text;
   return parts.map((part, i) =>
     part.toLowerCase() === search.toLowerCase() ? (
-      <mark key={i} className="bg-yellow-300 dark:bg-yellow-500 text-inherit rounded-sm px-0.5">
+      <mark key={i} className="bg-highlight text-inherit rounded-sm px-0.5">
         {part}
       </mark>
     ) : (

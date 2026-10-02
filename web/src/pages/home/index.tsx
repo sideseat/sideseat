@@ -37,9 +37,9 @@ export default function HomePage() {
       <PageHeader />
 
       <div className="mx-auto flex w-full max-w-400 flex-col gap-8 px-4 py-6 sm:px-6">
-        <section className="relative overflow-hidden rounded-3xl border border-border/60 bg-linear-to-br from-sky-500/10 via-emerald-500/10 to-amber-500/10 p-6 shadow-xl dark:from-violet-500/15 dark:via-indigo-500/20 dark:to-cyan-500/15 sm:p-10">
-          <div className="absolute -right-10 -top-10 h-44 w-44 rounded-full bg-sky-500/10 blur-3xl dark:bg-violet-500/30" />
-          <div className="absolute bottom-0 left-4 h-24 w-24 rounded-full bg-emerald-500/15 blur-2xl dark:bg-cyan-500/30" />
+        <section className="relative overflow-hidden rounded-3xl border border-border/60 bg-linear-to-br from-role-user/10 via-role-assistant/10 to-role-context/10 p-6 shadow-xl dark:from-role-system/15 dark:via-role-user/20 dark:to-role-tool/15 sm:p-10">
+          <div className="absolute -right-10 -top-10 h-44 w-44 rounded-full bg-role-user/10 blur-3xl dark:bg-role-system/30" />
+          <div className="absolute bottom-0 left-4 h-24 w-24 rounded-full bg-role-assistant/15 blur-2xl dark:bg-role-tool/30" />
           <div className="relative flex flex-col gap-8 lg:flex-row lg:items-center lg:justify-between">
             <div className="max-w-2xl space-y-5">
               <div>

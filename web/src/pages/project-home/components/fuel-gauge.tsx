@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type CSSProperties } from "react";
 import { Check, X, Pencil, Trash2 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -84,8 +84,8 @@ export function FuelGauge({ projectId, timeRange, costs, isLoading }: FuelGaugeP
   if (isLoading) {
     return (
       <Card className="h-full min-h-70">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm font-medium">Cost</CardTitle>
+        <CardHeader size="sm">
+          <CardTitle size="sm">Cost</CardTitle>
           <CardDescription>Loading budget status</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-1 flex-col pt-2">
@@ -97,7 +97,7 @@ export function FuelGauge({ projectId, timeRange, costs, isLoading }: FuelGaugeP
 
           {/* Budget section skeleton */}
           <div className="mt-4 space-y-2">
-            <Skeleton className="h-2.5 w-full rounded-full" />
+            <Skeleton shape="circle" className="h-2.5 w-full" />
             <div className="flex items-center justify-between">
               <Skeleton className="h-3 w-40" />
               <Skeleton className="h-8 w-24" />
@@ -127,8 +127,8 @@ export function FuelGauge({ projectId, timeRange, costs, isLoading }: FuelGaugeP
 
   return (
     <Card className="h-full min-h-70">
-      <CardHeader className="pb-2">
-        <CardTitle className="text-sm font-medium">Cost</CardTitle>
+      <CardHeader size="sm">
+        <CardTitle size="sm">Cost</CardTitle>
         <CardDescription>{getTimeRangeLabel(timeRange)}</CardDescription>
       </CardHeader>
       <CardContent className="flex flex-1 flex-col pt-2">
@@ -145,18 +145,22 @@ export function FuelGauge({ projectId, timeRange, costs, isLoading }: FuelGaugeP
           <div className="h-2.5 bg-muted rounded-full overflow-hidden">
             <div
               className={cn(
-                "h-full rounded-full transition-all",
+                "h-full w-(--fill-width) rounded-full transition-all",
                 !budget
                   ? "bg-transparent"
                   : isOverBudget
                     ? "bg-destructive"
                     : percentage > 75
-                      ? "bg-linear-to-r from-amber-500 to-red-500"
+                      ? "bg-linear-to-r from-warning to-destructive"
                       : percentage > 50
-                        ? "bg-linear-to-r from-emerald-500 to-amber-500"
-                        : "bg-emerald-500",
+                        ? "bg-linear-to-r from-success to-warning"
+                        : "bg-success",
               )}
-              style={{ width: budget ? `${Math.min(percentage, 100)}%` : "0%" }}
+              style={
+                {
+                  "--fill-width": budget ? `${Math.min(percentage, 100)}%` : "0%",
+                } as CSSProperties
+              }
             />
           </div>
 
@@ -175,7 +179,8 @@ export function FuelGauge({ projectId, timeRange, costs, isLoading }: FuelGaugeP
                 onChange={(e) => setEditValue(e.target.value)}
                 onKeyDown={handleKeyDown}
                 placeholder="50.00"
-                className="h-7 w-20 text-right text-sm"
+                inputSize="xs"
+                className="w-20 text-right"
                 min={0}
                 max={999999}
                 step={0.01}

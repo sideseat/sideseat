@@ -16,7 +16,7 @@ export function ContextContent({ data, contextType }: ContextContentProps) {
   return (
     <div className="space-y-2">
       <div className="flex items-center gap-2 text-xs text-muted-foreground">
-        <span className="font-medium text-amber-600 dark:text-amber-400">{label}</span>
+        <span className="font-medium text-role-context">{label}</span>
         {itemCount && <span>({itemCount})</span>}
       </div>
       <div className="max-h-96 overflow-auto">

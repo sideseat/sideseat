@@ -58,13 +58,13 @@ export function ActivityFeed({ projectId, traces, recentCount, isLoading }: Acti
   if (isLoading) {
     return (
       <Card className="h-full min-h-70">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm font-medium">Recent Activity</CardTitle>
+        <CardHeader size="sm">
+          <CardTitle size="sm">Recent Activity</CardTitle>
         </CardHeader>
         <CardContent className="flex flex-1 flex-col space-y-2">
           {[1, 2, 3].map((i) => (
             <div key={i} className="flex items-center gap-3 py-2">
-              <Skeleton className="h-2 w-2 rounded-full" />
+              <Skeleton shape="circle" className="h-2 w-2" />
               <Skeleton className="h-4 w-12" />
               <Skeleton className="h-4 flex-1" />
               <Skeleton className="h-4 w-14" />
@@ -79,8 +79,8 @@ export function ActivityFeed({ projectId, traces, recentCount, isLoading }: Acti
   if (!traces || traces.length === 0) {
     return (
       <Card className="h-full min-h-70">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm font-medium">Recent Activity</CardTitle>
+        <CardHeader size="sm">
+          <CardTitle size="sm">Recent Activity</CardTitle>
           <CardDescription>Latest traces across your project</CardDescription>
           {typeof recentCount === "number" && (
             <CardAction>
@@ -100,8 +100,8 @@ export function ActivityFeed({ projectId, traces, recentCount, isLoading }: Acti
 
   return (
     <Card className="h-full min-h-70">
-      <CardHeader className="pb-2">
-        <CardTitle className="text-sm font-medium">Recent Activity</CardTitle>
+      <CardHeader size="sm">
+        <CardTitle size="sm">Recent Activity</CardTitle>
         <CardDescription>Latest traces across your project</CardDescription>
         {typeof recentCount === "number" && (
           <CardAction>
@@ -124,7 +124,7 @@ export function ActivityFeed({ projectId, traces, recentCount, isLoading }: Acti
                 <div
                   className={cn(
                     "h-2 w-2 rounded-full shrink-0",
-                    isInProgress ? "bg-emerald-500 animate-pulse" : "bg-muted-foreground/50",
+                    isInProgress ? "bg-success animate-pulse" : "bg-muted-foreground/50",
                   )}
                   role="img"
                   aria-label={isInProgress ? "In progress" : "Complete"}

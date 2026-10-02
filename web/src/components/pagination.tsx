@@ -177,7 +177,7 @@ export function Pagination({
             onKeyDown={handlePageInputKeyDown}
             onBlur={handlePageInputBlur}
             disabled={isDisabled}
-            className="h-8 w-[86px] text-center sm:w-20"
+            className="h-8 w-21.5 text-center sm:w-20"
             aria-label="Current page"
             maxLength={6}
           />

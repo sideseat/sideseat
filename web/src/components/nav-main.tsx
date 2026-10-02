@@ -180,7 +180,6 @@ export function NavMain({ items }: { items: NavigationItem[] }) {
         <DropdownMenuItem
           key={item.title}
           onSelect={() => firstItemUrl && navigate(buildUrl(firstItemUrl))}
-          className="flex items-center gap-2"
         >
           {item.icon && <item.icon />}
           <span>{item.title}</span>

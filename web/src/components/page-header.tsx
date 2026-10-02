@@ -20,7 +20,7 @@ export function PageHeader() {
       <MainNav />
       <div className="flex items-center gap-2">
         {version && (
-          <span className="hidden font-mono text-[10px] tracking-wider text-muted-foreground/60 sm:inline">
+          <span className="hidden font-mono text-3xs tracking-wider text-muted-foreground/60 sm:inline">
             v{version}
           </span>
         )}

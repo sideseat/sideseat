@@ -3,7 +3,6 @@ import { GitBranch, Users, Layers, User } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatCompact } from "@/lib/format";
-import { cn } from "@/lib/utils";
 
 interface QuickStatsProps {
   projectId: string;
@@ -39,12 +38,7 @@ function StatCard({ label, value, icon, href }: StatCardProps) {
   if (href) {
     return (
       <Link to={href} className="block h-full">
-        <Card
-          className={cn(
-            "h-full py-4 border-border/60 bg-card/80 shadow-sm transition-all",
-            "hover:border-primary/30 hover:shadow-md hover:bg-background/80",
-          )}
-        >
+        <Card variant="translucent" size="sm" interactive className="h-full">
           <CardContent className="h-full py-0 flex items-center">{content}</CardContent>
         </Card>
       </Link>
@@ -52,7 +46,7 @@ function StatCard({ label, value, icon, href }: StatCardProps) {
   }
 
   return (
-    <Card className="h-full py-4 border-border/60 bg-card/80 shadow-sm">
+    <Card variant="translucent" size="sm" className="h-full">
       <CardContent className="h-full py-0 flex items-center">{content}</CardContent>
     </Card>
   );
@@ -60,10 +54,10 @@ function StatCard({ label, value, icon, href }: StatCardProps) {
 
 function StatCardSkeleton() {
   return (
-    <Card className="h-full py-4 border-border/60 bg-card/80 shadow-sm">
+    <Card variant="translucent" size="sm" className="h-full">
       <CardContent className="h-full py-0 flex items-center">
         <div className="flex items-center gap-3">
-          <Skeleton className="h-9 w-9 rounded-lg" />
+          <Skeleton shape="lg" className="h-9 w-9" />
           <div>
             <Skeleton className="h-7 w-16 mb-1" />
             <Skeleton className="h-3 w-12" />

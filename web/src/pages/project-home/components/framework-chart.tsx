@@ -1,5 +1,5 @@
 import { useNavigate } from "react-router";
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback, type CSSProperties } from "react";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -111,13 +111,13 @@ export function FrameworkChart({ projectId, data, isLoading }: FrameworkChartPro
   if (isLoading) {
     return (
       <Card className="h-full min-h-70">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm font-medium">Framework Distribution</CardTitle>
+        <CardHeader size="sm">
+          <CardTitle size="sm">Framework Distribution</CardTitle>
           <CardDescription>Share of traces by framework</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-1 items-center">
           <div className="flex items-center gap-4 w-full">
-            <Skeleton className="h-32 w-32 rounded-full" />
+            <Skeleton shape="circle" className="h-32 w-32" />
             <div className="space-y-2 flex-1">
               <Skeleton className="h-4 w-full" />
               <Skeleton className="h-4 w-3/4" />
@@ -132,8 +132,8 @@ export function FrameworkChart({ projectId, data, isLoading }: FrameworkChartPro
   if (chartData.length === 0) {
     return (
       <Card className="h-full min-h-70">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm font-medium">Framework Distribution</CardTitle>
+        <CardHeader size="sm">
+          <CardTitle size="sm">Framework Distribution</CardTitle>
           <CardDescription>Share of traces by framework</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-1 items-center justify-center">
@@ -147,13 +147,13 @@ export function FrameworkChart({ projectId, data, isLoading }: FrameworkChartPro
 
   return (
     <Card className="h-full min-h-70">
-      <CardHeader className="pb-2">
-        <CardTitle className="text-sm font-medium">Framework Distribution</CardTitle>
+      <CardHeader size="sm">
+        <CardTitle size="sm">Framework Distribution</CardTitle>
         <CardDescription>Share of traces by framework</CardDescription>
       </CardHeader>
       <CardContent className="flex flex-1 items-center">
         <div className="flex items-center gap-4 w-full" role="img" aria-label={ariaLabel}>
-          <div style={{ width: 128, height: 128 }}>
+          <div className="size-32">
             <ResponsiveContainer width={128} height={128}>
               <PieChart>
                 <Pie
@@ -165,10 +165,10 @@ export function FrameworkChart({ projectId, data, isLoading }: FrameworkChartPro
                   paddingAngle={2}
                   dataKey="value"
                   onClick={(_, index) => handleClick(chartData[index].framework)}
-                  style={{ cursor: "pointer" }}
+                  className="cursor-pointer"
                 >
                   {chartData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} style={{ fill: entry.color }} />
+                    <Cell key={`cell-${index}`} fill={entry.color} />
                   ))}
                 </Pie>
                 <Tooltip
@@ -197,7 +197,10 @@ export function FrameworkChart({ projectId, data, isLoading }: FrameworkChartPro
                 onClick={() => handleClick(entry.framework)}
                 className="flex items-center gap-2 w-full text-left hover:bg-muted/50 rounded px-1 py-0.5 transition-colors"
               >
-                <div className="h-3 w-3 rounded-sm" style={{ backgroundColor: entry.color }} />
+                <div
+                  className="h-3 w-3 rounded-sm bg-(--swatch)"
+                  style={{ "--swatch": entry.color } as CSSProperties}
+                />
                 <span className="text-sm truncate flex-1">{entry.name}</span>
                 <span className="text-sm text-muted-foreground">
                   {formatPercent(entry.percentage)}
