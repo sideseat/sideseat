@@ -512,6 +512,7 @@ fn every_aliased_sample_suite_is_invoked_by_its_alias() {
         .expect("git is available in a git checkout");
 
     let mut aliased: Vec<String> = Vec::new();
+    let mut manifests = 0usize;
     for manifest in String::from_utf8_lossy(&listing.stdout)
         .lines()
         .filter(|f| f.ends_with("pyproject.toml"))
@@ -519,6 +520,7 @@ fn every_aliased_sample_suite_is_invoked_by_its_alias() {
         let Some(suite) = manifest.split('/').nth(2) else {
             continue;
         };
+        manifests += 1;
         let text = std::fs::read_to_string(repo.join(manifest)).unwrap_or_default();
         let Some(scripts) = text.split("[project.scripts]").nth(1) else {
             continue;
@@ -533,10 +535,11 @@ fn every_aliased_sample_suite_is_invoked_by_its_alias() {
             aliased.push(suite.to_string());
         }
     }
+    // Suites on the scenario harness run `sample`, which no framework installs, so they declare no
+    // alias and the aliased set shrinks as suites move. What must not shrink is the scan itself.
     assert!(
-        aliased.len() >= 3,
-        "found only {} aliased suite(s) - the scan is wrong, not the tree",
-        aliased.len()
+        manifests >= 10,
+        "read only {manifests} suite manifest(s) - the scan is wrong, not the tree"
     );
 
     // Discover callers across tracked text instead of maintaining a filename list.

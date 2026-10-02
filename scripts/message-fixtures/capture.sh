@@ -49,9 +49,6 @@ SUITES=(
   "traceloop|uv run --locked --directory examples/python/traceloop telemetry-traceloop {S}"
   "claude-agent-sdk|uv run --locked --directory examples/python/claude-agent-sdk claude-agent-sdk {S}"
   "browser-use|uv run --locked --directory examples/python/browser-use telemetry-browser-use {S}"
-  # The `agent` sample can also run against scripts/message-fixtures/fake-openai.py through
-  # AUTOGEN_OPENAI_BASE_URL, so it needs no first-party credential.
-  "autogen|uv run --locked --directory examples/python/autogen telemetry-autogen {S}"
   "vercel-ai-js|cd examples/javascript && npm run vercel-ai -- {S}"
   "strands-js|cd examples/javascript && npm run strands -- {S}"
   "claude-agent-sdk-js|cd examples/javascript && npm run claude-agent-sdk -- {S}"
@@ -182,14 +179,6 @@ failed=()
 for entry in "${SUITES[@]}"; do
   IFS='|' read -r suite runner <<<"$entry"
   [[ -n "$want_suite" && "$suite" != "$want_suite" ]] && continue
-
-  # AutoGen has no Bedrock path. Its compact fixture may use the deterministic local endpoint;
-  # the larger historical sample catalogue still needs a first-party key.
-  if [[ "$suite" == "autogen" &&
-        -z "${OPENAI_API_KEY:-}${ANTHROPIC_API_KEY:-}${AUTOGEN_OPENAI_BASE_URL:-}" ]]; then
-    echo "[capture] $suite: skipped - needs a provider key or AUTOGEN_OPENAI_BASE_URL"
-    continue
-  fi
 
   samples="$(discover_samples "$runner")"
   if [[ -z "$samples" ]]; then

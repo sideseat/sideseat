@@ -94,12 +94,14 @@ uv run --locked --directory adk telemetry-adk all                           # Ru
 ### AutoGen
 
 ```bash
-uv run --locked --directory autogen telemetry-autogen                           # List samples and models
-uv run --locked --directory autogen telemetry-autogen tool_use                  # Tool usage
-uv run --locked --directory autogen telemetry-autogen all                       # Run all samples
+uv run --locked --directory autogen sample --list                    # List scenarios and models
+uv run --locked --directory autogen sample tool_use                  # Tool usage, native telemetry
+uv run --locked --directory autogen sample tool_use --sideseat       # The same with the SideSeat SDK
+uv run --locked --directory autogen sample all                       # Run every scenario
 ```
 
-Default model: `anthropic-haiku` (no native Bedrock support).
+On the shared scenario harness; see `autogen/README.md`. Claude runs on Bedrock through the
+Anthropic SDK's Bedrock client.
 
 ### OpenAI Agents SDK
 
