@@ -29,6 +29,7 @@ import argparse
 import getpass
 import gzip
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -46,12 +47,34 @@ PYTHON_SUITES = REPO / "examples" / "python"
 PLACEHOLDER_USER = b"sideseat"
 
 
-def anonymise(raw: bytes) -> bytes:
-    """Replace the capturing user's account name, as it appears in file paths, with a placeholder.
+#: The Claude Code CLI stores a user's attachments under a directory named for its session, a fresh
+#: UUID per run, and reports that path in place of the bytes.
+_CLI_ATTACHMENT_DIR = re.compile(
+    rb"(/claude-[^/]+/[^/]+/)[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}(/images/)"
+)
+_FIXED_SESSION = b"00000000-0000-0000-0000-000000000000"
+#: The CLI names each subagent it starts with a fresh id and writes it into the text the model reads.
+_CLI_AGENT_ID = re.compile(rb"agentId: (a[0-9a-f]{16})")
+#: ...and reports how long the subagent took, a measurement no two runs share.
+_CLI_SUBAGENT_DURATION = re.compile(rb"(duration_ms: )(\d+)")
 
-    The replacement has the same length: protobuf payloads are length-prefixed, so any other length
-    would require re-encoding, and a re-encoded payload is no longer what the producer sent.
+
+def anonymise(raw: bytes, agents: dict[bytes, bytes] | None = None) -> bytes:
+    """Replace what differs between two runs of one conversation, or names the person capturing it.
+
+    The capturing user's account name, as it appears in file paths, becomes a placeholder, and the CLI's
+    per-run attachment directory and subagent ids fixed ones - ``agents`` holds the run's ids, so one
+    subagent keeps one id across payloads - so the native and SDK runs of a scenario compare. Every
+    replacement has the same length: protobuf payloads are length-prefixed, so any other length would
+    require re-encoding, and a re-encoded payload is no longer what the producer sent.
     """
+    raw = _CLI_ATTACHMENT_DIR.sub(rb"\g<1>" + _FIXED_SESSION + rb"\g<2>", raw)
+    raw = _CLI_SUBAGENT_DURATION.sub(lambda m: m[1] + b"0" * len(m[2]), raw)
+    if agents is not None:
+        for found in _CLI_AGENT_ID.findall(raw):
+            agents.setdefault(found, b"a%016x" % (len(agents) + 1))
+        for real, pinned in agents.items():
+            raw = raw.replace(real, pinned)
     user = getpass.getuser().encode()
     if not user or user == PLACEHOLDER_USER:
         return raw
@@ -62,6 +85,7 @@ class _Recorder(BaseHTTPRequestHandler):
     out: Path
     forward: str | None
     count = 0
+    agents: dict[bytes, bytes] = {}
     lock = threading.Lock()
 
     def log_message(self, fmt: str, *args: object) -> None:
@@ -95,7 +119,8 @@ class _Recorder(BaseHTTPRequestHandler):
             with _Recorder.lock:
                 _Recorder.count += 1
                 path = self.out / f"req-{_Recorder.count:03d}.{suffix}"
-            path.write_bytes(anonymise(raw))
+                payload = anonymise(raw, _Recorder.agents)
+            path.write_bytes(payload)
         status, reply = 200, b"{}"
         if self.forward:
             status, reply = self._forward(body)
@@ -184,6 +209,7 @@ def capture_one(
         return False
     staging = Path(tempfile.mkdtemp(prefix=f"capture-{producer}-{scenario}-"))
     _Recorder.out, _Recorder.forward, _Recorder.count = staging, forward, 0
+    _Recorder.agents = {}
     server = ThreadingHTTPServer(("127.0.0.1", 0), _Recorder)
     threading.Thread(target=server.serve_forever, daemon=True).start()
     command = ["uv", "run", "--locked", "--directory", str(suite), "sample", scenario]
