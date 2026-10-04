@@ -48,7 +48,7 @@ server/
   crates/ingestion/     OTLP decoding, normalization, durability
   crates/query-sql/     typed analytical queries
   crates/api/           HTTP, gRPC, MCP, SSE, WebSocket
-  crates/adapter-*/     databases, blob storage, cache, queues, secrets
+  crates/adapter-*/     databases, blob storage, cache, queues, secrets, provider probes
   src/                  the composition root
   assets/rules/         what each framework's telemetry means - no framework knowledge lives in Rust
   tests/                message goldens, parity suites, repository invariants

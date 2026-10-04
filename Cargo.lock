@@ -307,16 +307,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "assert-json-diff"
-version = "2.0.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "47e4f2b81832e72834d7518d8487a0396a28cc408186a2e8854c0f98011faf12"
-dependencies = [
- "serde",
- "serde_json",
-]
-
-[[package]]
 name = "async-broadcast"
 version = "0.7.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -379,16 +369,6 @@ dependencies = [
  "event-listener",
  "event-listener-strategy",
  "pin-project-lite",
-]
-
-[[package]]
-name = "async-object-pool"
-version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e1ac0219111eb7bb7cb76d4cf2cb50c598e7ae549091d3616f9e95442c18486f"
-dependencies = [
- "async-lock",
- "event-listener",
 ]
 
 [[package]]
@@ -1483,7 +1463,7 @@ dependencies = [
  "lz4_flex",
  "polonius-the-crab",
  "serde",
- "thiserror 2.0.21",
+ "thiserror",
  "time",
  "tokio",
  "url",
@@ -1508,7 +1488,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3966eea13bfc826e24d471e49cb2095727261009be59d0ac5a6c0be0286974d1"
 dependencies = [
  "bytes",
- "thiserror 2.0.21",
+ "thiserror",
 ]
 
 [[package]]
@@ -2299,17 +2279,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "eventsource-stream"
-version = "0.2.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "74fef4569247a5f429d9156b9d0a2599914385dd189c539334c625d8099d90ab"
-dependencies = [
- "futures-core",
- "nom",
- "pin-project-lite",
-]
-
-[[package]]
 name = "fallible-iterator"
 version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2326,9 +2295,6 @@ name = "fastrand"
 version = "2.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "da7c62ceae207dd37ea5b845da6a0696c799f85e97da1ab5b7910be3c1c80223"
-dependencies = [
- "getrandom 0.4.3",
-]
 
 [[package]]
 name = "ff"
@@ -2507,12 +2473,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cd417de3d1d015fc3bfd2b1ea46dfc7bab72ef86f1cc7cc9c78e728b34a6d1fd"
 
 [[package]]
-name = "futures-timer"
-version = "3.0.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "af43fadb8a98512d547e37b4e92e0ced13e205c061b87b4623eff01d918d6968"
-
-[[package]]
 name = "futures-util"
 version = "0.3.34"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2549,7 +2509,7 @@ dependencies = [
  "rustls-pki-types",
  "serde",
  "serde_json",
- "thiserror 2.0.21",
+ "thiserror",
  "tokio",
  "tracing",
  "tracing-futures",
@@ -2739,30 +2699,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "headers"
-version = "0.4.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fc2700e3fe555c3310aa7286cac6167449f2c87e0eb58769c9208a1c58a1d106"
-dependencies = [
- "base64 0.22.1",
- "bytes",
- "headers-core",
- "http 1.5.0",
- "httpdate",
- "mime",
- "sha1 0.10.7",
-]
-
-[[package]]
-name = "headers-core"
-version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "54b4a22553d4242c49fddb9ba998a99962b5cc6f22cb5a3482bec22522403ce4"
-dependencies = [
- "http 1.5.0",
-]
-
-[[package]]
 name = "heck"
 version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2899,40 +2835,6 @@ name = "httpdate"
 version = "1.0.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "df3b46402a9d5adb4c86a0cf463f42e19994e3ee891101b1841f30a545cb49a9"
-
-[[package]]
-name = "httpmock"
-version = "0.8.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bf4888a4d02d8e1f92ffb6b4965cf5ff56dda36ef41975f41c6fa0f6bde78c4e"
-dependencies = [
- "assert-json-diff",
- "async-object-pool",
- "async-trait",
- "base64 0.22.1",
- "bytes",
- "crossbeam-utils",
- "form_urlencoded",
- "futures-timer",
- "futures-util",
- "headers",
- "http 1.5.0",
- "http-body-util",
- "hyper 1.11.1",
- "hyper-util",
- "path-tree",
- "regex",
- "serde",
- "serde_json",
- "serde_regex",
- "similar",
- "stringmetrics",
- "tabwriter",
- "thiserror 2.0.21",
- "tokio",
- "tracing",
- "url",
-]
 
 [[package]]
 name = "hybrid-array"
@@ -3313,7 +3215,7 @@ dependencies = [
  "jni-sys",
  "log",
  "simd_cesu8",
- "thiserror 2.0.21",
+ "thiserror",
  "walkdir",
  "windows-link",
 ]
@@ -4006,7 +3908,7 @@ dependencies = [
  "futures-sink",
  "js-sys",
  "pin-project-lite",
- "thiserror 2.0.21",
+ "thiserror",
  "tracing",
 ]
 
@@ -4020,7 +3922,7 @@ dependencies = [
  "futures-sink",
  "js-sys",
  "pin-project-lite",
- "thiserror 2.0.21",
+ "thiserror",
  "tracing",
 ]
 
@@ -4051,7 +3953,7 @@ dependencies = [
  "opentelemetry_sdk 0.33.0",
  "prost 0.14.4",
  "reqwest",
- "thiserror 2.0.21",
+ "thiserror",
 ]
 
 [[package]]
@@ -4096,7 +3998,7 @@ dependencies = [
  "percent-encoding",
  "rand 0.8.8",
  "serde_json",
- "thiserror 2.0.21",
+ "thiserror",
 ]
 
 [[package]]
@@ -4112,7 +4014,7 @@ dependencies = [
  "percent-encoding",
  "portable-atomic",
  "rand 0.9.5",
- "thiserror 2.0.21",
+ "thiserror",
  "tokio",
  "tokio-stream",
 ]
@@ -4191,15 +4093,6 @@ name = "pastey"
 version = "0.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2ee67f1008b1ba2321834326597b8e186293b049a023cdef258527550b9935b4"
-
-[[package]]
-name = "path-tree"
-version = "0.8.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c2a97453bc21a968f722df730bfe11bd08745cb50d1300b0df2bda131dece136"
-dependencies = [
- "smallvec",
-]
 
 [[package]]
 name = "pem"
@@ -4508,7 +4401,7 @@ dependencies = [
  "rustc-hash",
  "rustls 0.23.45",
  "socket2 0.6.5",
- "thiserror 2.0.21",
+ "thiserror",
  "tokio",
  "tracing",
  "web-time",
@@ -4531,7 +4424,7 @@ dependencies = [
  "rustls 0.23.45",
  "rustls-pki-types",
  "slab",
- "thiserror 2.0.21",
+ "thiserror",
  "tinyvec",
  "tracing",
  "web-time",
@@ -4744,7 +4637,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "60dc65c0ff1a7ae1294b0c67b9f14baf70b644404010370171787bfac1038fc0"
 dependencies = [
  "libredox",
- "thiserror 2.0.21",
+ "thiserror",
 ]
 
 [[package]]
@@ -4898,7 +4791,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sse-stream",
- "thiserror 2.0.21",
+ "thiserror",
  "tokio",
  "tokio-stream",
  "tokio-util",
@@ -5374,7 +5267,7 @@ dependencies = [
  "serde_json",
  "serde_json_path_core",
  "serde_json_path_macros",
- "thiserror 2.0.21",
+ "thiserror",
 ]
 
 [[package]]
@@ -5386,7 +5279,7 @@ dependencies = [
  "inventory",
  "serde",
  "serde_json",
- "thiserror 2.0.21",
+ "thiserror",
 ]
 
 [[package]]
@@ -5420,16 +5313,6 @@ dependencies = [
  "itoa",
  "serde",
  "serde_core",
-]
-
-[[package]]
-name = "serde_regex"
-version = "1.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bafc8d0c5330cecff10f16b459b479fd9acaa5b4acd7167301414e21b0057012"
-dependencies = [
- "regex",
- "serde",
 ]
 
 [[package]]
@@ -5526,37 +5409,15 @@ checksum = "f8fadd59c855ef2080decdef8ff161eb6661b86933c9d82e5ba29dc602a55aba"
 
 [[package]]
 name = "sideseat"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
- "async-stream",
- "async-trait",
- "aws-config",
- "aws-credential-types",
- "aws-sdk-bedrock",
- "aws-sdk-bedrockruntime",
- "aws-smithy-http",
- "aws-smithy-types",
- "base64 0.22.1",
- "crc32fast",
- "eventsource-stream",
- "futures",
- "gcp_auth",
- "httpmock",
  "opentelemetry 0.33.0",
  "opentelemetry-otlp",
  "opentelemetry_sdk 0.33.0",
- "parking_lot",
- "rand 0.8.8",
- "reqwest",
- "rmcp",
- "serde",
- "serde_json",
- "tempfile",
- "thiserror 2.0.21",
+ "percent-encoding",
+ "thiserror",
  "tokio",
- "tracing",
- "uuid",
- "yrs",
+ "url",
 ]
 
 [[package]]
@@ -5584,7 +5445,7 @@ dependencies = [
  "serde",
  "sideseat-core",
  "sideseat-ports",
- "thiserror 2.0.21",
+ "thiserror",
  "tokio",
  "tracing",
 ]
@@ -5602,7 +5463,7 @@ dependencies = [
  "sideseat-core",
  "sideseat-ports",
  "sideseat-query-sql",
- "thiserror 2.0.21",
+ "thiserror",
  "time",
  "tokio",
  "tracing",
@@ -5622,7 +5483,7 @@ dependencies = [
  "sideseat-ports",
  "sideseat-query-sql",
  "tempfile",
- "thiserror 2.0.21",
+ "thiserror",
  "tokio",
  "tracing",
 ]
@@ -5638,7 +5499,7 @@ dependencies = [
  "sideseat-core",
  "sideseat-ports",
  "sqlx",
- "thiserror 2.0.21",
+ "thiserror",
  "tokio",
  "tracing",
 ]
@@ -5650,6 +5511,22 @@ dependencies = [
  "async-trait",
  "reqwest",
  "sideseat-ports",
+]
+
+[[package]]
+name = "sideseat-adapter-provider-probe"
+version = "1.0.13"
+dependencies = [
+ "aws-config",
+ "aws-credential-types",
+ "aws-sdk-bedrock",
+ "aws-sdk-bedrockruntime",
+ "axum 0.8.9",
+ "gcp_auth",
+ "reqwest",
+ "serde_json",
+ "thiserror",
+ "tokio",
 ]
 
 [[package]]
@@ -5681,7 +5558,7 @@ dependencies = [
  "sideseat-core",
  "sideseat-ports",
  "tempfile",
- "thiserror 2.0.21",
+ "thiserror",
  "tokio",
  "tracing",
 ]
@@ -5697,7 +5574,7 @@ dependencies = [
  "sideseat-core",
  "sideseat-ports",
  "sqlx",
- "thiserror 2.0.21",
+ "thiserror",
  "tokio",
  "tracing",
 ]
@@ -5756,7 +5633,7 @@ dependencies = [
  "sideseat-ingestion",
  "sideseat-messaging",
  "sideseat-ports",
- "thiserror 2.0.21",
+ "thiserror",
  "time",
  "tokio",
  "tokio-util",
@@ -5821,7 +5698,7 @@ dependencies = [
  "sideseat-ports",
  "sideseat-rule-assets",
  "tempfile",
- "thiserror 2.0.21",
+ "thiserror",
  "tokio",
  "tracing",
  "uuid",
@@ -5852,7 +5729,7 @@ dependencies = [
  "sideseat-messaging",
  "sideseat-ports",
  "tempfile",
- "thiserror 2.0.21",
+ "thiserror",
  "tokio",
  "tracing",
  "uuid",
@@ -5882,7 +5759,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sideseat-core",
- "thiserror 2.0.21",
+ "thiserror",
  "utoipa",
 ]
 
@@ -5913,7 +5790,6 @@ dependencies = [
  "dotenvy",
  "flate2",
  "futures",
- "gcp_auth",
  "memchr",
  "opentelemetry-proto 0.28.0",
  "prost 0.13.5",
@@ -5921,13 +5797,13 @@ dependencies = [
  "semver",
  "serde",
  "serde_json",
- "sideseat",
  "sideseat-adapter-blob-storage",
  "sideseat-adapter-cache",
  "sideseat-adapter-clickhouse",
  "sideseat-adapter-duckdb",
  "sideseat-adapter-postgres",
  "sideseat-adapter-pricing",
+ "sideseat-adapter-provider-probe",
  "sideseat-adapter-registrations-memory",
  "sideseat-adapter-secrets",
  "sideseat-adapter-sqlite",
@@ -5991,12 +5867,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e3a9fe34e3e7a50316060351f37187a3f546bce95496156754b601a5fa71b76e"
 
 [[package]]
-name = "similar"
-version = "2.7.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bbbb5d9659141646ae647b42fe094daf6c6192d1620870b449d9557f748b2daa"
-
-[[package]]
 name = "simple_asn1"
 version = "0.6.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6004,7 +5874,7 @@ checksum = "0d585997b0ac10be3c5ee635f1bab02d512760d14b7c468801ac8a01d9ae5f1d"
 dependencies = [
  "num-bigint",
  "num-traits",
- "thiserror 2.0.21",
+ "thiserror",
  "time",
 ]
 
@@ -6019,15 +5889,6 @@ name = "slab"
 version = "0.4.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0c790de23124f9ab44544d7ac05d60440adc586479ce501c1d6d7da3cd8c9cf5"
-
-[[package]]
-name = "smallstr"
-version = "0.3.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "862077b1e764f04c251fe82a2ef562fd78d7cadaeb072ca7c2bcaf7217b1ff3b"
-dependencies = [
- "smallvec",
-]
 
 [[package]]
 name = "smallvec"
@@ -6124,7 +5985,7 @@ dependencies = [
  "serde_json",
  "sha2 0.10.9",
  "smallvec",
- "thiserror 2.0.21",
+ "thiserror",
  "tokio",
  "tokio-stream",
  "tracing",
@@ -6207,7 +6068,7 @@ dependencies = [
  "smallvec",
  "sqlx-core",
  "stringprep",
- "thiserror 2.0.21",
+ "thiserror",
  "tracing",
  "whoami",
 ]
@@ -6244,7 +6105,7 @@ dependencies = [
  "smallvec",
  "sqlx-core",
  "stringprep",
- "thiserror 2.0.21",
+ "thiserror",
  "tracing",
  "whoami",
 ]
@@ -6268,7 +6129,7 @@ dependencies = [
  "serde",
  "serde_urlencoded",
  "sqlx-core",
- "thiserror 2.0.21",
+ "thiserror",
  "tracing",
  "url",
 ]
@@ -6297,12 +6158,6 @@ name = "static_assertions"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a2eb9349b6444b326872e140eb1cf5e7c522154d69e7a0ffb0fb81c06b37543f"
-
-[[package]]
-name = "stringmetrics"
-version = "2.2.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7b3c8667cd96245cbb600b8dec5680a7319edd719c5aa2b5d23c6bff94f39765"
 
 [[package]]
 name = "stringprep"
@@ -6397,15 +6252,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "tabwriter"
-version = "1.4.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fce91f2f0ec87dff7e6bcbbeb267439aa1188703003c6055193c821487400432"
-dependencies = [
- "unicode-width",
-]
-
-[[package]]
 name = "tagptr"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6437,31 +6283,11 @@ dependencies = [
 
 [[package]]
 name = "thiserror"
-version = "1.0.69"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b6aaf5339b578ea85b50e080feb250a3e8ae8cfcdff9a461c9ec2904bc923f52"
-dependencies = [
- "thiserror-impl 1.0.69",
-]
-
-[[package]]
-name = "thiserror"
 version = "2.0.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "09e52cb86a36cede5cb101bf8908837b3e4c6e5e59fe7fd85c23fb56200d189e"
 dependencies = [
- "thiserror-impl 2.0.21",
-]
-
-[[package]]
-name = "thiserror-impl"
-version = "1.0.69"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4fee6c4efc90059e10f81e6d42c60a18f76588c3d74cb83a0b242a2b6c7504c1"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 2.0.119",
+ "thiserror-impl",
 ]
 
 [[package]]
@@ -6886,7 +6712,7 @@ dependencies = [
  "log",
  "rand 0.9.5",
  "sha1 0.10.7",
- "thiserror 2.0.21",
+ "thiserror",
 ]
 
 [[package]]
@@ -7681,24 +7507,6 @@ dependencies = [
  "quote",
  "syn 3.0.6",
  "synstructure",
-]
-
-[[package]]
-name = "yrs"
-version = "0.21.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "81de5913bca29f43a1d12ca92a7b39a2945e9420e01602a7563917c7bfc60f70"
-dependencies = [
- "arc-swap",
- "async-lock",
- "async-trait",
- "dashmap",
- "fastrand",
- "serde",
- "serde_json",
- "smallstr",
- "smallvec",
- "thiserror 1.0.69",
 ]
 
 [[package]]

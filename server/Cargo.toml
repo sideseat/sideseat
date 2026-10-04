@@ -30,6 +30,7 @@ sideseat-adapter-clickhouse = { path = "crates/adapter-clickhouse" }
 sideseat-adapter-duckdb = { path = "crates/adapter-duckdb" }
 sideseat-adapter-postgres = { path = "crates/adapter-postgres" }
 sideseat-adapter-pricing = { path = "crates/adapter-pricing" }
+sideseat-adapter-provider-probe = { path = "crates/adapter-provider-probe" }
 sideseat-adapter-registrations-memory = { path = "crates/adapter-registrations-memory" }
 sideseat-adapter-secrets = { path = "crates/adapter-secrets" }
 sideseat-adapter-sqlite = { path = "crates/adapter-sqlite" }
@@ -54,11 +55,7 @@ chrono = { workspace = true }
 opentelemetry-proto = { workspace = true }
 prost = { workspace = true }
 tonic = { workspace = true }
-gcp_auth = { workspace = true }
 clickhouse = { workspace = true }
-
-# Provider connection checks
-sideseat = { path = "../sdk/rust" }
 
 # Footprint gates require a stable allocator. Supported targets use jemalloc;
 # Windows uses its system allocator and reports that distinction at runtime.

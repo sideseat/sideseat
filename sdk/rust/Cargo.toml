@@ -1,59 +1,29 @@
 [package]
 name = "sideseat"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2024"
 rust-version.workspace = true
-description = "AI Development Workbench — Debug, trace, and understand your AI agents"
+description = "OpenTelemetry for AI agents, configured for SideSeat in one call"
 # Published client SDKs use MIT; server and CLI artifacts use Apache-2.0.
 license = "MIT"
 repository = "https://github.com/sideseat/sideseat"
 homepage = "https://sideseat.ai"
-documentation = "https://sideseat.ai/docs"
+documentation = "https://sideseat.ai/docs/sdks/rust/"
 keywords = ["ai", "llm", "opentelemetry", "tracing", "observability"]
 categories = ["development-tools::debugging", "development-tools::profiling"]
 readme = "README.md"
 
 [dependencies]
-# Runtime and serialization
-tokio = { workspace = true }
-serde = { workspace = true }
-serde_json = { workspace = true }
-async-trait = { workspace = true }
-async-stream = { workspace = true }
-futures = { workspace = true }
+opentelemetry = { workspace = true }
+opentelemetry_sdk = { workspace = true, features = ["logs"] }
+opentelemetry-otlp = { workspace = true, features = ["logs"] }
 thiserror = { workspace = true }
-
-# Model providers
-reqwest = { workspace = true }
-base64 = { workspace = true }
-eventsource-stream = "0.2"
-rand = { workspace = true }
-aws-config = { workspace = true }
-aws-sdk-bedrockruntime = { workspace = true }
-aws-sdk-bedrock = { workspace = true }
-aws-credential-types = { workspace = true }
-gcp_auth = { workspace = true }
-aws-smithy-types = "1"
-# Bedrock streaming imports EventStreamSender directly. Keep this minor aligned
-# with aws-sdk-bedrockruntime and enable the module explicitly.
-aws-smithy-http = { version = "0.64", features = ["event-stream"] }
-
-# Telemetry
-tracing = { workspace = true }
-opentelemetry     = { workspace = true }
-opentelemetry_sdk = { workspace = true }
-opentelemetry-otlp = { workspace = true }
-
-# Context and MCP
-parking_lot = { workspace = true }
-uuid = { version = "1.11", features = ["v7"] }
-yrs = "0.21"
-rmcp = { workspace = true }
+percent-encoding = "2"
+url = "2"
 
 [dev-dependencies]
-httpmock = "0.8.3"
-tempfile = "3"
-crc32fast = "1"
+opentelemetry_sdk = { workspace = true, features = ["logs", "testing"] }
+tokio = { workspace = true }
 
 [lints]
 workspace = true

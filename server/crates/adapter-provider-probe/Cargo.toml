@@ -1,0 +1,24 @@
+[package]
+name = "sideseat-adapter-provider-probe"
+version.workspace = true
+license = "Apache-2.0"
+publish = false
+edition = "2024"
+rust-version.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+aws-config = { workspace = true }
+aws-credential-types = { workspace = true }
+aws-sdk-bedrock = { workspace = true }
+aws-sdk-bedrockruntime = { workspace = true }
+gcp_auth = { workspace = true }
+reqwest = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true }
+
+[dev-dependencies]
+axum = { workspace = true }

@@ -372,7 +372,7 @@ impl CoreApp {
             cache: app.cache_port.clone(),
             rate_limiter: app.rate_limiter.clone(),
             credentials: app.credentials.clone(),
-            credential_tester: Arc::new(providers::SdkCredentialConnectionTester),
+            credential_tester: Arc::new(providers::ProbeCredentialConnectionTester),
             registrations,
             api_key_secret,
             clock: app.clock.clone(),

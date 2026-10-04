@@ -179,28 +179,23 @@ provider.register();
 ### Rust with the SideSeat SDK
 
 ```rust
-use sideseat::{SideSeat, SideSeatSpanOptions};
+use std::time::Duration;
 
-let telemetry = SideSeat::new()
-    .with_service_name("my-agent")
-    .with_framework("custom-rust-agent")
-    .init()?;
+use sideseat::{Options, Session, SpanOptions};
 
-telemetry
-    .trace(
-        "agent-run",
-        SideSeatSpanOptions::new()
-            .with_session_id("session-123")
-            .with_user_id("user-456"),
-        |_span| async { Ok::<_, std::io::Error>(()) },
-    )
+let telemetry = sideseat::init(Options::new().service_name("my-agent"))?;
+
+Session::new("session-123")
+    .user("user-456")
+    .scope(telemetry.trace("agent-run", SpanOptions::new(), || async {
+        Ok::<_, std::io::Error>(())
+    }))
     .await?;
 
-telemetry.shutdown()?;
+telemetry.shutdown(Duration::from_secs(5));
 ```
 
-See the [Rust SDK guide](/docs/sdks/rust/) for child spans, provider instrumentation,
-content capture, endpoint routing, and explicit flush behavior.
+See the [Rust SDK guide](/docs/sdks/rust/) for child spans, model calls, configuration, and shutdown.
 
 ### Using gRPC
 

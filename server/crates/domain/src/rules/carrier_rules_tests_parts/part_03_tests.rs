@@ -183,9 +183,14 @@ fn no_production_module_names_a_framework() {
              than a producer's spelling",
         ),
         (
-            "server/src/app/providers.rs",
+            "server/crates/adapter-provider-probe/src/providers.rs",
             Allowed::Only(&["azure-ai-foundry"]),
-            "builds a real client against a named provider to test a credential - an adapter, not a parser",
+            "probes a named provider to test a credential - an adapter, not a parser",
+        ),
+        (
+            "server/crates/adapter-provider-probe/src/azure.rs",
+            Allowed::Only(&["azure-ai-foundry"]),
+            "builds the Azure AI Foundry probe request; the name is the provider being called",
         ),
         (
             "server/crates/domain/src/providers/service.rs",

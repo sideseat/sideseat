@@ -1,194 +1,49 @@
 //! # SideSeat
 //!
-//! **AI Development Workbench** — Debug, trace, and understand your AI agents.
+//! OpenTelemetry for AI agents, configured for [SideSeat](https://sideseat.ai) in one call.
 //!
-//! SideSeat captures every LLM call, tool call, and agent decision, then
-//! displays them in a web UI as they happen. Built on
-//! [OpenTelemetry](https://opentelemetry.io/).
+//! [`init`] installs tracer, logger, and meter providers that export over OTLP/HTTP to a SideSeat
+//! project. Inside a [`Session`], every span the process starts - including spans a library
+//! creates through the global tracer - carries `session.id` and `user.id`.
 //!
-//! ## LLM Providers
+//! ```no_run
+//! use std::time::Duration;
 //!
-//! This crate provides a unified [`Provider`] trait over multiple LLM backends:
+//! use sideseat::{Options, Session, SpanOptions};
 //!
-//! - [`providers::AnthropicProvider`] — Anthropic Messages API (direct, Bedrock, Vertex)
-//! - [`providers::BedrockProvider`] — AWS Bedrock Converse API (native SDK)
-//! - [`providers::OpenAIChatProvider`] — OpenAI Chat Completions + compatible providers
-//!   (Groq, DeepSeek, xAI, Together, Fireworks, Mistral, Cerebras, Perplexity, Ollama, OpenRouter)
-//! - [`providers::OpenAIResponsesProvider`] — OpenAI Responses API (stateful)
-//! - [`providers::GeminiProvider`] — Google Gemini generateContent API / Vertex AI
-//! - [`providers::GeminiInteractionsProvider`] — Google Gemini Interactions API (stateful, v2)
-//! - [`providers::CohereProvider`] — Cohere Chat API v2
-//! - [`providers::MistralProvider`] — Mistral AI API (direct and via Bedrock)
-//! - [`providers::XAIProvider`] — xAI Grok API (vision, reasoning, Live Search)
+//! # async fn run_agent() -> Result<String, std::io::Error> { Ok(String::new()) }
+//! #[tokio::main]
+//! async fn main() -> Result<(), Box<dyn std::error::Error>> {
+//!     let telemetry = sideseat::init(Options::new().service_name("travel-agent"))?;
 //!
-//! All providers implement [`ChatProvider`] (via [`Provider`]) with `stream()` and `complete()` methods.
+//!     let conversation = Session::new("conversation-42").user("user-7");
+//!     let answer = conversation
+//!         .scope(telemetry.trace("plan-trip", SpanOptions::new(), run_agent))
+//!         .await?;
+//!     println!("{answer}");
 //!
-//! ## Composition
-//!
-//! Providers are plain values — compose them with wrappers for resilience and observability:
-//!
-//! ```rust,no_run
-//! # use sideseat::{providers::AnthropicProvider, RetryProvider, FallbackProvider,
-//! #     middleware::MiddlewareStack, LoggingMiddleware, TimingMiddleware};
-//! # async fn example() {
-//! // Retry transient errors up to 3 times with exponential backoff
-//! let retrying = RetryProvider::new(
-//!     AnthropicProvider::from_env().unwrap(),
-//!     3,
-//! );
-//!
-//! // Fall back to a second provider if the first fails
-//! let with_fallback = FallbackProvider::new(vec![
-//!     Box::new(AnthropicProvider::from_env().unwrap()),
-//!     Box::new(AnthropicProvider::from_env().unwrap()), // e.g. different model/region
-//! ]);
-//!
-//! // Intercept calls with middleware (logging, timing, rate limiting, custom hooks)
-//! let instrumented = MiddlewareStack::new(AnthropicProvider::from_env().unwrap())
-//!     .with(LoggingMiddleware)
-//!     .with(TimingMiddleware::new());
-//! # }
+//!     telemetry.shutdown(Duration::from_secs(5));
+//!     Ok(())
+//! }
 //! ```
 //!
-//! Recommended stacking order (outermost first):
-//! 1. [`MiddlewareStack`] — logging, timing, rate limiting
-//! 2. [`RetryProvider`] — retry transient errors
-//! 3. [`FallbackProvider`] — switch providers on persistent failure
-//!
-//! ## Observability
-//!
-//! Use [`SideSeat::new()`] to initialize the OpenTelemetry pipeline, create independent root
-//! traces, and parent child spans correctly. Session and user correlation propagates through
-//! nested SideSeat operations:
-//!
-//! ```rust,no_run
-//! use sideseat::{SideSeat, SideSeatSpanOptions};
-//!
-//! # async fn example() -> Result<(), Box<dyn std::error::Error>> {
-//! let telemetry = SideSeat::new()
-//!     .with_service_name("my-agent")
-//!     .with_framework("custom-rust-agent")
-//!     .init()?;
-//!
-//! telemetry
-//!     .trace(
-//!         "agent-run",
-//!         SideSeatSpanOptions::new()
-//!             .with_session_id("session-123")
-//!             .with_user_id("user-456"),
-//!         |_trace| async {
-//!             telemetry
-//!                 .span(
-//!                     "retrieve-context",
-//!                     SideSeatSpanOptions::new(),
-//!                     |_span| async { Ok::<_, std::io::Error>(()) },
-//!                 )
-//!                 .await
-//!         },
-//!     )
-//!     .await?;
-//!
-//! telemetry.shutdown()?;
-//! # Ok(())
-//! # }
-//! ```
-//!
-//! Wrap any provider with [`InstrumentedProvider`] to emit GenAI semantic-convention spans and
-//! metrics automatically. Prompt and response content capture is opt-in.
-//!
-//! ## Quick Start
-//!
-//! ```bash
-//! npx sideseat
-//! ```
-//!
-//! See <https://sideseat.ai/docs> for full documentation.
+//! The crate implements the
+//! [SideSeat SDK contract](https://github.com/sideseat/sideseat/blob/main/docs/engineering/sdk-contract.md).
+//! Rust has no framework integrations: spans from any library that uses the global tracer reach
+//! SideSeat, and prompts and responses are recorded by following the OpenTelemetry GenAI semantic
+//! conventions.
 
-#[path = "inference/context/mod.rs"]
-pub mod context;
-#[path = "inference/env.rs"]
-pub mod env;
-#[path = "inference/error.rs"]
-pub mod error;
-#[path = "inference/mcp.rs"]
-pub mod mcp;
-#[path = "inference/middleware.rs"]
-pub mod middleware;
-#[path = "inference/mock.rs"]
-pub mod mock;
-#[path = "inference/provider.rs"]
-pub mod provider;
-#[path = "inference/providers/mod.rs"]
-pub mod providers;
-#[path = "inference/registry.rs"]
-pub mod registry;
-#[path = "inference/telemetry.rs"]
-pub mod telemetry;
-#[path = "inference/test_models.rs"]
-pub mod test_models;
-#[path = "inference/types.rs"]
-pub mod types;
+mod client;
+mod config;
+mod correlation;
+mod error;
 
-// Convenient re-exports
-pub use error::ProviderError;
-pub use middleware::{
-    DefaultSettingsMiddleware, ExtractReasoningMiddleware, ImageModelMiddleware, LoggingMiddleware,
-    Middleware, MiddlewareStack, RateLimitMiddleware, SimulateStreamingMiddleware,
-    TimingMiddleware, WrappedImageModel, wrap_image_model,
-};
-pub use mock::{MockProvider, MockResponse};
-pub use provider::{
-    AgentHooks, AudioProvider, ChatProvider, DefaultHooks, EmbeddingProvider, FallbackProvider,
-    ImageProvider, ModerationProvider, Provider, ProviderExt, ProviderHealthStatus, ProviderStream,
-    RetryConfig, RetryProvider, StatefulProvider, TextStream, TextStreamWithMeta, VideoProvider,
-    batch_complete, batch_embed, batch_generate_images, collect_stream, collect_stream_with_config,
-    collect_stream_with_events, generate_text, record_stream, response_to_stream, run_agent_loop,
-    run_agent_loop_with_hooks, stream_text, with_chunk_timeout, wrap_language_model,
-};
-pub use providers::GcpAdcTokenProvider;
-pub use registry::ProviderRegistry;
-pub use telemetry::{
-    InstrumentedProvider, KeyValue, SideSeat, SideSeatGuard, SideSeatSpan, SideSeatSpanOptions,
-    SpanKind, Status, TelemetryConfig,
-};
-/// Convenience re-exports for glob imports: `use sideseat::prelude::*`.
-///
-/// Includes the most frequently used traits, types, and builders. Import specific
-/// items from their respective modules when you need something not listed here.
-pub mod prelude {
-    pub use crate::error::ProviderError;
-    pub use crate::middleware::{LoggingMiddleware, Middleware, MiddlewareStack, TimingMiddleware};
-    pub use crate::provider::{
-        AudioProvider, ChatProvider, EmbeddingProvider, FallbackProvider, ImageProvider,
-        ModerationProvider, Provider, ProviderExt, ProviderStream, RetryProvider, StatefulProvider,
-        TextStream, VideoProvider, collect_stream, generate_text, run_agent_loop,
-        run_agent_loop_with_hooks, stream_text,
-    };
-    pub use crate::types::{
-        ContentBlock, ConversationBuilder, Message, ProviderConfig, Response, Role, StopReason,
-        StreamEvent, TokenCount, Tool, ToolResultBlock, ToolUseBlock, Usage,
-    };
-}
+pub use client::{SideSeat, SpanOptions, client, init};
+pub use config::{DEFAULT_ENDPOINT, DEFAULT_PROJECT, Options, Settings};
+pub use correlation::Session;
+pub use error::Error;
+pub use opentelemetry::KeyValue;
+pub use opentelemetry::trace::SpanKind;
 
-pub use types::{
-    AgentResult, AgentStep, AudioContent, AudioFormat, AudioOutputConfig, Base64Data, BuiltinTool,
-    CacheControl, Citation, ContainerInfo, ContentBlock, ContentBlockStart, ContentDelta,
-    ContextManagementConfig, ConversationBuilder, CostEstimate, DocumentContent, DocumentFormat,
-    EmbeddingRequest, EmbeddingResponse, EmbeddingTaskType, FallbackStrategy, FallbackTrigger,
-    GeneratedImage, GeneratedVideo, GroundingChunk, GroundingMetadata, ImageContent, ImageDetail,
-    ImageEditRequest, ImageFormat, ImageGenerationRequest, ImageGenerationResponse,
-    ImageOutputFormat, ImageQuality, ImageSize, ImageStyle, JsonSchema, McpToolConfig, MediaSource,
-    Message, ModelCapability, ModelInfo, ModerationCategories, ModerationCategoryScores,
-    ModerationRequest, ModerationResponse, ModerationResult, PartialConfig, PromptTemplate,
-    ProviderConfig, ReasoningEffort, RequestMetadata, Response, ResponseFormat, Role, S3Location,
-    SafetyCategory, SafetySetting, SafetyThreshold, ServiceTier, SpeechRequest, SpeechResponse,
-    StaticTokenProvider, StopReason, StreamEvent, StreamMeta, StreamRecording, TextBlock,
-    ThinkingBlock, TimestampGranularity, TokenCount, TokenLogprob, TokenProvider, Tool, ToolChoice,
-    ToolResultBlock, ToolUseBlock, TopLogprob, TranscriptionRequest, TranscriptionResponse,
-    TranscriptionSegment, TranscriptionWord, Usage, UsageAccumulator, VideoAspectRatio,
-    VideoContent, VideoFormat, VideoGenerationRequest, VideoGenerationResponse, VideoResolution,
-    WebSearchConfig, WebSearchUserLocation, cosine_similarity, estimate_tokens, euclidean_distance,
-    model_capabilities, normalize_embedding, supports_audio_input, supports_audio_output,
-    supports_extended_thinking, supports_function_calling, supports_vision, truncate_messages,
-    validate_messages,
-};
+/// This crate's version, recorded as `telemetry.sdk.version`.
+pub const VERSION: &str = env!("CARGO_PKG_VERSION");

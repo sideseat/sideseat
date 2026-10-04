@@ -1,4 +1,5 @@
 use std::error::Error;
+use std::time::Duration;
 
 use opentelemetry::global;
 use opentelemetry::trace::{Span as _, SpanKind, TraceContextExt as _, Tracer as _};
@@ -6,7 +7,7 @@ use opentelemetry::{Context, KeyValue};
 use opentelemetry_otlp::WithExportConfig as _;
 use opentelemetry_sdk::Resource;
 use opentelemetry_sdk::trace::{BatchSpanProcessor, SdkTracerProvider};
-use sideseat::telemetry::{SideSeat, SideSeatSpanOptions};
+use sideseat::{Options, Session, SpanOptions};
 
 const SESSION_ID: &str = "sdk-conformance-session";
 const USER_ID: &str = "sdk-conformance-user";
@@ -30,55 +31,60 @@ async fn main() -> Result<(), Box<dyn Error>> {
 }
 
 async fn run_with_sideseat() -> Result<(), Box<dyn Error>> {
-    let endpoint =
-        std::env::var("SIDESEAT_ENDPOINT").unwrap_or_else(|_| "http://127.0.0.1:5388".to_string());
-    let project = std::env::var("SIDESEAT_PROJECT_ID").unwrap_or_else(|_| "default".to_string());
-    let guard = SideSeat::new()
-        .with_endpoint(endpoint)
-        .with_project_id(project)
-        .with_service_name("rust-conformance")
-        .with_framework("rust-conformance")
-        .init()?;
+    let telemetry = sideseat::init(
+        Options::new()
+            .service_name("rust-conformance")
+            .resource_attribute(KeyValue::new("sideseat.framework", "rust-conformance"))
+            .logs(false),
+    )?;
+    let conversation = Session::new(SESSION_ID).user(USER_ID);
+    let chat = || SpanOptions::new().kind(SpanKind::Client);
 
-    guard
+    telemetry
         .trace(
             "canonical-agent-run",
-            SideSeatSpanOptions::new()
-                .with_session_id(SESSION_ID)
-                .with_user_id(USER_ID),
-            |_root| async {
-                guard
+            SpanOptions::new().session(conversation),
+            || async {
+                telemetry
                     .span(
                         "chat canonical-model",
-                        SideSeatSpanOptions::new()
-                            .with_kind(SpanKind::Client)
-                            .with_attributes(chat_attributes(INPUT_MESSAGES, FIRST_OUTPUT, 12, 6)),
-                        |_span| async { Ok::<_, std::io::Error>(()) },
+                        chat().attributes(chat_attributes(INPUT_MESSAGES, FIRST_OUTPUT, 12, 6)),
+                        done,
                     )
                     .await?;
-
-                guard
+                telemetry
                     .span(
                         "execute_tool get_weather",
-                        SideSeatSpanOptions::new().with_attributes(tool_attributes()),
-                        |_span| async { Ok::<_, std::io::Error>(()) },
+                        SpanOptions::new().attributes(tool_attributes()),
+                        done,
                     )
                     .await?;
-
-                guard
+                telemetry
                     .span(
                         "chat canonical-model",
-                        SideSeatSpanOptions::new()
-                            .with_kind(SpanKind::Client)
-                            .with_attributes(final_chat_attributes()),
-                        |_span| async { Ok::<_, std::io::Error>(()) },
+                        chat().attributes(final_chat_attributes()),
+                        done,
                     )
                     .await
             },
         )
         .await?;
-    guard.shutdown()?;
+    if !telemetry.shutdown(Duration::from_secs(10)) {
+        return Err("the SDK did not export every span".into());
+    }
     Ok(())
+}
+
+async fn done() -> Result<(), std::io::Error> {
+    operate();
+    Ok(())
+}
+
+/// Every operation takes measurable time, as real model and tool calls do. A tool span that starts
+/// and ends on one clock tick gives its call and result one anchor, which the feed reads as a single
+/// response - so without this the two modes' feeds would differ by timing rather than by telemetry.
+fn operate() {
+    std::thread::sleep(Duration::from_millis(1));
 }
 
 fn run_with_opentelemetry() -> Result<(), Box<dyn Error>> {
@@ -156,6 +162,7 @@ fn emit_raw_span(
     let mut span = tracer.span_builder(name).with_kind(kind).start(&tracer);
     add_correlation(&mut span);
     add_attributes(&mut span);
+    operate();
     span.end();
 }
 

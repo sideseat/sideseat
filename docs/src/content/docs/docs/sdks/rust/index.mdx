@@ -1,195 +1,160 @@
 ---
 title: Rust SDK
-description: Export Rust traces, spans, sessions, and GenAI provider calls to SideSeat.
+description: Send traces, sessions, and conversations from Rust AI applications to SideSeat in one call.
 ---
 
-import { Aside } from '@astrojs/starlight/components';
+`sideseat` is an OpenTelemetry distribution for Rust. One call configures tracing, metrics, and logs for
+a SideSeat project, and a session scope attributes every span - including spans libraries create - to the
+right session and user.
 
-The SideSeat Rust SDK (`sideseat`) configures OpenTelemetry export, creates correlated
-root traces and child spans, and instruments the model providers included in the crate.
-
-## Prerequisites
-
-- SideSeat running locally (`npx sideseat`)
-- Rust 1.94.1+
-
-## Installation
+## Install
 
 ```bash
 cargo add sideseat
+cargo add tokio --features full
 ```
+
+Rust 1.94.1 or newer. Start a local server with `npx sideseat`.
 
 ## Quick start
 
 ```rust
-use sideseat::{KeyValue, SideSeat, SideSeatSpanOptions, SpanKind};
+use std::time::Duration;
+
+use sideseat::{Options, Session, SpanOptions};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let telemetry = SideSeat::new()
-        .with_service_name("travel-agent")
-        .with_service_version(env!("CARGO_PKG_VERSION"))
-        .with_framework("custom-rust-agent")
-        .init()?;
+    let telemetry = sideseat::init(Options::new().service_name("travel-agent"))?;
 
-    telemetry
-        .trace(
-            "plan-trip",
-            SideSeatSpanOptions::new()
-                .with_session_id("conversation-42")
-                .with_user_id("user-7"),
-            |_trace| async {
-                telemetry
-                    .span(
-                        "retrieve-context",
-                        SideSeatSpanOptions::new()
-                            .with_kind(SpanKind::Client)
-                            .with_attribute(KeyValue::new("app.documents", 4_i64)),
-                        |_span| async { Ok::<_, std::io::Error>(()) },
-                    )
-                    .await
-            },
-        )
+    let conversation = Session::new("conversation-42").user("user-7");
+    conversation
+        .scope(telemetry.trace("plan-trip", SpanOptions::new(), || async {
+            run_agent("Plan a weekend in Lisbon.").await
+        }))
         .await?;
 
-    telemetry.shutdown()?;
+    telemetry.shutdown(Duration::from_secs(5));
     Ok(())
 }
 ```
 
-`trace()` is always an independent root operation. `span()` is a child of the currently
-active span, or a root when no span is active. `session.id` and `user.id` propagate to nested
-SideSeat spans; a nested override remains scoped to that nested operation.
+`init` points OpenTelemetry at `http://127.0.0.1:5388` and the `default` project, and installs the
+global tracer and meter providers. Call it before any library creates its first span.
 
-Both methods end the span and mark the status automatically. An error returned by the
-callback is recorded as an OpenTelemetry exception and error status before being returned.
+## Sessions and users
 
-## Manual span lifecycle
-
-Use `start_trace()` or `start_span()` when a callback does not fit:
+A `Session` is a scope, not a span. Every span started inside it - by your code or by any library that
+uses the global tracer - gets `session.id` and `user.id`:
 
 ```rust
-use sideseat::{KeyValue, SideSeatSpanOptions};
+let conversation = Session::new("conversation-42").user("user-7");
 
-let span = telemetry.start_span(
-    "tool-call",
-    SideSeatSpanOptions::new()
-        .with_attribute(KeyValue::new("gen_ai.tool.name", "weather")),
-);
-span.add_event("tool.started", vec![]);
-
-// Run the operation.
-
-span.end();
+conversation.scope(agent.turn("What should I eat there?")).await;   // async code
+let _entered = conversation.enter();                                // synchronous code on this thread
 ```
 
-A `SideSeatSpan` ends once. Calling `end()` repeatedly is safe, and dropping its final clone
-also ends it.
+The values travel in the OpenTelemetry context, so they follow a future across `.await` points. A task
+started with `tokio::spawn` does not inherit the context; scope the spawned future too. They are never
+sent as W3C baggage, which HTTP instrumentation would forward to model providers. A nested session
+overrides the outer one for its duration.
 
-<Aside type="caution">
-`start_span()` reads the current thread-local OpenTelemetry context at the instant it is
-called. For asynchronous work, prefer `trace()` and `span()`: they attach the right context
-on every future poll and do not hold a non-`Send` context guard across an `await`.
-</Aside>
-
-## Instrumenting SideSeat providers
-
-`InstrumentedProvider` wraps any provider implemented by the crate. It records model,
-operation, token usage, finish reason, latency, errors, and optionally message content.
+## Traces and spans
 
 ```rust
-use sideseat::{
-    ChatProvider, InstrumentedProvider, Message, ProviderConfig, SideSeat,
-    providers::AnthropicProvider,
-};
+use sideseat::{KeyValue, SpanKind, SpanOptions};
 
-let builder = SideSeat::new()
-    .with_service_name("support-agent")
-    .with_framework("sideseat-rust")
-    .with_capture_content(true);
-let provider = InstrumentedProvider::with_config(
-    AnthropicProvider::from_env()?,
-    builder.telemetry_config(),
-);
-let telemetry = builder.init()?;
+telemetry
+    .trace("plan-trip", SpanOptions::new().session(Session::new("s-1")), || async {
+        let documents = telemetry
+            .span(
+                "retrieve-context",
+                SpanOptions::new()
+                    .kind(SpanKind::Client)
+                    .attribute(KeyValue::new("app.documents", 4_i64)),
+                || load_documents(),
+            )
+            .await?;
+        answer(documents).await
+    })
+    .await?;
+```
 
-let response = provider
-    .complete(
-        vec![Message::user("How can I reset my password?")],
-        ProviderConfig::new("claude-sonnet-4-5"),
+`trace()` always starts a root span, keeping the current session unless its options name another.
+`span()` starts a child of the active span. Both return the closure's result; an `Err` marks the span as
+failed and records the error message.
+
+## Recording model calls
+
+Rust has no framework integrations. Record a model call as a span that follows the
+[OpenTelemetry GenAI conventions](https://opentelemetry.io/docs/specs/semconv/gen-ai/), and SideSeat
+reads the conversation from it:
+
+```rust
+telemetry
+    .span(
+        "chat claude-sonnet-5-5",
+        SpanOptions::new().kind(SpanKind::Client).attributes([
+            KeyValue::new("gen_ai.operation.name", "chat"),
+            KeyValue::new("gen_ai.provider.name", "aws.bedrock"),
+            KeyValue::new("gen_ai.request.model", "global.anthropic.claude-sonnet-5-5"),
+            KeyValue::new("gen_ai.input.messages", input_json),
+            KeyValue::new("gen_ai.output.messages", output_json),
+        ]),
+        || async { Ok::<_, std::io::Error>(()) },
     )
     .await?;
-
-telemetry.shutdown()?;
 ```
 
-<Aside type="note">
-External Rust frameworks remain responsible for their own OpenTelemetry instrumentation.
-Their standard spans can use the global provider installed by `SideSeat::init()` and appear
-alongside spans created by this SDK.
-</Aside>
+`telemetry.captures_content()` reports the content-capture setting; check it before recording prompts
+and responses.
 
 ## Configuration
 
-| Builder | Environment fallback | Default |
+Explicit options win over environment variables, which win over defaults.
+
+| Option | Environment | Default |
 | --- | --- | --- |
-| `with_endpoint` | `SIDESEAT_ENDPOINT` | `http://localhost:5388` |
-| `with_project_id` | `SIDESEAT_PROJECT_ID` | `default` |
-| `with_api_key` | `SIDESEAT_API_KEY` | unset |
-| `with_service_name` | `OTEL_SERVICE_NAME` | `sideseat-rust` |
-| `with_service_version` | none | unset |
-| `with_framework` | none | unset |
-| `with_capture_content` | none | `false` |
+| `endpoint` | `SIDESEAT_ENDPOINT`, then `OTEL_EXPORTER_OTLP_ENDPOINT` | `http://127.0.0.1:5388` |
+| `project` | `SIDESEAT_PROJECT_ID` | `default` |
+| `api_key` | `SIDESEAT_API_KEY` | none |
+| `service_name` | `OTEL_SERVICE_NAME` | `sideseat-app` |
+| `service_version` | `OTEL_SERVICE_VERSION` | the SDK version |
+| `capture_content` | `SIDESEAT_CAPTURE_CONTENT` | on |
+| `disabled` | `SIDESEAT_DISABLED` | off |
+| `debug` | `SIDESEAT_DEBUG` | off |
+| `resource_attribute` | `OTEL_RESOURCE_ATTRIBUTES` | none |
 
-`with_framework()` writes the `sideseat.framework` resource attribute. Per-span framework
-evidence still takes precedence in the server, so nested instrumented libraries retain their
-own classification.
+Booleans accept `1/0`, `true/false`, and `yes/no` in any case; anything else is an error at `init`.
 
-### Endpoint routing
+An endpoint without a path is a SideSeat server: signals go to `{endpoint}/otel/{project}/v1/{signal}`.
+An endpoint with a path is already an OTLP base: signals go to `{endpoint}/v1/{signal}`. Headers from
+`OTEL_EXPORTER_OTLP_HEADERS` are kept, and the API key is sent as `Authorization: Bearer <key>`.
 
-The endpoint can be a SideSeat base URL, a project OTLP base URL, or a complete signal URL:
+## Logs
 
-```text
-http://localhost:5388
-  -> http://localhost:5388/otel/{project_id}/v1/traces
+OpenTelemetry Rust has no global logger provider, so log records reach SideSeat through an appender built
+on `telemetry.logger_provider()`, for example `opentelemetry-appender-tracing`.
 
-http://collector:4318/otel/my-project
-  -> http://collector:4318/otel/my-project/v1/traces
+## Lifecycle
 
-http://collector:4318/otel/my-project/v1/traces
-  -> unchanged
-```
+- Calling `init` again with the same settings returns the same client; different settings return
+  `Error::AlreadyInitialized`. After `shutdown`, `init` configures a new pipeline.
+- `flush()` and `shutdown(timeout)` return whether everything was exported. `shutdown` is idempotent,
+  and the pipeline also shuts down when the last clone of the client drops.
+- When disabled, closures still run, spans are non-recording, and nothing is exported.
 
-The metrics URL is derived from the same base. An API key is sent as an
-`Authorization: Bearer ...` header on both signals.
+## Testing your application
 
-## Content and privacy
-
-Message content is disabled by default:
-
-```rust
-let builder = SideSeat::new().with_capture_content(true);
-```
-
-Enabling it records prompts and responses as span events. Token counts, model identity,
-latency, and errors remain available without content capture.
-
-## Flush and shutdown
-
-Keep the returned `SideSeatGuard` alive while telemetry is produced.
+Turn export off and add an in-memory exporter from `opentelemetry_sdk` (feature `testing`):
 
 ```rust
-telemetry.force_flush()?;
-telemetry.shutdown()?;
+use opentelemetry_sdk::trace::{InMemorySpanExporter, SimpleSpanProcessor};
+
+let spans = InMemorySpanExporter::default();
+let _telemetry = sideseat::init(
+    Options::new()
+        .export(false)
+        .span_processor(SimpleSpanProcessor::new(spans.clone())),
+)?;
 ```
-
-`force_flush()` exports queued traces and metrics without closing the providers.
-`shutdown()` flushes and closes them, returns exporter failures, and is idempotent. Dropping
-the guard also performs best-effort shutdown.
-
-## Verification
-
-The repository captures one canonical tool-using conversation through this SDK and through
-plain OpenTelemetry Rust. The production gate requires identical span, trace, session, and
-project-feed messages, including full content digests and tool-call ordering. See
-[Compatibility and verification](/docs/reference/production-readiness/).

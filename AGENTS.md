@@ -28,7 +28,7 @@ The Rust workspace follows ports and adapters:
   contains no interpretation logic or dependencies on other SideSeat crates.
 - `server/crates/api`: HTTP, gRPC, MCP, SSE, and WebSocket transport code.
 - `server/crates/adapter-*`: implementations for databases, blobs, cache, secrets,
-  registrations, and queues.
+  registrations, queues, and model-provider credential probes.
 - `server`: the composition root. It selects adapters, wires services, starts
   background work, and owns process lifecycle.
 

@@ -6,6 +6,7 @@ members = [
   "server/crates/adapter-duckdb",
   "server/crates/adapter-postgres",
   "server/crates/adapter-pricing",
+  "server/crates/adapter-provider-probe",
   "server/crates/adapter-registrations-memory",
   "server/crates/adapter-secrets",
   "server/crates/adapter-sqlite",
@@ -115,7 +116,6 @@ sqlx = { version = "0.8.6", features = [
   "postgres",
   "migrate",
 ] }
-config = "0.15"
 dotenvy = "0.15"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
@@ -168,11 +168,9 @@ opentelemetry-proto = { version = "0.28", features = [
 ] }
 prost = "0.13"
 tonic = { version = "0.12", features = ["transport"] }
-tokio-stream = { version = "0.1", features = ["sync"] }
 base64 = "0.22"
 hex = "0.4"
 regex = "1.11"
-fs2 = "0.4"
 sha2 = "0.10"
 blake3 = "1"
 # Borrowed RFC 9535 matches preserve provider member order during framework-rule
@@ -210,8 +208,6 @@ clickhouse = { version = "0.14", features = ["lz4", "time"] }
 rmcp = { version = "3.1", features = ["server", "client", "macros", "transport-streamable-http-server"] }
 schemars = "1.0"
 tokio-util = { version = "0.7", features = ["rt"] }
-security-framework = { version = "3", features = ["OSX_10_15"] }
-core-foundation = "0.10"
 
 # Keep source line tables for application backtraces while omitting dependency
 # DWARF to bound local build size.
