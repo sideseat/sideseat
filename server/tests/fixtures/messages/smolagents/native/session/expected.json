@@ -1,0 +1,443 @@
+{
+  "label": "smolagents/native/session",
+  "request_count": 2,
+  "span_count": 10,
+  "trace_count": 2,
+  "session_count": 1,
+  "span_views": {
+    "trace-1/FinalAnswerTool/span-5": {
+      "message_count": 1,
+      "role_sequence": [
+        "tool"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "Visit the Museo del Prado, Madrid's premier art museum, home to masterpieces by Velázquez, Goya, and El Greco. It's located on Paseo del Prado, near Retiro Park, so you can easily combine the two.",
+          "content_digest": "e5781c9f72c18bf9",
+          "tool_name": "final_answer",
+          "observation_type": "tool"
+        }
+      ]
+    },
+    "trace-1/LiteLLMModel.generate/span-4": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [
+        "final_answer"
+      ],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are an expert assistant who can solve any task using tool calls. You will be given a task to solve as best you can. To do so, you have been given access to some tools. The tool call you write is an action: after the tool is executed, yo…[3203 chars]",
+          "content_digest": "2508dbf9c52c7d01",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "New task: Suggest one museum to visit in Madrid.",
+          "content_digest": "c7988584749ce47a",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_gDbink0F6t2hj4oYQCSEQb\",\"name\":\"final_answer\",\"input\":{\"answer\":\"Visit the Museo del Prado, Madrid's premier art museum, home to masterpieces by Velázquez, Goya, and El Greco. It's located on Paseo del Prado…[297 chars]",
+          "content_digest": "8f618d0a9faf377f",
+          "tool_name": "final_answer",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/Step 1/span-3": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/ToolCallingAgent.run/span-2": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/session-turn-1/span-1": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-2/FinalAnswerTool/span-5": {
+      "message_count": 1,
+      "role_sequence": [
+        "tool"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "Visit Retiro Park (Parque del Buen Retiro) — Madrid's most famous park, with a boating lake, the Crystal Palace, and beautiful gardens perfect for a relaxed stroll.",
+          "content_digest": "46eb0b4b9d31b279",
+          "tool_name": "final_answer",
+          "observation_type": "tool"
+        }
+      ]
+    },
+    "trace-2/LiteLLMModel.generate/span-4": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [
+        "final_answer"
+      ],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are an expert assistant who can solve any task using tool calls. You will be given a task to solve as best you can. To do so, you have been given access to some tools. The tool call you write is an action: after the tool is executed, yo…[3203 chars]",
+          "content_digest": "2508dbf9c52c7d01",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "New task: Suggest one park to visit in Madrid.",
+          "content_digest": "c738d53a56f74350",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_PAmdM02zW4gG4BxD3O1BuK\",\"name\":\"final_answer\",\"input\":{\"answer\":\"Visit Retiro Park (Parque del Buen Retiro) — Madrid's most famous park, with a boating lake, the Crystal Palace, and beautiful gardens perfect…[265 chars]",
+          "content_digest": "6153e19818854a0b",
+          "tool_name": "final_answer",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-2/Step 1/span-3": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-2/ToolCallingAgent.run/span-2": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-2/session-turn-2/span-1": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    }
+  },
+  "trace_views": {
+    "trace-1": {
+      "message_count": 4,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "tool"
+      ],
+      "tool_names": [
+        "final_answer"
+      ],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are an expert assistant who can solve any task using tool calls. You will be given a task to solve as best you can. To do so, you have been given access to some tools. The tool call you write is an action: after the tool is executed, yo…[3203 chars]",
+          "content_digest": "2508dbf9c52c7d01",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "New task: Suggest one museum to visit in Madrid.",
+          "content_digest": "c7988584749ce47a",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_gDbink0F6t2hj4oYQCSEQb\",\"name\":\"final_answer\",\"input\":{\"answer\":\"Visit the Museo del Prado, Madrid's premier art museum, home to masterpieces by Velázquez, Goya, and El Greco. It's located on Paseo del Prado…[297 chars]",
+          "content_digest": "8f618d0a9faf377f",
+          "tool_name": "final_answer",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "Visit the Museo del Prado, Madrid's premier art museum, home to masterpieces by Velázquez, Goya, and El Greco. It's located on Paseo del Prado, near Retiro Park, so you can easily combine the two.",
+          "content_digest": "40a06abe6e97cb23",
+          "tool_name": "final_answer",
+          "observation_type": "tool"
+        }
+      ]
+    },
+    "trace-2": {
+      "message_count": 4,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "tool"
+      ],
+      "tool_names": [
+        "final_answer"
+      ],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are an expert assistant who can solve any task using tool calls. You will be given a task to solve as best you can. To do so, you have been given access to some tools. The tool call you write is an action: after the tool is executed, yo…[3203 chars]",
+          "content_digest": "2508dbf9c52c7d01",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "New task: Suggest one park to visit in Madrid.",
+          "content_digest": "c738d53a56f74350",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_PAmdM02zW4gG4BxD3O1BuK\",\"name\":\"final_answer\",\"input\":{\"answer\":\"Visit Retiro Park (Parque del Buen Retiro) — Madrid's most famous park, with a boating lake, the Crystal Palace, and beautiful gardens perfect…[265 chars]",
+          "content_digest": "6153e19818854a0b",
+          "tool_name": "final_answer",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "Visit Retiro Park (Parque del Buen Retiro) — Madrid's most famous park, with a boating lake, the Crystal Palace, and beautiful gardens perfect for a relaxed stroll.",
+          "content_digest": "9d00191315f60863",
+          "tool_name": "final_answer",
+          "observation_type": "tool"
+        }
+      ]
+    }
+  },
+  "session_views": {
+    "smolagents-session": {
+      "message_count": 8,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "tool",
+        "system",
+        "user",
+        "assistant",
+        "tool"
+      ],
+      "tool_names": [
+        "final_answer"
+      ],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are an expert assistant who can solve any task using tool calls. You will be given a task to solve as best you can. To do so, you have been given access to some tools. The tool call you write is an action: after the tool is executed, yo…[3203 chars]",
+          "content_digest": "2508dbf9c52c7d01",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "New task: Suggest one museum to visit in Madrid.",
+          "content_digest": "c7988584749ce47a",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_gDbink0F6t2hj4oYQCSEQb\",\"name\":\"final_answer\",\"input\":{\"answer\":\"Visit the Museo del Prado, Madrid's premier art museum, home to masterpieces by Velázquez, Goya, and El Greco. It's located on Paseo del Prado…[297 chars]",
+          "content_digest": "8f618d0a9faf377f",
+          "tool_name": "final_answer",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "Visit the Museo del Prado, Madrid's premier art museum, home to masterpieces by Velázquez, Goya, and El Greco. It's located on Paseo del Prado, near Retiro Park, so you can easily combine the two.",
+          "content_digest": "40a06abe6e97cb23",
+          "tool_name": "final_answer",
+          "observation_type": "tool"
+        },
+        {
+          "index": 4,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are an expert assistant who can solve any task using tool calls. You will be given a task to solve as best you can. To do so, you have been given access to some tools. The tool call you write is an action: after the tool is executed, yo…[3203 chars]",
+          "content_digest": "2508dbf9c52c7d01",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
+          "role": "user",
+          "entry_type": "text",
+          "content": "New task: Suggest one park to visit in Madrid.",
+          "content_digest": "c738d53a56f74350",
+          "observation_type": "generation"
+        },
+        {
+          "index": 6,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_PAmdM02zW4gG4BxD3O1BuK\",\"name\":\"final_answer\",\"input\":{\"answer\":\"Visit Retiro Park (Parque del Buen Retiro) — Madrid's most famous park, with a boating lake, the Crystal Palace, and beautiful gardens perfect…[265 chars]",
+          "content_digest": "6153e19818854a0b",
+          "tool_name": "final_answer",
+          "observation_type": "generation"
+        },
+        {
+          "index": 7,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "Visit Retiro Park (Parque del Buen Retiro) — Madrid's most famous park, with a boating lake, the Crystal Palace, and beautiful gardens perfect for a relaxed stroll.",
+          "content_digest": "9d00191315f60863",
+          "tool_name": "final_answer",
+          "observation_type": "tool"
+        }
+      ]
+    }
+  },
+  "feed_view": {
+    "message_count": 8,
+    "role_sequence": [
+      "tool",
+      "system",
+      "user",
+      "assistant",
+      "tool",
+      "system",
+      "user",
+      "assistant"
+    ],
+    "tool_names": [
+      "final_answer"
+    ],
+    "tool_definition_count": 1,
+    "messages": [
+      {
+        "index": 0,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "Visit Retiro Park (Parque del Buen Retiro) — Madrid's most famous park, with a boating lake, the Crystal Palace, and beautiful gardens perfect for a relaxed stroll.",
+        "content_digest": "9d00191315f60863",
+        "tool_name": "final_answer",
+        "observation_type": "tool"
+      },
+      {
+        "index": 1,
+        "role": "system",
+        "entry_type": "text",
+        "content": "You are an expert assistant who can solve any task using tool calls. You will be given a task to solve as best you can. To do so, you have been given access to some tools. The tool call you write is an action: after the tool is executed, yo…[3203 chars]",
+        "content_digest": "2508dbf9c52c7d01",
+        "observation_type": "generation"
+      },
+      {
+        "index": 2,
+        "role": "user",
+        "entry_type": "text",
+        "content": "New task: Suggest one park to visit in Madrid.",
+        "content_digest": "c738d53a56f74350",
+        "observation_type": "generation"
+      },
+      {
+        "index": 3,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_PAmdM02zW4gG4BxD3O1BuK\",\"name\":\"final_answer\",\"input\":{\"answer\":\"Visit Retiro Park (Parque del Buen Retiro) — Madrid's most famous park, with a boating lake, the Crystal Palace, and beautiful gardens perfect…[265 chars]",
+        "content_digest": "6153e19818854a0b",
+        "tool_name": "final_answer",
+        "observation_type": "generation"
+      },
+      {
+        "index": 4,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "Visit the Museo del Prado, Madrid's premier art museum, home to masterpieces by Velázquez, Goya, and El Greco. It's located on Paseo del Prado, near Retiro Park, so you can easily combine the two.",
+        "content_digest": "40a06abe6e97cb23",
+        "tool_name": "final_answer",
+        "observation_type": "tool"
+      },
+      {
+        "index": 5,
+        "role": "system",
+        "entry_type": "text",
+        "content": "You are an expert assistant who can solve any task using tool calls. You will be given a task to solve as best you can. To do so, you have been given access to some tools. The tool call you write is an action: after the tool is executed, yo…[3203 chars]",
+        "content_digest": "2508dbf9c52c7d01",
+        "observation_type": "generation"
+      },
+      {
+        "index": 6,
+        "role": "user",
+        "entry_type": "text",
+        "content": "New task: Suggest one museum to visit in Madrid.",
+        "content_digest": "c7988584749ce47a",
+        "observation_type": "generation"
+      },
+      {
+        "index": 7,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_gDbink0F6t2hj4oYQCSEQb\",\"name\":\"final_answer\",\"input\":{\"answer\":\"Visit the Museo del Prado, Madrid's premier art museum, home to masterpieces by Velázquez, Goya, and El Greco. It's located on Paseo del Prado…[297 chars]",
+        "content_digest": "8f618d0a9faf377f",
+        "tool_name": "final_answer",
+        "observation_type": "generation"
+      }
+    ]
+  }
+}

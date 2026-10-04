@@ -1,0 +1,369 @@
+{
+  "label": "smolagents/native/streaming",
+  "request_count": 1,
+  "span_count": 8,
+  "trace_count": 1,
+  "session_count": 1,
+  "span_views": {
+    "trace-1/FinalAnswerTool/span-8": {
+      "message_count": 1,
+      "role_sequence": [
+        "tool"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "Tomorrow in Rome will be sunny with a high of 21°C. Wear light, breathable layers like a t-shirt and light trousers, and bring a light jacket for the cooler morning and evening. Sunglasses and sunscreen are a good idea too.",
+          "content_digest": "54973631f4f86d9a",
+          "tool_name": "final_answer",
+          "observation_type": "tool"
+        }
+      ]
+    },
+    "trace-1/LiteLLMModel.generate_stream/span-4": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [
+        "final_answer",
+        "get_weather"
+      ],
+      "tool_definition_count": 2,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are an expert assistant who can solve any task using tool calls. You will be given a task to solve as best you can. To do so, you have been given access to some tools. The tool call you write is an action: after the tool is executed, yo…[3470 chars]",
+          "content_digest": "630fb2be90363606",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "New task: Check the weather in Rome for the next day and tell me what to wear.",
+          "content_digest": "fa412b2baf51bf0c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_7Gi9pMyfHIDwqlJEPXK4uw\",\"name\":\"get_weather\",\"input\":{\"city\":\"Rome\",\"days\":1}}",
+          "content_digest": "0877f1c2ad599f2d",
+          "tool_name": "get_weather",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/LiteLLMModel.generate_stream/span-7": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [
+        "final_answer",
+        "get_weather"
+      ],
+      "tool_definition_count": 2,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are an expert assistant who can solve any task using tool calls. You will be given a task to solve as best you can. To do so, you have been given access to some tools. The tool call you write is an action: after the tool is executed, yo…[3470 chars]",
+          "content_digest": "630fb2be90363606",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "New task: Check the weather in Rome for the next day and tell me what to wear.",
+          "content_digest": "fa412b2baf51bf0c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_fxXvbuUiFnXzqhEazxk8Qr\",\"name\":\"final_answer\",\"input\":{\"answer\":\"Tomorrow in Rome will be sunny with a high of 21°C. Wear light, breathable layers like a t-shirt and light trousers, and bring a light jacket …[324 chars]",
+          "content_digest": "470e97a7444d136f",
+          "tool_name": "final_answer",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/SimpleTool/span-5": {
+      "message_count": 1,
+      "role_sequence": [
+        "tool"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"name\":\"get_weather\",\"content\":{\"city\":\"Rome\",\"forecast\":[{\"day\":1,\"condition\":\"sunny\",\"high_c\":21}]}}",
+          "content_digest": "703cb9b980accba8",
+          "tool_name": "get_weather",
+          "observation_type": "tool"
+        }
+      ]
+    },
+    "trace-1/Step 1/span-3": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/Step 2/span-6": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/ToolCallingAgent.run/span-2": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/streaming/span-1": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    }
+  },
+  "trace_views": {
+    "trace-1": {
+      "message_count": 6,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "tool",
+        "assistant",
+        "tool"
+      ],
+      "tool_names": [
+        "final_answer",
+        "get_weather"
+      ],
+      "tool_definition_count": 2,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are an expert assistant who can solve any task using tool calls. You will be given a task to solve as best you can. To do so, you have been given access to some tools. The tool call you write is an action: after the tool is executed, yo…[3470 chars]",
+          "content_digest": "630fb2be90363606",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "New task: Check the weather in Rome for the next day and tell me what to wear.",
+          "content_digest": "fa412b2baf51bf0c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_7Gi9pMyfHIDwqlJEPXK4uw\",\"name\":\"get_weather\",\"input\":{\"city\":\"Rome\",\"days\":1}}",
+          "content_digest": "0877f1c2ad599f2d",
+          "tool_name": "get_weather",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_7Gi9pMyfHIDwqlJEPXK4uw\",\"name\":\"get_weather\",\"content\":{\"city\":\"Rome\",\"forecast\":[{\"day\":1,\"condition\":\"sunny\",\"high_c\":21}]}}",
+          "content_digest": "6494a6621090a602",
+          "tool_name": "get_weather",
+          "observation_type": "tool"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_fxXvbuUiFnXzqhEazxk8Qr\",\"name\":\"final_answer\",\"input\":{\"answer\":\"Tomorrow in Rome will be sunny with a high of 21°C. Wear light, breathable layers like a t-shirt and light trousers, and bring a light jacket …[324 chars]",
+          "content_digest": "470e97a7444d136f",
+          "tool_name": "final_answer",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "Tomorrow in Rome will be sunny with a high of 21°C. Wear light, breathable layers like a t-shirt and light trousers, and bring a light jacket for the cooler morning and evening. Sunglasses and sunscreen are a good idea too.",
+          "content_digest": "f00501bab47207d6",
+          "tool_name": "final_answer",
+          "observation_type": "tool"
+        }
+      ]
+    }
+  },
+  "session_views": {
+    "smolagents-streaming": {
+      "message_count": 6,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "tool",
+        "assistant",
+        "tool"
+      ],
+      "tool_names": [
+        "final_answer",
+        "get_weather"
+      ],
+      "tool_definition_count": 2,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are an expert assistant who can solve any task using tool calls. You will be given a task to solve as best you can. To do so, you have been given access to some tools. The tool call you write is an action: after the tool is executed, yo…[3470 chars]",
+          "content_digest": "630fb2be90363606",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "New task: Check the weather in Rome for the next day and tell me what to wear.",
+          "content_digest": "fa412b2baf51bf0c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_7Gi9pMyfHIDwqlJEPXK4uw\",\"name\":\"get_weather\",\"input\":{\"city\":\"Rome\",\"days\":1}}",
+          "content_digest": "0877f1c2ad599f2d",
+          "tool_name": "get_weather",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_7Gi9pMyfHIDwqlJEPXK4uw\",\"name\":\"get_weather\",\"content\":{\"city\":\"Rome\",\"forecast\":[{\"day\":1,\"condition\":\"sunny\",\"high_c\":21}]}}",
+          "content_digest": "6494a6621090a602",
+          "tool_name": "get_weather",
+          "observation_type": "tool"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_fxXvbuUiFnXzqhEazxk8Qr\",\"name\":\"final_answer\",\"input\":{\"answer\":\"Tomorrow in Rome will be sunny with a high of 21°C. Wear light, breathable layers like a t-shirt and light trousers, and bring a light jacket …[324 chars]",
+          "content_digest": "470e97a7444d136f",
+          "tool_name": "final_answer",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "Tomorrow in Rome will be sunny with a high of 21°C. Wear light, breathable layers like a t-shirt and light trousers, and bring a light jacket for the cooler morning and evening. Sunglasses and sunscreen are a good idea too.",
+          "content_digest": "f00501bab47207d6",
+          "tool_name": "final_answer",
+          "observation_type": "tool"
+        }
+      ]
+    }
+  },
+  "feed_view": {
+    "message_count": 6,
+    "role_sequence": [
+      "tool",
+      "assistant",
+      "tool",
+      "system",
+      "user",
+      "assistant"
+    ],
+    "tool_names": [
+      "final_answer",
+      "get_weather"
+    ],
+    "tool_definition_count": 2,
+    "messages": [
+      {
+        "index": 0,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "Tomorrow in Rome will be sunny with a high of 21°C. Wear light, breathable layers like a t-shirt and light trousers, and bring a light jacket for the cooler morning and evening. Sunglasses and sunscreen are a good idea too.",
+        "content_digest": "f00501bab47207d6",
+        "tool_name": "final_answer",
+        "observation_type": "tool"
+      },
+      {
+        "index": 1,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_fxXvbuUiFnXzqhEazxk8Qr\",\"name\":\"final_answer\",\"input\":{\"answer\":\"Tomorrow in Rome will be sunny with a high of 21°C. Wear light, breathable layers like a t-shirt and light trousers, and bring a light jacket …[324 chars]",
+        "content_digest": "470e97a7444d136f",
+        "tool_name": "final_answer",
+        "observation_type": "generation"
+      },
+      {
+        "index": 2,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_7Gi9pMyfHIDwqlJEPXK4uw\",\"name\":\"get_weather\",\"content\":{\"city\":\"Rome\",\"forecast\":[{\"day\":1,\"condition\":\"sunny\",\"high_c\":21}]}}",
+        "content_digest": "6494a6621090a602",
+        "tool_name": "get_weather",
+        "observation_type": "tool"
+      },
+      {
+        "index": 3,
+        "role": "system",
+        "entry_type": "text",
+        "content": "You are an expert assistant who can solve any task using tool calls. You will be given a task to solve as best you can. To do so, you have been given access to some tools. The tool call you write is an action: after the tool is executed, yo…[3470 chars]",
+        "content_digest": "630fb2be90363606",
+        "observation_type": "generation"
+      },
+      {
+        "index": 4,
+        "role": "user",
+        "entry_type": "text",
+        "content": "New task: Check the weather in Rome for the next day and tell me what to wear.",
+        "content_digest": "fa412b2baf51bf0c",
+        "observation_type": "generation"
+      },
+      {
+        "index": 5,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_7Gi9pMyfHIDwqlJEPXK4uw\",\"name\":\"get_weather\",\"input\":{\"city\":\"Rome\",\"days\":1}}",
+        "content_digest": "0877f1c2ad599f2d",
+        "tool_name": "get_weather",
+        "observation_type": "generation"
+      }
+    ]
+  }
+}

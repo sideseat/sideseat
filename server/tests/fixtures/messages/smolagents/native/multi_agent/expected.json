@@ -1,0 +1,631 @@
+{
+  "label": "smolagents/native/multi_agent",
+  "request_count": 4,
+  "span_count": 14,
+  "trace_count": 1,
+  "session_count": 1,
+  "span_views": {
+    "trace-1/FinalAnswerTool/span-11": {
+      "message_count": 1,
+      "role_sequence": [
+        "tool"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "### 1. Task outcome (short version): Barcelona, Spain is forecast to be sunny on both of the next two days. The high is 21°C on Day 1 and 22°C on Day 2. The weather tool did not return low temperatures, precipitation/rain chance, wind, or h…[1886 chars]",
+          "content_digest": "36655aaf9cd98301",
+          "tool_name": "final_answer",
+          "observation_type": "tool"
+        }
+      ]
+    },
+    "trace-1/FinalAnswerTool/span-14": {
+      "message_count": 1,
+      "role_sequence": [
+        "tool"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "Packing list for Barcelona (next two days): The forecast shows sunny skies both days, with highs of about 21°C on Day 1 and 22°C on Day 2. The weather tool didn't provide lows, rain chance, wind or humidity, so pack a little flexibly. Bring…[808 chars]",
+          "content_digest": "674d234b888bdc8b",
+          "tool_name": "final_answer",
+          "observation_type": "tool"
+        }
+      ]
+    },
+    "trace-1/LiteLLMModel.generate/span-10": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [
+        "final_answer",
+        "get_weather"
+      ],
+      "tool_definition_count": 2,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are an expert assistant who can solve any task using tool calls. You will be given a task to solve as best you can. To do so, you have been given access to some tools. The tool call you write is an action: after the tool is executed, yo…[3395 chars]",
+          "content_digest": "fb3bfe3670409d89",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "New task: You're a helpful agent named 'researcher'. You have been submitted this task by your manager. --- Task: Please use the weather tool to look up the weather forecast for Barcelona, Spain for the next two days. Report for each day: t…[989 chars]",
+          "content_digest": "a6644a64e1786734",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_L5YuAapGtIPSClkDr7OtSb\",\"name\":\"final_answer\",\"input\":{\"answer\":\"### 1. Task outcome (short version):\\nBarcelona, Spain is forecast to be sunny on both of the next two days. The high is 21°C on Day 1 and 22°…[2025 chars]",
+          "content_digest": "2b029628c8e25b5d",
+          "tool_name": "final_answer",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/LiteLLMModel.generate/span-13": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [
+        "final_answer"
+      ],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are an expert assistant who can solve any task using tool calls. You will be given a task to solve as best you can. To do so, you have been given access to some tools. The tool call you write is an action: after the tool is executed, yo…[3965 chars]",
+          "content_digest": "f2a2c852cfef1fbe",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "New task: Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it.",
+          "content_digest": "8c3bea041365cd97",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_VRDNOZGKXkN1JamolsPrbX\",\"name\":\"final_answer\",\"input\":{\"answer\":\"Packing list for Barcelona (next two days): The forecast shows sunny skies both days, with highs of about 21°C on Day 1 and 22°C on Day 2. The…[909 chars]",
+          "content_digest": "3799855f19986a5d",
+          "tool_name": "final_answer",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/LiteLLMModel.generate/span-4": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [
+        "final_answer"
+      ],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are an expert assistant who can solve any task using tool calls. You will be given a task to solve as best you can. To do so, you have been given access to some tools. The tool call you write is an action: after the tool is executed, yo…[3965 chars]",
+          "content_digest": "f2a2c852cfef1fbe",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "New task: Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it.",
+          "content_digest": "8c3bea041365cd97",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_ECooklahParLWEzRz1PtDD\",\"name\":\"researcher\",\"input\":{\"task\":\"Please use the weather tool to look up the weather forecast for Barcelona, Spain for the next two days. Report for each day: temperature range (hi…[340 chars]",
+          "content_digest": "1041aa12f3f9cd43",
+          "tool_name": "researcher",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/LiteLLMModel.generate/span-7": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [
+        "final_answer",
+        "get_weather"
+      ],
+      "tool_definition_count": 2,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are an expert assistant who can solve any task using tool calls. You will be given a task to solve as best you can. To do so, you have been given access to some tools. The tool call you write is an action: after the tool is executed, yo…[3395 chars]",
+          "content_digest": "fb3bfe3670409d89",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "New task: You're a helpful agent named 'researcher'. You have been submitted this task by your manager. --- Task: Please use the weather tool to look up the weather forecast for Barcelona, Spain for the next two days. Report for each day: t…[989 chars]",
+          "content_digest": "a6644a64e1786734",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_DcOMhAFqs3xhC2fbvXfr8k\",\"name\":\"get_weather\",\"input\":{\"city\":\"Barcelona, Spain\",\"days\":2}}",
+          "content_digest": "60f2ca3a6ebb651b",
+          "tool_name": "get_weather",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/SimpleTool/span-8": {
+      "message_count": 1,
+      "role_sequence": [
+        "tool"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"name\":\"get_weather\",\"content\":{\"city\":\"Barcelona, Spain\",\"forecast\":[{\"day\":1,\"condition\":\"sunny\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}}",
+          "content_digest": "d2439622f3ceefff",
+          "tool_name": "get_weather",
+          "observation_type": "tool"
+        }
+      ]
+    },
+    "trace-1/Step 1/span-3": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/Step 1/span-6": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/Step 2/span-12": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/Step 2/span-9": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/ToolCallingAgent.run/span-2": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/multi-agent/span-1": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/researcher.run/span-5": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    }
+  },
+  "trace_views": {
+    "trace-1": {
+      "message_count": 11,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "system",
+        "user",
+        "assistant",
+        "tool",
+        "assistant",
+        "tool",
+        "assistant",
+        "tool"
+      ],
+      "tool_names": [
+        "final_answer",
+        "get_weather"
+      ],
+      "tool_definition_count": 2,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are an expert assistant who can solve any task using tool calls. You will be given a task to solve as best you can. To do so, you have been given access to some tools. The tool call you write is an action: after the tool is executed, yo…[3965 chars]",
+          "content_digest": "f2a2c852cfef1fbe",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "New task: Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it.",
+          "content_digest": "8c3bea041365cd97",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_ECooklahParLWEzRz1PtDD\",\"name\":\"researcher\",\"input\":{\"task\":\"Please use the weather tool to look up the weather forecast for Barcelona, Spain for the next two days. Report for each day: temperature range (hi…[340 chars]",
+          "content_digest": "1041aa12f3f9cd43",
+          "tool_name": "researcher",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are an expert assistant who can solve any task using tool calls. You will be given a task to solve as best you can. To do so, you have been given access to some tools. The tool call you write is an action: after the tool is executed, yo…[3395 chars]",
+          "content_digest": "fb3bfe3670409d89",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "user",
+          "entry_type": "text",
+          "content": "New task: You're a helpful agent named 'researcher'. You have been submitted this task by your manager. --- Task: Please use the weather tool to look up the weather forecast for Barcelona, Spain for the next two days. Report for each day: t…[989 chars]",
+          "content_digest": "a6644a64e1786734",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_DcOMhAFqs3xhC2fbvXfr8k\",\"name\":\"get_weather\",\"input\":{\"city\":\"Barcelona, Spain\",\"days\":2}}",
+          "content_digest": "60f2ca3a6ebb651b",
+          "tool_name": "get_weather",
+          "observation_type": "generation"
+        },
+        {
+          "index": 6,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_DcOMhAFqs3xhC2fbvXfr8k\",\"name\":\"get_weather\",\"content\":{\"city\":\"Barcelona, Spain\",\"forecast\":[{\"day\":1,\"condition\":\"sunny\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}}",
+          "content_digest": "91e3ccee384d390d",
+          "tool_name": "get_weather",
+          "observation_type": "tool"
+        },
+        {
+          "index": 7,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_L5YuAapGtIPSClkDr7OtSb\",\"name\":\"final_answer\",\"input\":{\"answer\":\"### 1. Task outcome (short version):\\nBarcelona, Spain is forecast to be sunny on both of the next two days. The high is 21°C on Day 1 and 22°…[2025 chars]",
+          "content_digest": "2b029628c8e25b5d",
+          "tool_name": "final_answer",
+          "observation_type": "generation"
+        },
+        {
+          "index": 8,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "### 1. Task outcome (short version): Barcelona, Spain is forecast to be sunny on both of the next two days. The high is 21°C on Day 1 and 22°C on Day 2. The weather tool did not return low temperatures, precipitation/rain chance, wind, or h…[1886 chars]",
+          "content_digest": "2135a0315bdbf5e1",
+          "tool_name": "final_answer",
+          "observation_type": "tool"
+        },
+        {
+          "index": 9,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_VRDNOZGKXkN1JamolsPrbX\",\"name\":\"final_answer\",\"input\":{\"answer\":\"Packing list for Barcelona (next two days): The forecast shows sunny skies both days, with highs of about 21°C on Day 1 and 22°C on Day 2. The…[909 chars]",
+          "content_digest": "3799855f19986a5d",
+          "tool_name": "final_answer",
+          "observation_type": "generation"
+        },
+        {
+          "index": 10,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "Packing list for Barcelona (next two days): The forecast shows sunny skies both days, with highs of about 21°C on Day 1 and 22°C on Day 2. The weather tool didn't provide lows, rain chance, wind or humidity, so pack a little flexibly. Bring…[808 chars]",
+          "content_digest": "8c4972483d15db29",
+          "tool_name": "final_answer",
+          "observation_type": "tool"
+        }
+      ]
+    }
+  },
+  "session_views": {
+    "smolagents-multi_agent": {
+      "message_count": 11,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "system",
+        "user",
+        "assistant",
+        "tool",
+        "assistant",
+        "tool",
+        "assistant",
+        "tool"
+      ],
+      "tool_names": [
+        "final_answer",
+        "get_weather"
+      ],
+      "tool_definition_count": 2,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are an expert assistant who can solve any task using tool calls. You will be given a task to solve as best you can. To do so, you have been given access to some tools. The tool call you write is an action: after the tool is executed, yo…[3965 chars]",
+          "content_digest": "f2a2c852cfef1fbe",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "New task: Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it.",
+          "content_digest": "8c3bea041365cd97",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_ECooklahParLWEzRz1PtDD\",\"name\":\"researcher\",\"input\":{\"task\":\"Please use the weather tool to look up the weather forecast for Barcelona, Spain for the next two days. Report for each day: temperature range (hi…[340 chars]",
+          "content_digest": "1041aa12f3f9cd43",
+          "tool_name": "researcher",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are an expert assistant who can solve any task using tool calls. You will be given a task to solve as best you can. To do so, you have been given access to some tools. The tool call you write is an action: after the tool is executed, yo…[3395 chars]",
+          "content_digest": "fb3bfe3670409d89",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "user",
+          "entry_type": "text",
+          "content": "New task: You're a helpful agent named 'researcher'. You have been submitted this task by your manager. --- Task: Please use the weather tool to look up the weather forecast for Barcelona, Spain for the next two days. Report for each day: t…[989 chars]",
+          "content_digest": "a6644a64e1786734",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_DcOMhAFqs3xhC2fbvXfr8k\",\"name\":\"get_weather\",\"input\":{\"city\":\"Barcelona, Spain\",\"days\":2}}",
+          "content_digest": "60f2ca3a6ebb651b",
+          "tool_name": "get_weather",
+          "observation_type": "generation"
+        },
+        {
+          "index": 6,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_DcOMhAFqs3xhC2fbvXfr8k\",\"name\":\"get_weather\",\"content\":{\"city\":\"Barcelona, Spain\",\"forecast\":[{\"day\":1,\"condition\":\"sunny\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}}",
+          "content_digest": "91e3ccee384d390d",
+          "tool_name": "get_weather",
+          "observation_type": "tool"
+        },
+        {
+          "index": 7,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_L5YuAapGtIPSClkDr7OtSb\",\"name\":\"final_answer\",\"input\":{\"answer\":\"### 1. Task outcome (short version):\\nBarcelona, Spain is forecast to be sunny on both of the next two days. The high is 21°C on Day 1 and 22°…[2025 chars]",
+          "content_digest": "2b029628c8e25b5d",
+          "tool_name": "final_answer",
+          "observation_type": "generation"
+        },
+        {
+          "index": 8,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "### 1. Task outcome (short version): Barcelona, Spain is forecast to be sunny on both of the next two days. The high is 21°C on Day 1 and 22°C on Day 2. The weather tool did not return low temperatures, precipitation/rain chance, wind, or h…[1886 chars]",
+          "content_digest": "2135a0315bdbf5e1",
+          "tool_name": "final_answer",
+          "observation_type": "tool"
+        },
+        {
+          "index": 9,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_VRDNOZGKXkN1JamolsPrbX\",\"name\":\"final_answer\",\"input\":{\"answer\":\"Packing list for Barcelona (next two days): The forecast shows sunny skies both days, with highs of about 21°C on Day 1 and 22°C on Day 2. The…[909 chars]",
+          "content_digest": "3799855f19986a5d",
+          "tool_name": "final_answer",
+          "observation_type": "generation"
+        },
+        {
+          "index": 10,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "Packing list for Barcelona (next two days): The forecast shows sunny skies both days, with highs of about 21°C on Day 1 and 22°C on Day 2. The weather tool didn't provide lows, rain chance, wind or humidity, so pack a little flexibly. Bring…[808 chars]",
+          "content_digest": "8c4972483d15db29",
+          "tool_name": "final_answer",
+          "observation_type": "tool"
+        }
+      ]
+    }
+  },
+  "feed_view": {
+    "message_count": 11,
+    "role_sequence": [
+      "tool",
+      "assistant",
+      "tool",
+      "assistant",
+      "tool",
+      "system",
+      "user",
+      "assistant",
+      "system",
+      "user",
+      "assistant"
+    ],
+    "tool_names": [
+      "final_answer",
+      "get_weather"
+    ],
+    "tool_definition_count": 2,
+    "messages": [
+      {
+        "index": 0,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "Packing list for Barcelona (next two days): The forecast shows sunny skies both days, with highs of about 21°C on Day 1 and 22°C on Day 2. The weather tool didn't provide lows, rain chance, wind or humidity, so pack a little flexibly. Bring…[808 chars]",
+        "content_digest": "8c4972483d15db29",
+        "tool_name": "final_answer",
+        "observation_type": "tool"
+      },
+      {
+        "index": 1,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_VRDNOZGKXkN1JamolsPrbX\",\"name\":\"final_answer\",\"input\":{\"answer\":\"Packing list for Barcelona (next two days): The forecast shows sunny skies both days, with highs of about 21°C on Day 1 and 22°C on Day 2. The…[909 chars]",
+        "content_digest": "3799855f19986a5d",
+        "tool_name": "final_answer",
+        "observation_type": "generation"
+      },
+      {
+        "index": 2,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "### 1. Task outcome (short version): Barcelona, Spain is forecast to be sunny on both of the next two days. The high is 21°C on Day 1 and 22°C on Day 2. The weather tool did not return low temperatures, precipitation/rain chance, wind, or h…[1886 chars]",
+        "content_digest": "2135a0315bdbf5e1",
+        "tool_name": "final_answer",
+        "observation_type": "tool"
+      },
+      {
+        "index": 3,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_L5YuAapGtIPSClkDr7OtSb\",\"name\":\"final_answer\",\"input\":{\"answer\":\"### 1. Task outcome (short version):\\nBarcelona, Spain is forecast to be sunny on both of the next two days. The high is 21°C on Day 1 and 22°…[2025 chars]",
+        "content_digest": "2b029628c8e25b5d",
+        "tool_name": "final_answer",
+        "observation_type": "generation"
+      },
+      {
+        "index": 4,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_DcOMhAFqs3xhC2fbvXfr8k\",\"name\":\"get_weather\",\"content\":{\"city\":\"Barcelona, Spain\",\"forecast\":[{\"day\":1,\"condition\":\"sunny\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}}",
+        "content_digest": "91e3ccee384d390d",
+        "tool_name": "get_weather",
+        "observation_type": "tool"
+      },
+      {
+        "index": 5,
+        "role": "system",
+        "entry_type": "text",
+        "content": "You are an expert assistant who can solve any task using tool calls. You will be given a task to solve as best you can. To do so, you have been given access to some tools. The tool call you write is an action: after the tool is executed, yo…[3395 chars]",
+        "content_digest": "fb3bfe3670409d89",
+        "observation_type": "generation"
+      },
+      {
+        "index": 6,
+        "role": "user",
+        "entry_type": "text",
+        "content": "New task: You're a helpful agent named 'researcher'. You have been submitted this task by your manager. --- Task: Please use the weather tool to look up the weather forecast for Barcelona, Spain for the next two days. Report for each day: t…[989 chars]",
+        "content_digest": "a6644a64e1786734",
+        "observation_type": "generation"
+      },
+      {
+        "index": 7,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_DcOMhAFqs3xhC2fbvXfr8k\",\"name\":\"get_weather\",\"input\":{\"city\":\"Barcelona, Spain\",\"days\":2}}",
+        "content_digest": "60f2ca3a6ebb651b",
+        "tool_name": "get_weather",
+        "observation_type": "generation"
+      },
+      {
+        "index": 8,
+        "role": "system",
+        "entry_type": "text",
+        "content": "You are an expert assistant who can solve any task using tool calls. You will be given a task to solve as best you can. To do so, you have been given access to some tools. The tool call you write is an action: after the tool is executed, yo…[3965 chars]",
+        "content_digest": "f2a2c852cfef1fbe",
+        "observation_type": "generation"
+      },
+      {
+        "index": 9,
+        "role": "user",
+        "entry_type": "text",
+        "content": "New task: Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it.",
+        "content_digest": "8c3bea041365cd97",
+        "observation_type": "generation"
+      },
+      {
+        "index": 10,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_ECooklahParLWEzRz1PtDD\",\"name\":\"researcher\",\"input\":{\"task\":\"Please use the weather tool to look up the weather forecast for Barcelona, Spain for the next two days. Report for each day: temperature range (hi…[340 chars]",
+        "content_digest": "1041aa12f3f9cd43",
+        "tool_name": "researcher",
+        "observation_type": "generation"
+      }
+    ]
+  }
+}

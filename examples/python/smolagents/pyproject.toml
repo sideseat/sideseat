@@ -4,11 +4,9 @@ version = "0.0.0"
 description = "Smolagents scenarios for SideSeat"
 requires-python = ">=3.11"
 dependencies = [
-    "smolagents[bedrock,litellm,mcp]>=1.26.0",
+    "smolagents[bedrock,litellm]>=1.26.0",
     # Without the floor the resolver picks an old LiteLLM whose tokenizers has no wheel for current Python.
     "litellm>=1.103.2",
-    # Smolagents' MCP client is built on mcpadapt, which imports names MCP 2 removed.
-    "mcp>=1.24,<2",
     "openinference-instrumentation-smolagents>=0.1.42",
     "sideseat[smolagents]",
     "sideseat-example-harness[bedrock]",

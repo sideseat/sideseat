@@ -1,0 +1,519 @@
+{
+  "label": "smolagents/sdk/error",
+  "request_count": 1,
+  "span_count": 11,
+  "trace_count": 1,
+  "session_count": 1,
+  "span_views": {
+    "trace-1/FinalAnswerTool/span-11": {
+      "message_count": 1,
+      "role_sequence": [
+        "tool"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "I couldn't book your London to Oslo flight for 2026-11-14. The booking system is offline, and I got the same error with \"London/Oslo\" and with the airport codes LHR/OSL. I haven't tried other dates, since you asked for this one. Please try …[305 chars]",
+          "content_digest": "f65b5615365b1f52",
+          "tool_name": "final_answer",
+          "observation_type": "tool"
+        }
+      ]
+    },
+    "trace-1/LiteLLMModel.generate/span-10": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [
+        "book_flight",
+        "final_answer"
+      ],
+      "tool_definition_count": 2,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are an expert assistant who can solve any task using tool calls. You will be given a task to solve as best you can. To do so, you have been given access to some tools. The tool call you write is an action: after the tool is executed, yo…[3472 chars]",
+          "content_digest": "01ad33c080d1fea6",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "New task: Book me a flight from London to Oslo on 2026-11-14.",
+          "content_digest": "5794b9c78b452864",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_mvLCUimyQfoor1TvoWHssK\",\"name\":\"final_answer\",\"input\":{\"answer\":\"I couldn't book your London to Oslo flight for 2026-11-14. The booking system is offline, and I got the same error with \\\"London/Oslo\\\" and wi…[408 chars]",
+          "content_digest": "59e8485aaad45bc6",
+          "tool_name": "final_answer",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/LiteLLMModel.generate/span-4": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [
+        "book_flight",
+        "final_answer"
+      ],
+      "tool_definition_count": 2,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are an expert assistant who can solve any task using tool calls. You will be given a task to solve as best you can. To do so, you have been given access to some tools. The tool call you write is an action: after the tool is executed, yo…[3472 chars]",
+          "content_digest": "01ad33c080d1fea6",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "New task: Book me a flight from London to Oslo on 2026-11-14.",
+          "content_digest": "5794b9c78b452864",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_u9zL60LC34rxhkCRhkfTRV\",\"name\":\"book_flight\",\"input\":{\"origin\":\"London\",\"destination\":\"Oslo\",\"date\":\"2026-11-14\"}}",
+          "content_digest": "12d5a8fd7bfe7207",
+          "tool_name": "book_flight",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/LiteLLMModel.generate/span-7": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [
+        "book_flight",
+        "final_answer"
+      ],
+      "tool_definition_count": 2,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are an expert assistant who can solve any task using tool calls. You will be given a task to solve as best you can. To do so, you have been given access to some tools. The tool call you write is an action: after the tool is executed, yo…[3472 chars]",
+          "content_digest": "01ad33c080d1fea6",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "New task: Book me a flight from London to Oslo on 2026-11-14.",
+          "content_digest": "5794b9c78b452864",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_JZP5mpzWIaVrELSZPKOJU4\",\"name\":\"book_flight\",\"input\":{\"origin\":\"LHR\",\"destination\":\"OSL\",\"date\":\"2026-11-14\"}}",
+          "content_digest": "270cd42ff51f5265",
+          "tool_name": "book_flight",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/SimpleTool/span-5": {
+      "message_count": 1,
+      "role_sequence": [
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "harness.content.BookingUnavailable: No seats from London to Oslo on 2026-11-14: the booking system is offline.",
+          "content_digest": "d955a74e64f462f7",
+          "finish_reason": "Error",
+          "observation_type": "tool"
+        }
+      ]
+    },
+    "trace-1/SimpleTool/span-8": {
+      "message_count": 1,
+      "role_sequence": [
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "harness.content.BookingUnavailable: No seats from LHR to OSL on 2026-11-14: the booking system is offline.",
+          "content_digest": "11d773e622de6b9d",
+          "finish_reason": "Error",
+          "observation_type": "tool"
+        }
+      ]
+    },
+    "trace-1/Step 1/span-3": {
+      "message_count": 1,
+      "role_sequence": [
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "smolagents.utils.AgentToolExecutionError: Error executing tool 'book_flight' with arguments {'origin': 'London', 'destination': 'Oslo', 'date': '2026-11-14'}: BookingUnavailable: No seats from London to Oslo on 2026-11-14: the booking syste…[290 chars]",
+          "content_digest": "3c53f2e05b0b5937",
+          "finish_reason": "Error",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "trace-1/Step 2/span-6": {
+      "message_count": 1,
+      "role_sequence": [
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "smolagents.utils.AgentToolExecutionError: Error executing tool 'book_flight' with arguments {'origin': 'LHR', 'destination': 'OSL', 'date': '2026-11-14'}: BookingUnavailable: No seats from LHR to OSL on 2026-11-14: the booking system is off…[282 chars]",
+          "content_digest": "00287c63d1d2dd81",
+          "finish_reason": "Error",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "trace-1/Step 3/span-9": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/ToolCallingAgent.run/span-2": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/error/span-1": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    }
+  },
+  "trace_views": {
+    "trace-1": {
+      "message_count": 8,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "assistant",
+        "assistant",
+        "assistant",
+        "assistant",
+        "tool"
+      ],
+      "tool_names": [
+        "book_flight",
+        "final_answer"
+      ],
+      "tool_definition_count": 2,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are an expert assistant who can solve any task using tool calls. You will be given a task to solve as best you can. To do so, you have been given access to some tools. The tool call you write is an action: after the tool is executed, yo…[3472 chars]",
+          "content_digest": "01ad33c080d1fea6",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "New task: Book me a flight from London to Oslo on 2026-11-14.",
+          "content_digest": "5794b9c78b452864",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_u9zL60LC34rxhkCRhkfTRV\",\"name\":\"book_flight\",\"input\":{\"origin\":\"London\",\"destination\":\"Oslo\",\"date\":\"2026-11-14\"}}",
+          "content_digest": "12d5a8fd7bfe7207",
+          "tool_name": "book_flight",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "harness.content.BookingUnavailable: No seats from London to Oslo on 2026-11-14: the booking system is offline.",
+          "content_digest": "d955a74e64f462f7",
+          "finish_reason": "Error",
+          "observation_type": "tool"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_JZP5mpzWIaVrELSZPKOJU4\",\"name\":\"book_flight\",\"input\":{\"origin\":\"LHR\",\"destination\":\"OSL\",\"date\":\"2026-11-14\"}}",
+          "content_digest": "270cd42ff51f5265",
+          "tool_name": "book_flight",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "harness.content.BookingUnavailable: No seats from LHR to OSL on 2026-11-14: the booking system is offline.",
+          "content_digest": "11d773e622de6b9d",
+          "finish_reason": "Error",
+          "observation_type": "tool"
+        },
+        {
+          "index": 6,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_mvLCUimyQfoor1TvoWHssK\",\"name\":\"final_answer\",\"input\":{\"answer\":\"I couldn't book your London to Oslo flight for 2026-11-14. The booking system is offline, and I got the same error with \\\"London/Oslo\\\" and wi…[408 chars]",
+          "content_digest": "59e8485aaad45bc6",
+          "tool_name": "final_answer",
+          "observation_type": "generation"
+        },
+        {
+          "index": 7,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "I couldn't book your London to Oslo flight for 2026-11-14. The booking system is offline, and I got the same error with \"London/Oslo\" and with the airport codes LHR/OSL. I haven't tried other dates, since you asked for this one. Please try …[305 chars]",
+          "content_digest": "1749f3d7cee3f9c2",
+          "tool_name": "final_answer",
+          "observation_type": "tool"
+        }
+      ]
+    }
+  },
+  "session_views": {
+    "smolagents-error": {
+      "message_count": 8,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "assistant",
+        "assistant",
+        "assistant",
+        "assistant",
+        "tool"
+      ],
+      "tool_names": [
+        "book_flight",
+        "final_answer"
+      ],
+      "tool_definition_count": 2,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are an expert assistant who can solve any task using tool calls. You will be given a task to solve as best you can. To do so, you have been given access to some tools. The tool call you write is an action: after the tool is executed, yo…[3472 chars]",
+          "content_digest": "01ad33c080d1fea6",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "New task: Book me a flight from London to Oslo on 2026-11-14.",
+          "content_digest": "5794b9c78b452864",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_u9zL60LC34rxhkCRhkfTRV\",\"name\":\"book_flight\",\"input\":{\"origin\":\"London\",\"destination\":\"Oslo\",\"date\":\"2026-11-14\"}}",
+          "content_digest": "12d5a8fd7bfe7207",
+          "tool_name": "book_flight",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "harness.content.BookingUnavailable: No seats from London to Oslo on 2026-11-14: the booking system is offline.",
+          "content_digest": "d955a74e64f462f7",
+          "finish_reason": "Error",
+          "observation_type": "tool"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_JZP5mpzWIaVrELSZPKOJU4\",\"name\":\"book_flight\",\"input\":{\"origin\":\"LHR\",\"destination\":\"OSL\",\"date\":\"2026-11-14\"}}",
+          "content_digest": "270cd42ff51f5265",
+          "tool_name": "book_flight",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "harness.content.BookingUnavailable: No seats from LHR to OSL on 2026-11-14: the booking system is offline.",
+          "content_digest": "11d773e622de6b9d",
+          "finish_reason": "Error",
+          "observation_type": "tool"
+        },
+        {
+          "index": 6,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_mvLCUimyQfoor1TvoWHssK\",\"name\":\"final_answer\",\"input\":{\"answer\":\"I couldn't book your London to Oslo flight for 2026-11-14. The booking system is offline, and I got the same error with \\\"London/Oslo\\\" and wi…[408 chars]",
+          "content_digest": "59e8485aaad45bc6",
+          "tool_name": "final_answer",
+          "observation_type": "generation"
+        },
+        {
+          "index": 7,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "I couldn't book your London to Oslo flight for 2026-11-14. The booking system is offline, and I got the same error with \"London/Oslo\" and with the airport codes LHR/OSL. I haven't tried other dates, since you asked for this one. Please try …[305 chars]",
+          "content_digest": "1749f3d7cee3f9c2",
+          "tool_name": "final_answer",
+          "observation_type": "tool"
+        }
+      ]
+    }
+  },
+  "feed_view": {
+    "message_count": 8,
+    "role_sequence": [
+      "tool",
+      "assistant",
+      "assistant",
+      "assistant",
+      "assistant",
+      "system",
+      "user",
+      "assistant"
+    ],
+    "tool_names": [
+      "book_flight",
+      "final_answer"
+    ],
+    "tool_definition_count": 2,
+    "messages": [
+      {
+        "index": 0,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "I couldn't book your London to Oslo flight for 2026-11-14. The booking system is offline, and I got the same error with \"London/Oslo\" and with the airport codes LHR/OSL. I haven't tried other dates, since you asked for this one. Please try …[305 chars]",
+        "content_digest": "1749f3d7cee3f9c2",
+        "tool_name": "final_answer",
+        "observation_type": "tool"
+      },
+      {
+        "index": 1,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_mvLCUimyQfoor1TvoWHssK\",\"name\":\"final_answer\",\"input\":{\"answer\":\"I couldn't book your London to Oslo flight for 2026-11-14. The booking system is offline, and I got the same error with \\\"London/Oslo\\\" and wi…[408 chars]",
+        "content_digest": "59e8485aaad45bc6",
+        "tool_name": "final_answer",
+        "observation_type": "generation"
+      },
+      {
+        "index": 2,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "harness.content.BookingUnavailable: No seats from LHR to OSL on 2026-11-14: the booking system is offline.",
+        "content_digest": "11d773e622de6b9d",
+        "finish_reason": "Error",
+        "observation_type": "tool"
+      },
+      {
+        "index": 3,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_JZP5mpzWIaVrELSZPKOJU4\",\"name\":\"book_flight\",\"input\":{\"origin\":\"LHR\",\"destination\":\"OSL\",\"date\":\"2026-11-14\"}}",
+        "content_digest": "270cd42ff51f5265",
+        "tool_name": "book_flight",
+        "observation_type": "generation"
+      },
+      {
+        "index": 4,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "harness.content.BookingUnavailable: No seats from London to Oslo on 2026-11-14: the booking system is offline.",
+        "content_digest": "d955a74e64f462f7",
+        "finish_reason": "Error",
+        "observation_type": "tool"
+      },
+      {
+        "index": 5,
+        "role": "system",
+        "entry_type": "text",
+        "content": "You are an expert assistant who can solve any task using tool calls. You will be given a task to solve as best you can. To do so, you have been given access to some tools. The tool call you write is an action: after the tool is executed, yo…[3472 chars]",
+        "content_digest": "01ad33c080d1fea6",
+        "observation_type": "generation"
+      },
+      {
+        "index": 6,
+        "role": "user",
+        "entry_type": "text",
+        "content": "New task: Book me a flight from London to Oslo on 2026-11-14.",
+        "content_digest": "5794b9c78b452864",
+        "observation_type": "generation"
+      },
+      {
+        "index": 7,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_u9zL60LC34rxhkCRhkfTRV\",\"name\":\"book_flight\",\"input\":{\"origin\":\"London\",\"destination\":\"Oslo\",\"date\":\"2026-11-14\"}}",
+        "content_digest": "12d5a8fd7bfe7207",
+        "tool_name": "book_flight",
+        "observation_type": "generation"
+      }
+    ]
+  }
+}

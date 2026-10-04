@@ -122,8 +122,8 @@ the corpus matches it.
 | `rust/sdk` | SideSeat Rust 0.2.0 / OpenTelemetry Rust 0.33.0 on Rust 1.94.1 | 1 | 1 |
 | `semantic-kernel/native` | Semantic Kernel 1.44.1 / OpenAI 3.22.1 / OpenTelemetry Python 1.45.0, native OTLP setup | 1 | 1 |
 | `semantic-kernel/sdk` | SideSeat Python 1.0.8 / Semantic Kernel 1.44.1 / OpenAI 3.22.1 / OpenTelemetry Python 1.45.0 | 1 | 1 |
-| `smolagents/native` | Smolagents 1.26.0 / OpenAI 3.22.1 / OpenInference Smolagents instrumentor 0.1.41 / OpenTelemetry Python 1.45.0 on CPython 3.13.7, native OTLP setup | 1 | 1 |
-| `smolagents/sdk` | SideSeat Python 1.0.8 / Smolagents 1.26.0 / OpenAI 3.22.1 / OpenInference Smolagents instrumentor 0.1.41 / OpenTelemetry Python 1.45.0 on CPython 3.13.7 | 1 | 1 |
+| `smolagents/native` | Smolagents 1.26.0 / LiteLLM 1.103.2 (Bedrock) / OpenInference Smolagents instrumentor 0.1.42 / OpenTelemetry Python 1.45.0 on CPython 3.14.7, native OTLP setup; no `structured_output` or `files` (unsupported) and no `mcp_tools` (its MCP adapter misreads the server schema) | 8 | 15 |
+| `smolagents/sdk` | SideSeat Python 2.0.0 / Smolagents 1.26.0 / LiteLLM 1.103.2 (Bedrock) / OpenInference Smolagents instrumentor 0.1.42 / OpenTelemetry Python 1.45.0 on CPython 3.14.7 | 8 | 8 |
 | `strands-js/legacy` | @strands-agents/sdk ^1.14.0 | 7 | 12 |
 | `strands/native` | Strands Agents 1.57.2 / OpenTelemetry Python 1.45.0 on CPython 3.14.7, `StrandsTelemetry` | 11 | 14 |
 | `strands/sdk` | SideSeat Python 2.0.0 / Strands Agents 1.57.2 / OpenTelemetry Python 1.45.0 on CPython 3.14.7 | 11 | 11 |
@@ -260,12 +260,7 @@ OPENAI_BASE_URL=http://127.0.0.1:5401/v1 \
 CAPTURE_MODEL=gpt-5-nano-2025-08-07 \
   scripts/message-fixtures/capture.sh semantic-kernel canonical both
 
-scripts/message-fixtures/fake-openai.py --port 5401
-# In another shell:
-OPENAI_API_KEY=x \
-OPENAI_BASE_URL=http://127.0.0.1:5401/v1 \
-CAPTURE_MODEL=gpt-5-nano-2025-08-07 \
-  scripts/message-fixtures/capture.sh smolagents canonical both
+make capture P=smolagents
 
 scripts/message-fixtures/fake-openai.py --port 5401
 # In another shell:

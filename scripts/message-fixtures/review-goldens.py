@@ -213,6 +213,54 @@ INTENTIONAL_WARNINGS: dict[str, dict[str, tuple[int, str]]] = {
             "structured assistant output is canonically represented as JSON",
         ),
     },
+    "smolagents/native/chat": {
+        "unbalanced_tools": (
+            2,
+            "the model wrote final_answer as text, which Smolagents parsed; only the result is a block",
+        ),
+    },
+    "smolagents/native/error": {
+        "unbalanced_tools": (
+            2,
+            "the two failed book_flight calls are reported as span errors, not tool results",
+        ),
+    },
+    "smolagents/native/multi_agent": {
+        "unbalanced_tools": (
+            2,
+            "the managed researcher returns through its own final_answer; its call has no result",
+        ),
+    },
+    "smolagents/native/multi_turn": {
+        "unbalanced_tools": (
+            2,
+            "one final_answer was written as text, which Smolagents parsed; only the result is a block",
+        ),
+    },
+    "smolagents/sdk/chat": {
+        "unbalanced_tools": (
+            2,
+            "the model wrote final_answer as text, which Smolagents parsed; only the result is a block",
+        ),
+    },
+    "smolagents/sdk/error": {
+        "unbalanced_tools": (
+            2,
+            "the two failed book_flight calls are reported as span errors, not tool results",
+        ),
+    },
+    "smolagents/sdk/multi_agent": {
+        "unbalanced_tools": (
+            2,
+            "the managed researcher returns through its own final_answer; its call has no result",
+        ),
+    },
+    "smolagents/sdk/multi_turn": {
+        "unbalanced_tools": (
+            2,
+            "one final_answer was written as text, which Smolagents parsed; only the result is a block",
+        ),
+    },
     "strands/structured_output": {
         "json_block": (
             1,

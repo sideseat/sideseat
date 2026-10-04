@@ -1,0 +1,24 @@
+{
+ "interactions": [
+  {
+   "method": "POST",
+   "path": "/model/global.anthropic.claude-sonnet-5-5/converse",
+   "status": 200,
+   "headers": {
+    "content-type": "application/json"
+   },
+   "body": "eyJtZXRyaWNzIjp7ImxhdGVuY3lNcyI6MTI5N30sIm91dHB1dCI6eyJtZXNzYWdlIjp7ImNvbnRlbnQiOlt7InRvb2xVc2UiOnsiaW5wdXQiOnsiYW5zd2VyIjoiVmlzaXQgdGhlIE11c2VvIGRlbCBQcmFkbywgTWFkcmlkJ3MgcHJlbWllciBhcnQgbXVzZXVtLCBob21lIHRvIG1hc3RlcnBpZWNlcyBieSBWZWzDoXpxdWV6LCBHb3lhLCBhbmQgRWwgR3JlY28uIEl0J3MgbG9jYXRlZCBvbiBQYXNlbyBkZWwgUHJhZG8sIG5lYXIgUmV0aXJvIFBhcmssIHNvIHlvdSBjYW4gZWFzaWx5IGNvbWJpbmUgdGhlIHR3by4ifSwibmFtZSI6ImZpbmFsX2Fuc3dlciIsInRvb2xVc2VJZCI6InRvb2x1c2VfZ0RiaW5rMEY2dDJoajRvWVFDU0VRYiIsInR5cGUiOiJ0b29sX3VzZSJ9fV0sInJvbGUiOiJhc3Npc3RhbnQifX0sInN0b3BSZWFzb24iOiJ0b29sX3VzZSIsInVzYWdlIjp7ImNhY2hlUmVhZElucHV0VG9rZW5Db3VudCI6MCwiY2FjaGVSZWFkSW5wdXRUb2tlbnMiOjAsImNhY2hlV3JpdGVJbnB1dFRva2VuQ291bnQiOjAsImNhY2hlV3JpdGVJbnB1dFRva2VucyI6MCwiaW5wdXRUb2tlbnMiOjE1NzksIm91dHB1dFRva2VucyI6MTI2LCJzZXJ2ZXJUb29sVXNhZ2UiOnt9LCJ0b3RhbFRva2VucyI6MTcwNX19",
+   "request_sha256": "9e5dc15319412a1623365722e4b392d1b3ff37f8d329463f7bf180cc1d5b5b70"
+  },
+  {
+   "method": "POST",
+   "path": "/model/global.anthropic.claude-sonnet-5-5/converse",
+   "status": 200,
+   "headers": {
+    "content-type": "application/json"
+   },
+   "body": "eyJtZXRyaWNzIjp7ImxhdGVuY3lNcyI6MTYwNn0sIm91dHB1dCI6eyJtZXNzYWdlIjp7ImNvbnRlbnQiOlt7InRvb2xVc2UiOnsiaW5wdXQiOnsiYW5zd2VyIjoiVmlzaXQgUmV0aXJvIFBhcmsgKFBhcnF1ZSBkZWwgQnVlbiBSZXRpcm8pIOKAlCBNYWRyaWQncyBtb3N0IGZhbW91cyBwYXJrLCB3aXRoIGEgYm9hdGluZyBsYWtlLCB0aGUgQ3J5c3RhbCBQYWxhY2UsIGFuZCBiZWF1dGlmdWwgZ2FyZGVucyBwZXJmZWN0IGZvciBhIHJlbGF4ZWQgc3Ryb2xsLiJ9LCJuYW1lIjoiZmluYWxfYW5zd2VyIiwidG9vbFVzZUlkIjoidG9vbHVzZV9QQW1kTTAyelc0Z0c0QnhEM08xQnVLIiwidHlwZSI6InRvb2xfdXNlIn19XSwicm9sZSI6ImFzc2lzdGFudCJ9fSwic3RvcFJlYXNvbiI6InRvb2xfdXNlIiwidXNhZ2UiOnsiY2FjaGVSZWFkSW5wdXRUb2tlbkNvdW50IjowLCJjYWNoZVJlYWRJbnB1dFRva2VucyI6MCwiY2FjaGVXcml0ZUlucHV0VG9rZW5Db3VudCI6MCwiY2FjaGVXcml0ZUlucHV0VG9rZW5zIjowLCJpbnB1dFRva2VucyI6MTU3OCwib3V0cHV0VG9rZW5zIjoxMTgsInNlcnZlclRvb2xVc2FnZSI6e30sInRvdGFsVG9rZW5zIjoxNjk2fX0=",
+   "request_sha256": "a8327f055ac3731affdb0a464f980a05a4e43c90cab90f3a4773fcc832227ba6"
+  }
+ ]
+}

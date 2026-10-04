@@ -1,0 +1,580 @@
+{
+  "label": "smolagents/sdk/multi_turn",
+  "request_count": 1,
+  "span_count": 13,
+  "trace_count": 1,
+  "session_count": 1,
+  "span_views": {
+    "trace-1/FinalAnswerTool/span-13": {
+      "message_count": 1,
+      "role_sequence": [
+        "tool"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "Stay in Baixa/Chiado for its central, walkable location, and try pastéis de nata (or bacalhau à Brás if you prefer something savory).",
+          "content_digest": "795639007814503d",
+          "tool_name": "final_answer",
+          "observation_type": "tool"
+        }
+      ]
+    },
+    "trace-1/FinalAnswerTool/span-5": {
+      "message_count": 1,
+      "role_sequence": [
+        "tool"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "Stay in Baixa/Chiado, Lisbon's central district. It's walkable to major sights, restaurants and nightlife, and it has excellent metro, tram and train connections, so it suits a short weekend. Alfama is a good alternative if you prefer a mor…[269 chars]",
+          "content_digest": "0660d09df0d7c4df",
+          "tool_name": "final_answer",
+          "observation_type": "tool"
+        }
+      ]
+    },
+    "trace-1/FinalAnswerTool/span-9": {
+      "message_count": 1,
+      "role_sequence": [
+        "tool"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "Try pastéis de nata, Lisbon's famous custard tarts, ideally warm from a bakery like Pastéis de Belém. If you want something savory, bacalhau à Brás (shredded salted cod with eggs and potatoes) is a classic local dish.",
+          "content_digest": "ced7e4d931e7a4bc",
+          "tool_name": "final_answer",
+          "observation_type": "tool"
+        }
+      ]
+    },
+    "trace-1/LiteLLMModel.generate/span-12": {
+      "message_count": 5,
+      "role_sequence": [
+        "system",
+        "user",
+        "user",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [
+        "final_answer"
+      ],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are an expert assistant who can solve any task using tool calls. You will be given a task to solve as best you can. To do so, you have been given access to some tools. The tool call you write is an action: after the tool is executed, yo…[3203 chars]",
+          "content_digest": "2508dbf9c52c7d01",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "New task: I am planning a weekend in Lisbon. Name one neighbourhood to stay in.",
+          "content_digest": "5713701657376a0d",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "user",
+          "entry_type": "text",
+          "content": "New task: What is one dish I should try there?",
+          "content_digest": "7684f0744a4b4be0",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "user",
+          "entry_type": "text",
+          "content": "New task: Summarise your two suggestions in one sentence.",
+          "content_digest": "1e2bb3c491c982cd",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Action: { \"name\": \"final_answer\", \"arguments\": {\"answer\": \"Stay in Baixa/Chiado for its central, walkable location, and try pastéis de nata (or bacalhau à Brás if you prefer something savory).\"} }",
+          "content_digest": "4b253e4200aef158",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/LiteLLMModel.generate/span-4": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [
+        "final_answer"
+      ],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are an expert assistant who can solve any task using tool calls. You will be given a task to solve as best you can. To do so, you have been given access to some tools. The tool call you write is an action: after the tool is executed, yo…[3203 chars]",
+          "content_digest": "2508dbf9c52c7d01",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "New task: I am planning a weekend in Lisbon. Name one neighbourhood to stay in.",
+          "content_digest": "5713701657376a0d",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_waHzMmR7Pmb12RodIMGtwx\",\"name\":\"final_answer\",\"input\":{\"answer\":\"Stay in Baixa/Chiado, Lisbon's central district. It's walkable to major sights, restaurants and nightlife, and it has excellent metro, tram an…[370 chars]",
+          "content_digest": "8ade26dffa8a07b1",
+          "tool_name": "final_answer",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/LiteLLMModel.generate/span-8": {
+      "message_count": 4,
+      "role_sequence": [
+        "system",
+        "user",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [
+        "final_answer"
+      ],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are an expert assistant who can solve any task using tool calls. You will be given a task to solve as best you can. To do so, you have been given access to some tools. The tool call you write is an action: after the tool is executed, yo…[3203 chars]",
+          "content_digest": "2508dbf9c52c7d01",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "New task: I am planning a weekend in Lisbon. Name one neighbourhood to stay in.",
+          "content_digest": "5713701657376a0d",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "user",
+          "entry_type": "text",
+          "content": "New task: What is one dish I should try there?",
+          "content_digest": "7684f0744a4b4be0",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_fK6oLjlrd06UHX2x4A9Ucy\",\"name\":\"final_answer\",\"input\":{\"answer\":\"Try pastéis de nata, Lisbon's famous custard tarts, ideally warm from a bakery like Pastéis de Belém. If you want something savory, bacalhau à…[318 chars]",
+          "content_digest": "3740572c7c6a00b9",
+          "tool_name": "final_answer",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/Step 1/span-11": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/Step 1/span-3": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/Step 1/span-7": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/ToolCallingAgent.run/span-10": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/ToolCallingAgent.run/span-2": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/ToolCallingAgent.run/span-6": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/multi-turn/span-1": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    }
+  },
+  "trace_views": {
+    "trace-1": {
+      "message_count": 10,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "tool",
+        "user",
+        "assistant",
+        "tool",
+        "user",
+        "assistant",
+        "tool"
+      ],
+      "tool_names": [
+        "final_answer"
+      ],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are an expert assistant who can solve any task using tool calls. You will be given a task to solve as best you can. To do so, you have been given access to some tools. The tool call you write is an action: after the tool is executed, yo…[3203 chars]",
+          "content_digest": "2508dbf9c52c7d01",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "New task: I am planning a weekend in Lisbon. Name one neighbourhood to stay in.",
+          "content_digest": "5713701657376a0d",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_waHzMmR7Pmb12RodIMGtwx\",\"name\":\"final_answer\",\"input\":{\"answer\":\"Stay in Baixa/Chiado, Lisbon's central district. It's walkable to major sights, restaurants and nightlife, and it has excellent metro, tram an…[370 chars]",
+          "content_digest": "8ade26dffa8a07b1",
+          "tool_name": "final_answer",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "Stay in Baixa/Chiado, Lisbon's central district. It's walkable to major sights, restaurants and nightlife, and it has excellent metro, tram and train connections, so it suits a short weekend. Alfama is a good alternative if you prefer a mor…[269 chars]",
+          "content_digest": "eedc665eb90e77ab",
+          "tool_name": "final_answer",
+          "observation_type": "tool"
+        },
+        {
+          "index": 4,
+          "role": "user",
+          "entry_type": "text",
+          "content": "New task: What is one dish I should try there?",
+          "content_digest": "7684f0744a4b4be0",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_fK6oLjlrd06UHX2x4A9Ucy\",\"name\":\"final_answer\",\"input\":{\"answer\":\"Try pastéis de nata, Lisbon's famous custard tarts, ideally warm from a bakery like Pastéis de Belém. If you want something savory, bacalhau à…[318 chars]",
+          "content_digest": "3740572c7c6a00b9",
+          "tool_name": "final_answer",
+          "observation_type": "generation"
+        },
+        {
+          "index": 6,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "Try pastéis de nata, Lisbon's famous custard tarts, ideally warm from a bakery like Pastéis de Belém. If you want something savory, bacalhau à Brás (shredded salted cod with eggs and potatoes) is a classic local dish.",
+          "content_digest": "242f2a2fb208c1e4",
+          "tool_name": "final_answer",
+          "observation_type": "tool"
+        },
+        {
+          "index": 7,
+          "role": "user",
+          "entry_type": "text",
+          "content": "New task: Summarise your two suggestions in one sentence.",
+          "content_digest": "1e2bb3c491c982cd",
+          "observation_type": "generation"
+        },
+        {
+          "index": 8,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Action: { \"name\": \"final_answer\", \"arguments\": {\"answer\": \"Stay in Baixa/Chiado for its central, walkable location, and try pastéis de nata (or bacalhau à Brás if you prefer something savory).\"} }",
+          "content_digest": "4b253e4200aef158",
+          "observation_type": "generation"
+        },
+        {
+          "index": 9,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "Stay in Baixa/Chiado for its central, walkable location, and try pastéis de nata (or bacalhau à Brás if you prefer something savory).",
+          "content_digest": "795639007814503d",
+          "tool_name": "final_answer",
+          "observation_type": "tool"
+        }
+      ]
+    }
+  },
+  "session_views": {
+    "smolagents-multi_turn": {
+      "message_count": 10,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "tool",
+        "user",
+        "assistant",
+        "tool",
+        "user",
+        "assistant",
+        "tool"
+      ],
+      "tool_names": [
+        "final_answer"
+      ],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are an expert assistant who can solve any task using tool calls. You will be given a task to solve as best you can. To do so, you have been given access to some tools. The tool call you write is an action: after the tool is executed, yo…[3203 chars]",
+          "content_digest": "2508dbf9c52c7d01",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "New task: I am planning a weekend in Lisbon. Name one neighbourhood to stay in.",
+          "content_digest": "5713701657376a0d",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_waHzMmR7Pmb12RodIMGtwx\",\"name\":\"final_answer\",\"input\":{\"answer\":\"Stay in Baixa/Chiado, Lisbon's central district. It's walkable to major sights, restaurants and nightlife, and it has excellent metro, tram an…[370 chars]",
+          "content_digest": "8ade26dffa8a07b1",
+          "tool_name": "final_answer",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "Stay in Baixa/Chiado, Lisbon's central district. It's walkable to major sights, restaurants and nightlife, and it has excellent metro, tram and train connections, so it suits a short weekend. Alfama is a good alternative if you prefer a mor…[269 chars]",
+          "content_digest": "eedc665eb90e77ab",
+          "tool_name": "final_answer",
+          "observation_type": "tool"
+        },
+        {
+          "index": 4,
+          "role": "user",
+          "entry_type": "text",
+          "content": "New task: What is one dish I should try there?",
+          "content_digest": "7684f0744a4b4be0",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_fK6oLjlrd06UHX2x4A9Ucy\",\"name\":\"final_answer\",\"input\":{\"answer\":\"Try pastéis de nata, Lisbon's famous custard tarts, ideally warm from a bakery like Pastéis de Belém. If you want something savory, bacalhau à…[318 chars]",
+          "content_digest": "3740572c7c6a00b9",
+          "tool_name": "final_answer",
+          "observation_type": "generation"
+        },
+        {
+          "index": 6,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "Try pastéis de nata, Lisbon's famous custard tarts, ideally warm from a bakery like Pastéis de Belém. If you want something savory, bacalhau à Brás (shredded salted cod with eggs and potatoes) is a classic local dish.",
+          "content_digest": "242f2a2fb208c1e4",
+          "tool_name": "final_answer",
+          "observation_type": "tool"
+        },
+        {
+          "index": 7,
+          "role": "user",
+          "entry_type": "text",
+          "content": "New task: Summarise your two suggestions in one sentence.",
+          "content_digest": "1e2bb3c491c982cd",
+          "observation_type": "generation"
+        },
+        {
+          "index": 8,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Action: { \"name\": \"final_answer\", \"arguments\": {\"answer\": \"Stay in Baixa/Chiado for its central, walkable location, and try pastéis de nata (or bacalhau à Brás if you prefer something savory).\"} }",
+          "content_digest": "4b253e4200aef158",
+          "observation_type": "generation"
+        },
+        {
+          "index": 9,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "Stay in Baixa/Chiado for its central, walkable location, and try pastéis de nata (or bacalhau à Brás if you prefer something savory).",
+          "content_digest": "795639007814503d",
+          "tool_name": "final_answer",
+          "observation_type": "tool"
+        }
+      ]
+    }
+  },
+  "feed_view": {
+    "message_count": 10,
+    "role_sequence": [
+      "tool",
+      "user",
+      "assistant",
+      "tool",
+      "user",
+      "assistant",
+      "tool",
+      "system",
+      "user",
+      "assistant"
+    ],
+    "tool_names": [
+      "final_answer"
+    ],
+    "tool_definition_count": 1,
+    "messages": [
+      {
+        "index": 0,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "Stay in Baixa/Chiado for its central, walkable location, and try pastéis de nata (or bacalhau à Brás if you prefer something savory).",
+        "content_digest": "795639007814503d",
+        "tool_name": "final_answer",
+        "observation_type": "tool"
+      },
+      {
+        "index": 1,
+        "role": "user",
+        "entry_type": "text",
+        "content": "New task: Summarise your two suggestions in one sentence.",
+        "content_digest": "1e2bb3c491c982cd",
+        "observation_type": "generation"
+      },
+      {
+        "index": 2,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "Action: { \"name\": \"final_answer\", \"arguments\": {\"answer\": \"Stay in Baixa/Chiado for its central, walkable location, and try pastéis de nata (or bacalhau à Brás if you prefer something savory).\"} }",
+        "content_digest": "4b253e4200aef158",
+        "observation_type": "generation"
+      },
+      {
+        "index": 3,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "Try pastéis de nata, Lisbon's famous custard tarts, ideally warm from a bakery like Pastéis de Belém. If you want something savory, bacalhau à Brás (shredded salted cod with eggs and potatoes) is a classic local dish.",
+        "content_digest": "242f2a2fb208c1e4",
+        "tool_name": "final_answer",
+        "observation_type": "tool"
+      },
+      {
+        "index": 4,
+        "role": "user",
+        "entry_type": "text",
+        "content": "New task: What is one dish I should try there?",
+        "content_digest": "7684f0744a4b4be0",
+        "observation_type": "generation"
+      },
+      {
+        "index": 5,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_fK6oLjlrd06UHX2x4A9Ucy\",\"name\":\"final_answer\",\"input\":{\"answer\":\"Try pastéis de nata, Lisbon's famous custard tarts, ideally warm from a bakery like Pastéis de Belém. If you want something savory, bacalhau à…[318 chars]",
+        "content_digest": "3740572c7c6a00b9",
+        "tool_name": "final_answer",
+        "observation_type": "generation"
+      },
+      {
+        "index": 6,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "Stay in Baixa/Chiado, Lisbon's central district. It's walkable to major sights, restaurants and nightlife, and it has excellent metro, tram and train connections, so it suits a short weekend. Alfama is a good alternative if you prefer a mor…[269 chars]",
+        "content_digest": "eedc665eb90e77ab",
+        "tool_name": "final_answer",
+        "observation_type": "tool"
+      },
+      {
+        "index": 7,
+        "role": "system",
+        "entry_type": "text",
+        "content": "You are an expert assistant who can solve any task using tool calls. You will be given a task to solve as best you can. To do so, you have been given access to some tools. The tool call you write is an action: after the tool is executed, yo…[3203 chars]",
+        "content_digest": "2508dbf9c52c7d01",
+        "observation_type": "generation"
+      },
+      {
+        "index": 8,
+        "role": "user",
+        "entry_type": "text",
+        "content": "New task: I am planning a weekend in Lisbon. Name one neighbourhood to stay in.",
+        "content_digest": "5713701657376a0d",
+        "observation_type": "generation"
+      },
+      {
+        "index": 9,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_waHzMmR7Pmb12RodIMGtwx\",\"name\":\"final_answer\",\"input\":{\"answer\":\"Stay in Baixa/Chiado, Lisbon's central district. It's walkable to major sights, restaurants and nightlife, and it has excellent metro, tram an…[370 chars]",
+        "content_digest": "8ade26dffa8a07b1",
+        "tool_name": "final_answer",
+        "observation_type": "generation"
+      }
+    ]
+  }
+}

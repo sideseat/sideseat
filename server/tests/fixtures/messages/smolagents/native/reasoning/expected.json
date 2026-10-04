@@ -1,0 +1,275 @@
+{
+  "label": "smolagents/native/reasoning",
+  "request_count": 1,
+  "span_count": 5,
+  "trace_count": 1,
+  "session_count": 1,
+  "span_views": {
+    "trace-1/FinalAnswerTool/span-5": {
+      "message_count": 1,
+      "role_sequence": [
+        "tool"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "The fastest total crossing time is 17 minutes. Schedule (travellers are named by their crossing times, 1, 2, 5 and 10): 1. The 1 and the 2 cross together. This takes 2 minutes, for a running total of 2. 2. The 1 returns with the torch. This…[878 chars]",
+          "content_digest": "f39e9726b4e3a095",
+          "tool_name": "final_answer",
+          "observation_type": "tool"
+        }
+      ]
+    },
+    "trace-1/LiteLLMModel.generate/span-4": {
+      "message_count": 4,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "assistant"
+      ],
+      "tool_names": [
+        "final_answer"
+      ],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are an expert assistant who can solve any task using tool calls. You will be given a task to solve as best you can. To do so, you have been given access to some tools. The tool call you write is an action: after the tool is executed, yo…[3068 chars]",
+          "content_digest": "042f57cf77b032e1",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "New task: Four travellers must cross a bridge at night with one torch. At most two cross at a time and a pair moves at the slower person's pace. They take 1, 2, 5 and 10 minutes. What is the fastest total crossing time, and what is the sche…[245 chars]",
+          "content_digest": "1600b2e9ef101b6c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "This is the classic bridge crossing puzzle with the optimal 17-minute solution: send 1&2 across, send 1 back, send 5&10 across, send 2 back, then send 1&2 across again. I'll give 17 minutes as the final answer.",
+          "content_digest": "284c02b92b8b0093",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_WFVXb2wRXrKGe1lUSjDt85\",\"name\":\"final_answer\",\"input\":{\"answer\":\"The fastest total crossing time is 17 minutes.\\n\\nSchedule (travellers are named by their crossing times, 1, 2, 5 and 10):\\n1. The 1 and the 2…[993 chars]",
+          "content_digest": "b4e9f90055d623f7",
+          "tool_name": "final_answer",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/Step 1/span-3": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/ToolCallingAgent.run/span-2": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/reasoning/span-1": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    }
+  },
+  "trace_views": {
+    "trace-1": {
+      "message_count": 5,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "assistant",
+        "tool"
+      ],
+      "tool_names": [
+        "final_answer"
+      ],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are an expert assistant who can solve any task using tool calls. You will be given a task to solve as best you can. To do so, you have been given access to some tools. The tool call you write is an action: after the tool is executed, yo…[3068 chars]",
+          "content_digest": "042f57cf77b032e1",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "New task: Four travellers must cross a bridge at night with one torch. At most two cross at a time and a pair moves at the slower person's pace. They take 1, 2, 5 and 10 minutes. What is the fastest total crossing time, and what is the sche…[245 chars]",
+          "content_digest": "1600b2e9ef101b6c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "This is the classic bridge crossing puzzle with the optimal 17-minute solution: send 1&2 across, send 1 back, send 5&10 across, send 2 back, then send 1&2 across again. I'll give 17 minutes as the final answer.",
+          "content_digest": "284c02b92b8b0093",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_WFVXb2wRXrKGe1lUSjDt85\",\"name\":\"final_answer\",\"input\":{\"answer\":\"The fastest total crossing time is 17 minutes.\\n\\nSchedule (travellers are named by their crossing times, 1, 2, 5 and 10):\\n1. The 1 and the 2…[993 chars]",
+          "content_digest": "b4e9f90055d623f7",
+          "tool_name": "final_answer",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "The fastest total crossing time is 17 minutes. Schedule (travellers are named by their crossing times, 1, 2, 5 and 10): 1. The 1 and the 2 cross together. This takes 2 minutes, for a running total of 2. 2. The 1 returns with the torch. This…[878 chars]",
+          "content_digest": "b0666d166a7051d3",
+          "tool_name": "final_answer",
+          "observation_type": "tool"
+        }
+      ]
+    }
+  },
+  "session_views": {
+    "smolagents-reasoning": {
+      "message_count": 5,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "assistant",
+        "tool"
+      ],
+      "tool_names": [
+        "final_answer"
+      ],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are an expert assistant who can solve any task using tool calls. You will be given a task to solve as best you can. To do so, you have been given access to some tools. The tool call you write is an action: after the tool is executed, yo…[3068 chars]",
+          "content_digest": "042f57cf77b032e1",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "New task: Four travellers must cross a bridge at night with one torch. At most two cross at a time and a pair moves at the slower person's pace. They take 1, 2, 5 and 10 minutes. What is the fastest total crossing time, and what is the sche…[245 chars]",
+          "content_digest": "1600b2e9ef101b6c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "This is the classic bridge crossing puzzle with the optimal 17-minute solution: send 1&2 across, send 1 back, send 5&10 across, send 2 back, then send 1&2 across again. I'll give 17 minutes as the final answer.",
+          "content_digest": "284c02b92b8b0093",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_WFVXb2wRXrKGe1lUSjDt85\",\"name\":\"final_answer\",\"input\":{\"answer\":\"The fastest total crossing time is 17 minutes.\\n\\nSchedule (travellers are named by their crossing times, 1, 2, 5 and 10):\\n1. The 1 and the 2…[993 chars]",
+          "content_digest": "b4e9f90055d623f7",
+          "tool_name": "final_answer",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "The fastest total crossing time is 17 minutes. Schedule (travellers are named by their crossing times, 1, 2, 5 and 10): 1. The 1 and the 2 cross together. This takes 2 minutes, for a running total of 2. 2. The 1 returns with the torch. This…[878 chars]",
+          "content_digest": "b0666d166a7051d3",
+          "tool_name": "final_answer",
+          "observation_type": "tool"
+        }
+      ]
+    }
+  },
+  "feed_view": {
+    "message_count": 5,
+    "role_sequence": [
+      "tool",
+      "system",
+      "user",
+      "assistant",
+      "assistant"
+    ],
+    "tool_names": [
+      "final_answer"
+    ],
+    "tool_definition_count": 1,
+    "messages": [
+      {
+        "index": 0,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "The fastest total crossing time is 17 minutes. Schedule (travellers are named by their crossing times, 1, 2, 5 and 10): 1. The 1 and the 2 cross together. This takes 2 minutes, for a running total of 2. 2. The 1 returns with the torch. This…[878 chars]",
+        "content_digest": "b0666d166a7051d3",
+        "tool_name": "final_answer",
+        "observation_type": "tool"
+      },
+      {
+        "index": 1,
+        "role": "system",
+        "entry_type": "text",
+        "content": "You are an expert assistant who can solve any task using tool calls. You will be given a task to solve as best you can. To do so, you have been given access to some tools. The tool call you write is an action: after the tool is executed, yo…[3068 chars]",
+        "content_digest": "042f57cf77b032e1",
+        "observation_type": "generation"
+      },
+      {
+        "index": 2,
+        "role": "user",
+        "entry_type": "text",
+        "content": "New task: Four travellers must cross a bridge at night with one torch. At most two cross at a time and a pair moves at the slower person's pace. They take 1, 2, 5 and 10 minutes. What is the fastest total crossing time, and what is the sche…[245 chars]",
+        "content_digest": "1600b2e9ef101b6c",
+        "observation_type": "generation"
+      },
+      {
+        "index": 3,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "This is the classic bridge crossing puzzle with the optimal 17-minute solution: send 1&2 across, send 1 back, send 5&10 across, send 2 back, then send 1&2 across again. I'll give 17 minutes as the final answer.",
+        "content_digest": "284c02b92b8b0093",
+        "observation_type": "generation"
+      },
+      {
+        "index": 4,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_WFVXb2wRXrKGe1lUSjDt85\",\"name\":\"final_answer\",\"input\":{\"answer\":\"The fastest total crossing time is 17 minutes.\\n\\nSchedule (travellers are named by their crossing times, 1, 2, 5 and 10):\\n1. The 1 and the 2…[993 chars]",
+        "content_digest": "b4e9f90055d623f7",
+        "tool_name": "final_answer",
+        "observation_type": "generation"
+      }
+    ]
+  }
+}

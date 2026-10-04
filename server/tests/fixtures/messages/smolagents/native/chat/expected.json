@@ -1,0 +1,235 @@
+{
+  "label": "smolagents/native/chat",
+  "request_count": 1,
+  "span_count": 5,
+  "trace_count": 1,
+  "session_count": 1,
+  "span_views": {
+    "trace-1/FinalAnswerTool/span-5": {
+      "message_count": 1,
+      "role_sequence": [
+        "tool"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "Kyoto is best known for its well-preserved classical Japanese culture, including thousands of temples and shrines, traditional geisha districts, and its history as Japan's imperial capital for over a thousand years.",
+          "content_digest": "ce9b5918552d8c96",
+          "tool_name": "final_answer",
+          "observation_type": "tool"
+        }
+      ]
+    },
+    "trace-1/LiteLLMModel.generate/span-4": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [
+        "final_answer"
+      ],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are an expert assistant who can solve any task using tool calls. You will be given a task to solve as best you can. To do so, you have been given access to some tools. The tool call you write is an action: after the tool is executed, yo…[3203 chars]",
+          "content_digest": "2508dbf9c52c7d01",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "New task: In one sentence, what is Kyoto best known for?",
+          "content_digest": "d79a9e152649d61b",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Action: { \"name\": \"final_answer\", \"arguments\": {\"answer\": \"Kyoto is best known for its well-preserved classical Japanese culture, including thousands of temples and shrines, traditional geisha districts, and its history as Japan's imperial …[278 chars]",
+          "content_digest": "fee04dff512ba034",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/Step 1/span-3": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/ToolCallingAgent.run/span-2": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/chat/span-1": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    }
+  },
+  "trace_views": {
+    "trace-1": {
+      "message_count": 4,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "tool"
+      ],
+      "tool_names": [
+        "final_answer"
+      ],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are an expert assistant who can solve any task using tool calls. You will be given a task to solve as best you can. To do so, you have been given access to some tools. The tool call you write is an action: after the tool is executed, yo…[3203 chars]",
+          "content_digest": "2508dbf9c52c7d01",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "New task: In one sentence, what is Kyoto best known for?",
+          "content_digest": "d79a9e152649d61b",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Action: { \"name\": \"final_answer\", \"arguments\": {\"answer\": \"Kyoto is best known for its well-preserved classical Japanese culture, including thousands of temples and shrines, traditional geisha districts, and its history as Japan's imperial …[278 chars]",
+          "content_digest": "fee04dff512ba034",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "Kyoto is best known for its well-preserved classical Japanese culture, including thousands of temples and shrines, traditional geisha districts, and its history as Japan's imperial capital for over a thousand years.",
+          "content_digest": "ce9b5918552d8c96",
+          "tool_name": "final_answer",
+          "observation_type": "tool"
+        }
+      ]
+    }
+  },
+  "session_views": {
+    "smolagents-chat": {
+      "message_count": 4,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "tool"
+      ],
+      "tool_names": [
+        "final_answer"
+      ],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are an expert assistant who can solve any task using tool calls. You will be given a task to solve as best you can. To do so, you have been given access to some tools. The tool call you write is an action: after the tool is executed, yo…[3203 chars]",
+          "content_digest": "2508dbf9c52c7d01",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "New task: In one sentence, what is Kyoto best known for?",
+          "content_digest": "d79a9e152649d61b",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Action: { \"name\": \"final_answer\", \"arguments\": {\"answer\": \"Kyoto is best known for its well-preserved classical Japanese culture, including thousands of temples and shrines, traditional geisha districts, and its history as Japan's imperial …[278 chars]",
+          "content_digest": "fee04dff512ba034",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "Kyoto is best known for its well-preserved classical Japanese culture, including thousands of temples and shrines, traditional geisha districts, and its history as Japan's imperial capital for over a thousand years.",
+          "content_digest": "ce9b5918552d8c96",
+          "tool_name": "final_answer",
+          "observation_type": "tool"
+        }
+      ]
+    }
+  },
+  "feed_view": {
+    "message_count": 4,
+    "role_sequence": [
+      "tool",
+      "system",
+      "user",
+      "assistant"
+    ],
+    "tool_names": [
+      "final_answer"
+    ],
+    "tool_definition_count": 1,
+    "messages": [
+      {
+        "index": 0,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "Kyoto is best known for its well-preserved classical Japanese culture, including thousands of temples and shrines, traditional geisha districts, and its history as Japan's imperial capital for over a thousand years.",
+        "content_digest": "ce9b5918552d8c96",
+        "tool_name": "final_answer",
+        "observation_type": "tool"
+      },
+      {
+        "index": 1,
+        "role": "system",
+        "entry_type": "text",
+        "content": "You are an expert assistant who can solve any task using tool calls. You will be given a task to solve as best you can. To do so, you have been given access to some tools. The tool call you write is an action: after the tool is executed, yo…[3203 chars]",
+        "content_digest": "2508dbf9c52c7d01",
+        "observation_type": "generation"
+      },
+      {
+        "index": 2,
+        "role": "user",
+        "entry_type": "text",
+        "content": "New task: In one sentence, what is Kyoto best known for?",
+        "content_digest": "d79a9e152649d61b",
+        "observation_type": "generation"
+      },
+      {
+        "index": 3,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "Action: { \"name\": \"final_answer\", \"arguments\": {\"answer\": \"Kyoto is best known for its well-preserved classical Japanese culture, including thousands of temples and shrines, traditional geisha districts, and its history as Japan's imperial …[278 chars]",
+        "content_digest": "fee04dff512ba034",
+        "observation_type": "generation"
+      }
+    ]
+  }
+}
